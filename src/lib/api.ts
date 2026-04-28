@@ -1,4 +1,4 @@
-import type { Price, Investor } from "../types";
+import type { Price, Investor, Consensus } from "../types";
 
 const PROXY_URL =
   import.meta.env.VITE_PROXY_URL || "http://localhost:8787";
@@ -106,4 +106,98 @@ export async function fetchInvestor(ticker: string): Promise<Investor | null> {
     기타법인: Number(item.netOtherCorporationBuyVolume || 0),
     외국인비율: Number(item.foreignerRatio || 0),
   };
+}
+
+// 토스 wts-badges — 위험/관리/정지/경고/과열/환기/주의 (2글자 축약)
+// 우선순위: 위험 > 관리 > 정지 > 경고 > 과열 > 환기 > 주의
+interface TossBadgeItem { title: string; }
+interface TossBadgeResponse { result: TossBadgeItem[]; }
+
+const WARNING_MAP: [string, string][] = [
+  ["투자위험", "위험"],
+  ["관리종목", "관리"],
+  ["거래정지", "정지"],
+  ["투자경고", "경고"],
+  ["단기과열", "과열"],
+  ["투자주의환기", "환기"],
+  ["투자주의", "주의"],
+];
+
+export async function fetchWarning(ticker: string): Promise<string> {
+  const target = `https://wts-info-api.tossinvest.com/api/v1/stock-infos/A${ticker}/wts-badges`;
+  try {
+    const resp = await fetch(viaProxy(target));
+    if (!resp.ok) return "";
+    const data = await resp.json() as TossBadgeResponse;
+    const titles = (data.result || []).map(it => it.title || "").join(" ");
+    for (const [full, short] of WARNING_MAP) {
+      if (titles.includes(full)) return short;
+    }
+  } catch {
+    // ignore
+  }
+  return "";
+}
+
+// 네이버 금융 HTML 파싱 — 섹터 + 컨센서스 (목표주가 + 투자의견)
+// 단일 페이지 fetch 후 둘 다 추출 (네트워크 1회)
+export interface NaverInfo {
+  sector: string;
+  consensus: Consensus | null;
+}
+
+export async function fetchNaverInfo(ticker: string): Promise<NaverInfo> {
+  const target = `https://finance.naver.com/item/main.naver?code=${ticker}`;
+  const empty: NaverInfo = { sector: "", consensus: null };
+  try {
+    const resp = await fetch(viaProxy(target));
+    if (!resp.ok) return empty;
+    // Naver finance 는 EUC-KR 가능 — Content-Type 체크 후 디코딩
+    const buf = await resp.arrayBuffer();
+    const ct = resp.headers.get("Content-Type") || "";
+    const charset = /charset=([\w-]+)/i.exec(ct)?.[1]?.toLowerCase() || "euc-kr";
+    let html: string;
+    try {
+      html = new TextDecoder(charset).decode(buf);
+    } catch {
+      html = new TextDecoder("euc-kr").decode(buf);
+    }
+    const doc = new DOMParser().parseFromString(html, "text/html");
+
+    // 섹터 — 동일업종 링크 텍스트
+    let sector = "";
+    const links = doc.querySelectorAll("a[href*='sise_group_detail']");
+    if (links.length > 0) sector = links[0].textContent?.trim() || "";
+
+    // 컨센서스 — 목표주가 th 옆 td
+    let consensus: Consensus | null = null;
+    const ths = doc.querySelectorAll("th");
+    let targetTh: Element | null = null;
+    ths.forEach(th => {
+      if (!targetTh && th.textContent?.includes("목표주가")) targetTh = th;
+    });
+    if (targetTh) {
+      const td = (targetTh as Element).nextElementSibling;
+      if (td) {
+        const text = td.textContent || "";
+        // 가격: "293,200" 같은 숫자 (콤마 제거)
+        const m = text.match(/([\d,]+)\s*원?/);
+        const target = m ? Number(m[1].replace(/,/g, "")) : undefined;
+        // 투자의견 점수: <em>4.00</em>
+        const em = td.querySelector("em");
+        const score = em?.textContent ? Number(em.textContent.trim()) : undefined;
+        // 투자의견 텍스트 (span.f_up / .f_down 안)
+        const span = td.querySelector("span[class^='f_']");
+        const opinion = span?.textContent?.replace(String(score ?? ""), "").trim();
+        consensus = {
+          target: target && target > 0 ? target : undefined,
+          score: !Number.isNaN(score!) ? score : undefined,
+          opinion,
+        };
+      }
+    }
+    return { sector, consensus };
+  } catch {
+    return empty;
+  }
 }

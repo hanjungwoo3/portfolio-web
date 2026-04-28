@@ -1,93 +1,188 @@
+import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
-import { fetchTossPrices, fetchInvestor } from "./lib/api";
+import { fetchTossPrices, fetchInvestor, fetchWarning, fetchNaverInfo } from "./lib/api";
+import { loadHoldings, loadPeaks } from "./lib/db";
 import { StockCard } from "./components/StockCard";
-import type { Stock, Consensus } from "./types";
-
-// PoC 더미 — MVP 단계에서 IndexedDB 로 교체
-const DEMO_STOCKS: Stock[] = [
-  { ticker: "005930", name: "삼성전자", shares: 10, avg_price: 200000 },
-  { ticker: "000660", name: "SK하이닉스", shares: 5, avg_price: 150000 },
-  { ticker: "035420", name: "NAVER", shares: 3, avg_price: 180000 },
-  { ticker: "207940", name: "삼성바이오로직스", shares: 0, avg_price: 0 },
-];
-
-// 섹터 / 피크 / 컨센서스는 PoC mock — MVP 에서 Naver/Toss fetch 추가
-const DEMO_SECTOR: Record<string, string> = {
-  "005930": "반도체와반도체장비",
-  "000660": "반도체와반도체장비",
-  "035420": "양방향미디어와서비스",
-  "207940": "생명과학도구및서비스",
-};
-const DEMO_PEAK: Record<string, number> = {
-  "005930": 251500,
-  "000660": 220000,
-  "035420": 195000,
-};
-const DEMO_CONSENSUS: Record<string, Consensus> = {
-  "005930": { target: 293200, score: 4.00, opinion: "매수" },
-  "000660": { target: 250000, score: 4.42, opinion: "매수" },
-  "035420": { target: 240000, score: 4.10, opinion: "매수" },
-  "207940": { target: 1100000, score: 4.30, opinion: "매수" },
-};
+import { Tabs, buildTabs, filterByTab } from "./components/Tabs";
+import { TotalRow } from "./components/TotalRow";
+import { ImportJsonDialog } from "./components/ImportJsonDialog";
+import type { Stock } from "./types";
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 10_000,
-      refetchInterval: 30_000,
       refetchOnWindowFocus: true,
     },
   },
 });
 
-function PoCDashboard() {
-  const tickers = DEMO_STOCKS.map(s => s.ticker);
+function Dashboard() {
+  const [holdings, setHoldings] = useState<Stock[]>([]);
+  const [peaks, setPeaks] = useState<Map<string, number>>(new Map());
+  const [activeTab, setActiveTab] = useState<string>("");
+  const [importOpen, setImportOpen] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
+
+  // IndexedDB 로드
+  useEffect(() => {
+    void (async () => {
+      const [h, p] = await Promise.all([loadHoldings(), loadPeaks()]);
+      setHoldings(h);
+      setPeaks(p);
+    })();
+  }, [reloadKey]);
+
+  const tabs = useMemo(() => buildTabs(holdings), [holdings]);
+
+  // 데이터 로드 후 첫 탭 자동 선택
+  useEffect(() => {
+    if (tabs.length > 0 && !tabs.find(t => t.key === activeTab)) {
+      setActiveTab(tabs[0].key);
+    }
+  }, [tabs, activeTab]);
+
+  const visible = useMemo(
+    () => filterByTab(holdings, activeTab),
+    [holdings, activeTab]
+  );
+
+  // 보이는 종목만 KRX 6자리 필터링 (가격 fetch 대상)
+  const krxTickers = useMemo(
+    () => visible
+      .map(s => s.ticker)
+      .filter(t => /^\d{6}$/.test(t)),
+    [visible]
+  );
+
+  // 가격 — 30초 polling
   const { data: prices } = useQuery({
-    queryKey: ["toss-prices", tickers],
-    queryFn: () => fetchTossPrices(tickers),
+    queryKey: ["prices", krxTickers],
+    queryFn: () => fetchTossPrices(krxTickers),
+    enabled: krxTickers.length > 0,
+    refetchInterval: 30_000,
   });
 
-  // 종목별 수급 — 병렬 fetch
-  const investorQueries = useQueries({
-    queries: tickers.map(t => ({
-      queryKey: ["toss-investor", t],
+  // 종목별 수급 — 5분 polling, 병렬
+  const investorQs = useQueries({
+    queries: krxTickers.map(t => ({
+      queryKey: ["investor", t],
       queryFn: () => fetchInvestor(t),
       staleTime: 60_000,
       refetchInterval: 5 * 60_000,
     })),
   });
 
-  const priceMap = new Map((prices ?? []).map(p => [p.ticker, p]));
-  const investorMap = new Map(
-    investorQueries.map((q, i) => [tickers[i], q.data ?? null])
+  // 경고 뱃지 — 6시간 staleTime (자주 안 바뀜)
+  const warningQs = useQueries({
+    queries: krxTickers.map(t => ({
+      queryKey: ["warning", t],
+      queryFn: () => fetchWarning(t),
+      staleTime: 6 * 3600_000,
+    })),
+  });
+
+  // Naver info (섹터 + 컨센서스) — 1시간 staleTime
+  const naverQs = useQueries({
+    queries: krxTickers.map(t => ({
+      queryKey: ["naver", t],
+      queryFn: () => fetchNaverInfo(t),
+      staleTime: 3600_000,
+    })),
+  });
+
+  const priceMap = useMemo(
+    () => new Map((prices ?? []).map(p => [p.ticker, p])),
+    [prices]
+  );
+  const investorMap = useMemo(
+    () => new Map(investorQs.map((q, i) => [krxTickers[i], q.data ?? null])),
+    [investorQs, krxTickers]
+  );
+  const warningMap = useMemo(
+    () => new Map(warningQs.map((q, i) => [krxTickers[i], q.data ?? ""])),
+    [warningQs, krxTickers]
+  );
+  const naverMap = useMemo(
+    () => new Map(naverQs.map((q, i) => [krxTickers[i], q.data])),
+    [naverQs, krxTickers]
   );
 
+  // 빈 상태 — JSON import 안내
+  if (holdings.length === 0) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+        <div className="bg-white rounded-lg shadow-sm p-10 max-w-md text-center">
+          <div className="text-5xl mb-4">📈</div>
+          <h1 className="text-2xl font-bold mb-2">포트폴리오 v3</h1>
+          <p className="text-gray-600 mb-6">
+            아직 등록된 종목이 없습니다.<br />
+            데스크톱 v2/모바일의 holdings.json 을 가져와 시작하세요.
+          </p>
+          <button
+            onClick={() => setImportOpen(true)}
+            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700
+                       text-white rounded-md font-medium">
+            📥 JSON 가져오기
+          </button>
+        </div>
+        <ImportJsonDialog
+          isOpen={importOpen}
+          onClose={() => setImportOpen(false)}
+          onImported={() => setReloadKey(k => k + 1)}
+        />
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-gray-50 p-6">
-      <header className="max-w-6xl mx-auto mb-6">
-        <h1 className="text-2xl font-bold text-gray-900">📈 포트폴리오 v3 PoC</h1>
-        <p className="text-sm text-gray-500 mt-1">
-          Toss 가격 + 수급 라이브 · 섹터/피크/컨센서스는 데모 mock (MVP 에서 실제 fetch)
-        </p>
+    <div className="min-h-screen bg-gray-50">
+      <header className="bg-white border-b border-gray-200 px-6 py-4
+                          sticky top-0 z-10">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <h1 className="text-xl font-bold text-gray-900">📈 포트폴리오</h1>
+          <button
+            onClick={() => setImportOpen(true)}
+            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
+                       text-gray-700 rounded text-sm">
+            📥 가져오기
+          </button>
+        </div>
       </header>
 
-      <main className="max-w-6xl mx-auto grid grid-cols-1 xl:grid-cols-2 gap-3">
-        {DEMO_STOCKS.map(stock => (
-          <StockCard
-            key={stock.ticker}
-            stock={stock}
-            price={priceMap.get(stock.ticker)}
-            investor={investorMap.get(stock.ticker)}
-            sector={DEMO_SECTOR[stock.ticker]}
-            peak={DEMO_PEAK[stock.ticker]}
-            consensus={DEMO_CONSENSUS[stock.ticker]}
-          />
-        ))}
+      <main className="max-w-6xl mx-auto p-4">
+        <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
+
+        {visible.length === 0 ? (
+          <div className="text-center py-10 text-gray-500">
+            이 탭에는 종목이 없습니다.
+          </div>
+        ) : (
+          <>
+            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+              {visible.map(stock => (
+                <StockCard
+                  key={`${stock.ticker}_${stock.account || ""}`}
+                  stock={stock}
+                  price={priceMap.get(stock.ticker)}
+                  investor={investorMap.get(stock.ticker)}
+                  warning={warningMap.get(stock.ticker)}
+                  sector={naverMap.get(stock.ticker)?.sector}
+                  consensus={naverMap.get(stock.ticker)?.consensus ?? null}
+                  peak={peaks.get(stock.ticker)}
+                />
+              ))}
+            </div>
+            <TotalRow holdings={visible} prices={priceMap} />
+          </>
+        )}
       </main>
 
-      <footer className="max-w-6xl mx-auto mt-8 text-center text-xs text-gray-400">
-        v3 PoC · 가격 30초 / 수급 5분 자동 갱신 · 새벽(00-08 KST) 어제 데이터 보존
-      </footer>
+      <ImportJsonDialog
+        isOpen={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => setReloadKey(k => k + 1)}
+      />
     </div>
   );
 }
@@ -95,7 +190,7 @@ function PoCDashboard() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <PoCDashboard />
+      <Dashboard />
     </QueryClientProvider>
   );
 }

@@ -8,8 +8,19 @@ interface Props {
   consensus?: Consensus | null;
   sector?: string;
   peak?: number;
+  warning?: string;   // 위험/관리/정지/경고/과열/환기/주의 (2자 축약)
   loading?: boolean;
 }
+
+const WARN_BG: Record<string, string> = {
+  위험: "bg-red-700",
+  관리: "bg-red-700",
+  정지: "bg-gray-500",
+  경고: "bg-orange-600",
+  과열: "bg-orange-600",
+  환기: "bg-orange-600",
+  주의: "bg-amber-500",
+};
 
 // 우측 12 항목 그리드 (데스크톱 v2 RIGHT_FIELDS 동일 순서)
 const FLOW_FIELDS: { label: string; key: keyof Investor }[] = [
@@ -36,7 +47,7 @@ const HIGHLIGHT_BG: Record<string, string> = {
 const HIGHLIGHT_BOLD = new Set(["외국인", "기관"]);
 
 export function StockCard({
-  stock, price, investor, consensus, sector, peak, loading,
+  stock, price, investor, consensus, sector, peak, warning, loading,
 }: Props) {
   if (loading || !price) {
     return (
@@ -74,6 +85,12 @@ export function StockCard({
             {sleeping && <span className="text-xs mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
             {stock.name}
           </span>
+          {warning && (
+            <span className={`px-1.5 py-0.5 rounded text-white text-xs font-bold
+                              ${WARN_BG[warning] ?? "bg-gray-500"}`}>
+              {warning}
+            </span>
+          )}
           {sector && (
             <span className="text-xs text-gray-500">{sector}</span>
           )}
