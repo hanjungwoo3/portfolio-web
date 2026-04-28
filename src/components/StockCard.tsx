@@ -64,9 +64,9 @@ export function StockCard({
 
   return (
     <article className="rounded-lg bg-white border border-gray-200 shadow-sm
-                         flex flex-row gap-3 p-4 min-h-[180px]">
+                         flex flex-row gap-4 p-4 min-h-[180px]">
       {/* ───────── 좌측: 메인 정보 ───────── */}
-      <div className="flex-1 min-w-0 flex flex-col gap-1.5">
+      <div className="basis-[42%] min-w-0 flex flex-col gap-1.5">
         {/* 헤더: pill + 섹터 + info */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center px-2.5 py-1 rounded-md
@@ -138,7 +138,8 @@ export function StockCard({
       </div>
 
       {/* ───────── 우측: 12 항목 그리드 ───────── */}
-      <div className="w-[52%] border border-gray-200 rounded-md p-2 grid grid-cols-2 gap-x-1 text-sm">
+      <div className="flex-1 min-w-0 border border-gray-200 rounded-md p-2
+                       grid grid-cols-2 gap-x-2 gap-y-0.5 text-sm">
         {FLOW_FIELDS.map(({ label, key }) => {
           const raw = investor ? investor[key] : null;
           const isRatio = key === "외국인비율";
@@ -156,11 +157,14 @@ export function StockCard({
           return (
             <div
               key={label}
-              className={`flex items-center justify-between px-1.5 py-0.5 rounded
+              className={`flex items-center justify-between gap-1 px-1.5 py-0.5 rounded
                           ${rowBg} ${bold ? "font-bold" : ""}`}
             >
-              <span className="text-gray-600 text-xs">{label}</span>
-              <span className={`tabular-nums ${numColor} ${bold ? "text-base" : "text-sm"}`}>
+              <span className="text-gray-600 text-xs whitespace-nowrap shrink-0">
+                {label}
+              </span>
+              <span className={`tabular-nums whitespace-nowrap ${numColor}
+                                 ${bold ? "text-sm" : "text-xs"}`}>
                 {value}
               </span>
             </div>
