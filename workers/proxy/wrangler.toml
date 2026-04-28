@@ -1,0 +1,6 @@
+name = "portfolio-proxy"
+main = "src/index.ts"
+compatibility_date = "2026-04-01"
+
+# 무료 티어: 100,000 req/day
+# 배포: cd workers/proxy && npx wrangler deploy
