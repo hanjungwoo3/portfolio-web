@@ -151,64 +151,80 @@ export interface UsIndex {
   tradeDate: string;       // KST 날짜 (YYYY-MM-DD) — 마지막 거래 시각 기준
 }
 
-interface YahooChartMeta {
-  regularMarketPrice?: number;
-  previousClose?: number;
-  chartPreviousClose?: number;
-  regularMarketTime?: number;   // unix seconds
+// Yahoo quoteSummary v10 — yfinance Python 과 동일 데이터 소스
+// Worker 가 crumb 자동 처리 (인증 우회). 데스크톱 v2 _fast_quote 와 같은 분기 적용.
+interface QuoteSummaryRaw {
+  raw?: number;
+  fmt?: string;
+}
+interface QuoteSummaryPrice {
+  regularMarketPrice?: QuoteSummaryRaw;
+  regularMarketPreviousClose?: QuoteSummaryRaw;
+  preMarketPrice?: QuoteSummaryRaw;
+  postMarketPrice?: QuoteSummaryRaw;
+  regularMarketTime?: number;     // unix seconds (raw)
+  marketState?: string;
   currency?: string;
 }
-interface YahooChartResult {
-  meta: YahooChartMeta;
-  timestamp?: number[];
-  indicators?: { quote?: { close?: (number | null)[] }[] };
+interface QuoteSummaryResponse {
+  quoteSummary?: {
+    result?: { price?: QuoteSummaryPrice }[] | null;
+  };
 }
-interface YahooChartResponse {
-  chart: { result: YahooChartResult[] | null };
+
+function _val(x: QuoteSummaryRaw | undefined): number | undefined {
+  if (!x || typeof x.raw !== "number") return undefined;
+  return x.raw;
+}
+function _isValid(n: number | undefined): n is number {
+  return typeof n === "number" && !Number.isNaN(n) && n !== 0;
 }
 
 export async function fetchYahooQuote(symbol: string, name: string): Promise<UsIndex | null> {
-  // range=5d: 직전 영업일 종가 정확히 추출 (range=2d 의 chartPreviousClose 는 그제 종가라 부정확)
-  const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
+  const target = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=price`;
   try {
     const resp = await fetch(viaProxy(target));
     if (!resp.ok) return null;
-    const data = await resp.json() as YahooChartResponse;
-    const r = data.chart?.result?.[0];
-    if (!r?.meta) return null;
-    const meta = r.meta;
+    const data = await resp.json() as QuoteSummaryResponse;
+    const p = data.quoteSummary?.result?.[0]?.price;
+    if (!p) return null;
 
-    const closes = (r.indicators?.quote?.[0]?.close ?? [])
-                    .filter((v): v is number => v !== null && v !== undefined);
-    const price = meta.regularMarketPrice ?? closes[closes.length - 1] ?? 0;
-    // 어제 종가 — closes 배열에서 마지막 봉이 현재가와 같으면 (오늘 봉) 그 직전 봉,
-    // 다르면 마지막 봉 (= 가장 최근 영업일 종가) 사용
-    let prev = price;
-    if (closes.length >= 2) {
-      const last = closes[closes.length - 1];
-      const isSameAsCurrent = price > 0 && Math.abs(last - price) / price < 0.001;
-      prev = isSameAsCurrent ? closes[closes.length - 2] : last;
-    } else if (typeof meta.previousClose === "number") {
-      prev = meta.previousClose;
-    } else if (typeof meta.chartPreviousClose === "number") {
-      prev = meta.chartPreviousClose;
+    const regP = _val(p.regularMarketPrice);
+    const regPrev = _val(p.regularMarketPreviousClose);
+    const preP = _val(p.preMarketPrice);
+    const postP = _val(p.postMarketPrice);
+    const state = (p.marketState ?? "").toUpperCase();
+
+    // 데스크톱 v2 _fast_quote 동일 분기:
+    // PRE  → price=preMarketPrice,  base=regularMarketPrice (직전 정규장 종가)
+    // POST → price=postMarketPrice, base=regularMarketPrice (오늘 정규장 종가)
+    // 그 외 (REGULAR / CLOSED) → price=regularMarketPrice, base=regularMarketPreviousClose
+    let price: number;
+    let prev: number;
+    if (state === "PRE" && _isValid(preP) && _isValid(regP)) {
+      price = preP; prev = regP;
+    } else if (state === "POST" && _isValid(postP) && _isValid(regP)) {
+      price = postP; prev = regP;
+    } else if (_isValid(regP)) {
+      price = regP;
+      prev = _isValid(regPrev) ? regPrev : regP;
+    } else {
+      return null;
     }
 
     const diff = price - prev;
     const pct = prev > 0 ? (diff / prev) * 100 : 0;
 
-    // tradeDate (KST) — regularMarketTime 또는 마지막 timestamp
-    const tradeUtcSec = meta.regularMarketTime
-      ?? (r.timestamp ? r.timestamp[r.timestamp.length - 1] : 0);
+    // tradeDate (KST)
     let tradeDate = "";
-    if (tradeUtcSec) {
-      const kstMs = tradeUtcSec * 1000 + 9 * 3600 * 1000;
+    if (typeof p.regularMarketTime === "number") {
+      const kstMs = p.regularMarketTime * 1000 + 9 * 3600 * 1000;
       tradeDate = new Date(kstMs).toISOString().slice(0, 10);
     }
 
     return {
       symbol, name, price, prev, diff, pct,
-      currency: meta.currency, tradeDate,
+      currency: p.currency, tradeDate,
     };
   } catch {
     return null;

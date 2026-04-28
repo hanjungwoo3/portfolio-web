@@ -1,9 +1,9 @@
-// Cloudflare Worker — CORS 프록시 (Toss/Naver API 화이트리스트)
+// Cloudflare Worker — CORS 프록시 (Toss/Naver/Yahoo 화이트리스트)
 //
 // 사용:  GET /?url=<encoded_target_url>
-// 예:    /?url=https%3A%2F%2Fwts-info-api.tossinvest.com%2Fapi%2Fv3%2Fstock-prices%2Fdetails%3FproductCodes%3DA005930
 //
-// 무료 티어: 100,000 req/day. 사용자 수십~100명 규모까지 안전.
+// Yahoo quoteSummary API 는 crumb 인증 필요 — Worker 가 자동 처리.
+// 무료 티어: 100,000 req/day.
 
 const ALLOWED_HOSTS = new Set<string>([
   "wts-info-api.tossinvest.com",
@@ -11,13 +11,14 @@ const ALLOWED_HOSTS = new Set<string>([
   "tossinvest.com",
   "finance.naver.com",
   "m.stock.naver.com",
-  // 미국증시 (Yahoo Finance)
   "query1.finance.yahoo.com",
   "query2.finance.yahoo.com",
 ]);
 
-// 응답 캐시 TTL (초). 가격/투자자/뉴스 등 짧게.
 const DEFAULT_CACHE_TTL = 30;
+const UA =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
+  "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
@@ -33,6 +34,64 @@ function jsonError(status: number, message: string): Response {
   });
 }
 
+// ─── Yahoo crumb 인증 ───
+// 1) fc.yahoo.com 접속해 세션 쿠키 받기
+// 2) query1.../v1/test/getcrumb 로 crumb 문자열 받기
+// 3) quoteSummary 등 인증 필요 호출에 ?crumb=... + Cookie 헤더 동봉
+//
+// 동일 worker instance 내 메모리 캐시 — 인스턴스 재시작 시 재발급.
+let cachedAuth: { crumb: string; cookies: string; ts: number } | null = null;
+const AUTH_TTL_MS = 30 * 60 * 1000;  // 30분
+
+async function getYahooAuth(): Promise<{ crumb: string; cookies: string } | null> {
+  const now = Date.now();
+  if (cachedAuth && now - cachedAuth.ts < AUTH_TTL_MS) {
+    return { crumb: cachedAuth.crumb, cookies: cachedAuth.cookies };
+  }
+  try {
+    // 1) 세션 쿠키 발급 — fc.yahoo.com 또는 finance.yahoo.com
+    const sessionResp = await fetch("https://fc.yahoo.com/", {
+      headers: { "User-Agent": UA, "Accept": "*/*" },
+      redirect: "manual",
+    });
+    const setCookie = sessionResp.headers.get("set-cookie") ?? "";
+    // Cookie 헤더로 보낼 때는 "name=value; name=value" 형식
+    const cookies = setCookie
+      .split(/,\s*(?=[A-Za-z]+=)/)
+      .map(c => c.split(";")[0])
+      .filter(c => c.includes("="))
+      .join("; ");
+    if (!cookies) return null;
+
+    // 2) crumb 발급
+    const crumbResp = await fetch(
+      "https://query1.finance.yahoo.com/v1/test/getcrumb",
+      {
+        headers: {
+          "User-Agent": UA,
+          "Cookie": cookies,
+          "Accept": "*/*",
+        },
+      }
+    );
+    if (!crumbResp.ok) return null;
+    const crumb = (await crumbResp.text()).trim();
+    if (!crumb || crumb.length > 50) return null;
+
+    cachedAuth = { crumb, cookies, ts: now };
+    return { crumb, cookies };
+  } catch {
+    return null;
+  }
+}
+
+function needsYahooAuth(url: URL): boolean {
+  return url.hostname.includes("yahoo.com") &&
+         (url.pathname.includes("/quoteSummary") ||
+          url.pathname.includes("/v7/finance/quote") ||
+          url.pathname.includes("/v6/finance/quote"));
+}
+
 export default {
   async fetch(request: Request): Promise<Response> {
     if (request.method === "OPTIONS") {
@@ -44,9 +103,7 @@ export default {
 
     const url = new URL(request.url);
     const target = url.searchParams.get("url");
-    if (!target) {
-      return jsonError(400, "Missing 'url' query parameter");
-    }
+    if (!target) return jsonError(400, "Missing 'url' query parameter");
 
     let targetUrl: URL;
     try {
@@ -59,19 +116,32 @@ export default {
       return jsonError(403, `Host not allowed: ${targetUrl.hostname}`);
     }
 
+    // 헤더 — Yahoo 의 경우 quoteSummary 면 crumb 자동 부착
+    const headers: Record<string, string> = {
+      "User-Agent": UA,
+      "Accept": "application/json, text/html, */*",
+    };
+    if (targetUrl.hostname.includes("toss")) {
+      headers["Origin"] = "https://tossinvest.com";
+      headers["Referer"] = "https://tossinvest.com/";
+    } else if (targetUrl.hostname.includes("yahoo")) {
+      headers["Origin"] = "https://finance.yahoo.com";
+      headers["Referer"] = "https://finance.yahoo.com/";
+    }
+
+    if (needsYahooAuth(targetUrl)) {
+      const auth = await getYahooAuth();
+      if (auth) {
+        targetUrl.searchParams.set("crumb", auth.crumb);
+        headers["Cookie"] = auth.cookies;
+      }
+    }
+
     try {
       const upstream = await fetch(targetUrl.toString(), {
         method: "GET",
-        headers: {
-          "User-Agent":
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
-            "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36",
-          Origin: "https://tossinvest.com",
-          Referer: "https://tossinvest.com/",
-          Accept: "application/json, text/html, */*",
-        },
+        headers,
         cf: {
-          // Cloudflare 엣지 캐싱 — 동일 URL 짧게 캐시
           cacheTtl: DEFAULT_CACHE_TTL,
           cacheEverything: true,
         },
