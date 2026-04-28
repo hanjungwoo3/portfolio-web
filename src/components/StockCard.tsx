@@ -35,7 +35,19 @@ const HIGHLIGHT_BG: Record<string, string> = {
   기관: "bg-rose-50",
   연기금: "bg-rose-50/60",
 };
-const HIGHLIGHT_BOLD = new Set(["외국인", "기관"]);
+
+// 강조 행 — 라벨/값 색상 강제 (이미지 매칭)
+const HIGHLIGHT_LABEL_COLOR: Record<string, string> = {
+  외국인: "text-blue-900",
+  기관: "text-rose-700",
+  연기금: "text-rose-700",
+};
+// 강조 행 — 폰트 사이즈 (외국인/기관은 한 단계 위, 연기금은 동일)
+const HIGHLIGHT_SIZE: Record<string, string> = {
+  외국인: "text-base font-bold",
+  기관: "text-base font-bold",
+  연기금: "text-sm font-medium",
+};
 
 const WARN_BG: Record<string, string> = {
   위험: "bg-red-700",
@@ -207,22 +219,25 @@ export function StockCard({
             : isRatio
               ? `${(raw as number).toFixed(2)}%`
               : formatSigned(raw as number);
-          const numColor =
-            isRatio ? "text-gray-700"
+          const valueColor =
+            isRatio ? "text-gray-800"
             : (raw === null || raw === undefined) ? "text-gray-400"
-            : signColor(raw as number);
-          const bold = HIGHLIGHT_BOLD.has(label);
+            // 강조 행: 라벨 색상으로 통일 (이미지 매칭)
+            : HIGHLIGHT_LABEL_COLOR[label]
+              ?? signColor(raw as number);
+          const labelColor = HIGHLIGHT_LABEL_COLOR[label] ?? "text-gray-600";
+          const sizeCls = HIGHLIGHT_SIZE[label] ?? "";
           const rowBg = HIGHLIGHT_BG[label] ?? "";
           return (
             <div
               key={label}
               className={`flex items-center justify-between gap-1 px-1 py-px rounded
-                          ${rowBg} ${bold ? "font-bold" : ""}`}
+                          ${rowBg} ${sizeCls}`}
             >
-              <span className="text-gray-600 whitespace-nowrap shrink-0">
+              <span className={`whitespace-nowrap shrink-0 ${labelColor}`}>
                 {label}
               </span>
-              <span className={`tabular-nums whitespace-nowrap ${numColor}`}>
+              <span className={`tabular-nums whitespace-nowrap ${valueColor}`}>
                 {value}
               </span>
             </div>
