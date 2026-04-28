@@ -43,9 +43,9 @@ export function TotalRow({ holdings, prices }: Props) {
   const totalColor = signColor(pnl) || "text-rose-700";
 
   return (
-    <div className="sticky bottom-0 mt-3 bg-white border border-gray-300
+    <div className="sticky bottom-0 mt-3 w-fit bg-white border border-gray-300
                      rounded-lg shadow-md px-5 py-3
-                     grid grid-cols-[auto_1fr] gap-x-6 gap-y-1
+                     grid grid-cols-[auto_auto] gap-x-8 gap-y-1
                      text-sm leading-tight">
       {/* Row 1: 투자원금 (좌)  /  보유 합계 (우, 큰 빨강) */}
       <div className="text-gray-500">
