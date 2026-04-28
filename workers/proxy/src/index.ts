@@ -11,6 +11,9 @@ const ALLOWED_HOSTS = new Set<string>([
   "tossinvest.com",
   "finance.naver.com",
   "m.stock.naver.com",
+  // 미국증시 (Yahoo Finance)
+  "query1.finance.yahoo.com",
+  "query2.finance.yahoo.com",
 ]);
 
 // 응답 캐시 TTL (초). 가격/투자자/뉴스 등 짧게.

@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
-import { fetchTossPrices, fetchInvestor, fetchWarning, fetchNaverInfo } from "./lib/api";
+import { fetchTossPrices, fetchInvestor, fetchWarning, fetchNaverInfo, fetchUsIndices } from "./lib/api";
 import { loadHoldings, loadPeaks, updatePeaksForward } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { Tabs, buildTabs, filterByTab } from "./components/Tabs";
 import { TotalRow } from "./components/TotalRow";
 import { ImportJsonDialog } from "./components/ImportJsonDialog";
+import { UsIndicesBar } from "./components/UsIndicesBar";
 import type { Stock } from "./types";
 
 const queryClient = new QueryClient({
@@ -61,6 +62,14 @@ function Dashboard() {
     queryFn: () => fetchTossPrices(krxTickers),
     enabled: krxTickers.length > 0,
     refetchInterval: 30_000,
+  });
+
+  // 미국증시 — 1분 polling (탭 무관 항상 표시)
+  const { data: usIndices, isLoading: usLoading } = useQuery({
+    queryKey: ["us-indices"],
+    queryFn: fetchUsIndices,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
   });
 
   // 가격 갱신 시 피크가 forward-only 업데이트 (저장된 피크 < 현재가면 갱신)
@@ -161,9 +170,9 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <header className="bg-white border-b border-gray-200 px-6 py-4
-                          sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto flex items-center justify-between
+                         px-6 py-3">
           <h1 className="text-xl font-bold text-gray-900">📈 포트폴리오</h1>
           <button
             onClick={() => setImportOpen(true)}
@@ -172,6 +181,7 @@ function Dashboard() {
             📥 가져오기
           </button>
         </div>
+        <UsIndicesBar indices={usIndices} loading={usLoading} />
       </header>
 
       <main className="max-w-7xl mx-auto p-3">

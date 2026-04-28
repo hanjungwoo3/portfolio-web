@@ -139,6 +139,64 @@ export async function fetchWarning(ticker: string): Promise<string> {
   return "";
 }
 
+// Yahoo Finance — 지수/심볼 가격 + 등락률
+export interface UsIndex {
+  symbol: string;
+  name: string;
+  price: number;
+  prev: number;
+  diff: number;
+  pct: number;
+  currency?: string;
+}
+
+interface YahooChartMeta {
+  regularMarketPrice?: number;
+  previousClose?: number;
+  chartPreviousClose?: number;
+  currency?: string;
+}
+interface YahooChartResponse {
+  chart: { result: { meta: YahooChartMeta }[] | null };
+}
+
+export async function fetchYahooQuote(symbol: string, name: string): Promise<UsIndex | null> {
+  const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
+  try {
+    const resp = await fetch(viaProxy(target));
+    if (!resp.ok) return null;
+    const data = await resp.json() as YahooChartResponse;
+    const meta = data.chart?.result?.[0]?.meta;
+    if (!meta || meta.regularMarketPrice === undefined) return null;
+    const price = meta.regularMarketPrice;
+    const prev = meta.previousClose ?? meta.chartPreviousClose ?? price;
+    const diff = price - prev;
+    const pct = prev > 0 ? (diff / prev) * 100 : 0;
+    return {
+      symbol, name, price, prev, diff, pct,
+      currency: meta.currency,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function fetchUsIndices(): Promise<UsIndex[]> {
+  // 핵심 6종: S&P, NASDAQ, DOW, KOSPI, USD/KRW, VIX
+  const list: [string, string][] = [
+    ["^GSPC", "S&P 500"],
+    ["^IXIC", "NASDAQ"],
+    ["^DJI", "DOW"],
+    ["^KS11", "KOSPI"],
+    ["KRW=X", "USD/KRW"],
+    ["^VIX", "VIX"],
+  ];
+  const results = await Promise.all(
+    list.map(([s, n]) => fetchYahooQuote(s, n))
+  );
+  return results.filter((r): r is UsIndex => r !== null);
+}
+
 // 네이버 금융 HTML 파싱 — 섹터 + 컨센서스 (목표주가 + 투자의견)
 // 단일 페이지 fetch 후 둘 다 추출 (네트워크 1회)
 export interface NaverInfo {
