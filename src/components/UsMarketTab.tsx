@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchTossPrices } from "../lib/api";
 import type { UsIndex } from "../lib/api";
 import type { Price } from "../types";
+import { nowKstDateStr } from "../lib/format";
 import {
   US_PAIRS, ETFS_BY_SECTOR, SECTOR_EMOJI, SECTOR_ORDER,
   allYahooSymbols, allKrEtfTickers,
@@ -33,12 +34,13 @@ interface QuoteCellProps {
   diff?: number;
   pct?: number;
   bold?: boolean;
+  sleeping?: boolean;
 }
 
-function QuoteCell({ name, desc, price, diff, pct, bold }: QuoteCellProps) {
+function QuoteCell({ name, desc, price, diff, pct, bold, sleeping }: QuoteCellProps) {
   if (price === undefined || diff === undefined || pct === undefined) {
     return (
-      <div className="rounded-md border border-gray-200 bg-gray-50/50 p-2 min-h-[68px]">
+      <div className="rounded-md border border-gray-200 bg-gray-50/50 p-2 min-h-[58px]">
         <div className="text-xs text-gray-400">{name}</div>
         <div className="text-xs text-gray-300 mt-1">로딩...</div>
       </div>
@@ -48,10 +50,16 @@ function QuoteCell({ name, desc, price, diff, pct, bold }: QuoteCellProps) {
   const color = colorFor(diff);
   return (
     <div className={`rounded-md border border-gray-200 ${bg} px-2.5 py-1.5
-                      flex flex-col gap-0.5`}>
+                      flex flex-col gap-0.5
+                      ${sleeping ? "opacity-60" : ""}`}>
       <div className="flex items-baseline flex-wrap gap-x-2">
         <span className={`${bold ? "font-bold" : "font-semibold"} text-sm
                           ${diff !== 0 ? color : "text-gray-700"}`}>
+          {sleeping && (
+            <span className="text-[10px] text-gray-400 mr-0.5">
+              z<sup>z</sup><sup>z</sup>
+            </span>
+          )}
           {name}
         </span>
         {desc && (
@@ -73,6 +81,7 @@ function QuoteCell({ name, desc, price, diff, pct, bold }: QuoteCellProps) {
 export function UsMarketTab() {
   const yahooSymbols = allYahooSymbols();
   const krEtfs = allKrEtfTickers();
+  const todayKst = nowKstDateStr();
 
   const { data: usMap } = useQuery({
     queryKey: ["yahoo-batch", yahooSymbols.length],
@@ -110,12 +119,21 @@ export function UsMarketTab() {
           const q = usMap?.get(p.symbol);
           const diff = q?.diff ?? 0;
           const pct = q?.pct ?? 0;
+          const sleeping = q ? q.tradeDate !== todayKst : false;
           const sign = diff > 0 ? "text-rose-400"
                       : diff < 0 ? "text-blue-400" : "text-gray-300";
           return (
-            <div key={p.symbol} className="flex flex-col gap-0.5">
+            <div key={p.symbol}
+                 className={`flex flex-col gap-0.5 ${sleeping ? "opacity-60" : ""}`}>
               <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-base font-bold">{p.name}</span>
+                <span className="text-base font-bold">
+                  {sleeping && (
+                    <span className="text-[10px] text-gray-400 mr-0.5">
+                      z<sup>z</sup><sup>z</sup>
+                    </span>
+                  )}
+                  {p.name}
+                </span>
                 <span className="font-bold tabular-nums text-sm">
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>
@@ -162,15 +180,16 @@ export function UsMarketTab() {
                 <span className="mr-1">{SECTOR_EMOJI[sectorKey] ?? "📊"}</span>
                 {sectorKey}
               </div>
-              {/* 컬럼 1: 현물 (여러 개 vertical stack) */}
+              {/* 컬럼 1: 현물 */}
               <div className="flex flex-col gap-1">
                 {cashPairs.map(p => {
                   const q = usMap?.get(p.symbol);
+                  const sleeping = q ? q.tradeDate !== todayKst : false;
                   return (
                     <QuoteCell key={p.symbol}
                       symbol={p.symbol} name={p.name} desc={p.desc}
                       price={q?.price} diff={q?.diff} pct={q?.pct}
-                      bold={p.tier === "T1"} />
+                      bold={p.tier === "T1"} sleeping={sleeping} />
                   );
                 })}
               </div>
@@ -178,10 +197,12 @@ export function UsMarketTab() {
               <div className="flex flex-col gap-1">
                 {futurePairs.map(f => {
                   const q = usMap?.get(f.symbol);
+                  const sleeping = q ? q.tradeDate !== todayKst : false;
                   return (
                     <QuoteCell key={f.symbol}
                       symbol={f.symbol} name={f.name} desc={f.desc}
-                      price={q?.price} diff={q?.diff} pct={q?.pct} />
+                      price={q?.price} diff={q?.diff} pct={q?.pct}
+                      sleeping={sleeping} />
                   );
                 })}
               </div>
@@ -196,10 +217,12 @@ export function UsMarketTab() {
                   }
                   const diff = p.price - p.base;
                   const pct = p.base > 0 ? (diff / p.base) * 100 : 0;
+                  const sleeping = p.trade_date !== todayKst;
                   return (
                     <QuoteCell key={t}
                       symbol={t} name={`ETF ${t}`}
-                      price={p.price} diff={diff} pct={pct} bold />
+                      price={p.price} diff={diff} pct={pct}
+                      bold sleeping={sleeping} />
                   );
                 })}
               </div>

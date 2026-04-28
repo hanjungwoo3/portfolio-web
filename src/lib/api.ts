@@ -148,33 +148,67 @@ export interface UsIndex {
   diff: number;
   pct: number;
   currency?: string;
+  tradeDate: string;       // KST 날짜 (YYYY-MM-DD) — 마지막 거래 시각 기준
 }
 
 interface YahooChartMeta {
   regularMarketPrice?: number;
   previousClose?: number;
   chartPreviousClose?: number;
+  regularMarketTime?: number;   // unix seconds
   currency?: string;
 }
+interface YahooChartResult {
+  meta: YahooChartMeta;
+  timestamp?: number[];
+  indicators?: { quote?: { close?: (number | null)[] }[] };
+}
 interface YahooChartResponse {
-  chart: { result: { meta: YahooChartMeta }[] | null };
+  chart: { result: YahooChartResult[] | null };
 }
 
 export async function fetchYahooQuote(symbol: string, name: string): Promise<UsIndex | null> {
-  const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=2d`;
+  // range=5d: 직전 영업일 종가 정확히 추출 (range=2d 의 chartPreviousClose 는 그제 종가라 부정확)
+  const target = `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=1d&range=5d`;
   try {
     const resp = await fetch(viaProxy(target));
     if (!resp.ok) return null;
     const data = await resp.json() as YahooChartResponse;
-    const meta = data.chart?.result?.[0]?.meta;
-    if (!meta || meta.regularMarketPrice === undefined) return null;
-    const price = meta.regularMarketPrice;
-    const prev = meta.previousClose ?? meta.chartPreviousClose ?? price;
+    const r = data.chart?.result?.[0];
+    if (!r?.meta) return null;
+    const meta = r.meta;
+
+    const closes = (r.indicators?.quote?.[0]?.close ?? [])
+                    .filter((v): v is number => v !== null && v !== undefined);
+    const price = meta.regularMarketPrice ?? closes[closes.length - 1] ?? 0;
+    // 어제 종가 — closes 배열에서 마지막 봉이 현재가와 같으면 (오늘 봉) 그 직전 봉,
+    // 다르면 마지막 봉 (= 가장 최근 영업일 종가) 사용
+    let prev = price;
+    if (closes.length >= 2) {
+      const last = closes[closes.length - 1];
+      const isSameAsCurrent = price > 0 && Math.abs(last - price) / price < 0.001;
+      prev = isSameAsCurrent ? closes[closes.length - 2] : last;
+    } else if (typeof meta.previousClose === "number") {
+      prev = meta.previousClose;
+    } else if (typeof meta.chartPreviousClose === "number") {
+      prev = meta.chartPreviousClose;
+    }
+
     const diff = price - prev;
     const pct = prev > 0 ? (diff / prev) * 100 : 0;
+
+    // tradeDate (KST) — regularMarketTime 또는 마지막 timestamp
+    const tradeUtcSec = meta.regularMarketTime
+      ?? (r.timestamp ? r.timestamp[r.timestamp.length - 1] : 0);
+    let tradeDate = "";
+    if (tradeUtcSec) {
+      const kstMs = tradeUtcSec * 1000 + 9 * 3600 * 1000;
+      tradeDate = new Date(kstMs).toISOString().slice(0, 10);
+    }
+
     return {
       symbol, name, price, prev, diff, pct,
-      currency: meta.currency,
+      currency: meta.currency, tradeDate,
     };
   } catch {
     return null;
