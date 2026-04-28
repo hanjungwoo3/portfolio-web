@@ -30,24 +30,21 @@ const FLOW_FIELDS: { label: string; key: keyof Investor }[] = [
   { label: "기타법인", key: "기타법인" },
 ];
 
-const HIGHLIGHT_BG: Record<string, string> = {
-  외국인: "bg-blue-50",
-  기관: "bg-rose-50",
-  연기금: "bg-rose-50/60",
-};
+// 강조 행 (외국인/기관/연기금) — 라벨/배경/값 색은 부호에 따라 동적 결정
+const HIGHLIGHT_LABELS = new Set(["외국인", "기관", "연기금"]);
 
-// 강조 행 — 라벨/값 색상 강제 (이미지 매칭)
-const HIGHLIGHT_LABEL_COLOR: Record<string, string> = {
-  외국인: "text-blue-900",
-  기관: "text-rose-700",
-  연기금: "text-rose-700",
-};
-// 강조 행 — 폰트 사이즈 (외국인/기관은 한 단계 위, 연기금은 동일)
+// 강조 행 폰트 사이즈
 const HIGHLIGHT_SIZE: Record<string, string> = {
   외국인: "text-sm font-bold",
   기관: "text-sm font-bold",
   연기금: "text-xs font-medium",
 };
+
+function highlightStyles(value: number): { bg: string; color: string } {
+  if (value > 0) return { bg: "bg-rose-50", color: "text-rose-700" };
+  if (value < 0) return { bg: "bg-blue-50", color: "text-blue-800" };
+  return { bg: "", color: "text-gray-500" };
+}
 
 const WARN_BG: Record<string, string> = {
   위험: "bg-red-700",
@@ -214,20 +211,38 @@ export function StockCard({
         {FLOW_FIELDS.map(({ label, key }) => {
           const raw = investor ? investor[key] : null;
           const isRatio = key === "외국인비율";
-          const value =
-            raw === null || raw === undefined ? "-"
-            : isRatio
-              ? `${(raw as number).toFixed(2)}%`
-              : formatSigned(raw as number);
-          const valueColor =
-            isRatio ? "text-gray-800"
-            : (raw === null || raw === undefined) ? "text-gray-400"
-            // 강조 행: 라벨 색상으로 통일 (이미지 매칭)
-            : HIGHLIGHT_LABEL_COLOR[label]
-              ?? signColor(raw as number);
-          const labelColor = HIGHLIGHT_LABEL_COLOR[label] ?? "text-gray-600";
+          const numVal = typeof raw === "number" ? raw : 0;
+          const isHighlight = HIGHLIGHT_LABELS.has(label);
+
+          // 표시값 — 외국인보유율은 0/없음이면 공백, 그 외는 형식화
+          let value: string;
+          if (raw === null || raw === undefined) {
+            value = isRatio ? "" : "-";
+          } else if (isRatio) {
+            value = (raw as number) > 0 ? `${(raw as number).toFixed(2)}%` : "";
+          } else {
+            value = formatSigned(raw as number);
+          }
+
+          // 색상/배경
+          let labelColor: string;
+          let valueColor: string;
+          let rowBg: string;
+          if (isHighlight) {
+            const hs = highlightStyles(numVal);
+            labelColor = hs.color;
+            valueColor = hs.color;
+            rowBg = hs.bg;
+          } else {
+            labelColor = "text-gray-600";
+            valueColor =
+              raw === null || raw === undefined ? "text-gray-400"
+              : isRatio ? "text-gray-800"
+              : signColor(raw as number);
+            rowBg = "";
+          }
+
           const sizeCls = HIGHLIGHT_SIZE[label] ?? "";
-          const rowBg = HIGHLIGHT_BG[label] ?? "";
           return (
             <div
               key={label}
