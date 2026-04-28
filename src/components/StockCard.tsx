@@ -194,6 +194,11 @@ export function StockCard({
                 </span>
               </span>
             )}
+            {peak === undefined && stock.shares > 0 && (
+              <span className="text-xs text-gray-400">
+                (피크 없음 · {stock.ticker})
+              </span>
+            )}
           </div>
         )}
 
