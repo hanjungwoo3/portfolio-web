@@ -30,9 +30,11 @@ export function Tabs({ tabs, activeKey, onChange }: Props) {
           >
             {t.emoji && <span className="mr-1">{t.emoji}</span>}
             {t.label}
-            <span className={`ml-1.5 text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>
-              {t.count}
-            </span>
+            {t.count > 0 && (
+              <span className={`ml-1.5 text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>
+                {t.count}
+              </span>
+            )}
           </button>
         );
       })}
@@ -40,14 +42,18 @@ export function Tabs({ tabs, activeKey, onChange }: Props) {
   );
 }
 
-// 데스크톱 v2 와 동일한 분류 규칙
+export const US_MARKET_TAB_KEY = "__us-market__";
+
+// 데스크톱 v2 와 동일한 분류 규칙 — 첫 탭은 항상 미국증시
 export function buildTabs(holdings: Stock[]): TabSpec[] {
   const counts = new Map<string, number>();
   for (const s of holdings) {
     const acc = s.account || "";
     counts.set(acc, (counts.get(acc) || 0) + 1);
   }
-  const tabs: TabSpec[] = [];
+  const tabs: TabSpec[] = [
+    { key: US_MARKET_TAB_KEY, label: "미국 증시", emoji: "📈", count: 0 },
+  ];
   // 1) 보유 (account="")
   if (counts.has("")) {
     tabs.push({ key: "", label: "보유", emoji: "💼", count: counts.get("")! });

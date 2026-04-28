@@ -181,20 +181,32 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
   }
 }
 
-export async function fetchUsIndices(): Promise<UsIndex[]> {
-  // 핵심 6종: S&P, NASDAQ, DOW, KOSPI, USD/KRW, VIX
-  const list: [string, string][] = [
-    ["^GSPC", "S&P 500"],
-    ["^IXIC", "NASDAQ"],
-    ["^DJI", "DOW"],
-    ["^KS11", "KOSPI"],
-    ["KRW=X", "USD/KRW"],
-    ["^VIX", "VIX"],
-  ];
+// 다수 심볼 한꺼번에 — 병렬 fetch
+export async function fetchYahooBatch(
+  pairs: { symbol: string; name: string }[]
+): Promise<Map<string, UsIndex>> {
   const results = await Promise.all(
-    list.map(([s, n]) => fetchYahooQuote(s, n))
+    pairs.map(p => fetchYahooQuote(p.symbol, p.name))
   );
-  return results.filter((r): r is UsIndex => r !== null);
+  const map = new Map<string, UsIndex>();
+  for (const r of results) {
+    if (r) map.set(r.symbol, r);
+  }
+  return map;
+}
+
+// 헤더용 핵심 6종 (deprecated: UsMarketTab 으로 통합 가능하지만 헤더 바에서도 사용)
+export async function fetchUsIndices(): Promise<UsIndex[]> {
+  const list: { symbol: string; name: string }[] = [
+    { symbol: "^GSPC", name: "S&P 500" },
+    { symbol: "^IXIC", name: "NASDAQ" },
+    { symbol: "^DJI",  name: "DOW" },
+    { symbol: "^KS11", name: "KOSPI" },
+    { symbol: "KRW=X", name: "USD/KRW" },
+    { symbol: "^VIX",  name: "VIX" },
+  ];
+  const map = await fetchYahooBatch(list);
+  return Array.from(map.values());
 }
 
 // 네이버 금융 HTML 파싱 — 섹터 + 컨센서스 (목표주가 + 투자의견)

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
-import { fetchTossPrices, fetchInvestor, fetchWarning, fetchNaverInfo, fetchUsIndices } from "./lib/api";
+import { fetchTossPrices, fetchInvestor, fetchWarning, fetchNaverInfo } from "./lib/api";
 import { loadHoldings, loadPeaks, updatePeaksForward } from "./lib/db";
 import { StockCard } from "./components/StockCard";
-import { Tabs, buildTabs, filterByTab } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY } from "./components/Tabs";
 import { TotalRow } from "./components/TotalRow";
 import { ImportJsonDialog } from "./components/ImportJsonDialog";
-import { UsIndicesBar } from "./components/UsIndicesBar";
+import { UsMarketTab } from "./components/UsMarketTab";
 import type { Stock } from "./types";
 
 const queryClient = new QueryClient({
@@ -62,14 +62,6 @@ function Dashboard() {
     queryFn: () => fetchTossPrices(krxTickers),
     enabled: krxTickers.length > 0,
     refetchInterval: 30_000,
-  });
-
-  // 미국증시 — 1분 polling (탭 무관 항상 표시)
-  const { data: usIndices, isLoading: usLoading } = useQuery({
-    queryKey: ["us-indices"],
-    queryFn: fetchUsIndices,
-    refetchInterval: 60_000,
-    staleTime: 30_000,
   });
 
   // 가격 갱신 시 피크가 forward-only 업데이트 (저장된 피크 < 현재가면 갱신)
@@ -141,33 +133,6 @@ function Dashboard() {
     [naverQs, krxTickers]
   );
 
-  // 빈 상태 — JSON import 안내
-  if (holdings.length === 0) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
-        <div className="bg-white rounded-lg shadow-sm p-10 max-w-md text-center">
-          <div className="text-5xl mb-4">📈</div>
-          <h1 className="text-2xl font-bold mb-2">포트폴리오 v3</h1>
-          <p className="text-gray-600 mb-6">
-            아직 등록된 종목이 없습니다.<br />
-            데스크톱 v2/모바일의 holdings.json 을 가져와 시작하세요.
-          </p>
-          <button
-            onClick={() => setImportOpen(true)}
-            className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700
-                       text-white rounded-md font-medium">
-            📥 JSON 가져오기
-          </button>
-        </div>
-        <ImportJsonDialog
-          isOpen={importOpen}
-          onClose={() => setImportOpen(false)}
-          onImported={() => setReloadKey(k => k + 1)}
-        />
-      </div>
-    );
-  }
-
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
@@ -181,16 +146,33 @@ function Dashboard() {
             📥 가져오기
           </button>
         </div>
-        <UsIndicesBar indices={usIndices} loading={usLoading} />
       </header>
 
       <main className="max-w-7xl mx-auto p-3">
         <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
 
-        {visible.length === 0 ? (
-          <div className="text-center py-10 text-gray-500">
-            이 탭에는 종목이 없습니다.
-          </div>
+        {activeTab === US_MARKET_TAB_KEY ? (
+          <UsMarketTab />
+        ) : visible.length === 0 ? (
+          holdings.length === 0 ? (
+            <div className="text-center py-16 text-gray-500">
+              <div className="text-4xl mb-3">📥</div>
+              <p className="mb-4">
+                아직 등록된 종목이 없습니다.<br />
+                holdings.json / peaks.json 을 가져와 시작하세요.
+              </p>
+              <button
+                onClick={() => setImportOpen(true)}
+                className="px-4 py-2 bg-blue-600 hover:bg-blue-700
+                           text-white rounded text-sm font-medium">
+                JSON 가져오기
+              </button>
+            </div>
+          ) : (
+            <div className="text-center py-10 text-gray-500">
+              이 탭에는 종목이 없습니다.
+            </div>
+          )
         ) : (
           <>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
