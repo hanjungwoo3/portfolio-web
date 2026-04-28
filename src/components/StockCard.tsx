@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { Stock, Price, Investor, Consensus } from "../types";
 import { formatSigned, signColor, formatVolume, isEarlyMorningKst, nowKstDateStr } from "../lib/format";
 
@@ -56,9 +57,39 @@ const WARN_BG: Record<string, string> = {
   주의: "bg-amber-500",
 };
 
+// 직전 틱 대비 화살표 — 데스크톱 v2 동일 (첫 전환 속빈, 연속 속찬)
+type TickDir = "up" | "down" | undefined;
+interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
+const TICK_INIT: TickState = { arrow: "" };
+
 export function StockCard({
   stock, price, investor, consensus, sector, peak, warning, loading,
 }: Props) {
+  const [tick, setTick] = useState<TickState>(TICK_INIT);
+
+  useEffect(() => {
+    const cur = price?.price;
+    if (!cur) return;
+    setTick(prev => {
+      if (prev.lastPrice === undefined) {
+        return { lastPrice: cur, dir: undefined, arrow: "" };
+      }
+      if (cur > prev.lastPrice) {
+        return {
+          lastPrice: cur, dir: "up",
+          arrow: prev.dir === "up" ? "▲ " : "▵ ",
+        };
+      }
+      if (cur < prev.lastPrice) {
+        return {
+          lastPrice: cur, dir: "down",
+          arrow: prev.dir === "down" ? "▼ " : "▽ ",
+        };
+      }
+      return prev;  // 변동 없음 — 화살표 그대로 유지
+    });
+  }, [price?.price]);
+
   if (loading || !price) {
     return (
       <article className="rounded-lg bg-white shadow-sm p-4 animate-pulse">
@@ -124,8 +155,16 @@ export function StockCard({
           <span className="ml-auto text-gray-300 text-xs cursor-help" title="자세히">ⓘ</span>
         </div>
 
-        {/* 가격 + 거래량 */}
+        {/* 가격 + 거래량 + 틱 화살표 */}
         <div className="flex items-baseline gap-2">
+          {tick.arrow && (
+            <span className={`text-xl font-bold leading-tight
+                              ${tick.dir === "up" ? "text-rose-600"
+                                : tick.dir === "down" ? "text-blue-600"
+                                : "text-gray-400"}`}>
+              {tick.arrow.trim()}
+            </span>
+          )}
           <span className={`text-xl font-bold leading-tight ${signColor(dayDiff || -1)}`}>
             {price.price.toLocaleString()}원
           </span>
