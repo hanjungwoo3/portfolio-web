@@ -214,12 +214,17 @@ export function StockCard({
           const numVal = typeof raw === "number" ? raw : 0;
           const isHighlight = HIGHLIGHT_LABELS.has(label);
 
-          // 표시값 — 외국인보유율은 0/없음이면 공백, 그 외는 형식화
+          // 외국인보유율 — 데이터 없거나 0이면 셀 전체 숨김 (그리드 자리는 유지)
+          if (isRatio && (raw === null || raw === undefined || numVal === 0)) {
+            return <div key={label} />;
+          }
+
+          // 표시값
           let value: string;
           if (raw === null || raw === undefined) {
-            value = isRatio ? "" : "-";
+            value = "-";
           } else if (isRatio) {
-            value = (raw as number) > 0 ? `${(raw as number).toFixed(2)}%` : "";
+            value = `${(raw as number).toFixed(2)}%`;
           } else {
             value = formatSigned(raw as number);
           }
