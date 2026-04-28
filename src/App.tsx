@@ -55,6 +55,19 @@ function Dashboard() {
     [visible]
   );
 
+  // 어제대비 % 내림차순 정렬 (가격 로드 후 적용)
+  // 가격 없는 종목은 맨 뒤로
+  const sortedVisible = useMemo(() => {
+    const map = new Map((prices ?? []).map(p => [p.ticker, p]));
+    return [...visible].sort((a, b) => {
+      const pa = map.get(a.ticker);
+      const pb = map.get(b.ticker);
+      const pctA = pa && pa.base > 0 ? (pa.price - pa.base) / pa.base : -Infinity;
+      const pctB = pb && pb.base > 0 ? (pb.price - pb.base) / pb.base : -Infinity;
+      return pctB - pctA;  // 내림차순 (큰 게 위)
+    });
+  }, [visible, prices]);
+
   // 가격 — 30초 polling
   const { data: prices } = useQuery({
     queryKey: ["prices", krxTickers],
@@ -160,7 +173,7 @@ function Dashboard() {
         ) : (
           <>
             <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
-              {visible.map(stock => (
+              {sortedVisible.map(stock => (
                 <StockCard
                   key={`${stock.ticker}_${stock.account || ""}`}
                   stock={stock}
