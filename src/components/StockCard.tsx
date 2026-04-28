@@ -87,10 +87,10 @@ export function StockCard({
     : "bg-white border-gray-200";
 
   return (
-    <article className={`rounded-lg border shadow-sm flex flex-row gap-4 p-4
-                          min-h-[180px] ${cardBg}`}>
+    <article className={`rounded-lg border shadow-sm flex flex-row gap-3 px-3 py-2
+                          ${cardBg}`}>
       {/* ───────── 좌측 ───────── */}
-      <div className="basis-[42%] min-w-0 flex flex-col gap-1.5">
+      <div className="basis-[42%] min-w-0 flex flex-col gap-0.5">
         {/* 헤더 */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center px-2.5 py-1 rounded-md
@@ -116,8 +116,8 @@ export function StockCard({
         </div>
 
         {/* 가격 + 거래량 */}
-        <div className="flex items-baseline gap-2 mt-1">
-          <span className={`text-2xl font-bold ${signColor(dayDiff || -1)}`}>
+        <div className="flex items-baseline gap-2">
+          <span className={`text-xl font-bold leading-tight ${signColor(dayDiff || -1)}`}>
             {price.price.toLocaleString()}원
           </span>
           {price.volume > 0 && (
@@ -195,9 +195,10 @@ export function StockCard({
         )}
       </div>
 
-      {/* ───────── 우측: 12 항목 그리드 (배경 분리) ───────── */}
-      <div className="flex-1 min-w-0 bg-white border border-gray-200 rounded-md p-2
-                       grid grid-cols-2 gap-x-2 gap-y-0.5 text-sm">
+      {/* ───────── 우측: 12 항목 그리드 ───────── */}
+      <div className="flex-1 min-w-0 bg-white border border-gray-200 rounded-md
+                       px-1.5 py-1 grid grid-cols-2 gap-x-2 gap-y-0
+                       text-xs">
         {FLOW_FIELDS.map(({ label, key }) => {
           const raw = investor ? investor[key] : null;
           const isRatio = key === "외국인비율";
@@ -215,14 +216,13 @@ export function StockCard({
           return (
             <div
               key={label}
-              className={`flex items-center justify-between gap-1 px-1.5 py-0.5 rounded
+              className={`flex items-center justify-between gap-1 px-1 py-px rounded
                           ${rowBg} ${bold ? "font-bold" : ""}`}
             >
-              <span className="text-gray-600 text-xs whitespace-nowrap shrink-0">
+              <span className="text-gray-600 whitespace-nowrap shrink-0">
                 {label}
               </span>
-              <span className={`tabular-nums whitespace-nowrap ${numColor}
-                                 ${bold ? "text-sm" : "text-xs"}`}>
+              <span className={`tabular-nums whitespace-nowrap ${numColor}`}>
                 {value}
               </span>
             </div>

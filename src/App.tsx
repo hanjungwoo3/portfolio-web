@@ -151,7 +151,7 @@ function Dashboard() {
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 px-6 py-4
                           sticky top-0 z-10">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+        <div className="max-w-screen-2xl mx-auto flex items-center justify-between">
           <h1 className="text-xl font-bold text-gray-900">📈 포트폴리오</h1>
           <button
             onClick={() => setImportOpen(true)}
@@ -162,7 +162,7 @@ function Dashboard() {
         </div>
       </header>
 
-      <main className="max-w-6xl mx-auto p-4">
+      <main className="max-w-screen-2xl mx-auto p-3">
         <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
 
         {visible.length === 0 ? (
@@ -171,7 +171,7 @@ function Dashboard() {
           </div>
         ) : (
           <>
-            <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
               {sortedVisible.map(stock => (
                 <StockCard
                   key={`${stock.ticker}_${stock.account || ""}`}
