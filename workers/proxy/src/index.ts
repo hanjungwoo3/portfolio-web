@@ -15,7 +15,9 @@ const ALLOWED_HOSTS = new Set<string>([
   "query2.finance.yahoo.com",
 ]);
 
-const DEFAULT_CACHE_TTL = 30;
+// 응답 캐시 TTL (초). 클라이언트 5초 폴링이라 캐시는 짧게.
+// 너무 짧으면 (= 0) 동일 시점 다중 사용자 fanout 시 부담 ↑.
+const DEFAULT_CACHE_TTL = 3;
 const UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) " +
   "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
