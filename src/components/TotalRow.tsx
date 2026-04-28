@@ -6,8 +6,8 @@ interface Props {
   prices: Map<string, Price>;
 }
 
-const SELL_FEE_PCT = 0.2;
-const FEE_MUL = 1 - SELL_FEE_PCT / 100;
+// 합계는 매도 수수료 미적용 (raw 가격 × 주수). 데스크톱 v2 와 동일.
+// 카드 개별 "전체수익" 은 FEE 적용 (매도 시 실수령액 추정) — 의도적 비대칭.
 
 export function TotalRow({ holdings, prices }: Props) {
   const todayKst = nowKstDateStr();
@@ -26,10 +26,9 @@ export function TotalRow({ holdings, prices }: Props) {
     let base = p.base || cur;
     const sleeping = p.trade_date !== todayKst;
     if (sleeping && !showPrev) base = cur;
-    const net = cur * FEE_MUL;
     totalInvested += s.shares * s.avg_price;
-    totalCurrent += Math.round(net * s.shares);
-    totalYesterday += Math.round(base * FEE_MUL * s.shares);
+    totalCurrent += cur * s.shares;
+    totalYesterday += base * s.shares;
     activeCount++;
   }
 
