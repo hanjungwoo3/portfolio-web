@@ -186,11 +186,11 @@ export function StockCard({
                 {stock.avg_price.toLocaleString()}원
               </span>
             </span>
-            {peak && peak > 0 && (
+            {peak && peak > price && (
               <span className="font-bold text-blue-800">
                 피크 {peak.toLocaleString()}원
                 <span className="ml-0.5">
-                  ({peakPct >= 0 ? "+" : ""}{peakPct.toFixed(2)}%)
+                  ({peakPct.toFixed(2)}%)
                 </span>
               </span>
             )}
