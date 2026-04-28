@@ -1,5 +1,5 @@
 import type { Stock, Price, Investor, Consensus } from "../types";
-import { formatSigned, signColor, formatVolume, isEarlyMorningKst, nowKst } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isEarlyMorningKst, nowKstDateStr } from "../lib/format";
 
 interface Props {
   stock: Stock;
@@ -69,8 +69,7 @@ export function StockCard({
     );
   }
 
-  const todayKst = nowKst().toISOString().slice(0, 10);
-  const sleeping = price.trade_date !== todayKst;
+  const sleeping = price.trade_date !== nowKstDateStr();
   const showPrev = isEarlyMorningKst();
 
   let dayDiff = price.price - price.base;
@@ -97,7 +96,8 @@ export function StockCard({
 
   return (
     <article className={`rounded-lg border shadow-sm flex flex-row gap-3 px-3 py-2
-                          ${cardBg}`}>
+                          ${cardBg} ${sleeping ? "opacity-60" : ""}
+                          transition-opacity`}>
       {/* ───────── 좌측 ───────── */}
       <div className="basis-[55%] min-w-0 flex flex-col gap-0.5">
         {/* 헤더 */}

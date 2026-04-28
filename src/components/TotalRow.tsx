@@ -1,5 +1,5 @@
 import type { Stock, Price } from "../types";
-import { formatSigned, signColor, isEarlyMorningKst, nowKst } from "../lib/format";
+import { formatSigned, signColor, isEarlyMorningKst, nowKstDateStr } from "../lib/format";
 
 interface Props {
   holdings: Stock[];
@@ -10,7 +10,7 @@ const SELL_FEE_PCT = 0.2;
 const FEE_MUL = 1 - SELL_FEE_PCT / 100;
 
 export function TotalRow({ holdings, prices }: Props) {
-  const todayKst = nowKst().toISOString().slice(0, 10);
+  const todayKst = nowKstDateStr();
   const showPrev = isEarlyMorningKst();
 
   let totalInvested = 0;
