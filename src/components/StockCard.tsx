@@ -8,21 +8,13 @@ interface Props {
   consensus?: Consensus | null;
   sector?: string;
   peak?: number;
-  warning?: string;   // 위험/관리/정지/경고/과열/환기/주의 (2자 축약)
+  warning?: string;
   loading?: boolean;
 }
 
-const WARN_BG: Record<string, string> = {
-  위험: "bg-red-700",
-  관리: "bg-red-700",
-  정지: "bg-gray-500",
-  경고: "bg-orange-600",
-  과열: "bg-orange-600",
-  환기: "bg-orange-600",
-  주의: "bg-amber-500",
-};
+const SELL_FEE_PCT = 0.2;
+const FEE_MUL = 1 - SELL_FEE_PCT / 100;
 
-// 우측 12 항목 그리드 (데스크톱 v2 RIGHT_FIELDS 동일 순서)
 const FLOW_FIELDS: { label: string; key: keyof Investor }[] = [
   { label: "외국인보유", key: "외국인비율" },
   { label: "개인", key: "개인" },
@@ -39,12 +31,21 @@ const FLOW_FIELDS: { label: string; key: keyof Investor }[] = [
 ];
 
 const HIGHLIGHT_BG: Record<string, string> = {
-  외국인: "bg-blue-50",      // 음수든 양수든 외국인 행은 옅은 파랑
-  기관: "bg-rose-50",        // 기관 행은 옅은 빨강
-  연기금: "bg-rose-50/60",   // 연기금은 더 옅은 빨강
+  외국인: "bg-blue-50",
+  기관: "bg-rose-50",
+  연기금: "bg-rose-50/60",
 };
-
 const HIGHLIGHT_BOLD = new Set(["외국인", "기관"]);
+
+const WARN_BG: Record<string, string> = {
+  위험: "bg-red-700",
+  관리: "bg-red-700",
+  정지: "bg-gray-500",
+  경고: "bg-orange-600",
+  과열: "bg-orange-600",
+  환기: "bg-orange-600",
+  주의: "bg-amber-500",
+};
 
 export function StockCard({
   stock, price, investor, consensus, sector, peak, warning, loading,
@@ -73,17 +74,34 @@ export function StockCard({
       ? ((consensus.target - price.price) / price.price) * 100
       : 0;
 
+  // 전체수익 (보유 종목만 — shares > 0)
+  const hasPosition = stock.shares > 0 && stock.avg_price > 0;
+  const netPrice = price.price * FEE_MUL;
+  const pnl = hasPosition ? Math.round((netPrice - stock.avg_price) * stock.shares) : 0;
+  const pnlPct = hasPosition ? ((netPrice - stock.avg_price) / stock.avg_price) * 100 : 0;
+
+  // 카드 배경색 — 보유 종목의 손익에 따라 옅은 빨/파
+  const cardBg =
+    hasPosition && pnl > 0 ? "bg-rose-50/70 border-rose-200"
+    : hasPosition && pnl < 0 ? "bg-blue-50/60 border-blue-200"
+    : "bg-white border-gray-200";
+
   return (
-    <article className="rounded-lg bg-white border border-gray-200 shadow-sm
-                         flex flex-row gap-4 p-4 min-h-[180px]">
-      {/* ───────── 좌측: 메인 정보 ───────── */}
+    <article className={`rounded-lg border shadow-sm flex flex-row gap-4 p-4
+                          min-h-[180px] ${cardBg}`}>
+      {/* ───────── 좌측 ───────── */}
       <div className="basis-[42%] min-w-0 flex flex-col gap-1.5">
-        {/* 헤더: pill + 섹터 + info */}
+        {/* 헤더 */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center px-2.5 py-1 rounded-md
                             bg-yellow-200 text-gray-900 font-bold text-base leading-none">
             {sleeping && <span className="text-xs mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
             {stock.name}
+            {stock.shares > 0 && (
+              <span className="ml-1.5 text-sm font-bold">
+                ({stock.shares.toLocaleString()}주)
+              </span>
+            )}
           </span>
           {warning && (
             <span className={`px-1.5 py-0.5 rounded text-white text-xs font-bold
@@ -109,13 +127,23 @@ export function StockCard({
           )}
         </div>
 
-        {/* 피크가 (보유 종목만) */}
-        {peak && peak > 0 && stock.shares > 0 && (
-          <div className="text-sm font-bold text-blue-800">
-            피크 {peak.toLocaleString()}원
-            <span className="ml-1">
-              ({peakPct >= 0 ? "+" : ""}{peakPct.toFixed(2)}%)
+        {/* 매수가 + 피크가 (보유만) */}
+        {hasPosition && (
+          <div className="text-sm flex flex-wrap items-baseline gap-x-4">
+            <span>
+              <span className="text-gray-500">매수 </span>
+              <span className="text-gray-700 font-medium">
+                {stock.avg_price.toLocaleString()}원
+              </span>
             </span>
+            {peak && peak > 0 && (
+              <span className="font-bold text-blue-800">
+                피크 {peak.toLocaleString()}원
+                <span className="ml-0.5">
+                  ({peakPct >= 0 ? "+" : ""}{peakPct.toFixed(2)}%)
+                </span>
+              </span>
+            )}
           </div>
         )}
 
@@ -128,7 +156,7 @@ export function StockCard({
                 {formatSigned(dayDiff)}
                 {stock.shares > 0 && ` / ${formatSigned(dayDiff * stock.shares)}`}
               </span>
-              <span className={signColor(dayDiff)}>
+              <span className={`font-bold ${signColor(dayDiff)}`}>
                 {"  "}({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
               </span>
             </>
@@ -137,9 +165,22 @@ export function StockCard({
           )}
         </div>
 
+        {/* 전체수익 (보유만) */}
+        {hasPosition && (
+          <div className="text-sm">
+            <span className="text-gray-500">전체수익 </span>
+            <span className={`font-bold ${signColor(pnl)}`}>
+              {formatSigned(pnl)}
+            </span>
+            <span className={`font-bold ${signColor(pnl)}`}>
+              {"  "}({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)
+            </span>
+          </div>
+        )}
+
         {/* 목표 */}
         {consensus?.target && (
-          <div className="text-sm mt-1">
+          <div className="text-sm">
             <span className="text-gray-500">목표 </span>
             {typeof consensus.score === "number" && (
               <span className="text-gray-500">({consensus.score.toFixed(2)}) </span>
@@ -154,8 +195,8 @@ export function StockCard({
         )}
       </div>
 
-      {/* ───────── 우측: 12 항목 그리드 ───────── */}
-      <div className="flex-1 min-w-0 border border-gray-200 rounded-md p-2
+      {/* ───────── 우측: 12 항목 그리드 (배경 분리) ───────── */}
+      <div className="flex-1 min-w-0 bg-white border border-gray-200 rounded-md p-2
                        grid grid-cols-2 gap-x-2 gap-y-0.5 text-sm">
         {FLOW_FIELDS.map(({ label, key }) => {
           const raw = investor ? investor[key] : null;
