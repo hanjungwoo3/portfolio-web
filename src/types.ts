@@ -1,4 +1,4 @@
-// 데스크톱 v2 holdings.json 스키마와 호환
+// 데스크톱 v2 holdings.json 스키마 호환
 export interface Stock {
   ticker: string;
   name: string;
@@ -7,15 +7,38 @@ export interface Stock {
   invested?: number;
   buy_date?: string;
   market?: string;
-  account?: string;  // "" / "퇴직연금" / "관심" / "관심ETF" / 사용자그룹
+  account?: string;
 }
 
 export interface Price {
   ticker: string;
-  price: number;       // 현재가 (또는 마지막 체결가)
-  base: number;        // 전일 종가 (어제대비 기준)
-  open: number;        // 시초가
-  volume: number;      // 거래량
-  trade_date: string;  // YYYY-MM-DD KST
-  trade_dt?: string;   // ISO with offset
+  price: number;
+  base: number;
+  open: number;
+  volume: number;
+  trade_date: string;
+  trade_dt?: string;
+}
+
+// 토스 수급 — 데스크톱 v2 fetch_investor_flow 와 동일 키
+export interface Investor {
+  date?: string;
+  개인: number;
+  외국인: number;        // 순매수량
+  기관: number;
+  연기금: number;
+  금융투자: number;
+  투신: number;
+  사모: number;
+  보험: number;
+  은행: number;
+  기타금융: number;
+  기타법인: number;
+  외국인비율: number;    // 보유율 %
+}
+
+export interface Consensus {
+  target?: number;       // 목표주가
+  opinion?: string;      // 투자의견 텍스트
+  score?: number;        // 1.0~5.0 (5=강력매수)
 }
