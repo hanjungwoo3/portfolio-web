@@ -149,6 +149,7 @@ export interface UsIndex {
   pct: number;
   currency?: string;
   tradeDate: string;       // KST 날짜 (YYYY-MM-DD) — 마지막 거래 시각 기준
+  marketState: string;     // REGULAR / PRE / POST / CLOSED / PREPRE / POSTPOST
 }
 
 // Yahoo quoteSummary v10 — yfinance Python 과 동일 데이터 소스
@@ -224,7 +225,7 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
 
     return {
       symbol, name, price, prev, diff, pct,
-      currency: p.currency, tradeDate,
+      currency: p.currency, tradeDate, marketState: state,
     };
   } catch {
     return null;

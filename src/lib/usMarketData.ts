@@ -65,6 +65,23 @@ export const ETFS_BY_SECTOR: Record<string, string[]> = {
   한국지수: ["122630", "229200"],
 };
 
+// KR ETF 이름 — Toss API 가 name 을 반환 안 해 하드코딩 (12개)
+export const ETF_NAMES: Record<string, string> = {
+  "091160": "KODEX 반도체",
+  "091230": "TIGER 반도체",
+  "449450": "TIGER 방산",
+  "446770": "KODEX 조선해양",
+  "329200": "TIGER 리츠부동산인프라",
+  "091180": "KODEX 자동차",
+  "117700": "KODEX 건설",
+  "091170": "KODEX 은행",
+  "365040": "TIGER Fn메타버스",
+  "143860": "TIGER 바이오테크",
+  "445290": "KODEX K-로봇액티브",
+  "122630": "KODEX 레버리지",
+  "229200": "KODEX 코스닥150",
+};
+
 export const SECTOR_EMOJI: Record<string, string> = {
   반도체: "🔧", 방산: "🛡️", 중공업: "🚢", 리츠: "🏢",
   에너지: "⚡", 자동차: "🚗", 건설: "🏗️", 금융: "💰",

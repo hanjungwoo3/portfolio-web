@@ -2,9 +2,9 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchTossPrices } from "../lib/api";
 import type { UsIndex } from "../lib/api";
 import type { Price } from "../types";
-import { nowKstDateStr } from "../lib/format";
+import { isSymbolSleeping } from "../lib/format";
 import {
-  US_PAIRS, ETFS_BY_SECTOR, SECTOR_EMOJI, SECTOR_ORDER,
+  US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
   allYahooSymbols, allKrEtfTickers,
 } from "../lib/usMarketData";
 
@@ -81,7 +81,6 @@ function QuoteCell({ name, desc, price, diff, pct, bold, sleeping }: QuoteCellPr
 export function UsMarketTab() {
   const yahooSymbols = allYahooSymbols();
   const krEtfs = allKrEtfTickers();
-  const todayKst = nowKstDateStr();
 
   const { data: usMap } = useQuery({
     queryKey: ["yahoo-batch", yahooSymbols.length],
@@ -119,7 +118,7 @@ export function UsMarketTab() {
           const q = usMap?.get(p.symbol);
           const diff = q?.diff ?? 0;
           const pct = q?.pct ?? 0;
-          const sleeping = q ? q.tradeDate !== todayKst : false;
+          const sleeping = isSymbolSleeping(p.symbol);
           const sign = diff > 0 ? "text-rose-400"
                       : diff < 0 ? "text-blue-400" : "text-gray-300";
           return (
@@ -184,7 +183,7 @@ export function UsMarketTab() {
               <div className="flex flex-col gap-1">
                 {cashPairs.map(p => {
                   const q = usMap?.get(p.symbol);
-                  const sleeping = q ? q.tradeDate !== todayKst : false;
+                  const sleeping = isSymbolSleeping(p.symbol);
                   return (
                     <QuoteCell key={p.symbol}
                       symbol={p.symbol} name={p.name} desc={p.desc}
@@ -197,7 +196,7 @@ export function UsMarketTab() {
               <div className="flex flex-col gap-1">
                 {futurePairs.map(f => {
                   const q = usMap?.get(f.symbol);
-                  const sleeping = q ? q.tradeDate !== todayKst : false;
+                  const sleeping = isSymbolSleeping(f.symbol);
                   return (
                     <QuoteCell key={f.symbol}
                       symbol={f.symbol} name={f.name} desc={f.desc}
@@ -210,17 +209,19 @@ export function UsMarketTab() {
               <div className="flex flex-col gap-1">
                 {etfTickers.map(t => {
                   const p: Price | undefined = krMap.get(t);
+                  const etfName = ETF_NAMES[t] ?? `ETF ${t}`;
+                  const sleeping = isSymbolSleeping(t);  // KR 시장 시간 기반
                   if (!p) {
                     return (
-                      <QuoteCell key={t} symbol={t} name={`ETF ${t}`} />
+                      <QuoteCell key={t} symbol={t} name={etfName}
+                                 sleeping={sleeping} />
                     );
                   }
                   const diff = p.price - p.base;
                   const pct = p.base > 0 ? (diff / p.base) * 100 : 0;
-                  const sleeping = p.trade_date !== todayKst;
                   return (
                     <QuoteCell key={t}
-                      symbol={t} name={`ETF ${t}`}
+                      symbol={t} name={etfName}
                       price={p.price} diff={diff} pct={pct}
                       bold sleeping={sleeping} />
                   );
