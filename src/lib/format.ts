@@ -107,3 +107,31 @@ export function isMarketOpen(market: Market): boolean {
 export function isSymbolSleeping(symbol: string): boolean {
   return !isMarketOpen(marketOfSymbol(symbol));
 }
+
+// 한국 장 세션 phase — 데스크톱 v1/v2 kr_session_phase 동일
+export type KrPhase = "REGULAR" | "EXTENDED" | "CLOSED";
+
+export function krSessionPhase(): KrPhase {
+  const t = nowInTz("Asia/Seoul");
+  if (t.weekday === 0 || t.weekday === 6) return "CLOSED";
+  const m = t.hour * 60 + t.minute;
+  if (9 * 60 <= m && m < 15 * 60 + 30) return "REGULAR";
+  if ((8 * 60 <= m && m < 8 * 60 + 50)
+      || (15 * 60 + 30 <= m && m < 20 * 60)) return "EXTENDED";
+  return "CLOSED";
+}
+
+// 보유 종목 sleeping 판정 (KR) — 데스크톱 v2 동일.
+// REGULAR: 항상 활성 / CLOSED: 항상 휴면 /
+// EXTENDED: 마지막 체결 후 10분 경과 시 휴면.
+export function isHoldingSleeping(tradeDtIso?: string): boolean {
+  const phase = krSessionPhase();
+  if (phase === "REGULAR") return false;
+  if (phase === "CLOSED") return true;
+  // EXTENDED
+  if (!tradeDtIso) return true;
+  const tradeMs = new Date(tradeDtIso).getTime();
+  if (!Number.isFinite(tradeMs)) return true;
+  const minutesSince = (Date.now() - tradeMs) / 60_000;
+  return minutesSince >= 10;
+}

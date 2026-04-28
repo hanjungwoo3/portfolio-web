@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Stock, Price, Investor, Consensus } from "../types";
-import { formatSigned, signColor, formatVolume, isEarlyMorningKst, nowKstDateStr } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isEarlyMorningKst, isHoldingSleeping } from "../lib/format";
 
 interface Props {
   stock: Stock;
@@ -100,7 +100,9 @@ export function StockCard({
     );
   }
 
-  const sleeping = price.trade_date !== nowKstDateStr();
+  // 보유 종목 sleeping — 데스크톱 v2 kr_session_phase 기반
+  // (정규장 활성 / EXTENDED 시간 + 마지막 체결 10분 초과 → sleeping / CLOSED → sleeping)
+  const sleeping = isHoldingSleeping(price.trade_dt);
   const showPrev = isEarlyMorningKst();
 
   let dayDiff = price.price - price.base;

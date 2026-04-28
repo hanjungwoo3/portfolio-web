@@ -1,5 +1,5 @@
 import type { Stock, Price } from "../types";
-import { formatSigned, signColor, isEarlyMorningKst, nowKstDateStr } from "../lib/format";
+import { formatSigned, signColor, isEarlyMorningKst, isHoldingSleeping } from "../lib/format";
 
 interface Props {
   holdings: Stock[];
@@ -10,7 +10,6 @@ interface Props {
 // 카드 개별 "전체수익" 은 FEE 적용 (매도 시 실수령액 추정) — 의도적 비대칭.
 
 export function TotalRow({ holdings, prices }: Props) {
-  const todayKst = nowKstDateStr();
   const showPrev = isEarlyMorningKst();
 
   let totalInvested = 0;
@@ -24,7 +23,7 @@ export function TotalRow({ holdings, prices }: Props) {
     if (!p) continue;
     const cur = p.price || s.avg_price;
     let base = p.base || cur;
-    const sleeping = p.trade_date !== todayKst;
+    const sleeping = isHoldingSleeping(p.trade_dt);
     if (sleeping && !showPrev) base = cur;
     totalInvested += s.shares * s.avg_price;
     totalCurrent += cur * s.shares;
