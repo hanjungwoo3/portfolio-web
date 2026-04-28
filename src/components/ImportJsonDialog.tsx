@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { replaceAllHoldings } from "../lib/db";
+import { replaceAllHoldings, replaceAllPeaks } from "../lib/db";
 import type { Stock } from "../types";
 
 interface Props {
@@ -8,37 +8,53 @@ interface Props {
   onImported: () => void;
 }
 
-interface ParseResult {
-  ok: boolean;
-  count?: number;
-  error?: string;
-  preview?: string[];
-}
+type Detected =
+  | { kind: "holdings"; stocks: Stock[] }
+  | { kind: "peaks"; peaks: Record<string, number> }
+  | { kind: "combined"; stocks: Stock[]; peaks: Record<string, number> }
+  | { kind: "error"; error: string };
 
-function validateJson(raw: string): ParseResult & { stocks?: Stock[] } {
+function detect(raw: string): Detected {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
   } catch (e) {
-    return { ok: false, error: e instanceof Error ? e.message : "JSON 파싱 실패" };
+    return { kind: "error", error: e instanceof Error ? e.message : "JSON 파싱 실패" };
   }
   if (!parsed || typeof parsed !== "object") {
-    return { ok: false, error: "JSON 객체가 아님" };
+    return { kind: "error", error: "JSON 객체가 아님" };
   }
   const obj = parsed as Record<string, unknown>;
-  if (!Array.isArray(obj.holdings)) {
-    return { ok: false, error: "'holdings' 배열이 없음" };
+
+  // 패턴 1: { holdings: [...], (peaks?: {...}) } — desktop holdings.json
+  if (Array.isArray(obj.holdings)) {
+    const stocks = parseHoldings(obj.holdings);
+    if (typeof stocks === "string") return { kind: "error", error: stocks };
+    if (obj.peaks && typeof obj.peaks === "object" && !Array.isArray(obj.peaks)) {
+      return { kind: "combined", stocks, peaks: obj.peaks as Record<string, number> };
+    }
+    return { kind: "holdings", stocks };
   }
+
+  // 패턴 2: { "005930": 251500, "000660": 220000, ... } — desktop peaks.json
+  // 모든 값이 숫자이고 키가 6자리 코드 형식이면 peaks 로 판정
+  const entries = Object.entries(obj);
+  if (entries.length > 0 && entries.every(([k, v]) =>
+        /^\d{6}$/.test(k) && typeof v === "number" && v > 0)) {
+    return { kind: "peaks", peaks: obj as Record<string, number> };
+  }
+
+  return { kind: "error", error: "알 수 없는 JSON 형식 — holdings.json 또는 peaks.json" };
+}
+
+function parseHoldings(arr: unknown[]): Stock[] | string {
   const stocks: Stock[] = [];
-  for (let i = 0; i < obj.holdings.length; i++) {
-    const item = obj.holdings[i];
-    if (!item || typeof item !== "object") {
-      return { ok: false, error: `${i}번 항목이 객체가 아님` };
-    }
+  for (let i = 0; i < arr.length; i++) {
+    const item = arr[i];
+    if (!item || typeof item !== "object") return `${i}번 항목이 객체가 아님`;
     const s = item as Record<string, unknown>;
-    if (typeof s.ticker !== "string" || s.ticker.length === 0) {
-      return { ok: false, error: `${i}번 항목 ticker 누락` };
-    }
+    if (typeof s.ticker !== "string" || s.ticker.length === 0)
+      return `${i}번 항목 ticker 누락`;
     stocks.push({
       ticker: s.ticker,
       name: typeof s.name === "string" ? s.name : s.ticker,
@@ -50,12 +66,7 @@ function validateJson(raw: string): ParseResult & { stocks?: Stock[] } {
       account: typeof s.account === "string" ? s.account : "",
     });
   }
-  return {
-    ok: true,
-    count: stocks.length,
-    stocks,
-    preview: stocks.slice(0, 3).map(s => `${s.ticker} ${s.name}`),
-  };
+  return stocks;
 }
 
 export function ImportJsonDialog({ isOpen, onClose, onImported }: Props) {
@@ -65,14 +76,19 @@ export function ImportJsonDialog({ isOpen, onClose, onImported }: Props) {
 
   if (!isOpen) return null;
 
-  const result = raw.trim() ? validateJson(raw) : null;
+  const result = raw.trim() ? detect(raw) : null;
 
   async function handleApply() {
-    if (!result?.ok || !("stocks" in result) || !result.stocks) return;
+    if (!result || result.kind === "error") return;
     setBusy(true);
     setError(null);
     try {
-      await replaceAllHoldings(result.stocks);
+      if (result.kind === "holdings" || result.kind === "combined") {
+        await replaceAllHoldings(result.stocks);
+      }
+      if (result.kind === "peaks" || result.kind === "combined") {
+        await replaceAllPeaks(result.peaks);
+      }
       onImported();
       onClose();
       setRaw("");
@@ -109,8 +125,9 @@ export function ImportJsonDialog({ isOpen, onClose, onImported }: Props) {
 
         <div className="px-5 py-4 space-y-3 overflow-y-auto">
           <p className="text-sm text-gray-600">
-            데스크톱 v2 / 모바일의 <code className="px-1 bg-gray-100 rounded">holdings.json</code>{" "}
-            전체 내용을 붙여넣으세요. 기존 데이터는 모두 교체됩니다.
+            데스크톱 <code className="px-1 bg-gray-100 rounded">holdings.json</code> 또는{" "}
+            <code className="px-1 bg-gray-100 rounded">peaks.json</code> 내용을 붙여넣으세요.
+            형식 자동 감지. 기존 데이터는 교체됩니다 (피크가는 피크가만, 보유는 보유만).
           </p>
 
           <div className="flex gap-2">
@@ -138,24 +155,40 @@ export function ImportJsonDialog({ isOpen, onClose, onImported }: Props) {
             spellCheck={false}
           />
 
-          {result && (
-            result.ok ? (
-              <div className="p-3 bg-green-50 border border-green-200 rounded text-sm">
-                <strong className="text-green-800">✓ 검증 통과:</strong>{" "}
-                <span className="text-green-700">{result.count}개 종목</span>
-                {result.preview && result.preview.length > 0 && (
-                  <div className="mt-1 text-xs text-green-600">
-                    예: {result.preview.join(" / ")}
-                    {(result.count ?? 0) > 3 && " ..."}
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="p-3 bg-red-50 border border-red-200 rounded text-sm
-                              text-red-700">
-                <strong>✗ 검증 실패:</strong> {result.error}
-              </div>
-            )
+          {result && result.kind === "error" && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded text-sm
+                            text-red-700">
+              <strong>✗ 검증 실패:</strong> {result.error}
+            </div>
+          )}
+          {result && result.kind === "holdings" && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded text-sm">
+              <strong className="text-green-800">✓ holdings.json:</strong>{" "}
+              <span className="text-green-700">{result.stocks.length}개 종목</span>
+              {result.stocks.length > 0 && (
+                <div className="mt-1 text-xs text-green-600">
+                  예: {result.stocks.slice(0, 3)
+                    .map(s => `${s.ticker} ${s.name}`).join(" / ")}
+                  {result.stocks.length > 3 && " ..."}
+                </div>
+              )}
+            </div>
+          )}
+          {result && result.kind === "peaks" && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded text-sm">
+              <strong className="text-green-800">✓ peaks.json:</strong>{" "}
+              <span className="text-green-700">
+                {Object.keys(result.peaks).length}개 피크가
+              </span>
+            </div>
+          )}
+          {result && result.kind === "combined" && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded text-sm">
+              <strong className="text-green-800">✓ holdings + peaks 통합:</strong>{" "}
+              <span className="text-green-700">
+                {result.stocks.length}개 종목 + {Object.keys(result.peaks).length}개 피크가
+              </span>
+            </div>
           )}
 
           {error && (
@@ -174,7 +207,7 @@ export function ImportJsonDialog({ isOpen, onClose, onImported }: Props) {
           </button>
           <button
             onClick={handleApply}
-            disabled={!result?.ok || busy}
+            disabled={!result || result.kind === "error" || busy}
             className="px-4 py-2 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300
                        text-white rounded text-sm font-medium">
             {busy ? "저장 중..." : "적용"}

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
 import { fetchTossPrices, fetchInvestor, fetchWarning, fetchNaverInfo } from "./lib/api";
-import { loadHoldings, loadPeaks } from "./lib/db";
+import { loadHoldings, loadPeaks, updatePeaksForward } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { Tabs, buildTabs, filterByTab } from "./components/Tabs";
 import { TotalRow } from "./components/TotalRow";
@@ -62,6 +62,18 @@ function Dashboard() {
     enabled: krxTickers.length > 0,
     refetchInterval: 30_000,
   });
+
+  // 가격 갱신 시 피크가 forward-only 업데이트 (저장된 피크 < 현재가면 갱신)
+  useEffect(() => {
+    if (!prices || prices.length === 0) return;
+    const priceMap = new Map(prices.map(p => [p.ticker, p.price]));
+    void updatePeaksForward(priceMap).then(updated => {
+      if (updated > 0) {
+        // peaks 갱신됐으면 메모리 상 peaks 도 동기화
+        void loadPeaks().then(setPeaks);
+      }
+    });
+  }, [prices]);
 
   // 어제대비 % 내림차순 정렬 (가격 로드 후 적용; 가격 없는 종목은 맨 뒤)
   const sortedVisible = useMemo(() => {

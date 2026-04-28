@@ -46,3 +46,28 @@ export async function loadPeaks(): Promise<Map<string, number>> {
 export async function setPeak(ticker: string, price: number): Promise<void> {
   await db.peaks.put({ ticker, price });
 }
+
+// peaks.json {ticker: price} → IndexedDB 일괄 저장
+export async function replaceAllPeaks(map: Record<string, number>): Promise<void> {
+  const items: Peak[] = Object.entries(map)
+    .filter(([t, p]) => /^\d{6}$/.test(t) && typeof p === "number" && p > 0)
+    .map(([ticker, price]) => ({ ticker, price }));
+  await db.transaction("rw", db.peaks, async () => {
+    await db.peaks.clear();
+    if (items.length > 0) await db.peaks.bulkAdd(items);
+  });
+}
+
+// 가격 갱신 후 호출 — 현재가 > 저장된 피크면 forward-only 업데이트
+export async function updatePeaksForward(
+  prices: Map<string, number>
+): Promise<number> {
+  const existing = await loadPeaks();
+  const updates: Peak[] = [];
+  for (const [ticker, cur] of prices) {
+    const old = existing.get(ticker) ?? 0;
+    if (cur > old) updates.push({ ticker, price: cur });
+  }
+  if (updates.length > 0) await db.peaks.bulkPut(updates);
+  return updates.length;
+}
