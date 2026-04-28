@@ -3,10 +3,13 @@ import { fetchYahooBatch, fetchTossPrices } from "../lib/api";
 import type { UsIndex } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping } from "../lib/format";
+import { RefreshIndicator } from "./RefreshIndicator";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
   allYahooSymbols, allKrEtfTickers,
 } from "../lib/usMarketData";
+
+const REFRESH_MS = 5_000;
 
 function fmtPrice(symbol: string, price: number): string {
   if (symbol.includes("KRW")) return price.toFixed(2);
@@ -82,18 +85,16 @@ export function UsMarketTab() {
   const yahooSymbols = allYahooSymbols();
   const krEtfs = allKrEtfTickers();
 
-  const { data: usMap } = useQuery({
+  const { data: usMap, dataUpdatedAt: usUpdatedAt } = useQuery({
     queryKey: ["yahoo-batch", yahooSymbols.length],
     queryFn: () => fetchYahooBatch(yahooSymbols),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    refetchInterval: REFRESH_MS,
   });
 
   const { data: krPrices } = useQuery({
     queryKey: ["us-tab-kr-etfs", krEtfs],
     queryFn: () => fetchTossPrices(krEtfs),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    refetchInterval: REFRESH_MS,
   });
 
   const krMap = new Map((krPrices ?? []).map(p => [p.ticker, p]));
@@ -111,6 +112,11 @@ export function UsMarketTab() {
 
   return (
     <div className="space-y-3">
+      <div className="flex justify-end">
+        <RefreshIndicator
+          dataUpdatedAt={usUpdatedAt}
+          refetchIntervalMs={REFRESH_MS} />
+      </div>
       {/* ─── Tier 0: 핵심 대시보드 ─── */}
       <div className="rounded-lg bg-slate-800 text-white px-4 py-3
                        grid grid-cols-2 lg:grid-cols-4 gap-3">

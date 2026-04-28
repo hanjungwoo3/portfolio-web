@@ -7,12 +7,16 @@ import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY } from "./components/Ta
 import { TotalRow } from "./components/TotalRow";
 import { ImportJsonDialog } from "./components/ImportJsonDialog";
 import { UsMarketTab } from "./components/UsMarketTab";
+import { RefreshIndicator } from "./components/RefreshIndicator";
 import type { Stock } from "./types";
+
+// 모든 polling 5초로 통일 (사용자 요청)
+const REFRESH_MS = 5_000;
 
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 10_000,
+      staleTime: 0,
       refetchOnWindowFocus: true,
     },
   },
@@ -56,12 +60,12 @@ function Dashboard() {
     [visible]
   );
 
-  // 가격 — 30초 polling
-  const { data: prices } = useQuery({
+  // 가격 — 5초 polling
+  const { data: prices, dataUpdatedAt: pricesUpdatedAt } = useQuery({
     queryKey: ["prices", krxTickers],
     queryFn: () => fetchTossPrices(krxTickers),
     enabled: krxTickers.length > 0,
-    refetchInterval: 30_000,
+    refetchInterval: REFRESH_MS,
   });
 
   // 가격 갱신 시 피크가 forward-only 업데이트 (저장된 피크 < 현재가면 갱신)
@@ -88,31 +92,30 @@ function Dashboard() {
     });
   }, [visible, prices]);
 
-  // 종목별 수급 — 5분 polling, 병렬
+  // 종목별 수급 — 5초
   const investorQs = useQueries({
     queries: krxTickers.map(t => ({
       queryKey: ["investor", t],
       queryFn: () => fetchInvestor(t),
-      staleTime: 60_000,
-      refetchInterval: 5 * 60_000,
+      refetchInterval: REFRESH_MS,
     })),
   });
 
-  // 경고 뱃지 — 6시간 staleTime (자주 안 바뀜)
+  // 경고 뱃지 — 5초
   const warningQs = useQueries({
     queries: krxTickers.map(t => ({
       queryKey: ["warning", t],
       queryFn: () => fetchWarning(t),
-      staleTime: 6 * 3600_000,
+      refetchInterval: REFRESH_MS,
     })),
   });
 
-  // Naver info (섹터 + 컨센서스) — 1시간 staleTime
+  // Naver info (섹터 + 컨센서스) — 5초
   const naverQs = useQueries({
     queries: krxTickers.map(t => ({
       queryKey: ["naver", t],
       queryFn: () => fetchNaverInfo(t),
-      staleTime: 3600_000,
+      refetchInterval: REFRESH_MS,
     })),
   });
 
@@ -136,15 +139,24 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto flex items-center justify-between
-                         px-6 py-3">
-          <h1 className="text-xl font-bold text-gray-900">📈 포트폴리오</h1>
-          <button
-            onClick={() => setImportOpen(true)}
-            className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
-                       text-gray-700 rounded text-sm">
-            📥 가져오기
-          </button>
+        <div className="max-w-7xl mx-auto flex items-center
+                         gap-3 px-6 py-3">
+          <h1 className="text-xl font-bold text-gray-900 shrink-0">
+            📈 포트폴리오
+          </h1>
+          <div className="flex items-center gap-3 ml-auto">
+            {pricesUpdatedAt > 0 && (
+              <RefreshIndicator
+                dataUpdatedAt={pricesUpdatedAt}
+                refetchIntervalMs={REFRESH_MS} />
+            )}
+            <button
+              onClick={() => setImportOpen(true)}
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
+                         text-gray-700 rounded text-sm">
+              📥 가져오기
+            </button>
+          </div>
         </div>
       </header>
 
