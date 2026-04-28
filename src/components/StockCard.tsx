@@ -44,9 +44,9 @@ const HIGHLIGHT_LABEL_COLOR: Record<string, string> = {
 };
 // 강조 행 — 폰트 사이즈 (외국인/기관은 한 단계 위, 연기금은 동일)
 const HIGHLIGHT_SIZE: Record<string, string> = {
-  외국인: "text-base font-bold",
-  기관: "text-base font-bold",
-  연기금: "text-sm font-medium",
+  외국인: "text-sm font-bold",
+  기관: "text-sm font-bold",
+  연기금: "text-xs font-medium",
 };
 
 const WARN_BG: Record<string, string> = {
