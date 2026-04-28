@@ -102,7 +102,7 @@ export function StockCard({
     <article className={`rounded-lg border shadow-sm flex flex-row gap-3 px-3 py-2
                           ${cardBg}`}>
       {/* ───────── 좌측 ───────── */}
-      <div className="basis-[42%] min-w-0 flex flex-col gap-0.5">
+      <div className="basis-[60%] min-w-0 flex flex-col gap-0.5">
         {/* 헤더 */}
         <div className="flex items-center gap-2 flex-wrap">
           <span className="inline-flex items-center px-2.5 py-1 rounded-md
