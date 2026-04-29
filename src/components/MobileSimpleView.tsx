@@ -110,13 +110,16 @@ export function MobileSimpleView() {
   });
   const groupPriceMap = new Map((groupPrices ?? []).map(p => [p.ticker, p]));
 
-  // 어제보다 % 내림차순 정렬 (가격 없는 종목은 맨 뒤) — PC 동일
+  // 어제보다 % 내림차순 정렬 — sleeping (거래 안 됨, base = price) 은 항상 맨 아래
   const groupHoldings = useMemo(() => {
     return [...groupHoldingsUnsorted].sort((a, b) => {
       const pa = groupPriceMap.get(a.ticker);
       const pb = groupPriceMap.get(b.ticker);
-      const pctA = pa && pa.base > 0 ? (pa.price - pa.base) / pa.base : -Infinity;
-      const pctB = pb && pb.base > 0 ? (pb.price - pb.base) / pb.base : -Infinity;
+      const aSleep = !pa || pa.base <= 0 || pa.price === pa.base;
+      const bSleep = !pb || pb.base <= 0 || pb.price === pb.base;
+      if (aSleep !== bSleep) return aSleep ? 1 : -1;
+      const pctA = pa && pa.base > 0 ? (pa.price - pa.base) / pa.base : 0;
+      const pctB = pb && pb.base > 0 ? (pb.price - pb.base) / pb.base : 0;
       return pctB - pctA;
     });
   }, [groupHoldingsUnsorted, groupPriceMap]);
