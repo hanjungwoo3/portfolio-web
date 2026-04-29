@@ -180,12 +180,13 @@ function SectorTable({ sectors, buildRows }: SectorTableProps) {
         const etfs = rows.filter(r => r.kind === "etf");
         return (
           <div key={sector}
-               className={`grid grid-cols-[60px_3fr_2fr_3fr] gap-px
+               className={`grid grid-cols-[60px_3fr_2fr_3fr]
                             ${sIdx < sectors.length - 1
-                              ? "border-b border-gray-200" : ""}`}>
+                              ? "border-b border-gray-300" : ""}`}>
             {/* 섹터 라벨 (좌측) */}
             <div className="bg-slate-200 px-1 py-2 flex flex-col items-center
-                              justify-center text-center">
+                              justify-center text-center
+                              border-r border-gray-300">
               <span className="text-2xl">{SECTOR_EMOJI[sector] ?? "📊"}</span>
               <span className="text-xs font-bold text-gray-800 mt-0.5">{sector}</span>
             </div>
