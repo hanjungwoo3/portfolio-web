@@ -174,12 +174,12 @@ function SectorTable({ sectors, buildRows }: SectorTableProps) {
               <div className="h-2 bg-gray-100 border-y border-gray-200" />
             )}
             <div className="grid grid-cols-[60px_1fr_1fr]">
-            {/* 섹터 라벨 (좌측) — 아이콘 + 라벨 한 줄 */}
+            {/* 섹터 라벨 (좌측) — 아이콘 + 라벨 한 줄 (작게) */}
             <div className="bg-slate-200 px-1 py-3 flex flex-row items-center
-                              justify-center gap-1 text-center
+                              justify-center gap-0.5 text-center
                               border-r border-gray-300">
-              <span className="text-base">{SECTOR_EMOJI[sector] ?? "📊"}</span>
-              <span className="text-xs font-bold text-gray-800">{sector}</span>
+              <span className="text-sm">{SECTOR_EMOJI[sector] ?? "📊"}</span>
+              <span className="text-[10px] font-bold text-gray-800">{sector}</span>
             </div>
               {/* 현물 / 선물+ETF (선물 위, ETF 아래) 컬럼 */}
               <QuoteList rows={spots} />
