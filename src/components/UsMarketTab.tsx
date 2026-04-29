@@ -137,7 +137,7 @@ export function UsMarketTab() {
                 <span className="flex-1 text-left text-sm tabular-nums text-gray-700">
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>
-                <span className={`flex-1 text-right text-base font-bold tabular-nums ${sign}`}>
+                <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
                   {q ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%` : ""}
                 </span>
               </div>
@@ -218,7 +218,7 @@ function QuoteList({ rows }: QuoteListProps) {
           : "";
         return (
           <div key={r.symbol}
-               className={`grid grid-cols-[1fr_70px_64px] items-baseline gap-1
+               className={`grid grid-cols-[1fr_70px_76px] items-baseline gap-1
                             px-1.5 py-1 ${rowBg}
                             ${r.sleeping ? "opacity-60" : ""}`}>
             <div className="flex items-baseline gap-1 min-w-0">
@@ -237,7 +237,7 @@ function QuoteList({ rows }: QuoteListProps) {
             <span className="text-xs tabular-nums text-gray-700 text-right">
               {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
             </span>
-            <span className={`text-sm font-bold tabular-nums text-right ${sign}`}>
+            <span className={`text-base font-bold tabular-nums text-right ${sign}`}>
               {r.pct !== undefined
                 ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
                 : ""}
