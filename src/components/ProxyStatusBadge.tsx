@@ -15,40 +15,52 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy }: Props) {
 
   useEffect(() => subscribeProxyStatus(setState), []);
 
-  // 정상 상태 — 전용 프록시 사용 중이면 강조 / 아니면 안내 힌트
-  if (state.health === "ok") {
-    const baseSec = Math.round(baseRefreshMs / 1000);
-    if (usePersonalProxy) {
-      return (
-        <span title="공개 4-way 대신 본인 전용 Cloudflare Worker 사용 중"
-              className="text-[11px] text-blue-700 shrink-0">
-          🔧 내 전용 프록시 · {baseSec}초 갱신
-        </span>
-      );
-    }
-    return (
-      <span title="공개 4-way 프록시 (Cloudflare/Vercel/Deno/Render) 사용 중 — 10초 고정"
-            className="text-[11px] text-gray-500 shrink-0">
-        💡 ⚙️ 설정에서 전용 프록시 추가 시 5초 갱신 가능
-      </span>
-    );
-  }
+  const baseSec = Math.round(baseRefreshMs / 1000);
 
   // 폴링 간격 (adaptive: base + downCount * base)
   const intervalSec = Math.round(
     (baseRefreshMs + state.downHosts.length * baseRefreshMs) / 1000
   );
 
-  const color = state.health === "down" ? "text-rose-700" : "text-amber-700";
-  const emoji = state.health === "down" ? "❌" : "⚠️";
-  const msg = state.health === "down"
-    ? `프록시 모두 다운 (${state.total}/${state.total}) — 갱신 중지`
-    : `프록시 ${state.downHosts.length}/${state.total} 다운으로 갱신시간을 ${intervalSec}초로 변경합니다`;
+  // 상태별 경고/안내 메시지 (정상이 아닐 때만)
+  let statusMsg: { emoji: string; text: string; color: string } | null = null;
+  if (state.health === "down") {
+    statusMsg = {
+      emoji: "❌",
+      text: `프록시 모두 다운 (${state.total}/${state.total}) — 갱신 중지`,
+      color: "text-rose-700",
+    };
+  } else if (state.health === "degraded") {
+    statusMsg = {
+      emoji: "⚠️",
+      text: `프록시 ${state.downHosts.length}/${state.total} 다운으로 갱신시간을 ${intervalSec}초로 변경합니다`,
+      color: "text-amber-700",
+    };
+  } else if (usePersonalProxy) {
+    statusMsg = {
+      emoji: "🔧",
+      text: `내 전용 프록시 · ${baseSec}초 갱신`,
+      color: "text-blue-700",
+    };
+  }
 
+  // 전용 프록시 미사용 시 힌트는 항상 표시 (정상/저하/다운 무관)
   return (
-    <span title={`다운: ${state.downHosts.join(", ")} — 정상 서버로 자동 fallback`}
-          className={`text-[11px] ${color} shrink-0`}>
-      {emoji} {msg}
+    <span className="flex items-center gap-2 shrink-0 flex-wrap">
+      {statusMsg && (
+        <span title={state.health !== "ok"
+                ? `다운: ${state.downHosts.join(", ")} — 정상 서버로 자동 fallback`
+                : "공개 4-way 대신 본인 전용 Cloudflare Worker 사용 중"}
+              className={`text-[11px] ${statusMsg.color}`}>
+          {statusMsg.emoji} {statusMsg.text}
+        </span>
+      )}
+      {!usePersonalProxy && (
+        <span title="본인 전용 Cloudflare Worker 배포 시 100k req/일 전용 + 폴링 주기 선택 가능"
+              className="text-[11px] text-gray-500">
+          💡 ⚙️ 설정에서 전용 프록시 추가 시 5초 갱신 가능
+        </span>
+      )}
     </span>
   );
 }
