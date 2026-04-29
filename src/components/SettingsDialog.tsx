@@ -1,0 +1,223 @@
+import { useEffect, useRef, useState } from "react";
+import {
+  exportAll, replaceAllHoldings, replaceAllPeaks,
+} from "../lib/db";
+import type { Stock } from "../types";
+
+interface Props {
+  isOpen: boolean;
+  onClose: () => void;
+  onChanged: () => void;          // 적용 후 부모 reload 트리거
+}
+
+type Detected =
+  | { kind: "holdings"; stocks: Stock[] }
+  | { kind: "peaks"; peaks: Record<string, number> }
+  | { kind: "combined"; stocks: Stock[]; peaks: Record<string, number> }
+  | { kind: "error"; error: string }
+  | null;
+
+function detect(raw: string): Detected {
+  if (!raw.trim()) return null;
+  let parsed: unknown;
+  try { parsed = JSON.parse(raw); }
+  catch (e) {
+    return { kind: "error", error: e instanceof Error ? e.message : "JSON 파싱 실패" };
+  }
+  if (!parsed || typeof parsed !== "object")
+    return { kind: "error", error: "JSON 객체가 아님" };
+  const obj = parsed as Record<string, unknown>;
+  // 패턴 1: holdings (+ optional peaks)
+  if (Array.isArray(obj.holdings)) {
+    const stocks = parseHoldings(obj.holdings);
+    if (typeof stocks === "string") return { kind: "error", error: stocks };
+    if (obj.peaks && typeof obj.peaks === "object" && !Array.isArray(obj.peaks)) {
+      return { kind: "combined", stocks, peaks: obj.peaks as Record<string, number> };
+    }
+    return { kind: "holdings", stocks };
+  }
+  // 패턴 2: peaks 단독 (모든 키 6자리, 값 number)
+  const entries = Object.entries(obj);
+  if (entries.length > 0 && entries.every(([k, v]) =>
+        /^\d{6}$/.test(k) && typeof v === "number" && v > 0)) {
+    return { kind: "peaks", peaks: obj as Record<string, number> };
+  }
+  return { kind: "error", error: "알 수 없는 JSON — holdings.json / peaks.json / combined" };
+}
+
+function parseHoldings(arr: unknown[]): Stock[] | string {
+  const stocks: Stock[] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const item = arr[i];
+    if (!item || typeof item !== "object") return `${i}번 항목이 객체가 아님`;
+    const s = item as Record<string, unknown>;
+    if (typeof s.ticker !== "string" || s.ticker.length === 0)
+      return `${i}번 항목 ticker 누락`;
+    stocks.push({
+      ticker: s.ticker,
+      name: typeof s.name === "string" ? s.name : s.ticker,
+      shares: typeof s.shares === "number" ? s.shares : 0,
+      avg_price: typeof s.avg_price === "number" ? s.avg_price : 0,
+      invested: typeof s.invested === "number" ? s.invested : undefined,
+      buy_date: typeof s.buy_date === "string" ? s.buy_date : undefined,
+      market: typeof s.market === "string" ? s.market : undefined,
+      account: typeof s.account === "string" ? s.account : "",
+    });
+  }
+  return stocks;
+}
+
+export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
+  const [raw, setRaw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("");
+  const downOnBackdropRef = useRef(false);
+
+  // 다이얼로그 열릴 때마다 현재 데이터 로드
+  useEffect(() => {
+    if (!isOpen) return;
+    void (async () => {
+      const data = await exportAll();
+      setRaw(JSON.stringify(data, null, 2));
+      setStatusMsg(`현재: 종목 ${data.holdings.length}건 / 피크 ${Object.keys(data.peaks).length}건`);
+    })();
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const result = detect(raw);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(raw);
+      setStatusMsg("✅ 클립보드에 복사됨");
+    } catch {
+      // fallback — execCommand
+      const ta = document.createElement("textarea");
+      ta.value = raw;
+      ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      try {
+        document.execCommand("copy");
+        setStatusMsg("✅ 클립보드에 복사됨");
+      } catch {
+        setStatusMsg("❌ 복사 실패");
+      } finally {
+        document.body.removeChild(ta);
+      }
+    }
+  };
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setRaw(text);
+      setStatusMsg("📥 클립보드에서 가져옴 — 적용 버튼 누르면 덮어쓰기");
+    } catch {
+      setStatusMsg("❌ 클립보드 읽기 실패 — textarea에 직접 붙여넣어주세요");
+    }
+  };
+
+  const handleApply = async () => {
+    if (!result || result.kind === "error") return;
+    setBusy(true);
+    try {
+      if (result.kind === "holdings" || result.kind === "combined") {
+        await replaceAllHoldings(result.stocks);
+      }
+      if (result.kind === "peaks" || result.kind === "combined") {
+        await replaceAllPeaks(result.peaks);
+      }
+      setStatusMsg("💾 적용 완료");
+      onChanged();
+      onClose();
+    } catch (e) {
+      setStatusMsg(`❌ 저장 실패: ${e instanceof Error ? e.message : ""}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center
+                     bg-black/40 p-4"
+         onMouseDown={e => { downOnBackdropRef.current = e.target === e.currentTarget; }}
+         onClick={e => {
+           if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
+         }}>
+      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full
+                       max-h-[90vh] flex flex-col">
+        <header className="px-5 py-3 border-b bg-gray-50 flex items-center gap-3">
+          <h2 className="text-lg font-bold shrink-0">⚙️ 설정</h2>
+          <span className="text-xs text-gray-500 truncate">{statusMsg}</span>
+          <button onClick={onClose}
+                  className="ml-auto text-gray-400 hover:text-gray-600 text-xl">✕</button>
+        </header>
+
+        <div className="px-5 py-3 space-y-2 flex-1 flex flex-col min-h-0">
+          <div className="text-sm text-gray-600">
+            포트폴리오 데이터 (JSON) — holdings + peaks 통합
+          </div>
+          <textarea
+            value={raw}
+            onChange={e => setRaw(e.target.value)}
+            className="flex-1 min-h-[260px] w-full p-3 border border-gray-300 rounded
+                       font-mono text-xs resize-none
+                       focus:outline-none focus:border-blue-400"
+            spellCheck={false} />
+
+          {/* 미리보기 / 검증 결과 */}
+          {result && result.kind === "error" && (
+            <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+              ✗ {result.error}
+            </div>
+          )}
+          {result && result.kind === "holdings" && (
+            <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+              ✓ holdings: {result.stocks.length}건 (피크는 변경 없음)
+            </div>
+          )}
+          {result && result.kind === "peaks" && (
+            <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+              ✓ peaks: {Object.keys(result.peaks).length}건 (보유는 변경 없음)
+            </div>
+          )}
+          {result && result.kind === "combined" && (
+            <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
+              ✓ combined: 종목 {result.stocks.length}건 + 피크 {Object.keys(result.peaks).length}건
+            </div>
+          )}
+        </div>
+
+        <footer className="px-5 py-3 border-t bg-gray-50
+                            flex items-center gap-2 flex-wrap">
+          <button onClick={() => void handleCopy()}
+                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700
+                             text-white rounded text-sm">
+            📋 복사하기
+          </button>
+          <button onClick={() => void handlePaste()}
+                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
+                             text-gray-700 rounded text-sm">
+            📥 붙여넣기
+          </button>
+          <div className="ml-auto flex gap-2">
+            <button onClick={onClose}
+                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
+                               text-gray-700 rounded text-sm">
+              닫기
+            </button>
+            <button onClick={() => void handleApply()}
+                    disabled={!result || result.kind === "error" || busy}
+                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700
+                               disabled:bg-gray-300
+                               text-white rounded text-sm font-bold">
+              {busy ? "저장 중..." : "💾 적용 (덮어쓰기)"}
+            </button>
+          </div>
+        </footer>
+      </div>
+    </div>
+  );
+}

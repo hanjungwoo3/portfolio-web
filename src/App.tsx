@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
 import { fetchTossPrices, fetchInvestor, fetchWarning, fetchNaverInfo } from "./lib/api";
-import { loadHoldings, loadPeaks, updatePeaksForward } from "./lib/db";
+import { loadHoldings, loadPeaks, updatePeaksForward, removeHolding, renameGroup, cleanupReservedAccounts } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY } from "./components/Tabs";
 import { TotalRow } from "./components/TotalRow";
-import { ImportJsonDialog } from "./components/ImportJsonDialog";
+import { SettingsDialog } from "./components/SettingsDialog";
+import { SearchDialog } from "./components/SearchDialog";
+import { EditHoldingDialog } from "./components/EditHoldingDialog";
 import { UsMarketTab } from "./components/UsMarketTab";
 import { RefreshIndicator } from "./components/RefreshIndicator";
+import { VersionBadge } from "./components/VersionBadge";
 import { ValuationModal } from "./components/ValuationModal";
 import type { Stock } from "./types";
 
@@ -27,16 +30,20 @@ function Dashboard() {
   const [holdings, setHoldings] = useState<Stock[]>([]);
   const [peaks, setPeaks] = useState<Map<string, number>>(new Map());
   const [activeTab, setActiveTab] = useState<string>("");
-  const [importOpen, setImportOpen] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
+  const [editing, setEditing] = useState<Stock | null>(null);
 
   // IndexedDB 로드
   useEffect(() => {
     void (async () => {
+      // 잔여 관심ETF 항목 청소 (web v3는 섹터 매핑을 코드 상수로 사용)
+      const removed = await cleanupReservedAccounts();
       const [h, p] = await Promise.all([loadHoldings(), loadPeaks()]);
       // eslint-disable-next-line no-console
-      console.log(`[v3 load] holdings=${h.length}, peaks=${p.size}`);
+      console.log(`[v3 load] holdings=${h.length}, peaks=${p.size}, cleaned=${removed}`);
       setHoldings(h);
       setPeaks(p);
     })();
@@ -149,23 +156,35 @@ function Dashboard() {
             📈 포트폴리오
           </h1>
           <div className="flex items-center gap-3 ml-auto">
+            <VersionBadge />
             {pricesUpdatedAt > 0 && (
               <RefreshIndicator
                 dataUpdatedAt={pricesUpdatedAt}
                 refetchIntervalMs={REFRESH_MS} />
             )}
             <button
-              onClick={() => setImportOpen(true)}
+              onClick={() => setSearchOpen(true)}
+              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700
+                         text-white rounded text-sm">
+              🔍 검색
+            </button>
+            <button
+              onClick={() => setSettingsOpen(true)}
               className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
                          text-gray-700 rounded text-sm">
-              📥 가져오기
+              ⚙️ 설정
             </button>
           </div>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto p-3">
-        <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab} />
+        <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab}
+               onRename={async (oldName, newName) => {
+                 await renameGroup(oldName, newName);
+                 if (activeTab === oldName) setActiveTab(newName);
+                 setReloadKey(k => k + 1);
+               }} />
 
         {activeTab === US_MARKET_TAB_KEY ? (
           <UsMarketTab />
@@ -175,13 +194,13 @@ function Dashboard() {
               <div className="text-4xl mb-3">📥</div>
               <p className="mb-4">
                 아직 등록된 종목이 없습니다.<br />
-                holdings.json / peaks.json 을 가져와 시작하세요.
+                상단 [⚙️ 설정]에서 JSON 붙여넣기로 가져오세요.
               </p>
               <button
-                onClick={() => setImportOpen(true)}
+                onClick={() => setSettingsOpen(true)}
                 className="px-4 py-2 bg-blue-600 hover:bg-blue-700
                            text-white rounded text-sm font-medium">
-                JSON 가져오기
+                ⚙️ 설정 열기
               </button>
             </div>
           ) : (
@@ -203,6 +222,11 @@ function Dashboard() {
                   consensus={naverMap.get(stock.ticker)?.consensus ?? null}
                   peak={peaks.get(stock.ticker)}
                   onOpenValuation={setValuationTicker}
+                  onEdit={s => setEditing(s)}
+                  onDelete={async s => {
+                    await removeHolding(s.ticker, s.account || "");
+                    setReloadKey(k => k + 1);
+                  }}
                 />
               ))}
             </div>
@@ -211,10 +235,24 @@ function Dashboard() {
         )}
       </main>
 
-      <ImportJsonDialog
-        isOpen={importOpen}
-        onClose={() => setImportOpen(false)}
-        onImported={() => setReloadKey(k => k + 1)}
+      <SettingsDialog
+        isOpen={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        onChanged={() => setReloadKey(k => k + 1)}
+      />
+
+      <SearchDialog
+        isOpen={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onAdded={() => setReloadKey(k => k + 1)}
+      />
+
+      <EditHoldingDialog
+        isOpen={!!editing}
+        onClose={() => setEditing(null)}
+        stock={editing}
+        curPrice={editing ? priceMap.get(editing.ticker)?.price : undefined}
+        onChanged={() => setReloadKey(k => k + 1)}
       />
 
       {valuationTicker && (() => {

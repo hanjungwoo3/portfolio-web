@@ -333,3 +333,74 @@ export async function fetchNaverInfo(ticker: string): Promise<NaverInfo> {
     return empty;
   }
 }
+
+// ─── 종목 검색 — 네이버 자동완성 (KOR 6자리만) ───
+export interface SearchResult {
+  ticker: string;
+  name: string;
+  market: string;          // KOSPI / KOSDAQ
+}
+
+interface NaverACItem {
+  code?: string;
+  name?: string;
+  typeCode?: string;
+  nationCode?: string;
+  category?: string;
+}
+interface NaverACResp {
+  result?: { items?: NaverACItem[] };
+}
+
+export async function searchNaverAutoComplete(
+  query: string, limit = 20
+): Promise<SearchResult[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const url = `https://m.stock.naver.com/front-api/search/autoComplete`
+            + `?query=${encodeURIComponent(q)}&target=stock`;
+  try {
+    const resp = await fetch(viaProxy(url));
+    if (!resp.ok) return [];
+    const json = (await resp.json()) as NaverACResp;
+    const items = json.result?.items ?? [];
+    const out: SearchResult[] = [];
+    for (const it of items) {
+      const code = (it.code ?? "").trim();
+      if (!/^\d{6}$/.test(code)) continue;
+      if (it.nationCode && it.nationCode !== "KOR") continue;
+      out.push({
+        ticker: code,
+        name: it.name ?? code,
+        market: it.typeCode || "KOSPI",
+      });
+      if (out.length >= limit) break;
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+// 6자리 코드 → 이름 단건 조회 (네이버 메인 title)
+export async function fetchStockName(ticker: string): Promise<string | null> {
+  if (!/^\d{6}$/.test(ticker)) return null;
+  try {
+    const resp = await fetch(viaProxy(
+      `https://finance.naver.com/item/main.naver?code=${ticker}`));
+    if (!resp.ok) return null;
+    const buf = await resp.arrayBuffer();
+    const ct = resp.headers.get("Content-Type") || "";
+    const charset = /charset=([\w-]+)/i.exec(ct)?.[1]?.toLowerCase() || "euc-kr";
+    let html: string;
+    try { html = new TextDecoder(charset).decode(buf); }
+    catch { html = new TextDecoder("euc-kr").decode(buf); }
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const t = doc.querySelector("div.wrap_company h2 a");
+    const name = (t?.textContent ?? "").trim();
+    return name || null;
+  } catch {
+    return null;
+  }
+}
+

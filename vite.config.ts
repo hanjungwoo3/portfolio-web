@@ -5,8 +5,14 @@ import { VitePWA } from "vite-plugin-pwa";
 // GitHub Pages 배포 시 base 경로 — repo 이름과 동일
 const isProd = process.env.NODE_ENV === "production";
 
+// 빌드 시각 — 헤더 버전 표시 + 강제 갱신 비교용
+const BUILD_TIME = new Date().toISOString();
+
 export default defineConfig({
   base: isProd ? "/portfolio-web/" : "/",
+  define: {
+    __BUILD_TIME__: JSON.stringify(BUILD_TIME),
+  },
   plugins: [
     react(),
     VitePWA({

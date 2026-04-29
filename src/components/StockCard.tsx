@@ -12,6 +12,8 @@ interface Props {
   warning?: string;
   loading?: boolean;
   onOpenValuation?: (ticker: string) => void;
+  onEdit?: (stock: Stock) => void;
+  onDelete?: (stock: Stock) => void;
 }
 
 function openTossStock(ticker: string) {
@@ -85,7 +87,7 @@ const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
   stock, price, investor, consensus, sector, peak, warning, loading,
-  onOpenValuation,
+  onOpenValuation, onEdit, onDelete,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
 
@@ -158,7 +160,7 @@ export function StockCard({
     : "bg-white border-gray-200";
 
   return (
-    <article className={`rounded-lg border shadow-sm flex flex-row gap-3 px-3 py-2
+    <article className={`group rounded-lg border shadow-sm flex flex-row gap-3 px-3 py-2
                           ${cardBg} ${sleeping ? "opacity-60" : ""}
                           transition-opacity`}>
       {/* ───────── 좌측 ───────── */}
@@ -191,16 +193,43 @@ export function StockCard({
           {sector && (
             <span className="text-xs text-gray-500">{sector}</span>
           )}
-          {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
-            <button
-              type="button"
-              onClick={() => onOpenValuation(stock.ticker)}
-              title="기업가치 보기"
-              className="ml-auto opacity-50 hover:opacity-100
-                         text-xs leading-none px-1">
-              📊
-            </button>
-          )}
+          <div className="ml-auto flex items-center gap-0.5">
+            {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
+              <button
+                type="button"
+                onClick={() => onOpenValuation(stock.ticker)}
+                title="기업가치 보기"
+                className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                           text-xs leading-none px-1 transition-opacity">
+                📊
+              </button>
+            )}
+            {onEdit && (
+              <button
+                type="button"
+                onClick={() => onEdit(stock)}
+                title="수정"
+                className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                           text-xs leading-none px-1 transition-opacity">
+                ✏️
+              </button>
+            )}
+            {onDelete && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (confirm(`${stock.name} 을(를) ${stock.account || "보유"}에서 삭제할까요?`)) {
+                    onDelete(stock);
+                  }
+                }}
+                title="삭제"
+                className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                           hover:text-rose-600
+                           text-xs leading-none px-1 transition-opacity">
+                ✕
+              </button>
+            )}
+          </div>
         </div>
 
         {/* 가격 + 거래량 + 틱 화살표 */}
@@ -250,10 +279,14 @@ export function StockCard({
           <span className="text-gray-500">어제보다 </span>
           {dayDiff !== 0 ? (
             <>
-              <span className={signColor(dayDiff)}>
+              <span className={`font-bold ${signColor(dayDiff)}`}>
                 {formatSigned(dayDiff)}
-                {stock.shares > 0 && ` / ${formatSigned(dayDiff * stock.shares)}`}
-              </span>{" "}
+              </span>
+              {stock.shares > 0 && (
+                <span className={signColor(dayDiff)}>
+                  {" / "}{formatSigned(dayDiff * stock.shares)}
+                </span>
+              )}{" "}
               <span className={`font-bold ${signColor(dayDiff)}`}>
                 ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
               </span>
@@ -287,10 +320,10 @@ export function StockCard({
             {typeof consensus.score === "number" && (
               <span className="text-gray-500">({consensus.score.toFixed(2)}) </span>
             )}
-            <span className="font-bold text-gray-800">
+            <span className="text-gray-800">
               {consensus.target.toLocaleString()}
             </span>
-            <span className={`ml-2 font-bold ${signColor(targetPct)}`}>
+            <span className={`ml-2 ${signColor(targetPct)}`}>
               ({targetPct >= 0 ? "+" : ""}{targetPct.toFixed(2)}%)
             </span>
           </div>

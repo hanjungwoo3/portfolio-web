@@ -1,8 +1,9 @@
+import { useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchFullValuation, matchBrokerToShareholder,
   INDICATOR_SECTIONS, INDICATOR_LABELS, INDICATOR_DESCRIPTIONS,
-  formatIndicator,
+  formatIndicator, judgeIndicator,
 } from "../lib/fundamentals";
 import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/fundamentals";
 import { signColor } from "../lib/format";
@@ -15,17 +16,23 @@ interface Props {
   curPrice?: number;
 }
 
-function IndicatorRow({ ikey, val }: { ikey: string; val: unknown }) {
+function IndicatorRow({ ikey, val, data }: {
+  ikey: string; val: unknown; data: FundamentalData;
+}) {
   const label = INDICATOR_LABELS[ikey] ?? ikey;
   const desc = INDICATOR_DESCRIPTIONS[ikey] ?? "";
   const formatted = formatIndicator(ikey, val);
   const isMissing = val == null || val === "";
+  const j = judgeIndicator(ikey, val, data);
+  const valColor = isMissing ? "text-gray-400"
+                  : j === "good" ? "text-rose-600"
+                  : j === "bad" ? "text-blue-600"
+                  : "text-gray-900";
   return (
     <div className="py-1.5 border-b border-gray-100 last:border-b-0">
       <div className="flex justify-between items-baseline">
         <span className="text-sm text-gray-700">{label}</span>
-        <span className={`text-sm font-bold tabular-nums
-                          ${isMissing ? "text-gray-400" : "text-gray-900"}`}>
+        <span className={`text-sm font-bold tabular-nums ${valColor}`}>
           {formatted}
         </span>
       </div>
@@ -50,7 +57,8 @@ function Section({ title, sub, ikeys, data }: {
       <div>
         {ikeys.map(k => (
           <IndicatorRow key={k} ikey={k}
-                        val={(data as Record<string, unknown>)[k]} />
+                        val={(data as Record<string, unknown>)[k]}
+                        data={data} />
         ))}
       </div>
     </section>
@@ -207,6 +215,7 @@ export function ValuationModal({
     enabled: isOpen && /^\d{6}$/.test(ticker),
     staleTime: 24 * 3600_000,  // 24시간 캐시
   });
+  const downOnBackdropRef = useRef(false);
 
   if (!isOpen) return null;
 
@@ -217,10 +226,12 @@ export function ValuationModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center
                      bg-black/40 p-4"
-         onClick={onClose}>
+         onMouseDown={e => { downOnBackdropRef.current = e.target === e.currentTarget; }}
+         onClick={e => {
+           if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
+         }}>
       <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full
-                       max-h-[92vh] flex flex-col"
-           onClick={e => e.stopPropagation()}>
+                       max-h-[92vh] flex flex-col">
         <header className="px-5 py-3 border-b bg-gray-50">
           <div className="flex items-baseline gap-3">
             <h2 className="text-xl font-bold">📊 기업가치</h2>

@@ -489,6 +489,79 @@ export function matchBrokerToShareholder(
   return null;
 }
 
+// 지표 판정 — v2 fundamentals.judge_indicator 동일 로직
+// 한국 증시 컨벤션: 빨강 = 긍정, 파랑 = 부정.
+export type Judgement = "good" | "bad" | "neutral";
+const INFO_KEYS = new Set([
+  "market_cap_text", "bps", "revenue", "high_52w", "low_52w", "industry_per",
+]);
+export function judgeIndicator(
+  key: string, value: unknown, data: FundamentalData
+): Judgement {
+  if (value == null || value === "") return "neutral";
+  if (INFO_KEYS.has(key)) return "neutral";
+  const v = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(v)) return "neutral";
+
+  if (key === "per") {
+    const ind = data.industry_per;
+    if (typeof ind === "number" && ind > 0) {
+      if (v < ind * 0.8) return "good";
+      if (v > ind * 1.5) return "bad";
+    }
+    if (v <= 0) return "bad";
+    if (v < 10) return "good";
+    if (v > 30) return "bad";
+    return "neutral";
+  }
+  if (key === "pbr") {
+    if (v <= 0) return "bad";
+    if (v < 1.0) return "good";
+    if (v > 3.0) return "bad";
+    return "neutral";
+  }
+  if (key === "eps") return v > 0 ? "good" : "bad";
+  if (key === "operating_income") return v > 0 ? "good" : "bad";
+  if (key === "operating_margin") {
+    if (v >= 15) return "good";
+    if (v < 5) return "bad";
+    return "neutral";
+  }
+  if (key === "net_margin") {
+    if (v >= 10) return "good";
+    if (v < 3) return "bad";
+    return "neutral";
+  }
+  if (key === "roe") {
+    if (v >= 15) return "good";
+    if (v < 5) return "bad";
+    return "neutral";
+  }
+  if (key === "dividend_yield") {
+    if (v >= 4) return "good";
+    if (v < 1) return "bad";
+    return "neutral";
+  }
+  if (key === "dps") return v > 0 ? "good" : "bad";
+  if (key === "dividend_payout") {
+    if (v === 0) return "bad";
+    if (v >= 20 && v <= 50) return "good";
+    if (v > 80) return "bad";
+    return "neutral";
+  }
+  if (key === "debt_ratio") {
+    if (v < 100) return "good";
+    if (v > 200) return "bad";
+    return "neutral";
+  }
+  if (key === "foreign_ownership") {
+    if (v >= 30) return "good";
+    if (v < 5) return "bad";
+    return "neutral";
+  }
+  return "neutral";
+}
+
 // 값 포맷
 export function formatIndicator(key: string, val: unknown): string {
   if (val == null || val === "") return "—";
