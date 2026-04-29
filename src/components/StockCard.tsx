@@ -214,7 +214,7 @@ export function StockCard({
             {peak && peak > price.price && (
               <span className={`font-bold rounded px-1.5
                                 ${isPeakDrop
-                                  ? "bg-rose-200 text-rose-800"
+                                  ? "bg-rose-500 text-white"
                                   : "text-blue-800"}`}>
                 피크 {peak.toLocaleString()}원
                 <span className="ml-0.5">
@@ -248,7 +248,7 @@ export function StockCard({
           <div className="text-sm">
             <span className="text-gray-500">전체수익 </span>
             <span className={`font-bold rounded px-1.5
-                              ${isStop ? "bg-rose-200 text-rose-800"
+                              ${isStop ? "bg-rose-500 text-white"
                                 : signColor(pnl)}`}>
               {formatSigned(pnl)}
               {"  "}({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)
