@@ -33,6 +33,8 @@ function Dashboard() {
   useEffect(() => {
     void (async () => {
       const [h, p] = await Promise.all([loadHoldings(), loadPeaks()]);
+      // eslint-disable-next-line no-console
+      console.log(`[v3 load] holdings=${h.length}, peaks=${p.size}`);
       setHoldings(h);
       setPeaks(p);
     })();
@@ -144,6 +146,9 @@ function Dashboard() {
           <h1 className="text-xl font-bold text-gray-900 shrink-0">
             📈 포트폴리오
           </h1>
+          <span className="text-xs text-gray-400 tabular-nums">
+            DB: holdings={holdings.length} peaks={peaks.size}
+          </span>
           <div className="flex items-center gap-3 ml-auto">
             {pricesUpdatedAt > 0 && (
               <RefreshIndicator

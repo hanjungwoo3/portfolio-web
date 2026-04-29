@@ -84,9 +84,14 @@ export function ImportJsonDialog({ isOpen, onClose, onImported }: Props) {
     setError(null);
     try {
       if (result.kind === "holdings" || result.kind === "combined") {
+        // eslint-disable-next-line no-console
+        console.log(`[v3 import] holdings=${result.stocks.length}`);
         await replaceAllHoldings(result.stocks);
       }
       if (result.kind === "peaks" || result.kind === "combined") {
+        // eslint-disable-next-line no-console
+        console.log(`[v3 import] peaks=${Object.keys(result.peaks).length}`,
+                     "sample:", Object.entries(result.peaks).slice(0, 3));
         await replaceAllPeaks(result.peaks);
       }
       onImported();
