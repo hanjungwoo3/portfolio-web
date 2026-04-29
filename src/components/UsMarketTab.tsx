@@ -218,23 +218,26 @@ function QuoteList({ rows }: QuoteListProps) {
           : "";
         return (
           <div key={r.symbol}
-               className={`flex items-baseline gap-1 px-1.5 py-1
-                            ${rowBg} ${r.sleeping ? "opacity-60" : ""}`}>
-            {r.sleeping && (
-              <span className="text-[10px] text-gray-400 shrink-0">zZ</span>
-            )}
-            <a href={quoteUrl(r.symbol)} target="_blank" rel="noopener noreferrer"
-               title={r.desc}
-               className={`text-sm font-bold hover:underline truncate
-                            ${r.kind === "future" ? "text-amber-700"
-                              : r.kind === "etf" ? "text-gray-700"
-                              : "text-gray-900"}`}>
-              {r.name}
-            </a>
-            <span className="ml-auto text-xs tabular-nums text-gray-700 shrink-0">
+               className={`grid grid-cols-[1fr_70px_64px] items-baseline gap-1
+                            px-1.5 py-1 ${rowBg}
+                            ${r.sleeping ? "opacity-60" : ""}`}>
+            <div className="flex items-baseline gap-1 min-w-0">
+              {r.sleeping && (
+                <span className="text-[10px] text-gray-400 shrink-0">zZ</span>
+              )}
+              <a href={quoteUrl(r.symbol)} target="_blank" rel="noopener noreferrer"
+                 title={r.desc}
+                 className={`text-sm font-bold hover:underline truncate
+                              ${r.kind === "future" ? "text-amber-700"
+                                : r.kind === "etf" ? "text-gray-700"
+                                : "text-gray-900"}`}>
+                {r.name}
+              </a>
+            </div>
+            <span className="text-xs tabular-nums text-gray-700 text-right">
               {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
             </span>
-            <span className={`text-sm font-bold tabular-nums shrink-0 ${sign}`}>
+            <span className={`text-sm font-bold tabular-nums text-right ${sign}`}>
               {r.pct !== undefined
                 ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
                 : ""}
