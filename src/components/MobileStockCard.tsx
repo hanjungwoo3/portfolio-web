@@ -9,12 +9,33 @@ interface Props {
   price?: Price;
   peak?: number;
   sector?: string;
+  warning?: string;
 }
 
 const SELL_FEE_PCT = 0.2;
 const FEE_MUL = 1 - SELL_FEE_PCT / 100;
 const STOP_LOSS_PCT = -9;
 const TRAILING_STOP_PCT = -9;
+
+// 위험/관리/정지/경고/과열/환기/주의 뱃지 색상 (PC StockCard 동일)
+const WARN_BG: Record<string, string> = {
+  위험: "bg-red-700",
+  관리: "bg-red-700",
+  정지: "bg-gray-500",
+  경고: "bg-orange-600",
+  과열: "bg-orange-600",
+  환기: "bg-orange-600",
+  주의: "bg-amber-500",
+};
+const WARN_PILL_BG: Record<string, string> = {
+  위험: "bg-rose-200",
+  관리: "bg-rose-200",
+  정지: "bg-gray-300",
+  경고: "bg-orange-200",
+  과열: "bg-orange-200",
+  환기: "bg-orange-200",
+  주의: "bg-amber-200",
+};
 
 function openTossStock(ticker: string) {
   if (!/^\d{6}$/.test(ticker)) return;
@@ -37,7 +58,7 @@ function openTossStock(ticker: string) {
   }
 }
 
-export function MobileStockCard({ stock, price, peak, sector }: Props) {
+export function MobileStockCard({ stock, price, peak, sector, warning }: Props) {
   if (!price) {
     return (
       <article className="rounded-lg bg-white border border-gray-200 p-2 animate-pulse">
@@ -74,20 +95,29 @@ export function MobileStockCard({ stock, price, peak, sector }: Props) {
       <div className="basis-1/2 min-w-0 border border-gray-200 rounded
                        bg-gray-50/60 px-2 py-1.5 flex flex-col justify-center
                        space-y-0.5">
-        {/* 종목명 + 보유 수량 */}
-        <button onClick={() => openTossStock(stock.ticker)}
-                title="토스에서 보기"
-                className={`inline-flex items-center px-1.5 py-0.5 rounded
-                            font-bold text-base leading-none w-fit
-                            bg-yellow-200 ${signColor(dayDiff || -1)}`}>
-          {sleeping && <span className="text-[10px] mr-0.5 opacity-70">zZ</span>}
-          {stock.name}
-          {stock.shares > 0 && (
-            <span className="ml-1 text-sm font-bold">
-              ({stock.shares.toLocaleString()}주)
+        {/* 종목명 pill + 위험 뱃지 */}
+        <div className="flex items-center gap-1 flex-wrap">
+          <button onClick={() => openTossStock(stock.ticker)}
+                  title="토스에서 보기"
+                  className={`inline-flex items-center px-1.5 py-0.5 rounded
+                              font-bold text-base leading-none w-fit
+                              ${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"}
+                              ${signColor(dayDiff || -1)}`}>
+            {sleeping && <span className="text-[10px] mr-0.5 opacity-70">zZ</span>}
+            {stock.name}
+            {stock.shares > 0 && (
+              <span className="ml-1 text-sm font-bold">
+                ({stock.shares.toLocaleString()}주)
+              </span>
+            )}
+          </button>
+          {warning && (
+            <span className={`px-1 py-0.5 rounded text-white text-[10px] font-bold
+                              ${WARN_BG[warning] ?? "bg-gray-500"}`}>
+              {warning}
             </span>
           )}
-        </button>
+        </div>
 
         {/* 고가 */}
         {price.high && price.high > 0 && (() => {

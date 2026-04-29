@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { fetchYahooBatch, fetchTossPrices, fetchNaverInfo } from "../lib/api";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import {
+  fetchYahooBatch, fetchTossPrices, fetchNaverInfo, fetchWarning,
+} from "../lib/api";
 import {
   US_PAIRS, SECTOR_EMOJI, SECTOR_ORDER,
 } from "../lib/usMarketData";
@@ -123,6 +125,19 @@ export function MobileSimpleView() {
       return pctB - pctA;
     });
   }, [groupHoldingsUnsorted, groupPriceMap]);
+
+  // 종목별 위험 뱃지 (위험/관리/정지/경고/과열/환기/주의)
+  const warningQs = useQueries({
+    queries: groupTickers.map(t => ({
+      queryKey: ["m-warning", t],
+      queryFn: () => fetchWarning(t),
+      enabled: activeTab !== US_KEY,
+      refetchInterval: REFRESH_MS,
+    })),
+  });
+  const warningMap = new Map(
+    groupTickers.map((t, i) => [t, warningQs[i]?.data ?? ""])
+  );
 
   // 종목별 sector (Naver) — 그룹 탭에서만 fetch (캐시)
   const naverInfos = useQuery({
@@ -273,7 +288,8 @@ export function MobileSimpleView() {
                                stock={s}
                                price={groupPriceMap.get(s.ticker)}
                                peak={peaks?.get(s.ticker)}
-                               sector={naverInfos.data?.get(s.ticker)?.sector} />
+                               sector={naverInfos.data?.get(s.ticker)?.sector}
+                               warning={warningMap.get(s.ticker) || undefined} />
             ))}
           </div>
           {/* 합계 — 화면 하단 fixed (항상 보임) */}
