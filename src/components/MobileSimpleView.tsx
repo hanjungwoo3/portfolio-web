@@ -1,13 +1,18 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchYahooBatch } from "../lib/api";
+import { fetchYahooBatch, fetchTossPrices, fetchNaverInfo } from "../lib/api";
 import {
   US_PAIRS, SECTOR_EMOJI, SECTOR_ORDER,
 } from "../lib/usMarketData";
 import { signColor, isSymbolSleeping } from "../lib/format";
 import { getPersonalProxyUrl, setPersonalProxyUrl } from "../lib/proxyConfig";
-import { exportAll, replaceAllHoldings, replaceAllPeaks } from "../lib/db";
+import {
+  exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadPeaks,
+} from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
+import { MobileStockCard } from "./MobileStockCard";
+
+const US_KEY = "__us__";  // 미국 증시 탭 키
 
 // 모바일 전용 단순 뷰 (v2 데스크톱 미국증시 표 형식 그대로 이식)
 // 자동 갱신 X — 새로고침 버튼만. 자기 주식/그룹/검색 등 모든 추가 기능 없음.
@@ -34,10 +39,81 @@ export function MobileSimpleView() {
   const [proxyUrl, setProxyUrl] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
+  const [activeTab, setActiveTab] = useState<string>(US_KEY);
 
   useEffect(() => {
     setProxyUrl(getPersonalProxyUrl() ?? "");
   }, []);
+
+  // 보유 종목 로드 (그룹 탭 라벨 + 그룹 종목 표시)
+  const { data: holdings = [] } = useQuery({
+    queryKey: ["m-holdings"],
+    queryFn: loadHoldings,
+    refetchOnWindowFocus: false,
+  });
+  const { data: peaks } = useQuery({
+    queryKey: ["m-peaks"],
+    queryFn: loadPeaks,
+    refetchOnWindowFocus: false,
+  });
+
+  // 그룹 목록 (account 별 카운트) — 미국증시 + 보유 + 사용자 그룹들
+  const groupTabs = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of holdings) {
+      const acc = s.account || "";
+      counts.set(acc, (counts.get(acc) || 0) + 1);
+    }
+    const tabs: { key: string; label: string; count: number }[] = [
+      { key: US_KEY, label: "미국증시", count: 0 },
+    ];
+    if (counts.has("")) {
+      tabs.push({ key: "", label: "보유", count: counts.get("")! });
+    }
+    const userGroups = Array.from(counts.keys())
+      .filter(k => !["", "관심ETF"].includes(k))
+      .sort();
+    for (const g of userGroups) {
+      tabs.push({ key: g, label: g, count: counts.get(g)! });
+    }
+    return tabs;
+  }, [holdings]);
+
+  // 선택된 그룹 종목들 (활성 탭이 그룹일 때만)
+  const groupHoldings = useMemo(() => {
+    if (activeTab === US_KEY) return [];
+    return holdings.filter(s => (s.account || "") === activeTab);
+  }, [holdings, activeTab]);
+
+  // 그룹 종목들의 KR 가격 fetch (수동 갱신만)
+  const groupTickers = groupHoldings
+    .filter(s => /^\d{6}$/.test(s.ticker))
+    .map(s => s.ticker);
+  const { data: groupPrices } = useQuery({
+    queryKey: ["m-group-prices", activeTab, groupTickers.join(",")],
+    queryFn: () => fetchTossPrices(groupTickers),
+    enabled: activeTab !== US_KEY && groupTickers.length > 0,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
+  });
+  const groupPriceMap = new Map((groupPrices ?? []).map(p => [p.ticker, p]));
+
+  // 종목별 sector (Naver) — 그룹 탭에서만 fetch (캐시)
+  const naverInfos = useQuery({
+    queryKey: ["m-naver-info", groupTickers.join(",")],
+    queryFn: async () => {
+      const map = new Map<string, { sector?: string }>();
+      await Promise.all(groupTickers.map(async t => {
+        try {
+          const info = await fetchNaverInfo(t);
+          if (info) map.set(t, info);
+        } catch { /* ignore */ }
+      }));
+      return map;
+    },
+    enabled: activeTab !== US_KEY && groupTickers.length > 0,
+    refetchOnWindowFocus: false,
+  });
 
   // Yahoo: 본물 + 선물 평탄화 (선행지수만 — ETF 제외)
   const yahooSymbols = US_PAIRS.flatMap(p =>
@@ -96,8 +172,8 @@ export function MobileSimpleView() {
     <div className="min-h-screen bg-gray-50">
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200
                           px-3 py-2 flex items-center gap-2">
-        <h1 className="text-base font-bold text-gray-800">📈 미국 증시</h1>
-        {updatedAt && (
+        <h1 className="text-base font-bold text-gray-800">📈 포트폴리오</h1>
+        {updatedAt && activeTab === US_KEY && (
           <span className="text-[11px] text-gray-500">{updatedAt}</span>
         )}
         <button onClick={handleRefresh}
@@ -113,6 +189,50 @@ export function MobileSimpleView() {
           ⚙️
         </button>
       </header>
+
+      {/* ─── 그룹 탭 (가로 스크롤, 작은 폰트) ─── */}
+      <nav className="sticky top-[44px] z-10 bg-white border-b border-gray-200
+                       px-2 py-1 flex gap-1 overflow-x-auto whitespace-nowrap">
+        {groupTabs.map(t => {
+          const active = t.key === activeTab;
+          return (
+            <button key={t.key}
+                    onClick={() => setActiveTab(t.key)}
+                    className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition
+                                ${active
+                                  ? "bg-blue-600 text-white font-bold"
+                                  : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              {t.label}
+              {t.count > 0 && (
+                <span className={`ml-1 ${active ? "text-blue-100" : "text-gray-400"}`}>
+                  {t.count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </nav>
+
+      {/* ─── 그룹 컨텐츠 (US_KEY 외) ─── */}
+      {activeTab !== US_KEY && (
+        <div className="px-2 py-2 space-y-1.5">
+          {groupHoldings.length === 0 && (
+            <div className="text-center text-[11px] text-gray-400 py-8">
+              이 그룹에는 종목이 없습니다
+            </div>
+          )}
+          {groupHoldings.map(s => (
+            <MobileStockCard key={s.ticker + (s.account ?? "")}
+                             stock={s}
+                             price={groupPriceMap.get(s.ticker)}
+                             peak={peaks?.get(s.ticker)}
+                             sector={naverInfos.data?.get(s.ticker)?.sector} />
+          ))}
+        </div>
+      )}
+
+      {/* ─── 미국 증시 (default) ─── */}
+      {activeTab === US_KEY && (<>
 
       {/* ─── Tier 0 핵심 대시보드 (2 columns 카드) ─── */}
       <div className="px-3 py-2 grid grid-cols-2 gap-2">
@@ -233,6 +353,8 @@ export function MobileSimpleView() {
           자동 갱신 없음 — 🔄 눌러 수동 갱신
         </div>
       </div>
+
+      </>)}
 
       {settingsOpen && (
         <SettingsModal proxyUrl={proxyUrl} setProxyUrl={setProxyUrl}
