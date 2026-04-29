@@ -45,13 +45,7 @@ interface QuoteCellProps {
 function quoteUrl(symbol: string): string {
   // 한국 ETF (6자리 숫자) → 토스
   if (/^\d{6}$/.test(symbol)) return `https://tossinvest.com/stocks/A${symbol}`;
-  // ^ 인덱스 (^VIX/^GSPC/^SOX 등) — encodeURIComponent 시 Yahoo 라우터가
-  // 일부 환경에서 동일 페이지로 redirect 하는 이슈 → ?p= 쿼리 파라미터 패턴 사용
-  if (symbol.startsWith("^")) {
-    return `https://finance.yahoo.com/quote/?p=${encodeURIComponent(symbol)}`;
-  }
-  // = 가 있는 환율/선물 (KRW=X, ES=F 등) → 인코딩
-  // 일반 US 티커 (NVDA, TSM 등) → 그대로
+  // 그 외 → Yahoo Finance (path 에 인코딩, trailing slash 없음)
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
 
