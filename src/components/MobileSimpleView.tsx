@@ -274,6 +274,7 @@ function SettingsModal({
     setProxyUrl(v);
     setSavedMsg(v ? "✅ 전용 프록시 적용" : "✅ 공개 4-way 사용");
     onClose();
+    location.reload();
   };
 
   const result = detectPortfolioJson(raw);
@@ -309,6 +310,7 @@ function SettingsModal({
       }
       setDataMsg("💾 적용 완료");
       onClose();
+      location.reload();
     } catch (e) {
       setDataMsg(`❌ 저장 실패: ${e instanceof Error ? e.message : ""}`);
     } finally {
