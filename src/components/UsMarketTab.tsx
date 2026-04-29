@@ -101,7 +101,7 @@ export function UsMarketTab() {
 
   // 좌우 분배 — 사용자 시각 균형 맞춤 (좌우 종목 수 비슷)
   const LEFT_SECTORS = ["반도체", "방산", "로봇", "중공업", "리츠", "에너지"];
-  const RIGHT_SECTORS = ["자동차", "건설", "금융", "플랫폼", "바이오", "한국지수"];
+  const RIGHT_SECTORS = ["한국지수", "자동차", "건설", "금융", "플랫폼", "바이오"];
   const t1Sectors = LEFT_SECTORS.filter(s => SECTOR_ORDER.includes(s));
   const t2Sectors = RIGHT_SECTORS.filter(s => SECTOR_ORDER.includes(s));
 
