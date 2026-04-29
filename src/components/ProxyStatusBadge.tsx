@@ -15,14 +15,21 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy }: Props) {
 
   useEffect(() => subscribeProxyStatus(setState), []);
 
-  // 정상 + 전용 프록시 → 안내 메시지 표시
+  // 정상 상태 — 전용 프록시 사용 중이면 강조 / 아니면 안내 힌트
   if (state.health === "ok") {
-    if (!usePersonalProxy) return null;
     const baseSec = Math.round(baseRefreshMs / 1000);
+    if (usePersonalProxy) {
+      return (
+        <span title="공개 4-way 대신 본인 전용 Cloudflare Worker 사용 중"
+              className="text-[11px] text-blue-700 shrink-0">
+          🔧 내 전용 프록시 · {baseSec}초 갱신
+        </span>
+      );
+    }
     return (
-      <span title="공개 4-way 대신 본인 전용 Cloudflare Worker 사용 중"
-            className="text-[11px] text-blue-700 shrink-0">
-        🔧 내 전용 프록시 · {baseSec}초 갱신
+      <span title="공개 4-way 프록시 (Cloudflare/Vercel/Deno/Render) 사용 중 — 10초 고정"
+            className="text-[11px] text-gray-500 shrink-0">
+        💡 ⚙️ 설정에서 전용 프록시 추가 시 5초 갱신 가능
       </span>
     );
   }
