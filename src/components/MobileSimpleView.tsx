@@ -131,7 +131,7 @@ export function MobileSimpleView() {
                 {sleeping && (
                   <span className="text-[11px] text-gray-400">zZ</span>
                 )}
-                <span className={`text-base font-bold ${sign}`}>
+                <span className="text-base font-bold text-gray-900">
                   {p.name}
                 </span>
               </div>
