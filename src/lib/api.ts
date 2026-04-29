@@ -300,21 +300,32 @@ export async function fetchNaverInfo(ticker: string): Promise<NaverInfo> {
     if (targetTh) {
       const td = (targetTh as Element).nextElementSibling;
       if (td) {
-        const text = td.textContent || "";
-        // 가격: "293,200" 같은 숫자 (콤마 제거)
-        const m = text.match(/([\d,]+)\s*원?/);
-        const target = m ? Number(m[1].replace(/,/g, "")) : undefined;
-        // 투자의견 점수: <em>4.00</em>
-        const em = td.querySelector("em");
-        const score = em?.textContent ? Number(em.textContent.trim()) : undefined;
-        // 투자의견 텍스트 (span.f_up / .f_down 안)
-        const span = td.querySelector("span[class^='f_']");
-        const opinion = span?.textContent?.replace(String(score ?? ""), "").trim();
-        consensus = {
-          target: target && target > 0 ? target : undefined,
-          score: !Number.isNaN(score!) ? score : undefined,
-          opinion,
-        };
+        // 투자의견 점수 + 텍스트 — span.f_up / f_down 안의 em
+        let score: number | undefined;
+        let opinion: string | undefined;
+        const fSpan = td.querySelector("span[class^='f_']");
+        if (fSpan) {
+          const scoreEm = fSpan.querySelector("em");
+          const scoreText = scoreEm?.textContent?.trim() ?? "";
+          const sNum = Number(scoreText);
+          if (!Number.isNaN(sNum)) score = sNum;
+          opinion = (fSpan.textContent ?? "").replace(scoreText, "").trim();
+        }
+        // 목표주가: td 안의 em 중 span 외부에 있는 것 (데스크톱 v2 동일)
+        let targetPrice: number | undefined;
+        const ems = Array.from(td.querySelectorAll("em"));
+        for (const em of ems) {
+          if (em.closest("span")) continue;  // span 안 (= score em) 제외
+          const val = (em.textContent ?? "").trim().replace(/,/g, "");
+          if (/^\d+$/.test(val)) {
+            const n = Number(val);
+            if (n > 0) {
+              targetPrice = n;
+              break;
+            }
+          }
+        }
+        consensus = { target: targetPrice, score, opinion };
       }
     }
     return { sector, consensus };
