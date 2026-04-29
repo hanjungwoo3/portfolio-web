@@ -11,11 +11,15 @@ import { EditHoldingDialog } from "./components/EditHoldingDialog";
 import { UsMarketTab } from "./components/UsMarketTab";
 import { RefreshIndicator } from "./components/RefreshIndicator";
 import { VersionBadge } from "./components/VersionBadge";
+import { ProxyStatusBadge } from "./components/ProxyStatusBadge";
+import { useAdaptiveRefreshMs, subscribeProxyStatus } from "./lib/proxyStatus";
+import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
+import { PROXY_URLS } from "./lib/api";
 import { ValuationModal } from "./components/ValuationModal";
 import type { Stock } from "./types";
 
-// 모든 polling 10초로 통일 (proxy 비용 절감)
-const REFRESH_MS = 10_000;
+// 기본 폴링 10초 — 프록시 다운 시 자동 증가 (10s → 20s → 30s)
+const BASE_REFRESH_MS = 10_000;
 
 // 카카오페이 송금받기 링크 (모바일/카카오톡 deep link)
 const KAKAOPAY_URL = "https://qr.kakaopay.com/FCscirjeF";
@@ -40,6 +44,7 @@ function Dashboard() {
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [editing, setEditing] = useState<Stock | null>(null);
   const [donateOpen, setDonateOpen] = useState(false);
+  const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
 
   // IndexedDB 로드
   useEffect(() => {
@@ -95,6 +100,11 @@ function Dashboard() {
       }
     });
   }, [prices]);
+
+  // 갱신 시각 글로벌 보고
+  useEffect(() => {
+    if (pricesUpdatedAt > 0) reportRefresh(pricesUpdatedAt);
+  }, [pricesUpdatedAt]);
 
   // 어제대비 % 내림차순 정렬 (가격 로드 후 적용; 가격 없는 종목은 맨 뒤)
   const sortedVisible = useMemo(() => {
@@ -160,13 +170,11 @@ function Dashboard() {
           <h1 className="text-xl font-bold text-gray-900 shrink-0">
             📈 포트폴리오
           </h1>
+          <PollingInfo currentMs={REFRESH_MS} />
+          <RefreshIndicatorGlobal refetchIntervalMs={REFRESH_MS} />
           <div className="flex items-center gap-3 ml-auto">
+            <ProxyStatusBadge />
             <VersionBadge />
-            {pricesUpdatedAt > 0 && (
-              <RefreshIndicator
-                dataUpdatedAt={pricesUpdatedAt}
-                refetchIntervalMs={REFRESH_MS} />
-            )}
             <button
               onClick={() => setSearchOpen(true)}
               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700
@@ -175,13 +183,12 @@ function Dashboard() {
             </button>
             <button
               onClick={() => setDonateOpen(true)}
-              title="카카오페이로 커피 한 잔 ☕ (QR 또는 링크)"
-              className="px-3 py-1.5 rounded text-sm font-bold
-                         flex items-center gap-1
-                         text-[#191919] hover:brightness-95"
-              style={{ backgroundColor: "#FEE500" }}>
-              <span>☕</span>
-              <span className="hidden sm:inline">카카오로 한 잔</span>
+              title="개발자 후원하기 (카카오페이)"
+              className="px-2 py-1 rounded text-xs flex items-center gap-1
+                         text-gray-400 opacity-60 hover:opacity-100
+                         hover:text-gray-600 transition">
+              <span className="opacity-50">☕</span>
+              <span className="hidden sm:inline">개발자 후원하기</span>
             </button>
             <button
               onClick={() => setSettingsOpen(true)}
@@ -326,6 +333,27 @@ function Dashboard() {
       })()}
     </div>
   );
+}
+
+// 좌측 — 폴링 주기 + 사용 가능한 프록시 수
+function PollingInfo({ currentMs }: { currentMs: number }) {
+  const [healthy, setHealthy] = useState(PROXY_URLS.length);
+  useEffect(() => subscribeProxyStatus(s => {
+    setHealthy(s.total === 0 ? PROXY_URLS.length : s.total - s.downHosts.length);
+  }), []);
+  const sec = Math.round(currentMs / 1000);
+  return (
+    <span className="text-[11px] text-gray-400 shrink-0 ml-1">
+      {sec}초 · 프록시 {healthy}/{PROXY_URLS.length}
+    </span>
+  );
+}
+
+// 글로벌 lastRefresh 기반 RefreshIndicator
+function RefreshIndicatorGlobal({ refetchIntervalMs }: { refetchIntervalMs: number }) {
+  const ts = useLastRefresh();
+  if (ts === 0) return null;
+  return <RefreshIndicator dataUpdatedAt={ts} refetchIntervalMs={refetchIntervalMs} />;
 }
 
 function App() {

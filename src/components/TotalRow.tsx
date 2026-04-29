@@ -1,5 +1,5 @@
 import type { Stock, Price } from "../types";
-import { formatSigned, signColor, isEarlyMorningKst, isHoldingSleeping } from "../lib/format";
+import { formatSigned, signColor } from "../lib/format";
 
 interface Props {
   holdings: Stock[];
@@ -8,10 +8,9 @@ interface Props {
 
 // 합계는 매도 수수료 미적용 (raw 가격 × 주수). 데스크톱 v2 와 동일.
 // 카드 개별 "전체수익" 은 FEE 적용 (매도 시 실수령액 추정) — 의도적 비대칭.
+// 장마감 종목도 종가 vs 어제 종가 차이로 합계에 정상 반영 (다음 장 시작 전까지 유효).
 
 export function TotalRow({ holdings, prices }: Props) {
-  const showPrev = isEarlyMorningKst();
-
   let totalInvested = 0;
   let totalCurrent = 0;
   let totalYesterday = 0;
@@ -22,9 +21,7 @@ export function TotalRow({ holdings, prices }: Props) {
     const p = prices.get(s.ticker);
     if (!p) continue;
     const cur = p.price || s.avg_price;
-    let base = p.base || cur;
-    const sleeping = isHoldingSleeping(p.trade_dt);
-    if (sleeping && !showPrev) base = cur;
+    const base = p.base || cur;
     totalInvested += s.shares * s.avg_price;
     totalCurrent += cur * s.shares;
     totalYesterday += base * s.shares;

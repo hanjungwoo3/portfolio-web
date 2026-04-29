@@ -8,6 +8,7 @@ import {
   bulkAddToGroup, bulkRemoveFromGroup,
   removeHolding, getUserGroups, loadHoldings,
 } from "../lib/db";
+import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import type { Stock, Price } from "../types";
 import { signColor } from "../lib/format";
 
@@ -58,12 +59,13 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
     });
   };
 
+  const REFRESH_MS = useAdaptiveRefreshMs(10_000);
   const tickers = results.map(r => r.ticker);
   const { data: prices } = useQuery({
     queryKey: ["search-prices", tickers],
     queryFn: () => fetchTossPrices(tickers),
     enabled: isOpen && tickers.length > 0,
-    refetchInterval: 10_000,
+    refetchInterval: REFRESH_MS,
   });
   const priceMap = new Map((prices ?? []).map(p => [p.ticker, p]));
 

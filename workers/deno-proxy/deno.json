@@ -1,0 +1,6 @@
+{
+  "tasks": {
+    "dev": "deno run --allow-net main.ts",
+    "deploy": "deployctl deploy --project=portfolio-deno-proxy main.ts"
+  }
+}

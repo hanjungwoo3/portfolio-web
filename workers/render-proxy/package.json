@@ -1,0 +1,9 @@
+{
+  "name": "portfolio-render-proxy",
+  "version": "0.1.0",
+  "type": "module",
+  "engines": { "node": ">=18" },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

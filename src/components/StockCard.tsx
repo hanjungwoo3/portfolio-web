@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import type { Stock, Price, Investor, Consensus } from "../types";
-import { formatSigned, signColor, formatVolume, isEarlyMorningKst, isHoldingSleeping } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
 
 interface Props {
   stock: Stock;
@@ -127,11 +127,10 @@ export function StockCard({
   // 보유 종목 sleeping — 데스크톱 v2 kr_session_phase 기반
   // (정규장 활성 / EXTENDED 시간 + 마지막 체결 10분 초과 → sleeping / CLOSED → sleeping)
   const sleeping = isHoldingSleeping(price.trade_dt);
-  const showPrev = isEarlyMorningKst();
 
-  let dayDiff = price.price - price.base;
-  let dayPct = price.base > 0 ? (dayDiff / price.base) * 100 : 0;
-  if (sleeping && !showPrev) { dayDiff = 0; dayPct = 0; }
+  // 어제보다 — 장마감 후에도 유효 (당일 종가 vs 어제 종가). 다음 장 시작 전까지 유지.
+  const dayDiff = price.price - price.base;
+  const dayPct = price.base > 0 ? (dayDiff / price.base) * 100 : 0;
 
   const peakPct = peak && peak > 0 ? ((price.price - peak) / peak) * 100 : 0;
   const targetPct =

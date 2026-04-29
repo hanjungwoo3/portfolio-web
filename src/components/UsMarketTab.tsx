@@ -1,15 +1,17 @@
+import { useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchTossPrices } from "../lib/api";
 import type { UsIndex } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping } from "../lib/format";
-import { RefreshIndicator } from "./RefreshIndicator";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
   allYahooSymbols, allKrEtfTickers,
 } from "../lib/usMarketData";
+import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
+import { reportRefresh } from "../lib/lastRefresh";
 
-const REFRESH_MS = 10_000;
+const BASE_REFRESH_MS = 10_000;
 
 function fmtPrice(symbol: string, price: number): string {
   if (symbol.includes("KRW")) return price.toFixed(2);
@@ -94,6 +96,7 @@ function QuoteCell({ symbol, name, desc, price, diff, pct, bold, sleeping }: Quo
 export function UsMarketTab() {
   const yahooSymbols = allYahooSymbols();
   const krEtfs = allKrEtfTickers();
+  const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
 
   const { data: usMap, dataUpdatedAt: usUpdatedAt } = useQuery({
     queryKey: ["yahoo-batch", yahooSymbols.length],
@@ -101,11 +104,15 @@ export function UsMarketTab() {
     refetchInterval: REFRESH_MS,
   });
 
-  const { data: krPrices } = useQuery({
+  const { data: krPrices, dataUpdatedAt: krUpdatedAt } = useQuery({
     queryKey: ["us-tab-kr-etfs", krEtfs],
     queryFn: () => fetchTossPrices(krEtfs),
     refetchInterval: REFRESH_MS,
   });
+
+  // 갱신 시각 글로벌 보고
+  useEffect(() => { if (usUpdatedAt > 0) reportRefresh(usUpdatedAt); }, [usUpdatedAt]);
+  useEffect(() => { if (krUpdatedAt > 0) reportRefresh(krUpdatedAt); }, [krUpdatedAt]);
 
   const krMap = new Map((krPrices ?? []).map(p => [p.ticker, p]));
 
@@ -122,11 +129,6 @@ export function UsMarketTab() {
 
   return (
     <div className="space-y-3">
-      <div className="flex justify-end">
-        <RefreshIndicator
-          dataUpdatedAt={usUpdatedAt}
-          refetchIntervalMs={REFRESH_MS} />
-      </div>
       {/* ─── Tier 0: 핵심 대시보드 ─── */}
       <div className="rounded-lg bg-slate-800 text-white px-4 py-3
                        grid grid-cols-2 lg:grid-cols-4 gap-3">

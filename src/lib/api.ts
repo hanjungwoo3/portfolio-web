@@ -1,16 +1,42 @@
 import type { Price, Investor, Consensus } from "../types";
+import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 
-// 다중 proxy URL — Cloudflare + Vercel 라운드 로빈
-const PROXY_URLS: string[] = [
+// 다중 proxy URL — Cloudflare + Vercel + Deno 3-way 라운드 로빈 (합산 300k req/일 무료)
+export const PROXY_URLS: string[] = [
   import.meta.env.VITE_PROXY_URL,
   import.meta.env.VITE_PROXY_URL_2,
+  import.meta.env.VITE_PROXY_URL_3,
 ].filter(Boolean) as string[];
 if (PROXY_URLS.length === 0) PROXY_URLS.push("http://localhost:8787");
 
-function viaProxy(targetUrl: string): string {
-  // 랜덤 선택 — 두 worker 부하 분산 + 한쪽 다운 시 50% 확률로 우회
-  const base = PROXY_URLS[Math.floor(Math.random() * PROXY_URLS.length)];
+function buildProxyUrl(base: string, targetUrl: string): string {
   return `${base}/?url=${encodeURIComponent(targetUrl)}`;
+}
+
+// 자동 fallback — 건강한 proxy 우선 + 실패 시 다른 proxy로 재시도
+export async function fetchProxied(targetUrl: string): Promise<Response> {
+  // 건강(=down 아님) 우선, down은 후순위. 그 안에서는 랜덤 (부하 분산)
+  const healthy = PROXY_URLS.filter(u => !isProxyDown(u))
+                            .sort(() => Math.random() - 0.5);
+  const down = PROXY_URLS.filter(u => isProxyDown(u))
+                         .sort(() => Math.random() - 0.5);
+  const order = [...healthy, ...down];
+  let lastErr: unknown;
+  for (const base of order) {
+    try {
+      const resp = await fetch(buildProxyUrl(base, targetUrl));
+      if (resp.ok) {
+        reportProxySuccess(base);
+        return resp;
+      }
+      reportProxyFailure(base);
+      lastErr = new Error(`HTTP ${resp.status} from ${base}`);
+    } catch (e) {
+      reportProxyFailure(base);
+      lastErr = e;
+    }
+  }
+  throw lastErr instanceof Error ? lastErr : new Error("All proxies failed");
 }
 
 function toKstDateString(iso: string): string {
@@ -36,7 +62,7 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
   if (tickers.length === 0) return [];
   const codes = tickers.map(t => `A${t}`).join(",");
   const target = `https://wts-info-api.tossinvest.com/api/v3/stock-prices/details?productCodes=${codes}`;
-  const resp = await fetch(viaProxy(target));
+  const resp = await fetchProxied(target);
   if (!resp.ok) throw new Error(`Toss price fetch failed: ${resp.status}`);
   const data = await resp.json() as TossPriceResponse;
   return (data.result || []).map(item => ({
@@ -91,7 +117,7 @@ export async function fetchInvestor(ticker: string): Promise<Investor | null> {
   const target =
     `https://wts-info-api.tossinvest.com/api/v1/stock-infos/trade/trend/trading-trend` +
     `?productCode=A${ticker}&size=60`;
-  const resp = await fetch(viaProxy(target));
+  const resp = await fetchProxied(target);
   if (!resp.ok) return null;
   const data = await resp.json() as TossInvestorResponse;
   const body = data.result?.body || [];
@@ -136,7 +162,7 @@ const WARNING_MAP: [string, string][] = [
 export async function fetchWarning(ticker: string): Promise<string> {
   const target = `https://wts-info-api.tossinvest.com/api/v1/stock-infos/A${ticker}/wts-badges`;
   try {
-    const resp = await fetch(viaProxy(target));
+    const resp = await fetchProxied(target);
     if (!resp.ok) return "";
     const data = await resp.json() as TossBadgeResponse;
     const titles = (data.result || []).map(it => it.title || "").join(" ");
@@ -194,7 +220,7 @@ function _isValid(n: number | undefined): n is number {
 export async function fetchYahooQuote(symbol: string, name: string): Promise<UsIndex | null> {
   const target = `https://query2.finance.yahoo.com/v10/finance/quoteSummary/${encodeURIComponent(symbol)}?modules=price`;
   try {
-    const resp = await fetch(viaProxy(target));
+    const resp = await fetchProxied(target);
     if (!resp.ok) return null;
     const data = await resp.json() as QuoteSummaryResponse;
     const p = data.quoteSummary?.result?.[0]?.price;
@@ -281,7 +307,7 @@ export async function fetchNaverInfo(ticker: string): Promise<NaverInfo> {
   const target = `https://finance.naver.com/item/main.naver?code=${ticker}`;
   const empty: NaverInfo = { sector: "", consensus: null };
   try {
-    const resp = await fetch(viaProxy(target));
+    const resp = await fetchProxied(target);
     if (!resp.ok) return empty;
     // Naver finance 는 EUC-KR 가능 — Content-Type 체크 후 디코딩
     const buf = await resp.arrayBuffer();
@@ -370,7 +396,7 @@ export async function searchNaverAutoComplete(
   const url = `https://m.stock.naver.com/front-api/search/autoComplete`
             + `?query=${encodeURIComponent(q)}&target=stock`;
   try {
-    const resp = await fetch(viaProxy(url));
+    const resp = await fetchProxied(url);
     if (!resp.ok) return [];
     const json = (await resp.json()) as NaverACResp;
     const items = json.result?.items ?? [];
@@ -396,8 +422,8 @@ export async function searchNaverAutoComplete(
 export async function fetchStockName(ticker: string): Promise<string | null> {
   if (!/^\d{6}$/.test(ticker)) return null;
   try {
-    const resp = await fetch(viaProxy(
-      `https://finance.naver.com/item/main.naver?code=${ticker}`));
+    const resp = await fetchProxied(
+      `https://finance.naver.com/item/main.naver?code=${ticker}`);
     if (!resp.ok) return null;
     const buf = await resp.arrayBuffer();
     const ct = resp.headers.get("Content-Type") || "";
