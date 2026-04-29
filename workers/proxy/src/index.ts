@@ -11,6 +11,7 @@ const ALLOWED_HOSTS = new Set<string>([
   "tossinvest.com",
   "finance.naver.com",
   "m.stock.naver.com",
+  "navercomp.wisereport.co.kr",
   "query1.finance.yahoo.com",
   "query2.finance.yahoo.com",
 ]);
@@ -129,6 +130,12 @@ export default {
     } else if (targetUrl.hostname.includes("yahoo")) {
       headers["Origin"] = "https://finance.yahoo.com";
       headers["Referer"] = "https://finance.yahoo.com/";
+    } else if (targetUrl.hostname.includes("wisereport")) {
+      headers["Referer"] = "https://finance.naver.com/";
+      headers["Accept-Language"] = "ko-KR,ko;q=0.9";
+    } else if (targetUrl.hostname.includes("naver")) {
+      headers["Referer"] = "https://finance.naver.com/";
+      headers["Accept-Language"] = "ko-KR,ko;q=0.9";
     }
 
     if (needsYahooAuth(targetUrl)) {

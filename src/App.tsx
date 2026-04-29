@@ -226,10 +226,6 @@ function Dashboard() {
             onClose={() => setValuationTicker(null)}
             ticker={valuationTicker}
             name={s.name}
-            sector={naverMap.get(valuationTicker)?.sector}
-            investor={investorMap.get(valuationTicker)}
-            consensus={naverMap.get(valuationTicker)?.consensus ?? null}
-            peak={peaks.get(valuationTicker)}
             curPrice={priceMap.get(valuationTicker)?.price}
           />
         );
