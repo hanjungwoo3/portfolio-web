@@ -207,21 +207,17 @@ export function StockCard({
           <div className="text-sm flex flex-wrap items-baseline gap-x-4">
             <span>
               <span className="text-gray-500">매수 </span>
-              <span className="font-bold text-blue-700">
+              <span className="text-gray-700 font-medium">
                 {stock.avg_price.toLocaleString()}원
               </span>
             </span>
             {peak && peak > price.price && (
-              <span className="font-bold text-rose-700">
+              <span className="font-bold text-blue-800">
                 피크 {peak.toLocaleString()}원{" "}
-                <span className="text-gray-500">(</span>
-                <span className={`rounded px-0.5
-                                  ${isPeakDrop
-                                    ? "bg-rose-300 text-white"
-                                    : "text-gray-500"}`}>
+                (<span className={`rounded px-0.5
+                                   ${isPeakDrop ? "bg-rose-300 text-white" : ""}`}>
                   {peakPct.toFixed(2)}%
-                </span>
-                <span className="text-gray-500">)</span>
+                </span>)
               </span>
             )}
           </div>
