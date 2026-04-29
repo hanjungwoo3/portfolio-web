@@ -80,13 +80,13 @@ export function MobileSimpleView() {
   }, [holdings]);
 
   // 선택된 그룹 종목들 (활성 탭이 그룹일 때만)
-  const groupHoldings = useMemo(() => {
+  const groupHoldingsUnsorted = useMemo(() => {
     if (activeTab === US_KEY) return [];
     return holdings.filter(s => (s.account || "") === activeTab);
   }, [holdings, activeTab]);
 
   // 그룹 종목들의 KR 가격 fetch (수동 갱신만)
-  const groupTickers = groupHoldings
+  const groupTickers = groupHoldingsUnsorted
     .filter(s => /^\d{6}$/.test(s.ticker))
     .map(s => s.ticker);
   const { data: groupPrices } = useQuery({
@@ -97,6 +97,17 @@ export function MobileSimpleView() {
     refetchOnWindowFocus: false,
   });
   const groupPriceMap = new Map((groupPrices ?? []).map(p => [p.ticker, p]));
+
+  // 어제보다 % 내림차순 정렬 (가격 없는 종목은 맨 뒤) — PC 동일
+  const groupHoldings = useMemo(() => {
+    return [...groupHoldingsUnsorted].sort((a, b) => {
+      const pa = groupPriceMap.get(a.ticker);
+      const pb = groupPriceMap.get(b.ticker);
+      const pctA = pa && pa.base > 0 ? (pa.price - pa.base) / pa.base : -Infinity;
+      const pctB = pb && pb.base > 0 ? (pb.price - pb.base) / pb.base : -Infinity;
+      return pctB - pctA;
+    });
+  }, [groupHoldingsUnsorted, groupPriceMap]);
 
   // 종목별 sector (Naver) — 그룹 탭에서만 fetch (캐시)
   const naverInfos = useQuery({

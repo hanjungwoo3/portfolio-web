@@ -62,12 +62,12 @@ export function MobileStockCard({ stock, price, peak, sector }: Props) {
         <button onClick={() => openTossStock(stock.ticker)}
                 title="토스에서 보기"
                 className={`inline-flex items-center px-1.5 py-0.5 rounded
-                            font-bold text-sm leading-none w-fit
+                            font-bold text-base leading-none w-fit
                             bg-yellow-200 ${signColor(dayDiff || -1)}`}>
-          {sleeping && <span className="text-[9px] mr-0.5 opacity-70">zZ</span>}
+          {sleeping && <span className="text-[10px] mr-0.5 opacity-70">zZ</span>}
           {stock.name}
           {stock.shares > 0 && (
-            <span className="ml-1 text-xs font-bold">
+            <span className="ml-1 text-sm font-bold">
               ({stock.shares.toLocaleString()}주)
             </span>
           )}
@@ -79,10 +79,10 @@ export function MobileStockCard({ stock, price, peak, sector }: Props) {
           const hiDiff = price.price - hi;
           const hiPct = (hiDiff / hi) * 100;
           return (
-            <div className="text-xs text-gray-700">
+            <div className="text-sm text-gray-700">
               <span className="text-gray-500">고 </span>
               {hi.toLocaleString()}
-              <span className={`ml-0.5 text-[10px] ${signColor(hiDiff)}`}>
+              <span className={`ml-0.5 text-xs ${signColor(hiDiff)}`}>
                 ({formatSigned(hiDiff)}, {hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
               </span>
             </div>
@@ -91,11 +91,11 @@ export function MobileStockCard({ stock, price, peak, sector }: Props) {
 
         {/* 현재가 + 거래량 */}
         <div className="flex items-baseline gap-1">
-          <span className={`text-lg font-bold leading-tight ${signColor(dayDiff || -1)}`}>
+          <span className={`text-xl font-bold leading-tight ${signColor(dayDiff || -1)}`}>
             {price.price.toLocaleString()}원
           </span>
           {price.volume > 0 && (
-            <span className="text-[10px] text-gray-400">
+            <span className="text-xs text-gray-400">
               ({formatVolume(price.volume)})
             </span>
           )}
@@ -107,10 +107,10 @@ export function MobileStockCard({ stock, price, peak, sector }: Props) {
           const loDiff = price.price - lo;
           const loPct = (loDiff / lo) * 100;
           return (
-            <div className="text-xs text-gray-700">
+            <div className="text-sm text-gray-700">
               <span className="text-gray-500">저 </span>
               {lo.toLocaleString()}
-              <span className={`ml-0.5 text-[10px] ${signColor(loDiff)}`}>
+              <span className={`ml-0.5 text-xs ${signColor(loDiff)}`}>
                 ({formatSigned(loDiff)}, {loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
               </span>
             </div>
@@ -147,40 +147,36 @@ export function MobileStockCard({ stock, price, peak, sector }: Props) {
           </div>
         )}
 
-        {/* 어제보다 — 좌측 라벨/값 / 우측 % (정렬) */}
+        {/* 어제보다 — 자연 흐름 (PC 동일) */}
         {dayDiff !== 0 && (
-          <div className="text-[10px] flex items-baseline">
-            <span className="flex-1 min-w-0">
-              <span className="text-gray-500">어제보다 </span>
-              <span className={`font-bold text-xs ${signColor(dayDiff)}`}>
-                {formatSigned(dayDiff)}
-              </span>
-              {stock.shares > 0 && (
-                <span className={signColor(dayDiff)}>
-                  {" / "}{formatSigned(dayDiff * stock.shares)}
-                </span>
-              )}
+          <div className="text-[10px]">
+            <span className="text-gray-500">어제보다 </span>
+            <span className={`font-bold text-sm ${signColor(dayDiff)}`}>
+              {formatSigned(dayDiff)}
             </span>
-            <span className={`font-bold text-xs shrink-0 ${signColor(dayDiff)}`}>
+            {stock.shares > 0 && (
+              <span className={signColor(dayDiff)}>
+                {" / "}{formatSigned(dayDiff * stock.shares)}
+              </span>
+            )}{" "}
+            <span className={`font-bold text-sm ${signColor(dayDiff)}`}>
               ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
             </span>
           </div>
         )}
 
-        {/* 전체수익 — 좌측 라벨/값 / 우측 % (정렬) */}
+        {/* 전체수익 — 자연 흐름 (PC 동일) */}
         {hasPosition && (
-          <div className="text-[10px] flex items-baseline">
-            <span className="flex-1 min-w-0">
-              <span className="text-gray-500">전체수익 </span>
-              <span className={signColor(pnl)}>{formatSigned(pnl)}</span>
-            </span>
-            <span className={`shrink-0 ${signColor(pnl)}`}>(</span>
-            <span className={`font-bold rounded px-0.5 shrink-0
+          <div className="text-[10px]">
+            <span className="text-gray-500">전체수익 </span>
+            <span className={signColor(pnl)}>{formatSigned(pnl)}</span>{" "}
+            <span className={signColor(pnl)}>(</span>
+            <span className={`font-bold rounded px-0.5
                               ${isStop ? "bg-rose-600 text-white"
                                 : signColor(pnl)}`}>
               {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
             </span>
-            <span className={`shrink-0 ${signColor(pnl)}`}>)</span>
+            <span className={signColor(pnl)}>)</span>
           </div>
         )}
       </div>
