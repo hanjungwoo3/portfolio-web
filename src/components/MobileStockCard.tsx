@@ -147,19 +147,14 @@ export function MobileStockCard({ stock, price, peak, sector }: Props) {
           </div>
         )}
 
-        {/* 어제보다 — 자연 흐름 (PC 동일) */}
+        {/* 어제보다 — 1주 금액 + % (총금액 제외) */}
         {dayDiff !== 0 && (
           <div className="text-[10px]">
             <span className="text-gray-500">어제보다 </span>
             <span className={`font-bold text-sm ${signColor(dayDiff)}`}>
               {formatSigned(dayDiff)}
-            </span>
-            {stock.shares > 0 && (
-              <span className={signColor(dayDiff)}>
-                {" / "}{formatSigned(dayDiff * stock.shares)}
-              </span>
-            )}{" "}
-            <span className={`font-bold text-sm ${signColor(dayDiff)}`}>
+            </span>{" "}
+            <span className={`font-bold text-base ${signColor(dayDiff)}`}>
               ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
             </span>
           </div>
