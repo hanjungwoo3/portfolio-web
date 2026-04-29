@@ -44,9 +44,9 @@ const HIGHLIGHT_LABELS = new Set(["외국인", "기관", "연기금"]);
 
 // 강조 행 폰트 사이즈
 const HIGHLIGHT_SIZE: Record<string, string> = {
-  외국인: "text-sm font-bold",
-  기관: "text-sm font-bold",
-  연기금: "text-xs font-medium",
+  외국인: "text-xs font-bold",
+  기관: "text-xs font-bold",
+  연기금: "text-[11px] font-medium",
 };
 
 function highlightStyles(value: number): { bg: string; color: string } {
@@ -193,47 +193,7 @@ export function StockCard({
                 {warning}
               </span>
             )}
-            <div className="ml-auto flex items-center gap-0.5">
-              {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
-                <button
-                  type="button"
-                  onClick={() => onOpenValuation(stock.ticker)}
-                  title="기업가치 보기"
-                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
-                             text-xs leading-none px-0.5 transition-opacity">
-                  📊
-                </button>
-              )}
-              {onEdit && (
-                <button
-                  type="button"
-                  onClick={() => onEdit(stock)}
-                  title="수정"
-                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
-                             text-xs leading-none px-0.5 transition-opacity">
-                  ✏️
-                </button>
-              )}
-              {onDelete && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm(`${stock.name} 을(를) ${stock.account || "보유"}에서 삭제할까요?`)) {
-                      onDelete(stock);
-                    }
-                  }}
-                  title="삭제"
-                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
-                             hover:text-rose-600
-                             text-xs leading-none px-0.5 transition-opacity">
-                  ✕
-                </button>
-              )}
-            </div>
           </div>
-          {sector && (
-            <div className="text-[10px] text-gray-500 mb-1">{sector}</div>
-          )}
           {price.high && price.high > 0 && (() => {
             const hi = price.high;
             const hiDiff = price.price - hi;
@@ -282,10 +242,57 @@ export function StockCard({
           })()}
         </div>
 
-        {/* 통계 박스 — 매수~목표 (3/10) */}
-        <div className="border border-gray-200 rounded-md bg-gray-50/60
-                        px-2 py-1 basis-[30%] min-w-0 space-y-0.5
-                        flex flex-col justify-center">
+        {/* 통계 박스 — 섹터 + 매수~목표 (3/10), top 정렬, 섹터 있으면 상단 공백 */}
+        <div className={`border border-gray-200 rounded-md bg-gray-50/60
+                         px-2 ${sector ? "pt-3" : "pt-1"} pb-1
+                         basis-[40%] min-w-0 space-y-0.5
+                         flex flex-col justify-start`}>
+
+        {/* 섹터 + hover 버튼 (📊 ✏️ ✕) */}
+        {(sector || onOpenValuation || onEdit || onDelete) && (
+          <div className="flex items-center gap-1 mb-0.5">
+            {sector && (
+              <span className="text-xs text-gray-500">{sector}</span>
+            )}
+            <div className="ml-auto flex items-center gap-0.5">
+              {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
+                <button
+                  type="button"
+                  onClick={() => onOpenValuation(stock.ticker)}
+                  title="기업가치 보기"
+                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                             text-xs leading-none px-0.5 transition-opacity">
+                  📊
+                </button>
+              )}
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(stock)}
+                  title="수정"
+                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                             text-xs leading-none px-0.5 transition-opacity">
+                  ✏️
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`${stock.name} 을(를) ${stock.account || "보유"}에서 삭제할까요?`)) {
+                      onDelete(stock);
+                    }
+                  }}
+                  title="삭제"
+                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                             hover:text-rose-600
+                             text-xs leading-none px-0.5 transition-opacity">
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* 보유: 매수 + 피크 */}
         {hasPosition && (
@@ -309,27 +316,23 @@ export function StockCard({
           </div>
         )}
 
-        {/* 어제보다 — 금액은 일반, %만 bold */}
-        <div className="text-xs">
-          <span className="text-gray-500">어제보다 </span>
-          {dayDiff !== 0 ? (
-            <>
-              <span className={`font-bold ${signColor(dayDiff)}`}>
-                {formatSigned(dayDiff)}
+        {/* 어제보다 — 변동 0이면 행 자체 숨김; 1주당 + % 강조 */}
+        {dayDiff !== 0 && (
+          <div className="text-xs">
+            <span className="text-gray-500">어제보다 </span>
+            <span className={`font-bold text-base ${signColor(dayDiff)}`}>
+              {formatSigned(dayDiff)}
+            </span>
+            {stock.shares > 0 && (
+              <span className={signColor(dayDiff)}>
+                {" / "}{formatSigned(dayDiff * stock.shares)}
               </span>
-              {stock.shares > 0 && (
-                <span className={signColor(dayDiff)}>
-                  {" / "}{formatSigned(dayDiff * stock.shares)}
-                </span>
-              )}{" "}
-              <span className={`font-bold ${signColor(dayDiff)}`}>
-                ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
-              </span>
-            </>
-          ) : (
-            <span className="text-gray-400">—</span>
-          )}
-        </div>
+            )}{" "}
+            <span className={`font-bold text-base ${signColor(dayDiff)}`}>
+              ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
+            </span>
+          </div>
+        )}
 
         {/* 전체수익 (보유만) — 금액 일반, %만 bold (손절 -9% 이하 시 % 배경 강조) */}
         {hasPosition && (
@@ -366,7 +369,7 @@ export function StockCard({
         </div>
 
       {/* ───────── 투자자 그리드 (4/10) ───────── */}
-      <div className="basis-[40%] min-w-0 bg-white border border-gray-200 rounded-md
+      <div className="basis-[30%] min-w-0 bg-white border border-gray-200 rounded-md
                        px-1.5 py-1 grid grid-cols-2 gap-x-2 gap-y-0
                        text-[11px]">
         {FLOW_FIELDS.map(({ label, key }) => {

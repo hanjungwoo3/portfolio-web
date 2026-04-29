@@ -4,11 +4,16 @@
 // - navercomp.wisereport.co.kr c1080001 (애널리스트 리포트)
 // - navercomp.wisereport.co.kr c1010001 (주요주주)
 
-const PROXY_URL =
-  import.meta.env.VITE_PROXY_URL || "http://localhost:8787";
+// 다중 proxy URL — Cloudflare + Vercel 라운드 로빈 (api.ts 와 동일)
+const PROXY_URLS: string[] = [
+  import.meta.env.VITE_PROXY_URL,
+  import.meta.env.VITE_PROXY_URL_2,
+].filter(Boolean) as string[];
+if (PROXY_URLS.length === 0) PROXY_URLS.push("http://localhost:8787");
 
 function viaProxy(targetUrl: string): string {
-  return `${PROXY_URL}/?url=${encodeURIComponent(targetUrl)}`;
+  const base = PROXY_URLS[Math.floor(Math.random() * PROXY_URLS.length)];
+  return `${base}/?url=${encodeURIComponent(targetUrl)}`;
 }
 
 async function fetchHtml(url: string): Promise<Document | null> {

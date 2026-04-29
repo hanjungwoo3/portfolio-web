@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   searchNaverAutoComplete, fetchStockName, fetchTossPrices,
@@ -34,6 +34,18 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
   const [rowEdits, setRowEdits] = useState<Map<string, RowEdit>>(new Map());
   // 일괄적용 시 함께 추가할 그룹 (마킹/선택)
   const [markedGroups, setMarkedGroups] = useState<Set<string>>(new Set());
+
+  // 창 닫힐 때 모든 상태 초기화
+  useEffect(() => {
+    if (isOpen) return;
+    setQuery("");
+    setResults([]);
+    setSelected(new Set());
+    setNewGroup("");
+    setRowEdits(new Map());
+    setMarkedGroups(new Set());
+    setStatusMsg("");
+  }, [isOpen]);
   const downOnBackdropRef = useRef(false);
 
   const updateRowEdit = (ticker: string, patch: Partial<RowEdit>) => {
@@ -51,7 +63,7 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
     queryKey: ["search-prices", tickers],
     queryFn: () => fetchTossPrices(tickers),
     enabled: isOpen && tickers.length > 0,
-    refetchInterval: 5_000,
+    refetchInterval: 10_000,
   });
   const priceMap = new Map((prices ?? []).map(p => [p.ticker, p]));
 
@@ -194,6 +206,7 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
       : "⚠️ 적용된 항목 없음 — 수량 입력 또는 그룹 마킹 필요");
     setReloadKey(k => k + 1);
     onAdded();
+    if (parts.length > 0) onClose();
   };
 
   // 행의 ✓그룹 배지 클릭 = 그 종목만 그 그룹에서 제거
@@ -337,19 +350,27 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
               검색 결과가 여기에 표시됩니다.
             </div>
           ) : (
-            results.map(r => (
-              <SearchResultRow
-                key={r.ticker}
-                item={r}
-                price={priceMap.get(r.ticker)}
-                existing={existingMap?.get(r.ticker) ?? []}
-                checked={selected.has(r.ticker)}
-                onToggle={() => toggleOne(r.ticker)}
-                edit={rowEdits.get(r.ticker)
-                       ?? { shares: "", avgPrice: "", buyDate: todayKstStr() }}
-                onEditChange={p => updateRowEdit(r.ticker, p)}
-                onRemoveGroup={g => void removeOneFromGroup(r.ticker, g)} />
-            ))
+            results.map(r => {
+              const isChecked = selected.has(r.ticker);
+              return (
+                <SearchResultRow
+                  key={r.ticker}
+                  item={r}
+                  price={priceMap.get(r.ticker)}
+                  existing={existingMap?.get(r.ticker) ?? []}
+                  // 체크된 행에만 pending 뱃지 — 일괄적용은 체크 종목에만 반영되므로
+                  pending={isChecked
+                    ? [...markedGroups].filter(
+                        g => !(existingMap?.get(r.ticker) ?? []).includes(g))
+                    : []}
+                  checked={isChecked}
+                  onToggle={() => toggleOne(r.ticker)}
+                  edit={rowEdits.get(r.ticker)
+                         ?? { shares: "", avgPrice: "", buyDate: todayKstStr() }}
+                  onEditChange={p => updateRowEdit(r.ticker, p)}
+                  onRemoveGroup={g => void removeOneFromGroup(r.ticker, g)} />
+              );
+            })
           )}
         </div>
 
@@ -377,6 +398,7 @@ interface RowProps {
   item: SearchResult;
   price?: Price;
   existing: string[];
+  pending: string[];      // 마킹된 (아직 적용 안 된) 그룹들
   checked: boolean;
   onToggle: () => void;
   edit: RowEdit;
@@ -385,7 +407,8 @@ interface RowProps {
 }
 
 function SearchResultRow({
-  item, price, existing, checked, onToggle, edit, onEditChange, onRemoveGroup,
+  item, price, existing, pending, checked,
+  onToggle, edit, onEditChange, onRemoveGroup,
 }: RowProps) {
   const dayPct = price && price.base > 0
     ? ((price.price - price.base) / price.base) * 100 : undefined;
@@ -431,6 +454,15 @@ function SearchResultRow({
                              px-1.5 py-0.5 rounded transition">
             ✓ {g}
           </button>
+        ))}
+        {pending.map(g => (
+          <span key={g}
+                title="일괄적용 시 추가됨"
+                className="text-[10px] bg-blue-50 text-blue-700
+                           border border-dashed border-blue-300
+                           px-1.5 py-0.5 rounded">
+            ➕ {g}
+          </span>
         ))}
         {price && (
           <span className="ml-auto tabular-nums text-sm">

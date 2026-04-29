@@ -1,10 +1,16 @@
 import type { Price, Investor, Consensus } from "../types";
 
-const PROXY_URL =
-  import.meta.env.VITE_PROXY_URL || "http://localhost:8787";
+// 다중 proxy URL — Cloudflare + Vercel 라운드 로빈
+const PROXY_URLS: string[] = [
+  import.meta.env.VITE_PROXY_URL,
+  import.meta.env.VITE_PROXY_URL_2,
+].filter(Boolean) as string[];
+if (PROXY_URLS.length === 0) PROXY_URLS.push("http://localhost:8787");
 
 function viaProxy(targetUrl: string): string {
-  return `${PROXY_URL}/?url=${encodeURIComponent(targetUrl)}`;
+  // 랜덤 선택 — 두 worker 부하 분산 + 한쪽 다운 시 50% 확률로 우회
+  const base = PROXY_URLS[Math.floor(Math.random() * PROXY_URLS.length)];
+  return `${base}/?url=${encodeURIComponent(targetUrl)}`;
 }
 
 function toKstDateString(iso: string): string {
