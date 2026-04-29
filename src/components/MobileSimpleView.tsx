@@ -112,40 +112,45 @@ export function MobileSimpleView() {
         </button>
       </header>
 
-      {/* ─── Tier 0 다크 박스 (2 columns) ─── */}
-      <div className="px-3 py-2">
-        <div className="rounded-lg bg-slate-800 text-white px-3 py-2
-                         grid grid-cols-2 gap-2">
-          {tier0.map(p => {
-            const q = usMap?.get(p.symbol);
-            const sleeping = isSymbolSleeping(p.symbol);
-            const sign = q && q.diff > 0 ? "text-rose-400"
-                       : q && q.diff < 0 ? "text-blue-400" : "text-gray-300";
-            return (
-              <div key={p.symbol}
-                   className={`flex flex-col gap-0.5
-                                ${sleeping ? "opacity-60" : ""}`}>
-                <div className="flex items-baseline gap-1.5">
-                  {sleeping && (
-                    <span className="text-[9px] text-gray-400">zZ</span>
-                  )}
-                  <span className="text-xs font-bold">{p.name}</span>
-                </div>
-                <div className="text-[10px] text-gray-300 truncate">{p.desc}</div>
-                <div className="flex items-baseline gap-1.5">
-                  <span className="text-sm font-bold tabular-nums">
-                    {q ? fmtPrice(p.symbol, q.price) : "—"}
-                  </span>
-                  {q && (
-                    <span className={`text-xs font-bold tabular-nums ${sign}`}>
-                      ({q.pct >= 0 ? "+" : ""}{q.pct.toFixed(2)}%)
-                    </span>
-                  )}
-                </div>
+      {/* ─── Tier 0 핵심 대시보드 (2 columns 카드) ─── */}
+      <div className="px-3 py-2 grid grid-cols-2 gap-2">
+        {tier0.map(p => {
+          const q = usMap?.get(p.symbol);
+          const sleeping = isSymbolSleeping(p.symbol);
+          // 표와 동일한 +/- 행 배경 + 색상
+          const bg =
+            q && q.diff > 0 ? "bg-rose-50 border-rose-200"
+            : q && q.diff < 0 ? "bg-blue-50/70 border-blue-200"
+            : "bg-white border-gray-200";
+          const sign = q ? signColor(q.diff) : "text-gray-400";
+          return (
+            <div key={p.symbol}
+                 className={`flex flex-col gap-0.5 rounded-lg border px-3 py-2
+                              ${bg} ${sleeping ? "opacity-60" : ""}`}>
+              <div className="flex items-baseline gap-1.5">
+                {sleeping && (
+                  <span className="text-[11px] text-gray-400">zZ</span>
+                )}
+                <span className="text-base font-bold text-gray-900">
+                  {p.name}
+                </span>
               </div>
-            );
-          })}
-        </div>
+              <div className="text-[11px] text-gray-500 truncate">
+                {p.desc}
+              </div>
+              <div className="flex items-baseline gap-2 mt-0.5">
+                <span className="text-lg font-bold tabular-nums text-gray-900">
+                  {q ? fmtPrice(p.symbol, q.price) : "—"}
+                </span>
+                {q && (
+                  <span className={`text-base font-bold tabular-nums ${sign}`}>
+                    ({q.pct >= 0 ? "+" : ""}{q.pct.toFixed(2)}%)
+                  </span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
 
       {/* ─── 섹터 표 ─── */}
@@ -157,7 +162,7 @@ export function MobileSimpleView() {
               <th className="px-2 py-2 text-left w-16">섹터</th>
               <th className="px-2 py-2 text-left">종목</th>
               <th className="px-2 py-2 text-right">현재가</th>
-              <th className="px-2 py-2 text-right w-20">등락%</th>
+              <th className="px-2 py-2 text-right w-24">등락%</th>
             </tr>
           </thead>
           <tbody>
@@ -207,7 +212,7 @@ export function MobileSimpleView() {
                     <td className="px-2 py-2 text-right tabular-nums text-gray-900 font-medium">
                       {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
                     </td>
-                    <td className={`px-2 py-2 text-right tabular-nums font-bold ${sign}`}>
+                    <td className={`px-2 py-2 text-right tabular-nums text-base font-bold ${sign}`}>
                       {r.pct !== undefined
                         ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
                         : "—"}
