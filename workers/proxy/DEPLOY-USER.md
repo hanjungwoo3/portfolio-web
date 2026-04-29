@@ -29,7 +29,10 @@
 5. 에디터 내용 전체 삭제
 6. 아래 GitHub 파일 내용을 통째로 복사·붙여넣기:
 
-   👉 https://raw.githubusercontent.com/hanjungwoo3/portfolio-web/main/workers/proxy/src/index.ts
+   👉 https://raw.githubusercontent.com/hanjungwoo3/portfolio-web/main/workers/proxy/src/worker.js
+
+   ※ Cloudflare 웹 에디터는 기본 파일이 `worker.js`라 순수 JS 버전을 사용해야 함.
+     TypeScript 원본(`index.ts`) 붙여넣으면 16개 문법 에러가 뜸.
 
 7. 우측 상단 **Save and Deploy**
 8. 발급된 URL 확인 (예: `https://portfolio-proxy.myname.workers.dev`)
