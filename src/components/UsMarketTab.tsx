@@ -129,7 +129,7 @@ export function UsMarketTab() {
 
   return (
     <div className="space-y-3">
-      {/* ─── Tier 0: 핵심 대시보드 ─── */}
+      {/* ─── Tier 0: 핵심 대시보드 (각 카드 클릭 → Yahoo Finance 새 탭) ─── */}
       <div className="rounded-lg bg-slate-800 text-white px-4 py-3
                        grid grid-cols-2 lg:grid-cols-4 gap-3">
         {tier0.map(p => {
@@ -140,8 +140,12 @@ export function UsMarketTab() {
           const sign = diff > 0 ? "text-rose-400"
                       : diff < 0 ? "text-blue-400" : "text-gray-300";
           return (
-            <div key={p.symbol}
-                 className={`flex flex-col gap-0.5 ${sleeping ? "opacity-60" : ""}`}>
+            <a key={p.symbol}
+               href={quoteUrl(p.symbol)} target="_blank" rel="noopener noreferrer"
+               title={`${p.name} — Yahoo Finance 새 탭에서 보기`}
+               className={`flex flex-col gap-0.5 rounded -mx-2 px-2 py-1
+                            hover:bg-slate-700 transition cursor-pointer
+                            ${sleeping ? "opacity-60" : ""}`}>
               <div className="flex items-baseline gap-2 flex-wrap">
                 <span className="text-base font-bold">
                   {sleeping && (
@@ -161,7 +165,7 @@ export function UsMarketTab() {
               <div className="text-[11px] text-gray-300 truncate">
                 {p.desc}
               </div>
-            </div>
+            </a>
           );
         })}
       </div>
