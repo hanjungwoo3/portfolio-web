@@ -18,7 +18,23 @@ const TRAILING_STOP_PCT = -9;
 
 function openTossStock(ticker: string) {
   if (!/^\d{6}$/.test(ticker)) return;
-  window.open(`https://tossinvest.com/stocks/A${ticker}`, "_blank", "noopener");
+  const code = `A${ticker}`;
+  const inner = `https://service.tossinvest.com?nextLandingUrl=/stocks/${code}`;
+  const deep = `supertoss://securities?url=${encodeURIComponent(inner)}`;
+  const https = `https://tossinvest.com/stocks/${code}`;
+
+  // 모바일: 토스 앱 deeplink 우선 (Android Intent / iOS scheme),
+  // 1.2초 내 visibilityState 가 그대로면 https 폴백
+  if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
+    location.href = deep;
+    setTimeout(() => {
+      if (document.visibilityState === "visible") {
+        window.open(https, "_blank", "noopener");
+      }
+    }, 1200);
+  } else {
+    window.open(https, "_blank", "noopener");
+  }
 }
 
 export function MobileStockCard({ stock, price, peak, sector }: Props) {
