@@ -6,6 +6,8 @@ import {
 } from "../lib/usMarketData";
 import { signColor, isSymbolSleeping } from "../lib/format";
 import { getPersonalProxyUrl, setPersonalProxyUrl } from "../lib/proxyConfig";
+import { exportAll, replaceAllHoldings, replaceAllPeaks } from "../lib/db";
+import { detectPortfolioJson } from "../lib/portfolioImport";
 
 // 모바일 전용 단순 뷰 (v2 데스크톱 미국증시 표 형식 그대로 이식)
 // 자동 갱신 X — 새로고침 버튼만. 자기 주식/그룹/검색 등 모든 추가 기능 없음.
@@ -253,6 +255,18 @@ function SettingsModal({
   proxyUrl, setProxyUrl, savedMsg, setSavedMsg, onClose,
 }: SettingsModalProps) {
   const downOnBackdropRef = useRef(false);
+  const [raw, setRaw] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [dataMsg, setDataMsg] = useState("");
+
+  // 모달 열릴 때 현재 데이터 export 해서 textarea 채움
+  useEffect(() => {
+    void (async () => {
+      const data = await exportAll();
+      setRaw(JSON.stringify(data, null, 2));
+      setDataMsg(`현재: 종목 ${data.holdings.length}건 / 피크 ${Object.keys(data.peaks).length}건`);
+    })();
+  }, []);
 
   const saveProxy = () => {
     const v = proxyUrl.trim().replace(/\/+$/, "");
@@ -262,6 +276,45 @@ function SettingsModal({
     setTimeout(() => setSavedMsg(""), 2500);
   };
 
+  const result = detectPortfolioJson(raw);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(raw);
+      setDataMsg("✅ 클립보드 복사됨");
+    } catch {
+      setDataMsg("❌ 복사 실패 — textarea 직접 선택해서 복사");
+    }
+  };
+
+  const handlePaste = async () => {
+    try {
+      const text = await navigator.clipboard.readText();
+      setRaw(text);
+      setDataMsg("📥 클립보드에서 가져옴 — [적용] 누르면 덮어쓰기");
+    } catch {
+      setDataMsg("❌ 클립보드 읽기 실패 — textarea 에 직접 붙여넣어 주세요");
+    }
+  };
+
+  const handleApply = async () => {
+    if (!result || result.kind === "error") return;
+    setBusy(true);
+    try {
+      if (result.kind === "holdings" || result.kind === "combined") {
+        await replaceAllHoldings(result.stocks);
+      }
+      if (result.kind === "peaks" || result.kind === "combined") {
+        await replaceAllPeaks(result.peaks);
+      }
+      setDataMsg("💾 적용 완료");
+    } catch (e) {
+      setDataMsg(`❌ 저장 실패: ${e instanceof Error ? e.message : ""}`);
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center
                      justify-center bg-black/40 p-3"
@@ -269,23 +322,26 @@ function SettingsModal({
          onClick={e => {
            if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
          }}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm">
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm
+                       max-h-[90vh] flex flex-col">
         <header className="px-4 py-3 border-b bg-gray-50 flex items-center">
           <h2 className="text-base font-bold">⚙️ 설정</h2>
           <button onClick={onClose}
                   className="ml-auto text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
-        <div className="px-4 py-3 space-y-3">
-          <div>
-            <label className="text-xs font-bold text-gray-700 block mb-1">
+        <div className="px-4 py-3 space-y-4 overflow-y-auto flex-1">
+
+          {/* 1) 전용 프록시 URL */}
+          <div className="border border-gray-200 rounded p-3 bg-blue-50/30 space-y-1">
+            <label className="text-xs font-bold text-gray-700 block">
               🔧 내 전용 프록시 URL (선택)
             </label>
-            <p className="text-[11px] text-gray-500 mb-1.5">
+            <p className="text-[11px] text-gray-500">
               비워두면 공개 4-way 사용. 본인 worker URL 입력 시 본인만 사용.
             </p>
             <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md"
                target="_blank" rel="noopener noreferrer"
-               className="text-[11px] text-blue-600 underline block mb-2">
+               className="text-[11px] text-blue-600 underline block">
               📖 배포 가이드 보기
             </a>
             <input type="text" value={proxyUrl}
@@ -294,13 +350,75 @@ function SettingsModal({
                    className="w-full border rounded px-2 py-1.5 text-xs font-mono
                               focus:outline-none focus:border-blue-500" />
             <button onClick={saveProxy}
-                    className="mt-2 w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700
+                    className="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700
                                text-white text-sm rounded font-medium">
               저장
             </button>
             {savedMsg && (
-              <p className="text-[11px] text-emerald-700 mt-1">{savedMsg}</p>
+              <p className="text-[11px] text-emerald-700">{savedMsg}</p>
             )}
+          </div>
+
+          {/* 2) 포트폴리오 데이터 import/export */}
+          <div className="border border-gray-200 rounded p-3 space-y-2">
+            <label className="text-xs font-bold text-gray-700 block">
+              💼 포트폴리오 데이터 (JSON)
+            </label>
+            <p className="text-[11px] text-gray-500">{dataMsg || "holdings + peaks 통합 JSON"}</p>
+            <textarea
+              value={raw}
+              onChange={e => setRaw(e.target.value)}
+              placeholder='{"holdings": [...], "peaks": {...}}'
+              spellCheck={false}
+              className="w-full h-40 p-2 border border-gray-300 rounded
+                         font-mono text-[11px] resize-none
+                         focus:outline-none focus:border-blue-400" />
+
+            {/* 미리보기 */}
+            {result && result.kind === "error" && (
+              <div className="p-2 bg-red-50 border border-red-200 rounded
+                              text-[11px] text-red-700">
+                ✗ {result.error}
+              </div>
+            )}
+            {result && result.kind === "holdings" && (
+              <div className="p-2 bg-blue-50 border border-blue-200 rounded
+                              text-[11px] text-blue-800">
+                ✓ 종목 {result.stocks.length}건
+              </div>
+            )}
+            {result && result.kind === "peaks" && (
+              <div className="p-2 bg-blue-50 border border-blue-200 rounded
+                              text-[11px] text-blue-800">
+                ✓ 피크 {Object.keys(result.peaks).length}건
+              </div>
+            )}
+            {result && result.kind === "combined" && (
+              <div className="p-2 bg-blue-50 border border-blue-200 rounded
+                              text-[11px] text-blue-800">
+                ✓ 종목 {result.stocks.length}건 + 피크 {Object.keys(result.peaks).length}건
+              </div>
+            )}
+
+            <div className="flex gap-1.5">
+              <button onClick={() => void handleCopy()}
+                      className="flex-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200
+                                 text-gray-700 text-xs rounded">
+                📋 복사
+              </button>
+              <button onClick={() => void handlePaste()}
+                      className="flex-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200
+                                 text-gray-700 text-xs rounded">
+                📥 붙여넣기
+              </button>
+              <button onClick={() => void handleApply()}
+                      disabled={!result || result.kind === "error" || busy}
+                      className="flex-1 px-2 py-1.5 bg-rose-600 hover:bg-rose-700
+                                 disabled:bg-gray-300
+                                 text-white text-xs rounded font-bold">
+                {busy ? "..." : "💾 적용"}
+              </button>
+            </div>
           </div>
         </div>
       </div>
