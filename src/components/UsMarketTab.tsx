@@ -99,13 +99,11 @@ export function UsMarketTab() {
     return rows;
   }
 
-  // T1 / T2 분할 (좌측 / 우측)
-  const t1Sectors = SECTOR_ORDER.filter(s =>
-    US_PAIRS.some(p => p.tier === "T1" && p.sector === s)
-  );
-  const t2Sectors = SECTOR_ORDER.filter(s =>
-    US_PAIRS.some(p => p.tier === "T2" && p.sector === s)
-  );
+  // 좌우 분배 — 사용자 시각 균형 맞춤 (좌우 종목 수 비슷)
+  const LEFT_SECTORS = ["반도체", "방산", "로봇", "중공업", "리츠", "에너지"];
+  const RIGHT_SECTORS = ["자동차", "건설", "금융", "플랫폼", "바이오", "한국지수"];
+  const t1Sectors = LEFT_SECTORS.filter(s => SECTOR_ORDER.includes(s));
+  const t2Sectors = RIGHT_SECTORS.filter(s => SECTOR_ORDER.includes(s));
 
   return (
     <div className="space-y-3">
