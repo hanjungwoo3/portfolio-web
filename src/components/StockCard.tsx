@@ -160,9 +160,8 @@ export function StockCard({
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`inline-flex items-center px-2.5 py-1 rounded-md
                              font-bold text-base leading-none
-                             ${isStop
-                                ? "bg-red-700 text-white"
-                                : `${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"} ${signColor(dayDiff || -1)}`}`}>
+                             ${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"}
+                             ${signColor(dayDiff || -1)}`}>
             {sleeping && <span className="text-xs mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
             {stock.name}
             {stock.shares > 0 && (
@@ -171,12 +170,6 @@ export function StockCard({
               </span>
             )}
           </span>
-          {isStop && (
-            <span className="px-1.5 py-0.5 rounded bg-red-700 text-white
-                              text-xs font-bold">
-              손절
-            </span>
-          )}
           {warning && (
             <span className={`px-1.5 py-0.5 rounded text-white text-xs font-bold
                               ${WARN_BG[warning] ?? "bg-gray-500"}`}>
@@ -250,14 +243,14 @@ export function StockCard({
           )}
         </div>
 
-        {/* 전체수익 (보유만) */}
+        {/* 전체수익 (보유만) — 손절(-9% 이하) 시 배경 강조 */}
         {hasPosition && (
           <div className="text-sm">
             <span className="text-gray-500">전체수익 </span>
-            <span className={`font-bold ${signColor(pnl)}`}>
+            <span className={`font-bold rounded px-1.5
+                              ${isStop ? "bg-rose-200 text-rose-800"
+                                : signColor(pnl)}`}>
               {formatSigned(pnl)}
-            </span>
-            <span className={`font-bold ${signColor(pnl)}`}>
               {"  "}({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)
             </span>
           </div>
