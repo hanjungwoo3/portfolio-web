@@ -227,25 +227,31 @@ export function MobileSimpleView() {
 
       {/* ─── 그룹 컨텐츠 (US_KEY 외) ─── */}
       {activeTab !== US_KEY && (
-        <div className="px-2 py-2 space-y-1.5">
-          {groupHoldings.length === 0 && (
-            <div className="text-center text-[11px] text-gray-400 py-8">
-              이 그룹에는 종목이 없습니다
-            </div>
-          )}
-          {groupHoldings.map(s => (
-            <MobileStockCard key={s.ticker + (s.account ?? "")}
-                             stock={s}
-                             price={groupPriceMap.get(s.ticker)}
-                             peak={peaks?.get(s.ticker)}
-                             sector={naverInfos.data?.get(s.ticker)?.sector} />
-          ))}
+        <>
+          <div className="px-2 py-2 space-y-1.5 pb-32">
+            {groupHoldings.length === 0 && (
+              <div className="text-center text-[11px] text-gray-400 py-8">
+                이 그룹에는 종목이 없습니다
+              </div>
+            )}
+            {groupHoldings.map(s => (
+              <MobileStockCard key={s.ticker + (s.account ?? "")}
+                               stock={s}
+                               price={groupPriceMap.get(s.ticker)}
+                               peak={peaks?.get(s.ticker)}
+                               sector={naverInfos.data?.get(s.ticker)?.sector} />
+            ))}
+          </div>
+          {/* 합계 — 화면 하단 fixed (항상 보임) */}
           {groupHoldings.length > 0 && (
-            <div className="pt-2">
+            <div className="fixed bottom-0 left-0 right-0 z-20
+                             bg-white/95 backdrop-blur
+                             border-t border-gray-300 shadow-lg
+                             px-3 py-2 flex justify-center">
               <TotalRow holdings={groupHoldings} prices={groupPriceMap} />
             </div>
           )}
-        </div>
+        </>
       )}
 
       {/* ─── 미국 증시 (default) ─── */}
