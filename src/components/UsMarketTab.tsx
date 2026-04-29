@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchTossPrices } from "../lib/api";
 import type { UsIndex } from "../lib/api";
 import type { Price } from "../types";
-import { isSymbolSleeping } from "../lib/format";
+import { isSymbolSleeping, signColor } from "../lib/format";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
   allYahooSymbols, allKrEtfTickers,
@@ -20,77 +20,20 @@ function fmtPrice(symbol: string, price: number): string {
   return price.toFixed(2);
 }
 
-function bgFor(diff: number) {
-  if (diff > 0) return "bg-rose-50";
-  if (diff < 0) return "bg-blue-50";
-  return "bg-gray-50";
-}
-function colorFor(diff: number) {
-  if (diff > 0) return "text-rose-700";
-  if (diff < 0) return "text-blue-700";
-  return "text-gray-500";
+function quoteUrl(symbol: string): string {
+  if (/^\d{6}$/.test(symbol)) return `https://tossinvest.com/stocks/A${symbol}`;
+  return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
 
-interface QuoteCellProps {
+interface QuoteRow {
+  kind: "spot" | "future" | "etf";
   symbol: string;
   name: string;
   desc?: string;
   price?: number;
-  diff?: number;
   pct?: number;
-  bold?: boolean;
-  sleeping?: boolean;
-}
-
-function quoteUrl(symbol: string): string {
-  // 한국 ETF (6자리 숫자) → 토스
-  if (/^\d{6}$/.test(symbol)) return `https://tossinvest.com/stocks/A${symbol}`;
-  // 그 외 → Yahoo Finance (path 에 인코딩, trailing slash 없음)
-  return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
-}
-
-function QuoteCell({ symbol, name, desc, price, diff, pct, bold, sleeping }: QuoteCellProps) {
-  if (price === undefined || diff === undefined || pct === undefined) {
-    return (
-      <a href={quoteUrl(symbol)} target="_blank" rel="noopener noreferrer"
-         className="rounded border border-gray-200 bg-gray-50/50 px-2 py-1
-                    hover:border-gray-400 transition inline-flex items-baseline gap-1.5">
-        <span className="text-xs text-gray-400 font-semibold">{name}</span>
-        {desc && <span className="text-[10px] text-gray-400 truncate">{desc}</span>}
-        <span className="text-[10px] text-gray-300">…</span>
-      </a>
-    );
-  }
-  const bg = bgFor(diff);
-  const color = colorFor(diff);
-  return (
-    <a href={quoteUrl(symbol)} target="_blank" rel="noopener noreferrer"
-       className={`rounded border border-gray-200 ${bg} px-2 py-1
-                    inline-flex items-baseline gap-1.5
-                    hover:border-gray-400 hover:brightness-95 transition
-                    ${sleeping ? "opacity-60" : ""}`}>
-      <span className={`${bold ? "font-bold" : "font-semibold"} text-xs
-                        ${diff !== 0 ? color : "text-gray-700"}`}>
-        {sleeping && (
-          <span className="text-[10px] text-gray-400 mr-0.5">
-            z<sup>z</sup><sup>z</sup>
-          </span>
-        )}
-        {name}
-      </span>
-      <span className="font-bold text-gray-800 tabular-nums text-xs">
-        {fmtPrice(symbol, price)}
-      </span>
-      <span className={`text-[11px] font-medium tabular-nums ${color}`}>
-        ({diff >= 0 ? "+" : ""}{pct.toFixed(2)}%)
-      </span>
-      {desc && (
-        <span className="text-[10px] text-gray-500 truncate max-w-[180px]">
-          {desc}
-        </span>
-      )}
-    </a>
-  );
+  diff?: number;
+  sleeping: boolean;
 }
 
 export function UsMarketTab() {
@@ -110,152 +53,192 @@ export function UsMarketTab() {
     refetchInterval: REFRESH_MS,
   });
 
-  // 갱신 시각 글로벌 보고
   useEffect(() => { if (usUpdatedAt > 0) reportRefresh(usUpdatedAt); }, [usUpdatedAt]);
   useEffect(() => { if (krUpdatedAt > 0) reportRefresh(krUpdatedAt); }, [krUpdatedAt]);
 
   const krMap = new Map((krPrices ?? []).map(p => [p.ticker, p]));
-
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
-  const sectorPairs = US_PAIRS.filter(p => p.tier !== "T0");
 
-  // 섹터별 그룹화
-  const bySector = new Map<string, typeof sectorPairs>();
-  for (const p of sectorPairs) {
-    const arr = bySector.get(p.sector) ?? [];
-    arr.push(p);
-    bySector.set(p.sector, arr);
+  // 섹터별 행 묶음 — 현물 + 선물 + ETF
+  function buildRowsForSector(sector: string): QuoteRow[] {
+    const rows: QuoteRow[] = [];
+    const sectorPairs = US_PAIRS.filter(p => p.tier !== "T0" && p.sector === sector);
+
+    // 1) 현물
+    for (const p of sectorPairs) {
+      const q = usMap?.get(p.symbol);
+      rows.push({
+        kind: "spot", symbol: p.symbol, name: p.name, desc: p.desc,
+        price: q?.price, pct: q?.pct, diff: q?.diff,
+        sleeping: isSymbolSleeping(p.symbol),
+      });
+    }
+    // 2) 선물
+    for (const p of sectorPairs) {
+      if (!p.future) continue;
+      const fq = usMap?.get(p.future);
+      rows.push({
+        kind: "future", symbol: p.future, name: `${p.name} 선물`,
+        desc: `${p.name} 선물 — 정규장 외 흐름 체크`,
+        price: fq?.price, pct: fq?.pct, diff: fq?.diff,
+        sleeping: isSymbolSleeping(p.future),
+      });
+    }
+    // 3) KR ETF
+    const etfs = ETFS_BY_SECTOR[sector] ?? [];
+    for (const t of etfs) {
+      const p: Price | undefined = krMap.get(t);
+      const dayDiff = p ? p.price - p.base : 0;
+      const dayPct = p && p.base > 0 ? (dayDiff / p.base) * 100 : 0;
+      rows.push({
+        kind: "etf", symbol: t, name: ETF_NAMES[t] ?? `ETF ${t}`,
+        price: p?.price, pct: p ? dayPct : undefined, diff: p ? dayDiff : undefined,
+        sleeping: isSymbolSleeping(t),
+      });
+    }
+    return rows;
   }
+
+  // T1 / T2 분할 (좌측 / 우측)
+  const t1Sectors = SECTOR_ORDER.filter(s =>
+    US_PAIRS.some(p => p.tier === "T1" && p.sector === s)
+  );
+  const t2Sectors = SECTOR_ORDER.filter(s =>
+    US_PAIRS.some(p => p.tier === "T2" && p.sector === s)
+  );
 
   return (
     <div className="space-y-3">
-      {/* ─── Tier 0: 핵심 대시보드 (각 카드 클릭 → Yahoo Finance 새 탭) ─── */}
-      <div className="rounded-lg bg-slate-800 text-white px-4 py-3
-                       grid grid-cols-2 lg:grid-cols-4 gap-3">
+      {/* ─── Tier 0 (4개 카드) — +/- 색칠 ─── */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2">
         {tier0.map(p => {
           const q = usMap?.get(p.symbol);
-          const diff = q?.diff ?? 0;
-          const pct = q?.pct ?? 0;
           const sleeping = isSymbolSleeping(p.symbol);
-          const sign = diff > 0 ? "text-rose-400"
-                      : diff < 0 ? "text-blue-400" : "text-gray-300";
+          const bg =
+            q && q.diff > 0 ? "bg-rose-50 border-rose-200"
+            : q && q.diff < 0 ? "bg-blue-50/70 border-blue-200"
+            : "bg-white border-gray-200";
+          const sign = q ? signColor(q.diff) : "text-gray-400";
           return (
             <a key={p.symbol}
                href={quoteUrl(p.symbol)} target="_blank" rel="noopener noreferrer"
                title={`${p.name} — Yahoo Finance 새 탭에서 보기`}
-               className={`flex flex-col gap-0.5 rounded -mx-2 px-2 py-1
-                            hover:bg-slate-700 transition cursor-pointer
-                            ${sleeping ? "opacity-60" : ""}`}>
-              <div className="flex items-baseline gap-2 flex-wrap">
-                <span className="text-base font-bold">
-                  {sleeping && (
-                    <span className="text-[10px] text-gray-400 mr-0.5">
-                      z<sup>z</sup><sup>z</sup>
-                    </span>
-                  )}
-                  {p.name}
-                </span>
-                <span className="font-bold tabular-nums text-sm">
+               className={`flex flex-col gap-0.5 rounded-lg border px-3 py-2
+                            hover:brightness-95 transition cursor-pointer
+                            ${bg} ${sleeping ? "opacity-60" : ""}`}>
+              <div className="flex items-baseline gap-1.5">
+                {sleeping && (
+                  <span className="text-[11px] text-gray-400">zZ</span>
+                )}
+                <span className="text-base font-bold text-gray-900">{p.name}</span>
+              </div>
+              <div className="text-[11px] text-gray-500 truncate">{p.desc}</div>
+              <div className="flex items-baseline mt-0.5">
+                <span className="flex-1 text-left text-sm tabular-nums text-gray-700">
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>
-                <span className={`font-bold tabular-nums text-sm ${sign}`}>
-                  {q ? `${diff >= 0 ? "+" : ""}${pct.toFixed(2)}%` : ""}
+                <span className={`flex-1 text-right text-base font-bold tabular-nums ${sign}`}>
+                  {q ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%` : ""}
                 </span>
-              </div>
-              <div className="text-[11px] text-gray-300 truncate">
-                {p.desc}
               </div>
             </a>
           );
         })}
       </div>
 
-      {/* ─── 섹터 그리드 ─── */}
-      <div className="rounded-lg bg-white border border-gray-200 overflow-hidden">
-        {SECTOR_ORDER.map((sectorKey, sectorIdx) => {
-          const pairs = bySector.get(sectorKey) ?? [];
-          const etfTickers = ETFS_BY_SECTOR[sectorKey] ?? [];
-          if (pairs.length === 0 && etfTickers.length === 0) return null;
-
-          // 현물(=F 아닌 것) / 선물(=F or .future 사용) 분리
-          const cashPairs = pairs.filter(p => !p.symbol.endsWith("=F"));
-          const futurePairs: { symbol: string; name: string; desc?: string }[] = [];
-          for (const p of pairs) {
-            if (p.symbol.endsWith("=F")) {
-              futurePairs.push({ symbol: p.symbol, name: p.name, desc: p.desc });
-            } else if (p.future) {
-              futurePairs.push({
-                symbol: p.future,
-                name: `${p.name} 선물`,
-                desc: `(${p.future})`,
-              });
-            }
-          }
-
-          return (
-            <div key={sectorKey}
-                 className={`grid grid-cols-[80px_1fr_1fr_1fr] gap-2 p-2
-                             border-b border-gray-100 last:border-b-0
-                             items-start
-                             ${sectorIdx % 2 === 1 ? "bg-gray-50/70" : ""}`}>
-              {/* 좌측: 섹터 라벨 */}
-              <div className="flex items-center justify-center text-sm font-bold text-gray-700">
-                <span className="mr-1">{SECTOR_EMOJI[sectorKey] ?? "📊"}</span>
-                {sectorKey}
-              </div>
-              {/* 컬럼 1: 현물 (선행지수 등) */}
-              <div className="flex flex-wrap gap-1">
-                {cashPairs.map(p => {
-                  const q = usMap?.get(p.symbol);
-                  const sleeping = isSymbolSleeping(p.symbol);
-                  return (
-                    <QuoteCell key={p.symbol}
-                      symbol={p.symbol} name={p.name} desc={p.desc}
-                      price={q?.price} diff={q?.diff} pct={q?.pct}
-                      bold={p.tier === "T1"} sleeping={sleeping} />
-                  );
-                })}
-              </div>
-              {/* 컬럼 2: 선물 */}
-              <div className="flex flex-wrap gap-1">
-                {futurePairs.map(f => {
-                  const q = usMap?.get(f.symbol);
-                  const sleeping = isSymbolSleeping(f.symbol);
-                  return (
-                    <QuoteCell key={f.symbol}
-                      symbol={f.symbol} name={f.name} desc={f.desc}
-                      price={q?.price} diff={q?.diff} pct={q?.pct}
-                      sleeping={sleeping} />
-                  );
-                })}
-              </div>
-              {/* 컬럼 3: KR ETF */}
-              <div className="flex flex-wrap gap-1">
-                {etfTickers.map(t => {
-                  const p: Price | undefined = krMap.get(t);
-                  const etfName = ETF_NAMES[t] ?? `ETF ${t}`;
-                  const sleeping = isSymbolSleeping(t);
-                  if (!p) {
-                    return (
-                      <QuoteCell key={t} symbol={t} name={etfName}
-                                 sleeping={sleeping} />
-                    );
-                  }
-                  const diff = p.price - p.base;
-                  const pct = p.base > 0 ? (diff / p.base) * 100 : 0;
-                  return (
-                    <QuoteCell key={t}
-                      symbol={t} name={etfName}
-                      price={p.price} diff={diff} pct={pct}
-                      bold sleeping={sleeping} />
-                  );
-                })}
-              </div>
-            </div>
-          );
-        })}
+      {/* ─── 섹터 표 — lg 이상 좌우 2 column (T1 좌측 / T2 우측) ─── */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+        <SectorTable sectors={t1Sectors} buildRows={buildRowsForSector} />
+        <SectorTable sectors={t2Sectors} buildRows={buildRowsForSector} />
       </div>
     </div>
+  );
+}
+
+interface SectorTableProps {
+  sectors: string[];
+  buildRows: (sector: string) => QuoteRow[];
+}
+
+function SectorTable({ sectors, buildRows }: SectorTableProps) {
+  return (
+    <table className="w-full bg-white rounded-lg border border-gray-200
+                       overflow-hidden text-sm">
+      <thead className="bg-gray-100 text-gray-600 text-xs">
+        <tr>
+          <th className="px-2 py-2 text-left w-16">섹터</th>
+          <th className="px-2 py-2 text-left">종목</th>
+          <th className="px-2 py-2 text-right">현재가</th>
+          <th className="px-2 py-2 text-right w-24">등락%</th>
+        </tr>
+      </thead>
+      <tbody>
+        {sectors.map(sector => {
+          const rows = buildRows(sector);
+          if (rows.length === 0) return null;
+          return rows.map((r, idx) => {
+            const isFirst = idx === 0;
+            const isLast = idx === rows.length - 1;
+            const sign = r.diff !== undefined ? signColor(r.diff) : "text-gray-400";
+            const rowBg =
+              r.diff !== undefined && r.diff > 0 ? "bg-rose-50"
+              : r.diff !== undefined && r.diff < 0 ? "bg-blue-50/70"
+              : "";
+            const borderCls = isLast
+              ? "border-b border-gray-300"
+              : "border-b border-gray-100";
+            return (
+              <tr key={`${sector}-${r.symbol}`}
+                  className={`${borderCls} ${rowBg}
+                               ${r.sleeping ? "opacity-60" : ""}`}>
+                {isFirst ? (
+                  <td className="px-2 py-2 font-bold text-gray-800 align-middle
+                                  bg-slate-200 border-r border-gray-300"
+                      rowSpan={rows.length}>
+                    <div className="flex flex-col items-center gap-0.5">
+                      <span className="text-2xl">{SECTOR_EMOJI[sector] ?? "📊"}</span>
+                      <span className="text-xs font-bold">{sector}</span>
+                    </div>
+                  </td>
+                ) : null}
+                <td className="px-2 py-2">
+                  <div className="flex items-baseline gap-1">
+                    {r.sleeping && (
+                      <span className="text-[10px] text-gray-400">zZ</span>
+                    )}
+                    {r.kind === "etf" && (
+                      <span className="text-gray-400 text-[10px]">·</span>
+                    )}
+                    <a href={quoteUrl(r.symbol)}
+                       target="_blank" rel="noopener noreferrer"
+                       className={`text-base font-bold hover:underline
+                                    ${r.kind === "future" ? "text-amber-700"
+                                      : r.kind === "etf" ? "text-gray-600"
+                                      : "text-gray-900"}`}>
+                      {r.name}
+                    </a>
+                  </div>
+                  {r.desc && r.kind !== "etf" && (
+                    <div className="text-[11px] text-gray-500 truncate
+                                      max-w-[260px] mt-0.5">
+                      {r.desc}
+                    </div>
+                  )}
+                </td>
+                <td className="px-2 py-2 text-right tabular-nums text-gray-900 font-medium">
+                  {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
+                </td>
+                <td className={`px-2 py-2 text-right tabular-nums text-base font-bold ${sign}`}>
+                  {r.pct !== undefined
+                    ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
+                    : "—"}
+                </td>
+              </tr>
+            );
+          });
+        })}
+      </tbody>
+    </table>
   );
 }
 
