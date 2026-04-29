@@ -57,6 +57,17 @@ const WARN_BG: Record<string, string> = {
   주의: "bg-amber-500",
 };
 
+// 경고 뱃지가 있으면 pill 배경도 변경 (옅은 톤)
+const WARN_PILL_BG: Record<string, string> = {
+  위험: "bg-rose-200",
+  관리: "bg-rose-200",
+  정지: "bg-gray-300",
+  경고: "bg-orange-200",
+  과열: "bg-orange-200",
+  환기: "bg-orange-200",
+  주의: "bg-amber-200",
+};
+
 // 직전 틱 대비 화살표 — 데스크톱 v2 동일 (첫 전환 속빈, 연속 속찬)
 type TickDir = "up" | "down" | undefined;
 interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
@@ -135,8 +146,10 @@ export function StockCard({
       <div className="basis-[55%] min-w-0 flex flex-col gap-0.5">
         {/* 헤더 */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="inline-flex items-center px-2.5 py-1 rounded-md
-                            bg-yellow-200 text-gray-900 font-bold text-base leading-none">
+          <span className={`inline-flex items-center px-2.5 py-1 rounded-md
+                             font-bold text-base leading-none
+                             ${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"}
+                             ${signColor(dayDiff || -1)}`}>
             {sleeping && <span className="text-xs mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
             {stock.name}
             {stock.shares > 0 && (
@@ -194,9 +207,10 @@ export function StockCard({
                 </span>
               </span>
             )}
-            {peak === undefined && stock.shares > 0 && (
-              <span className="text-xs text-gray-400">
-                (피크 없음 · {stock.ticker})
+            {/* DEBUG: peak 상태 노출 — 정상 동작 확인 후 제거 예정 */}
+            {(peak === undefined || peak === 0) && stock.shares > 0 && (
+              <span className="text-[10px] text-orange-500">
+                ⚠ peak={String(peak)} · {stock.ticker}
               </span>
             )}
           </div>
