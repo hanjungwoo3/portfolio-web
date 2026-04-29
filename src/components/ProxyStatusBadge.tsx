@@ -4,17 +4,28 @@ import { subscribeProxyStatus, type ProxyState } from "../lib/proxyStatus";
 // 헤더 인라인 텍스트로 표시 (팝업 없음)
 // 메시지에 폴링 간격까지 포함 — 별도 PollingInfo 불필요
 interface Props {
-  baseRefreshMs: number;  // adaptive 계산용 (10초)
+  baseRefreshMs: number;       // adaptive 계산용 (5/10/30/60초)
+  usePersonalProxy: boolean;   // 전용 프록시 사용 여부 — 정상 시에도 헤더에 안내
 }
 
-export function ProxyStatusBadge({ baseRefreshMs }: Props) {
+export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy }: Props) {
   const [state, setState] = useState<ProxyState>(
     { health: "ok", total: 0, downHosts: [] }
   );
 
   useEffect(() => subscribeProxyStatus(setState), []);
 
-  if (state.health === "ok") return null;
+  // 정상 + 전용 프록시 → 안내 메시지 표시
+  if (state.health === "ok") {
+    if (!usePersonalProxy) return null;
+    const baseSec = Math.round(baseRefreshMs / 1000);
+    return (
+      <span title="공개 4-way 대신 본인 전용 Cloudflare Worker 사용 중"
+            className="text-[11px] text-blue-700 shrink-0">
+        🔧 내 전용 프록시 · {baseSec}초 갱신
+      </span>
+    );
+  }
 
   // 폴링 간격 (adaptive: base + downCount * base)
   const intervalSec = Math.round(

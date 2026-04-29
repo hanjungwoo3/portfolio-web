@@ -2,7 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks,
 } from "../lib/db";
-import { getPersonalProxyUrl, setPersonalProxyUrl } from "../lib/proxyConfig";
+import {
+  getPersonalProxyUrl, setPersonalProxyUrl,
+  getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS,
+} from "../lib/proxyConfig";
 import type { Stock } from "../types";
 
 interface Props {
@@ -74,11 +77,13 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
   const [statusMsg, setStatusMsg] = useState("");
   const downOnBackdropRef = useRef(false);
   const [proxyUrl, setProxyUrl] = useState("");
+  const [pollMs, setPollMs] = useState(10_000);
 
   // 다이얼로그 열릴 때마다 현재 데이터 로드
   useEffect(() => {
     if (!isOpen) return;
     setProxyUrl(getPersonalProxyUrl() ?? "");
+    setPollMs(getPersonalPollMs());
     void (async () => {
       const data = await exportAll();
       setRaw(JSON.stringify(data, null, 2));
@@ -92,6 +97,13 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
     setProxyUrl(v);
     setStatusMsg(v ? `✅ 전용 프록시 적용: ${v}` : "✅ 전용 프록시 해제 — 공개 4-way 사용");
     onChanged();  // React Query refetch 트리거 (URL 즉시 반영)
+  };
+
+  const handlePollChange = (ms: number) => {
+    setPollMs(ms);
+    setPersonalPollMs(ms);
+    setStatusMsg(`✅ 폴링 주기 ${ms / 1000}초 적용`);
+    onChanged();
   };
 
   if (!isOpen) return null;
@@ -192,6 +204,34 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                                  text-white text-xs rounded">
                 저장
               </button>
+            </div>
+            {/* 폴링 주기 — 전용 프록시 있을 때만 의미 (공개는 항상 10초) */}
+            <div className="flex items-center gap-2 mt-1">
+              <span className={`text-[11px] ${proxyUrl ? "text-gray-700" : "text-gray-400"}`}>
+                폴링 주기:
+              </span>
+              {POLL_OPTIONS.map(ms => {
+                const sec = ms / 1000;
+                const active = pollMs === ms;
+                const enabled = !!proxyUrl;
+                return (
+                  <button key={ms}
+                          onClick={() => handlePollChange(ms)}
+                          disabled={!enabled}
+                          className={`px-2 py-0.5 text-[11px] rounded border transition
+                                      ${active
+                                        ? "bg-blue-600 text-white border-blue-700 font-bold"
+                                        : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}
+                                      ${!enabled ? "opacity-40 cursor-not-allowed" : ""}`}>
+                    {sec}초
+                  </button>
+                );
+              })}
+              {!proxyUrl && (
+                <span className="text-[10px] text-gray-400 ml-1">
+                  (공개 프록시는 10초 고정)
+                </span>
+              )}
             </div>
           </div>
 

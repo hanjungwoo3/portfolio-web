@@ -14,11 +14,12 @@ import { VersionBadge } from "./components/VersionBadge";
 import { ProxyStatusBadge } from "./components/ProxyStatusBadge";
 import { useAdaptiveRefreshMs } from "./lib/proxyStatus";
 import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
+import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { ValuationModal } from "./components/ValuationModal";
 import type { Stock } from "./types";
 
-// 기본 폴링 10초 — 프록시 다운 시 자동 증가 (10s → 20s → 30s)
-const BASE_REFRESH_MS = 10_000;
+// 기본 폴링 — 공개 4-way: 10초 / 전용 프록시 사용 시: localStorage 설정값 (5/10/30/60초)
+// 다운 시 자동 증가 (base × (1 + downCount))
 
 // 카카오페이 송금받기 링크 (모바일/카카오톡 deep link)
 const KAKAOPAY_URL = "https://qr.kakaopay.com/FCscirjeF";
@@ -43,6 +44,9 @@ function Dashboard() {
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [editing, setEditing] = useState<Stock | null>(null);
   const [donateOpen, setDonateOpen] = useState(false);
+  // 설정 변경 시 reloadKey 증가 → BASE_REFRESH_MS / usePersonalProxy 재계산
+  const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), [reloadKey]);
+  const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey]);
   const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
 
   // IndexedDB 로드
@@ -170,7 +174,8 @@ function Dashboard() {
             📈 포트폴리오
           </h1>
           <RefreshIndicatorGlobal refetchIntervalMs={REFRESH_MS} />
-          <ProxyStatusBadge baseRefreshMs={BASE_REFRESH_MS} />
+          <ProxyStatusBadge baseRefreshMs={BASE_REFRESH_MS}
+                            usePersonalProxy={usePersonalProxy} />
           <div className="flex items-center gap-3 ml-auto">
             <VersionBadge />
             <button
