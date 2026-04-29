@@ -216,7 +216,7 @@ export function StockCard({
                 피크 {peak.toLocaleString()}원{" "}(
                 <span className={`rounded px-0.5
                                   ${isPeakDrop
-                                    ? "bg-rose-400 text-white"
+                                    ? "bg-rose-300 text-white"
                                     : ""}`}>
                   {peakPct.toFixed(2)}%
                 </span>
@@ -253,7 +253,7 @@ export function StockCard({
             </span>{" "}
             <span className={`font-bold ${signColor(pnl)}`}>(</span>
             <span className={`font-bold rounded px-0.5
-                              ${isStop ? "bg-rose-400 text-white"
+                              ${isStop ? "bg-rose-300 text-white"
                                 : signColor(pnl)}`}>
               {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
             </span>
