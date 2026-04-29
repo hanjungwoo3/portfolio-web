@@ -171,12 +171,12 @@ function SectorTable({ sectors, buildRows }: SectorTableProps) {
           <div key={sector}
                className="grid grid-cols-[60px_1fr_1fr]
                            bg-white rounded-lg border border-gray-200 overflow-hidden">
-            {/* 섹터 라벨 (좌측) — 아이콘 + 라벨 한 줄 (작게) */}
-            <div className="bg-slate-200 px-1 py-3 flex flex-row items-center
+            {/* 섹터 라벨 (좌측) — emoji 큼 + 라벨 세로 */}
+            <div className="bg-slate-200 px-1 py-3 flex flex-col items-center
                               justify-center gap-0.5 text-center
                               border-r border-gray-300">
-              <span className="text-sm">{SECTOR_EMOJI[sector] ?? "📊"}</span>
-              <span className="text-[10px] font-bold text-gray-800">{sector}</span>
+              <span className="text-2xl">{SECTOR_EMOJI[sector] ?? "📊"}</span>
+              <span className="text-xs font-bold text-gray-800">{sector}</span>
             </div>
             {/* 현물 / 선물+ETF (선물 위, ETF 아래) 컬럼 */}
             <QuoteList rows={spots} />
@@ -209,9 +209,10 @@ function QuoteList({ rows }: QuoteListProps) {
                className={`flex items-baseline gap-2 px-1.5 py-1
                             ${rowBg}
                             ${r.sleeping ? "opacity-60" : ""}`}>
-            {r.sleeping && (
-              <span className="text-[10px] text-gray-400 shrink-0">zZ</span>
-            )}
+            {/* zZ 자리 항상 확보 — 종목명 위치 정렬 통일 */}
+            <span className="text-[10px] text-gray-400 shrink-0 w-4 text-left">
+              {r.sleeping ? "zZ" : ""}
+            </span>
             <a href={quoteUrl(r.symbol)} target="_blank" rel="noopener noreferrer"
                title={r.desc}
                className={`text-sm font-bold hover:underline truncate w-[160px]
