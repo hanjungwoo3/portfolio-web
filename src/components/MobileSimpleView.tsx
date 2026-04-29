@@ -167,7 +167,11 @@ export function MobileSimpleView() {
               return rows.map((r, idx) => {
                 const isFirst = idx === 0;
                 const sign = r.diff !== undefined ? signColor(r.diff) : "text-gray-400";
-                const rowBg = r.kind === "future" ? "bg-amber-50/60" : "";
+                // 등락에 따라 행 전체 배경 — 양수 옅은 빨강 / 음수 옅은 파랑
+                const rowBg =
+                  r.diff !== undefined && r.diff > 0 ? "bg-rose-50"
+                  : r.diff !== undefined && r.diff < 0 ? "bg-blue-50/70"
+                  : "";
                 return (
                   <tr key={`${sector}-${r.symbol}`}
                       className={`border-t border-gray-100 ${rowBg}
@@ -185,16 +189,16 @@ export function MobileSimpleView() {
                     <td className="px-2 py-1.5">
                       <div className="flex items-baseline gap-1">
                         {r.sleeping && (
-                          <span className="text-[9px] text-gray-400">zZ</span>
+                          <span className="text-[10px] text-gray-400">zZ</span>
                         )}
-                        <span className={`font-medium
+                        <span className={`text-sm font-bold
                                           ${r.kind === "future" ? "text-amber-700"
-                                            : "text-gray-800"}`}>
+                                            : "text-gray-900"}`}>
                           {r.name}
                         </span>
                       </div>
                       {r.desc && (
-                        <div className="text-[10px] text-gray-400 truncate
+                        <div className="text-[10px] text-gray-500 truncate
                                           max-w-[180px] mt-0.5">
                           {r.desc}
                         </div>
