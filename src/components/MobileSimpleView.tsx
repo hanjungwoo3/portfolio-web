@@ -5,7 +5,10 @@ import {
   US_PAIRS, SECTOR_EMOJI, SECTOR_ORDER,
 } from "../lib/usMarketData";
 import { signColor, isSymbolSleeping } from "../lib/format";
-import { getPersonalProxyUrl, setPersonalProxyUrl } from "../lib/proxyConfig";
+import {
+  getPersonalProxyUrl, setPersonalProxyUrl, getEffectivePollMs,
+} from "../lib/proxyConfig";
+import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadPeaks,
 } from "../lib/db";
@@ -14,6 +17,7 @@ import { MobileStockCard } from "./MobileStockCard";
 import { TotalRow } from "./TotalRow";
 
 const US_KEY = "__us__";  // 미국 증시 탭 키
+const KAKAOPAY_URL = "https://qr.kakaopay.com/FCscirjeF";
 
 // 모바일 전용 단순 뷰 (v2 데스크톱 미국증시 표 형식 그대로 이식)
 // 자동 갱신 X — 새로고침 버튼만. 자기 주식/그룹/검색 등 모든 추가 기능 없음.
@@ -45,6 +49,10 @@ export function MobileSimpleView() {
   useEffect(() => {
     setProxyUrl(getPersonalProxyUrl() ?? "");
   }, []);
+
+  // PC 동일 자동 갱신 — 전용 프록시 시 5/10/30/60초 / 공개 10초 + 다운 시 자동 증가
+  const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), []);
+  const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
 
   // 보유 종목 로드 (그룹 탭 라벨 + 그룹 종목 표시)
   const { data: holdings = [] } = useQuery({
@@ -90,12 +98,11 @@ export function MobileSimpleView() {
   const groupTickers = groupHoldingsUnsorted
     .filter(s => /^\d{6}$/.test(s.ticker))
     .map(s => s.ticker);
-  const { data: groupPrices } = useQuery({
+  const { data: groupPrices, dataUpdatedAt: groupAt } = useQuery({
     queryKey: ["m-group-prices", activeTab, groupTickers.join(",")],
     queryFn: () => fetchTossPrices(groupTickers),
     enabled: activeTab !== US_KEY && groupTickers.length > 0,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    refetchInterval: REFRESH_MS,
   });
   const groupPriceMap = new Map((groupPrices ?? []).map(p => [p.ticker, p]));
 
@@ -137,13 +144,14 @@ export function MobileSimpleView() {
   const { data: usMap, isFetching, dataUpdatedAt: usAt } = useQuery({
     queryKey: ["m-yahoo"],
     queryFn: () => fetchYahooBatch(yahooSymbols),
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    refetchInterval: REFRESH_MS,
   });
 
-  const updatedAt = usAt > 0
-    ? new Date(usAt).toLocaleTimeString("ko-KR", {
-        hour: "2-digit", minute: "2-digit",
+  // 활성 탭에 맞는 마지막 갱신 시각
+  const lastAt = activeTab === US_KEY ? usAt : (groupAt ?? 0);
+  const updatedAt = lastAt > 0
+    ? new Date(lastAt).toLocaleTimeString("ko-KR", {
+        hour: "2-digit", minute: "2-digit", second: "2-digit",
       })
     : "";
 
@@ -183,9 +191,9 @@ export function MobileSimpleView() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200
-                          px-3 py-2 flex items-center gap-2">
+                          px-3 py-2 flex items-center gap-1">
         <h1 className="text-base font-bold text-gray-800">📈 포트폴리오</h1>
-        {updatedAt && activeTab === US_KEY && (
+        {updatedAt && (
           <span className="text-[11px] text-gray-500">{updatedAt}</span>
         )}
         <button onClick={handleRefresh}
@@ -195,6 +203,11 @@ export function MobileSimpleView() {
                             disabled:opacity-50 transition">
           <span className={`inline-block ${isFetching ? "animate-spin" : ""}`}>🔄</span>
         </button>
+        <a href={KAKAOPAY_URL} target="_blank" rel="noopener noreferrer"
+           title="개발자 후원하기 (카카오페이)"
+           className="p-1.5 rounded hover:bg-gray-100 transition opacity-50 hover:opacity-100">
+          🍵
+        </a>
         <button onClick={() => setSettingsOpen(true)}
                 title="설정"
                 className="p-1.5 rounded hover:bg-gray-100 transition">
@@ -373,7 +386,7 @@ export function MobileSimpleView() {
         </table>
 
         <div className="text-[10px] text-gray-400 text-center mt-3 mb-2">
-          자동 갱신 없음 — 🔄 눌러 수동 갱신
+          {Math.round(REFRESH_MS / 1000)}초마다 자동 갱신
         </div>
       </div>
 
