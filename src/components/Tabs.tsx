@@ -12,9 +12,10 @@ interface Props {
   activeKey: string;
   onChange: (key: string) => void;
   onRename?: (oldName: string, newName: string) => void;
+  onDelete?: (name: string) => void;
 }
 
-export function Tabs({ tabs, activeKey, onChange, onRename }: Props) {
+export function Tabs({ tabs, activeKey, onChange, onRename, onDelete }: Props) {
   const handleRename = (oldName: string) => {
     const next = window.prompt(`"${oldName}" 그룹명 변경 — 새 이름:`, oldName);
     if (next == null) return;
@@ -31,7 +32,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename }: Props) {
     <nav className="flex flex-wrap gap-1 border-b border-gray-200 mb-3 px-1">
       {tabs.map(t => {
         const active = t.key === activeKey;
-        const renameable = onRename && !RESERVED.has(t.key);
+        const editable = !RESERVED.has(t.key);
         return (
           <div key={t.key} className="group relative inline-flex">
             <button
@@ -49,16 +50,35 @@ export function Tabs({ tabs, activeKey, onChange, onRename }: Props) {
                 </span>
               )}
             </button>
-            {renameable && (
-              <button
-                type="button"
-                onClick={e => { e.stopPropagation(); handleRename(t.key); }}
-                title="그룹명 변경"
-                className="absolute -top-0.5 -right-0.5 text-[10px] leading-none
-                           opacity-0 group-hover:opacity-70 hover:!opacity-100
-                           bg-white rounded-full px-0.5 transition-opacity">
-                ✏️
-              </button>
+            {editable && (onRename || onDelete) && (
+              <div className="absolute -top-0.5 -right-1 flex gap-0.5
+                              opacity-0 group-hover:opacity-90 hover:!opacity-100
+                              bg-white rounded shadow px-0.5 transition-opacity">
+                {onRename && (
+                  <button
+                    type="button"
+                    onClick={e => { e.stopPropagation(); handleRename(t.key); }}
+                    title="그룹명 변경"
+                    className="text-[10px] leading-none px-0.5">
+                    ✏️
+                  </button>
+                )}
+                {onDelete && (
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation();
+                      const msg = `"${t.key}" 그룹의 ${t.count}건을 모두 삭제할까요?`
+                                + `\n(되돌릴 수 없음)`;
+                      if (confirm(msg)) onDelete(t.key);
+                    }}
+                    title="그룹 삭제"
+                    className="text-[10px] leading-none px-0.5
+                               hover:text-rose-600">
+                    🗑
+                  </button>
+                )}
+              </div>
             )}
           </div>
         );

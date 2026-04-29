@@ -18,6 +18,8 @@ export interface Price {
   volume: number;
   trade_date: string;
   trade_dt?: string;
+  high?: number;       // 오늘 고가
+  low?: number;        // 오늘 저가
 }
 
 // 토스 수급 — 데스크톱 v2 fetch_investor_flow 와 동일 키

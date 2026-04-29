@@ -160,101 +160,136 @@ export function StockCard({
     : "bg-white border-gray-200";
 
   return (
-    <article className={`group rounded-lg border shadow-sm flex flex-row gap-3 px-3 py-2
+    <article className={`group rounded-lg border shadow-sm flex flex-row gap-2
+                          items-stretch px-3 py-2
                           ${cardBg} ${sleeping ? "opacity-60" : ""}
                           transition-opacity`}>
-      {/* ───────── 좌측 ───────── */}
-      <div className="basis-[55%] min-w-0 flex flex-col gap-0.5">
-        {/* 헤더 */}
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            type="button"
-            onClick={() => openTossStock(stock.ticker)}
-            title="토스에서 보기"
-            className={`inline-flex items-center px-2.5 py-1 rounded-md
-                        font-bold text-base leading-none cursor-pointer
-                        hover:brightness-95 transition
-                        ${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"}
-                        ${signColor(dayDiff || -1)}`}>
-            {sleeping && <span className="text-xs mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
-            {stock.name}
-            {stock.shares > 0 && (
-              <span className="ml-1.5 text-sm font-bold">
-                ({stock.shares.toLocaleString()}주)
+        {/* 가격 박스 — 종목명 + 섹터 + 고/현재가/저 (3/10) */}
+        <div className="border border-gray-200 rounded-md bg-gray-50/60
+                        px-2 py-1 space-y-0.5 basis-[30%] min-w-0
+                        flex flex-col justify-center">
+          {/* 헤더 — 종목명 pill + 뱃지 + hover 버튼 */}
+          <div className="flex items-center gap-1 flex-wrap mb-1">
+            <button
+              type="button"
+              onClick={() => openTossStock(stock.ticker)}
+              title="토스에서 보기"
+              className={`inline-flex items-center px-2 py-0.5 rounded
+                          font-bold text-sm leading-none cursor-pointer
+                          hover:brightness-95 transition
+                          ${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"}
+                          ${signColor(dayDiff || -1)}`}>
+              {sleeping && <span className="text-[10px] mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
+              {stock.name}
+              {stock.shares > 0 && (
+                <span className="ml-1 text-xs font-bold">
+                  ({stock.shares.toLocaleString()}주)
+                </span>
+              )}
+            </button>
+            {warning && (
+              <span className={`px-1 py-0.5 rounded text-white text-[10px] font-bold
+                                ${WARN_BG[warning] ?? "bg-gray-500"}`}>
+                {warning}
               </span>
             )}
-          </button>
-          {warning && (
-            <span className={`px-1.5 py-0.5 rounded text-white text-xs font-bold
-                              ${WARN_BG[warning] ?? "bg-gray-500"}`}>
-              {warning}
-            </span>
-          )}
+            <div className="ml-auto flex items-center gap-0.5">
+              {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
+                <button
+                  type="button"
+                  onClick={() => onOpenValuation(stock.ticker)}
+                  title="기업가치 보기"
+                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                             text-xs leading-none px-0.5 transition-opacity">
+                  📊
+                </button>
+              )}
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={() => onEdit(stock)}
+                  title="수정"
+                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                             text-xs leading-none px-0.5 transition-opacity">
+                  ✏️
+                </button>
+              )}
+              {onDelete && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm(`${stock.name} 을(를) ${stock.account || "보유"}에서 삭제할까요?`)) {
+                      onDelete(stock);
+                    }
+                  }}
+                  title="삭제"
+                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                             hover:text-rose-600
+                             text-xs leading-none px-0.5 transition-opacity">
+                  ✕
+                </button>
+              )}
+            </div>
+          </div>
           {sector && (
-            <span className="text-xs text-gray-500">{sector}</span>
+            <div className="text-[10px] text-gray-500 mb-1">{sector}</div>
           )}
-          <div className="ml-auto flex items-center gap-0.5">
-            {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
-              <button
-                type="button"
-                onClick={() => onOpenValuation(stock.ticker)}
-                title="기업가치 보기"
-                className="opacity-0 group-hover:opacity-60 hover:!opacity-100
-                           text-xs leading-none px-1 transition-opacity">
-                📊
-              </button>
+          {price.high && price.high > 0 && (() => {
+            const hi = price.high;
+            const hiDiff = price.price - hi;
+            const hiPct = (hiDiff / hi) * 100;
+            return (
+              <div className="text-xs text-gray-700">
+                <span className="text-gray-500">고 </span>
+                {hi.toLocaleString()}
+                <span className={`ml-1 text-[10px] ${signColor(hiDiff)}`}>
+                  ({formatSigned(hiDiff)}, {hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
+                </span>
+              </div>
+            );
+          })()}
+          <div className="flex items-baseline gap-2">
+            {tick.arrow && (
+              <span className={`text-xl font-bold leading-tight
+                                ${tick.dir === "up" ? "text-rose-600"
+                                  : tick.dir === "down" ? "text-blue-600"
+                                  : "text-gray-400"}`}>
+                {tick.arrow.trim()}
+              </span>
             )}
-            {onEdit && (
-              <button
-                type="button"
-                onClick={() => onEdit(stock)}
-                title="수정"
-                className="opacity-0 group-hover:opacity-60 hover:!opacity-100
-                           text-xs leading-none px-1 transition-opacity">
-                ✏️
-              </button>
-            )}
-            {onDelete && (
-              <button
-                type="button"
-                onClick={() => {
-                  if (confirm(`${stock.name} 을(를) ${stock.account || "보유"}에서 삭제할까요?`)) {
-                    onDelete(stock);
-                  }
-                }}
-                title="삭제"
-                className="opacity-0 group-hover:opacity-60 hover:!opacity-100
-                           hover:text-rose-600
-                           text-xs leading-none px-1 transition-opacity">
-                ✕
-              </button>
+            <span className={`text-xl font-bold leading-tight ${signColor(dayDiff || -1)}`}>
+              {price.price.toLocaleString()}원
+            </span>
+            {price.volume > 0 && (
+              <span className="text-xs text-gray-400">
+                ({formatVolume(price.volume)})
+              </span>
             )}
           </div>
+          {price.low && price.low > 0 && (() => {
+            const lo = price.low;
+            const loDiff = price.price - lo;
+            const loPct = (loDiff / lo) * 100;
+            return (
+              <div className="text-xs text-gray-700">
+                <span className="text-gray-500">저 </span>
+                {lo.toLocaleString()}
+                <span className={`ml-1 text-[10px] ${signColor(loDiff)}`}>
+                  ({formatSigned(loDiff)}, {loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
+                </span>
+              </div>
+            );
+          })()}
         </div>
 
-        {/* 가격 + 거래량 + 틱 화살표 */}
-        <div className="flex items-baseline gap-2">
-          {tick.arrow && (
-            <span className={`text-xl font-bold leading-tight
-                              ${tick.dir === "up" ? "text-rose-600"
-                                : tick.dir === "down" ? "text-blue-600"
-                                : "text-gray-400"}`}>
-              {tick.arrow.trim()}
-            </span>
-          )}
-          <span className={`text-xl font-bold leading-tight ${signColor(dayDiff || -1)}`}>
-            {price.price.toLocaleString()}원
-          </span>
-          {price.volume > 0 && (
-            <span className="text-xs text-gray-400">
-              ({formatVolume(price.volume)})
-            </span>
-          )}
-        </div>
+        {/* 통계 박스 — 매수~목표 (3/10) */}
+        <div className="border border-gray-200 rounded-md bg-gray-50/60
+                        px-2 py-1 basis-[30%] min-w-0 space-y-0.5
+                        flex flex-col justify-center">
 
-        {/* 매수가 + 피크가 (보유만) */}
+        {/* 보유: 매수 + 피크 */}
         {hasPosition && (
-          <div className="text-sm flex flex-wrap items-baseline gap-x-4">
+          <div className="text-xs flex flex-wrap items-baseline gap-x-4">
             <span>
               <span className="text-gray-500">매수 </span>
               <span className="text-gray-700 font-medium">
@@ -275,7 +310,7 @@ export function StockCard({
         )}
 
         {/* 어제보다 — 금액은 일반, %만 bold */}
-        <div className="text-sm">
+        <div className="text-xs">
           <span className="text-gray-500">어제보다 </span>
           {dayDiff !== 0 ? (
             <>
@@ -298,7 +333,7 @@ export function StockCard({
 
         {/* 전체수익 (보유만) — 금액 일반, %만 bold (손절 -9% 이하 시 % 배경 강조) */}
         {hasPosition && (
-          <div className="text-sm">
+          <div className="text-xs">
             <span className="text-gray-500">전체수익 </span>
             <span className={signColor(pnl)}>
               {formatSigned(pnl)}
@@ -315,7 +350,7 @@ export function StockCard({
 
         {/* 목표 */}
         {consensus?.target && (
-          <div className="text-sm">
+          <div className="text-xs">
             <span className="text-gray-500">목표 </span>
             {typeof consensus.score === "number" && (
               <span className="text-gray-500">({consensus.score.toFixed(2)}) </span>
@@ -328,12 +363,12 @@ export function StockCard({
             </span>
           </div>
         )}
-      </div>
+        </div>
 
-      {/* ───────── 우측: 12 항목 그리드 ───────── */}
-      <div className="flex-1 min-w-0 bg-white border border-gray-200 rounded-md
+      {/* ───────── 투자자 그리드 (4/10) ───────── */}
+      <div className="basis-[40%] min-w-0 bg-white border border-gray-200 rounded-md
                        px-1.5 py-1 grid grid-cols-2 gap-x-2 gap-y-0
-                       text-xs">
+                       text-[11px]">
         {FLOW_FIELDS.map(({ label, key }) => {
           const raw = investor ? investor[key] : null;
           const isRatio = key === "외국인비율";

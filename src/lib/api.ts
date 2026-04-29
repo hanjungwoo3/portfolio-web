@@ -19,6 +19,8 @@ interface TossPriceItem {
   close: number;
   base: number;
   open: number;
+  high?: number;
+  low?: number;
   volume: number;
   tradeDateTime: string;
 }
@@ -39,6 +41,8 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
     volume: item.volume,
     trade_date: item.tradeDateTime ? toKstDateString(item.tradeDateTime) : "",
     trade_dt: item.tradeDateTime,
+    high: item.high,
+    low: item.low,
   }));
 }
 

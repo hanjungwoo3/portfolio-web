@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
 import { fetchTossPrices, fetchInvestor, fetchWarning, fetchNaverInfo } from "./lib/api";
-import { loadHoldings, loadPeaks, updatePeaksForward, removeHolding, renameGroup, cleanupReservedAccounts } from "./lib/db";
+import { loadHoldings, loadPeaks, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY } from "./components/Tabs";
 import { TotalRow } from "./components/TotalRow";
@@ -150,7 +150,7 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto flex items-center
+        <div className="max-w-[1600px] mx-auto flex items-center
                          gap-3 px-6 py-3">
           <h1 className="text-xl font-bold text-gray-900 shrink-0">
             📈 포트폴리오
@@ -178,11 +178,16 @@ function Dashboard() {
         </div>
       </header>
 
-      <main className="max-w-7xl mx-auto p-3">
+      <main className="max-w-[1600px] mx-auto p-3">
         <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab}
                onRename={async (oldName, newName) => {
                  await renameGroup(oldName, newName);
                  if (activeTab === oldName) setActiveTab(newName);
+                 setReloadKey(k => k + 1);
+               }}
+               onDelete={async name => {
+                 await deleteGroup(name);
+                 if (activeTab === name) setActiveTab("");
                  setReloadKey(k => k + 1);
                }} />
 

@@ -129,6 +129,49 @@ export async function exportAll(): Promise<ExportPayload> {
   };
 }
 
+// 그룹 일괄 삭제 — 해당 그룹의 모든 holdings 삭제 (반환: 삭제 건수)
+export async function deleteGroup(groupName: string): Promise<number> {
+  return await db.holdings.where("account").equals(groupName).delete();
+}
+
+// 일부 ticker 들을 특정 그룹에서만 제거 (검색 토글용)
+export async function bulkRemoveFromGroup(
+  tickers: string[], group: string
+): Promise<number> {
+  let count = 0;
+  await db.transaction("rw", db.holdings, async () => {
+    for (const t of tickers) {
+      const id = holdingId({ ticker: t, account: group } as Stock);
+      const existing = await db.holdings.get(id);
+      if (existing) { await db.holdings.delete(id); count += 1; }
+    }
+  });
+  return count;
+}
+
+// 그룹 per-item 토글 — 종목별 독립 (있으면 제거, 없으면 추가)
+export interface BulkToggleResult { added: number; removed: number; }
+export async function bulkToggleGroup(
+  items: Stock[], group: string
+): Promise<BulkToggleResult> {
+  let added = 0; let removed = 0;
+  await db.transaction("rw", db.holdings, async () => {
+    for (const it of items) {
+      const stock: Stock = { ...it, account: group };
+      const id = holdingId(stock);
+      const existing = await db.holdings.get(id);
+      if (existing) {
+        await db.holdings.delete(id);
+        removed += 1;
+      } else {
+        await db.holdings.put({ ...stock, id } as Stock & { id: string });
+        added += 1;
+      }
+    }
+  });
+  return { added, removed };
+}
+
 // 그룹명 변경 — 해당 그룹의 모든 holdings.account 일괄 갱신
 // id (= ticker__account) 도 변경되므로 delete + put 트랜잭션
 export async function renameGroup(oldName: string, newName: string): Promise<number> {
