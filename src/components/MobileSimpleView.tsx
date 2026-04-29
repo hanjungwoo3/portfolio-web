@@ -176,9 +176,9 @@ export function MobileSimpleView() {
                   r.diff !== undefined && r.diff > 0 ? "bg-rose-50"
                   : r.diff !== undefined && r.diff < 0 ? "bg-blue-50/70"
                   : "";
-                // 섹터 끝에 굵은 구분선 / 행 사이엔 옅은 선
+                // 섹터 끝에 구분선 / 행 사이엔 옅은 선
                 const borderCls = isLast
-                  ? "border-b-2 border-gray-400"
+                  ? "border-b border-gray-300"
                   : "border-b border-gray-100";
                 return (
                   <tr key={`${sector}-${r.symbol}`}
@@ -186,7 +186,7 @@ export function MobileSimpleView() {
                                    ${r.sleeping ? "opacity-60" : ""}`}>
                     {isFirst ? (
                       <td className="px-2 py-2 font-bold text-gray-800 align-middle
-                                      bg-slate-200 border-r-2 border-gray-400"
+                                      bg-slate-200 border-r border-gray-300"
                           rowSpan={rows.length}>
                         <div className="flex flex-col items-center gap-0.5">
                           <span className="text-2xl">{SECTOR_EMOJI[sector] ?? "•"}</span>
