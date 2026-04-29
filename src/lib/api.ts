@@ -1,6 +1,7 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getPersonalProxyUrl } from "./proxyConfig";
+import { isKrPreOpen } from "./format";
 
 // 공개 4-way 라운드 로빈 (Cloudflare + Vercel + Deno + Render)
 const PUBLIC_PROXY_URLS: string[] = [
@@ -85,10 +86,14 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
   const resp = await fetchProxied(target);
   if (!resp.ok) throw new Error(`Toss price fetch failed: ${resp.status}`);
   const data = await resp.json() as TossPriceResponse;
+  // KST 08:00 ~ 08:59 (한국 프리장 동시호가 시간) — base = price 로 강제
+  // → "어제보다" 가격 0 / TotalRow 의 어제대비 합계 0 / 전체수익 꼬임 방지.
+  // Toss API 의 base 는 09:00 정규장 시작 후에야 새 거래일 기준으로 갱신됨.
+  const isPre = isKrPreOpen();
   return (data.result || []).map(item => ({
     ticker: item.code.replace(/^A/, ""),
     price: item.close,
-    base: item.base,
+    base: isPre ? item.close : item.base,
     open: item.open,
     volume: item.volume,
     trade_date: item.tradeDateTime ? toKstDateString(item.tradeDateTime) : "",

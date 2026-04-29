@@ -108,6 +108,16 @@ export function isSymbolSleeping(symbol: string): boolean {
   return !isMarketOpen(marketOfSymbol(symbol));
 }
 
+// KST 08:00 ~ 08:59 — 한국 프리장 동시호가 시간 (정규장 09:00 직전).
+// 이 시점부터 새 거래일 — "어제보다" 가격은 0 으로 초기화 (전일 종가 기준 차이 의미 없음).
+// Toss API 의 base 가 09:00 이후에야 새 거래일 종가로 갱신되므로 우리가 강제 처리.
+export function isKrPreOpen(): boolean {
+  const t = nowInTz("Asia/Seoul");
+  if (t.weekday === 0 || t.weekday === 6) return false;
+  const m = t.hour * 60 + t.minute;
+  return 8 * 60 <= m && m < 9 * 60;
+}
+
 // 한국 장 세션 phase — 데스크톱 v1/v2 kr_session_phase 동일
 export type KrPhase = "REGULAR" | "EXTENDED" | "CLOSED";
 
