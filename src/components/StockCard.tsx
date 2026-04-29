@@ -199,19 +199,12 @@ export function StockCard({
                 {stock.avg_price.toLocaleString()}원
               </span>
             </span>
-            {peak && peak > price && (
+            {peak && peak > price.price && (
               <span className="font-bold text-blue-800">
                 피크 {peak.toLocaleString()}원
                 <span className="ml-0.5">
                   ({peakPct.toFixed(2)}%)
                 </span>
-              </span>
-            )}
-            {/* DEBUG: peak 값 항상 노출 (정상 표시되지 않은 경우 모두) */}
-            {!(peak && peak > price) && stock.shares > 0 && (
-              <span className="text-[10px] text-orange-500">
-                [DBG] peak={peak === undefined ? "undef" : peak.toLocaleString()}
-                {" "}price={price.toLocaleString()} · {stock.ticker}
               </span>
             )}
           </div>
