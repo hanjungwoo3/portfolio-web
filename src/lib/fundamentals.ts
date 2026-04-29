@@ -5,6 +5,7 @@
 // - navercomp.wisereport.co.kr c1010001 (주요주주)
 
 import { fetchProxied } from "./api";
+// PROXY_URLS는 api.ts에서 4-way로 자동 확장됨 (이 파일은 fetchProxied만 사용)
 
 async function fetchHtml(url: string): Promise<Document | null> {
   try {

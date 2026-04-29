@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks,
 } from "../lib/db";
+import { getPersonalProxyUrl, setPersonalProxyUrl } from "../lib/proxyConfig";
 import type { Stock } from "../types";
 
 interface Props {
@@ -72,16 +73,26 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
   const [busy, setBusy] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const downOnBackdropRef = useRef(false);
+  const [proxyUrl, setProxyUrl] = useState("");
 
   // 다이얼로그 열릴 때마다 현재 데이터 로드
   useEffect(() => {
     if (!isOpen) return;
+    setProxyUrl(getPersonalProxyUrl() ?? "");
     void (async () => {
       const data = await exportAll();
       setRaw(JSON.stringify(data, null, 2));
       setStatusMsg(`현재: 종목 ${data.holdings.length}건 / 피크 ${Object.keys(data.peaks).length}건`);
     })();
   }, [isOpen]);
+
+  const saveProxy = () => {
+    const v = proxyUrl.trim().replace(/\/+$/, "");
+    setPersonalProxyUrl(v || null);
+    setProxyUrl(v);
+    setStatusMsg(v ? `✅ 전용 프록시 적용: ${v}` : "✅ 전용 프록시 해제 — 공개 4-way 사용");
+    onChanged();  // React Query refetch 트리거 (URL 즉시 반영)
+  };
 
   if (!isOpen) return null;
 
@@ -155,7 +166,35 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                   className="ml-auto text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
 
-        <div className="px-5 py-3 space-y-2 flex-1 flex flex-col min-h-0">
+        <div className="px-5 py-3 space-y-3 flex-1 flex flex-col min-h-0">
+          {/* 전용 프록시 URL */}
+          <div className="border border-gray-200 rounded p-2.5 bg-blue-50/30 space-y-1">
+            <div className="text-xs font-bold text-gray-700">
+              🔧 내 전용 프록시 URL (선택)
+            </div>
+            <div className="text-[11px] text-gray-500">
+              비워두면 공개 4-way (Cloudflare/Vercel/Deno/Render). 본인 worker URL 입력 시
+              본인만 사용 — 공개 부담 0, 본인 100k/일 무료. 가이드:&nbsp;
+              <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md"
+                 target="_blank" rel="noopener noreferrer"
+                 className="text-blue-600 underline">
+                Cloudflare Worker 1-click 배포
+              </a>
+            </div>
+            <div className="flex gap-2">
+              <input type="text" value={proxyUrl}
+                     onChange={e => setProxyUrl(e.target.value)}
+                     placeholder="예: https://your-proxy.workers.dev"
+                     className="flex-1 border rounded px-2 py-1 text-xs font-mono
+                                focus:outline-none focus:border-blue-500" />
+              <button onClick={saveProxy}
+                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700
+                                 text-white text-xs rounded">
+                저장
+              </button>
+            </div>
+          </div>
+
           <div className="text-sm text-gray-600">
             포트폴리오 데이터 (JSON) — holdings + peaks 통합
           </div>

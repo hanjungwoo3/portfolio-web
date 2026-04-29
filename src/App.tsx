@@ -12,9 +12,8 @@ import { UsMarketTab } from "./components/UsMarketTab";
 import { RefreshIndicator } from "./components/RefreshIndicator";
 import { VersionBadge } from "./components/VersionBadge";
 import { ProxyStatusBadge } from "./components/ProxyStatusBadge";
-import { useAdaptiveRefreshMs, subscribeProxyStatus } from "./lib/proxyStatus";
+import { useAdaptiveRefreshMs } from "./lib/proxyStatus";
 import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
-import { PROXY_URLS } from "./lib/api";
 import { ValuationModal } from "./components/ValuationModal";
 import type { Stock } from "./types";
 
@@ -170,10 +169,9 @@ function Dashboard() {
           <h1 className="text-xl font-bold text-gray-900 shrink-0">
             📈 포트폴리오
           </h1>
-          <PollingInfo currentMs={REFRESH_MS} />
           <RefreshIndicatorGlobal refetchIntervalMs={REFRESH_MS} />
+          <ProxyStatusBadge baseRefreshMs={BASE_REFRESH_MS} />
           <div className="flex items-center gap-3 ml-auto">
-            <ProxyStatusBadge />
             <VersionBadge />
             <button
               onClick={() => setSearchOpen(true)}
@@ -332,20 +330,6 @@ function Dashboard() {
         );
       })()}
     </div>
-  );
-}
-
-// 좌측 — 폴링 주기 + 사용 가능한 프록시 수
-function PollingInfo({ currentMs }: { currentMs: number }) {
-  const [healthy, setHealthy] = useState(PROXY_URLS.length);
-  useEffect(() => subscribeProxyStatus(s => {
-    setHealthy(s.total === 0 ? PROXY_URLS.length : s.total - s.downHosts.length);
-  }), []);
-  const sec = Math.round(currentMs / 1000);
-  return (
-    <span className="text-[11px] text-gray-400 shrink-0 ml-1">
-      {sec}초 · 프록시 {healthy}/{PROXY_URLS.length}
-    </span>
   );
 }
 
