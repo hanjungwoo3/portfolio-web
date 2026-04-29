@@ -6,6 +6,7 @@ import { StockCard } from "./components/StockCard";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY } from "./components/Tabs";
 import { TotalRow } from "./components/TotalRow";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { OnboardingDialog } from "./components/OnboardingDialog";
 import { SearchDialog } from "./components/SearchDialog";
 import { EditHoldingDialog } from "./components/EditHoldingDialog";
 import { UsMarketTab } from "./components/UsMarketTab";
@@ -265,6 +266,8 @@ function Dashboard() {
           </>
         )}
       </main>
+
+      <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
 
       <SettingsDialog
         isOpen={settingsOpen}
