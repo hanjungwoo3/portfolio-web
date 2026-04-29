@@ -11,6 +11,7 @@ import {
 } from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import { MobileStockCard } from "./MobileStockCard";
+import { TotalRow } from "./TotalRow";
 
 const US_KEY = "__us__";  // 미국 증시 탭 키
 
@@ -239,6 +240,11 @@ export function MobileSimpleView() {
                              peak={peaks?.get(s.ticker)}
                              sector={naverInfos.data?.get(s.ticker)?.sector} />
           ))}
+          {groupHoldings.length > 0 && (
+            <div className="pt-2">
+              <TotalRow holdings={groupHoldings} prices={groupPriceMap} />
+            </div>
+          )}
         </div>
       )}
 
