@@ -161,14 +161,7 @@ interface SectorTableProps {
 function SectorTable({ sectors, buildRows }: SectorTableProps) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-      {/* 헤더 */}
-      <div className="grid grid-cols-[60px_1fr_1fr]
-                       bg-gray-100 text-gray-600 text-xs font-semibold">
-        <div className="px-2 py-1.5 text-center border-r border-gray-300">섹터</div>
-        <div className="px-2 py-1.5">현물</div>
-        <div className="px-2 py-1.5">선물 / ETF</div>
-      </div>
-      {/* 섹터별 행 */}
+      {/* 섹터별 행 — 사이에 옅은 회색 띠 spacer */}
       {sectors.map((sector, sIdx) => {
         const rows = buildRows(sector);
         if (rows.length === 0) return null;
@@ -176,20 +169,22 @@ function SectorTable({ sectors, buildRows }: SectorTableProps) {
         const futures = rows.filter(r => r.kind === "future");
         const etfs = rows.filter(r => r.kind === "etf");
         return (
-          <div key={sector}
-               className={`grid grid-cols-[60px_1fr_1fr]
-                            ${sIdx < sectors.length - 1
-                              ? "border-b border-gray-300" : ""}`}>
-            {/* 섹터 라벨 (좌측) */}
-            <div className="bg-slate-200 px-1 py-2 flex flex-col items-center
-                              justify-center text-center
+          <div key={sector}>
+            {sIdx > 0 && (
+              <div className="h-2 bg-gray-100 border-y border-gray-200" />
+            )}
+            <div className="grid grid-cols-[60px_1fr_1fr]">
+            {/* 섹터 라벨 (좌측) — 아이콘 + 라벨 한 줄 */}
+            <div className="bg-slate-200 px-1 py-3 flex flex-row items-center
+                              justify-center gap-1 text-center
                               border-r border-gray-300">
-              <span className="text-2xl">{SECTOR_EMOJI[sector] ?? "📊"}</span>
-              <span className="text-xs font-bold text-gray-800 mt-0.5">{sector}</span>
+              <span className="text-base">{SECTOR_EMOJI[sector] ?? "📊"}</span>
+              <span className="text-xs font-bold text-gray-800">{sector}</span>
             </div>
-            {/* 현물 / 선물+ETF (선물 위, ETF 아래) 컬럼 */}
-            <QuoteList rows={spots} />
-            <QuoteList rows={[...futures, ...etfs]} />
+              {/* 현물 / 선물+ETF (선물 위, ETF 아래) 컬럼 */}
+              <QuoteList rows={spots} />
+              <QuoteList rows={[...futures, ...etfs]} />
+            </div>
           </div>
         );
       })}
