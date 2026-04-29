@@ -164,12 +164,11 @@ function SectorTable({ sectors, buildRows }: SectorTableProps) {
   return (
     <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
       {/* 헤더 */}
-      <div className="grid grid-cols-[60px_3fr_2fr_3fr] gap-px
+      <div className="grid grid-cols-[60px_1fr_1fr]
                        bg-gray-100 text-gray-600 text-xs font-semibold">
-        <div className="px-2 py-1.5 text-center">섹터</div>
+        <div className="px-2 py-1.5 text-center border-r border-gray-300">섹터</div>
         <div className="px-2 py-1.5">현물</div>
-        <div className="px-2 py-1.5">선물</div>
-        <div className="px-2 py-1.5">ETF</div>
+        <div className="px-2 py-1.5">선물 / ETF</div>
       </div>
       {/* 섹터별 행 */}
       {sectors.map((sector, sIdx) => {
@@ -180,7 +179,7 @@ function SectorTable({ sectors, buildRows }: SectorTableProps) {
         const etfs = rows.filter(r => r.kind === "etf");
         return (
           <div key={sector}
-               className={`grid grid-cols-[60px_3fr_2fr_3fr]
+               className={`grid grid-cols-[60px_1fr_1fr]
                             ${sIdx < sectors.length - 1
                               ? "border-b border-gray-300" : ""}`}>
             {/* 섹터 라벨 (좌측) */}
@@ -190,10 +189,9 @@ function SectorTable({ sectors, buildRows }: SectorTableProps) {
               <span className="text-2xl">{SECTOR_EMOJI[sector] ?? "📊"}</span>
               <span className="text-xs font-bold text-gray-800 mt-0.5">{sector}</span>
             </div>
-            {/* 현물 / 선물 / ETF 컬럼 */}
+            {/* 현물 / 선물+ETF (선물 위, ETF 아래) 컬럼 */}
             <QuoteList rows={spots} />
-            <QuoteList rows={futures} />
-            <QuoteList rows={etfs} />
+            <QuoteList rows={[...futures, ...etfs]} />
           </div>
         );
       })}
