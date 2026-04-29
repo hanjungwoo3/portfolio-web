@@ -175,7 +175,8 @@ function Dashboard() {
           </h1>
           <RefreshIndicatorGlobal refetchIntervalMs={REFRESH_MS} />
           <ProxyStatusBadge baseRefreshMs={BASE_REFRESH_MS}
-                            usePersonalProxy={usePersonalProxy} />
+                            usePersonalProxy={usePersonalProxy}
+                            onOpenSettings={() => setSettingsOpen(true)} />
           <div className="flex items-center gap-3 ml-auto">
             <VersionBadge />
             <button

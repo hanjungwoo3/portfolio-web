@@ -6,9 +6,13 @@ import { subscribeProxyStatus, type ProxyState } from "../lib/proxyStatus";
 interface Props {
   baseRefreshMs: number;       // adaptive 계산용 (5/10/30/60초)
   usePersonalProxy: boolean;   // 전용 프록시 사용 여부 — 정상 시에도 헤더에 안내
+  onOpenSettings: () => void;  // 힌트의 ⚙️ 설정 클릭 시 다이얼로그 열기
 }
 
-export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy }: Props) {
+const GUIDE_URL =
+  "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md";
+
+export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettings }: Props) {
   const [state, setState] = useState<ProxyState>(
     { health: "ok", total: 0, downHosts: [] }
   );
@@ -58,7 +62,16 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy }: Props) {
       {!usePersonalProxy && (
         <span title="본인 전용 Cloudflare Worker 배포 시 100k req/일 전용 + 폴링 주기 선택 가능"
               className="text-[11px] text-gray-500">
-          💡 ⚙️ 설정에서 전용 프록시 추가 시 5초 갱신 가능
+          💡{" "}
+          <button onClick={onOpenSettings}
+                  className="text-blue-600 hover:underline font-medium">
+            ⚙️ 설정
+          </button>
+          에서 전용 프록시 추가 시 5초 갱신 가능{" "}
+          <a href={GUIDE_URL} target="_blank" rel="noopener noreferrer"
+             className="text-blue-600 hover:underline">
+            [배포 가이드]
+          </a>
         </span>
       )}
     </span>
