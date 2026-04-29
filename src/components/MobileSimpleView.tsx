@@ -138,15 +138,13 @@ export function MobileSimpleView() {
               <div className="text-[11px] text-gray-500 truncate">
                 {p.desc}
               </div>
-              <div className="flex items-baseline gap-2 mt-0.5">
-                <span className="text-sm tabular-nums text-gray-700">
+              <div className="flex items-baseline mt-0.5">
+                <span className="flex-1 text-left text-sm tabular-nums text-gray-700">
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>
-                {q && (
-                  <span className={`text-base font-bold tabular-nums ${sign}`}>
-                    ({q.pct >= 0 ? "+" : ""}{q.pct.toFixed(2)}%)
-                  </span>
-                )}
+                <span className={`flex-1 text-right text-base font-bold tabular-nums ${sign}`}>
+                  {q ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%` : ""}
+                </span>
               </div>
             </div>
           );
