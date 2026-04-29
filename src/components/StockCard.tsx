@@ -11,6 +11,12 @@ interface Props {
   peak?: number;
   warning?: string;
   loading?: boolean;
+  onOpenValuation?: (ticker: string) => void;
+}
+
+function openTossStock(ticker: string) {
+  if (!/^\d{6}$/.test(ticker)) return;
+  window.open(`https://tossinvest.com/stocks/A${ticker}`, "_blank", "noopener");
 }
 
 const SELL_FEE_PCT = 0.2;
@@ -79,6 +85,7 @@ const TICK_INIT: TickState = { arrow: "" };
 
 export function StockCard({
   stock, price, investor, consensus, sector, peak, warning, loading,
+  onOpenValuation,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
 
@@ -158,10 +165,15 @@ export function StockCard({
       <div className="basis-[55%] min-w-0 flex flex-col gap-0.5">
         {/* 헤더 */}
         <div className="flex items-center gap-2 flex-wrap">
-          <span className={`inline-flex items-center px-2.5 py-1 rounded-md
-                             font-bold text-base leading-none
-                             ${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"}
-                             ${signColor(dayDiff || -1)}`}>
+          <button
+            type="button"
+            onClick={() => openTossStock(stock.ticker)}
+            title="토스에서 보기"
+            className={`inline-flex items-center px-2.5 py-1 rounded-md
+                        font-bold text-base leading-none cursor-pointer
+                        hover:brightness-95 transition
+                        ${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"}
+                        ${signColor(dayDiff || -1)}`}>
             {sleeping && <span className="text-xs mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
             {stock.name}
             {stock.shares > 0 && (
@@ -169,7 +181,7 @@ export function StockCard({
                 ({stock.shares.toLocaleString()}주)
               </span>
             )}
-          </span>
+          </button>
           {warning && (
             <span className={`px-1.5 py-0.5 rounded text-white text-xs font-bold
                               ${WARN_BG[warning] ?? "bg-gray-500"}`}>
@@ -179,7 +191,16 @@ export function StockCard({
           {sector && (
             <span className="text-xs text-gray-500">{sector}</span>
           )}
-          <span className="ml-auto text-gray-300 text-xs cursor-help" title="자세히">ⓘ</span>
+          {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
+            <button
+              type="button"
+              onClick={() => onOpenValuation(stock.ticker)}
+              title="기업가치 보기"
+              className="ml-auto text-gray-400 hover:text-blue-600
+                         text-base leading-none px-1">
+              📊
+            </button>
+          )}
         </div>
 
         {/* 가격 + 거래량 + 틱 화살표 */}

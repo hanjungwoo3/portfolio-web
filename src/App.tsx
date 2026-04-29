@@ -8,6 +8,7 @@ import { TotalRow } from "./components/TotalRow";
 import { ImportJsonDialog } from "./components/ImportJsonDialog";
 import { UsMarketTab } from "./components/UsMarketTab";
 import { RefreshIndicator } from "./components/RefreshIndicator";
+import { ValuationModal } from "./components/ValuationModal";
 import type { Stock } from "./types";
 
 // 모든 polling 5초로 통일 (사용자 요청)
@@ -28,6 +29,7 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>("");
   const [importOpen, setImportOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [valuationTicker, setValuationTicker] = useState<string | null>(null);
 
   // IndexedDB 로드
   useEffect(() => {
@@ -200,6 +202,7 @@ function Dashboard() {
                   sector={naverMap.get(stock.ticker)?.sector}
                   consensus={naverMap.get(stock.ticker)?.consensus ?? null}
                   peak={peaks.get(stock.ticker)}
+                  onOpenValuation={setValuationTicker}
                 />
               ))}
             </div>
@@ -213,6 +216,24 @@ function Dashboard() {
         onClose={() => setImportOpen(false)}
         onImported={() => setReloadKey(k => k + 1)}
       />
+
+      {valuationTicker && (() => {
+        const s = holdings.find(h => h.ticker === valuationTicker);
+        if (!s) return null;
+        return (
+          <ValuationModal
+            isOpen={true}
+            onClose={() => setValuationTicker(null)}
+            ticker={valuationTicker}
+            name={s.name}
+            sector={naverMap.get(valuationTicker)?.sector}
+            investor={investorMap.get(valuationTicker)}
+            consensus={naverMap.get(valuationTicker)?.consensus ?? null}
+            peak={peaks.get(valuationTicker)}
+            curPrice={priceMap.get(valuationTicker)?.price}
+          />
+        );
+      })()}
     </div>
   );
 }
