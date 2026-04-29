@@ -162,83 +162,87 @@ interface SectorTableProps {
 
 function SectorTable({ sectors, buildRows }: SectorTableProps) {
   return (
-    <table className="w-full bg-white rounded-lg border border-gray-200
-                       overflow-hidden text-sm">
-      <thead className="bg-gray-100 text-gray-600 text-xs">
-        <tr>
-          <th className="px-2 py-2 text-left w-16">섹터</th>
-          <th className="px-2 py-2 text-left">종목</th>
-          <th className="px-2 py-2 text-right">현재가</th>
-          <th className="px-2 py-2 text-right w-24">등락%</th>
-        </tr>
-      </thead>
-      <tbody>
-        {sectors.map(sector => {
-          const rows = buildRows(sector);
-          if (rows.length === 0) return null;
-          return rows.map((r, idx) => {
-            const isFirst = idx === 0;
-            const isLast = idx === rows.length - 1;
-            const sign = r.diff !== undefined ? signColor(r.diff) : "text-gray-400";
-            const rowBg =
-              r.diff !== undefined && r.diff > 0 ? "bg-rose-50"
-              : r.diff !== undefined && r.diff < 0 ? "bg-blue-50/70"
-              : "";
-            const borderCls = isLast
-              ? "border-b border-gray-300"
-              : "border-b border-gray-100";
-            return (
-              <tr key={`${sector}-${r.symbol}`}
-                  className={`${borderCls} ${rowBg}
-                               ${r.sleeping ? "opacity-60" : ""}`}>
-                {isFirst ? (
-                  <td className="px-2 py-2 font-bold text-gray-800 align-middle
-                                  bg-slate-200 border-r border-gray-300"
-                      rowSpan={rows.length}>
-                    <div className="flex flex-col items-center gap-0.5">
-                      <span className="text-2xl">{SECTOR_EMOJI[sector] ?? "📊"}</span>
-                      <span className="text-xs font-bold">{sector}</span>
-                    </div>
-                  </td>
-                ) : null}
-                <td className="px-2 py-2">
-                  <div className="flex items-baseline gap-1">
-                    {r.sleeping && (
-                      <span className="text-[10px] text-gray-400">zZ</span>
-                    )}
-                    {r.kind === "etf" && (
-                      <span className="text-gray-400 text-[10px]">·</span>
-                    )}
-                    <a href={quoteUrl(r.symbol)}
-                       target="_blank" rel="noopener noreferrer"
-                       className={`text-base font-bold hover:underline
-                                    ${r.kind === "future" ? "text-amber-700"
-                                      : r.kind === "etf" ? "text-gray-600"
-                                      : "text-gray-900"}`}>
-                      {r.name}
-                    </a>
-                  </div>
-                  {r.desc && r.kind !== "etf" && (
-                    <div className="text-[11px] text-gray-500 truncate
-                                      max-w-[260px] mt-0.5">
-                      {r.desc}
-                    </div>
-                  )}
-                </td>
-                <td className="px-2 py-2 text-right tabular-nums text-gray-900 font-medium">
-                  {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
-                </td>
-                <td className={`px-2 py-2 text-right tabular-nums text-base font-bold ${sign}`}>
-                  {r.pct !== undefined
-                    ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
-                    : "—"}
-                </td>
-              </tr>
-            );
-          });
-        })}
-      </tbody>
-    </table>
+    <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
+      {/* 헤더 */}
+      <div className="grid grid-cols-[60px_3fr_2fr_3fr] gap-px
+                       bg-gray-100 text-gray-600 text-xs font-semibold">
+        <div className="px-2 py-1.5 text-center">섹터</div>
+        <div className="px-2 py-1.5">현물</div>
+        <div className="px-2 py-1.5">선물</div>
+        <div className="px-2 py-1.5">ETF</div>
+      </div>
+      {/* 섹터별 행 */}
+      {sectors.map((sector, sIdx) => {
+        const rows = buildRows(sector);
+        if (rows.length === 0) return null;
+        const spots = rows.filter(r => r.kind === "spot");
+        const futures = rows.filter(r => r.kind === "future");
+        const etfs = rows.filter(r => r.kind === "etf");
+        return (
+          <div key={sector}
+               className={`grid grid-cols-[60px_3fr_2fr_3fr] gap-px
+                            ${sIdx < sectors.length - 1
+                              ? "border-b border-gray-200" : ""}`}>
+            {/* 섹터 라벨 (좌측) */}
+            <div className="bg-slate-200 px-1 py-2 flex flex-col items-center
+                              justify-center text-center">
+              <span className="text-2xl">{SECTOR_EMOJI[sector] ?? "📊"}</span>
+              <span className="text-xs font-bold text-gray-800 mt-0.5">{sector}</span>
+            </div>
+            {/* 현물 / 선물 / ETF 컬럼 */}
+            <QuoteList rows={spots} />
+            <QuoteList rows={futures} />
+            <QuoteList rows={etfs} />
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+interface QuoteListProps {
+  rows: QuoteRow[];
+}
+
+function QuoteList({ rows }: QuoteListProps) {
+  if (rows.length === 0) {
+    return <div className="px-2 py-2 text-[10px] text-gray-300">—</div>;
+  }
+  return (
+    <div className="flex flex-col py-0.5">
+      {rows.map(r => {
+        const sign = r.diff !== undefined ? signColor(r.diff) : "text-gray-400";
+        const rowBg =
+          r.diff !== undefined && r.diff > 0 ? "bg-rose-50"
+          : r.diff !== undefined && r.diff < 0 ? "bg-blue-50/70"
+          : "";
+        return (
+          <div key={r.symbol}
+               className={`flex items-baseline gap-1 px-1.5 py-1
+                            ${rowBg} ${r.sleeping ? "opacity-60" : ""}`}>
+            {r.sleeping && (
+              <span className="text-[10px] text-gray-400 shrink-0">zZ</span>
+            )}
+            <a href={quoteUrl(r.symbol)} target="_blank" rel="noopener noreferrer"
+               title={r.desc}
+               className={`text-sm font-bold hover:underline truncate
+                            ${r.kind === "future" ? "text-amber-700"
+                              : r.kind === "etf" ? "text-gray-700"
+                              : "text-gray-900"}`}>
+              {r.name}
+            </a>
+            <span className="ml-auto text-xs tabular-nums text-gray-700 shrink-0">
+              {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
+            </span>
+            <span className={`text-sm font-bold tabular-nums shrink-0 ${sign}`}>
+              {r.pct !== undefined
+                ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
+                : ""}
+            </span>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
