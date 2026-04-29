@@ -151,13 +151,13 @@ export function MobileSimpleView() {
       {/* ─── 섹터 표 ─── */}
       <div className="px-3 pb-2">
         <table className="w-full bg-white rounded-lg border border-gray-200
-                           overflow-hidden text-xs">
-          <thead className="bg-gray-100 text-gray-600">
+                           overflow-hidden text-sm">
+          <thead className="bg-gray-100 text-gray-600 text-xs">
             <tr>
-              <th className="px-2 py-1.5 text-left w-14">섹터</th>
-              <th className="px-2 py-1.5 text-left">종목</th>
-              <th className="px-2 py-1.5 text-right">현재가</th>
-              <th className="px-2 py-1.5 text-right w-16">등락%</th>
+              <th className="px-2 py-2 text-left w-16">섹터</th>
+              <th className="px-2 py-2 text-left">종목</th>
+              <th className="px-2 py-2 text-right">현재가</th>
+              <th className="px-2 py-2 text-right w-20">등락%</th>
             </tr>
           </thead>
           <tbody>
@@ -177,37 +177,37 @@ export function MobileSimpleView() {
                       className={`border-t border-gray-100 ${rowBg}
                                    ${r.sleeping ? "opacity-60" : ""}`}>
                     {isFirst ? (
-                      <td className="px-2 py-1.5 font-bold text-gray-700 align-top
+                      <td className="px-2 py-2 font-bold text-gray-700 align-top
                                       bg-gray-100/70 border-r border-gray-200"
                           rowSpan={rows.length}>
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-base">{SECTOR_EMOJI[sector] ?? "•"}</span>
-                          <span className="text-[10px]">{sector}</span>
+                          <span className="text-lg">{SECTOR_EMOJI[sector] ?? "•"}</span>
+                          <span className="text-xs">{sector}</span>
                         </div>
                       </td>
                     ) : null}
-                    <td className="px-2 py-1.5">
+                    <td className="px-2 py-2">
                       <div className="flex items-baseline gap-1">
                         {r.sleeping && (
-                          <span className="text-[10px] text-gray-400">zZ</span>
+                          <span className="text-[11px] text-gray-400">zZ</span>
                         )}
-                        <span className={`text-sm font-bold
+                        <span className={`text-base font-bold
                                           ${r.kind === "future" ? "text-amber-700"
                                             : "text-gray-900"}`}>
                           {r.name}
                         </span>
                       </div>
                       {r.desc && (
-                        <div className="text-[10px] text-gray-500 truncate
+                        <div className="text-[11px] text-gray-500 truncate
                                           max-w-[180px] mt-0.5">
                           {r.desc}
                         </div>
                       )}
                     </td>
-                    <td className="px-2 py-1.5 text-right tabular-nums text-gray-900">
+                    <td className="px-2 py-2 text-right tabular-nums text-gray-900 font-medium">
                       {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
                     </td>
-                    <td className={`px-2 py-1.5 text-right tabular-nums font-bold ${sign}`}>
+                    <td className={`px-2 py-2 text-right tabular-nums font-bold ${sign}`}>
                       {r.pct !== undefined
                         ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
                         : "—"}
