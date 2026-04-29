@@ -74,11 +74,7 @@ export function buildTabs(holdings: Stock[]): TabSpec[] {
   for (const g of userGroups) {
     tabs.push({ key: g, label: g, emoji: "🏷", count: counts.get(g)! });
   }
-  // 5) 관심ETF (마지막)
-  if (counts.has("관심ETF")) {
-    tabs.push({ key: "관심ETF", label: "관심ETF", emoji: "📈",
-                count: counts.get("관심ETF")! });
-  }
+  // 관심ETF 는 별도 탭 X — 미국증시 탭의 섹터별 ETF 컬럼에서만 표시
   return tabs;
 }
 
