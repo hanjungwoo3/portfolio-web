@@ -169,7 +169,7 @@ function SectorTable({ sectors, buildRows }: SectorTableProps) {
         const etfs = rows.filter(r => r.kind === "etf");
         return (
           <div key={sector}
-               className="grid grid-cols-[60px_1fr_1fr]
+               className="grid grid-cols-[80px_1fr_1fr]
                            bg-white rounded-lg border border-gray-200 overflow-hidden">
             {/* 섹터 라벨 (좌측) — emoji 큼 + 라벨 세로 */}
             <div className="bg-slate-200 px-1 py-3 flex flex-col items-center
