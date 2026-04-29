@@ -68,6 +68,10 @@ const WARN_PILL_BG: Record<string, string> = {
   주의: "bg-amber-200",
 };
 
+// 손절/트레일링 임계값 (데스크톱 v2 기본 -9.0% — 사용자 요청 -10%)
+const STOP_LOSS_PCT = -10;
+const TRAILING_STOP_PCT = -10;
+
 // 직전 틱 대비 화살표 — 데스크톱 v2 동일 (첫 전환 속빈, 연속 속찬)
 type TickDir = "up" | "down" | undefined;
 interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
@@ -132,6 +136,14 @@ export function StockCard({
   const pnl = hasPosition ? Math.round((netPrice - stock.avg_price) * stock.shares) : 0;
   const pnlPct = hasPosition ? ((netPrice - stock.avg_price) / stock.avg_price) * 100 : 0;
 
+  // 손절 — 매수가 대비 -10% 이하 (보유 종목만)
+  const isStop = hasPosition && pnlPct <= STOP_LOSS_PCT;
+  // 트레일링 — 피크가 매수가 위로 오른 적 있고, 피크 대비 -10% 이하
+  const peakedAboveBuy = !!(peak && stock.avg_price && peak > stock.avg_price);
+  const isPeakDrop = hasPosition && peakedAboveBuy
+                       && peakPct <= TRAILING_STOP_PCT
+                       && Math.abs(peakPct) >= 0.01;
+
   // 카드 배경색 — 보유 종목의 손익에 따라 옅은 빨/파
   const cardBg =
     hasPosition && pnl > 0 ? "bg-rose-50/70 border-rose-200"
@@ -148,8 +160,9 @@ export function StockCard({
         <div className="flex items-center gap-2 flex-wrap">
           <span className={`inline-flex items-center px-2.5 py-1 rounded-md
                              font-bold text-base leading-none
-                             ${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"}
-                             ${signColor(dayDiff || -1)}`}>
+                             ${isStop
+                                ? "bg-red-700 text-white"
+                                : `${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"} ${signColor(dayDiff || -1)}`}`}>
             {sleeping && <span className="text-xs mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
             {stock.name}
             {stock.shares > 0 && (
@@ -158,6 +171,12 @@ export function StockCard({
               </span>
             )}
           </span>
+          {isStop && (
+            <span className="px-1.5 py-0.5 rounded bg-red-700 text-white
+                              text-xs font-bold">
+              손절
+            </span>
+          )}
           {warning && (
             <span className={`px-1.5 py-0.5 rounded text-white text-xs font-bold
                               ${WARN_BG[warning] ?? "bg-gray-500"}`}>
@@ -200,7 +219,10 @@ export function StockCard({
               </span>
             </span>
             {peak && peak > price.price && (
-              <span className="font-bold text-blue-800">
+              <span className={`font-bold rounded px-1.5
+                                ${isPeakDrop
+                                  ? "bg-red-800 text-white"
+                                  : "text-blue-800"}`}>
                 피크 {peak.toLocaleString()}원
                 <span className="ml-0.5">
                   ({peakPct.toFixed(2)}%)
