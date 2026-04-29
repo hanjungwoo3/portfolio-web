@@ -131,7 +131,7 @@ export function MobileSimpleView() {
                 {sleeping && (
                   <span className="text-[11px] text-gray-400">zZ</span>
                 )}
-                <span className="text-base font-bold text-gray-900">
+                <span className={`text-base font-bold ${sign}`}>
                   {p.name}
                 </span>
               </div>
@@ -139,7 +139,7 @@ export function MobileSimpleView() {
                 {p.desc}
               </div>
               <div className="flex items-baseline gap-2 mt-0.5">
-                <span className="text-lg font-bold tabular-nums text-gray-900">
+                <span className="text-sm tabular-nums text-gray-700">
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>
                 {q && (
