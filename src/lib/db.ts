@@ -75,6 +75,55 @@ export async function upsertHolding(s: Stock): Promise<"added" | "exists"> {
   return "added";
 }
 
+// 단건 그룹 업서트 — 있으면 입력값으로 update, 없으면 신규 add.
+// (bulkAddToGroup 의 skip 동작과 달리 항상 입력값 반영)
+export async function upsertHoldingToGroup(
+  s: Stock, group: string,
+): Promise<"added" | "updated"> {
+  const stock: Stock = { ...s, account: group };
+  const id = holdingId(stock);
+  const existing = await db.holdings.get(id);
+  await db.holdings.put({ ...stock, id } as Stock & { id: string });
+  return existing ? "updated" : "added";
+}
+
+// 같은 ticker 의 모든 그룹 row 를 동일 값으로 일괄 sync.
+// 사용자 의도: "어느 그룹에서 수정해도 모든 그룹이 같은 수량/매수가/매수일을 가짐."
+// shares = 0 인 row 도 함께 sync (watchlist 도 동기화).
+export interface SyncTickerResult { updated: number; }
+export async function syncAllRowsForTicker(
+  ticker: string,
+  values: {
+    shares: number; avg_price: number;
+    buy_date?: string; market?: string; name?: string;
+  },
+): Promise<SyncTickerResult> {
+  let updated = 0;
+  const invested = Math.round(values.shares * values.avg_price);
+  await db.transaction("rw", db.holdings, async () => {
+    const rows = await db.holdings.where("ticker").equals(ticker).toArray();
+    for (const r of rows) {
+      const next: Stock = {
+        ...r,
+        shares: values.shares,
+        avg_price: values.avg_price,
+        invested,
+        buy_date: values.buy_date ?? r.buy_date,
+        market: values.market ?? r.market,
+        name: values.name ?? r.name,
+      };
+      await db.holdings.put({ ...next, id: holdingId(next) } as Stock & { id: string });
+      updated += 1;
+    }
+  });
+  return { updated };
+}
+
+// 모든 그룹의 같은 ticker row 일괄 삭제 (전량 매도 / 수량 0 직접수정 시).
+export async function deleteAllRowsForTicker(ticker: string): Promise<number> {
+  return await db.holdings.where("ticker").equals(ticker).delete();
+}
+
 // 검색 다이얼로그에서 일괄 추가 — Map<group, count of new>
 export interface BulkAddResult { added: number; skipped: number; }
 export async function bulkAddToGroup(

@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import type { Stock } from "../types";
-import { updateHolding, removeHolding } from "../lib/db";
+import { syncAllRowsForTicker, deleteAllRowsForTicker } from "../lib/db";
 
 interface Props {
   isOpen: boolean;
@@ -35,6 +35,8 @@ export function EditHoldingDialog({
   const curAvg = stock.avg_price;
   const curInvested = stock.invested ?? Math.round(curShares * curAvg);
 
+  // 사용자 의도: "어느 그룹에서든 수정해도 같은 종목은 모든 그룹이 동일 값을 가짐."
+  // → 0주 → 모든 그룹 row 일괄 삭제 / shares > 0 → 모든 그룹 row 일괄 sync.
   const apply = async () => {
     setErr("");
     if (mode === "buy") {
@@ -45,9 +47,10 @@ export function EditHoldingDialog({
       const newShares = curShares + sh;
       const newInvested = curInvested + Math.round(sh * pr);
       const newAvg = Math.round(newInvested / newShares);
-      await updateHolding({
-        ...stock, shares: newShares, avg_price: newAvg, invested: newInvested,
+      await syncAllRowsForTicker(stock.ticker, {
+        shares: newShares, avg_price: newAvg,
         buy_date: date || stock.buy_date || todayKstStr(),
+        market: stock.market, name: stock.name,
       });
     } else if (mode === "sell") {
       const sh = Number(shares);
@@ -55,12 +58,13 @@ export function EditHoldingDialog({
       if (sh > curShares) return setErr(`보유 ${curShares}주를 초과`);
       const newShares = curShares - sh;
       if (newShares === 0) {
-        await removeHolding(stock.ticker, stock.account || "");
+        await deleteAllRowsForTicker(stock.ticker);
       } else {
         // 한국 관행 — 평균가 유지, 투자금만 비례 감소
-        const newInvested = Math.round(newShares * curAvg);
-        await updateHolding({
-          ...stock, shares: newShares, invested: newInvested,
+        await syncAllRowsForTicker(stock.ticker, {
+          shares: newShares, avg_price: curAvg,
+          buy_date: stock.buy_date,
+          market: stock.market, name: stock.name,
         });
       }
     } else {
@@ -70,12 +74,12 @@ export function EditHoldingDialog({
       if (!Number.isFinite(sh) || sh < 0) return setErr("수량 오류");
       if (!Number.isFinite(ap) || ap <= 0) return setErr("매수가 오류");
       if (sh === 0) {
-        await removeHolding(stock.ticker, stock.account || "");
+        await deleteAllRowsForTicker(stock.ticker);
       } else {
-        await updateHolding({
-          ...stock, shares: sh, avg_price: ap,
-          invested: Math.round(sh * ap),
+        await syncAllRowsForTicker(stock.ticker, {
+          shares: sh, avg_price: ap,
           buy_date: editDate || stock.buy_date || todayKstStr(),
+          market: stock.market, name: stock.name,
         });
       }
     }
@@ -142,6 +146,12 @@ export function EditHoldingDialog({
             {tabBtn("buy", "➕ 추가매수")}
             {tabBtn("sell", "➖ 매도")}
             {tabBtn("edit", "✏️ 직접수정")}
+          </div>
+
+          <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200
+                          rounded px-2 py-1">
+            💡 이 변경은 <b>같은 종목의 모든 그룹</b>에 동일하게 적용됩니다
+            {curShares > 0 && " (전량 매도 시 모든 그룹에서 삭제)"}
           </div>
 
           {/* 모드별 입력 */}

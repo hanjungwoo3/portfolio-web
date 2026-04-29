@@ -5,8 +5,8 @@ import {
   type SearchResult,
 } from "../lib/api";
 import {
-  bulkAddToGroup, bulkRemoveFromGroup,
-  removeHolding, getUserGroups, loadHoldings,
+  bulkRemoveFromGroup, removeHolding, getUserGroups, loadHoldings,
+  upsertHoldingToGroup, syncAllRowsForTicker,
 } from "../lib/db";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import type { Stock, Price } from "../types";
@@ -90,6 +90,45 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
     enabled: isOpen,
   });
 
+  // ticker → 가장 정보 많은 Stock (shares > 0 우선) — 검색 결과 prefill 용
+  const { data: existingStocks } = useQuery({
+    queryKey: ["existing-stocks", reloadKey],
+    queryFn: async () => {
+      const all = await loadHoldings();
+      const map = new Map<string, Stock>();
+      for (const s of all) {
+        const ex = map.get(s.ticker);
+        if (!ex || (s.shares > 0 && ex.shares === 0)) {
+          map.set(s.ticker, s);
+        }
+      }
+      return map;
+    },
+    enabled: isOpen,
+  });
+
+  // 검색 결과 받으면 기존 보유값 자동 prefill (사용자 입력은 보존)
+  useEffect(() => {
+    if (!existingStocks || results.length === 0) return;
+    setRowEdits(prev => {
+      const next = new Map(prev);
+      for (const r of results) {
+        const ex = existingStocks.get(r.ticker);
+        if (!ex || ex.shares <= 0) continue;
+        const cur = next.get(r.ticker);
+        const empty = !cur || (!cur.shares && !cur.avgPrice && !cur.buyDate);
+        if (empty) {
+          next.set(r.ticker, {
+            shares: String(ex.shares),
+            avgPrice: String(ex.avg_price),
+            buyDate: ex.buy_date || todayKstStr(),
+          });
+        }
+      }
+      return next;
+    });
+  }, [results, existingStocks]);
+
   const doSearch = async () => {
     const q = query.trim();
     if (!q) return;
@@ -153,55 +192,78 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
     setNewGroup("");
   };
 
-  // 일괄적용 = 보유 (수량 입력된 행만) + 마킹된 그룹들에도 추가
+  // 일괄적용 — 사용자 의도: "어느 그룹이든 같은 종목은 동일한 수량/매수가/매수일을 가짐"
+  // 1) 수량 입력된 행: "보유" 그룹에 upsert + 모든 기존 그룹 row 동일 값으로 sync
+  // 2) 수량 미입력 행: 마킹된 그룹들에만 watchlist (0주) 로 추가
   const bulkApply = async () => {
     if (selected.size === 0) {
       setStatusMsg("⚠️ 종목을 먼저 체크하세요");
       return;
     }
     const sel = results.filter(r => selected.has(r.ticker));
-    let holdingsAdded = 0, holdingsSkipped = 0, invalid = 0;
-    const groupResults: Map<string, { added: number; skipped: number }> = new Map();
+    let holdingsAdded = 0, holdingsUpdated = 0, syncedTotal = 0, invalid = 0;
+    const groupResults: Map<string, { added: number; updated: number }> = new Map();
 
-    // 1) 보유 — 수량/매수가 입력된 행만
-    const holdingItems: Stock[] = [];
     for (const r of sel) {
       const ed = rowEdits.get(r.ticker);
       const sh = Number(ed?.shares ?? "");
       const ap = Number(ed?.avgPrice ?? "");
-      if (!Number.isFinite(sh) || sh <= 0 || !Number.isFinite(ap) || ap <= 0) {
-        invalid += 1; continue;
-      }
-      holdingItems.push({
-        ticker: r.ticker, name: r.name,
-        shares: sh, avg_price: ap, invested: Math.round(sh * ap),
-        buy_date: ed?.buyDate || todayKstStr(),
-        market: r.market, account: "",
-      });
-    }
-    if (holdingItems.length > 0) {
-      const r = await bulkAddToGroup(holdingItems, "");
-      holdingsAdded = r.added; holdingsSkipped = r.skipped;
-    }
+      const hasValues =
+        Number.isFinite(sh) && sh > 0 && Number.isFinite(ap) && ap > 0;
+      const buyDate = ed?.buyDate || todayKstStr();
 
-    // 2) 마킹된 각 그룹에 일괄 추가
-    for (const g of markedGroups) {
-      const items: Stock[] = sel.map(r => ({
-        ticker: r.ticker, name: r.name,
-        shares: 0, avg_price: 0, invested: 0,
-        buy_date: "", market: r.market, account: g,
-      }));
-      const r = await bulkAddToGroup(items, g);
-      groupResults.set(g, { added: r.added, skipped: r.skipped });
+      if (hasValues) {
+        // 1-a) "보유" 그룹에 upsert
+        const stock: Stock = {
+          ticker: r.ticker, name: r.name,
+          shares: sh, avg_price: ap, invested: Math.round(sh * ap),
+          buy_date: buyDate, market: r.market, account: "",
+        };
+        const res = await upsertHoldingToGroup(stock, "");
+        if (res === "added") holdingsAdded += 1; else holdingsUpdated += 1;
+
+        // 1-b) 마킹된 각 그룹에도 upsert (같은 값)
+        for (const g of markedGroups) {
+          const gres = await upsertHoldingToGroup(stock, g);
+          const cur = groupResults.get(g) ?? { added: 0, updated: 0 };
+          if (gres === "added") cur.added += 1; else cur.updated += 1;
+          groupResults.set(g, cur);
+        }
+
+        // 1-c) 모든 기존 그룹 row 일괄 sync (보유 + 마킹 외 다른 그룹들도 동일 값)
+        const sync = await syncAllRowsForTicker(r.ticker, {
+          shares: sh, avg_price: ap, buy_date: buyDate,
+          market: r.market, name: r.name,
+        });
+        syncedTotal += sync.updated;
+      } else {
+        // 2) 수량 미입력 — 마킹된 그룹들에 watchlist 추가 (보유는 추가 X)
+        if (markedGroups.size === 0) { invalid += 1; continue; }
+        for (const g of markedGroups) {
+          const stock: Stock = {
+            ticker: r.ticker, name: r.name,
+            shares: 0, avg_price: 0, invested: 0,
+            buy_date: "", market: r.market, account: "",
+          };
+          const gres = await upsertHoldingToGroup(stock, g);
+          const cur = groupResults.get(g) ?? { added: 0, updated: 0 };
+          if (gres === "added") cur.added += 1; else cur.updated += 1;
+          groupResults.set(g, cur);
+        }
+      }
     }
 
     // 결과 메시지
     const parts: string[] = [];
-    if (holdingsAdded > 0) parts.push(`💼 보유 ${holdingsAdded}`);
-    if (holdingsSkipped > 0) parts.push(`보유 중복 ${holdingsSkipped}`);
-    if (invalid > 0) parts.push(`보유 미입력 ${invalid}`);
-    for (const [g, { added, skipped }] of groupResults) {
-      parts.push(`"${g}" ${added}${skipped > 0 ? ` (중복 ${skipped})` : ""}`);
+    if (holdingsAdded > 0) parts.push(`💼 보유 +${holdingsAdded}`);
+    if (holdingsUpdated > 0) parts.push(`보유 갱신 ${holdingsUpdated}`);
+    if (syncedTotal > 0) parts.push(`🔄 모든 그룹 sync ${syncedTotal}건`);
+    if (invalid > 0) parts.push(`미입력 ${invalid} (그룹 마킹 또는 수량 입력 필요)`);
+    for (const [g, { added, updated }] of groupResults) {
+      const line = [];
+      if (added > 0) line.push(`+${added}`);
+      if (updated > 0) line.push(`갱신 ${updated}`);
+      parts.push(`"${g}" ${line.join(" · ")}`);
     }
     setStatusMsg(parts.length > 0
       ? `✅ ${parts.join(" · ")}`
@@ -380,7 +442,8 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
         {results.length > 0 && (
           <footer className="px-5 py-3 border-t bg-gray-50 flex items-center gap-2">
             <span className="text-xs text-gray-600">
-              수량 입력된 행은 보유로 + 마킹된 그룹{markedGroups.size > 0 && ` (${markedGroups.size}개)`}에 추가
+              수량 입력 행은 보유 + 마킹 그룹{markedGroups.size > 0 && ` (${markedGroups.size}개)`}에 추가
+              <span className="ml-1 text-blue-700">— 같은 종목의 모든 그룹에 동일 적용</span>
             </span>
             <button onClick={() => void bulkApply()}
                     disabled={noneChecked}
