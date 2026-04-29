@@ -175,6 +175,10 @@ export interface FundamentalData {
   high_52w?: number;
   low_52w?: number;
   foreign_ownership?: number;
+  // 네이버 공식 컨센서스 (목표주가/투자의견)
+  consensus_target_official?: number;
+  consensus_opinion?: string;
+  consensus_score?: number;
   // wisereport
   revenue?: number;
   operating_income?: number;
@@ -257,6 +261,32 @@ export async function fetchNaverMain(ticker: string): Promise<FundamentalData> {
       const em = tr.querySelector("td em");
       const v = _toFloat(em?.textContent);
       if (v != null) out.industry_per = v;
+    }
+    // 투자의견 + 컨센서스 목표주가 — <th>...목표주가 행
+    if (txt.includes("목표주가")) {
+      const td = tr.querySelector("td");
+      if (!td) return;
+      // 1) f_* 클래스 span 안에 점수(em) + 의견 텍스트
+      const opSpan = Array.from(td.querySelectorAll("span"))
+        .find(s => Array.from(s.classList).some(c => c.startsWith("f_")));
+      if (opSpan) {
+        const em = opSpan.querySelector("em");
+        const emText = _cleanWs(em?.textContent);
+        if (emText) {
+          const score = _toFloat(emText);
+          if (score != null) out.consensus_score = score;
+        }
+        const full = _cleanWs(opSpan.textContent);
+        const opinion = emText ? full.replace(emText, "").trim() : full;
+        if (opinion) out.consensus_opinion = opinion;
+      }
+      // 2) span 외부의 em = 공식 컨센서스 목표가
+      td.querySelectorAll("em").forEach(em => {
+        if (out.consensus_target_official != null) return;
+        if (em.closest("span")) return;  // f_* span 내 em 제외
+        const val = _toInt(em.textContent);
+        if (val != null) out.consensus_target_official = val;
+      });
     }
   });
   return out;

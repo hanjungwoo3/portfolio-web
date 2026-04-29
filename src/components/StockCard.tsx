@@ -81,7 +81,7 @@ const TRAILING_STOP_PCT = -9;
 // 직전 틱 대비 화살표 — 데스크톱 v2 동일 (첫 전환 속빈, 연속 속찬)
 type TickDir = "up" | "down" | undefined;
 interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
-const TICK_INIT: TickState = { arrow: "" };
+const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
   stock, price, investor, consensus, sector, peak, warning, loading,
@@ -196,8 +196,8 @@ export function StockCard({
               type="button"
               onClick={() => onOpenValuation(stock.ticker)}
               title="기업가치 보기"
-              className="ml-auto text-gray-400 hover:text-blue-600
-                         text-base leading-none px-1">
+              className="ml-auto opacity-50 hover:opacity-100
+                         text-xs leading-none px-1">
               📊
             </button>
           )}

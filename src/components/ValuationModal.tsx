@@ -57,29 +57,71 @@ function Section({ title, sub, ikeys, data }: {
   );
 }
 
-function ConsensusSection({ reports, shareholders, curPrice }: {
+function ConsensusSection({ reports, shareholders, curPrice, fundamental }: {
   reports: ConsensusReport[]; shareholders: Shareholder[]; curPrice?: number;
+  fundamental: FundamentalData;
 }) {
   const targets = reports.map(r => r.target).filter((t): t is number => typeof t === "number");
-  const avgTarget = targets.length > 0
+  const simpleAvg = targets.length > 0
     ? Math.round(targets.reduce((a, b) => a + b, 0) / targets.length)
     : undefined;
-  const avgGap = avgTarget && curPrice && curPrice > 0
-    ? ((avgTarget - curPrice) / curPrice) * 100 : undefined;
+  const officialTarget = fundamental.consensus_target_official;
+  const opinion = fundamental.consensus_opinion ?? "";
+  const opScore = fundamental.consensus_score;
+  // 공식 컨센서스 우선, 없으면 단순평균
+  const headlineTarget = officialTarget ?? simpleAvg;
+  const headlineGap = headlineTarget && curPrice && curPrice > 0
+    ? ((headlineTarget - curPrice) / curPrice) * 100 : undefined;
+  // 투자의견 색상 (v2 동일)
+  const opLc = opinion.toLowerCase();
+  const opColor = /buy|매수|strong/.test(opLc) ? "text-rose-600"
+                : /sell|매도|감량|축소/.test(opLc) ? "text-blue-700"
+                : "text-gray-700";
   return (
     <section className="bg-gray-50 rounded p-3 border border-gray-200">
       <header className="mb-2">
-        <h3 className="font-bold text-gray-700">📋 애널리스트 컨센서스</h3>
-        <p className="text-xs text-gray-400">
-          최근 {reports.length}건 / 평균 목표가
-          {avgTarget ? ` ${avgTarget.toLocaleString()}원` : " —"}
-          {avgGap !== undefined && (
-            <span className={`ml-1 font-bold ${signColor(avgGap)}`}>
-              ({avgGap >= 0 ? "+" : ""}{avgGap.toFixed(2)}%)
-            </span>
-          )}
-        </p>
+        <h3 className="font-bold text-gray-700">🎯 컨센서스</h3>
+        <p className="text-xs text-gray-400">증권사들이 본 적정 주가</p>
       </header>
+
+      {/* 1줄: 평균 목표주가 (네이버 공식 우선) */}
+      {headlineTarget != null ? (
+        <div className="flex items-baseline justify-between mb-1">
+          <span className="text-sm font-bold text-gray-700">평균 목표주가</span>
+          <span className="text-sm font-bold tabular-nums text-gray-900">
+            {headlineTarget.toLocaleString()}원
+            {headlineGap !== undefined && (
+              <span className={`ml-1 ${signColor(headlineGap)}`}>
+                ({headlineGap >= 0 ? "+" : ""}{headlineGap.toFixed(1)}%)
+              </span>
+            )}
+          </span>
+        </div>
+      ) : (
+        <div className="text-xs text-gray-400 mb-1">컨센서스 데이터 없음</div>
+      )}
+
+      {/* 2줄: 투자의견 + 점수 */}
+      {(opinion || opScore != null) && (
+        <div className="flex items-baseline justify-between mb-1">
+          <span className="text-sm text-gray-700">투자의견</span>
+          <span className={`text-sm font-bold ${opColor}`}>
+            {opinion}{opScore != null ? ` (${opScore.toFixed(2)}점)` : ""}
+          </span>
+        </div>
+      )}
+
+      {/* 3줄: 단순평균 (참고) — 공식과 다를 때만 */}
+      {simpleAvg != null && (officialTarget == null || simpleAvg !== officialTarget) && (
+        <div className="text-[11px] text-gray-500 mb-2">
+          참고: 최근 {targets.length}건 단순평균 {simpleAvg.toLocaleString()}원
+        </div>
+      )}
+
+      <div className="text-xs text-gray-400 mb-1.5">
+        최근 리포트 ({reports.length}건)
+      </div>
+
       {reports.length === 0 ? (
         <div className="text-xs text-gray-400 py-2">최근 리포트 없음</div>
       ) : (
@@ -233,7 +275,8 @@ export function ValuationModal({
             <div className="space-y-3">
               <ConsensusSection reports={reports}
                                  shareholders={shareholders}
-                                 curPrice={curPrice} />
+                                 curPrice={curPrice}
+                                 fundamental={fund} />
               <ShareholderSection shareholders={shareholders} />
             </div>
           </div>
