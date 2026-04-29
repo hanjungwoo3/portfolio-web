@@ -6,9 +6,12 @@ import {
 } from "../lib/usMarketData";
 import { signColor, isSymbolSleeping } from "../lib/format";
 import {
-  getPersonalProxyUrl, setPersonalProxyUrl, getEffectivePollMs,
+  getPersonalProxyUrl, setPersonalProxyUrl,
+  getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS,
 } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
+import { RefreshIndicator } from "./RefreshIndicator";
+import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadPeaks,
 } from "../lib/db";
@@ -45,6 +48,7 @@ export function MobileSimpleView() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [savedMsg, setSavedMsg] = useState("");
   const [activeTab, setActiveTab] = useState<string>(US_KEY);
+  const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     setProxyUrl(getPersonalProxyUrl() ?? "");
@@ -147,15 +151,26 @@ export function MobileSimpleView() {
     refetchInterval: REFRESH_MS,
   });
 
-  // 활성 탭에 맞는 마지막 갱신 시각
+  // 활성 탭에 맞는 마지막 갱신 시각 (RefreshIndicator 사용)
   const lastAt = activeTab === US_KEY ? usAt : (groupAt ?? 0);
-  const updatedAt = lastAt > 0
-    ? new Date(lastAt).toLocaleTimeString("ko-KR", {
-        hour: "2-digit", minute: "2-digit", second: "2-digit",
-      })
-    : "";
 
   const handleRefresh = () => location.reload();
+
+  // 좌우 스와이프로 그룹 탭 이동 (가로 dx > 세로 dy 일 때만 인정)
+  const handleTouchStart = (e: React.TouchEvent) => {
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+  };
+  const handleTouchEnd = (e: React.TouchEvent) => {
+    if (!touchStart.current) return;
+    const dx = e.changedTouches[0].clientX - touchStart.current.x;
+    const dy = e.changedTouches[0].clientY - touchStart.current.y;
+    touchStart.current = null;
+    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
+    const idx = groupTabs.findIndex(t => t.key === activeTab);
+    if (idx === -1) return;
+    if (dx < 0 && idx < groupTabs.length - 1) setActiveTab(groupTabs[idx + 1].key);
+    if (dx > 0 && idx > 0) setActiveTab(groupTabs[idx - 1].key);
+  };
 
   // ─── Tier 0 (대시보드 4개) ───
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
@@ -189,13 +204,14 @@ export function MobileSimpleView() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
+    <div className="min-h-screen bg-gray-50"
+         onTouchStart={handleTouchStart}
+         onTouchEnd={handleTouchEnd}>
       <header className="sticky top-0 z-10 bg-white border-b border-gray-200
                           px-3 py-2 flex items-center gap-1">
-        <h1 className="text-base font-bold text-gray-800">📈 포트폴리오</h1>
-        {updatedAt && (
-          <span className="text-[11px] text-gray-500">{updatedAt}</span>
-        )}
+        <h1 className="text-sm font-bold text-gray-800 shrink-0">📈</h1>
+        <RefreshIndicator dataUpdatedAt={lastAt}
+                          refetchIntervalMs={REFRESH_MS} />
         <button onClick={handleRefresh}
                 disabled={isFetching}
                 title="새로고침 (페이지 reload)"
@@ -397,6 +413,9 @@ export function MobileSimpleView() {
                        savedMsg={savedMsg} setSavedMsg={setSavedMsg}
                        onClose={() => setSettingsOpen(false)} />
       )}
+
+      {/* 첫 접속 안내 팝업 — 전용 프록시 미설정 시 자동 표시 */}
+      <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
     </div>
   );
 }
@@ -416,6 +435,7 @@ function SettingsModal({
   const [raw, setRaw] = useState("");
   const [busy, setBusy] = useState(false);
   const [dataMsg, setDataMsg] = useState("");
+  const [pollMs, setPollMs] = useState(getPersonalPollMs());
 
   // 모달 열릴 때 현재 데이터 export 해서 textarea 채움
   useEffect(() => {
@@ -425,6 +445,13 @@ function SettingsModal({
       setDataMsg(`현재: 종목 ${data.holdings.length}건 / 피크 ${Object.keys(data.peaks).length}건`);
     })();
   }, []);
+
+  const handlePollChange = (ms: number) => {
+    setPollMs(ms);
+    setPersonalPollMs(ms);
+    setSavedMsg(`✅ 폴링 주기 ${ms / 1000}초 적용 — 새로고침 후 적용`);
+    setTimeout(() => setSavedMsg(""), 2500);
+  };
 
   const saveProxy = () => {
     const v = proxyUrl.trim().replace(/\/+$/, "");
@@ -518,6 +545,35 @@ function SettingsModal({
             {savedMsg && (
               <p className="text-[11px] text-emerald-700">{savedMsg}</p>
             )}
+
+            {/* 폴링 주기 — 전용 프록시 활성화 시만 enabled */}
+            <div className="flex items-center gap-1 mt-2 flex-wrap">
+              <span className={`text-[11px] ${proxyUrl ? "text-gray-700" : "text-gray-400"}`}>
+                폴링 주기:
+              </span>
+              {POLL_OPTIONS.map(ms => {
+                const sec = ms / 1000;
+                const active = pollMs === ms;
+                const enabled = !!proxyUrl;
+                return (
+                  <button key={ms}
+                          onClick={() => handlePollChange(ms)}
+                          disabled={!enabled}
+                          className={`px-2 py-0.5 text-[11px] rounded border transition
+                                      ${active
+                                        ? "bg-blue-600 text-white border-blue-700 font-bold"
+                                        : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}
+                                      ${!enabled ? "opacity-40 cursor-not-allowed" : ""}`}>
+                    {sec}초
+                  </button>
+                );
+              })}
+              {!proxyUrl && (
+                <span className="text-[10px] text-gray-400 w-full mt-0.5">
+                  (공개 프록시는 10초 고정)
+                </span>
+              )}
+            </div>
           </div>
 
           {/* 2) 포트폴리오 데이터 import/export */}
