@@ -4,6 +4,7 @@
   "type": "module",
   "engines": { "node": ">=18" },
   "scripts": {
+    "build": "echo 'no build step'",
     "start": "node server.js"
   }
 }
