@@ -17,7 +17,23 @@ import { useAdaptiveRefreshMs } from "./lib/proxyStatus";
 import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
 import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { ValuationModal } from "./components/ValuationModal";
+import { MobileSimpleView } from "./components/MobileSimpleView";
 import type { Stock } from "./types";
+
+// viewport 감지 — 폰 (≤ 640px) 자동 모바일 뷰
+function useIsMobile(): boolean {
+  const [isMobile, setIsMobile] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.matchMedia("(max-width: 640px)").matches;
+  });
+  useEffect(() => {
+    const mql = window.matchMedia("(max-width: 640px)");
+    const onChange = (e: MediaQueryListEvent) => setIsMobile(e.matches);
+    mql.addEventListener("change", onChange);
+    return () => mql.removeEventListener("change", onChange);
+  }, []);
+  return isMobile;
+}
 
 // 기본 폴링 — 공개 4-way: 10초 / 전용 프록시 사용 시: localStorage 설정값 (5/10/30/60초)
 // 다운 시 자동 증가 (base × (1 + downCount))
@@ -349,10 +365,15 @@ function RefreshIndicatorGlobal({ refetchIntervalMs }: { refetchIntervalMs: numb
   return <RefreshIndicator dataUpdatedAt={ts} refetchIntervalMs={refetchIntervalMs} />;
 }
 
+function AppRoot() {
+  const isMobile = useIsMobile();
+  return isMobile ? <MobileSimpleView /> : <Dashboard />;
+}
+
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <Dashboard />
+      <AppRoot />
     </QueryClientProvider>
   );
 }
