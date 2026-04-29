@@ -169,23 +169,28 @@ export function MobileSimpleView() {
               if (rows.length === 0) return null;
               return rows.map((r, idx) => {
                 const isFirst = idx === 0;
+                const isLast = idx === rows.length - 1;
                 const sign = r.diff !== undefined ? signColor(r.diff) : "text-gray-400";
                 // 등락에 따라 행 전체 배경 — 양수 옅은 빨강 / 음수 옅은 파랑
                 const rowBg =
                   r.diff !== undefined && r.diff > 0 ? "bg-rose-50"
                   : r.diff !== undefined && r.diff < 0 ? "bg-blue-50/70"
                   : "";
+                // 섹터 끝에 굵은 구분선 / 행 사이엔 옅은 선
+                const borderCls = isLast
+                  ? "border-b-2 border-gray-400"
+                  : "border-b border-gray-100";
                 return (
                   <tr key={`${sector}-${r.symbol}`}
-                      className={`border-t border-gray-100 ${rowBg}
+                      className={`${borderCls} ${rowBg}
                                    ${r.sleeping ? "opacity-60" : ""}`}>
                     {isFirst ? (
-                      <td className="px-2 py-2 font-bold text-gray-700 align-top
-                                      bg-gray-100/70 border-r border-gray-200"
+                      <td className="px-2 py-2 font-bold text-gray-800 align-middle
+                                      bg-slate-200 border-r-2 border-gray-400"
                           rowSpan={rows.length}>
                         <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-lg">{SECTOR_EMOJI[sector] ?? "•"}</span>
-                          <span className="text-xs">{sector}</span>
+                          <span className="text-2xl">{SECTOR_EMOJI[sector] ?? "•"}</span>
+                          <span className="text-xs font-bold">{sector}</span>
                         </div>
                       </td>
                     ) : null}
