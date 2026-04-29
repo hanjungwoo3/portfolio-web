@@ -86,21 +86,45 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
   const resp = await fetchProxied(target);
   if (!resp.ok) throw new Error(`Toss price fetch failed: ${resp.status}`);
   const data = await resp.json() as TossPriceResponse;
-  // KST 08:00 ~ 08:59 (한국 프리장 동시호가 시간) — base = price 로 강제
-  // → "어제보다" 가격 0 / TotalRow 의 어제대비 합계 0 / 전체수익 꼬임 방지.
-  // Toss API 의 base 는 09:00 정규장 시작 후에야 새 거래일 기준으로 갱신됨.
+  // KST 08:00 ~ 08:59 (한국 프리장 동시호가 시간) —
+  // 첫 fetch 시 close 를 그날의 base 로 localStorage 에 stamp.
+  // 그 이후 같은 거래일 동안 같은 stamp 유지 → 새 가격 들어오면 그 stamp 대비 차이 표시.
+  // Toss API 의 base 는 09:00 정규장 시작 후에야 새 거래일 종가로 갱신됨.
   const isPre = isKrPreOpen();
-  return (data.result || []).map(item => ({
-    ticker: item.code.replace(/^A/, ""),
-    price: item.close,
-    base: isPre ? item.close : item.base,
-    open: item.open,
-    volume: item.volume,
-    trade_date: item.tradeDateTime ? toKstDateString(item.tradeDateTime) : "",
-    trade_dt: item.tradeDateTime,
-    high: item.high,
-    low: item.low,
-  }));
+  return (data.result || []).map(item => {
+    const ticker = item.code.replace(/^A/, "");
+    return {
+      ticker,
+      price: item.close,
+      base: isPre ? getOrStampKrPreBase(ticker, item.close) : item.base,
+      open: item.open,
+      volume: item.volume,
+      trade_date: item.tradeDateTime ? toKstDateString(item.tradeDateTime) : "",
+      trade_dt: item.tradeDateTime,
+      high: item.high,
+      low: item.low,
+    };
+  });
+}
+
+// KST 오늘 날짜 (YYYY-MM-DD) — localStorage 키 용
+function todayKstStr(): string {
+  const now = new Date();
+  return new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
+}
+
+// KR 프리장 base stamp — 첫 fetch 시 close 저장, 같은 거래일 안에선 그 값 유지
+function getOrStampKrPreBase(ticker: string, currentClose: number): number {
+  const key = `kr_pre_base_${ticker}_${todayKstStr()}`;
+  try {
+    const stored = localStorage.getItem(key);
+    if (stored) {
+      const n = Number(stored);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    localStorage.setItem(key, String(currentClose));
+  } catch { /* quota / privacy ignore */ }
+  return currentClose;
 }
 
 interface TossInvestorItem {
