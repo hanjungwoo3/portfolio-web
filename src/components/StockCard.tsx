@@ -221,7 +221,7 @@ export function StockCard({
             {peak && peak > price.price && (
               <span className={`font-bold rounded px-1.5
                                 ${isPeakDrop
-                                  ? "bg-red-800 text-white"
+                                  ? "bg-rose-200 text-rose-800"
                                   : "text-blue-800"}`}>
                 피크 {peak.toLocaleString()}원
                 <span className="ml-0.5">
