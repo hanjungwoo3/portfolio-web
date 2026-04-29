@@ -540,26 +540,34 @@ function SearchResultRow({
           </span>
         )}
       </div>
-      {/* 행별 보유 입력 (일괄적용 시 사용) */}
-      <div className="mt-1.5 flex items-center gap-1.5 text-xs ml-6">
-        <span className="text-gray-400">보유 시:</span>
-        <input type="number" inputMode="numeric" placeholder="수량"
-               value={edit.shares}
-               onChange={e => onEditChange({ shares: e.target.value })}
-               onClick={e => e.stopPropagation()}
-               className="border rounded px-1.5 py-0.5 w-20 text-right
-                          tabular-nums focus:outline-none focus:border-blue-500" />
-        <input type="number" inputMode="numeric" placeholder="매수가"
-               value={edit.avgPrice}
-               onChange={e => onEditChange({ avgPrice: e.target.value })}
-               onClick={e => e.stopPropagation()}
-               className="border rounded px-1.5 py-0.5 w-24 text-right
-                          tabular-nums focus:outline-none focus:border-blue-500" />
-        <input type="date" value={edit.buyDate}
-               onChange={e => onEditChange({ buyDate: e.target.value })}
-               onClick={e => e.stopPropagation()}
-               className="border rounded px-1.5 py-0.5
-                          focus:outline-none focus:border-blue-500" />
+      {/* 행별 입력 (일괄적용 시 모든 그룹에 동일 적용) */}
+      <div className="mt-1.5 flex items-center gap-2 text-xs ml-6 flex-wrap">
+        <label className="flex items-center gap-1">
+          <span className="text-gray-500">수량</span>
+          <input type="number" inputMode="numeric" placeholder="0"
+                 value={edit.shares}
+                 onChange={e => onEditChange({ shares: e.target.value })}
+                 onClick={e => e.stopPropagation()}
+                 className="border rounded px-1.5 py-0.5 w-20 text-right
+                            tabular-nums focus:outline-none focus:border-blue-500" />
+        </label>
+        <label className="flex items-center gap-1">
+          <span className="text-gray-500">평단가</span>
+          <input type="number" inputMode="numeric" placeholder="0"
+                 value={edit.avgPrice}
+                 onChange={e => onEditChange({ avgPrice: e.target.value })}
+                 onClick={e => e.stopPropagation()}
+                 className="border rounded px-1.5 py-0.5 w-24 text-right
+                            tabular-nums focus:outline-none focus:border-blue-500" />
+        </label>
+        <label className="flex items-center gap-1">
+          <span className="text-gray-500">매수일</span>
+          <input type="date" value={edit.buyDate}
+                 onChange={e => onEditChange({ buyDate: e.target.value })}
+                 onClick={e => e.stopPropagation()}
+                 className="border rounded px-1.5 py-0.5
+                            focus:outline-none focus:border-blue-500" />
+        </label>
       </div>
     </div>
   );

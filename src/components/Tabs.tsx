@@ -16,16 +16,16 @@ interface Props {
 }
 
 export function Tabs({ tabs, activeKey, onChange, onRename, onDelete }: Props) {
-  const handleRename = (oldName: string) => {
-    const next = window.prompt(`"${oldName}" 그룹명 변경 — 새 이름:`, oldName);
+  const handleRename = (oldKey: string, displayLabel: string) => {
+    const next = window.prompt(`"${displayLabel}" 그룹명 변경 — 새 이름:`, displayLabel);
     if (next == null) return;
     const trimmed = next.trim();
-    if (!trimmed || trimmed === oldName) return;
+    if (!trimmed || trimmed === oldKey) return;
     if (RESERVED.has(trimmed)) {
       alert(`"${trimmed}" 은(는) 사용할 수 없는 이름입니다.`);
       return;
     }
-    onRename?.(oldName, trimmed);
+    onRename?.(oldKey, trimmed);
   };
 
   return (
@@ -57,7 +57,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete }: Props) {
                 {onRename && (
                   <button
                     type="button"
-                    onClick={e => { e.stopPropagation(); handleRename(t.key); }}
+                    onClick={e => { e.stopPropagation(); handleRename(t.key, t.label); }}
                     title="그룹명 변경"
                     className="text-[10px] leading-none px-0.5">
                     ✏️
@@ -68,7 +68,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete }: Props) {
                     type="button"
                     onClick={e => {
                       e.stopPropagation();
-                      const msg = `"${t.key}" 그룹의 ${t.count}건을 모두 삭제할까요?`
+                      const msg = `"${t.label}" 그룹의 ${t.count}건을 모두 삭제할까요?`
                                 + `\n(되돌릴 수 없음)`;
                       if (confirm(msg)) onDelete(t.key);
                     }}
@@ -89,10 +89,12 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete }: Props) {
 
 export const US_MARKET_TAB_KEY = "__us-market__";
 
-// 시스템 reserved — 이름 변경 불가 (보유 / 관심ETF 내부 / 미국증시 탭)
-const RESERVED = new Set<string>(["", "관심ETF", US_MARKET_TAB_KEY]);
+// 시스템 reserved — 이름 변경/삭제 불가 (관심ETF 내부 / 미국증시 시스템 탭)
+// "보유" (account="") 도 일반 그룹과 동일 — 사용자가 이름 변경/삭제 가능.
+const RESERVED = new Set<string>(["관심ETF", US_MARKET_TAB_KEY]);
 
-// 미국증시 → 보유 → (퇴직연금/관심 포함) 사용자 그룹 알파벳 순
+// 미국증시 → 보유 → (퇴직연금/애매 등) 사용자 그룹 알파벳 순
+// 모든 그룹 동일 아이콘 🏷 — "보유"도 일반 그룹.
 export function buildTabs(holdings: Stock[]): TabSpec[] {
   const counts = new Map<string, number>();
   for (const s of holdings) {
@@ -102,11 +104,11 @@ export function buildTabs(holdings: Stock[]): TabSpec[] {
   const tabs: TabSpec[] = [
     { key: US_MARKET_TAB_KEY, label: "미국 증시", emoji: "📈", count: 0 },
   ];
-  // 1) 보유 (account="")
+  // 1) 보유 (account="") — 일반 그룹과 동일 아이콘
   if (counts.has("")) {
-    tabs.push({ key: "", label: "보유", emoji: "💼", count: counts.get("")! });
+    tabs.push({ key: "", label: "보유", emoji: "🏷", count: counts.get("")! });
   }
-  // 2) 그 외 모든 사용자 그룹 (퇴직연금/관심 포함) — 동일 아이콘, 알파벳 순
+  // 2) 그 외 모든 사용자 그룹 — 동일 아이콘, 알파벳 순
   const userGroups = Array.from(counts.keys())
     .filter(k => !["", "관심ETF"].includes(k))
     .sort();
