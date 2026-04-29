@@ -222,9 +222,9 @@ export function MobileSimpleView() {
         <a href={KAKAOPAY_URL} target="_blank" rel="noopener noreferrer"
            title="개발자 후원하기 (카카오페이)"
            className="px-1.5 py-1 rounded hover:bg-gray-100 transition
-                       opacity-60 hover:opacity-100 inline-flex items-center gap-0.5
-                       text-[10px] text-gray-600 shrink-0">
-          🍵 <span>개발자후원</span>
+                       inline-flex items-center gap-0.5 shrink-0">
+          <span>🍵</span>
+          <span className="text-[10px] text-gray-600 opacity-70">개발자후원</span>
         </a>
         <button onClick={() => setSettingsOpen(true)}
                 title="설정"
