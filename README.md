@@ -2,6 +2,9 @@
 
 데스크톱 v1/v2 + 모바일(Kivy)을 잇는 웹 버전. 무료 호스팅, 사용자 데이터 브라우저 로컬 저장.
 
+> 📋 **모든 기능/규칙/색상 체계/경고 뱃지/그룹 시스템 정리** → [`FEATURES.md`](FEATURES.md)
+> 📖 **본인 전용 Cloudflare Worker 배포 가이드** → [`workers/proxy/DEPLOY-USER.md`](workers/proxy/DEPLOY-USER.md)
+
 ## 아키텍처
 
 ```
