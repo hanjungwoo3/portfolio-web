@@ -272,8 +272,8 @@ function SettingsModal({
     const v = proxyUrl.trim().replace(/\/+$/, "");
     setPersonalProxyUrl(v || null);
     setProxyUrl(v);
-    setSavedMsg(v ? "✅ 전용 프록시 적용 — 새로고침 후 적용" : "✅ 공개 4-way 사용");
-    setTimeout(() => setSavedMsg(""), 2500);
+    setSavedMsg(v ? "✅ 전용 프록시 적용" : "✅ 공개 4-way 사용");
+    onClose();
   };
 
   const result = detectPortfolioJson(raw);
@@ -308,6 +308,7 @@ function SettingsModal({
         await replaceAllPeaks(result.peaks);
       }
       setDataMsg("💾 적용 완료");
+      onClose();
     } catch (e) {
       setDataMsg(`❌ 저장 실패: ${e instanceof Error ? e.message : ""}`);
     } finally {
