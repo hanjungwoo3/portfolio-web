@@ -1,6 +1,7 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getPersonalProxyUrl } from "./proxyConfig";
+import { isKrPreOpen } from "./format";
 
 // 공개 4-way 라운드 로빈 (Cloudflare + Vercel + Deno + Render)
 const PUBLIC_PROXY_URLS: string[] = [
@@ -85,17 +86,34 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
   const resp = await fetchProxied(target);
   if (!resp.ok) throw new Error(`Toss price fetch failed: ${resp.status}`);
   const data = await resp.json() as TossPriceResponse;
-  return (data.result || []).map(item => ({
-    ticker: item.code.replace(/^A/, ""),
-    price: item.close,
-    base: item.base,
-    open: item.open,
-    volume: item.volume,
-    trade_date: item.tradeDateTime ? toKstDateString(item.tradeDateTime) : "",
-    trade_dt: item.tradeDateTime,
-    high: item.high,
-    low: item.low,
-  }));
+  // KST 08:00 ~ 08:59 프리장 동시호가 시간 —
+  // 8시 이후 거래 시작된 종목은 어제 종가(base) 그대로 → 토스 앱과 동일 변동 표시
+  // 거래 시작 안 된 종목은 base = price → 어제대비 0 (전체수익 꼬임 방지)
+  const isPre = isKrPreOpen();
+  let kst8amMs = 0;
+  if (isPre) {
+    const now = new Date();
+    const kstDate = new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
+    kst8amMs = new Date(`${kstDate}T08:00:00+09:00`).getTime();
+  }
+  return (data.result || []).map(item => {
+    let base = item.base;
+    if (isPre && kst8amMs > 0) {
+      const tradeMs = item.tradeDateTime ? new Date(item.tradeDateTime).getTime() : 0;
+      if (tradeMs < kst8amMs) base = item.close;  // 거래 시작 안 됨 → 어제대비 0
+    }
+    return {
+      ticker: item.code.replace(/^A/, ""),
+      price: item.close,
+      base,
+      open: item.open,
+      volume: item.volume,
+      trade_date: item.tradeDateTime ? toKstDateString(item.tradeDateTime) : "",
+      trade_dt: item.tradeDateTime,
+      high: item.high,
+      low: item.low,
+    };
+  });
 }
 
 interface TossInvestorItem {
