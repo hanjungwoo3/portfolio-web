@@ -68,9 +68,9 @@ const WARN_PILL_BG: Record<string, string> = {
   주의: "bg-amber-200",
 };
 
-// 손절/트레일링 임계값 (데스크톱 v2 기본 -9.0% — 사용자 요청 -10%)
-const STOP_LOSS_PCT = -10;
-const TRAILING_STOP_PCT = -10;
+// 손절/트레일링 임계값 (데스크톱 v2 기본 -9.0%)
+const STOP_LOSS_PCT = -9;
+const TRAILING_STOP_PCT = -9;
 
 // 직전 틱 대비 화살표 — 데스크톱 v2 동일 (첫 전환 속빈, 연속 속찬)
 type TickDir = "up" | "down" | undefined;
