@@ -327,87 +327,75 @@ export function MobileSimpleView() {
         })}
       </div>
 
-      {/* ─── 섹터 표 ─── */}
-      <div className="px-3 pb-2">
-        <table className="w-full bg-white rounded-lg border border-gray-200
-                           overflow-hidden text-sm">
-          <thead className="bg-gray-100 text-gray-600 text-xs">
-            <tr>
-              <th className="px-2 py-2 text-left w-16">섹터</th>
-              <th className="px-2 py-2 text-left">종목</th>
-              <th className="px-2 py-2 text-right">현재가</th>
-              <th className="px-2 py-2 text-right w-24">등락%</th>
-            </tr>
-          </thead>
-          <tbody>
-            {SECTOR_ORDER.map(sector => {
-              const rows = buildRowsForSector(sector);
-              if (rows.length === 0) return null;
-              return rows.map((r, idx) => {
-                const isFirst = idx === 0;
-                const isLast = idx === rows.length - 1;
-                const sign = r.diff !== undefined ? signColor(r.diff) : "text-gray-400";
-                // 등락에 따라 행 전체 배경 — 양수 옅은 빨강 / 음수 옅은 파랑
-                const rowBg =
-                  r.diff !== undefined && r.diff > 0 ? "bg-rose-50"
-                  : r.diff !== undefined && r.diff < 0 ? "bg-blue-50/70"
-                  : "";
-                // 섹터 끝에 구분선 / 행 사이엔 옅은 선
-                const borderCls = isLast
-                  ? "border-b border-gray-300"
-                  : "border-b border-gray-100";
-                return (
-                  <tr key={`${sector}-${r.symbol}`}
-                      className={`${borderCls} ${rowBg}
-                                   ${r.sleeping ? "opacity-60" : ""}`}>
-                    {isFirst ? (
-                      <td className="px-2 py-2 font-bold text-gray-800 align-middle
-                                      bg-slate-200 border-r border-gray-300"
-                          rowSpan={rows.length}>
-                        <div className="flex flex-col items-center gap-0.5">
-                          <span className="text-2xl">{SECTOR_EMOJI[sector] ?? "•"}</span>
-                          <span className="text-xs font-bold">{sector}</span>
+      {/* ─── 섹터별 표 카드 ─── */}
+      <div className="px-3 pb-2 space-y-2">
+        {SECTOR_ORDER.map(sector => {
+          const rows = buildRowsForSector(sector);
+          if (rows.length === 0) return null;
+          return (
+            <table key={sector}
+                   className="w-full bg-white rounded-lg border border-gray-200
+                               overflow-hidden text-sm">
+              <tbody>
+                {rows.map((r, idx) => {
+                  const isFirst = idx === 0;
+                  const sign = r.diff !== undefined ? signColor(r.diff) : "text-gray-400";
+                  const rowBg =
+                    r.diff !== undefined && r.diff > 0 ? "bg-rose-50"
+                    : r.diff !== undefined && r.diff < 0 ? "bg-blue-50/70"
+                    : "";
+                  return (
+                    <tr key={`${sector}-${r.symbol}`}
+                        className={`${idx < rows.length - 1 ? "border-b border-gray-100" : ""}
+                                     ${rowBg}
+                                     ${r.sleeping ? "opacity-60" : ""}`}>
+                      {isFirst ? (
+                        <td className="px-2 py-2 font-bold text-gray-800 align-middle
+                                        bg-slate-200 border-r border-gray-300 w-16"
+                            rowSpan={rows.length}>
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="text-2xl">{SECTOR_EMOJI[sector] ?? "📊"}</span>
+                            <span className="text-xs font-bold">{sector}</span>
+                          </div>
+                        </td>
+                      ) : null}
+                      <td className="px-2 py-2">
+                        <div className="flex items-baseline gap-1">
+                          {r.sleeping && (
+                            <span className="text-[10px] text-gray-400">zZ</span>
+                          )}
+                          <span className={`text-base font-bold
+                                            ${r.kind === "future" ? "text-amber-700"
+                                              : "text-gray-900"}`}>
+                            {r.name}
+                          </span>
                         </div>
-                      </td>
-                    ) : null}
-                    <td className="px-2 py-2">
-                      <div className="flex items-baseline gap-1">
-                        {r.sleeping && (
-                          <span className="text-[11px] text-gray-400">zZ</span>
+                        {r.desc && (
+                          <div className="text-[11px] text-gray-500 truncate
+                                            max-w-[180px] mt-0.5">
+                            {r.desc}
+                          </div>
                         )}
-                        <span className={`text-base font-bold
-                                          ${r.kind === "future" ? "text-amber-700"
-                                            : "text-gray-900"}`}>
-                          {r.name}
-                        </span>
-                      </div>
-                      {r.desc && (
-                        <div className="text-[11px] text-gray-500 truncate
-                                          max-w-[180px] mt-0.5">
-                          {r.desc}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-2 py-2 text-right tabular-nums text-gray-900 font-medium">
-                      {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
-                    </td>
-                    <td className={`px-2 py-2 text-right tabular-nums text-base font-bold ${sign}`}>
-                      {r.pct !== undefined
-                        ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
-                        : "—"}
-                    </td>
-                  </tr>
-                );
-              });
-            })}
-          </tbody>
-        </table>
-
+                      </td>
+                      <td className="px-2 py-2 text-right tabular-nums text-gray-900 font-medium">
+                        {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
+                      </td>
+                      <td className={`px-2 py-2 text-right tabular-nums text-base font-bold w-24 ${sign}`}>
+                        {r.pct !== undefined
+                          ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
+                          : "—"}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          );
+        })}
         <div className="text-[10px] text-gray-400 text-center mt-3 mb-2">
           {Math.round(REFRESH_MS / 1000)}초마다 자동 갱신
         </div>
       </div>
-
       </>)}
 
       {settingsOpen && (
