@@ -213,13 +213,14 @@ export function StockCard({
             </span>
             {peak && peak > price.price && (
               <span className="font-bold text-blue-800">
-                피크 {peak.toLocaleString()}원{" "}
-                <span className={`rounded px-1
+                피크 {peak.toLocaleString()}원{" "}(
+                <span className={`rounded px-0.5
                                   ${isPeakDrop
                                     ? "bg-rose-400 text-white"
                                     : ""}`}>
-                  ({peakPct.toFixed(2)}%)
+                  {peakPct.toFixed(2)}%
                 </span>
+                )
               </span>
             )}
           </div>
@@ -243,18 +244,20 @@ export function StockCard({
           )}
         </div>
 
-        {/* 전체수익 (보유만) — 손절(-9% 이하) 시 % 부분만 배경 강조 */}
+        {/* 전체수익 (보유만) — 손절(-9% 이하) 시 괄호 안 숫자%만 배경 강조 */}
         {hasPosition && (
           <div className="text-sm">
             <span className="text-gray-500">전체수익 </span>
             <span className={`font-bold ${signColor(pnl)}`}>
               {formatSigned(pnl)}
             </span>{" "}
-            <span className={`font-bold rounded px-1
+            <span className={`font-bold ${signColor(pnl)}`}>(</span>
+            <span className={`font-bold rounded px-0.5
                               ${isStop ? "bg-rose-400 text-white"
                                 : signColor(pnl)}`}>
-              ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)
+              {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
             </span>
+            <span className={`font-bold ${signColor(pnl)}`}>)</span>
           </div>
         )}
 
