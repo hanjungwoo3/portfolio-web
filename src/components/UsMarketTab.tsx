@@ -206,26 +206,24 @@ function QuoteList({ rows }: QuoteListProps) {
           : "";
         return (
           <div key={r.symbol}
-               className={`grid grid-cols-[1fr_70px_76px] items-baseline gap-1
-                            px-1.5 py-1 ${rowBg}
+               className={`flex items-baseline gap-2 px-1.5 py-1
+                            ${rowBg}
                             ${r.sleeping ? "opacity-60" : ""}`}>
-            <div className="flex items-baseline gap-1 min-w-0">
-              {r.sleeping && (
-                <span className="text-[10px] text-gray-400 shrink-0">zZ</span>
-              )}
-              <a href={quoteUrl(r.symbol)} target="_blank" rel="noopener noreferrer"
-                 title={r.desc}
-                 className={`text-sm font-bold hover:underline truncate
-                              ${r.kind === "future" ? "text-amber-700"
-                                : r.kind === "etf" ? "text-gray-700"
-                                : "text-gray-900"}`}>
-                {r.name}
-              </a>
-            </div>
-            <span className="text-xs tabular-nums text-gray-700 text-right">
+            {r.sleeping && (
+              <span className="text-[10px] text-gray-400 shrink-0">zZ</span>
+            )}
+            <a href={quoteUrl(r.symbol)} target="_blank" rel="noopener noreferrer"
+               title={r.desc}
+               className={`text-sm font-bold hover:underline truncate w-[160px]
+                            ${r.kind === "future" ? "text-amber-700"
+                              : r.kind === "etf" ? "text-gray-700"
+                              : "text-gray-900"}`}>
+              {r.name}
+            </a>
+            <span className="text-xs tabular-nums text-gray-700 text-right w-[64px] shrink-0">
               {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
             </span>
-            <span className={`text-base font-bold tabular-nums text-right ${sign}`}>
+            <span className={`text-base font-bold tabular-nums text-right w-[64px] shrink-0 ${sign}`}>
               {r.pct !== undefined
                 ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
                 : ""}
