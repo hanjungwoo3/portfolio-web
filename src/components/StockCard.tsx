@@ -224,17 +224,17 @@ export function StockCard({
           </div>
         )}
 
-        {/* 어제보다 */}
+        {/* 어제보다 — 금액은 일반, %만 bold */}
         <div className="text-sm">
           <span className="text-gray-500">어제보다 </span>
           {dayDiff !== 0 ? (
             <>
-              <span className={`font-bold ${signColor(dayDiff)}`}>
+              <span className={signColor(dayDiff)}>
                 {formatSigned(dayDiff)}
                 {stock.shares > 0 && ` / ${formatSigned(dayDiff * stock.shares)}`}
-              </span>
+              </span>{" "}
               <span className={`font-bold ${signColor(dayDiff)}`}>
-                {"  "}({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
+                ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
               </span>
             </>
           ) : (
@@ -242,20 +242,20 @@ export function StockCard({
           )}
         </div>
 
-        {/* 전체수익 (보유만) — 손절(-9% 이하) 시 괄호 안 숫자%만 배경 강조 */}
+        {/* 전체수익 (보유만) — 금액 일반, %만 bold (손절 -9% 이하 시 % 배경 강조) */}
         {hasPosition && (
           <div className="text-sm">
             <span className="text-gray-500">전체수익 </span>
-            <span className={`font-bold ${signColor(pnl)}`}>
+            <span className={signColor(pnl)}>
               {formatSigned(pnl)}
             </span>{" "}
-            <span className={`font-bold ${signColor(pnl)}`}>(</span>
+            <span className={signColor(pnl)}>(</span>
             <span className={`font-bold rounded px-0.5
                               ${isStop ? "bg-blue-600 text-white"
                                 : signColor(pnl)}`}>
               {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
             </span>
-            <span className={`font-bold ${signColor(pnl)}`}>)</span>
+            <span className={signColor(pnl)}>)</span>
           </div>
         )}
 
