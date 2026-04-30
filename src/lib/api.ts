@@ -171,6 +171,17 @@ export async function fetchInvestorHistory(
   return body.map(mapInvestorItem);
 }
 
+// 큰 size 부터 시도 → 빈 응답이면 단계적으로 작은 size 폴백 (Toss API cap 회피)
+export async function fetchInvestorHistorySafe(
+  ticker: string, sizes: number[],
+): Promise<Investor[]> {
+  for (const s of sizes) {
+    const data = await fetchInvestorHistory(ticker, s);
+    if (data.length > 0) return data;
+  }
+  return [];
+}
+
 // 8시 KST 이전 + body[0] 전부 0 → body[1] 폴백 (데스크톱 v2 동일)
 export function pickTodayInvestor(history: Investor[]): Investor | null {
   if (history.length === 0) return null;

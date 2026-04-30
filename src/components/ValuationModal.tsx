@@ -7,7 +7,7 @@ import {
 } from "../lib/fundamentals";
 import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/fundamentals";
 import { signColor } from "../lib/format";
-import { fetchInvestorHistory } from "../lib/api";
+import { fetchInvestorHistorySafe } from "../lib/api";
 import type { Investor } from "../types";
 
 interface Props {
@@ -384,7 +384,7 @@ function computePeriodSummary(
 function InvestorHistorySection({ ticker }: InvestorHistoryProps) {
   const { data: history, isLoading } = useQuery({
     queryKey: ["investor-history-modal", ticker],
-    queryFn: () => fetchInvestorHistory(ticker, 120),
+    queryFn: () => fetchInvestorHistorySafe(ticker, [250, 200, 150, 120, 60]),
     enabled: /^\d{6}$/.test(ticker),
     staleTime: 5 * 60_000,  // 5분 (App 의 5초 폴링과 별도, 모달 캐시)
   });
