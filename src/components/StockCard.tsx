@@ -216,7 +216,7 @@ export function StockCard({
   return (
     <div className={`group ${dimmed ? "opacity-60" : ""}`}>
       {/* 책갈피 — 종목명 + 섹터 + 위험 (좌) / 신호 + hover 버튼 (우) — 모두 책갈피 통일 */}
-      <div className="flex items-end justify-between gap-1 ml-2">
+      <div className="flex items-end justify-between gap-1 mx-2">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
           <button
             type="button"
