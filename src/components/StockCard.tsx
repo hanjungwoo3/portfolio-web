@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import type { Stock, Price, Investor, Consensus } from "../types";
 import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
+import { getDimSleepingEnabled } from "../lib/proxyConfig";
 
 interface Props {
   stock: Stock;
@@ -21,8 +22,6 @@ function openTossStock(ticker: string) {
   window.open(`https://tossinvest.com/stocks/A${ticker}`, "_blank", "noopener");
 }
 
-const SELL_FEE_PCT = 0.2;
-const FEE_MUL = 1 - SELL_FEE_PCT / 100;
 
 const FLOW_FIELDS: { label: string; key: keyof Investor }[] = [
   { label: "외국인보유", key: "외국인비율" },
@@ -60,6 +59,7 @@ const WARN_BG: Record<string, string> = {
   관리: "bg-red-700",
   정지: "bg-gray-500",
   경고: "bg-orange-600",
+  공매: "bg-orange-600",
   과열: "bg-orange-600",
   환기: "bg-orange-600",
   주의: "bg-amber-500",
@@ -71,6 +71,7 @@ const WARN_PILL_BG: Record<string, string> = {
   관리: "bg-rose-200",
   정지: "bg-gray-300",
   경고: "bg-orange-200",
+  공매: "bg-orange-200",
   과열: "bg-orange-200",
   환기: "bg-orange-200",
   주의: "bg-amber-200",
@@ -127,6 +128,7 @@ export function StockCard({
   // 보유 종목 sleeping — 데스크톱 v2 kr_session_phase 기반
   // (정규장 활성 / EXTENDED 시간 + 마지막 체결 10분 초과 → sleeping / CLOSED → sleeping)
   const sleeping = isHoldingSleeping(price.trade_dt);
+  const dimmed = sleeping && getDimSleepingEnabled();
 
   // 어제보다 — 장마감 후에도 유효 (당일 종가 vs 어제 종가). 다음 장 시작 전까지 유지.
   const dayDiff = price.price - price.base;
@@ -140,9 +142,8 @@ export function StockCard({
 
   // 전체수익 (보유 종목만 — shares > 0)
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
-  const netPrice = price.price * FEE_MUL;
-  const pnl = hasPosition ? Math.round((netPrice - stock.avg_price) * stock.shares) : 0;
-  const pnlPct = hasPosition ? ((netPrice - stock.avg_price) / stock.avg_price) * 100 : 0;
+  const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
+  const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
 
   // 손절 — 매수가 대비 -10% 이하 (보유 종목만)
   const isStop = hasPosition && pnlPct <= STOP_LOSS_PCT;
@@ -161,7 +162,7 @@ export function StockCard({
   return (
     <article className={`group rounded-lg border shadow-sm flex flex-row gap-2
                           items-stretch px-3 py-2
-                          ${cardBg} ${sleeping ? "opacity-60" : ""}
+                          ${cardBg} ${dimmed ? "opacity-60" : ""}
                           transition-opacity`}>
         {/* 가격 박스 — 종목명 + 섹터 + 고/현재가/저 (3/10) */}
         <div className="border border-gray-200 rounded-md bg-gray-50/60
@@ -299,7 +300,7 @@ export function StockCard({
             <span>
               <span className="text-gray-500">매수 </span>
               <span className="text-gray-700 font-medium">
-                {stock.avg_price.toLocaleString()}원
+                {Math.round(stock.avg_price).toLocaleString()}원
               </span>
             </span>
             {peak && peak > price.price && (

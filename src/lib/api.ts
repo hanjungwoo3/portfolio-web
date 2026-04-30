@@ -182,8 +182,8 @@ export async function fetchInvestor(ticker: string): Promise<Investor | null> {
   };
 }
 
-// 토스 wts-badges — 위험/관리/정지/경고/과열/환기/주의 (2글자 축약)
-// 우선순위: 위험 > 관리 > 정지 > 경고 > 과열 > 환기 > 주의
+// 토스 wts-badges — 위험/관리/정지/경고/공매/과열/환기/주의 (2글자 축약)
+// 우선순위: 위험 > 관리 > 정지 > 경고 > 공매 > 과열 > 환기 > 주의
 interface TossBadgeItem { title: string; }
 interface TossBadgeResponse { result: TossBadgeItem[]; }
 
@@ -192,6 +192,7 @@ const WARNING_MAP: [string, string][] = [
   ["관리종목", "관리"],
   ["거래정지", "정지"],
   ["투자경고", "경고"],
+  ["공매도", "공매"],
   ["단기과열", "과열"],
   ["투자주의환기", "환기"],
   ["투자주의", "주의"],

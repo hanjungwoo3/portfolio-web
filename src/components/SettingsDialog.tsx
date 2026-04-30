@@ -5,6 +5,7 @@ import {
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
   getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS,
+  getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 
@@ -176,6 +177,26 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                 </span>
               )}
             </div>
+
+            {/* 장 마감 종목 흐리게 표시 */}
+            <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
+              <input type="checkbox" defaultChecked={getDimSleepingEnabled()}
+                     onChange={e => {
+                       setDimSleepingEnabled(e.target.checked);
+                       setStatusMsg(`✅ 장 마감 흐리게: ${e.target.checked ? "ON" : "OFF"}`);
+                       onChanged();
+                     }}
+                     className="mt-0.5 w-4 h-4 accent-blue-600 shrink-0" />
+              <span className="flex-1">
+                <span className="text-[11px] text-gray-700 font-medium block">
+                  장 마감 시 종목 흐리게 표시
+                </span>
+                <span className="text-[10px] text-gray-500">
+                  마지막 체결로부터 시간이 지난 종목이나 정규장 외 시간에
+                  카드를 60% 투명도로 표시합니다. 끄면 항상 또렷하게 보입니다.
+                </span>
+              </span>
+            </label>
           </div>
 
           <div className="text-sm text-gray-600">

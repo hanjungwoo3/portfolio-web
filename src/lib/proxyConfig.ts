@@ -56,3 +56,22 @@ export function setPersonalPollMs(ms: number) {
 export function getEffectivePollMs(): number {
   return getPersonalProxyUrl() ? getPersonalPollMs() : DEFAULT_PUBLIC_POLL_MS;
 }
+
+// 장 마감 / 비활동 종목 카드 흐리게 표시 여부 (default ON)
+const DIM_KEY = "portfolio_dim_sleeping";
+export function getDimSleepingEnabled(): boolean {
+  try {
+    const v = localStorage.getItem(DIM_KEY);
+    if (v === null) return true;  // default ON
+    return v === "1";
+  } catch {
+    return true;
+  }
+}
+export function setDimSleepingEnabled(enabled: boolean) {
+  try {
+    localStorage.setItem(DIM_KEY, enabled ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}

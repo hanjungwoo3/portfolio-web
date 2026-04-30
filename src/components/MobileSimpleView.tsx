@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQueries, useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchTossPrices, fetchNaverInfo, fetchWarning,
 } from "../lib/api";
@@ -10,18 +10,24 @@ import { signColor, isSymbolSleeping } from "../lib/format";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
   getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS,
+  getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { RefreshIndicator } from "./RefreshIndicator";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadPeaks,
+  deleteAllRowsForTicker,
 } from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import { MobileStockCard } from "./MobileStockCard";
 import { TotalRow } from "./TotalRow";
+import { SearchDialog } from "./SearchDialog";
+import { EditHoldingDialog } from "./EditHoldingDialog";
+import type { Stock } from "../types";
 
 const US_KEY = "__us__";  // 미국 증시 탭 키
+const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 const KAKAOPAY_URL = "https://qr.kakaopay.com/FCscirjeF";
 
 // 모바일 전용 단순 뷰 (v2 데스크톱 미국증시 표 형식 그대로 이식)
@@ -46,15 +52,26 @@ interface QuoteRow {
 }
 
 export function MobileSimpleView() {
+  const queryClient = useQueryClient();
   const [proxyUrl, setProxyUrl] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [editing, setEditing] = useState<Stock | null>(null);
   const [savedMsg, setSavedMsg] = useState("");
-  const [activeTab, setActiveTab] = useState<string>(US_KEY);
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    if (typeof localStorage === "undefined") return US_KEY;
+    return localStorage.getItem(TAB_KEY) ?? US_KEY;
+  });
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
     setProxyUrl(getPersonalProxyUrl() ?? "");
   }, []);
+
+  // 활성 탭 변경 시 저장
+  useEffect(() => {
+    localStorage.setItem(TAB_KEY, activeTab);
+  }, [activeTab]);
 
   // PC 동일 자동 갱신 — 전용 프록시 시 5/10/30/60초 / 공개 10초 + 다운 시 자동 증가
   const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), []);
@@ -93,6 +110,14 @@ export function MobileSimpleView() {
     }
     return tabs;
   }, [holdings]);
+
+  // 저장된 탭이 더이상 없으면 (그룹 삭제 등) 미국증시로 fallback
+  useEffect(() => {
+    if (groupTabs.length === 0) return;
+    if (!groupTabs.some(t => t.key === activeTab)) {
+      setActiveTab(US_KEY);
+    }
+  }, [groupTabs, activeTab]);
 
   // 선택된 그룹 종목들 (활성 탭이 그룹일 때만)
   const groupHoldingsUnsorted = useMemo(() => {
@@ -221,6 +246,9 @@ export function MobileSimpleView() {
     return rows;
   }
 
+  // 장 마감 시 흐리게 표시 여부 (설정값)
+  const dimEnabled = getDimSleepingEnabled();
+
   return (
     <div className="min-h-screen bg-gray-50"
          onTouchStart={handleTouchStart}
@@ -236,6 +264,11 @@ export function MobileSimpleView() {
                 className="ml-auto p-1.5 rounded hover:bg-gray-100
                             disabled:opacity-50 transition">
           <span className={`inline-block ${isFetching ? "animate-spin" : ""}`}>🔄</span>
+        </button>
+        <button onClick={() => setSearchOpen(true)}
+                title="종목 검색 / 추가"
+                className="p-1.5 rounded hover:bg-gray-100 transition">
+          🔍
         </button>
         <a href={KAKAOPAY_URL} target="_blank" rel="noopener noreferrer"
            title="개발자 후원하기 (카카오페이)"
@@ -289,7 +322,18 @@ export function MobileSimpleView() {
                                price={groupPriceMap.get(s.ticker)}
                                peak={peaks?.get(s.ticker)}
                                sector={naverInfos.data?.get(s.ticker)?.sector}
-                               warning={warningMap.get(s.ticker) || undefined} />
+                               warning={warningMap.get(s.ticker) || undefined}
+                               onEdit={st => setEditing(st)}
+                               onDelete={async st => {
+                                 if (!confirm(
+                                   `"${st.name}" 을(를) 삭제할까요?\n`
+                                   + `(모든 그룹에서 제거됩니다)`
+                                 )) return;
+                                 await deleteAllRowsForTicker(st.ticker);
+                                 void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+                                 void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
+                                 void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
+                               }} />
             ))}
           </div>
           {/* 합계 — 화면 하단 fixed (항상 보임) */}
@@ -321,7 +365,7 @@ export function MobileSimpleView() {
           return (
             <div key={p.symbol}
                  className={`flex flex-col gap-0.5 rounded-lg border px-3 py-2
-                              ${bg} ${sleeping ? "opacity-60" : ""}`}>
+                              ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
               <div className="flex items-baseline gap-1.5">
                 {sleeping && (
                   <span className="text-[11px] text-gray-400">zZ</span>
@@ -367,7 +411,7 @@ export function MobileSimpleView() {
                     <tr key={`${sector}-${r.symbol}`}
                         className={`${idx < rows.length - 1 ? "border-b border-gray-100" : ""}
                                      ${rowBg}
-                                     ${r.sleeping ? "opacity-60" : ""}`}>
+                                     ${r.sleeping && dimEnabled ? "opacity-60" : ""}`}>
                       {isFirst ? (
                         <td className="px-2 py-2 font-bold text-gray-800 align-middle
                                         bg-slate-200 border-r border-gray-300 w-16"
@@ -422,6 +466,28 @@ export function MobileSimpleView() {
                        savedMsg={savedMsg} setSavedMsg={setSavedMsg}
                        onClose={() => setSettingsOpen(false)} />
       )}
+
+      {/* 종목 검색 / 추가 */}
+      <SearchDialog
+        isOpen={searchOpen}
+        onClose={() => setSearchOpen(false)}
+        onAdded={() => {
+          void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+          void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
+          void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
+        }} />
+
+      {/* 보유 편집 (매수 / 매도 / 직접수정 / 삭제) */}
+      <EditHoldingDialog
+        isOpen={!!editing}
+        onClose={() => setEditing(null)}
+        stock={editing}
+        curPrice={editing ? groupPriceMap.get(editing.ticker)?.price : undefined}
+        onChanged={() => {
+          void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+          void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
+          void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
+        }} />
 
       {/* 첫 접속 안내 팝업 — 전용 프록시 미설정 시 자동 표시 */}
       <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
@@ -583,6 +649,26 @@ function SettingsModal({
                 </span>
               )}
             </div>
+
+            {/* 장 마감 종목 흐리게 표시 */}
+            <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
+              <input type="checkbox" defaultChecked={getDimSleepingEnabled()}
+                     onChange={e => {
+                       setDimSleepingEnabled(e.target.checked);
+                       setSavedMsg(`✅ 장 마감 흐리게: ${e.target.checked ? "ON" : "OFF"}`);
+                       setTimeout(() => setSavedMsg(""), 2000);
+                     }}
+                     className="mt-0.5 w-4 h-4 accent-blue-600 shrink-0" />
+              <span className="flex-1">
+                <span className="text-[11px] text-gray-700 font-medium block">
+                  장 마감 시 종목 흐리게 표시
+                </span>
+                <span className="text-[10px] text-gray-500">
+                  마지막 체결로부터 시간이 지난 종목이나 정규장 외 시간에
+                  카드를 60% 투명도로 표시합니다. 끄면 항상 또렷하게 보입니다.
+                </span>
+              </span>
+            </label>
           </div>
 
           {/* 2) 포트폴리오 데이터 import/export */}

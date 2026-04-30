@@ -1,5 +1,6 @@
 import type { Stock, Price } from "../types";
 import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
+import { getDimSleepingEnabled } from "../lib/proxyConfig";
 
 // 모바일 종목 카드 — 데스크톱 StockCard 의 가격 + 통계 박스만 (투자자 동향 X)
 // 폰트 모두 작게.
@@ -10,10 +11,10 @@ interface Props {
   peak?: number;
   sector?: string;
   warning?: string;
+  onEdit?: (stock: Stock) => void;
+  onDelete?: (stock: Stock) => void;
 }
 
-const SELL_FEE_PCT = 0.2;
-const FEE_MUL = 1 - SELL_FEE_PCT / 100;
 const STOP_LOSS_PCT = -9;
 const TRAILING_STOP_PCT = -9;
 
@@ -23,6 +24,7 @@ const WARN_BG: Record<string, string> = {
   관리: "bg-red-700",
   정지: "bg-gray-500",
   경고: "bg-orange-600",
+  공매: "bg-orange-600",
   과열: "bg-orange-600",
   환기: "bg-orange-600",
   주의: "bg-amber-500",
@@ -32,6 +34,7 @@ const WARN_PILL_BG: Record<string, string> = {
   관리: "bg-rose-200",
   정지: "bg-gray-300",
   경고: "bg-orange-200",
+  공매: "bg-orange-200",
   과열: "bg-orange-200",
   환기: "bg-orange-200",
   주의: "bg-amber-200",
@@ -58,7 +61,9 @@ function openTossStock(ticker: string) {
   }
 }
 
-export function MobileStockCard({ stock, price, peak, sector, warning }: Props) {
+export function MobileStockCard({
+  stock, price, peak, sector, warning, onEdit, onDelete,
+}: Props) {
   if (!price) {
     return (
       <article className="rounded-lg bg-white border border-gray-200 p-2 animate-pulse">
@@ -69,39 +74,40 @@ export function MobileStockCard({ stock, price, peak, sector, warning }: Props) 
   }
 
   const sleeping = isHoldingSleeping(price.trade_dt);
+  const dimmed = sleeping && getDimSleepingEnabled();
   const dayDiff = price.price - price.base;
   const dayPct = price.base > 0 ? (dayDiff / price.base) * 100 : 0;
   const peakPct = peak && peak > 0 ? ((price.price - peak) / peak) * 100 : 0;
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
-  const netPrice = price.price * FEE_MUL;
-  const pnl = hasPosition ? Math.round((netPrice - stock.avg_price) * stock.shares) : 0;
-  const pnlPct = hasPosition ? ((netPrice - stock.avg_price) / stock.avg_price) * 100 : 0;
+  const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
+  const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
   const isStop = hasPosition && pnlPct <= STOP_LOSS_PCT;
   const peakedAboveBuy = !!(peak && stock.avg_price && peak > stock.avg_price);
   const isPeakDrop = hasPosition && peakedAboveBuy
                        && peakPct <= TRAILING_STOP_PCT
                        && Math.abs(peakPct) >= 0.01;
 
-  // 카드 배경 — 손익에 따라
+  // 카드 배경/테두리 — 손익에 따라 (책갈피 pill 도 동일 색 사용해 하나처럼 보이게)
   const cardBg =
-    hasPosition && pnl > 0 ? "bg-rose-50/70 border-rose-200"
-    : hasPosition && pnl < 0 ? "bg-blue-50/60 border-blue-200"
-    : "bg-white border-gray-200";
+    hasPosition && pnl > 0 ? "bg-rose-50/70"
+    : hasPosition && pnl < 0 ? "bg-blue-50/60"
+    : "bg-white";
+  const cardBorder =
+    hasPosition && pnl > 0 ? "border-rose-200"
+    : hasPosition && pnl < 0 ? "border-blue-200"
+    : "border-gray-200";
 
   return (
-    <article className={`rounded-lg border flex flex-row gap-1.5 p-1.5
-                          ${cardBg} ${sleeping ? "opacity-60" : ""}`}>
-      {/* 좌측 — 가격 박스 (50%) */}
-      <div className="basis-1/2 min-w-0 border border-gray-200 rounded
-                       bg-gray-50/60 px-2 py-1.5 flex flex-col justify-center
-                       space-y-0.5">
-        {/* 종목명 pill + 위험 뱃지 */}
-        <div className="flex items-center gap-1 flex-wrap">
+    <div className={dimmed ? "opacity-60" : ""}>
+      {/* 책갈피 — 좌: 종목명 pill + 섹터 + 위험 뱃지 / 우: 수정·삭제 버튼 */}
+      <div className="flex items-center justify-between gap-1.5 ml-2">
+        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
           <button onClick={() => openTossStock(stock.ticker)}
                   title="토스에서 보기"
-                  className={`inline-flex items-center px-1.5 py-0.5 rounded
+                  className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                              border-t border-l border-r ${cardBorder}
                               font-bold text-base leading-none w-fit
-                              ${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"}
+                              ${warning ? (WARN_PILL_BG[warning] ?? cardBg) : cardBg}
                               ${signColor(dayDiff || -1)}`}>
             {sleeping && <span className="text-[10px] mr-0.5 opacity-70">zZ</span>}
             {stock.name}
@@ -111,6 +117,9 @@ export function MobileStockCard({ stock, price, peak, sector, warning }: Props) 
               </span>
             )}
           </button>
+          {sector && (
+            <span className="text-[11px] text-gray-500 truncate">{sector}</span>
+          )}
           {warning && (
             <span className={`px-1 py-0.5 rounded text-white text-[10px] font-bold
                               ${WARN_BG[warning] ?? "bg-gray-500"}`}>
@@ -118,7 +127,34 @@ export function MobileStockCard({ stock, price, peak, sector, warning }: Props) 
             </span>
           )}
         </div>
+        {(onEdit || onDelete) && (
+          <div className="flex items-center gap-1 shrink-0">
+            {onEdit && (
+              <button onClick={() => onEdit(stock)}
+                      title="수정 / 매수 / 매도"
+                      className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200
+                                 text-xs leading-none">
+                ✏️
+              </button>
+            )}
+            {onDelete && (
+              <button onClick={() => onDelete(stock)}
+                      title="삭제 (모든 그룹에서 제거)"
+                      className="px-2 py-1 rounded bg-gray-100 hover:bg-rose-100
+                                 text-xs leading-none">
+                🗑
+              </button>
+            )}
+          </div>
+        )}
+      </div>
 
+      {/* 카드 본체 — 좌우 박스 (50:50) */}
+      <article className={`rounded-lg border flex flex-row gap-1.5 p-1.5 ${cardBg} ${cardBorder}`}>
+      {/* 좌측 — 가격 박스 (50%) */}
+      <div className="basis-1/2 min-w-0 border border-gray-200 rounded
+                       bg-gray-50/60 px-2 py-1.5 flex flex-col justify-center
+                       space-y-0.5">
         {/* 고가 */}
         {price.high && price.high > 0 && (() => {
           const hi = price.high;
@@ -168,16 +204,12 @@ export function MobileStockCard({ stock, price, peak, sector, warning }: Props) 
       <div className="basis-1/2 min-w-0 border border-gray-200 rounded
                        bg-gray-50/60 px-1.5 py-1 space-y-0.5
                        flex flex-col justify-start">
-        {sector && (
-          <div className="text-[10px] text-gray-500 truncate">{sector}</div>
-        )}
-
         {hasPosition && (
           <div className="text-[10px] flex flex-wrap items-baseline gap-x-2">
             <span>
               <span className="text-gray-500">매수 </span>
               <span className="text-gray-700 font-medium">
-                {stock.avg_price.toLocaleString()}원
+                {Math.round(stock.avg_price).toLocaleString()}원
               </span>
             </span>
             {peak && peak > price.price && (
@@ -221,6 +253,7 @@ export function MobileStockCard({ stock, price, peak, sector, warning }: Props) 
           </div>
         )}
       </div>
-    </article>
+      </article>
+    </div>
   );
 }

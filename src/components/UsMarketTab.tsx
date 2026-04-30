@@ -4,6 +4,7 @@ import { fetchYahooBatch, fetchTossPrices } from "../lib/api";
 import type { UsIndex } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping, signColor } from "../lib/format";
+import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
   allYahooSymbols, allKrEtfTickers,
@@ -105,6 +106,8 @@ export function UsMarketTab() {
   const t1Sectors = LEFT_SECTORS.filter(s => SECTOR_ORDER.includes(s));
   const t2Sectors = RIGHT_SECTORS.filter(s => SECTOR_ORDER.includes(s));
 
+  const dimEnabled = getDimSleepingEnabled();
+
   return (
     <div className="space-y-3">
       {/* ─── Tier 0 (4개 카드) — +/- 색칠 ─── */}
@@ -123,7 +126,7 @@ export function UsMarketTab() {
                title={`${p.name} — Yahoo Finance 새 탭에서 보기`}
                className={`flex flex-col gap-0.5 rounded-lg border px-3 py-2
                             hover:brightness-95 transition cursor-pointer
-                            ${bg} ${sleeping ? "opacity-60" : ""}`}>
+                            ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
               <div className="flex items-baseline gap-1.5">
                 {sleeping && (
                   <span className="text-[11px] text-gray-400">zZ</span>
@@ -196,6 +199,7 @@ function QuoteList({ rows }: QuoteListProps) {
   if (rows.length === 0) {
     return <div className="px-2 py-2 text-[10px] text-gray-300">—</div>;
   }
+  const dimEnabled = getDimSleepingEnabled();
   return (
     <div className="flex flex-col py-0.5">
       {rows.map(r => {
@@ -208,7 +212,7 @@ function QuoteList({ rows }: QuoteListProps) {
           <div key={r.symbol}
                className={`flex items-baseline gap-2 px-1.5 py-1
                             ${rowBg}
-                            ${r.sleeping ? "opacity-60" : ""}`}>
+                            ${r.sleeping && dimEnabled ? "opacity-60" : ""}`}>
             {/* zZ 자리 항상 확보 — 종목명 위치 정렬 통일 */}
             <span className="text-[10px] text-gray-400 shrink-0 w-4 text-left">
               {r.sleeping ? "zZ" : ""}

@@ -301,13 +301,14 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center
-                     bg-black/40 p-4 pt-10"
+                     bg-black/40 sm:p-4 sm:pt-10"
          onMouseDown={e => { downOnBackdropRef.current = e.target === e.currentTarget; }}
          onClick={e => {
            if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
          }}>
-      <div className="bg-white rounded-lg shadow-xl max-w-3xl w-full
-                       max-h-[90vh] flex flex-col">
+      <div className="bg-white shadow-xl w-full h-screen
+                       sm:rounded-lg sm:max-w-3xl sm:h-auto sm:max-h-[90vh]
+                       flex flex-col">
         <header className="px-5 py-3 border-b bg-gray-50
                             flex items-center gap-3">
           <h2 className="text-lg font-bold shrink-0">🔍 종목 검색 / 추가</h2>
@@ -559,14 +560,6 @@ function SearchResultRow({
                  onClick={e => e.stopPropagation()}
                  className="border rounded px-1.5 py-0.5 w-24 text-right
                             tabular-nums focus:outline-none focus:border-blue-500" />
-        </label>
-        <label className="flex items-center gap-1">
-          <span className="text-gray-500">매수일</span>
-          <input type="date" value={edit.buyDate}
-                 onChange={e => onEditChange({ buyDate: e.target.value })}
-                 onClick={e => e.stopPropagation()}
-                 className="border rounded px-1.5 py-0.5
-                            focus:outline-none focus:border-blue-500" />
         </label>
       </div>
     </div>
