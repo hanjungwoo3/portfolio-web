@@ -7,7 +7,8 @@ import {
 } from "../lib/fundamentals";
 import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/fundamentals";
 import { signColor } from "../lib/format";
-import { fetchInvestorHistorySafe } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistory } from "../lib/api";
+import type { PricePoint } from "../lib/api";
 import type { Investor } from "../types";
 
 interface Props {
@@ -16,6 +17,7 @@ interface Props {
   ticker: string;
   name: string;
   curPrice?: number;
+  myAvgPrice?: number;       // 보유 시 평단가 (차트 가로선)
 }
 
 function IndicatorRow({ ikey, val, data }: {
@@ -209,7 +211,7 @@ function ShareholderSection({ shareholders }: { shareholders: Shareholder[] }) {
 }
 
 export function ValuationModal({
-  isOpen, onClose, ticker, name, curPrice,
+  isOpen, onClose, ticker, name, curPrice, myAvgPrice,
 }: Props) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["valuation", ticker],
@@ -224,6 +226,15 @@ export function ValuationModal({
   const fund = data?.fundamental ?? {};
   const reports = data?.reports ?? [];
   const shareholders = data?.shareholders ?? [];
+  // 컨센서스 목표가 (공식 우선, 없으면 리포트 단순평균)
+  const reportTargets = reports
+    .map(r => r.target)
+    .filter((t): t is number => typeof t === "number");
+  const targetPrice =
+    fund.consensus_target_official ??
+    (reportTargets.length > 0
+      ? Math.round(reportTargets.reduce((a, b) => a + b, 0) / reportTargets.length)
+      : undefined);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center
@@ -295,7 +306,9 @@ export function ValuationModal({
           </div>
 
           {/* 투자자별 순매수 (최근 60일) */}
-          <InvestorHistorySection ticker={ticker} />
+          <InvestorHistorySection ticker={ticker}
+                                  targetPrice={targetPrice}
+                                  myAvgPrice={myAvgPrice} />
 
           {/* 외부 링크 */}
           <section className="mt-4 flex flex-wrap gap-2 text-xs">
@@ -319,7 +332,11 @@ export function ValuationModal({
 }
 
 // ─── 투자자별 순매수 60일 표 ──────────────────────────────
-interface InvestorHistoryProps { ticker: string; }
+interface InvestorHistoryProps {
+  ticker: string;
+  targetPrice?: number;
+  myAvgPrice?: number;
+}
 
 const INVESTOR_COLS: { label: string; key: keyof Investor }[] = [
   { label: "개인",       key: "개인" },
@@ -381,7 +398,9 @@ function computePeriodSummary(
   return { label, actualDays: slice.length, sums, rateDelta };
 }
 
-function InvestorHistorySection({ ticker }: InvestorHistoryProps) {
+function InvestorHistorySection({
+  ticker, targetPrice, myAvgPrice,
+}: InvestorHistoryProps) {
   const { data: history, isLoading } = useQuery({
     queryKey: ["investor-history-modal", ticker],
     queryFn: () => fetchInvestorHistorySafe(ticker, [200, 120, 60]),
@@ -410,8 +429,16 @@ function InvestorHistorySection({ ticker }: InvestorHistoryProps) {
       {!isLoading && (!history || history.length === 0) && (
         <div className="text-xs text-gray-400 py-2">데이터 없음</div>
       )}
+
+      {/* 수급 차트 — 주가+거래량 + 외국인 / 기관 / 연기금 */}
       {history && history.length > 0 && (
-        <div className="overflow-x-auto border border-gray-200 rounded">
+        <InvestorChartsSection ticker={ticker} history={history}
+                               targetPrice={targetPrice}
+                               myAvgPrice={myAvgPrice} />
+      )}
+
+      {history && history.length > 0 && (
+        <div className="overflow-x-auto border border-gray-200 rounded mt-3">
           <table className="text-[11px] tabular-nums whitespace-nowrap min-w-full">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr className="border-b border-gray-200">
@@ -487,5 +514,400 @@ function InvestorHistorySection({ ticker }: InvestorHistoryProps) {
         </div>
       )}
     </section>
+  );
+}
+
+// ─── 수급 차트 모음 — 주가+거래량 (full) + 외국인/기관/연기금 (3분할) ───
+function InvestorChartsSection({
+  ticker, history, targetPrice, myAvgPrice,
+}: {
+  ticker: string; history: Investor[];
+  targetPrice?: number; myAvgPrice?: number;
+}) {
+  // 가격 + 거래량 history (Yahoo 1y, KOSPI→KOSDAQ 자동 폴백)
+  const { data: prices } = useQuery({
+    queryKey: ["price-history-modal", ticker],
+    queryFn: () => fetchKrPriceHistory(ticker, "1y"),
+    enabled: /^\d{6}$/.test(ticker),
+    staleTime: 5 * 60_000,
+  });
+
+  if (history.length < 2) return null;
+  // 시간순 정렬 (오래된→최신)
+  const data = [...history].reverse();
+  let cf = 0, ci = 0, cp = 0;
+  const cumul = data.map(d => {
+    cf += d.외국인;
+    ci += d.기관;
+    cp += d.연기금;
+    return { foreign: cf, inst: ci, pension: cp };
+  });
+
+  const dates = data.map(d => d.date ?? "");
+
+  // 가격을 history 날짜에 정렬 (4개 차트 X축 통일)
+  const priceByDate = new Map((prices ?? []).map(p => [p.date, p]));
+  const alignedPrices = dates
+    .map(d => priceByDate.get(d))
+    .filter((p): p is PricePoint => p != null);
+
+  return (
+    <div className="space-y-2 mt-2">
+      {/* 1. 주가 — 전체 폭 (외국인비율 % + 목표가/평단가 가로선) */}
+      {alignedPrices.length > 1 ? (
+        <PriceVolumeChart prices={alignedPrices} investors={data}
+                          targetPrice={targetPrice} myAvgPrice={myAvgPrice} />
+      ) : (
+        <div className="text-xs text-gray-400 p-2 border border-gray-200 rounded">
+          주가 로딩 중...
+        </div>
+      )}
+      {/* 2~4. 수급 3개 — 한 줄 */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <DailyAndCumChart
+          label="외국인"
+          daily={data.map(d => d.외국인)}
+          cumulative={cumul.map(c => c.foreign)}
+          dates={dates}
+          barColor="#fb923c"     /* orange-400 */
+          cumColor="#1d4ed8"     /* blue-700 */
+        />
+        <DailyAndCumChart
+          label="기관계"
+          daily={data.map(d => d.기관)}
+          cumulative={cumul.map(c => c.inst)}
+          dates={dates}
+          barColor="#86efac"     /* green-300 */
+          cumColor="#047857"     /* emerald-700 */
+        />
+        <DailyAndCumChart
+          label="연기금"
+          daily={data.map(d => d.연기금)}
+          cumulative={cumul.map(c => c.pension)}
+          dates={dates}
+          barColor="#c4b5fd"     /* violet-300 */
+          cumColor="#6d28d9"     /* violet-700 */
+        />
+      </div>
+    </div>
+  );
+}
+
+// 차트 헤더용 — 마지막 가격 (라벨 옆에 % 표시할 때 사용)
+function curPriceForLabel(prices: PricePoint[]): number | undefined {
+  return prices.length > 0 ? prices[prices.length - 1].close : undefined;
+}
+
+// ─── 공용 fmt ─────────────────────────────────────────
+function fmtVol(v: number): string {
+  const abs = Math.abs(v);
+  const sign = v < 0 ? "-" : "";
+  if (abs >= 100_000_000) return `${sign}${(abs / 100_000_000).toFixed(1)}억`;
+  if (abs >= 10_000_000) return `${sign}${(abs / 10_000_000).toFixed(1)}천만`;
+  if (abs >= 10_000) return `${sign}${Math.round(abs / 10_000)}만`;
+  if (abs >= 1_000) return `${sign}${(abs / 1_000).toFixed(1)}K`;
+  return `${v}`;
+}
+
+// ─── 1) 주가 + 거래량 + 외국인비율(%) + 목표가/평단가 가로선 ─────
+function PriceVolumeChart({
+  prices, investors, targetPrice, myAvgPrice,
+}: {
+  prices: PricePoint[]; investors: Investor[];
+  targetPrice?: number; myAvgPrice?: number;
+}) {
+  const N = prices.length;
+  if (N < 2) return null;
+
+  const W = 1200, H = 360;
+  const PAD = { t: 12, r: 64, b: 24, l: 56 };
+  const innerW = W - PAD.l - PAD.r;
+  const innerH = H - PAD.t - PAD.b;
+
+  // 영역 분할 — 상단 75% 가격+외인비율, 하단 20% 거래량
+  const priceH = innerH * 0.75;
+  const volH = innerH * 0.20;
+  const gap = innerH * 0.05;
+
+  const closes = prices.map(p => p.close);
+  const volumes = prices.map(p => p.volume);
+  // 목표가/평단가가 화면에 보이도록 가격 범위 확장
+  const priceCandidates = [...closes];
+  if (targetPrice && targetPrice > 0) priceCandidates.push(targetPrice);
+  if (myAvgPrice && myAvgPrice > 0) priceCandidates.push(myAvgPrice);
+  const priceMin = Math.min(...priceCandidates);
+  const priceMax = Math.max(...priceCandidates);
+  const priceRange = (priceMax - priceMin) || 1;
+  const volMax = Math.max(1, ...volumes);
+
+  // 외인비율 — date 기반 lookup
+  const ratioByDate = new Map<string, number>();
+  for (const inv of investors) {
+    if (inv.date && inv.외국인비율 > 0) {
+      ratioByDate.set(inv.date, inv.외국인비율);
+    }
+  }
+  const ratioValues: (number | null)[] = prices.map(p =>
+    ratioByDate.get(p.date) ?? null
+  );
+  const validRatios = ratioValues.filter((r): r is number => r !== null);
+  const hasRatio = validRatios.length >= 2;
+  const ratioMin = hasRatio ? Math.min(...validRatios) : 0;
+  const ratioMax = hasRatio ? Math.max(...validRatios) : 1;
+  const ratioRange = (ratioMax - ratioMin) || 1;
+
+  const x = (idx: number) => PAD.l + (idx / (N - 1)) * innerW;
+  const yP = (v: number) => PAD.t + ((priceMax - v) / priceRange) * priceH;
+  const yR = (v: number) => PAD.t + ((ratioMax - v) / ratioRange) * priceH;
+  const volTop = PAD.t + priceH + gap;
+  const yV = (v: number) => volTop + ((volMax - v) / volMax) * volH;
+  const yVZero = volTop + volH;
+
+  const pricePath = prices.map((p, idx) =>
+    `${idx === 0 ? "M" : "L"}${x(idx).toFixed(1)},${yP(p.close).toFixed(1)}`
+  ).join(" ");
+
+  // 외인비율 path — null 구간 끊어서
+  let ratioPath = "";
+  let started = false;
+  for (let i = 0; i < N; i++) {
+    const r = ratioValues[i];
+    if (r === null) { started = false; continue; }
+    ratioPath += `${started ? "L" : "M"}${x(i).toFixed(1)},${yR(r).toFixed(1)} `;
+    started = true;
+  }
+
+  const slotW = innerW / Math.max(N - 1, 1);
+  const barW = Math.max(0.8, slotW * 0.7);
+
+  const last = prices[N - 1];
+  const first = prices[0];
+  const diff = last.close - first.close;
+  const pct = (diff / first.close) * 100;
+  const color = diff >= 0 ? "#dc2626" : "#2563eb";
+  const ratioColor = "#7c3aed";  // violet
+  const lastRatio = [...ratioValues].reverse().find(r => r !== null);
+
+  return (
+    <div className="border border-gray-200 rounded p-2 bg-white">
+      <div className="flex items-baseline gap-2 text-xs mb-1 flex-wrap">
+        <span className="font-bold" style={{ color }}>주가</span>
+        <span className="tabular-nums font-bold" style={{ color }}>
+          {last.close.toLocaleString()}원
+        </span>
+        <span className="tabular-nums text-[10px]" style={{ color }}>
+          {diff >= 0 ? "+" : ""}{pct.toFixed(1)}%
+        </span>
+        {hasRatio && lastRatio !== undefined && (
+          <span className="flex items-center gap-1 ml-2">
+            <span className="inline-block w-3 h-0.5"
+                  style={{ background: ratioColor }}></span>
+            <span style={{ color: ratioColor }} className="font-medium">외국인(%)</span>
+            <span className="tabular-nums" style={{ color: ratioColor }}>
+              {lastRatio.toFixed(2)}%
+            </span>
+          </span>
+        )}
+        {targetPrice && targetPrice > 0 && (
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 border-t border-dashed border-amber-500"></span>
+            <span className="text-amber-600 font-medium">목표</span>
+          </span>
+        )}
+        {myAvgPrice && myAvgPrice > 0 && (
+          <span className="flex items-center gap-1">
+            <span className="inline-block w-3 border-t border-dashed border-emerald-500"></span>
+            <span className="text-emerald-600 font-medium">내평단</span>
+          </span>
+        )}
+        <span className="text-gray-400 text-[10px] ml-auto">+ 거래량 (하단)</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full"
+           preserveAspectRatio="none" style={{ height: H }}>
+        <line x1={PAD.l} y1={PAD.t} x2={PAD.l} y2={H - PAD.b}
+              stroke="#e5e7eb" strokeWidth="1" />
+        <line x1={W - PAD.r} y1={PAD.t} x2={W - PAD.r} y2={H - PAD.b}
+              stroke="#e5e7eb" strokeWidth="1" />
+        {/* 목표가 가로선 (점선) */}
+        {targetPrice && targetPrice > 0 && (
+          <>
+            <line x1={PAD.l} y1={yP(targetPrice)} x2={W - PAD.r} y2={yP(targetPrice)}
+                  stroke="#f59e0b" strokeWidth="1" strokeDasharray="6 3" />
+            <text x={W - PAD.r - 4} y={yP(targetPrice) - 3}
+                  fontSize="10" fill="#d97706" textAnchor="end">
+              목표 {targetPrice.toLocaleString()}
+              {curPriceForLabel(prices) && (
+                ` (${(((targetPrice - curPriceForLabel(prices)!) / curPriceForLabel(prices)!) * 100).toFixed(1)}%)`
+              )}
+            </text>
+          </>
+        )}
+        {/* 내 평단가 가로선 (점선) */}
+        {myAvgPrice && myAvgPrice > 0 && (
+          <>
+            <line x1={PAD.l} y1={yP(myAvgPrice)} x2={W - PAD.r} y2={yP(myAvgPrice)}
+                  stroke="#10b981" strokeWidth="1" strokeDasharray="4 2" />
+            <text x={W - PAD.r - 4} y={yP(myAvgPrice) + 10}
+                  fontSize="10" fill="#059669" textAnchor="end">
+              내평단 {Math.round(myAvgPrice).toLocaleString()}
+              {curPriceForLabel(prices) && (
+                ` (${(((curPriceForLabel(prices)! - myAvgPrice) / myAvgPrice) * 100).toFixed(1)}%)`
+              )}
+            </text>
+          </>
+        )}
+        {/* 가격선 */}
+        <path d={pricePath} stroke={color} strokeWidth="1.8"
+              fill="none" strokeLinejoin="round" />
+        {/* 외인비율(%) 점선 */}
+        {hasRatio && (
+          <path d={ratioPath} stroke={ratioColor} strokeWidth="1.2"
+                strokeDasharray="3 2" fill="none" strokeLinejoin="round" />
+        )}
+        {/* 거래량 영점선 */}
+        <line x1={PAD.l} y1={yVZero} x2={W - PAD.r} y2={yVZero}
+              stroke="#9ca3af" strokeWidth="0.8" />
+        {/* 거래량 막대 */}
+        {prices.map((p, idx) => {
+          const cx = x(idx);
+          const yy = yV(p.volume);
+          return (
+            <rect key={idx} x={cx - barW / 2} y={yy}
+                  width={barW} height={Math.max(0.5, yVZero - yy)}
+                  fill="#9ca3af" opacity={0.5} />
+          );
+        })}
+        {/* 좌측 가격 라벨 */}
+        <text x={PAD.l - 4} y={PAD.t + 4} fontSize="10" fill={color} textAnchor="end">
+          {priceMax.toLocaleString()}
+        </text>
+        <text x={PAD.l - 4} y={PAD.t + priceH} fontSize="10" fill={color} textAnchor="end">
+          {priceMin.toLocaleString()}
+        </text>
+        {/* 우측 외인비율 라벨 */}
+        {hasRatio && (
+          <>
+            <text x={W - PAD.r + 4} y={PAD.t + 4} fontSize="10" fill={ratioColor} textAnchor="start">
+              {ratioMax.toFixed(1)}%
+            </text>
+            <text x={W - PAD.r + 4} y={PAD.t + priceH} fontSize="10" fill={ratioColor} textAnchor="start">
+              {ratioMin.toFixed(1)}%
+            </text>
+          </>
+        )}
+        {/* 우측 거래량 라벨 */}
+        <text x={W - PAD.r + 4} y={volTop + 4} fontSize="9" fill="#6b7280" textAnchor="start">
+          {fmtVol(volMax)}
+        </text>
+        <text x={W - PAD.r + 4} y={yVZero + 3} fontSize="9" fill="#6b7280" textAnchor="start">
+          0
+        </text>
+        {/* X 라벨 */}
+        <text x={PAD.l} y={H - 6} fontSize="9" fill="#6b7280">
+          {first.date.slice(2)}
+        </text>
+        <text x={W - PAD.r} y={H - 6} fontSize="9" fill="#6b7280" textAnchor="end">
+          {last.date.slice(2)}
+        </text>
+      </svg>
+    </div>
+  );
+}
+
+// ─── 2~4) 일별 막대 + 누적 라인 차트 (외국인/기관계/연기금) ──────
+interface DailyAndCumProps {
+  label: string;
+  daily: number[];
+  cumulative: number[];
+  dates: string[];
+  barColor: string;
+  cumColor: string;
+}
+
+function DailyAndCumChart({
+  label, daily, cumulative, dates, barColor, cumColor,
+}: DailyAndCumProps) {
+  const N = daily.length;
+  if (N < 2) return null;
+
+  const W = 1200, H = 200;
+  const PAD = { t: 12, r: 44, b: 22, l: 44 };
+  const innerW = W - PAD.l - PAD.r;
+  const innerH = H - PAD.t - PAD.b;
+
+  // 좌측: 일별 (대칭, 0 중앙) / 우측: 누적 (대칭, 0 중앙)
+  const dailyAbs = Math.max(1, ...daily.map(Math.abs));
+  const cumAbs = Math.max(1, ...cumulative.map(Math.abs));
+
+  const x = (idx: number) => PAD.l + (idx / (N - 1)) * innerW;
+  const yL = (v: number) => PAD.t + ((dailyAbs - v) / (2 * dailyAbs)) * innerH;
+  const yR = (v: number) => PAD.t + ((cumAbs - v) / (2 * cumAbs)) * innerH;
+  const yZero = PAD.t + innerH / 2;
+
+  const slotW = innerW / Math.max(N - 1, 1);
+  const barW = Math.max(1.0, slotW * 0.6);
+
+  const cumPath = cumulative.map((v, idx) =>
+    `${idx === 0 ? "M" : "L"}${x(idx).toFixed(1)},${yR(v).toFixed(1)}`
+  ).join(" ");
+
+  const last = cumulative[N - 1];
+
+  return (
+    <div className="border border-gray-200 rounded p-2 bg-white">
+      <div className="flex items-baseline gap-2 text-xs mb-1 flex-wrap">
+        <span className="font-bold" style={{ color: cumColor }}>{label}</span>
+        <span className="tabular-nums font-bold" style={{ color: cumColor }}>
+          {fmtVol(last)}주
+        </span>
+        <span className="text-gray-400 text-[10px] ml-auto">일별 + 누적</span>
+      </div>
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full"
+           preserveAspectRatio="none" style={{ height: H }}>
+        {/* 영점선 */}
+        <line x1={PAD.l} y1={yZero} x2={W - PAD.r} y2={yZero}
+              stroke="#9ca3af" strokeWidth="1" strokeDasharray="3 3" />
+        {/* 좌·우 Y축 */}
+        <line x1={PAD.l} y1={PAD.t} x2={PAD.l} y2={H - PAD.b}
+              stroke="#e5e7eb" strokeWidth="1" />
+        <line x1={W - PAD.r} y1={PAD.t} x2={W - PAD.r} y2={H - PAD.b}
+              stroke="#e5e7eb" strokeWidth="1" />
+        {/* 일별 막대 */}
+        {daily.map((v, idx) => {
+          const cx = x(idx);
+          const yy = yL(v);
+          return (
+            <rect key={idx} x={cx - barW / 2}
+                  y={Math.min(yy, yZero)} width={barW}
+                  height={Math.abs(yy - yZero)}
+                  fill={barColor} opacity={0.7} />
+          );
+        })}
+        {/* 누적선 */}
+        <path d={cumPath} stroke={cumColor} strokeWidth="2"
+              fill="none" strokeLinejoin="round" />
+        {/* 좌측 Y 라벨 (일별) */}
+        <text x={PAD.l - 4} y={PAD.t + 4} fontSize="9" fill="#6b7280" textAnchor="end">
+          {fmtVol(dailyAbs)}
+        </text>
+        <text x={PAD.l - 4} y={H - PAD.b} fontSize="9" fill="#6b7280" textAnchor="end">
+          -{fmtVol(dailyAbs)}
+        </text>
+        {/* 우측 Y 라벨 (누적) */}
+        <text x={W - PAD.r + 4} y={PAD.t + 4} fontSize="9" fill="#6b7280" textAnchor="start">
+          {fmtVol(cumAbs)}
+        </text>
+        <text x={W - PAD.r + 4} y={H - PAD.b} fontSize="9" fill="#6b7280" textAnchor="start">
+          -{fmtVol(cumAbs)}
+        </text>
+        {/* X 라벨 */}
+        <text x={PAD.l} y={H - 6} fontSize="9" fill="#6b7280">
+          {dates[0]?.slice(2)}
+        </text>
+        <text x={W - PAD.r} y={H - 6} fontSize="9" fill="#6b7280" textAnchor="end">
+          {dates[N - 1]?.slice(2)}
+        </text>
+      </svg>
+    </div>
   );
 }

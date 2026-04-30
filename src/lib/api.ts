@@ -183,6 +183,81 @@ export async function fetchInvestorHistorySafe(
   return [];
 }
 
+// 일별 가격 history (Yahoo Finance) — 한국 6자리 → KOSPI(.KS) 우선, 실패 시 KOSDAQ(.KQ)
+export interface PricePoint {
+  date: string;       // YYYY-MM-DD (KST)
+  close: number;
+  volume: number;
+  open?: number;
+  high?: number;
+  low?: number;
+}
+
+interface YahooChartResp {
+  chart?: {
+    result?: Array<{
+      timestamp?: number[];
+      indicators?: {
+        quote?: Array<{
+          open?: (number | null)[];
+          high?: (number | null)[];
+          low?: (number | null)[];
+          close?: (number | null)[];
+          volume?: (number | null)[];
+        }>;
+      };
+    }>;
+  };
+}
+
+async function fetchPriceHistoryFor(
+  symbol: string, range: string,
+): Promise<PricePoint[]> {
+  const target =
+    `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}` +
+    `?range=${range}&interval=1d`;
+  const resp = await fetchProxied(target);
+  if (!resp.ok) return [];
+  const data = await resp.json() as YahooChartResp;
+  const res = data.chart?.result?.[0];
+  if (!res) return [];
+  const ts = res.timestamp ?? [];
+  const q = res.indicators?.quote?.[0] ?? {};
+  const closes = q.close ?? [];
+  const volumes = q.volume ?? [];
+  const opens = q.open ?? [];
+  const highs = q.high ?? [];
+  const lows = q.low ?? [];
+  const points: PricePoint[] = [];
+  for (let i = 0; i < ts.length; i++) {
+    const c = closes[i];
+    if (c == null) continue;  // null = 비거래일/미체결
+    // KST 변환 — Asia/Seoul 시간대로 ts 를 변환
+    const d = new Date(ts[i] * 1000);
+    const kst = new Date(d.getTime() + (d.getTimezoneOffset() + 540) * 60_000);
+    const date = kst.toISOString().slice(0, 10);
+    points.push({
+      date,
+      close: c,
+      volume: volumes[i] ?? 0,
+      open: opens[i] ?? undefined,
+      high: highs[i] ?? undefined,
+      low: lows[i] ?? undefined,
+    });
+  }
+  return points;
+}
+
+// 한국 6자리 → KOSPI 시도 → 실패 시 KOSDAQ
+export async function fetchKrPriceHistory(
+  ticker: string, range = "1y",
+): Promise<PricePoint[]> {
+  if (!/^\d{6}$/.test(ticker)) return [];
+  const ks = await fetchPriceHistoryFor(`${ticker}.KS`, range);
+  if (ks.length > 0) return ks;
+  return await fetchPriceHistoryFor(`${ticker}.KQ`, range);
+}
+
 // 8시 KST 이전 + body[0] 전부 0 → body[1] 폴백 (데스크톱 v2 동일)
 export function pickTodayInvestor(history: Investor[]): Investor | null {
   if (history.length === 0) return null;
