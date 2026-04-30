@@ -20,24 +20,24 @@ const TRAILING_STOP_PCT = -9;
 
 // 위험/관리/정지/경고/과열/환기/주의 뱃지 색상 (PC StockCard 동일)
 const WARN_BG: Record<string, string> = {
-  위험: "bg-red-700",
-  관리: "bg-red-700",
-  정지: "bg-gray-500",
-  경고: "bg-orange-600",
-  공매: "bg-orange-600",
-  과열: "bg-orange-600",
-  환기: "bg-orange-600",
-  주의: "bg-amber-500",
+  투자위험:     "bg-red-700",
+  관리종목:     "bg-red-700",
+  거래정지:     "bg-gray-500",
+  투자경고:     "bg-orange-600",
+  공매도과열:   "bg-orange-600",
+  단기과열:     "bg-orange-600",
+  투자주의환기: "bg-orange-600",
+  투자주의:     "bg-amber-500",
 };
 const WARN_PILL_BG: Record<string, string> = {
-  위험: "bg-rose-200",
-  관리: "bg-rose-200",
-  정지: "bg-gray-300",
-  경고: "bg-orange-200",
-  공매: "bg-orange-200",
-  과열: "bg-orange-200",
-  환기: "bg-orange-200",
-  주의: "bg-amber-200",
+  투자위험:     "bg-rose-200",
+  관리종목:     "bg-rose-200",
+  거래정지:     "bg-gray-300",
+  투자경고:     "bg-orange-200",
+  공매도과열:   "bg-orange-200",
+  단기과열:     "bg-orange-200",
+  투자주의환기: "bg-orange-200",
+  투자주의:     "bg-amber-200",
 };
 
 function openTossStock(ticker: string) {

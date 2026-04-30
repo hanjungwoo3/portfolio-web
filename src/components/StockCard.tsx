@@ -102,26 +102,26 @@ function highlightStyles(value: number): { bg: string; color: string } {
 }
 
 const WARN_BG: Record<string, string> = {
-  위험: "bg-red-700",
-  관리: "bg-red-700",
-  정지: "bg-gray-500",
-  경고: "bg-orange-600",
-  공매: "bg-orange-600",
-  과열: "bg-orange-600",
-  환기: "bg-orange-600",
-  주의: "bg-amber-500",
+  투자위험:     "bg-red-700",
+  관리종목:     "bg-red-700",
+  거래정지:     "bg-gray-500",
+  투자경고:     "bg-orange-600",
+  공매도과열:   "bg-orange-600",
+  단기과열:     "bg-orange-600",
+  투자주의환기: "bg-orange-600",
+  투자주의:     "bg-amber-500",
 };
 
 // 경고 뱃지가 있으면 pill 배경도 변경 (옅은 톤)
 const WARN_PILL_BG: Record<string, string> = {
-  위험: "bg-rose-200",
-  관리: "bg-rose-200",
-  정지: "bg-gray-300",
-  경고: "bg-orange-200",
-  공매: "bg-orange-200",
-  과열: "bg-orange-200",
-  환기: "bg-orange-200",
-  주의: "bg-amber-200",
+  투자위험:     "bg-rose-200",
+  관리종목:     "bg-rose-200",
+  거래정지:     "bg-gray-300",
+  투자경고:     "bg-orange-200",
+  공매도과열:   "bg-orange-200",
+  단기과열:     "bg-orange-200",
+  투자주의환기: "bg-orange-200",
+  투자주의:     "bg-amber-200",
 };
 
 // 손절/트레일링 임계값 (데스크톱 v2 기본 -9.0%)
