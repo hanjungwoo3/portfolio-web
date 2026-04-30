@@ -236,13 +236,6 @@ export function StockCard({
               </span>
             )}
           </button>
-          {sector && (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
-                              border-t border-l border-r border-gray-300
-                              bg-white text-xs text-gray-600 leading-none`}>
-              {sector}
-            </span>
-          )}
           {warning && (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                               text-white text-[10px] font-bold leading-none
@@ -303,6 +296,14 @@ export function StockCard({
                          text-xs leading-none px-0.5 transition-opacity">
               🗑
             </button>
+          )}
+          {/* 섹터 — 책갈피 우측 끝 */}
+          {sector && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                              border-t border-l border-r border-gray-300
+                              bg-white text-xs text-gray-600 leading-none`}>
+              {sector}
+            </span>
           )}
         </div>
       </div>
