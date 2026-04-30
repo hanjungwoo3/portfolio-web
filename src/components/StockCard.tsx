@@ -250,8 +250,6 @@ export function StockCard({
               {warning}
             </span>
           )}
-        </div>
-        <div className="flex items-end gap-0.5 shrink-0">
           {/* 수급 신호 — 외인+기관 동반매수 / 개인 떠받치기 / 외인비율 추세 */}
           {sig?.primary && (
             <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
@@ -269,6 +267,8 @@ export function StockCard({
               {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
             </span>
           )}
+        </div>
+        <div className="flex items-end gap-0.5 shrink-0">
           {/* hover 버튼 — 📊 ✏️ 🗑 */}
           {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
             <button
