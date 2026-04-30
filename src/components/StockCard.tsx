@@ -19,7 +19,7 @@ interface Props {
 
 function openTossStock(ticker: string) {
   if (!/^\d{6}$/.test(ticker)) return;
-  window.open(`https://tossinvest.com/stocks/A${ticker}`, "_blank", "noopener");
+  location.href = `https://tossinvest.com/stocks/A${ticker}`;
 }
 
 

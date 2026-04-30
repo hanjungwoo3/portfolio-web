@@ -295,17 +295,14 @@ export function ValuationModal({
           {/* 외부 링크 */}
           <section className="mt-4 flex flex-wrap gap-2 text-xs">
             <a href={`https://tossinvest.com/stocks/A${ticker}`}
-               target="_blank" rel="noopener noreferrer"
                className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded">
               🔗 토스
             </a>
             <a href={`https://finance.naver.com/item/main.naver?code=${ticker}`}
-               target="_blank" rel="noopener noreferrer"
                className="px-2.5 py-1 bg-green-600 hover:bg-green-700 text-white rounded">
               🔗 네이버 금융
             </a>
             <a href={`https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=${ticker}`}
-               target="_blank" rel="noopener noreferrer"
                className="px-2.5 py-1 bg-purple-600 hover:bg-purple-700 text-white rounded">
               🔗 Wisereport
             </a>

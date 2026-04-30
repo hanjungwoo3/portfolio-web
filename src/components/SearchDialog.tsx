@@ -497,7 +497,6 @@ function SearchResultRow({
                onClick={e => e.stopPropagation()}
                className="w-4 h-4 accent-blue-600 shrink-0" />
         <a href={`https://tossinvest.com/stocks/A${item.ticker}`}
-           target="_blank" rel="noopener noreferrer"
            onClick={e => e.stopPropagation()}
            className="font-bold text-sm hover:text-blue-600">
           {item.name}

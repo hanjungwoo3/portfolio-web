@@ -122,8 +122,8 @@ export function UsMarketTab() {
           const sign = q ? signColor(q.diff) : "text-gray-400";
           return (
             <a key={p.symbol}
-               href={quoteUrl(p.symbol)} target="_blank" rel="noopener noreferrer"
-               title={`${p.name} — Yahoo Finance 새 탭에서 보기`}
+               href={quoteUrl(p.symbol)}
+               title={`${p.name} — Yahoo Finance 보기`}
                className={`flex flex-col gap-0.5 rounded-lg border px-3 py-2
                             hover:brightness-95 transition cursor-pointer
                             ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
@@ -217,7 +217,7 @@ function QuoteList({ rows }: QuoteListProps) {
             <span className="text-[10px] text-gray-400 shrink-0 w-4 text-left">
               {r.sleeping ? "zZ" : ""}
             </span>
-            <a href={quoteUrl(r.symbol)} target="_blank" rel="noopener noreferrer"
+            <a href={quoteUrl(r.symbol)}
                title={r.desc}
                className={`text-sm font-bold hover:underline truncate w-[160px]
                             ${r.kind === "future" ? "text-amber-700"
