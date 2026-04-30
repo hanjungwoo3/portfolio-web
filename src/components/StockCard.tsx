@@ -297,11 +297,11 @@ export function StockCard({
               🗑
             </button>
           )}
-          {/* 섹터 — 책갈피 우측 끝 */}
+          {/* 섹터 — 책갈피 우측 끝 (카드와 같은 색) */}
           {sector && (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
-                              border-t border-l border-r border-gray-300
-                              bg-white text-xs text-gray-600 leading-none`}>
+                              border-t border-l border-r ${cardBorder}
+                              ${cardBg} text-xs text-gray-600 leading-none`}>
               {sector}
             </span>
           )}
