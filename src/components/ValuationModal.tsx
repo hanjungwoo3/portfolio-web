@@ -346,22 +346,62 @@ function volColor(v: number): string {
   return "text-gray-300";
 }
 
+// 누적 합계 기간 정의
+const SUMMARY_PERIODS: { label: string; days: number }[] = [
+  { label: "5일",          days: 5 },
+  { label: "20일 (1개월)",  days: 20 },
+  { label: "60일 (3개월)",  days: 60 },
+  { label: "120일 (6개월)", days: 120 },
+  { label: "250일 (1년)",   days: 250 },
+];
+
+interface PeriodSummary {
+  label: string;
+  actualDays: number;
+  sums: Record<string, number>;
+  rateDelta: number;
+}
+function computePeriodSummary(
+  history: Investor[], label: string, days: number,
+): PeriodSummary | null {
+  if (history.length === 0) return null;
+  const slice = history.slice(0, Math.min(days, history.length));
+  if (slice.length === 0) return null;
+  const sums: Record<string, number> = {};
+  for (const c of INVESTOR_COLS) sums[c.key] = 0;
+  for (const d of slice) {
+    for (const c of INVESTOR_COLS) {
+      sums[c.key] += d[c.key] as number;
+    }
+  }
+  // 외인비율 변화 (첫 날 vs 마지막 날)
+  const rateDelta = slice.length >= 2
+    ? slice[0].외국인비율 - slice[slice.length - 1].외국인비율
+    : 0;
+  return { label, actualDays: slice.length, sums, rateDelta };
+}
+
 function InvestorHistorySection({ ticker }: InvestorHistoryProps) {
   const { data: history, isLoading } = useQuery({
     queryKey: ["investor-history-modal", ticker],
-    queryFn: () => fetchInvestorHistory(ticker, 60),
+    queryFn: () => fetchInvestorHistory(ticker, 250),
     enabled: /^\d{6}$/.test(ticker),
     staleTime: 5 * 60_000,  // 5분 (App 의 5초 폴링과 별도, 모달 캐시)
   });
 
   if (!/^\d{6}$/.test(ticker)) return null;
 
+  const summaries = history
+    ? SUMMARY_PERIODS.map(p => computePeriodSummary(history, p.label, p.days))
+                     .filter((s): s is PeriodSummary => s !== null)
+    : [];
+
   return (
     <section className="mt-5">
       <h3 className="text-sm font-bold text-gray-800 mb-1.5">
         📊 투자자별 순매수 (최근 {history?.length ?? 0}일)
         <span className="ml-2 text-[11px] font-normal text-gray-400">
-          단위: 주 · 양수 매수 / 음수 매도
+          단위: 주 · 양수 매수 / 음수 매도 · 외인비율은 기간 시작 대비 변화
         </span>
       </h3>
       {isLoading && (
@@ -373,10 +413,10 @@ function InvestorHistorySection({ ticker }: InvestorHistoryProps) {
       {history && history.length > 0 && (
         <div className="overflow-x-auto border border-gray-200 rounded">
           <table className="text-[11px] tabular-nums whitespace-nowrap min-w-full">
-            <thead className="bg-gray-50 sticky top-0">
+            <thead className="bg-gray-50 sticky top-0 z-10">
               <tr className="border-b border-gray-200">
                 <th className="px-2 py-1.5 text-left text-gray-600 font-medium">
-                  일자
+                  일자 / 기간
                 </th>
                 {INVESTOR_COLS.map(c => (
                   <th key={c.key} className="px-2 py-1.5 text-right text-gray-600 font-medium">
@@ -389,6 +429,43 @@ function InvestorHistorySection({ ticker }: InvestorHistoryProps) {
               </tr>
             </thead>
             <tbody>
+              {/* 합계 행 — 5/20/60/120/250 거래일 */}
+              {summaries.map(s => (
+                <tr key={s.label}
+                    className="border-b border-gray-200 bg-blue-50/40 font-bold">
+                  <td className="px-2 py-1.5 text-left text-gray-800">
+                    {s.label}
+                    {s.actualDays < SUMMARY_PERIODS.find(p => p.label === s.label)!.days && (
+                      <span className="ml-1 text-[10px] font-normal text-gray-400">
+                        (실제 {s.actualDays}일)
+                      </span>
+                    )}
+                  </td>
+                  {INVESTOR_COLS.map(c => {
+                    const v = s.sums[c.key];
+                    return (
+                      <td key={c.key} className={`px-2 py-1.5 text-right ${volColor(v)}`}>
+                        {fmtVolume(v)}
+                      </td>
+                    );
+                  })}
+                  <td className={`px-2 py-1.5 text-right
+                                  ${s.rateDelta > 0 ? "text-rose-600"
+                                    : s.rateDelta < 0 ? "text-blue-600"
+                                    : "text-gray-400"}`}>
+                    {s.rateDelta === 0
+                      ? "—"
+                      : `${s.rateDelta > 0 ? "+" : ""}${s.rateDelta.toFixed(2)}%p`}
+                  </td>
+                </tr>
+              ))}
+              {/* 일별 데이터 — 합계 아래 회색 구분선 */}
+              <tr className="border-b-2 border-gray-300">
+                <td colSpan={INVESTOR_COLS.length + 2}
+                    className="px-2 py-0.5 bg-gray-100 text-[10px] text-gray-500">
+                  ▼ 일별 상세
+                </td>
+              </tr>
               {history.map(d => (
                 <tr key={d.date} className="border-b border-gray-100 hover:bg-gray-50">
                   <td className="px-2 py-1 text-left text-gray-700">{d.date}</td>
