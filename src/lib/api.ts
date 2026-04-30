@@ -133,38 +133,13 @@ interface TossInvestorItem {
 }
 interface TossInvestorResponse { result: { body: TossInvestorItem[] }; }
 
-const NET_KEYS: (keyof TossInvestorItem)[] = [
-  "netIndividualsBuyVolume", "netForeignerBuyVolume",
-  "netInstitutionBuyVolume", "netPensionFundBuyVolume",
-  "netFinancialInvestmentBuyVolume", "netTrustBuyVolume",
-  "netPrivateEquityFundBuyVolume", "netInsuranceBuyVolume",
-  "netBankBuyVolume", "netOtherFinancialInstitutionsBuyVolume",
-  "netOtherCorporationBuyVolume",
-];
-
 function nowKstHour(): number {
   const n = new Date();
   return new Date(n.getTime() + (9 * 60 + n.getTimezoneOffset()) * 60_000).getHours();
 }
 
-function allZero(item: TossInvestorItem): boolean {
-  return NET_KEYS.every(k => Number(item[k] ?? 0) === 0);
-}
 
-export async function fetchInvestor(ticker: string): Promise<Investor | null> {
-  const target =
-    `https://wts-info-api.tossinvest.com/api/v1/stock-infos/trade/trend/trading-trend` +
-    `?productCode=A${ticker}&size=60`;
-  const resp = await fetchProxied(target);
-  if (!resp.ok) return null;
-  const data = await resp.json() as TossInvestorResponse;
-  const body = data.result?.body || [];
-  if (body.length === 0) return null;
-  // 8시 KST 이전 + body[0] 전부 0 → body[1] 폴백 (데스크톱 v2 동일)
-  let item = body[0];
-  if (nowKstHour() < 8 && allZero(item) && body.length >= 2) {
-    item = body[1];
-  }
+function mapInvestorItem(item: TossInvestorItem): Investor {
   return {
     date: item.baseDate,
     개인: Number(item.netIndividualsBuyVolume || 0),
@@ -180,6 +155,37 @@ export async function fetchInvestor(ticker: string): Promise<Investor | null> {
     기타법인: Number(item.netOtherCorporationBuyVolume || 0),
     외국인비율: Number(item.foreignerRatio || 0),
   };
+}
+
+// 일별 투자자 순매수 history (최신 → 과거 순)
+export async function fetchInvestorHistory(
+  ticker: string, size = 60,
+): Promise<Investor[]> {
+  const target =
+    `https://wts-info-api.tossinvest.com/api/v1/stock-infos/trade/trend/trading-trend` +
+    `?productCode=A${ticker}&size=${size}`;
+  const resp = await fetchProxied(target);
+  if (!resp.ok) return [];
+  const data = await resp.json() as TossInvestorResponse;
+  const body = data.result?.body || [];
+  return body.map(mapInvestorItem);
+}
+
+// 8시 KST 이전 + body[0] 전부 0 → body[1] 폴백 (데스크톱 v2 동일)
+export function pickTodayInvestor(history: Investor[]): Investor | null {
+  if (history.length === 0) return null;
+  const item = history[0];
+  if (nowKstHour() < 8 && history.length >= 2) {
+    const isAllZero =
+      item.개인 === 0 && item.외국인 === 0 && item.기관 === 0;
+    if (isAllZero) return history[1];
+  }
+  return item;
+}
+
+export async function fetchInvestor(ticker: string): Promise<Investor | null> {
+  const history = await fetchInvestorHistory(ticker, 60);
+  return pickTodayInvestor(history);
 }
 
 // 토스 wts-badges — 위험/관리/정지/경고/공매/과열/환기/주의 (2글자 축약)

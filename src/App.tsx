@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
-import { fetchTossPrices, fetchInvestor, fetchWarning, fetchNaverInfo } from "./lib/api";
+import {
+  fetchTossPrices, fetchInvestorHistory, pickTodayInvestor,
+  fetchWarning, fetchNaverInfo,
+} from "./lib/api";
 import { loadHoldings, loadPeaks, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY } from "./components/Tabs";
@@ -142,11 +145,11 @@ function Dashboard() {
     });
   }, [visible, prices]);
 
-  // 종목별 수급 — 5초
+  // 종목별 수급 (60일 history) — 5초
   const investorQs = useQueries({
     queries: krxTickers.map(t => ({
-      queryKey: ["investor", t],
-      queryFn: () => fetchInvestor(t),
+      queryKey: ["investor-history", t],
+      queryFn: () => fetchInvestorHistory(t, 60),
       refetchInterval: REFRESH_MS,
     })),
   });
@@ -174,6 +177,12 @@ function Dashboard() {
     [prices]
   );
   const investorMap = useMemo(
+    () => new Map(investorQs.map((q, i) =>
+      [krxTickers[i], q.data ? pickTodayInvestor(q.data) : null]
+    )),
+    [investorQs, krxTickers]
+  );
+  const investorHistoryMap = useMemo(
     () => new Map(investorQs.map((q, i) => [krxTickers[i], q.data ?? null])),
     [investorQs, krxTickers]
   );
@@ -269,6 +278,7 @@ function Dashboard() {
                   stock={stock}
                   price={priceMap.get(stock.ticker)}
                   investor={investorMap.get(stock.ticker)}
+                  investorHistory={investorHistoryMap.get(stock.ticker)}
                   warning={warningMap.get(stock.ticker)}
                   sector={naverMap.get(stock.ticker)?.sector}
                   consensus={naverMap.get(stock.ticker)?.consensus ?? null}

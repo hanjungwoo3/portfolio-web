@@ -7,6 +7,7 @@ interface Props {
   stock: Stock;
   price?: Price;
   investor?: Investor | null;
+  investorHistory?: Investor[] | null;   // 60일 수급 (신호 계산용)
   consensus?: Consensus | null;
   sector?: string;
   peak?: number;
@@ -16,6 +17,52 @@ interface Props {
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
 }
+
+// 신호 — 최근 5거래일 + 외인비율 20일 추세
+interface InvestorSignal {
+  primary?: { label: string; tone: "bull" | "bear" | "warn" };
+  secondary?: { label: string; tone: "up" | "down" };
+}
+function computeSignal(history: Investor[] | null | undefined): InvestorSignal | null {
+  if (!history || history.length < 3) return null;
+  const last5 = history.slice(0, Math.min(5, history.length));
+  let bothBuy = 0, support = 0, bothSell = 0;
+  for (const d of last5) {
+    if (d.외국인 > 0 && d.기관 > 0) bothBuy += 1;
+    if (d.외국인 < 0 && d.개인 > 0) support += 1;
+    if (d.외국인 < 0 && d.기관 < 0) bothSell += 1;
+  }
+  let primary: InvestorSignal["primary"];
+  if (bothBuy >= 3) primary = { label: `외인+기관 매수 ${bothBuy}일`, tone: "bull" };
+  else if (support >= 3) primary = { label: `개인 떠받치기 ${support}일`, tone: "bear" };
+  else if (bothSell >= 3) primary = { label: `외인+기관 매도 ${bothSell}일`, tone: "warn" };
+
+  let secondary: InvestorSignal["secondary"];
+  if (history.length >= 20) {
+    const today = history[0].외국인비율;
+    const past = history[19].외국인비율;
+    const delta = today - past;
+    if (Math.abs(delta) >= 0.3) {
+      secondary = {
+        label: `외인비율 ${delta > 0 ? "+" : ""}${delta.toFixed(2)}%p (20일)`,
+        tone: delta > 0 ? "up" : "down",
+      };
+    }
+  }
+  if (!primary && !secondary) return null;
+  return { primary, secondary };
+}
+
+const SIGNAL_TONE: Record<string, string> = {
+  bull: "bg-emerald-100 text-emerald-700 border-emerald-300",
+  bear: "bg-rose-100 text-rose-700 border-rose-300",
+  warn: "bg-amber-100 text-amber-700 border-amber-300",
+  up:   "bg-blue-50 text-blue-700 border-blue-200",
+  down: "bg-orange-50 text-orange-700 border-orange-200",
+};
+const SIGNAL_ICON: Record<string, string> = {
+  bull: "🟢", bear: "🔴", warn: "⚠️", up: "📈", down: "📉",
+};
 
 function openTossStock(ticker: string) {
   if (!/^\d{6}$/.test(ticker)) return;
@@ -87,7 +134,7 @@ interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
 const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
-  stock, price, investor, consensus, sector, peak, warning, loading,
+  stock, price, investor, investorHistory, consensus, sector, peak, warning, loading,
   onOpenValuation, onEdit, onDelete,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
@@ -293,6 +340,30 @@ export function StockCard({
             </div>
           </div>
         )}
+
+        {/* 수급 신호 — 외인+기관 동반매수 / 개인 떠받치기 / 외인비율 추세 */}
+        {(() => {
+          const sig = computeSignal(investorHistory);
+          if (!sig) return null;
+          return (
+            <div className="flex flex-wrap items-center gap-1">
+              {sig.primary && (
+                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5
+                                  rounded border text-[10px] font-bold leading-none
+                                  ${SIGNAL_TONE[sig.primary.tone]}`}>
+                  {SIGNAL_ICON[sig.primary.tone]} {sig.primary.label}
+                </span>
+              )}
+              {sig.secondary && (
+                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5
+                                  rounded border text-[10px] leading-none
+                                  ${SIGNAL_TONE[sig.secondary.tone]}`}>
+                  {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* 보유: 매수 + 피크 */}
         {hasPosition && (

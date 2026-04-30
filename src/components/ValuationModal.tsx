@@ -7,6 +7,8 @@ import {
 } from "../lib/fundamentals";
 import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/fundamentals";
 import { signColor } from "../lib/format";
+import { fetchInvestorHistory } from "../lib/api";
+import type { Investor } from "../types";
 
 interface Props {
   isOpen: boolean;
@@ -292,6 +294,9 @@ export function ValuationModal({
             </div>
           </div>
 
+          {/* 투자자별 순매수 (최근 60일) */}
+          <InvestorHistorySection ticker={ticker} />
+
           {/* 외부 링크 */}
           <section className="mt-4 flex flex-wrap gap-2 text-xs">
             <a href={`https://tossinvest.com/stocks/A${ticker}`}
@@ -310,5 +315,100 @@ export function ValuationModal({
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── 투자자별 순매수 60일 표 ──────────────────────────────
+interface InvestorHistoryProps { ticker: string; }
+
+const INVESTOR_COLS: { label: string; key: keyof Investor }[] = [
+  { label: "개인",       key: "개인" },
+  { label: "외국인",     key: "외국인" },
+  { label: "기관계",     key: "기관" },
+  { label: "금융투자",   key: "금융투자" },
+  { label: "연기금",     key: "연기금" },
+  { label: "투신",       key: "투신" },
+  { label: "사모",       key: "사모" },
+  { label: "보험",       key: "보험" },
+  { label: "은행",       key: "은행" },
+  { label: "기타금융",   key: "기타금융" },
+  { label: "기타법인",   key: "기타법인" },
+];
+
+function fmtVolume(v: number): string {
+  if (v === 0) return "—";
+  const sign = v > 0 ? "+" : "";
+  return `${sign}${v.toLocaleString()}`;
+}
+function volColor(v: number): string {
+  if (v > 0) return "text-rose-600";
+  if (v < 0) return "text-blue-600";
+  return "text-gray-300";
+}
+
+function InvestorHistorySection({ ticker }: InvestorHistoryProps) {
+  const { data: history, isLoading } = useQuery({
+    queryKey: ["investor-history-modal", ticker],
+    queryFn: () => fetchInvestorHistory(ticker, 60),
+    enabled: /^\d{6}$/.test(ticker),
+    staleTime: 5 * 60_000,  // 5분 (App 의 5초 폴링과 별도, 모달 캐시)
+  });
+
+  if (!/^\d{6}$/.test(ticker)) return null;
+
+  return (
+    <section className="mt-5">
+      <h3 className="text-sm font-bold text-gray-800 mb-1.5">
+        📊 투자자별 순매수 (최근 {history?.length ?? 0}일)
+        <span className="ml-2 text-[11px] font-normal text-gray-400">
+          단위: 주 · 양수 매수 / 음수 매도
+        </span>
+      </h3>
+      {isLoading && (
+        <div className="text-xs text-gray-400 py-2">불러오는 중...</div>
+      )}
+      {!isLoading && (!history || history.length === 0) && (
+        <div className="text-xs text-gray-400 py-2">데이터 없음</div>
+      )}
+      {history && history.length > 0 && (
+        <div className="overflow-x-auto border border-gray-200 rounded">
+          <table className="text-[11px] tabular-nums whitespace-nowrap min-w-full">
+            <thead className="bg-gray-50 sticky top-0">
+              <tr className="border-b border-gray-200">
+                <th className="px-2 py-1.5 text-left text-gray-600 font-medium">
+                  일자
+                </th>
+                {INVESTOR_COLS.map(c => (
+                  <th key={c.key} className="px-2 py-1.5 text-right text-gray-600 font-medium">
+                    {c.label}
+                  </th>
+                ))}
+                <th className="px-2 py-1.5 text-right text-gray-600 font-medium">
+                  외인비율(%)
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {history.map(d => (
+                <tr key={d.date} className="border-b border-gray-100 hover:bg-gray-50">
+                  <td className="px-2 py-1 text-left text-gray-700">{d.date}</td>
+                  {INVESTOR_COLS.map(c => {
+                    const v = d[c.key] as number;
+                    return (
+                      <td key={c.key} className={`px-2 py-1 text-right ${volColor(v)}`}>
+                        {fmtVolume(v)}
+                      </td>
+                    );
+                  })}
+                  <td className="px-2 py-1 text-right text-gray-700">
+                    {d.외국인비율.toFixed(2)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </section>
   );
 }
