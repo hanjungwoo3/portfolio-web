@@ -171,7 +171,8 @@ export async function fetchInvestorHistory(
   return body.map(mapInvestorItem);
 }
 
-// 큰 size 부터 시도 → 빈 응답이면 단계적으로 작은 size 폴백 (Toss API cap 회피)
+// 큰 size 부터 시도 → 빈 응답이면 단계적으로 작은 size 폴백.
+// Toss API hard cap = 200 (실측). 그 위는 빈 응답이니 [200, 120, 60] 사용 권장.
 export async function fetchInvestorHistorySafe(
   ticker: string, sizes: number[],
 ): Promise<Investor[]> {

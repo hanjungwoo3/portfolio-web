@@ -346,13 +346,13 @@ function volColor(v: number): string {
   return "text-gray-300";
 }
 
-// 누적 합계 기간 정의
+// 누적 합계 기간 정의 — 토스 API 가 size=200 (~10개월) 까지만 반환
 const SUMMARY_PERIODS: { label: string; days: number }[] = [
-  { label: "5일",          days: 5 },
-  { label: "20일 (1개월)",  days: 20 },
-  { label: "60일 (3개월)",  days: 60 },
-  { label: "120일 (6개월)", days: 120 },
-  { label: "250일 (1년)",   days: 250 },
+  { label: "5일",            days: 5 },
+  { label: "20일 (1개월)",    days: 20 },
+  { label: "60일 (3개월)",    days: 60 },
+  { label: "120일 (6개월)",   days: 120 },
+  { label: "200일 (~10개월)", days: 200 },
 ];
 
 interface PeriodSummary {
@@ -384,7 +384,7 @@ function computePeriodSummary(
 function InvestorHistorySection({ ticker }: InvestorHistoryProps) {
   const { data: history, isLoading } = useQuery({
     queryKey: ["investor-history-modal", ticker],
-    queryFn: () => fetchInvestorHistorySafe(ticker, [250, 200, 150, 120, 60]),
+    queryFn: () => fetchInvestorHistorySafe(ticker, [200, 120, 60]),
     enabled: /^\d{6}$/.test(ticker),
     staleTime: 5 * 60_000,  // 5분 (App 의 5초 폴링과 별도, 모달 캐시)
   });
