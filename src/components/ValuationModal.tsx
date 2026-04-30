@@ -384,7 +384,7 @@ function computePeriodSummary(
 function InvestorHistorySection({ ticker }: InvestorHistoryProps) {
   const { data: history, isLoading } = useQuery({
     queryKey: ["investor-history-modal", ticker],
-    queryFn: () => fetchInvestorHistory(ticker, 250),
+    queryFn: () => fetchInvestorHistory(ticker, 120),
     enabled: /^\d{6}$/.test(ticker),
     staleTime: 5 * 60_000,  // 5분 (App 의 5초 폴링과 별도, 모달 캐시)
   });

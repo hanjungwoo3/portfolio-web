@@ -200,47 +200,122 @@ export function StockCard({
                        && peakPct <= TRAILING_STOP_PCT
                        && Math.abs(peakPct) >= 0.01;
 
-  // 카드 배경색 — 보유 종목의 손익에 따라 옅은 빨/파
+  // 카드 배경색/테두리 — 보유 종목의 손익에 따라 옅은 빨/파
+  // (책갈피 pill 도 동일 색 사용 — 하나처럼 보임)
   const cardBg =
-    hasPosition && pnl > 0 ? "bg-rose-50/70 border-rose-200"
-    : hasPosition && pnl < 0 ? "bg-blue-50/60 border-blue-200"
-    : "bg-white border-gray-200";
+    hasPosition && pnl > 0 ? "bg-rose-50/70"
+    : hasPosition && pnl < 0 ? "bg-blue-50/60"
+    : "bg-white";
+  const cardBorder =
+    hasPosition && pnl > 0 ? "border-rose-200"
+    : hasPosition && pnl < 0 ? "border-blue-200"
+    : "border-gray-200";
+
+  const sig = computeSignal(investorHistory);
 
   return (
-    <article className={`group rounded-lg border shadow-sm flex flex-row gap-2
-                          items-stretch px-3 py-2
-                          ${cardBg} ${dimmed ? "opacity-60" : ""}
-                          transition-opacity`}>
-        {/* 가격 박스 — 종목명 + 섹터 + 고/현재가/저 (3/10) */}
+    <div className={`group ${dimmed ? "opacity-60" : ""}`}>
+      {/* 책갈피 — 종목명 + 섹터 + 위험 (좌) / 신호 + hover 버튼 (우) — 모두 책갈피 통일 */}
+      <div className="flex items-end justify-between gap-1 ml-2">
+        <div className="flex items-end gap-0.5 flex-wrap min-w-0">
+          <button
+            type="button"
+            onClick={() => openTossStock(stock.ticker)}
+            title="토스에서 보기"
+            className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                        border-t border-l border-r ${cardBorder}
+                        font-bold text-sm leading-none cursor-pointer
+                        hover:brightness-95 transition
+                        ${warning ? (WARN_PILL_BG[warning] ?? cardBg) : cardBg}
+                        ${signColor(dayDiff || -1)}`}>
+            {sleeping && <span className="text-[10px] mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
+            {stock.name}
+            {stock.shares > 0 && (
+              <span className="ml-1 text-xs font-bold">
+                ({stock.shares.toLocaleString()}주)
+              </span>
+            )}
+          </button>
+          {sector && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                              border-t border-l border-r border-gray-300
+                              bg-white text-xs text-gray-600 leading-none`}>
+              {sector}
+            </span>
+          )}
+          {warning && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                              text-white text-[10px] font-bold leading-none
+                              ${WARN_BG[warning] ?? "bg-gray-500"}`}>
+              {warning}
+            </span>
+          )}
+        </div>
+        <div className="flex items-end gap-0.5 shrink-0">
+          {/* 수급 신호 — 외인+기관 동반매수 / 개인 떠받치기 / 외인비율 추세 */}
+          {sig?.primary && (
+            <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
+                              rounded-t-md border-t border-l border-r
+                              text-[10px] font-bold leading-none
+                              ${SIGNAL_TONE[sig.primary.tone]}`}>
+              {SIGNAL_ICON[sig.primary.tone]} {sig.primary.label}
+            </span>
+          )}
+          {sig?.secondary && (
+            <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
+                              rounded-t-md border-t border-l border-r
+                              text-[10px] leading-none
+                              ${SIGNAL_TONE[sig.secondary.tone]}`}>
+              {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
+            </span>
+          )}
+          {/* hover 버튼 — 📊 ✏️ 🗑 */}
+          {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
+            <button
+              type="button"
+              onClick={() => onOpenValuation(stock.ticker)}
+              title="기업가치 보기"
+              className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                         text-xs leading-none px-0.5 transition-opacity">
+              📊
+            </button>
+          )}
+          {onEdit && (
+            <button
+              type="button"
+              onClick={() => onEdit(stock)}
+              title="수정"
+              className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                         text-xs leading-none px-0.5 transition-opacity">
+              ✏️
+            </button>
+          )}
+          {onDelete && (
+            <button
+              type="button"
+              onClick={() => {
+                if (confirm(`${stock.name} 을(를) ${stock.account || "보유"}에서 삭제할까요?`)) {
+                  onDelete(stock);
+                }
+              }}
+              title="삭제"
+              className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+                         text-xs leading-none px-0.5 transition-opacity">
+              🗑
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* 카드 본체 — 가격박스 / 통계박스 / 투자자 그리드 */}
+      <article className={`rounded-lg border shadow-sm flex flex-row gap-2
+                            items-stretch px-3 py-2
+                            ${cardBg} ${cardBorder}
+                            transition-opacity`}>
+        {/* 가격 박스 — 고/현재가/저 (3/10) */}
         <div className="border border-gray-200 rounded-md bg-gray-50/60
                         px-2 py-1 space-y-0.5 basis-[30%] min-w-0
                         flex flex-col justify-center">
-          {/* 헤더 — 종목명 pill + 뱃지 + hover 버튼 */}
-          <div className="flex items-center gap-1 flex-wrap mb-1">
-            <button
-              type="button"
-              onClick={() => openTossStock(stock.ticker)}
-              title="토스에서 보기"
-              className={`inline-flex items-center px-2 py-0.5 rounded
-                          font-bold text-sm leading-none cursor-pointer
-                          hover:brightness-95 transition
-                          ${warning ? (WARN_PILL_BG[warning] ?? "bg-yellow-200") : "bg-yellow-200"}
-                          ${signColor(dayDiff || -1)}`}>
-              {sleeping && <span className="text-[10px] mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
-              {stock.name}
-              {stock.shares > 0 && (
-                <span className="ml-1 text-xs font-bold">
-                  ({stock.shares.toLocaleString()}주)
-                </span>
-              )}
-            </button>
-            {warning && (
-              <span className={`px-1 py-0.5 rounded text-white text-[10px] font-bold
-                                ${WARN_BG[warning] ?? "bg-gray-500"}`}>
-                {warning}
-              </span>
-            )}
-          </div>
           {price.high && price.high > 0 && (() => {
             const hi = price.high;
             const hiDiff = price.price - hi;
@@ -289,81 +364,10 @@ export function StockCard({
           })()}
         </div>
 
-        {/* 통계 박스 — 섹터 + 매수~목표 (3/10), top 정렬, 섹터 있으면 상단 공백 */}
-        <div className={`border border-gray-200 rounded-md bg-gray-50/60
-                         px-2 ${sector ? "pt-3" : "pt-1"} pb-1
-                         basis-[40%] min-w-0 space-y-0.5
-                         flex flex-col justify-start`}>
-
-        {/* 섹터 + hover 버튼 (📊 ✏️ ✕) */}
-        {(sector || onOpenValuation || onEdit || onDelete) && (
-          <div className="flex items-center gap-1 mb-0.5">
-            {sector && (
-              <span className="text-xs text-gray-500">{sector}</span>
-            )}
-            <div className="ml-auto flex items-center gap-0.5">
-              {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
-                <button
-                  type="button"
-                  onClick={() => onOpenValuation(stock.ticker)}
-                  title="기업가치 보기"
-                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
-                             text-xs leading-none px-0.5 transition-opacity">
-                  📊
-                </button>
-              )}
-              {onEdit && (
-                <button
-                  type="button"
-                  onClick={() => onEdit(stock)}
-                  title="수정"
-                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
-                             text-xs leading-none px-0.5 transition-opacity">
-                  ✏️
-                </button>
-              )}
-              {onDelete && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    if (confirm(`${stock.name} 을(를) ${stock.account || "보유"}에서 삭제할까요?`)) {
-                      onDelete(stock);
-                    }
-                  }}
-                  title="삭제"
-                  className="opacity-0 group-hover:opacity-60 hover:!opacity-100
-                             hover:text-rose-600
-                             text-xs leading-none px-0.5 transition-opacity">
-                  ✕
-                </button>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* 수급 신호 — 외인+기관 동반매수 / 개인 떠받치기 / 외인비율 추세 */}
-        {(() => {
-          const sig = computeSignal(investorHistory);
-          if (!sig) return null;
-          return (
-            <div className="flex flex-wrap items-center gap-1">
-              {sig.primary && (
-                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5
-                                  rounded border text-[10px] font-bold leading-none
-                                  ${SIGNAL_TONE[sig.primary.tone]}`}>
-                  {SIGNAL_ICON[sig.primary.tone]} {sig.primary.label}
-                </span>
-              )}
-              {sig.secondary && (
-                <span className={`inline-flex items-center gap-0.5 px-1.5 py-0.5
-                                  rounded border text-[10px] leading-none
-                                  ${SIGNAL_TONE[sig.secondary.tone]}`}>
-                  {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
-                </span>
-              )}
-            </div>
-          );
-        })()}
+        {/* 통계 박스 — 매수/어제/수익 (3/10) */}
+        <div className="border border-gray-200 rounded-md bg-gray-50/60
+                        px-2 py-1 basis-[40%] min-w-0 space-y-0.5
+                        flex flex-col justify-center">
 
         {/* 보유: 매수 + 피크 */}
         {hasPosition && (
@@ -500,5 +504,6 @@ export function StockCard({
         })}
       </div>
     </article>
+    </div>
   );
 }
