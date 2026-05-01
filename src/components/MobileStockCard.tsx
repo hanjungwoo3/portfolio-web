@@ -99,9 +99,9 @@ export function MobileStockCard({
 
   return (
     <div className={dimmed ? "opacity-60" : ""}>
-      {/* 책갈피 — 좌: 종목명 pill + 섹터 + 위험 뱃지 / 우: 수정·삭제 버튼 */}
-      <div className="flex items-center justify-between gap-1.5 ml-2">
-        <div className="flex items-center gap-1.5 flex-wrap min-w-0">
+      {/* 책갈피 — 좌: 종목명 pill + 위험 뱃지 / 우: 수정·삭제 버튼 + 섹터 */}
+      <div className="flex items-end justify-between gap-1 mx-2">
+        <div className="flex items-end gap-0.5 flex-wrap min-w-0">
           <button onClick={() => openTossStock(stock.ticker)}
                   title="토스에서 보기"
                   className={`inline-flex items-center px-2 py-0.5 rounded-t-md
@@ -117,36 +117,39 @@ export function MobileStockCard({
               </span>
             )}
           </button>
-          {sector && (
-            <span className="text-[11px] text-gray-500 truncate">{sector}</span>
-          )}
           {warning && (
-            <span className={`px-1 py-0.5 rounded text-white text-[10px] font-bold
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                              text-white text-[10px] font-bold leading-none
                               ${WARN_BG[warning] ?? "bg-gray-500"}`}>
               {warning}
             </span>
           )}
         </div>
-        {(onEdit || onDelete) && (
-          <div className="flex items-center gap-1 shrink-0">
-            {onEdit && (
-              <button onClick={() => onEdit(stock)}
-                      title="수정 / 매수 / 매도"
-                      className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200
-                                 text-xs leading-none">
-                ✏️
-              </button>
-            )}
-            {onDelete && (
-              <button onClick={() => onDelete(stock)}
-                      title="삭제 (모든 그룹에서 제거)"
-                      className="px-2 py-1 rounded bg-gray-100 hover:bg-rose-100
-                                 text-xs leading-none">
-                🗑
-              </button>
-            )}
-          </div>
-        )}
+        <div className="flex items-end gap-1 shrink-0">
+          {onEdit && (
+            <button onClick={() => onEdit(stock)}
+                    title="수정 / 매수 / 매도"
+                    className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200
+                               text-xs leading-none">
+              ✏️
+            </button>
+          )}
+          {onDelete && (
+            <button onClick={() => onDelete(stock)}
+                    title="삭제 (모든 그룹에서 제거)"
+                    className="px-2 py-1 rounded bg-gray-100 hover:bg-rose-100
+                               text-xs leading-none">
+              🗑
+            </button>
+          )}
+          {sector && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                              border-t border-l border-r ${cardBorder}
+                              ${cardBg} text-[11px] text-gray-600 leading-none`}>
+              {sector}
+            </span>
+          )}
+        </div>
       </div>
 
       {/* 카드 본체 — 좌우 박스 (50:50) */}
