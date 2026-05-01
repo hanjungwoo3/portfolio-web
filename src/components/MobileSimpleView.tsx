@@ -24,6 +24,7 @@ import { MobileStockCard } from "./MobileStockCard";
 import { TotalRow } from "./TotalRow";
 import { SearchDialog } from "./SearchDialog";
 import { EditHoldingDialog } from "./EditHoldingDialog";
+import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./HelpDialog";
 import type { Stock } from "../types";
 
 const US_KEY = "__us__";  // 미국 증시 탭 키
@@ -56,8 +57,16 @@ export function MobileSimpleView() {
   const [proxyUrl, setProxyUrl] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
   const [editing, setEditing] = useState<Stock | null>(null);
   const [savedMsg, setSavedMsg] = useState("");
+
+  // 첫 방문 자동 노출 (1.5초 지연)
+  useEffect(() => {
+    if (!shouldShowHelpFirstTime()) return;
+    const t = setTimeout(() => setHelpOpen(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof localStorage === "undefined") return US_KEY;
     return localStorage.getItem(TAB_KEY) ?? US_KEY;
@@ -270,12 +279,15 @@ export function MobileSimpleView() {
                 className="p-1.5 rounded hover:bg-gray-100 transition">
           🔍
         </button>
+        <button onClick={() => setHelpOpen(true)}
+                title="사용법 빠른 시작"
+                className="p-1.5 rounded hover:bg-gray-100 transition">
+          ❓
+        </button>
         <a href={KAKAOPAY_URL} target="_blank" rel="noopener noreferrer"
            title="개발자 후원하기 (카카오페이)"
-           className="px-1.5 py-1 rounded hover:bg-gray-100 transition
-                       inline-flex items-center gap-0.5 shrink-0">
-          <span>🍵</span>
-          <span className="text-[10px] text-gray-600 opacity-70">개발자후원</span>
+           className="p-1.5 rounded hover:bg-gray-100 transition shrink-0">
+          🍵
         </a>
         <button onClick={() => setSettingsOpen(true)}
                 title="설정"
@@ -491,6 +503,11 @@ export function MobileSimpleView() {
 
       {/* 첫 접속 안내 팝업 — 전용 프록시 미설정 시 자동 표시 */}
       <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
+
+      <HelpDialog
+        isOpen={helpOpen}
+        onClose={() => { markHelpSeen(); setHelpOpen(false); }}
+      />
     </div>
   );
 }

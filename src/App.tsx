@@ -21,6 +21,7 @@ import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
 import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
+import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./components/HelpDialog";
 import type { Stock } from "./types";
 
 // viewport 감지 — 폰 (≤ 640px) 자동 모바일 뷰
@@ -64,6 +65,14 @@ function Dashboard() {
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [editing, setEditing] = useState<Stock | null>(null);
   const [donateOpen, setDonateOpen] = useState(false);
+  const [helpOpen, setHelpOpen] = useState(false);
+
+  // 첫 방문 자동 노출 — 1.5초 지연 (다른 모달과 충돌 회피)
+  useEffect(() => {
+    if (!shouldShowHelpFirstTime()) return;
+    const t = setTimeout(() => setHelpOpen(true), 1500);
+    return () => clearTimeout(t);
+  }, []);
   // 설정 변경 시 reloadKey 증가 → BASE_REFRESH_MS / usePersonalProxy 재계산
   const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), [reloadKey]);
   const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey]);
@@ -216,6 +225,13 @@ function Dashboard() {
               🔍 검색
             </button>
             <button
+              onClick={() => setHelpOpen(true)}
+              title="사용법 빠른 시작"
+              className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
+                         text-gray-700 rounded text-sm">
+              ❓ 사용법
+            </button>
+            <button
               onClick={() => setDonateOpen(true)}
               title="개발자 후원하기 (카카오페이)"
               className="px-2 py-1 rounded text-xs flex items-center gap-1
@@ -298,6 +314,11 @@ function Dashboard() {
       </main>
 
       <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
+
+      <HelpDialog
+        isOpen={helpOpen}
+        onClose={() => { markHelpSeen(); setHelpOpen(false); }}
+      />
 
       <SettingsDialog
         isOpen={settingsOpen}
