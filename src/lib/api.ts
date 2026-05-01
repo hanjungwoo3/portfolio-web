@@ -1,7 +1,6 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getPersonalProxyUrl } from "./proxyConfig";
-import { isKrPreOpen } from "./format";
 
 // 공개 4-way 라운드 로빈 (Cloudflare + Vercel + Deno + Render)
 const PUBLIC_PROXY_URLS: string[] = [
@@ -86,21 +85,20 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
   const resp = await fetchProxied(target);
   if (!resp.ok) throw new Error(`Toss price fetch failed: ${resp.status}`);
   const data = await resp.json() as TossPriceResponse;
-  // KST 08:00 ~ 08:59 프리장 동시호가 시간 —
-  // 8시 이후 거래 시작된 종목은 어제 종가(base) 그대로 → 토스 앱과 동일 변동 표시
-  // 거래 시작 안 된 종목은 base = price → 어제대비 0 (전체수익 꼬임 방지)
-  const isPre = isKrPreOpen();
-  let kst8amMs = 0;
-  if (isPre) {
-    const now = new Date();
-    const kstDate = new Date(now.getTime() + 9 * 3600_000).toISOString().slice(0, 10);
-    kst8amMs = new Date(`${kstDate}T08:00:00+09:00`).getTime();
-  }
+  // 비거래일·정규장 시작 전 처리 — base = close → 어제대비 0
+  // 판정: 마지막 체결의 KST 날짜가 "오늘 KST 날짜" 와 다르면 오늘 거래가 없음
+  // (주말·공휴일·노동절·정규장 시작 전 모두 이 조건에 자동 부합).
+  // 휴장 캘린더 불필요 — tradeDateTime 만으로 판정.
+  const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
   return (data.result || []).map(item => {
     let base = item.base;
-    if (isPre && kst8amMs > 0) {
-      const tradeMs = item.tradeDateTime ? new Date(item.tradeDateTime).getTime() : 0;
-      if (tradeMs < kst8amMs) base = item.close;  // 거래 시작 안 됨 → 어제대비 0
+    if (item.tradeDateTime) {
+      const tradeKst = new Date(
+        new Date(item.tradeDateTime).getTime() + 9 * 3600_000
+      ).toISOString().slice(0, 10);
+      if (tradeKst !== todayKst) {
+        base = item.close;  // 오늘 거래 없음 → 어제대비 0
+      }
     }
     return {
       ticker: item.code.replace(/^A/, ""),
