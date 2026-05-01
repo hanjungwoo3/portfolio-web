@@ -702,7 +702,7 @@ function PriceVolumeChart({
           <span className="flex items-center gap-1 ml-2">
             <span className="inline-block w-3 h-0.5"
                   style={{ background: ratioColor }}></span>
-            <span style={{ color: ratioColor }} className="font-medium">외국인(%)</span>
+            <span style={{ color: ratioColor }} className="font-medium">외인비율(%)</span>
             <span className="tabular-nums" style={{ color: ratioColor }}>
               {lastRatio.toFixed(2)}%
             </span>
