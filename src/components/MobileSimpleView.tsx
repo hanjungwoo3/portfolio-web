@@ -533,6 +533,7 @@ export function MobileSimpleView() {
       <HelpDialog
         isOpen={helpOpen}
         onClose={() => { markHelpSeen(); setHelpOpen(false); }}
+        variant="mobile"
       />
 
       {/* 그룹 탭 길게 누르기 — 액션 시트 */}

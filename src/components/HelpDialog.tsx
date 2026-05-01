@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from "react";
 
-// 첫 사용자 3-step 빠른 시작 가이드.
-// 헤더 ❓ 버튼으로 수동 호출 + 첫 방문 시 자동 노출 (localStorage flag).
+// 첫 사용자 빠른 시작 가이드 — PC 6 step / 모바일 4 step.
+// 헤더 ❓ 버튼으로 수동 호출 + 첫 방문 자동 노출 (localStorage flag).
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
+  variant?: "pc" | "mobile";
 }
 
 interface Step {
@@ -15,7 +16,7 @@ interface Step {
   alt: string;
 }
 
-const STEPS: Step[] = [
+const PC_STEPS: Step[] = [
   {
     title: "1. 검색 열기",
     caption: (
@@ -65,7 +66,7 @@ const STEPS: Step[] = [
         <b>관심 탭</b> 이 자동 생성되고 카드가 표시됩니다.
         <br />
         <span className="text-gray-500 text-xs">
-          어제대비 변동률 내림차순 정렬. 가격·외국인/기관/연기금 수급·외인비율이 5초마다 갱신.
+          어제대비 변동률 내림차순 정렬. 가격·외국인/기관/연기금·외인비율이 5초마다 갱신.
         </span>
       </>
     ),
@@ -79,7 +80,7 @@ const STEPS: Step[] = [
         카드 위에 <b>마우스를 올리면</b> 책갈피 우측에 숨겨진 버튼이 등장합니다.
         <br />
         <span className="text-gray-500 text-xs">
-          <b>📊</b> 기업가치 / <b>✏️</b> 수정 (수량·평단가) / <b>🗑</b> 삭제. 모바일은 항상 표시.
+          <b>📊</b> 기업가치 / <b>✏️</b> 수정 (수량·평단가) / <b>🗑</b> 삭제.
         </span>
       </>
     ),
@@ -94,12 +95,70 @@ const STEPS: Step[] = [
         <br />
         <span className="text-gray-500 text-xs">
           좌측 외국인 / 우측 기관계 — 일별 막대 + 누적 라인. 표는 5/20/60/120/200일 합계.
-          (모바일은 카드 길게 누르기)
         </span>
       </>
     ),
     image: "./help/quickstart-6-valuation.png",
     alt: "기업가치 모달 — 외국인/기관 차트 + 기간별 합계 표",
+  },
+];
+
+const MOBILE_STEPS: Step[] = [
+  {
+    title: "1. 첫 화면",
+    caption: (
+      <>
+        상단의 <b>🔍</b> 으로 종목 검색, <b>❓</b> 로 이 가이드, <b>⚙️</b> 로 설정.
+        <br />
+        <span className="text-gray-500 text-xs">
+          기본은 미국 증시 탭. 본인 종목을 추가해보세요.
+        </span>
+      </>
+    ),
+    image: "./help/mobile-1-header.png",
+    alt: "모바일 헤더 + 첫 화면",
+  },
+  {
+    title: "2. 종목 검색",
+    caption: (
+      <>
+        종목명 일부만 입력해도 자동완성 결과가 나옵니다.
+        <br />
+        <span className="text-gray-500 text-xs">
+          처음이면 <b>"관심"</b> 그룹이 자동 선택돼요. 그대로 <b>일괄적용</b> 하면 등록 끝.
+        </span>
+      </>
+    ),
+    image: "./help/mobile-2-search.png",
+    alt: "모바일 검색 다이얼로그",
+  },
+  {
+    title: "3. 카드 + 편집",
+    caption: (
+      <>
+        <b>관심 탭</b> 자동 생성. 카드 우측의 <b>✏️ 🗑</b> 으로 즉시 수정·삭제.
+        <br />
+        <span className="text-gray-500 text-xs">
+          가격·수급·외인비율이 5초마다 갱신. 종목명 클릭 = 토스 앱으로 이동.
+        </span>
+      </>
+    ),
+    image: "./help/mobile-3-result.png",
+    alt: "모바일 결과 — 카드 + 편집 버튼",
+  },
+  {
+    title: "4. 그룹 길게 누르기",
+    caption: (
+      <>
+        그룹 탭을 <b>0.5초 길게 누르면</b> 바텀시트가 올라와요.
+        <br />
+        <span className="text-gray-500 text-xs">
+          ✏️ 이름 변경 / 🗑 그룹 삭제. 미국 증시 탭은 보호 (편집 불가).
+        </span>
+      </>
+    ),
+    image: "./help/mobile-4-action-sheet.png",
+    alt: "모바일 그룹 액션 시트",
   },
 ];
 
@@ -122,11 +181,11 @@ function Shot({ src, alt }: { src: string; alt: string }) {
   );
 }
 
-export function HelpDialog({ isOpen, onClose }: Props) {
+export function HelpDialog({ isOpen, onClose, variant = "pc" }: Props) {
+  const STEPS = variant === "mobile" ? MOBILE_STEPS : PC_STEPS;
   const [step, setStep] = useState(0);
   const downOnBackdropRef = useRef(false);
 
-  // 열릴 때 첫 스텝
   useEffect(() => {
     if (isOpen) setStep(0);
   }, [isOpen]);
@@ -141,7 +200,7 @@ export function HelpDialog({ isOpen, onClose }: Props) {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, step, onClose]);
+  }, [isOpen, step, onClose, STEPS.length]);
 
   if (!isOpen) return null;
 
