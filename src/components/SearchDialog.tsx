@@ -35,6 +35,10 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
   const [rowEdits, setRowEdits] = useState<Map<string, RowEdit>>(new Map());
   // 일괄적용 시 함께 추가할 그룹 (마킹/선택)
   const [markedGroups, setMarkedGroups] = useState<Set<string>>(new Set());
+  // 새로 생성한(아직 DB 에 없는) 그룹 — 칩 영역에만 추가됨, 마킹은 사용자가 직접
+  const [pendingGroups, setPendingGroups] = useState<string[]>([]);
+  // 그룹 미선택 경고 시각 효과 — 빨강 테두리 + 흔들림 (1.6s 후 해제)
+  const [groupWarn, setGroupWarn] = useState(false);
 
   // 창 닫힐 때 모든 상태 초기화
   useEffect(() => {
@@ -45,8 +49,14 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
     setNewGroup("");
     setRowEdits(new Map());
     setMarkedGroups(new Set());
+    setPendingGroups([]);
     setStatusMsg("");
+    setGroupWarn(false);
   }, [isOpen]);
+  // 그룹 마킹되면 경고 즉시 해제
+  useEffect(() => {
+    if (markedGroups.size > 0) setGroupWarn(false);
+  }, [markedGroups.size]);
   const downOnBackdropRef = useRef(false);
 
   const updateRowEdit = (ticker: string, patch: Partial<RowEdit>) => {
@@ -74,6 +84,22 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
     queryFn: getUserGroups,
     enabled: isOpen,
   });
+
+  // 첫 사용자 — 그룹 0개일 때 "관심" 가상 그룹을 표시·자동 마킹
+  // (실제 DB 에 없지만 일괄적용 시 upsertHoldingToGroup 가 자동 생성)
+  const isFirstUser = userGroups.length === 0;
+  const baseGroups = isFirstUser ? ["관심"] : userGroups;
+  // 사용자가 새로 만든 그룹(pending) 도 칩 영역에 — 중복 제거
+  const displayGroups = [
+    ...baseGroups,
+    ...pendingGroups.filter(g => !baseGroups.includes(g)),
+  ];
+  useEffect(() => {
+    if (!isOpen || !isFirstUser) return;
+    if (results.length === 0) return;
+    if (markedGroups.size > 0) return;
+    setMarkedGroups(new Set(["관심"]));
+  }, [isOpen, isFirstUser, results.length, markedGroups.size]);
 
   const { data: existingMap } = useQuery({
     queryKey: ["existing-groups", reloadKey],
@@ -184,11 +210,17 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
     });
   };
 
-  // 새 그룹 — 즉시 마킹 (일괄적용 시 추가됨)
-  const addNewGroupMark = () => {
+  // 새 그룹 — 칩 영역에만 추가 (마킹은 사용자가 직접 클릭)
+  const addNewGroup = () => {
     const g = newGroup.trim();
     if (!g) return;
-    setMarkedGroups(prev => new Set(prev).add(g));
+    // 이미 존재하는 그룹이면 추가 안 함
+    if (displayGroups.includes(g)) {
+      setStatusMsg(`⚠️ "${g}" 그룹은 이미 있습니다`);
+      setNewGroup("");
+      return;
+    }
+    setPendingGroups(prev => [...prev, g]);
     setNewGroup("");
   };
 
@@ -198,6 +230,14 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
   const bulkApply = async () => {
     if (selected.size === 0) {
       setStatusMsg("⚠️ 종목을 먼저 체크하세요");
+      return;
+    }
+    // 그룹이 있는 사용자가 아무 그룹도 선택 안 했으면 차단
+    // (첫 사용자는 "관심" 이 자동 마킹되어 있어 여기 안 걸림)
+    if (markedGroups.size === 0) {
+      setStatusMsg("⚠️ 그룹을 먼저 선택하세요 — 위쪽 그룹 칩 클릭");
+      setGroupWarn(true);
+      window.setTimeout(() => setGroupWarn(false), 1600);
       return;
     }
     const sel = results.filter(r => selected.has(r.ticker));
@@ -312,7 +352,14 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
         <header className="px-5 py-3 border-b bg-gray-50
                             flex items-center gap-3">
           <h2 className="text-lg font-bold shrink-0">🔍 종목 검색 / 추가</h2>
-          <span className="text-xs text-gray-500 truncate">{statusMsg}</span>
+          <span className={`text-xs truncate font-medium
+                           ${statusMsg.startsWith("⚠️")
+                              ? "text-rose-600"
+                              : statusMsg.startsWith("✅")
+                                ? "text-emerald-700"
+                                : "text-gray-500"}`}>
+            {statusMsg}
+          </span>
           <button onClick={onClose}
                   className="ml-auto text-gray-400 hover:text-gray-600 text-xl">
             ✕
@@ -351,7 +398,23 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
 
         {/* 그룹 일괄 토글 영역 */}
         {results.length > 0 && (
-          <div className="px-5 py-2.5 border-b bg-blue-50/30 space-y-1.5">
+          <div className={`px-5 py-2.5 border-b space-y-1.5 transition-colors
+                          ${groupWarn
+                            ? "bg-rose-100 border-2 border-rose-400 animate-shake"
+                            : "bg-blue-50/30"}`}>
+            {isFirstUser && (
+              <div className="text-[11px] text-blue-700 bg-blue-100/60 rounded
+                              px-2 py-1 border border-blue-200">
+                💡 처음이시군요! <b>"관심"</b> 그룹이 자동 선택됐어요.
+                수량 입력 없이 그대로 <b>일괄적용</b> 하면 관심종목으로 등록됩니다.
+              </div>
+            )}
+            {groupWarn && (
+              <div className="text-xs text-rose-700 bg-white/80 rounded
+                              px-2 py-1 border border-rose-300 font-bold">
+                ⚠️ 추가할 그룹을 먼저 선택하세요 — 아래 칩 중 하나를 클릭
+              </div>
+            )}
             <label className="flex items-center gap-2 text-sm cursor-pointer
                               select-none">
               <input type="checkbox" checked={allChecked}
@@ -366,7 +429,7 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
               <span className="text-sm font-medium text-gray-700">
                 그룹 적용:
               </span>
-              {userGroups.map(g => {
+              {displayGroups.map(g => {
                 const cnt = countInGroup(g);
                 const sel = selected.size;
                 const marked = markedGroups.has(g);
@@ -393,15 +456,16 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
                 <input type="text" placeholder="새 그룹"
                        value={newGroup}
                        onChange={e => setNewGroup(e.target.value)}
-                       onKeyDown={e => { if (e.key === "Enter") addNewGroupMark(); }}
+                       onKeyDown={e => { if (e.key === "Enter") addNewGroup(); }}
                        className="border rounded px-1.5 py-0.5 text-xs w-24
                                   focus:outline-none focus:border-blue-500" />
-                <button onClick={addNewGroupMark}
+                <button onClick={addNewGroup}
                         disabled={!newGroup.trim()}
+                        title="칩만 추가됩니다 — 마킹은 직접 클릭"
                         className="px-2 py-0.5 bg-green-600 hover:bg-green-700
                                    disabled:opacity-40
                                    text-white text-xs rounded">
-                  생성+마킹
+                  생성
                 </button>
               </div>
             </div>
