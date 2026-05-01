@@ -400,6 +400,35 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
   }
 }
 
+// Yahoo chart v8 — 일봉 종가 시계열 (스파크라인용)
+// 예: fetchYahooChart("^GSPC", "3mo") → [7100, 7110, 7150, ...]
+interface ChartResp {
+  chart?: {
+    result?: Array<{
+      timestamp?: number[];
+      indicators?: { quote?: Array<{ close?: (number | null)[] }> };
+    }> | null;
+  };
+}
+export async function fetchYahooChart(
+  symbol: string,
+  range = "3mo",
+  interval = "1d",
+): Promise<number[]> {
+  const target = `https://query1.finance.yahoo.com/v8/finance/chart/`
+              + `${encodeURIComponent(symbol)}?interval=${interval}&range=${range}`;
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return [];
+    const data = await resp.json() as ChartResp;
+    const closes = data.chart?.result?.[0]?.indicators?.quote?.[0]?.close ?? [];
+    // null 제거 (장 정지일·휴장 등)
+    return closes.filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+  } catch {
+    return [];
+  }
+}
+
 // 다수 심볼 한꺼번에 — 병렬 fetch
 export async function fetchYahooBatch(
   pairs: { symbol: string; name: string }[]

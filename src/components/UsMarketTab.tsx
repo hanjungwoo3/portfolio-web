@@ -1,6 +1,6 @@
 import { useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
-import { fetchYahooBatch, fetchTossPrices } from "../lib/api";
+import { useQueries, useQuery } from "@tanstack/react-query";
+import { fetchYahooBatch, fetchTossPrices, fetchYahooChart } from "../lib/api";
 import type { UsIndex } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping, signColor } from "../lib/format";
@@ -11,6 +11,7 @@ import {
 } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
+import { Sparkline } from "./Sparkline";
 
 const BASE_REFRESH_MS = 10_000;
 
@@ -59,6 +60,19 @@ export function UsMarketTab() {
 
   const krMap = new Map((krPrices ?? []).map(p => [p.ticker, p]));
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
+
+  // T0 60일 추이 (스파크라인) — 일봉, 60분 staleTime 캐시
+  const t0ChartQs = useQueries({
+    queries: tier0.map(p => ({
+      queryKey: ["yahoo-chart", p.symbol, "3mo"],
+      queryFn: () => fetchYahooChart(p.symbol, "3mo"),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const t0ChartMap = new Map(
+    tier0.map((p, i) => [p.symbol, t0ChartQs[i]?.data ?? []])
+  );
 
   // 섹터별 행 묶음 — 현물 + 선물 + ETF
   function buildRowsForSector(sector: string): QuoteRow[] {
@@ -124,17 +138,28 @@ export function UsMarketTab() {
             <a key={p.symbol}
                href={quoteUrl(p.symbol)}
                title={`${p.name} — Yahoo Finance 보기`}
-               className={`flex flex-col gap-0.5 rounded-lg border px-3 py-2
+               className={`relative overflow-hidden flex flex-col gap-0.5
+                            rounded-lg border px-3 py-2 min-h-[120px]
                             hover:brightness-95 transition cursor-pointer
                             ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
-              <div className="flex items-baseline gap-1.5">
+              {/* 60일 추이 — 카드 전체 배경 워터마크 (라인 + 그라디언트 영역) */}
+              <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
+                         color={q && q.diff > 0 ? "#dc2626"
+                                : q && q.diff < 0 ? "#2563eb"
+                                : "#94a3b8"}
+                         width={400} height={120}
+                         className="absolute inset-0 w-full h-full opacity-50
+                                    pointer-events-none" />
+              <div className="relative z-10 flex items-baseline gap-1.5">
                 {sleeping && (
                   <span className="text-[11px] text-gray-400">zZ</span>
                 )}
                 <span className="text-base font-bold text-gray-900">{p.name}</span>
               </div>
-              <div className="text-[11px] text-gray-500 truncate">{p.desc}</div>
-              <div className="flex items-baseline mt-0.5">
+              <div className="relative z-10 text-[11px] text-gray-500 truncate">
+                {p.desc}
+              </div>
+              <div className="relative z-10 flex items-baseline mt-auto pt-4">
                 <span className="flex-1 text-left text-sm tabular-nums text-gray-700">
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>

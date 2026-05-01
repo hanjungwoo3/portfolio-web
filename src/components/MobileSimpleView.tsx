@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchTossPrices, fetchNaverInfo, fetchWarning,
+  fetchYahooChart,
 } from "../lib/api";
 import {
   US_PAIRS, SECTOR_EMOJI, SECTOR_ORDER,
@@ -25,6 +26,7 @@ import { TotalRow } from "./TotalRow";
 import { SearchDialog } from "./SearchDialog";
 import { EditHoldingDialog } from "./EditHoldingDialog";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./HelpDialog";
+import { Sparkline } from "./Sparkline";
 import type { Stock } from "../types";
 
 const US_KEY = "__us__";  // 미국 증시 탭 키
@@ -230,6 +232,19 @@ export function MobileSimpleView() {
   // ─── Tier 0 (대시보드 4개) ───
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
 
+  // T0 60일 추이 — 일봉, 1시간 캐시 (PC 와 동일 쿼리키 — 캐시 공유)
+  const t0ChartQs = useQueries({
+    queries: tier0.map(p => ({
+      queryKey: ["yahoo-chart", p.symbol, "3mo"],
+      queryFn: () => fetchYahooChart(p.symbol, "3mo"),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const t0ChartMap = new Map(
+    tier0.map((p, i) => [p.symbol, t0ChartQs[i]?.data ?? []])
+  );
+
   // ─── 섹터별 행 묶음 (현물 + 선물만, ETF 제외) ───
   function buildRowsForSector(sector: string): QuoteRow[] {
     const rows: QuoteRow[] = [];
@@ -402,9 +417,18 @@ export function MobileSimpleView() {
           const sign = q ? signColor(q.diff) : "text-gray-400";
           return (
             <div key={p.symbol}
-                 className={`flex flex-col gap-0.5 rounded-lg border px-3 py-2
+                 className={`relative overflow-hidden flex flex-col gap-0.5
+                              rounded-lg border px-3 py-2 min-h-[110px]
                               ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
-              <div className="flex items-baseline gap-1.5">
+              {/* 60일 추이 — 카드 전체 배경 워터마크 */}
+              <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
+                         color={q && q.diff > 0 ? "#dc2626"
+                                : q && q.diff < 0 ? "#2563eb"
+                                : "#94a3b8"}
+                         width={300} height={110}
+                         className="absolute inset-0 w-full h-full opacity-50
+                                    pointer-events-none" />
+              <div className="relative z-10 flex items-baseline gap-1.5">
                 {sleeping && (
                   <span className="text-[11px] text-gray-400">zZ</span>
                 )}
@@ -412,10 +436,10 @@ export function MobileSimpleView() {
                   {p.name}
                 </span>
               </div>
-              <div className="text-[11px] text-gray-500 truncate">
+              <div className="relative z-10 text-[11px] text-gray-500 truncate">
                 {p.desc}
               </div>
-              <div className="flex items-baseline mt-0.5">
+              <div className="relative z-10 flex items-baseline mt-auto pt-3">
                 <span className="flex-1 text-left text-sm tabular-nums text-gray-700">
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>
@@ -435,8 +459,14 @@ export function MobileSimpleView() {
           if (rows.length === 0) return null;
           return (
             <table key={sector}
-                   className="w-full bg-white rounded-lg border border-gray-200
+                   className="w-full table-fixed bg-white rounded-lg border border-gray-200
                                overflow-hidden text-sm">
+              <colgroup>
+                <col style={{ width: "64px" }} />
+                <col />
+                <col style={{ width: "70px" }} />
+                <col style={{ width: "80px" }} />
+              </colgroup>
               <tbody>
                 {rows.map((r, idx) => {
                   const isFirst = idx === 0;
