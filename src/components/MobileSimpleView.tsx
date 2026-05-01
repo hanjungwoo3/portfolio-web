@@ -17,7 +17,7 @@ import { RefreshIndicator } from "./RefreshIndicator";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadPeaks,
-  deleteAllRowsForTicker,
+  deleteAllRowsForTicker, renameGroup, deleteGroup,
 } from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import { MobileStockCard } from "./MobileStockCard";
@@ -60,6 +60,9 @@ export function MobileSimpleView() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [editing, setEditing] = useState<Stock | null>(null);
   const [savedMsg, setSavedMsg] = useState("");
+  // 그룹 탭 길게 누르기 → 액션 시트 (이름 변경 / 삭제)
+  const [tabMenu, setTabMenu] = useState<{ key: string; label: string } | null>(null);
+  const longPressTimer = useRef<number | null>(null);
 
   // 첫 방문 자동 노출 (1.5초 지연)
   useEffect(() => {
@@ -296,14 +299,37 @@ export function MobileSimpleView() {
         </button>
       </header>
 
-      {/* ─── 그룹 탭 (가로 스크롤, 작은 폰트) ─── */}
+      {/* ─── 그룹 탭 (가로 스크롤, 작은 폰트) — 길게 누르기 = 액션 시트 ─── */}
       <nav className="sticky top-[44px] z-10 bg-white border-b border-gray-200
                        px-2 py-1 flex gap-1 overflow-x-auto whitespace-nowrap">
         {groupTabs.map(t => {
           const active = t.key === activeTab;
+          // 시스템 탭(미국 증시)은 길게 누르기 무시
+          const editable = t.key !== US_KEY;
+          const startLongPress = () => {
+            if (!editable) return;
+            longPressTimer.current = window.setTimeout(() => {
+              setTabMenu({ key: t.key, label: t.label });
+              longPressTimer.current = null;
+            }, 500);
+          };
+          const cancelLongPress = () => {
+            if (longPressTimer.current) {
+              window.clearTimeout(longPressTimer.current);
+              longPressTimer.current = null;
+            }
+          };
           return (
             <button key={t.key}
                     onClick={() => setActiveTab(t.key)}
+                    onTouchStart={e => { e.stopPropagation(); startLongPress(); }}
+                    onTouchMove={cancelLongPress}
+                    onTouchEnd={cancelLongPress}
+                    onTouchCancel={cancelLongPress}
+                    onContextMenu={e => {
+                      // 데스크톱 우클릭 / 일부 안드로이드 long-press 보조
+                      if (editable) { e.preventDefault(); setTabMenu({ key: t.key, label: t.label }); }
+                    }}
                     className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition
                                 ${active
                                   ? "bg-blue-600 text-white font-bold"
@@ -508,6 +534,68 @@ export function MobileSimpleView() {
         isOpen={helpOpen}
         onClose={() => { markHelpSeen(); setHelpOpen(false); }}
       />
+
+      {/* 그룹 탭 길게 누르기 — 액션 시트 */}
+      {tabMenu && (
+        <div className="fixed inset-0 z-40 flex items-end justify-center
+                         bg-black/40 animate-fade-in"
+             onClick={() => setTabMenu(null)}>
+          <div className="bg-white rounded-t-xl w-full max-w-md
+                           shadow-xl pb-safe"
+               onClick={e => e.stopPropagation()}>
+            <div className="px-4 py-3 border-b">
+              <div className="text-xs text-gray-500">그룹</div>
+              <div className="text-base font-bold text-gray-800 truncate">
+                🏷 {tabMenu.label}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={async () => {
+                const oldKey = tabMenu.key;
+                const oldLabel = tabMenu.label;
+                setTabMenu(null);
+                const next = window.prompt(`"${oldLabel}" → 새 이름:`, oldLabel);
+                if (next == null) return;
+                const trimmed = next.trim();
+                if (!trimmed || trimmed === oldKey) return;
+                await renameGroup(oldKey, trimmed);
+                if (activeTab === oldKey) setActiveTab(trimmed);
+                void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+              }}
+              className="w-full px-4 py-3.5 text-left text-sm
+                         hover:bg-gray-50 border-b flex items-center gap-3">
+              <span className="text-lg">✏️</span>
+              <span>이름 변경</span>
+            </button>
+            <button
+              type="button"
+              onClick={async () => {
+                const k = tabMenu.key;
+                const l = tabMenu.label;
+                setTabMenu(null);
+                if (!confirm(
+                  `"${l}" 그룹의 모든 항목을 삭제할까요?\n(되돌릴 수 없음)`
+                )) return;
+                await deleteGroup(k);
+                if (activeTab === k) setActiveTab(US_KEY);
+                void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+              }}
+              className="w-full px-4 py-3.5 text-left text-sm
+                         hover:bg-rose-50 text-rose-600 font-medium
+                         border-b flex items-center gap-3">
+              <span className="text-lg">🗑</span>
+              <span>그룹 삭제</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTabMenu(null)}
+              className="w-full px-4 py-3.5 text-center text-sm text-gray-500">
+              취소
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
