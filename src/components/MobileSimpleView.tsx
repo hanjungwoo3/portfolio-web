@@ -27,6 +27,7 @@ import { SearchDialog } from "./SearchDialog";
 import { EditHoldingDialog } from "./EditHoldingDialog";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./HelpDialog";
 import { Sparkline } from "./Sparkline";
+import { TALLY_URL, isFeedbackEnabled } from "../lib/feedbackConfig";
 import type { Stock } from "../types";
 
 const US_KEY = "__us__";  // 미국 증시 탭 키
@@ -321,6 +322,13 @@ export function MobileSimpleView() {
                 className="p-1.5 rounded hover:bg-gray-100 transition">
           ❓
         </button>
+        {isFeedbackEnabled() && (
+          <a href={TALLY_URL} target="_blank" rel="noopener noreferrer"
+             title="피드백 보내기"
+             className="p-1.5 rounded hover:bg-gray-100 transition shrink-0">
+            💬
+          </a>
+        )}
         <a href={KAKAOPAY_URL} target="_blank" rel="noopener noreferrer"
            title="개발자 후원하기 (카카오페이)"
            className="p-1.5 rounded hover:bg-gray-100 transition shrink-0">
