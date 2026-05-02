@@ -229,6 +229,13 @@ export function StockCard({
       {/* 책갈피 — 종목명 + 섹터 + 위험 (좌) / 신호 + hover 버튼 (우) — 모두 책갈피 통일 */}
       <div className="flex items-end justify-between gap-1 mx-2">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
+          {warning && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                              text-white text-sm font-bold leading-none
+                              ${WARN_BG[warning] ?? "bg-gray-500"}`}>
+              {warning}
+            </span>
+          )}
           <button
             type="button"
             onClick={() => openTossStock(stock.ticker)}
@@ -247,13 +254,6 @@ export function StockCard({
               </span>
             )}
           </button>
-          {warning && (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
-                              text-white text-sm font-bold leading-none
-                              ${WARN_BG[warning] ?? "bg-gray-500"}`}>
-              {warning}
-            </span>
-          )}
           {/* 수급 신호 — 외인+기관 동반매수 / 개인 떠받치기 / 외인비율 추세 */}
           {sig?.primary && (
             <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
