@@ -292,6 +292,56 @@ export function StockCard({
 
   const sig = computeSignal(investorHistory);
 
+  // 외인비율 변화 표 helper — 5/20/60/120/200일 기간별 delta (%p)
+  const ratioDeltaTable = () => {
+    if (!longHistory || longHistory.length === 0) return null;
+    const today = longHistory[0].외국인비율;
+    const periods: { lbl: string; n: number }[] = [
+      { lbl: "5일", n: 5 },
+      { lbl: "20일 (1개월)", n: 20 },
+      { lbl: "60일 (3개월)", n: 60 },
+      { lbl: "120일 (6개월)", n: 120 },
+      { lbl: "200일 (~10개월)", n: 200 },
+    ];
+    return (
+      <div className="mt-1.5 pt-1.5 border-t border-gray-200">
+        <div className="font-bold text-gray-900 mb-1">외인비율 변화</div>
+        <table className="w-full text-[11px] border border-gray-300 rounded overflow-hidden">
+          <thead className="bg-gray-100">
+            <tr>
+              <th className="border-b border-r border-gray-300 px-2 py-0.5 text-left font-medium text-gray-700">기간</th>
+              <th className="border-b border-gray-300 px-2 py-0.5 text-right font-medium text-gray-700">변화 (%p)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {periods.map((p, i) => {
+              const idx = Math.min(p.n - 1, longHistory.length - 1);
+              const past = longHistory[idx]?.외국인비율 ?? today;
+              const delta = today - past;
+              const days = Math.min(p.n, longHistory.length);
+              const color = delta > 0 ? "text-rose-600"
+                          : delta < 0 ? "text-blue-600" : "text-gray-700";
+              const last = i === periods.length - 1;
+              return (
+                <tr key={p.lbl}>
+                  <td className={`px-2 py-0.5 border-r border-gray-300 text-left text-gray-800 ${!last ? "border-b" : ""}`}>
+                    {p.lbl}
+                    {days < p.n && (
+                      <span className="text-[10px] text-gray-400 ml-1">(실 {days})</span>
+                    )}
+                  </td>
+                  <td className={`px-2 py-0.5 text-right tabular-nums font-bold ${color} ${!last ? "border-b border-gray-300" : ""}`}>
+                    {delta >= 0 ? "+" : ""}{delta.toFixed(2)}%p
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
   // 누적 순매수 표 helper — 신호 툴팁용 (개인/외국인/연기금)
   // withDays: 매수일/매도일 카운트 컬럼 추가 (연기금 신호처럼 빈도 정보 필요할 때)
   const cumulativeTable = (key: keyof Investor, title: string, withDays = false) => {
@@ -457,8 +507,12 @@ export function StockCard({
                 {/* 연기금 톤 → 연기금 누적 / 외인비율(up/down) 톤 → 외국인 누적 */}
                 {(sig.secondary.tone === "pension_buy" || sig.secondary.tone === "pension_sell")
                   && cumulativeTable("연기금", "연기금 매수/매도", true)}
-                {(sig.secondary.tone === "up" || sig.secondary.tone === "down")
-                  && cumulativeTable("외국인", "외국인 매수/매도", true)}
+                {(sig.secondary.tone === "up" || sig.secondary.tone === "down") && (
+                  <>
+                    {ratioDeltaTable()}
+                    {cumulativeTable("외국인", "외국인 매수/매도", true)}
+                  </>
+                )}
               </>
             }>
               <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
