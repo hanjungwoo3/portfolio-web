@@ -211,7 +211,7 @@ export function MobileStockCard({
 
       {/* 카드 본체 — 좌우 박스 (50:50) */}
       <article className={`rounded-lg border flex flex-row gap-1.5 p-1.5
-                            ${!price.high ? "min-h-[110px]" : ""}
+                            ${!price.high ? "min-h-[130px]" : ""}
                             ${cardBg} ${cardBorder}`}>
       {/* 좌측 — 가격 박스 (50%). 비거래일엔 sparkline 워터마크.
           Tooltip 으로 감싸서 overflow-hidden 자식이라도 툴팁 영역은 잘리지 않음 */}
