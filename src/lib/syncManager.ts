@@ -47,10 +47,11 @@ function getLastSyncedTs(): string | null {
   try { return localStorage.getItem(KEY_LAST_SYNCED_TS); } catch { return null; }
 }
 
-// 로그인 + 모드 ON 활성화
+// 로그인 + 모드 OFF 로 시작 (자동 sync 는 사용자가 명시적으로 ON 해야 활성)
+// — 자동 sync 는 핑퐁/덮어쓰기 등 예기치 않은 동작 가능 → 옵트인 안전 기본값
 export async function enableSync(): Promise<void> {
   await signIn();
-  setSyncMode("on");
+  setSyncMode("off");
 }
 
 // 로그아웃 + 상태 초기화

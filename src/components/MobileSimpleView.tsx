@@ -857,9 +857,10 @@ function SettingsModal({
               💾 Google Drive 동기화 (선택)
             </div>
             <div className="text-[11px] text-gray-500 leading-relaxed">
-              내 Google Drive 의 숨김 폴더에 자동 백업.<br />
+              내 Google Drive 의 숨김 폴더에 백업.<br />
               다른 기기에서 로그인하면 같은 종목 사용.<br />
-              우리는 데이터·이메일을 받지 않습니다.
+              우리는 데이터·이메일을 받지 않습니다.<br />
+              <span className="text-gray-400">(기본 수동 — ▶ 누르면 자동 sync)</span>
             </div>
             {syncStateLocal === "unconfigured" && (
               <button disabled={syncBusyLocal}
@@ -868,15 +869,15 @@ function SettingsModal({
                   setDataMsg("Google 로그인 중...");
                   try {
                     await enableSync();
-                    setSyncStateLocal("on");
+                    setSyncStateLocal("off");
                     const downloaded = await downloadFromDrive();
                     if (downloaded) {
                       void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
                       void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
-                      setDataMsg("✅ 로그인 + Drive 데이터 가져옴");
+                      setDataMsg("✅ Drive 가져옴 (자동 sync OFF)");
                     } else {
                       await uploadToDrive();
-                      setDataMsg("✅ 로그인 + 첫 업로드");
+                      setDataMsg("✅ 첫 업로드 (자동 sync OFF)");
                     }
                     setLastSyncedAtLocal(getLastSyncedAt());
                   } catch (e) {
