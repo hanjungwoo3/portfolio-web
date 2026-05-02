@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
 import {
   fetchTossPrices, fetchInvestorHistory, pickTodayInvestor,
-  fetchWarning, fetchNaverInfo,
+  fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
 } from "./lib/api";
 import { loadHoldings, loadPeaks, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts } from "./lib/db";
 import { StockCard } from "./components/StockCard";
@@ -181,6 +181,19 @@ function Dashboard() {
     })),
   });
 
+  // 비거래일 감지 — 첫 종목 가격에 high 가 없으면 거래일 아님 (fetchTossPrices 가 undefined 처리)
+  const isNonTradingDay = (prices?.length ?? 0) > 0 && !prices?.[0]?.high;
+  // 비거래일에만 일봉 차트 fetch (3개월) — 1시간 캐시, 카드 가격 박스에 작은 sparkline
+  const chartQs = useQueries({
+    queries: krxTickers.map(t => ({
+      queryKey: ["kr-price-history", t, "3mo"],
+      queryFn: () => fetchKrPriceHistory(t, "3mo"),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      enabled: isNonTradingDay,
+    })),
+  });
+
   const priceMap = useMemo(
     () => new Map((prices ?? []).map(p => [p.ticker, p])),
     [prices]
@@ -202,6 +215,12 @@ function Dashboard() {
   const naverMap = useMemo(
     () => new Map(naverQs.map((q, i) => [krxTickers[i], q.data])),
     [naverQs, krxTickers]
+  );
+  const chartMap = useMemo(
+    () => new Map(chartQs.map((q, i) =>
+      [krxTickers[i], (q.data ?? []).map(p => p.close)]
+    )),
+    [chartQs, krxTickers]
   );
 
   return (
@@ -299,6 +318,7 @@ function Dashboard() {
                   sector={naverMap.get(stock.ticker)?.sector}
                   consensus={naverMap.get(stock.ticker)?.consensus ?? null}
                   peak={peaks.get(stock.ticker)}
+                  chart={chartMap.get(stock.ticker)}
                   onOpenValuation={setValuationTicker}
                   onEdit={s => setEditing(s)}
                   onDelete={async s => {

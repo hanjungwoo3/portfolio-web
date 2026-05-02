@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import type { Stock, Price, Investor, Consensus } from "../types";
 import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
+import { Sparkline } from "./Sparkline";
 
 interface Props {
   stock: Stock;
@@ -13,6 +14,7 @@ interface Props {
   peak?: number;
   warning?: string;
   loading?: boolean;
+  chart?: number[];   // 비거래일 sparkline 용 일봉 종가 시계열 (3개월)
   onOpenValuation?: (ticker: string) => void;
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
@@ -135,7 +137,7 @@ interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
 const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
-  stock, price, investor, investorHistory, consensus, sector, peak, warning, loading,
+  stock, price, investor, investorHistory, consensus, sector, peak, warning, loading, chart,
   onOpenValuation, onEdit, onDelete,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
@@ -364,6 +366,11 @@ export function StockCard({
               </div>
             );
           })()}
+          {/* 비거래일 (high 없음) + 차트 데이터 있으면 작은 sparkline (3개월 추이) */}
+          {!price.high && chart && chart.length > 1 && (
+            <Sparkline data={chart} width={140} height={28}
+                       className="w-full mt-1" />
+          )}
         </div>
 
         {/* 통계 박스 — 매수/어제/수익 (3/10) */}

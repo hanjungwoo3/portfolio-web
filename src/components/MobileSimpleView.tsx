@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchTossPrices, fetchNaverInfo, fetchWarning,
-  fetchYahooChart,
+  fetchYahooChart, fetchKrPriceHistory,
 } from "../lib/api";
 import {
   US_PAIRS, SECTOR_EMOJI, SECTOR_ORDER,
@@ -150,6 +150,24 @@ export function MobileSimpleView() {
     refetchInterval: REFRESH_MS,
   });
   const groupPriceMap = new Map((groupPrices ?? []).map(p => [p.ticker, p]));
+
+  // 비거래일 감지 (PC 와 동일) — 첫 종목 high 없으면 비거래일
+  const groupNonTrading = (groupPrices?.length ?? 0) > 0 && !groupPrices?.[0]?.high;
+  // 비거래일에만 일봉 차트 fetch — 카드 가격 박스 sparkline (PC 와 캐시 키 공유)
+  const groupChartQs = useQueries({
+    queries: groupTickers.map(t => ({
+      queryKey: ["kr-price-history", t, "3mo"],
+      queryFn: () => fetchKrPriceHistory(t, "3mo"),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      enabled: activeTab !== US_KEY && groupNonTrading,
+    })),
+  });
+  const groupChartMap = new Map(
+    groupChartQs.map((q, i) =>
+      [groupTickers[i], (q.data ?? []).map(p => p.close)]
+    )
+  );
 
   // 어제보다 % 내림차순 정렬 — sleeping (거래 안 됨, base = price) 은 항상 맨 아래
   const groupHoldings = useMemo(() => {
@@ -376,6 +394,7 @@ export function MobileSimpleView() {
                                peak={peaks?.get(s.ticker)}
                                sector={naverInfos.data?.get(s.ticker)?.sector}
                                warning={warningMap.get(s.ticker) || undefined}
+                               chart={groupChartMap.get(s.ticker)}
                                onEdit={st => setEditing(st)}
                                onDelete={async st => {
                                  if (!confirm(

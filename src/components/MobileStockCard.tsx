@@ -1,6 +1,7 @@
 import type { Stock, Price } from "../types";
 import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
+import { Sparkline } from "./Sparkline";
 
 // 모바일 종목 카드 — 데스크톱 StockCard 의 가격 + 통계 박스만 (투자자 동향 X)
 // 폰트 모두 작게.
@@ -11,6 +12,7 @@ interface Props {
   peak?: number;
   sector?: string;
   warning?: string;
+  chart?: number[];   // 비거래일 sparkline 용 일봉 종가 시계열
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
 }
@@ -62,7 +64,7 @@ function openTossStock(ticker: string) {
 }
 
 export function MobileStockCard({
-  stock, price, peak, sector, warning, onEdit, onDelete,
+  stock, price, peak, sector, warning, chart, onEdit, onDelete,
 }: Props) {
   if (!price) {
     return (
@@ -201,6 +203,11 @@ export function MobileStockCard({
             </div>
           );
         })()}
+        {/* 비거래일 (high 없음) — 3개월 추이 sparkline */}
+        {!price.high && chart && chart.length > 1 && (
+          <Sparkline data={chart} width={140} height={24}
+                     className="w-full mt-0.5" />
+        )}
       </div>
 
       {/* 우측 — 통계 박스 (50%) */}
