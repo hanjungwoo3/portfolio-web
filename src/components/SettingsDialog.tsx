@@ -10,9 +10,8 @@ import {
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import {
   getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync,
-  uploadToDrive, downloadFromDrive,
+  uploadToDrive, downloadFromDrive, tryRestoreSession,
 } from "../lib/syncManager";
-import { isSignedIn } from "../lib/googleAuth";
 
 interface Props {
   isOpen: boolean;
@@ -38,6 +37,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
     setPollMs(getPersonalPollMs());
     setSyncState(getSyncState());
     setLastSyncedAt(getLastSyncedAt());
+    // 다이얼로그 열 때 — sync 모드 ON 이면 토큰 silent refresh 시도 (배경)
+    void tryRestoreSession();
     void (async () => {
       const data = await exportAll();
       setRaw(JSON.stringify(data, null, 2));
@@ -182,9 +183,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                     <span className="ml-2 text-gray-500">
                       (마지막: {new Date(lastSyncedAt).toLocaleString("ko-KR")})
                     </span>
-                  )}
-                  {!isSignedIn() && (
-                    <span className="ml-2 text-amber-600">(토큰 만료 — 다음 sync 시 자동 재로그인)</span>
                   )}
                 </div>
                 <div className="flex gap-2 flex-wrap">
