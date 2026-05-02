@@ -79,6 +79,16 @@ export function MobileStockCard({
   const dimmed = sleeping && getDimSleepingEnabled();
   const dayDiff = price.price - price.base;
   const dayPct = price.base > 0 ? (dayDiff / price.base) * 100 : 0;
+  // 색 결정용 — 직전 거래일 종가 대비 (장마감 기준)
+  const colorDiff = price.price - (price.prevClose || price.price);
+  const priceColorCls =
+    colorDiff > 0 ? "text-rose-600"
+    : colorDiff < 0 ? "text-blue-600"
+    : "text-gray-900";
+  const sparkColor =
+    colorDiff > 0 ? "#dc2626"
+    : colorDiff < 0 ? "#2563eb"
+    : "#1f2937";
   const peakPct = peak && peak > 0 ? ((price.price - peak) / peak) * 100 : 0;
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
@@ -110,7 +120,7 @@ export function MobileStockCard({
                               border-t border-l border-r ${cardBorder}
                               font-bold text-base leading-none w-fit
                               ${warning ? (WARN_PILL_BG[warning] ?? cardBg) : cardBg}
-                              ${signColor(dayDiff || -1)}`}>
+                              ${priceColorCls}`}>
             {sleeping && <span className="text-[10px] mr-0.5 opacity-70">zZ</span>}
             {stock.name}
             {stock.shares > 0 && (
@@ -160,9 +170,10 @@ export function MobileStockCard({
       <div className="relative overflow-hidden basis-1/2 min-w-0 border border-gray-200
                        rounded bg-gray-50/60 px-2 py-1.5 flex flex-col justify-center
                        space-y-0.5">
-        {/* 비거래일 — 3개월 추이 차트가 박스 배경 */}
+        {/* 비거래일 — 3개월 추이 차트가 박스 배경 (장마감 대비 색) */}
         {!price.high && chart && chart.length > 1 && (
           <Sparkline data={chart} width={300} height={70}
+                     color={sparkColor}
                      className="absolute inset-0 w-full h-full opacity-40
                                 pointer-events-none" />
         )}
@@ -184,7 +195,7 @@ export function MobileStockCard({
 
         {/* 현재가 + 거래량 */}
         <div className="relative z-10 flex items-baseline gap-1">
-          <span className={`text-xl font-bold leading-tight ${signColor(dayDiff || -1)}`}>
+          <span className={`text-xl font-bold leading-tight ${priceColorCls}`}>
             {price.price.toLocaleString()}원
           </span>
           {price.volume > 0 && (

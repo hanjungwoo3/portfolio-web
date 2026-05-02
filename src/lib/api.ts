@@ -112,6 +112,7 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
       ticker: item.code.replace(/^A/, ""),
       price: item.close,
       base,
+      prevClose: item.base,  // 직전 거래일 종가 — 비거래일 보정 영향 없음 (색상용)
       open: item.open,
       volume,
       trade_date: item.tradeDateTime ? toKstDateString(item.tradeDateTime) : "",
@@ -334,7 +335,8 @@ export interface UsIndex {
   symbol: string;
   name: string;
   price: number;
-  prev: number;
+  prev: number;            // "어제대비" 표시용 (비거래일엔 price 와 동일 = 0)
+  prevClose: number;       // 직전 거래일 종가 — 색상용 (비거래일 보정 영향 없음)
   diff: number;
   pct: number;
   currency?: string;
@@ -410,6 +412,9 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
       tradeDate = new Date(kstMs).toISOString().slice(0, 10);
     }
 
+    // 색상용 prevClose 보존 — 비거래일 보정 전 원래 값
+    const prevClose = prev;
+
     // 비거래일 보정 (KR fetchTossPrices 와 동일 로직) —
     // CLOSED 상태에서 마지막 정규장 거래의 KST 날짜가 오늘과 다르면 어제대비 0.
     // PRE/POST 는 활성 세션 (preMarket vs 마지막 정규장 종가) 의미 있어 보존.
@@ -424,7 +429,7 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
     const pct = prev > 0 ? (diff / prev) * 100 : 0;
 
     return {
-      symbol, name, price, prev, diff, pct,
+      symbol, name, price, prev, prevClose, diff, pct,
       currency: p.currency, tradeDate, marketState: state,
     };
   } catch {

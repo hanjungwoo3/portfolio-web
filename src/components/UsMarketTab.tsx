@@ -1,9 +1,9 @@
 import { useEffect } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { fetchYahooBatch, fetchTossPrices, fetchYahooChart } from "../lib/api";
+import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory } from "../lib/api";
 import type { UsIndex } from "../lib/api";
 import type { Price } from "../types";
-import { isSymbolSleeping, signColor } from "../lib/format";
+import { isSymbolSleeping } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
@@ -35,7 +35,11 @@ interface QuoteRow {
   price?: number;
   pct?: number;
   diff?: number;
+  // 색 결정용 — 장마감 기준 (prevClose 대비). 비거래일 보정 영향 없음.
+  // 미지정 시 diff 로 폴백.
+  colorDiff?: number;
   sleeping: boolean;
+  chart?: number[];   // 3개월 일봉 종가 시계열 (배경 sparkline 용)
 }
 
 export function UsMarketTab() {
@@ -61,17 +65,40 @@ export function UsMarketTab() {
   const krMap = new Map((krPrices ?? []).map(p => [p.ticker, p]));
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
 
-  // T0 60일 추이 (스파크라인) — 일봉, 60분 staleTime 캐시
-  const t0ChartQs = useQueries({
-    queries: tier0.map(p => ({
-      queryKey: ["yahoo-chart", p.symbol, "3mo"],
-      queryFn: () => fetchYahooChart(p.symbol, "3mo"),
+  // T0 + 모든 섹터 현물·선물 Yahoo 심볼 통합 — 동일 캐시
+  const allYahooForCharts: string[] = [];
+  for (const p of US_PAIRS) {
+    allYahooForCharts.push(p.symbol);
+    if (p.future) allYahooForCharts.push(p.future);
+  }
+  const yahooChartQs = useQueries({
+    queries: allYahooForCharts.map(sym => ({
+      queryKey: ["yahoo-chart", sym, "3mo"],
+      queryFn: () => fetchYahooChart(sym, "3mo"),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
   });
+  const yahooChartMap = new Map(
+    allYahooForCharts.map((sym, i) => [sym, yahooChartQs[i]?.data ?? []])
+  );
+
+  // KR ETF — fetchKrPriceHistory (Yahoo .KS/.KQ)
+  const krEtfChartQs = useQueries({
+    queries: krEtfs.map(t => ({
+      queryKey: ["kr-price-history", t, "3mo"],
+      queryFn: () => fetchKrPriceHistory(t, "3mo"),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const krEtfChartMap = new Map(
+    krEtfs.map((t, i) => [t, (krEtfChartQs[i]?.data ?? []).map(p => p.close)])
+  );
+
+  // T0 카드용 — yahooChartMap 의 부분집합
   const t0ChartMap = new Map(
-    tier0.map((p, i) => [p.symbol, t0ChartQs[i]?.data ?? []])
+    tier0.map(p => [p.symbol, yahooChartMap.get(p.symbol) ?? []])
   );
 
   // 섹터별 행 묶음 — 현물 + 선물 + ETF
@@ -86,6 +113,7 @@ export function UsMarketTab() {
         kind: "spot", symbol: p.symbol, name: p.name, desc: p.desc,
         price: q?.price, pct: q?.pct, diff: q?.diff,
         sleeping: isSymbolSleeping(p.symbol),
+        chart: yahooChartMap.get(p.symbol),
       });
     }
     // 2) 선물
@@ -97,6 +125,7 @@ export function UsMarketTab() {
         desc: `${p.name} 선물 — 정규장 외 흐름 체크`,
         price: fq?.price, pct: fq?.pct, diff: fq?.diff,
         sleeping: isSymbolSleeping(p.future),
+        chart: yahooChartMap.get(p.future),
       });
     }
     // 3) KR ETF
@@ -105,10 +134,14 @@ export function UsMarketTab() {
       const p: Price | undefined = krMap.get(t);
       const dayDiff = p ? p.price - p.base : 0;
       const dayPct = p && p.base > 0 ? (dayDiff / p.base) * 100 : 0;
+      // 색용 — 장마감 기준 (prevClose 대비)
+      const colorDiffEtf = p ? p.price - (p.prevClose || p.price) : 0;
       rows.push({
         kind: "etf", symbol: t, name: ETF_NAMES[t] ?? `ETF ${t}`,
         price: p?.price, pct: p ? dayPct : undefined, diff: p ? dayDiff : undefined,
+        colorDiff: colorDiffEtf,
         sleeping: isSymbolSleeping(t),
+        chart: krEtfChartMap.get(t),
       });
     }
     return rows;
@@ -129,11 +162,16 @@ export function UsMarketTab() {
         {tier0.map(p => {
           const q = usMap?.get(p.symbol);
           const sleeping = isSymbolSleeping(p.symbol);
+          // 장마감 기준 — 비거래일에도 마지막 거래의 실제 변화로 색 결정
+          const cdiff = q ? q.price - (q.prevClose || q.price) : 0;
           const bg =
-            q && q.diff > 0 ? "bg-rose-50 border-rose-200"
-            : q && q.diff < 0 ? "bg-blue-50/70 border-blue-200"
+            cdiff > 0 ? "bg-rose-50 border-rose-200"
+            : cdiff < 0 ? "bg-blue-50/70 border-blue-200"
             : "bg-white border-gray-200";
-          const sign = q ? signColor(q.diff) : "text-gray-400";
+          const sign =
+            cdiff > 0 ? "text-rose-600"
+            : cdiff < 0 ? "text-blue-600"
+            : "text-gray-900";
           return (
             <a key={p.symbol}
                href={quoteUrl(p.symbol)}
@@ -143,11 +181,11 @@ export function UsMarketTab() {
                             rounded-lg border px-3 py-2 min-h-[120px]
                             hover:brightness-95 transition cursor-pointer
                             ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
-              {/* 60일 추이 — 카드 전체 배경 워터마크 (라인 + 그라디언트 영역) */}
+              {/* 60일 추이 — 카드 전체 배경 워터마크. 색은 장마감 대비 */}
               <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
-                         color={q && q.diff > 0 ? "#dc2626"
-                                : q && q.diff < 0 ? "#2563eb"
-                                : "#94a3b8"}
+                         color={cdiff > 0 ? "#dc2626"
+                                : cdiff < 0 ? "#2563eb"
+                                : "#1f2937"}
                          width={400} height={120}
                          className="absolute inset-0 w-full h-full opacity-50
                                     pointer-events-none" />
@@ -161,7 +199,7 @@ export function UsMarketTab() {
                 {p.desc}
               </div>
               <div className="relative z-10 flex items-baseline mt-auto pt-4">
-                <span className="flex-1 text-left text-sm tabular-nums text-gray-700">
+                <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>
                 <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
@@ -231,33 +269,48 @@ function QuoteList({ rows }: QuoteListProps) {
   return (
     <div className="flex flex-col py-0.5">
       {rows.map(r => {
-        const sign = r.diff !== undefined ? signColor(r.diff) : "text-gray-400";
+        // 색 결정 — colorDiff(장마감 기준) 가 있으면 우선, 없으면 diff (현물·선물)
+        const cdiff = r.colorDiff !== undefined ? r.colorDiff : r.diff;
+        const sign =
+          cdiff !== undefined && cdiff > 0 ? "text-rose-600"
+          : cdiff !== undefined && cdiff < 0 ? "text-blue-600"
+          : "text-gray-900";
+        const sparkColor =
+          cdiff !== undefined && cdiff > 0 ? "#dc2626"
+          : cdiff !== undefined && cdiff < 0 ? "#2563eb"
+          : "#1f2937";
         const rowBg =
-          r.diff !== undefined && r.diff > 0 ? "bg-rose-50"
-          : r.diff !== undefined && r.diff < 0 ? "bg-blue-50/70"
+          cdiff !== undefined && cdiff > 0 ? "bg-rose-50"
+          : cdiff !== undefined && cdiff < 0 ? "bg-blue-50/70"
           : "";
         return (
           <div key={r.symbol}
-               className={`flex items-baseline gap-2 px-1.5 py-1
+               className={`relative overflow-hidden flex items-baseline gap-2 px-1.5 py-1
                             ${rowBg}
                             ${r.sleeping && dimEnabled ? "opacity-60" : ""}`}>
+            {r.chart && r.chart.length > 1 && (
+              <Sparkline data={r.chart} width={300} height={28}
+                         color={sparkColor}
+                         className="absolute inset-0 w-full h-full opacity-25
+                                    pointer-events-none" />
+            )}
             {/* zZ 자리 항상 확보 — 종목명 위치 정렬 통일 */}
-            <span className="text-[10px] text-gray-400 shrink-0 w-4 text-left">
+            <span className="relative z-10 text-[10px] text-gray-400 shrink-0 w-4 text-left">
               {r.sleeping ? "zZ" : ""}
             </span>
             <a href={quoteUrl(r.symbol)}
                target="_blank" rel="noopener noreferrer"
                title={r.desc}
-               className={`text-sm font-bold hover:underline truncate w-[160px]
+               className={`relative z-10 text-sm font-bold hover:underline truncate w-[160px]
                             ${r.kind === "future" ? "text-amber-700"
                               : r.kind === "etf" ? "text-gray-700"
                               : "text-gray-900"}`}>
               {r.name}
             </a>
-            <span className="text-xs tabular-nums text-gray-700 text-right w-[64px] shrink-0">
+            <span className={`relative z-10 text-xs tabular-nums text-right w-[64px] shrink-0 ${sign}`}>
               {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
             </span>
-            <span className={`text-base font-bold tabular-nums text-right w-[64px] shrink-0 ${sign}`}>
+            <span className={`relative z-10 text-base font-bold tabular-nums text-right w-[64px] shrink-0 ${sign}`}>
               {r.pct !== undefined && Math.abs(r.pct) >= 0.005
                 ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
                 : ""}

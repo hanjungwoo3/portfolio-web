@@ -13,7 +13,8 @@ export interface Stock {
 export interface Price {
   ticker: string;
   price: number;
-  base: number;
+  base: number;        // "어제대비" 표시용 — 비거래일엔 price 와 동일 (= 0)
+  prevClose: number;   // 직전 거래일 종가 — 색상 결정용 (비거래일 보정 영향 없음)
   open: number;
   volume: number;
   trade_date: string;

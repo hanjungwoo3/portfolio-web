@@ -428,22 +428,26 @@ export function MobileSimpleView() {
         {tier0.map(p => {
           const q = usMap?.get(p.symbol);
           const sleeping = isSymbolSleeping(p.symbol);
-          // 표와 동일한 +/- 행 배경 + 색상
+          // 장마감 기준 — prevClose 대비 (비거래일에도 실제 변화 색)
+          const cdiff = q ? q.price - (q.prevClose || q.price) : 0;
           const bg =
-            q && q.diff > 0 ? "bg-rose-50 border-rose-200"
-            : q && q.diff < 0 ? "bg-blue-50/70 border-blue-200"
+            cdiff > 0 ? "bg-rose-50 border-rose-200"
+            : cdiff < 0 ? "bg-blue-50/70 border-blue-200"
             : "bg-white border-gray-200";
-          const sign = q ? signColor(q.diff) : "text-gray-400";
+          const sign =
+            cdiff > 0 ? "text-rose-600"
+            : cdiff < 0 ? "text-blue-600"
+            : "text-gray-900";
           return (
             <div key={p.symbol}
                  className={`relative overflow-hidden flex flex-col gap-0.5
                               rounded-lg border px-3 py-2 min-h-[110px]
                               ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
-              {/* 60일 추이 — 카드 전체 배경 워터마크 */}
+              {/* 60일 추이 — 카드 전체 배경 워터마크. 색은 장마감 대비 */}
               <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
-                         color={q && q.diff > 0 ? "#dc2626"
-                                : q && q.diff < 0 ? "#2563eb"
-                                : "#94a3b8"}
+                         color={cdiff > 0 ? "#dc2626"
+                                : cdiff < 0 ? "#2563eb"
+                                : "#1f2937"}
                          width={300} height={110}
                          className="absolute inset-0 w-full h-full opacity-50
                                     pointer-events-none" />
@@ -459,7 +463,7 @@ export function MobileSimpleView() {
                 {p.desc}
               </div>
               <div className="relative z-10 flex items-baseline mt-auto pt-3">
-                <span className="flex-1 text-left text-sm tabular-nums text-gray-700">
+                <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>
                 <span className={`flex-1 text-right text-base font-bold tabular-nums ${sign}`}>
