@@ -424,8 +424,7 @@ export function MobileSimpleView() {
           {/* 합계 — 화면 하단 fixed (항상 보임) */}
           {groupHoldings.length > 0 && (
             <div className="fixed bottom-0 left-0 right-0 z-20
-                             bg-white/95 backdrop-blur
-                             border-t border-gray-300 shadow-lg
+                             bg-white border-t border-gray-300 shadow-lg
                              px-3 py-2 flex justify-center">
               <TotalRow holdings={groupHoldings} prices={groupPriceMap} />
             </div>
