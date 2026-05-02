@@ -316,10 +316,16 @@ export function StockCard({
                             items-stretch px-3 py-2
                             ${cardBg} ${cardBorder}
                             transition-opacity`}>
-        {/* 가격 박스 — 고/현재가/저 (3/10) */}
-        <div className="border border-gray-200 rounded-md bg-gray-50/60
-                        px-2 py-1 space-y-0.5 basis-[30%] min-w-0
+        {/* 가격 박스 — 고/현재가/저 (3/10). 비거래일엔 sparkline 워터마크 */}
+        <div className="relative overflow-hidden border border-gray-200 rounded-md
+                        bg-gray-50/60 px-2 py-1 space-y-0.5 basis-[30%] min-w-0
                         flex flex-col justify-center">
+          {/* 비거래일 — 3개월 추이 차트가 박스 배경 */}
+          {!price.high && chart && chart.length > 1 && (
+            <Sparkline data={chart} width={300} height={80}
+                       className="absolute inset-0 w-full h-full opacity-40
+                                  pointer-events-none" />
+          )}
           {price.high && price.high > 0 && (() => {
             const hi = price.high;
             const hiDiff = price.price - hi;
@@ -334,7 +340,7 @@ export function StockCard({
               </div>
             );
           })()}
-          <div className="flex items-baseline gap-2">
+          <div className="relative z-10 flex items-baseline gap-2">
             {tick.arrow && (
               <span className={`text-xl font-bold leading-tight
                                 ${tick.dir === "up" ? "text-rose-600"
@@ -366,11 +372,6 @@ export function StockCard({
               </div>
             );
           })()}
-          {/* 비거래일 (high 없음) + 차트 데이터 있으면 작은 sparkline (3개월 추이) */}
-          {!price.high && chart && chart.length > 1 && (
-            <Sparkline data={chart} width={140} height={28}
-                       className="w-full mt-1" />
-          )}
         </div>
 
         {/* 통계 박스 — 매수/어제/수익 (3/10) */}

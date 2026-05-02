@@ -156,10 +156,16 @@ export function MobileStockCard({
 
       {/* 카드 본체 — 좌우 박스 (50:50) */}
       <article className={`rounded-lg border flex flex-row gap-1.5 p-1.5 ${cardBg} ${cardBorder}`}>
-      {/* 좌측 — 가격 박스 (50%) */}
-      <div className="basis-1/2 min-w-0 border border-gray-200 rounded
-                       bg-gray-50/60 px-2 py-1.5 flex flex-col justify-center
+      {/* 좌측 — 가격 박스 (50%). 비거래일엔 sparkline 워터마크 */}
+      <div className="relative overflow-hidden basis-1/2 min-w-0 border border-gray-200
+                       rounded bg-gray-50/60 px-2 py-1.5 flex flex-col justify-center
                        space-y-0.5">
+        {/* 비거래일 — 3개월 추이 차트가 박스 배경 */}
+        {!price.high && chart && chart.length > 1 && (
+          <Sparkline data={chart} width={300} height={70}
+                     className="absolute inset-0 w-full h-full opacity-40
+                                pointer-events-none" />
+        )}
         {/* 고가 */}
         {price.high && price.high > 0 && (() => {
           const hi = price.high;
@@ -177,7 +183,7 @@ export function MobileStockCard({
         })()}
 
         {/* 현재가 + 거래량 */}
-        <div className="flex items-baseline gap-1">
+        <div className="relative z-10 flex items-baseline gap-1">
           <span className={`text-xl font-bold leading-tight ${signColor(dayDiff || -1)}`}>
             {price.price.toLocaleString()}원
           </span>
@@ -203,11 +209,6 @@ export function MobileStockCard({
             </div>
           );
         })()}
-        {/* 비거래일 (high 없음) — 3개월 추이 sparkline */}
-        {!price.high && chart && chart.length > 1 && (
-          <Sparkline data={chart} width={140} height={24}
-                     className="w-full mt-0.5" />
-        )}
       </div>
 
       {/* 우측 — 통계 박스 (50%) */}
