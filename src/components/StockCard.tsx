@@ -438,7 +438,7 @@ export function StockCard({
             }>
               <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
                                 rounded-t-md border-t border-l border-r
-                                text-[10px] font-bold leading-none cursor-help
+                                text-[10px] leading-none cursor-help
                                 ${SIGNAL_TONE[sig.primary.tone]}`}>
                 {SIGNAL_ICON[sig.primary.tone]} {sig.primary.label}
               </span>
@@ -463,7 +463,7 @@ export function StockCard({
             }>
               <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
                                 rounded-t-md border-t border-l border-r
-                                text-[10px] font-bold leading-none cursor-help
+                                text-[10px] leading-none cursor-help
                                 ${SIGNAL_TONE[sig.secondary.tone]}`}>
                 {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
               </span>
