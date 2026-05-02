@@ -292,13 +292,14 @@ export function StockCard({
 
   const sig = computeSignal(investorHistory);
 
-  // 통합 표 helper — 기간 한 열 + 여러 데이터 컬럼 (매수/매도일, 누적, 외인비율)
+  // 통합 표 helper — 기간 한 열 + 그룹 헤더 + 여러 데이터 컬럼
   type Col =
     | { type: "days"; key: keyof Investor; header: string }
     | { type: "sum"; key: keyof Investor; header: string }
     | { type: "ratio"; header: string };
+  type ColGroup = { group?: string; cols: Col[] };
 
-  const unifiedTable = (cols: Col[], title: string) => {
+  const unifiedTable = (groups: ColGroup[], title: string) => {
     if (!longHistory || longHistory.length === 0) return null;
     const periods: { lbl: string; n: number }[] = [
       { lbl: "5일", n: 5 },
@@ -308,18 +309,69 @@ export function StockCard({
       { lbl: "200일 (~10개월)", n: 200 },
     ];
     const today = longHistory[0].외국인비율;
+    // 모든 col 평탄화 — 셀 렌더링 시 사용
+    const flatCols = groups.flatMap(g => g.cols);
+    // 위계 헤더 필요 여부 — group 명시되거나 한 그룹에 여러 col 있으면 필요
+    const hasHierarchy = groups.some(g => g.group || g.cols.length > 1);
     return (
       <div className="mt-1.5 pt-1.5 border-t border-gray-200">
         <div className="font-bold text-gray-900 mb-1">{title}</div>
         <table className="w-full text-[11px] border border-gray-300 rounded overflow-hidden whitespace-nowrap">
           <thead className="bg-gray-100">
-            <tr>
-              <th className="border-b border-r border-gray-300 px-2 py-0.5 text-left font-medium text-gray-700">기간</th>
-              {cols.map((c, ci) => (
-                <th key={ci} className={`border-b border-gray-300 px-2 py-0.5 ${c.type === "days" ? "text-center" : "text-right"} font-medium text-gray-700 ${ci < cols.length - 1 ? "border-r" : ""}`}>
-                  {c.header}
+            {hasHierarchy && (
+              <tr>
+                <th rowSpan={2} className="border-b border-r border-gray-300 px-2 py-0.5 text-left font-medium text-gray-700">
+                  기간
                 </th>
-              ))}
+                {groups.map((g, gi) => {
+                  const isLastGroup = gi === groups.length - 1;
+                  const groupBorder = !isLastGroup ? "border-r" : "";
+                  // 그룹 헤더 있으면 colspan / 없으면 단일 col 자체 헤더 rowspan=2
+                  if (g.group) {
+                    return (
+                      <th key={gi} colSpan={g.cols.length}
+                          className={`border-b border-gray-300 px-2 py-0.5 text-center font-medium text-gray-700 ${groupBorder}`}>
+                        {g.group}
+                      </th>
+                    );
+                  }
+                  // 그룹 없음 → 각 col 헤더가 rowspan=2
+                  return g.cols.map((c, ci) => {
+                    const colLast = isLastGroup && ci === g.cols.length - 1;
+                    return (
+                      <th key={`${gi}-${ci}`} rowSpan={2}
+                          className={`border-b border-gray-300 px-2 py-0.5 ${c.type === "days" ? "text-center" : "text-right"} font-medium text-gray-700 ${!colLast ? "border-r" : ""}`}>
+                        {c.header}
+                      </th>
+                    );
+                  });
+                })}
+              </tr>
+            )}
+            <tr>
+              {!hasHierarchy && (
+                <th className="border-b border-r border-gray-300 px-2 py-0.5 text-left font-medium text-gray-700">기간</th>
+              )}
+              {hasHierarchy
+                ? groups.map((g, gi) => {
+                    if (!g.group) return null;  // 이미 rowspan=2 로 위에서 처리
+                    const isLastGroup = gi === groups.length - 1;
+                    return g.cols.map((c, ci) => {
+                      const colLast = isLastGroup && ci === g.cols.length - 1;
+                      return (
+                        <th key={`sub-${gi}-${ci}`}
+                            className={`border-b border-gray-300 px-2 py-0.5 ${c.type === "days" ? "text-center" : "text-right"} font-medium text-gray-600 ${!colLast ? "border-r" : ""}`}>
+                          {c.header}
+                        </th>
+                      );
+                    });
+                  })
+                : flatCols.map((c, ci) => (
+                    <th key={ci}
+                        className={`border-b border-gray-300 px-2 py-0.5 ${c.type === "days" ? "text-center" : "text-right"} font-medium text-gray-700 ${ci < flatCols.length - 1 ? "border-r" : ""}`}>
+                      {c.header}
+                    </th>
+                  ))}
             </tr>
           </thead>
           <tbody>
@@ -335,13 +387,12 @@ export function StockCard({
                       <span className="text-[10px] text-gray-400 ml-1">(실 {days})</span>
                     )}
                   </td>
-                  {cols.map((c, ci) => {
-                    const isLastCol = ci === cols.length - 1;
+                  {flatCols.map((c, ci) => {
+                    const isLastCol = ci === flatCols.length - 1;
                     const cellBorder = `${!last ? "border-b border-gray-300" : ""} ${!isLastCol ? "border-r" : ""}`;
                     if (c.type === "days") {
                       const buy  = slice.filter(d => ((d[c.key] as number) ?? 0) > 0).length;
                       const sell = slice.filter(d => ((d[c.key] as number) ?? 0) < 0).length;
-                      // 큰 쪽만 bold (동수면 둘 다)
                       const buyBold  = buy >= sell;
                       const sellBold = sell >= buy;
                       return (
@@ -360,7 +411,6 @@ export function StockCard({
                         </td>
                       );
                     } else {
-                      // ratio (외인비율 변화)
                       const idx = Math.min(p.n - 1, longHistory.length - 1);
                       const past = longHistory[idx]?.외국인비율 ?? today;
                       const delta = today - past;
@@ -384,12 +434,16 @@ export function StockCard({
   // 단일 투자자용 (그리드 행 tooltip) — 매수/매도일 + 누적
   const cumulativeTable = (key: keyof Investor, title: string, withDays = false) =>
     unifiedTable(
-      withDays
-        ? [
-            { type: "days", key, header: "매수/매도일" },
-            { type: "sum", key, header: "누적" },
-          ]
-        : [{ type: "sum", key, header: "누적" }],
+      [
+        {
+          cols: withDays
+            ? [
+                { type: "days", key, header: "매수/매도" },
+                { type: "sum", key, header: "누적" },
+              ]
+            : [{ type: "sum", key, header: "누적" }],
+        },
+      ],
       title,
     );
 
@@ -459,18 +513,26 @@ export function StockCard({
                   {SIGNAL_ICON[sig.primary.tone]} {sig.primary.label}
                 </div>
                 <div className="text-gray-700">{SIGNAL_TIPS[sig.primary.tone]}</div>
-                {/* tone 별 통합 표 — 기간 1열 + 여러 투자자 컬럼 */}
+                {/* tone 별 통합 표 — 그룹 헤더 (개인/외인/기관) */}
                 {sig.primary.tone === "bear" && unifiedTable([
-                  { type: "days", key: "개인",   header: "개인 일수" },
-                  { type: "sum",  key: "개인",   header: "개인 누적" },
-                  { type: "days", key: "외국인", header: "외인 일수" },
-                  { type: "sum",  key: "외국인", header: "외인 누적" },
+                  { group: "개인", cols: [
+                    { type: "days", key: "개인", header: "매수/매도" },
+                    { type: "sum",  key: "개인", header: "누적" },
+                  ]},
+                  { group: "외인", cols: [
+                    { type: "days", key: "외국인", header: "매수/매도" },
+                    { type: "sum",  key: "외국인", header: "누적" },
+                  ]},
                 ], "개인 떠받치기 — 개인 + 외국인")}
                 {(sig.primary.tone === "bull" || sig.primary.tone === "warn") && unifiedTable([
-                  { type: "days", key: "외국인", header: "외인 일수" },
-                  { type: "sum",  key: "외국인", header: "외인 누적" },
-                  { type: "days", key: "기관",   header: "기관 일수" },
-                  { type: "sum",  key: "기관",   header: "기관 누적" },
+                  { group: "외인", cols: [
+                    { type: "days", key: "외국인", header: "매수/매도" },
+                    { type: "sum",  key: "외국인", header: "누적" },
+                  ]},
+                  { group: "기관", cols: [
+                    { type: "days", key: "기관", header: "매수/매도" },
+                    { type: "sum",  key: "기관", header: "누적" },
+                  ]},
                 ], "외국인 + 기관")}
               </>
             }>
@@ -492,16 +554,20 @@ export function StockCard({
                   {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
                 </div>
                 <div className="text-gray-700">{SIGNAL_TIPS[sig.secondary.tone]}</div>
-                {/* 연기금 톤 → 연기금 통합 표 */}
+                {/* 연기금 톤 → 연기금 그룹 */}
                 {(sig.secondary.tone === "pension_buy" || sig.secondary.tone === "pension_sell") && unifiedTable([
-                  { type: "days", key: "연기금", header: "매수/매도일" },
-                  { type: "sum",  key: "연기금", header: "누적" },
+                  { group: "연기금", cols: [
+                    { type: "days", key: "연기금", header: "매수/매도" },
+                    { type: "sum",  key: "연기금", header: "누적" },
+                  ]},
                 ], "연기금")}
-                {/* 외인비율 톤 → 외인비율 변화 + 외국인 누적 통합 */}
+                {/* 외인비율 톤 → 외인비율 변화 (단독) + 외인 그룹 */}
                 {(sig.secondary.tone === "up" || sig.secondary.tone === "down") && unifiedTable([
-                  { type: "ratio", header: "외인비율 변화" },
-                  { type: "days", key: "외국인", header: "외인 일수" },
-                  { type: "sum",  key: "외국인", header: "외인 누적" },
+                  { cols: [{ type: "ratio", header: "외인비율 변화" }] },
+                  { group: "외인", cols: [
+                    { type: "days", key: "외국인", header: "매수/매도" },
+                    { type: "sum",  key: "외국인", header: "누적" },
+                  ]},
                 ], "외인비율 + 외국인")}
               </>
             }>
