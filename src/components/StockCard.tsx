@@ -21,27 +21,35 @@ interface Props {
   onDelete?: (stock: Stock) => void;
 }
 
-// 신호 — 최근 5거래일 + 외인비율 20일 추세
+// 신호 — 최근 5거래일 동향 + 연기금 5일 (또는 외인비율 20일 fallback)
 interface InvestorSignal {
   primary?: { label: string; tone: "bull" | "bear" | "warn" };
-  secondary?: { label: string; tone: "up" | "down" };
+  secondary?: { label: string; tone: "up" | "down" | "pension_buy" | "pension_sell" };
 }
 function computeSignal(history: Investor[] | null | undefined): InvestorSignal | null {
   if (!history || history.length < 3) return null;
   const last5 = history.slice(0, Math.min(5, history.length));
   let bothBuy = 0, support = 0, bothSell = 0;
+  let pensionBuyDays = 0, pensionSellDays = 0;
   for (const d of last5) {
     if (d.외국인 > 0 && d.기관 > 0) bothBuy += 1;
     if (d.외국인 < 0 && d.개인 > 0) support += 1;
     if (d.외국인 < 0 && d.기관 < 0) bothSell += 1;
+    if (d.연기금 > 0) pensionBuyDays += 1;
+    if (d.연기금 < 0) pensionSellDays += 1;
   }
   let primary: InvestorSignal["primary"];
   if (bothBuy >= 3) primary = { label: `외인+기관 매수 ${bothBuy}일`, tone: "bull" };
   else if (support >= 3) primary = { label: `개인 떠받치기 ${support}일`, tone: "bear" };
   else if (bothSell >= 3) primary = { label: `외인+기관 매도 ${bothSell}일`, tone: "warn" };
 
+  // 연기금 우선 (장기 자금 → 의미 큼) / fallback 외인비율 20일 추세
   let secondary: InvestorSignal["secondary"];
-  if (history.length >= 20) {
+  if (pensionBuyDays >= 3) {
+    secondary = { label: `연기금 매수 ${pensionBuyDays}일`, tone: "pension_buy" };
+  } else if (pensionSellDays >= 3) {
+    secondary = { label: `연기금 매도 ${pensionSellDays}일`, tone: "pension_sell" };
+  } else if (history.length >= 20) {
     const today = history[0].외국인비율;
     const past = history[19].외국인비율;
     const delta = today - past;
@@ -62,9 +70,12 @@ const SIGNAL_TONE: Record<string, string> = {
   warn: "bg-amber-100 text-amber-700 border-amber-300",
   up:   "bg-blue-50 text-blue-700 border-blue-200",
   down: "bg-orange-50 text-orange-700 border-orange-200",
+  pension_buy:  "bg-violet-100 text-violet-800 border-violet-300",
+  pension_sell: "bg-pink-100 text-pink-800 border-pink-300",
 };
 const SIGNAL_ICON: Record<string, string> = {
   bull: "🟢", bear: "🔴", warn: "⚠️", up: "📈", down: "📉",
+  pension_buy: "🏦", pension_sell: "🏦",
 };
 
 // 호버 툴팁 — 신호 뱃지 의미 설명
@@ -74,6 +85,8 @@ const SIGNAL_TIPS: Record<string, string> = {
   warn: "외국인 + 기관이 동반 매도한 일수 — 약세 시그널",
   up:   "외국인 보유 비율이 20거래일 동안 상승 — 외인 유입 추세",
   down: "외국인 보유 비율이 20거래일 동안 하락 — 외인 이탈 추세",
+  pension_buy:  "연기금이 최근 5거래일 중 3일 이상 매수 — 장기 자금 유입 (강한 긍정 시그널)",
+  pension_sell: "연기금이 최근 5거래일 중 3일 이상 매도 — 장기 자금 이탈 (주의)",
 };
 
 // 호버 툴팁 — 경고 뱃지 의미 설명
@@ -317,7 +330,12 @@ export function StockCard({
           {sig?.secondary && (
             <Tooltip content={
               <>
-                <div className="font-bold text-blue-700 mb-1">
+                <div className={`font-bold mb-1 ${
+                  sig.secondary.tone === "pension_buy" ? "text-violet-700"
+                  : sig.secondary.tone === "pension_sell" ? "text-pink-700"
+                  : sig.secondary.tone === "up" ? "text-blue-700"
+                  : "text-orange-700"
+                }`}>
                   {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
                 </div>
                 <div className="text-gray-700">{SIGNAL_TIPS[sig.secondary.tone]}</div>
