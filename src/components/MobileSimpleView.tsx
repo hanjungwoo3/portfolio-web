@@ -29,6 +29,13 @@ import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./HelpDialog"
 import { Sparkline } from "./Sparkline";
 import { TALLY_URL, isFeedbackEnabled } from "../lib/feedbackConfig";
 import { ValuationModal } from "./ValuationModal";
+import {
+  getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync,
+  uploadToDrive, downloadFromDrive, scheduleAutoSync, checkConflict,
+  tryRestoreSession,
+} from "../lib/syncManager";
+import type { ConflictResult } from "../lib/syncManager";
+import { ConflictDialog } from "./ConflictDialog";
 import type { Stock } from "../types";
 
 const US_KEY = "__us__";  // 미국 증시 탭 키
@@ -65,6 +72,9 @@ export function MobileSimpleView() {
   const [editing, setEditing] = useState<Stock | null>(null);
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState("");
+  const [, setLastSyncedAt] = useState<string | null>(getLastSyncedAt());
+  const [conflict, setConflict] = useState<ConflictResult | null>(null);
+  const pendingActionRef = useRef<(() => void) | null>(null);
   // 그룹 탭 길게 누르기 → 액션 시트 (이름 변경 / 삭제)
   const [tabMenu, setTabMenu] = useState<{ key: string; label: string } | null>(null);
   const longPressTimer = useRef<number | null>(null);
@@ -75,6 +85,27 @@ export function MobileSimpleView() {
     const t = setTimeout(() => setHelpOpen(true), 1500);
     return () => clearTimeout(t);
   }, []);
+
+  // sync 모드 ON 일 때 — 앱 로드 시 silent token 갱신 + 충돌 체크
+  useEffect(() => {
+    void (async () => {
+      const restored = await tryRestoreSession();
+      if (!restored) return;
+      const result = await checkConflict();
+      if (result.kind === "conflict") setConflict(result);
+    })();
+  }, []);
+
+  // 편집/검색 액션 시작 전 — 충돌 체크 후 진행
+  const guardedAction = async (action: () => void) => {
+    const result = await checkConflict();
+    if (result.kind === "conflict") {
+      pendingActionRef.current = action;
+      setConflict(result);
+    } else {
+      action();
+    }
+  };
   const [activeTab, setActiveTab] = useState<string>(() => {
     if (typeof localStorage === "undefined") return US_KEY;
     return localStorage.getItem(TAB_KEY) ?? US_KEY;
@@ -314,7 +345,7 @@ export function MobileSimpleView() {
                             disabled:opacity-50 transition">
           <span className={`inline-block ${isFetching ? "animate-spin" : ""}`}>🔄</span>
         </button>
-        <button onClick={() => setSearchOpen(true)}
+        <button onClick={() => guardedAction(() => setSearchOpen(true))}
                 title="종목 검색 / 추가"
                 className="p-1.5 rounded hover:bg-gray-100 transition">
           🔍
@@ -408,7 +439,7 @@ export function MobileSimpleView() {
                                chart={groupChartMap.get(s.ticker)}
                                consensus={naverInfos.data?.get(s.ticker)?.consensus}
                                onOpenValuation={setValuationTicker}
-                               onEdit={st => setEditing(st)}
+                               onEdit={st => guardedAction(() => setEditing(st))}
                                onDelete={async st => {
                                  if (!confirm(
                                    `"${st.name}" 을(를) 삭제할까요?\n`
@@ -418,6 +449,7 @@ export function MobileSimpleView() {
                                  void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
                                  void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
                                  void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
+          scheduleAutoSync();
                                }} />
             ))}
           </div>
@@ -577,6 +609,7 @@ export function MobileSimpleView() {
           void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
           void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
           void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
+          scheduleAutoSync();
         }} />
 
       {/* 보유 편집 (매수 / 매도 / 직접수정 / 삭제) */}
@@ -589,6 +622,7 @@ export function MobileSimpleView() {
           void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
           void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
           void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
+          scheduleAutoSync();
         }} />
 
       {/* 첫 접속 안내 팝업 — 전용 프록시 미설정 시 자동 표시 */}
@@ -598,6 +632,37 @@ export function MobileSimpleView() {
         isOpen={helpOpen}
         onClose={() => { markHelpSeen(); setHelpOpen(false); }}
         variant="mobile"
+      />
+
+      <ConflictDialog
+        isOpen={conflict?.kind === "conflict"}
+        driveTs={conflict?.kind === "conflict" ? conflict.driveTs : ""}
+        lastTs={conflict?.kind === "conflict" ? conflict.lastTs : null}
+        onUseRemote={async () => {
+          try {
+            await downloadFromDrive();
+            void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+            void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
+            setLastSyncedAt(getLastSyncedAt());
+          } catch { /* ignore */ }
+          setConflict(null);
+          pendingActionRef.current = null;
+        }}
+        onOverwrite={async () => {
+          try {
+            await uploadToDrive();
+            setLastSyncedAt(getLastSyncedAt());
+          } catch { /* ignore */ }
+          setConflict(null);
+          if (pendingActionRef.current) {
+            pendingActionRef.current();
+            pendingActionRef.current = null;
+          }
+        }}
+        onCancel={() => {
+          setConflict(null);
+          pendingActionRef.current = null;
+        }}
       />
 
       {/* 기업가치 모달 — 📊 버튼으로 호출 */}
@@ -643,6 +708,7 @@ export function MobileSimpleView() {
                 await renameGroup(oldKey, trimmed);
                 if (activeTab === oldKey) setActiveTab(trimmed);
                 void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+                scheduleAutoSync();
               }}
               className="w-full px-4 py-3.5 text-left text-sm
                          hover:bg-gray-50 border-b flex items-center gap-3">
@@ -661,6 +727,7 @@ export function MobileSimpleView() {
                 await deleteGroup(k);
                 if (activeTab === k) setActiveTab(US_KEY);
                 void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+                scheduleAutoSync();
               }}
               className="w-full px-4 py-3.5 text-left text-sm
                          hover:bg-rose-50 text-rose-600 font-medium
@@ -693,10 +760,14 @@ function SettingsModal({
   proxyUrl, setProxyUrl, savedMsg, setSavedMsg, onClose,
 }: SettingsModalProps) {
   const downOnBackdropRef = useRef(false);
+  const queryClient = useQueryClient();
   const [raw, setRaw] = useState("");
   const [busy, setBusy] = useState(false);
   const [dataMsg, setDataMsg] = useState("");
   const [pollMs, setPollMs] = useState(getPersonalPollMs());
+  const [syncStateLocal, setSyncStateLocal] = useState(getSyncState());
+  const [syncBusyLocal, setSyncBusyLocal] = useState(false);
+  const [lastSyncedAtLocal, setLastSyncedAtLocal] = useState<string | null>(getLastSyncedAt());
 
   // 모달 열릴 때 현재 데이터 export 해서 textarea 채움
   useEffect(() => {
@@ -779,6 +850,102 @@ function SettingsModal({
                   className="ml-auto text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
         <div className="px-4 py-3 space-y-4 overflow-y-auto flex-1">
+
+          {/* 0) Google Drive 동기화 */}
+          <div className="border border-gray-200 rounded p-3 bg-emerald-50/40 space-y-1.5">
+            <div className="text-xs font-bold text-gray-700">
+              💾 Google Drive 동기화 (선택)
+            </div>
+            <div className="text-[11px] text-gray-500">
+              본인 Google 계정 앱 폴더에 종목 자동 백업 + 다기기 sync.
+            </div>
+            {syncStateLocal === "unconfigured" && (
+              <button disabled={syncBusyLocal}
+                onClick={async () => {
+                  setSyncBusyLocal(true);
+                  setDataMsg("Google 로그인 중...");
+                  try {
+                    await enableSync();
+                    setSyncStateLocal("on");
+                    const downloaded = await downloadFromDrive();
+                    if (downloaded) {
+                      void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+                      void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
+                      setDataMsg("✅ 로그인 + Drive 데이터 가져옴");
+                    } else {
+                      await uploadToDrive();
+                      setDataMsg("✅ 로그인 + 첫 업로드");
+                    }
+                    setLastSyncedAtLocal(getLastSyncedAt());
+                  } catch (e) {
+                    setDataMsg(`⚠️ ${(e as Error).message}`);
+                  } finally { setSyncBusyLocal(false); }
+                }}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700
+                           disabled:opacity-50 text-white text-xs rounded">
+                🔐 Google 로그인 + sync
+              </button>
+            )}
+            {(syncStateLocal === "on" || syncStateLocal === "off") && (
+              <div className="space-y-1">
+                <div className="text-[11px] text-gray-700">
+                  상태: <b className={syncStateLocal === "on" ? "text-emerald-700" : "text-amber-700"}>
+                    {syncStateLocal === "on" ? "자동 ON" : "일시 중지"}
+                  </b>
+                  {lastSyncedAtLocal && (
+                    <span className="ml-1 text-gray-500">
+                      ({new Date(lastSyncedAtLocal).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })})
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-1 flex-wrap">
+                  <button disabled={syncBusyLocal}
+                    onClick={async () => {
+                      setSyncBusyLocal(true);
+                      try { await uploadToDrive(); setLastSyncedAtLocal(getLastSyncedAt()); setDataMsg("✅ 업로드"); }
+                      catch (e) { setDataMsg(`⚠️ ${(e as Error).message}`); }
+                      finally { setSyncBusyLocal(false); }
+                    }}
+                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
+                    ↑
+                  </button>
+                  <button disabled={syncBusyLocal}
+                    onClick={async () => {
+                      if (!confirm("Drive 의 데이터로 덮어쓸까요?")) return;
+                      setSyncBusyLocal(true);
+                      try {
+                        const ok = await downloadFromDrive();
+                        if (ok) {
+                          void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+                          void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
+                          setLastSyncedAtLocal(getLastSyncedAt());
+                          setDataMsg("✅ 다운로드");
+                        } else { setDataMsg("⚠️ Drive 데이터 없음"); }
+                      } catch (e) { setDataMsg(`⚠️ ${(e as Error).message}`); }
+                      finally { setSyncBusyLocal(false); }
+                    }}
+                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
+                    ↓
+                  </button>
+                  {syncStateLocal === "on" ? (
+                    <button onClick={() => { pauseSync(); setSyncStateLocal("off"); setDataMsg("일시 중지"); }}
+                      className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded">⏸</button>
+                  ) : (
+                    <button onClick={() => { resumeSync(); setSyncStateLocal("on"); setDataMsg("재개"); }}
+                      className="px-2 py-1 bg-emerald-600 text-white text-xs rounded">▶</button>
+                  )}
+                  <button disabled={syncBusyLocal}
+                    onClick={async () => {
+                      if (!confirm("로그아웃?")) return;
+                      setSyncBusyLocal(true);
+                      try { await disableSync(); setSyncStateLocal("unconfigured"); setLastSyncedAtLocal(null); }
+                      finally { setSyncBusyLocal(false); }
+                    }}
+                    className="px-2 py-1 bg-rose-100 text-rose-700 text-xs rounded ml-auto">🚪</button>
+                </div>
+              </div>
+            )}
+          </div>
 
           {/* 1) 전용 프록시 URL */}
           <div className="border border-gray-200 rounded p-3 bg-blue-50/30 space-y-1">
