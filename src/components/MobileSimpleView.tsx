@@ -857,10 +857,9 @@ function SettingsModal({
               💾 Google Drive 동기화 (선택)
             </div>
             <div className="text-[11px] text-gray-500 leading-relaxed">
-              내 Google Drive 의 숨김 폴더에 백업.<br />
-              다른 기기에서 로그인하면 같은 종목 사용.<br />
-              우리는 데이터·이메일을 받지 않습니다.<br />
-              <span className="text-gray-400">(기본 수동 — ▶ 누르면 자동 sync)</span>
+              내 Google Drive 의 숨김 폴더에 자동 백업하는 기능입니다.<br />
+              (여러 기기에서 같은 종목(그룹) 데이터를 사용할 수 있습니다.)<br />
+              별도로 사용자의 정보를 서버에 저장하지는 않습니다.
             </div>
             {syncStateLocal === "unconfigured" && (
               <button disabled={syncBusyLocal}
