@@ -92,12 +92,20 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
   const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
   return (data.result || []).map(item => {
     let base = item.base;
+    let high: number | undefined = item.high;
+    let low: number | undefined = item.low;
+    let volume = item.volume;
     if (item.tradeDateTime) {
       const tradeKst = new Date(
         new Date(item.tradeDateTime).getTime() + 9 * 3600_000
       ).toISOString().slice(0, 10);
       if (tradeKst !== todayKst) {
-        base = item.close;  // 오늘 거래 없음 → 어제대비 0
+        // 오늘 거래 없음 → 어제대비 0 + 고/저/거래량 숨김
+        // (마지막 거래일의 고/저/거래량을 "오늘 값" 처럼 잘못 보이는 문제 수정)
+        base = item.close;
+        high = undefined;
+        low = undefined;
+        volume = 0;
       }
     }
     return {
@@ -105,11 +113,11 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
       price: item.close,
       base,
       open: item.open,
-      volume: item.volume,
+      volume,
       trade_date: item.tradeDateTime ? toKstDateString(item.tradeDateTime) : "",
       trade_dt: item.tradeDateTime,
-      high: item.high,
-      low: item.low,
+      high,
+      low,
     };
   });
 }
