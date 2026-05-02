@@ -1,4 +1,4 @@
-import type { Stock, Price } from "../types";
+import type { Stock, Price, Consensus } from "../types";
 import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { Sparkline } from "./Sparkline";
@@ -13,8 +13,8 @@ interface Props {
   peak?: number;
   sector?: string;
   warning?: string;
-  chart?: number[];   // 비거래일 sparkline 용 일봉 종가 시계열
-  target?: number;    // 컨센서스 목표가 — sparkline 가로선용
+  chart?: number[];           // 비거래일 sparkline 용 일봉 종가 시계열
+  consensus?: Consensus | null; // 네이버 컨센서스 (목표가 + 점수)
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
 }
@@ -68,7 +68,7 @@ function openTossStock(ticker: string) {
 }
 
 export function MobileStockCard({
-  stock, price, peak, sector, warning, chart, target, onEdit, onDelete,
+  stock, price, peak, sector, warning, chart, consensus, onEdit, onDelete,
 }: Props) {
   if (!price) {
     return (
@@ -96,6 +96,9 @@ export function MobileStockCard({
     ? `직전 거래일 종가 ${price.prevClose.toLocaleString()}원 대비 ${formatSigned(colorDiff)}원 (${colorPct >= 0 ? "+" : ""}${colorPct.toFixed(2)}%) — 현재가 금액색은 ${priceColorName} 입니다`
     : "";
   const peakPct = peak && peak > 0 ? ((price.price - peak) / peak) * 100 : 0;
+  const targetPct = consensus?.target && price.price > 0
+    ? ((consensus.target - price.price) / price.price) * 100
+    : 0;
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
   const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
@@ -265,7 +268,7 @@ export function MobileStockCard({
         {/* 비거래일 — 3개월 추이 차트가 박스 배경. 색은 차트 자체 추세 */}
         {!price.high && chart && chart.length > 1 && (
           <Sparkline data={chart} width={300} height={70}
-                     target={target}
+                     target={consensus?.target}
                      avgPrice={hasPosition ? stock.avg_price : undefined}
                      className="absolute inset-0 w-full h-full opacity-50
                                 pointer-events-none" />
@@ -366,6 +369,22 @@ export function MobileStockCard({
               {pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%
             </span>
             <span className={signColor(pnl)}>)</span>
+          </div>
+        )}
+
+        {/* 목표 — PC 동일 (점수) 금액 (%) */}
+        {consensus?.target && (
+          <div className="text-[10px]">
+            <span className="text-gray-500">목표 </span>
+            {typeof consensus.score === "number" && (
+              <span className="text-gray-500">({consensus.score.toFixed(2)}) </span>
+            )}
+            <span className="text-gray-800">
+              {consensus.target.toLocaleString()}
+            </span>
+            <span className={`ml-1 ${signColor(targetPct)}`}>
+              ({targetPct >= 0 ? "+" : ""}{targetPct.toFixed(2)}%)
+            </span>
           </div>
         )}
       </div>

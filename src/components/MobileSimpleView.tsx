@@ -404,7 +404,7 @@ export function MobileSimpleView() {
                                sector={naverInfos.data?.get(s.ticker)?.sector}
                                warning={warningMap.get(s.ticker) || undefined}
                                chart={groupChartMap.get(s.ticker)}
-                               target={naverInfos.data?.get(s.ticker)?.consensus?.target}
+                               consensus={naverInfos.data?.get(s.ticker)?.consensus}
                                onEdit={st => setEditing(st)}
                                onDelete={async st => {
                                  if (!confirm(
