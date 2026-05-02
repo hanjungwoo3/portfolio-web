@@ -95,14 +95,15 @@ function computeSignal(history: Investor[] | null | undefined): InvestorSignal |
   return { primary, secondary, pension };
 }
 
+// 긍정 신호 → 빨강 / 부정 신호 → 파랑 (한국 주식 색 관습)
 const SIGNAL_TONE: Record<string, string> = {
-  bull: "bg-emerald-100 text-emerald-700 border-emerald-300",
-  bear: "bg-rose-100 text-rose-700 border-rose-300",
-  warn: "bg-amber-100 text-amber-700 border-amber-300",
-  up:   "bg-blue-50 text-blue-700 border-blue-200",
-  down: "bg-orange-50 text-orange-700 border-orange-200",
-  pension_buy:  "bg-violet-100 text-violet-800 border-violet-300",
-  pension_sell: "bg-pink-100 text-pink-800 border-pink-300",
+  bull: "bg-rose-100 text-rose-700 border-rose-300",         // 외인+기관 매수 (긍정)
+  bear: "bg-blue-100 text-blue-700 border-blue-300",         // 개인 떠받치기 (외인 이탈, 부정)
+  warn: "bg-blue-100 text-blue-700 border-blue-300",         // 외인+기관 매도 (부정)
+  up:   "bg-rose-50 text-rose-700 border-rose-200",          // 외인비율 ↑ (긍정)
+  down: "bg-blue-50 text-blue-700 border-blue-200",          // 외인비율 ↓ (부정)
+  pension_buy:  "bg-rose-100 text-rose-700 border-rose-300", // 연기금 매수 (긍정)
+  pension_sell: "bg-blue-100 text-blue-700 border-blue-300", // 연기금 매도 (부정)
 };
 const SIGNAL_ICON: Record<string, string> = {
   bull: "🟢", bear: "🔴", warn: "⚠️", up: "📈", down: "📉",
@@ -405,12 +406,21 @@ export function StockCard({
           {sig?.primary && (
             <Tooltip content={
               <>
-                <div className="font-bold text-emerald-700 mb-1">
+                <div className={`font-bold mb-1 ${
+                  sig.primary.tone === "bull" ? "text-rose-700" : "text-blue-700"
+                }`}>
                   {SIGNAL_ICON[sig.primary.tone]} {sig.primary.label}
                 </div>
                 <div className="text-gray-700">{SIGNAL_TIPS[sig.primary.tone]}</div>
-                {/* tone 별 누적 표 — 외인+기관 매수/매도 → 외국인+기관 / 개인 떠받치기 → 개인 */}
-                {sig.primary.tone === "bear" && cumulativeTable("개인", "개인 매수/매도", true)}
+                {/* tone 별 누적 표 */}
+                {/* 개인 떠받치기 → 개인 (받는 쪽) + 외국인 (파는 쪽) */}
+                {sig.primary.tone === "bear" && (
+                  <>
+                    {cumulativeTable("개인", "개인 매수/매도", true)}
+                    {cumulativeTable("외국인", "외국인 매수/매도", true)}
+                  </>
+                )}
+                {/* 외인+기관 매수/매도 → 외국인 + 기관 */}
                 {(sig.primary.tone === "bull" || sig.primary.tone === "warn") && (
                   <>
                     {cumulativeTable("외국인", "외국인 매수/매도", true)}
@@ -431,10 +441,8 @@ export function StockCard({
             <Tooltip content={
               <>
                 <div className={`font-bold mb-1 ${
-                  sig.secondary.tone === "pension_buy" ? "text-violet-700"
-                  : sig.secondary.tone === "pension_sell" ? "text-pink-700"
-                  : sig.secondary.tone === "up" ? "text-blue-700"
-                  : "text-orange-700"
+                  sig.secondary.tone === "pension_buy" || sig.secondary.tone === "up"
+                    ? "text-rose-700" : "text-blue-700"
                 }`}>
                   {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
                 </div>
