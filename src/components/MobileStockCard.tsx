@@ -15,6 +15,7 @@ interface Props {
   warning?: string;
   chart?: number[];           // 비거래일 sparkline 용 일봉 종가 시계열
   consensus?: Consensus | null; // 네이버 컨센서스 (목표가 + 점수)
+  onOpenValuation?: (ticker: string) => void;  // 📊 기업가치 모달
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
 }
@@ -68,7 +69,7 @@ function openTossStock(ticker: string) {
 }
 
 export function MobileStockCard({
-  stock, price, peak, sector, warning, chart, consensus, onEdit, onDelete,
+  stock, price, peak, sector, warning, chart, consensus, onOpenValuation, onEdit, onDelete,
 }: Props) {
   if (!price) {
     return (
@@ -174,6 +175,14 @@ export function MobileStockCard({
           </Tooltip>
         </div>
         <div className="flex items-end gap-1 shrink-0">
+          {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
+            <button onClick={() => onOpenValuation(stock.ticker)}
+                    title="기업가치 보기"
+                    className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200
+                               text-xs leading-none">
+              📊
+            </button>
+          )}
           {onEdit && (
             <button onClick={() => onEdit(stock)}
                     title="수정 / 매수 / 매도"

@@ -438,7 +438,7 @@ function InvestorHistorySection({
       )}
 
       {history && history.length > 0 && (
-        <div className="overflow-x-auto border border-gray-200 rounded mt-3">
+        <div className="hidden lg:block overflow-x-auto border border-gray-200 rounded mt-3">
           <table className="text-[11px] tabular-nums whitespace-nowrap min-w-full">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr className="border-b border-gray-200">

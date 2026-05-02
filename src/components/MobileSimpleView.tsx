@@ -28,6 +28,7 @@ import { EditHoldingDialog } from "./EditHoldingDialog";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./HelpDialog";
 import { Sparkline } from "./Sparkline";
 import { TALLY_URL, isFeedbackEnabled } from "../lib/feedbackConfig";
+import { ValuationModal } from "./ValuationModal";
 import type { Stock } from "../types";
 
 const US_KEY = "__us__";  // 미국 증시 탭 키
@@ -62,6 +63,7 @@ export function MobileSimpleView() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [editing, setEditing] = useState<Stock | null>(null);
+  const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState("");
   // 그룹 탭 길게 누르기 → 액션 시트 (이름 변경 / 삭제)
   const [tabMenu, setTabMenu] = useState<{ key: string; label: string } | null>(null);
@@ -405,6 +407,7 @@ export function MobileSimpleView() {
                                warning={warningMap.get(s.ticker) || undefined}
                                chart={groupChartMap.get(s.ticker)}
                                consensus={naverInfos.data?.get(s.ticker)?.consensus}
+                               onOpenValuation={setValuationTicker}
                                onEdit={st => setEditing(st)}
                                onDelete={async st => {
                                  if (!confirm(
@@ -597,6 +600,22 @@ export function MobileSimpleView() {
         onClose={() => { markHelpSeen(); setHelpOpen(false); }}
         variant="mobile"
       />
+
+      {/* 기업가치 모달 — 📊 버튼으로 호출 */}
+      {valuationTicker && (() => {
+        const s = groupHoldingsUnsorted.find(h => h.ticker === valuationTicker);
+        if (!s) return null;
+        return (
+          <ValuationModal
+            isOpen={true}
+            onClose={() => setValuationTicker(null)}
+            ticker={valuationTicker}
+            name={s.name}
+            curPrice={groupPriceMap.get(valuationTicker)?.price}
+            myAvgPrice={s.shares > 0 ? s.avg_price : undefined}
+          />
+        );
+      })()}
 
       {/* 그룹 탭 길게 누르기 — 액션 시트 */}
       {tabMenu && (
