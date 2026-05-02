@@ -70,24 +70,46 @@ export function resumeSync(): void { setSyncMode("on"); }
 // ─── 수동 업로드 / 다운로드 ──────────────────────────────────
 
 // 다운로드 직후엔 IndexedDB === Drive 라 자동 sync 가 redundant upload 일으킴.
-// → modifiedTime advance → 다음 conflict check 시 false-positive 충돌 발생.
-// 이를 방지하기 위해 "다음 1회 autoSync 억제" 플래그.
 let suppressNextAutoSync = false;
 
+// 내용 정규화 — exported_at 같은 noise 제외, 정렬로 결정적 직렬화
+function normalize(p: ExportPayload): string {
+  const holdings = [...(p.holdings ?? [])]
+    .map(s => ({
+      ticker: s.ticker, name: s.name,
+      shares: s.shares, avg_price: s.avg_price,
+      buy_date: s.buy_date ?? "",
+      market: s.market ?? "",
+      account: s.account ?? "",
+    }))
+    .sort((a, b) => `${a.ticker}|${a.account}`.localeCompare(`${b.ticker}|${b.account}`));
+  const peakKeys = Object.keys(p.peaks ?? {}).sort();
+  const peaks: Record<string, number> = {};
+  for (const k of peakKeys) peaks[k] = p.peaks[k];
+  return JSON.stringify({ holdings, peaks });
+}
+
 export async function uploadToDrive(): Promise<void> {
-  const payload = await exportAll();
-  const ts = await uploadFile<ExportPayload>(payload);
+  const local = await exportAll();
+  // Drive 와 내용이 같으면 업로드 skip — modifiedTime advance 방지 (핑퐁 차단)
+  try {
+    const remote = await downloadFile<ExportPayload>();
+    if (remote && normalize(local) === normalize(remote.data)) {
+      setLastSynced(remote.modifiedTime);
+      return;
+    }
+  } catch { /* 다운로드 실패 시 그냥 업로드 진행 */ }
+  const ts = await uploadFile<ExportPayload>(local);
   setLastSynced(ts);
 }
 
 export async function downloadFromDrive(): Promise<boolean> {
   const result = await downloadFile<ExportPayload>();
-  if (!result) return false;  // 파일 없음
+  if (!result) return false;
   const { data, modifiedTime } = result;
   if (data.holdings) await replaceAllHoldings(data.holdings);
   if (data.peaks) await replaceAllPeaks(data.peaks);
   setLastSynced(modifiedTime);
-  // IndexedDB 변경 → reloadKey++ → scheduleAutoSync 트리거 가능 → 억제
   suppressNextAutoSync = true;
   return true;
 }
@@ -108,18 +130,22 @@ export async function checkConflict(): Promise<ConflictResult> {
   if (!token) return { kind: "skip" };
   try {
     const meta = await getFileMeta();
-    if (!meta) return { kind: "ok" };  // Drive 에 파일 없음 (처음 sync)
+    if (!meta) return { kind: "ok" };  // Drive 에 파일 없음
     const lastTs = getLastSyncedTs();
-    if (!lastTs) {
-      // 한 번도 sync 한 적 없음 — 이미 Drive 에 파일 있음 (다른 기기에서 만든 것)
-      return { kind: "conflict", driveTs: meta.modifiedTime, lastTs: null };
+    const tsAdvanced = !lastTs || meta.modifiedTime > lastTs;
+    if (!tsAdvanced) return { kind: "ok" };
+    // Drive 가 새로움 → 실제 내용도 다른지 확인 (modifiedTime 만 advance 한 ping-pong 차단)
+    const remote = await downloadFile<ExportPayload>();
+    if (!remote) return { kind: "ok" };
+    const local = await exportAll();
+    if (normalize(local) === normalize(remote.data)) {
+      // 내용 동일 — silent ts 갱신, conflict 무시
+      setLastSynced(remote.modifiedTime);
+      return { kind: "ok" };
     }
-    if (meta.modifiedTime > lastTs) {
-      return { kind: "conflict", driveTs: meta.modifiedTime, lastTs };
-    }
-    return { kind: "ok" };
+    return { kind: "conflict", driveTs: meta.modifiedTime, lastTs };
   } catch {
-    return { kind: "skip" };  // 네트워크 오류 등 — 편집 진행 허용
+    return { kind: "skip" };
   }
 }
 
