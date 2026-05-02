@@ -66,6 +66,27 @@ const SIGNAL_ICON: Record<string, string> = {
   bull: "🟢", bear: "🔴", warn: "⚠️", up: "📈", down: "📉",
 };
 
+// 호버 툴팁 — 신호 뱃지 의미 설명
+const SIGNAL_TIPS: Record<string, string> = {
+  bull: "외국인 + 기관이 동반 매수한 일수가 최근 5거래일 중 3일 이상 — 긍정적 수급 시그널",
+  bear: "외국인이 매도하는 동안 개인이 받아내는 패턴 — 외국인 이탈 신호 (보통 부정적)",
+  warn: "외국인 + 기관이 동반 매도한 일수 — 약세 시그널",
+  up:   "외국인 보유 비율이 20거래일 동안 상승 — 외인 유입 추세",
+  down: "외국인 보유 비율이 20거래일 동안 하락 — 외인 이탈 추세",
+};
+
+// 호버 툴팁 — 경고 뱃지 의미 설명
+const WARN_TIPS: Record<string, string> = {
+  투자위험:     "단기 급등락 등으로 거래소가 가장 강한 단계로 지정 — 매매 신중",
+  관리종목:     "재무·실적 부실로 상장폐지 위험 — 신중 검토",
+  거래정지:     "거래소가 매매를 일시 중단 — 호가/체결 불가",
+  투자경고:     "투기적 거래 우려 — 지정 후 1일 거래정지 가능",
+  공매도과열:   "공매도 비중이 비정상 — 1일간 공매도 금지",
+  단기과열:     "주가·거래량 단기 급등 — 3거래일간 단일가 매매",
+  투자주의환기: "관리종목 지정 가능성 — 사전 경고 단계",
+  투자주의:     "이상 거래 징후 — 가장 가벼운 단계",
+};
+
 function openTossStock(ticker: string) {
   if (!/^\d{6}$/.test(ticker)) return;
   window.open(`https://tossinvest.com/stocks/A${ticker}`,
@@ -218,7 +239,8 @@ export function StockCard({
       <div className="flex items-end justify-between gap-1 mx-2">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
           {warning && (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+            <span title={WARN_TIPS[warning] ?? warning}
+                  className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                               text-white text-sm font-bold leading-none
                               ${WARN_BG[warning] ?? "bg-gray-500"}`}>
               {warning}
@@ -227,7 +249,7 @@ export function StockCard({
           <button
             type="button"
             onClick={() => openTossStock(stock.ticker)}
-            title="토스에서 보기"
+            title="토스에서 보기 — 종목명 색은 직전 거래일 종가 대비 (빨강↑ / 파랑↓ / 검정=동일). 카드 배경은 보유 손익 (빨강=익절중 / 파랑=손실중 / 흰색=관심)"
             className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                         border-t border-l border-r ${cardBorder}
                         font-bold text-sm leading-none cursor-pointer
@@ -244,17 +266,19 @@ export function StockCard({
           </button>
           {/* 수급 신호 — 외인+기관 동반매수 / 개인 떠받치기 / 외인비율 추세 */}
           {sig?.primary && (
-            <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
+            <span title={SIGNAL_TIPS[sig.primary.tone]}
+                  className={`inline-flex items-center gap-0.5 px-2 py-0.5
                               rounded-t-md border-t border-l border-r
-                              text-[10px] font-bold leading-none
+                              text-[10px] font-bold leading-none cursor-help
                               ${SIGNAL_TONE[sig.primary.tone]}`}>
               {SIGNAL_ICON[sig.primary.tone]} {sig.primary.label}
             </span>
           )}
           {sig?.secondary && (
-            <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
+            <span title={SIGNAL_TIPS[sig.secondary.tone]}
+                  className={`inline-flex items-center gap-0.5 px-2 py-0.5
                               rounded-t-md border-t border-l border-r
-                              text-[10px] leading-none
+                              text-[10px] leading-none cursor-help
                               ${SIGNAL_TONE[sig.secondary.tone]}`}>
               {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
             </span>
@@ -308,12 +332,14 @@ export function StockCard({
       </div>
 
       {/* 카드 본체 — 가격박스 / 통계박스 / 투자자 그리드 */}
-      <article className={`rounded-lg border shadow-sm flex flex-row gap-2
+      <article title="배경: 빨강=익절 중 / 파랑=손실 중 / 흰색=관심 종목 (보유 손익 기준)"
+               className={`rounded-lg border shadow-sm flex flex-row gap-2
                             items-stretch px-3 py-2
                             ${cardBg} ${cardBorder}
                             transition-opacity`}>
         {/* 가격 박스 — 고/현재가/저 (3/10). 비거래일엔 sparkline 워터마크 */}
-        <div className="relative overflow-hidden border border-gray-200 rounded-md
+        <div title="가격색: 직전 거래일 종가 대비 (빨강↑ / 파랑↓ / 검정=동일). 차트는 3개월 추이"
+             className="relative overflow-hidden border border-gray-200 rounded-md
                         bg-gray-50/60 px-2 py-1 space-y-0.5 basis-[30%] min-w-0
                         flex flex-col justify-center">
           {/* 비거래일 — 3개월 추이 차트가 박스 배경. 색은 차트 자체 추세 */}

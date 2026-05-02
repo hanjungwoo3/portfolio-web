@@ -33,6 +33,18 @@ const WARN_BG: Record<string, string> = {
   투자주의:     "bg-amber-500",
 };
 
+// 호버 툴팁 — 경고 뱃지 의미 설명
+const WARN_TIPS: Record<string, string> = {
+  투자위험:     "단기 급등락 등으로 거래소가 가장 강한 단계로 지정 — 매매 신중",
+  관리종목:     "재무·실적 부실로 상장폐지 위험 — 신중 검토",
+  거래정지:     "거래소가 매매를 일시 중단 — 호가/체결 불가",
+  투자경고:     "투기적 거래 우려 — 지정 후 1일 거래정지 가능",
+  공매도과열:   "공매도 비중이 비정상 — 1일간 공매도 금지",
+  단기과열:     "주가·거래량 단기 급등 — 3거래일간 단일가 매매",
+  투자주의환기: "관리종목 지정 가능성 — 사전 경고 단계",
+  투자주의:     "이상 거래 징후 — 가장 가벼운 단계",
+};
+
 function openTossStock(ticker: string) {
   if (!/^\d{6}$/.test(ticker)) return;
   const code = `A${ticker}`;
@@ -103,14 +115,15 @@ export function MobileStockCard({
       <div className="flex items-end justify-between gap-1 mx-2">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
           {warning && (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+            <span title={WARN_TIPS[warning] ?? warning}
+                  className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                               text-white text-base font-bold leading-none
                               ${WARN_BG[warning] ?? "bg-gray-500"}`}>
               {warning}
             </span>
           )}
           <button onClick={() => openTossStock(stock.ticker)}
-                  title="토스에서 보기"
+                  title="토스에서 보기 — 종목명 색은 직전 거래일 종가 대비 (빨강↑ 파랑↓ 검정=동일). 카드 배경: 빨강=익절중 / 파랑=손실중 / 흰색=관심"
                   className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                               border-t border-l border-r ${cardBorder}
                               font-bold text-base leading-none w-fit
@@ -153,7 +166,8 @@ export function MobileStockCard({
       </div>
 
       {/* 카드 본체 — 좌우 박스 (50:50) */}
-      <article className={`rounded-lg border flex flex-row gap-1.5 p-1.5 ${cardBg} ${cardBorder}`}>
+      <article title="배경: 빨강=익절중 / 파랑=손실중 / 흰색=관심"
+               className={`rounded-lg border flex flex-row gap-1.5 p-1.5 ${cardBg} ${cardBorder}`}>
       {/* 좌측 — 가격 박스 (50%). 비거래일엔 sparkline 워터마크 */}
       <div className="relative overflow-hidden basis-1/2 min-w-0 border border-gray-200
                        rounded bg-gray-50/60 px-2 py-1.5 flex flex-col justify-center
