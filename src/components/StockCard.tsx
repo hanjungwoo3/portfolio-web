@@ -141,7 +141,7 @@ const WARN_TIPS: Record<string, string> = {
 };
 
 function openTossStock(ticker: string) {
-  if (!/^\d{6}$/.test(ticker)) return;
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return;
   window.open(`https://tossinvest.com/stocks/A${ticker}`,
               "_blank", "noopener,noreferrer");
 }
@@ -582,7 +582,7 @@ export function StockCard({
         </div>
         <div className="flex items-end gap-0.5 shrink-0">
           {/* hover 버튼 — 📊 ✏️ 🗑 */}
-          {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
+          {onOpenValuation && /^[\dA-Za-z]{6}$/.test(stock.ticker) && (
             <button
               type="button"
               onClick={() => onOpenValuation(stock.ticker)}

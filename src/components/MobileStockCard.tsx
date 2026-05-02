@@ -48,7 +48,7 @@ const WARN_TIPS: Record<string, string> = {
 };
 
 function openTossStock(ticker: string) {
-  if (!/^\d{6}$/.test(ticker)) return;
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return;
   const code = `A${ticker}`;
   const inner = `https://service.tossinvest.com?nextLandingUrl=/stocks/${code}`;
   const deep = `supertoss://securities?url=${encodeURIComponent(inner)}`;
@@ -175,7 +175,7 @@ export function MobileStockCard({
           </Tooltip>
         </div>
         <div className="flex items-end gap-1 shrink-0">
-          {onOpenValuation && /^\d{6}$/.test(stock.ticker) && (
+          {onOpenValuation && /^[\dA-Za-z]{6}$/.test(stock.ticker) && (
             <button onClick={() => onOpenValuation(stock.ticker)}
                     title="기업가치 보기"
                     className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200

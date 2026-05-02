@@ -147,7 +147,7 @@ function Dashboard() {
   const krxTickers = useMemo(
     () => visible
       .map(s => s.ticker)
-      .filter(t => /^\d{6}$/.test(t)),
+      .filter(t => /^[\dA-Za-z]{6}$/.test(t)),
     [visible]
   );
 

@@ -216,7 +216,7 @@ export function ValuationModal({
   const { data, isLoading, error } = useQuery({
     queryKey: ["valuation", ticker],
     queryFn: () => fetchFullValuation(ticker),
-    enabled: isOpen && /^\d{6}$/.test(ticker),
+    enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 24 * 3600_000,  // 24시간 캐시
   });
   const downOnBackdropRef = useRef(false);
@@ -418,11 +418,11 @@ function InvestorHistorySection({
   const { data: history, isLoading } = useQuery({
     queryKey: ["investor-history-modal", ticker],
     queryFn: () => fetchInvestorHistorySafe(ticker, [200, 120, 60]),
-    enabled: /^\d{6}$/.test(ticker),
+    enabled: /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 5 * 60_000,  // 5분 (App 의 5초 폴링과 별도, 모달 캐시)
   });
 
-  if (!/^\d{6}$/.test(ticker)) return null;
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return null;
 
   const summaries = history
     ? SUMMARY_PERIODS.map(p => computePeriodSummary(history, p.label, p.days))
@@ -542,7 +542,7 @@ function InvestorChartsSection({
   const { data: prices, isLoading: pricesLoading } = useQuery({
     queryKey: ["price-history-modal", ticker],
     queryFn: () => fetchKrPriceHistory(ticker, "1y"),
-    enabled: /^\d{6}$/.test(ticker),
+    enabled: /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 5 * 60_000,
   });
 

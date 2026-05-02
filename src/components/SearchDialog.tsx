@@ -162,7 +162,9 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
     setStatusMsg("검색 중...");
     setSelected(new Set());
     try {
-      const codes = Array.from(new Set(q.match(/\b\d{6}\b/g) ?? []));
+      const codes = Array.from(new Set(
+        (q.match(/\b[\dA-Za-z]{6}\b/g) ?? []).map(c => c.toUpperCase())
+      ));
       let stocks: SearchResult[];
       if (codes.length > 0) {
         const names = await Promise.all(

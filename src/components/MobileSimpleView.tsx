@@ -175,7 +175,7 @@ export function MobileSimpleView() {
 
   // 그룹 종목들의 KR 가격 fetch (수동 갱신만)
   const groupTickers = groupHoldingsUnsorted
-    .filter(s => /^\d{6}$/.test(s.ticker))
+    .filter(s => /^[\dA-Za-z]{6}$/.test(s.ticker))
     .map(s => s.ticker);
   const { data: groupPrices, dataUpdatedAt: groupAt } = useQuery({
     queryKey: ["m-group-prices", activeTab, groupTickers.join(",")],

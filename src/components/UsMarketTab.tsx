@@ -23,7 +23,7 @@ function fmtPrice(symbol: string, price: number): string {
 }
 
 function quoteUrl(symbol: string): string {
-  if (/^\d{6}$/.test(symbol)) return `https://tossinvest.com/stocks/A${symbol}`;
+  if (/^[\dA-Za-z]{6}$/.test(symbol)) return `https://tossinvest.com/stocks/A${symbol}`;
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
 

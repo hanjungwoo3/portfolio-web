@@ -418,7 +418,7 @@ export interface FullValuation {
 }
 
 export async function fetchFullValuation(ticker: string): Promise<FullValuation> {
-  if (!/^\d{6}$/.test(ticker)) {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) {
     return { fundamental: {}, reports: [], shareholders: [] };
   }
   const [naver, wise, reports, shareholders] = await Promise.all([

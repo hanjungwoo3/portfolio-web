@@ -57,7 +57,7 @@ export async function setPeak(ticker: string, price: number): Promise<void> {
 // peaks.json {ticker: price} → IndexedDB 일괄 저장
 export async function replaceAllPeaks(map: Record<string, number>): Promise<void> {
   const items: Peak[] = Object.entries(map)
-    .filter(([t, p]) => /^\d{6}$/.test(t) && typeof p === "number" && p > 0)
+    .filter(([t, p]) => /^[\dA-Za-z]{6}$/.test(t) && typeof p === "number" && p > 0)
     .map(([ticker, price]) => ({ ticker, price }));
   await db.transaction("rw", db.peaks, async () => {
     await db.peaks.clear();

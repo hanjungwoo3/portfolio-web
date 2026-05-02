@@ -40,7 +40,7 @@ function detect(raw: string): Detected {
   // 모든 값이 숫자이고 키가 6자리 코드 형식이면 peaks 로 판정
   const entries = Object.entries(obj);
   if (entries.length > 0 && entries.every(([k, v]) =>
-        /^\d{6}$/.test(k) && typeof v === "number" && v > 0)) {
+        /^[\dA-Za-z]{6}$/.test(k) && typeof v === "number" && v > 0)) {
     return { kind: "peaks", peaks: obj as Record<string, number> };
   }
 

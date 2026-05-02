@@ -32,7 +32,7 @@ export function detectPortfolioJson(raw: string): Detected {
   // 패턴 2: peaks 단독 (모든 키 6자리, 값 number)
   const entries = Object.entries(obj);
   if (entries.length > 0 && entries.every(([k, v]) =>
-        /^\d{6}$/.test(k) && typeof v === "number" && v > 0)) {
+        /^[\dA-Za-z]{6}$/.test(k) && typeof v === "number" && v > 0)) {
     return { kind: "peaks", peaks: obj as Record<string, number> };
   }
   return { kind: "error", error: "알 수 없는 JSON — holdings.json / peaks.json / combined" };

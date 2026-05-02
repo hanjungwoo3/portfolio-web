@@ -259,7 +259,7 @@ async function fetchPriceHistoryFor(
 export async function fetchKrPriceHistory(
   ticker: string, range = "1y",
 ): Promise<PricePoint[]> {
-  if (!/^\d{6}$/.test(ticker)) return [];
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
   const ks = await fetchPriceHistoryFor(`${ticker}.KS`, range);
   if (ks.length > 0) return ks;
   return await fetchPriceHistoryFor(`${ticker}.KQ`, range);
@@ -601,7 +601,7 @@ export async function searchNaverAutoComplete(
     const out: SearchResult[] = [];
     for (const it of items) {
       const code = (it.code ?? "").trim();
-      if (!/^\d{6}$/.test(code)) continue;
+      if (!/^[\dA-Za-z]{6}$/.test(code)) continue;
       if (it.nationCode && it.nationCode !== "KOR") continue;
       out.push({
         ticker: code,
@@ -618,7 +618,7 @@ export async function searchNaverAutoComplete(
 
 // 6자리 코드 → 이름 단건 조회 (네이버 메인 title)
 export async function fetchStockName(ticker: string): Promise<string | null> {
-  if (!/^\d{6}$/.test(ticker)) return null;
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return null;
   try {
     const resp = await fetchProxied(
       `https://finance.naver.com/item/main.naver?code=${ticker}`);
