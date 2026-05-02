@@ -246,19 +246,33 @@ export function ValuationModal({
       <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full
                        max-h-[92vh] flex flex-col">
         <header className="px-5 py-3 border-b bg-gray-50">
+          {/* 첫 줄: 기업가치 타이틀 + 닫기 (모바일은 종목명 다음 줄로) */}
           <div className="flex items-baseline gap-3">
             <h2 className="text-xl font-bold">📊 기업가치</h2>
-            <span className="text-base font-bold">{name}</span>
-            <span className="text-sm text-gray-500">({ticker})</span>
-            {curPrice && (
-              <span className="text-base font-bold ml-3">
-                {curPrice.toLocaleString()}원
-              </span>
-            )}
+            {/* PC: inline 으로 종목명·가격 같이 / 모바일: 다음 줄로 */}
+            <span className="hidden sm:inline-flex items-baseline gap-3">
+              <span className="text-base font-bold">{name}</span>
+              <span className="text-sm text-gray-500">({ticker})</span>
+              {curPrice && (
+                <span className="text-base font-bold ml-3">
+                  {curPrice.toLocaleString()}원
+                </span>
+              )}
+            </span>
             <button onClick={onClose}
                     className="ml-auto text-gray-400 hover:text-gray-600 text-xl">
               ✕
             </button>
+          </div>
+          {/* 모바일 — 종목명·가격을 두 번째 줄에 */}
+          <div className="sm:hidden flex items-baseline gap-2 mt-1 flex-wrap">
+            <span className="text-base font-bold">{name}</span>
+            <span className="text-sm text-gray-500">({ticker})</span>
+            {curPrice && (
+              <span className="text-base font-bold ml-auto">
+                {curPrice.toLocaleString()}원
+              </span>
+            )}
           </div>
           <div className="text-xs text-gray-400 mt-1">
             출처: 네이버 금융 / Wisereport · 24시간 캐시
@@ -722,8 +736,9 @@ function PriceVolumeChart({
         )}
         <span className="text-gray-400 text-[10px] ml-auto">+ 거래량 (하단)</span>
       </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full"
-           preserveAspectRatio="none" style={{ height: H }}>
+      <svg viewBox={`0 0 ${W} ${H}`}
+           className="w-full h-[220px] lg:h-[360px]"
+           preserveAspectRatio="none">
         <line x1={PAD.l} y1={PAD.t} x2={PAD.l} y2={H - PAD.b}
               stroke="#e5e7eb" strokeWidth="1" />
         <line x1={W - PAD.r} y1={PAD.t} x2={W - PAD.r} y2={H - PAD.b}
