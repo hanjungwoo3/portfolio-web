@@ -136,11 +136,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
           {/* Google Drive 동기화 */}
           <div className="border border-gray-200 rounded p-2.5 bg-emerald-50/40 space-y-1.5">
             <div className="text-xs font-bold text-gray-700">
-              💾 Google Drive 동기화 — 다기기 sync (선택)
+              💾 Google Drive 동기화 (선택)
             </div>
-            <div className="text-[11px] text-gray-500">
-              본인 Google 계정의 앱 전용 폴더에 종목·피크 자동 백업.
-              로그인 정보·이메일 미수집, 우리 서버 통과 0.
+            <div className="text-[11px] text-gray-500 leading-relaxed">
+              내 Google Drive 의 숨김 폴더에 자동 백업.<br />
+              다른 기기에서 로그인하면 같은 종목 사용.<br />
+              우리는 데이터·이메일을 받지 않습니다.
             </div>
             {syncState === "unconfigured" && (
               <button

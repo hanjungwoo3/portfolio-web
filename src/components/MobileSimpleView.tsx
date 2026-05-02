@@ -856,8 +856,10 @@ function SettingsModal({
             <div className="text-xs font-bold text-gray-700">
               💾 Google Drive 동기화 (선택)
             </div>
-            <div className="text-[11px] text-gray-500">
-              본인 Google 계정 앱 폴더에 종목 자동 백업 + 다기기 sync.
+            <div className="text-[11px] text-gray-500 leading-relaxed">
+              내 Google Drive 의 숨김 폴더에 자동 백업.<br />
+              다른 기기에서 로그인하면 같은 종목 사용.<br />
+              우리는 데이터·이메일을 받지 않습니다.
             </div>
             {syncStateLocal === "unconfigured" && (
               <button disabled={syncBusyLocal}
