@@ -196,10 +196,15 @@ export function StockCard({
   // 비거래일엔 dayDiff=0 이지만 색은 마지막 거래일의 실제 변화 반영.
   // (sparkline 색은 차트 자체 추세로 별도 자동 판정 — 가격 색과 분리)
   const colorDiff = price.price - (price.prevClose || price.price);
+  const colorPct = price.prevClose > 0 ? (colorDiff / price.prevClose) * 100 : 0;
   const priceColorCls =
     colorDiff > 0 ? "text-rose-600"
     : colorDiff < 0 ? "text-blue-600"
     : "text-gray-900";
+  // 현재가 호버 — 직전 거래일 종가 대비 현재 상태
+  const priceTip = price.prevClose > 0
+    ? `직전 거래일 종가 ${price.prevClose.toLocaleString()}원 대비 ${formatSigned(colorDiff)}원 (${colorPct >= 0 ? "+" : ""}${colorPct.toFixed(2)}%)`
+    : "";
 
   const peakPct = peak && peak > 0 ? ((price.price - peak) / peak) * 100 : 0;
   const targetPct =
@@ -233,13 +238,33 @@ export function StockCard({
 
   const sig = computeSignal(investorHistory);
 
+  // 카드 배경 호버 — 현재 보유 손익 상태
+  const cardTip = !hasPosition
+    ? "관심 종목 (보유 X)"
+    : pnl > 0
+      ? `익절 중 — 매수가 ${Math.round(stock.avg_price).toLocaleString()}원 → 현재 ${price.price.toLocaleString()}원 (${formatSigned(pnl)}원, ${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)`
+      : pnl < 0
+        ? `손실 중 — 매수가 ${Math.round(stock.avg_price).toLocaleString()}원 → 현재 ${price.price.toLocaleString()}원 (${formatSigned(pnl)}원, ${pnlPct.toFixed(2)}%)`
+        : "본전";
+  // 차트 호버 — 3개월 추이 시작/끝 비교
+  const chartTip = chart && chart.length > 1
+    ? (() => {
+        const first = chart[0];
+        const last = chart[chart.length - 1];
+        const change = last - first;
+        const pct = first > 0 ? (change / first) * 100 : 0;
+        const dir = change > 0 ? "상승" : change < 0 ? "하락" : "보합";
+        return `3개월 추이: ${first.toLocaleString()}원 → ${last.toLocaleString()}원 (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%, ${dir})`;
+      })()
+    : "";
+
   return (
     <div className={`group ${dimmed ? "opacity-60" : ""}`}>
       {/* 책갈피 — 종목명 + 섹터 + 위험 (좌) / 신호 + hover 버튼 (우) — 모두 책갈피 통일 */}
       <div className="flex items-end justify-between gap-1 mx-2">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
           {warning && (
-            <span title={WARN_TIPS[warning] ?? warning}
+            <span title={`${stock.name} 은(는) "${warning}" 으로 지정 — ${WARN_TIPS[warning] ?? warning}`}
                   className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                               text-white text-sm font-bold leading-none
                               ${WARN_BG[warning] ?? "bg-gray-500"}`}>
@@ -249,7 +274,7 @@ export function StockCard({
           <button
             type="button"
             onClick={() => openTossStock(stock.ticker)}
-            title="토스에서 보기 — 종목명 색은 직전 거래일 종가 대비 (빨강↑ / 파랑↓ / 검정=동일). 카드 배경은 보유 손익 (빨강=익절중 / 파랑=손실중 / 흰색=관심)"
+            title={`토스에서 보기${priceTip ? " — " + priceTip : ""}`}
             className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                         border-t border-l border-r ${cardBorder}
                         font-bold text-sm leading-none cursor-pointer
@@ -266,7 +291,7 @@ export function StockCard({
           </button>
           {/* 수급 신호 — 외인+기관 동반매수 / 개인 떠받치기 / 외인비율 추세 */}
           {sig?.primary && (
-            <span title={SIGNAL_TIPS[sig.primary.tone]}
+            <span title={`${sig.primary.label} — ${SIGNAL_TIPS[sig.primary.tone]}`}
                   className={`inline-flex items-center gap-0.5 px-2 py-0.5
                               rounded-t-md border-t border-l border-r
                               text-[10px] font-bold leading-none cursor-help
@@ -275,7 +300,7 @@ export function StockCard({
             </span>
           )}
           {sig?.secondary && (
-            <span title={SIGNAL_TIPS[sig.secondary.tone]}
+            <span title={`${sig.secondary.label} — ${SIGNAL_TIPS[sig.secondary.tone]}`}
                   className={`inline-flex items-center gap-0.5 px-2 py-0.5
                               rounded-t-md border-t border-l border-r
                               text-[10px] leading-none cursor-help
@@ -332,13 +357,13 @@ export function StockCard({
       </div>
 
       {/* 카드 본체 — 가격박스 / 통계박스 / 투자자 그리드 */}
-      <article title="배경: 빨강=익절 중 / 파랑=손실 중 / 흰색=관심 종목 (보유 손익 기준)"
+      <article title={cardTip}
                className={`rounded-lg border shadow-sm flex flex-row gap-2
                             items-stretch px-3 py-2
                             ${cardBg} ${cardBorder}
                             transition-opacity`}>
         {/* 가격 박스 — 고/현재가/저 (3/10). 비거래일엔 sparkline 워터마크 */}
-        <div title="가격색: 직전 거래일 종가 대비 (빨강↑ / 파랑↓ / 검정=동일). 차트는 3개월 추이"
+        <div title={[priceTip, chartTip].filter(Boolean).join(" · ")}
              className="relative overflow-hidden border border-gray-200 rounded-md
                         bg-gray-50/60 px-2 py-1 space-y-0.5 basis-[30%] min-w-0
                         flex flex-col justify-center">

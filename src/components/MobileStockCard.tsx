@@ -85,10 +85,14 @@ export function MobileStockCard({
   // 색 결정용 — 직전 거래일 종가 대비 (장마감 기준)
   // (sparkline 색은 차트 자체 추세로 별도 자동 판정)
   const colorDiff = price.price - (price.prevClose || price.price);
+  const colorPct = price.prevClose > 0 ? (colorDiff / price.prevClose) * 100 : 0;
   const priceColorCls =
     colorDiff > 0 ? "text-rose-600"
     : colorDiff < 0 ? "text-blue-600"
     : "text-gray-900";
+  const priceTip = price.prevClose > 0
+    ? `직전 거래일 종가 ${price.prevClose.toLocaleString()}원 대비 ${formatSigned(colorDiff)}원 (${colorPct >= 0 ? "+" : ""}${colorPct.toFixed(2)}%)`
+    : "";
   const peakPct = peak && peak > 0 ? ((price.price - peak) / peak) * 100 : 0;
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
@@ -109,13 +113,32 @@ export function MobileStockCard({
     : hasPosition && pnl < 0 ? "border-blue-200"
     : "border-gray-200";
 
+  // 카드 배경 호버 — 현재 보유 손익 상태
+  const cardTip = !hasPosition
+    ? "관심 종목 (보유 X)"
+    : pnl > 0
+      ? `익절 중 — 매수가 ${Math.round(stock.avg_price).toLocaleString()}원 → 현재 ${price.price.toLocaleString()}원 (${formatSigned(pnl)}원, ${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)`
+      : pnl < 0
+        ? `손실 중 — 매수가 ${Math.round(stock.avg_price).toLocaleString()}원 → 현재 ${price.price.toLocaleString()}원 (${formatSigned(pnl)}원, ${pnlPct.toFixed(2)}%)`
+        : "본전";
+  const chartTip = chart && chart.length > 1
+    ? (() => {
+        const first = chart[0];
+        const last = chart[chart.length - 1];
+        const change = last - first;
+        const pct = first > 0 ? (change / first) * 100 : 0;
+        const dir = change > 0 ? "상승" : change < 0 ? "하락" : "보합";
+        return `3개월 추이: ${first.toLocaleString()}원 → ${last.toLocaleString()}원 (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%, ${dir})`;
+      })()
+    : "";
+
   return (
     <div className={dimmed ? "opacity-60" : ""}>
       {/* 책갈피 — 좌: 종목명 pill + 위험 뱃지 / 우: 수정·삭제 버튼 + 섹터 */}
       <div className="flex items-end justify-between gap-1 mx-2">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
           {warning && (
-            <span title={WARN_TIPS[warning] ?? warning}
+            <span title={`${stock.name} 은(는) "${warning}" 으로 지정 — ${WARN_TIPS[warning] ?? warning}`}
                   className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                               text-white text-base font-bold leading-none
                               ${WARN_BG[warning] ?? "bg-gray-500"}`}>
@@ -123,7 +146,7 @@ export function MobileStockCard({
             </span>
           )}
           <button onClick={() => openTossStock(stock.ticker)}
-                  title="토스에서 보기 — 종목명 색은 직전 거래일 종가 대비 (빨강↑ 파랑↓ 검정=동일). 카드 배경: 빨강=익절중 / 파랑=손실중 / 흰색=관심"
+                  title={`토스에서 보기${priceTip ? " — " + priceTip : ""}`}
                   className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                               border-t border-l border-r ${cardBorder}
                               font-bold text-base leading-none w-fit
@@ -166,10 +189,11 @@ export function MobileStockCard({
       </div>
 
       {/* 카드 본체 — 좌우 박스 (50:50) */}
-      <article title="배경: 빨강=익절중 / 파랑=손실중 / 흰색=관심"
+      <article title={cardTip}
                className={`rounded-lg border flex flex-row gap-1.5 p-1.5 ${cardBg} ${cardBorder}`}>
       {/* 좌측 — 가격 박스 (50%). 비거래일엔 sparkline 워터마크 */}
-      <div className="relative overflow-hidden basis-1/2 min-w-0 border border-gray-200
+      <div title={[priceTip, chartTip].filter(Boolean).join(" · ")}
+           className="relative overflow-hidden basis-1/2 min-w-0 border border-gray-200
                        rounded bg-gray-50/60 px-2 py-1.5 flex flex-col justify-center
                        space-y-0.5">
         {/* 비거래일 — 3개월 추이 차트가 박스 배경. 색은 차트 자체 추세 */}
