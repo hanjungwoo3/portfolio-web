@@ -8,6 +8,11 @@ import {
   getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
 import { detectPortfolioJson } from "../lib/portfolioImport";
+import {
+  getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync,
+  uploadToDrive, downloadFromDrive,
+} from "../lib/syncManager";
+import { isSignedIn } from "../lib/googleAuth";
 
 interface Props {
   isOpen: boolean;
@@ -22,12 +27,17 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
   const downOnBackdropRef = useRef(false);
   const [proxyUrl, setProxyUrl] = useState("");
   const [pollMs, setPollMs] = useState(10_000);
+  const [syncState, setSyncState] = useState(getSyncState());
+  const [syncBusy, setSyncBusy] = useState(false);
+  const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(getLastSyncedAt());
 
   // 다이얼로그 열릴 때마다 현재 데이터 로드
   useEffect(() => {
     if (!isOpen) return;
     setProxyUrl(getPersonalProxyUrl() ?? "");
     setPollMs(getPersonalPollMs());
+    setSyncState(getSyncState());
+    setLastSyncedAt(getLastSyncedAt());
     void (async () => {
       const data = await exportAll();
       setRaw(JSON.stringify(data, null, 2));
@@ -123,6 +133,145 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
         </header>
 
         <div className="px-5 py-3 space-y-3 flex-1 flex flex-col min-h-0">
+          {/* Google Drive 동기화 */}
+          <div className="border border-gray-200 rounded p-2.5 bg-emerald-50/40 space-y-1.5">
+            <div className="text-xs font-bold text-gray-700">
+              💾 Google Drive 동기화 — 다기기 sync (선택)
+            </div>
+            <div className="text-[11px] text-gray-500">
+              본인 Google 계정의 앱 전용 폴더에 종목·피크 자동 백업.
+              로그인 정보·이메일 미수집, 우리 서버 통과 0.
+            </div>
+            {syncState === "unconfigured" && (
+              <button
+                disabled={syncBusy}
+                onClick={async () => {
+                  setSyncBusy(true);
+                  setStatusMsg("Google 로그인 중...");
+                  try {
+                    await enableSync();
+                    setSyncState("on");
+                    // 로그인 후 — Drive 에 기존 파일 있으면 다운로드 우선 권유
+                    const downloaded = await downloadFromDrive();
+                    if (downloaded) {
+                      onChanged();
+                      setStatusMsg("✅ 로그인 + Drive 데이터 가져옴");
+                    } else {
+                      // 비어있으면 현재 IndexedDB 를 업로드
+                      await uploadToDrive();
+                      setStatusMsg("✅ 로그인 + 첫 업로드 완료");
+                    }
+                    setLastSyncedAt(getLastSyncedAt());
+                  } catch (e) {
+                    setStatusMsg(`⚠️ ${(e as Error).message}`);
+                  } finally {
+                    setSyncBusy(false);
+                  }
+                }}
+                className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700
+                           disabled:opacity-50 text-white text-sm rounded">
+                🔐 Google 로그인 + 동기화 시작
+              </button>
+            )}
+            {syncState === "on" && (
+              <div className="space-y-1">
+                <div className="text-xs text-gray-700">
+                  상태: <b className="text-emerald-700">자동 동기화 ON</b>
+                  {lastSyncedAt && (
+                    <span className="ml-2 text-gray-500">
+                      (마지막: {new Date(lastSyncedAt).toLocaleString("ko-KR")})
+                    </span>
+                  )}
+                  {!isSignedIn() && (
+                    <span className="ml-2 text-amber-600">(토큰 만료 — 다음 sync 시 자동 재로그인)</span>
+                  )}
+                </div>
+                <div className="flex gap-2 flex-wrap">
+                  <button disabled={syncBusy}
+                    onClick={async () => {
+                      setSyncBusy(true);
+                      try {
+                        await uploadToDrive();
+                        setLastSyncedAt(getLastSyncedAt());
+                        setStatusMsg("✅ Drive 에 업로드");
+                      } catch (e) {
+                        setStatusMsg(`⚠️ ${(e as Error).message}`);
+                      } finally { setSyncBusy(false); }
+                    }}
+                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
+                    ↑ 업로드
+                  </button>
+                  <button disabled={syncBusy}
+                    onClick={async () => {
+                      if (!confirm("Drive 의 데이터로 이 기기를 덮어씁니다. 계속할까요?")) return;
+                      setSyncBusy(true);
+                      try {
+                        const ok = await downloadFromDrive();
+                        if (ok) {
+                          onChanged();
+                          setLastSyncedAt(getLastSyncedAt());
+                          setStatusMsg("✅ Drive 에서 가져옴");
+                        } else {
+                          setStatusMsg("⚠️ Drive 에 데이터 없음");
+                        }
+                      } catch (e) {
+                        setStatusMsg(`⚠️ ${(e as Error).message}`);
+                      } finally { setSyncBusy(false); }
+                    }}
+                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
+                    ↓ 다운로드
+                  </button>
+                  <button onClick={() => { pauseSync(); setSyncState("off"); setStatusMsg("자동 sync 일시 중지"); }}
+                    className="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs rounded">
+                    ⏸ 일시 중지
+                  </button>
+                  <button disabled={syncBusy}
+                    onClick={async () => {
+                      if (!confirm("로그아웃 + 동기화 설정 해제. 계속?")) return;
+                      setSyncBusy(true);
+                      try {
+                        await disableSync();
+                        setSyncState("unconfigured");
+                        setLastSyncedAt(null);
+                        setStatusMsg("로그아웃 완료");
+                      } finally { setSyncBusy(false); }
+                    }}
+                    className="px-2 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs rounded ml-auto">
+                    🚪 로그아웃
+                  </button>
+                </div>
+              </div>
+            )}
+            {syncState === "off" && (
+              <div className="space-y-1">
+                <div className="text-xs text-gray-700">
+                  상태: <b className="text-amber-700">일시 중지</b>
+                  {lastSyncedAt && (
+                    <span className="ml-2 text-gray-500">
+                      (마지막: {new Date(lastSyncedAt).toLocaleString("ko-KR")})
+                    </span>
+                  )}
+                </div>
+                <div className="flex gap-2">
+                  <button onClick={() => { resumeSync(); setSyncState("on"); setStatusMsg("자동 sync 재개"); }}
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded">
+                    ▶ 자동 sync 재개
+                  </button>
+                  <button disabled={syncBusy}
+                    onClick={async () => {
+                      if (!confirm("로그아웃 + 동기화 설정 해제?")) return;
+                      setSyncBusy(true);
+                      try { await disableSync(); setSyncState("unconfigured"); setLastSyncedAt(null); }
+                      finally { setSyncBusy(false); }
+                    }}
+                    className="px-3 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs rounded">
+                    🚪 로그아웃
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* 전용 프록시 URL */}
           <div className="border border-gray-200 rounded p-2.5 bg-blue-50/30 space-y-1">
             <div className="text-xs font-bold text-gray-700">
