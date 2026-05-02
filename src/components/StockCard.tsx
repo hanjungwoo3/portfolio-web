@@ -16,6 +16,7 @@ interface Props {
   warning?: string;
   loading?: boolean;
   chart?: number[];   // 비거래일 sparkline 용 일봉 종가 시계열 (3개월)
+  longHistory?: Investor[] | null;  // 200일 long history — 그리드 행 tooltip 의 5/20/60/120/200일 누적용
   onOpenValuation?: (ticker: string) => void;
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
@@ -190,7 +191,7 @@ interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
 const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
-  stock, price, investor, investorHistory, consensus, sector, peak, warning, loading, chart,
+  stock, price, investor, investorHistory, consensus, sector, peak, warning, loading, chart, longHistory,
   onOpenValuation, onEdit, onDelete,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
@@ -688,11 +689,47 @@ export function StockCard({
           }
 
           const sizeCls = HIGHLIGHT_SIZE[label] ?? "";
-          return (
+
+          // 5/20/60/120/200일 누적 — longHistory 기반 (비율 행은 제외)
+          const periods: { lbl: string; n: number }[] = [
+            { lbl: "5일",         n: 5 },
+            { lbl: "20일 (1개월)", n: 20 },
+            { lbl: "60일 (3개월)", n: 60 },
+            { lbl: "120일 (6개월)", n: 120 },
+            { lbl: "200일 (~10개월)", n: 200 },
+          ];
+          const sumFor = (n: number): { sum: number; days: number } => {
+            if (!longHistory || isRatio) return { sum: 0, days: 0 };
+            const slice = longHistory.slice(0, Math.min(n, longHistory.length));
+            const sum = slice.reduce((a, d) => a + ((d[key] as number) ?? 0), 0);
+            return { sum, days: slice.length };
+          };
+
+          const tooltipContent = (!isRatio && longHistory && longHistory.length > 0) ? (
+            <>
+              <div className="font-bold text-gray-900 mb-1">{label} 누적 순매수</div>
+              {periods.map(p => {
+                const { sum, days } = sumFor(p.n);
+                const sumColor = sum > 0 ? "text-rose-600"
+                              : sum < 0 ? "text-blue-600" : "text-gray-700";
+                return (
+                  <div key={p.lbl} className="flex justify-between gap-3">
+                    <span className="text-gray-700">{p.lbl}
+                      {days < p.n && (
+                        <span className="text-[10px] text-gray-400 ml-1">(실 {days})</span>
+                      )}
+                    </span>
+                    <b className={`tabular-nums ${sumColor}`}>{formatSigned(sum)}</b>
+                  </div>
+                );
+              })}
+            </>
+          ) : null;
+
+          const rowEl = (
             <div
-              key={label}
               className={`flex items-center justify-between gap-1 px-1 py-px rounded
-                          ${rowBg} ${sizeCls}`}
+                          ${rowBg} ${sizeCls} ${!isRatio ? "cursor-help" : ""}`}
             >
               <span className={`whitespace-nowrap shrink-0 ${labelColor}`}>
                 {label}
@@ -701,6 +738,13 @@ export function StockCard({
                 {value}
               </span>
             </div>
+          );
+          return tooltipContent ? (
+            <Tooltip key={label} content={tooltipContent} className="block">
+              {rowEl}
+            </Tooltip>
+          ) : (
+            <div key={label}>{rowEl}</div>
           );
         })}
       </div>

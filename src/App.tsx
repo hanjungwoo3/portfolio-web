@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstac
 import {
   fetchTossPrices, fetchInvestorHistory, pickTodayInvestor,
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
+  fetchInvestorHistorySafe,
 } from "./lib/api";
 import { loadHoldings, loadPeaks, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts } from "./lib/db";
 import { StockCard } from "./components/StockCard";
@@ -164,6 +165,17 @@ function Dashboard() {
     })),
   });
 
+  // 종목별 long history (200일) — 카드 hover tooltip 의 5/20/60/120/200일 누적용
+  // 1시간 캐시 (느림, 폴링 X)
+  const longHistoryQs = useQueries({
+    queries: krxTickers.map(t => ({
+      queryKey: ["investor-history-long", t],
+      queryFn: () => fetchInvestorHistorySafe(t, [200, 120, 60]),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
+  });
+
   // 경고 뱃지 — 5초
   const warningQs = useQueries({
     queries: krxTickers.map(t => ({
@@ -204,6 +216,10 @@ function Dashboard() {
       [krxTickers[i], q.data ? pickTodayInvestor(q.data) : null]
     )),
     [investorQs, krxTickers]
+  );
+  const longHistoryMap = useMemo(
+    () => new Map(longHistoryQs.map((q, i) => [krxTickers[i], q.data ?? null])),
+    [longHistoryQs, krxTickers]
   );
   const investorHistoryMap = useMemo(
     () => new Map(investorQs.map((q, i) => [krxTickers[i], q.data ?? null])),
@@ -328,6 +344,7 @@ function Dashboard() {
                   consensus={naverMap.get(stock.ticker)?.consensus ?? null}
                   peak={peaks.get(stock.ticker)}
                   chart={chartMap.get(stock.ticker)}
+                  longHistory={longHistoryMap.get(stock.ticker)}
                   onOpenValuation={setValuationTicker}
                   onEdit={s => setEditing(s)}
                   onDelete={async s => {
