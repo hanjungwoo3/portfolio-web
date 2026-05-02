@@ -335,24 +335,24 @@ export function MobileStockCard({
                        bg-gray-50/60 px-1.5 py-1 space-y-0.5
                        flex flex-col justify-start">
         {hasPosition && (
-          <div className="text-[10px] flex flex-wrap items-baseline gap-x-2">
-            <span>
+          <>
+            <div className="text-[10px]">
               <span className="text-gray-500">매수 </span>
               <span className="text-gray-700 font-medium">
                 {Math.round(stock.avg_price).toLocaleString()}원
               </span>
-            </span>
+            </div>
             {peak && peak > price.price && (
-              <span className="text-gray-700 font-medium">
+              <div className="text-[10px] text-gray-700 font-medium">
                 <span className="text-gray-500">피크 </span>
                 {peak.toLocaleString()}원{" "}
                 (<span className={`rounded px-0.5
                                    ${isPeakDrop ? "bg-blue-600 text-white font-bold" : ""}`}>
                   {peakPct.toFixed(2)}%
                 </span>)
-              </span>
+              </div>
             )}
-          </div>
+          </>
         )}
 
         {/* 어제보다 — 1주 금액 + % (총금액 제외) */}
