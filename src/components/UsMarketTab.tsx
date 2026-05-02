@@ -178,12 +178,12 @@ export function UsMarketTab() {
                target="_blank" rel="noopener noreferrer"
                title={`${p.name} — Yahoo Finance 보기`}
                className={`relative overflow-hidden flex flex-col gap-0.5
-                            rounded-lg border px-3 py-2 min-h-[120px]
+                            rounded-lg border px-3 py-1.5
                             hover:brightness-95 transition cursor-pointer
                             ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
               {/* 60일 추이 — 카드 전체 배경 워터마크. 색은 차트 자체 추세 */}
               <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
-                         width={400} height={120}
+                         width={400} height={80}
                          className="absolute inset-0 w-full h-full opacity-50
                                     pointer-events-none" />
               <div className="relative z-10 flex items-baseline gap-1.5">
@@ -195,7 +195,7 @@ export function UsMarketTab() {
               <div className="relative z-10 text-[11px] text-gray-500 truncate">
                 {p.desc}
               </div>
-              <div className="relative z-10 flex items-baseline mt-auto pt-4">
+              <div className="relative z-10 flex items-baseline mt-1">
                 <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>
