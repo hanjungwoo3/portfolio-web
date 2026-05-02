@@ -13,6 +13,7 @@ interface Props {
   sector?: string;
   warning?: string;
   chart?: number[];   // 비거래일 sparkline 용 일봉 종가 시계열
+  target?: number;    // 컨센서스 목표가 — sparkline 가로선용
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
 }
@@ -64,7 +65,7 @@ function openTossStock(ticker: string) {
 }
 
 export function MobileStockCard({
-  stock, price, peak, sector, warning, chart, onEdit, onDelete,
+  stock, price, peak, sector, warning, chart, target, onEdit, onDelete,
 }: Props) {
   if (!price) {
     return (
@@ -170,7 +171,9 @@ export function MobileStockCard({
         {/* 비거래일 — 3개월 추이 차트가 박스 배경. 색은 차트 자체 추세 */}
         {!price.high && chart && chart.length > 1 && (
           <Sparkline data={chart} width={300} height={70}
-                     className="absolute inset-0 w-full h-full opacity-40
+                     target={target}
+                     avgPrice={hasPosition ? stock.avg_price : undefined}
+                     className="absolute inset-0 w-full h-full opacity-50
                                 pointer-events-none" />
         )}
         {/* 고가 */}

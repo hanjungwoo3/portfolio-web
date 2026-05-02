@@ -8,10 +8,14 @@ interface Props {
   className?: string;
   // 강제 색 지정 (옵션). 미지정 시 트렌드 자동 결정.
   color?: string;
+  // 목표가 가로선 (옵션) — 차트 Y 축 범위에 포함시켜 표시 (점선, amber)
+  target?: number;
+  // 매수가 가로선 (옵션) — Y 축 범위에 포함 (점선, emerald)
+  avgPrice?: number;
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color,
+  data, width = 120, height = 32, className = "", color, target, avgPrice,
 }: Props) {
   if (!data || data.length < 2) {
     return (
@@ -28,8 +32,12 @@ export function Sparkline({
             : last < first ? "#2563eb"   // blue-600
             : "#94a3b8");                 // slate-400
 
-  const min = Math.min(...data);
-  const max = Math.max(...data);
+  // 목표가·매수가가 있으면 Y 범위에 포함 (모두 보이도록)
+  const allValues = [...data];
+  if (target !== undefined && target > 0) allValues.push(target);
+  if (avgPrice !== undefined && avgPrice > 0) allValues.push(avgPrice);
+  const min = Math.min(...allValues);
+  const max = Math.max(...allValues);
   const range = max - min || 1;
   const padX = 1;
   const padY = 2;
@@ -55,6 +63,11 @@ export function Sparkline({
   // 그라디언트 ID — 색별 고유
   const gradId = `spark-grad-${trendColor.replace("#", "")}`;
 
+  // 가로선 Y 좌표 변환
+  const yFor = (v: number) => padY + innerH - ((v - min) / range) * innerH;
+  const targetY = target !== undefined && target > 0 ? yFor(target) : null;
+  const avgY = avgPrice !== undefined && avgPrice > 0 ? yFor(avgPrice) : null;
+
   return (
     <svg width={width} height={height} className={className}
          viewBox={`0 0 ${width} ${height}`}
@@ -69,6 +82,16 @@ export function Sparkline({
       <path d={areaPath} fill={`url(#${gradId})`} />
       <path d={linePath} fill="none" stroke={trendColor} strokeWidth="1.5"
             strokeLinejoin="round" strokeLinecap="round" />
+      {/* 목표가 — amber 점선 */}
+      {targetY !== null && (
+        <line x1={padX} x2={width - padX} y1={targetY} y2={targetY}
+              stroke="#f59e0b" strokeWidth="1" strokeDasharray="3 2" />
+      )}
+      {/* 매수가 — emerald 점선 */}
+      {avgY !== null && (
+        <line x1={padX} x2={width - padX} y1={avgY} y2={avgY}
+              stroke="#10b981" strokeWidth="1" strokeDasharray="3 2" />
+      )}
     </svg>
   );
 }

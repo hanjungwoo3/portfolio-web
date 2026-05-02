@@ -331,7 +331,9 @@ export function StockCard({
           {/* 비거래일 — 3개월 추이 차트가 박스 배경. 색은 차트 자체 추세 */}
           {!price.high && chart && chart.length > 1 && (
             <Sparkline data={chart} width={300} height={80}
-                       className="absolute inset-0 w-full h-full opacity-40
+                       target={consensus?.target}
+                       avgPrice={hasPosition ? stock.avg_price : undefined}
+                       className="absolute inset-0 w-full h-full opacity-50
                                   pointer-events-none" />
           )}
           {price.high && price.high > 0 && (() => {

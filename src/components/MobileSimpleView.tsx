@@ -196,11 +196,12 @@ export function MobileSimpleView() {
     groupTickers.map((t, i) => [t, warningQs[i]?.data ?? ""])
   );
 
-  // 종목별 sector (Naver) — 그룹 탭에서만 fetch (캐시)
+  // 종목별 sector + consensus (Naver) — 그룹 탭에서만 fetch (캐시)
+  type NaverInfo = Awaited<ReturnType<typeof fetchNaverInfo>>;
   const naverInfos = useQuery({
     queryKey: ["m-naver-info", groupTickers.join(",")],
     queryFn: async () => {
-      const map = new Map<string, { sector?: string }>();
+      const map = new Map<string, NonNullable<NaverInfo>>();
       await Promise.all(groupTickers.map(async t => {
         try {
           const info = await fetchNaverInfo(t);
@@ -395,6 +396,7 @@ export function MobileSimpleView() {
                                sector={naverInfos.data?.get(s.ticker)?.sector}
                                warning={warningMap.get(s.ticker) || undefined}
                                chart={groupChartMap.get(s.ticker)}
+                               target={naverInfos.data?.get(s.ticker)?.consensus?.target}
                                onEdit={st => setEditing(st)}
                                onDelete={async st => {
                                  if (!confirm(
