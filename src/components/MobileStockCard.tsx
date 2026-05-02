@@ -129,7 +129,7 @@ export function MobileStockCard({
           </button>
           {warning && (
             <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
-                              text-white text-[10px] font-bold leading-none
+                              text-white text-base font-bold leading-none
                               ${WARN_BG[warning] ?? "bg-gray-500"}`}>
               {warning}
             </span>
