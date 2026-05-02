@@ -890,14 +890,24 @@ function SettingsModal({
               </button>
             )}
             {(syncStateLocal === "on" || syncStateLocal === "off") && (
-              <div className="space-y-1">
-                <div className="text-[11px] text-gray-700">
-                  상태: <b className={syncStateLocal === "on" ? "text-emerald-700" : "text-amber-700"}>
-                    {syncStateLocal === "on" ? "자동 ON" : "일시 중지"}
-                  </b>
+              <div className="space-y-1.5">
+                {/* 상태: 자동 동기화 [ON|OFF] 토글 */}
+                <div className="text-[11px] text-gray-700 flex items-center gap-2 flex-wrap">
+                  <span>상태: 자동 동기화</span>
+                  <button onClick={() => {
+                    if (syncStateLocal === "on") { pauseSync(); setSyncStateLocal("off"); setDataMsg("자동 OFF"); }
+                    else { resumeSync(); setSyncStateLocal("on"); setDataMsg("자동 ON"); }
+                  }}
+                    className={`px-2 py-0.5 rounded font-bold transition ${
+                      syncStateLocal === "on"
+                        ? "bg-emerald-600 text-white"
+                        : "bg-gray-200 text-gray-600"
+                    }`}>
+                    {syncStateLocal === "on" ? "ON" : "OFF"}
+                  </button>
                   {lastSyncedAtLocal && (
-                    <span className="ml-1 text-gray-500">
-                      ({new Date(lastSyncedAtLocal).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })})
+                    <span className="text-gray-500 ml-auto">
+                      {new Date(lastSyncedAtLocal).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
                     </span>
                   )}
                 </div>
@@ -910,7 +920,7 @@ function SettingsModal({
                       finally { setSyncBusyLocal(false); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                    ↑
+                    ↑ 업로드
                   </button>
                   <button disabled={syncBusyLocal}
                     onClick={async () => {
@@ -928,15 +938,8 @@ function SettingsModal({
                       finally { setSyncBusyLocal(false); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                    ↓
+                    ↓ 다운로드
                   </button>
-                  {syncStateLocal === "on" ? (
-                    <button onClick={() => { pauseSync(); setSyncStateLocal("off"); setDataMsg("일시 중지"); }}
-                      className="px-2 py-1 bg-gray-200 text-gray-700 text-xs rounded">⏸</button>
-                  ) : (
-                    <button onClick={() => { resumeSync(); setSyncStateLocal("on"); setDataMsg("재개"); }}
-                      className="px-2 py-1 bg-emerald-600 text-white text-xs rounded">▶</button>
-                  )}
                   <button disabled={syncBusyLocal}
                     onClick={async () => {
                       if (!confirm("로그아웃?")) return;

@@ -175,16 +175,29 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                 🔐 Google 로그인 + 동기화 시작
               </button>
             )}
-            {syncState === "on" && (
-              <div className="space-y-1">
-                <div className="text-xs text-gray-700">
-                  상태: <b className="text-emerald-700">자동 동기화 ON</b>
+            {(syncState === "on" || syncState === "off") && (
+              <div className="space-y-1.5">
+                {/* 상태: 자동 동기화 [ON|OFF] 토글 */}
+                <div className="text-xs text-gray-700 flex items-center gap-2">
+                  <span>상태: 자동 동기화</span>
+                  <button onClick={() => {
+                    if (syncState === "on") { pauseSync(); setSyncState("off"); setStatusMsg("자동 sync OFF"); }
+                    else { resumeSync(); setSyncState("on"); setStatusMsg("자동 sync ON"); }
+                  }}
+                    className={`px-2 py-0.5 rounded text-xs font-bold transition ${
+                      syncState === "on"
+                        ? "bg-emerald-600 text-white"
+                        : "bg-gray-200 text-gray-600"
+                    }`}>
+                    {syncState === "on" ? "ON" : "OFF"}
+                  </button>
                   {lastSyncedAt && (
-                    <span className="ml-2 text-gray-500">
-                      (마지막: {new Date(lastSyncedAt).toLocaleString("ko-KR")})
+                    <span className="text-gray-500 ml-auto">
+                      마지막: {new Date(lastSyncedAt).toLocaleString("ko-KR")}
                     </span>
                   )}
                 </div>
+                {/* 업로드 / 다운로드 / 로그아웃 — 항상 표시 */}
                 <div className="flex gap-2 flex-wrap">
                   <button disabled={syncBusy}
                     onClick={async () => {
@@ -219,76 +232,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
                     ↓ 다운로드
-                  </button>
-                  <button onClick={() => { pauseSync(); setSyncState("off"); setStatusMsg("자동 sync 일시 중지"); }}
-                    className="px-2 py-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-xs rounded">
-                    ⏸ 일시 중지
-                  </button>
-                  <button disabled={syncBusy}
-                    onClick={async () => {
-                      if (!confirm("로그아웃 + 동기화 설정 해제. 계속?")) return;
-                      setSyncBusy(true);
-                      try {
-                        await disableSync();
-                        setSyncState("unconfigured");
-                        setLastSyncedAt(null);
-                        setStatusMsg("로그아웃 완료");
-                      } finally { setSyncBusy(false); }
-                    }}
-                    className="px-2 py-1 bg-rose-100 hover:bg-rose-200 text-rose-700 text-xs rounded ml-auto">
-                    🚪 로그아웃
-                  </button>
-                </div>
-              </div>
-            )}
-            {syncState === "off" && (
-              <div className="space-y-1">
-                <div className="text-xs text-gray-700">
-                  상태: <b className="text-amber-700">수동 (자동 sync OFF)</b>
-                  {lastSyncedAt && (
-                    <span className="ml-2 text-gray-500">
-                      (마지막: {new Date(lastSyncedAt).toLocaleString("ko-KR")})
-                    </span>
-                  )}
-                </div>
-                <div className="flex gap-2 flex-wrap">
-                  <button disabled={syncBusy}
-                    onClick={async () => {
-                      setSyncBusy(true);
-                      try {
-                        await uploadToDrive();
-                        setLastSyncedAt(getLastSyncedAt());
-                        setStatusMsg("✅ Drive 에 업로드");
-                      } catch (e) {
-                        setStatusMsg(`⚠️ ${(e as Error).message}`);
-                      } finally { setSyncBusy(false); }
-                    }}
-                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                    ↑ 업로드
-                  </button>
-                  <button disabled={syncBusy}
-                    onClick={async () => {
-                      if (!confirm("Drive 의 데이터로 이 기기를 덮어씁니다. 계속할까요?")) return;
-                      setSyncBusy(true);
-                      try {
-                        const ok = await downloadFromDrive();
-                        if (ok) {
-                          onChanged();
-                          setLastSyncedAt(getLastSyncedAt());
-                          setStatusMsg("✅ Drive 에서 가져옴");
-                        } else {
-                          setStatusMsg("⚠️ Drive 에 데이터 없음");
-                        }
-                      } catch (e) {
-                        setStatusMsg(`⚠️ ${(e as Error).message}`);
-                      } finally { setSyncBusy(false); }
-                    }}
-                    className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                    ↓ 다운로드
-                  </button>
-                  <button onClick={() => { resumeSync(); setSyncState("on"); setStatusMsg("자동 sync 재개"); }}
-                    className="px-2 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-xs rounded">
-                    ▶ 자동 sync 시작
                   </button>
                   <button disabled={syncBusy}
                     onClick={async () => {
