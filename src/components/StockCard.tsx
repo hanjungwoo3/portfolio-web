@@ -387,24 +387,38 @@ export function StockCard({
                   {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
                 </div>
                 <div className="text-gray-700">{SIGNAL_TIPS[sig.secondary.tone]}</div>
-                {/* 연기금 톤일 때 — 5/20/60/120/200일 누적 순매수 */}
+                {/* 연기금 톤일 때 — 5/20/60/120/200일 누적 순매수 (표) */}
                 {pensionSums && (
-                  <div className="mt-1.5 pt-1.5 border-t border-gray-200 text-gray-700">
-                    <div className="font-bold text-gray-900 mb-0.5">연기금 누적 순매수</div>
-                    {pensionSums.map(p => {
-                      const sumColor = p.sum > 0 ? "text-rose-600"
-                                    : p.sum < 0 ? "text-blue-600" : "text-gray-700";
-                      return (
-                        <div key={p.lbl} className="flex justify-between gap-3">
-                          <span>{p.lbl}
-                            {p.days < p.target && (
-                              <span className="text-[10px] text-gray-400 ml-1">(실 {p.days})</span>
-                            )}
-                          </span>
-                          <b className={`tabular-nums ${sumColor}`}>{formatSigned(p.sum)}</b>
-                        </div>
-                      );
-                    })}
+                  <div className="mt-1.5 pt-1.5 border-t border-gray-200">
+                    <div className="font-bold text-gray-900 mb-1">연기금 누적 순매수</div>
+                    <table className="w-full text-[11px] border border-gray-300 rounded overflow-hidden">
+                      <thead className="bg-gray-100">
+                        <tr>
+                          <th className="border-b border-r border-gray-300 px-2 py-0.5 text-left font-medium text-gray-700">기간</th>
+                          <th className="border-b border-gray-300 px-2 py-0.5 text-right font-medium text-gray-700">누적</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {pensionSums.map((p, i) => {
+                          const sumColor = p.sum > 0 ? "text-rose-600"
+                                        : p.sum < 0 ? "text-blue-600" : "text-gray-700";
+                          const last = i === pensionSums.length - 1;
+                          return (
+                            <tr key={p.lbl}>
+                              <td className={`px-2 py-0.5 border-r border-gray-300 text-left text-gray-800 ${!last ? "border-b" : ""}`}>
+                                {p.lbl}
+                                {p.days < p.target && (
+                                  <span className="text-[10px] text-gray-400 ml-1">(실 {p.days})</span>
+                                )}
+                              </td>
+                              <td className={`px-2 py-0.5 text-right tabular-nums font-bold ${sumColor} ${!last ? "border-b border-gray-300" : ""}`}>
+                                {formatSigned(p.sum)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
                   </div>
                 )}
               </>
@@ -734,21 +748,35 @@ export function StockCard({
           const tooltipContent = (!isRatio && longHistory && longHistory.length > 0) ? (
             <>
               <div className="font-bold text-gray-900 mb-1">{label} 누적 순매수</div>
-              {periods.map(p => {
-                const { sum, days } = sumFor(p.n);
-                const sumColor = sum > 0 ? "text-rose-600"
-                              : sum < 0 ? "text-blue-600" : "text-gray-700";
-                return (
-                  <div key={p.lbl} className="flex justify-between gap-3">
-                    <span className="text-gray-700">{p.lbl}
-                      {days < p.n && (
-                        <span className="text-[10px] text-gray-400 ml-1">(실 {days})</span>
-                      )}
-                    </span>
-                    <b className={`tabular-nums ${sumColor}`}>{formatSigned(sum)}</b>
-                  </div>
-                );
-              })}
+              <table className="w-full text-[11px] border border-gray-300 rounded overflow-hidden">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="border-b border-r border-gray-300 px-2 py-0.5 text-left font-medium text-gray-700">기간</th>
+                    <th className="border-b border-gray-300 px-2 py-0.5 text-right font-medium text-gray-700">누적</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {periods.map((p, i) => {
+                    const { sum, days } = sumFor(p.n);
+                    const sumColor = sum > 0 ? "text-rose-600"
+                                  : sum < 0 ? "text-blue-600" : "text-gray-700";
+                    const last = i === periods.length - 1;
+                    return (
+                      <tr key={p.lbl}>
+                        <td className={`px-2 py-0.5 border-r border-gray-300 text-left text-gray-800 ${!last ? "border-b" : ""}`}>
+                          {p.lbl}
+                          {days < p.n && (
+                            <span className="text-[10px] text-gray-400 ml-1">(실 {days})</span>
+                          )}
+                        </td>
+                        <td className={`px-2 py-0.5 text-right tabular-nums font-bold ${sumColor} ${!last ? "border-b border-gray-300" : ""}`}>
+                          {formatSigned(sum)}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </>
           ) : null;
 
