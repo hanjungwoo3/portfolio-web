@@ -257,13 +257,29 @@ export async function fetchKrPriceHistory(
 }
 
 // 8시 KST 이전 + body[0] 전부 0 → body[1] 폴백 (데스크톱 v2 동일)
+// 비거래일 (마지막 데이터의 KST 날짜 ≠ 오늘) → flow 값들을 0 으로 (외국인비율은 유지).
+//   가격 "어제대비 0" 과 일관 처리 — 주말/공휴일에 마지막 거래일 수급이
+//   "오늘 수급" 처럼 잘못 보이는 문제 해결.
 export function pickTodayInvestor(history: Investor[]): Investor | null {
   if (history.length === 0) return null;
-  const item = history[0];
+  let item = history[0];
   if (nowKstHour() < 8 && history.length >= 2) {
     const isAllZero =
       item.개인 === 0 && item.외국인 === 0 && item.기관 === 0;
-    if (isAllZero) return history[1];
+    if (isAllZero) item = history[1];
+  }
+  // 비거래일 보정 — 데이터 날짜가 오늘과 다르면 flow 0
+  if (item.date) {
+    const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    if (item.date !== todayKst) {
+      return {
+        ...item,
+        개인: 0, 외국인: 0, 기관: 0, 연기금: 0,
+        금융투자: 0, 투신: 0, 사모: 0, 보험: 0,
+        은행: 0, 기타금융: 0, 기타법인: 0,
+        // 외국인비율 유지
+      };
+    }
   }
   return item;
 }
@@ -379,15 +395,25 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
       return null;
     }
 
-    const diff = price - prev;
-    const pct = prev > 0 ? (diff / prev) * 100 : 0;
-
     // tradeDate (KST)
     let tradeDate = "";
     if (typeof p.regularMarketTime === "number") {
       const kstMs = p.regularMarketTime * 1000 + 9 * 3600 * 1000;
       tradeDate = new Date(kstMs).toISOString().slice(0, 10);
     }
+
+    // 비거래일 보정 (KR fetchTossPrices 와 동일 로직) —
+    // CLOSED 상태에서 마지막 정규장 거래의 KST 날짜가 오늘과 다르면 어제대비 0.
+    // PRE/POST 는 활성 세션 (preMarket vs 마지막 정규장 종가) 의미 있어 보존.
+    if (state === "CLOSED" && tradeDate) {
+      const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+      if (tradeDate !== todayKst) {
+        prev = price;  // 비거래일 → 어제대비 0
+      }
+    }
+
+    const diff = price - prev;
+    const pct = prev > 0 ? (diff / prev) * 100 : 0;
 
     return {
       symbol, name, price, prev, diff, pct,

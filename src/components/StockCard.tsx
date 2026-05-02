@@ -66,7 +66,8 @@ const SIGNAL_ICON: Record<string, string> = {
 
 function openTossStock(ticker: string) {
   if (!/^\d{6}$/.test(ticker)) return;
-  location.href = `https://tossinvest.com/stocks/A${ticker}`;
+  window.open(`https://tossinvest.com/stocks/A${ticker}`,
+              "_blank", "noopener,noreferrer");
 }
 
 

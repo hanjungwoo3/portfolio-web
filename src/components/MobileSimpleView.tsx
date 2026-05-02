@@ -444,7 +444,9 @@ export function MobileSimpleView() {
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>
                 <span className={`flex-1 text-right text-base font-bold tabular-nums ${sign}`}>
-                  {q ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%` : ""}
+                  {q && Math.abs(q.pct) >= 0.005
+                    ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%`
+                    : ""}
                 </span>
               </div>
             </div>
@@ -512,9 +514,9 @@ export function MobileSimpleView() {
                         {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
                       </td>
                       <td className={`px-2 py-2 text-right tabular-nums text-base font-bold w-24 ${sign}`}>
-                        {r.pct !== undefined
+                        {r.pct !== undefined && Math.abs(r.pct) >= 0.005
                           ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
-                          : "—"}
+                          : ""}
                       </td>
                     </tr>
                   );

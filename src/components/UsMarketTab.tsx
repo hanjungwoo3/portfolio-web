@@ -137,6 +137,7 @@ export function UsMarketTab() {
           return (
             <a key={p.symbol}
                href={quoteUrl(p.symbol)}
+               target="_blank" rel="noopener noreferrer"
                title={`${p.name} — Yahoo Finance 보기`}
                className={`relative overflow-hidden flex flex-col gap-0.5
                             rounded-lg border px-3 py-2 min-h-[120px]
@@ -164,7 +165,9 @@ export function UsMarketTab() {
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>
                 <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
-                  {q ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%` : ""}
+                  {q && Math.abs(q.pct) >= 0.005
+                    ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%`
+                    : ""}
                 </span>
               </div>
             </a>
@@ -243,6 +246,7 @@ function QuoteList({ rows }: QuoteListProps) {
               {r.sleeping ? "zZ" : ""}
             </span>
             <a href={quoteUrl(r.symbol)}
+               target="_blank" rel="noopener noreferrer"
                title={r.desc}
                className={`text-sm font-bold hover:underline truncate w-[160px]
                             ${r.kind === "future" ? "text-amber-700"
@@ -254,7 +258,7 @@ function QuoteList({ rows }: QuoteListProps) {
               {r.price !== undefined ? fmtPrice(r.symbol, r.price) : "—"}
             </span>
             <span className={`text-base font-bold tabular-nums text-right w-[64px] shrink-0 ${sign}`}>
-              {r.pct !== undefined
+              {r.pct !== undefined && Math.abs(r.pct) >= 0.005
                 ? `${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%`
                 : ""}
             </span>

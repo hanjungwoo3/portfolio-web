@@ -48,16 +48,16 @@ function openTossStock(ticker: string) {
   const https = `https://tossinvest.com/stocks/${code}`;
 
   // 모바일: 토스 앱 deeplink 우선 (Android Intent / iOS scheme),
-  // 1.2초 내 visibilityState 가 그대로면 https 폴백 (같은 탭)
+  // 1.2초 내 visibilityState 가 그대로면 https 새 탭으로 폴백
   if (/Android|iPhone|iPad|iPod/i.test(navigator.userAgent)) {
     location.href = deep;
     setTimeout(() => {
       if (document.visibilityState === "visible") {
-        location.href = https;
+        window.open(https, "_blank", "noopener,noreferrer");
       }
     }, 1200);
   } else {
-    location.href = https;
+    window.open(https, "_blank", "noopener,noreferrer");
   }
 }
 
