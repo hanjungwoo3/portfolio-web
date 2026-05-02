@@ -115,18 +115,6 @@ const WARN_BG: Record<string, string> = {
   투자주의:     "bg-amber-500",
 };
 
-// 경고 뱃지가 있으면 pill 배경도 변경 (옅은 톤)
-const WARN_PILL_BG: Record<string, string> = {
-  투자위험:     "bg-rose-200",
-  관리종목:     "bg-rose-200",
-  거래정지:     "bg-gray-300",
-  투자경고:     "bg-orange-200",
-  공매도과열:   "bg-orange-200",
-  단기과열:     "bg-orange-200",
-  투자주의환기: "bg-orange-200",
-  투자주의:     "bg-amber-200",
-};
-
 // 손절/트레일링 임계값 (데스크톱 v2 기본 -9.0%)
 const STOP_LOSS_PCT = -9;
 const TRAILING_STOP_PCT = -9;
@@ -244,7 +232,7 @@ export function StockCard({
                         border-t border-l border-r ${cardBorder}
                         font-bold text-sm leading-none cursor-pointer
                         hover:brightness-95 transition
-                        ${warning ? (WARN_PILL_BG[warning] ?? cardBg) : cardBg}
+                        ${cardBg}
                         ${priceColorCls}`}>
             {sleeping && <span className="text-[10px] mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
             {stock.name}
