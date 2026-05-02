@@ -117,10 +117,10 @@ export async function checkConflict(): Promise<ConflictResult> {
 }
 
 // ─── 자동 sync (debounce) ─────────────────────────────────
-// 데이터 변경 후 호출 — 3초 후 업로드 (연속 변경 시 마지막만)
+// 데이터 변경 후 호출 — 500ms 후 업로드 (연속 변경은 배칭, 사용자 체감 즉시)
 
 let autoSyncTimer: number | null = null;
-const AUTO_SYNC_DEBOUNCE_MS = 3000;
+const AUTO_SYNC_DEBOUNCE_MS = 500;
 
 export function scheduleAutoSync(): void {
   if (getSyncState() !== "on") return;
