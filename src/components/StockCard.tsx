@@ -439,6 +439,7 @@ export function StockCard({
                 {(sig.secondary.tone === "up" || sig.secondary.tone === "down")
                   && cumulativeTable("외국인", "외국인 누적 순매수")}
               </>
+            }>
               <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
                                 rounded-t-md border-t border-l border-r
                                 text-[10px] leading-none cursor-help
@@ -446,8 +447,7 @@ export function StockCard({
                 {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
               </span>
             </Tooltip>
-            );
-          })()}
+          )}
         </div>
         <div className="flex items-end gap-0.5 shrink-0">
           {/* hover 버튼 — 📊 ✏️ 🗑 */}
