@@ -811,55 +811,10 @@ export function StockCard({
 
           const sizeCls = HIGHLIGHT_SIZE[label] ?? "";
 
-          // 5/20/60/120/200일 누적 — longHistory 기반 (비율 행은 제외)
-          const periods: { lbl: string; n: number }[] = [
-            { lbl: "5일",         n: 5 },
-            { lbl: "20일 (1개월)", n: 20 },
-            { lbl: "60일 (3개월)", n: 60 },
-            { lbl: "120일 (6개월)", n: 120 },
-            { lbl: "200일 (~10개월)", n: 200 },
-          ];
-          const sumFor = (n: number): { sum: number; days: number } => {
-            if (!longHistory || isRatio) return { sum: 0, days: 0 };
-            const slice = longHistory.slice(0, Math.min(n, longHistory.length));
-            const sum = slice.reduce((a, d) => a + ((d[key] as number) ?? 0), 0);
-            return { sum, days: slice.length };
-          };
-
-          const tooltipContent = (!isRatio && longHistory && longHistory.length > 0) ? (
-            <>
-              <div className="font-bold text-gray-900 mb-1">{label} 누적 순매수</div>
-              <table className="w-full text-[11px] border border-gray-300 rounded overflow-hidden">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="border-b border-r border-gray-300 px-2 py-0.5 text-left font-medium text-gray-700">기간</th>
-                    <th className="border-b border-gray-300 px-2 py-0.5 text-right font-medium text-gray-700">누적</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {periods.map((p, i) => {
-                    const { sum, days } = sumFor(p.n);
-                    const sumColor = sum > 0 ? "text-rose-600"
-                                  : sum < 0 ? "text-blue-600" : "text-gray-700";
-                    const last = i === periods.length - 1;
-                    return (
-                      <tr key={p.lbl}>
-                        <td className={`px-2 py-0.5 border-r border-gray-300 text-left text-gray-800 ${!last ? "border-b" : ""}`}>
-                          {p.lbl}
-                          {days < p.n && (
-                            <span className="text-[10px] text-gray-400 ml-1">(실 {days})</span>
-                          )}
-                        </td>
-                        <td className={`px-2 py-0.5 text-right tabular-nums font-bold ${sumColor} ${!last ? "border-b border-gray-300" : ""}`}>
-                          {formatSigned(sum)}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </>
-          ) : null;
+          // 5/20/60/120/200일 누적 — cumulativeTable 헬퍼 사용 (비율 행은 제외)
+          const tooltipContent = (!isRatio && longHistory && longHistory.length > 0)
+            ? cumulativeTable(key, `${label} 매수/매도`, true)
+            : null;
 
           const rowEl = (
             <div
