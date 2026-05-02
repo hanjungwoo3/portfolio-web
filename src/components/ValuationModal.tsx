@@ -539,7 +539,7 @@ function InvestorChartsSection({
   targetPrice?: number; myAvgPrice?: number;
 }) {
   // 가격 + 거래량 history (Yahoo 1y, KOSPI→KOSDAQ 자동 폴백)
-  const { data: prices } = useQuery({
+  const { data: prices, isLoading: pricesLoading } = useQuery({
     queryKey: ["price-history-modal", ticker],
     queryFn: () => fetchKrPriceHistory(ticker, "1y"),
     enabled: /^\d{6}$/.test(ticker),
@@ -573,7 +573,7 @@ function InvestorChartsSection({
                           targetPrice={targetPrice} myAvgPrice={myAvgPrice} />
       ) : (
         <div className="text-xs text-gray-400 p-2 border border-gray-200 rounded">
-          주가 로딩 중...
+          {pricesLoading ? "주가 로딩 중..." : "주가 데이터 없음 (Yahoo 미수록)"}
         </div>
       )}
       {/* 2~4. 수급 3개 — 한 줄 */}
