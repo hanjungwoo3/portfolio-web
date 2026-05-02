@@ -289,10 +289,10 @@ function QuoteList({ rows }: QuoteListProps) {
                             ${rowBg}
                             ${r.sleeping && dimEnabled ? "opacity-60" : ""}`}>
             {r.chart && r.chart.length > 1 && (
-              <Sparkline data={r.chart} width={300} height={28}
+              <Sparkline data={r.chart} width={150} height={28}
                          color={sparkColor}
-                         className="absolute inset-0 w-full h-full opacity-25
-                                    pointer-events-none" />
+                         className="absolute inset-y-0 right-0 w-1/2 h-full
+                                    opacity-25 pointer-events-none" />
             )}
             {/* zZ 자리 항상 확보 — 종목명 위치 정렬 통일 */}
             <span className="relative z-10 text-[10px] text-gray-400 shrink-0 w-4 text-left">
