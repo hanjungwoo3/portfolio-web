@@ -185,15 +185,12 @@ export function StockCard({
   const dayPct = price.base > 0 ? (dayDiff / price.base) * 100 : 0;
   // 색 결정용 — 직전 거래일 종가 대비 (장마감 기준).
   // 비거래일엔 dayDiff=0 이지만 색은 마지막 거래일의 실제 변화 반영.
+  // (sparkline 색은 차트 자체 추세로 별도 자동 판정 — 가격 색과 분리)
   const colorDiff = price.price - (price.prevClose || price.price);
   const priceColorCls =
     colorDiff > 0 ? "text-rose-600"
     : colorDiff < 0 ? "text-blue-600"
     : "text-gray-900";
-  const sparkColor =
-    colorDiff > 0 ? "#dc2626"
-    : colorDiff < 0 ? "#2563eb"
-    : "#1f2937";
 
   const peakPct = peak && peak > 0 ? ((price.price - peak) / peak) * 100 : 0;
   const targetPct =
@@ -331,10 +328,9 @@ export function StockCard({
         <div className="relative overflow-hidden border border-gray-200 rounded-md
                         bg-gray-50/60 px-2 py-1 space-y-0.5 basis-[30%] min-w-0
                         flex flex-col justify-center">
-          {/* 비거래일 — 3개월 추이 차트가 박스 배경 (장마감 대비 색) */}
+          {/* 비거래일 — 3개월 추이 차트가 박스 배경. 색은 차트 자체 추세 */}
           {!price.high && chart && chart.length > 1 && (
             <Sparkline data={chart} width={300} height={80}
-                       color={sparkColor}
                        className="absolute inset-0 w-full h-full opacity-40
                                   pointer-events-none" />
           )}

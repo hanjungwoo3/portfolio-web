@@ -443,11 +443,8 @@ export function MobileSimpleView() {
                  className={`relative overflow-hidden flex flex-col gap-0.5
                               rounded-lg border px-3 py-2 min-h-[110px]
                               ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
-              {/* 60일 추이 — 카드 전체 배경 워터마크. 색은 장마감 대비 */}
+              {/* 60일 추이 — 카드 전체 배경 워터마크. 색은 차트 자체 추세 */}
               <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
-                         color={cdiff > 0 ? "#dc2626"
-                                : cdiff < 0 ? "#2563eb"
-                                : "#1f2937"}
                          width={300} height={110}
                          className="absolute inset-0 w-full h-full opacity-50
                                     pointer-events-none" />

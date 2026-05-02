@@ -181,11 +181,8 @@ export function UsMarketTab() {
                             rounded-lg border px-3 py-2 min-h-[120px]
                             hover:brightness-95 transition cursor-pointer
                             ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
-              {/* 60일 추이 — 카드 전체 배경 워터마크. 색은 장마감 대비 */}
+              {/* 60일 추이 — 카드 전체 배경 워터마크. 색은 차트 자체 추세 */}
               <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
-                         color={cdiff > 0 ? "#dc2626"
-                                : cdiff < 0 ? "#2563eb"
-                                : "#1f2937"}
                          width={400} height={120}
                          className="absolute inset-0 w-full h-full opacity-50
                                     pointer-events-none" />
@@ -269,16 +266,12 @@ function QuoteList({ rows }: QuoteListProps) {
   return (
     <div className="flex flex-col py-0.5">
       {rows.map(r => {
-        // 색 결정 — colorDiff(장마감 기준) 가 있으면 우선, 없으면 diff (현물·선물)
+        // 가격·배경 색 — 장마감 기준 (colorDiff 우선, 없으면 diff)
         const cdiff = r.colorDiff !== undefined ? r.colorDiff : r.diff;
         const sign =
           cdiff !== undefined && cdiff > 0 ? "text-rose-600"
           : cdiff !== undefined && cdiff < 0 ? "text-blue-600"
           : "text-gray-900";
-        const sparkColor =
-          cdiff !== undefined && cdiff > 0 ? "#dc2626"
-          : cdiff !== undefined && cdiff < 0 ? "#2563eb"
-          : "#1f2937";
         const rowBg =
           cdiff !== undefined && cdiff > 0 ? "bg-rose-50"
           : cdiff !== undefined && cdiff < 0 ? "bg-blue-50/70"
@@ -288,9 +281,9 @@ function QuoteList({ rows }: QuoteListProps) {
                className={`relative overflow-hidden flex items-baseline gap-2 px-1.5 py-1
                             ${rowBg}
                             ${r.sleeping && dimEnabled ? "opacity-60" : ""}`}>
+            {/* 차트 색은 자체 추세 판정 (3개월 첫값 vs 끝값) */}
             {r.chart && r.chart.length > 1 && (
               <Sparkline data={r.chart} width={150} height={28}
-                         color={sparkColor}
                          className="absolute inset-y-0 right-0 w-1/2 h-full
                                     opacity-25 pointer-events-none" />
             )}
