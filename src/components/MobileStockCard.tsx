@@ -123,16 +123,6 @@ export function MobileStockCard({
       : pnl < 0
         ? `손실 중 — 매수가 ${Math.round(stock.avg_price).toLocaleString()}원 → 현재 ${price.price.toLocaleString()}원 (${formatSigned(pnl)}원, ${pnlPct.toFixed(2)}%) — 카드 배경색은 파랑 입니다`
         : "본전 — 카드 배경색은 흰색 입니다";
-  const chartTip = chart && chart.length > 1
-    ? (() => {
-        const first = chart[0];
-        const last = chart[chart.length - 1];
-        const change = last - first;
-        const pct = first > 0 ? (change / first) * 100 : 0;
-        const colorName = change > 0 ? "빨강" : change < 0 ? "파랑" : "회색";
-        return `3개월 추이: ${first.toLocaleString()}원 → ${last.toLocaleString()}원 (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%) — 그래프 색은 ${colorName} 입니다`;
-      })()
-    : "";
 
   return (
     <div className={dimmed ? "opacity-60" : ""}>
@@ -142,11 +132,11 @@ export function MobileStockCard({
           {warning && (
             <Tooltip content={
               <>
-                <div className="font-bold text-amber-300 mb-1">⚠️ {warning}</div>
-                <div className="text-gray-200 mb-1">
+                <div className="font-bold text-amber-700 mb-1">⚠️ {warning}</div>
+                <div className="mb-1">
                   <b>{stock.name}</b> 이(가) 거래소에 의해 지정되었습니다.
                 </div>
-                <div className="text-gray-300">{WARN_TIPS[warning] ?? warning}</div>
+                <div className="text-gray-600">{WARN_TIPS[warning] ?? warning}</div>
               </>
             }>
               <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
@@ -161,15 +151,15 @@ export function MobileStockCard({
               <div className="font-bold mb-1">{stock.name} ({stock.ticker})</div>
               {price.prevClose > 0 && (
                 <>
-                  <div className="text-gray-300">직전 거래일 종가: <b className="text-white">{price.prevClose.toLocaleString()}원</b></div>
-                  <div className="text-gray-300">현재가: <b className="text-white">{price.price.toLocaleString()}원</b></div>
-                  <div className="text-gray-300">변동: <b className={colorDiff > 0 ? "text-rose-400" : colorDiff < 0 ? "text-blue-400" : "text-gray-200"}>
+                  <div className="text-gray-600">직전 거래일 종가: <b className="text-gray-900">{price.prevClose.toLocaleString()}원</b></div>
+                  <div className="text-gray-600">현재가: <b className="text-gray-900">{price.price.toLocaleString()}원</b></div>
+                  <div className="text-gray-600">변동: <b className={colorDiff > 0 ? "text-rose-600" : colorDiff < 0 ? "text-blue-600" : "text-gray-900"}>
                     {formatSigned(colorDiff)}원 ({colorPct >= 0 ? "+" : ""}{colorPct.toFixed(2)}%)
                   </b></div>
-                  <div className="mt-1 text-gray-300">→ 금액색 <ColorName name={priceColorName} /></div>
+                  <div className="mt-1 text-gray-600">→ 금액색 <ColorName name={priceColorName} /></div>
                 </>
               )}
-              <div className="mt-2 text-emerald-300 text-[10px]">🔗 탭 = 토스에서 보기</div>
+              <div className="mt-2 text-emerald-700 text-[10px]">🔗 탭 = 토스에서 보기</div>
             </>
           }>
             <button onClick={() => openTossStock(stock.ticker)}
@@ -218,11 +208,48 @@ export function MobileStockCard({
       {/* 카드 본체 — 좌우 박스 (50:50) */}
       <article title={cardTip}
                className={`rounded-lg border flex flex-row gap-1.5 p-1.5 ${cardBg} ${cardBorder}`}>
-      {/* 좌측 — 가격 박스 (50%). 비거래일엔 sparkline 워터마크 */}
-      <div title={[priceTip, chartTip].filter(Boolean).join(" · ")}
-           className="relative overflow-hidden basis-1/2 min-w-0 border border-gray-200
-                       rounded bg-gray-50/60 px-2 py-1.5 flex flex-col justify-center
-                       space-y-0.5">
+      {/* 좌측 — 가격 박스 (50%). 비거래일엔 sparkline 워터마크.
+          Tooltip 으로 감싸서 overflow-hidden 자식이라도 툴팁 영역은 잘리지 않음 */}
+      <Tooltip content={
+        <>
+          {priceTip && (
+            <div className="text-gray-700 mb-1">
+              <div className="font-bold mb-1 text-gray-900">현재가 색</div>
+              <div>직전 거래일 종가: <b className="text-gray-900">{price.prevClose.toLocaleString()}원</b></div>
+              <div>현재가: <b className="text-gray-900">{price.price.toLocaleString()}원</b></div>
+              <div>변동: <b className={colorDiff > 0 ? "text-rose-600" : colorDiff < 0 ? "text-blue-600" : "text-gray-900"}>
+                {formatSigned(colorDiff)}원 ({colorPct >= 0 ? "+" : ""}{colorPct.toFixed(2)}%)
+              </b></div>
+              <div>→ 금액색 <ColorName name={priceColorName} /></div>
+            </div>
+          )}
+          {chart && chart.length > 1 && (
+            <div className="text-gray-700 border-t border-gray-200 pt-1">
+              <div className="font-bold mb-1 text-gray-900">3개월 추이</div>
+              {(() => {
+                const first = chart[0];
+                const last = chart[chart.length - 1];
+                const change = last - first;
+                const pct = first > 0 ? (change / first) * 100 : 0;
+                const colorName = change > 0 ? "빨강" : change < 0 ? "파랑" : "회색";
+                return (
+                  <>
+                    <div>시작: <b className="text-gray-900">{first.toLocaleString()}원</b></div>
+                    <div>끝: <b className="text-gray-900">{last.toLocaleString()}원</b></div>
+                    <div>변동: <b className={change > 0 ? "text-rose-600" : change < 0 ? "text-blue-600" : "text-gray-900"}>
+                      {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
+                    </b></div>
+                    <div>→ 그래프색 <ColorName name={colorName} /></div>
+                  </>
+                );
+              })()}
+            </div>
+          )}
+        </>
+      } className="basis-1/2 min-w-0">
+      <div className="relative overflow-hidden border border-gray-200
+                      rounded bg-gray-50/60 px-2 py-1.5 w-full h-full
+                      flex flex-col justify-center space-y-0.5">
         {/* 비거래일 — 3개월 추이 차트가 박스 배경. 색은 차트 자체 추세 */}
         {!price.high && chart && chart.length > 1 && (
           <Sparkline data={chart} width={300} height={70}
@@ -275,6 +302,7 @@ export function MobileStockCard({
           );
         })()}
       </div>
+      </Tooltip>
 
       {/* 우측 — 통계 박스 (50%) */}
       <div className="basis-1/2 min-w-0 border border-gray-200 rounded
