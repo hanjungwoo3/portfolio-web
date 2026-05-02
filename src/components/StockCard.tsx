@@ -410,11 +410,11 @@ export function StockCard({
                 </div>
                 <div className="text-gray-700">{SIGNAL_TIPS[sig.primary.tone]}</div>
                 {/* tone 별 누적 표 — 외인+기관 매수/매도 → 외국인+기관 / 개인 떠받치기 → 개인 */}
-                {sig.primary.tone === "bear" && cumulativeTable("개인", "개인 누적 순매수")}
+                {sig.primary.tone === "bear" && cumulativeTable("개인", "개인 매수/매도", true)}
                 {(sig.primary.tone === "bull" || sig.primary.tone === "warn") && (
                   <>
-                    {cumulativeTable("외국인", "외국인 누적 순매수")}
-                    {cumulativeTable("기관", "기관 누적 순매수")}
+                    {cumulativeTable("외국인", "외국인 매수/매도", true)}
+                    {cumulativeTable("기관", "기관 매수/매도", true)}
                   </>
                 )}
               </>
@@ -443,7 +443,7 @@ export function StockCard({
                 {(sig.secondary.tone === "pension_buy" || sig.secondary.tone === "pension_sell")
                   && cumulativeTable("연기금", "연기금 매수/매도", true)}
                 {(sig.secondary.tone === "up" || sig.secondary.tone === "down")
-                  && cumulativeTable("외국인", "외국인 누적 순매수")}
+                  && cumulativeTable("외국인", "외국인 매수/매도", true)}
               </>
             }>
               <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
