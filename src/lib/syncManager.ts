@@ -69,6 +69,11 @@ export function resumeSync(): void { setSyncMode("on"); }
 
 // ─── 수동 업로드 / 다운로드 ──────────────────────────────────
 
+// 다운로드 직후엔 IndexedDB === Drive 라 자동 sync 가 redundant upload 일으킴.
+// → modifiedTime advance → 다음 conflict check 시 false-positive 충돌 발생.
+// 이를 방지하기 위해 "다음 1회 autoSync 억제" 플래그.
+let suppressNextAutoSync = false;
+
 export async function uploadToDrive(): Promise<void> {
   const payload = await exportAll();
   const ts = await uploadFile<ExportPayload>(payload);
@@ -82,6 +87,8 @@ export async function downloadFromDrive(): Promise<boolean> {
   if (data.holdings) await replaceAllHoldings(data.holdings);
   if (data.peaks) await replaceAllPeaks(data.peaks);
   setLastSynced(modifiedTime);
+  // IndexedDB 변경 → reloadKey++ → scheduleAutoSync 트리거 가능 → 억제
+  suppressNextAutoSync = true;
   return true;
 }
 
@@ -124,6 +131,11 @@ const AUTO_SYNC_DEBOUNCE_MS = 500;
 
 export function scheduleAutoSync(): void {
   if (getSyncState() !== "on") return;
+  // 다운로드 직후 — 1회 억제 (redundant upload 방지)
+  if (suppressNextAutoSync) {
+    suppressNextAutoSync = false;
+    return;
+  }
   if (autoSyncTimer !== null) {
     window.clearTimeout(autoSyncTimer);
   }
@@ -131,7 +143,6 @@ export function scheduleAutoSync(): void {
     autoSyncTimer = null;
     if (getSyncState() !== "on") return;
     if (!isSignedIn()) {
-      // 토큰 만료 — silent refresh 시도
       const t = await getAccessToken();
       if (!t) return;
     }
