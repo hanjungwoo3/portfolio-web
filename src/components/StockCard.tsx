@@ -46,9 +46,9 @@ function computeSignal(history: Investor[] | null | undefined): InvestorSignal |
   // 연기금 우선 (장기 자금 → 의미 큼) / fallback 외인비율 20일 추세
   let secondary: InvestorSignal["secondary"];
   if (pensionBuyDays >= 3) {
-    secondary = { label: `연기금 매수 ${pensionBuyDays}일`, tone: "pension_buy" };
+    secondary = { label: `연기금 비중 증가 ${pensionBuyDays}일`, tone: "pension_buy" };
   } else if (pensionSellDays >= 3) {
-    secondary = { label: `연기금 매도 ${pensionSellDays}일`, tone: "pension_sell" };
+    secondary = { label: `연기금 비중 축소 ${pensionSellDays}일`, tone: "pension_sell" };
   } else if (history.length >= 20) {
     const today = history[0].외국인비율;
     const past = history[19].외국인비율;
@@ -85,8 +85,8 @@ const SIGNAL_TIPS: Record<string, string> = {
   warn: "외국인 + 기관이 동반 매도한 일수 — 약세 시그널",
   up:   "외국인 보유 비율이 20거래일 동안 상승 — 외인 유입 추세",
   down: "외국인 보유 비율이 20거래일 동안 하락 — 외인 이탈 추세",
-  pension_buy:  "연기금이 최근 5거래일 중 3일 이상 매수 — 장기 자금 유입 (강한 긍정 시그널)",
-  pension_sell: "연기금이 최근 5거래일 중 3일 이상 매도 — 장기 자금 이탈 (주의)",
+  pension_buy:  "연기금이 최근 5거래일 중 3일 이상 순매수 — 보유 비중 증가, 장기 자금 유입 (강한 긍정 시그널)",
+  pension_sell: "연기금이 최근 5거래일 중 3일 이상 순매도 — 보유 비중 축소, 장기 자금 이탈 (주의)",
 };
 
 // 호버 툴팁 — 경고 뱃지 의미 설명
