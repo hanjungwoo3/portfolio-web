@@ -105,9 +105,16 @@ const SIGNAL_TONE: Record<string, string> = {
   pension_buy:  "bg-rose-100 text-rose-700 border-rose-300", // 연기금 매수 (긍정)
   pension_sell: "bg-blue-100 text-blue-700 border-blue-300", // 연기금 매도 (부정)
 };
+// 긍정 → 📈 / 부정 → 📉 / 경고 → ⚠️ / 연기금 → 🏦
+// (한국 주식 색관습 — 빨강=긍정/파랑=부정 — 과 어긋나는 🟢/🔴 원 이모지 제거)
 const SIGNAL_ICON: Record<string, string> = {
-  bull: "🟢", bear: "🔴", warn: "⚠️", up: "📈", down: "📉",
-  pension_buy: "🏦", pension_sell: "🏦",
+  bull: "📈",          // 외인+기관 매수 (긍정)
+  bear: "📉",          // 개인 떠받치기 (부정 — 외인 이탈)
+  warn: "⚠️",         // 외인+기관 매도 (부정)
+  up:   "📈",          // 외인비율 ↑ (긍정)
+  down: "📉",          // 외인비율 ↓ (부정)
+  pension_buy:  "🏦",
+  pension_sell: "🏦",
 };
 
 // 호버 툴팁 — 신호 뱃지 의미 설명
