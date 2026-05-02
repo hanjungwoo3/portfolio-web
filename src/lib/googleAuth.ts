@@ -37,6 +37,44 @@ let accessToken: string | null = null;
 let tokenExpiresAt = 0;  // ms epoch
 let scriptLoaded = false;
 
+// localStorage 토큰 캐싱 — 새로고침 시 popup 회피
+const TOKEN_KEY = "gdrive_token_cache";
+interface CachedToken { token: string; expiresAt: number; }
+
+function loadCachedToken(): void {
+  try {
+    const raw = localStorage.getItem(TOKEN_KEY);
+    if (!raw) return;
+    const cached = JSON.parse(raw) as CachedToken;
+    if (cached.expiresAt > Date.now() + 30_000) {
+      accessToken = cached.token;
+      tokenExpiresAt = cached.expiresAt;
+    } else {
+      localStorage.removeItem(TOKEN_KEY);
+    }
+  } catch { /* noop */ }
+}
+
+function saveToken(token: string, expiresIn: number): void {
+  accessToken = token;
+  tokenExpiresAt = Date.now() + expiresIn * 1000;
+  try {
+    localStorage.setItem(TOKEN_KEY, JSON.stringify({
+      token,
+      expiresAt: tokenExpiresAt,
+    } satisfies CachedToken));
+  } catch { /* noop */ }
+}
+
+function clearToken(): void {
+  accessToken = null;
+  tokenExpiresAt = 0;
+  try { localStorage.removeItem(TOKEN_KEY); } catch { /* noop */ }
+}
+
+// 페이지 로드 시 즉시 캐시 복원
+loadCachedToken();
+
 // GIS 스크립트 로드 (1회)
 async function loadGisScript(): Promise<void> {
   if (scriptLoaded) return;
@@ -74,9 +112,7 @@ export async function signIn(): Promise<string> {
           reject(new Error("토큰 없음"));
           return;
         }
-        accessToken = resp.access_token;
-        tokenExpiresAt = Date.now() + (resp.expires_in ?? 3600) * 1000;
-        // 로그인 성공 표시 (재방문 시 자동 토큰 갱신 트리거용)
+        saveToken(resp.access_token, resp.expires_in ?? 3600);
         try { localStorage.setItem("gdrive_was_signed_in", "1"); } catch { /* noop */ }
         resolve(resp.access_token);
       },
@@ -85,48 +121,30 @@ export async function signIn(): Promise<string> {
   });
 }
 
-// 토큰 가져오기 — 만료 시 자동 silent refresh 시도
+// 토큰 가져오기 — 캐시 우선, 만료 시 silent refresh 시도
 export async function getAccessToken(): Promise<string | null> {
+  // 캐시된 유효 토큰 있으면 즉시 반환 (새로고침 후에도 popup 없음)
   if (accessToken && Date.now() < tokenExpiresAt - 30_000) {
     return accessToken;
   }
-  // 토큰 만료 or 없음 — 재시도
+  // 토큰 만료/없음 — silent refresh 시도 (다중 계정이면 popup 가능성)
   await loadGisScript();
   const oauth2 = window.google?.accounts?.oauth2;
   if (!oauth2) return null;
 
   return new Promise<string | null>(resolve => {
-    if (!tokenClient) {
-      tokenClient = oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPE,
-        callback: (resp: GisTokenResp) => {
-          if (resp.error || !resp.access_token) {
-            resolve(null);
-            return;
-          }
-          accessToken = resp.access_token;
-          tokenExpiresAt = Date.now() + (resp.expires_in ?? 3600) * 1000;
-          resolve(resp.access_token);
-        },
-      });
-    } else {
-      // 기존 client 의 callback 재할당 — silent prompt
-      tokenClient = oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPE,
-        callback: (resp: GisTokenResp) => {
-          if (resp.error || !resp.access_token) {
-            resolve(null);
-            return;
-          }
-          accessToken = resp.access_token;
-          tokenExpiresAt = Date.now() + (resp.expires_in ?? 3600) * 1000;
-          resolve(resp.access_token);
-        },
-      });
-    }
-    // silent — popup 없이 시도 (이미 동의한 경우만 작동)
+    tokenClient = oauth2.initTokenClient({
+      client_id: CLIENT_ID,
+      scope: SCOPE,
+      callback: (resp: GisTokenResp) => {
+        if (resp.error || !resp.access_token) {
+          resolve(null);
+          return;
+        }
+        saveToken(resp.access_token, resp.expires_in ?? 3600);
+        resolve(resp.access_token);
+      },
+    });
     tokenClient.requestAccessToken({ prompt: "" });
   });
 }
@@ -135,8 +153,7 @@ export async function getAccessToken(): Promise<string | null> {
 export async function signOut(): Promise<void> {
   if (accessToken) {
     const t = accessToken;
-    accessToken = null;
-    tokenExpiresAt = 0;
+    clearToken();
     await loadGisScript();
     const oauth2 = window.google?.accounts?.oauth2;
     if (oauth2) {
@@ -144,6 +161,8 @@ export async function signOut(): Promise<void> {
         oauth2.revoke(t, () => resolve());
       });
     }
+  } else {
+    clearToken();
   }
   try { localStorage.removeItem("gdrive_was_signed_in"); } catch { /* noop */ }
 }
