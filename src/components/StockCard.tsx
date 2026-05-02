@@ -256,7 +256,7 @@ export function StockCard({
               </>
             }>
               <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
-                                text-white text-sm font-bold leading-none cursor-help
+                                text-white text-sm leading-none cursor-help
                                 ${WARN_BG[warning] ?? "bg-gray-500"}`}>
                 {warning}
               </span>
