@@ -20,8 +20,8 @@ export function Tooltip({ content, children, className = "" }: Props) {
   const adjusted = (() => {
     if (!pos) return null;
     const PAD = 12;
-    const W = 320;  // tooltip 최대 폭 추정 (max-w-[300px] + padding)
-    const H = 200;  // 높이 여유
+    const W = 580;  // tooltip 최대 폭 추정 (max-w-[560px] + padding)
+    const H = 280;  // 높이 여유
     let x = pos.x + 14;  // 마우스 우측
     let y = pos.y + 14;  // 마우스 아래
     if (typeof window !== "undefined") {
