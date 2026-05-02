@@ -115,14 +115,6 @@ export function MobileStockCard({
     : hasPosition && pnl < 0 ? "border-blue-200"
     : "border-gray-200";
 
-  // 카드 배경 호버 — 현재 보유 손익 상태 + 결과 배경색
-  const cardTip = !hasPosition
-    ? "관심 종목 (보유 X) — 카드 배경색은 흰색 입니다"
-    : pnl > 0
-      ? `익절 중 — 매수가 ${Math.round(stock.avg_price).toLocaleString()}원 → 현재 ${price.price.toLocaleString()}원 (${formatSigned(pnl)}원, ${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%) — 카드 배경색은 분홍 입니다`
-      : pnl < 0
-        ? `손실 중 — 매수가 ${Math.round(stock.avg_price).toLocaleString()}원 → 현재 ${price.price.toLocaleString()}원 (${formatSigned(pnl)}원, ${pnlPct.toFixed(2)}%) — 카드 배경색은 파랑 입니다`
-        : "본전 — 카드 배경색은 흰색 입니다";
 
   return (
     <div className={dimmed ? "opacity-60" : ""}>
@@ -206,17 +198,38 @@ export function MobileStockCard({
       </div>
 
       {/* 카드 본체 — 좌우 박스 (50:50) */}
-      <article title={cardTip}
-               className={`rounded-lg border flex flex-row gap-1.5 p-1.5 ${cardBg} ${cardBorder}`}>
+      <article className={`rounded-lg border flex flex-row gap-1.5 p-1.5 ${cardBg} ${cardBorder}`}>
       {/* 좌측 — 가격 박스 (50%). 비거래일엔 sparkline 워터마크.
           Tooltip 으로 감싸서 overflow-hidden 자식이라도 툴팁 영역은 잘리지 않음 */}
       <Tooltip content={
         <>
+          <div className="text-gray-700 mb-1.5">
+            <div className="font-bold mb-1 text-gray-900">{stock.name} ({stock.ticker})</div>
+            {!hasPosition && (
+              <div>관심 종목 — 카드 배경 <ColorName name="흰색" /></div>
+            )}
+            {hasPosition && pnl > 0 && (
+              <>
+                <div>매수가: <b className="text-gray-900">{Math.round(stock.avg_price).toLocaleString()}원</b> × {stock.shares.toLocaleString()}주</div>
+                <div>전체수익: <b className="text-rose-600">{formatSigned(pnl)}원 ({pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%)</b></div>
+                <div>→ 익절 중 — 배경 <ColorName name="분홍" /></div>
+              </>
+            )}
+            {hasPosition && pnl < 0 && (
+              <>
+                <div>매수가: <b className="text-gray-900">{Math.round(stock.avg_price).toLocaleString()}원</b> × {stock.shares.toLocaleString()}주</div>
+                <div>전체수익: <b className="text-blue-600">{formatSigned(pnl)}원 ({pnlPct.toFixed(2)}%)</b></div>
+                <div>→ 손실 중 — 배경 <ColorName name="파랑" /></div>
+              </>
+            )}
+            {hasPosition && pnl === 0 && (
+              <div>본전 — 배경 <ColorName name="흰색" /></div>
+            )}
+          </div>
           {priceTip && (
-            <div className="text-gray-700 mb-1">
+            <div className="text-gray-700 border-t border-gray-200 pt-1.5 mb-1">
               <div className="font-bold mb-1 text-gray-900">현재가 색</div>
               <div>직전 거래일 종가: <b className="text-gray-900">{price.prevClose.toLocaleString()}원</b></div>
-              <div>현재가: <b className="text-gray-900">{price.price.toLocaleString()}원</b></div>
               <div>변동: <b className={colorDiff > 0 ? "text-rose-600" : colorDiff < 0 ? "text-blue-600" : "text-gray-900"}>
                 {formatSigned(colorDiff)}원 ({colorPct >= 0 ? "+" : ""}{colorPct.toFixed(2)}%)
               </b></div>
@@ -224,7 +237,7 @@ export function MobileStockCard({
             </div>
           )}
           {chart && chart.length > 1 && (
-            <div className="text-gray-700 border-t border-gray-200 pt-1">
+            <div className="text-gray-700 border-t border-gray-200 pt-1.5">
               <div className="font-bold mb-1 text-gray-900">3개월 추이</div>
               {(() => {
                 const first = chart[0];
@@ -234,8 +247,7 @@ export function MobileStockCard({
                 const colorName = change > 0 ? "빨강" : change < 0 ? "파랑" : "회색";
                 return (
                   <>
-                    <div>시작: <b className="text-gray-900">{first.toLocaleString()}원</b></div>
-                    <div>끝: <b className="text-gray-900">{last.toLocaleString()}원</b></div>
+                    <div>시작 → 끝: <b className="text-gray-900">{first.toLocaleString()}</b> → <b className="text-gray-900">{last.toLocaleString()}원</b></div>
                     <div>변동: <b className={change > 0 ? "text-rose-600" : change < 0 ? "text-blue-600" : "text-gray-900"}>
                       {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
                     </b></div>
