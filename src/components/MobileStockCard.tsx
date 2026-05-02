@@ -2,6 +2,7 @@ import type { Stock, Price } from "../types";
 import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { Sparkline } from "./Sparkline";
+import { Tooltip, ColorName } from "./Tooltip";
 
 // 모바일 종목 카드 — 데스크톱 StockCard 의 가격 + 통계 박스만 (투자자 동향 X)
 // 폰트 모두 작게.
@@ -90,8 +91,9 @@ export function MobileStockCard({
     colorDiff > 0 ? "text-rose-600"
     : colorDiff < 0 ? "text-blue-600"
     : "text-gray-900";
+  const priceColorName = colorDiff > 0 ? "빨강" : colorDiff < 0 ? "파랑" : "검정";
   const priceTip = price.prevClose > 0
-    ? `직전 거래일 종가 ${price.prevClose.toLocaleString()}원 대비 ${formatSigned(colorDiff)}원 (${colorPct >= 0 ? "+" : ""}${colorPct.toFixed(2)}%)`
+    ? `직전 거래일 종가 ${price.prevClose.toLocaleString()}원 대비 ${formatSigned(colorDiff)}원 (${colorPct >= 0 ? "+" : ""}${colorPct.toFixed(2)}%) — 현재가 금액색은 ${priceColorName} 입니다`
     : "";
   const peakPct = peak && peak > 0 ? ((price.price - peak) / peak) * 100 : 0;
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
@@ -113,22 +115,22 @@ export function MobileStockCard({
     : hasPosition && pnl < 0 ? "border-blue-200"
     : "border-gray-200";
 
-  // 카드 배경 호버 — 현재 보유 손익 상태
+  // 카드 배경 호버 — 현재 보유 손익 상태 + 결과 배경색
   const cardTip = !hasPosition
-    ? "관심 종목 (보유 X)"
+    ? "관심 종목 (보유 X) — 카드 배경색은 흰색 입니다"
     : pnl > 0
-      ? `익절 중 — 매수가 ${Math.round(stock.avg_price).toLocaleString()}원 → 현재 ${price.price.toLocaleString()}원 (${formatSigned(pnl)}원, ${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)`
+      ? `익절 중 — 매수가 ${Math.round(stock.avg_price).toLocaleString()}원 → 현재 ${price.price.toLocaleString()}원 (${formatSigned(pnl)}원, ${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%) — 카드 배경색은 분홍 입니다`
       : pnl < 0
-        ? `손실 중 — 매수가 ${Math.round(stock.avg_price).toLocaleString()}원 → 현재 ${price.price.toLocaleString()}원 (${formatSigned(pnl)}원, ${pnlPct.toFixed(2)}%)`
-        : "본전";
+        ? `손실 중 — 매수가 ${Math.round(stock.avg_price).toLocaleString()}원 → 현재 ${price.price.toLocaleString()}원 (${formatSigned(pnl)}원, ${pnlPct.toFixed(2)}%) — 카드 배경색은 파랑 입니다`
+        : "본전 — 카드 배경색은 흰색 입니다";
   const chartTip = chart && chart.length > 1
     ? (() => {
         const first = chart[0];
         const last = chart[chart.length - 1];
         const change = last - first;
         const pct = first > 0 ? (change / first) * 100 : 0;
-        const dir = change > 0 ? "상승" : change < 0 ? "하락" : "보합";
-        return `3개월 추이: ${first.toLocaleString()}원 → ${last.toLocaleString()}원 (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%, ${dir})`;
+        const colorName = change > 0 ? "빨강" : change < 0 ? "파랑" : "회색";
+        return `3개월 추이: ${first.toLocaleString()}원 → ${last.toLocaleString()}원 (${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%) — 그래프 색은 ${colorName} 입니다`;
       })()
     : "";
 
@@ -138,28 +140,53 @@ export function MobileStockCard({
       <div className="flex items-end justify-between gap-1 mx-2">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
           {warning && (
-            <span title={`${stock.name} 은(는) "${warning}" 으로 지정 — ${WARN_TIPS[warning] ?? warning}`}
-                  className={`inline-flex items-center px-2 py-0.5 rounded-t-md
-                              text-white text-base font-bold leading-none
-                              ${WARN_BG[warning] ?? "bg-gray-500"}`}>
-              {warning}
-            </span>
-          )}
-          <button onClick={() => openTossStock(stock.ticker)}
-                  title={`토스에서 보기${priceTip ? " — " + priceTip : ""}`}
-                  className={`inline-flex items-center px-2 py-0.5 rounded-t-md
-                              border-t border-l border-r ${cardBorder}
-                              font-bold text-base leading-none w-fit
-                              ${cardBg}
-                              ${priceColorCls}`}>
-            {sleeping && <span className="text-[10px] mr-0.5 opacity-70">zZ</span>}
-            {stock.name}
-            {stock.shares > 0 && (
-              <span className="ml-1 text-sm font-bold">
-                ({stock.shares.toLocaleString()}주)
+            <Tooltip content={
+              <>
+                <div className="font-bold text-amber-300 mb-1">⚠️ {warning}</div>
+                <div className="text-gray-200 mb-1">
+                  <b>{stock.name}</b> 이(가) 거래소에 의해 지정되었습니다.
+                </div>
+                <div className="text-gray-300">{WARN_TIPS[warning] ?? warning}</div>
+              </>
+            }>
+              <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                                text-white text-base font-bold leading-none cursor-help
+                                ${WARN_BG[warning] ?? "bg-gray-500"}`}>
+                {warning}
               </span>
-            )}
-          </button>
+            </Tooltip>
+          )}
+          <Tooltip content={
+            <>
+              <div className="font-bold mb-1">{stock.name} ({stock.ticker})</div>
+              {price.prevClose > 0 && (
+                <>
+                  <div className="text-gray-300">직전 거래일 종가: <b className="text-white">{price.prevClose.toLocaleString()}원</b></div>
+                  <div className="text-gray-300">현재가: <b className="text-white">{price.price.toLocaleString()}원</b></div>
+                  <div className="text-gray-300">변동: <b className={colorDiff > 0 ? "text-rose-400" : colorDiff < 0 ? "text-blue-400" : "text-gray-200"}>
+                    {formatSigned(colorDiff)}원 ({colorPct >= 0 ? "+" : ""}{colorPct.toFixed(2)}%)
+                  </b></div>
+                  <div className="mt-1 text-gray-300">→ 금액색 <ColorName name={priceColorName} /></div>
+                </>
+              )}
+              <div className="mt-2 text-emerald-300 text-[10px]">🔗 탭 = 토스에서 보기</div>
+            </>
+          }>
+            <button onClick={() => openTossStock(stock.ticker)}
+                    className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                                border-t border-l border-r ${cardBorder}
+                                font-bold text-base leading-none w-fit
+                                ${cardBg}
+                                ${priceColorCls}`}>
+              {sleeping && <span className="text-[10px] mr-0.5 opacity-70">zZ</span>}
+              {stock.name}
+              {stock.shares > 0 && (
+                <span className="ml-1 text-sm font-bold">
+                  ({stock.shares.toLocaleString()}주)
+                </span>
+              )}
+            </button>
+          </Tooltip>
         </div>
         <div className="flex items-end gap-1 shrink-0">
           {onEdit && (
