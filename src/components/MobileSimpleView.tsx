@@ -946,7 +946,7 @@ function SettingsModal({
                       try { await disableSync(); setSyncStateLocal("unconfigured"); setLastSyncedAtLocal(null); }
                       finally { setSyncBusyLocal(false); }
                     }}
-                    className="px-2 py-1 bg-rose-100 text-rose-700 text-xs rounded ml-auto">🚪</button>
+                    className="px-2 py-1 bg-rose-100 text-rose-700 text-xs rounded ml-auto">🚪 로그아웃</button>
                 </div>
               </div>
             )}
