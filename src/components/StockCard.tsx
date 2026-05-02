@@ -358,7 +358,24 @@ export function StockCard({
               </span>
             </Tooltip>
           )}
-          {sig?.secondary && (
+          {sig?.secondary && (() => {
+            const isPension = sig.secondary.tone === "pension_buy" || sig.secondary.tone === "pension_sell";
+            // 연기금 5/20/60/120/200일 누적 순매수 (longHistory 기반)
+            const pensionSums = isPension && longHistory ? (() => {
+              const periods = [
+                { lbl: "5일", n: 5 },
+                { lbl: "20일 (1개월)", n: 20 },
+                { lbl: "60일 (3개월)", n: 60 },
+                { lbl: "120일 (6개월)", n: 120 },
+                { lbl: "200일 (~10개월)", n: 200 },
+              ];
+              return periods.map(p => {
+                const slice = longHistory.slice(0, Math.min(p.n, longHistory.length));
+                const sum = slice.reduce((a, d) => a + (d.연기금 ?? 0), 0);
+                return { lbl: p.lbl, sum, days: slice.length, target: p.n };
+              });
+            })() : null;
+            return (
             <Tooltip content={
               <>
                 <div className={`font-bold mb-1 ${
@@ -370,16 +387,24 @@ export function StockCard({
                   {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
                 </div>
                 <div className="text-gray-700">{SIGNAL_TIPS[sig.secondary.tone]}</div>
-                {/* 연기금 톤일 때 — 5/20/60일 매수일 breakdown */}
-                {sig.pension && (sig.secondary.tone === "pension_buy" || sig.secondary.tone === "pension_sell") && (
+                {/* 연기금 톤일 때 — 5/20/60/120/200일 누적 순매수 */}
+                {pensionSums && (
                   <div className="mt-1.5 pt-1.5 border-t border-gray-200 text-gray-700">
-                    <div className="font-bold text-gray-900 mb-0.5">기간별 매수일</div>
-                    <div>5일: <b>{sig.pension.d5}</b>/{sig.pension.d5N}
-                      <span className="text-gray-500"> ({((sig.pension.d5 / Math.max(1, sig.pension.d5N)) * 100).toFixed(0)}%)</span></div>
-                    <div>20일: <b>{sig.pension.d20}</b>/{sig.pension.d20N}
-                      <span className="text-gray-500"> ({((sig.pension.d20 / Math.max(1, sig.pension.d20N)) * 100).toFixed(0)}%)</span></div>
-                    <div>60일: <b>{sig.pension.d60}</b>/{sig.pension.d60N}
-                      <span className="text-gray-500"> ({((sig.pension.d60 / Math.max(1, sig.pension.d60N)) * 100).toFixed(0)}%)</span></div>
+                    <div className="font-bold text-gray-900 mb-0.5">연기금 누적 순매수</div>
+                    {pensionSums.map(p => {
+                      const sumColor = p.sum > 0 ? "text-rose-600"
+                                    : p.sum < 0 ? "text-blue-600" : "text-gray-700";
+                      return (
+                        <div key={p.lbl} className="flex justify-between gap-3">
+                          <span>{p.lbl}
+                            {p.days < p.target && (
+                              <span className="text-[10px] text-gray-400 ml-1">(실 {p.days})</span>
+                            )}
+                          </span>
+                          <b className={`tabular-nums ${sumColor}`}>{formatSigned(p.sum)}</b>
+                        </div>
+                      );
+                    })}
                   </div>
                 )}
               </>
@@ -391,7 +416,8 @@ export function StockCard({
                 {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
               </span>
             </Tooltip>
-          )}
+            );
+          })()}
         </div>
         <div className="flex items-end gap-0.5 shrink-0">
           {/* hover 버튼 — 📊 ✏️ 🗑 */}
