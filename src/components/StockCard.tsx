@@ -311,7 +311,7 @@ export function StockCard({
     return (
       <div className="mt-1.5 pt-1.5 border-t border-gray-200">
         <div className="font-bold text-gray-900 mb-1">{title}</div>
-        <table className="w-full text-[11px] border border-gray-300 rounded overflow-hidden">
+        <table className="text-[11px] border border-gray-300 rounded overflow-hidden whitespace-nowrap">
           <thead className="bg-gray-100">
             <tr>
               <th className="border-b border-r border-gray-300 px-2 py-0.5 text-left font-medium text-gray-700">기간</th>
@@ -329,7 +329,7 @@ export function StockCard({
               const last = ri === periods.length - 1;
               return (
                 <tr key={p.lbl}>
-                  <td className={`px-2 py-0.5 border-r border-gray-300 text-left text-gray-800 ${!last ? "border-b" : ""}`}>
+                  <td className={`px-2 py-0.5 border-r border-gray-300 text-left text-gray-800 whitespace-nowrap ${!last ? "border-b" : ""}`}>
                     {p.lbl}
                     {days < p.n && (
                       <span className="text-[10px] text-gray-400 ml-1">(실 {days})</span>

@@ -56,7 +56,7 @@ export function Tooltip({ content, children, className = "" }: Props) {
           className="px-3 py-2 rounded-md shadow-xl
                      bg-white text-gray-800 text-[11px] leading-relaxed
                      border border-gray-200
-                     w-max max-w-[300px]
+                     w-max max-w-[560px]
                      pointer-events-none whitespace-normal text-left">
           {content}
         </span>
