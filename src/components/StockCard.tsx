@@ -21,34 +21,64 @@ interface Props {
   onDelete?: (stock: Stock) => void;
 }
 
-// 신호 — 최근 5거래일 동향 + 연기금 5일 (또는 외인비율 20일 fallback)
+// 신호 — 최근 5거래일 동향 + 연기금 5/20/60일 매수일 비율 (또는 외인비율 20일 fallback)
+interface PensionStats {
+  d5: number; d5N: number;     // 5일 매수일 / 실제 데이터 일수
+  d20: number; d20N: number;   // 20일
+  d60: number; d60N: number;   // 60일
+}
 interface InvestorSignal {
   primary?: { label: string; tone: "bull" | "bear" | "warn" };
   secondary?: { label: string; tone: "up" | "down" | "pension_buy" | "pension_sell" };
+  pension?: PensionStats;      // tooltip 용 5/20/60일 breakdown
 }
+
+function pensionDays(history: Investor[], n: number): { buy: number; sell: number; days: number } {
+  const slice = history.slice(0, Math.min(n, history.length));
+  let buy = 0, sell = 0;
+  for (const d of slice) {
+    if (d.연기금 > 0) buy += 1;
+    if (d.연기금 < 0) sell += 1;
+  }
+  return { buy, sell, days: slice.length };
+}
+
 function computeSignal(history: Investor[] | null | undefined): InvestorSignal | null {
   if (!history || history.length < 3) return null;
   const last5 = history.slice(0, Math.min(5, history.length));
   let bothBuy = 0, support = 0, bothSell = 0;
-  let pensionBuyDays = 0, pensionSellDays = 0;
   for (const d of last5) {
     if (d.외국인 > 0 && d.기관 > 0) bothBuy += 1;
     if (d.외국인 < 0 && d.개인 > 0) support += 1;
     if (d.외국인 < 0 && d.기관 < 0) bothSell += 1;
-    if (d.연기금 > 0) pensionBuyDays += 1;
-    if (d.연기금 < 0) pensionSellDays += 1;
   }
   let primary: InvestorSignal["primary"];
   if (bothBuy >= 3) primary = { label: `외인+기관 매수 ${bothBuy}일`, tone: "bull" };
   else if (support >= 3) primary = { label: `개인 떠받치기 ${support}일`, tone: "bear" };
   else if (bothSell >= 3) primary = { label: `외인+기관 매도 ${bothSell}일`, tone: "warn" };
 
-  // 연기금 우선 (장기 자금 → 의미 큼) / fallback 외인비율 20일 추세
+  // 연기금 5/20/60일 매수일 집계 (장기 자금 추세)
+  const p5  = pensionDays(history, 5);
+  const p20 = pensionDays(history, 20);
+  const p60 = pensionDays(history, 60);
+  const pension: PensionStats = {
+    d5: p5.buy,    d5N: p5.days,
+    d20: p20.buy,  d20N: p20.days,
+    d60: p60.buy,  d60N: p60.days,
+  };
+
+  // 연기금 우선 (5일 강한 신호 기준) / fallback 외인비율 20일 추세
   let secondary: InvestorSignal["secondary"];
-  if (pensionBuyDays >= 3) {
-    secondary = { label: `연기금 비중 증가 ${pensionBuyDays}일`, tone: "pension_buy" };
-  } else if (pensionSellDays >= 3) {
-    secondary = { label: `연기금 비중 축소 ${pensionSellDays}일`, tone: "pension_sell" };
+  if (p5.buy >= 3) {
+    secondary = {
+      label: `연기금 ↑ ${p5.buy}/${p20.buy}/${p60.buy}`,
+      tone: "pension_buy",
+    };
+  } else if (p5.sell >= 3) {
+    secondary = {
+      label: `연기금 ↓ ${p5.sell}/${p20.sell}/${p60.sell}`,
+      tone: "pension_sell",
+    };
   } else if (history.length >= 20) {
     const today = history[0].외국인비율;
     const past = history[19].외국인비율;
@@ -61,7 +91,7 @@ function computeSignal(history: Investor[] | null | undefined): InvestorSignal |
     }
   }
   if (!primary && !secondary) return null;
-  return { primary, secondary };
+  return { primary, secondary, pension };
 }
 
 const SIGNAL_TONE: Record<string, string> = {
@@ -339,6 +369,18 @@ export function StockCard({
                   {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
                 </div>
                 <div className="text-gray-700">{SIGNAL_TIPS[sig.secondary.tone]}</div>
+                {/* 연기금 톤일 때 — 5/20/60일 매수일 breakdown */}
+                {sig.pension && (sig.secondary.tone === "pension_buy" || sig.secondary.tone === "pension_sell") && (
+                  <div className="mt-1.5 pt-1.5 border-t border-gray-200 text-gray-700">
+                    <div className="font-bold text-gray-900 mb-0.5">기간별 매수일</div>
+                    <div>5일: <b>{sig.pension.d5}</b>/{sig.pension.d5N}
+                      <span className="text-gray-500"> ({((sig.pension.d5 / Math.max(1, sig.pension.d5N)) * 100).toFixed(0)}%)</span></div>
+                    <div>20일: <b>{sig.pension.d20}</b>/{sig.pension.d20N}
+                      <span className="text-gray-500"> ({((sig.pension.d20 / Math.max(1, sig.pension.d20N)) * 100).toFixed(0)}%)</span></div>
+                    <div>60일: <b>{sig.pension.d60}</b>/{sig.pension.d60N}
+                      <span className="text-gray-500"> ({((sig.pension.d60 / Math.max(1, sig.pension.d60N)) * 100).toFixed(0)}%)</span></div>
+                  </div>
+                )}
               </>
             }>
               <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
