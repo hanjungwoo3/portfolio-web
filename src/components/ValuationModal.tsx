@@ -744,7 +744,7 @@ function PriceVolumeChart({
           {last.close.toLocaleString()}원
         </span>
         <span className="tabular-nums text-[10px]" style={{ color }}>
-          {diff >= 0 ? "+" : ""}{pct.toFixed(1)}%
+          ({diff >= 0 ? "+" : ""}{pct.toFixed(1)}%)
         </span>
         {lastRatio !== undefined && (
           <span className="flex items-center gap-1 ml-2">
@@ -756,18 +756,40 @@ function PriceVolumeChart({
             </span>
           </span>
         )}
-        {targetPrice && targetPrice > 0 && (
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-3 border-t border-dashed border-amber-500"></span>
-            <span className="text-amber-600 font-medium">목표</span>
-          </span>
-        )}
-        {myAvgPrice && myAvgPrice > 0 && (
-          <span className="flex items-center gap-1">
-            <span className="inline-block w-3 border-t border-dashed border-emerald-500"></span>
-            <span className="text-emerald-600 font-medium">내평단</span>
-          </span>
-        )}
+        {targetPrice && targetPrice > 0 && (() => {
+          // 목표까지 % — 컨센서스 섹션과 동일 공식: (target - current) / current
+          // 양수: 목표가 위 (남음), 음수: 목표 초과
+          const pct = ((targetPrice - last.close) / last.close) * 100;
+          return (
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-3 border-t border-dashed border-amber-500"></span>
+              <span className="text-amber-600 font-medium">목표</span>
+              <span className="tabular-nums text-gray-700">
+                {targetPrice.toLocaleString()}
+              </span>
+              <span className={`tabular-nums ${signColor(pct)}`}>
+                ({pct >= 0 ? "+" : ""}{pct.toFixed(2)}%)
+              </span>
+            </span>
+          );
+        })()}
+        {myAvgPrice && myAvgPrice > 0 && (() => {
+          // 평단가 대비 수익률 — (current - myAvg) / myAvg
+          // 양수: 수익, 음수: 손실 (한국식 빨강=수익 / 파랑=손실)
+          const pct = ((last.close - myAvgPrice) / myAvgPrice) * 100;
+          return (
+            <span className="flex items-center gap-1">
+              <span className="inline-block w-3 border-t border-dashed border-emerald-500"></span>
+              <span className="text-emerald-600 font-medium">내평단</span>
+              <span className="tabular-nums text-gray-700">
+                {Math.round(myAvgPrice).toLocaleString()}
+              </span>
+              <span className={`tabular-nums ${signColor(pct)}`}>
+                ({pct >= 0 ? "+" : ""}{pct.toFixed(2)}%)
+              </span>
+            </span>
+          );
+        })()}
         <span className="ml-auto inline-flex items-center gap-0.5 rounded border border-gray-200 p-0.5">
           {togglePill("line",   "📈 라인")}
           {togglePill("candle", "🕯 캔들")}
