@@ -106,11 +106,12 @@ export function UsMarketTab() {
     const rows: QuoteRow[] = [];
     const sectorPairs = US_PAIRS.filter(p => p.tier !== "T0" && p.sector === sector);
 
-    // 1) 현물
+    // 1) 현물 (=F 로 끝나는 심볼은 future 스타일링)
     for (const p of sectorPairs) {
       const q = usMap?.get(p.symbol);
+      const isFuture = p.symbol.endsWith("=F");
       rows.push({
-        kind: "spot", symbol: p.symbol, name: p.name, desc: p.desc,
+        kind: isFuture ? "future" : "spot", symbol: p.symbol, name: p.name, desc: p.desc,
         price: q?.price, pct: q?.pct, diff: q?.diff,
         sleeping: isSymbolSleeping(p.symbol),
         chart: yahooChartMap.get(p.symbol),

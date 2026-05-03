@@ -18,7 +18,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "EWY",    name: "EWY",       desc: "MSCI Korea — 외국인 투심", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "KRW=X",  name: "USD/KRW",   desc: "원달러 환율 — 수출주·외국인 수급", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "^VIX",   name: "VIX",       desc: "공포지수 — 20↑ 경계, 30↑ 공포", tier: "T0", sector: "dashboard", direction: "inverse" },
-  { symbol: "^GSPC",  name: "S&P 500",   desc: "미국 대형주 — 글로벌 리스크 온/오프", future: "ES=F", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^GSPC",  name: "S&P 500",   desc: "미국 대형주 — 글로벌 리스크 온/오프", tier: "T0", sector: "dashboard", direction: "direct" },
 
   // Tier 1: 내 섹터
   // 🔧 반도체
@@ -48,6 +48,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "^N225",  name: "닛케이 225", desc: "일본 대형주 — 아시아 센티멘트", future: "NKD=F", tier: "T2", sector: "한국지수", direction: "direct" },
   { symbol: "^KS200", name: "KOSPI 200", desc: "코스피 200 지수", tier: "T2", sector: "한국지수", direction: "direct" },
   { symbol: "^KQ11",  name: "KOSDAQ",    desc: "코스닥 지수", tier: "T2", sector: "한국지수", direction: "direct" },
+  { symbol: "ES=F",   name: "S&P 500 선물", desc: "미장 외 흐름 — 다음 한국장 영향", tier: "T2", sector: "한국지수", direction: "direct" },
 ];
 
 export const ETFS_BY_SECTOR: Record<string, string[]> = {
@@ -62,7 +63,7 @@ export const ETFS_BY_SECTOR: Record<string, string[]> = {
   플랫폼:   ["365040"],
   바이오:   ["143860"],
   로봇:     ["445290"],
-  한국지수: ["122630", "229200"],
+  한국지수: ["122630"],   // KODEX 레버리지만 (코스닥150 → S&P 500 선물 자리)
 };
 
 // KR ETF 이름 — Toss API 가 name 을 반환 안 해 하드코딩 (12개)

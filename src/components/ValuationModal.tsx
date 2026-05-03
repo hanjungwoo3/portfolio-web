@@ -714,12 +714,10 @@ function PriceVolumeChart({
   const N = prices.length;
   if (N < 2) return null;
 
-  // 헤더용 — 마지막 가격, 기간 등락률, 마지막 외인비율
+  // 헤더용 — 마지막 가격, 기간 추세 색, 마지막 외인비율
   const last = prices[N - 1];
   const first = prices[0];
-  const diff = last.close - first.close;
-  const pct = (diff / first.close) * 100;
-  const color = diff >= 0 ? "#dc2626" : "#2563eb";
+  const color = last.close >= first.close ? "#dc2626" : "#2563eb";
   const ratioColor = "#7c3aed";
   const lastRatio = [...investors]
     .reverse()
@@ -742,9 +740,6 @@ function PriceVolumeChart({
         <span className="font-bold" style={{ color }}>주가</span>
         <span className="tabular-nums font-bold" style={{ color }}>
           {last.close.toLocaleString()}원
-        </span>
-        <span className="tabular-nums text-[10px]" style={{ color }}>
-          ({diff >= 0 ? "+" : ""}{pct.toFixed(1)}%)
         </span>
         {lastRatio !== undefined && (
           <span className="flex items-center gap-1 ml-2">
