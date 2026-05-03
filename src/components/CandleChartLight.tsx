@@ -23,6 +23,14 @@ import type { Investor } from "../types";
 
 const UP_COLOR    = "#dc2626";  // 양봉 빨강
 const DN_COLOR    = "#2563eb";  // 음봉 파랑
+
+function fmtVol(v: number): string {
+  if (v >= 100_000_000) return `${(v / 100_000_000).toFixed(1)}억`;
+  if (v >= 10_000_000) return `${(v / 10_000_000).toFixed(1)}천만`;
+  if (v >= 10_000) return `${Math.round(v / 10_000)}만`;
+  if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
+  return `${v}`;
+}
 const LINE_COLOR  = "#dc2626";  // 라인 모드 — 빨강 (한국식 상승 색)
 const RATIO_COLOR = "#7c3aed";  // 외국인지분 (violet)
 const TARGET_COLOR = "#f59e0b"; // 목표가 (amber)
@@ -257,17 +265,30 @@ export function CandleChartLight({
       const y = priceSeries.priceToCoordinate(p.close);
       if (y == null) { hideTooltip(); return false; }
 
+      // 양봉/음봉 — 거래량 색에도 동일하게 사용
+      const isUp = p.open != null ? p.close >= p.open : true;
+      const dirColor = isUp ? UP_COLOR : DN_COLOR;
+
+      // 종가대비 — 금액·% 동일 색 (양수 빨강 / 음수 파랑)
+      const renderRow = (label: string, v: number, base: number) => {
+        const d = ((v - base) / base) * 100;
+        const sign = d >= 0 ? "+" : "";
+        const c = d >= 0 ? UP_COLOR : DN_COLOR;
+        return `<div><span class="text-gray-500">${label} </span>` +
+          `<span style="color:${c}">${v.toLocaleString()}원 (${sign}${d.toFixed(2)}%)</span></div>`;
+      };
+
       let content = `<div class="text-[10px] text-gray-400 mb-0.5">${String(time)}</div>`;
       if (mode === "candle" && p.open != null && p.high != null && p.low != null) {
-        // 양봉/음봉 따라 색 (한국식)
-        const isUp = p.close >= p.open;
-        const candleColor = isUp ? UP_COLOR : DN_COLOR;
-        content += `<div><span class="text-gray-500">시작 </span><span style="color:${candleColor}">${p.open.toLocaleString()}원</span></div>`;
-        content += `<div><span class="text-gray-500">고가 </span><span style="color:${candleColor}">${p.high.toLocaleString()}원</span></div>`;
-        content += `<div><span class="text-gray-500">저가 </span><span style="color:${candleColor}">${p.low.toLocaleString()}원</span></div>`;
-        content += `<div><span class="text-gray-500">종가 </span><span style="color:${candleColor}" class="font-bold">${p.close.toLocaleString()}원</span></div>`;
+        content += renderRow("시작", p.open, p.close);
+        content += renderRow("고가", p.high, p.close);
+        content += renderRow("저가", p.low, p.close);
+        content += `<div><span class="text-gray-500">종가 </span><span style="color:${dirColor}" class="font-bold">${p.close.toLocaleString()}원</span></div>`;
       } else {
         content += `<div><span class="text-gray-500">주가 </span><span style="color:${UP_COLOR}" class="font-bold">${p.close.toLocaleString()}원</span></div>`;
+      }
+      if (p.volume > 0) {
+        content += `<div><span class="text-gray-500">거래량 </span><span style="color:${dirColor}">${fmtVol(p.volume)}</span></div>`;
       }
       const r = ratioMap.get(String(time));
       if (r !== undefined) {
