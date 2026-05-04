@@ -709,7 +709,7 @@ export function StockCard({
               const hiPct = price.price > 0 ? (hiDiff / price.price) * 100 : 0;
               return (
                 <div key="high" className="text-xs text-gray-700">
-                  <span className="text-gray-500">최고 </span>
+                  <span className="text-gray-500">고 </span>
                   {hi.toLocaleString()}
                   <span className={`ml-1 text-[10px] ${signColor(hiDiff)}`}>
                     ({formatSigned(hiDiff)}, {hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
@@ -745,7 +745,7 @@ export function StockCard({
               const loPct = price.price > 0 ? (loDiff / price.price) * 100 : 0;
               return (
                 <div key="low" className="text-xs text-gray-700">
-                  <span className="text-gray-500">최저 </span>
+                  <span className="text-gray-500">저 </span>
                   {lo.toLocaleString()}
                   <span className={`ml-1 text-[10px] ${signColor(loDiff)}`}>
                     ({formatSigned(loDiff)}, {loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
