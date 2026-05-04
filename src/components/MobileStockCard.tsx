@@ -288,7 +288,7 @@ export function MobileStockCard({
             const hiDiff = hi - price.price;
             const hiPct = price.price > 0 ? (hiDiff / price.price) * 100 : 0;
             return (
-              <div key="high" className="text-xs text-gray-700">
+              <div key="high" className="text-sm text-gray-700">
                 <span className="text-gray-500">고 </span>
                 {hi.toLocaleString()}
                 <span className={`ml-0.5 text-xs ${signColor(hiDiff)}`}>
@@ -316,7 +316,7 @@ export function MobileStockCard({
             const loDiff = lo - price.price;
             const loPct = price.price > 0 ? (loDiff / price.price) * 100 : 0;
             return (
-              <div key="low" className="text-xs text-gray-700">
+              <div key="low" className="text-sm text-gray-700">
                 <span className="text-gray-500">저 </span>
                 {lo.toLocaleString()}
                 <span className={`ml-0.5 text-xs ${signColor(loDiff)}`}>
@@ -331,7 +331,7 @@ export function MobileStockCard({
             const tDiff = t - price.price;
             const tPct = price.price > 0 ? (tDiff / price.price) * 100 : 0;
             return (
-              <div key="target" className="text-xs text-gray-700">
+              <div key="target" className="text-sm text-gray-700">
                 <span className="text-amber-600 font-medium">목표 </span>
                 {t.toLocaleString()}
                 <span className={`ml-0.5 text-xs ${signColor(tDiff)}`}>
