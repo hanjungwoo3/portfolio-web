@@ -693,7 +693,7 @@ export function StockCard({
                         bg-gray-50/60 px-2 py-1 space-y-0.5 w-full h-full
                         flex flex-col justify-center">
           {/* 비거래일 — 3개월 추이 차트가 박스 배경. 색은 차트 자체 추세 */}
-          {!price.high && chart && chart.length > 1 && (
+          {chart && chart.length > 1 && (
             <Sparkline data={chart} width={300} height={80}
                        target={consensus?.target}
                        avgPrice={hasPosition ? stock.avg_price : undefined}

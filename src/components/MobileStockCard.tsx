@@ -273,8 +273,8 @@ export function MobileStockCard({
       <div className="relative overflow-hidden border border-gray-200
                       rounded bg-gray-50/60 px-2 py-1.5 w-full h-full
                       flex flex-col justify-center space-y-0.5">
-        {/* 비거래일 — 3개월 추이 차트가 박스 배경. 색은 차트 자체 추세 */}
-        {!price.high && chart && chart.length > 1 && (
+        {/* 3개월 추이 차트 — 장 중엔 살짝 (opacity 25), 비거래일엔 진하게 (50) */}
+        {chart && chart.length > 1 && (
           <Sparkline data={chart} width={300} height={70}
                      target={consensus?.target}
                      avgPrice={hasPosition ? stock.avg_price : undefined}
