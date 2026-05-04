@@ -292,7 +292,7 @@ export function MobileStockCard({
                 <span className="text-gray-500">고 </span>
                 {hi.toLocaleString()}
                 <span className={`ml-0.5 text-xs ${signColor(hiDiff)}`}>
-                  ({formatSigned(hiDiff)}, {hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
+                  ({hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
                 </span>
               </div>
             );
@@ -320,7 +320,7 @@ export function MobileStockCard({
                 <span className="text-gray-500">저 </span>
                 {lo.toLocaleString()}
                 <span className={`ml-0.5 text-xs ${signColor(loDiff)}`}>
-                  ({formatSigned(loDiff)}, {loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
+                  ({loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
                 </span>
               </div>
             );
@@ -335,7 +335,7 @@ export function MobileStockCard({
                 <span className="text-amber-600 font-medium">목표 </span>
                 {t.toLocaleString()}
                 <span className={`ml-0.5 text-xs ${signColor(tDiff)}`}>
-                  ({formatSigned(tDiff)}, {tDiff >= 0 ? "+" : ""}{tPct.toFixed(2)}%)
+                  ({tDiff >= 0 ? "+" : ""}{tPct.toFixed(2)}%)
                 </span>
               </div>
             );
