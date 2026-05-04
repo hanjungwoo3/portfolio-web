@@ -335,8 +335,7 @@ export function MobileStockCard({
                 <span className="text-amber-600 font-medium">목표 </span>
                 {t.toLocaleString()}
                 <span className={`ml-0.5 text-xs ${signColor(tDiff)}`}>
-                  ({formatSigned(tDiff)}, {tDiff >= 0 ? "+" : ""}{tPct.toFixed(2)}%
-                  {typeof consensus.score === "number" ? `, ${consensus.score.toFixed(2)}` : ""})
+                  ({formatSigned(tDiff)}, {tDiff >= 0 ? "+" : ""}{tPct.toFixed(2)}%)
                 </span>
               </div>
             );
