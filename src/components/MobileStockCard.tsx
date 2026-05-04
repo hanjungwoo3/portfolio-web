@@ -97,9 +97,6 @@ export function MobileStockCard({
     ? `직전 거래일 종가 ${price.prevClose.toLocaleString()}원 대비 ${formatSigned(colorDiff)}원 (${colorPct >= 0 ? "+" : ""}${colorPct.toFixed(2)}%) — 현재가 금액색은 ${priceColorName} 입니다`
     : "";
   const peakPct = peak && peak > 0 ? ((price.price - peak) / peak) * 100 : 0;
-  const targetPct = consensus?.target && price.price > 0
-    ? ((consensus.target - price.price) / price.price) * 100
-    : 0;
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
   const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
@@ -284,48 +281,84 @@ export function MobileStockCard({
                      className="absolute inset-0 w-full h-full opacity-50
                                 pointer-events-none" />
         )}
-        {/* 고가 */}
-        {price.high && price.high > 0 && (() => {
-          const hi = price.high;
-          const hiDiff = price.price - hi;
-          const hiPct = (hiDiff / hi) * 100;
-          return (
-            <div className="text-sm text-gray-700">
-              <span className="text-gray-500">고 </span>
-              {hi.toLocaleString()}
-              <span className={`ml-0.5 text-xs ${signColor(hiDiff)}`}>
-                ({formatSigned(hiDiff)}, {hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
+        {(() => {
+          // 가격 행 + 목표 가격 비교 위치 동적 삽입 (PC 동일)
+          const rowHigh = price.high && price.high > 0 ? (() => {
+            const hi = price.high;
+            const hiDiff = hi - price.price;
+            const hiPct = price.price > 0 ? (hiDiff / price.price) * 100 : 0;
+            return (
+              <div key="high" className="text-sm text-gray-700">
+                <span className="text-gray-500">고 </span>
+                {hi.toLocaleString()}
+                <span className={`ml-0.5 text-xs ${signColor(hiDiff)}`}>
+                  ({formatSigned(hiDiff)}, {hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
+                </span>
+              </div>
+            );
+          })() : null;
+
+          const rowCur = (
+            <div key="cur" className="relative z-10 flex items-baseline gap-1">
+              <span className={`text-xl font-bold leading-tight ${priceColorCls}`}>
+                {price.price.toLocaleString()}원
               </span>
+              {price.volume > 0 && (
+                <span className="text-xs text-gray-400">
+                  ({formatVolume(price.volume)})
+                </span>
+              )}
             </div>
           );
-        })()}
 
-        {/* 현재가 + 거래량 */}
-        <div className="relative z-10 flex items-baseline gap-1">
-          <span className={`text-xl font-bold leading-tight ${priceColorCls}`}>
-            {price.price.toLocaleString()}원
-          </span>
-          {price.volume > 0 && (
-            <span className="text-xs text-gray-400">
-              ({formatVolume(price.volume)})
-            </span>
-          )}
-        </div>
+          const rowLow = price.low && price.low > 0 ? (() => {
+            const lo = price.low;
+            const loDiff = lo - price.price;
+            const loPct = price.price > 0 ? (loDiff / price.price) * 100 : 0;
+            return (
+              <div key="low" className="text-sm text-gray-700">
+                <span className="text-gray-500">저 </span>
+                {lo.toLocaleString()}
+                <span className={`ml-0.5 text-xs ${signColor(loDiff)}`}>
+                  ({formatSigned(loDiff)}, {loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
+                </span>
+              </div>
+            );
+          })() : null;
 
-        {/* 저가 */}
-        {price.low && price.low > 0 && (() => {
-          const lo = price.low;
-          const loDiff = price.price - lo;
-          const loPct = (loDiff / lo) * 100;
-          return (
-            <div className="text-sm text-gray-700">
-              <span className="text-gray-500">저 </span>
-              {lo.toLocaleString()}
-              <span className={`ml-0.5 text-xs ${signColor(loDiff)}`}>
-                ({formatSigned(loDiff)}, {loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
-              </span>
-            </div>
-          );
+          const rowTarget = consensus?.target && consensus.target > 0 ? (() => {
+            const t = consensus.target;
+            const tDiff = t - price.price;
+            const tPct = price.price > 0 ? (tDiff / price.price) * 100 : 0;
+            return (
+              <div key="target" className="text-sm text-gray-700">
+                <span className="text-amber-600 font-medium">목표 </span>
+                {t.toLocaleString()}
+                <span className={`ml-0.5 text-xs ${signColor(tDiff)}`}>
+                  ({formatSigned(tDiff)}, {tDiff >= 0 ? "+" : ""}{tPct.toFixed(2)}%
+                  {typeof consensus.score === "number" ? `, ${consensus.score.toFixed(2)}` : ""})
+                </span>
+              </div>
+            );
+          })() : null;
+
+          // 목표를 가격 비교에 따라 위치 결정
+          let order: (React.ReactElement | null)[];
+          if (rowTarget && consensus?.target) {
+            const t = consensus.target;
+            if (price.high && t > price.high) {
+              order = [rowTarget, rowHigh, rowCur, rowLow];
+            } else if (t > price.price) {
+              order = [rowHigh, rowTarget, rowCur, rowLow];
+            } else if (price.low && t > price.low) {
+              order = [rowHigh, rowCur, rowTarget, rowLow];
+            } else {
+              order = [rowHigh, rowCur, rowLow, rowTarget];
+            }
+          } else {
+            order = [rowHigh, rowCur, rowLow];
+          }
+          return <>{order.filter(Boolean)}</>;
         })()}
       </div>
       </Tooltip>
@@ -383,21 +416,6 @@ export function MobileStockCard({
           </div>
         )}
 
-        {/* 목표 — PC 동일 (점수) 금액 (%) */}
-        {consensus?.target && (
-          <div className="text-[10px]">
-            <span className="text-gray-500">목표 </span>
-            {typeof consensus.score === "number" && (
-              <span className="text-gray-500">({consensus.score.toFixed(2)}) </span>
-            )}
-            <span className="text-gray-800">
-              {consensus.target.toLocaleString()}
-            </span>
-            <span className={`ml-1 ${signColor(targetPct)}`}>
-              ({targetPct >= 0 ? "+" : ""}{targetPct.toFixed(2)}%)
-            </span>
-          </div>
-        )}
       </div>
       </article>
     </div>
