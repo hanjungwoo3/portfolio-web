@@ -18,6 +18,7 @@ import { RefreshIndicator } from "./components/RefreshIndicator";
 import { VersionBadge } from "./components/VersionBadge";
 import { ProxyStatusBadge } from "./components/ProxyStatusBadge";
 import { useAdaptiveRefreshMs } from "./lib/proxyStatus";
+import { isHoldingSleeping } from "./lib/format";
 import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
 import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { ValuationModal } from "./components/ValuationModal";
@@ -176,15 +177,16 @@ function Dashboard() {
     if (pricesUpdatedAt > 0) reportRefresh(pricesUpdatedAt);
   }, [pricesUpdatedAt]);
 
-  // 어제대비 % 내림차순 정렬 — sleeping (거래 안 된 종목) 은 항상 맨 아래
-  // (base === price 인 경우 = 새 거래일 시작 전 / 거래 정지 등 → -% 종목보다 아래로)
+  // 어제대비 % 내림차순 정렬 — sleeping (장마감/거래정지) 은 항상 맨 아래
+  // 장 중에 가격이 어제와 같은 경우 (변동 0%) 는 sleeping 아님 → 정상 위치 (0% 자리)
   const sortedVisible = useMemo(() => {
     const map = new Map((prices ?? []).map(p => [p.ticker, p]));
     return [...visible].sort((a, b) => {
       const pa = map.get(a.ticker);
       const pb = map.get(b.ticker);
-      const aSleep = !pa || pa.base <= 0 || pa.price === pa.base;
-      const bSleep = !pb || pb.base <= 0 || pb.price === pb.base;
+      // 가격 데이터 없거나 base 0 → sleeping. 그 외엔 시장 phase + 마지막 거래시각 기준
+      const aSleep = !pa || pa.base <= 0 || isHoldingSleeping(pa.trade_dt);
+      const bSleep = !pb || pb.base <= 0 || isHoldingSleeping(pb.trade_dt);
       if (aSleep !== bSleep) return aSleep ? 1 : -1;  // sleeping 맨 아래
       const pctA = pa && pa.base > 0 ? (pa.price - pa.base) / pa.base : 0;
       const pctB = pb && pb.base > 0 ? (pb.price - pb.base) / pb.base : 0;
