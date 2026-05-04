@@ -1,6 +1,6 @@
 // 정렬 옵션 선택 + 방향 토글 (asc/desc)
 import {
-  type SortKey, type SortDirection, SORT_LABELS, DEFAULT_DIR,
+  type SortKey, type SortDirection, SORT_LABELS, DEFAULT_DIR, DIRECTION_LABELS,
 } from "../lib/sortHoldings";
 
 interface Props {
@@ -12,6 +12,7 @@ interface Props {
 
 export function SortSelector({ sortKey, sortDir, onChangeKey, onToggleDir }: Props) {
   const arrow = sortDir === "desc" ? "▼" : "▲";
+  const dirLabel = DIRECTION_LABELS[sortKey][sortDir];
   return (
     <div className="inline-flex items-center gap-1 text-xs">
       <span className="text-gray-500">정렬</span>
@@ -31,11 +32,12 @@ export function SortSelector({ sortKey, sortDir, onChangeKey, onToggleDir }: Pro
       <button
         type="button"
         onClick={onToggleDir}
-        title={`${sortDir === "desc" ? "내림차순" : "오름차순"} (클릭해 토글)`}
+        title="클릭해 방향 토글"
         className="px-1.5 py-0.5 rounded border border-gray-300 bg-white
                    text-gray-700 hover:bg-gray-100 cursor-pointer
-                   tabular-nums leading-none">
-        {arrow}
+                   tabular-nums leading-none flex items-center gap-1">
+        <span>{arrow}</span>
+        <span>{dirLabel}</span>
       </button>
     </div>
   );

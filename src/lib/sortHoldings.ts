@@ -25,6 +25,17 @@ export const SORT_LABELS: Record<SortKey, string> = {
   buyDate:    "매수일",
 };
 
+// 키별 적응형 방향 라벨 — 의미가 자연 언어로 직관적
+export const DIRECTION_LABELS: Record<SortKey, { asc: string; desc: string }> = {
+  dayChange:  { asc: "작은값부터", desc: "큰값부터" },
+  input:      { asc: "처음부터",   desc: "나중부터" },
+  name:       { asc: "ㄱ → ㅎ",   desc: "ㅎ → ㄱ" },
+  investment: { asc: "작은값부터", desc: "큰값부터" },
+  sector:     { asc: "ㄱ → ㅎ",   desc: "ㅎ → ㄱ" },
+  pnl:        { asc: "작은값부터", desc: "큰값부터" },
+  buyDate:    { asc: "오래된순",   desc: "최신순" },
+};
+
 // 각 옵션의 자연스러운 default 방향
 export const DEFAULT_DIR: Record<SortKey, SortDirection> = {
   dayChange:  "desc",  // 큰 % 가 위
