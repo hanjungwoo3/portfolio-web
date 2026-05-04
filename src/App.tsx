@@ -232,16 +232,14 @@ function Dashboard() {
     })),
   });
 
-  // 비거래일 감지 — 첫 종목 가격에 high 가 없으면 거래일 아님 (fetchTossPrices 가 undefined 처리)
-  const isNonTradingDay = (prices?.length ?? 0) > 0 && !prices?.[0]?.high;
-  // 비거래일에만 일봉 차트 fetch (3개월) — 1시간 캐시, 카드 가격 박스에 작은 sparkline
+  // 일봉 차트 (3개월) 항상 fetch — 1시간 캐시, 카드 가격 박스 배경 sparkline
+  // 장 중엔 옅게, 비거래일엔 진하게 (CSS opacity)
   const chartQs = useQueries({
     queries: krxTickers.map(t => ({
       queryKey: ["kr-price-history", t, "3mo"],
       queryFn: () => fetchKrPriceHistory(t, "3mo"),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
-      enabled: isNonTradingDay,
     })),
   });
 
