@@ -269,7 +269,7 @@ export function MobileStockCard({
             </div>
           )}
         </>
-      } className="basis-[55%] min-w-0">
+      } className="basis-1/2 min-w-0">
       <div className="relative overflow-hidden border border-gray-200
                       rounded bg-gray-50/60 px-2 py-1.5 w-full h-full
                       flex flex-col justify-center space-y-0.5">
@@ -363,7 +363,7 @@ export function MobileStockCard({
       </Tooltip>
 
       {/* 우측 — 통계 박스 (50%) */}
-      <div className="basis-[45%] min-w-0 border border-gray-200 rounded
+      <div className="basis-1/2 min-w-0 border border-gray-200 rounded
                        bg-gray-50/60 px-1.5 py-1 space-y-0.5
                        flex flex-col justify-start">
         {hasPosition && (
