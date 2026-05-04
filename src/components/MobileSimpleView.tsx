@@ -1,6 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  sortHoldings, loadSortKey, loadSortDir, saveSortKey, saveSortDir,
+  type SortKey, type SortDirection,
+} from "../lib/sortHoldings";
+import { SortSelector, makeSortHandlers } from "./SortSelector";
+import {
   fetchYahooBatch, fetchTossPrices, fetchNaverInfo, fetchWarning,
   fetchYahooChart, fetchKrPriceHistory,
 } from "../lib/api";
@@ -203,19 +208,12 @@ export function MobileSimpleView() {
     )
   );
 
-  // 어제보다 % 내림차순 정렬 — sleeping (거래 안 됨, base = price) 은 항상 맨 아래
-  const groupHoldings = useMemo(() => {
-    return [...groupHoldingsUnsorted].sort((a, b) => {
-      const pa = groupPriceMap.get(a.ticker);
-      const pb = groupPriceMap.get(b.ticker);
-      const aSleep = !pa || pa.base <= 0 || pa.price === pa.base;
-      const bSleep = !pb || pb.base <= 0 || pb.price === pb.base;
-      if (aSleep !== bSleep) return aSleep ? 1 : -1;
-      const pctA = pa && pa.base > 0 ? (pa.price - pa.base) / pa.base : 0;
-      const pctB = pb && pb.base > 0 ? (pb.price - pb.base) / pb.base : 0;
-      return pctB - pctA;
-    });
-  }, [groupHoldingsUnsorted, groupPriceMap]);
+  // 정렬 옵션 — 7가지 + asc/desc 토글 (PC 와 동일 localStorage 공유)
+  const [sortKey, setSortKey] = useState<SortKey>(loadSortKey);
+  const [sortDir, setSortDir] = useState<SortDirection>(loadSortDir);
+  const sortHandlers = makeSortHandlers(
+    setSortKey, setSortDir, saveSortKey, saveSortDir, sortDir,
+  );
 
   // 종목별 위험 뱃지 (위험/관리/정지/경고/과열/환기/주의)
   const warningQs = useQueries({
@@ -247,6 +245,17 @@ export function MobileSimpleView() {
     enabled: activeTab !== US_KEY && groupTickers.length > 0,
     refetchOnWindowFocus: false,
   });
+
+  // 정렬 적용 — sleeping 항상 맨 아래, 그 외엔 sortKey + sortDir 따라
+  const groupHoldings = useMemo(() => {
+    const sectorMap = new Map<string, string>();
+    if (naverInfos.data) {
+      for (const [t, info] of naverInfos.data.entries()) {
+        if (info?.sector) sectorMap.set(t, info.sector);
+      }
+    }
+    return sortHoldings(groupHoldingsUnsorted, groupPriceMap, sectorMap, sortKey, sortDir);
+  }, [groupHoldingsUnsorted, groupPriceMap, naverInfos.data, sortKey, sortDir]);
 
   // Yahoo: 본물 + 선물 평탄화 (선행지수만 — ETF 제외)
   const yahooSymbols = US_PAIRS.flatMap(p =>
@@ -423,6 +432,14 @@ export function MobileSimpleView() {
       {/* ─── 그룹 컨텐츠 (US_KEY 외) ─── */}
       {activeTab !== US_KEY && (
         <>
+          {/* 정렬 옵션 */}
+          {groupHoldings.length > 0 && (
+            <div className="flex items-center justify-end px-2 pt-2">
+              <SortSelector sortKey={sortKey} sortDir={sortDir}
+                            onChangeKey={sortHandlers.onChangeKey}
+                            onToggleDir={sortHandlers.onToggleDir} />
+            </div>
+          )}
           <div className="px-2 py-2 space-y-1.5 pb-32">
             {groupHoldings.length === 0 && (
               <div className="text-center text-[11px] text-gray-400 py-8">
@@ -492,7 +509,7 @@ export function MobileSimpleView() {
                          width={300} height={70}
                          className="absolute inset-0 w-full h-full opacity-50
                                     pointer-events-none" />
-              <div className="relative z-10 flex items-baseline gap-1.5">
+              <div className="relative flex items-baseline gap-1.5">
                 {sleeping && (
                   <span className="text-[11px] text-gray-400">zZ</span>
                 )}
@@ -500,10 +517,10 @@ export function MobileSimpleView() {
                   {p.name}
                 </span>
               </div>
-              <div className="relative z-10 text-[11px] text-gray-500 truncate">
+              <div className="relative text-[11px] text-gray-500 truncate">
                 {p.desc}
               </div>
-              <div className="relative z-10 flex items-baseline mt-1">
+              <div className="relative flex items-baseline mt-1">
                 <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
                   {q ? fmtPrice(p.symbol, q.price) : "—"}
                 </span>

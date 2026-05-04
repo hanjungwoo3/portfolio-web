@@ -18,7 +18,11 @@ import { RefreshIndicator } from "./components/RefreshIndicator";
 import { VersionBadge } from "./components/VersionBadge";
 import { ProxyStatusBadge } from "./components/ProxyStatusBadge";
 import { useAdaptiveRefreshMs } from "./lib/proxyStatus";
-import { isHoldingSleeping } from "./lib/format";
+import {
+  sortHoldings, loadSortKey, loadSortDir, saveSortKey, saveSortDir,
+  type SortKey, type SortDirection,
+} from "./lib/sortHoldings";
+import { SortSelector, makeSortHandlers } from "./components/SortSelector";
 import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
 import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { ValuationModal } from "./components/ValuationModal";
@@ -177,22 +181,12 @@ function Dashboard() {
     if (pricesUpdatedAt > 0) reportRefresh(pricesUpdatedAt);
   }, [pricesUpdatedAt]);
 
-  // 어제대비 % 내림차순 정렬 — sleeping (장마감/거래정지) 은 항상 맨 아래
-  // 장 중에 가격이 어제와 같은 경우 (변동 0%) 는 sleeping 아님 → 정상 위치 (0% 자리)
-  const sortedVisible = useMemo(() => {
-    const map = new Map((prices ?? []).map(p => [p.ticker, p]));
-    return [...visible].sort((a, b) => {
-      const pa = map.get(a.ticker);
-      const pb = map.get(b.ticker);
-      // 가격 데이터 없거나 base 0 → sleeping. 그 외엔 시장 phase + 마지막 거래시각 기준
-      const aSleep = !pa || pa.base <= 0 || isHoldingSleeping(pa.trade_dt);
-      const bSleep = !pb || pb.base <= 0 || isHoldingSleeping(pb.trade_dt);
-      if (aSleep !== bSleep) return aSleep ? 1 : -1;  // sleeping 맨 아래
-      const pctA = pa && pa.base > 0 ? (pa.price - pa.base) / pa.base : 0;
-      const pctB = pb && pb.base > 0 ? (pb.price - pb.base) / pb.base : 0;
-      return pctB - pctA;
-    });
-  }, [visible, prices]);
+  // 정렬 옵션 state — 7가지 + asc/desc 토글 (localStorage 저장)
+  const [sortKey, setSortKey] = useState<SortKey>(loadSortKey);
+  const [sortDir, setSortDir] = useState<SortDirection>(loadSortDir);
+  const sortHandlers = makeSortHandlers(
+    setSortKey, setSortDir, saveSortKey, saveSortDir, sortDir,
+  );
 
   // 종목별 수급 (60일 history) — 5초
   const investorQs = useQueries({
@@ -269,6 +263,15 @@ function Dashboard() {
     () => new Map(naverQs.map((q, i) => [krxTickers[i], q.data])),
     [naverQs, krxTickers]
   );
+  // 정렬 적용 — sleeping 은 항상 맨 아래, 그 외엔 sortKey + sortDir 따라
+  const sortedVisible = useMemo(() => {
+    const sectorMap = new Map<string, string>();
+    for (const [t, info] of naverMap.entries()) {
+      if (info?.sector) sectorMap.set(t, info.sector);
+    }
+    return sortHoldings(visible, priceMap, sectorMap, sortKey, sortDir);
+  }, [visible, priceMap, naverMap, sortKey, sortDir]);
+
   const chartMap = useMemo(
     () => new Map(chartQs.map((q, i) =>
       [krxTickers[i], (q.data ?? []).map(p => p.close)]
@@ -367,6 +370,12 @@ function Dashboard() {
           )
         ) : (
           <>
+            {/* 정렬 옵션 */}
+            <div className="flex items-center justify-end mb-2">
+              <SortSelector sortKey={sortKey} sortDir={sortDir}
+                            onChangeKey={sortHandlers.onChangeKey}
+                            onToggleDir={sortHandlers.onToggleDir} />
+            </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
               {sortedVisible.map(stock => (
                 <StockCard
