@@ -2,5 +2,15 @@ name = "portfolio-proxy"
 main = "src/index.ts"
 compatibility_date = "2026-04-01"
 
+# 로그 수집 활성화 (대시보드 → Logs 탭에서 조회)
+[observability]
+head_sampling_rate = 1
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
+persist = true
+invocation_logs = true
+
 # 무료 티어: 100,000 req/day
 # 배포: cd workers/proxy && npx wrangler deploy

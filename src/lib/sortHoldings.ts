@@ -6,6 +6,7 @@ import { isHoldingSleeping } from "./format";
 
 export type SortKey =
   | "dayChange"   // 금일 변동% (기본)
+  | "volume"      // 거래량
   | "input"       // 입력 순서
   | "name"        // 이름 가나다
   | "investment"  // 투자금액
@@ -17,6 +18,7 @@ export type SortDirection = "asc" | "desc";
 
 export const SORT_LABELS: Record<SortKey, string> = {
   dayChange:  "금일 변동",
+  volume:     "거래량",
   input:      "입력 순서",
   name:       "이름 (가나다)",
   investment: "투자금액",
@@ -28,6 +30,7 @@ export const SORT_LABELS: Record<SortKey, string> = {
 // 키별 적응형 방향 라벨 — 의미가 자연 언어로 직관적
 export const DIRECTION_LABELS: Record<SortKey, { asc: string; desc: string }> = {
   dayChange:  { asc: "작은값부터", desc: "큰값부터" },
+  volume:     { asc: "적은순",     desc: "많은순" },
   input:      { asc: "처음부터",   desc: "나중부터" },
   name:       { asc: "ㄱ → ㅎ",   desc: "ㅎ → ㄱ" },
   investment: { asc: "작은값부터", desc: "큰값부터" },
@@ -39,6 +42,7 @@ export const DIRECTION_LABELS: Record<SortKey, { asc: string; desc: string }> = 
 // 각 옵션의 자연스러운 default 방향
 export const DEFAULT_DIR: Record<SortKey, SortDirection> = {
   dayChange:  "desc",  // 큰 % 가 위
+  volume:     "desc",  // 많이 거래된 순
   input:      "asc",   // 입력순 (위에서 아래)
   name:       "asc",   // ㄱ → ㅎ
   investment: "desc",  // 큰 금액 위
@@ -90,6 +94,11 @@ const COMPARATORS: Record<SortKey, CmpFn> = {
     const pctA = pa && pa.base > 0 ? (pa.price - pa.base) / pa.base : 0;
     const pctB = pb && pb.base > 0 ? (pb.price - pb.base) / pb.base : 0;
     return pctA - pctB;
+  },
+  volume: (a, b, ctx) => {
+    const va = ctx.prices.get(a.ticker)?.volume ?? 0;
+    const vb = ctx.prices.get(b.ticker)?.volume ?? 0;
+    return va - vb;
   },
   input: (a, b, ctx) => {
     return (ctx.inputOrder.get(a.ticker) ?? 0)
