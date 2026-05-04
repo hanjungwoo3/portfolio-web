@@ -299,7 +299,7 @@ export function MobileStockCard({
           })() : null;
 
           const rowCur = (
-            <div key="cur" className="relative z-10 flex items-baseline gap-1">
+            <div key="cur" className="relative flex items-baseline gap-1">
               <span className={`text-xl font-bold leading-tight ${priceColorCls}`}>
                 {price.price.toLocaleString()}원
               </span>
