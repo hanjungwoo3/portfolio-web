@@ -697,7 +697,7 @@ export function StockCard({
             <Sparkline data={chart} width={300} height={80}
                        target={consensus?.target}
                        avgPrice={hasPosition ? stock.avg_price : undefined}
-                       className="absolute inset-0 w-full h-full opacity-30
+                       className="absolute inset-0 w-full h-full opacity-15
                                   pointer-events-none" />
           )}
           {(() => {
