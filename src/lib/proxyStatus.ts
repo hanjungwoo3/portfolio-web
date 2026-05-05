@@ -91,6 +91,13 @@ export function getProxyState(): ProxyState {
   return lastState;
 }
 
+// 프록시 URL 변경 시 — 옛 통계 리셋 (down 상태 / 부정확한 health 영향 제거)
+export function resetProxyStats(): void {
+  stats.clear();
+  lastState = { health: "ok", total: 0, downHosts: [] };
+  listeners.forEach(fn => fn(lastState));
+}
+
 // React 훅 — 프록시 다운 수에 따라 폴링 간격 자동 증가 (부하 완화)
 // 예: base 10초, 1개 다운 → 20초, 2개 다운 → 30초
 import { useEffect, useState } from "react";

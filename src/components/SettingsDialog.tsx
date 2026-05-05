@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks,
 } from "../lib/db";
@@ -7,6 +8,7 @@ import {
   getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS,
   getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
+import { resetProxyStats } from "../lib/proxyStatus";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import {
   getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync,
@@ -20,6 +22,7 @@ interface Props {
 }
 
 export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
+  const queryClient = useQueryClient();
   const [raw, setRaw] = useState("");
   const [busy, setBusy] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
@@ -46,12 +49,68 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
     })();
   }, [isOpen]);
 
-  const saveProxy = () => {
+  const saveProxy = async () => {
     const v = proxyUrl.trim().replace(/\/+$/, "");
-    setPersonalProxyUrl(v || null);
+
+    // 빈 값 = 해제 (검증 skip)
+    if (!v) {
+      setPersonalProxyUrl(null);
+      setProxyUrl("");
+      setStatusMsg("✅ 전용 프록시 해제 — 공개 4-way 사용");
+      onChanged();
+      return;
+    }
+
+    // 1) URL 형식 검증
+    let parsed: URL;
+    try {
+      parsed = new URL(v);
+      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
+        alert(`❌ 잘못된 URL — 프로토콜이 https/http 가 아닙니다\n입력: ${v}`);
+        return;
+      }
+    } catch {
+      alert(`❌ 잘못된 URL 형식입니다\n입력: ${v}\n\n예시: https://portfolio-proxy.your-name.workers.dev`);
+      return;
+    }
+
+    // 2) 실제 호출 검증 — Naver 검색 API 로 health check
+    setStatusMsg("⏳ 프록시 검증 중...");
+    try {
+      const testTarget = "https://m.stock.naver.com/api/json/search/searchListJson.nhn?keyword=samsung";
+      const url = `${v}/?url=${encodeURIComponent(testTarget)}`;
+      const resp = await fetch(url, {
+        method: "GET",
+        signal: AbortSignal.timeout(5000),
+      });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => "");
+        alert(`❌ 프록시 응답 오류 ${resp.status}\nURL: ${v}\n\n응답: ${text.slice(0, 200)}\n\nWorker 가 정상 배포되었는지 확인하세요.`);
+        setStatusMsg("");
+        return;
+      }
+      // JSON 응답이어야 정상 (HTML 이면 다른 페이지)
+      const text = await resp.text();
+      const isJson = text.trimStart().startsWith("{") || text.trimStart().startsWith("[");
+      if (!isJson) {
+        alert(`❌ 프록시 응답이 JSON 이 아닙니다.\n\nURL: ${v}\n\nWorker 코드가 우리 코드와 동일한지 확인하세요.\n응답 시작: ${text.slice(0, 100)}`);
+        setStatusMsg("");
+        return;
+      }
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      alert(`❌ 프록시 연결 실패\nURL: ${v}\n\n원인: ${msg}\n\n확인 사항:\n- Worker 가 배포됐는지\n- URL 오타\n- 인터넷 연결`);
+      setStatusMsg("");
+      return;
+    }
+
+    // 검증 통과 — 저장 + 옛 프록시 통계 리셋 + React Query 캐시 무효화
+    setPersonalProxyUrl(v);
     setProxyUrl(v);
-    setStatusMsg(v ? `✅ 전용 프록시 적용: ${v}` : "✅ 전용 프록시 해제 — 공개 4-way 사용");
-    onChanged();  // React Query refetch 트리거 (URL 즉시 반영)
+    resetProxyStats();              // 옛 4-way down 상태 제거 → 적응형 polling 즉시 정상화
+    queryClient.invalidateQueries();
+    onChanged();
+    setStatusMsg(`✅ 전용 프록시 검증 OK — 적용: ${v}`);
   };
 
   const handlePollChange = (ms: number) => {
