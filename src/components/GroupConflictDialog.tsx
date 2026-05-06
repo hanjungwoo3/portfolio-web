@@ -122,11 +122,17 @@ export function GroupConflictDialog({ conflicts, onResolved, onClose }: Props) {
                            onChange={() => setMode(c.ticker, "merge")} />
                     <span>합산 — 수량 더하기 + 평단 가중평균</span>
                   </label>
-                  <label className="flex items-center gap-2 text-xs cursor-pointer">
+                  <label className="flex items-start gap-2 text-xs cursor-pointer">
                     <input type="radio" name={`s-${c.ticker}`}
                            checked={s?.mode === "skip"}
-                           onChange={() => setMode(c.ticker, "skip")} />
-                    <span className="text-gray-500">그대로 두기 (수정 시 sync 시작)</span>
+                           onChange={() => setMode(c.ticker, "skip")}
+                           className="mt-0.5" />
+                    <span className="flex-1">
+                      <span className="text-gray-500">그대로 두기</span>
+                      <span className="block text-[10px] text-gray-400 mt-0.5">
+                        지금은 그룹별 값 차이 유지. 다음에 어느 그룹에서 수정 → 그 시점에 그 값이 다른 그룹에도 자동 적용됩니다 (sync 재개).
+                      </span>
+                    </span>
                   </label>
                 </div>
               </div>
