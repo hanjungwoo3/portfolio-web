@@ -529,79 +529,104 @@ function InvestorHistorySection({
       )}
 
       {history && history.length > 0 && (
-        <div className="hidden lg:block overflow-x-auto border border-gray-200 rounded mt-3">
-          <table className="text-[11px] tabular-nums whitespace-nowrap min-w-full">
-            <thead className="bg-gray-50 sticky top-0 z-10">
-              <tr className="border-b border-gray-200">
-                <th className="px-2 py-1.5 text-left text-gray-600 font-medium">
-                  일자 / 기간
-                </th>
+        <div className="hidden lg:block border border-gray-200 rounded mt-3 overflow-x-auto">
+          {/* 컬럼 폭 통일 (table-layout: fixed) — colgroup 양쪽 테이블 동일하게 적용 */}
+          {(() => {
+            const colgroup = (
+              <colgroup>
+                <col style={{ width: 130 }} />
                 {INVESTOR_COLS.map(c => (
-                  <th key={c.key} className="px-2 py-1.5 text-right text-gray-600 font-medium">
-                    {c.label}
-                  </th>
+                  <col key={c.key} style={{ width: 86 }} />
                 ))}
-                <th className="px-2 py-1.5 text-right text-gray-600 font-medium">
-                  외인비율(%)
-                </th>
-              </tr>
-            </thead>
-            <tbody>
-              {/* 합계 행 — 5/20/60/120/250 거래일 */}
-              {summaries.map(s => (
-                <tr key={s.label}
-                    className="border-b border-gray-200 bg-blue-50/40 font-bold">
-                  <td className="px-2 py-1.5 text-left text-gray-800">
-                    {s.label}
-                    {s.actualDays < SUMMARY_PERIODS.find(p => p.label === s.label)!.days && (
-                      <span className="ml-1 text-[10px] font-normal text-gray-400">
-                        (실제 {s.actualDays}일)
-                      </span>
-                    )}
-                  </td>
-                  {INVESTOR_COLS.map(c => {
-                    const v = s.sums[c.key];
-                    return (
-                      <td key={c.key} className={`px-2 py-1.5 text-right ${volColor(v)}`}>
-                        {fmtVolume(v)}
+                <col style={{ width: 78 }} />
+              </colgroup>
+            );
+            return (
+              <>
+                {/* 고정 영역 — 컬럼 헤더 + 5/20/60/120/200일 합계 + ▼ 일별 상세 */}
+                <table className="text-[11px] tabular-nums whitespace-nowrap w-full"
+                       style={{ tableLayout: "fixed" }}>
+                  {colgroup}
+                  <thead>
+                    <tr className="border-b border-gray-200 bg-gray-50">
+                      <th className="px-2 py-1.5 text-left text-gray-600 font-medium">
+                        일자 / 기간
+                      </th>
+                      {INVESTOR_COLS.map(c => (
+                        <th key={c.key} className="px-2 py-1.5 text-right text-gray-600 font-medium">
+                          {c.label}
+                        </th>
+                      ))}
+                      <th className="px-2 py-1.5 text-right text-gray-600 font-medium">
+                        외인비율(%)
+                      </th>
+                    </tr>
+                    {summaries.map(s => (
+                      <tr key={s.label}
+                          className="border-b border-gray-200 bg-blue-50 font-bold">
+                        <td className="px-2 py-1.5 text-left text-gray-800">
+                          {s.label}
+                          {s.actualDays < SUMMARY_PERIODS.find(p => p.label === s.label)!.days && (
+                            <span className="ml-1 text-[10px] font-normal text-gray-400">
+                              (실제 {s.actualDays}일)
+                            </span>
+                          )}
+                        </td>
+                        {INVESTOR_COLS.map(c => {
+                          const v = s.sums[c.key];
+                          return (
+                            <td key={c.key} className={`px-2 py-1.5 text-right ${volColor(v)}`}>
+                              {fmtVolume(v)}
+                            </td>
+                          );
+                        })}
+                        <td className={`px-2 py-1.5 text-right
+                                        ${s.rateDelta > 0 ? "text-rose-600"
+                                          : s.rateDelta < 0 ? "text-blue-600"
+                                          : "text-gray-400"}`}>
+                          {s.rateDelta === 0
+                            ? "—"
+                            : `${s.rateDelta > 0 ? "+" : ""}${s.rateDelta.toFixed(2)}%p`}
+                        </td>
+                      </tr>
+                    ))}
+                    <tr className="border-b-2 border-gray-300 bg-gray-100">
+                      <td colSpan={INVESTOR_COLS.length + 2}
+                          className="px-2 py-0.5 text-[10px] text-gray-500">
+                        ▼ 일별 상세
                       </td>
-                    );
-                  })}
-                  <td className={`px-2 py-1.5 text-right
-                                  ${s.rateDelta > 0 ? "text-rose-600"
-                                    : s.rateDelta < 0 ? "text-blue-600"
-                                    : "text-gray-400"}`}>
-                    {s.rateDelta === 0
-                      ? "—"
-                      : `${s.rateDelta > 0 ? "+" : ""}${s.rateDelta.toFixed(2)}%p`}
-                  </td>
-                </tr>
-              ))}
-              {/* 일별 데이터 — 합계 아래 회색 구분선 */}
-              <tr className="border-b-2 border-gray-300">
-                <td colSpan={INVESTOR_COLS.length + 2}
-                    className="px-2 py-0.5 bg-gray-100 text-[10px] text-gray-500">
-                  ▼ 일별 상세
-                </td>
-              </tr>
-              {history.map(d => (
-                <tr key={d.date} className="border-b border-gray-100 hover:bg-gray-50">
-                  <td className="px-2 py-1 text-left text-gray-700">{d.date}</td>
-                  {INVESTOR_COLS.map(c => {
-                    const v = d[c.key] as number;
-                    return (
-                      <td key={c.key} className={`px-2 py-1 text-right ${volColor(v)}`}>
-                        {fmtVolume(v)}
-                      </td>
-                    );
-                  })}
-                  <td className="px-2 py-1 text-right text-gray-700">
-                    {d.외국인비율.toFixed(2)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    </tr>
+                  </thead>
+                </table>
+
+                {/* 스크롤 영역 — 일별 상세 행만 (스크롤바 여기에만 표시됨) */}
+                <div className="max-h-[50vh] overflow-y-auto">
+                  <table className="text-[11px] tabular-nums whitespace-nowrap w-full"
+                         style={{ tableLayout: "fixed" }}>
+                    {colgroup}
+                    <tbody>
+                      {history.map(d => (
+                        <tr key={d.date} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="px-2 py-1 text-left text-gray-700">{d.date}</td>
+                          {INVESTOR_COLS.map(c => {
+                            const v = d[c.key] as number;
+                            return (
+                              <td key={c.key} className={`px-2 py-1 text-right ${volColor(v)}`}>
+                                {fmtVolume(v)}
+                              </td>
+                            );
+                          })}
+                          <td className="px-2 py-1 text-right text-gray-700">
+                            {d.외국인비율.toFixed(2)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            );
+          })()}
         </div>
       )}
     </section>
