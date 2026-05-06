@@ -16,9 +16,10 @@ export interface Pair {
 export const US_PAIRS: Pair[] = [
   // Tier 0: 핵심 대시보드 (그리드 4열, 3행)
   // 1행: 한국 지수 + 환율
-  { symbol: "^KS11",  name: "KOSPI",     desc: "코스피 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^KS200", name: "KOSPI 200", desc: "코스피 200 지수", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^KQ11",  name: "KOSDAQ",    desc: "코스닥 지수", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^KS11",  name: "KOSPI",      desc: "코스피 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^KS200", name: "KOSPI 200",  desc: "코스피 200 지수 — 시총 상위", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^KQ11",  name: "KOSDAQ",     desc: "코스닥 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^KQ100", name: "KOSDAQ 100", desc: "코스닥 100 지수 — 시총 상위", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "KRW=X",  name: "USD/KRW",   desc: "원달러 환율 — 수출주·외국인 수급", tier: "T0", sector: "dashboard", direction: "inverse" },
   // 2행: 미국 지수 + 야간 선물 (현물·선물 짝)
   { symbol: "^IXIC",  name: "나스닥",     desc: "미국 기술주 전체", tier: "T0", sector: "dashboard", direction: "direct" },
