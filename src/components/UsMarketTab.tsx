@@ -189,8 +189,9 @@ export function UsMarketTab() {
               const sleeping = isSymbolSleeping(p.symbol);
               const cdiff = q ? q.price - (q.prevClose || q.price) : 0;
               const isFuture = p.symbol.endsWith("=F");
-              const bg =
-                cdiff > 0 ? "bg-rose-50 border-rose-200"
+              const bg = sleeping && dimEnabled
+                ? "bg-gray-100 border-gray-300"
+                : cdiff > 0 ? "bg-rose-50 border-rose-200"
                 : cdiff < 0 ? "bg-blue-50/70 border-blue-200"
                 : "bg-white border-gray-200";
               const sign =
@@ -209,6 +210,7 @@ export function UsMarketTab() {
                                 ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
                   <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
                              width={400} height={80}
+                             color={sleeping && dimEnabled ? "#94a3b8" : undefined}
                              className="absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none" />
                   <div className="relative z-10 flex items-baseline gap-1.5">

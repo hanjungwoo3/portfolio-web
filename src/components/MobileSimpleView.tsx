@@ -510,8 +510,9 @@ export function MobileSimpleView() {
           // 장마감 기준 — prevClose 대비 (비거래일에도 실제 변화 색)
           const cdiff = q ? q.price - (q.prevClose || q.price) : 0;
           const isFuture = p.symbol.endsWith("=F");
-          const bg =
-            cdiff > 0 ? "bg-rose-50 border-rose-200"
+          const bg = sleeping && dimEnabled
+            ? "bg-gray-100 border-gray-300"
+            : cdiff > 0 ? "bg-rose-50 border-rose-200"
             : cdiff < 0 ? "bg-blue-50/70 border-blue-200"
             : "bg-white border-gray-200";
           const sign =
@@ -524,9 +525,11 @@ export function MobileSimpleView() {
                  className={`relative overflow-hidden flex flex-col gap-0.5
                               rounded-lg border px-3 py-1.5
                               ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
-              {/* 60일 추이 — 카드 전체 배경 워터마크. 색은 차트 자체 추세 */}
+              {/* 60일 추이 — 카드 전체 배경 워터마크. 색은 차트 자체 추세
+                  (단, 흐리게 표시 ON + 장마감 종목 → 회색) */}
               <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
                          width={300} height={70}
+                         color={sleeping && dimEnabled ? "#94a3b8" : undefined}
                          className="absolute inset-0 w-full h-full opacity-50
                                     pointer-events-none" />
               <div className="relative flex items-baseline gap-1.5">
