@@ -104,9 +104,19 @@ export function UsMarketTab() {
     krEtfs.map((t, i) => [t, (krEtfChartQs[i]?.data ?? []).map(p => p.close)])
   );
 
-  // T0 카드용 — yahooChartMap 의 부분집합
+  // T0 카드 sparkline — 일부 심볼 (SOX=F, ^KQ100) 은 Yahoo 가 historical 안 줌 → 가장 가까운 현물 차트로 폴백
+  const SPARKLINE_FALLBACK: Record<string, string> = {
+    "SOX=F": "^SOX",   // 필반 선물 → 필반 현물
+    "^KQ100": "^KQ11", // 코스닥 100 → 코스닥 종합
+  };
   const t0ChartMap = new Map(
-    tier0.map(p => [p.symbol, yahooChartMap.get(p.symbol) ?? []])
+    tier0.map(p => {
+      const own = yahooChartMap.get(p.symbol) ?? [];
+      if (own.length > 1) return [p.symbol, own];
+      const fb = SPARKLINE_FALLBACK[p.symbol];
+      if (fb) return [p.symbol, yahooChartMap.get(fb) ?? own];
+      return [p.symbol, own];
+    })
   );
 
   // 섹터별 행 묶음 — 현물 + 선물 + ETF

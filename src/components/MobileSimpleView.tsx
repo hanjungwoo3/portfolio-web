@@ -304,8 +304,20 @@ export function MobileSimpleView() {
       refetchOnWindowFocus: false,
     })),
   });
+  // 일부 심볼 sparkline 은 Yahoo 가 historical 안 줌 → 가까운 현물 차트로 폴백
+  const SPARKLINE_FALLBACK: Record<string, string> = {
+    "SOX=F": "^SOX",
+    "^KQ100": "^KQ11",
+  };
+  const t0ChartByIndex = new Map(tier0.map((p, i) => [p.symbol, t0ChartQs[i]?.data ?? []]));
   const t0ChartMap = new Map(
-    tier0.map((p, i) => [p.symbol, t0ChartQs[i]?.data ?? []])
+    tier0.map(p => {
+      const own = t0ChartByIndex.get(p.symbol) ?? [];
+      if (own.length > 1) return [p.symbol, own];
+      const fb = SPARKLINE_FALLBACK[p.symbol];
+      if (fb) return [p.symbol, t0ChartByIndex.get(fb) ?? own];
+      return [p.symbol, own];
+    })
   );
 
   // ─── 섹터별 행 묶음 (현물 + 선물만, ETF 제외) ───
@@ -493,6 +505,7 @@ export function MobileSimpleView() {
           const sleeping = isSymbolSleeping(p.symbol);
           // 장마감 기준 — prevClose 대비 (비거래일에도 실제 변화 색)
           const cdiff = q ? q.price - (q.prevClose || q.price) : 0;
+          const isFuture = p.symbol.endsWith("=F");
           const bg =
             cdiff > 0 ? "bg-rose-50 border-rose-200"
             : cdiff < 0 ? "bg-blue-50/70 border-blue-200"
@@ -501,6 +514,7 @@ export function MobileSimpleView() {
             cdiff > 0 ? "text-rose-600"
             : cdiff < 0 ? "text-blue-600"
             : "text-gray-900";
+          const nameColor = isFuture ? "text-amber-700" : "text-gray-900";
           return (
             <div key={p.symbol}
                  className={`relative overflow-hidden flex flex-col gap-0.5
@@ -515,7 +529,7 @@ export function MobileSimpleView() {
                 {sleeping && (
                   <span className="text-[11px] text-gray-400">zZ</span>
                 )}
-                <span className="text-base font-bold text-gray-900">
+                <span className={`text-base font-bold ${nameColor}`}>
                   {p.name}
                 </span>
               </div>
