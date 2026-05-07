@@ -5,7 +5,7 @@ import {
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
   fetchInvestorHistorySafe,
 } from "./lib/api";
-import { loadHoldings, loadPeaks, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts } from "./lib/db";
+import { loadHoldings, loadPeaks, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateLegacyHoldGroup } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY } from "./components/Tabs";
 import { TotalRow } from "./components/TotalRow";
@@ -126,9 +126,11 @@ function Dashboard() {
     void (async () => {
       // 잔여 관심ETF 항목 청소 (web v3는 섹터 매핑을 코드 상수로 사용)
       const removed = await cleanupReservedAccounts();
+      // 잘못 저장된 account="보유" row 정리 (1회) — 빈 그룹과 통합
+      const migrated = await migrateLegacyHoldGroup();
       const [h, p] = await Promise.all([loadHoldings(), loadPeaks()]);
       // eslint-disable-next-line no-console
-      console.log(`[v3 load] holdings=${h.length}, peaks=${p.size}, cleaned=${removed}`);
+      console.log(`[v3 load] holdings=${h.length}, peaks=${p.size}, cleaned=${removed}, migrated=${migrated}`);
       setHoldings(h);
       setPeaks(p);
     })();
@@ -529,6 +531,20 @@ function RefreshIndicatorGlobal({ refetchIntervalMs }: { refetchIntervalMs: numb
 
 function AppRoot() {
   const isMobile = useIsMobile();
+
+  // PC/모바일 공통 — 잘못된 account="보유" row 1회 정리 (앱 부팅 시)
+  // 모바일은 useQuery 캐시 무효화 필요 (마이그레이션 후 stale 데이터 회피)
+  useEffect(() => {
+    void (async () => {
+      const n = await migrateLegacyHoldGroup();
+      if (n > 0) {
+        // eslint-disable-next-line no-console
+        console.log(`[migration] account="보유" → "" 정리 ${n}건`);
+        await queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+      }
+    })();
+  }, []);
+
   return isMobile ? <MobileSimpleView /> : <Dashboard />;
 }
 

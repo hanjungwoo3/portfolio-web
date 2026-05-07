@@ -1,4 +1,5 @@
 import type { Stock } from "../types";
+import { normalizeAccount } from "../lib/account";
 
 export interface TabSpec {
   key: string;
@@ -98,7 +99,7 @@ const RESERVED = new Set<string>(["관심ETF", US_MARKET_TAB_KEY]);
 export function buildTabs(holdings: Stock[]): TabSpec[] {
   const counts = new Map<string, number>();
   for (const s of holdings) {
-    const acc = s.account || "";
+    const acc = normalizeAccount(s.account);
     counts.set(acc, (counts.get(acc) || 0) + 1);
   }
   const tabs: TabSpec[] = [
@@ -120,5 +121,5 @@ export function buildTabs(holdings: Stock[]): TabSpec[] {
 }
 
 export function filterByTab(holdings: Stock[], tabKey: string): Stock[] {
-  return holdings.filter(s => (s.account || "") === tabKey);
+  return holdings.filter(s => normalizeAccount(s.account) === tabKey);
 }

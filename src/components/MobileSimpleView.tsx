@@ -21,6 +21,7 @@ import {
 } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { getIndependentGroupsMode } from "../lib/groupMode";
+import { normalizeAccount } from "../lib/account";
 import { RefreshIndicator } from "./RefreshIndicator";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
@@ -147,7 +148,7 @@ export function MobileSimpleView() {
   const groupTabs = useMemo(() => {
     const counts = new Map<string, number>();
     for (const s of holdings) {
-      const acc = s.account || "";
+      const acc = normalizeAccount(s.account);
       counts.set(acc, (counts.get(acc) || 0) + 1);
     }
     const tabs: { key: string; label: string; count: number }[] = [
@@ -176,7 +177,7 @@ export function MobileSimpleView() {
   // 선택된 그룹 종목들 (활성 탭이 그룹일 때만)
   const groupHoldingsUnsorted = useMemo(() => {
     if (activeTab === US_KEY) return [];
-    return holdings.filter(s => (s.account || "") === activeTab);
+    return holdings.filter(s => normalizeAccount(s.account) === activeTab);
   }, [holdings, activeTab]);
 
   // 그룹 종목들의 KR 가격 fetch (수동 갱신만)

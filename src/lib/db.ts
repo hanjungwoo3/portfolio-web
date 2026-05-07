@@ -45,6 +45,42 @@ export async function cleanupReservedAccounts(): Promise<number> {
   return await db.holdings.where("account").equals("관심ETF").delete();
 }
 
+// account="보유" (한글 라벨) 로 잘못 저장된 row 정리.
+//   - 같은 ticker 의 account="" row 있음 → "보유" row 삭제 (정상 row 보존)
+//   - 없음 → account="" 로 이름 변경
+//   "" row 는 어떤 경우에도 유지 — 데이터 손실 없음.
+//   반환: 처리된 row 수 (사용자 알림용, 0 이면 noop)
+export async function migrateLegacyHoldGroup(): Promise<number> {
+  const all = await db.holdings.toArray();
+  const legacy = all.filter(s => s.account === "보유");
+  if (legacy.length === 0) return 0;
+
+  const emptyByTicker = new Map<string, Stock & { id: string }>();
+  for (const s of all) {
+    if ((s.account ?? "") === "" && s.account !== "보유") {
+      emptyByTicker.set(s.ticker, s as Stock & { id: string });
+    }
+  }
+
+  let processed = 0;
+  await db.transaction("rw", db.holdings, async () => {
+    for (const s of legacy) {
+      const legacyId = holdingId(s);
+      if (emptyByTicker.has(s.ticker)) {
+        // 이미 정상 "" row 존재 → 잘못된 "보유" row 만 삭제
+        await db.holdings.delete(legacyId);
+      } else {
+        // 정상 row 없음 → account="" 로 이름 변경 (id 도 새로 계산)
+        await db.holdings.delete(legacyId);
+        const fixed = { ...s, account: "" };
+        await db.holdings.put({ ...fixed, id: holdingId(fixed) } as Stock & { id: string });
+      }
+      processed += 1;
+    }
+  });
+  return processed;
+}
+
 export async function loadPeaks(): Promise<Map<string, number>> {
   const all = await db.peaks.toArray();
   return new Map(all.map(p => [p.ticker, p.price]));
