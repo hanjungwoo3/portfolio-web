@@ -22,7 +22,10 @@ import type { PricePoint, ShortSellingPoint } from "../lib/api";
 
 const PRICE_COLOR     = "#dc2626";    // 종가 라인 — 주가 차트와 동일 (red-600, 한국식 상승색)
 const SHORT_AVG_COLOR = "#2563eb";    // 공매도 평단 면적 — 하락 베팅 의미 (blue-600)
-const RATIO_BAR_COLOR = "#bfdbfe";    // 공매도 비중 막대 — blue-200
+// 공매도 비중 막대 — 갭 부호에 따라 색 분기 (빨강=공매도손실 / 파랑=공매도수익)
+const RATIO_BAR_UP_COLOR = "rgba(220, 38, 38, 0.5)";   // red-600 50% — 갭 +
+const RATIO_BAR_DN_COLOR = "rgba(37, 99, 235, 0.5)";   // blue-600 50% — 갭 -
+const RATIO_BAR_NEUTRAL  = "rgba(156, 163, 175, 0.4)"; // gray-400 — 평단 데이터 없음
 
 interface Props {
   shortSelling: ShortSellingPoint[];
@@ -98,12 +101,11 @@ export function ShortSellingChart({ shortSelling, prices, dates, onReady }: Prop
     const priceMap = new Map<string, number>();
     for (const p of prices) priceMap.set(p.date, p.close);
 
-    // ─── 공매도 비중 히스토그램 (좌측 축, hidden) ─────────────
+    // ─── 공매도 비중 히스토그램 (좌측 축, hidden) — 갭 부호로 색 분기 ──
     const ratioBars = chart.addSeries(HistogramSeries, {
       priceScaleId: "left",
       priceFormat: { type: "custom", formatter: (v: number) => `${v.toFixed(2)}%` },
       base: 0,
-      color: RATIO_BAR_COLOR,
       priceLineVisible: false,
       lastValueVisible: false,
     });
@@ -113,9 +115,18 @@ export function ShortSellingChart({ shortSelling, prices, dates, onReady }: Prop
     const ratioData = dates
       .map(d => {
         const s = shortMap.get(d);
-        return s ? { time: d as Time, value: s.ratio } : null;
+        if (!s) return null;
+        const close = priceMap.get(d);
+        let color = RATIO_BAR_NEUTRAL;
+        if (close !== undefined && s.avgPrice > 0) {
+          const gap = close - s.avgPrice;
+          color = gap > 0 ? RATIO_BAR_UP_COLOR
+                : gap < 0 ? RATIO_BAR_DN_COLOR
+                : RATIO_BAR_NEUTRAL;
+        }
+        return { time: d as Time, value: s.ratio, color };
       })
-      .filter((x): x is { time: Time; value: number } => x !== null);
+      .filter((x): x is { time: Time; value: number; color: string } => x !== null);
     ratioBars.setData(ratioData);
 
     // ─── 공매도 평단 (배경 면적, 핑크 그라디언트) ─────────────
