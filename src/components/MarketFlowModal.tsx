@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchKrMarketFlow, fetchYahooPriceHistory } from "../lib/api";
 import type { MarketIndexKey, MarketFlowPoint } from "../lib/api";
 import { useCrosshairSync } from "../lib/useCrosshairSync";
+import { getMarketEvents } from "../lib/marketEvents";
 
 const InvestorChartLight = lazy(() => import("./InvestorChartLight"));
 const IndexLineChart = lazy(() => import("./IndexLineChart"));
@@ -72,6 +73,23 @@ export function MarketFlowModal({
     staleTime: 5 * 60_000,
   });
 
+  // VIX (미국 공포지수, 토글 ON 시에만 fetch)
+  const [showVix, setShowVix] = useState<boolean>(() => {
+    try { return localStorage.getItem("market_flow_vix") === "on"; }
+    catch { return false; }
+  });
+  const toggleVix = () => {
+    const next = !showVix;
+    setShowVix(next);
+    try { localStorage.setItem("market_flow_vix", next ? "on" : "off"); } catch { /* noop */ }
+  };
+  const { data: vixPrices } = useQuery({
+    queryKey: ["vix-prices"],
+    queryFn: () => fetchYahooPriceHistory("^VIX", "1y"),
+    enabled: isOpen && showVix,
+    staleTime: 5 * 60_000,
+  });
+
   // 시간순 정렬 (오래됨 → 최신) + 누적 합 — 미니 차트용
   // 5 차트 X축 동기화: flow ∩ indexPrices 교집합 날짜만 사용 → 모든 차트 동일 길이
   const ascending = useMemo(() => {
@@ -106,6 +124,12 @@ export function MarketFlowModal({
     const dateSet = new Set(dates);
     return indexPrices.filter(p => dateSet.has(p.date));
   }, [indexPrices, dates]);
+
+  // 시장 이벤트 (옵션만기 / 쿼드 / 금통위 / FOMC) — 데이터 기간 내
+  const marketEvents = useMemo(() => {
+    if (dates.length === 0) return [];
+    return getMarketEvents(dates[0], dates[dates.length - 1]);
+  }, [dates]);
 
   // 4 차트 crosshair + 줌 동기화
   const registerSync = useCrosshairSync();
@@ -187,6 +211,9 @@ export function MarketFlowModal({
                   <IndexLineChart label={indexLabel} prices={alignedIndexPrices}
                                   heightClass="h-[200px] lg:h-[260px]"
                                   mode={indexMode} onToggleMode={toggleIndexMode}
+                                  events={marketEvents}
+                                  vixPrices={vixPrices} showVix={showVix}
+                                  onToggleVix={toggleVix}
                                   onReady={registerSync} />
                 ) : (
                   <div className="border border-gray-200 rounded p-2 h-[200px] text-xs text-gray-400 flex items-center justify-center">
