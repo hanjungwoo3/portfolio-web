@@ -33,6 +33,8 @@ function quoteUrl(symbol: string): string {
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
 import { RefreshIndicator } from "./RefreshIndicator";
+import { forceUpdate } from "./VersionBadge";
+import { NewVersionToast } from "./NewVersionToast";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadPeaks,
@@ -319,7 +321,8 @@ export function MobileSimpleView() {
   // 활성 탭에 맞는 마지막 갱신 시각 (RefreshIndicator 사용)
   const lastAt = isSystemTab ? usAt : (groupAt ?? 0);
 
-  const handleRefresh = () => location.reload();
+  // 캐시 + Service Worker 초기화 + 강제 새로고침 (확인 다이얼로그)
+  const handleRefresh = () => void forceUpdate();
 
   // 좌우 스와이프로 그룹 탭 이동 (가로 dx > 세로 dy 일 때만 인정)
   const handleTouchStart = (e: React.TouchEvent) => {
@@ -375,6 +378,7 @@ export function MobileSimpleView() {
     <div className="min-h-screen bg-gray-50"
          onTouchStart={handleTouchStart}
          onTouchEnd={handleTouchEnd}>
+      <NewVersionToast />
       <header className="sticky top-0 z-30 bg-white border-b border-gray-200
                           px-3 py-2 flex items-center gap-1">
         <h1 className="text-sm font-bold text-gray-800 shrink-0">📈</h1>
@@ -382,7 +386,7 @@ export function MobileSimpleView() {
                           refetchIntervalMs={REFRESH_MS} />
         <button onClick={handleRefresh}
                 disabled={isFetching}
-                title="새로고침 (페이지 reload)"
+                title="최신 버전 적용 (캐시 초기화 + 새로고침)"
                 className="ml-auto p-1.5 rounded hover:bg-gray-100
                             disabled:opacity-50 transition">
           <span className={`inline-block ${isFetching ? "animate-spin" : ""}`}>🔄</span>

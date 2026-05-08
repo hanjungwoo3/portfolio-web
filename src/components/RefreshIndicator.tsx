@@ -24,7 +24,7 @@ export function RefreshIndicator({ dataUpdatedAt, refetchIntervalMs, label = "ê°
 
   if (!dataUpdatedAt) {
     return (
-      <span className="text-xs text-gray-400">{label}: â€”</span>
+      <span className="text-xs text-gray-400 whitespace-nowrap shrink-0">{label}: â€”</span>
     );
   }
 
@@ -34,7 +34,7 @@ export function RefreshIndicator({ dataUpdatedAt, refetchIntervalMs, label = "ê°
   const timeStr = fmt(new Date(dataUpdatedAt));
 
   return (
-    <span className="text-xs text-gray-500 tabular-nums">
+    <span className="text-xs text-gray-500 tabular-nums whitespace-nowrap shrink-0">
       {label}: <span className="font-mono">{timeStr}</span>
       <span className="text-gray-400"> ({remaining}ì´ˆ)</span>
     </span>

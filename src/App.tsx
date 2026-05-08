@@ -15,7 +15,8 @@ import { SearchDialog } from "./components/SearchDialog";
 import { EditHoldingDialog } from "./components/EditHoldingDialog";
 import { UsMarketTab } from "./components/UsMarketTab";
 import { RefreshIndicator } from "./components/RefreshIndicator";
-import { VersionBadge } from "./components/VersionBadge";
+import { forceUpdate } from "./components/VersionBadge";
+import { NewVersionToast } from "./components/NewVersionToast";
 import { ProxyStatusBadge } from "./components/ProxyStatusBadge";
 import { useAdaptiveRefreshMs } from "./lib/proxyStatus";
 import {
@@ -283,6 +284,7 @@ function Dashboard() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      <NewVersionToast />
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
         <div className="max-w-[1600px] mx-auto flex items-center
                          gap-3 px-6 py-3">
@@ -294,7 +296,14 @@ function Dashboard() {
                             usePersonalProxy={usePersonalProxy}
                             onOpenSettings={() => setSettingsOpen(true)} />
           <div className="flex items-center gap-3 ml-auto">
-            <VersionBadge />
+            <button
+              onClick={() => void forceUpdate()}
+              title={`최신 버전 적용 (캐시 초기화 + 새로고침)\ncommit: ${__COMMIT_HASH__}`}
+              className="px-2 py-1.5 rounded text-sm
+                         text-gray-500 hover:text-blue-600
+                         hover:bg-gray-100 transition">
+              🔄
+            </button>
             <button
               onClick={() => guardedAction(() => setSearchOpen(true))}
               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700
