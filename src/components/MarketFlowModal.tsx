@@ -253,8 +253,8 @@ export function MarketFlowModal({
                 </div>
               </Suspense>
 
-              {/* 일별 상세 표 — ValuationModal 과 동일 패턴 (header 고정 + body 스크롤) */}
-              <div className="border border-gray-200 rounded">
+              {/* 일별 상세 표 — 모바일에서는 숨김 (좁은 화면에서 가독성 X, 차트로 충분) */}
+              <div className="hidden sm:block border border-gray-200 rounded">
                 {/* 고정 영역 — 컬럼 헤더 + 합계 + ▼ separator */}
                 <table className="text-[11px] tabular-nums whitespace-nowrap w-full"
                        style={{ tableLayout: "fixed" }}>
