@@ -307,7 +307,7 @@ export function MobileStockCard({
             const hiPct = price.price > 0 ? (hiDiff / price.price) * 100 : 0;
             return (
               <div key="high" className="text-xs text-gray-700">
-                <span className="text-gray-500">고 </span>
+                <span className="text-[10px] text-gray-500">고 </span>
                 {hi.toLocaleString()}원
                 <span className={`ml-0.5 text-[10px] ${signColor(hiDiff)}`}>
                   ({formatSigned(hiDiff)}원, {hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
@@ -338,7 +338,7 @@ export function MobileStockCard({
             const loPct = price.price > 0 ? (loDiff / price.price) * 100 : 0;
             return (
               <div key="low" className="text-xs text-gray-700">
-                <span className="text-gray-500">저 </span>
+                <span className="text-[10px] text-gray-500">저 </span>
                 {lo.toLocaleString()}원
                 <span className={`ml-0.5 text-[10px] ${signColor(loDiff)}`}>
                   ({formatSigned(loDiff)}원, {loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
@@ -353,7 +353,7 @@ export function MobileStockCard({
             const tPct = price.price > 0 ? (tDiff / price.price) * 100 : 0;
             return (
               <div key="target" className="text-xs text-gray-700">
-                <span className="text-amber-600 font-medium">목 </span>
+                <span className="text-[10px] text-amber-600 font-medium">목 </span>
                 {t.toLocaleString()}원
                 <span className={`ml-0.5 text-[10px] ${signColor(tDiff)}`}>
                   ({formatSigned(tDiff)}원, {tPct >= 0 ? "+" : ""}{tPct.toFixed(2)}%)
@@ -391,7 +391,7 @@ export function MobileStockCard({
         {/* 피크 (보유만, 피크 > 현재가) — 보유 총액 기준 */}
         {hasPosition && peak && peak > price.price && (
           <div className="text-[10px]">
-            <span className="text-gray-500">피크 </span>
+            <span className="text-[9px] text-gray-500">피크 </span>
             <span className="text-gray-700 font-medium">
               {Math.round(peak * stock.shares).toLocaleString()}원
             </span>{" "}
@@ -405,7 +405,7 @@ export function MobileStockCard({
         {/* 원금 (보유만) */}
         {hasPosition && (
           <div className="text-[10px]">
-            <span className="text-gray-500">원금 </span>
+            <span className="text-[9px] text-gray-500">원금 </span>
             <span className="text-gray-700">
               {Math.round(stock.avg_price * stock.shares).toLocaleString()}원
             </span>
@@ -415,7 +415,7 @@ export function MobileStockCard({
         {/* 현재 (보유만) — shares × current_price */}
         {hasPosition && (
           <div className="text-[10px]">
-            <span className="text-gray-500">현재 </span>
+            <span className="text-[9px] text-gray-500">현재 </span>
             <span className={`font-bold ${signColor(pnl)}`}>
               {Math.round(price.price * stock.shares).toLocaleString()}원
             </span>
@@ -425,7 +425,7 @@ export function MobileStockCard({
         {/* 전체 — 금액 크게, % 는 원래 (손절 시 % 배경 강조) */}
         {hasPosition && (
           <div className="text-[10px]">
-            <span className="text-gray-500">전체 </span>
+            <span className="text-[9px] text-gray-500">전체 </span>
             <span className={`text-sm font-bold ${signColor(pnl)}`}>
               {formatSigned(pnl)}원
             </span>{" "}
@@ -442,7 +442,7 @@ export function MobileStockCard({
         {/* 오늘 (보유만) — dayDiff × shares */}
         {hasPosition && (
           <div className="text-[10px]">
-            <span className="text-gray-500">오늘 </span>
+            <span className="text-[9px] text-gray-500">오늘 </span>
             <span className={`font-bold ${signColor(dayDiff)}`}>
               {formatSigned(dayDiff * stock.shares)}원
             </span>{" "}

@@ -726,7 +726,7 @@ export function StockCard({
               const hiPct = price.price > 0 ? (hiDiff / price.price) * 100 : 0;
               return (
                 <div key="high" className="text-xs text-gray-700">
-                  <span className="text-gray-500">고 </span>
+                  <span className="text-[10px] text-gray-500">고 </span>
                   {hi.toLocaleString()}원
                   <span className={`ml-1 text-[10px] ${signColor(hiDiff)}`}>
                     ({formatSigned(hiDiff)}원, {hiPct >= 0 ? "+" : ""}{hiPct.toFixed(2)}%)
@@ -766,7 +766,7 @@ export function StockCard({
               const loPct = price.price > 0 ? (loDiff / price.price) * 100 : 0;
               return (
                 <div key="low" className="text-xs text-gray-700">
-                  <span className="text-gray-500">저 </span>
+                  <span className="text-[10px] text-gray-500">저 </span>
                   {lo.toLocaleString()}원
                   <span className={`ml-1 text-[10px] ${signColor(loDiff)}`}>
                     ({formatSigned(loDiff)}원, {loPct >= 0 ? "+" : ""}{loPct.toFixed(2)}%)
@@ -781,11 +781,10 @@ export function StockCard({
               const tPct = price.price > 0 ? (tDiff / price.price) * 100 : 0;
               return (
                 <div key="target" className="text-xs text-gray-700">
-                  <span className="text-amber-600 font-medium">목 </span>
+                  <span className="text-[10px] text-amber-600 font-medium">목 </span>
                   {t.toLocaleString()}원
                   <span className={`ml-1 text-[10px] ${signColor(tDiff)}`}>
-                    ({formatSigned(tDiff)}원, {tDiff >= 0 ? "+" : ""}{tPct.toFixed(2)}%
-                    {typeof consensus.score === "number" ? `, ${consensus.score.toFixed(2)}` : ""})
+                    ({formatSigned(tDiff)}원, {tDiff >= 0 ? "+" : ""}{tPct.toFixed(2)}%)
                   </span>
                 </div>
               );
@@ -821,7 +820,7 @@ export function StockCard({
         {/* 피크 (보유만, 피크가 현재가보다 위) — 보유 기준 총액 */}
         {hasPosition && peak && peak > price.price && (
           <div className="text-xs">
-            <span className="text-gray-500">피크 </span>
+            <span className="text-[10px] text-gray-500">피크 </span>
             <span className="text-gray-700 font-medium">
               {Math.round(peak * stock.shares).toLocaleString()}원
             </span>{" "}
@@ -835,7 +834,7 @@ export function StockCard({
         {/* 원금 (보유만) — shares × avg_price */}
         {hasPosition && (
           <div className="text-xs">
-            <span className="text-gray-500">원금 </span>
+            <span className="text-[10px] text-gray-500">원금 </span>
             <span className="text-gray-700">
               {Math.round(stock.avg_price * stock.shares).toLocaleString()}원
             </span>
@@ -845,7 +844,7 @@ export function StockCard({
         {/* 현재 (보유만) — shares × current_price = 현재 평가금액 */}
         {hasPosition && (
           <div className="text-xs">
-            <span className="text-gray-500">현재 </span>
+            <span className="text-[10px] text-gray-500">현재 </span>
             <span className={`font-bold ${signColor(pnl)}`}>
               {Math.round(price.price * stock.shares).toLocaleString()}원
             </span>
@@ -855,7 +854,7 @@ export function StockCard({
         {/* 전체 — 금액만 크게 / % 는 원래 / 손절 시 % 배경 강조 */}
         {hasPosition && (
           <div className="text-xs">
-            <span className="text-gray-500">전체 </span>
+            <span className="text-[10px] text-gray-500">전체 </span>
             <span className={`text-base font-bold ${signColor(pnl)}`}>
               {formatSigned(pnl)}원
             </span>{" "}
@@ -872,7 +871,7 @@ export function StockCard({
         {/* 오늘 (보유만) — 보유분 어제대비 변동 (오늘 움직인 금액) */}
         {hasPosition && (
           <div className="text-xs">
-            <span className="text-gray-500">오늘 </span>
+            <span className="text-[10px] text-gray-500">오늘 </span>
             <span className={`font-bold ${signColor(dayDiff)}`}>
               {formatSigned(dayDiff * stock.shares)}원
             </span>{" "}
