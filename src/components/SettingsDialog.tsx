@@ -17,6 +17,7 @@ import {
   getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync,
   uploadToDrive, downloadFromDrive, tryRestoreSession,
 } from "../lib/syncManager";
+import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 
 interface Props {
   isOpen: boolean;
@@ -34,6 +35,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
   const [pollMs, setPollMs] = useState(10_000);
   const [syncState, setSyncState] = useState(getSyncState());
   const [syncBusy, setSyncBusy] = useState(false);
+  const [syncBusyMsg, setSyncBusyMsg] = useState("");   // 진행 중 오버레이 메시지
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(getLastSyncedAt());
   const [independentMode, setIndependent] = useState(getIndependentGroupsMode());
   const [conflicts, setConflicts] = useState<TickerConflict[] | null>(null);
@@ -66,8 +68,27 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
     setSyncState(getSyncState());
     setLastSyncedAt(getLastSyncedAt());
     setIndependent(getIndependentGroupsMode());
-    // 다이얼로그 열 때 — sync 모드 ON 이면 토큰 silent refresh 시도 (배경)
-    void tryRestoreSession();
+    // 다이얼로그 열 때 — 토큰 silent refresh 시도
+    // 진짜 만료된 경우만 자동 logout (이전 로그인 흔적 있는데 토큰 갱신 실패)
+    void (async () => {
+      const initial = getSyncState();
+      if (initial === "unconfigured") return;
+      // 이미 토큰 활성이면 그대로
+      if (isSignedIn()) {
+        // sync mode "on" 이면 추가로 silent refresh 호출 (백그라운드)
+        void tryRestoreSession();
+        return;
+      }
+      // 토큰 만료 — silent refresh 직접 시도 (syncState 무관)
+      if (!wasSignedIn()) return;
+      const token = await getAccessToken();
+      if (!token) {
+        await disableSync();
+        setSyncState("unconfigured");
+        setLastSyncedAt(null);
+        setStatusMsg("ℹ️ 로그인이 만료되어 자동 로그아웃 — 다시 로그인해 주세요");
+      }
+    })();
     void (async () => {
       const data = await exportAll();
       setRaw(JSON.stringify(data, null, 2));
@@ -211,8 +232,22 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
          onClick={e => {
            if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
          }}>
-      <div className="bg-white rounded-lg shadow-xl max-w-2xl w-full
+      <div className="relative bg-white rounded-lg shadow-xl max-w-2xl w-full
                        max-h-[90vh] flex flex-col">
+        {/* ─── 진행 중 오버레이 — 업로드/다운로드/로그인 시 ─── */}
+        {syncBusy && syncBusyMsg && (
+          <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm
+                          rounded-lg flex items-center justify-center">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-lg
+                            px-6 py-4 flex items-center gap-3">
+              <span className="inline-block w-5 h-5 border-2 border-blue-500
+                               border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm font-medium text-gray-800">
+                {syncBusyMsg}
+              </span>
+            </div>
+          </div>
+        )}
         <header className="px-5 py-3 border-b bg-gray-50 flex items-center gap-3">
           <h2 className="text-lg font-bold shrink-0">⚙️ 설정</h2>
           <span className="text-xs text-gray-500 truncate">{statusMsg}</span>
@@ -236,16 +271,19 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                 disabled={syncBusy}
                 onClick={async () => {
                   setSyncBusy(true);
+                  setSyncBusyMsg("Google 로그인 중...");
                   setStatusMsg("Google 로그인 중...");
                   try {
                     await enableSync();
                     setSyncState("off");
                     // 로그인 후 — Drive 에 파일 있으면 다운로드, 없으면 업로드
+                    setSyncBusyMsg("Drive 데이터 확인 중...");
                     const downloaded = await downloadFromDrive();
                     if (downloaded) {
                       onChanged();
                       setStatusMsg("✅ 로그인 + Drive 데이터 가져옴 (자동 sync OFF)");
                     } else {
+                      setSyncBusyMsg("첫 업로드 중...");
                       await uploadToDrive();
                       setStatusMsg("✅ 로그인 + 첫 업로드 완료 (자동 sync OFF)");
                     }
@@ -256,6 +294,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                     setStatusMsg(`⚠️ ${msg}`);
                   } finally {
                     setSyncBusy(false);
+                    setSyncBusyMsg("");
                   }
                 }}
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700
@@ -290,6 +329,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                   <button disabled={syncBusy}
                     onClick={async () => {
                       setSyncBusy(true);
+                      setSyncBusyMsg("Drive 에 업로드 중...");
                       try {
                         await uploadToDrive();
                         setLastSyncedAt(getLastSyncedAt());
@@ -298,7 +338,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                         const msg = (e as Error).message;
                         alert(`❌ Drive 업로드 실패\n\n${msg}\n\n로그인 만료 또는 네트워크 문제일 수 있습니다.`);
                         setStatusMsg(`⚠️ ${msg}`);
-                      } finally { setSyncBusy(false); }
+                      } finally { setSyncBusy(false); setSyncBusyMsg(""); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
                     ↑ 업로드
@@ -307,6 +347,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                     onClick={async () => {
                       if (!confirm("Drive 의 데이터로 이 기기를 덮어씁니다. 계속할까요?")) return;
                       setSyncBusy(true);
+                      setSyncBusyMsg("Drive 에서 다운로드 중...");
                       try {
                         const ok = await downloadFromDrive();
                         if (ok) {
@@ -321,7 +362,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                         const msg = (e as Error).message;
                         alert(`❌ Drive 다운로드 실패\n\n${msg}\n\n로그인 만료된 경우, 로그아웃 후 다시 로그인하세요.`);
                         setStatusMsg(`⚠️ ${msg}`);
-                      } finally { setSyncBusy(false); }
+                      } finally { setSyncBusy(false); setSyncBusyMsg(""); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
                     ↓ 다운로드

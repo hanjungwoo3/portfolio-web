@@ -74,6 +74,15 @@ export function NewVersionToast() {
     setLatestCommit(null);
   };
 
+  const refresh = async () => {
+    // 클릭 즉시 토스트 닫고 dismiss 저장 — reload 가 실패해도 같은 hash 다시 안 뜨게
+    if (typeof localStorage !== "undefined") {
+      localStorage.setItem(STORAGE_DISMISS_KEY, latestCommit);
+    }
+    setLatestCommit(null);
+    await applyNewVersion();
+  };
+
   return (
     <div className="fixed top-2 left-1/2 -translate-x-1/2 z-50
                     flex items-center gap-2
@@ -81,7 +90,7 @@ export function NewVersionToast() {
                     px-3 py-1.5 rounded-full shadow-lg
                     animate-[fadeIn_0.3s_ease-out]">
       <span>🆕 새 버전이 있어요</span>
-      <button onClick={() => void applyNewVersion()}
+      <button onClick={() => void refresh()}
               className="bg-white/20 hover:bg-white/30
                          px-2 py-0.5 rounded font-medium transition">
         새로고침

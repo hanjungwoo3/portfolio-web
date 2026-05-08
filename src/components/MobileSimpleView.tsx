@@ -53,6 +53,7 @@ import {
   uploadToDrive, downloadFromDrive, scheduleAutoSync, checkConflict,
   tryRestoreSession,
 } from "../lib/syncManager";
+import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 import type { ConflictResult } from "../lib/syncManager";
 import { ConflictDialog } from "./ConflictDialog";
 import type { Stock } from "../types";
@@ -783,14 +784,32 @@ function SettingsModal({
   const [pollMs, setPollMs] = useState(getPersonalPollMs());
   const [syncStateLocal, setSyncStateLocal] = useState(getSyncState());
   const [syncBusyLocal, setSyncBusyLocal] = useState(false);
+  const [syncBusyMsgLocal, setSyncBusyMsgLocal] = useState("");
   const [lastSyncedAtLocal, setLastSyncedAtLocal] = useState<string | null>(getLastSyncedAt());
 
   // 모달 열릴 때 현재 데이터 export 해서 textarea 채움
+  // + 토큰 만료 감지 시 자동 logout
   useEffect(() => {
     void (async () => {
       const data = await exportAll();
       setRaw(JSON.stringify(data, null, 2));
       setDataMsg(`현재: 종목 ${data.holdings.length}건 / 피크 ${Object.keys(data.peaks).length}건`);
+
+      // 로그인 상태 검증 → 진짜 만료 시 자동 logout
+      const initial = getSyncState();
+      if (initial === "unconfigured") return;
+      if (isSignedIn()) {
+        void tryRestoreSession();   // 백그라운드 silent refresh
+        return;
+      }
+      if (!wasSignedIn()) return;
+      const token = await getAccessToken();
+      if (!token) {
+        await disableSync();
+        setSyncStateLocal("unconfigured");
+        setLastSyncedAtLocal(null);
+        setDataMsg("ℹ️ 로그인이 만료되어 자동 로그아웃 — 다시 로그인해 주세요");
+      }
     })();
   }, []);
 
@@ -858,8 +877,22 @@ function SettingsModal({
          onClick={e => {
            if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
          }}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-sm
+      <div className="relative bg-white rounded-lg shadow-xl w-full max-w-sm
                        max-h-[90vh] flex flex-col">
+        {/* 진행 중 오버레이 — 업로드/다운로드/로그인 */}
+        {syncBusyLocal && syncBusyMsgLocal && (
+          <div className="absolute inset-0 z-10 bg-white/80 backdrop-blur-sm
+                          rounded-lg flex items-center justify-center">
+            <div className="bg-white border border-gray-200 rounded-lg shadow-lg
+                            px-5 py-3 flex items-center gap-3">
+              <span className="inline-block w-5 h-5 border-2 border-blue-500
+                               border-t-transparent rounded-full animate-spin" />
+              <span className="text-sm font-medium text-gray-800">
+                {syncBusyMsgLocal}
+              </span>
+            </div>
+          </div>
+        )}
         <header className="px-4 py-3 border-b bg-gray-50 flex items-center">
           <h2 className="text-base font-bold">⚙️ 설정</h2>
           <button onClick={onClose}
@@ -881,23 +914,26 @@ function SettingsModal({
               <button disabled={syncBusyLocal}
                 onClick={async () => {
                   setSyncBusyLocal(true);
+                  setSyncBusyMsgLocal("Google 로그인 중...");
                   setDataMsg("Google 로그인 중...");
                   try {
                     await enableSync();
                     setSyncStateLocal("off");
+                    setSyncBusyMsgLocal("Drive 데이터 확인 중...");
                     const downloaded = await downloadFromDrive();
                     if (downloaded) {
                       void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
                       void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
                       setDataMsg("✅ Drive 가져옴 (자동 sync OFF)");
                     } else {
+                      setSyncBusyMsgLocal("첫 업로드 중...");
                       await uploadToDrive();
                       setDataMsg("✅ 첫 업로드 (자동 sync OFF)");
                     }
                     setLastSyncedAtLocal(getLastSyncedAt());
                   } catch (e) {
                     setDataMsg(`⚠️ ${(e as Error).message}`);
-                  } finally { setSyncBusyLocal(false); }
+                  } finally { setSyncBusyLocal(false); setSyncBusyMsgLocal(""); }
                 }}
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700
                            disabled:opacity-50 text-white text-xs rounded">
@@ -930,9 +966,10 @@ function SettingsModal({
                   <button disabled={syncBusyLocal}
                     onClick={async () => {
                       setSyncBusyLocal(true);
+                      setSyncBusyMsgLocal("Drive 에 업로드 중...");
                       try { await uploadToDrive(); setLastSyncedAtLocal(getLastSyncedAt()); setDataMsg("✅ 업로드"); }
                       catch (e) { setDataMsg(`⚠️ ${(e as Error).message}`); }
-                      finally { setSyncBusyLocal(false); }
+                      finally { setSyncBusyLocal(false); setSyncBusyMsgLocal(""); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
                     ↑ 업로드
@@ -941,6 +978,7 @@ function SettingsModal({
                     onClick={async () => {
                       if (!confirm("Drive 의 데이터로 덮어쓸까요?")) return;
                       setSyncBusyLocal(true);
+                      setSyncBusyMsgLocal("Drive 에서 다운로드 중...");
                       try {
                         const ok = await downloadFromDrive();
                         if (ok) {
@@ -950,7 +988,7 @@ function SettingsModal({
                           setDataMsg("✅ 다운로드");
                         } else { setDataMsg("⚠️ Drive 데이터 없음"); }
                       } catch (e) { setDataMsg(`⚠️ ${(e as Error).message}`); }
-                      finally { setSyncBusyLocal(false); }
+                      finally { setSyncBusyLocal(false); setSyncBusyMsgLocal(""); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
                     ↓ 다운로드
