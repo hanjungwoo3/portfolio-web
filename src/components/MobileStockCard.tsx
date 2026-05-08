@@ -446,7 +446,7 @@ export function MobileStockCard({
             <span className={`font-bold bg-yellow-100 rounded px-1 ${signColor(dayDiff)}`}>
               {formatSigned(dayDiff * stock.shares)}원
             </span>{" "}
-            <span className={`font-bold ${signColor(dayDiff)}`}>
+            <span className={signColor(dayDiff)}>
               ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
             </span>
           </div>
