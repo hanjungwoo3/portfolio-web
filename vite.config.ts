@@ -6,7 +6,9 @@ import { writeFileSync, mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
 // GitHub Pages 배포 시 base 경로 — repo 이름과 동일
+// VITE_BASE_PATH 로 override 가능 (커스텀 도메인 deploy 시 "/" 사용)
 const isProd = process.env.NODE_ENV === "production";
+const BASE_PATH = process.env.VITE_BASE_PATH ?? (isProd ? "/portfolio-web/" : "/");
 
 // 빌드 시각 — 헤더 버전 표시 + 강제 갱신 비교용
 const BUILD_TIME = new Date().toISOString();
@@ -19,7 +21,7 @@ try {
 } catch { /* git 없거나 repo 아닌 환경 — 그대로 unknown */ }
 
 export default defineConfig({
-  base: isProd ? "/portfolio-web/" : "/",
+  base: BASE_PATH,
   define: {
     __BUILD_TIME__: JSON.stringify(BUILD_TIME),
     __COMMIT_HASH__: JSON.stringify(COMMIT_HASH),
@@ -59,8 +61,8 @@ export default defineConfig({
         theme_color: "#1f2937",
         background_color: "#f6f7f9",
         display: "standalone",
-        start_url: "/portfolio-web/",
-        scope: "/portfolio-web/",
+        start_url: BASE_PATH,
+        scope: BASE_PATH,
         orientation: "portrait",
         lang: "ko",
         icons: [
