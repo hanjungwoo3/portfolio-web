@@ -417,7 +417,7 @@ function Dashboard() {
                 />
               ))}
             </div>
-            <div className="sticky bottom-0 z-40 mt-3 flex flex-wrap items-end gap-2">
+            <div className="sticky bottom-0 z-40 mt-3 flex flex-wrap items-stretch gap-2">
               <TotalRow holdings={visible} prices={priceMap} />
               <TodayPnLTable holdings={visible} prices={priceMap} />
             </div>

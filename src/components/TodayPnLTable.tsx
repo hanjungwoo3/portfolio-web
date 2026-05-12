@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import type { Stock, Price } from "../types";
 import { formatSigned } from "../lib/format";
 
@@ -7,22 +7,11 @@ interface Props {
   prices: Map<string, Price>;
 }
 
-// 오늘 손익(보유 수량 가중) 종목 리스트 — 수익팀/손해팀 2테이블.
-// 기본은 닫혀 있고, 토글 버튼 클릭 시 위로 펼쳐짐. holdings 없거나 모두 0 이면 null.
+// 오늘 손익(보유 수량 가중) 수익팀/손해팀 테이블.
+// 기본 닫힘 (컴팩트 토글만), 클릭 시 토글 왼쪽으로 두 테이블 인라인 펼침.
+// 같은 행에 TotalRow 와 들어가서 높이/탑 정렬이 자연스럽게 일치 (items-stretch).
 export function TodayPnLTable({ holdings, prices }: Props) {
   const [open, setOpen] = useState(false);
-  const rootRef = useRef<HTMLDivElement>(null);
-
-  // 바깥 클릭으로 닫기
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (!rootRef.current) return;
-      if (!rootRef.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", handler);
-    return () => document.removeEventListener("mousedown", handler);
-  }, [open]);
 
   type Row = { ticker: string; name: string; amount: number };
   const winners: Row[] = [];
@@ -48,25 +37,9 @@ export function TodayPnLTable({ holdings, prices }: Props) {
   const loseSum = losers.reduce((acc, r) => acc + r.amount, 0);
 
   return (
-    <div ref={rootRef} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(o => !o)}
-        title="오늘 수익/손해 종목 보기"
-        className="bg-white border border-gray-300 rounded-lg shadow-md
-                   px-3 py-2 text-xs flex items-center gap-2
-                   hover:bg-gray-50 cursor-pointer tabular-nums">
-        <span className="text-gray-500">오늘</span>
-        <span className="font-bold text-rose-600">{formatSigned(winSum)}</span>
-        <span className="text-gray-300">/</span>
-        <span className="font-bold text-blue-600">{formatSigned(loseSum)}</span>
-        <span className="text-gray-400 text-[10px] leading-none">
-          {open ? "▼" : "▲"}
-        </span>
-      </button>
-
+    <div className="flex items-stretch gap-2 text-xs">
       {open && (
-        <div className="absolute bottom-full mb-1 right-0 flex gap-2 text-xs">
+        <>
           <MiniTable
             title="오늘 수익"
             rows={winners}
@@ -81,8 +54,25 @@ export function TodayPnLTable({ holdings, prices }: Props) {
             colorClass="text-blue-600"
             headerBg="bg-blue-50"
           />
-        </div>
+        </>
       )}
+      <button
+        type="button"
+        onClick={() => setOpen(o => !o)}
+        title={open ? "닫기" : "오늘 수익/손해 종목 보기"}
+        className="bg-white border border-gray-300 rounded-lg shadow-md
+                   px-3 py-2 flex flex-col items-center justify-center gap-0.5
+                   hover:bg-gray-50 cursor-pointer tabular-nums whitespace-nowrap">
+        <span className="text-gray-500 text-[11px] leading-tight">오늘</span>
+        <div className="flex items-center gap-1 leading-tight">
+          <span className="font-bold text-rose-600">{formatSigned(winSum)}</span>
+          <span className="text-gray-300">/</span>
+          <span className="font-bold text-blue-600">{formatSigned(loseSum)}</span>
+        </div>
+        <span className="text-gray-400 text-[10px] leading-none">
+          {open ? "▶ 닫기" : "◀ 펼치기"}
+        </span>
+      </button>
     </div>
   );
 }
@@ -98,15 +88,16 @@ interface MiniProps {
 function MiniTable({ title, rows, total, colorClass, headerBg }: MiniProps) {
   return (
     <div className="bg-white border border-gray-300 rounded-lg shadow-md
-                    overflow-hidden min-w-[160px] max-w-[220px]">
+                    overflow-hidden min-w-[170px] max-w-[220px]
+                    flex flex-col">
       <div className={`px-2 py-1 ${headerBg} ${colorClass} font-semibold
-                        text-[11px] border-b border-gray-200`}>
+                        text-[11px] border-b border-gray-200 shrink-0`}>
         {title}
       </div>
       {rows.length === 0 ? (
-        <div className="px-2 py-2 text-gray-400 text-[11px]">없음</div>
+        <div className="px-2 py-2 text-gray-400 text-[11px] flex-1">없음</div>
       ) : (
-        <div className="max-h-[200px] overflow-y-auto">
+        <div className="flex-1 overflow-y-auto min-h-0">
           <table className="w-full tabular-nums">
             <tbody>
               {rows.map(r => (
@@ -124,7 +115,7 @@ function MiniTable({ title, rows, total, colorClass, headerBg }: MiniProps) {
         </div>
       )}
       <div className="px-2 py-1 border-t border-gray-300 bg-gray-50
-                      flex justify-between items-baseline">
+                      flex justify-between items-baseline shrink-0">
         <span className="text-gray-500 text-[11px]">총액</span>
         <span className={`font-bold ${colorClass} tabular-nums`}>
           {formatSigned(total)}원
