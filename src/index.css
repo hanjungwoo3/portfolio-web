@@ -15,4 +15,5 @@ html, body, #root {
 
 body {
   color: #1f2937;
+  overflow-x: clip;
 }
