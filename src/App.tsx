@@ -292,6 +292,20 @@ function Dashboard() {
     [chartQs, krxTickers]
   );
 
+  // 같은 ticker 가 속한 그룹들 — 카드 상단 알약 표시용
+  // Map<ticker, account[]>  ("" 빈 그룹은 "기본" 으로 표시되고 다중그룹 표시 제외 — 메인 카운트 안 됨)
+  const tickerGroupsMap = useMemo(() => {
+    const m = new Map<string, string[]>();
+    for (const h of holdings) {
+      const acc = h.account || "";
+      if (!acc) continue;            // 그룹 없는(빈) 항목은 다중그룹 표시에서 제외
+      const arr = m.get(h.ticker) ?? [];
+      if (!arr.includes(acc)) arr.push(acc);
+      m.set(h.ticker, arr);
+    }
+    return m;
+  }, [holdings]);
+
   return (
     <div className="min-h-screen bg-gray-50">
       <NewVersionToast />
@@ -413,6 +427,8 @@ function Dashboard() {
                   priceHistory={priceHistoryMap.get(stock.ticker)}
                   longHistory={longHistoryMap.get(stock.ticker)}
                   memo={memos.get(stock.ticker)}
+                  otherGroups={(tickerGroupsMap.get(stock.ticker) ?? [])
+                    .filter(g => g !== (stock.account || ""))}
                   onOpenValuation={setValuationTicker}
                   onEdit={s => guardedAction(() => setEditing(s))}
                   onDelete={async s => {

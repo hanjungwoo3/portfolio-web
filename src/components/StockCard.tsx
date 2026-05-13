@@ -21,6 +21,7 @@ interface Props {
   loading?: boolean;
   chart?: number[];   // 비거래일 sparkline 용 일봉 종가 시계열 (3개월)
   priceHistory?: PricePoint[];  // OHLC 포함 — 가격 박스 hover tooltip 의 1개월 캔들차트용
+  otherGroups?: string[];  // 같은 ticker 가 속한 다른 그룹 이름들 (현재 그룹 제외)
   longHistory?: Investor[] | null;  // 200일 long history — 그리드 행 tooltip 의 5/20/60/120/200일 누적용
   memo?: Memo;                                       // 종목별 메모 (있으면)
   onOpenValuation?: (ticker: string) => void;
@@ -490,7 +491,7 @@ const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
   stock, price, investor, investorHistory, consensus, sector, peak, warning, loading, chart, priceHistory, longHistory,
-  memo, onOpenValuation, onEdit, onDelete, onOpenMemo,
+  memo, otherGroups, onOpenValuation, onEdit, onDelete, onOpenMemo,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
 
@@ -1236,6 +1237,21 @@ export function StockCard({
         <div className="relative border border-gray-200 rounded-md bg-gray-50/60
                         px-2 py-1 basis-[40%] min-w-0 space-y-0.5
                         flex flex-col justify-start">
+        {/* 다른 그룹 표시 — 같은 ticker 가 다른 account 에 속해 있는 경우, 현재 그룹 제외.
+            회색 배경 알약으로 통계 박스 좌측 상단에 부착. */}
+        {otherGroups && otherGroups.length > 0 && (
+          <div className="absolute -top-2 left-1 z-30 flex items-baseline gap-1
+                          text-[10px] leading-tight">
+            {otherGroups.map(g => (
+              <span key={g}
+                    className="bg-gray-100 border border-gray-300 rounded
+                               px-1.5 py-0.5 text-gray-700
+                               whitespace-nowrap">
+                {g}
+              </span>
+            ))}
+          </div>
+        )}
 
         {/* 피크 (보유만, 피크가 현재가보다 위) — 보유 기준 총액 */}
         {hasPosition && peak && peak > price.price && (
