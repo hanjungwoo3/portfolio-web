@@ -900,18 +900,19 @@ export function StockCard({
           )}
         </div>
         <div className="flex items-end gap-0.5 shrink-0">
-          {/* hover 버튼 — 카드 hover 시 빈 회색 전구, 아이콘 hover 시 노란 백열등 점등 */}
+          {/* 액션 버튼 — 항상 노출 (메모 있으면 전구 노랑/켜짐, 없으면 회색/꺼짐) */}
           {onOpenMemo && (
             <button
               type="button"
               onClick={() => onOpenMemo(stock.ticker)}
               title={memo ? "메모 보기/수정" : "메모 추가"}
-              className="group/lb opacity-0 group-hover:opacity-100
-                         px-0.5 transition inline-flex items-center
-                         text-slate-400 hover:text-amber-400
-                         hover:drop-shadow-[0_0_5px_rgba(251,191,36,0.95)]">
+              className={`group/lb px-0.5 transition inline-flex items-center
+                          ${memo
+                            ? "text-amber-400 drop-shadow-[0_0_4px_rgba(251,191,36,0.85)]"
+                            : "text-slate-400 opacity-60 hover:opacity-100 hover:text-amber-400 hover:drop-shadow-[0_0_5px_rgba(251,191,36,0.95)]"}`}>
               <Lightbulb size={16} strokeWidth={2.2}
-                         className="fill-none group-hover/lb:fill-current transition-colors" />
+                         fill={memo ? "currentColor" : "none"}
+                         className={memo ? "" : "group-hover/lb:fill-current transition-colors"} />
             </button>
           )}
           {onOpenValuation && /^[\dA-Za-z]{6}$/.test(stock.ticker) && (
@@ -919,7 +920,7 @@ export function StockCard({
               type="button"
               onClick={() => onOpenValuation(stock.ticker)}
               title="기업가치 보기"
-              className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+              className="opacity-60 hover:opacity-100
                          text-xs leading-none px-0.5 transition-opacity">
               📊
             </button>
@@ -929,7 +930,7 @@ export function StockCard({
               type="button"
               onClick={() => onEdit(stock)}
               title="수정"
-              className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+              className="opacity-60 hover:opacity-100
                          text-xs leading-none px-0.5 transition-opacity">
               ✏️
             </button>
@@ -943,7 +944,7 @@ export function StockCard({
                 }
               }}
               title="삭제"
-              className="opacity-0 group-hover:opacity-60 hover:!opacity-100
+              className="opacity-60 hover:opacity-100
                          text-xs leading-none px-0.5 transition-opacity">
               🗑
             </button>
