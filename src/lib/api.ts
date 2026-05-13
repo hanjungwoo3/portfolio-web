@@ -887,11 +887,12 @@ export async function fetchUsIndices(): Promise<UsIndex[]> {
   return Array.from(map.values());
 }
 
-// 네이버 금융 HTML 파싱 — 섹터 + 컨센서스 (목표주가 + 투자의견)
-// 단일 페이지 fetch 후 둘 다 추출 (네트워크 1회)
+// 네이버 금융 HTML 파싱 — 섹터 + 컨센서스 + 기업개요
+// 단일 페이지 fetch 후 모두 추출 (네트워크 1회)
 export interface NaverInfo {
   sector: string;
   consensus: Consensus | null;
+  description?: string[];   // #summary_info p 들 — 사업·제품·전략 짧은 문장 (출처: 에프앤가이드)
 }
 
 export async function fetchNaverInfo(ticker: string): Promise<NaverInfo> {
@@ -955,7 +956,18 @@ export async function fetchNaverInfo(ticker: string): Promise<NaverInfo> {
         consensus = { target: targetPrice, score, opinion };
       }
     }
-    return { sector, consensus };
+
+    // 기업개요 — #summary_info 안의 <p> 들 (출처: 에프앤가이드)
+    let description: string[] | undefined;
+    const summaryEl = doc.querySelector("#summary_info");
+    if (summaryEl) {
+      const ps = Array.from(summaryEl.querySelectorAll("p"))
+        .map(p => (p.textContent ?? "").trim())
+        .filter(t => t.length > 0);
+      if (ps.length > 0) description = ps;
+    }
+
+    return { sector, consensus, description };
   } catch {
     return empty;
   }

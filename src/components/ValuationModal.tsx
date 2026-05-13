@@ -14,7 +14,7 @@ import {
 } from "../lib/fundamentals";
 import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/fundamentals";
 import { signColor } from "../lib/format";
-import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchNaverInfo } from "../lib/api";
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
 import type { PricePoint } from "../lib/api";
 import type { Investor } from "../types";
@@ -227,6 +227,13 @@ export function ValuationModal({
     enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 24 * 3600_000,  // 24시간 캐시
   });
+  // 네이버 기업개요 — App.tsx 와 동일 queryKey 라 캐시 공유
+  const { data: naverInfo } = useQuery({
+    queryKey: ["naver", ticker],
+    queryFn: () => fetchNaverInfo(ticker),
+    enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
+    staleTime: 24 * 3600_000,
+  });
   const downOnBackdropRef = useRef(false);
 
   if (!isOpen) return null;
@@ -293,6 +300,23 @@ export function ValuationModal({
             <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
               fetch 실패: {error.message}
             </div>
+          )}
+          {/* 기업개요 — 네이버 main.naver 의 #summary_info 파싱 (출처: 에프앤가이드) */}
+          {naverInfo?.description && naverInfo.description.length > 0 && (
+            <section className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded">
+              <header className="flex items-baseline gap-2 mb-1.5">
+                <h3 className="text-sm font-bold text-gray-700">🏢 기업개요</h3>
+                <span className="text-[10px] text-gray-400">출처: 네이버 금융 / 에프앤가이드</span>
+              </header>
+              <ul className="space-y-1 text-[13px] text-gray-700 leading-relaxed">
+                {naverInfo.description.map((line, i) => (
+                  <li key={i} className="flex gap-1.5">
+                    <span className="text-slate-400 shrink-0">·</span>
+                    <span>{line}</span>
+                  </li>
+                ))}
+              </ul>
+            </section>
           )}
           {/* 3 컬럼 레이아웃 */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
