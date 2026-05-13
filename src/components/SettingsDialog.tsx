@@ -17,7 +17,7 @@ import {
   getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync,
   uploadToDrive, downloadFromDrive, tryRestoreSession,
 } from "../lib/syncManager";
-import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
+import { isSignedIn, getAccessToken, wasSignedIn, signIn } from "../lib/googleAuth";
 
 interface Props {
   isOpen: boolean;
@@ -68,18 +68,15 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
     setSyncState(getSyncState());
     setLastSyncedAt(getLastSyncedAt());
     setIndependent(getIndependentGroupsMode());
-    // 다이얼로그 열 때 — 토큰 silent refresh 시도
-    // 진짜 만료된 경우만 자동 logout (이전 로그인 흔적 있는데 토큰 갱신 실패)
+    // 다이얼로그 열 때 — 토큰 silent refresh 시도, 실패하면 자동 logout (설정 안에서만 표시)
+    // 평소 다른 곳에선 로그인 UI 가 안 보임 (업로드/다운로드 시점에만 필요)
     void (async () => {
       const initial = getSyncState();
       if (initial === "unconfigured") return;
-      // 이미 토큰 활성이면 그대로
       if (isSignedIn()) {
-        // sync mode "on" 이면 추가로 silent refresh 호출 (백그라운드)
-        void tryRestoreSession();
+        void tryRestoreSession();   // 백그라운드 silent refresh
         return;
       }
-      // 토큰 만료 — silent refresh 직접 시도 (syncState 무관)
       if (!wasSignedIn()) return;
       const token = await getAccessToken();
       if (!token) {
@@ -336,7 +333,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                         setStatusMsg("✅ Drive 에 업로드");
                       } catch (e) {
                         const msg = (e as Error).message;
-                        alert(`❌ Drive 업로드 실패\n\n${msg}\n\n로그인 만료 또는 네트워크 문제일 수 있습니다.`);
+                        // 토큰 만료 / 미로그인 — 알림 없이 자동 로그인 redirect
+                        if (/Not signed in|401|invalid.?token|로그인/i.test(msg)) {
+                          signIn();
+                          return;
+                        }
+                        alert(`❌ Drive 업로드 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
                         setStatusMsg(`⚠️ ${msg}`);
                       } finally { setSyncBusy(false); setSyncBusyMsg(""); }
                     }}
@@ -360,7 +362,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                         }
                       } catch (e) {
                         const msg = (e as Error).message;
-                        alert(`❌ Drive 다운로드 실패\n\n${msg}\n\n로그인 만료된 경우, 로그아웃 후 다시 로그인하세요.`);
+                        // 토큰 만료 / 미로그인 — 알림 없이 자동 로그인 redirect
+                        if (/Not signed in|401|invalid.?token|로그인/i.test(msg)) {
+                          signIn();
+                          return;
+                        }
+                        alert(`❌ Drive 다운로드 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
                         setStatusMsg(`⚠️ ${msg}`);
                       } finally { setSyncBusy(false); setSyncBusyMsg(""); }
                     }}

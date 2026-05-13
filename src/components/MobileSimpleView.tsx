@@ -57,7 +57,7 @@ import {
   uploadToDrive, downloadFromDrive, scheduleAutoSync, checkConflict,
   tryRestoreSession,
 } from "../lib/syncManager";
-import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
+import { isSignedIn, getAccessToken, wasSignedIn, signIn } from "../lib/googleAuth";
 import type { ConflictResult } from "../lib/syncManager";
 import { ConflictDialog } from "./ConflictDialog";
 import type { Stock } from "../types";
@@ -845,7 +845,7 @@ function SettingsModal({
       setRaw(JSON.stringify(data, null, 2));
       setDataMsg(`현재: 종목 ${data.holdings.length}건 / 피크 ${Object.keys(data.peaks).length}건`);
 
-      // 로그인 상태 검증 → 진짜 만료 시 자동 logout
+      // 로그인 상태 검증 → 진짜 만료 시 자동 logout (설정 안에서만 표시)
       const initial = getSyncState();
       if (initial === "unconfigured") return;
       if (isSignedIn()) {
@@ -1018,7 +1018,15 @@ function SettingsModal({
                       setSyncBusyLocal(true);
                       setSyncBusyMsgLocal("Drive 에 업로드 중...");
                       try { await uploadToDrive(); setLastSyncedAtLocal(getLastSyncedAt()); setDataMsg("✅ 업로드"); }
-                      catch (e) { setDataMsg(`⚠️ ${(e as Error).message}`); }
+                      catch (e) {
+                        const msg = (e as Error).message;
+                        // 토큰 만료 / 미로그인 — 자동 로그인 redirect
+                        if (/Not signed in|401|invalid.?token|로그인/i.test(msg)) {
+                          signIn();
+                          return;
+                        }
+                        setDataMsg(`⚠️ ${msg}`);
+                      }
                       finally { setSyncBusyLocal(false); setSyncBusyMsgLocal(""); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
@@ -1037,7 +1045,14 @@ function SettingsModal({
                           setLastSyncedAtLocal(getLastSyncedAt());
                           setDataMsg("✅ 다운로드");
                         } else { setDataMsg("⚠️ Drive 데이터 없음"); }
-                      } catch (e) { setDataMsg(`⚠️ ${(e as Error).message}`); }
+                      } catch (e) {
+                        const msg = (e as Error).message;
+                        if (/Not signed in|401|invalid.?token|로그인/i.test(msg)) {
+                          signIn();
+                          return;
+                        }
+                        setDataMsg(`⚠️ ${msg}`);
+                      }
                       finally { setSyncBusyLocal(false); setSyncBusyMsgLocal(""); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
