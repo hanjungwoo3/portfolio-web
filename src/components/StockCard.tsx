@@ -725,6 +725,20 @@ export function StockCard({
     );
   };
 
+  // 시그널 톤 → 강조할 투자자 컬럼 매핑 (뱃지 호버 시 해당 컬럼 노랑 강조)
+  const highlightForTone = (tone: string | undefined): keyof Investor | undefined => {
+    switch (tone) {
+      case "bull":         return "외국인";       // 외인+기관 동반매수 → 외국인 강조
+      case "warn":         return "외국인";       // 외인+기관 동반매도 → 외국인 강조
+      case "bear":         return "개인";         // 개인 떠받치기 → 개인 강조
+      case "pension_buy":
+      case "pension_sell": return "연기금";       // 연기금 강조
+      case "up":
+      case "down":         return "외국인비율";   // 외인비율 컬럼 강조
+      default:             return undefined;
+    }
+  };
+
   // 전체 투자자 매트릭스 (그리드 행 tooltip) — 누적(기간) + 일별(최근 1주일)을 한 표로.
   // 컬럼: 일자/기간 | 개인 외국인 기관 금융투자 연기금 투신 사모 보험 은행 기타금융 기타법인 | 외인비율(%)
   // 누적 행: 외인비율 = today 와 N일 전의 차이 (%p). 일별 행: 그 날의 실제 외국인비율 (%).
@@ -978,7 +992,8 @@ export function StockCard({
               </button>
             </Tooltip>
           )}
-          {/* 수급 신호 — 외인+기관 동반매수 / 개인 떠받치기 / 외인비율 추세 */}
+          {/* 수급 신호 — 외인+기관 동반매수 / 개인 떠받치기 / 외인비율 추세
+              호버 시 투자자 그리드 행과 동일한 통합 표 + 미니차트 표시 (시그널 톤별 컬럼 강조) */}
           {sig?.primary && (
             <Tooltip content={
               <>
@@ -988,27 +1003,7 @@ export function StockCard({
                   {SIGNAL_ICON[sig.primary.tone]} {sig.primary.label}
                 </div>
                 <div className="text-gray-700">{SIGNAL_TIPS[sig.primary.tone]}</div>
-                {/* tone 별 통합 표 — 그룹 헤더 (개인/외인/기관) */}
-                {sig.primary.tone === "bear" && unifiedTable([
-                  { group: "개인", cols: [
-                    { type: "days", key: "개인", header: "매수/매도" },
-                    { type: "sum",  key: "개인", header: "누적" },
-                  ]},
-                  { group: "외인", cols: [
-                    { type: "days", key: "외국인", header: "매수/매도" },
-                    { type: "sum",  key: "외국인", header: "누적" },
-                  ]},
-                ], "개인 떠받치기 — 개인 + 외국인")}
-                {(sig.primary.tone === "bull" || sig.primary.tone === "warn") && unifiedTable([
-                  { group: "외인", cols: [
-                    { type: "days", key: "외국인", header: "매수/매도" },
-                    { type: "sum",  key: "외국인", header: "누적" },
-                  ]},
-                  { group: "기관", cols: [
-                    { type: "days", key: "기관", header: "매수/매도" },
-                    { type: "sum",  key: "기관", header: "누적" },
-                  ]},
-                ], "외국인 + 기관")}
+                {allInvestorsTable(highlightForTone(sig.primary.tone))}
               </>
             }>
               <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
@@ -1029,21 +1024,7 @@ export function StockCard({
                   {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
                 </div>
                 <div className="text-gray-700">{SIGNAL_TIPS[sig.secondary.tone]}</div>
-                {/* 연기금 톤 → 연기금 그룹 */}
-                {(sig.secondary.tone === "pension_buy" || sig.secondary.tone === "pension_sell") && unifiedTable([
-                  { group: "연기금", cols: [
-                    { type: "days", key: "연기금", header: "매수/매도" },
-                    { type: "sum",  key: "연기금", header: "누적" },
-                  ]},
-                ], "연기금")}
-                {/* 외인비율 톤 → 외인비율 변화 (단독) + 외인 그룹 */}
-                {(sig.secondary.tone === "up" || sig.secondary.tone === "down") && unifiedTable([
-                  { cols: [{ type: "ratio", header: "외인비율 변화" }] },
-                  { group: "외인", cols: [
-                    { type: "days", key: "외국인", header: "매수/매도" },
-                    { type: "sum",  key: "외국인", header: "누적" },
-                  ]},
-                ], "외인비율 + 외국인")}
+                {allInvestorsTable(highlightForTone(sig.secondary.tone))}
               </>
             }>
               <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
