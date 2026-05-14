@@ -1059,7 +1059,7 @@ export function StockCard({
         <div className="relative w-full h-full">
         {/* 보유주수 + 거래량 — 한 줄, 가격 블록 위로 빠져나오는 박스 */}
         {(stock.shares > 0 || price.volume > 0) && (
-          <div className="absolute -top-2 right-1 z-30 bg-white/70 border border-gray-200
+          <div className="absolute -top-2 right-1 z-10 bg-white/70 border border-gray-200
                           rounded px-1.5 py-0.5 text-[10px] leading-tight
                           flex items-baseline gap-1">
             {stock.shares > 0 && (
@@ -1240,12 +1240,13 @@ export function StockCard({
         {/* 다른 그룹 표시 — 같은 ticker 가 다른 account 에 속해 있는 경우, 현재 그룹 제외.
             회색 배경 알약으로 통계 박스 우측 상단에 부착 (좌측엔 보유종목 정보가 있음). */}
         {otherGroups && otherGroups.length > 0 && (
-          <div className="absolute -top-2 right-1 z-30 flex items-baseline gap-1
+          <div className="absolute -top-2 right-1 z-10 flex items-baseline gap-1
                           text-[10px] leading-tight">
             {otherGroups.map(g => (
               <span key={g}
-                    className="bg-gray-100 border border-gray-300 rounded
-                               px-1.5 py-0.5 text-gray-700
+                    className="bg-gradient-to-r from-emerald-100/20 to-green-200/20
+                               border border-emerald-300/20 rounded
+                               px-1.5 py-0.5 text-emerald-800
                                whitespace-nowrap">
                 {g}
               </span>

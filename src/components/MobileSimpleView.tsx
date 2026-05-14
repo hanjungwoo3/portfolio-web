@@ -382,7 +382,7 @@ export function MobileSimpleView() {
          onTouchStart={handleTouchStart}
          onTouchEnd={handleTouchEnd}>
       <NewVersionToast />
-      <header className="sticky top-0 z-30 bg-white border-b border-gray-200
+      <header className="sticky top-0 z-40 bg-white border-b border-gray-200
                           px-3 py-2 flex items-center gap-1">
         <h1 className="text-sm font-bold text-gray-800 shrink-0">📈</h1>
         <RefreshIndicator dataUpdatedAt={lastAt}
@@ -423,7 +423,7 @@ export function MobileSimpleView() {
       </header>
 
       {/* ─── 그룹 탭 (가로 스크롤, 작은 폰트) — 길게 누르기 = 액션 시트 ─── */}
-      <nav className="sticky top-[44px] z-30 bg-white border-b border-gray-200
+      <nav className="sticky top-[44px] z-40 bg-white border-b border-gray-200
                        px-2 py-1 flex gap-1 overflow-x-auto whitespace-nowrap">
         {groupTabs.map(t => {
           const active = t.key === activeTab;
