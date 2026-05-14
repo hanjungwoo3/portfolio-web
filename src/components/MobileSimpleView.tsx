@@ -521,32 +521,48 @@ export function MobileSimpleView() {
             ))}
           </div>
           {/* 합계 — 화면 하단 fixed.
-              합계 클릭 시 위로 오늘 수익/손해 레이어가 펼쳐짐, 다시 클릭 또는 바깥 탭 시 닫힘. */}
-          {groupHoldings.length > 0 && (
-            <>
-              {/* 바깥 클릭 닫힘용 backdrop (열렸을 때만) */}
-              {todayPnLOpen && (
-                <div className="fixed inset-0 z-30"
-                     onClick={() => setTodayPnLOpen(false)} />
-              )}
-              <div className="fixed bottom-0 left-0 right-0 z-40
-                               pb-2 px-3 flex flex-col items-center gap-2
-                               pointer-events-none">
-                {todayPnLOpen && (
-                  <div className="pointer-events-auto cursor-pointer flex flex-col items-center gap-2"
-                       onClick={() => setTodayPnLOpen(false)}>
-                    <MobileTodayPnLLayer holdings={groupHoldings} prices={groupPriceMap} />
+              합계 클릭 시 위로 오늘 수익/손해 레이어가 펼쳐짐, 다시 클릭 또는 바깥 탭 시 닫힘.
+              관심종목만 있어 보유 0개면 TotalRow 가 null → 토글 불가하므로 WhatIfRow 단독 노출. */}
+          {groupHoldings.length > 0 && (() => {
+            const hasHoldings = groupHoldings.some(s => s.shares > 0);
+            if (!hasHoldings) {
+              // 관심종목만 — WhatIfRow 만 단독 노출
+              return (
+                <div className="fixed bottom-0 left-0 right-0 z-40
+                                 pb-2 px-3 flex flex-col items-center gap-2
+                                 pointer-events-none">
+                  <div className="pointer-events-auto">
                     <WhatIfRow holdings={groupHoldings} prices={groupPriceMap} />
                   </div>
-                )}
-                <div className="pointer-events-auto cursor-pointer"
-                     onClick={() => setTodayPnLOpen(o => !o)}
-                     title={todayPnLOpen ? "닫기" : "오늘 수익/손해 보기"}>
-                  <TotalRow holdings={groupHoldings} prices={groupPriceMap} />
                 </div>
-              </div>
-            </>
-          )}
+              );
+            }
+            return (
+              <>
+                {/* 바깥 클릭 닫힘용 backdrop (열렸을 때만) */}
+                {todayPnLOpen && (
+                  <div className="fixed inset-0 z-30"
+                       onClick={() => setTodayPnLOpen(false)} />
+                )}
+                <div className="fixed bottom-0 left-0 right-0 z-40
+                                 pb-2 px-3 flex flex-col items-center gap-2
+                                 pointer-events-none">
+                  {todayPnLOpen && (
+                    <div className="pointer-events-auto cursor-pointer flex flex-col items-center gap-2"
+                         onClick={() => setTodayPnLOpen(false)}>
+                      <WhatIfRow holdings={groupHoldings} prices={groupPriceMap} />
+                      <MobileTodayPnLLayer holdings={groupHoldings} prices={groupPriceMap} />
+                    </div>
+                  )}
+                  <div className="pointer-events-auto cursor-pointer"
+                       onClick={() => setTodayPnLOpen(o => !o)}
+                       title={todayPnLOpen ? "닫기" : "오늘 수익/손해 보기"}>
+                    <TotalRow holdings={groupHoldings} prices={groupPriceMap} />
+                  </div>
+                </div>
+              </>
+            );
+          })()}
         </>
       )}
 
