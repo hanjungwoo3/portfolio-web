@@ -20,7 +20,7 @@ const UA =
 
 const CORS_HEADERS: Record<string, string> = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Max-Age": "86400",
 };
@@ -80,8 +80,8 @@ async function handler(request: Request): Promise<Response> {
   if (request.method === "OPTIONS") {
     return new Response(null, { status: 204, headers: CORS_HEADERS });
   }
-  if (request.method !== "GET") {
-    return jsonError(405, "Method not allowed (GET only)");
+  if (request.method !== "GET" && request.method !== "POST") {
+    return jsonError(405, "Method not allowed (GET/POST only)");
   }
 
   const url = new URL(request.url);
@@ -125,10 +125,19 @@ async function handler(request: Request): Promise<Response> {
     }
   }
 
+  const isPost = request.method === "POST";
+  let postBody: ArrayBuffer | undefined;
+  if (isPost) {
+    postBody = await request.arrayBuffer();
+    const reqCt = request.headers.get("Content-Type");
+    if (reqCt) headers["Content-Type"] = reqCt;
+  }
+
   try {
     const upstream = await fetch(targetUrl.toString(), {
-      method: "GET",
+      method: isPost ? "POST" : "GET",
       headers,
+      body: isPost ? postBody : undefined,
     });
 
     const body = await upstream.arrayBuffer();
@@ -139,7 +148,7 @@ async function handler(request: Request): Promise<Response> {
       status: upstream.status,
       headers: {
         "Content-Type": contentType,
-        "Cache-Control": `public, max-age=${DEFAULT_CACHE_TTL}`,
+        "Cache-Control": isPost ? "no-store" : `public, max-age=${DEFAULT_CACHE_TTL}`,
         ...CORS_HEADERS,
       },
     });

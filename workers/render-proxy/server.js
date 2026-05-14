@@ -24,7 +24,7 @@ const UA =
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Max-Age": "86400",
 };
@@ -83,8 +83,8 @@ const server = http.createServer(async (req, res) => {
     res.writeHead(204, CORS_HEADERS);
     return res.end();
   }
-  if (req.method !== "GET") {
-    return jsonError(res, 405, "Method not allowed (GET only)");
+  if (req.method !== "GET" && req.method !== "POST") {
+    return jsonError(res, 405, "Method not allowed (GET/POST only)");
   }
 
   // /health endpoint — Render keep-alive
@@ -134,16 +134,30 @@ const server = http.createServer(async (req, res) => {
     }
   }
 
+  const isPost = req.method === "POST";
+  let postBody;
+  if (isPost) {
+    postBody = await new Promise((resolve, reject) => {
+      const chunks = [];
+      req.on("data", c => chunks.push(c));
+      req.on("end", () => resolve(Buffer.concat(chunks)));
+      req.on("error", reject);
+    });
+    const reqCt = req.headers["content-type"];
+    if (reqCt) headers["Content-Type"] = reqCt;
+  }
+
   try {
     const upstream = await fetch(targetUrl.toString(), {
-      method: "GET",
+      method: isPost ? "POST" : "GET",
       headers,
+      body: isPost ? postBody : undefined,
     });
     const buf = Buffer.from(await upstream.arrayBuffer());
     const contentType = upstream.headers.get("Content-Type") ?? "application/octet-stream";
     res.writeHead(upstream.status, {
       "Content-Type": contentType,
-      "Cache-Control": `public, max-age=${DEFAULT_CACHE_TTL}`,
+      "Cache-Control": isPost ? "no-store" : `public, max-age=${DEFAULT_CACHE_TTL}`,
       ...CORS_HEADERS,
     });
     res.end(buf);

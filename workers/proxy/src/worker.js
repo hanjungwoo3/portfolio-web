@@ -26,7 +26,7 @@ const UA =
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
   "Access-Control-Max-Age": "86400",
 };
@@ -92,8 +92,8 @@ export default {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
-    if (request.method !== "GET") {
-      return jsonError(405, "Method not allowed (GET only)");
+    if (request.method !== "GET" && request.method !== "POST") {
+      return jsonError(405, "Method not allowed (GET/POST only)");
     }
 
     const url = new URL(request.url);
@@ -137,8 +137,21 @@ export default {
       }
     }
 
+    // POST: body forward + Content-Type 헤더 전달. 캐시는 GET 만.
+    const isPost = request.method === "POST";
+    let postBody;
+    if (isPost) {
+      postBody = await request.arrayBuffer();
+      const reqCt = request.headers.get("Content-Type");
+      if (reqCt) headers["Content-Type"] = reqCt;
+    }
+
     try {
-      const upstream = await fetch(targetUrl.toString(), {
+      const upstream = await fetch(targetUrl.toString(), isPost ? {
+        method: "POST",
+        headers,
+        body: postBody,
+      } : {
         method: "GET",
         headers,
         cf: {
@@ -155,7 +168,7 @@ export default {
         status: upstream.status,
         headers: {
           "Content-Type": contentType,
-          "Cache-Control": `public, max-age=${DEFAULT_CACHE_TTL}`,
+          "Cache-Control": isPost ? "no-store" : `public, max-age=${DEFAULT_CACHE_TTL}`,
           ...CORS_HEADERS,
         },
       });
