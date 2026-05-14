@@ -16,16 +16,8 @@ const MOOD_TEXT: Record<Mood, string> = {
   bad:     "text-blue-600",
   neutral: "text-gray-600",
 };
-const MOOD_LABEL: Record<Mood, string> = {
-  good: "강세", warn: "주의", bad: "약세", neutral: "보통",
-};
-
 function pctOf(q?: UsIndex): number | null {
   return q && Number.isFinite(q.pct) ? q.pct : null;
-}
-function signClass(pct: number | null): string {
-  if (pct == null) return "text-gray-500";
-  return pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-700";
 }
 function fmtPct(pct: number | null): string {
   if (pct == null) return "—";
@@ -142,7 +134,7 @@ export function SemiCheckTab() {
     .filter((v): v is number => v != null);
   const equipAvg = equipPcts.length ? equipPcts.reduce((a, b) => a + b, 0) / equipPcts.length : null;
   const equipMood: Mood = equipAvg == null ? "neutral"
-    : equipAvg > 0.5 ? "good" : equipAvg < -0.5 ? "warn" : "neutral";
+    : equipAvg > 0.5 ? "good" : equipAvg < -0.5 ? "bad" : "neutral";
   const equipDesc =
     equipMood === "good" ? "반도체 공장 설비를 만드는 3대 회사(어플라이드머티리얼즈·램리서치·ASML)가 강세. 반도체 회사들이 새 공장과 장비에 투자를 늘리고 있다는 신호 — 6~12개월 후 삼성전자·SK하이닉스 메모리 매출 증가 가능성"
     : equipMood === "bad" ? "장비 3사가 약세. 반도체 회사들이 설비 투자를 줄이고 있다는 신호 — 6~12개월 시차로 삼성전자·SK하이닉스 메모리 매출에도 부담 가능"

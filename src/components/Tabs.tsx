@@ -103,7 +103,7 @@ export function buildTabs(holdings: Stock[]): TabSpec[] {
   }
   const tabs: TabSpec[] = [
     { key: US_MARKET_TAB_KEY, label: "주요 지수", emoji: "📈", count: 0 },
-    { key: SEMI_CHECK_TAB_KEY, label: "반도체 점검", emoji: "🔧", count: 0 },
+    { key: SEMI_CHECK_TAB_KEY, label: "반도체", emoji: "🔧", count: 0 },
   ];
   // 1) 보유 (account="") — 일반 그룹과 동일 아이콘
   if (counts.has("")) {
