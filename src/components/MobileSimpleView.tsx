@@ -47,6 +47,7 @@ import { MobileStockCard } from "./MobileStockCard";
 import { MemoDialog } from "./MemoDialog";
 import { TotalRow } from "./TotalRow";
 import { WhatIfRow } from "./WhatIfRow";
+import { SemiCheckTab } from "./SemiCheckTab";
 import { MobileTodayPnLLayer } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
 import { EditHoldingDialog } from "./EditHoldingDialog";
@@ -63,6 +64,7 @@ import type { Stock } from "../types";
 
 const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 ETF + 짝 미국 섹터 ETF)
 const US_KEY = "__us__";  // 미국 (환율·매크로·원자재·미국지수·미국 대표 ETF)
+const SEMI_KEY = "__semi__";  // 반도체 점검 — MU·NVDA·장비주·환율
 const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 const KAKAOPAY_URL = "https://qr.kakaopay.com/FCscirjeF";
 
@@ -134,7 +136,7 @@ export function MobileSimpleView() {
     if (typeof localStorage === "undefined") return KR_KEY;
     return localStorage.getItem(TAB_KEY) ?? KR_KEY;
   });
-  const isSystemTab = activeTab === KR_KEY || activeTab === US_KEY;
+  const isSystemTab = activeTab === KR_KEY || activeTab === US_KEY || activeTab === SEMI_KEY;
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -177,6 +179,7 @@ export function MobileSimpleView() {
     const tabs: { key: string; label: string; count: number }[] = [
       { key: KR_KEY, label: "섹터", count: 0 },
       { key: US_KEY, label: "매크로", count: 0 },
+      { key: SEMI_KEY, label: "🔧반도체", count: 0 },
     ];
     if (counts.has("")) {
       tabs.push({ key: "", label: "보유", count: counts.get("")! });
@@ -566,8 +569,11 @@ export function MobileSimpleView() {
         </>
       )}
 
-      {/* ─── 한국 / 미국 시스템 탭 ─── */}
+      {/* ─── 한국 / 미국 / 반도체 점검 시스템 탭 ─── */}
       {isSystemTab && (() => {
+        if (activeTab === SEMI_KEY) {
+          return <div className="px-2 py-2"><SemiCheckTab /></div>;
+        }
         const order = activeTab === KR_KEY ? KR_ORDER : US_ORDER;
         // 한국 탭은 KOSPI/KOSDAQ 카드와 짝(미국 ETF/한국 ETF 페어)
         // — Yahoo 티커 또는 KR ETF .KS 지원

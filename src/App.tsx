@@ -8,7 +8,7 @@ import {
 import { loadHoldings, loadPeaks, loadMemos, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateLegacyHoldGroup } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
-import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY } from "./components/Tabs";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
 import { WhatIfRow } from "./components/WhatIfRow";
@@ -17,6 +17,7 @@ import { OnboardingDialog } from "./components/OnboardingDialog";
 import { SearchDialog } from "./components/SearchDialog";
 import { EditHoldingDialog } from "./components/EditHoldingDialog";
 import { UsMarketTab } from "./components/UsMarketTab";
+import { SemiCheckTab } from "./components/SemiCheckTab";
 import { RefreshIndicator } from "./components/RefreshIndicator";
 import { forceUpdate } from "./components/VersionBadge";
 import { NewVersionToast } from "./components/NewVersionToast";
@@ -356,6 +357,8 @@ function Dashboard() {
 
         {activeTab === US_MARKET_TAB_KEY ? (
           <UsMarketTab />
+        ) : activeTab === SEMI_CHECK_TAB_KEY ? (
+          <SemiCheckTab />
         ) : visible.length === 0 ? (
           holdings.length === 0 ? (
             <div className="text-center py-16 text-gray-500">

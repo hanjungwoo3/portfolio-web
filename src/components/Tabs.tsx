@@ -89,13 +89,12 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete }: Props) {
 }
 
 export const US_MARKET_TAB_KEY = "__us-market__";
+export const SEMI_CHECK_TAB_KEY = "__semi-check__";
 
-// 시스템 reserved — 이름 변경/삭제 불가 (관심ETF 내부 / 미국증시 시스템 탭)
-// "보유" (account="") 도 일반 그룹과 동일 — 사용자가 이름 변경/삭제 가능.
-const RESERVED = new Set<string>(["관심ETF", US_MARKET_TAB_KEY]);
+// 시스템 reserved — 이름 변경/삭제 불가
+const RESERVED = new Set<string>(["관심ETF", US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY]);
 
-// 미국증시 → 보유 → (퇴직연금/애매 등) 사용자 그룹 알파벳 순
-// 모든 그룹 동일 아이콘 🏷 — "보유"도 일반 그룹.
+// 미국증시 → 반도체 점검 → 보유 → 사용자 그룹 알파벳 순
 export function buildTabs(holdings: Stock[]): TabSpec[] {
   const counts = new Map<string, number>();
   for (const s of holdings) {
@@ -104,6 +103,7 @@ export function buildTabs(holdings: Stock[]): TabSpec[] {
   }
   const tabs: TabSpec[] = [
     { key: US_MARKET_TAB_KEY, label: "주요 지수", emoji: "📈", count: 0 },
+    { key: SEMI_CHECK_TAB_KEY, label: "반도체 점검", emoji: "🔧", count: 0 },
   ];
   // 1) 보유 (account="") — 일반 그룹과 동일 아이콘
   if (counts.has("")) {
