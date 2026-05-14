@@ -42,6 +42,22 @@ function yearOf(p: string): string | null {
   return m ? m[1] : null;
 }
 
+// 시계열 추세 — 첫 → 마지막 비교. 모든 metric 은 ↑ 가 긍정 (매출/영업이익/EPS).
+type Trend = "good" | "bad" | "neutral";
+function assessTrend(values: (number | null)[]): Trend {
+  const nums = values.filter((v): v is number => v != null);
+  if (nums.length < 2) return "neutral";
+  const first = nums[0];
+  const last = nums[nums.length - 1];
+  if (Math.abs(last - first) < 1e-9) return "neutral";
+  return last > first ? "good" : "bad";
+}
+const TREND_COLOR: Record<Trend, string> = {
+  good:    "#dc2626",  // 빨강 (상승=긍정)
+  bad:     "#2563eb",  // 파랑 (하락=부정)
+  neutral: "#374151",  // gray-700 (변화 없음)
+};
+
 interface SingleChartProps {
   title: string;
   series: EstimateSeries;
@@ -100,6 +116,10 @@ function SingleChart({ title, series, format }: SingleChartProps) {
   const surpriseColor = (s: number | null) =>
     s == null ? "#9ca3af" : s >= 0 ? "#dc2626" : "#2563eb";
 
+  // 예상치 추세 평가 — 라인 + 마커 색에 반영
+  const estTrend = assessTrend(points.map(p => p.estimate));
+  const estColor = TREND_COLOR[estTrend];
+
   // X축 라벨 정책 — 분기 13개+ 일 때 비좁아 연도 첫 분기만 표시 (3월 또는 첫 등장 연도)
   const seenYears = new Set<string>();
   const xLabels = points.map((p, i) => {
@@ -112,17 +132,25 @@ function SingleChart({ title, series, format }: SingleChartProps) {
 
   return (
     <section className="border border-gray-200 rounded p-2.5 bg-white">
-      <header className="mb-1 flex items-baseline gap-2 flex-wrap">
-        <h4 className="text-sm font-bold text-gray-700">{title}</h4>
+      <header className="mb-1">
+        <h4 className="text-sm font-bold" style={{ color: estColor }}>
+          {title}
+          {estTrend === "good" && " ↑"}
+          {estTrend === "bad" && " ↓"}
+        </h4>
         {lastActual && (
-          <span className="text-[10px] text-gray-500">
-            최근 {shortPeriod(lastActual.period)} · 발표 {format(lastActual.actual)}
-            <span style={{ color: surpriseColor(lastActual.surprise), marginLeft: 4 }}>
-              ({lastActual.surprise != null
-                ? `${lastActual.surprise >= 0 ? "+" : ""}${lastActual.surprise.toFixed(2)}%`
-                : "—"})
-            </span>
-          </span>
+          <p className="text-[10px] text-gray-500 mt-0.5">
+            최근 {shortPeriod(lastActual.period)} 발표 {format(lastActual.actual)}
+            {lastActual.surprise != null && (
+              <>
+                {" · "}
+                <span style={{ color: surpriseColor(lastActual.surprise) }}>
+                  서프라이즈 {lastActual.surprise >= 0 ? "+" : ""}
+                  {lastActual.surprise.toFixed(2)}%
+                </span>
+              </>
+            )}
+          </p>
         )}
       </header>
       <svg width="100%" height={H} viewBox={`0 0 ${W} ${H}`} role="img"
@@ -145,15 +173,15 @@ function SingleChart({ title, series, format }: SingleChartProps) {
           <line x1={padLeft} x2={W - padRight} y1={y(0)} y2={y(0)}
                 stroke="#9ca3af" strokeWidth="0.8" />
         )}
-        {/* 예상치 라인 (회색 점선) */}
+        {/* 예상치 라인 (추세별 색 점선) */}
         {estPath.length > 0 && (
-          <path d={estPath.join(" ")} fill="none" stroke="#9ca3af" strokeWidth="1.5"
+          <path d={estPath.join(" ")} fill="none" stroke={estColor} strokeWidth="1.5"
                 strokeDasharray="4 3" strokeLinejoin="round" strokeLinecap="round" />
         )}
         {/* 예상치 점 */}
         {points.map((p, i) => p.estimate != null && (
           <circle key={`e-${i}`} cx={x(i)} cy={y(p.estimate)} r="2.2"
-                  fill="#9ca3af" />
+                  fill={estColor} />
         ))}
         {/* 발표치 라인 (파란 실선) */}
         {actualPath.length > 0 && (
@@ -182,8 +210,8 @@ function SingleChart({ title, series, format }: SingleChartProps) {
         </span>
         <span className="inline-flex items-center gap-1">
           <svg width="18" height="6"><line x1="0" y1="3" x2="18" y2="3"
-            stroke="#9ca3af" strokeWidth="2" strokeDasharray="3 2" /></svg>
-          애널리스트 예상치
+            stroke={estColor} strokeWidth="2" strokeDasharray="3 2" /></svg>
+          예상치 (추세색)
         </span>
         <span className="inline-flex items-center gap-1">
           <span className="inline-block w-2 h-2 rounded-full" style={{ background: "#dc2626" }} />
