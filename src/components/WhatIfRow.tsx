@@ -46,18 +46,26 @@ export function WhatIfRow({ holdings, prices }: Props) {
   if (curDiff === 0 && highDiff === 0) return null;
 
   return (
-    <div className="w-fit bg-white border border-gray-300 rounded-lg shadow-md
-                     px-3 py-2 text-[11px] text-gray-700 leading-snug whitespace-nowrap
-                     grid grid-cols-[auto_auto] gap-x-3 items-baseline tabular-nums">
-      <div className="text-gray-500">시작가 {count}종목 구매</div>
-      <div className="text-right text-gray-500">{openSum.toLocaleString()}원</div>
-      <div>고가에 팔았으면</div>
-      <div className={`text-right font-bold ${signColor(highDiff)}`}>
-        {formatSigned(highDiff)}원
+    <div className="relative w-fit pt-2.5">
+      {/* 책갈피 라벨 — 박스 위로 살짝 튀어나오게 */}
+      <div className="absolute -top-0.5 left-3 z-10 px-2 py-0.5
+                       bg-amber-100 border border-amber-300
+                       text-amber-800 text-[10px] font-bold rounded-md shadow-sm">
+        📑 샀더라면 ~ 어땠을까?
       </div>
-      <div>냅뒀으면</div>
-      <div className={`text-right font-bold ${signColor(curDiff)}`}>
-        {formatSigned(curDiff)}원
+      <div className="bg-white border border-gray-300 rounded-lg shadow-md
+                       px-3 pt-3.5 pb-2 text-[11px] text-gray-700 leading-snug whitespace-nowrap
+                       grid grid-cols-[auto_auto] gap-x-3 items-baseline tabular-nums">
+        <div className="text-gray-500">시작가 {count}종목 구매</div>
+        <div className="text-right text-gray-500">{openSum.toLocaleString()}원</div>
+        <div>고가에 팔았으면</div>
+        <div className={`text-right font-bold ${signColor(highDiff)}`}>
+          {formatSigned(highDiff)}원
+        </div>
+        <div>냅뒀으면</div>
+        <div className={`text-right font-bold ${signColor(curDiff)}`}>
+          {formatSigned(curDiff)}원
+        </div>
       </div>
     </div>
   );
