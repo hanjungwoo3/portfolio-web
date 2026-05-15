@@ -760,9 +760,11 @@ interface QuoteSummaryRaw {
 interface QuoteSummaryPrice {
   regularMarketPrice?: QuoteSummaryRaw;
   regularMarketPreviousClose?: QuoteSummaryRaw;
+  regularMarketChangePercent?: QuoteSummaryRaw;   // raw — Yahoo 페이지 표시값 (선물 등에선 prevClose 계산과 다를 수 있음)
   preMarketPrice?: QuoteSummaryRaw;
   postMarketPrice?: QuoteSummaryRaw;
-  regularMarketTime?: number;     // unix seconds (raw)
+  postMarketChangePercent?: QuoteSummaryRaw;
+  regularMarketTime?: number;
   marketState?: string;
   currency?: string;
 }
@@ -845,12 +847,16 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
     const diff = price - prev;
     const pct = prev > 0 ? (diff / prev) * 100 : 0;
 
-    // 정규장 종가/변동률 — marketState 무관, 항상 Yahoo regularMarketPrice 기준
+    // 정규장 종가/변동률 — Yahoo regularMarketPrice + raw changePercent 우선 사용
+    // (선물 등 일부 종목은 prevClose 계산과 changePercent 가 일치 안 함 → raw 사용)
     let regularPrice: number | undefined;
     let regularPct: number | undefined;
     if (_isValid(regP)) {
       regularPrice = regP;
-      if (_isValid(regPrev) && regPrev > 0) {
+      const rawPct = _val(p.regularMarketChangePercent);
+      if (_isValid(rawPct)) {
+        regularPct = rawPct * 100;  // Yahoo 는 fraction (0.005552 = 0.5552%)
+      } else if (_isValid(regPrev) && regPrev > 0) {
         regularPct = ((regP - regPrev) / regPrev) * 100;
       }
     }

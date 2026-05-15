@@ -202,9 +202,12 @@ export function UsMarketTab() {
               const isClosed = q?.marketState != null && closedStates.includes(q.marketState);
               const effPrice = isClosed && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
-              const pct = effPrice != null && effBase != null && effBase > 0
-                ? ((effPrice - effBase) / effBase) * 100
-                : null;
+              // 메인 변동률 — REGULAR 시 Yahoo raw 우선, 그 외 시간외 합산
+              const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
+                ? q.regularPct
+                : (effPrice != null && effBase != null && effBase > 0
+                   ? ((effPrice - effBase) / effBase) * 100
+                   : null);
               const cdiff = effPrice != null && effBase != null ? effPrice - effBase : 0;
               const isFuture = p.symbol.endsWith("=F");
               const bg = sleeping && dimEnabled

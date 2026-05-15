@@ -80,10 +80,13 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
     ? q.postPrice
     : q?.price;
   const effBase = q?.prevClose;
-  // 메인 변동률 = (효과 가격) vs 어제 종가
-  const pct = effPrice != null && effBase != null && effBase > 0
-    ? ((effPrice - effBase) / effBase) * 100
-    : null;
+  // 메인 변동률 — REGULAR 시 Yahoo raw regularPct 우선 (선물 등 base 불일치 종목 대응),
+  // 그 외 (POST/POSTPOST 등) 시 시간외 포함 합산 변동률
+  const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
+    ? q.regularPct
+    : (effPrice != null && effBase != null && effBase > 0
+       ? ((effPrice - effBase) / effBase) * 100
+       : null);
   const cdiff = effPrice != null && effBase != null ? effPrice - effBase : 0;
   // 배경 색도 direction 따라
   const effUp = direction === "inverse" ? cdiff < 0 : cdiff > 0;
