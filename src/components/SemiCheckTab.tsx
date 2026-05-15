@@ -5,6 +5,7 @@ import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchYahooChart } from "../lib/api";
 import { allYahooSymbols, US_PAIRS } from "../lib/usMarketData";
 import { Sparkline } from "./Sparkline";
+import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import type { UsIndex } from "../lib/api";
 
 function quoteUrl(symbol: string): string {
@@ -119,13 +120,12 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct" }: MiniProps)
 
 export function SemiCheckTab() {
   const yahooSymbols = allYahooSymbols();
-  // 가격 데이터: 30초 폴링 (시간외 변동 추적용). UsMarketTab 과 캐시 공유 (동일 queryKey)
+  // 가격 데이터: 앱 기본 폴링 주기와 동일 (UsMarketTab 과 캐시 공유)
+  const REFRESH_MS = useAdaptiveRefreshMs(10_000);
   const { data: usMap } = useQuery({
     queryKey: ["yahoo-batch", yahooSymbols.length],
     queryFn: () => fetchYahooBatch(yahooSymbols),
-    staleTime: 30_000,
-    refetchInterval: 30_000,
-    refetchOnWindowFocus: false,
+    refetchInterval: REFRESH_MS,
   });
   const symbols = ["MU", "NVDA", "AMAT", "LRCX", "ASML", "^SOX", "SOX=F", "KRW=X", "DX-Y.NYB"];
   const chartQs = useQueries({
