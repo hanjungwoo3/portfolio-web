@@ -710,6 +710,9 @@ export interface UsIndex {
   currency?: string;
   tradeDate: string;       // KST 날짜 (YYYY-MM-DD) — 마지막 거래 시각 기준
   marketState: string;     // REGULAR / PRE / POST / CLOSED / PREPRE / POSTPOST
+  // 시간외 (after-hours) — POST 마켓 상태가 아닌 때도 직전 시간외 가격 보존
+  postPrice?: number;
+  postPct?: number;        // 정규 종가 대비 시간외 변동률 (%)
 }
 
 // Yahoo quoteSummary v10 — yfinance Python 과 동일 데이터 소스
@@ -783,6 +786,14 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
     // 색상용 prevClose 보존 — 비거래일 보정 전 원래 값
     const prevClose = prev;
 
+    // 시간외 (after-hours) 가격 — 정규 종가(regP) 대비 변동률 계산
+    let postPrice: number | undefined;
+    let postPct: number | undefined;
+    if (_isValid(postP) && _isValid(regP) && regP > 0 && postP !== regP) {
+      postPrice = postP;
+      postPct = ((postP - regP) / regP) * 100;
+    }
+
     // 비거래일 보정 — KR(.KS/.KQ/^KS*/^KQ*) 만 적용.
     // 한국 종목/지수는 장 마감 후 새 가격이 안 들어오면 그냥 % 0 으로 가리는 게 자연스러움.
     // 미국/글로벌/선물/원자재/환율 등은 선행지수 의미가 있어 마지막 정규장 종가 기준 % 그대로 유지.
@@ -801,6 +812,7 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
     return {
       symbol, name, price, prev, prevClose, diff, pct,
       currency: p.currency, tradeDate, marketState: state,
+      postPrice, postPct,
     };
   } catch {
     return null;

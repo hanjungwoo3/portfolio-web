@@ -212,6 +212,10 @@ export function UsMarketTab() {
               const isKosdaq = p.symbol === "^KQ11";
               const hasFlow  = isKospi || isKosdaq;
               const indexKey = isKospi ? "KOSPI" : isKosdaq ? "KOSDAQ" : null;
+              const postPct = q?.postPct;
+              const postSign = postPct != null
+                ? (postPct > 0 ? "text-rose-600" : postPct < 0 ? "text-blue-600" : "text-gray-700")
+                : "";
               return (
                 <div key={p.symbol}
                      className={`relative overflow-hidden flex flex-col gap-0.5
@@ -222,6 +226,17 @@ export function UsMarketTab() {
                              color={sleeping && dimEnabled ? "#94a3b8" : undefined}
                              className="absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none" />
+                  {/* 시간외 (after-hours) 책갈피 */}
+                  {postPct != null && (
+                    <div className="absolute top-0 right-1 z-10 px-1.5 py-0
+                                    bg-white/80 border border-gray-300 rounded-b
+                                    text-[9px] font-medium leading-tight whitespace-nowrap">
+                      <span className="text-gray-500">시간외 </span>
+                      <span className={`font-bold ${postSign}`}>
+                        {postPct >= 0 ? "+" : ""}{postPct.toFixed(2)}%
+                      </span>
+                    </div>
+                  )}
                   <div className="relative z-10 flex items-baseline gap-1.5">
                     {sleeping && (
                       <span className="text-[11px] text-gray-400">zZ</span>

@@ -67,6 +67,11 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct" }: MiniProps)
            : effDn ? "bg-blue-50 border-blue-200"
            : "bg-white border-gray-200";
   const cls = colorFor(pct, direction);
+  // 시간외 (after-hours) 책갈피 — 정규 종가 대비 변동 있으면 우상단에 작게
+  const postPct = q?.postPct;
+  const postSign = postPct != null
+    ? (postPct > 0 ? "text-rose-600" : postPct < 0 ? "text-blue-600" : "text-gray-700")
+    : "";
   return (
     <div className={`relative overflow-hidden
                      flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}`}>
@@ -78,6 +83,17 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct" }: MiniProps)
                    : undefined}
                  className="absolute inset-0 w-full h-full opacity-50
                             pointer-events-none" />
+      {/* 시간외 책갈피 */}
+      {postPct != null && (
+        <div className="absolute top-0 right-1 z-10 px-1.5 py-0
+                        bg-white/80 border border-gray-300 rounded-b
+                        text-[9px] font-medium leading-tight whitespace-nowrap">
+          <span className="text-gray-500">시간외 </span>
+          <span className={`font-bold ${postSign}`}>
+            {postPct >= 0 ? "+" : ""}{postPct.toFixed(2)}%
+          </span>
+        </div>
+      )}
       <a href={quoteUrl(symbol)}
          target="_blank" rel="noopener noreferrer"
          title={`${name} 자세히 보기`}
