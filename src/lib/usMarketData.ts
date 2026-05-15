@@ -9,9 +9,20 @@ export interface Pair {
   desc: string;         // 부가 설명
   future?: string;      // 대응 선물 심볼 (있으면)
   tier: Tier;
-  sector: string;       // dashboard / 반도체 / 방산 / 중공업 / 리츠 / 에너지 / 자동차 / 건설 / 금융 / 플랫폼 / 바이오 / 로봇 / 한국지수
+  sector: string;
   direction: "direct" | "inverse" | "neutral";
+  // 토스 미국 종목 코드 — 24시간 ECN Overnight 가격 추적용 (Yahoo postMarketPrice 보다 최신)
+  tossUsCode?: string;
 }
+
+// Yahoo 심볼 → 토스 미국 종목 코드 매핑 (24시간 가격용)
+export const TOSS_US_CODE: Record<string, string> = {
+  "MU":   "US19890516001",
+  "NVDA": "US19990122001",
+  "AMAT": "US19721012001",
+  "LRCX": "US19840504001",
+  "ASML": "US19950315001",
+};
 
 export const US_PAIRS: Pair[] = [
   // Tier 0: 핵심 대시보드 — 데스크탑 T0_GROUPS 순서와 일치 (모바일 단일 컬럼 같은 순서로 노출)

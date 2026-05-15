@@ -30,6 +30,7 @@ function quoteUrl(symbol: string): string {
   // KOSPI/KOSDAQ 지수 — 토스 indices 페이지 (매매동향 데이터 출처와 일치)
   if (symbol === "^KS11") return "https://www.tossinvest.com/indices/KGG01P";
   if (symbol === "^KQ11") return "https://www.tossinvest.com/indices/QGG01P";
+  if (symbol === "^SOX")  return "https://www.tossinvest.com/indices/SOX.NAI";
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
 
@@ -196,7 +197,15 @@ export function UsMarketTab() {
               if (!p) return null;
               const q = usMap?.get(p.symbol);
               const sleeping = isSymbolSleeping(p.symbol);
-              const cdiff = q ? q.price - (q.prevClose || q.price) : 0;
+              // 메인 가격 — 거래 휴장(POSTPOST/PREPRE/CLOSED) 시 시간외 마감가(postPrice) 우선
+              const closedStates = ["POSTPOST", "PREPRE", "CLOSED"];
+              const isClosed = q?.marketState != null && closedStates.includes(q.marketState);
+              const effPrice = isClosed && q?.postPrice ? q.postPrice : q?.price;
+              const effBase = q?.prevClose;
+              const pct = effPrice != null && effBase != null && effBase > 0
+                ? ((effPrice - effBase) / effBase) * 100
+                : null;
+              const cdiff = effPrice != null && effBase != null ? effPrice - effBase : 0;
               const isFuture = p.symbol.endsWith("=F");
               const bg = sleeping && dimEnabled
                 ? "bg-gray-100 border-gray-300"
@@ -212,29 +221,40 @@ export function UsMarketTab() {
               const isKosdaq = p.symbol === "^KQ11";
               const hasFlow  = isKospi || isKosdaq;
               const indexKey = isKospi ? "KOSPI" : isKosdaq ? "KOSDAQ" : null;
-              const postPct = q?.postPct;
-              const postSign = postPct != null
-                ? (postPct > 0 ? "text-rose-600" : postPct < 0 ? "text-blue-600" : "text-gray-700")
-                : "";
+              // 책갈피 = 메인 가격이 정규장 종가와 다를 때만 (시간외 거래/마감 시)
+              const showCloseTag = q?.regularPrice != null && effPrice !== q.regularPrice;
+              const regPct = q?.regularPct ?? null;
+              const regSign = regPct == null ? "text-gray-700"
+                : regPct > 0 ? "text-rose-600" : regPct < 0 ? "text-blue-600" : "text-gray-700";
+              const tagBg = regPct == null ? "bg-white border-gray-300"
+                : regPct > 0 ? "bg-rose-100 border-rose-300"
+                : regPct < 0 ? "bg-blue-100 border-blue-300"
+                : "bg-white border-gray-300";
               return (
                 <div key={p.symbol}
                      className={`relative overflow-hidden flex flex-col gap-0.5
                                   rounded-lg border px-3 py-1.5
-                                  ${bg} ${sleeping && dimEnabled ? "opacity-60" : ""}`}>
+                                  ${bg}
+                                  ${(sleeping && dimEnabled) || isClosed ? "opacity-60" : ""}`}>
                   <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
                              width={400} height={80}
                              color={sleeping && dimEnabled ? "#94a3b8" : undefined}
                              className="absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none" />
-                  {/* 시간외 (after-hours) 책갈피 */}
-                  {postPct != null && (
-                    <div className="absolute top-0 right-1 z-10 px-1.5 py-0
-                                    bg-white/80 border border-gray-300 rounded-b
-                                    text-[9px] font-medium leading-tight whitespace-nowrap">
-                      <span className="text-gray-500">시간외 </span>
-                      <span className={`font-bold ${postSign}`}>
-                        {postPct >= 0 ? "+" : ""}{postPct.toFixed(2)}%
+                  {/* 정규장 마감가 책갈피 — 메인이 시간외 가격일 때만 */}
+                  {showCloseTag && q?.regularPrice != null && (
+                    <div className={`absolute top-0 right-1 z-10 px-1.5 py-0
+                                    border rounded-b
+                                    text-[9px] font-medium leading-tight whitespace-nowrap ${tagBg}`}>
+                      <span className="text-gray-500">마감 </span>
+                      <span className="text-gray-800 tabular-nums">
+                        {q.regularPrice < 1000 ? q.regularPrice.toFixed(2) : Math.round(q.regularPrice).toLocaleString()}
                       </span>
+                      {regPct != null && (
+                        <span className={`tabular-nums ml-1 ${regSign}`}>
+                          ({regPct >= 0 ? "+" : ""}{regPct.toFixed(2)}%)
+                        </span>
+                      )}
                     </div>
                   )}
                   <div className="relative z-10 flex items-baseline gap-1.5">
@@ -263,11 +283,11 @@ export function UsMarketTab() {
                   </div>
                   <div className="relative z-10 flex items-baseline mt-1">
                     <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
-                      {q ? fmtPrice(p.symbol, q.price) : "—"}
+                      {effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}
                     </span>
                     <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
-                      {q && Math.abs(q.pct) >= 0.005
-                        ? `${q.pct >= 0 ? "+" : ""}${q.pct.toFixed(2)}%`
+                      {pct != null && Math.abs(pct) >= 0.005
+                        ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`
                         : ""}
                     </span>
                   </div>

@@ -1,11 +1,13 @@
 // 🔧 한국 반도체 점검 — 전문가 모드 미니멀 대시보드
 // 차분한 회색 베이스 + 변동률 색만 강조 (rose/blue). 자동 진단으로 핵심만 노출.
 
+import { useEffect } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchYahooChart } from "../lib/api";
 import { allYahooSymbols, US_PAIRS } from "../lib/usMarketData";
 import { Sparkline } from "./Sparkline";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
+import { reportRefresh } from "../lib/lastRefresh";
 import type { UsIndex } from "../lib/api";
 
 function quoteUrl(symbol: string): string {
@@ -13,6 +15,8 @@ function quoteUrl(symbol: string): string {
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
   if (symbol === "^KS11") return "https://www.tossinvest.com/indices/KGG01P";
   if (symbol === "^KQ11") return "https://www.tossinvest.com/indices/QGG01P";
+  if (symbol === "^SOX")  return "https://www.tossinvest.com/indices/SOX.NAI";
+  // 미국 종목은 Yahoo Finance (NASDAQ 표준 데이터와 일관)
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
 
@@ -25,18 +29,25 @@ const MOOD_TEXT: Record<Mood, string> = {
   bad:     "text-blue-600",
   neutral: "text-gray-600",
 };
+// 메인 가격과 동일 로직 — 거래 휴장 시엔 시간외 마감가, 그 외는 q.price
+function effPriceOf(q?: UsIndex): number | null {
+  if (!q) return null;
+  const closedStates = ["POSTPOST", "PREPRE", "CLOSED"];
+  if (q.marketState && closedStates.includes(q.marketState) && q.postPrice) {
+    return q.postPrice;
+  }
+  return q.price;
+}
+// 어제 종가 대비 합산 변동률 — 시간외 변동도 자동 반영
 function pctOf(q?: UsIndex): number | null {
-  return q && Number.isFinite(q.pct) ? q.pct : null;
+  if (!q) return null;
+  const p = effPriceOf(q);
+  if (p == null || !Number.isFinite(p) || !Number.isFinite(q.prevClose) || q.prevClose <= 0) return null;
+  return ((p - q.prevClose) / q.prevClose) * 100;
 }
 function fmtPct(pct: number | null): string {
   if (pct == null) return "—";
   return `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`;
-}
-function fmtPrice(symbol: string, q?: UsIndex): string {
-  if (!q) return "—";
-  if (symbol === "^VIX" || symbol === "^TNX") return q.price.toFixed(2);
-  if (q.price < 1000) return q.price.toFixed(2);
-  return Math.round(q.price).toLocaleString();
 }
 
 type Direction = "direct" | "inverse" | "neutral";
@@ -59,8 +70,19 @@ function colorFor(pct: number | null, direction: Direction = "direct"): string {
   return isUp ? "text-rose-600" : isDown ? "text-blue-600" : "text-gray-700";
 }
 function Mini({ symbol, name, desc, q, chart, direction = "direct" }: MiniProps) {
-  const pct = pctOf(q);
-  const cdiff = q ? q.price - (q.prevClose || q.price) : 0;
+  // 메인 가격 = 가장 최신 NASDAQ 거래 가격.
+  //   REGULAR/PRE/POST: q.price (Yahoo 분기로 라이브 가격 자동 설정)
+  //   POSTPOST/PREPRE/CLOSED: 거래 휴장 → 시간외 마감가(postPrice) 가 가장 최신
+  const closedStates = ["POSTPOST", "PREPRE", "CLOSED"];
+  const effPrice = q?.marketState && closedStates.includes(q.marketState) && q.postPrice
+    ? q.postPrice
+    : q?.price;
+  const effBase = q?.prevClose;
+  // 메인 변동률 = (효과 가격) vs 어제 종가
+  const pct = effPrice != null && effBase != null && effBase > 0
+    ? ((effPrice - effBase) / effBase) * 100
+    : null;
+  const cdiff = effPrice != null && effBase != null ? effPrice - effBase : 0;
   // 배경 색도 direction 따라
   const effUp = direction === "inverse" ? cdiff < 0 : cdiff > 0;
   const effDn = direction === "inverse" ? cdiff > 0 : cdiff < 0;
@@ -68,14 +90,39 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct" }: MiniProps)
            : effDn ? "bg-blue-50 border-blue-200"
            : "bg-white border-gray-200";
   const cls = colorFor(pct, direction);
-  // 시간외 (after-hours) 책갈피 — 정규 종가 대비 변동 있으면 우상단에 작게
-  const postPct = q?.postPct;
-  const postSign = postPct != null
-    ? (postPct > 0 ? "text-rose-600" : postPct < 0 ? "text-blue-600" : "text-gray-700")
-    : "";
   return (
+    <div className="relative pt-2">
+      {/* 책갈피 — 메인 가격이 정규장 종가와 다를 때 (정보 중복 회피).
+          POSTPOST 시 메인 = 시간외 마감가, 책갈피 = 정규장 종가 → 다른 정보, 책갈피 표시
+          REGULAR 시 메인 = 정규장 라이브 = regularPrice 와 동일 → 책갈피 X */}
+      {q && q.regularPrice != null && effPrice !== q.regularPrice && (() => {
+        const rp = q.regularPrice;
+        const rpct = q.regularPct ?? null;
+        const cls = rpct == null ? "text-gray-700"
+          : rpct > 0 ? "text-rose-600" : rpct < 0 ? "text-blue-600" : "text-gray-700";
+        const tagBg = rpct == null ? "bg-white border-gray-300"
+          : rpct > 0 ? "bg-rose-100 border-rose-300"
+          : rpct < 0 ? "bg-blue-100 border-blue-300"
+          : "bg-white border-gray-300";
+        return (
+          <div className={`absolute -top-0.5 right-2 z-20 px-1.5 py-0
+                          border rounded-md shadow-sm
+                          text-[9px] font-medium leading-tight whitespace-nowrap ${tagBg}`}>
+            <span className="text-gray-500">마감 </span>
+            <span className="text-gray-800 tabular-nums">
+              {rp < 1000 ? rp.toFixed(2) : Math.round(rp).toLocaleString()}
+            </span>
+            {rpct != null && (
+              <span className={`tabular-nums ml-1 ${cls}`}>
+                ({rpct >= 0 ? "+" : ""}{rpct.toFixed(2)}%)
+              </span>
+            )}
+          </div>
+        );
+      })()}
     <div className={`relative overflow-hidden
-                     flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}`}>
+                     flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}
+                     ${q?.marketState && closedStates.includes(q.marketState) ? "opacity-60" : ""}`}>
       <Sparkline data={chart} width={400} height={80}
                  color={chart.length > 1
                    ? (chart[chart.length - 1] > chart[0]
@@ -84,17 +131,6 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct" }: MiniProps)
                    : undefined}
                  className="absolute inset-0 w-full h-full opacity-50
                             pointer-events-none" />
-      {/* 시간외 책갈피 */}
-      {postPct != null && (
-        <div className="absolute top-0 right-1 z-10 px-1.5 py-0
-                        bg-white/80 border border-gray-300 rounded-b
-                        text-[9px] font-medium leading-tight whitespace-nowrap">
-          <span className="text-gray-500">시간외 </span>
-          <span className={`font-bold ${postSign}`}>
-            {postPct >= 0 ? "+" : ""}{postPct.toFixed(2)}%
-          </span>
-        </div>
-      )}
       <a href={quoteUrl(symbol)}
          target="_blank" rel="noopener noreferrer"
          title={`${name} 자세히 보기`}
@@ -108,12 +144,15 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct" }: MiniProps)
       )}
       <div className="relative z-10 flex items-baseline mt-1">
         <span className={`flex-1 text-left text-sm tabular-nums ${cls}`}>
-          {fmtPrice(symbol, q)}
+          {effPrice == null ? "—"
+            : effPrice < 1000 ? effPrice.toFixed(2)
+            : Math.round(effPrice).toLocaleString()}
         </span>
         <span className={`flex-1 text-right text-xl font-bold tabular-nums ${cls}`}>
           {pct != null && Math.abs(pct) >= 0.005 ? fmtPct(pct) : ""}
         </span>
       </div>
+    </div>
     </div>
   );
 }
@@ -122,11 +161,15 @@ export function SemiCheckTab() {
   const yahooSymbols = allYahooSymbols();
   // 가격 데이터: 앱 기본 폴링 주기와 동일 (UsMarketTab 과 캐시 공유)
   const REFRESH_MS = useAdaptiveRefreshMs(10_000);
-  const { data: usMap } = useQuery({
+  const { data: usMap, dataUpdatedAt } = useQuery({
     queryKey: ["yahoo-batch", yahooSymbols.length],
     queryFn: () => fetchYahooBatch(yahooSymbols),
     refetchInterval: REFRESH_MS,
   });
+  useEffect(() => {
+    if (dataUpdatedAt > 0) reportRefresh(dataUpdatedAt);
+  }, [dataUpdatedAt]);
+
   const symbols = ["MU", "NVDA", "AMAT", "LRCX", "ASML", "^SOX", "SOX=F", "KRW=X", "DX-Y.NYB"];
   const chartQs = useQueries({
     queries: symbols.map(sym => ({

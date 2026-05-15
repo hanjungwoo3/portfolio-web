@@ -81,6 +81,39 @@ interface TossPriceItem {
 }
 interface TossPriceResponse { result: TossPriceItem[]; }
 
+// 토스 미국 종목 가격 — 24시간 ECN Overnight 포함 (Yahoo postMarketPrice 보다 최신).
+// 입력: US19890516001 같은 토스 코드. 응답: close(현재가) / base(직전 정규장 종가)
+export interface TossUsPrice {
+  code: string;
+  close: number;
+  base: number;        // 직전 정규장 종가
+  pct: number;         // (close - base) / base × 100
+  tradeDateTime: string;
+}
+export async function fetchTossUsPrices(codes: string[]): Promise<Map<string, TossUsPrice>> {
+  const out = new Map<string, TossUsPrice>();
+  if (codes.length === 0) return out;
+  const target = `https://wts-info-api.tossinvest.com/api/v3/stock-prices/details?productCodes=${codes.join(",")}`;
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return out;
+    const data = await resp.json() as {
+      result?: Array<{
+        code: string; close: number; base: number; tradeDateTime: string;
+      }>;
+    };
+    for (const item of (data.result ?? [])) {
+      if (!item.code || !item.close || !item.base) continue;
+      const pct = item.base > 0 ? ((item.close - item.base) / item.base) * 100 : 0;
+      out.set(item.code, {
+        code: item.code, close: item.close, base: item.base,
+        pct, tradeDateTime: item.tradeDateTime,
+      });
+    }
+  } catch { /* network failure — return empty */ }
+  return out;
+}
+
 export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
   if (tickers.length === 0) return [];
   const codes = tickers.map(t => `A${t}`).join(",");
@@ -713,6 +746,9 @@ export interface UsIndex {
   // 시간외 (after-hours) — POST 마켓 상태가 아닌 때도 직전 시간외 가격 보존
   postPrice?: number;
   postPct?: number;        // 정규 종가 대비 시간외 변동률 (%)
+  // 정규장 종가 + 변동률 — marketState 무관하게 항상 유지
+  regularPrice?: number;
+  regularPct?: number;     // (regularPrice - prevClose) / prevClose × 100
 }
 
 // Yahoo quoteSummary v10 — yfinance Python 과 동일 데이터 소스
@@ -809,10 +845,20 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
     const diff = price - prev;
     const pct = prev > 0 ? (diff / prev) * 100 : 0;
 
+    // 정규장 종가/변동률 — marketState 무관, 항상 Yahoo regularMarketPrice 기준
+    let regularPrice: number | undefined;
+    let regularPct: number | undefined;
+    if (_isValid(regP)) {
+      regularPrice = regP;
+      if (_isValid(regPrev) && regPrev > 0) {
+        regularPct = ((regP - regPrev) / regPrev) * 100;
+      }
+    }
+
     return {
       symbol, name, price, prev, prevClose, diff, pct,
       currency: p.currency, tradeDate, marketState: state,
-      postPrice, postPct,
+      postPrice, postPct, regularPrice, regularPct,
     };
   } catch {
     return null;
@@ -853,6 +899,7 @@ export async function fetchYahooChart(
 const TOSS_INDEX_CODE: Record<string, string> = {
   "^KS11": "KGG01P",   // KOSPI 종합
   "^KQ11": "QGG01P",   // KOSDAQ 종합
+  "^SOX":  "SOX.NAI",  // 필라델피아 반도체 지수
 };
 
 // 토스 indices price API → UsIndex 변환
