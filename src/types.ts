@@ -55,8 +55,9 @@ export type MemoPriceBasis = "current" | "avg";
 export interface Memo {
   ticker: string;            // PK
   text?: string;             // 자유 텍스트 (최대 2000자)
-  targetPrice?: number;      // 목표가 (양수, 절대가격)
-  stopPrice?: number;        // 손절가 (양수, 절대가격)
+  targetPrice?: number;      // 목표가 (양수, 절대가격) — 보유 종목 매도 목표
+  stopPrice?: number;        // 손절가 (양수, 절대가격) — 보유 종목 손절 기준
+  entryPrice?: number;       // 기대가 (양수, 절대가격) — 미보유/관심 종목의 매수 희망가
   priceBasis?: MemoPriceBasis;  // % 입력 시 사용한 기준 — 없으면 "current" 로 동작
   tag?: string;              // 짧은 라벨 (최대 12자)
   color?: MemoColor;         // 색상 라벨

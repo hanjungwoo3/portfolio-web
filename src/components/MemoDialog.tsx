@@ -75,6 +75,8 @@ export function MemoDialog({
   const [targetPctStr, setTargetPctStr] = useState("");
   const [stopPriceStr, setStopPriceStr] = useState("");
   const [stopPctStr, setStopPctStr] = useState("");
+  const [entryPriceStr, setEntryPriceStr] = useState("");
+  const [entryPctStr, setEntryPctStr] = useState("");
   const [tag, setTag] = useState("");
   const [color, setColor] = useState<MemoColor | undefined>(undefined);
   const [basis, setBasis] = useState<MemoPriceBasis>("current");
@@ -106,6 +108,7 @@ export function MemoDialog({
       // 가격 → 문자열
       setTargetPriceStr(m?.targetPrice ? m.targetPrice.toLocaleString() : "");
       setStopPriceStr(m?.stopPrice ? m.stopPrice.toLocaleString() : "");
+      setEntryPriceStr(m?.entryPrice ? m.entryPrice.toLocaleString() : "");
       // % 는 기준 가격이 있을 때만 derived 계산
       const initialBasisPrice =
         initialBasis === "avg" && hasAvg ? (avgPrice as number)
@@ -121,6 +124,11 @@ export function MemoDialog({
           ? formatPercentDerived(priceToPercent(m.stopPrice, initialBasisPrice))
           : ""
       );
+      setEntryPctStr(
+        m?.entryPrice && initialBasisPrice
+          ? formatPercentDerived(priceToPercent(m.entryPrice, initialBasisPrice))
+          : ""
+      );
     })();
   }, [isOpen, ticker, hasAvg, avgPrice, curPrice]);
 
@@ -131,6 +139,8 @@ export function MemoDialog({
     setTargetPctStr(tp ? formatPercentDerived(priceToPercent(tp, basisPrice)) : "");
     const sp = parsePrice(stopPriceStr);
     setStopPctStr(sp ? formatPercentDerived(priceToPercent(sp, basisPrice)) : "");
+    const ep = parsePrice(entryPriceStr);
+    setEntryPctStr(ep ? formatPercentDerived(priceToPercent(ep, basisPrice)) : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basis]);
 
@@ -138,6 +148,7 @@ export function MemoDialog({
 
   const targetNum = parsePrice(targetPriceStr);
   const stopNum = parsePrice(stopPriceStr);
+  const entryNum = parsePrice(entryPriceStr);
 
   // 도달 거리 미리보기 — 항상 현재가 대비 (실제 도달 판정용)
   const targetDeltaFromCur = curPrice && targetNum
@@ -145,6 +156,9 @@ export function MemoDialog({
     : null;
   const stopDeltaFromCur = curPrice && stopNum
     ? ((stopNum - curPrice) / curPrice) * 100
+    : null;
+  const entryDeltaFromCur = curPrice && entryNum
+    ? ((entryNum - curPrice) / curPrice) * 100
     : null;
 
   // 가격 입력 → % 자동 채움
@@ -185,6 +199,7 @@ export function MemoDialog({
       text: text.trim() || undefined,
       targetPrice: targetNum,
       stopPrice: stopNum,
+      entryPrice: entryNum,
       priceBasis: basis,
       tag: tag.trim() || undefined,
       color,
@@ -344,6 +359,31 @@ export function MemoDialog({
               {stopDeltaFromCur != null && Number.isFinite(stopDeltaFromCur) && curPrice && (
                 <div className={`text-[11px] mt-1 ${stopDeltaFromCur >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                   현재가 대비 {stopDeltaFromCur >= 0 ? "▲" : "▼"} {Math.abs(stopDeltaFromCur).toFixed(1)}% 시 도달
+                </div>
+              )}
+            </div>
+            <div>
+              <label className="text-xs font-bold text-gray-700 block mb-1">
+                기대가 <span className="font-normal text-gray-400">— 이 가격이 되면 매수하고 싶음</span>
+              </label>
+              <div className="grid grid-cols-[1fr_auto_1fr] gap-1.5 items-center">
+                <input type="text" inputMode="numeric" value={entryPriceStr}
+                       onChange={e => onPriceChange(e.target.value, setEntryPriceStr, setEntryPctStr)}
+                       placeholder="예: 65,000"
+                       className={inputCls} />
+                <span className="text-xs text-gray-400 px-0.5">또는</span>
+                <div className="relative">
+                  <input type="text" inputMode="decimal" value={entryPctStr}
+                         onChange={e => onPercentChange(e.target.value, setEntryPriceStr, setEntryPctStr)}
+                         placeholder="예: -10"
+                         disabled={!basisPrice}
+                         className={`${inputCls} pr-6 ${!basisPrice ? "bg-gray-50 text-gray-400" : ""}`} />
+                  <span className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-gray-400 pointer-events-none">%</span>
+                </div>
+              </div>
+              {entryDeltaFromCur != null && Number.isFinite(entryDeltaFromCur) && curPrice && (
+                <div className={`text-[11px] mt-1 ${entryDeltaFromCur >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                  현재가 대비 {entryDeltaFromCur >= 0 ? "▲" : "▼"} {Math.abs(entryDeltaFromCur).toFixed(1)}% 시 도달
                 </div>
               )}
             </div>

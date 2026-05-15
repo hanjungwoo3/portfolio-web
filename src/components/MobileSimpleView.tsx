@@ -728,6 +728,7 @@ export function MobileSimpleView() {
             name={s.name}
             curPrice={groupPriceMap.get(valuationTicker)?.price}
             myAvgPrice={s.shares > 0 ? s.avg_price : undefined}
+            entryPrice={memos?.get(valuationTicker)?.entryPrice}
           />
         );
       })()}

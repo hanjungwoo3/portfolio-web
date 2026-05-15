@@ -567,6 +567,7 @@ function Dashboard() {
             name={s.name}
             curPrice={priceMap.get(valuationTicker)?.price}
             myAvgPrice={s.shares > 0 ? s.avg_price : undefined}
+            entryPrice={memos.get(valuationTicker)?.entryPrice}
           />
         );
       })()}

@@ -124,8 +124,13 @@ export function MobileStockCard({
   // (sparkline 색은 차트 자체 추세로 별도 자동 판정)
   const colorDiff = price.price - (price.prevClose || price.price);
   const colorPct = price.prevClose > 0 ? (colorDiff / price.prevClose) * 100 : 0;
+  // 기대가 도달 — 현재가가 기대가까지 떨어졌으면 violet 으로 강조 (sparkline 선 색과 동일)
+  const memoEntryReached =
+    memo?.entryPrice != null && Number.isFinite(memo.entryPrice) &&
+    price.price <= memo.entryPrice;
   const priceColorCls =
-    colorDiff > 0 ? "text-rose-600"
+    memoEntryReached ? "text-violet-500"
+    : colorDiff > 0 ? "text-rose-600"
     : colorDiff < 0 ? "text-blue-600"
     : "text-gray-900";
   const priceColorName = colorDiff > 0 ? "빨강" : colorDiff < 0 ? "파랑" : "검정";
@@ -359,6 +364,7 @@ export function MobileStockCard({
           <Sparkline data={chart} width={300} height={70}
                      target={consensus?.target}
                      avgPrice={hasPosition ? stock.avg_price : undefined}
+                     entry={memo?.entryPrice}
                      className="absolute inset-0 w-full h-full opacity-20
                                 pointer-events-none" />
         )}
@@ -382,7 +388,9 @@ export function MobileStockCard({
           const rowCur = (
             <div key="cur" className="relative">
               <div className="flex items-baseline gap-1 flex-wrap">
-                <span className={`text-xl font-bold leading-tight ${priceColorCls}`}>
+                <span className={`text-xl font-bold leading-tight ${priceColorCls} ${
+                  memoEntryReached ? "bg-violet-100 rounded px-1" : ""
+                }`}>
                   {price.price.toLocaleString()}원
                 </span>
                 {memoTargetReached && (
@@ -478,6 +486,26 @@ export function MobileStockCard({
             );
           })() : null;
 
+          // 메모 기대가 — 사용자 매수 희망가 (violet)
+          const rowMemoEntry = memo?.entryPrice && memo.entryPrice > 0 ? (() => {
+            const e = memo.entryPrice;
+            const eDiff = e - price.price;
+            const ePct = price.price > 0 ? (eDiff / price.price) * 100 : 0;
+            return (
+              <div key="memoEntry" className="text-xs text-gray-700">
+                <span className={`text-[10px] font-bold ${memoEntryReached
+                    ? "bg-violet-100 text-violet-700 rounded px-1 mr-0.5"
+                    : "text-violet-600 mr-0.5"}`}>
+                  기대
+                </span>
+                {e.toLocaleString()}원
+                <span className={`ml-0.5 text-[10px] ${signColor(eDiff)}`}>
+                  ({formatSigned(eDiff)}원, {ePct >= 0 ? "+" : ""}{ePct.toFixed(2)}%)
+                </span>
+              </div>
+            );
+          })() : null;
+
           // 모든 가격 행을 금액순 (높은 → 낮은) 정렬
           const allRows: { price: number; el: React.ReactElement }[] = [];
           if (rowHigh && price.high) allRows.push({ price: price.high, el: rowHigh });
@@ -486,6 +514,7 @@ export function MobileStockCard({
           if (rowTarget && consensus?.target) allRows.push({ price: consensus.target, el: rowTarget });
           if (rowMemoTarget && memo?.targetPrice) allRows.push({ price: memo.targetPrice, el: rowMemoTarget });
           if (rowMemoStop && memo?.stopPrice) allRows.push({ price: memo.stopPrice, el: rowMemoStop });
+          if (rowMemoEntry && memo?.entryPrice) allRows.push({ price: memo.entryPrice, el: rowMemoEntry });
           allRows.sort((a, b) => b.price - a.price);
           return <>{allRows.map(r => r.el)}</>;
         })()}

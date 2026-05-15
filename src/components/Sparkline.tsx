@@ -12,10 +12,12 @@ interface Props {
   target?: number;
   // 매수가 가로선 (옵션) — Y 축 범위에 포함 (점선, emerald)
   avgPrice?: number;
+  // 기대가 가로선 (옵션) — Y 축 범위에 포함 (점선, violet)
+  entry?: number;
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color, target, avgPrice,
+  data, width = 120, height = 32, className = "", color, target, avgPrice, entry,
 }: Props) {
   if (!data || data.length < 2) {
     return (
@@ -32,10 +34,11 @@ export function Sparkline({
             : last < first ? "#2563eb"   // blue-600
             : "#94a3b8");                 // slate-400
 
-  // 목표가·매수가가 있으면 Y 범위에 포함 (모두 보이도록)
+  // 목표가·매수가·기대가가 있으면 Y 범위에 포함 (모두 보이도록)
   const allValues = [...data];
   if (target !== undefined && target > 0) allValues.push(target);
   if (avgPrice !== undefined && avgPrice > 0) allValues.push(avgPrice);
+  if (entry !== undefined && entry > 0) allValues.push(entry);
   const min = Math.min(...allValues);
   const max = Math.max(...allValues);
   const range = max - min || 1;
@@ -67,6 +70,7 @@ export function Sparkline({
   const yFor = (v: number) => padY + innerH - ((v - min) / range) * innerH;
   const targetY = target !== undefined && target > 0 ? yFor(target) : null;
   const avgY = avgPrice !== undefined && avgPrice > 0 ? yFor(avgPrice) : null;
+  const entryY = entry !== undefined && entry > 0 ? yFor(entry) : null;
 
   return (
     <svg width={width} height={height} className={className}
@@ -91,6 +95,11 @@ export function Sparkline({
       {avgY !== null && (
         <line x1={padX} x2={width - padX} y1={avgY} y2={avgY}
               stroke="#10b981" strokeWidth="1" strokeDasharray="3 2" />
+      )}
+      {/* 기대가 — violet 점선 (CandleChartLight 의 ENTRY_COLOR 와 동일) */}
+      {entryY !== null && (
+        <line x1={padX} x2={width - padX} y1={entryY} y2={entryY}
+              stroke="#8b5cf6" strokeWidth="1" strokeDasharray="3 2" />
       )}
     </svg>
   );

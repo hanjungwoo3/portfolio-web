@@ -548,8 +548,14 @@ export function StockCard({
   // (sparkline 색은 차트 자체 추세로 별도 자동 판정 — 가격 색과 분리)
   const colorDiff = price.price - (price.prevClose || price.price);
   const colorPct = price.prevClose > 0 ? (colorDiff / price.prevClose) * 100 : 0;
+  // 기대가 도달 — 현재가가 기대가까지 떨어졌으면 (사용자 매수 의향 지점)
+  // sparkline 의 기대가 선 색(#8b5cf6 = violet-500) 과 동일하게 강조
+  const memoEntryReached =
+    memo?.entryPrice != null && Number.isFinite(memo.entryPrice) &&
+    price.price <= memo.entryPrice;
   const priceColorCls =
-    colorDiff > 0 ? "text-rose-600"
+    memoEntryReached ? "text-violet-500"
+    : colorDiff > 0 ? "text-rose-600"
     : colorDiff < 0 ? "text-blue-600"
     : "text-gray-900";
   // 현재가 호버 — 직전 거래일 종가 대비 현재 상태 + 결과 색
@@ -1115,6 +1121,7 @@ export function StockCard({
             <Sparkline data={chart} width={300} height={80}
                        target={consensus?.target}
                        avgPrice={hasPosition ? stock.avg_price : undefined}
+                       entry={memo?.entryPrice}
                        className="absolute inset-0 w-full h-full opacity-20
                                   pointer-events-none" />
           )}
@@ -1148,7 +1155,9 @@ export function StockCard({
                   }`}>
                     {tick.arrow ? tick.arrow.trim() : "▲"}
                   </span>
-                  <span className={`text-xl font-bold leading-tight ${priceColorCls}`}>
+                  <span className={`text-xl font-bold leading-tight ${priceColorCls} ${
+                    memoEntryReached ? "bg-violet-100 rounded px-1" : ""
+                  }`}>
                     {price.price.toLocaleString()}원
                   </span>
                   {/* 메모 — 목표가/손절가 도달 인디케이터 */}
@@ -1247,6 +1256,27 @@ export function StockCard({
               );
             })() : null;
 
+            // 메모 기대가 — 사용자 매수 희망가 (violet, sparkline 선 색과 동일)
+            const rowMemoEntry = memo?.entryPrice && memo.entryPrice > 0 ? (() => {
+              const e = memo.entryPrice;
+              const eDiff = e - price.price;
+              const ePct = price.price > 0 ? (eDiff / price.price) * 100 : 0;
+              const reached = memoEntryReached;
+              return (
+                <div key="memoEntry" className="text-xs text-gray-700">
+                  <span className={`text-[10px] font-bold ${reached
+                      ? "bg-violet-100 text-violet-700 rounded px-1 mr-0.5"
+                      : "text-violet-600 mr-1"}`}>
+                    기대
+                  </span>
+                  {e.toLocaleString()}원
+                  <span className={`ml-1 text-[10px] ${signColor(eDiff)}`}>
+                    ({formatSigned(eDiff)}원, {eDiff >= 0 ? "+" : ""}{ePct.toFixed(2)}%)
+                  </span>
+                </div>
+              );
+            })() : null;
+
             // 모든 가격 행을 금액순 (높은 → 낮은) 정렬하여 표시
             // 같은 가격이면 안정성을 위해 입력 순서 유지 (Array.sort 는 stable)
             const allRows: { price: number; el: React.ReactElement }[] = [];
@@ -1256,6 +1286,7 @@ export function StockCard({
             if (rowTarget && consensus?.target) allRows.push({ price: consensus.target, el: rowTarget });
             if (rowMemoTarget && memo?.targetPrice) allRows.push({ price: memo.targetPrice, el: rowMemoTarget });
             if (rowMemoStop && memo?.stopPrice) allRows.push({ price: memo.stopPrice, el: rowMemoStop });
+            if (rowMemoEntry && memo?.entryPrice) allRows.push({ price: memo.entryPrice, el: rowMemoEntry });
             allRows.sort((a, b) => b.price - a.price);
             return <>{allRows.map(r => r.el)}</>;
           })()}

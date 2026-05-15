@@ -462,21 +462,24 @@ export async function upsertMemo(
     !memo.text?.trim() &&
     (memo.targetPrice == null || !Number.isFinite(memo.targetPrice)) &&
     (memo.stopPrice == null || !Number.isFinite(memo.stopPrice)) &&
+    (memo.entryPrice == null || !Number.isFinite(memo.entryPrice)) &&
     !memo.tag?.trim() &&
     !memo.color;
   if (isEmpty) {
     await deleteMemo(memo.ticker);
     return "deleted";
   }
-  // priceBasis 는 목표가/손절가가 하나라도 있을 때만 의미 있음 — 둘 다 없으면 제거
+  // priceBasis 는 가격 경계 중 하나라도 있을 때만 의미 있음
   const hasPriceBound =
     (memo.targetPrice != null && Number.isFinite(memo.targetPrice)) ||
-    (memo.stopPrice != null && Number.isFinite(memo.stopPrice));
+    (memo.stopPrice != null && Number.isFinite(memo.stopPrice)) ||
+    (memo.entryPrice != null && Number.isFinite(memo.entryPrice));
   const next: Memo = {
     ticker: memo.ticker,
     text: memo.text?.trim() || undefined,
     targetPrice: memo.targetPrice ?? undefined,
     stopPrice: memo.stopPrice ?? undefined,
+    entryPrice: memo.entryPrice ?? undefined,
     priceBasis: hasPriceBound ? memo.priceBasis : undefined,
     tag: memo.tag?.trim() || undefined,
     color: memo.color,

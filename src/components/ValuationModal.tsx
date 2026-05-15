@@ -28,6 +28,7 @@ interface Props {
   name: string;
   curPrice?: number;
   myAvgPrice?: number;       // 보유 시 평단가 (차트 가로선)
+  entryPrice?: number;       // 메모의 기대가 (차트 가로선)
 }
 
 function IndicatorRow({ ikey, val, data }: {
@@ -221,7 +222,7 @@ function ShareholderSection({ shareholders }: { shareholders: Shareholder[] }) {
 }
 
 export function ValuationModal({
-  isOpen, onClose, ticker, name, curPrice, myAvgPrice,
+  isOpen, onClose, ticker, name, curPrice, myAvgPrice, entryPrice,
 }: Props) {
   const { data, isLoading, error } = useQuery({
     queryKey: ["valuation", ticker],
@@ -396,7 +397,8 @@ export function ValuationModal({
           {/* 투자자별 순매수 (최근 60일) */}
           <InvestorHistorySection ticker={ticker}
                                   targetPrice={targetPrice}
-                                  myAvgPrice={myAvgPrice} />
+                                  myAvgPrice={myAvgPrice}
+                                  entryPrice={entryPrice} />
 
           {/* 외부 링크 */}
           <section className="mt-4 flex flex-wrap gap-2 text-xs">
@@ -424,6 +426,7 @@ interface InvestorHistoryProps {
   ticker: string;
   targetPrice?: number;
   myAvgPrice?: number;
+  entryPrice?: number;
 }
 
 const INVESTOR_COLS: { label: string; key: keyof Investor }[] = [
@@ -487,7 +490,7 @@ function computePeriodSummary(
 }
 
 function InvestorHistorySection({
-  ticker, targetPrice, myAvgPrice,
+  ticker, targetPrice, myAvgPrice, entryPrice,
 }: InvestorHistoryProps) {
   const { data: history, isLoading } = useQuery({
     queryKey: ["investor-history-modal", ticker],
@@ -522,7 +525,8 @@ function InvestorHistorySection({
       {history && history.length > 0 && (
         <InvestorChartsSection ticker={ticker} history={history}
                                targetPrice={targetPrice}
-                               myAvgPrice={myAvgPrice} />
+                               myAvgPrice={myAvgPrice}
+                               entryPrice={entryPrice} />
       )}
 
       {history && history.length > 0 && (
@@ -633,10 +637,11 @@ function InvestorHistorySection({
 // ─── 수급 차트 모음 — 주가+거래량 (full) + 외국인/기관/연기금 (3분할) ───
 // 4개 차트 모두 lightweight-charts 기반, 한 hook 으로 crosshair 동기화.
 function InvestorChartsSection({
-  ticker, history, targetPrice, myAvgPrice,
+  ticker, history, targetPrice, myAvgPrice, entryPrice,
 }: {
   ticker: string; history: Investor[];
   targetPrice?: number; myAvgPrice?: number;
+  entryPrice?: number;
 }) {
   // 가격 + 거래량 + 배당 + 액면분할 (Yahoo 1y, KOSPI→KOSDAQ 자동 폴백)
   const { data: priceData, isLoading: pricesLoading } = useQuery({
@@ -699,7 +704,7 @@ function InvestorChartsSection({
       {/* 1. 주가 — 전체 폭 (외국인비율 % + 목표가/평단가 가로선) */}
       {alignedPrices.length > 1 ? (
         <PriceVolumeChart prices={alignedPrices} investors={data}
-                          targetPrice={targetPrice} myAvgPrice={myAvgPrice}
+                          targetPrice={targetPrice} myAvgPrice={myAvgPrice} entryPrice={entryPrice}
                           dividends={dividends} splits={splits}
                           disclosures={disclosures} ticker={ticker}
                           onReady={registerSync} />
@@ -765,10 +770,11 @@ function saveDiscToggle(on: boolean): void {
 
 
 function PriceVolumeChart({
-  prices, investors, targetPrice, myAvgPrice, dividends, splits, disclosures, ticker, onReady,
+  prices, investors, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, ticker, onReady,
 }: {
   prices: PricePoint[]; investors: Investor[];
   targetPrice?: number; myAvgPrice?: number;
+  entryPrice?: number;
   dividends?: DividendEvent[];
   splits?: SplitEvent[];
   disclosures?: DartDisclosure[];
@@ -871,7 +877,7 @@ function PriceVolumeChart({
         </div>
       }>
         <CandleChartLight prices={prices} investors={investors} mode={mode}
-                          targetPrice={targetPrice} myAvgPrice={myAvgPrice}
+                          targetPrice={targetPrice} myAvgPrice={myAvgPrice} entryPrice={entryPrice}
                           dividends={dividends} splits={splits}
                           disclosures={showDisc ? disclosures : []}
                           ticker={ticker}
