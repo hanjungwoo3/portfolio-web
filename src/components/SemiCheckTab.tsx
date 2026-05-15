@@ -119,10 +119,12 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct" }: MiniProps)
 
 export function SemiCheckTab() {
   const yahooSymbols = allYahooSymbols();
+  // 가격 데이터: 30초 폴링 (시간외 변동 추적용). UsMarketTab 과 캐시 공유 (동일 queryKey)
   const { data: usMap } = useQuery({
     queryKey: ["yahoo-batch", yahooSymbols.length],
     queryFn: () => fetchYahooBatch(yahooSymbols),
-    staleTime: 60 * 60 * 1000,
+    staleTime: 30_000,
+    refetchInterval: 30_000,
     refetchOnWindowFocus: false,
   });
   const symbols = ["MU", "NVDA", "AMAT", "LRCX", "ASML", "^SOX", "SOX=F", "KRW=X", "DX-Y.NYB"];
