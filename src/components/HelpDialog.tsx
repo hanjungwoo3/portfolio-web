@@ -21,10 +21,24 @@ const PC_STEPS: Step[] = [
     title: "1. 검색 열기",
     caption: (
       <>
-        우상단 <b>[검색/주식추가]</b> 버튼으로 시작합니다.
-        <br />
-        <span className="text-gray-500 text-xs">
-          <b>[사용법]</b> = 이 가이드 / <b>[질문하기]</b> = 건의·문의 게시판 / <b>[설정]</b> = 프록시·백업·폴링 주기.
+        우상단{" "}
+        <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
+                         bg-blue-600 text-white font-medium">검색/주식추가</span>
+        {" "}에서 종목을 추가하며 시작하세요.
+        <span className="block mt-1 text-xs text-gray-600 leading-relaxed">
+          의견·건의는{" "}
+          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
+                           bg-emerald-50 text-emerald-700 border border-emerald-200">질문하기</span>
+          , 운영비 후원은{" "}
+          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
+                           bg-gray-100 text-gray-700">후원하기</span>
+          {" "}로 부탁드리며, 프록시·자동 백업·갱신 주기 등 환경 설정은{" "}
+          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
+                           bg-gray-100 text-gray-700">설정</span>
+          {" "}에서 변경할 수 있습니다.
+        </span>
+        <span className="block mt-2 text-gray-500 text-xs">
+          첫 화면은 지수 탭입니다. 본인 보유 종목을 추가해 나만의 포트폴리오를 만들어보세요.
         </span>
       </>
     ),
@@ -108,10 +122,24 @@ const MOBILE_STEPS: Step[] = [
     title: "1. 첫 화면",
     caption: (
       <>
-        상단의 <b>[검색]</b> 으로 종목 검색, <b>[사용법]</b> 으로 이 가이드, <b>[설정]</b> 로 설정.
-        <br />
-        <span className="text-gray-500 text-xs">
-          <b>[질문]</b> = 건의·문의 게시판 / <b>[후원]</b> = 운영비 후원. 기본은 지수 탭, 본인 종목을 추가해보세요.
+        상단{" "}
+        <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px] font-medium
+                         bg-blue-600 text-white">검색</span>
+        {" "}에서 종목을 추가하며 시작하세요.
+        <span className="block mt-1 text-xs text-gray-600 leading-relaxed">
+          의견·건의는{" "}
+          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
+                           bg-emerald-50 text-emerald-700 border border-emerald-200">질문</span>
+          , 운영비 후원은{" "}
+          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
+                           bg-gray-100 text-gray-700 border border-gray-200">후원</span>
+          {" "}으로 부탁드리며, 환경(프록시·자동 백업·갱신 주기) 변경은{" "}
+          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
+                           bg-gray-100 text-gray-700 border border-gray-200">설정</span>
+          {" "}에서 할 수 있습니다.
+        </span>
+        <span className="block mt-2 text-gray-500 text-xs">
+          첫 화면은 섹터 탭입니다. 본인 보유 종목을 추가해 나만의 포트폴리오를 만들어보세요.
         </span>
       </>
     ),
