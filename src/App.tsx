@@ -14,6 +14,7 @@ import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
 import { WhatIfRow } from "./components/WhatIfRow";
 import { SettingsDialog } from "./components/SettingsDialog";
+import { FeedbackDialog } from "./components/FeedbackDialog";
 import { OnboardingDialog } from "./components/OnboardingDialog";
 import { SearchDialog } from "./components/SearchDialog";
 import { EditHoldingDialog } from "./components/EditHoldingDialog";
@@ -76,6 +77,7 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [editing, setEditing] = useState<Stock | null>(null);
@@ -361,13 +363,13 @@ function Dashboard() {
                          text-gray-700 rounded text-sm">
               ❓ 사용법
             </button>
-            <a href="https://github.com/hanjungwoo3/portfolio-web/discussions"
-               target="_blank" rel="noopener noreferrer"
-               title="기능 요청 / 버그 신고 / 의견 (GitHub Discussions — 가입 필요)"
+            <button
+               onClick={() => setFeedbackOpen(true)}
+               title="기능 요청 / 버그 신고 / 의견 (가입 없이 익명 작성)"
                className="px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100
                           text-emerald-700 rounded text-sm border border-emerald-200">
               💡 기능 요청
-            </a>
+            </button>
             <button
               onClick={() => setDonateOpen(true)}
               title="개발자 후원하기 (카카오페이)"
@@ -491,6 +493,11 @@ function Dashboard() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onChanged={() => setReloadKey(k => k + 1)}
+      />
+
+      <FeedbackDialog
+        isOpen={feedbackOpen}
+        onClose={() => setFeedbackOpen(false)}
       />
 
       <SearchDialog

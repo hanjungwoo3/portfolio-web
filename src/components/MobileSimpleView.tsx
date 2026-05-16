@@ -51,6 +51,7 @@ import { WhatIfRow } from "./WhatIfRow";
 import { SemiCheckTab } from "./SemiCheckTab";
 import { MobileTodayPnLLayer } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
+import { FeedbackDialog } from "./FeedbackDialog";
 import { EditHoldingDialog } from "./EditHoldingDialog";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./HelpDialog";
 import { Sparkline } from "./Sparkline";
@@ -117,6 +118,7 @@ export function MobileSimpleView() {
   const [proxyUrl, setProxyUrl] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [editing, setEditing] = useState<Stock | null>(null);
   const [memoTicker, setMemoTicker] = useState<string | null>(null);
@@ -494,12 +496,11 @@ export function MobileSimpleView() {
                 className="p-1.5 rounded hover:bg-gray-100 transition">
           ❓
         </button>
-        <a href="https://github.com/hanjungwoo3/portfolio-web/discussions"
-           target="_blank" rel="noopener noreferrer"
-           title="기능 요청 / 의견 (GitHub Discussions)"
+        <button onClick={() => setFeedbackOpen(true)}
+           title="기능 요청 / 의견 (가입 없이 익명 작성)"
            className="p-1.5 rounded hover:bg-gray-100 transition shrink-0">
           💡
-        </a>
+        </button>
         <a href={KAKAOPAY_URL} target="_blank" rel="noopener noreferrer"
            title="개발자 후원하기 (카카오페이)"
            className="p-1.5 rounded hover:bg-gray-100 transition shrink-0">
@@ -798,6 +799,9 @@ export function MobileSimpleView() {
           void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
           scheduleAutoSync();
         }} />
+
+      {/* 기능 요청 / 건의사항 — Padlet 임베드 */}
+      <FeedbackDialog isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
 
       {/* 보유 편집 (매수 / 매도 / 직접수정 / 삭제) */}
       <EditHoldingDialog
