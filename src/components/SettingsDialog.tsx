@@ -274,8 +274,19 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
         <header className="px-5 py-3 border-b bg-gray-50 flex items-center gap-3">
           <h2 className="text-lg font-bold shrink-0">⚙️ 설정</h2>
           <span className="text-xs text-gray-500 truncate">{statusMsg}</span>
+          {/* 개발이력 — GitHub commit 로그 (외부 링크: 새 탭).
+              헤더 우측에 border 박스 + ↗ 으로 외부 링크임을 명시 */}
+          <a href="https://github.com/hanjungwoo3/portfolio-web/commits/main/"
+             target="_blank" rel="noopener noreferrer"
+             className="ml-auto inline-flex items-center gap-1 px-2 py-1
+                        border border-blue-200 rounded
+                        text-[11px] text-blue-700 bg-blue-50/50
+                        hover:bg-blue-100/70 hover:border-blue-300
+                        whitespace-nowrap">
+            GitHub 의 최근 변경/수정 commit 목록 <span className="text-[9px]">↗</span>
+          </a>
           <button onClick={onClose}
-                  className="ml-auto text-gray-400 hover:text-gray-600 text-xl">✕</button>
+                  className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
 
         <div className="px-5 py-3 space-y-3 flex-1 flex flex-col min-h-0">

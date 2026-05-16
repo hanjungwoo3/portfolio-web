@@ -1061,10 +1061,18 @@ function SettingsModal({
             </div>
           </div>
         )}
-        <header className="px-4 py-3 border-b bg-gray-50 flex items-center">
+        <header className="px-4 py-3 border-b bg-gray-50 flex items-center gap-2">
           <h2 className="text-base font-bold">⚙️ 설정</h2>
+          {/* 개발이력 — GitHub commit 로그 (외부 링크: 새 탭). 헤더 우측 border 박스 */}
+          <a href="https://github.com/hanjungwoo3/portfolio-web/commits/main/"
+             target="_blank" rel="noopener noreferrer"
+             className="ml-auto inline-flex items-center gap-1 px-2 py-1
+                        border border-blue-200 rounded
+                        text-[10px] text-blue-700 bg-blue-50/50 whitespace-nowrap">
+            GitHub 변경/수정 commit 목록 <span className="text-[9px]">↗</span>
+          </a>
           <button onClick={onClose}
-                  className="ml-auto text-gray-400 hover:text-gray-600 text-xl">✕</button>
+                  className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
         <div className="px-4 py-3 space-y-4 overflow-y-auto flex-1">
 
