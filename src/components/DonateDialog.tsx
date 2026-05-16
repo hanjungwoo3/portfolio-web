@@ -14,10 +14,8 @@ const KAKAOPAY_URL = "https://qr.kakaopay.com/FCscirjeF";
 const KAKAOPAY_QR_IMG =
   `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(KAKAOPAY_URL)}`;
 
-// 토스뱅크 계좌이체 — free4qr 페이지로 연결 (스캔/클릭 시 송금 앱 deep link)
-const BANK_NAME = "토스뱅크";
-const BANK_ACCOUNT = "100-0422-5246";
-const BANK_HOLDER = "한정우";
+// 토스뱅크 계좌이체 — free4qr 페이지로 연결 (스캔/클릭 시 송금 앱 deep link).
+// 계좌번호·예금주는 페이지에서 노출되므로 사이트엔 직접 표시하지 않음.
 const BANK_LINK_URL =
   "https://free4qr.com/qr-result?s=portfolio-web&b=092&a=100-0422-5246&h=%ED%95%9C%EC%A0%95%EC%9A%B0";
 const BANK_QR_IMG =
@@ -25,17 +23,7 @@ const BANK_QR_IMG =
 
 export function DonateDialog({ isOpen, onClose }: Props) {
   const [tab, setTab] = useState<Tab>("kakaopay");
-  const [copied, setCopied] = useState(false);
-  const [showAccount, setShowAccount] = useState(false);
   if (!isOpen) return null;
-
-  const handleCopyAccount = async () => {
-    try {
-      await navigator.clipboard.writeText(BANK_ACCOUNT);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    } catch { /* noop */ }
-  };
 
   const tabBtn = (key: Tab, label: string) => (
     <button onClick={() => setTab(key)}
@@ -96,26 +84,6 @@ export function DonateDialog({ isOpen, onClose }: Props) {
             <p className="hidden sm:block text-[11px] text-gray-500 mb-2">
               스캔 시 송금 앱으로 자동 연결됩니다 (토스·카뱅 등)
             </p>
-            {!showAccount ? (
-              <button onClick={() => setShowAccount(true)}
-                      className="block w-full mb-2 text-[11px] text-gray-500
-                                 hover:text-gray-700 underline">
-                계좌번호 직접 보기
-              </button>
-            ) : (
-              <div className="bg-gray-50 rounded border border-gray-200 px-3 py-2 mb-2
-                              text-sm tabular-nums flex items-center justify-between gap-2">
-                <div className="text-left leading-tight">
-                  <div className="text-[11px] text-gray-500">{BANK_NAME} · {BANK_HOLDER}</div>
-                  <div className="font-bold text-gray-800">{BANK_ACCOUNT}</div>
-                </div>
-                <button onClick={handleCopyAccount}
-                        className="px-2 py-1 rounded text-[11px] font-medium
-                                   bg-white border border-gray-300 hover:bg-gray-100">
-                  {copied ? "✓ 복사됨" : "복사"}
-                </button>
-              </div>
-            )}
             <a href={BANK_LINK_URL}
                target="_blank" rel="noopener noreferrer"
                className="block px-4 py-3 sm:py-2 rounded font-bold text-white
