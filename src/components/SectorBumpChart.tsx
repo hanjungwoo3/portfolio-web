@@ -39,6 +39,8 @@ function colorOf(i: number, n: number, isMarket?: boolean): string {
 interface Props {
   ranks: KrSectorEtfRank[];
   sortMode: SortMode;
+  hoverTicker?: string | null;
+  onHover?: (ticker: string | null) => void;
 }
 
 interface SectorRow {
@@ -90,8 +92,14 @@ function computeRanks(ranks: KrSectorEtfRank[], sortMode: SortMode): SectorRow[]
   }));
 }
 
-export function SectorBumpChart({ ranks, sortMode }: Props) {
-  const [hover, setHover] = useState<string | null>(null);
+export function SectorBumpChart({ ranks, sortMode, hoverTicker, onHover }: Props) {
+  // 부모가 controlled 로 hoverTicker 전달하면 그 값 사용, 아니면 내부 state
+  const [innerHover, setInnerHover] = useState<string | null>(null);
+  const hover = hoverTicker !== undefined ? hoverTicker : innerHover;
+  const setHover = (t: string | null) => {
+    if (onHover) onHover(t);
+    else setInnerHover(t);
+  };
   const rows = useMemo(() => computeRanks(ranks, sortMode), [ranks, sortMode]);
   const n = rows.length;
 

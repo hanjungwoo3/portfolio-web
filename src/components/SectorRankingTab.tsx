@@ -74,8 +74,11 @@ interface EtfColumnProps {
   ranks: KrSectorEtfRank[];
   loading: boolean;
   sortMode: SortMode;
+  hoverTicker: string | null;
+  onHover: (ticker: string | null) => void;
 }
-function EtfColumn({ period, amtKey, obvKey, label, sub, ranks, loading, sortMode }: EtfColumnProps) {
+function EtfColumn({ period, amtKey, obvKey, label, sub, ranks, loading, sortMode,
+                     hoverTicker, onHover }: EtfColumnProps) {
   // 정렬 모드(sortMode)에 따라 sortKey 사용 — pct / amount / mixed / obv
   const sorted = [...ranks]
     .map(r => ({ r, key: sortKey(sortMode, r[period], r[amtKey], r[obvKey]) }))
@@ -118,10 +121,17 @@ function EtfColumn({ period, amtKey, obvKey, label, sub, ranks, loading, sortMod
             const cardBg = etf.isMarket
               ? "bg-gray-100 border-gray-300"
               : rankBg(rank);
+            const isActive = hoverTicker === null || hoverTicker === etf.ticker;
+            const isHovered = hoverTicker === etf.ticker;
             return (
               <div key={etf.ticker}
+                   onMouseEnter={() => onHover(etf.ticker)}
+                   onMouseLeave={() => onHover(null)}
                    className={`grid items-center gap-x-1 rounded border px-2 py-1.5
-                               text-xs tabular-nums ${cardBg}`}
+                               text-xs tabular-nums transition-opacity
+                               ${cardBg}
+                               ${isActive ? "opacity-100" : "opacity-30"}
+                               ${isHovered ? "ring-2 ring-blue-300" : ""}`}
                    style={{ gridTemplateColumns: GRID_COLS }}>
                 <div className="flex items-center justify-center w-5 h-5 rounded
                                 font-bold text-gray-800 bg-white border border-gray-300">
@@ -206,6 +216,7 @@ const SORT_HINTS: Record<SortMode, string> = {
 
 export function SectorRankingTab() {
   const [sortMode, setSortMode] = useState<SortMode>("obv");
+  const [hoverTicker, setHoverTicker] = useState<string | null>(null);
 
   const { data: etfRanks, isLoading: etfLoading } = useQuery({
     queryKey: ["kr-sector-etf-ranking"],
@@ -251,7 +262,8 @@ export function SectorRankingTab() {
 
       {/* 순위 변동 Bump Chart — 4기간 순위 변화를 라인으로 한눈에 */}
       {!etfLoading && etfRanks && etfRanks.length > 1 && (
-        <SectorBumpChart ranks={etfRanks} sortMode={sortMode} />
+        <SectorBumpChart ranks={etfRanks} sortMode={sortMode}
+                         hoverTicker={hoverTicker} onHover={setHoverTicker} />
       )}
 
       {/* 4 컬럼 배치 — 데스크톱: 균등 4분할 + 컬럼 사이 큰 gap (그래프 4점과 시각적 정렬).
@@ -262,7 +274,8 @@ export function SectorRankingTab() {
                      period={p.key} amtKey={p.amtKey} obvKey={p.obvKey}
                      label={p.label} sub={p.sub}
                      ranks={etfRanks ?? []} loading={etfLoading}
-                     sortMode={sortMode} />
+                     sortMode={sortMode}
+                     hoverTicker={hoverTicker} onHover={setHoverTicker} />
         ))}
       </div>
 
