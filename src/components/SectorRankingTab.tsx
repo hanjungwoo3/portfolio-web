@@ -52,11 +52,15 @@ function pctColor(pct: number | null): string {
   if (pct < 0) return "text-blue-600";
   return "text-gray-500";
 }
-// 그래프 SectorBumpChart 와 동일 색 매핑 — ticker 의 ranks 내 index 기반 HSL
-function tickerColor(index: number, total: number, isMarket?: boolean): string {
+// 그래프 SectorBumpChart 와 동일 12색 팔레트 (Tableau)
+const PALETTE_12 = [
+  "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
+  "#9467bd", "#8c564b", "#e377c2", "#17becf",
+  "#bcbd22", "#e7ba52", "#ad494a", "#a55194",
+];
+function tickerColor(index: number, _total: number, isMarket?: boolean): string {
   if (isMarket) return "#d1d5db";  // gray-300 (연한 회색)
-  const hue = Math.round((360 / total) * index);
-  return `hsl(${hue} 65% 45%)`;
+  return PALETTE_12[index % PALETTE_12.length];
 }
 
 function rankBg(rank: number): string {
@@ -109,18 +113,23 @@ function EtfColumn({ period, amtKey, obvKey, label, sub, ranks, loading, sortMod
           <div className="text-center text-xs text-gray-400 py-8">불러오는 중...</div>
         ) : sorted.length === 0 ? (
           <div className="text-center text-xs text-gray-400 py-8">데이터 없음</div>
-        ) : (
-          sorted.map((etf, i) => {
+        ) : (() => {
+          // amber 강조는 "섹터 카운트" 기준 1~3위 → 시장 ETF 가 sorted 중간에 끼어도 영향 X
+          let sectorCount = 0;
+          return sorted.map((etf, i) => {
             const rank = i + 1;
+            if (!etf.isMarket) sectorCount += 1;
+            const sectorRank = etf.isMarket ? null : sectorCount;
             const pct = etf[period]!;
             const amt = etf[amtKey];
             const obv = etf[obvKey];
             // 그래프와 동일한 색 — 원본 ranks 의 index 기반
             const origIdx = ranks.findIndex(r => r.ticker === etf.ticker);
             const tColor = tickerColor(origIdx, ranks.length, etf.isMarket);
+            // 시장 ETF = 회색 / 섹터 = sectorRank 기준 amber
             const cardBg = etf.isMarket
               ? "bg-gray-100 border-gray-300"
-              : rankBg(rank);
+              : rankBg(sectorRank!);
             const isActive = hoverTicker === null || hoverTicker === etf.ticker;
             const isHovered = hoverTicker === etf.ticker;
             return (
@@ -158,8 +167,8 @@ function EtfColumn({ period, amtKey, obvKey, label, sub, ranks, loading, sortMod
                 </span>
               </div>
             );
-          })
-        )}
+          });
+        })()}
       </div>
     </div>
   );

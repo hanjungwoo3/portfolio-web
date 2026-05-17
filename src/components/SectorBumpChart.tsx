@@ -29,11 +29,24 @@ const PERIODS: { key: Period; amtKey: AmtKey; obvKey: ObvKey; label: string }[] 
   { key: "today", amtKey: "amountToday", obvKey: "obvToday", label: "오늘" },
 ];
 
-// 12색 고정 팔레트 — 시각 구분용 (HSL 균등 분포). 시장 ETF 는 연한 회색.
-function colorOf(i: number, n: number, isMarket?: boolean): string {
+// 12색 카테고리 팔레트 — Tableau 10 + 2개 보강. HSL 균등 분포보다 인접 색 구분 잘됨.
+const PALETTE_12 = [
+  "#1f77b4", // 파랑
+  "#ff7f0e", // 주황
+  "#2ca02c", // 초록
+  "#d62728", // 빨강
+  "#9467bd", // 보라
+  "#8c564b", // 갈색
+  "#e377c2", // 분홍
+  "#17becf", // 청록
+  "#bcbd22", // 올리브
+  "#e7ba52", // 황금
+  "#ad494a", // 진홍
+  "#a55194", // 자주
+];
+function colorOf(i: number, _n: number, isMarket?: boolean): string {
   if (isMarket) return "#d1d5db";  // gray-300
-  const hue = Math.round((360 / n) * i);
-  return `hsl(${hue} 65% 45%)`;
+  return PALETTE_12[i % PALETTE_12.length];
 }
 
 interface Props {
