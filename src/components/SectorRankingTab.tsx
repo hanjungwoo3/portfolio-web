@@ -5,6 +5,7 @@ import {
   fetchKrSectorRanking, type KrSectorRankItem,
 } from "../lib/api";
 import { SectorBumpChart } from "./SectorBumpChart";
+import { EtfCompositionDialog } from "./EtfCompositionDialog";
 
 // 정렬 모드 — 3가지 관점:
 // - amount: 거래대금 순위 (실제 자금 이동량)
@@ -80,9 +81,10 @@ interface EtfColumnProps {
   sortMode: SortMode;
   hoverTicker: string | null;
   onHover: (ticker: string | null) => void;
+  onOpenEtf: (etf: KrSectorEtfRank) => void;
 }
 function EtfColumn({ period, amtKey, obvKey, label, sub, ranks, loading, sortMode,
-                     hoverTicker, onHover }: EtfColumnProps) {
+                     hoverTicker, onHover, onOpenEtf }: EtfColumnProps) {
   // 정렬 모드(sortMode)에 따라 sortKey 사용 — pct / amount / mixed / obv
   const sorted = [...ranks]
     .map(r => ({ r, key: sortKey(sortMode, r[period], r[amtKey], r[obvKey]) }))
@@ -146,13 +148,12 @@ function EtfColumn({ period, amtKey, obvKey, label, sub, ranks, loading, sortMod
                                 font-bold text-gray-800 bg-white border border-gray-300">
                   {rank}
                 </div>
-                <a href={`https://www.tossinvest.com/stocks/A${etf.ticker}`}
-                   target="_blank" rel="noopener noreferrer"
-                   title={etf.fullName ?? etf.name}
-                   className="font-bold truncate min-w-0 hover:underline"
-                   style={{ color: tColor }}>
+                <button onClick={() => onOpenEtf(etf)}
+                        title={`${etf.fullName ?? etf.name} — 구성 종목 보기`}
+                        className="text-left font-bold truncate min-w-0 hover:underline"
+                        style={{ color: tColor }}>
                   {etf.name}
-                </a>
+                </button>
                 <span className="text-right text-gray-700"
                       title="거래대금 (실제 자금 이동량)">
                   {amt != null ? fmtAmount(amt) : "—"}
@@ -226,6 +227,7 @@ const SORT_HINTS: Record<SortMode, string> = {
 export function SectorRankingTab() {
   const [sortMode, setSortMode] = useState<SortMode>("obv");
   const [hoverTicker, setHoverTicker] = useState<string | null>(null);
+  const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
 
   const { data: etfRanks, isLoading: etfLoading } = useQuery({
     queryKey: ["kr-sector-etf-ranking"],
@@ -284,12 +286,20 @@ export function SectorRankingTab() {
                      label={p.label} sub={p.sub}
                      ranks={etfRanks ?? []} loading={etfLoading}
                      sortMode={sortMode}
-                     hoverTicker={hoverTicker} onHover={setHoverTicker} />
+                     hoverTicker={hoverTicker} onHover={setHoverTicker}
+                     onOpenEtf={(etf) => setEtfDialog({ ticker: etf.ticker, name: etf.fullName ?? etf.name })} />
         ))}
       </div>
 
       {/* 토스 세부 테마 — 별도 섹션 (보조 정보) */}
       <TossDepth1Section data={tossRanks} loading={tossLoading} />
+
+      {/* ETF 구성 종목 모달 */}
+      {etfDialog && (
+        <EtfCompositionDialog isOpen={true}
+                              ticker={etfDialog.ticker} etfName={etfDialog.name}
+                              onClose={() => setEtfDialog(null)} />
+      )}
     </div>
   );
 }

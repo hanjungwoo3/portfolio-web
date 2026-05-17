@@ -114,6 +114,41 @@ export async function fetchTossUsPrices(codes: string[]): Promise<Map<string, To
   return out;
 }
 
+// ETF 구성 종목 (PCF, Portfolio Composition File) — 토스 v2 endpoint.
+// 응답: { result: { items: [{ name, ratio, stockCode, ... }] } }
+export interface EtfComposition {
+  stockCode: string;   // A005930 형태
+  name: string;
+  ratio: number;       // 비중 (%)
+}
+export async function fetchEtfCompositions(ticker: string): Promise<EtfComposition[]> {
+  const target = `https://wts-info-api.tossinvest.com/api/v2/stock-infos/A${ticker}/compositions`;
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return [];
+    const data = await resp.json() as {
+      result?: {
+        items?: Array<{
+          stockCode?: string;
+          name?: string;
+          ratio?: number;
+        }>;
+      };
+    };
+    const items = data.result?.items ?? [];
+    return items
+      .map(it => ({
+        stockCode: it.stockCode ?? "",
+        name: it.name ?? "",
+        ratio: typeof it.ratio === "number" ? it.ratio : 0,
+      }))
+      .filter(it => it.stockCode && it.name)
+      .sort((a, b) => b.ratio - a.ratio);
+  } catch {
+    return [];
+  }
+}
+
 // 한국 섹터 ranking — KODEX/TIGER 섹터 ETF 기반 자체 계산.
 // 우리 사이트와 일관성(매크로 탭 한국 ETF 줄과 동일) + 4기간(오늘/5/10/20일) 모두 활성화.
 // Yahoo chart 일별 종가 → 마지막 vs N거래일 전 종가 비교로 등락률 계산.
