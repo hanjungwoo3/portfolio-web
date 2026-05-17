@@ -238,23 +238,31 @@ export function SectorBumpChart({ ranks, sortMode, hoverTicker, onHover }: Props
                 // 점 위 라벨 = 정렬 모드 값 (각 기간 별)
                 const obvForPeriod = row.obvByPeriod[pt.period];
                 let label = "";
+                let value: number | null = null;
                 if (sortMode === "pct" && pt.pct != null) {
                   label = `${pt.pct >= 0 ? "+" : ""}${pt.pct.toFixed(1)}%`;
+                  value = pt.pct;
                 } else if (sortMode === "amount" && pt.amt != null) {
                   label = fmtAmount(pt.amt);
+                  value = pt.amt;
                 } else if (sortMode === "obv" && obvForPeriod != null) {
                   label = fmtAmount(obvForPeriod);
+                  value = obvForPeriod;
                 }
+                // 호버 시 라벨 색 = 부호별 (양수 빨강 / 음수 파랑)
+                const labelColor = isHovered && value != null
+                  ? (value > 0 ? "#dc2626" : value < 0 ? "#2563eb" : "#6b7280")
+                  : color;
                 return (
                   <g key={k}>
                     <circle cx={pt.x} cy={y} r={r}
                             fill={color} stroke="#fff" strokeWidth="1" />
-                    {/* 점 위 = 정렬 모드 값 */}
+                    {/* 점 위 = 정렬 모드 값 — 호버 시 부호별 색 */}
                     {label && (
                       <text x={pt.x} y={y - r - 3}
                             textAnchor="middle"
                             fontSize={isHovered ? 9 : 8}
-                            fill={color}
+                            fill={labelColor}
                             fontWeight={isHovered ? 700 : 500}
                             opacity={isHovered ? 1 : 0.7}>
                         {label}
