@@ -17,7 +17,7 @@ const KAKAOPAY_QR_IMG =
 // 토스뱅크 계좌이체 — free4qr 페이지로 연결 (스캔/클릭 시 송금 앱 deep link).
 // 계좌번호·예금주는 페이지에서 노출되므로 사이트엔 직접 표시하지 않음.
 const BANK_LINK_URL =
-  "https://free4qr.com/qr-result?s=portfolio-web&b=092&a=100-0422-5246&h=%ED%95%9C%EC%A0%95%EC%9A%B0";
+  "https://free4qr.com/qr-result?s=portfolio-web&b=092&a=1000-0422-5246&h=%ED%95%9C%EC%A0%95%EC%9A%B0";
 const BANK_QR_IMG =
   `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(BANK_LINK_URL)}`;
 

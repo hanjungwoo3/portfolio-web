@@ -255,8 +255,8 @@ export function SectorRankingTab() {
       )}
 
       {/* 4 컬럼 배치 — 데스크톱: 균등 4분할 + 컬럼 사이 큰 gap (그래프 4점과 시각적 정렬).
-          모바일: 2x2 그리드 (좌우 스와이프 탭 전환과 충돌 회피) */}
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 sm:gap-8">
+          모바일: 1컬럼 세로 4섹션 (2x2 는 너비 좁아 라벨 깨짐 → 세로 스크롤) */}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:gap-8">
         {PERIODS.map(p => (
           <EtfColumn key={p.key}
                      period={p.key} amtKey={p.amtKey} obvKey={p.obvKey}
