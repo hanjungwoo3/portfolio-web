@@ -134,7 +134,7 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
           ) : (
             <>
               {/* StockCard 패턴 — 가로 작게(3열), 세로 크게(min-h-[120px]), gap-y 충분히 */}
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-2 gap-y-5 pt-3 pb-2">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-2 gap-y-5 pt-3 pb-2">
                 {visibleItems.map((it, i) => {
                   const tNum = it.stockCode.replace(/^A/, "");
                   const isStandard = /^\d{6}$/.test(tNum);
@@ -268,7 +268,7 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
                   );
                 })}
                 {/* 합계 정보 — 마지막 그리드 셀 우하단에 가로 한 줄, 흐리게 */}
-                <div className="col-start-2 sm:col-start-3 flex items-end justify-end
+                <div className="sm:col-start-3 flex items-end justify-end
                                 px-2 pb-2 text-xs text-gray-400 tabular-nums whitespace-nowrap">
                   종목 <span className="font-bold text-gray-500 mx-0.5">{visibleItems.length}개</span> ·
                   합계 <span className="font-bold text-gray-500 mx-0.5">{visibleRatio.toFixed(1)}%</span>

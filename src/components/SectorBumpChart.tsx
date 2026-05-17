@@ -285,37 +285,20 @@ export function SectorBumpChart({ ranks, sortMode, hoverTicker, onHover }: Props
           );
         })}
 
-        {/* 우측 끝점 라벨 — 섹터명 + (현재 정렬값) */}
+        {/* 우측 끝점 라벨 — 섹터명만 (정렬값은 점 위 라벨과 중복이라 제거) */}
         {todaySorted.map(row => {
           const i = rows.findIndex(r => r.ticker === row.ticker);
           const color = colorOf(i, n, row.isMarket);
           const lastRank = row.rankByPeriod.today!;
-          const todayPct = row.pctByPeriod.today;
-          const todayAmt = row.amtByPeriod.today;
           const xEnd = xFor(PERIODS.length - 1);
           const yEnd = yFor(lastRank);
           const isActive = hover === null || hover === row.ticker;
-          // 정렬 모드별 끝 라벨 값
-          let suffix = "";
-          if (sortMode === "pct" && todayPct != null) {
-            suffix = `${todayPct >= 0 ? "+" : ""}${todayPct.toFixed(1)}%`;
-          } else if (sortMode === "amount" && todayAmt != null) {
-            suffix = fmtAmount(todayAmt);
-          } else if (sortMode === "obv") {
-            const o = row.obvByPeriod.today;
-            if (o != null) suffix = fmtAmount(o);
-          }
           return (
             <g key={`lbl-${row.ticker}`} opacity={isActive ? 1 : 0.2}>
               <text x={xEnd + 6} y={yEnd + 3}
                     fontSize="11" fill={color}
                     style={{ fontWeight: hover === row.ticker ? 700 : 500 }}>
                 {row.name}
-                {suffix && (
-                  <tspan dx="3" fill="#6b7280" fontSize="9" fontWeight="400">
-                    ({suffix})
-                  </tspan>
-                )}
               </text>
             </g>
           );

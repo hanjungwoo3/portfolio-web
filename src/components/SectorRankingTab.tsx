@@ -92,7 +92,8 @@ function EtfColumn({ period, amtKey, obvKey, label, sub, ranks, loading, sortMod
     .sort((a, b) => b.key! - a.key!)
     .map(x => x.r);
 
-  const GRID_COLS = "1.25rem minmax(0,1fr) 4rem 4rem 5rem";
+  // 칼럼 너비 — 고정 (세로 정렬 일관성), 종목명만 최소 폭 보장
+  const GRID_COLS = "1.25rem minmax(4rem,1fr) 4rem 4rem 5rem";
   return (
     <div className="min-w-0">
       <div className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200 px-2 py-1.5">
@@ -105,10 +106,10 @@ function EtfColumn({ period, amtKey, obvKey, label, sub, ranks, loading, sortMod
                       border-b border-gray-200"
            style={{ gridTemplateColumns: GRID_COLS }}>
         <span></span>
-        <span>섹터(ETF)</span>
-        <span className="text-right">거래대금</span>
-        <span className="text-right">등락률</span>
-        <span className="text-right">유입</span>
+        <span className="truncate">섹터(ETF)</span>
+        <span className="text-right whitespace-nowrap">거래대금</span>
+        <span className="text-right whitespace-nowrap">등락률</span>
+        <span className="text-right whitespace-nowrap">유입</span>
       </div>
       <div className="px-1 py-2 space-y-1.5">
         {loading ? (
@@ -274,24 +275,27 @@ export function SectorRankingTab({ onRequestSearch }: SectorRankingTabProps = {}
         <span className="ml-2 text-[11px] text-gray-500">{SORT_HINTS[sortMode]}</span>
       </div>
 
-      {/* 순위 변동 Bump Chart — 4기간 순위 변화를 라인으로 한눈에 */}
-      {!etfLoading && etfRanks && etfRanks.length > 1 && (
-        <SectorBumpChart ranks={etfRanks} sortMode={sortMode}
-                         hoverTicker={hoverTicker} onHover={setHoverTicker} />
-      )}
-
-      {/* 4 컬럼 배치 — 데스크톱: 균등 4분할 + 컬럼 사이 큰 gap (그래프 4점과 시각적 정렬).
-          모바일: 1컬럼 세로 4섹션 (2x2 는 너비 좁아 라벨 깨짐 → 세로 스크롤) */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-4 sm:gap-8">
-        {PERIODS.map(p => (
-          <EtfColumn key={p.key}
-                     period={p.key} amtKey={p.amtKey} obvKey={p.obvKey}
-                     label={p.label} sub={p.sub}
-                     ranks={etfRanks ?? []} loading={etfLoading}
-                     sortMode={sortMode}
-                     hoverTicker={hoverTicker} onHover={setHoverTicker}
-                     onOpenEtf={(etf) => setEtfDialog({ ticker: etf.ticker, name: etf.fullName ?? etf.name })} />
-        ))}
+      {/* 그래프 + 4 컬럼 — 동일한 min-width(84rem) 안에서 같이 가로 스크롤되도록 wrapper 통합 */}
+      <div className="sm:overflow-x-auto">
+        <div className="sm:min-w-[84rem]">
+          {/* 순위 변동 Bump Chart — 4기간 순위 변화 */}
+          {!etfLoading && etfRanks && etfRanks.length > 1 && (
+            <SectorBumpChart ranks={etfRanks} sortMode={sortMode}
+                             hoverTicker={hoverTicker} onHover={setHoverTicker} />
+          )}
+          {/* 4 컬럼 배치 — 각 섹션 최소 21rem */}
+          <div className="grid grid-cols-1 gap-3 sm:gap-6 sm:grid-cols-[repeat(4,minmax(21rem,1fr))]">
+            {PERIODS.map(p => (
+              <EtfColumn key={p.key}
+                         period={p.key} amtKey={p.amtKey} obvKey={p.obvKey}
+                         label={p.label} sub={p.sub}
+                         ranks={etfRanks ?? []} loading={etfLoading}
+                         sortMode={sortMode}
+                         hoverTicker={hoverTicker} onHover={setHoverTicker}
+                         onOpenEtf={(etf) => setEtfDialog({ ticker: etf.ticker, name: etf.fullName ?? etf.name })} />
+            ))}
+          </div>
+        </div>
       </div>
 
       {/* 토스 세부 테마 — 별도 섹션 (보조 정보) */}
