@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Lightbulb } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import type { PricePoint } from "../lib/api";
-import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isHoldingSleeping, isEtfByName } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { memoTagClass } from "../lib/memoColor";
 import { Sparkline } from "./Sparkline";
@@ -35,6 +35,7 @@ interface Props {
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
   onOpenMemo?: (ticker: string) => void;             // 메모 아이콘 클릭
+  onOpenEtf?: (ticker: string, name: string) => void;  // ETF 책갈피 클릭
 }
 
 // 신호 — 최근 5거래일 동향 + 연기금 5/20/60일 매수일 비율 (또는 외인비율 20일 fallback)
@@ -498,7 +499,7 @@ const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
   stock, price, krReg, investor, investorHistory, consensus, sector, peak, warning, loading, chart, priceHistory, longHistory,
-  memo, otherGroups, onOpenValuation, onEdit, onDelete, onOpenMemo,
+  memo, otherGroups, onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
 
@@ -914,6 +915,16 @@ export function StockCard({
           )}
         </div>
         <div className="flex items-end gap-0.5 shrink-0">
+          {/* ETF 책갈피 — 메모 왼쪽. 평소 흐리게, hover 진하게 */}
+          {isEtfByName(stock.name) && onOpenEtf && (
+            <button onClick={() => onOpenEtf(stock.ticker, stock.name)}
+                    title="ETF 구성 종목 보기"
+                    className="px-1 py-0 rounded text-[10px] font-bold leading-none
+                               text-violet-700 bg-violet-50 border border-violet-200
+                               opacity-40 hover:opacity-100 transition self-center">
+              ETF
+            </button>
+          )}
           {/* 액션 버튼 — 항상 노출 (메모 있으면 전구 노랑/켜짐, 없으면 회색/꺼짐) */}
           {onOpenMemo && (
             <button

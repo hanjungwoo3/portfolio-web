@@ -17,6 +17,7 @@ import { WhatIfRow } from "./components/WhatIfRow";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { FeedbackDialog } from "./components/FeedbackDialog";
 import { DonateDialog } from "./components/DonateDialog";
+import { EtfCompositionDialog } from "./components/EtfCompositionDialog";
 import { OnboardingDialog } from "./components/OnboardingDialog";
 import { SearchDialog } from "./components/SearchDialog";
 import { EditHoldingDialog } from "./components/EditHoldingDialog";
@@ -75,7 +76,9 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchInitQuery, setSearchInitQuery] = useState("");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [editing, setEditing] = useState<Stock | null>(null);
@@ -404,7 +407,10 @@ function Dashboard() {
         {activeTab === US_MARKET_TAB_KEY ? (
           <UsMarketTab />
         ) : activeTab === SECTOR_RANK_TAB_KEY ? (
-          <SectorRankingTab />
+          <SectorRankingTab onRequestSearch={(q) => {
+            setSearchInitQuery(q);
+            setSearchOpen(true);
+          }} />
         ) : activeTab === SEMI_CHECK_TAB_KEY ? (
           <SemiCheckTab />
         ) : visible.length === 0 ? (
@@ -468,6 +474,7 @@ function Dashboard() {
                     setReloadKey(k => k + 1);
                   })}
                   onOpenMemo={t => setMemoTicker(t)}
+                  onOpenEtf={(tk, nm) => setEtfDialog({ ticker: tk, name: nm })}
                 />
                 );
               })}
@@ -503,8 +510,9 @@ function Dashboard() {
 
       <SearchDialog
         isOpen={searchOpen}
-        onClose={() => setSearchOpen(false)}
+        onClose={() => { setSearchOpen(false); setSearchInitQuery(""); }}
         onAdded={() => setReloadKey(k => k + 1)}
+        initialQuery={searchInitQuery}
       />
 
       <EditHoldingDialog
@@ -533,6 +541,17 @@ function Dashboard() {
       />
 
       <DonateDialog isOpen={donateOpen} onClose={() => setDonateOpen(false)} />
+
+      {etfDialog && (
+        <EtfCompositionDialog isOpen={true}
+                              ticker={etfDialog.ticker} etfName={etfDialog.name}
+                              onClose={() => setEtfDialog(null)}
+                              onRequestSearch={(q) => {
+                                setEtfDialog(null);
+                                setSearchInitQuery(q);
+                                setSearchOpen(true);
+                              }} />
+      )}
 
       {valuationTicker && (() => {
         const s = holdings.find(h => h.ticker === valuationTicker);

@@ -50,6 +50,7 @@ import { TotalRow } from "./TotalRow";
 import { WhatIfRow } from "./WhatIfRow";
 import { SemiCheckTab } from "./SemiCheckTab";
 import { SectorRankingTab } from "./SectorRankingTab";
+import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { MobileTodayPnLLayer } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
 import { FeedbackDialog } from "./FeedbackDialog";
@@ -120,6 +121,8 @@ export function MobileSimpleView() {
   const [proxyUrl, setProxyUrl] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [searchInitQuery, setSearchInitQuery] = useState("");
+  const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -616,6 +619,7 @@ export function MobileSimpleView() {
                                      .filter(g => g !== (s.account || ""))}
                                onOpenValuation={setValuationTicker}
                                onOpenMemo={t => setMemoTicker(t)}
+                               onOpenEtf={(tk, nm) => setEtfDialog({ ticker: tk, name: nm })}
                                onEdit={isAggregated ? undefined : (st => setEditing(st))}
                                onDelete={isAggregated ? undefined : (async st => {
                                  const indep = getIndependentGroupsMode();
@@ -688,7 +692,12 @@ export function MobileSimpleView() {
           return <div className="px-2 py-2"><SemiCheckTab /></div>;
         }
         if (activeTab === SECTOR_KEY) {
-          return <div className="px-2 py-2"><SectorRankingTab /></div>;
+          return <div className="px-2 py-2">
+            <SectorRankingTab onRequestSearch={(q) => {
+              setSearchInitQuery(q);
+              setSearchOpen(true);
+            }} />
+          </div>;
         }
         const order = activeTab === KR_KEY ? KR_ORDER : US_ORDER;
         // 한국 탭은 KOSPI/KOSDAQ 카드와 짝(미국 ETF/한국 ETF 페어)
@@ -813,7 +822,8 @@ export function MobileSimpleView() {
       {/* 종목 검색 / 추가 */}
       <SearchDialog
         isOpen={searchOpen}
-        onClose={() => setSearchOpen(false)}
+        onClose={() => { setSearchOpen(false); setSearchInitQuery(""); }}
+        initialQuery={searchInitQuery}
         onAdded={() => {
           void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
           void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
@@ -826,6 +836,17 @@ export function MobileSimpleView() {
 
       {/* 후원 — PC 와 동일한 모달 (설명 + QR + 직접 열기) */}
       <DonateDialog isOpen={donateOpen} onClose={() => setDonateOpen(false)} />
+
+      {etfDialog && (
+        <EtfCompositionDialog isOpen={true}
+                              ticker={etfDialog.ticker} etfName={etfDialog.name}
+                              onClose={() => setEtfDialog(null)}
+                              onRequestSearch={(q) => {
+                                setEtfDialog(null);
+                                setSearchInitQuery(q);
+                                setSearchOpen(true);
+                              }} />
+      )}
 
       {/* 보유 편집 (매수 / 매도 / 직접수정 / 삭제) */}
       <EditHoldingDialog

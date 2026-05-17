@@ -138,11 +138,11 @@ export async function fetchEtfCompositions(ticker: string): Promise<EtfCompositi
     const items = data.result?.items ?? [];
     return items
       .map(it => ({
-        stockCode: it.stockCode ?? "",
+        stockCode: it.stockCode ?? "",   // 선물·"그 외" 는 null → 빈 문자열
         name: it.name ?? "",
         ratio: typeof it.ratio === "number" ? it.ratio : 0,
       }))
-      .filter(it => it.stockCode && it.name)
+      .filter(it => it.name)             // name 만 있으면 표시 (stockCode 없어도 OK)
       .sort((a, b) => b.ratio - a.ratio);
   } catch {
     return [];

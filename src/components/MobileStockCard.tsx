@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Lightbulb } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isHoldingSleeping } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isHoldingSleeping, isEtfByName } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { memoTagClass } from "../lib/memoColor";
 import { pickTodayInvestor } from "../lib/api";
@@ -56,6 +56,7 @@ interface Props {
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
   onOpenMemo?: (ticker: string) => void;       // 📝 메모 다이얼로그
+  onOpenEtf?: (ticker: string, name: string) => void;  // ETF 책갈피 클릭
 }
 
 const STOP_LOSS_PCT = -9;
@@ -108,7 +109,7 @@ function openTossStock(ticker: string) {
 
 export function MobileStockCard({
   stock, price, krReg, peak, sector, warning, chart, investorHistory, consensus, memo, otherGroups,
-  onOpenValuation, onEdit, onDelete, onOpenMemo,
+  onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf,
 }: Props) {
   // 투자자 매매동향 레이어 토글 (👥 버튼)
   const [showFlow, setShowFlow] = useState(false);
@@ -231,6 +232,16 @@ export function MobileStockCard({
           )}
         </div>
         <div className="flex items-end gap-1 shrink-0">
+          {/* ETF 책갈피 — 메모 왼쪽. 평소 흐리게 */}
+          {isEtfByName(stock.name) && onOpenEtf && (
+            <button onClick={() => onOpenEtf(stock.ticker, stock.name)}
+                    title="ETF 구성 종목 보기"
+                    className="px-1.5 py-0.5 rounded text-xs font-bold leading-none
+                               text-violet-700 bg-violet-50 border border-violet-200
+                               opacity-40 hover:opacity-100 active:opacity-100 transition self-center">
+              ETF
+            </button>
+          )}
           {onOpenMemo && (
             <button onClick={() => onOpenMemo(stock.ticker)}
                     title={memo ? "메모 보기/수정" : "메모 추가"}

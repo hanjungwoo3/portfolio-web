@@ -139,6 +139,21 @@ export function krSessionPhase(): KrPhase {
   return "CLOSED";
 }
 
+// 종목명 prefix 로 ETF 판단 — 한국 ETF 발행사 prefix 매칭 (정확도 95%+).
+// 예: "KODEX 200", "TIGER 반도체", "K-방산", "ACE 미국S&P500"
+const ETF_NAME_PATTERNS = [
+  /^KODEX\b/i, /^TIGER\b/i, /^ACE\b/i, /^KBSTAR\b/i, /^PLUS\b/i,
+  /^HANARO\b/i, /^ARIRANG\b/i, /^SOL\b/i, /^KOSEF\b/i, /^RISE\b/i,
+  /^FOCUS\b/i, /^SMART\b/i, /^TIMEFOLIO\b/i, /^KIWOOM\b/i,
+  /^K-/i,             // K-방산, K-로봇 등
+  /^마이티\b/, /^WON\b/i, /^ITF\b/i, /^HK\b/i, /^WOORI\b/i,
+];
+export function isEtfByName(name: string | undefined | null): boolean {
+  if (!name) return false;
+  const trimmed = name.trim();
+  return ETF_NAME_PATTERNS.some(p => p.test(trimmed));
+}
+
 // 보유 종목 sleeping 판정 (KR) — 데스크톱 v2 동일.
 // REGULAR: 항상 활성 / CLOSED: 항상 휴면 /
 // EXTENDED: 마지막 체결 후 10분 경과 시 휴면.

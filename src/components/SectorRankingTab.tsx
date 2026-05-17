@@ -224,7 +224,10 @@ const SORT_HINTS: Record<SortMode, string> = {
   obv: "상승일·하락일 부호 누적 (OBV) — 정밀 자금 유출입",
 };
 
-export function SectorRankingTab() {
+interface SectorRankingTabProps {
+  onRequestSearch?: (query: string) => void;  // ETF 모달 "+추가" → SearchDialog 오픈
+}
+export function SectorRankingTab({ onRequestSearch }: SectorRankingTabProps = {}) {
   const [sortMode, setSortMode] = useState<SortMode>("obv");
   const [hoverTicker, setHoverTicker] = useState<string | null>(null);
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
@@ -298,7 +301,11 @@ export function SectorRankingTab() {
       {etfDialog && (
         <EtfCompositionDialog isOpen={true}
                               ticker={etfDialog.ticker} etfName={etfDialog.name}
-                              onClose={() => setEtfDialog(null)} />
+                              onClose={() => setEtfDialog(null)}
+                              onRequestSearch={onRequestSearch ? (q) => {
+                                setEtfDialog(null);   // 모달 닫고
+                                onRequestSearch(q);   // SearchDialog 오픈
+                              } : undefined} />
       )}
     </div>
   );

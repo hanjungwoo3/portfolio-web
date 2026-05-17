@@ -17,6 +17,7 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onAdded: () => void;
+  initialQuery?: string;
 }
 
 interface RowEdit { shares: string; avgPrice: string; buyDate: string; }
@@ -25,7 +26,7 @@ function todayKstStr(): string {
   return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 }
 
-export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
+export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
@@ -54,6 +55,49 @@ export function SearchDialog({ isOpen, onClose, onAdded }: Props) {
     setStatusMsg("");
     setGroupWarn(false);
   }, [isOpen]);
+
+  // 외부 prefill — 열릴 때 initialQuery 가 있으면 자동 입력 + 검색 자동 실행
+  useEffect(() => {
+    if (isOpen && initialQuery) {
+      setQuery(initialQuery);
+      // 다음 tick 에 검색 트리거 (state 반영 후)
+      const t = setTimeout(() => {
+        void (async () => {
+          const q = initialQuery.trim();
+          if (!q) return;
+          setSearching(true);
+          setStatusMsg("검색 중...");
+          setSelected(new Set());
+          try {
+            const codes = Array.from(new Set(
+              (q.match(/\b[\dA-Za-z]{6}\b/g) ?? []).map(c => c.toUpperCase())
+            ));
+            let stocks: SearchResult[];
+            if (codes.length > 0) {
+              const names = await Promise.all(
+                codes.map(c => fetchStockName(c).then(n => n ?? c))
+              );
+              stocks = codes.map((c, i) => ({
+                ticker: c, name: names[i], market: "KOSPI",
+              }));
+            } else {
+              stocks = await searchNaverAutoComplete(q);
+            }
+            setResults(stocks);
+            setSelected(new Set(stocks.map(s => s.ticker)));
+            setStatusMsg(stocks.length === 0
+              ? "검색 결과 없음"
+              : `${stocks.length}건 — 체크 후 그룹 선택 (보유 포함) → [일괄적용]`);
+          } catch {
+            setStatusMsg("검색 실패");
+          } finally {
+            setSearching(false);
+          }
+        })();
+      }, 0);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen, initialQuery]);
   // 그룹 마킹되면 경고 즉시 해제
   useEffect(() => {
     if (markedGroups.size > 0) setGroupWarn(false);
