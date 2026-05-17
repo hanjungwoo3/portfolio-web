@@ -29,9 +29,9 @@ const PERIODS: { key: Period; amtKey: AmtKey; obvKey: ObvKey; label: string }[] 
   { key: "today", amtKey: "amountToday", obvKey: "obvToday", label: "오늘" },
 ];
 
-// 12색 고정 팔레트 — 시각 구분용 (HSL 균등 분포). 시장 ETF 는 회색.
+// 12색 고정 팔레트 — 시각 구분용 (HSL 균등 분포). 시장 ETF 는 연한 회색.
 function colorOf(i: number, n: number, isMarket?: boolean): string {
-  if (isMarket) return "#9ca3af";  // gray-400
+  if (isMarket) return "#d1d5db";  // gray-300
   const hue = Math.round((360 / n) * i);
   return `hsl(${hue} 65% 45%)`;
 }

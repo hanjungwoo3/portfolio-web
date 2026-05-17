@@ -245,7 +245,7 @@ export async function fetchKrSectorEtfRanking(): Promise<KrSectorEtfRank[]> {
         } as KrSectorEtfRank;
       }
       return {
-        ticker: etf.ticker, name: etf.name, fullName: etf.fullName,
+        ticker: etf.ticker, name: etf.name, fullName: etf.fullName, isMarket: etf.isMarket,
         today: pctBetween(closes, 1),
         d5: pctBetween(closes, 5),
         d10: pctBetween(closes, 10),
