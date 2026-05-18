@@ -1469,14 +1469,6 @@ const TOSS_MARKET_LABEL: Record<string, string> = {
   KSP: "KOSPI", KSQ: "KOSDAQ", KNX: "KONEX",
   NYS: "NYSE", NAS: "NASDAQ", AMS: "AMEX",
 };
-interface TossACResp {
-  result?: {
-    products?: TossACProduct[];
-    stocks?: TossACProduct[];
-    items?: TossACProduct[];
-  };
-}
-
 // 응답을 재귀 탐색해 종목 정보를 가진 객체들을 평탄화 수집.
 // 토스 실제 응답: result[].data.items[] 안에 productCode/productName/symbol/market(KSP|KSQ).
 function extractTossProducts(node: unknown, acc: TossACProduct[] = []): TossACProduct[] {
