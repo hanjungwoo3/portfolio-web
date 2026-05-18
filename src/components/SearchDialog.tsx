@@ -11,7 +11,8 @@ import {
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import type { Stock, Price } from "../types";
-import { signColor } from "../lib/format";
+import { signColor, isEtfByName } from "../lib/format";
+import { EtfCompositionDialog } from "./EtfCompositionDialog";
 
 interface Props {
   isOpen: boolean;
@@ -41,6 +42,8 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
   const [pendingGroups, setPendingGroups] = useState<string[]>([]);
   // 그룹 미선택 경고 시각 효과 — 빨강 테두리 + 흔들림 (1.6s 후 해제)
   const [groupWarn, setGroupWarn] = useState(false);
+  // ETF 구성종목 모달 — 검색 결과 행의 ETF 책갈피 클릭 시
+  const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
 
   // 창 닫힐 때 모든 상태 초기화
   useEffect(() => {
@@ -54,6 +57,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     setPendingGroups([]);
     setStatusMsg("");
     setGroupWarn(false);
+    setEtfDialog(null);
   }, [isOpen]);
 
   // 외부 prefill — 열릴 때 initialQuery 가 있으면 query 만 세팅, 검색은 라이브 useEffect 가 자동 처리
@@ -571,7 +575,8 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
                   edit={rowEdits.get(r.ticker)
                          ?? { shares: "", avgPrice: "", buyDate: todayKstStr() }}
                   onEditChange={p => updateRowEdit(r.ticker, p)}
-                  onRemoveGroup={g => void removeOneFromGroup(r.ticker, g)} />
+                  onRemoveGroup={g => void removeOneFromGroup(r.ticker, g)}
+                  onOpenEtf={() => setEtfDialog({ ticker: r.ticker, name: r.name })} />
               );
             })
           )}
@@ -594,6 +599,14 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
           </footer>
         )}
       </div>
+
+      {/* ETF 구성종목 모달 — 검색 결과 ETF 책갈피 클릭 시 (SearchDialog 위에 겹쳐 표시) */}
+      {etfDialog && (
+        <EtfCompositionDialog isOpen={true}
+                              ticker={etfDialog.ticker}
+                              etfName={etfDialog.name}
+                              onClose={() => setEtfDialog(null)} />
+      )}
     </div>
   );
 }
@@ -608,11 +621,12 @@ interface RowProps {
   edit: RowEdit;
   onEditChange: (patch: Partial<RowEdit>) => void;
   onRemoveGroup: (group: string) => void;
+  onOpenEtf: () => void;  // ETF 책갈피 클릭 시 구성종목 모달 열기
 }
 
 function SearchResultRow({
   item, price, existing, pending, checked,
-  onToggle, edit, onEditChange, onRemoveGroup,
+  onToggle, edit, onEditChange, onRemoveGroup, onOpenEtf,
 }: RowProps) {
   const dayPct = price && price.base > 0
     ? ((price.price - price.base) / price.base) * 100 : undefined;
@@ -644,6 +658,16 @@ function SearchResultRow({
         <span className="text-[10px] bg-gray-100 px-1 rounded text-gray-600">
           {item.market}
         </span>
+        {/* ETF 책갈피 — 이름이 ETF 패턴이면. 클릭 시 구성종목 모달 (이벤트 전파 차단) */}
+        {isEtfByName(item.name) && /^\d{6}$/.test(item.ticker) && (
+          <button onClick={e => { e.stopPropagation(); onOpenEtf(); }}
+                  title="ETF 구성 종목 보기"
+                  className="px-1.5 py-0 rounded text-[10px] font-bold leading-none
+                             text-violet-700 bg-violet-50 border border-violet-200
+                             hover:bg-violet-100 transition">
+            ETF
+          </button>
+        )}
         {existing.map(g => (
           <button key={g}
                   onClick={e => {
