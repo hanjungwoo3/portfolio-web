@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices } from "../lib/api";
 import { loadHoldings } from "../lib/db";
@@ -15,6 +15,9 @@ interface Props {
 }
 
 export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onRequestSearch }: Props) {
+  // 파이 슬라이스 호버 → 해당 카드만 강조. visibleItems 인덱스 기준
+  const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
@@ -135,6 +138,9 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
             <>
               {/* StockCard 패턴 — 가로 작게(3열), 세로 크게(min-h-[120px]), gap-y 충분히 */}
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-2 gap-y-5 pt-3 pb-2">
+                {/* 비중 파이그래프 — 첫번째 카드 자리. 10개 종목 + 합계 = 11셀 → 파이로 12셀(4행) 완전 채움 */}
+                <PieSlot items={visibleItems} otherRatio={otherRatio} cashRatio={cashRatio}
+                         hoveredIdx={hoveredIdx} onHoverIdx={setHoveredIdx} />
                 {visibleItems.map((it, i) => {
                   const tNum = it.stockCode.replace(/^A/, "");
                   const isStandard = /^\d{6}$/.test(tNum);
@@ -167,9 +173,12 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
                   const tabBg = colorDiff > 0 ? "bg-rose-50 border-rose-300"
                     : colorDiff < 0 ? "bg-blue-50/70 border-blue-300"
                     : "bg-white border-gray-300";
+                  // 파이 슬라이스 호버 시 — 호버된 종목만 강조, 나머지는 흐리게
+                  const dimmed = hoveredIdx !== null && hoveredIdx !== i;
                   return (
                     <div key={`${it.stockCode || "x"}-${i}`}
-                         className={`group ${isStandard ? "" : "opacity-60"}`}>
+                         className={`group transition-opacity duration-150
+                                     ${dimmed ? "opacity-15" : isStandard ? "" : "opacity-60"}`}>
                       {/* 책갈피 라인 — 종목명 탭 (좌) + 보유/+ (우). 외부 감싸는 박스 위로 빠져나옴 */}
                       <div className="flex items-end justify-between gap-1 mx-1">
                         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
@@ -226,15 +235,23 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
                             </span>
                           </div>
                         )}
-                        {/* 비중 책갈피 — 배경/보더만 30% 투명, 글자는 진하게 */}
-                        <div className="absolute -top-2 right-1 z-10 bg-violet-50/30 border border-violet-300/30
-                                        rounded px-1.5 py-0 leading-tight
-                                        flex items-baseline gap-0.5">
-                          <span className="text-[10px] text-violet-700">비중</span>
-                          <span className="font-bold text-violet-800 text-sm tabular-nums">
-                            {it.ratio.toFixed(1)}%
-                          </span>
-                        </div>
+                        {/* 비중 책갈피 — PIE_PALETTE[i] 와 동일 색상 (파이 슬라이스 ↔ 카드 매칭) */}
+                        {(() => {
+                          const [pLight, pBase, pDark] = PIE_PALETTE[i % PIE_PALETTE.length];
+                          return (
+                            <div className="absolute -top-2 right-1 z-10 border rounded px-1.5 py-0
+                                            leading-tight flex items-baseline gap-0.5"
+                                 style={{
+                                   backgroundColor: `${pLight}33`,  // ~20% 투명
+                                   borderColor:     `${pBase}66`,   // ~40% 투명
+                                 }}>
+                              <span className="text-[10px]" style={{ color: pBase }}>비중</span>
+                              <span className="font-bold text-sm tabular-nums" style={{ color: pDark }}>
+                                {it.ratio.toFixed(1)}%
+                              </span>
+                            </div>
+                          );
+                        })()}
                         {/* 가격 박스 본체 — 가로 작게/세로 높게 (StockCard 와 유사 높이) */}
                         <div className="relative overflow-hidden border border-gray-200 rounded-md
                                         bg-gray-50/60 px-2 py-1 space-y-0.5 w-full min-h-[120px]
@@ -284,6 +301,146 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+// 큐레이트 10색 팔레트 — tailwind 500 톤 (인접 슬라이스 max 대비)
+// [light, base, dark] — radial gradient 로 3D 돔 효과
+const PIE_PALETTE: [string, string, string][] = [
+  ["#fb7185", "#f43f5e", "#be123c"],  // rose
+  ["#fb923c", "#f97316", "#c2410c"],  // orange
+  ["#facc15", "#eab308", "#a16207"],  // yellow
+  ["#a3e635", "#84cc16", "#4d7c0f"],  // lime
+  ["#34d399", "#10b981", "#047857"],  // emerald
+  ["#22d3ee", "#06b6d4", "#0e7490"],  // cyan
+  ["#60a5fa", "#3b82f6", "#1d4ed8"],  // blue
+  ["#818cf8", "#6366f1", "#4338ca"],  // indigo
+  ["#c084fc", "#a855f7", "#7e22ce"],  // purple
+  ["#f472b6", "#ec4899", "#be185d"],  // pink
+];
+
+// 첫번째 카드 자리 — 비중 파이그래프
+function PieSlot({ items, otherRatio, cashRatio, onHoverIdx }:
+                 { items: { name: string; ratio: number }[];
+                   otherRatio: number; cashRatio: number;
+                   hoveredIdx: number | null;
+                   onHoverIdx: (idx: number | null) => void }) {
+  // 슬라이스 = 표시 종목 + (그 외) + (현금·기타). itemIdx: 종목 카드 인덱스(메타 슬라이스는 null)
+  const slices: { name: string; ratio: number; colors: [string, string, string]; itemIdx: number | null }[] = [
+    ...items.map((it, i) => ({
+      name: it.name, ratio: it.ratio,
+      colors: PIE_PALETTE[i % PIE_PALETTE.length],
+      itemIdx: i,
+    })),
+  ];
+  if (otherRatio > 0.5)  slices.push({ name: "그 외",     ratio: otherRatio, colors: ["#d1d5db", "#9ca3af", "#6b7280"], itemIdx: null });
+  if (cashRatio  > 0.5)  slices.push({ name: "현금·기타", ratio: cashRatio,  colors: ["#e5e7eb", "#d1d5db", "#9ca3af"], itemIdx: null });
+
+  const total = slices.reduce((s, x) => s + x.ratio, 0);
+  // viewBox 220×150 — 콜아웃 라인+% 라벨이 파이 옆으로 빠질 공간 확보
+  const cx = 110, cy = 75, r = 50;
+  // 슬라이스 기하 미리 계산 (start/mid/end angle)
+  const geoms: { start: number; mid: number; end: number; angle: number }[] = [];
+  {
+    let cum = -Math.PI / 2;
+    for (const s of slices) {
+      const angle = (s.ratio / total) * Math.PI * 2;
+      const start = cum;
+      const mid = cum + angle / 2;
+      cum += angle;
+      geoms.push({ start, mid, end: cum, angle });
+    }
+  }
+  const gid = `pie-${Math.random().toString(36).slice(2, 8)}`;
+  // 호버는 PieSlot 내부 상태 (모든 슬라이스 대상), 부모로는 종목 인덱스만 전파
+  const [localHover, setLocalHover] = useState<number | null>(null);
+
+  const onEnter = (i: number) => {
+    setLocalHover(i);
+    onHoverIdx(slices[i].itemIdx);  // 메타 슬라이스는 null
+  };
+  const onLeave = () => {
+    setLocalHover(null);
+    onHoverIdx(null);
+  };
+
+  return (
+    <div className="flex items-center justify-center min-h-[160px]">
+      <svg viewBox="0 0 220 150" className="w-full h-auto max-h-[160px]"
+           role="img" aria-label="ETF 구성 비중 분포">
+        <defs>
+          {/* 슬라이스별 radial gradient — 중심 밝게, 가장자리 어둡게 (3D 돔) */}
+          {slices.map((s, i) => (
+            <radialGradient key={i} id={`${gid}-grad-${i}`}
+                            cx="50%" cy="50%" r="62%" fx="42%" fy="38%">
+              <stop offset="0%"   stopColor={s.colors[0]} />
+              <stop offset="55%"  stopColor={s.colors[1]} />
+              <stop offset="100%" stopColor={s.colors[2]} />
+            </radialGradient>
+          ))}
+        </defs>
+        <g>
+          {slices.map((s, i) => {
+            const g = geoms[i];
+            const x1 = cx + r * Math.cos(g.start);
+            const y1 = cy + r * Math.sin(g.start);
+            const x2 = cx + r * Math.cos(g.end);
+            const y2 = cy + r * Math.sin(g.end);
+            const largeArc = g.angle > Math.PI ? 1 : 0;
+            const path = `M ${cx} ${cy} L ${x1.toFixed(2)} ${y1.toFixed(2)}
+                          A ${r} ${r} 0 ${largeArc} 1 ${x2.toFixed(2)} ${y2.toFixed(2)} Z`;
+            // 호버 시 mid-angle 방향으로 살짝 튀어나옴
+            const isHover = localHover === i;
+            const offset = isHover ? 7 : 0;
+            const dx = offset * Math.cos(g.mid);
+            const dy = offset * Math.sin(g.mid);
+            return (
+              <path key={`${s.name}-${i}`} d={path}
+                    fill={`url(#${gid}-grad-${i})`}
+                    stroke="white" strokeWidth="3" strokeLinejoin="round"
+                    transform={`translate(${dx.toFixed(2)} ${dy.toFixed(2)})`}
+                    style={{ transition: "transform 0.15s ease-out", cursor: "pointer" }}
+                    onMouseEnter={() => onEnter(i)}
+                    onMouseLeave={onLeave}>
+                <title>{`${s.name} — ${s.ratio.toFixed(1)}%`}</title>
+              </path>
+            );
+          })}
+        </g>
+        {/* 콜아웃 — 항상 표시. mid-angle 방향으로 선 + dot + % 라벨 */}
+        <g style={{ pointerEvents: "none" }}>
+          {slices.map((s, i) => {
+            if (s.ratio / total < 0.015) return null;  // 1.5% 미만은 라벨 생략(겹침 방지)
+            const g = geoms[i];
+            const isHover = localHover === i;
+            const offset = isHover ? 7 : 0;  // 슬라이스 튀어나오면 콜아웃도 함께 이동
+            const ox = offset * Math.cos(g.mid);
+            const oy = offset * Math.sin(g.mid);
+            const lineStartX = cx + ox + r * 0.95 * Math.cos(g.mid);
+            const lineStartY = cy + oy + r * 0.95 * Math.sin(g.mid);
+            const lineEndX   = cx + ox + r * 1.28 * Math.cos(g.mid);
+            const lineEndY   = cy + oy + r * 1.28 * Math.sin(g.mid);
+            const onRight = Math.cos(g.mid) >= 0;
+            const labelX = lineEndX + (onRight ? 2.5 : -2.5);
+            return (
+              <g key={`callout-${i}`}
+                 style={{ transition: "transform 0.15s ease-out" }}>
+                <line x1={lineStartX} y1={lineStartY} x2={lineEndX} y2={lineEndY}
+                      stroke={s.colors[2]} strokeWidth="1" strokeLinecap="round" />
+                <circle cx={lineEndX} cy={lineEndY} r="1.3" fill={s.colors[2]} />
+                <text x={labelX} y={lineEndY} fontSize="10"
+                      fontWeight={isHover ? "bold" : "600"}
+                      fill={s.colors[2]} textAnchor={onRight ? "start" : "end"}
+                      dominantBaseline="central"
+                      style={{ paintOrder: "stroke", stroke: "white", strokeWidth: 3 }}>
+                  {s.ratio.toFixed(1)}%
+                </text>
+              </g>
+            );
+          })}
+        </g>
+      </svg>
     </div>
   );
 }
