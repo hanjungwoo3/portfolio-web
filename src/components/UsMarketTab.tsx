@@ -13,6 +13,14 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
 import { Sparkline } from "./Sparkline";
 import { MarketFlowModal } from "./MarketFlowModal";
+import { EtfCompositionDialog } from "./EtfCompositionDialog";
+
+// KR ETF Yahoo 심볼 패턴 (예: "091160.KS") — 토스 compositions API 지원 대상
+const KR_ETF_SYMBOL_RE = /^(\d{6})\.K[SQ]$/;
+function krEtfTicker(symbol: string): string | null {
+  const m = KR_ETF_SYMBOL_RE.exec(symbol);
+  return m ? m[1] : null;
+}
 
 const BASE_REFRESH_MS = 10_000;
 
@@ -185,6 +193,7 @@ export function UsMarketTab() {
 
   const dimEnabled = getDimSleepingEnabled();
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
+  const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
 
   return (
     <div className="space-y-3">
@@ -286,6 +295,20 @@ export function UsMarketTab() {
                         📊
                       </button>
                     )}
+                    {/* ETF 책갈피 — KR ETF (예: 091160.KS) 만. 종목명 옆에 인라인. 클릭 시 구성종목 모달 */}
+                    {(() => {
+                      const etfTk = krEtfTicker(p.symbol);
+                      if (!etfTk) return null;
+                      return (
+                        <button onClick={() => setEtfDialog({ ticker: etfTk, name: p.name })}
+                                title="ETF 구성 종목 보기"
+                                className="ml-1 px-1 py-0.5 rounded text-[10px] font-bold leading-none
+                                           text-violet-700 bg-violet-50/80 hover:bg-violet-100
+                                           border border-violet-200 self-center">
+                          ETF
+                        </button>
+                      );
+                    })()}
                   </div>
                   <div className="relative z-10 text-[11px] text-gray-500 truncate">
                     {p.desc}
@@ -320,6 +343,13 @@ export function UsMarketTab() {
           indexKey={marketFlowFor}
           onClose={() => setMarketFlowFor(null)}
         />
+      )}
+
+      {/* ETF 구성종목 모달 — KR ETF 카드 ETF 책갈피 클릭 시 */}
+      {etfDialog && (
+        <EtfCompositionDialog isOpen={true}
+                              ticker={etfDialog.ticker} etfName={etfDialog.name}
+                              onClose={() => setEtfDialog(null)} />
       )}
     </div>
   );
