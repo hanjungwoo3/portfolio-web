@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { replaceAllHoldings, replaceAllPeaks } from "../lib/db";
 import type { Stock } from "../types";
+import { useEscClose } from "../lib/useEscClose";
 
 interface Props {
   isOpen: boolean;
@@ -70,6 +71,7 @@ function parseHoldings(arr: unknown[]): Stock[] | string {
 }
 
 export function ImportJsonDialog({ isOpen, onClose, onImported }: Props) {
+  useEscClose(isOpen, onClose);
   const [raw, setRaw] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);

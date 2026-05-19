@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { useEscClose } from "../lib/useEscClose";
 
 // 개발자 후원 모달 — PC + 모바일 공통.
 // 카카오페이 / 계좌이체 두 옵션을 탭으로 분리 (QR 동시 노출 방지)
@@ -22,6 +23,7 @@ const BANK_QR_IMG =
   `https://api.qrserver.com/v1/create-qr-code/?size=240x240&data=${encodeURIComponent(BANK_LINK_URL)}`;
 
 export function DonateDialog({ isOpen, onClose }: Props) {
+  useEscClose(isOpen, onClose);
   const [tab, setTab] = useState<Tab>("kakaopay");
   if (!isOpen) return null;
 

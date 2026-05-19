@@ -12,6 +12,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import type { Stock, Price } from "../types";
 import { signColor, isEtfByName } from "../lib/format";
+import { useEscClose } from "../lib/useEscClose";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 
 interface Props {
@@ -44,6 +45,9 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
   const [groupWarn, setGroupWarn] = useState(false);
   // ETF 구성종목 모달 — 검색 결과 행의 ETF 책갈피 클릭 시
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
+  // 검색 input 포커스 ref — 열릴 때 자동 포커스
+  const searchInputRef = useRef<HTMLTextAreaElement | null>(null);
+  useEscClose(isOpen, onClose);
 
   // 창 닫힐 때 모든 상태 초기화
   useEffect(() => {
@@ -66,6 +70,15 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       setQuery(initialQuery);
     }
   }, [isOpen, initialQuery]);
+
+  // 다이얼로그 열릴 때 검색 input 자동 포커스
+  useEffect(() => {
+    if (isOpen) {
+      // 모바일 키보드 자동 노출 회피 위해 약간 지연
+      const t = setTimeout(() => searchInputRef.current?.focus(), 50);
+      return () => clearTimeout(t);
+    }
+  }, [isOpen]);
 
   // 라이브 검색 — query 변경 시 300ms debounce 후 자동 검색.
   // 6자리 코드면 직접 조회, 아니면 토스(자음/부분 매칭) 우선 → 0건이면 네이버 fallback.
@@ -442,6 +455,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
         {/* 검색 입력 */}
         <div className="px-5 py-3 border-b">
           <textarea
+            ref={searchInputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
             onKeyDown={e => {

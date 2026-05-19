@@ -23,6 +23,7 @@ import {
   uploadToDrive, downloadFromDrive, tryRestoreSession,
 } from "../lib/syncManager";
 import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
+import { useEscClose } from "../lib/useEscClose";
 
 interface Props {
   isOpen: boolean;
@@ -31,6 +32,7 @@ interface Props {
 }
 
 export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
+  useEscClose(isOpen, onClose);
   const queryClient = useQueryClient();
   const [raw, setRaw] = useState("");
   const [busy, setBusy] = useState(false);

@@ -6,6 +6,7 @@ import {
   updateHolding,
 } from "../lib/db";
 import { getIndependentGroupsMode } from "../lib/groupMode";
+import { useEscClose } from "../lib/useEscClose";
 
 // 모드별 적용 — sync OFF 면 단건만, ON 이면 모든 그룹 sync
 async function applyTickerUpdate(
@@ -56,6 +57,7 @@ function todayKstStr(): string {
 export function EditHoldingDialog({
   isOpen, onClose, stock, curPrice, onChanged,
 }: Props) {
+  useEscClose(isOpen, onClose);
   const [mode, setMode] = useState<Mode>("buy");
   const [shares, setShares] = useState("");
   const [price, setPrice] = useState("");

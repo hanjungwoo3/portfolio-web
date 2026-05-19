@@ -6,6 +6,7 @@ import { scheduleAutoSync } from "../lib/syncManager";
 import {
   MEMO_COLORS, memoColorLabel, memoSwatchClass, memoSwatchRingClass,
 } from "../lib/memoColor";
+import { useEscClose } from "../lib/useEscClose";
 
 interface Props {
   isOpen: boolean;
@@ -70,6 +71,7 @@ function formatPercentDerived(pct: number): string {
 export function MemoDialog({
   isOpen, onClose, ticker, stockName, curPrice, avgPrice, onChanged,
 }: Props) {
+  useEscClose(isOpen, onClose);
   const [text, setText] = useState("");
   const [targetPriceStr, setTargetPriceStr] = useState("");
   const [targetPctStr, setTargetPctStr] = useState("");

@@ -1,6 +1,7 @@
 import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCrosshairSync } from "../lib/useCrosshairSync";
+import { useEscClose } from "../lib/useEscClose";
 import type { SyncRegistrar } from "../lib/useCrosshairSync";
 
 // 무거운 차트 라이브러리는 lazy — 모달 열릴 때만 로드 (~50KB gzip)
@@ -224,6 +225,7 @@ function ShareholderSection({ shareholders }: { shareholders: Shareholder[] }) {
 export function ValuationModal({
   isOpen, onClose, ticker, name, curPrice, myAvgPrice, entryPrice,
 }: Props) {
+  useEscClose(isOpen, onClose);
   const { data, isLoading, error } = useQuery({
     queryKey: ["valuation", ticker],
     queryFn: () => fetchFullValuation(ticker),
