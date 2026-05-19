@@ -54,6 +54,7 @@ interface Props {
   sortMode: SortMode;
   hoverTicker?: string | null;
   onHover?: (ticker: string | null) => void;
+  onOpenEtf?: (etf: KrSectorEtfRank) => void;  // 종목명 클릭 → 구성종목 모달
 }
 
 interface SectorRow {
@@ -105,7 +106,7 @@ function computeRanks(ranks: KrSectorEtfRank[], sortMode: SortMode): SectorRow[]
   }));
 }
 
-export function SectorBumpChart({ ranks, sortMode, hoverTicker, onHover }: Props) {
+export function SectorBumpChart({ ranks, sortMode, hoverTicker, onHover, onOpenEtf }: Props) {
   // 부모가 controlled 로 hoverTicker 전달하면 그 값 사용, 아니면 내부 state
   const [innerHover, setInnerHover] = useState<string | null>(null);
   const hover = hoverTicker !== undefined ? hoverTicker : innerHover;
@@ -285,7 +286,7 @@ export function SectorBumpChart({ ranks, sortMode, hoverTicker, onHover }: Props
           );
         })}
 
-        {/* 우측 끝점 라벨 — 섹터명만 (정렬값은 점 위 라벨과 중복이라 제거) */}
+        {/* 우측 끝점 라벨 — 섹터명. hover 시 강조 + click 시 구성종목 모달 */}
         {todaySorted.map(row => {
           const i = rows.findIndex(r => r.ticker === row.ticker);
           const color = colorOf(i, n, row.isMarket);
@@ -293,11 +294,27 @@ export function SectorBumpChart({ ranks, sortMode, hoverTicker, onHover }: Props
           const xEnd = xFor(PERIODS.length - 1);
           const yEnd = yFor(lastRank);
           const isActive = hover === null || hover === row.ticker;
+          const isHovered = hover === row.ticker;
+          // 원본 ETF 데이터 (onOpenEtf 콜백 전달용)
+          const etf = onOpenEtf ? ranks.find(r => r.ticker === row.ticker) : undefined;
           return (
-            <g key={`lbl-${row.ticker}`} opacity={isActive ? 1 : 0.2}>
+            <g key={`lbl-${row.ticker}`}
+               opacity={isActive ? 1 : 0.2}
+               style={{
+                 transition: "opacity 0.15s",
+                 cursor: etf ? "pointer" : undefined,
+               }}
+               onMouseEnter={() => setHover(row.ticker)}
+               onMouseLeave={() => setHover(null)}
+               onClick={etf ? () => onOpenEtf!(etf) : undefined}>
+              {/* hover 시 살짝 강조 — underline + 굵게 */}
               <text x={xEnd + 6} y={yEnd + 3}
-                    fontSize="11" fill={color}
-                    style={{ fontWeight: hover === row.ticker ? 700 : 500 }}>
+                    fontSize={isHovered ? 12 : 11}
+                    fill={color}
+                    style={{
+                      fontWeight: isHovered ? 700 : 500,
+                      textDecoration: isHovered && etf ? "underline" : undefined,
+                    }}>
                 {row.name}
               </text>
             </g>

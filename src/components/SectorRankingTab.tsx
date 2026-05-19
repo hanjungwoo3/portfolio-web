@@ -281,7 +281,8 @@ export function SectorRankingTab({ onRequestSearch }: SectorRankingTabProps = {}
           {/* 순위 변동 Bump Chart — 4기간 순위 변화 */}
           {!etfLoading && etfRanks && etfRanks.length > 1 && (
             <SectorBumpChart ranks={etfRanks} sortMode={sortMode}
-                             hoverTicker={hoverTicker} onHover={setHoverTicker} />
+                             hoverTicker={hoverTicker} onHover={setHoverTicker}
+                             onOpenEtf={(etf) => setEtfDialog({ ticker: etf.ticker, name: etf.fullName ?? etf.name })} />
           )}
           {/* 4 컬럼 배치 — 각 섹션 최소 21rem */}
           <div className="grid grid-cols-1 gap-3 sm:gap-6 sm:grid-cols-[repeat(4,minmax(21rem,1fr))]">
