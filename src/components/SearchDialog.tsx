@@ -155,11 +155,11 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
   // 마킹 안 되면 자동 추가되지 않음 — 사용자가 명시 선택해야 보유에 등록됨.
   const HOLDING_LABEL = "보유";
 
-  // 첫 사용자 — 그룹 0개일 때 "관심" 가상 그룹을 표시·자동 마킹
-  // (실제 DB 에 없지만 일괄적용 시 upsertHoldingToGroup 가 자동 생성)
+  // 첫 사용자 — 그룹 0개일 때 "관심" 가상 그룹만 표시·자동 마킹
+  // (보유는 첫 사용자에게 의미 모호 — 일반 그룹 만든 후 노출)
   const isFirstUser = userGroups.length === 0;
   const baseGroups = isFirstUser
-    ? [HOLDING_LABEL, "관심"]
+    ? ["관심"]
     : [HOLDING_LABEL, ...userGroups];
   // 사용자가 새로 만든 그룹(pending) 도 칩 영역에 — 중복 제거
   const displayGroups = [
@@ -683,7 +683,9 @@ function SearchResultRow({
             ✓ {g}
           </button>
         ))}
-        {pending.map(g => (
+        {/* pending 배지 — 보유 그룹이 있을 때만 표시 (기존 vs 추가될 그룹 구분 필요).
+            보유 0개면 행마다 표시하지 않음 — 상단 안내가 이미 알려주므로 중복 회피 */}
+        {existing.length > 0 && pending.map(g => (
           <span key={g}
                 title="일괄적용 시 추가됨"
                 className="text-[10px] bg-blue-50 text-blue-700
