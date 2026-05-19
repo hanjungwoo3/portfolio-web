@@ -45,8 +45,7 @@ export function handleTossLinkClick(
   url: string,
 ): void {
   // 새 탭 modifier(중클릭·cmd·ctrl) 는 브라우저 기본 동작 유지
-  const me = e as React.MouseEvent;
-  if (me.ctrlKey || me.metaKey || me.shiftKey || (me as MouseEvent).button === 1) return;
+  if (e.ctrlKey || e.metaKey || e.shiftKey || e.button === 1) return;
   const deep = toDeepLink(url);
   if (!deep || !isMobile()) return;
   e.preventDefault();
