@@ -199,7 +199,7 @@ export function MobileSimpleView() {
     const vis = getTabVisibility();
     const tabs: { key: string; label: string; count: number }[] = [];
     if (vis.usMarket) {
-      tabs.push({ key: KR_KEY, label: "섹터", count: 0 });
+      tabs.push({ key: KR_KEY, label: "📈지수", count: 0 });   // PC UsMarketTab 과 동일
       tabs.push({ key: US_KEY, label: "매크로", count: 0 });
     }
     if (vis.sectorRank) {
