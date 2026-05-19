@@ -151,16 +151,11 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     enabled: isOpen,
   });
 
-  // "보유" 는 일반 그룹과 동일하게 칩으로 노출 (account="" 에 매핑).
-  // 마킹 안 되면 자동 추가되지 않음 — 사용자가 명시 선택해야 보유에 등록됨.
-  const HOLDING_LABEL = "보유";
-
-  // 첫 사용자 — 그룹 0개일 때 "관심" 가상 그룹만 표시·자동 마킹
-  // (보유는 첫 사용자에게 의미 모호 — 일반 그룹 만든 후 노출)
+  // 보유는 더 이상 기본 그룹으로 노출하지 않음 — 사용자가 만든 그룹만 칩으로 표시.
+  // 첫 사용자(그룹 0개) → "관심" 가상 그룹만 자동 노출·마킹.
+  const HOLDING_LABEL = "보유";  // upsertHoldingToGroup 매핑용 상수 유지 (account="")
   const isFirstUser = userGroups.length === 0;
-  const baseGroups = isFirstUser
-    ? ["관심"]
-    : [HOLDING_LABEL, ...userGroups];
+  const baseGroups = isFirstUser ? ["관심"] : [...userGroups];
   // 사용자가 새로 만든 그룹(pending) 도 칩 영역에 — 중복 제거
   const displayGroups = [
     ...baseGroups,
