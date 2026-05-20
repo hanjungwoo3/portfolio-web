@@ -3,6 +3,7 @@
 // 데이터: Yahoo 5분봉(KR .KS/.KQ), 시초가 대비 % 정규화. KR 정규장 09:00~15:30.
 // 요일(월~금) 토글로 특정 요일만 골라 평균을 다시 볼 수 있음.
 import { useMemo, useState, type MouseEvent } from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
 import { fetchKrIntraday } from "../lib/api";
 import {
@@ -96,6 +97,10 @@ export function IntradayPatternDialog({ isOpen, onClose, ticker, stockName }: Pr
   const dayPath = (pts: { x: number; y: number }[]) =>
     pts.map((p, i) => `${i === 0 ? "M" : "L"}${sx(p.x).toFixed(1)},${sy(p.y).toFixed(1)}`).join(" ");
 
+  // 평균선 — 표본 적은 시각 버킷(마감 동시호가 15:20 등)은 제외해 스파이크 방지
+  const minSamples = Math.max(2, Math.ceil(filteredDays.length * 0.5));
+  const avgPlot = avg.filter(p => p.n >= minSamples);
+
   // 각 선 오른쪽 끝(15:30) 날짜 박스 — y 충돌 시 아래로 밀어 분리
   const LBL_H = 14;
   const lblX = W - MR + 3;
@@ -169,7 +174,7 @@ export function IntradayPatternDialog({ isOpen, onClose, ticker, stockName }: Pr
     }
   };
 
-  return (
+  return createPortal(
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:p-4"
          onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="bg-white shadow-xl flex flex-col
@@ -255,8 +260,8 @@ export function IntradayPatternDialog({ isOpen, onClose, ticker, stockName }: Pr
                           opacity={dim ? 0.1 : hi ? 1 : 0.35} />
                   );
                 })}
-                {/* 평균선 (굵게) — 특정 선 오버 시 살짝 흐림 */}
-                <path d={dayPath(avg)} fill="none" stroke="#1f2937" strokeWidth={3}
+                {/* 평균선 (굵게) — 표본 적은 버킷 제외. 특정 선 오버 시 살짝 흐림 */}
+                <path d={dayPath(avgPlot)} fill="none" stroke="#1f2937" strokeWidth={3}
                       opacity={hoverInfo ? 0.35 : 1} />
                 {/* 최저/최고 평균 시각 마커 */}
                 {insight.lowX != null && (
@@ -358,7 +363,8 @@ export function IntradayPatternDialog({ isOpen, onClose, ticker, stockName }: Pr
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
