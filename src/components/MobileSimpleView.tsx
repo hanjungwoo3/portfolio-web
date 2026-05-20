@@ -48,7 +48,7 @@ import { NewVersionToast } from "./NewVersionToast";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadPeaks, loadMemos,
-  deleteAllRowsForTicker, removeHolding, renameGroup, deleteGroup,
+  deleteAllRowsForTicker, removeHolding, renameGroup, deleteGroup, applyImportedSettings, replaceAllMemos,
 } from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import { handleTossLinkClick } from "../lib/toss";
@@ -1102,6 +1102,10 @@ function SettingsModal({
       }
       if (result.kind === "peaks" || result.kind === "combined") {
         await replaceAllPeaks(result.peaks);
+      }
+      if (result.kind === "holdings" || result.kind === "combined") {
+        applyImportedSettings(result.settings);   // 예수금·그룹모드 복원
+        if (result.memos) await replaceAllMemos(result.memos);   // 메모 복원
       }
       setDataMsg("💾 적용 완료");
       onClose();

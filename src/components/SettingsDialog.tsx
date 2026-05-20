@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
-  exportAll, replaceAllHoldings, replaceAllPeaks,
+  exportAll, replaceAllHoldings, replaceAllPeaks, applyImportedSettings, replaceAllMemos,
 } from "../lib/db";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
@@ -237,6 +237,10 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
       }
       if (result.kind === "peaks" || result.kind === "combined") {
         await replaceAllPeaks(result.peaks);
+      }
+      if (result.kind === "holdings" || result.kind === "combined") {
+        applyImportedSettings(result.settings);   // 예수금·그룹모드 복원
+        if (result.memos) await replaceAllMemos(result.memos);   // 메모 복원
       }
       setStatusMsg("💾 적용 완료");
       onChanged();
