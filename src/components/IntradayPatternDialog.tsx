@@ -134,6 +134,17 @@ export function IntradayPatternDialog({ isOpen, onClose, ticker, stockName }: Pr
     if (best) hoverInfo = { x: hover.x, y: best.y, date: best.date, weekday: best.weekday };
   }
 
+  // 오버된 라인의 그날 최저·최고 지점
+  let hoverMinMax: { lo: { x: number; y: number }; hi: { x: number; y: number } } | null = null;
+  if (hoverInfo) {
+    const d = filteredDays.find(x => x.date === hoverInfo!.date);
+    if (d && d.points.length > 0) {
+      let lo = d.points[0], hi = d.points[0];
+      for (const p of d.points) { if (p.y < lo.y) lo = p; if (p.y > hi.y) hi = p; }
+      hoverMinMax = { lo, hi };
+    }
+  }
+
   const onSvgMove = (e: MouseEvent<SVGSVGElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
     const svgX = ((e.clientX - rect.left) / rect.width) * W;
@@ -302,6 +313,25 @@ export function IntradayPatternDialog({ isOpen, onClose, ticker, stockName }: Pr
                       </text>
                     </g>
                   );
+                })()}
+                {/* 오버된 라인의 그날 최저·최고 값 */}
+                {hoverMinMax && (() => {
+                  const mk = (p: { x: number; y: number }, isHi: boolean) => {
+                    const cx = sx(p.x), cy = sy(p.y);
+                    const fill = isHi ? "#e11d48" : "#2563eb";
+                    const txt = `${isHi ? "고" : "저"} ${p.y >= 0 ? "+" : ""}${p.y.toFixed(2)}% ${minsToHHMM(openMin, p.x)}`;
+                    const bw = 86, bh = 15;
+                    const bx = Math.min(Math.max(cx - bw / 2, ML), W - MR - bw);
+                    const by = isHi ? cy - bh - 7 : cy + 7;   // 고점 위, 저점 아래
+                    return (
+                      <g>
+                        <circle cx={cx} cy={cy} r={3.5} fill={fill} stroke="#fff" strokeWidth={1.2} />
+                        <rect x={bx} y={by} width={bw} height={bh} rx={2} fill={fill} />
+                        <text x={bx + bw / 2} y={by + 11} textAnchor="middle" fontSize={9.5} fontWeight={700} fill="#fff">{txt}</text>
+                      </g>
+                    );
+                  };
+                  return <g>{mk(hoverMinMax.hi, true)}{mk(hoverMinMax.lo, false)}</g>;
                 })()}
               </svg>
               )}
