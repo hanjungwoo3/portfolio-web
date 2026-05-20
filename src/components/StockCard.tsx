@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Lightbulb } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import type { PricePoint } from "../lib/api";
-import { formatSigned, signColor, formatVolume, isHoldingSleeping, isEtfByName, nowKstDateStr, krSessionPhase } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, nowKstDateStr, krCloseTimeLabel } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { memoTagClass } from "../lib/memoColor";
 import { openTossStock } from "../lib/toss";
@@ -15,6 +15,8 @@ interface KrRegInfo {
   regularPrice: number;
   regularPct: number;
   marketState: string;
+  tradingEnd?: string;
+  nextTradingStart?: string;
 }
 interface Props {
   stock: Stock;
@@ -532,9 +534,8 @@ export function StockCard({
     );
   }
 
-  // 보유 종목 sleeping — 데스크톱 v2 kr_session_phase 기반
-  // (정규장 활성 / EXTENDED 시간 + 마지막 체결 10분 초과 → sleeping / CLOSED → sleeping)
-  const sleeping = isHoldingSleeping(price.trade_dt);
+  // 흐림(마감) 판정 — 토스 거래가능 플래그(KRX·NXT 둘 다 suspended = 마감) 기반.
+  const sleeping = isKrHoldingClosed(price.krxSuspended, price.nxtSuspended);
   const dimmed = sleeping && getDimSleepingEnabled();
 
   // 어제보다 — base (비거래일엔 price 와 동일) 기반. UI 표시용
@@ -1077,12 +1078,9 @@ export function StockCard({
           </>
         } className="basis-[30%] min-w-0">
         <div className="relative w-full h-full">
-        {/* 정규장 마감가 책갈피 — 정규장 종료(EXTENDED/CLOSED) 후에만.
-            정규장 중에는 Yahoo(15분 지연) 종가가 토스 실시간과 달라 잘못 "마감"으로 뜨므로 숨김.
-            검증: Yahoo .KS/.KQ 가 다른 종목으로 매핑됐을 수 있어 차이 15% 이상이면 잘못된 데이터로 판단해 숨김.
-            가격 블록 좌측 상단으로 빠져나옴. */}
-        {krReg && krReg.regularPrice !== price.price
-              && krSessionPhase() !== "REGULAR"
+        {/* 책갈피 — 마감 종목: 마감가 / 거래중 종목: 마감 예정 시간(토스 tradingEnd).
+            마감가는 15% 이상 차이면 잘못된 데이터로 판단해 숨김. */}
+        {krReg && sleeping && krReg.regularPrice !== price.price
               && price.price > 0
               && Math.abs(krReg.regularPrice - price.price) / price.price < 0.15 && (
           <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0
@@ -1100,6 +1098,15 @@ export function StockCard({
                                 : "text-gray-700"}`}>
               ({krReg.regularPct >= 0 ? "+" : ""}{krReg.regularPct.toFixed(2)}%)
             </span>
+          </div>
+        )}
+        {!sleeping && price.singlePrice && price.price > 0 && (
+          <div className="absolute -top-2 left-1 z-10 px-1.5 py-0
+                          border rounded text-[10px] leading-tight whitespace-nowrap
+                          bg-yellow-100/30 border-yellow-300/30">
+            <span className="text-gray-500">마감 </span>
+            <span className="text-gray-700 tabular-nums">{krCloseTimeLabel(krReg?.tradingEnd)}</span>
+            <span className="text-gray-500"> (단일가)</span>
           </div>
         )}
         {/* 보유주수 + 거래량 — 한 줄, 가격 블록 위로 빠져나오는 박스 */}

@@ -754,19 +754,11 @@ export function MobileSimpleView() {
               // 마감 책갈피는 노란 배경(살짝 투명) + 흐림 제외 → dim 은 콘텐츠 자식에만
               const dimCls = dimEnabled && (sleeping || isClosed) ? "opacity-60" : "";
               return (
-                <div key={p.symbol}
-                     className={`relative overflow-hidden flex flex-col gap-0.5
-                                  rounded-lg border px-3 py-1.5
-                                  ${bg}`}>
-                  <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
-                             width={300} height={70}
-                             color={sleeping && dimEnabled ? "#94a3b8" : undefined}
-                             className={`absolute inset-0 w-full h-full opacity-50
-                                        pointer-events-none ${dimCls}`} />
-                  {/* 정규장 마감가 책갈피 — 장 마감 후. 노란 배경(살짝 투명) + 흐림 제외(z-20) */}
+                <div key={p.symbol} className="relative">
+                  {/* 정규장 마감가 책갈피 — 카드 위로 올림(-top-2). 노란 배경(살짝 투명) + 흐림 제외(z-20) */}
                   {showCloseTag && closeVal != null && (
-                    <div className="absolute top-0 right-1 z-20 px-1.5 py-0
-                                    border rounded-b bg-yellow-200/25 border-yellow-400/40
+                    <div className="absolute -top-2 right-1 z-20 px-1.5 py-0
+                                    border rounded bg-yellow-200/25 border-yellow-400/40
                                     text-[10px] font-medium leading-tight whitespace-nowrap">
                       <span className={`tabular-nums ${regSign}`}>
                         {closeVal < 1000 ? closeVal.toFixed(2) : Math.round(closeVal).toLocaleString()}
@@ -778,6 +770,13 @@ export function MobileSimpleView() {
                       )}
                     </div>
                   )}
+                  <div className={`relative overflow-hidden flex flex-col gap-0.5
+                                  rounded-lg border px-3 py-1.5 ${bg}`}>
+                  <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
+                             width={300} height={70}
+                             color={sleeping && dimEnabled ? "#94a3b8" : undefined}
+                             className={`absolute inset-0 w-full h-full opacity-50
+                                        pointer-events-none ${dimCls}`} />
                   <div className={`relative flex items-baseline gap-1.5 ${dimCls}`}>
                     {sleeping && (
                       <span className="text-[11px] text-gray-400">zZ</span>
@@ -825,6 +824,7 @@ export function MobileSimpleView() {
                         ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`
                         : ""}
                     </span>
+                  </div>
                   </div>
                 </div>
               );

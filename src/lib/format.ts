@@ -117,6 +117,28 @@ export function isSymbolSleeping(symbol: string): boolean {
   return !isMarketOpen(marketOfSymbol(symbol));
 }
 
+// ISO 시각 → KST "HH:MM" (24시간). 잘못된 값이면 "".
+export function fmtKstHHMM(iso?: string): string {
+  if (!iso) return "";
+  const ms = Date.parse(iso);
+  if (!Number.isFinite(ms)) return "";
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(new Date(ms));
+}
+
+// 보유 종목 "마감 예정 시간" 라벨 — 토스 tradingEnd 그대로 KST HH:MM.
+export function krCloseTimeLabel(tradingEnd?: string): string {
+  return fmtKstHHMM(tradingEnd);
+}
+
+// 보유 종목 흐림(마감) 판정 — 토스 거래가능 플래그 기반 (10분 체결 휴리스틱 불필요).
+// KRX·NXT 둘 다 거래 불가(suspended)면 마감. 08:00 이전/20:00 이후/주말은 안전망으로 마감.
+export function isKrHoldingClosed(krxSuspended?: boolean, nxtSuspended?: boolean): boolean {
+  if (krSessionPhase() === "CLOSED") return true;
+  return !!(krxSuspended && nxtSuspended);
+}
+
 // KST 08:00 ~ 08:59 — 한국 프리장 동시호가 시간 (정규장 09:00 직전).
 // 이 시점부터 새 거래일 — "어제보다" 가격은 0 으로 초기화 (전일 종가 기준 차이 의미 없음).
 // Toss API 의 base 가 09:00 이후에야 새 거래일 종가로 갱신되므로 우리가 강제 처리.

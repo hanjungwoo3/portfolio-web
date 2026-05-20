@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Lightbulb } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isHoldingSleeping, isEtfByName, krSessionPhase } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { memoTagClass } from "../lib/memoColor";
 import { pickTodayInvestor } from "../lib/api";
@@ -39,6 +39,8 @@ function highlightStyles(value: number): { bg: string; color: string } {
 interface KrRegInfo {
   regularPrice: number;
   regularPct: number;
+  tradingEnd?: string;
+  nextTradingStart?: string;
 }
 
 interface Props {
@@ -105,7 +107,8 @@ export function MobileStockCard({
     );
   }
 
-  const sleeping = isHoldingSleeping(price.trade_dt);
+  // 흐림(마감) 판정 — 토스 거래가능 플래그(KRX·NXT 둘 다 suspended = 마감) 기반.
+  const sleeping = isKrHoldingClosed(price.krxSuspended, price.nxtSuspended);
   const dimmed = sleeping && getDimSleepingEnabled();
   const dayDiff = price.price - price.base;
   const dayPct = price.base > 0 ? (dayDiff / price.base) * 100 : 0;
@@ -336,12 +339,9 @@ export function MobileStockCard({
         </>
       } className="basis-1/2 min-w-0">
       <div className="relative w-full h-full">
-      {/* 정규장 마감가 책갈피 — 정규장 종료(EXTENDED/CLOSED) 후에만.
-          정규장 중에는 Yahoo(15분 지연) 종가가 토스 실시간과 달라 잘못 "마감"으로 뜨므로 숨김.
-          15% 이상 차이 = Yahoo 매핑 오류 가능성으로 숨김.
+      {/* 책갈피 — 마감 종목: 마감가 / 거래중 종목: 마감 예정 시간(토스 tradingEnd).
           가격 박스 바깥(상위 wrapper 자식)에 두어 overflow:hidden 에 잘리지 않게. */}
-      {krReg && krReg.regularPrice !== price.price
-            && krSessionPhase() !== "REGULAR"
+      {krReg && sleeping && krReg.regularPrice !== price.price
             && price.price > 0
             && Math.abs(krReg.regularPrice - price.price) / price.price < 0.15 && (
         <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0
@@ -359,6 +359,15 @@ export function MobileStockCard({
                               : "text-gray-700"}`}>
             ({krReg.regularPct >= 0 ? "+" : ""}{krReg.regularPct.toFixed(2)}%)
           </span>
+        </div>
+      )}
+      {!sleeping && price.singlePrice && price.price > 0 && (
+        <div className="absolute -top-2 left-1 z-10 px-1.5 py-0
+                        border rounded text-[10px] leading-tight whitespace-nowrap
+                        bg-yellow-100/30 border-yellow-300/30">
+          <span className="text-gray-500">마감 </span>
+          <span className="text-gray-700 tabular-nums">{krCloseTimeLabel(krReg?.tradingEnd)}</span>
+          <span className="text-gray-500"> (단일가)</span>
         </div>
       )}
       {/* 보유주수 + 거래량 — 한 줄, 가격 블록 위로 빠져나오는 박스 */}

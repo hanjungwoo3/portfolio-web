@@ -21,6 +21,9 @@ export interface Price {
   trade_dt?: string;
   high?: number;       // 오늘 고가
   low?: number;        // 오늘 저가
+  singlePrice?: boolean; // 시간외 단일가 여부 (KRX/NXT 단일가 매매 중) — "(단일가)" 라벨용
+  krxSuspended?: boolean; // KRX 거래 불가(마감/정지)
+  nxtSuspended?: boolean; // NXT 거래 불가(마감/정지) — 둘 다 true 면 거래 불가 = 마감
 }
 
 // 토스 수급 — 데스크톱 v2 fetch_investor_flow 와 동일 키

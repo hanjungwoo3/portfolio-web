@@ -107,20 +107,11 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
   const regSign = regPct == null ? "text-gray-700"
     : regPct > 0 ? "text-rose-600" : regPct < 0 ? "text-blue-600" : "text-gray-700";
   return (
-    <div className={`relative overflow-hidden
-                     flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}`}>
-      <Sparkline data={chart} width={400} height={80}
-                 color={chart.length > 1
-                   ? (chart[chart.length - 1] > chart[0]
-                       ? (direction === "inverse" ? "#2563eb" : "#dc2626")
-                       : (direction === "inverse" ? "#dc2626" : "#2563eb"))
-                   : undefined}
-                 className={`absolute inset-0 w-full h-full opacity-50
-                            pointer-events-none ${dimCls}`} />
-      {/* 마감가 책갈피 — 장 마감 후. 노란 배경(살짝 투명) + 흐림 제외(z-20). 지수 카드와 동일 위치 */}
+    <div className="relative">
+      {/* 마감가 책갈피 — 카드 위로 올림(-top-2). 노란 배경(살짝 투명) + 흐림 제외(z-20) */}
       {q && sleeping && closeVal != null && (
-        <div className="absolute top-0 right-1 z-20 px-1.5 py-0
-                        border rounded-b bg-yellow-200/25 border-yellow-400/40
+        <div className="absolute -top-2 right-1 z-20 px-1.5 py-0
+                        border rounded bg-yellow-200/25 border-yellow-400/40
                         text-[10px] font-medium leading-tight whitespace-nowrap">
           <span className={`tabular-nums ${regSign}`}>
             {closeVal < 1000 ? closeVal.toFixed(2) : Math.round(closeVal).toLocaleString()}
@@ -132,6 +123,16 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
           )}
         </div>
       )}
+      <div className={`relative overflow-hidden
+                     flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}`}>
+      <Sparkline data={chart} width={400} height={80}
+                 color={chart.length > 1
+                   ? (chart[chart.length - 1] > chart[0]
+                       ? (direction === "inverse" ? "#2563eb" : "#dc2626")
+                       : (direction === "inverse" ? "#dc2626" : "#2563eb"))
+                   : undefined}
+                 className={`absolute inset-0 w-full h-full opacity-50
+                            pointer-events-none ${dimCls}`} />
       <a href={quoteUrl(symbol)}
          target="_blank" rel="noopener noreferrer"
          onClick={e => handleTossLinkClick(e, quoteUrl(symbol))}
@@ -153,6 +154,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
         <span className={`flex-1 text-right text-xl font-bold tabular-nums ${cls}`}>
           {pct != null && Math.abs(pct) >= 0.005 ? fmtPct(pct) : ""}
         </span>
+      </div>
       </div>
     </div>
   );

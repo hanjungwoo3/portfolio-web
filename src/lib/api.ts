@@ -78,6 +78,10 @@ interface TossPriceItem {
   low?: number;
   volume: number;
   tradeDateTime: string;
+  krxSinglePrice?: boolean;
+  nxtSinglePrice?: boolean;
+  krxTradingSuspended?: boolean;
+  nxtTradingSuspended?: boolean;
 }
 interface TossPriceResponse { result: TossPriceItem[]; }
 
@@ -362,6 +366,8 @@ export interface KrRegularPrice {
   regularPrice: number;
   regularPct: number;       // (regularPrice - prevClose) / prevClose × 100
   marketState: string;
+  tradingEnd?: string;      // 이번/직전 세션 종료 시각 (ISO) — 종목별(정규장 15:30 or NXT 20:00)
+  nextTradingStart?: string; // 다음 세션 시작 시각 (ISO)
 }
 // 토스 stock-infos API 의 market.code (KSP=KOSPI, KSQ=KOSDAQ) 로 정확한 거래소 판별.
 // Stock.market 이 잘못 저장된 경우(6자리 코드 검색 시 무조건 "KOSPI" 였음)를 자동 교정.
@@ -404,7 +410,7 @@ export async function fetchKrRegularPrices(
     const resp = await fetchProxied(target);
     if (!resp.ok) return out;
     const data = await resp.json() as {
-      result?: Array<{ productCode?: string; close?: number; base?: number }>;
+      result?: Array<{ productCode?: string; close?: number; base?: number; tradingEnd?: string; nextTradingStart?: string }>;
     };
     for (const r of (data.result ?? [])) {
       const ticker = (r.productCode ?? "").replace(/^A/, "");
@@ -417,6 +423,8 @@ export async function fetchKrRegularPrices(
         regularPrice: r.close,
         regularPct: regPct,
         marketState: "",
+        tradingEnd: r.tradingEnd,
+        nextTradingStart: r.nextTradingStart,
       });
     }
   } catch { /* network — return empty */ }
@@ -464,6 +472,9 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
       trade_dt: item.tradeDateTime,
       high,
       low,
+      singlePrice: !!(item.krxSinglePrice || item.nxtSinglePrice),
+      krxSuspended: item.krxTradingSuspended,
+      nxtSuspended: item.nxtTradingSuspended,
     };
   });
 }
