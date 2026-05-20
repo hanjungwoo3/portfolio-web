@@ -8,7 +8,7 @@ import { allYahooSymbols, US_PAIRS } from "../lib/usMarketData";
 import { Sparkline } from "./Sparkline";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
-import { handleTossLinkClick } from "../lib/toss";
+import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { isSymbolSleeping } from "../lib/format";
 import type { UsIndex } from "../lib/api";
@@ -16,10 +16,9 @@ import type { UsIndex } from "../lib/api";
 function quoteUrl(symbol: string): string {
   const krMatch = /^(\d{6})(?:\.KS)?$/.exec(symbol);
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
-  if (symbol === "^KS11") return "https://www.tossinvest.com/indices/KGG01P";
-  if (symbol === "^KQ11") return "https://www.tossinvest.com/indices/QGG01P";
-  if (symbol === "^SOX")  return "https://www.tossinvest.com/indices/SOX.NAI";
-  // 미국 종목은 Yahoo Finance (NASDAQ 표준 데이터와 일관)
+  // 지수/환율/미국 ETF 토스 매핑 (lib/toss.ts 공통 맵)
+  if (TOSS_SYMBOL_URL[symbol]) return TOSS_SYMBOL_URL[symbol];
+  // 그 외 미국 종목은 Yahoo Finance
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
 
@@ -101,60 +100,51 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
            : effDn ? "bg-blue-50 border-blue-200"
            : "bg-white border-gray-200";
   const cls = colorFor(pct, direction);
+  // 마감 책갈피는 노란 배경 + 흐림 제외 → dim 은 콘텐츠 자식에만 적용 (지수 카드와 동일 구조)
+  const dimCls = dimEnabled && (isClosed || sleeping) ? "opacity-60" : "";
+  const closeVal = q?.regularPrice ?? effPrice;
+  const regPct = q?.regularPct ?? pct;
+  const regSign = regPct == null ? "text-gray-700"
+    : regPct > 0 ? "text-rose-600" : regPct < 0 ? "text-blue-600" : "text-gray-700";
   return (
-    <div className="relative pt-2">
-      {/* 책갈피 — 메인 가격이 정규장 종가와 다를 때 (정보 중복 회피).
-          POSTPOST 시 메인 = 시간외 마감가, 책갈피 = 정규장 종가 → 다른 정보, 책갈피 표시
-          REGULAR 시 메인 = 정규장 라이브 = regularPrice 와 동일 → 책갈피 X */}
-      {q && q.regularPrice != null && effPrice !== q.regularPrice && (() => {
-        const rp = q.regularPrice;
-        const rpct = q.regularPct ?? null;
-        const cls = rpct == null ? "text-gray-700"
-          : rpct > 0 ? "text-rose-600" : rpct < 0 ? "text-blue-600" : "text-gray-700";
-        const tagBg = rpct == null ? "bg-white/20 border-gray-300/20"
-          : rpct > 0 ? "bg-rose-100/20 border-rose-300/20"
-          : rpct < 0 ? "bg-blue-100/20 border-blue-300/20"
-          : "bg-white/20 border-gray-300/20";
-        return (
-          <div className={`absolute -top-0.5 right-2 z-20 px-1.5 py-0
-                          border rounded-md shadow-sm
-                          text-[9px] font-medium leading-tight whitespace-nowrap ${tagBg}`}>
-            <span className="text-gray-500">마감 </span>
-            <span className="text-gray-800 tabular-nums">
-              {rp < 1000 ? rp.toFixed(2) : Math.round(rp).toLocaleString()}
-            </span>
-            {rpct != null && (
-              <span className={`tabular-nums ml-1 ${cls}`}>
-                ({rpct >= 0 ? "+" : ""}{rpct.toFixed(2)}%)
-              </span>
-            )}
-          </div>
-        );
-      })()}
     <div className={`relative overflow-hidden
-                     flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}
-                     ${dimEnabled && (isClosed || sleeping) ? "opacity-60" : ""}`}>
+                     flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}`}>
       <Sparkline data={chart} width={400} height={80}
                  color={chart.length > 1
                    ? (chart[chart.length - 1] > chart[0]
                        ? (direction === "inverse" ? "#2563eb" : "#dc2626")
                        : (direction === "inverse" ? "#dc2626" : "#2563eb"))
                    : undefined}
-                 className="absolute inset-0 w-full h-full opacity-50
-                            pointer-events-none" />
+                 className={`absolute inset-0 w-full h-full opacity-50
+                            pointer-events-none ${dimCls}`} />
+      {/* 마감가 책갈피 — 장 마감 후. 노란 배경(살짝 투명) + 흐림 제외(z-20). 지수 카드와 동일 위치 */}
+      {q && sleeping && closeVal != null && (
+        <div className="absolute top-0 right-1 z-20 px-1.5 py-0
+                        border rounded-b bg-yellow-200/25 border-yellow-400/40
+                        text-[10px] font-medium leading-tight whitespace-nowrap">
+          <span className={`tabular-nums ${regSign}`}>
+            {closeVal < 1000 ? closeVal.toFixed(2) : Math.round(closeVal).toLocaleString()}
+          </span>
+          {regPct != null && (
+            <span className={`tabular-nums ml-1 font-bold text-[11px] ${regSign}`}>
+              ({regPct >= 0 ? "+" : ""}{regPct.toFixed(2)}%)
+            </span>
+          )}
+        </div>
+      )}
       <a href={quoteUrl(symbol)}
          target="_blank" rel="noopener noreferrer"
          onClick={e => handleTossLinkClick(e, quoteUrl(symbol))}
          title={`${name} 자세히 보기`}
-         className="relative z-10 text-base font-bold text-gray-900 truncate hover:underline">
+         className={`relative z-10 text-base font-bold text-gray-900 truncate hover:underline ${dimCls}`}>
         {name}
       </a>
       {desc && (
-        <div className="relative z-10 text-[11px] text-gray-500 truncate">
+        <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>
           {desc}
         </div>
       )}
-      <div className="relative z-10 flex items-baseline mt-1">
+      <div className={`relative z-10 flex items-baseline mt-1 ${dimCls}`}>
         <span className={`flex-1 text-left text-sm tabular-nums ${cls}`}>
           {effPrice == null ? "—"
             : effPrice < 1000 ? effPrice.toFixed(2)
@@ -164,7 +154,6 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
           {pct != null && Math.abs(pct) >= 0.005 ? fmtPct(pct) : ""}
         </span>
       </div>
-    </div>
     </div>
   );
 }

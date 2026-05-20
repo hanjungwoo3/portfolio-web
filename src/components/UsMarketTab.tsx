@@ -11,7 +11,7 @@ import {
 } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
-import { handleTossLinkClick } from "../lib/toss";
+import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
 import { Sparkline } from "./Sparkline";
 import { MarketFlowModal } from "./MarketFlowModal";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
@@ -36,10 +36,8 @@ function quoteUrl(symbol: string): string {
   // 한국 보유 종목 (6자리) 또는 KODEX/.KS ETF (6자리.KS) — 모두 토스
   const krMatch = /^(\d{6})(?:\.KS)?$/.exec(symbol);
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
-  // KOSPI/KOSDAQ 지수 — 토스 indices 페이지 (매매동향 데이터 출처와 일치)
-  if (symbol === "^KS11") return "https://www.tossinvest.com/indices/KGG01P";
-  if (symbol === "^KQ11") return "https://www.tossinvest.com/indices/QGG01P";
-  if (symbol === "^SOX")  return "https://www.tossinvest.com/indices/SOX.NAI";
+  // 지수/환율/미국 ETF 토스 매핑 (lib/toss.ts 공통 맵)
+  if (TOSS_SYMBOL_URL[symbol]) return TOSS_SYMBOL_URL[symbol];
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
 
@@ -87,10 +85,10 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
   // T0 그룹 — 비슷한 지수끼리 묶어서 줄별로 표시
   const T0_GROUPS: string[][] = [
-    ["^KS11", "^KS200", "^KQ11", "^KQ100"],                       // 한국 지수 (맨 위)
-    ["KRW=X", "DX-Y.NYB", "JPY=X", "^TNX", "IEF", "TLT", "EWY", "^VIX"], // 환율 + 매크로 + 국채 가격 + 외국인 투심 + 공포
+    ["^KS11", "069500.KS", "^KQ11", "EWY", "^VIX"],               // 한국 지수 + KODEX 200 + 외국인 투심(EWY) + 공포(VIX)
+    ["KRW=X", "DX-Y.NYB", "^TNX", "IEF", "TLT"],                  // 환율 + 매크로 + 국채 가격
     ["GC=F", "SI=F", "HG=F", "CL=F", "NG=F", "BTC-USD"],        // 원자재 + 비트코인
-    ["^IXIC", "NQ=F", "^N225", "^GSPC", "ES=F", "^SOX", "SOX=F"], // 미국 지수·선물 + 닛케이 + 필반
+    ["^IXIC", "NQ=F", "^GSPC", "ES=F", "^DJI", "RTY=F"], // 미국 지수·선물 + 다우 + 러셀선물 (필반은 반도체 탭으로)
     ["SPY", "QQQ", "DIA", "IWM", "VTI"],                          // 미국 대표 ETF
     ["SMH", "PAVE", "LIT", "XBI",
      "KBE", "ITA", "XLV", "BOTZ"],                                // 미국 섹터 ETF (KODEX 위)
@@ -129,10 +127,9 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
     krEtfs.map((t, i) => [t, (krEtfChartQs[i]?.data ?? []).map(p => p.close)])
   );
 
-  // T0 카드 sparkline — 일부 심볼 (SOX=F, ^KQ100) 은 Yahoo 가 historical 안 줌 → 가장 가까운 현물 차트로 폴백
+  // T0 카드 sparkline — 일부 심볼 (SOX=F) 은 Yahoo 가 historical 안 줌 → 가장 가까운 현물 차트로 폴백
   const SPARKLINE_FALLBACK: Record<string, string> = {
     "SOX=F": "^SOX",   // 필반 선물 → 필반 현물
-    "^KQ100": "^KQ11", // 코스닥 100 → 코스닥 종합
   };
   const t0ChartMap = new Map(
     tier0.map(p => {
@@ -245,43 +242,41 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
               const isKosdaq = p.symbol === "^KQ11";
               const hasFlow  = isKospi || isKosdaq;
               const indexKey = isKospi ? "KOSPI" : isKosdaq ? "KOSDAQ" : null;
-              // 책갈피 = 메인 가격이 정규장 종가와 다를 때만 (시간외 거래/마감 시)
-              const showCloseTag = q?.regularPrice != null && effPrice !== q.regularPrice;
-              const regPct = q?.regularPct ?? null;
+              // 정규장 종료(sleeping) 후 항상 마감가 책갈피 표시.
+              // 시간외 거래값(regularPrice 별도)이 있으면 그 값을, 없으면 현재가를 마감가로 통일 표시.
+              const showCloseTag = sleeping && effPrice != null;
+              const closeVal = q?.regularPrice ?? effPrice;
+              const regPct = q?.regularPct ?? pct;
               const regSign = regPct == null ? "text-gray-700"
                 : regPct > 0 ? "text-rose-600" : regPct < 0 ? "text-blue-600" : "text-gray-700";
-              const tagBg = regPct == null ? "bg-white/20 border-gray-300/20"
-                : regPct > 0 ? "bg-rose-100/20 border-rose-300/20"
-                : regPct < 0 ? "bg-blue-100/20 border-blue-300/20"
-                : "bg-white/20 border-gray-300/20";
+              // 마감 책갈피는 노란 배경 + 흐림 제외 → dim 은 콘텐츠 자식에만 적용
+              const dimCls = dimEnabled && (sleeping || isClosed) ? "opacity-60" : "";
               return (
                 <div key={p.symbol}
                      className={`relative overflow-hidden flex flex-col gap-0.5
                                   rounded-lg border px-3 py-1.5
-                                  ${bg}
-                                  ${dimEnabled && (sleeping || isClosed) ? "opacity-60" : ""}`}>
+                                  ${bg}`}>
                   <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
                              width={400} height={80}
                              color={sleeping && dimEnabled ? "#94a3b8" : undefined}
-                             className="absolute inset-0 w-full h-full opacity-50
-                                        pointer-events-none" />
-                  {/* 정규장 마감가 책갈피 — 메인이 시간외 가격일 때만 */}
-                  {showCloseTag && q?.regularPrice != null && (
-                    <div className={`absolute top-0 right-1 z-10 px-1.5 py-0
-                                    border rounded-b
-                                    text-[9px] font-medium leading-tight whitespace-nowrap ${tagBg}`}>
-                      <span className="text-gray-500">마감 </span>
-                      <span className="text-gray-800 tabular-nums">
-                        {q.regularPrice < 1000 ? q.regularPrice.toFixed(2) : Math.round(q.regularPrice).toLocaleString()}
+                             className={`absolute inset-0 w-full h-full opacity-50
+                                        pointer-events-none ${dimCls}`} />
+                  {/* 정규장 마감가 책갈피 — 장 마감 후. 노란 배경 + 흐림 제외(z-20) */}
+                  {showCloseTag && closeVal != null && (
+                    <div className="absolute top-0 right-1 z-20 px-1.5 py-0
+                                    border rounded-b bg-yellow-200/25 border-yellow-400/40
+                                    text-[10px] font-medium leading-tight whitespace-nowrap">
+                      <span className={`tabular-nums ${regSign}`}>
+                        {closeVal < 1000 ? closeVal.toFixed(2) : Math.round(closeVal).toLocaleString()}
                       </span>
                       {regPct != null && (
-                        <span className={`tabular-nums ml-1 ${regSign}`}>
+                        <span className={`tabular-nums ml-1 font-bold text-[11px] ${regSign}`}>
                           ({regPct >= 0 ? "+" : ""}{regPct.toFixed(2)}%)
                         </span>
                       )}
                     </div>
                   )}
-                  <div className="relative z-10 flex items-baseline gap-1.5">
+                  <div className={`relative z-10 flex items-baseline gap-1.5 ${dimCls}`}>
                     {sleeping && (
                       <span className="text-[11px] text-gray-400">zZ</span>
                     )}
@@ -317,10 +312,10 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                       );
                     })()}
                   </div>
-                  <div className="relative z-10 text-[11px] text-gray-500 truncate">
+                  <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}
                   </div>
-                  <div className="relative z-10 flex items-baseline mt-1">
+                  <div className={`relative z-10 flex items-baseline mt-1 ${dimCls}`}>
                     <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
                       {effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}
                     </span>

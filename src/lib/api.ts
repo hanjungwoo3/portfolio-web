@@ -1219,13 +1219,68 @@ export async function fetchYahooChart(
   }
 }
 
-// Yahoo ^지수 → 토스 indices 코드 매핑 (있는 것만, 없으면 Yahoo fallback)
-// KOSPI 200(^KS200) / KOSDAQ 100(^KQ100) 토스 코드 미확인이라 Yahoo 그대로.
+// Yahoo ^지수 → 토스 indices 코드 매핑 (현재가만 토스, 없으면 Yahoo fallback)
+// 차트(스파크라인)는 토스 API 가 인증벽이라 계속 Yahoo 사용.
 const TOSS_INDEX_CODE: Record<string, string> = {
-  "^KS11": "KGG01P",   // KOSPI 종합
-  "^KQ11": "QGG01P",   // KOSDAQ 종합
-  "^SOX":  "SOX.NAI",  // 필라델피아 반도체 지수
+  "^KS11":  "KGG01P",    // KOSPI 종합
+  "^KQ11":  "QGG01P",    // KOSDAQ 종합
+  "^SOX":   "SOX.NAI",   // 필라델피아 반도체 지수
+  "^IXIC":  "COMP.NAI",  // 나스닥 종합
+  "^GSPC":  "SPX.CBI",   // S&P 500
+  "^DJI":   "DJI.DJI",   // 다우존스
+  "NQ=F":   "RFU.NQc1",  // 나스닥 선물
+  "ES=F":   "RFU.ESc1",  // S&P 500 선물
+  "RTY=F":  "RFU.RTYc1", // 러셀2000 선물
+  "^VIX":   "RGI..VIX",  // VIX 변동성
+  "DX-Y.NYB": "RGI..DXY", // 달러 인덱스
 };
+
+// Yahoo 심볼 → 토스 미국 종목 코드 (현재가만 토스, 없으면 Yahoo fallback).
+// 토스 stock-prices/details (US 코드) — 24시간/시간외 거래값 포함.
+const TOSS_US_STOCK_CODE: Record<string, string> = {
+  // 반도체 개별주
+  "MU":   "US19890516001",
+  "NVDA": "US19990122001",
+  "AMAT": "US19721012001",
+  "LRCX": "US19840504001",
+  "ASML": "US19950315001",
+  // 미국 ETF
+  "SPY":  "US19930122001",
+  "QQQ":  "US19990310001",
+  "DIA":  "US19980120001",
+  "IWM":  "US20000526007",
+  "VTI":  "US20010531001",
+  "SMH":  "US20191211007",
+  "PAVE": "US20170308001",
+  "LIT":  "US20100723002",
+  "XBI":  "US20060206001",
+  "KBE":  "US20051115001",
+  "ITA":  "US20060505010",
+  "XLV":  "US19981222008",
+  "BOTZ": "US20160913001",
+};
+
+// 토스 US 종목 가격(기존 fetchTossUsPrices) → UsIndex 변환. 현재가 = close, 기준 = base.
+async function fetchTossUsIndexMap(
+  items: { symbol: string; name: string; code: string }[],
+): Promise<Map<string, UsIndex>> {
+  const out = new Map<string, UsIndex>();
+  if (items.length === 0) return out;
+  const priceByCode = await fetchTossUsPrices(items.map(i => i.code));
+  for (const it of items) {
+    const tp = priceByCode.get(it.code);
+    if (!tp) continue;
+    const diff = tp.close - tp.base;
+    out.set(it.symbol, {
+      symbol: it.symbol, name: it.name,
+      price: tp.close, prev: tp.base, prevClose: tp.base,
+      diff, pct: tp.pct, currency: "USD",
+      tradeDate: tp.tradeDateTime ? toKstDateString(tp.tradeDateTime) : "",
+      marketState: "",
+    });
+  }
+  return out;
+}
 
 // 토스 indices price API → UsIndex 변환
 async function fetchTossIndexPrice(
@@ -1260,22 +1315,24 @@ async function fetchTossIndexPrice(
   }
 }
 
-// 다수 심볼 한꺼번에 — 병렬 fetch
-// .KS 6자리 (KODEX 등 한국 ETF) → 토스 stock-prices
-// ^KS11/^KQ11 (KOSPI/KOSDAQ 종합) → 토스 index-prices
-// 그 외 (^KS200/^KQ100/미국 등) → Yahoo
-// 토스 우선, 실패 시 Yahoo fallback (안정성).
+// 다수 심볼 한꺼번에 — 병렬 fetch.
+// 정책: 현재가 = 토스(가능하면), 차트·정규장 마감가(regularPrice/마감 책갈피) = Yahoo.
+//   - Yahoo 를 모든 심볼에 대해 받아 베이스로 사용 (regularPrice/marketState/prevClose 확보)
+//   - 토스로 값 받는 심볼은 price/pct 만 토스로 덮고 marketState="" (토스값이 메인),
+//     regularPrice/regularPct 는 Yahoo 값 유지 → 장 마감 후 "마감가 책갈피" 표시 가능
+//   - 토스 실패 시 Yahoo 전체 entry 가 그대로 남아 자동 fallback
+// 라우팅: .KS 6자리(KODEX 등)·KOSPI/KOSDAQ/필반·미국지수/선물·미국ETF → 토스 현재가
 export async function fetchYahooBatch(
   pairs: { symbol: string; name: string }[]
 ): Promise<Map<string, UsIndex>> {
   const ksRegex = /^(\d{6})\.KS$/;
   const ksItems = pairs.filter(p => ksRegex.test(p.symbol));
   const tossIdxItems = pairs.filter(p => TOSS_INDEX_CODE[p.symbol]);
-  const otherItems = pairs.filter(p =>
-    !ksRegex.test(p.symbol) && !TOSS_INDEX_CODE[p.symbol]
-  );
+  const tossUsItems = pairs
+    .filter(p => TOSS_US_STOCK_CODE[p.symbol])
+    .map(p => ({ ...p, code: TOSS_US_STOCK_CODE[p.symbol] }));
 
-  const [ksMap, idxResults, yahooResults] = await Promise.all([
+  const [ksMap, idxResults, usMap, yahooResults] = await Promise.all([
     ksItems.length > 0
       ? fetchTossPrices(ksItems.map(p => ksRegex.exec(p.symbol)![1]))
           .then(prices => {
@@ -1300,27 +1357,36 @@ export async function fetchYahooBatch(
           .catch(() => new Map<string, UsIndex>())
       : Promise.resolve(new Map<string, UsIndex>()),
     Promise.all(tossIdxItems.map(p => fetchTossIndexPrice(p.symbol, p.name))),
-    Promise.all(otherItems.map(p => fetchYahooQuote(p.symbol, p.name))),
+    fetchTossUsIndexMap(tossUsItems),
+    // 모든 심볼 Yahoo — 베이스(regularPrice/marketState/prevClose) + 토스 실패 시 fallback
+    Promise.all(pairs.map(p => fetchYahooQuote(p.symbol, p.name))),
   ]);
 
-  const merged = new Map<string, UsIndex>(ksMap);
-  for (const r of idxResults) {
-    if (r) merged.set(r.symbol, r);
-  }
+  // 1) Yahoo 결과를 베이스로
+  const merged = new Map<string, UsIndex>();
   for (const r of yahooResults) {
     if (r) merged.set(r.symbol, r);
   }
 
-  // 토스 index 가 한 번이라도 실패하면 Yahoo 로 fallback (안정성)
-  const missingIdx = tossIdxItems.filter(p => !merged.has(p.symbol));
-  if (missingIdx.length > 0) {
-    const fallback = await Promise.all(
-      missingIdx.map(p => fetchYahooQuote(p.symbol, p.name))
-    );
-    for (const r of fallback) {
-      if (r) merged.set(r.symbol, r);
-    }
-  }
+  // 2) 토스 현재가로 price/pct 덮어쓰되 Yahoo 의 regularPrice/regularPct 는 유지 (마감 책갈피용)
+  const applyToss = (sym: string, t: UsIndex) => {
+    const y = merged.get(sym);
+    if (!y) { merged.set(sym, t); return; }   // Yahoo 없으면 토스 단독
+    merged.set(sym, {
+      ...y,                        // regularPrice/regularPct/postPrice 유지 (마감 책갈피용)
+      price: t.price,              // 현재가 = 토스
+      prev: t.prev,
+      prevClose: t.prevClose,      // 기준 종가도 토스 base → 변동률이 토스와 동일 (현재가 vs 토스 base)
+      diff: t.diff,
+      pct: t.pct,
+      currency: t.currency ?? y.currency,
+      tradeDate: t.tradeDate || y.tradeDate,
+      marketState: "",             // 빈값 → 카드가 토스 현재가를 메인으로 표시
+    });
+  };
+  for (const [sym, t] of ksMap) applyToss(sym, t);
+  for (const r of idxResults) { if (r) applyToss(r.symbol, r); }
+  for (const [sym, t] of usMap) applyToss(sym, t);
 
   return merged;
 }

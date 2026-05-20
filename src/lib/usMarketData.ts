@@ -28,13 +28,11 @@ export const US_PAIRS: Pair[] = [
   // Tier 0: 핵심 대시보드 — 데스크탑 T0_GROUPS 순서와 일치 (모바일 단일 컬럼 같은 순서로 노출)
   // 행 1 — 한국 지수 (맨 위)
   { symbol: "^KS11",    name: "KOSPI",       desc: "코스피 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^KS200",   name: "KOSPI 200",   desc: "코스피 200 지수 — 시총 상위", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "069500.KS", name: "KODEX 200",  desc: "KOSPI 200 추종 ETF — 실물 매매 가능", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KQ11",    name: "KOSDAQ",      desc: "코스닥 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^KQ100",   name: "KOSDAQ 100",  desc: "코스닥 100 지수 — 시총 상위", tier: "T0", sector: "dashboard", direction: "direct" },
   // 행 2 — 환율 + 매크로 + 외국인 투심 + 공포
-  { symbol: "KRW=X",    name: "USD/KRW",     desc: "원달러 환율 — 수출주·외국인 수급", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "KRW=X",    name: "달러환율",     desc: "USD/KRW 원달러 환율 — 수출주·외국인 수급", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "DX-Y.NYB", name: "달러 인덱스",  desc: "DXY — 6개 통화 대비 달러 강도", tier: "T0", sector: "dashboard", direction: "inverse" },
-  { symbol: "JPY=X",    name: "엔/달러",     desc: "USD/JPY — 한일 수출 경쟁력 (엔 약세 = 한국 불리)", tier: "T0", sector: "dashboard", direction: "neutral" },
   { symbol: "^TNX",     name: "미국 10Y",    desc: "미 10년 국채금리 — 외국인 수급·성장주 할인율", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "IEF",      name: "미국 중기채",  desc: "iShares 7-10년 국채 ETF — 10Y yield 가격 환산 (yield↑ = 가격↓)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "TLT",      name: "미국 장기채",  desc: "iShares 20+년 국채 ETF — 금리·안전자산 헤지, 변동 큼", tier: "T0", sector: "dashboard", direction: "direct" },
@@ -50,9 +48,10 @@ export const US_PAIRS: Pair[] = [
   // 행 3 — 미국 지수 + 야간 선물 + 닛케이 + 반도체 (필반·필반선물)
   { symbol: "^IXIC",    name: "나스닥",      desc: "미국 기술주 전체", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "NQ=F",     name: "나스닥 선물",  desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^N225",    name: "닛케이 225",   desc: "일본 대형주 — 아시아 sentiment", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^GSPC",    name: "S&P 500",     desc: "미국 대형주 — 글로벌 리스크 온/오프", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ES=F",     name: "S&P 500 선물", desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^DJI",     name: "다우존스",     desc: "다우 30 산업평균 — 미국 대형 우량주", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "RTY=F",    name: "러셀2000 선물", desc: "E-mini Russell 2000 선물 — 미국 소형주 야간 흐름 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^SOX",     name: "필라델피아반도체", desc: "미국 반도체 30개사 평균 지수", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "SOX=F",    name: "필라델피아반도체 선물", desc: "야간 24시간 거래 — 다음 정규장 가격 미리 가늠", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "MU",       name: "마이크론",     desc: "Micron — 미국 메모리 반도체 (삼성·하이닉스 직접 경쟁사·메모리 사이클 가늠자)", tier: "T0", sector: "dashboard", direction: "direct" },

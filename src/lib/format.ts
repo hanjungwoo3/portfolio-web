@@ -86,12 +86,11 @@ function nowInTz(tz: string): { hour: number; minute: number; weekday: number } 
   return { hour, minute: m, weekday: dayMap[dayName] ?? 0 };
 }
 
-// 시장 거래 시간 여부 (데스크톱 v1 is_market_open 동일)
+// 시장 정규장 시간 여부 — 흐림(dim) 판정용. 정규장 지나면 흐림(시간외 현재가는 그대로 표시).
 // - KR: 09:00-15:30 KST 정규장
-// - US: 04:00-20:00 ET (PRE+정규+POST)
-// - US_INDEX: 09:30-16:00 ET (정규장만)
+// - US / US_INDEX: 09:30-16:00 ET 정규장
 // - JP: 08:30-15:30 JST
-// - OTHER: 항상 열림 (환율/선물 등)
+// - OTHER: 항상 열림 (환율/선물/암호화폐 등 24h — 흐림 없음)
 export function isMarketOpen(market: Market): boolean {
   const TZ_MAP: Record<Market, string | null> = {
     KR: "Asia/Seoul", US: "America/New_York",
@@ -103,8 +102,10 @@ export function isMarketOpen(market: Market): boolean {
   if (t.weekday === 0 || t.weekday === 6) return false;
   const hhmm = t.hour * 60 + t.minute;
   switch (market) {
+    // 정규장 기준 — 정규시간 지나면 흐림(현재가는 시간외도 그대로 표시).
+    // 선물·환율·암호화폐(OTHER)는 24h 라 흐림 없음(default true).
     case "KR":      return 9*60       <= hhmm && hhmm < 15*60 + 30;
-    case "US":      return 4*60       <= hhmm && hhmm < 20*60;
+    case "US":      return 9*60 + 30  <= hhmm && hhmm < 16*60;
     case "US_INDEX":return 9*60 + 30  <= hhmm && hhmm < 16*60;
     case "JP":      return 8*60 + 30  <= hhmm && hhmm < 15*60 + 30;
     default:        return true;

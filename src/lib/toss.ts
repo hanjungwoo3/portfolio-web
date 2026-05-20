@@ -8,6 +8,47 @@ function isMobile(): boolean {
   return typeof navigator !== "undefined" && MOBILE_UA_RE.test(navigator.userAgent);
 }
 
+// Yahoo 심볼 → 토스 페이지 URL 매핑 (지수/환율/미국 ETF).
+// 지수 탭 quoteUrl 들이 공통으로 참조 — 한 곳에서만 관리.
+export const TOSS_SYMBOL_URL: Record<string, string> = {
+  // 한국 지수
+  "^KS11": "https://www.tossinvest.com/indices/KGG01P",
+  "^KQ11": "https://www.tossinvest.com/indices/QGG01P",
+  // 미국 지수·선물
+  "^SOX":  "https://www.tossinvest.com/indices/SOX.NAI",
+  "^IXIC": "https://www.tossinvest.com/indices/COMP.NAI",
+  "NQ=F":  "https://www.tossinvest.com/indices/RFU.NQc1",
+  "^GSPC": "https://www.tossinvest.com/indices/SPX.CBI",
+  "ES=F":  "https://www.tossinvest.com/indices/RFU.ESc1",
+  "^DJI":  "https://www.tossinvest.com/indices/DJI.DJI",
+  "RTY=F": "https://www.tossinvest.com/indices/RFU.RTYc1",
+  "^VIX":  "https://www.tossinvest.com/indices/RGI..VIX",
+  // 환율
+  "DX-Y.NYB": "https://www.tossinvest.com/indices/RGI..DXY",
+  "KRW=X":    "https://www.tossinvest.com/indices/exchange-rate",
+  // 미국 대표 ETF (토스 종목 페이지)
+  "SPY": "https://www.tossinvest.com/stocks/US19930122001",
+  "QQQ": "https://www.tossinvest.com/stocks/US19990310001",
+  "DIA": "https://www.tossinvest.com/stocks/US19980120001",
+  "IWM": "https://www.tossinvest.com/stocks/US20000526007",
+  "VTI": "https://www.tossinvest.com/stocks/US20010531001",
+  // 미국 반도체 개별주 (토스 종목 페이지)
+  "MU":   "https://www.tossinvest.com/stocks/US19890516001",
+  "NVDA": "https://www.tossinvest.com/stocks/US19990122001",
+  "AMAT": "https://www.tossinvest.com/stocks/US19721012001",
+  "LRCX": "https://www.tossinvest.com/stocks/US19840504001",
+  "ASML": "https://www.tossinvest.com/stocks/US19950315001",
+  // 미국 섹터 ETF (토스 종목 페이지)
+  "SMH":  "https://www.tossinvest.com/stocks/US20191211007",
+  "PAVE": "https://www.tossinvest.com/stocks/US20170308001",
+  "LIT":  "https://www.tossinvest.com/stocks/US20100723002",
+  "XBI":  "https://www.tossinvest.com/stocks/US20060206001",
+  "KBE":  "https://www.tossinvest.com/stocks/US20051115001",
+  "ITA":  "https://www.tossinvest.com/stocks/US20060505010",
+  "XLV":  "https://www.tossinvest.com/stocks/US19981222008",
+  "BOTZ": "https://www.tossinvest.com/stocks/US20160913001",
+};
+
 // tossinvest.com URL 을 받아 토스 앱 deep link 로 변환.
 // 비(非) toss URL 은 그대로 반환.
 function toDeepLink(httpsUrl: string): string | null {

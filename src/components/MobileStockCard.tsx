@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Lightbulb } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isHoldingSleeping, isEtfByName } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isHoldingSleeping, isEtfByName, krSessionPhase } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { memoTagClass } from "../lib/memoColor";
 import { pickTodayInvestor } from "../lib/api";
@@ -336,10 +336,12 @@ export function MobileStockCard({
         </>
       } className="basis-1/2 min-w-0">
       <div className="relative w-full h-full">
-      {/* 정규장 마감가 책갈피 — Yahoo .KS/.KQ 정규장 종가가 토스 현재가와 다를 때만.
+      {/* 정규장 마감가 책갈피 — 정규장 종료(EXTENDED/CLOSED) 후에만.
+          정규장 중에는 Yahoo(15분 지연) 종가가 토스 실시간과 달라 잘못 "마감"으로 뜨므로 숨김.
           15% 이상 차이 = Yahoo 매핑 오류 가능성으로 숨김.
           가격 박스 바깥(상위 wrapper 자식)에 두어 overflow:hidden 에 잘리지 않게. */}
       {krReg && krReg.regularPrice !== price.price
+            && krSessionPhase() !== "REGULAR"
             && price.price > 0
             && Math.abs(krReg.regularPrice - price.price) / price.price < 0.15 && (
         <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0

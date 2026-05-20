@@ -38,8 +38,8 @@ function quoteUrl(symbol: string): string {
   // 한국 보유 종목 (6자리) 또는 KODEX/.KS ETF (6자리.KS) — 모두 토스
   const krMatch = /^(\d{6})(?:\.KS)?$/.exec(symbol);
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
-  if (symbol === "^KS11") return "https://www.tossinvest.com/indices/KGG01P";
-  if (symbol === "^KQ11") return "https://www.tossinvest.com/indices/QGG01P";
+  // 지수/환율/미국 ETF 토스 매핑 (lib/toss.ts 공통 맵)
+  if (TOSS_SYMBOL_URL[symbol]) return TOSS_SYMBOL_URL[symbol];
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
 import { RefreshIndicator } from "./RefreshIndicator";
@@ -51,7 +51,7 @@ import {
   deleteAllRowsForTicker, removeHolding, renameGroup, deleteGroup, applyImportedSettings, replaceAllMemos,
 } from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
-import { handleTossLinkClick } from "../lib/toss";
+import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
 import { MobileStockCard } from "./MobileStockCard";
 import { MemoDialog } from "./MemoDialog";
 import { TotalRow } from "./TotalRow";
@@ -85,11 +85,10 @@ const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 
 // 섹터 탭 — KOSPI/KOSDAQ + EWY/VIX(한국 sentiment) + 섹터 페어
 const KR_ORDER: string[] = [
-  "^KS11", "^KS200",
-  "^KQ11", "^KQ100",
+  "^KS11", "069500.KS",
+  "^KQ11",
   "EWY", "^VIX",          // 외국인 투심 + 공포지수
-  "SMH", "091160.KS",     // 반도체
-  "^SOX", "SOX=F",        // 필반 + 선물 (반도체 섹터 매크로)
+  "SMH", "091160.KS",     // 반도체 (필반·필반선물은 반도체 탭으로 이동 — 지수에서 제외)
   "PAVE", "117700.KS",    // 건설/인프라
   "LIT", "305720.KS",     // 2차전지
   "XBI", "244580.KS",     // 바이오
@@ -102,12 +101,13 @@ const KR_ORDER: string[] = [
 // 매크로 탭 — 환율/금리 → 미국지수+선물 → 미국 대표 ETF → 원자재 (맨 아래)
 const US_ORDER: string[] = [
   "KRW=X", "DX-Y.NYB",
-  "JPY=X", "^TNX",
+  "^TNX",
   "IEF", "TLT",            // 미국 중기·장기 국채 ETF — 10Y yield 가격 환산
   "^IXIC", "NQ=F",
   "^GSPC", "ES=F",
-  "^N225", "SPY",
-  "QQQ", "DIA",
+  "^DJI", "RTY=F",         // 다우존스 + 러셀2000 선물
+  "SPY", "QQQ",
+  "DIA",
   "IWM", "VTI",
   "GC=F", "SI=F",
   "HG=F", "CL=F",
@@ -466,7 +466,6 @@ export function MobileSimpleView() {
   // 일부 심볼 sparkline 은 Yahoo 가 historical 안 줌 → 가까운 현물 차트로 폴백
   const SPARKLINE_FALLBACK: Record<string, string> = {
     "SOX=F": "^SOX",
-    "^KQ100": "^KQ11",
   };
   const t0ChartByIndex = new Map(tier0.map((p, i) => [p.symbol, t0ChartQs[i]?.data ?? []]));
   const t0ChartMap = new Map(
@@ -746,42 +745,40 @@ export function MobileSimpleView() {
                 : cdiff < 0 ? "text-blue-600"
                 : "text-gray-900";
               const nameColor = isFuture ? "text-amber-700" : "text-gray-900";
-              // 책갈피 = 메인 가격이 정규장 종가와 다를 때만 (시간외 거래/마감 시)
-              const showCloseTag = q?.regularPrice != null && effPrice !== q.regularPrice;
-              const regPct = q?.regularPct ?? null;
+              // 정규장 종료(sleeping) 후 항상 마감가 책갈피. 시간외 거래값 있으면 그 값, 없으면 현재가를 마감가로 통일.
+              const showCloseTag = sleeping && effPrice != null;
+              const closeVal = q?.regularPrice ?? effPrice;
+              const regPct = q?.regularPct ?? pct;
               const regSign = regPct == null ? "text-gray-700"
                 : regPct > 0 ? "text-rose-600" : regPct < 0 ? "text-blue-600" : "text-gray-700";
-              const tagBg = regPct == null ? "bg-white/20 border-gray-300/20"
-                : regPct > 0 ? "bg-rose-100/20 border-rose-300/20"
-                : regPct < 0 ? "bg-blue-100/20 border-blue-300/20"
-                : "bg-white/20 border-gray-300/20";
+              // 마감 책갈피는 노란 배경(살짝 투명) + 흐림 제외 → dim 은 콘텐츠 자식에만
+              const dimCls = dimEnabled && (sleeping || isClosed) ? "opacity-60" : "";
               return (
                 <div key={p.symbol}
                      className={`relative overflow-hidden flex flex-col gap-0.5
                                   rounded-lg border px-3 py-1.5
-                                  ${bg} ${dimEnabled && (sleeping || isClosed) ? "opacity-60" : ""}`}>
+                                  ${bg}`}>
                   <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
                              width={300} height={70}
                              color={sleeping && dimEnabled ? "#94a3b8" : undefined}
-                             className="absolute inset-0 w-full h-full opacity-50
-                                        pointer-events-none" />
-                  {/* 정규장 마감가 책갈피 — 메인이 시간외 가격일 때만 (PC 동일) */}
-                  {showCloseTag && q?.regularPrice != null && (
-                    <div className={`absolute top-0 right-1 z-10 px-1.5 py-0
-                                    border rounded-b
-                                    text-[9px] font-medium leading-tight whitespace-nowrap ${tagBg}`}>
-                      <span className="text-gray-500">마감 </span>
-                      <span className="text-gray-800 tabular-nums">
-                        {q.regularPrice < 1000 ? q.regularPrice.toFixed(2) : Math.round(q.regularPrice).toLocaleString()}
+                             className={`absolute inset-0 w-full h-full opacity-50
+                                        pointer-events-none ${dimCls}`} />
+                  {/* 정규장 마감가 책갈피 — 장 마감 후. 노란 배경(살짝 투명) + 흐림 제외(z-20) */}
+                  {showCloseTag && closeVal != null && (
+                    <div className="absolute top-0 right-1 z-20 px-1.5 py-0
+                                    border rounded-b bg-yellow-200/25 border-yellow-400/40
+                                    text-[10px] font-medium leading-tight whitespace-nowrap">
+                      <span className={`tabular-nums ${regSign}`}>
+                        {closeVal < 1000 ? closeVal.toFixed(2) : Math.round(closeVal).toLocaleString()}
                       </span>
                       {regPct != null && (
-                        <span className={`tabular-nums ml-1 ${regSign}`}>
+                        <span className={`tabular-nums ml-1 font-bold text-[11px] ${regSign}`}>
                           ({regPct >= 0 ? "+" : ""}{regPct.toFixed(2)}%)
                         </span>
                       )}
                     </div>
                   )}
-                  <div className="relative flex items-baseline gap-1.5">
+                  <div className={`relative flex items-baseline gap-1.5 ${dimCls}`}>
                     {sleeping && (
                       <span className="text-[11px] text-gray-400">zZ</span>
                     )}
@@ -816,10 +813,10 @@ export function MobileSimpleView() {
                       );
                     })()}
                   </div>
-                  <div className="relative text-[11px] text-gray-500 truncate">
+                  <div className={`relative text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}
                   </div>
-                  <div className="relative flex items-baseline mt-1">
+                  <div className={`relative flex items-baseline mt-1 ${dimCls}`}>
                     <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
                       {effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}
                     </span>
