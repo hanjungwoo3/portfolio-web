@@ -14,6 +14,7 @@ const ALLOWED_HOSTS = new Set<string>([
   "navercomp.wisereport.co.kr",
   "query1.finance.yahoo.com",
   "query2.finance.yahoo.com",
+  "api.investing.com",        // VKOSPI 등 — investing financialdata chart API
 ]);
 
 // 응답 캐시 TTL (초). 클라이언트 5초 폴링이라 캐시는 짧게.
@@ -136,6 +137,13 @@ export default {
     } else if (targetUrl.hostname.includes("naver")) {
       headers["Referer"] = "https://finance.naver.com/";
       headers["Accept-Language"] = "ko-KR,ko;q=0.9";
+    } else if (targetUrl.hostname.includes("investing")) {
+      // investing financialdata API — domain-id 필수, 브라우저 UA/Referer 로 Cloudflare 통과 시도
+      headers["domain-id"] = "www";
+      headers["Origin"] = "https://www.investing.com";
+      headers["Referer"] = "https://www.investing.com/";
+      headers["Accept"] = "application/json, text/plain, */*";
+      headers["Accept-Language"] = "en-US,en;q=0.9";
     }
 
     if (needsYahooAuth(targetUrl)) {
