@@ -178,7 +178,7 @@ export function IntradayPatternDialog({ isOpen, onClose, ticker, stockName }: Pr
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:p-4"
          onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="bg-white shadow-xl flex flex-col
-                       w-[920px] max-w-[96vw] h-[640px] max-h-[94vh]
+                       w-[920px] max-w-[96vw] h-[680px] max-h-[94vh]
                        rounded-t-xl sm:rounded-lg overflow-hidden">
         <header className="px-5 py-3 border-b bg-gray-50 flex items-center shrink-0">
           <h2 className="text-lg font-bold flex items-center gap-1.5">⏰ 시간대 패턴</h2>
