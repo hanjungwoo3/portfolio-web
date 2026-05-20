@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory } from "../lib/api";
+import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory, fetchInvestingChart, isInvestingIndex } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping } from "../lib/format";
-import { getDimSleepingEnabled } from "../lib/proxyConfig";
+import { getDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
   allYahooSymbols, allKrEtfTickers,
@@ -18,6 +18,8 @@ import { EtfCompositionDialog } from "./EtfCompositionDialog";
 
 // KR ETF Yahoo 심볼 패턴 (예: "091160.KS") — 토스 compositions API 지원 대상
 const KR_ETF_SYMBOL_RE = /^(\d{6})\.K[SQ]$/;
+
+const WORKER_UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 function krEtfTicker(symbol: string): string | null {
   const m = KR_ETF_SYMBOL_RE.exec(symbol);
   return m ? m[1] : null;
@@ -85,7 +87,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
   // T0 그룹 — 비슷한 지수끼리 묶어서 줄별로 표시
   const T0_GROUPS: string[][] = [
-    ["^KS11", "069500.KS", "^KQ11", "EWY", "^VIX"],               // 한국 지수 + KODEX 200 + 외국인 투심(EWY) + 공포(VIX)
+    ["^KS11", "069500.KS", "^KQ11", "VKOSPI", "^VIX", "EWY"],     // 한국 지수 + KODEX 200 + 공포(VKOSPI·VIX) + 외국인 투심(EWY)
     ["KRW=X", "DX-Y.NYB", "^FVX", "^TNX", "^TYX"],               // 환율 + 매크로 + 미국 국채금리 커브(5/10/30Y)
     ["GC=F", "SI=F", "HG=F", "CL=F", "NG=F", "BTC-USD"],        // 원자재 + 비트코인
     ["^IXIC", "NQ=F", "^GSPC", "ES=F", "^DJI", "RTY=F"], // 미국 지수·선물 + 다우 + 러셀선물 (필반은 반도체 탭으로)
@@ -105,7 +107,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
   const yahooChartQs = useQueries({
     queries: allYahooForCharts.map(sym => ({
       queryKey: ["yahoo-chart", sym, "3mo"],
-      queryFn: () => fetchYahooChart(sym, "3mo"),
+      queryFn: () => isInvestingIndex(sym) ? fetchInvestingChart(sym) : fetchYahooChart(sym, "3mo"),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -197,6 +199,8 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
   const dimEnabled = getDimSleepingEnabled();
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
+  // 개인 워커 사용 중이면, investing 미허용으로 V-KOSPI 값이 빌 수 있음 → 카드 안에 업데이트 안내
+  const hasPersonalProxy = !!getPersonalProxyUrl();
 
   return (
     <div className="space-y-3">
@@ -315,6 +319,16 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                   <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}
                   </div>
+                  {p.symbol === "VKOSPI" && effPrice == null && hasPersonalProxy ? (
+                    /* 개인 워커가 investing 미허용 → 값 자리에 업데이트 안내 (높이는 가격 줄과 동일) */
+                    <div className="relative z-10 flex items-center mt-1 min-h-[1.75rem]">
+                      <a href={WORKER_UPDATE_GUIDE_URL} target="_blank" rel="noopener noreferrer"
+                         title="개인 워커가 구버전이라 V-KOSPI 미표시 — 업데이트 가이드"
+                         className="text-[12px] font-bold text-amber-700 underline hover:text-amber-900">
+                        ⚠️ 워커 업데이트 ↗
+                      </a>
+                    </div>
+                  ) : (
                   <div className={`relative z-10 flex items-baseline mt-1 ${dimCls}`}>
                     <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
                       {effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}
@@ -325,6 +339,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                         : ""}
                     </span>
                   </div>
+                  )}
                   </div>
                 </div>
               );

@@ -33,24 +33,24 @@ export function setPersonalProxyUrl(url: string | null) {
 export const POLL_OPTIONS = [5_000, 10_000, 30_000, 60_000] as const;
 export const DEFAULT_PUBLIC_POLL_MS = 10_000;
 
-// ─── 개인 프록시 POST 호환성 검증 ─────────────────────────
-// 컨센서스 예상치 API 는 POST 호출 → 구버전 워커는 405 반환.
-// 세션당 1회만 호출하고 결과 캐시 (URL 바뀌면 재검증).
+// ─── 개인 프록시 기능별 호환성 검증 ─────────────────────────
+// 기능마다 조건이 다름 → 별도 검사 (한 status 로 합치지 않음):
+//  · POST 지원      : 컨센서스 예상치 API (POST) — 구버전 405
+//  · investing 허용 : VKOSPI 등 (api.investing.com) — 구버전 403 "Host not allowed"
+// 각 검사 세션당 1회만 호출하고 결과 캐시 (URL 바뀌면 재검증).
 export type PersonalProxyStatus = "ok" | "outdated" | "no-personal" | "error";
 
-let cachedStatus: { url: string; status: PersonalProxyStatus } | null = null;
+let cachedPostStatus: { url: string; status: PersonalProxyStatus } | null = null;
+let cachedInvestStatus: { url: string; status: PersonalProxyStatus } | null = null;
 
+// POST 지원 검사 (컨센서스 예상치) — 구버전(405) 판정. 지난번과 동일.
 export async function checkPersonalProxyPostSupport(): Promise<PersonalProxyStatus> {
   const personal = getPersonalProxyUrl();
-  if (!personal) {
-    cachedStatus = null;
-    return "no-personal";
-  }
-  if (cachedStatus && cachedStatus.url === personal) return cachedStatus.status;
+  if (!personal) { cachedPostStatus = null; return "no-personal"; }
+  if (cachedPostStatus && cachedPostStatus.url === personal) return cachedPostStatus.status;
   try {
     const target = "https://wts-info-api.tossinvest.com/api/v2/companies/A005930/financial/estimate/revenue";
-    const url = `${personal}/?url=${encodeURIComponent(target)}`;
-    const r = await fetch(url, {
+    const r = await fetch(`${personal}/?url=${encodeURIComponent(target)}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: "{}",
@@ -60,17 +60,44 @@ export async function checkPersonalProxyPostSupport(): Promise<PersonalProxyStat
     if (r.status === 405) status = "outdated";
     else if (r.ok) status = "ok";
     else status = "error";
-    cachedStatus = { url: personal, status };
+    cachedPostStatus = { url: personal, status };
     return status;
   } catch {
-    cachedStatus = { url: personal, status: "error" };
+    cachedPostStatus = { url: personal, status: "error" };
+    return "error";
+  }
+}
+
+// investing 호스트 허용 검사 (VKOSPI) — 워커 자체 403 "Host not allowed" 면 구버전.
+export async function checkPersonalProxyInvestingSupport(): Promise<PersonalProxyStatus> {
+  const personal = getPersonalProxyUrl();
+  if (!personal) { cachedInvestStatus = null; return "no-personal"; }
+  if (cachedInvestStatus && cachedInvestStatus.url === personal) return cachedInvestStatus.status;
+  try {
+    const target = "https://api.investing.com/api/financialdata/956761/historical/chart/?interval=P1D&pointscount=2";
+    const r = await fetch(`${personal}/?url=${encodeURIComponent(target)}`, {
+      signal: AbortSignal.timeout(6000),
+    });
+    let status: PersonalProxyStatus;
+    if (r.status === 403 && (await r.text().catch(() => "")).includes("Host not allowed")) {
+      status = "outdated";          // 워커 화이트리스트에 investing 없음
+    } else if (r.ok) {
+      status = "ok";
+    } else {
+      status = "error";            // investing/Cloudflare 일시 오류 — 구버전 아님
+    }
+    cachedInvestStatus = { url: personal, status };
+    return status;
+  } catch {
+    cachedInvestStatus = { url: personal, status: "error" };
     return "error";
   }
 }
 
 // 워커 URL 변경/해제 시 캐시 무효화
 export function invalidatePersonalProxyStatusCache(): void {
-  cachedStatus = null;
+  cachedPostStatus = null;
+  cachedInvestStatus = null;
 }
 
 export function getPersonalPollMs(): number {

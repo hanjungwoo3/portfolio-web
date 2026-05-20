@@ -15,6 +15,7 @@ const ALLOWED_HOSTS = new Set([
   "navercomp.wisereport.co.kr",
   "query1.finance.yahoo.com",
   "query2.finance.yahoo.com",
+  "api.investing.com",        // VKOSPI 등 — investing financialdata chart API
 ]);
 
 const DEFAULT_CACHE_TTL = 3;
@@ -124,6 +125,12 @@ const server = http.createServer(async (req, res) => {
   } else if (targetUrl.hostname.includes("naver")) {
     headers["Referer"] = "https://finance.naver.com/";
     headers["Accept-Language"] = "ko-KR,ko;q=0.9";
+  } else if (targetUrl.hostname.includes("investing")) {
+    headers["domain-id"] = "www";
+    headers["Origin"] = "https://www.investing.com";
+    headers["Referer"] = "https://www.investing.com/";
+    headers["Accept"] = "application/json, text/plain, */*";
+    headers["Accept-Language"] = "en-US,en;q=0.9";
   }
 
   if (needsYahooAuth(targetUrl)) {

@@ -1367,6 +1367,50 @@ async function fetchTossIndexPrice(
   }
 }
 
+// investing.com financialdata — Yahoo/토스에 없는 지수 (VKOSPI 등).
+// 응답: { data: [[ts_ms, open, high, low, close, vol, ...], ...] } 일봉.
+const INVESTING_ID: Record<string, number> = {
+  "VKOSPI": 956761,   // 코스피200 변동성지수 (한국 공포지수)
+};
+export function isInvestingIndex(symbol: string): boolean {
+  return symbol in INVESTING_ID;
+}
+function investingUrl(id: number): string {
+  return `https://api.investing.com/api/financialdata/${id}/historical/chart/?interval=P1D&pointscount=160`;
+}
+async function fetchInvestingRows(symbol: string): Promise<number[][]> {
+  const id = INVESTING_ID[symbol];
+  if (!id) return [];
+  try {
+    const resp = await fetchProxied(investingUrl(id));
+    if (!resp.ok) return [];
+    const data = await resp.json() as { data?: number[][] };
+    return Array.isArray(data.data) ? data.data : [];
+  } catch {
+    return [];
+  }
+}
+// 현재가 = 최근 종가, 기준 = 직전 종가 (일변동률)
+async function fetchInvestingIndexPrice(symbol: string, name: string): Promise<UsIndex | null> {
+  const rows = await fetchInvestingRows(symbol);
+  if (rows.length < 2) return null;
+  const close = rows[rows.length - 1]?.[4];
+  const base = rows[rows.length - 2]?.[4];
+  if (typeof close !== "number" || typeof base !== "number") return null;
+  const diff = close - base;
+  const pct = base > 0 ? (diff / base) * 100 : 0;
+  const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  return {
+    symbol, name, price: close, prev: base, prevClose: base,
+    diff, pct, currency: "", tradeDate: todayKst, marketState: "",
+  };
+}
+// 차트(스파크라인)용 종가 시계열
+export async function fetchInvestingChart(symbol: string): Promise<number[]> {
+  const rows = await fetchInvestingRows(symbol);
+  return rows.map(r => r[4]).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+}
+
 // 다수 심볼 한꺼번에 — 병렬 fetch.
 // 정책: 현재가 = 토스(가능하면), 차트·정규장 마감가(regularPrice/마감 책갈피) = Yahoo.
 //   - Yahoo 를 모든 심볼에 대해 받아 베이스로 사용 (regularPrice/marketState/prevClose 확보)
@@ -1383,8 +1427,9 @@ export async function fetchYahooBatch(
   const tossUsItems = pairs
     .filter(p => TOSS_US_STOCK_CODE[p.symbol])
     .map(p => ({ ...p, code: TOSS_US_STOCK_CODE[p.symbol] }));
+  const investItems = pairs.filter(p => isInvestingIndex(p.symbol));
 
-  const [ksMap, idxResults, usMap, yahooResults] = await Promise.all([
+  const [ksMap, idxResults, usMap, investResults, yahooResults] = await Promise.all([
     ksItems.length > 0
       ? fetchTossPrices(ksItems.map(p => ksRegex.exec(p.symbol)![1]))
           .then(prices => {
@@ -1410,6 +1455,7 @@ export async function fetchYahooBatch(
       : Promise.resolve(new Map<string, UsIndex>()),
     Promise.all(tossIdxItems.map(p => fetchTossIndexPrice(p.symbol, p.name))),
     fetchTossUsIndexMap(tossUsItems),
+    Promise.all(investItems.map(p => fetchInvestingIndexPrice(p.symbol, p.name))),
     // 모든 심볼 Yahoo — 베이스(regularPrice/marketState/prevClose) + 토스 실패 시 fallback
     Promise.all(pairs.map(p => fetchYahooQuote(p.symbol, p.name))),
   ]);
@@ -1439,6 +1485,7 @@ export async function fetchYahooBatch(
   for (const [sym, t] of ksMap) applyToss(sym, t);
   for (const r of idxResults) { if (r) applyToss(r.symbol, r); }
   for (const [sym, t] of usMap) applyToss(sym, t);
+  for (const r of investResults) { if (r) applyToss(r.symbol, r); }
 
   return merged;
 }

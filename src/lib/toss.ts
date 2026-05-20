@@ -30,6 +30,8 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "^FVX":  "https://www.tossinvest.com/indices/ROB.US5YT-RR",
   "^TNX":  "https://www.tossinvest.com/indices/ROB.US10YT-RR",
   "^TYX":  "https://www.tossinvest.com/indices/ROB.US30YT-RR",
+  // V-KOSPI — investing.com (토스/야후 미제공)
+  "VKOSPI": "https://www.investing.com/indices/kospi-volatility",
   // 미국 대표 ETF (토스 종목 페이지)
   "SPY": "https://www.tossinvest.com/stocks/US19930122001",
   "QQQ": "https://www.tossinvest.com/stocks/US19990310001",

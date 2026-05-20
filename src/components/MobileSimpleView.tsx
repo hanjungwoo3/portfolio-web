@@ -87,7 +87,7 @@ const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 const KR_ORDER: string[] = [
   "^KS11", "069500.KS",
   "^KQ11",
-  "EWY", "^VIX",          // 외국인 투심 + 공포지수
+  "VKOSPI", "^VIX", "EWY", // 공포(V-KOSPI·VIX) + 외국인 투심
   "SMH", "091160.KS",     // 반도체 (필반·필반선물은 반도체 탭으로 이동 — 지수에서 제외)
   "PAVE", "117700.KS",    // 건설/인프라
   "LIT", "305720.KS",     // 2차전지
@@ -117,7 +117,7 @@ const US_ORDER: string[] = [
 // 자동 갱신 X — 새로고침 버튼만. 자기 주식/그룹/검색 등 모든 추가 기능 없음.
 
 function fmtPrice(symbol: string, price: number): string {
-  if (symbol === "^TNX" || symbol === "^VIX") return price.toFixed(2);
+  if (symbol === "^TNX" || symbol === "^VIX" || symbol === "VKOSPI") return price.toFixed(2);
   if (symbol.includes("KRW")) return price.toFixed(2);
   if (price >= 1000) return Math.round(price).toLocaleString();
   return price.toFixed(2);
