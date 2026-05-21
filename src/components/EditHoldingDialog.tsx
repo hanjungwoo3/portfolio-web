@@ -150,15 +150,12 @@ export function EditHoldingDialog({
       if (sh > curShares) return setErr(`보유 ${curShares}주를 초과`);
       const newShares = curShares - sh;
       modeAction = async () => {
-        if (newShares === 0) {
-          await applyTickerDelete(stock);
-        } else {
-          await applyTickerUpdate(stock, {
-            shares: newShares, avg_price: curAvg,
-            buy_date: stock.buy_date,
-            market: stock.market, name: stock.name,
-          });
-        }
+        // 전량 매도(0주) 여도 삭제하지 않고 0주로 그룹에 보관 (관심종목처럼 유지)
+        await applyTickerUpdate(stock, {
+          shares: newShares, avg_price: curAvg,
+          buy_date: stock.buy_date,
+          market: stock.market, name: stock.name,
+        });
       };
     } else if (mode === "edit" && (editShares || editAvg)) {
       const sh = Number(editShares || curShares);
@@ -269,7 +266,7 @@ export function EditHoldingDialog({
           <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200
                           rounded px-2 py-1">
             💡 이 변경은 <b>같은 종목의 모든 그룹</b>에 동일하게 적용됩니다
-            {curShares > 0 && " (전량 매도 시 모든 그룹에서 삭제)"}
+            {curShares > 0 && " (전량 매도해도 0주로 보관 — 삭제 안 됨)"}
           </div>
 
           {/* 모드별 입력 */}
@@ -311,7 +308,7 @@ export function EditHoldingDialog({
               {shares && Number(shares) > 0 && Number(shares) <= curShares && (
                 <div className="text-xs text-gray-500 mt-1">
                   → 잔여 {(curShares - Number(shares)).toLocaleString()}주
-                  {Number(shares) === curShares && " (전량 매도 시 보유 삭제)"}
+                  {Number(shares) === curShares && " (전량 매도 시 0주로 보관 — 삭제 안 됨)"}
                 </div>
               )}
             </div>
