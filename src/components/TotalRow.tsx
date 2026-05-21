@@ -45,8 +45,8 @@ export function TotalRow({ holdings, prices, account, aggregated, onDepositChang
   const deposit = aggregated ? getTotalDeposits() : getDeposit(account ?? "");
   const editable = !aggregated && account !== undefined;
 
-  // 종목도 없고 예수금도 없으면 표시 안 함
-  if (activeCount === 0 && deposit <= 0 && !editing) return null;
+  // 종목도 없고 예수금도 없으면 숨김 — 단, 편집 가능한 그룹 탭은 예수금 입력 위해 항상 표시
+  if (activeCount === 0 && deposit <= 0 && !editing && !editable) return null;
 
   const pnl = totalCurrent - totalInvested;
   const pnlPct = totalInvested > 0 ? (pnl / totalInvested) * 100 : 0;

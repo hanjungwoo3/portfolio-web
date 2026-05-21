@@ -451,8 +451,15 @@ function Dashboard() {
               </button>
             </div>
           ) : (
-            <div className="text-center py-10 text-gray-500">
-              이 탭에는 종목이 없습니다.
+            <div className="space-y-3">
+              <div className="text-center py-8 text-gray-500">
+                이 탭에는 종목이 없습니다.
+              </div>
+              {/* 종목 없어도 예수금은 입력/수정 가능 (그룹 탭) */}
+              <TotalRow holdings={visible} prices={priceMap}
+                        account={activeTab}
+                        aggregated={activeTab === MY_STOCKS_TAB_KEY}
+                        onDepositChange={() => setReloadKey(k => k + 1)} />
             </div>
           )
         ) : (
