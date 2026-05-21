@@ -16,6 +16,7 @@ import { resetProxyStats } from "../lib/proxyStatus";
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 import { getIndependentGroupsMode, setIndependentGroupsMode } from "../lib/groupMode";
 import { getTabVisibility, setTabVisibility } from "../lib/tabVisibility";
+import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
 import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
 import { detectPortfolioJson } from "../lib/portfolioImport";
@@ -30,9 +31,10 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   onChanged: () => void;          // 적용 후 부모 reload 트리거
+  groups?: string[];              // 사용자 그룹 이름 (폴더 관리용)
 }
 
-export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
+export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Props) {
   useEscClose(isOpen, onClose);
   const queryClient = useQueryClient();
   const [raw, setRaw] = useState("");
@@ -50,6 +52,30 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
   const [independentMode, setIndependent] = useState(getIndependentGroupsMode());
   const [conflicts, setConflicts] = useState<TickerConflict[] | null>(null);
   const [tabVis, setTabVis] = useState(getTabVisibility());
+  const [folders, setFolders] = useState<GroupFolder[]>([]);
+  const [newFolderName, setNewFolderName] = useState("");
+
+  const persistFolders = (next: GroupFolder[]) => {
+    setFolders(next);
+    setGroupFolders(next);
+    onChanged();
+  };
+  const addFolder = () => {
+    const n = newFolderName.trim();
+    if (!n || folders.some(f => f.name === n)) return;
+    persistFolders([...folders, { name: n, groups: [] }]);
+    setNewFolderName("");
+  };
+  const toggleGroupInFolder = (folderName: string, group: string, checked: boolean) => {
+    // 한 그룹은 한 폴더만 — 체크 시 다른 폴더에서 제거
+    const next = folders.map(f => {
+      if (f.name === folderName) {
+        return { ...f, groups: checked ? Array.from(new Set([...f.groups, group])) : f.groups.filter(g => g !== group) };
+      }
+      return checked ? { ...f, groups: f.groups.filter(g => g !== group) } : f;
+    });
+    persistFolders(next);
+  };
 
   const toggleTab = (key: "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "consensus", v: boolean) => {
     const next = { ...tabVis, [key]: v };
@@ -93,6 +119,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
     void checkPersonalProxyPostSupport().then(setProxyStatus);
     setInvestStatus("checking");
     void checkPersonalProxyInvestingSupport().then(setInvestStatus);
+    setFolders(getGroupFolders());
     // 다이얼로그 열 때 — 토큰 silent refresh 시도, 실패하면 자동 logout (설정 안에서만 표시)
     // 평소 다른 곳에선 로그인 UI 가 안 보임 (업로드/다운로드 시점에만 필요)
     void (async () => {
@@ -187,6 +214,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
     void checkPersonalProxyPostSupport().then(setProxyStatus);
     setInvestStatus("checking");
     void checkPersonalProxyInvestingSupport().then(setInvestStatus);
+    setFolders(getGroupFolders());
     onChanged();
     setStatusMsg(`✅ 전용 프록시 검증 OK — 적용: ${v}`);
   };
@@ -606,6 +634,46 @@ export function SettingsDialog({ isOpen, onClose, onChanged }: Props) {
                 꺼두면 해당 탭이 상단 메뉴에서 사라집니다. 데이터는 보존됩니다.
               </div>
             </div>
+
+            {/* 그룹 폴더 — 그룹을 폴더로 묶어 탭 단순화 */}
+            {groups.length > 0 && (
+              <div className="mt-3 pt-2 border-t border-gray-200">
+                <div className="text-[11px] text-gray-700 font-medium mb-1.5">📁 그룹 폴더</div>
+                {folders.map(f => (
+                  <div key={f.name} className="mb-2 p-2 border border-gray-200 rounded">
+                    <div className="flex items-center mb-1">
+                      <span className="text-xs font-bold text-gray-800">📁 {f.name}</span>
+                      <button onClick={() => persistFolders(folders.filter(x => x.name !== f.name))}
+                              className="ml-auto text-[10px] text-rose-500 hover:underline">폴더 삭제</button>
+                    </div>
+                    <div className="flex flex-wrap gap-x-3 gap-y-1">
+                      {groups.map(g => (
+                        <label key={g} className="flex items-center gap-1 cursor-pointer select-none">
+                          <input type="checkbox" checked={f.groups.includes(g)}
+                                 onChange={e => toggleGroupInFolder(f.name, g, e.target.checked)}
+                                 className="w-3.5 h-3.5 accent-blue-600" />
+                          <span className="text-[11px] text-gray-700">{g}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+                <div className="flex items-center gap-1.5 mt-1">
+                  <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
+                         onKeyDown={e => { if (e.key === "Enter") addFolder(); }}
+                         placeholder="새 폴더 이름 (예: 보따리)"
+                         className="flex-1 border border-gray-300 rounded px-2 py-1 text-xs
+                                    focus:outline-none focus:border-blue-400" />
+                  <button onClick={addFolder}
+                          className="px-2.5 py-1 bg-blue-600 hover:bg-blue-700 text-white rounded text-xs font-medium">
+                    추가
+                  </button>
+                </div>
+                <div className="text-[10px] text-gray-500 mt-1">
+                  그룹을 폴더에 담으면 상단 탭에서 "📁 폴더 ▾" 드롭다운으로 합쳐 보입니다. (그룹은 한 폴더에만)
+                </div>
+              </div>
+            )}
           </div>
 
           <div className="text-sm text-gray-600">

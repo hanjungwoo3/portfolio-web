@@ -1,6 +1,7 @@
 import type { Stock } from "../types";
 import { normalizeAccount } from "../lib/account";
 import type { TabVisibility } from "../lib/tabVisibility";
+import type { GroupFolder } from "../lib/groupFolders";
 
 export interface TabSpec {
   key: string;
@@ -15,9 +16,10 @@ interface Props {
   onChange: (key: string) => void;
   onRename?: (oldName: string, newName: string) => void;
   onDelete?: (name: string) => void;
+  folders?: GroupFolder[];   // 그룹 폴더 — 담긴 그룹은 드롭다운 하나로 합쳐 표시
 }
 
-export function Tabs({ tabs, activeKey, onChange, onRename, onDelete }: Props) {
+export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders }: Props) {
   const handleRename = (oldKey: string, displayLabel: string) => {
     const next = window.prompt(`"${displayLabel}" 그룹명 변경 — 새 이름:`, displayLabel);
     if (next == null) return;
@@ -30,11 +32,20 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete }: Props) {
     onRename?.(oldKey, trimmed);
   };
 
+  // 폴더 처리 — 담긴 그룹은 개별 탭 숨기고 폴더 드롭다운으로 합침
+  const folderList = folders ?? [];
+  const countByKey = new Map(tabs.map(t => [t.key, t.count]));
+  const presentGroups = new Set(tabs.filter(t => !RESERVED.has(t.key)).map(t => t.key));
+  const folderedGroups = new Set<string>();
+  for (const f of folderList) for (const g of f.groups) if (presentGroups.has(g)) folderedGroups.add(g);
+
   return (
     <nav className="flex flex-wrap gap-1 border-b border-gray-200 mb-3 px-1">
       {tabs.map(t => {
         const active = t.key === activeKey;
         const editable = !RESERVED.has(t.key);
+        // 폴더에 담긴 그룹 탭은 개별로 안 그림 (폴더 드롭다운으로 표시)
+        if (editable && folderedGroups.has(t.key)) return null;
         return (
           <div key={t.key} className="group relative inline-flex">
             <button
@@ -82,6 +93,34 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete }: Props) {
                 )}
               </div>
             )}
+          </div>
+        );
+      })}
+
+      {/* 폴더 — 📁 폴더(선택그룹) 드롭다운 */}
+      {folderList.map(folder => {
+        const members = folder.groups.filter(g => presentGroups.has(g));
+        if (members.length === 0) return null;
+        const current = members.includes(activeKey) ? activeKey : members[0];
+        const active = members.includes(activeKey);
+        return (
+          <div key={`__folder__${folder.name}`}
+               className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-t-md border-b-2 -mb-px
+                           ${active ? "border-blue-500 bg-white" : "border-transparent hover:bg-gray-100"}`}>
+            <button onClick={() => onChange(current)}
+                    className={`text-sm font-medium ${active ? "text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
+              📁 {folder.name}
+            </button>
+            <select value={current}
+                    onChange={e => onChange(e.target.value)}
+                    className={`text-xs bg-transparent border rounded px-1 py-0.5 focus:outline-none
+                                ${active ? "border-blue-300 text-blue-700" : "border-gray-300 text-gray-600"}`}>
+              {members.map(g => (
+                <option key={g} value={g}>
+                  {g}{(countByKey.get(g) ?? 0) > 0 ? ` (${countByKey.get(g)})` : ""}
+                </option>
+              ))}
+            </select>
           </div>
         );
       })}

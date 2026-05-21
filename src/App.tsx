@@ -12,6 +12,7 @@ import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SE
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SectorRankingTab } from "./components/SectorRankingTab";
 import { getTabVisibility } from "./lib/tabVisibility";
+import { getGroupFolders } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
 import { WhatIfRow } from "./components/WhatIfRow";
@@ -120,6 +121,16 @@ function Dashboard() {
 
   // reloadKey 의존성 — 설정에서 시스템 탭 visibility 변경 시 즉시 반영
   const tabs = useMemo(() => buildTabs(holdings, getTabVisibility()), [holdings, reloadKey]);
+  const groupFolders = useMemo(() => getGroupFolders(), [reloadKey]);
+  // 사용자 그룹 이름들 (폴더 관리용) — 빈 계좌·관심ETF 제외
+  const userGroups = useMemo(() => {
+    const set = new Set<string>();
+    for (const h of holdings) {
+      const a = h.account || "";
+      if (a && a !== "관심ETF") set.add(a);
+    }
+    return Array.from(set).sort();
+  }, [holdings]);
 
   // 데이터 로드 후 첫 탭 자동 선택
   useEffect(() => {
@@ -418,7 +429,8 @@ function Dashboard() {
                  await deleteGroup(name);
                  if (activeTab === name) setActiveTab("");
                  setReloadKey(k => k + 1);
-               }} />
+               }}
+               folders={groupFolders} />
 
         {activeTab === US_MARKET_TAB_KEY ? (
           <UsMarketTab onRequestSearch={(q) => {
@@ -533,6 +545,7 @@ function Dashboard() {
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}
         onChanged={() => setReloadKey(k => k + 1)}
+        groups={userGroups}
       />
 
       <FeedbackDialog
