@@ -1735,6 +1735,53 @@ export async function searchNaverAutoComplete(
   }
 }
 
+// 종목별 최근 애널리스트 리포트 목록 (네이버 리서치) — "컨센서스 이유" 표시용.
+// 같은 날 여러 리포트가 올라올 수 있어 다건 반환 (최신순).
+export interface ResearchReport { title: string; broker: string; date: string; url?: string }
+export async function fetchRecentReports(ticker: string, limit = 8): Promise<ResearchReport[]> {
+  if (!/^\d{6}$/.test(ticker)) return [];
+  const target = `https://finance.naver.com/research/company_list.naver?searchType=itemCode&itemCode=${ticker}`;
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return [];
+    const buf = await resp.arrayBuffer();
+    const ct = resp.headers.get("Content-Type") || "";
+    const charset = /charset=([\w-]+)/i.exec(ct)?.[1]?.toLowerCase() || "euc-kr";
+    let html: string;
+    try { html = new TextDecoder(charset).decode(buf); }
+    catch { html = new TextDecoder("euc-kr").decode(buf); }
+    const doc = new DOMParser().parseFromString(html, "text/html");
+    const out: ResearchReport[] = [];
+    const links = Array.from(doc.querySelectorAll("a[href*='company_read']"));
+    for (const link of links) {
+      const title = (link.textContent ?? "").trim();
+      if (!title) continue;
+      let url = link.getAttribute("href") ?? "";
+      if (url && !/^https?:/.test(url)) {
+        url = url.startsWith("/") ? `https://finance.naver.com${url}`
+                                  : `https://finance.naver.com/research/${url}`;
+      }
+      const row = link.closest("tr");
+      let broker = "", date = "";
+      if (row) {
+        const tds = Array.from(row.querySelectorAll("td"));
+        const dateTd = tds.find(td => /\d{2}\.\d{2}\.\d{2}/.test(td.textContent ?? ""));
+        date = dateTd ? (dateTd.textContent ?? "").trim() : "";
+        const brokerTd = tds.find(td =>
+          td !== dateTd && !td.querySelector("a") && !td.querySelector("img")
+          && (td.textContent ?? "").trim().length > 0
+        );
+        broker = brokerTd ? (brokerTd.textContent ?? "").trim() : "";
+      }
+      out.push({ title, broker, date, url: url || undefined });
+      if (out.length >= limit) break;
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 // 6자리 코드 → 이름 단건 조회 (네이버 메인 title)
 export async function fetchStockName(ticker: string): Promise<string | null> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return null;

@@ -8,7 +8,8 @@ import {
 import { loadHoldings, loadPeaks, loadMemos, updatePeaksForward, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
-import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY } from "./components/Tabs";
+import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SectorRankingTab } from "./components/SectorRankingTab";
 import { getTabVisibility } from "./lib/tabVisibility";
 import { TotalRow } from "./components/TotalRow";
@@ -290,6 +291,25 @@ function Dashboard() {
     () => new Map(naverQs.map((q, i) => [krxTickers[i], q.data])),
     [naverQs, krxTickers]
   );
+  // 컨센서스 탭 — 추가 종목 전체(중복 제거, 6자리). 데이터는 탭이 직접 fetch.
+  const consensusItems = useMemo<ConsensusItem[]>(() => {
+    const groupsBy = new Map<string, string[]>();
+    for (const s of holdings) {
+      const acc = s.account || "";
+      if (!acc) continue;
+      const arr = groupsBy.get(s.ticker) ?? [];
+      if (!arr.includes(acc)) arr.push(acc);
+      groupsBy.set(s.ticker, arr);
+    }
+    const seen = new Set<string>();
+    const out: ConsensusItem[] = [];
+    for (const s of holdings) {
+      if (!/^\d{6}$/.test(s.ticker) || seen.has(s.ticker)) continue;
+      seen.add(s.ticker);
+      out.push({ ticker: s.ticker, name: s.name, groups: groupsBy.get(s.ticker) ?? [] });
+    }
+    return out;
+  }, [holdings]);
   // 정렬 적용 — sleeping 은 항상 맨 아래, 그 외엔 sortKey + sortDir 따라
   const sortedVisible = useMemo(() => {
     const sectorMap = new Map<string, string>();
@@ -412,6 +432,9 @@ function Dashboard() {
           }} />
         ) : activeTab === SEMI_CHECK_TAB_KEY ? (
           <SemiCheckTab />
+        ) : activeTab === CONSENSUS_TAB_KEY ? (
+          <ConsensusTab items={consensusItems} onOpenValuation={setValuationTicker}
+                        onSelectGroup={setActiveTab} />
         ) : visible.length === 0 ? (
           holdings.length === 0 ? (
             <div className="text-center py-16 text-gray-500">

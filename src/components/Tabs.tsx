@@ -95,11 +95,13 @@ export const SEMI_CHECK_TAB_KEY = "__semi-check__";
 export const SECTOR_RANK_TAB_KEY = "__sector-rank__";
 // 가상 합산 그룹 — 모든 그룹의 동일 ticker 를 합쳐 표시 (수량/평단 통합 뷰)
 export const MY_STOCKS_TAB_KEY = "__my-stocks__";
+// 컨센서스 상승여력 — 내 종목 목표가 대비 현재가 순위
+export const CONSENSUS_TAB_KEY = "__consensus__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
   "관심ETF", US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY,
-  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY,
+  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY,
 ]);
 
 // 미국증시 → 섹터순위 → 반도체 점검 → 내주식(합산) → 사용자 그룹 알파벳 순.
@@ -110,6 +112,7 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpe
   const showSemi = visibility?.semiCheck ?? true;
   const showSector = visibility?.sectorRank ?? true;
   const showMy = visibility?.myStocks ?? true;
+  const showConsensus = visibility?.consensus ?? true;
   const counts = new Map<string, number>();
   const uniqHeld = new Set<string>();
   for (const s of holdings) {
@@ -125,6 +128,10 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpe
   // 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
   if (showMy && uniqHeld.size > 0) {
     tabs.push({ key: MY_STOCKS_TAB_KEY, label: "내주식", emoji: "📦", count: uniqHeld.size });
+  }
+  // 컨센서스 상승여력 — 내주식 옆. 보유 종목 있을 때만.
+  if (showConsensus && uniqHeld.size > 0) {
+    tabs.push({ key: CONSENSUS_TAB_KEY, label: "컨센서스", emoji: "📈", count: 0 });
   }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())
