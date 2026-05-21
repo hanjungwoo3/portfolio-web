@@ -31,7 +31,7 @@ function parseRepDate(d?: string): number {
 }
 
 export function ConsensusTab({ items, onOpenValuation, onSelectGroup }: Props) {
-  const [sortKey, setSortKey] = useState<SortKey>("upside");
+  const [sortKey, setSortKey] = useState<SortKey>("date");
   const [period, setPeriod] = useState<Period>("1w");
 
   const tickers = useMemo(() => items.map(i => i.ticker), [items]);
