@@ -1342,6 +1342,7 @@ export function StockCard({
             <span className="text-gray-700">
               {Math.round(stock.avg_price * stock.shares).toLocaleString()}원
             </span>
+            <span className="text-[10px] text-gray-400"> ({Math.round(stock.avg_price).toLocaleString()}원)</span>
           </div>
         )}
 
@@ -1352,6 +1353,7 @@ export function StockCard({
             <span className={`font-bold ${signColor(pnl)}`}>
               {Math.round(price.price * stock.shares).toLocaleString()}원
             </span>
+            <span className="text-[10px] text-gray-400"> ({Math.round(price.price).toLocaleString()}원)</span>
           </div>
         )}
 
