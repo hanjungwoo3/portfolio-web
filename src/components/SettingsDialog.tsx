@@ -429,7 +429,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                         if (ok) {
                           onChanged();
                           setLastSyncedAt(getLastSyncedAt());
-                          setStatusMsg("✅ Drive 에서 가져옴");
+                          window.alert("✅ Drive 에서 가져왔습니다.");
+                          onClose();   // 닫아서 메인 UI(그룹 폴더 등) 즉시 반영
                         } else {
                           alert("⚠️ Drive 에 저장된 데이터가 없습니다.\n\n먼저 [↑ 업로드] 로 현재 기기 데이터를 Drive 에 저장하세요.");
                           setStatusMsg("⚠️ Drive 에 데이터 없음");

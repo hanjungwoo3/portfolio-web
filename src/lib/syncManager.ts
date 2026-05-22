@@ -101,7 +101,24 @@ function normalize(p: ExportPayload): string {
       color: m.color ?? "",
     }))
     .sort((a, b) => a.ticker.localeCompare(b.ticker));
-  return JSON.stringify({ holdings, peaks, memos });
+  // settings 도 비교에 포함 — 그룹폴더/예수금/탭표시 등만 바뀌어도 업로드되도록 (skip 방지)
+  const s = p.settings ?? {};
+  const depKeys = Object.keys(s.deposits ?? {}).sort();
+  const deposits: Record<string, number> = {};
+  for (const k of depKeys) deposits[k] = s.deposits![k];
+  const groupFolders = [...(s.groupFolders ?? [])]
+    .map(f => ({ name: f.name, groups: [...f.groups].sort() }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+  const settings = {
+    independentGroups: !!s.independentGroups,
+    deposits,
+    groupFolders,
+    tabVisibility: s.tabVisibility ?? null,
+    dimSleeping: s.dimSleeping ?? null,
+    personalProxyUrl: s.personalProxyUrl ?? null,
+    personalPollMs: s.personalPollMs ?? null,
+  };
+  return JSON.stringify({ holdings, peaks, memos, settings });
 }
 
 export async function uploadToDrive(): Promise<void> {
