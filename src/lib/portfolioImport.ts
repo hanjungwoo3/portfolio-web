@@ -2,11 +2,18 @@
 // SettingsDialog (데스크톱) + MobileSimpleView (모바일) 공통 사용.
 
 import type { Stock, Memo } from "../types";
+import type { GroupFolder } from "./groupFolders";
+import type { TabVisibility } from "./tabVisibility";
 
 // 동기화 대상 설정 (exportAll.settings 와 동일 형태)
 export interface ImportSettings {
   independentGroups?: boolean;
   deposits?: Record<string, number>;   // 그룹(account)별 예수금
+  groupFolders?: GroupFolder[];        // 그룹 폴더 구성
+  tabVisibility?: TabVisibility;       // 상단 탭 표시
+  dimSleeping?: boolean;               // 장마감 흐림
+  personalProxyUrl?: string | null;    // 전용 프록시 URL
+  personalPollMs?: number;             // 폴링 주기(ms)
 }
 
 export type Detected =
@@ -43,6 +50,23 @@ function parseSettings(obj: Record<string, unknown>): ImportSettings | undefined
     }
     out.deposits = dep;
   }
+  // 그룹 폴더 — [{ name, groups[] }]
+  if (Array.isArray(src.groupFolders)) {
+    out.groupFolders = (src.groupFolders as unknown[])
+      .filter((f): f is { name: string; groups: unknown[] } =>
+        !!f && typeof f === "object"
+        && typeof (f as { name?: unknown }).name === "string"
+        && Array.isArray((f as { groups?: unknown }).groups))
+      .map(f => ({ name: f.name, groups: f.groups.filter((g): g is string => typeof g === "string") }));
+  }
+  if (src.tabVisibility && typeof src.tabVisibility === "object" && !Array.isArray(src.tabVisibility)) {
+    out.tabVisibility = src.tabVisibility as TabVisibility;
+  }
+  if (typeof src.dimSleeping === "boolean") out.dimSleeping = src.dimSleeping;
+  if (typeof src.personalProxyUrl === "string" || src.personalProxyUrl === null) {
+    out.personalProxyUrl = src.personalProxyUrl as string | null;
+  }
+  if (typeof src.personalPollMs === "number") out.personalPollMs = src.personalPollMs;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
