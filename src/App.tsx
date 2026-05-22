@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
 import {
   fetchTossPrices, fetchInvestorHistory, pickTodayInvestor, fetchKrRegularPrices, verifyKrMarkets,
@@ -42,7 +42,6 @@ import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./components/HelpDialog";
-import { scheduleAutoSync } from "./lib/syncManager";
 import type { Stock, Memo } from "./types";
 
 // viewport 감지 — 폰 (≤ 640px) 자동 모바일 뷰
@@ -98,13 +97,7 @@ function Dashboard() {
     return () => clearTimeout(t);
   }, []);
 
-  // 데이터 변경 시 — 자동 sync 트리거 (mode ON 일 때만 실행됨)
-  // 구글 로그인/충돌 체크는 설정 다이얼로그 열 때만 수행 (SettingsDialog 내부).
-  const initialReloadRef = useRef(true);
-  useEffect(() => {
-    if (initialReloadRef.current) { initialReloadRef.current = false; return; }
-    scheduleAutoSync();
-  }, [reloadKey]);
+  // 자동 동기화 제거됨 — 백업은 설정의 파일 저장/불러오기 또는 수동 구글 업·다운로드 사용.
   // 설정 변경 시 reloadKey 증가 → BASE_REFRESH_MS / usePersonalProxy 재계산
   const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), [reloadKey]);
   const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey]);

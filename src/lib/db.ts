@@ -1,6 +1,13 @@
 import Dexie, { type Table } from "dexie";
 import type { Stock, Memo } from "../types";
 import { getDeposits, replaceAllDeposits } from "./deposits";
+import { getGroupFolders, setGroupFolders, type GroupFolder } from "./groupFolders";
+import { getTabVisibility, setTabVisibility, type TabVisibility } from "./tabVisibility";
+import {
+  getDimSleepingEnabled, setDimSleepingEnabled,
+  getPersonalProxyUrl, setPersonalProxyUrl,
+  getPersonalPollMs, setPersonalPollMs,
+} from "./proxyConfig";
 
 interface Peak { ticker: string; price: number; }
 interface ConfigKV { key: string; value: unknown; }
@@ -322,10 +329,15 @@ export interface ExportPayload {
   peaks: Record<string, number>;
   memos?: Memo[];                // 종목별 메모 (optional — 구버전 portfolio.json 호환)
   exported_at: string;
-  // 다기기 동기화가 필요한 설정 (로컬-only 설정은 제외)
+  // 다기기 동기화 설정 — 설정의 모든 항목 포함
   settings?: {
     independentGroups?: boolean;
     deposits?: Record<string, number>;   // 그룹(account)별 예수금
+    groupFolders?: GroupFolder[];        // 그룹 폴더 구성
+    tabVisibility?: TabVisibility;       // 상단 탭 표시
+    dimSleeping?: boolean;               // 장마감 흐림
+    personalProxyUrl?: string | null;    // 전용 프록시 URL
+    personalPollMs?: number;             // 폴링 주기(ms)
   };
 }
 export async function exportAll(): Promise<ExportPayload> {
@@ -358,6 +370,11 @@ export async function exportAll(): Promise<ExportPayload> {
     settings: {
       independentGroups,
       deposits: getDeposits(),
+      groupFolders: getGroupFolders(),
+      tabVisibility: getTabVisibility(),
+      dimSleeping: getDimSleepingEnabled(),
+      personalProxyUrl: getPersonalProxyUrl(),
+      personalPollMs: getPersonalPollMs(),
     },
   };
 }
@@ -374,6 +391,11 @@ export function applyImportedSettings(settings?: ExportPayload["settings"]): voi
     } catch { /* noop */ }
   }
   if (settings.deposits) replaceAllDeposits(settings.deposits);
+  if (settings.groupFolders) setGroupFolders(settings.groupFolders);
+  if (settings.tabVisibility) setTabVisibility(settings.tabVisibility);
+  if (typeof settings.dimSleeping === "boolean") setDimSleepingEnabled(settings.dimSleeping);
+  if (settings.personalProxyUrl !== undefined) setPersonalProxyUrl(settings.personalProxyUrl);
+  if (typeof settings.personalPollMs === "number") setPersonalPollMs(settings.personalPollMs);
 }
 
 // 그룹 일괄 삭제 — 해당 그룹의 모든 holdings 삭제 (반환: 삭제 건수)

@@ -68,8 +68,8 @@ import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./HelpDialog"
 import { Sparkline } from "./Sparkline";
 import { ValuationModal } from "./ValuationModal";
 import {
-  getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync,
-  uploadToDrive, downloadFromDrive, scheduleAutoSync,
+  getSyncState, getLastSyncedAt, enableSync, disableSync,
+  uploadToDrive, downloadFromDrive,
   tryRestoreSession,
 } from "../lib/syncManager";
 import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
@@ -640,7 +640,6 @@ export function MobileSimpleView() {
                                  void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
                                  void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
                                  void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
-          scheduleAutoSync();
                                })} />
               );
             })}
@@ -870,7 +869,6 @@ export function MobileSimpleView() {
           void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
           void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
           void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
-          scheduleAutoSync();
         }} />
 
       {/* 기능 요청 / 건의사항 — Padlet 임베드 */}
@@ -900,7 +898,6 @@ export function MobileSimpleView() {
           void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
           void queryClient.invalidateQueries({ queryKey: ["m-peaks"] });
           void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
-          scheduleAutoSync();
         }} />
 
       {/* 메모 편집 */}
@@ -984,7 +981,6 @@ export function MobileSimpleView() {
                 await renameGroup(oldKey, trimmed);
                 if (activeTab === oldKey) setActiveTab(trimmed);
                 void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
-                scheduleAutoSync();
               }}
               className="w-full px-4 py-3.5 text-left text-sm
                          hover:bg-gray-50 border-b flex items-center gap-3">
@@ -1003,7 +999,6 @@ export function MobileSimpleView() {
                 await deleteGroup(k);
                 if (activeTab === k) setActiveTab(US_KEY);
                 void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
-                scheduleAutoSync();
               }}
               className="w-full px-4 py-3.5 text-left text-sm
                          hover:bg-rose-50 text-rose-600 font-medium
@@ -1208,31 +1203,17 @@ function SettingsModal({
                 }}
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700
                            disabled:opacity-50 text-white text-xs rounded">
-                🔐 Google 로그인 + sync
+                🔐 Google 로그인
               </button>
             )}
             {(syncStateLocal === "on" || syncStateLocal === "off") && (
               <div className="space-y-1.5">
-                {/* 상태: 자동 동기화 [ON|OFF] 토글 */}
-                <div className="text-[11px] text-gray-700 flex items-center gap-2 flex-wrap">
-                  <span>상태: 자동 동기화</span>
-                  <button onClick={() => {
-                    if (syncStateLocal === "on") { pauseSync(); setSyncStateLocal("off"); setDataMsg("자동 OFF"); }
-                    else { resumeSync(); setSyncStateLocal("on"); setDataMsg("자동 ON"); }
-                  }}
-                    className={`px-2 py-0.5 rounded font-bold transition ${
-                      syncStateLocal === "on"
-                        ? "bg-emerald-600 text-white"
-                        : "bg-gray-200 text-gray-600"
-                    }`}>
-                    {syncStateLocal === "on" ? "ON" : "OFF"}
-                  </button>
-                  {lastSyncedAtLocal && (
-                    <span className="text-gray-500 ml-auto">
-                      {new Date(lastSyncedAtLocal).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
-                    </span>
-                  )}
-                </div>
+                {/* 자동 동기화 제거됨 — 수동 업/다운로드만 */}
+                {lastSyncedAtLocal && (
+                  <div className="text-[11px] text-gray-500">
+                    마지막 동기화: {new Date(lastSyncedAtLocal).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                )}
                 <div className="flex gap-1 flex-wrap">
                   <button disabled={syncBusyLocal}
                     onClick={async () => {

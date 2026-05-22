@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from "react";
 import { Lightbulb } from "lucide-react";
 import type { Memo, MemoColor, MemoPriceBasis } from "../types";
 import { getMemo, upsertMemo, deleteMemo } from "../lib/db";
-import { scheduleAutoSync } from "../lib/syncManager";
 import {
   MEMO_COLORS, memoColorLabel, memoSwatchClass, memoSwatchRingClass,
 } from "../lib/memoColor";
@@ -209,14 +208,12 @@ export function MemoDialog({
       tag: tag.trim() || undefined,
       color,
     });
-    scheduleAutoSync();
     onChanged();
     onClose();
   };
 
   const remove = async () => {
     await deleteMemo(ticker);
-    scheduleAutoSync();
     onChanged();
     onClose();
   };

@@ -21,7 +21,7 @@ import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import {
-  getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync,
+  getSyncState, getLastSyncedAt, enableSync, disableSync,
   uploadToDrive, downloadFromDrive, tryRestoreSession,
 } from "../lib/syncManager";
 import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
@@ -37,7 +37,6 @@ interface Props {
 export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Props) {
   useEscClose(isOpen, onClose);
   const queryClient = useQueryClient();
-  const [raw, setRaw] = useState("");
   const [busy, setBusy] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const downOnBackdropRef = useRef(false);
@@ -152,7 +151,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     })();
     void (async () => {
       const data = await exportAll();
-      setRaw(JSON.stringify(data, null, 2));
       setStatusMsg(`현재: 종목 ${data.holdings.length}건 / 피크 ${Object.keys(data.peaks).length}건`);
     })();
   }, [isOpen]);
@@ -240,69 +238,64 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
 
   if (!isOpen) return null;
 
-  const result = detectPortfolioJson(raw);
-
-  const handleCopy = async () => {
-    try {
-      await navigator.clipboard.writeText(raw);
-      setStatusMsg("✅ 클립보드에 복사됨");
-    } catch {
-      // fallback — execCommand
-      const ta = document.createElement("textarea");
-      ta.value = raw;
-      ta.style.position = "fixed"; ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      try {
-        document.execCommand("copy");
-        setStatusMsg("✅ 클립보드에 복사됨");
-      } catch {
-        setStatusMsg("❌ 복사 실패");
-      } finally {
-        document.body.removeChild(ta);
-      }
-    }
+  // 파일로 저장 — 현재 전체 데이터/설정을 .json 파일로 다운로드
+  const handleDownloadFile = async () => {
+    const data = await exportAll();
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `portfolio_${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+    setStatusMsg("💾 파일로 저장됨");
   };
 
-  const handlePaste = async () => {
-    try {
-      const text = await navigator.clipboard.readText();
-      setRaw(text);
-      setStatusMsg("📥 클립보드에서 가져옴 — 적용 버튼 누르면 덮어쓰기");
-    } catch {
-      setStatusMsg("❌ 클립보드 읽기 실패 — textarea에 직접 붙여넣어주세요");
+  // 파싱된 데이터 적용 (덮어쓰기)
+  const applyResult = async (result: ReturnType<typeof detectPortfolioJson>) => {
+    if (!result || result.kind === "error") {
+      alert(`❌ 불러올 수 없는 파일입니다\n\n${result?.kind === "error" ? result.error : ""}`);
+      return;
     }
-  };
-
-  const handleApply = async () => {
-    if (!result || result.kind === "error") return;
     if (!window.confirm(
-      "붙여넣은 데이터로 덮어쓸까요?\n\n"
-      + "⚠️ 현재 보유·예수금·그룹 설정(독립 보유 모드 포함)이 모두 교체됩니다.\n"
+      "이 파일로 덮어쓸까요?\n\n"
+      + "⚠️ 현재 보유·예수금·그룹·폴더·탭 등 모든 데이터/설정이 교체됩니다.\n"
       + "되돌릴 수 없습니다."
     )) return;
     setBusy(true);
     try {
+      if (result.kind === "holdings" || result.kind === "combined") await replaceAllHoldings(result.stocks);
+      if (result.kind === "peaks" || result.kind === "combined") await replaceAllPeaks(result.peaks);
       if (result.kind === "holdings" || result.kind === "combined") {
-        await replaceAllHoldings(result.stocks);
+        applyImportedSettings(result.settings);
+        if (result.memos) await replaceAllMemos(result.memos);
       }
-      if (result.kind === "peaks" || result.kind === "combined") {
-        await replaceAllPeaks(result.peaks);
-      }
-      if (result.kind === "holdings" || result.kind === "combined") {
-        applyImportedSettings(result.settings);   // 예수금·그룹모드 복원
-        if (result.memos) await replaceAllMemos(result.memos);   // 메모 복원
-      }
-      setStatusMsg("💾 적용 완료");
+      setStatusMsg("💾 불러오기 완료");
       onChanged();
       onClose();
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
-      alert(`❌ 저장 실패\n\n${msg}`);
-      setStatusMsg("❌ 저장 실패");
+      alert(`❌ 적용 실패\n\n${msg}`);
     } finally {
       setBusy(false);
     }
+  };
+
+  // 파일에서 불러오기 — .json 선택 → 파싱 → 적용
+  const handleLoadFile = () => {
+    const input = document.createElement("input");
+    input.type = "file";
+    input.accept = "application/json,.json";
+    input.onchange = async () => {
+      const f = input.files?.[0];
+      if (!f) return;
+      try {
+        await applyResult(detectPortfolioJson(await f.text()));
+      } catch {
+        alert("❌ 파일 읽기 실패");
+      }
+    };
+    input.click();
   };
 
   return (
@@ -350,12 +343,10 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
           {/* Google Drive 동기화 */}
           <div className="border border-gray-200 rounded p-2.5 bg-emerald-50/40 space-y-1.5">
             <div className="text-xs font-bold text-gray-700">
-              💾 Google Drive 동기화 (선택)
+              💾 Google Drive 동기화
             </div>
             <div className="text-[11px] text-gray-500 leading-relaxed">
-              내 Google Drive 의 숨김 폴더에 자동 백업하는 기능입니다.<br />
-              (여러 기기에서 같은 종목(그룹) 데이터를 사용할 수 있습니다.)<br />
-              별도로 사용자의 정보를 서버에 저장하지는 않습니다.
+              내 드라이브에 수동으로 업로드/다운로드해 여러 기기에서 공유합니다.
             </div>
             {syncState === "unconfigured" && (
               <button
@@ -390,31 +381,17 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 }}
                 className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700
                            disabled:opacity-50 text-white text-sm rounded">
-                🔐 Google 로그인 + 동기화 시작
+                🔐 Google 로그인
               </button>
             )}
             {(syncState === "on" || syncState === "off") && (
               <div className="space-y-1.5">
-                {/* 상태: 자동 동기화 [ON|OFF] 토글 */}
-                <div className="text-xs text-gray-700 flex items-center gap-2">
-                  <span>상태: 자동 동기화</span>
-                  <button onClick={() => {
-                    if (syncState === "on") { pauseSync(); setSyncState("off"); setStatusMsg("자동 sync OFF"); }
-                    else { resumeSync(); setSyncState("on"); setStatusMsg("자동 sync ON"); }
-                  }}
-                    className={`px-2 py-0.5 rounded text-xs font-bold transition ${
-                      syncState === "on"
-                        ? "bg-emerald-600 text-white"
-                        : "bg-gray-200 text-gray-600"
-                    }`}>
-                    {syncState === "on" ? "ON" : "OFF"}
-                  </button>
-                  {lastSyncedAt && (
-                    <span className="text-gray-500 ml-auto">
-                      마지막: {new Date(lastSyncedAt).toLocaleString("ko-KR")}
-                    </span>
-                  )}
-                </div>
+                {/* 수동 동기화 — 자동 동기화는 제거됨 (업/다운로드 버튼으로 직접) */}
+                {lastSyncedAt && (
+                  <div className="text-[11px] text-gray-500">
+                    마지막 동기화: {new Date(lastSyncedAt).toLocaleString("ko-KR")}
+                  </div>
+                )}
                 {/* 업로드 / 다운로드 / 로그아웃 — 항상 표시 */}
                 <div className="flex gap-2 flex-wrap">
                   <button disabled={syncBusy}
@@ -487,6 +464,26 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 </div>
               </div>
             )}
+          </div>
+
+          {/* 파일 백업 — 저장 / 불러오기 */}
+          <div className="border border-gray-200 rounded p-2.5 bg-gray-50/60 space-y-1.5">
+            <div className="text-xs font-bold text-gray-700">📁 파일 백업 (전체 데이터·설정)</div>
+            <div className="flex items-center gap-1.5">
+              <button onClick={() => void handleDownloadFile()}
+                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs font-medium">
+                💾 파일로 저장하기
+              </button>
+              <button onClick={handleLoadFile}
+                      disabled={busy}
+                      className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40
+                                 text-gray-700 rounded text-xs font-medium">
+                📂 파일에서 불러오기
+              </button>
+            </div>
+            <div className="text-[10px] text-gray-500">
+              보유·예수금·그룹·폴더·탭 등 모든 데이터를 .json 파일로 백업/복원합니다. (불러오기 = 전체 덮어쓰기)
+            </div>
           </div>
 
           {/* 전용 프록시 URL */}
@@ -693,45 +690,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
             )}
           </div>
 
-          <div className="text-sm text-gray-600">포트폴리오 데이터 (JSON)</div>
-          <textarea
-            value={raw}
-            onChange={e => setRaw(e.target.value)}
-            className="flex-1 min-h-[260px] w-full p-3 border border-gray-300 rounded
-                       font-mono text-xs resize-none
-                       focus:outline-none focus:border-blue-400"
-            spellCheck={false} />
-
-          {/* 검증 결과 + JSON 박스 전용 버튼 — 한 줄, 우측 정렬 */}
-          <div className="flex items-center justify-end gap-2 flex-wrap">
-            {result && result.kind === "error" && (
-              <span className="mr-auto text-xs text-red-700 truncate">✗ {result.error}</span>
-            )}
-            {result && result.kind === "holdings" && (
-              <span className="mr-auto text-xs text-blue-700">✓ 종목 {result.stocks.length}건 (피크 변경 없음)</span>
-            )}
-            {result && result.kind === "peaks" && (
-              <span className="mr-auto text-xs text-blue-700">✓ 피크 {Object.keys(result.peaks).length}건 (보유 변경 없음)</span>
-            )}
-            {result && result.kind === "combined" && (
-              <span className="mr-auto text-xs text-blue-700">✓ 종목 {result.stocks.length}건 + 피크 {Object.keys(result.peaks).length}건</span>
-            )}
-            <button onClick={() => void handleCopy()}
-                    className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs">
-              📋 복사하기
-            </button>
-            <button onClick={() => void handlePaste()}
-                    className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs">
-              📥 붙여넣기
-            </button>
-            <button onClick={() => void handleApply()}
-                    disabled={!result || result.kind === "error" || busy}
-                    title="위 JSON 으로 현재 데이터를 덮어씁니다 (이 박스 전용)"
-                    className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700
-                               disabled:opacity-40 rounded text-xs font-bold">
-              {busy ? "저장 중..." : "💾 적용하기"}
-            </button>
-          </div>
         </div>
 
       </div>
