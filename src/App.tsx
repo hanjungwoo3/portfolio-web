@@ -10,6 +10,7 @@ import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY } from "./components/Tabs";
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
+import { SimpleViewModal } from "./components/SimpleViewModal";
 import { SectorRankingTab } from "./components/SectorRankingTab";
 import { getTabVisibility } from "./lib/tabVisibility";
 import { getGroupFolders } from "./lib/groupFolders";
@@ -87,6 +88,7 @@ function Dashboard() {
   const [memoTicker, setMemoTicker] = useState<string | null>(null);
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [simpleOpen, setSimpleOpen] = useState(false);
 
   // 첫 방문 자동 노출 — 1.5초 지연 (다른 모달과 충돌 회피)
   useEffect(() => {
@@ -476,8 +478,14 @@ function Dashboard() {
           )
         ) : (
           <>
-            {/* 정렬 옵션 + 추가지표 일괄 토글 */}
+            {/* 정렬 옵션 + 심플 보기 + 추가지표 일괄 토글 */}
             <div className="flex items-center justify-end gap-2 mb-2">
+              <button onClick={() => setSimpleOpen(true)}
+                      title="심플 보기 — 현재가만 한눈에 (팝업)"
+                      className="px-2.5 py-1 rounded text-xs font-bold border transition
+                                 bg-white text-gray-600 border-gray-300 hover:bg-gray-50">
+                💠 심플 보기
+              </button>
               <AuxBatchToggle />
               <SortSelector sortKey={sortKey} sortDir={sortDir}
                             onChangeKey={sortHandlers.onChangeKey}
@@ -586,6 +594,10 @@ function Dashboard() {
       />
 
       <DonateDialog isOpen={donateOpen} onClose={() => setDonateOpen(false)} />
+      <SimpleViewModal isOpen={simpleOpen} onClose={() => setSimpleOpen(false)}
+                       title={tabs.find(t => t.key === activeTab)?.label ?? activeTab}
+                       stocks={sortedVisible} priceMap={priceMap} chartMap={chartMap}
+                       targetMap={new Map(krxTickers.map(t => [t, naverMap.get(t)?.consensus?.target]))} />
 
       {etfDialog && (
         <EtfCompositionDialog isOpen={true}
