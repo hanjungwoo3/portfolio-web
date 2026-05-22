@@ -209,8 +209,12 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                 {/* 리포트별 목표가 (각각 가격) */}
                 {it.repsShown.length > 0 && (
                   <div className="mt-1 space-y-0.5 border-t border-gray-100 pt-1">
-                    {it.repsShown.map((r, ri) => (
-                      <div key={ri} className="flex items-baseline gap-1.5 text-[11px] tabular-nums">
+                    {it.repsShown.map((r, ri) => {
+                      const rt = parseRepDate(r.date);
+                      const recent = rt > 0 && Date.now() - rt < 2 * 24 * 3600 * 1000;   // 최근 1~2일
+                      return (
+                      <div key={ri} className={`flex items-baseline gap-1.5 text-[11px] tabular-nums
+                                                ${recent ? "bg-yellow-100/60 rounded font-bold" : ""}`}>
                         <span className="text-gray-400 shrink-0">{r.date.slice(3)}</span>
                         <span className="text-gray-500 shrink-0">{r.broker}</span>
                         {r.opinion && <span className="text-violet-600 shrink-0">{r.opinion}</span>}
@@ -219,7 +223,8 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                           <span className="ml-auto font-bold text-gray-700 shrink-0">{r.target.toLocaleString()}</span>
                         ) : null}
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
