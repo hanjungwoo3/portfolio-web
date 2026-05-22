@@ -448,7 +448,11 @@ function Dashboard() {
           <SemiCheckTab />
         ) : activeTab === CONSENSUS_TAB_KEY ? (
           <ConsensusTab items={consensusItems} onOpenValuation={setValuationTicker}
-                        onSelectGroup={setActiveTab} />
+                        onSelectGroup={setActiveTab}
+                        onEdit={(ticker) => {
+                          const s = holdings.find(h => h.ticker === ticker);
+                          if (s) setEditing(s);
+                        }} />
         ) : visible.length === 0 ? (
           holdings.length === 0 ? (
             <div className="text-center py-16 text-gray-500">

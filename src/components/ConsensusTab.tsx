@@ -17,6 +17,7 @@ interface Props {
   items: ConsensusItem[];
   onOpenValuation?: (ticker: string) => void;
   onSelectGroup?: (group: string) => void;   // 그룹 칩 클릭 → 해당 그룹 탭 이동
+  onEdit?: (ticker: string) => void;          // ✏️ 보유 수정 (그룹 추가/제외)
 }
 
 type SortKey = "upside" | "date";
@@ -30,7 +31,7 @@ function parseRepDate(d?: string): number {
   return new Date(2000 + +m[1], +m[2] - 1, +m[3]).getTime();
 }
 
-export function ConsensusTab({ items, onOpenValuation, onSelectGroup }: Props) {
+export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: Props) {
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [period, setPeriod] = useState<Period>("1w");
 
@@ -148,6 +149,13 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup }: Props) {
                             title="기업가치 보기"
                             className="text-xs leading-none opacity-60 hover:opacity-100 transition-opacity">
                       📊
+                    </button>
+                  )}
+                  {onEdit && (
+                    <button onClick={() => onEdit(it.ticker)}
+                            title="보유 수정 (그룹 추가/제외)"
+                            className="text-xs leading-none opacity-60 hover:opacity-100 transition-opacity">
+                      ✏️
                     </button>
                   )}
                   {it.opinion && (
