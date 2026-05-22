@@ -6,6 +6,7 @@ import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchTossPrices, fetchNaverInfo } from "../lib/api";
 import { fetchConsensusReports } from "../lib/fundamentals";
 import { openTossStock } from "../lib/toss";
+import { Tooltip } from "./Tooltip";
 
 export interface ConsensusItem {
   ticker: string;
@@ -163,15 +164,34 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                       {it.opinion}{it.score ? ` ${it.score.toFixed(1)}` : ""}
                     </span>
                   )}
-                  {it.groups?.map(g => (
-                    <button key={g}
-                            onClick={() => onSelectGroup?.(g)}
-                            title={`${g} 그룹으로 이동`}
-                            className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700
-                                       border border-emerald-200 hover:bg-emerald-100">
-                      {g}
-                    </button>
-                  ))}
+                  {(() => {
+                    const gs = it.groups ?? [];
+                    const shown = gs.length > 3 ? gs.slice(0, 3) : gs;
+                    const more = gs.length - shown.length;
+                    const chip = "text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 "
+                               + "border border-emerald-200 hover:bg-emerald-100";
+                    return (
+                      <>
+                        {shown.map(g => (
+                          <button key={g} onClick={() => onSelectGroup?.(g)}
+                                  title={`${g} 그룹으로 이동`} className={chip}>
+                            {g}
+                          </button>
+                        ))}
+                        {more > 0 && (
+                          <Tooltip content={
+                            <div className="flex flex-wrap gap-1 max-w-[200px]">
+                              {gs.slice(shown.length).map(g => (
+                                <button key={g} onClick={() => onSelectGroup?.(g)} className={chip}>{g}</button>
+                              ))}
+                            </div>
+                          }>
+                            <span className="text-[10px] text-emerald-700 cursor-help">외 {more}개</span>
+                          </Tooltip>
+                        )}
+                      </>
+                    );
+                  })()}
                   <span className={`ml-auto text-lg font-bold tabular-nums ${upColor}`}>
                     {up >= 0 ? "+" : ""}{up.toFixed(1)}%
                   </span>
