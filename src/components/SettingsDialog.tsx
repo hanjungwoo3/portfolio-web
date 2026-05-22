@@ -88,17 +88,29 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
 
   const handleIndependentToggle = async (next: boolean) => {
     if (next) {
-      // ON 으로 토글 — 단순 적용
+      // ON 으로 토글 — 즉시 적용 (확인창)
+      if (!window.confirm(
+        "그룹별 독립 보유(다중 계좌) 모드를 켤까요?\n\n"
+        + "같은 종목을 그룹마다 다른 수량·평단으로 따로 관리합니다.\n"
+        + "※ 즉시 적용됩니다 (하단 '적용' 버튼과 무관)."
+      )) return;   // 취소 시 체크박스 원복
       setIndependentGroupsMode(true);
       setIndependent(true);
-      setStatusMsg("✅ 그룹별 독립 보유 모드 ON");
+      window.alert("✅ 그룹별 독립 보유 모드 ON (적용됨)");
+      onChanged();
     } else {
       // OFF 로 토글 — 충돌 검사 후 모달 (있으면)
       const list = await findTickerConflicts();
       if (list.length === 0) {
+        if (!window.confirm(
+          "그룹별 동기화 모드로 바꿀까요?\n\n"
+          + "같은 종목은 모든 그룹에서 동일한 수량·평단을 갖습니다.\n"
+          + "※ 즉시 적용됩니다."
+        )) return;
         setIndependentGroupsMode(false);
         setIndependent(false);
-        setStatusMsg("✅ 그룹별 동기화 모드 (충돌 없음)");
+        window.alert("✅ 그룹별 동기화 모드 (적용됨)");
+        onChanged();
       } else {
         // 모달 띄워 사용자에게 해결 방법 묻기 — 모달 닫힌 후 모드 전환
         setConflicts(list);
@@ -264,6 +276,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
 
   const handleApply = async () => {
     if (!result || result.kind === "error") return;
+    if (!window.confirm(
+      "붙여넣은 데이터로 덮어쓸까요?\n\n"
+      + "⚠️ 현재 보유·예수금·그룹 설정(독립 보유 모드 포함)이 모두 교체됩니다.\n"
+      + "되돌릴 수 없습니다."
+    )) return;
     setBusy(true);
     try {
       if (result.kind === "holdings" || result.kind === "combined") {
@@ -676,9 +693,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
             )}
           </div>
 
-          <div className="text-sm text-gray-600">
-            포트폴리오 데이터 (JSON) — holdings + peaks 통합
-          </div>
+          <div className="text-sm text-gray-600">포트폴리오 데이터 (JSON)</div>
           <textarea
             value={raw}
             onChange={e => setRaw(e.target.value)}
@@ -687,56 +702,38 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                        focus:outline-none focus:border-blue-400"
             spellCheck={false} />
 
-          {/* 미리보기 / 검증 결과 */}
-          {result && result.kind === "error" && (
-            <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
-              ✗ {result.error}
-            </div>
-          )}
-          {result && result.kind === "holdings" && (
-            <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
-              ✓ holdings: {result.stocks.length}건 (피크는 변경 없음)
-            </div>
-          )}
-          {result && result.kind === "peaks" && (
-            <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
-              ✓ peaks: {Object.keys(result.peaks).length}건 (보유는 변경 없음)
-            </div>
-          )}
-          {result && result.kind === "combined" && (
-            <div className="p-2 bg-blue-50 border border-blue-200 rounded text-xs text-blue-800">
-              ✓ combined: 종목 {result.stocks.length}건 + 피크 {Object.keys(result.peaks).length}건
-            </div>
-          )}
-        </div>
-
-        <footer className="px-5 py-3 border-t bg-gray-50
-                            flex items-center gap-2 flex-wrap">
-          <button onClick={() => void handleCopy()}
-                  className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700
-                             text-white rounded text-sm">
-            📋 복사하기
-          </button>
-          <button onClick={() => void handlePaste()}
-                  className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
-                             text-gray-700 rounded text-sm">
-            📥 붙여넣기
-          </button>
-          <div className="ml-auto flex gap-2">
-            <button onClick={onClose}
-                    className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
-                               text-gray-700 rounded text-sm">
-              닫기
+          {/* 검증 결과 + JSON 박스 전용 버튼 — 한 줄, 우측 정렬 */}
+          <div className="flex items-center justify-end gap-2 flex-wrap">
+            {result && result.kind === "error" && (
+              <span className="mr-auto text-xs text-red-700 truncate">✗ {result.error}</span>
+            )}
+            {result && result.kind === "holdings" && (
+              <span className="mr-auto text-xs text-blue-700">✓ 종목 {result.stocks.length}건 (피크 변경 없음)</span>
+            )}
+            {result && result.kind === "peaks" && (
+              <span className="mr-auto text-xs text-blue-700">✓ 피크 {Object.keys(result.peaks).length}건 (보유 변경 없음)</span>
+            )}
+            {result && result.kind === "combined" && (
+              <span className="mr-auto text-xs text-blue-700">✓ 종목 {result.stocks.length}건 + 피크 {Object.keys(result.peaks).length}건</span>
+            )}
+            <button onClick={() => void handleCopy()}
+                    className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs">
+              📋 복사하기
+            </button>
+            <button onClick={() => void handlePaste()}
+                    className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded text-xs">
+              📥 붙여넣기
             </button>
             <button onClick={() => void handleApply()}
                     disabled={!result || result.kind === "error" || busy}
-                    className="px-3 py-1.5 bg-rose-600 hover:bg-rose-700
-                               disabled:bg-gray-300
-                               text-white rounded text-sm font-bold">
-              {busy ? "저장 중..." : "💾 적용 (덮어쓰기)"}
+                    title="위 JSON 으로 현재 데이터를 덮어씁니다 (이 박스 전용)"
+                    className="px-2 py-0.5 bg-gray-100 hover:bg-gray-200 text-gray-700
+                               disabled:opacity-40 rounded text-xs font-bold">
+              {busy ? "저장 중..." : "💾 적용하기"}
             </button>
           </div>
-        </footer>
+        </div>
+
       </div>
       {conflicts && (
         <GroupConflictDialog

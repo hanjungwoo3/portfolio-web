@@ -96,6 +96,7 @@ export function EditHoldingDialog({
   const curShares = stock.shares;
   const curAvg = stock.avg_price;
   const curInvested = stock.invested ?? Math.round(curShares * curAvg);
+  const independent = getIndependentGroupsMode();  // 그룹별 독립 보유 모드
 
   const toggleGroup = (g: string) => {
     setGroupSelection(prev => {
@@ -259,7 +260,9 @@ export function EditHoldingDialog({
 
           <div className="text-[11px] text-blue-700 bg-blue-50 border border-blue-200
                           rounded px-2 py-1">
-            💡 이 변경은 <b>같은 종목의 모든 그룹</b>에 동일하게 적용됩니다
+            💡 {independent
+              ? <><b>그룹별 독립 보유</b>가 설정되어 있어, 이 변경은 현재 선택된 그룹 <b>"{stock.account}"</b>에만 적용됩니다</>
+              : <>이 변경은 <b>같은 종목의 모든 그룹</b>에 동일하게 적용됩니다</>}
             {curShares > 0 && " (전량 매도해도 0주로 보관 — 삭제 안 됨)"}
           </div>
 
@@ -329,8 +332,14 @@ export function EditHoldingDialog({
           {/* 그룹 토글 — 클릭 = 추가/제외, [적용] 시 일괄 처리 */}
           <div className="border-t pt-3 space-y-1.5">
             <label className="text-xs font-bold text-gray-700 block">
-              그룹 (클릭 = 추가/제외)
+              이 종목이 속한 그룹 (클릭 = 추가/제외)
             </label>
+            <p className="text-[11px] text-gray-500 leading-relaxed">
+              체크된 그룹 = 이 종목이 포함된 그룹입니다. 클릭으로 넣거나 빼고 <b>[적용]</b> 시 반영됩니다.
+              {independent && (
+                <><br />그룹별 독립 보유가 설정되어 있어 수량과 매수가가 선택한 그룹 전체에 적용되지는 않습니다.</>
+              )}
+            </p>
             <div className="flex flex-wrap items-center gap-1.5">
               {allGroups.map(g => {
                 const active = groupSelection.has(g);
