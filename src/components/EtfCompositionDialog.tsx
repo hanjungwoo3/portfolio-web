@@ -237,8 +237,9 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
   });
   const holdingGroups = new Map<string, string[]>();
   for (const h of holdings ?? []) {
+    const acc = (h.account ?? "").trim();
+    if (!acc) continue;   // 그룹(account) 없는 행은 제외 — 빈 계좌는 더 이상 없음
     const arr = holdingGroups.get(h.ticker) ?? [];
-    const acc = (h.account ?? "").trim() || "보유";
     if (!arr.includes(acc)) arr.push(acc);
     holdingGroups.set(h.ticker, arr);
   }

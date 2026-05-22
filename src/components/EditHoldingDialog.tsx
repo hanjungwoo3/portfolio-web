@@ -48,7 +48,6 @@ interface Props {
 
 type Mode = "buy" | "sell" | "edit";
 
-const DEFAULT_GROUP = "보유";  // empty account 의 표시 라벨
 
 function todayKstStr(): string {
   return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
@@ -81,15 +80,12 @@ export function EditHoldingDialog({
       ]);
       const current = new Set(
         holdings.filter(s => s.ticker === stock.ticker)
-                .map(s => s.account || DEFAULT_GROUP)
+                .map(s => s.account)
+                .filter((a): a is string => !!a)   // 레거시 빈 계좌(보유) 통합 완료 — 실제 그룹만
       );
       setGroupSelection(new Set(current));
       setOriginalGroups(new Set(current));
-      // 보유 + user groups (보유 중복 제거)
-      setAllGroups([
-        DEFAULT_GROUP,
-        ...userGroups.filter(g => g !== DEFAULT_GROUP),
-      ]);
+      setAllGroups(userGroups.filter(Boolean));
       setNewGroup("");
       setErr("");
     })();
@@ -185,13 +181,11 @@ export function EditHoldingDialog({
 
     // 3. 그룹 추가 (모드 액션 전)
     for (const g of toAdd) {
-      const account = g === DEFAULT_GROUP ? "" : g;
-      await upsertHoldingToGroup(stock, account);
+      await upsertHoldingToGroup(stock, g);
     }
     // 4. 그룹 제거
     for (const g of toRemove) {
-      const account = g === DEFAULT_GROUP ? "" : g;
-      await removeHolding(stock.ticker, account);
+      await removeHolding(stock.ticker, g);
     }
     // 5. 모드 액션 (전체 row sync)
     if (modeAction) await modeAction();

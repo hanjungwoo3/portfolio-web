@@ -67,7 +67,7 @@ export function GroupConflictDialog({ conflicts, onResolved, onClose }: Props) {
   };
 
   const fmtRow = (r: TickerConflict["rows"][0]) =>
-    `${r.account || "(보유)"}: ${r.shares}주, 평단 ${Math.round(r.avg_price).toLocaleString()}원`;
+    `${r.account}: ${r.shares}주, 평단 ${Math.round(r.avg_price).toLocaleString()}원`;
 
   return (
     <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4"
@@ -113,7 +113,7 @@ export function GroupConflictDialog({ conflicts, onResolved, onClose }: Props) {
                              name={`s-${c.ticker}`}
                              checked={s?.mode === (i === 0 ? "groupA" : "groupB") && s?.account === r.account}
                              onChange={() => setMode(c.ticker, i === 0 ? "groupA" : "groupB", r.account)} />
-                      <span><b>"{r.account || "보유"}"</b> 그룹 값으로 통일 ({r.shares}주, 평단 {Math.round(r.avg_price).toLocaleString()}원)</span>
+                      <span><b>"{r.account}"</b> 그룹 값으로 통일 ({r.shares}주, 평단 {Math.round(r.avg_price).toLocaleString()}원)</span>
                     </label>
                   ))}
                   <label className="flex items-center gap-2 text-xs cursor-pointer">

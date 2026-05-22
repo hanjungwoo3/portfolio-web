@@ -629,7 +629,7 @@ export function MobileSimpleView() {
                                onDelete={isAggregated ? undefined : (async st => {
                                  const indep = getIndependentGroupsMode();
                                  const msg = indep
-                                   ? `"${st.name}" 을(를) "${st.account || "보유"}" 그룹에서 삭제할까요?`
+                                   ? `"${st.name}" 을(를) "${st.account}" 그룹에서 삭제할까요?`
                                    : `"${st.name}" 을(를) 삭제할까요?\n(모든 그룹에서 제거됩니다)`;
                                  if (!confirm(msg)) return;
                                  if (indep) {

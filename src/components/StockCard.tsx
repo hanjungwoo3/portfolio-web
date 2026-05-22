@@ -965,7 +965,7 @@ export function StockCard({
             <button
               type="button"
               onClick={() => {
-                if (confirm(`${stock.name} 을(를) ${stock.account || "보유"}에서 삭제할까요?`)) {
+                if (confirm(`${stock.name} 을(를) ${stock.account} 에서 삭제할까요?`)) {
                   onDelete(stock);
                 }
               }}
