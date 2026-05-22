@@ -89,6 +89,7 @@ function Dashboard() {
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [simpleOpen, setSimpleOpen] = useState(false);
+  const [codesCopied, setCodesCopied] = useState(false);
 
   // 첫 방문 자동 노출 — 1.5초 지연 (다른 모달과 충돌 회피)
   useEffect(() => {
@@ -489,6 +490,20 @@ function Dashboard() {
                       className="px-2.5 py-1 rounded text-xs font-bold border transition
                                  bg-white text-gray-600 border-gray-300 hover:bg-gray-50">
                 💠 심플 보기
+              </button>
+              <button onClick={async () => {
+                        const codes = krxTickers.join(", ");
+                        if (!codes) return;
+                        try {
+                          await navigator.clipboard.writeText(codes);
+                          setCodesCopied(true);
+                          setTimeout(() => setCodesCopied(false), 1500);
+                        } catch { /* ignore */ }
+                      }}
+                      title="이 그룹의 모든 종목 코드를 클립보드로 복사"
+                      className="px-2.5 py-1 rounded text-xs font-bold border transition
+                                 bg-white text-gray-600 border-gray-300 hover:bg-gray-50">
+                {codesCopied ? "✓ 복사됨" : "📋 코드 복사"}
               </button>
               <AuxBatchToggle />
               <SortSelector sortKey={sortKey} sortDir={sortDir}
