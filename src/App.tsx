@@ -107,6 +107,15 @@ function Dashboard() {
   const REFRESH_MS = tossMaint.active
     ? (tossMaint.needsWorkerUpdate ? 300_000 : 60_000)
     : adaptiveRefreshMs;
+  // 토스 점검 해제 시 — 토스 기반 쿼리(투자자/마감/공매도/기업가치 차트) 즉시 갱신
+  useEffect(() => {
+    if (tossMaint.active) return;
+    queryClient.invalidateQueries({ predicate: q => {
+      const k = String(q.queryKey[0]);
+      return k.startsWith("investor-history") || k === "kr-reg"
+          || k === "short-selling-modal" || k === "price-history-modal-with-events";
+    }});
+  }, [tossMaint.active]);
 
   // IndexedDB 로드 — 마이그레이션은 AppRoot 에서 1회 완료 후 진입하므로 여기선 단순 로드
   useEffect(() => {

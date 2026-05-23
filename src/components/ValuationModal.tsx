@@ -22,6 +22,7 @@ import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclos
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
 import type { PricePoint } from "../lib/api";
 import type { Investor } from "../types";
+import { useTossMaintenance } from "../lib/tossMaintenance";
 
 interface Props {
   isOpen: boolean;
@@ -504,6 +505,8 @@ function InvestorHistorySection({
     staleTime: 5 * 60_000,  // 5분 (App 의 5초 폴링과 별도, 모달 캐시)
   });
 
+  const maint = useTossMaintenance();
+
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return null;
 
   const summaries = history
@@ -522,13 +525,13 @@ function InvestorHistorySection({
       {isLoading && (
         <div className="text-xs text-gray-400 py-2">불러오는 중...</div>
       )}
-      {!isLoading && (!history || history.length === 0) && (
+      {!isLoading && (!history || history.length === 0) && !maint.active && (
         <div className="text-xs text-gray-400 py-2">데이터 없음</div>
       )}
 
-      {/* 수급 차트 — 주가+거래량 + 외국인 / 기관 / 연기금 */}
-      {history && history.length > 0 && (
-        <InvestorChartsSection ticker={ticker} history={history}
+      {/* 수급 차트 — 주가+거래량 + 외국인/기관/연기금. 점검 중엔 가격차트만 */}
+      {((history && history.length > 0) || maint.active) && (
+        <InvestorChartsSection ticker={ticker} history={history ?? []}
                                targetPrice={targetPrice}
                                myAvgPrice={myAvgPrice}
                                entryPrice={entryPrice} />
@@ -692,7 +695,9 @@ function InvestorChartsSection({
   }, [data]);
 
   // 가격을 history 날짜에 정렬 (4개 차트 X축 통일) — useMemo
+  // 투자자 데이터 없음(토스 점검 등) → Yahoo 가격 전체 그대로 사용 (가격차트만이라도 표시)
   const alignedPrices = useMemo(() => {
+    if (dates.length === 0) return prices ?? [];
     const byDate = new Map((prices ?? []).map(p => [p.date, p]));
     return dates
       .map(d => byDate.get(d))
@@ -702,7 +707,8 @@ function InvestorChartsSection({
   // 4 차트 crosshair sync
   const registerSync = useCrosshairSync();
 
-  if (history.length < 2) return null;
+  const hasInvestor = history.length >= 2;
+  if (!hasInvestor && alignedPrices.length < 2) return null;
 
   return (
     <div className="space-y-2 mt-2">
@@ -718,37 +724,43 @@ function InvestorChartsSection({
           {pricesLoading ? "주가 로딩 중..." : "주가 데이터 없음 (Yahoo 미수록)"}
         </div>
       )}
-      {/* 2~5. 수급 3개 + 공매도 — 한 줄 */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
-        <Suspense fallback={<div className="h-[220px]" />}>
-          <InvestorChartLight
-            label="외국인"
-            daily={dailyForeign} cumulative={cumForeign} dates={dates}
-            barColor="#ddd6fe" cumColor="#6d28d9"
-            onReady={registerSync}
-          />
-          <InvestorChartLight
-            label="기관계"
-            daily={dailyInst} cumulative={cumInst} dates={dates}
-            barColor="#bbf7d0" cumColor="#047857"
-            onReady={registerSync}
-          />
-          <InvestorChartLight
-            label="연기금"
-            daily={dailyPension} cumulative={cumPension} dates={dates}
-            barColor="#fed7aa" cumColor="#c2410c"
-            onReady={registerSync}
-          />
-          {shortSelling && shortSelling.length > 0 && (
-            <ShortSellingChart
-              shortSelling={shortSelling}
-              prices={alignedPrices}
-              dates={dates}
+      {/* 2~5. 수급 3개 + 공매도 — 투자자 데이터(토스) 있을 때만. 점검 중엔 가격차트만 */}
+      {hasInvestor ? (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+          <Suspense fallback={<div className="h-[220px]" />}>
+            <InvestorChartLight
+              label="외국인"
+              daily={dailyForeign} cumulative={cumForeign} dates={dates}
+              barColor="#ddd6fe" cumColor="#6d28d9"
               onReady={registerSync}
             />
-          )}
-        </Suspense>
-      </div>
+            <InvestorChartLight
+              label="기관계"
+              daily={dailyInst} cumulative={cumInst} dates={dates}
+              barColor="#bbf7d0" cumColor="#047857"
+              onReady={registerSync}
+            />
+            <InvestorChartLight
+              label="연기금"
+              daily={dailyPension} cumulative={cumPension} dates={dates}
+              barColor="#fed7aa" cumColor="#c2410c"
+              onReady={registerSync}
+            />
+            {shortSelling && shortSelling.length > 0 && (
+              <ShortSellingChart
+                shortSelling={shortSelling}
+                prices={alignedPrices}
+                dates={dates}
+                onReady={registerSync}
+              />
+            )}
+          </Suspense>
+        </div>
+      ) : (
+        <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
+          🚧 토스 점검 중 — 투자자 수급(외국인/기관/연기금)·공매도는 복구 후 표시됩니다. 가격 차트만 우선 표시.
+        </div>
+      )}
     </div>
   );
 }
