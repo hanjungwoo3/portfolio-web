@@ -3,7 +3,8 @@
 // 상승여력/정렬 기준 = 가장 최근(목표가 있는) 리포트. 같은 날 여러 건도 모두 표시.
 import { useMemo, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { fetchTossPrices, fetchNaverInfo } from "../lib/api";
+import { fetchTossPrices, fetchNaverPrices, fetchNaverInfo } from "../lib/api";
+import { getTossMaintenance } from "../lib/tossMaintenance";
 import { fetchConsensusReports } from "../lib/fundamentals";
 import { openTossStock } from "../lib/toss";
 import { Tooltip } from "./Tooltip";
@@ -42,7 +43,13 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
 
   const { data: prices } = useQuery({
     queryKey: ["consensus-prices", tickers],
-    queryFn: () => fetchTossPrices(tickers),
+    queryFn: async () => {
+      try { return await fetchTossPrices(tickers); }
+      catch (e) {
+        if (getTossMaintenance().active) return await fetchNaverPrices(tickers);
+        throw e;
+      }
+    },
     enabled: tickers.length > 0,
     staleTime: 60_000,
     refetchOnWindowFocus: false,

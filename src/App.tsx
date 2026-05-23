@@ -365,7 +365,7 @@ function Dashboard() {
           ) : tossMaint.naverWorking ? (
             <>🚧 토스 점검 중{tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""} — 네이버 시세로 표시 중 (정밀도 일부 낮을 수 있음)</>
           ) : (
-            <>🚧 토스증권 점검 중{tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""} — 시세 불러오는 중…</>
+            <>🚧 토스증권 점검 중{tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""} — 종목 시세는 네이버로 우회됩니다</>
           )}
         </div>
       )}

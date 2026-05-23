@@ -1,7 +1,7 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getPersonalProxyUrl } from "./proxyConfig";
-import { setTossMaintenance, parseTossMaintenance, setNaverFallback } from "./tossMaintenance";
+import { setTossMaintenance, parseTossMaintenance, setNaverFallback, getTossMaintenance } from "./tossMaintenance";
 
 // 공개 4-way 라운드 로빈 (Cloudflare + Vercel + Deno + Render)
 const PUBLIC_PROXY_URLS: string[] = [
@@ -447,7 +447,12 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
     if (resp.status === 490) {
       try {
         const m = parseTossMaintenance(await resp.clone().json());
-        if (m) { setTossMaintenance(m); throw new Error("toss-maintenance"); }
+        if (m) {
+          // 기존 네이버 fallback 플래그 보존 (매 갱신마다 "불러오는 중" 깜빡임 방지)
+          const cur = getTossMaintenance();
+          setTossMaintenance({ ...m, naverWorking: cur.naverWorking, needsWorkerUpdate: cur.needsWorkerUpdate });
+          throw new Error("toss-maintenance");
+        }
       } catch (e) { if (e instanceof Error && e.message === "toss-maintenance") throw e; }
     }
     throw new Error(`Toss price fetch failed: ${resp.status}`);

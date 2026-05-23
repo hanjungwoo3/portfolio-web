@@ -521,7 +521,7 @@ export function MobileSimpleView() {
             ? "🚧 토스 점검 중 — 네이버 우회는 워커 업데이트 필요"
             : tossMaint.naverWorking
               ? `🚧 토스 점검 — 네이버 시세 표시 중${tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""}`
-              : `🚧 토스 점검 중${tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""}`}
+              : `🚧 토스 점검 중${tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""} — 네이버로 우회`}
         </div>
       )}
       <header className="sticky top-0 z-40 bg-white border-b border-gray-200
