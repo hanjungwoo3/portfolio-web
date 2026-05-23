@@ -1,7 +1,7 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getPersonalProxyUrl } from "./proxyConfig";
-import { setTossMaintenance, parseTossMaintenance } from "./tossMaintenance";
+import { setTossMaintenance, parseTossMaintenance, setNaverFallback } from "./tossMaintenance";
 
 // 공개 4-way 라운드 로빈 (Cloudflare + Vercel + Deno + Render)
 const PUBLIC_PROXY_URLS: string[] = [
@@ -494,6 +494,54 @@ export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
       high52w: item.high52w,
       low52w: item.low52w,
     };
+  });
+}
+
+// 네이버 실시간 시세 (배치 1콜) — 토스 점검 시 fallback.
+// polling.finance.naver.com 이 워커 화이트리스트에 없으면(구 워커) 403 → 안내 플래그.
+interface NaverPollingItem {
+  itemCode: string;
+  closePrice: string;
+  compareToPreviousClosePrice: string;
+  openPrice?: string;
+  highPrice?: string;
+  lowPrice?: string;
+  accumulatedTradingVolume?: string;
+  localTradedAt?: string;
+}
+const naverNum = (s?: string): number => Number(String(s ?? "").replace(/[,\s]/g, "")) || 0;
+export async function fetchNaverPrices(tickers: string[]): Promise<Price[]> {
+  if (tickers.length === 0) return [];
+  const target = `https://polling.finance.naver.com/api/realtime/domestic/stock/${tickers.join(",")}`;
+  const resp = await fetchProxied(target);
+  if (!resp.ok) {
+    if (resp.status === 403) {
+      // 워커가 polling.finance.naver.com 미허용 (구버전) → 안내
+      setNaverFallback(false, true);
+      throw new Error("naver-needs-worker-update");
+    }
+    setNaverFallback(false);
+    throw new Error(`Naver price fetch failed: ${resp.status}`);
+  }
+  const data = await resp.json() as { datas?: NaverPollingItem[] };
+  const list = data.datas ?? [];
+  setNaverFallback(list.length > 0);
+  return list.map(it => {
+    const price = naverNum(it.closePrice);
+    const diff = naverNum(it.compareToPreviousClosePrice);
+    const prevClose = price - diff;   // 전일 종가 역산
+    return {
+      ticker: it.itemCode,
+      price,
+      base: prevClose,
+      prevClose,
+      open: naverNum(it.openPrice),
+      volume: naverNum(it.accumulatedTradingVolume),
+      trade_date: it.localTradedAt ?? "",
+      trade_dt: it.localTradedAt,
+      high: it.highPrice ? naverNum(it.highPrice) : undefined,
+      low: it.lowPrice ? naverNum(it.lowPrice) : undefined,
+    } as Price;
   });
 }
 

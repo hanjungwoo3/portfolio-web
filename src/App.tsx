@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstac
 import {
   fetchTossPrices, fetchInvestorHistory, pickTodayInvestor, fetchKrRegularPrices, verifyKrMarkets,
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
-  fetchInvestorHistorySafe,
+  fetchInvestorHistorySafe, fetchNaverPrices,
 } from "./lib/api";
 import { loadHoldings, loadMemos, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding } from "./lib/db";
 import { StockCard } from "./components/StockCard";
@@ -31,7 +31,7 @@ import { forceUpdate } from "./components/VersionBadge";
 import { NewVersionToast } from "./components/NewVersionToast";
 import { ProxyStatusBadge } from "./components/ProxyStatusBadge";
 import { useAdaptiveRefreshMs } from "./lib/proxyStatus";
-import { useTossMaintenance, fmtUntil } from "./lib/tossMaintenance";
+import { useTossMaintenance, fmtUntil, getTossMaintenance } from "./lib/tossMaintenance";
 import {
   sortHoldings, loadSortKey, loadSortDir, saveSortKey, saveSortDir,
   type SortKey, type SortDirection,
@@ -102,9 +102,11 @@ function Dashboard() {
   const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), [reloadKey]);
   const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey]);
   const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
-  // 토스 점검 중이면 폴링 백오프 (5분마다 재확인 → 점검 끝나면 자동 복구)
+  // 토스 점검 중 — 네이버 fallback(60초), 워커 미지원 시 5분 백오프
   const tossMaint = useTossMaintenance();
-  const REFRESH_MS = tossMaint.active ? 300_000 : adaptiveRefreshMs;
+  const REFRESH_MS = tossMaint.active
+    ? (tossMaint.needsWorkerUpdate ? 300_000 : 60_000)
+    : adaptiveRefreshMs;
 
   // IndexedDB 로드 — 마이그레이션은 AppRoot 에서 1회 완료 후 진입하므로 여기선 단순 로드
   useEffect(() => {
@@ -150,10 +152,16 @@ function Dashboard() {
     [visible]
   );
 
-  // 가격 — 5초 polling
+  // 가격 — 항상 토스 먼저(복구 자동 감지), 점검(490)이면 네이버 fallback
   const { data: prices, dataUpdatedAt: pricesUpdatedAt } = useQuery({
     queryKey: ["prices", krxTickers],
-    queryFn: () => fetchTossPrices(krxTickers),
+    queryFn: async () => {
+      try { return await fetchTossPrices(krxTickers); }
+      catch (e) {
+        if (getTossMaintenance().active) return await fetchNaverPrices(krxTickers);
+        throw e;
+      }
+    },
     enabled: krxTickers.length > 0,
     refetchInterval: REFRESH_MS,
   });
@@ -349,7 +357,16 @@ function Dashboard() {
       {tossMaint.active && (
         <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-xs
                         px-4 py-1.5 text-center">
-          🚧 토스증권 점검 중 — 시세 갱신이 일시 중단됩니다{tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""}. 점검 종료 후 자동 복구됩니다.
+          {tossMaint.needsWorkerUpdate ? (
+            <>🚧 토스 점검 중 — 네이버 시세 우회는 워커 업데이트가 필요합니다.{" "}
+              <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md"
+                 target="_blank" rel="noopener noreferrer" className="underline font-bold">워커 업데이트 안내 ↗</a>
+            </>
+          ) : tossMaint.naverWorking ? (
+            <>🚧 토스 점검 중{tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""} — 네이버 시세로 표시 중 (정밀도 일부 낮을 수 있음)</>
+          ) : (
+            <>🚧 토스증권 점검 중{tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""} — 시세 불러오는 중…</>
+          )}
         </div>
       )}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-30">

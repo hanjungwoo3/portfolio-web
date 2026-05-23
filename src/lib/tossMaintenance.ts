@@ -6,6 +6,8 @@ export interface TossMaintenance {
   active: boolean;
   until?: string;     // "2026-05-24 07:30:00.000" 형태
   message?: string;
+  naverWorking?: boolean;       // 네이버 fallback 으로 시세 표시 중
+  needsWorkerUpdate?: boolean;  // 네이버 우회하려면 워커 업데이트 필요 (polling.finance.naver.com 미허용)
 }
 
 let state: TossMaintenance = { active: false };
@@ -13,10 +15,17 @@ const listeners = new Set<(s: TossMaintenance) => void>();
 
 export function setTossMaintenance(next: TossMaintenance | null): void {
   const v = next ?? { active: false };
-  // 상태 동일하면 알림 생략
-  if (v.active === state.active && v.until === state.until) { state = v; return; }
+  if (v.active === state.active && v.until === state.until
+      && v.naverWorking === state.naverWorking
+      && v.needsWorkerUpdate === state.needsWorkerUpdate) { state = v; return; }
   state = v;
   listeners.forEach(fn => fn(state));
+}
+
+// 네이버 fallback 결과 반영 (점검 상태는 유지)
+export function setNaverFallback(working: boolean, needsWorkerUpdate = false): void {
+  if (!state.active) return;
+  setTossMaintenance({ ...state, naverWorking: working, needsWorkerUpdate });
 }
 
 export function getTossMaintenance(): TossMaintenance {

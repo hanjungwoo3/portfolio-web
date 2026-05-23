@@ -99,7 +99,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders }:
 
       {/* 폴더 — 📁 폴더(선택그룹) 드롭다운 */}
       {folderList.map(folder => {
-        const members = folder.groups.filter(g => presentGroups.has(g));
+        const members = folder.groups.filter(g => presentGroups.has(g))
+                              .sort((a, b) => a.localeCompare(b, "ko"));   // 이름순
         if (members.length === 0) return null;
         const current = members.includes(activeKey) ? activeKey : members[0];
         const active = members.includes(activeKey);

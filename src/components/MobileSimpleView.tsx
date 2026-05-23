@@ -7,7 +7,7 @@ import {
 import { SortSelector, makeSortHandlers } from "./SortSelector";
 import { AuxBatchToggle } from "./AuxBatchToggle";
 import {
-  fetchYahooBatch, fetchTossPrices, fetchNaverInfo, fetchWarning, fetchInvestorHistory,
+  fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchWarning, fetchInvestorHistory,
   fetchKrRegularPrices, verifyKrMarkets,
   fetchYahooChart, fetchKrPriceHistory,
 } from "../lib/api";
@@ -21,7 +21,7 @@ import {
   getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
-import { useTossMaintenance, fmtUntil } from "../lib/tossMaintenance";
+import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { normalizeAccount } from "../lib/account";
 import type { MarketIndexKey } from "../lib/api";
@@ -174,8 +174,10 @@ export function MobileSimpleView() {
   // PC 동일 자동 갱신 — 전용 프록시 시 5/10/30/60초 / 공개 10초 + 다운 시 자동 증가
   const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), []);
   const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
-  const tossMaint = useTossMaintenance();   // 토스 점검 중이면 폴링 백오프
-  const REFRESH_MS = tossMaint.active ? 300_000 : adaptiveRefreshMs;
+  const tossMaint = useTossMaintenance();   // 토스 점검 — 네이버 fallback(60s) / 워커 미지원 시 5분
+  const REFRESH_MS = tossMaint.active
+    ? (tossMaint.needsWorkerUpdate ? 300_000 : 60_000)
+    : adaptiveRefreshMs;
 
   // 보유 종목 로드 (그룹 탭 라벨 + 그룹 종목 표시)
   const { data: holdings = [] } = useQuery({
@@ -290,7 +292,13 @@ export function MobileSimpleView() {
     .map(s => s.ticker);
   const { data: groupPrices, dataUpdatedAt: groupAt } = useQuery({
     queryKey: ["m-group-prices", activeTab, groupTickers.join(",")],
-    queryFn: () => fetchTossPrices(groupTickers),
+    queryFn: async () => {
+      try { return await fetchTossPrices(groupTickers); }
+      catch (e) {
+        if (getTossMaintenance().active) return await fetchNaverPrices(groupTickers);
+        throw e;
+      }
+    },
     enabled: !isSystemTab && groupTickers.length > 0,
     refetchInterval: REFRESH_MS,
   });
@@ -509,7 +517,11 @@ export function MobileSimpleView() {
       {tossMaint.active && (
         <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-[11px]
                         px-3 py-1.5 text-center leading-tight">
-          🚧 토스증권 점검 중 — 시세 갱신 일시 중단{tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""}
+          {tossMaint.needsWorkerUpdate
+            ? "🚧 토스 점검 중 — 네이버 우회는 워커 업데이트 필요"
+            : tossMaint.naverWorking
+              ? `🚧 토스 점검 — 네이버 시세 표시 중${tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""}`
+              : `🚧 토스 점검 중${tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""}`}
         </div>
       )}
       <header className="sticky top-0 z-40 bg-white border-b border-gray-200
