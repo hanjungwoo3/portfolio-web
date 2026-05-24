@@ -7,6 +7,7 @@ export interface TabVisibility {
   sectorRank: boolean;
   myStocks: boolean;
   consensus: boolean;
+  pension: boolean;
 }
 
 const KEY_US = "portfolio_tab_us_market";
@@ -14,6 +15,7 @@ const KEY_SEMI = "portfolio_tab_semi_check";
 const KEY_SECTOR = "portfolio_tab_sector_rank";
 const KEY_MY = "portfolio_tab_my_stocks";
 const KEY_CONSENSUS = "portfolio_tab_consensus";
+const KEY_PENSION = "portfolio_tab_pension";
 
 function read(key: string): boolean {
   try {
@@ -33,6 +35,7 @@ export function getTabVisibility(): TabVisibility {
     sectorRank: read(KEY_SECTOR),
     myStocks: read(KEY_MY),
     consensus: read(KEY_CONSENSUS),
+    pension: read(KEY_PENSION),
   };
 }
 
@@ -42,4 +45,5 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.sectorRank !== undefined) write(KEY_SECTOR, patch.sectorRank);
   if (patch.myStocks !== undefined) write(KEY_MY, patch.myStocks);
   if (patch.consensus !== undefined) write(KEY_CONSENSUS, patch.consensus);
+  if (patch.pension !== undefined) write(KEY_PENSION, patch.pension);
 }
