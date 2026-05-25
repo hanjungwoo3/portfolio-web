@@ -8,7 +8,7 @@ import {
 import { loadHoldings, loadMemos, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
-import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY, PENSION_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY } from "./components/Tabs";
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SimpleViewModal } from "./components/SimpleViewModal";
 import { SectorRankingTab } from "./components/SectorRankingTab";
@@ -465,13 +465,6 @@ function Dashboard() {
           <SemiCheckTab />
         ) : activeTab === CONSENSUS_TAB_KEY ? (
           <ConsensusTab items={consensusItems} onOpenValuation={setValuationTicker}
-                        onSelectGroup={setActiveTab}
-                        onEdit={(ticker) => {
-                          const s = holdings.find(h => h.ticker === ticker);
-                          if (s) setEditing(s);
-                        }} />
-        ) : activeTab === PENSION_TAB_KEY ? (
-          <ConsensusTab mode="pension" items={consensusItems} onOpenValuation={setValuationTicker}
                         onSelectGroup={setActiveTab}
                         onEdit={(ticker) => {
                           const s = holdings.find(h => h.ticker === ticker);
