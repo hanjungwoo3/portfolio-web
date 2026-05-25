@@ -167,6 +167,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                  : period === "1m" ? now - 31 * 864e5 : 0;
     const rows = tickers.map((t, i) => {
       const con = naverQs[i]?.data?.consensus;
+      const sector = naverQs[i]?.data?.sector ?? "";
       const reps = reportQs[i]?.data ?? [];
       const loading = (naverQs[i]?.isLoading ?? false) || (reportQs[i]?.isLoading ?? false);
       const price = priceByTicker.get(t);
@@ -202,6 +203,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       const pension60 = sumLast(inv, "연기금", volDays);
       return {
         ticker: t, name: nameByTicker.get(t) ?? t, groups: groupsByTicker.get(t) ?? [],
+        sector,
         price, reps, repsShown, avgTarget, upside, repTime, loading,
         opinion: con?.opinion, score: con?.score,
         holders, npsPct, npsAmount,
@@ -465,6 +467,9 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                     }>
                       <span className="text-[10px] text-emerald-700 cursor-help">외 {more}개</span>
                     </Tooltip>
+                  )}
+                  {it.sector && (
+                    <span className="ml-auto text-[11px] text-gray-500 whitespace-nowrap">{it.sector}</span>
                   )}
                 </div>
                 <div className="text-[13px] tabular-nums text-gray-600 mt-0.5">

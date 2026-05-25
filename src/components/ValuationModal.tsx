@@ -18,11 +18,11 @@ import { FinancialCharts } from "./FinancialCharts";
 import { ConsensusCharts } from "./ConsensusCharts";
 import { signColor } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
-import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchNaverInfo, fetchTossEstimate, fetchNaverNews } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchNaverInfo, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices } from "../lib/api";
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
 import type { PricePoint } from "../lib/api";
 import type { Investor } from "../types";
-import { useTossMaintenance } from "../lib/tossMaintenance";
+import { useTossMaintenance, getTossMaintenance } from "../lib/tossMaintenance";
 
 interface Props {
   isOpen: boolean;
@@ -318,6 +318,21 @@ export function ValuationModal({
     enabled: estEnabled,
     staleTime: 24 * 3600_000,
   });
+  // 현재가 — 부모가 안 넘기면(예: 컨센서스 탭) 직접 조회 (토스→점검 시 네이버)
+  const { data: livePrices } = useQuery({
+    queryKey: ["valuation-price", ticker],
+    queryFn: async () => {
+      try { return await fetchTossPrices([ticker]); }
+      catch (e) {
+        if (getTossMaintenance().active) return await fetchNaverPrices([ticker]);
+        throw e;
+      }
+    },
+    enabled: isOpen && curPrice == null && /^\d{6}$/.test(ticker),
+    staleTime: 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const effCurPrice = curPrice ?? livePrices?.[0]?.price;
   const downOnBackdropRef = useRef(false);
 
   if (!isOpen) return null;
@@ -352,9 +367,9 @@ export function ValuationModal({
             <span className="hidden sm:inline-flex items-baseline gap-3">
               <span className="text-base font-bold">{name}</span>
               <span className="text-sm text-gray-500">({ticker})</span>
-              {curPrice && (
+              {effCurPrice && (
                 <span className="text-base font-bold ml-3">
-                  {curPrice.toLocaleString()}원
+                  {effCurPrice.toLocaleString()}원
                 </span>
               )}
             </span>
@@ -367,9 +382,9 @@ export function ValuationModal({
           <div className="sm:hidden flex items-baseline gap-2 mt-1 flex-wrap">
             <span className="text-base font-bold">{name}</span>
             <span className="text-sm text-gray-500">({ticker})</span>
-            {curPrice && (
+            {effCurPrice && (
               <span className="text-base font-bold ml-auto">
-                {curPrice.toLocaleString()}원
+                {effCurPrice.toLocaleString()}원
               </span>
             )}
           </div>
@@ -442,7 +457,7 @@ export function ValuationModal({
             <div className="space-y-3">
               <ConsensusSection reports={reports}
                                  shareholders={shareholders}
-                                 curPrice={curPrice}
+                                 curPrice={effCurPrice}
                                  fundamental={fund} />
               <ShareholderSection shareholders={shareholders} />
             </div>
