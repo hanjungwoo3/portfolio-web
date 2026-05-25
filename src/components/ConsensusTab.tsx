@@ -75,6 +75,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
   const [view, setView] = useState<View>("consensus");   // 책갈피 sub탭
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [period, setPeriod] = useState<Period>("1w");
+  const [volDays, setVolDays] = useState(7);   // 변동율·수급 공통 기간(거래일)
   // sub탭 전환 시 기본 정렬 리셋
   useEffect(() => {
     setSortKey(DEFAULT_SORT[view]);
@@ -130,11 +131,11 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       refetchOnWindowFocus: false,
     })),
   });
-  // 변동성용 3개월 차트 + 수급 60일 (카드에 항상 표시 — 앱과 캐시 공유)
+  // 변동성용 6개월 차트 (최대 90거래일 σ 계산) — 카드에 항상 표시
   const chartQs = useQueries({
     queries: tickers.map(t => ({
-      queryKey: ["kr-price-history", t, "3mo"],
-      queryFn: () => fetchKrPriceHistory(t, "3mo"),
+      queryKey: ["kr-price-history", t, "6mo"],
+      queryFn: () => fetchKrPriceHistory(t, "6mo"),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -169,12 +170,12 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       const nps = npsHolderOf(shQs[i]?.data);
       const npsPct = nps?.pct ?? null;
       const npsAmount = (nps?.shares ?? 0) * (price ?? 0);
-      // 변동성(최근 30거래일) + 수급 60일 — 기간 통일
-      const vol = dailyVol((chartQs[i]?.data ?? []).slice(-30).map(p => p.close));
+      // 변동성·수급 — 공통 기간 volDays (최근 N거래일)
+      const vol = dailyVol((chartQs[i]?.data ?? []).slice(-volDays).map(p => p.close));
       const inv = invQs[i]?.data ?? null;
-      const foreign60 = sumLast(inv, "외국인", 30);
-      const inst60 = sumLast(inv, "기관", 30);
-      const pension60 = sumLast(inv, "연기금", 30);
+      const foreign60 = sumLast(inv, "외국인", volDays);
+      const inst60 = sumLast(inv, "기관", volDays);
+      const pension60 = sumLast(inv, "연기금", volDays);
       return {
         ticker: t, name: nameByTicker.get(t) ?? t, groups: groupsByTicker.get(t) ?? [],
         price, reps, repsShown, avgTarget, upside, repTime, loading,
@@ -204,7 +205,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       shQs.map(q => `${q.status}:${q.dataUpdatedAt}`).join(","),
       chartQs.map(q => `${q.status}:${q.dataUpdatedAt}`).join(","),
       invQs.map(q => `${q.status}:${q.dataUpdatedAt}`).join(","),
-      priceByTicker, nameByTicker, groupsByTicker, period, sortKey]);
+      priceByTicker, nameByTicker, groupsByTicker, period, sortKey, volDays]);
 
   const btn = (active: boolean) =>
     `px-2.5 py-1 rounded-full text-xs font-bold border transition ${
@@ -230,7 +231,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       <div className="flex items-end gap-1 border-b border-gray-300 px-1">
         {subTab("consensus", "🎯 컨센서스")}
         {subTab("pension", "🏦 연기금")}
-        {subTab("screener", "📊 변동율(30일)")}
+        {subTab("screener", "📊 변동율")}
         <span className="ml-2 mb-1 text-xs text-gray-500">{displayed.length}종목</span>
         {anyLoading && <span className="mb-1 text-xs text-gray-400">불러오는 중…</span>}
         <div className="ml-auto mb-1 flex items-center gap-1 flex-wrap">
@@ -243,7 +244,12 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
             <button className={btn(sortKey === "npsAmount")} onClick={() => setSortKey("npsAmount")}>금액순</button>
           </>}
           {view === "screener" && <>
-            <button className={btn(sortKey === "vol")} onClick={() => setSortKey("vol")}>일변동율(%)</button>
+            <span className="text-[10px] text-gray-400">기간</span>
+            {[7, 30, 90].map(d => (
+              <button key={d} className={btn(volDays === d)} onClick={() => setVolDays(d)}>{d}일</button>
+            ))}
+            <span className="text-[10px] text-gray-400 ml-1">정렬</span>
+            <button className={btn(sortKey === "vol")} onClick={() => setSortKey("vol")}>변동율(%)</button>
             <span className="text-[10px] text-gray-400 ml-1">순매수</span>
             <button className={btn(sortKey === "foreign60")} onClick={() => setSortKey("foreign60")}>외국인</button>
             <button className={btn(sortKey === "inst60")} onClick={() => setSortKey("inst60")}>기관</button>
@@ -301,7 +307,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
               return (
                 <div className="mt-1 grid grid-cols-4 gap-1 text-[11px] tabular-nums">
                   <div className={`text-center ${box(aVol)}`}>
-                    <div className={lblCls(aVol)}>일변동율</div>
+                    <div className={lblCls(aVol)}>변동율({volDays}일)</div>
                     <b className={`text-fuchsia-600 ${aVol ? "text-base" : ""}`}>{it.vol != null ? `±${it.vol.toFixed(2)}%` : "—"}</b>
                     {it.vol != null && it.price ? (
                       <div className="text-[9px] leading-tight">
