@@ -275,10 +275,10 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                       const isNps = /국민연금|연기금/.test(h.name);
                       return (
                         <div key={hi} className={`flex items-baseline gap-2 text-[11px] tabular-nums
-                                                  ${isNps ? "bg-amber-50 rounded px-1 font-bold text-amber-800" : "text-gray-600"}`}>
+                                                  ${isNps ? "bg-amber-50 rounded px-1 text-amber-800" : "text-gray-600"}`}>
                           <span className="truncate">{isNps ? "🏦 " : ""}{h.name}</span>
-                          <span className="ml-auto text-gray-500">{fmtKrw((h.shares ?? 0) * (it.price ?? 0))}</span>
-                          <span className="w-14 text-right">{(h.pct ?? 0).toFixed(2)}%</span>
+                          <span className={`ml-auto ${isNps && view === "pension" && sortKey === "npsAmount" ? "text-sm font-bold text-amber-800" : "text-gray-500"}`}>{fmtKrw((h.shares ?? 0) * (it.price ?? 0))}</span>
+                          <span className={`w-14 text-right ${isNps && view === "pension" && sortKey === "npsPct" ? "text-sm font-bold text-amber-800" : "text-gray-500"}`}>{(h.pct ?? 0).toFixed(2)}%</span>
                         </div>
                       );
                     })}
@@ -293,7 +293,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                   ? "bg-blue-50 border-blue-400"
                   : "bg-gray-50/60 border-gray-200"}`;
               const flowCls = (v: number) => v >= 0 ? "text-rose-600" : "text-blue-600";
-              const lblCls = (active: boolean) => `text-[10px] ${active ? "text-gray-900 font-bold" : "text-gray-400"}`;
+              const lblCls = (active: boolean) => `text-[10px] ${active ? "text-gray-900" : "text-gray-400"}`;
               const aVol = view === "screener" && sortKey === "vol";
               const aFor = view === "screener" && sortKey === "foreign60";
               const aIns = view === "screener" && sortKey === "inst60";

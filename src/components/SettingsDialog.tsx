@@ -642,7 +642,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   <input type="checkbox" checked={tabVis.consensus}
                          onChange={e => toggleTab("consensus", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">📈 컨센서스</span>
+                  <span className="text-[11px] text-gray-700">🎯 컨센서스</span>
                 </label>
               </div>
               <div className="text-[10px] text-gray-500 mt-1">

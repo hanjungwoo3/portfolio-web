@@ -171,7 +171,7 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpe
   }
   // 컨센서스 상승여력 — 내주식 옆. 보유 종목 있을 때만.
   if (showConsensus && uniqHeld.size > 0) {
-    tabs.push({ key: CONSENSUS_TAB_KEY, label: "분석", emoji: "📊", count: 0 });
+    tabs.push({ key: CONSENSUS_TAB_KEY, label: "컨센서스", emoji: "🎯", count: 0 });
   }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())
