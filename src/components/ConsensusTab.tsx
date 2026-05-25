@@ -237,10 +237,6 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
           {view === "consensus" && <>
             <button className={btn(sortKey === "upside")} onClick={() => setSortKey("upside")}>상승여력순</button>
             <button className={btn(sortKey === "date")} onClick={() => setSortKey("date")}>최신순</button>
-            <span className="w-px h-4 bg-gray-300 mx-0.5" />
-            <button className={btn(period === "1w")} onClick={() => setPeriod("1w")}>1주일</button>
-            <button className={btn(period === "1m")} onClick={() => setPeriod("1m")}>1개월</button>
-            <button className={btn(period === "all")} onClick={() => setPeriod("all")}>전체</button>
           </>}
           {view === "pension" && <>
             <button className={btn(sortKey === "npsPct")} onClick={() => setSortKey("npsPct")}>비율순</button>
@@ -269,6 +265,114 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
             const gs = it.groups ?? [];
             const shown = gs.length > 3 ? gs.slice(0, 3) : gs;
             const more = gs.length - shown.length;
+            // 연금(국민연금) 섹션 — 연기금 탭에선 맨 위, 그 외엔 맨 아래
+            const pensionSection = (
+              <div className={`mt-1 px-1.5 py-1 border border-gray-200 rounded ${emph(view === "pension")}`}>
+                {view !== "pension" && <div className="text-[10px] text-gray-400">주요주주</div>}
+                {it.holders.length > 0 ? (
+                  <div className="space-y-0.5">
+                    {it.holders.slice(0, 5).map((h, hi) => {
+                      const isNps = /국민연금|연기금/.test(h.name);
+                      return (
+                        <div key={hi} className={`flex items-baseline gap-2 text-[11px] tabular-nums
+                                                  ${isNps ? "bg-amber-50 rounded px-1 font-bold text-amber-800" : "text-gray-600"}`}>
+                          <span className="truncate">{isNps ? "🏦 " : ""}{h.name}</span>
+                          <span className="ml-auto text-gray-500">{fmtKrw((h.shares ?? 0) * (it.price ?? 0))}</span>
+                          <span className="w-14 text-right">{(h.pct ?? 0).toFixed(2)}%</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <div className="text-[11px] text-gray-300">주요주주 정보 없음</div>}
+              </div>
+            );
+            // 변동율·수급 섹션
+            const volSection = (() => {
+              const box = (active: boolean) =>
+                `rounded border px-1.5 py-0.5 ${active
+                  ? "bg-blue-50 border-blue-400"
+                  : "bg-gray-50/60 border-gray-200"}`;
+              const flowCls = (v: number) => v >= 0 ? "text-rose-600" : "text-blue-600";
+              const lblCls = (active: boolean) => `text-[10px] ${active ? "text-gray-900 font-bold" : "text-gray-400"}`;
+              const aVol = view === "screener" && sortKey === "vol";
+              const aFor = view === "screener" && sortKey === "foreign60";
+              const aIns = view === "screener" && sortKey === "inst60";
+              const aPen = view === "screener" && sortKey === "pension60";
+              return (
+                <div className="mt-1 grid grid-cols-4 gap-1 text-[11px] tabular-nums">
+                  <div className={`text-center ${box(aVol)}`}>
+                    <div className={lblCls(aVol)}>일변동율</div>
+                    <b className={`text-fuchsia-600 ${aVol ? "text-base" : ""}`}>{it.vol != null ? `±${it.vol.toFixed(2)}%` : "—"}</b>
+                    {it.vol != null && it.price ? (
+                      <div className="text-[9px] leading-tight">
+                        <span className="text-blue-600">{Math.round(it.price * (1 - it.vol / 100)).toLocaleString()}</span>
+                        {"~"}<span className="text-rose-600">{Math.round(it.price * (1 + it.vol / 100)).toLocaleString()}</span>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className={`text-center ${box(aFor)}`}>
+                    <div className={lblCls(aFor)}>외국인 60일</div>
+                    <b className={`${flowCls(it.foreign60)} ${aFor ? "text-base" : ""}`}>{fmtSharesK(it.foreign60)}</b>
+                  </div>
+                  <div className={`text-center ${box(aIns)}`}>
+                    <div className={lblCls(aIns)}>기관 60일</div>
+                    <b className={`${flowCls(it.inst60)} ${aIns ? "text-base" : ""}`}>{fmtSharesK(it.inst60)}</b>
+                  </div>
+                  <div className={`text-center ${box(aPen)}`}>
+                    <div className={lblCls(aPen)}>연기금 60일</div>
+                    <b className={`${flowCls(it.pension60)} ${aPen ? "text-base" : ""}`}>{fmtSharesK(it.pension60)}</b>
+                  </div>
+                </div>
+              );
+            })();
+            // 컨센서스 섹션
+            const aCons = view === "consensus";
+            const consensusSection = (
+              <div className={`mt-1 px-1.5 py-1 border border-gray-200 rounded ${emph(view === "consensus")}`}>
+                {/* 평균 목표주가 / 투자의견 — 컨센서스 탭은 강조, 그 외는 단순 */}
+                <div className={`flex items-baseline gap-1 ${aCons ? "text-[12px]" : "text-[11px]"}`}>
+                  <span className="text-gray-500">평균 목표주가</span>
+                  {it.avgTarget != null ? (
+                    <>
+                      <b className={aCons ? "text-gray-900 tabular-nums" : "text-gray-600 font-normal tabular-nums"}>{Math.round(it.avgTarget).toLocaleString()}원</b>
+                      {up != null && <b className={`ml-auto tabular-nums ${aCons ? `text-base ${up >= 0 ? "text-rose-600" : "text-blue-600"}` : "font-normal text-gray-500"}`}>{up >= 0 ? "+" : ""}{up.toFixed(1)}%</b>}
+                    </>
+                  ) : <span className="ml-auto text-gray-300">—</span>}
+                </div>
+                <div className={`flex items-baseline ${aCons ? "text-[12px]" : "text-[11px]"}`}>
+                  <span className="text-gray-500">투자의견</span>
+                  <span className={`ml-auto ${aCons ? "font-bold text-rose-600" : "font-normal text-gray-500"}`}>
+                    {it.opinion ?? "—"}{it.score ? ` (${it.score.toFixed(2)}점)` : ""}
+                  </span>
+                </div>
+                {it.reps.length > 0 && (
+                  <div className="mt-0.5 space-y-0.5">
+                    {it.reps.map((r, ri) => {
+                      const rt = parseRepDate(r.date);
+                      const recent = rt > 0 && Date.now() - rt < 2 * 24 * 3600 * 1000;
+                      const withinWeek = rt > 0 && Date.now() - rt <= 7 * 24 * 3600 * 1000;
+                      return (
+                        <div key={ri} className={`flex items-baseline gap-1.5 tabular-nums rounded px-1 text-[11px]
+                                                  ${!aCons ? "text-gray-500"
+                                                    : ri === 0 ? "font-bold bg-yellow-50"
+                                                    : recent ? "bg-yellow-100/60 font-bold"
+                                                    : withinWeek ? "font-bold" : "text-gray-400"}`}>
+                          <span className="text-gray-400 shrink-0">{r.date.slice(3)}</span>
+                          <span className="text-gray-500 shrink-0">{r.broker}</span>
+                          {r.opinion && <span className="text-violet-600 shrink-0">{r.opinion}</span>}
+                          <span className="text-gray-500 truncate">{r.title}</span>
+                          {r.target ? <span className="ml-auto text-gray-700 shrink-0">{r.target.toLocaleString()}</span> : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+            // 검색기준 섹션이 맨 위 — consensus/pension/screener
+            const ordered = view === "pension" ? [pensionSection, volSection, consensusSection]
+              : view === "consensus" ? [consensusSection, volSection, pensionSection]
+              : [volSection, consensusSection, pensionSection];
             return (
               <div key={it.ticker}
                    className="border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 bg-white">
@@ -303,104 +407,8 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                   현재 <b className="text-blue-600">{it.price ? Math.round(it.price).toLocaleString() : "—"}</b>원
                 </div>
 
-                {/* 변동율·수급 — 4개 box, 정렬 조건 box 강조 (컨센서스 위) */}
-                {(() => {
-                  const box = (active: boolean) =>
-                    `rounded border px-1.5 py-0.5 ${active
-                      ? "bg-blue-50 border-blue-400 ring-1 ring-blue-300"
-                      : "bg-gray-50/60 border-gray-200"}`;
-                  const flowCls = (v: number) => v >= 0 ? "text-rose-600" : "text-blue-600";
-                  const lblCls = (active: boolean) => `text-[10px] ${active ? "text-gray-900 font-bold" : "text-gray-400"}`;
-                  const aVol = view === "screener" && sortKey === "vol";
-                  const aFor = view === "screener" && sortKey === "foreign60";
-                  const aIns = view === "screener" && sortKey === "inst60";
-                  const aPen = view === "screener" && sortKey === "pension60";
-                  return (
-                    <div className="mt-1 grid grid-cols-4 gap-1 text-[11px] tabular-nums">
-                      <div className={`text-center ${box(aVol)}`}>
-                        <div className={lblCls(aVol)}>일변동율</div>
-                        <b className="text-fuchsia-600 text-base">{it.vol != null ? `±${it.vol.toFixed(2)}%` : "—"}</b>
-                        {it.vol != null && it.price ? (
-                          <div className="text-[9px] leading-tight">
-                            <span className="text-blue-600">{Math.round(it.price * (1 - it.vol / 100)).toLocaleString()}</span>
-                            {"~"}<span className="text-rose-600">{Math.round(it.price * (1 + it.vol / 100)).toLocaleString()}</span>
-                          </div>
-                        ) : null}
-                      </div>
-                      <div className={`text-center ${box(aFor)}`}>
-                        <div className={lblCls(aFor)}>외국인 60일</div>
-                        <b className={`${flowCls(it.foreign60)} ${aFor ? "text-base" : ""}`}>{fmtSharesK(it.foreign60)}</b>
-                      </div>
-                      <div className={`text-center ${box(aIns)}`}>
-                        <div className={lblCls(aIns)}>기관 60일</div>
-                        <b className={`${flowCls(it.inst60)} ${aIns ? "text-base" : ""}`}>{fmtSharesK(it.inst60)}</b>
-                      </div>
-                      <div className={`text-center ${box(aPen)}`}>
-                        <div className={lblCls(aPen)}>연기금 60일</div>
-                        <b className={`${flowCls(it.pension60)} ${aPen ? "text-base" : ""}`}>{fmtSharesK(it.pension60)}</b>
-                      </div>
-                    </div>
-                  );
-                })()}
-
-                {/* ① 컨센서스 */}
-                <div className={`mt-1 px-1 py-0.5 ${emph(view === "consensus")}`}>
-                  <div className="flex items-baseline gap-1 text-[11px]">
-                    <span className="text-gray-400">컨센서스</span>
-                    {it.opinion && <span className="text-violet-600">{it.opinion}{it.score ? ` ${it.score.toFixed(1)}` : ""}</span>}
-                    {it.upside != null && it.avgTarget != null ? (
-                      <span className="ml-auto tabular-nums text-gray-600">
-                        목표 <b className="text-rose-600">{Math.round(it.avgTarget).toLocaleString()}</b> ·
-                        <b className={(up ?? 0) >= 0 ? "text-rose-600" : "text-blue-600"}> {up! >= 0 ? "+" : ""}{up!.toFixed(1)}%</b>
-                      </span>
-                    ) : <span className="ml-auto text-gray-300">—</span>}
-                  </div>
-                  {it.repsShown.length > 0 && (
-                    <div className="mt-0.5 space-y-0.5">
-                      {it.repsShown.slice(0, view === "consensus" ? 99 : 2).map((r, ri) => {
-                        const rt = parseRepDate(r.date);
-                        const recent = rt > 0 && Date.now() - rt < 2 * 24 * 3600 * 1000;
-                        const withinWeek = rt > 0 && Date.now() - rt <= 7 * 24 * 3600 * 1000;
-                        return (
-                          <div key={ri} className={`flex items-baseline gap-1.5 text-[11px] tabular-nums
-                                                    ${recent ? "bg-yellow-100/60 rounded font-bold" : withinWeek ? "font-bold" : "text-gray-400"}`}>
-                            <span className="text-gray-400 shrink-0">{r.date.slice(3)}</span>
-                            <span className="text-gray-500 shrink-0">{r.broker}</span>
-                            <span className="text-gray-500 truncate">{r.title}</span>
-                            {r.target ? <span className="ml-auto font-bold text-gray-700 shrink-0">{r.target.toLocaleString()}</span> : null}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-
-                {/* ② 연금(국민연금) */}
-                <div className={`mt-1 px-1 py-0.5 ${emph(view === "pension")}`}>
-                  <div className="flex items-baseline gap-1 text-[11px]">
-                    <span className="text-gray-400">연기금</span>
-                    {it.npsPct != null ? (
-                      <span className="ml-auto tabular-nums text-amber-800 font-bold">
-                        🏦 {it.npsPct.toFixed(2)}% · {fmtKrw(it.npsAmount)}
-                      </span>
-                    ) : <span className="ml-auto text-gray-300">국민연금 없음</span>}
-                  </div>
-                  {view === "pension" && it.holders.length > 0 && (
-                    <div className="mt-0.5 space-y-0.5">
-                      {it.holders.slice(0, 5).map((h, hi) => {
-                        const isNps = /국민연금|연기금/.test(h.name);
-                        return (
-                          <div key={hi} className={`flex items-baseline gap-2 text-[11px] tabular-nums
-                                                    ${isNps ? "bg-amber-50 rounded px-1 font-bold text-amber-800" : "text-gray-600"}`}>
-                            <span className="truncate">{isNps ? "🏦 " : ""}{h.name}</span>
-                            <span className="ml-auto text-gray-500">{fmtKrw((h.shares ?? 0) * (it.price ?? 0))}</span>
-                            <span className="w-14 text-right">{(h.pct ?? 0).toFixed(2)}%</span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+                {/* 검색기준 섹션이 맨 위 (순서는 view 별) */}
+                {ordered[0]}{ordered[1]}{ordered[2]}
               </div>
             );
           })}
