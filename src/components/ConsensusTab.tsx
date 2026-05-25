@@ -169,12 +169,12 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       const nps = npsHolderOf(shQs[i]?.data);
       const npsPct = nps?.pct ?? null;
       const npsAmount = (nps?.shares ?? 0) * (price ?? 0);
-      // 변동성 + 수급 60일
-      const vol = dailyVol((chartQs[i]?.data ?? []).map(p => p.close));
+      // 변동성(최근 30거래일) + 수급 60일 — 기간 통일
+      const vol = dailyVol((chartQs[i]?.data ?? []).slice(-30).map(p => p.close));
       const inv = invQs[i]?.data ?? null;
-      const foreign60 = sumLast(inv, "외국인", 60);
-      const inst60 = sumLast(inv, "기관", 60);
-      const pension60 = sumLast(inv, "연기금", 60);
+      const foreign60 = sumLast(inv, "외국인", 30);
+      const inst60 = sumLast(inv, "기관", 30);
+      const pension60 = sumLast(inv, "연기금", 30);
       return {
         ticker: t, name: nameByTicker.get(t) ?? t, groups: groupsByTicker.get(t) ?? [],
         price, reps, repsShown, avgTarget, upside, repTime, loading,
@@ -230,7 +230,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       <div className="flex items-end gap-1 border-b border-gray-300 px-1">
         {subTab("consensus", "🎯 컨센서스")}
         {subTab("pension", "🏦 연기금")}
-        {subTab("screener", "📊 변동율")}
+        {subTab("screener", "📊 변동율(30일)")}
         <span className="ml-2 mb-1 text-xs text-gray-500">{displayed.length}종목</span>
         {anyLoading && <span className="mb-1 text-xs text-gray-400">불러오는 중…</span>}
         <div className="ml-auto mb-1 flex items-center gap-1 flex-wrap">
@@ -244,7 +244,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
           </>}
           {view === "screener" && <>
             <button className={btn(sortKey === "vol")} onClick={() => setSortKey("vol")}>일변동율(%)</button>
-            <span className="text-[10px] text-gray-400 ml-1">60일 순매수</span>
+            <span className="text-[10px] text-gray-400 ml-1">순매수</span>
             <button className={btn(sortKey === "foreign60")} onClick={() => setSortKey("foreign60")}>외국인</button>
             <button className={btn(sortKey === "inst60")} onClick={() => setSortKey("inst60")}>기관</button>
             <button className={btn(sortKey === "pension60")} onClick={() => setSortKey("pension60")}>연기금</button>
@@ -311,16 +311,16 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                     ) : null}
                   </div>
                   <div className={`text-center ${box(aFor)}`}>
-                    <div className={lblCls(aFor)}>외국인 60일</div>
-                    <b className={`${flowCls(it.foreign60)} ${aFor ? "text-base" : ""}`}>{fmtSharesK(it.foreign60)}</b>
+                    <div className={lblCls(aFor)}>외국인</div>
+                    <b className={`${flowCls(it.foreign60)} ${aFor ? "text-base" : ""}`}>{fmtSharesK(it.foreign60)}<span className="text-[9px] font-normal text-gray-400">주</span></b>
                   </div>
                   <div className={`text-center ${box(aIns)}`}>
-                    <div className={lblCls(aIns)}>기관 60일</div>
-                    <b className={`${flowCls(it.inst60)} ${aIns ? "text-base" : ""}`}>{fmtSharesK(it.inst60)}</b>
+                    <div className={lblCls(aIns)}>기관</div>
+                    <b className={`${flowCls(it.inst60)} ${aIns ? "text-base" : ""}`}>{fmtSharesK(it.inst60)}<span className="text-[9px] font-normal text-gray-400">주</span></b>
                   </div>
                   <div className={`text-center ${box(aPen)}`}>
-                    <div className={lblCls(aPen)}>연기금 60일</div>
-                    <b className={`${flowCls(it.pension60)} ${aPen ? "text-base" : ""}`}>{fmtSharesK(it.pension60)}</b>
+                    <div className={lblCls(aPen)}>연기금</div>
+                    <b className={`${flowCls(it.pension60)} ${aPen ? "text-base" : ""}`}>{fmtSharesK(it.pension60)}<span className="text-[9px] font-normal text-gray-400">주</span></b>
                   </div>
                 </div>
               );
