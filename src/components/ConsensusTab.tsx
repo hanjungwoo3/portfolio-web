@@ -10,15 +10,6 @@ import { openTossStock } from "../lib/toss";
 import { Tooltip } from "./Tooltip";
 import type { Investor } from "../types";
 
-// 일 변동성 — 종가 일별 수익률(%) 표준편차 (AuxIndicators 동일)
-function dailyVol(closes?: number[]): number | null {
-  if (!closes || closes.length < 6) return null;
-  const r: number[] = [];
-  for (let i = 1; i < closes.length; i++) if (closes[i - 1] > 0) r.push(((closes[i] - closes[i - 1]) / closes[i - 1]) * 100);
-  if (r.length < 5) return null;
-  const m = r.reduce((s, v) => s + v, 0) / r.length;
-  return Math.sqrt(r.reduce((s, v) => s + (v - m) ** 2, 0) / r.length);
-}
 // 최근 N일 누적 순매수 (외국인/기관/연기금)
 function sumLast(arr: Investor[] | null | undefined, key: "외국인" | "기관" | "연기금", n: number): number {
   if (!arr || arr.length === 0) return 0;
@@ -170,8 +161,15 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       const nps = npsHolderOf(shQs[i]?.data);
       const npsPct = nps?.pct ?? null;
       const npsAmount = (nps?.shares ?? 0) * (price ?? 0);
-      // 변동성·수급 — 공통 기간 volDays (최근 N거래일)
-      const vol = dailyVol((chartQs[i]?.data ?? []).slice(-volDays).map(p => p.close));
+      // 변동율(스윙) — 최근 N거래일 실제 거래가 변동폭: (기간 최고가-최저가)/최저가 ×100
+      const chart = chartQs[i]?.data ?? [];
+      let dayLow: number | null = null, dayHigh: number | null = null;
+      for (const p of chart.slice(-volDays)) {
+        if (p.low != null && p.low > 0 && (dayLow == null || p.low < dayLow)) dayLow = p.low;
+        if (p.high != null && (dayHigh == null || p.high > dayHigh)) dayHigh = p.high;
+      }
+      const vol = (dayLow != null && dayHigh != null && dayLow > 0)
+        ? (dayHigh - dayLow) / dayLow * 100 : null;
       const inv = invQs[i]?.data ?? null;
       const foreign60 = sumLast(inv, "외국인", volDays);
       const inst60 = sumLast(inv, "기관", volDays);
@@ -181,7 +179,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
         price, reps, repsShown, avgTarget, upside, repTime, loading,
         opinion: con?.opinion, score: con?.score,
         holders, npsPct, npsAmount,
-        vol, foreign60, inst60, pension60,
+        vol, foreign60, inst60, pension60, dayLow, dayHigh,
       };
     });
     // 모든 종목 표시 — 검색기준 정렬만 적용 (값 없는 종목은 아래로)
@@ -191,7 +189,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
         case "upside": return (b.upside ?? -1e9) - (a.upside ?? -1e9);
         case "npsPct": return (b.npsPct ?? -1) - (a.npsPct ?? -1);
         case "npsAmount": return b.npsAmount - a.npsAmount;
-        case "vol": return (b.vol ?? -1) - (a.vol ?? -1);
+        case "vol": return (b.vol ?? -1) - (a.vol ?? -1);   // 변동폭 큰 순
         case "foreign60": return b.foreign60 - a.foreign60;
         case "inst60": return b.inst60 - a.inst60;
         case "pension60": return b.pension60 - a.pension60;
@@ -237,13 +235,13 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     </>}
     {view === "screener" && <>
       <span className="text-[10px] text-gray-400">기간</span>
-      {[7, 30, 90].map(d => (
+      {[1, 7, 30, 90].map(d => (
         <button key={d} className={btn(volDays === d)} onClick={() => setVolDays(d)}>{d}일</button>
       ))}
       {/* 모바일 — 기간 아래로 정렬 줄바꿈 */}
       <div className="basis-full sm:hidden" />
       <span className="text-[10px] text-gray-400 ml-1">정렬</span>
-      <button className={btn(sortKey === "vol")} onClick={() => setSortKey("vol")}>변동율(%)</button>
+      <button className={btn(sortKey === "vol")} onClick={() => setSortKey("vol")}>변동폭(%)</button>
       <span className="text-[10px] text-gray-400 ml-1">순매수</span>
       <button className={btn(sortKey === "foreign60")} onClick={() => setSortKey("foreign60")}>외국인</button>
       <button className={btn(sortKey === "inst60")} onClick={() => setSortKey("inst60")}>기관</button>
@@ -257,7 +255,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       <div className="flex items-end gap-1 border-b border-gray-300 px-1">
         {subTab("consensus", "🎯 컨센서스")}
         {subTab("pension", "🏦 연기금")}
-        {subTab("screener", "📊 변동율")}
+        {subTab("screener", "📊 변동폭")}
         <span className="ml-2 mb-1 text-xs text-gray-500">{displayed.length}종목</span>
         {anyLoading && <span className="mb-1 text-xs text-gray-400">불러오는 중…</span>}
         {/* 데스크톱 — 인라인 우측 */}
@@ -307,7 +305,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                 ) : <div className="text-[11px] text-gray-300">주요주주 정보 없음</div>}
               </div>
             );
-            // 변동율·수급 섹션
+            // 변동폭·수급 섹션
             const volSection = (() => {
               const box = (active: boolean) =>
                 `rounded border px-1.5 py-0.5 ${active
@@ -322,12 +320,12 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
               return (
                 <div className="mt-1 grid grid-cols-4 gap-1 text-[11px] tabular-nums">
                   <div className={`text-center ${box(aVol)}`}>
-                    <div className={lblCls(aVol)}>변동율({volDays}일)</div>
-                    <b className={`text-fuchsia-600 ${aVol ? "text-base" : ""}`}>{it.vol != null ? `±${it.vol.toFixed(2)}%` : "—"}</b>
-                    {it.vol != null && it.price ? (
+                    <div className={lblCls(aVol)}>변동폭({volDays}일)</div>
+                    <b className={`text-fuchsia-600 ${aVol ? "text-base" : ""}`}>{it.vol != null ? `${it.vol.toFixed(2)}%` : "—"}</b>
+                    {it.dayLow && it.dayHigh ? (
                       <div className="text-[9px] leading-tight">
-                        <span className="text-blue-600">{Math.round(it.price * (1 - it.vol / 100)).toLocaleString()}</span>
-                        {"~"}<span className="text-rose-600">{Math.round(it.price * (1 + it.vol / 100)).toLocaleString()}</span>
+                        <span className="text-blue-600">{Math.round(it.dayLow).toLocaleString()}</span>
+                        {"~"}<span className="text-rose-600">{Math.round(it.dayHigh).toLocaleString()}</span>
                       </div>
                     ) : null}
                   </div>
