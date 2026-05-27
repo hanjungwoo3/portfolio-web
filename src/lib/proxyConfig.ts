@@ -28,10 +28,12 @@ export function setPersonalProxyUrl(url: string | null) {
   }
 }
 
-// 폴링 주기 — 전용 프록시 사용 시 5/10/30/60초 선택 가능
+// 폴링 주기 — 전용 프록시 사용 시 5/10/30/60초 선택 가능. 0 = 수동(자동 갱신 끔).
 // 공개 프록시는 30초 (무료 워커 호출 한도 보호 — 24h 폴링이라 호출수가 병목).
 // 더 빠른 갱신이 필요하면 설정에서 개인 프록시 등록(5/10초).
-export const POLL_OPTIONS = [5_000, 10_000, 30_000, 60_000] as const;
+// 수동(0)은 프록시 무관 항상 선택 가능 — 버튼/메뉴 진입 시에만 갱신(부하 최소).
+export const MANUAL_POLL_MS = 0;
+export const POLL_OPTIONS = [MANUAL_POLL_MS, 5_000, 10_000, 30_000, 60_000] as const;
 export const DEFAULT_PUBLIC_POLL_MS = 30_000;
 
 // ─── 개인 프록시 기능별 호환성 검증 ─────────────────────────
@@ -104,12 +106,19 @@ export function invalidatePersonalProxyStatusCache(): void {
 export function getPersonalPollMs(): number {
   try {
     const v = localStorage.getItem(POLL_KEY);
-    if (!v) return DEFAULT_PUBLIC_POLL_MS;
+    if (v === null || v === "") return DEFAULT_PUBLIC_POLL_MS;
     const n = Number(v);
+    // 0 = 수동(허용), 그 외엔 1초 이상만 유효
+    if (n === 0) return 0;
     return Number.isFinite(n) && n >= 1000 ? n : DEFAULT_PUBLIC_POLL_MS;
   } catch {
     return DEFAULT_PUBLIC_POLL_MS;
   }
+}
+
+// 수동 모드 여부 — 자동 폴링 끔 (버튼/메뉴 진입 시에만 갱신)
+export function isManualPoll(): boolean {
+  return getPersonalPollMs() === MANUAL_POLL_MS;
 }
 
 export function setPersonalPollMs(ms: number) {
@@ -120,9 +129,11 @@ export function setPersonalPollMs(ms: number) {
   }
 }
 
-// 현재 effective poll 간격 (ms) — 전용 프록시 있으면 personal, 없으면 공개 default
+// 현재 effective poll 간격 (ms) — 수동(0)은 프록시 무관, 그 외엔 전용=personal / 공개=default
 export function getEffectivePollMs(): number {
-  return getPersonalProxyUrl() ? getPersonalPollMs() : DEFAULT_PUBLIC_POLL_MS;
+  const ms = getPersonalPollMs();
+  if (ms === MANUAL_POLL_MS) return 0;   // 수동 — 자동 폴링 끔
+  return getPersonalProxyUrl() ? ms : DEFAULT_PUBLIC_POLL_MS;
 }
 
 // 장 마감 / 비활동 종목 카드 흐리게 표시 여부 (default ON)

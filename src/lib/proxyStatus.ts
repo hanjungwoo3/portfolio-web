@@ -113,6 +113,8 @@ export function useAdaptiveRefreshMs(baseMs: number): number {
   useEffect(() => {
     let downCount = getProxyState().downHosts.length;
     const compute = () => {
+      // 수동(0) — 자동 폴링 없음. throttle/adaptive 우회.
+      if (baseMs <= 0) { setMs(0); return; }
       // 공개 프록시 + 양 시장 마감 → 최소 60초 (개인 프록시는 base 유지)
       const closedThrottle =
         !getPersonalProxyUrl() && !isAnyMarketActive() ? MARKET_CLOSED_MIN_MS : 0;

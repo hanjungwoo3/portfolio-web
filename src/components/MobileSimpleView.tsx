@@ -554,13 +554,14 @@ export function MobileSimpleView() {
                           px-3 py-2 flex items-center gap-1">
         <h1 className="text-sm font-bold text-gray-800 shrink-0">📈</h1>
         <RefreshIndicator dataUpdatedAt={lastAt}
-                          refetchIntervalMs={REFRESH_MS} />
+                          refetchIntervalMs={REFRESH_MS}
+                          onRefresh={() => void queryClient.invalidateQueries()} />
         <button onClick={handleRefresh}
                 disabled={isFetching}
                 title="최신 버전 적용 (캐시 초기화 + 새로고침)"
                 className="ml-auto p-1.5 rounded hover:bg-gray-100
                             disabled:opacity-50 transition">
-          <span className={`inline-block ${isFetching ? "animate-spin" : ""}`}>🔄</span>
+          <span className={`inline-block ${isFetching ? "animate-spin" : ""}`}>✨</span>
         </button>
         {/* 모바일 상단 액션 — PC 와 동일한 색상 체계, 폰트만 작게.
             모든 버튼에 명확한 박스(bg/border)로 클릭 가능 영역 표시 */}
@@ -1183,7 +1184,9 @@ function SettingsModal({
   const handlePollChange = (ms: number) => {
     setPollMs(ms);
     setPersonalPollMs(ms);
-    setSavedMsg(`✅ 폴링 주기 ${ms / 1000}초 적용 — 새로고침 후 적용`);
+    setSavedMsg(ms === 0
+      ? "✅ 수동 모드 — 자동 갱신 끔 (갱신 버튼/탭 진입 시). 새로고침 후 적용"
+      : `✅ 폴링 주기 ${ms / 1000}초 적용 — 새로고침 후 적용`);
     setTimeout(() => setSavedMsg(""), 2500);
   };
 
@@ -1463,9 +1466,9 @@ function SettingsModal({
                 폴링 주기:
               </span>
               {POLL_OPTIONS.map(ms => {
-                const sec = ms / 1000;
                 const active = pollMs === ms;
-                const enabled = !!proxyUrl;
+                // 수동(0)은 프록시 무관 항상 선택 가능, 속도(5~60초)는 전용 프록시일 때만
+                const enabled = ms === 0 ? true : !!proxyUrl;
                 return (
                   <button key={ms}
                           onClick={() => handlePollChange(ms)}
@@ -1475,13 +1478,13 @@ function SettingsModal({
                                         ? "bg-blue-600 text-white border-blue-700 font-bold"
                                         : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}
                                       ${!enabled ? "opacity-40 cursor-not-allowed" : ""}`}>
-                    {sec}초
+                    {ms === 0 ? "수동" : `${ms / 1000}초`}
                   </button>
                 );
               })}
               {!proxyUrl && (
                 <span className="text-[10px] text-gray-400 w-full mt-0.5">
-                  (공개 프록시는 10초 고정)
+                  (공개: 30초 고정 · 수동 선택 가능)
                 </span>
               )}
             </div>

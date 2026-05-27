@@ -100,6 +100,8 @@ function Dashboard() {
   // 자동 동기화 제거됨 — 백업은 설정의 파일 저장/불러오기 또는 수동 구글 업·다운로드 사용.
   // 설정 변경 시 reloadKey 증가 → BASE_REFRESH_MS / usePersonalProxy 재계산
   const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), [reloadKey]);
+  // 수동 모드 — 자동 폴링 전면 중단 (버튼/탭 진입 시에만 갱신)
+  const manualPoll = BASE_REFRESH_MS === 0;
   const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey]);
   const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
   // 토스 점검 중 — 네이버 fallback(60초), 워커 미지원 시 5분 백오프
@@ -214,7 +216,7 @@ function Dashboard() {
     queryKey: ["kr-reg", krxTickers, Array.from(krMarketMap.entries()).flat().join(",")],
     queryFn: () => fetchKrRegularPrices(krxTickers, krMarketMap),
     enabled: krxTickers.length > 0 && krMarketMap.size > 0,
-    refetchInterval: 60_000,
+    refetchInterval: manualPoll ? false : 60_000,
     staleTime: 30_000,
   });
 
@@ -395,7 +397,7 @@ function Dashboard() {
               className="px-2 py-1.5 rounded text-sm
                          text-gray-500 hover:text-blue-600
                          hover:bg-gray-100 transition">
-              🔄
+              ✨
             </button>
             {/* 모바일 헤더와 통일 — 아이콘 제거, 짧은 한글 라벨 */}
             <button
@@ -669,11 +671,12 @@ function Dashboard() {
   );
 }
 
-// 글로벌 lastRefresh 기반 RefreshIndicator
+// 글로벌 lastRefresh 기반 RefreshIndicator — 클릭 시 전체 쿼리 갱신(수동 모드 핵심)
 function RefreshIndicatorGlobal({ refetchIntervalMs }: { refetchIntervalMs: number }) {
   const ts = useLastRefresh();
   if (ts === 0) return null;
-  return <RefreshIndicator dataUpdatedAt={ts} refetchIntervalMs={refetchIntervalMs} />;
+  return <RefreshIndicator dataUpdatedAt={ts} refetchIntervalMs={refetchIntervalMs}
+                           onRefresh={() => void queryClient.invalidateQueries()} />;
 }
 
 function AppRoot() {
