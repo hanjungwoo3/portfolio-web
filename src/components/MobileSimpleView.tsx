@@ -17,7 +17,7 @@ import {
 import { isSymbolSleeping, fmtAgo } from "../lib/format";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
-  getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS,
+  getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, DEFAULT_PUBLIC_POLL_MS,
   getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
@@ -1467,8 +1467,8 @@ function SettingsModal({
               </span>
               {POLL_OPTIONS.map(ms => {
                 const active = pollMs === ms;
-                // 수동(0)은 프록시 무관 항상 선택 가능, 속도(5~60초)는 전용 프록시일 때만
-                const enabled = ms === 0 ? true : !!proxyUrl;
+                // 수동(0)·공개기본(30초)은 프록시 무관 항상 선택 가능(수동↔자동 전환용).
+                const enabled = ms === 0 || ms === DEFAULT_PUBLIC_POLL_MS ? true : !!proxyUrl;
                 return (
                   <button key={ms}
                           onClick={() => handlePollChange(ms)}
@@ -1484,7 +1484,7 @@ function SettingsModal({
               })}
               {!proxyUrl && (
                 <span className="text-[10px] text-gray-400 w-full mt-0.5">
-                  (공개: 30초 고정 · 수동 선택 가능)
+                  (공개: 30초/수동 선택 · 5·10·60초는 전용 프록시)
                 </span>
               )}
             </div>
