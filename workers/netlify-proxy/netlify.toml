@@ -1,0 +1,10 @@
+# Netlify Edge Function 전용 사이트 — 정적 자산은 placeholder 한 장뿐.
+# 엣지 함수는 netlify/edge-functions/proxy.ts 의 `export const config = { path: "/*" }` 로 라우팅.
+
+[build]
+  publish = "public"
+  # 빌드 단계 없음 (엣지 함수만)
+  command = ""
+
+[functions]
+  # (선택) 일반 함수는 사용 안 함
