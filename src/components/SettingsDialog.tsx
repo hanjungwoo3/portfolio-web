@@ -5,7 +5,7 @@ import {
 } from "../lib/db";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
-  getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, DEFAULT_PUBLIC_POLL_MS,
+  getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS,
   getDimSleepingEnabled, setDimSleepingEnabled,
   checkPersonalProxyPostSupport, checkPersonalProxyInvestingSupport,
   invalidatePersonalProxyStatusCache,
@@ -545,16 +545,16 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 </a>
               </div>
             )}
-            {/* 폴링 주기 — 전용 프록시 있을 때만 의미 (공개는 항상 10초) */}
+            {/* 폴링 주기 — 공개는 30/60초·수동 선택, 5/10초는 전용 프록시 전용 */}
             <div className="flex items-center gap-2 mt-1">
               <span className={`text-[11px] ${proxyUrl ? "text-gray-700" : "text-gray-400"}`}>
                 폴링 주기:
               </span>
               {POLL_OPTIONS.map(ms => {
                 const active = pollMs === ms;
-                // 수동(0)·공개기본(30초)은 프록시 무관 항상 선택 가능(수동↔자동 전환용).
-                // 그 외 속도(5/10/60초)는 전용 프록시일 때만.
-                const enabled = ms === 0 || ms === DEFAULT_PUBLIC_POLL_MS ? true : !!proxyUrl;
+                // 수동(0)·공개 허용 주기(30초 이상=30/60초)는 프록시 무관 선택 가능.
+                // 더 빠른 5/10초는 전용 프록시일 때만.
+                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : !!proxyUrl;
                 return (
                   <button key={ms}
                           onClick={() => handlePollChange(ms)}
@@ -570,7 +570,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               })}
               {!proxyUrl && (
                 <span className="text-[10px] text-gray-400 ml-1">
-                  (공개: 30초/수동 선택 · 5·10·60초는 전용 프록시)
+                  (공개: 기본 60초 · 30·60·수동 선택 · 5·10초는 전용 프록시)
                 </span>
               )}
             </div>

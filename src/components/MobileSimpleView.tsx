@@ -17,7 +17,7 @@ import {
 import { isSymbolSleeping, fmtAgo } from "../lib/format";
 import {
   getPersonalProxyUrl, setPersonalProxyUrl,
-  getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, DEFAULT_PUBLIC_POLL_MS,
+  getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS,
   getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
@@ -173,7 +173,7 @@ export function MobileSimpleView() {
     localStorage.setItem(TAB_KEY, activeTab);
   }, [activeTab]);
 
-  // PC 동일 자동 갱신 — 전용 프록시 시 5/10/30/60초 / 공개 10초 + 다운 시 자동 증가
+  // PC 동일 자동 갱신 — 전용 프록시 시 5/10/30/60초 / 공개 기본 60초(30초 선택 가능) + 다운/마감 시 자동 증가
   const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), []);
   const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
   const tossMaint = useTossMaintenance();   // 토스 점검 — 네이버 fallback(60s) / 워커 미지원 시 5분
@@ -1467,8 +1467,8 @@ function SettingsModal({
               </span>
               {POLL_OPTIONS.map(ms => {
                 const active = pollMs === ms;
-                // 수동(0)·공개기본(30초)은 프록시 무관 항상 선택 가능(수동↔자동 전환용).
-                const enabled = ms === 0 || ms === DEFAULT_PUBLIC_POLL_MS ? true : !!proxyUrl;
+                // 수동(0)·공개 허용 주기(30초 이상=30/60초)는 프록시 무관 선택 가능.
+                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : !!proxyUrl;
                 return (
                   <button key={ms}
                           onClick={() => handlePollChange(ms)}
@@ -1484,7 +1484,7 @@ function SettingsModal({
               })}
               {!proxyUrl && (
                 <span className="text-[10px] text-gray-400 w-full mt-0.5">
-                  (공개: 30초/수동 선택 · 5·10·60초는 전용 프록시)
+                  (공개: 기본 60초 · 30·60·수동 선택 · 5·10초는 전용 프록시)
                 </span>
               )}
             </div>
