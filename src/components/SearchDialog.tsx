@@ -1,8 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   searchTossAutoComplete, searchNaverAutoComplete, fetchStockName, fetchTossPrices,
-  type SearchResult,
+  searchNaverThemes,
+  type SearchResult, type NaverThemeMatch,
 } from "../lib/api";
 import {
   bulkRemoveFromGroup, getUserGroups, loadHoldings,
@@ -33,6 +34,28 @@ function todayKstStr(): string {
 export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) {
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
+  const [themeMatches, setThemeMatches] = useState<NaverThemeMatch[]>([]);
+  // 펼친 테마 no 집합 — 기본 모두 접힘. 헤더 클릭으로 토글.
+  const [expandedThemes, setExpandedThemes] = useState<Set<number>>(new Set());
+  // 종목 검색 결과 + 테마 구성 종목을 ticker 단위로 dedup 한 통합 리스트(results 우선).
+  // 가격/존재여부 등 데이터 fetch 는 이걸 기준 (테마 접혀 있어도 사전 로드 가능).
+  const allStocks = useMemo<SearchResult[]>(() => {
+    const m = new Map<string, SearchResult>();
+    for (const r of results) m.set(r.ticker, r);
+    for (const tm of themeMatches) for (const s of tm.stocks) if (!m.has(s.ticker)) m.set(s.ticker, s);
+    return Array.from(m.values());
+  }, [results, themeMatches]);
+  // 화면에 노출되는 종목 — 종목 섹션(results) + 펼친 테마 섹션의 종목만.
+  // "전체 선택"/카운트 표시는 이걸 기준 (접힌 테마 종목은 제외).
+  const visibleStocks = useMemo<SearchResult[]>(() => {
+    const m = new Map<string, SearchResult>();
+    for (const r of results) m.set(r.ticker, r);
+    for (const tm of themeMatches) {
+      if (!expandedThemes.has(tm.theme.no)) continue;
+      for (const s of tm.stocks) if (!m.has(s.ticker)) m.set(s.ticker, s);
+    }
+    return Array.from(m.values());
+  }, [results, themeMatches, expandedThemes]);
   const [searching, setSearching] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
@@ -90,7 +113,8 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     if (!isOpen) return;
     const q = query.trim();
     if (!q) {
-      setResults([]); setSelected(new Set()); setStatusMsg("");
+      setResults([]); setThemeMatches([]); setExpandedThemes(new Set());
+      setSelected(new Set()); setStatusMsg("");
       return;
     }
     const myId = ++reqIdRef.current;
@@ -102,28 +126,33 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
           const codes = Array.from(new Set(
             (q.match(/\b[\dA-Za-z]{6}\b/g) ?? []).map(c => c.toUpperCase())
           ));
-          let stocks: SearchResult[] = [];
-          if (codes.length > 0) {
-            // 직접코드: 실제 종목명이 있는 코드만 채택 (KRX300 같은 지수명/가짜 제외)
-            const names = await Promise.all(codes.map(c => fetchStockName(c)));
-            stocks = codes
-              .map((c, i) => ({ ticker: c, name: names[i] ?? "", market: "KOSPI" }))
-              .filter(s => s.name);
-          }
-          // 코드 직접조회가 0건(가짜 코드 등)이면 자동완성으로 — 토스 우선, 0건이면 네이버
-          if (stocks.length === 0) {
-            stocks = await searchTossAutoComplete(q);
-            if (stocks.length === 0) {
-              stocks = await searchNaverAutoComplete(q);
+          // 종목 검색 + 테마 검색 병렬
+          const stocksTask = (async () => {
+            let stocks: SearchResult[] = [];
+            if (codes.length > 0) {
+              const names = await Promise.all(codes.map(c => fetchStockName(c)));
+              stocks = codes
+                .map((c, i) => ({ ticker: c, name: names[i] ?? "", market: "KOSPI" }))
+                .filter(s => s.name);
             }
-          }
-          // 더 최신 요청이 발생했으면 결과 무시
+            if (stocks.length === 0) {
+              stocks = await searchTossAutoComplete(q);
+              if (stocks.length === 0) stocks = await searchNaverAutoComplete(q);
+            }
+            return stocks;
+          })();
+          const themesTask = searchNaverThemes(q, 3);
+          const [stocks, themes] = await Promise.all([stocksTask, themesTask]);
           if (reqIdRef.current !== myId) return;
           setResults(stocks);
+          setThemeMatches(themes);
+          // 선택은 종목 결과만 기본 체크(테마 종목은 사용자가 명시 선택)
           setSelected(new Set(stocks.map(s => s.ticker)));
-          setStatusMsg(stocks.length === 0
+          const total = stocks.length + themes.reduce((n, t) => n + t.stocks.length, 0);
+          const themePart = themes.length > 0 ? ` · 테마 ${themes.length}건` : "";
+          setStatusMsg(total === 0
             ? "검색 결과 없음"
-            : `${stocks.length}건 — 체크 후 그룹 선택 → [일괄적용]`);
+            : `${stocks.length}건${themePart} — 체크 후 그룹 선택 → [일괄적용]`);
         } catch {
           if (reqIdRef.current !== myId) return;
           setStatusMsg("검색 실패");
@@ -151,7 +180,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
   };
 
   const REFRESH_MS = useAdaptiveRefreshMs(getEffectivePollMs());
-  const tickers = results.map(r => r.ticker);
+  const tickers = allStocks.map(r => r.ticker);
   const { data: prices } = useQuery({
     queryKey: ["search-prices", tickers],
     queryFn: () => fetchTossPrices(tickers),
@@ -177,10 +206,10 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
   ];
   useEffect(() => {
     if (!isOpen || !isFirstUser) return;
-    if (results.length === 0) return;
+    if (allStocks.length === 0) return;
     if (markedGroups.size > 0) return;
     setMarkedGroups(new Set(["관심"]));
-  }, [isOpen, isFirstUser, results.length, markedGroups.size]);
+  }, [isOpen, isFirstUser, allStocks.length, markedGroups.size]);
 
   const { data: existingMap } = useQuery({
     queryKey: ["existing-groups", reloadKey],
@@ -218,10 +247,10 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
 
   // 검색 결과 받으면 기존 보유값 자동 prefill (사용자 입력은 보존)
   useEffect(() => {
-    if (!existingStocks || results.length === 0) return;
+    if (!existingStocks || allStocks.length === 0) return;
     setRowEdits(prev => {
       const next = new Map(prev);
-      for (const r of results) {
+      for (const r of allStocks) {
         const ex = existingStocks.get(r.ticker);
         if (!ex || ex.shares <= 0) continue;
         const cur = next.get(r.ticker);
@@ -236,7 +265,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       }
       return next;
     });
-  }, [results, existingStocks]);
+  }, [allStocks, existingStocks]);
 
   // 엔터/검색 버튼 — 디바운스 우회용 즉시 트리거. 라이브 useEffect 와 동일 로직
   const doSearch = async () => {
@@ -249,27 +278,31 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       const codes = Array.from(new Set(
         (q.match(/\b[\dA-Za-z]{6}\b/g) ?? []).map(c => c.toUpperCase())
       ));
-      let stocks: SearchResult[] = [];
-      if (codes.length > 0) {
-        // 직접코드: 실제 종목명이 있는 코드만 채택 (KRX300 같은 지수명/가짜 제외)
-        const names = await Promise.all(codes.map(c => fetchStockName(c)));
-        stocks = codes
-          .map((c, i) => ({ ticker: c, name: names[i] ?? "", market: "KOSPI" }))
-          .filter(s => s.name);
-      }
-      // 코드 직접조회가 0건(가짜 코드 등)이면 자동완성으로 폴백
-      if (stocks.length === 0) {
-        stocks = await searchTossAutoComplete(q);
-        if (stocks.length === 0) {
-          stocks = await searchNaverAutoComplete(q);
+      const stocksTask = (async () => {
+        let stocks: SearchResult[] = [];
+        if (codes.length > 0) {
+          const names = await Promise.all(codes.map(c => fetchStockName(c)));
+          stocks = codes
+            .map((c, i) => ({ ticker: c, name: names[i] ?? "", market: "KOSPI" }))
+            .filter(s => s.name);
         }
-      }
+        if (stocks.length === 0) {
+          stocks = await searchTossAutoComplete(q);
+          if (stocks.length === 0) stocks = await searchNaverAutoComplete(q);
+        }
+        return stocks;
+      })();
+      const themesTask = searchNaverThemes(q, 3);
+      const [stocks, themes] = await Promise.all([stocksTask, themesTask]);
       if (reqIdRef.current !== myId) return;
       setResults(stocks);
+      setThemeMatches(themes);
       setSelected(new Set(stocks.map(s => s.ticker)));
-      setStatusMsg(stocks.length === 0
+      const total = stocks.length + themes.reduce((n, t) => n + t.stocks.length, 0);
+      const themePart = themes.length > 0 ? ` · 테마 ${themes.length}건` : "";
+      setStatusMsg(total === 0
         ? "검색 결과 없음"
-        : `${stocks.length}건 — 체크 후 그룹 선택 → [일괄적용]`);
+        : `${stocks.length}건${themePart} — 체크 후 그룹 선택 → [일괄적용]`);
     } catch {
       if (reqIdRef.current !== myId) return;
       setStatusMsg("검색 실패");
@@ -278,10 +311,65 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     }
   };
 
+  // 전체 선택 — 화면에 노출된 종목만 대상 (접힌 테마는 제외)
   const toggleAll = () => {
-    if (selected.size === results.length) setSelected(new Set());
-    else setSelected(new Set(results.map(r => r.ticker)));
+    const visTickers = visibleStocks.map(s => s.ticker);
+    // 노출된 종목이 모두 선택돼 있으면 그것만 해제, 아니면 추가 (다른 테마 선택은 보존)
+    const allSelected = visTickers.every(t => selected.has(t));
+    setSelected(prev => {
+      const next = new Set(prev);
+      if (allSelected) for (const t of visTickers) next.delete(t);
+      else for (const t of visTickers) next.add(t);
+      return next;
+    });
   };
+
+  // 테마 펼침/접기 — 접을 때는 해당 테마의 종목 선택도 해제
+  const toggleThemeExpand = (no: number) => {
+    setExpandedThemes(prev => {
+      const next = new Set(prev);
+      if (next.has(no)) {
+        next.delete(no);
+        // 접힘 → 그 테마 종목 선택 해제
+        const tm = themeMatches.find(t => t.theme.no === no);
+        if (tm) {
+          setSelected(sel => {
+            const s2 = new Set(sel);
+            for (const st of tm.stocks) s2.delete(st.ticker);
+            return s2;
+          });
+        }
+      } else {
+        next.add(no);
+      }
+      return next;
+    });
+  };
+  // 특정 테마의 종목 전체 선택/해제.
+  // 접힌 상태에서 클릭 → 펼치면서 전체 선택. 펼친 상태 → 표준 토글.
+  const toggleThemeSelectAll = (tm: NaverThemeMatch) => {
+    const collapsed = !expandedThemes.has(tm.theme.no);
+    if (collapsed) {
+      setExpandedThemes(prev => {
+        const next = new Set(prev); next.add(tm.theme.no); return next;
+      });
+      setSelected(prev => {
+        const next = new Set(prev);
+        for (const s of tm.stocks) next.add(s.ticker);
+        return next;
+      });
+      return;
+    }
+    setSelected(prev => {
+      const next = new Set(prev);
+      const allSelected = tm.stocks.every(s => next.has(s.ticker));
+      if (allSelected) for (const s of tm.stocks) next.delete(s.ticker);
+      else for (const s of tm.stocks) next.add(s.ticker);
+      return next;
+    });
+  };
+  const themeAllSelected = (tm: NaverThemeMatch): boolean =>
+    tm.stocks.length > 0 && tm.stocks.every(s => selected.has(s.ticker));
 
   const toggleOne = (ticker: string) => {
     setSelected(prev => {
@@ -331,7 +419,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       window.setTimeout(() => setGroupWarn(false), 1600);
       return;
     }
-    const sel = results.filter(r => selected.has(r.ticker));
+    const sel = allStocks.filter(r => selected.has(r.ticker));
     let syncedTotal = 0;
     const groupResults: Map<string, { added: number; updated: number }> = new Map();
 
@@ -406,7 +494,9 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
   };
 
   if (!isOpen) return null;
-  const allChecked = results.length > 0 && selected.size === results.length;
+  // "전체 선택" 체크박스 — 노출된 종목 기준 (접힌 테마는 제외)
+  const allChecked = visibleStocks.length > 0
+    && visibleStocks.every(s => selected.has(s.ticker));
   const noneChecked = selected.size === 0;
 
   const countInGroup = (g: string): number => {
@@ -468,7 +558,8 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
               🔍 검색
             </button>
             <button onClick={() => {
-              setQuery(""); setResults([]); setSelected(new Set()); setStatusMsg("");
+              setQuery(""); setResults([]); setThemeMatches([]); setExpandedThemes(new Set());
+              setSelected(new Set()); setStatusMsg("");
             }}
                     className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
                                text-gray-700 rounded text-sm">
@@ -478,7 +569,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
         </div>
 
         {/* 그룹 일괄 토글 영역 */}
-        {results.length > 0 && (
+        {allStocks.length > 0 && (
           <div className={`px-5 py-2.5 border-b space-y-1.5 transition-colors
                           ${groupWarn
                             ? "bg-rose-100 border-2 border-rose-400 animate-shake"
@@ -503,7 +594,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
                      className="w-4 h-4 accent-blue-600" />
               <span className="font-medium text-gray-700">전체 선택</span>
               <span className="text-xs text-gray-500">
-                ({selected.size} / {results.length})
+                ({selected.size} / {visibleStocks.length})
               </span>
             </label>
             <div className="flex flex-wrap items-center gap-1.5">
@@ -553,40 +644,113 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
           </div>
         )}
 
-        {/* 검색 결과 (행마다 수량/매수가/매수일) */}
-        <div className="overflow-y-auto p-3 space-y-1 flex-1">
-          {results.length === 0 ? (
+        {/* 검색 결과 (행마다 수량/매수가/매수일) — 테마 섹션 + 종목 섹션 */}
+        <div className="overflow-y-auto p-3 space-y-2 flex-1">
+          {allStocks.length === 0 ? (
             <div className="text-center text-gray-400 py-8 text-sm">
               검색 결과가 여기에 표시됩니다.
             </div>
           ) : (
-            results.map(r => {
-              const isChecked = selected.has(r.ticker);
-              return (
-                <SearchResultRow
-                  key={r.ticker}
-                  item={r}
-                  price={priceMap.get(r.ticker)}
-                  existing={existingMap?.get(r.ticker) ?? []}
-                  // 체크된 행에만 pending 뱃지 — 일괄적용은 체크 종목에만 반영되므로
-                  pending={isChecked
-                    ? [...markedGroups].filter(
-                        g => !(existingMap?.get(r.ticker) ?? []).includes(g))
-                    : []}
-                  checked={isChecked}
-                  onToggle={() => toggleOne(r.ticker)}
-                  edit={rowEdits.get(r.ticker)
-                         ?? { shares: "", avgPrice: "", buyDate: todayKstStr() }}
-                  onEditChange={p => updateRowEdit(r.ticker, p)}
-                  onRemoveGroup={g => void removeOneFromGroup(r.ticker, g)}
-                  onOpenEtf={() => setEtfDialog({ ticker: r.ticker, name: r.name })} />
-              );
-            })
+            <>
+              {/* 🏷️ 테마 섹션 — 기본 접힘, 헤더 클릭 시 펼침. 헤더 우측에 "모두 선택" */}
+              {themeMatches.map(tm => {
+                const expanded = expandedThemes.has(tm.theme.no);
+                const allSel = themeAllSelected(tm);
+                return (
+                  <div key={`theme-${tm.theme.no}`} className="space-y-1">
+                    <div className="flex items-center gap-2 px-2 py-1.5 bg-amber-50/60
+                                    border border-amber-200 rounded-md select-none">
+                      {/* 헤더 본체 — 클릭 시 펼침/접기 */}
+                      <button type="button" onClick={() => toggleThemeExpand(tm.theme.no)}
+                              className="flex items-baseline gap-2 flex-1 min-w-0 text-left
+                                         hover:opacity-80">
+                        <span className="text-gray-500 text-xs w-3 inline-block">
+                          {expanded ? "▼" : "▶"}
+                        </span>
+                        <span className="text-amber-700 text-xs">🏷️ 테마</span>
+                        <span className="font-semibold text-amber-900 text-sm truncate">
+                          {tm.theme.name}
+                        </span>
+                        <span className="text-[11px] text-gray-500 ml-auto">
+                          {tm.stocks.length}종목
+                        </span>
+                      </button>
+                      {/* 모두 선택 — 클릭 시 이 테마 종목 전체 토글 (펼침 동작과 분리) */}
+                      <label className="flex items-center gap-1 text-[11px] text-gray-700
+                                        cursor-pointer shrink-0"
+                             onClick={e => e.stopPropagation()}
+                             title="이 테마 종목 전체 선택/해제">
+                        <input type="checkbox" checked={allSel}
+                               onChange={() => toggleThemeSelectAll(tm)}
+                               className="w-3.5 h-3.5 accent-amber-600" />
+                        모두 선택
+                      </label>
+                    </div>
+                    {expanded && tm.stocks.map(r => {
+                      const isChecked = selected.has(r.ticker);
+                      return (
+                        <SearchResultRow
+                          key={`theme-${tm.theme.no}-${r.ticker}`}
+                          item={r}
+                          price={priceMap.get(r.ticker)}
+                          existing={existingMap?.get(r.ticker) ?? []}
+                          pending={isChecked
+                            ? [...markedGroups].filter(
+                                g => !(existingMap?.get(r.ticker) ?? []).includes(g))
+                            : []}
+                          checked={isChecked}
+                          onToggle={() => toggleOne(r.ticker)}
+                          edit={rowEdits.get(r.ticker)
+                                 ?? { shares: "", avgPrice: "", buyDate: todayKstStr() }}
+                          onEditChange={p => updateRowEdit(r.ticker, p)}
+                          onRemoveGroup={g => void removeOneFromGroup(r.ticker, g)}
+                          onOpenEtf={() => setEtfDialog({ ticker: r.ticker, name: r.name })} />
+                      );
+                    })}
+                  </div>
+                );
+              })}
+              {/* 📊 종목 섹션 — 이름/코드 매칭 */}
+              {results.length > 0 && (
+                <div className="space-y-1">
+                  {themeMatches.length > 0 && (
+                    <div className="flex items-baseline gap-2 px-1 py-1 bg-gray-50
+                                    border border-gray-200 rounded-md">
+                      <span className="text-gray-600 text-xs">📊 종목</span>
+                      <span className="text-[11px] text-gray-500 ml-auto">
+                        {results.length}건
+                      </span>
+                    </div>
+                  )}
+                  {results.map(r => {
+                    const isChecked = selected.has(r.ticker);
+                    return (
+                      <SearchResultRow
+                        key={r.ticker}
+                        item={r}
+                        price={priceMap.get(r.ticker)}
+                        existing={existingMap?.get(r.ticker) ?? []}
+                        pending={isChecked
+                          ? [...markedGroups].filter(
+                              g => !(existingMap?.get(r.ticker) ?? []).includes(g))
+                          : []}
+                        checked={isChecked}
+                        onToggle={() => toggleOne(r.ticker)}
+                        edit={rowEdits.get(r.ticker)
+                               ?? { shares: "", avgPrice: "", buyDate: todayKstStr() }}
+                        onEditChange={p => updateRowEdit(r.ticker, p)}
+                        onRemoveGroup={g => void removeOneFromGroup(r.ticker, g)}
+                        onOpenEtf={() => setEtfDialog({ ticker: r.ticker, name: r.name })} />
+                    );
+                  })}
+                </div>
+              )}
+            </>
           )}
         </div>
 
         {/* 하단 일괄적용 — 마킹된 그룹들에만 추가 */}
-        {results.length > 0 && (
+        {allStocks.length > 0 && (
           <footer className="px-5 py-3 border-t bg-gray-50 flex items-center gap-2">
             <span className="text-xs text-gray-600">
               마킹된 그룹{markedGroups.size > 0 && ` (${markedGroups.size}개)`}에만 추가

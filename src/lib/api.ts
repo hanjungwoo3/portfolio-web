@@ -1864,6 +1864,122 @@ export async function searchNaverAutoComplete(
   }
 }
 
+// ─── 네이버 금융 테마 검색 ─────────────────────────────
+// 키워드(예: "mlcc") → 매칭되는 테마(예: "MLCC(적층세라믹콘덴서)") → 구성 종목 리스트.
+// 토스 카테고리 API 는 인증 필수라 정적 앱에서 못 씀. 네이버 테마 페이지는 공개 + 프록시 화이트리스트 포함.
+
+export interface NaverTheme { no: number; name: string }
+export interface NaverThemeMatch { theme: NaverTheme; stocks: SearchResult[] }
+
+const THEME_LIST_CACHE_KEY = "naver_theme_list_v1";
+const THEME_LIST_TS_KEY = "naver_theme_list_ts";
+const THEME_LIST_TTL_MS = 24 * 60 * 60 * 1000;   // 24h
+
+// EUC-KR HTML 디코드 헬퍼 (네이버 금융 공통)
+async function decodeNaverHtml(resp: Response): Promise<string> {
+  const buf = await resp.arrayBuffer();
+  const ct = resp.headers.get("Content-Type") || "";
+  const charset = /charset=([\w-]+)/i.exec(ct)?.[1]?.toLowerCase() || "euc-kr";
+  try { return new TextDecoder(charset).decode(buf); }
+  catch { return new TextDecoder("euc-kr").decode(buf); }
+}
+
+// 전체 테마 목록 — 첫 로드 시 스크랩, 24h 캐시
+async function loadNaverThemeList(): Promise<NaverTheme[]> {
+  try {
+    const ts = Number(localStorage.getItem(THEME_LIST_TS_KEY) ?? "0");
+    if (Date.now() - ts < THEME_LIST_TTL_MS) {
+      const raw = localStorage.getItem(THEME_LIST_CACHE_KEY);
+      if (raw) {
+        const cached = JSON.parse(raw) as NaverTheme[];
+        if (cached.length > 0) return cached;
+      }
+    }
+  } catch { /* noop */ }
+  // 네이버 테마 목록은 여러 페이지(보통 1~3p). 모두 fetch.
+  const themes: NaverTheme[] = [];
+  const seen = new Set<number>();
+  for (let page = 1; page <= 3; page++) {
+    try {
+      const url = `https://finance.naver.com/sise/sise_group.naver?type=theme&page=${page}`;
+      const resp = await fetchProxied(url);
+      if (!resp.ok) break;
+      const html = await decodeNaverHtml(resp);
+      const re = /href="\/sise\/sise_group_detail\.naver\?type=theme&(?:amp;)?no=(\d+)">([^<]+)/g;
+      let m: RegExpExecArray | null;
+      let added = 0;
+      while ((m = re.exec(html)) !== null) {
+        const no = Number(m[1]);
+        if (seen.has(no)) continue;
+        seen.add(no);
+        themes.push({ no, name: m[2].trim() });
+        added++;
+      }
+      if (added === 0) break;   // 더 이상 새 테마 없음 → 페이지 끝
+    } catch { break; }
+  }
+  if (themes.length > 0) {
+    try {
+      localStorage.setItem(THEME_LIST_CACHE_KEY, JSON.stringify(themes));
+      localStorage.setItem(THEME_LIST_TS_KEY, String(Date.now()));
+    } catch { /* noop */ }
+  }
+  return themes;
+}
+
+// 특정 테마의 구성 종목 — HTML 스크랩
+export async function fetchNaverThemeStocks(no: number): Promise<SearchResult[]> {
+  const url = `https://finance.naver.com/sise/sise_group_detail.naver?type=theme&no=${no}`;
+  try {
+    const resp = await fetchProxied(url);
+    if (!resp.ok) return [];
+    const html = await decodeNaverHtml(resp);
+    const re = /href="\/item\/main\.naver\?code=(\d{6})">([^<]+)/g;
+    const seen = new Set<string>();
+    const out: SearchResult[] = [];
+    let m: RegExpExecArray | null;
+    while ((m = re.exec(html)) !== null) {
+      const code = m[1];
+      if (seen.has(code)) continue;
+      seen.add(code);
+      out.push({ ticker: code, name: m[2].trim(), market: "KOSPI" });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+// 키워드로 테마 검색 — 매칭 테마(상위 limit개) + 각 구성 종목.
+// 대소문자/공백 무시, 부분 매칭.
+export async function searchNaverThemes(
+  query: string, limit = 3,
+): Promise<NaverThemeMatch[]> {
+  const q = query.trim();
+  if (!q) return [];
+  const all = await loadNaverThemeList();
+  if (all.length === 0) return [];
+  const qLower = q.toLowerCase().replace(/\s+/g, "");
+  const matched = all
+    .map(t => ({ t, n: t.name.toLowerCase().replace(/\s+/g, "") }))
+    .filter(({ n }) => n.includes(qLower))
+    // 시작 매칭 우선 → 그 외 부분 매칭
+    .sort((a, b) => {
+      const aStart = a.n.startsWith(qLower) ? 0 : 1;
+      const bStart = b.n.startsWith(qLower) ? 0 : 1;
+      if (aStart !== bStart) return aStart - bStart;
+      return a.t.name.length - b.t.name.length;
+    })
+    .slice(0, limit)
+    .map(x => x.t);
+  if (matched.length === 0) return [];
+  const results = await Promise.all(matched.map(async theme => ({
+    theme,
+    stocks: await fetchNaverThemeStocks(theme.no),
+  })));
+  return results.filter(r => r.stocks.length > 0);
+}
+
 // 종목별 최근 애널리스트 리포트 목록 (네이버 리서치) — "컨센서스 이유" 표시용.
 // 같은 날 여러 리포트가 올라올 수 있어 다건 반환 (최신순).
 export interface ResearchReport { title: string; broker: string; date: string; url?: string }
