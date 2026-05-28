@@ -35,6 +35,9 @@ function fmtPrice(symbol: string, price: number): string {
 }
 
 function quoteUrl(symbol: string): string {
+  // 야간선물 — yasun.gg
+  if (symbol === "^KS200N") return "https://yasun.gg/kospi200";
+  if (symbol === "^KQ150N") return "https://yasun.gg/kosdaq150";
   // 한국 보유 종목 (6자리) 또는 KODEX/.KS ETF (6자리.KS) — 모두 토스
   const krMatch = /^(\d{6})(?:\.KS)?$/.exec(symbol);
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
@@ -86,9 +89,14 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
   });
   // Yahoo + 야선 통합 — 카드 렌더는 usMap?.get(symbol) 그대로 사용
   const usMap = new Map(usMapRaw ?? []);
+  // 야선 캔들 close 시계열 — 스파크라인용 (^KS200N/^KQ150N)
+  const nightClosesMap = new Map<string, number[]>();
   for (let i = 0; i < NIGHT_SYMS.length; i++) {
     const d = nightQs[i]?.data;
-    if (d) usMap.set(NIGHT_SYMS[i], d);
+    if (d) {
+      usMap.set(NIGHT_SYMS[i], d.index);
+      nightClosesMap.set(NIGHT_SYMS[i], d.closes);
+    }
   }
 
   const { data: krPrices, dataUpdatedAt: krUpdatedAt } = useQuery({
@@ -152,6 +160,9 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
   };
   const t0ChartMap = new Map(
     tier0.map(p => {
+      // 야선 — yasun 캔들 close 시계열
+      const yasunCloses = nightClosesMap.get(p.symbol);
+      if (yasunCloses && yasunCloses.length > 1) return [p.symbol, yasunCloses];
       const own = yahooChartMap.get(p.symbol) ?? [];
       if (own.length > 1) return [p.symbol, own];
       const fb = SPARKLINE_FALLBACK[p.symbol];
@@ -248,7 +259,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                    ? ((effPrice - effBase) / effBase) * 100
                    : null);
               const cdiff = effPrice != null && effBase != null ? effPrice - effBase : 0;
-              const isFuture = p.symbol.endsWith("=F");
+              const isFuture = p.symbol.endsWith("=F") || p.symbol === "^KS200N" || p.symbol === "^KQ150N";
               const bg = sleeping && dimEnabled
                 ? "bg-gray-100 border-gray-300"
                 : cdiff > 0 ? "bg-rose-50 border-rose-200"

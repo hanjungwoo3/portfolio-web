@@ -28,10 +28,10 @@ export const US_PAIRS: Pair[] = [
   // Tier 0: 핵심 대시보드 — 데스크탑 T0_GROUPS 순서와 일치 (모바일 단일 컬럼 같은 순서로 노출)
   // 행 1 — 한국 지수 (맨 위)
   { symbol: "^KS11",    name: "KOSPI",       desc: "코스피 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^KS200N",  name: "코스피200 야선", desc: "코스피200 야간선물 (yasun.gg) — 1분봉 캔들 기반", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^KS200N",  name: "코스피200 야간선물", desc: "코스피200 야간선물 (yasun.gg) — 1분봉 캔들 기반", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "069500.KS", name: "KODEX 200",  desc: "KOSPI 200 추종 ETF — 실물 매매 가능", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KQ11",    name: "KOSDAQ",      desc: "코스닥 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "^KQ150N",  name: "코스닥150 야선", desc: "코스닥150 야간선물 (yasun.gg) — 1분봉 캔들 기반", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^KQ150N",  name: "코스닥150 야간선물", desc: "코스닥150 야간선물 (yasun.gg) — 1분봉 캔들 기반", tier: "T0", sector: "dashboard", direction: "direct" },
   // 행 2 — 환율 + 매크로 + 외국인 투심 + 공포
   { symbol: "KRW=X",    name: "달러환율",     desc: "USD/KRW 원달러 환율 — 수출주·외국인 수급", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "DX-Y.NYB", name: "달러 인덱스",  desc: "DXY — 6개 통화 대비 달러 강도", tier: "T0", sector: "dashboard", direction: "inverse" },

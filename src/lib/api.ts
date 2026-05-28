@@ -1158,38 +1158,55 @@ const YASUN_SYMBOL_MAP: Record<string, string> = {
   "^KQ150N": "^KQ150",
 };
 const YASUN_NAME: Record<string, string> = {
-  "^KS200N": "코스피200 야선",
-  "^KQ150N": "코스닥150 야선",
+  "^KS200N": "코스피200 야간선물",
+  "^KQ150N": "코스닥150 야간선물",
 };
 
-export async function fetchYasunNightFutures(virtualSymbol: string): Promise<UsIndex | null> {
+export interface YasunNightData {
+  index: UsIndex;
+  closes: number[];       // 스파크라인 — 캔들 close 시계열
+}
+
+export async function fetchYasunNightFutures(virtualSymbol: string): Promise<YasunNightData | null> {
   const real = YASUN_SYMBOL_MAP[virtualSymbol];
   if (!real) return null;
   const url = `https://yasun.gg/api/candles?symbol=${encodeURIComponent(real)}&interval=1m&limit=700&session=night`;
   try {
     const resp = await fetchProxied(url);
     if (!resp.ok) return null;
-    const candles = (await resp.json()) as YasunCandle[];
-    if (!Array.isArray(candles) || candles.length === 0) return null;
+    const allCandles = (await resp.json()) as YasunCandle[];
+    if (!Array.isArray(allCandles) || allCandles.length === 0) return null;
+    // 응답에 여러 세션이 섞여 있을 수 있음 → 가장 큰 시간 갭(>30분) 뒤를 현재 세션 시작으로.
+    let sessionStart = 0;
+    for (let i = allCandles.length - 1; i > 0; i--) {
+      if (allCandles[i].time - allCandles[i - 1].time > 30 * 60) {
+        sessionStart = i;
+        break;
+      }
+    }
+    const candles = allCandles.slice(sessionStart);
     const first = candles[0];
     const last = candles[candles.length - 1];
     const price = last.close;
-    const base = first.open;     // 야간 세션 시작가 = 정규장 종가 근사
+    const base = first.open;     // 현재 야간 세션 시작가 = 정규장 종가 근사
     const diff = price - base;
     const pct = base > 0 ? (diff / base) * 100 : 0;
     return {
-      symbol: virtualSymbol,
-      name: YASUN_NAME[virtualSymbol] ?? virtualSymbol,
-      price,
-      prev: base,
-      prevClose: base,
-      diff,
-      pct,
-      tradeDate: new Date(last.time * 1000).toISOString().slice(0, 10),
-      regularMarketTime: last.time,
-      marketState: "REGULAR",      // 야간이지만 거래중이라 흐림 처리 X
-      regularPrice: price,
-      regularPct: pct,
+      index: {
+        symbol: virtualSymbol,
+        name: YASUN_NAME[virtualSymbol] ?? virtualSymbol,
+        price,
+        prev: base,
+        prevClose: base,
+        diff,
+        pct,
+        tradeDate: new Date(last.time * 1000).toISOString().slice(0, 10),
+        regularMarketTime: last.time,
+        marketState: "REGULAR",      // 야간이지만 거래중이라 흐림 처리 X
+        regularPrice: price,
+        regularPct: pct,
+      },
+      closes: candles.map(c => c.close),
     };
   } catch {
     return null;
