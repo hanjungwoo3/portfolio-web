@@ -331,29 +331,45 @@ export function MobileSimpleView() {
   });
   const groupPriceMap = new Map((groupPrices ?? []).map(p => [p.ticker, p]));
 
-  // 브라우저 탭 제목 — 오늘 손익 있으면 금액만(예: "+30,600(+1.35%)"), 없으면 "portfolio-web"
+  // 브라우저 탭 제목 — 전체금액 → 전체% → 오늘금액 → 오늘% 순서로 순환
+  const titlePartsRef = useRef<string[]>([]);
   useEffect(() => {
     const today = nowKstDateStr();
-    let cur = 0, yest = 0;
+    let invested = 0, cur = 0, yest = 0;
     for (const s of groupHoldingsUnsorted) {
       if (s.shares <= 0) continue;
       const p = groupPriceMap.get(s.ticker);
       if (!p) continue;
       const c = p.price || s.avg_price;
       const base = s.buy_date === today ? s.avg_price : (p.base || c);
+      invested += s.avg_price * s.shares;
       cur += c * s.shares;
       yest += base * s.shares;
     }
-    if (yest > 0 && cur > 0) {
-      const diff = Math.round(cur - yest);
-      const pct = ((cur - yest) / yest) * 100;
-      document.title = `${diff >= 0 ? "+" : ""}${diff.toLocaleString()}(${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+    if (cur > 0 && invested > 0 && yest > 0) {
+      const won = (n: number) => `${n >= 0 ? "+" : ""}${Math.round(n).toLocaleString()}원`;
+      const pc = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+      titlePartsRef.current = [
+        `${won(cur - invested)} ${pc(((cur - invested) / invested) * 100)} (전체)`,
+        `${won(cur - yest)} ${pc(((cur - yest) / yest) * 100)} (오늘)`,
+      ];
     } else {
-      document.title = "portfolio-web";
+      titlePartsRef.current = [];
     }
     // groupPriceMap 은 매 렌더 새 Map → 의존성은 groupPrices(쿼리 데이터)로
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [groupHoldingsUnsorted, groupPrices]);
+  // 조각 순환 — 전체/금액/% → 오늘/금액/% 1.2초마다 번갈아 (짧아서 안 잘림, 매번 최신값)
+  useEffect(() => {
+    let i = 0;
+    const tick = () => {
+      const parts = titlePartsRef.current;
+      document.title = parts.length ? parts[i++ % parts.length] : "portfolio-web";
+    };
+    tick();
+    const id = window.setInterval(tick, 2000);
+    return () => window.clearInterval(id);
+  }, []);
 
   // 한국 종목 거래소 자동 검증 — Toss stock-infos API (24h localStorage 캐시) — PC 동일 로직
   const krxOnlyTickers = groupTickers.filter(t => /^\d{6}$/.test(t));

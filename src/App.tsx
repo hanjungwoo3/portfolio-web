@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
 import {
   fetchTossPrices, fetchInvestorHistory, pickTodayInvestor, fetchKrRegularPrices, verifyKrMarkets,
@@ -289,27 +289,44 @@ function Dashboard() {
     [prices]
   );
 
-  // 브라우저 탭 제목 — 오늘 손익 있으면 금액만(예: "+30,600(+1.35%)"), 없으면 "portfolio-web"
+  // 브라우저 탭 제목 — 전체금액 → 전체% → 오늘금액 → 오늘% 순서로 순환 (좁은 탭에서도 안 잘림)
+  const titlePartsRef = useRef<string[]>([]);
   useEffect(() => {
     const today = nowKstDateStr();
-    let cur = 0, yest = 0;
+    let invested = 0, cur = 0, yest = 0;
     for (const s of visible) {
       if (s.shares <= 0) continue;
       const p = priceMap.get(s.ticker);
       if (!p) continue;
       const c = p.price || s.avg_price;
       const base = s.buy_date === today ? s.avg_price : (p.base || c);
+      invested += s.avg_price * s.shares;
       cur += c * s.shares;
       yest += base * s.shares;
     }
-    if (yest > 0 && cur > 0) {
-      const diff = Math.round(cur - yest);
-      const pct = ((cur - yest) / yest) * 100;
-      document.title = `${diff >= 0 ? "+" : ""}${diff.toLocaleString()}(${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`;
+    if (cur > 0 && invested > 0 && yest > 0) {
+      const won = (n: number) => `${n >= 0 ? "+" : ""}${Math.round(n).toLocaleString()}원`;
+      const pc = (n: number) => `${n >= 0 ? "+" : ""}${n.toFixed(2)}%`;
+      titlePartsRef.current = [
+        `${won(cur - invested)} ${pc(((cur - invested) / invested) * 100)} (전체)`,
+        `${won(cur - yest)} ${pc(((cur - yest) / yest) * 100)} (오늘)`,
+      ];
     } else {
-      document.title = "portfolio-web";
+      titlePartsRef.current = [];
     }
   }, [visible, priceMap]);
+  // 조각 순환 — 전체/금액/% → 오늘/금액/% 를 1.2초마다 번갈아 (각 조각이 짧아 안 잘림).
+  // 매 조각마다 최신 값을 읽으므로 갱신도 자연스럽게 반영.
+  useEffect(() => {
+    let i = 0;
+    const tick = () => {
+      const parts = titlePartsRef.current;
+      document.title = parts.length ? parts[i++ % parts.length] : "portfolio-web";
+    };
+    tick();
+    const id = window.setInterval(tick, 2000);
+    return () => window.clearInterval(id);
+  }, []);
   const investorMap = useMemo(
     () => new Map(investorQs.map((q, i) =>
       [krxTickers[i], q.data ? pickTodayInvestor(q.data) : null]
