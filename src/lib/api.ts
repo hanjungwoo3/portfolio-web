@@ -1147,6 +1147,55 @@ export interface UsIndex {
   regularPct?: number;     // (regularPrice - prevClose) / prevClose × 100
 }
 
+// ─── 코스피200/코스닥150 야간선물 — yasun.gg 1분봉 캔들 ─────────
+// virtual symbol(^KS200N, ^KQ150N) → yasun 실제 심볼(^KS200, ^KQ150) 매핑.
+// 첫 캔들 open = 야간 시작가(=정규장 종가) 기준으로 변동률 계산.
+interface YasunCandle { time: number; open: number; high: number; low: number; close: number; volume: number }
+
+export const YASUN_NIGHT_SYMBOLS = new Set<string>(["^KS200N", "^KQ150N"]);
+const YASUN_SYMBOL_MAP: Record<string, string> = {
+  "^KS200N": "^KS200",
+  "^KQ150N": "^KQ150",
+};
+const YASUN_NAME: Record<string, string> = {
+  "^KS200N": "코스피200 야선",
+  "^KQ150N": "코스닥150 야선",
+};
+
+export async function fetchYasunNightFutures(virtualSymbol: string): Promise<UsIndex | null> {
+  const real = YASUN_SYMBOL_MAP[virtualSymbol];
+  if (!real) return null;
+  const url = `https://yasun.gg/api/candles?symbol=${encodeURIComponent(real)}&interval=1m&limit=700&session=night`;
+  try {
+    const resp = await fetchProxied(url);
+    if (!resp.ok) return null;
+    const candles = (await resp.json()) as YasunCandle[];
+    if (!Array.isArray(candles) || candles.length === 0) return null;
+    const first = candles[0];
+    const last = candles[candles.length - 1];
+    const price = last.close;
+    const base = first.open;     // 야간 세션 시작가 = 정규장 종가 근사
+    const diff = price - base;
+    const pct = base > 0 ? (diff / base) * 100 : 0;
+    return {
+      symbol: virtualSymbol,
+      name: YASUN_NAME[virtualSymbol] ?? virtualSymbol,
+      price,
+      prev: base,
+      prevClose: base,
+      diff,
+      pct,
+      tradeDate: new Date(last.time * 1000).toISOString().slice(0, 10),
+      regularMarketTime: last.time,
+      marketState: "REGULAR",      // 야간이지만 거래중이라 흐림 처리 X
+      regularPrice: price,
+      regularPct: pct,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Yahoo quoteSummary v10 — yfinance Python 과 동일 데이터 소스
 // Worker 가 crumb 자동 처리 (인증 우회). 데스크톱 v2 _fast_quote 와 같은 분기 적용.
 interface QuoteSummaryRaw {

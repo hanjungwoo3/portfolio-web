@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory, fetchInvestingChart, isInvestingIndex } from "../lib/api";
+import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory, fetchInvestingChart, isInvestingIndex, fetchYasunNightFutures } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping, fmtAgo } from "../lib/format";
@@ -68,11 +68,28 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
   const krEtfs = allKrEtfTickers();
   const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
 
-  const { data: usMap, dataUpdatedAt: usUpdatedAt } = useQuery({
+  const { data: usMapRaw, dataUpdatedAt: usUpdatedAt } = useQuery({
     queryKey: ["yahoo-batch", yahooSymbols.length],
     queryFn: () => fetchYahooBatch(yahooSymbols),
     refetchInterval: REFRESH_MS,
   });
+
+  // 야간선물(yasun.gg) — 코스피200/코스닥150. Yahoo 와 분리된 별도 fetch.
+  const NIGHT_SYMS = ["^KS200N", "^KQ150N"] as const;
+  const nightQs = useQueries({
+    queries: NIGHT_SYMS.map(sym => ({
+      queryKey: ["yasun-night", sym],
+      queryFn: () => fetchYasunNightFutures(sym),
+      refetchInterval: REFRESH_MS,
+      staleTime: 60_000,
+    })),
+  });
+  // Yahoo + 야선 통합 — 카드 렌더는 usMap?.get(symbol) 그대로 사용
+  const usMap = new Map(usMapRaw ?? []);
+  for (let i = 0; i < NIGHT_SYMS.length; i++) {
+    const d = nightQs[i]?.data;
+    if (d) usMap.set(NIGHT_SYMS[i], d);
+  }
 
   const { data: krPrices, dataUpdatedAt: krUpdatedAt } = useQuery({
     queryKey: ["us-tab-kr-etfs", krEtfs],
@@ -87,7 +104,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
   // T0 그룹 — 비슷한 지수끼리 묶어서 줄별로 표시
   const T0_GROUPS: string[][] = [
-    ["^KS11", "069500.KS", "^KQ11", "VKOSPI", "^VIX", "EWY"],     // 한국 지수 + KODEX 200 + 공포(VKOSPI·VIX) + 외국인 투심(EWY)
+    ["^KS11", "^KS200N", "069500.KS", "^KQ11", "^KQ150N", "VKOSPI", "^VIX", "EWY"],   // 한국 지수 + 야선 + KODEX 200 + 공포 + 외국인 투심
     ["KRW=X", "DX-Y.NYB", "^FVX", "^TNX", "^TYX"],               // 환율 + 매크로 + 미국 국채금리 커브(5/10/30Y)
     ["GC=F", "SI=F", "HG=F", "CL=F", "NG=F", "BTC-USD"],        // 원자재 + 비트코인
     ["^IXIC", "NQ=F", "^GSPC", "ES=F", "^DJI", "RTY=F"], // 미국 지수·선물 + 다우 + 러셀선물 (필반은 반도체 탭으로)
