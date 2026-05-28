@@ -94,8 +94,8 @@ const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 const KR_ORDER: string[] = [
   "^KS200N", "^KS11",          // KOSPI200 야간선물 | KOSPI
   "^KQ150N", "^KQ11",          // KOSDAQ150 야간선물 | KOSDAQ
-  "VKOSPI", "069500.KS",       // V-KOSPI | KODEX 200
-  "EWY", "^VIX",               // 외국인 투심(EWY) | 공포(VIX)
+  "EWY", "069500.KS",          // 외국인 투심(EWY) | KODEX 200
+  "^VIX", "VKOSPI",            // 공포(VIX) | V-KOSPI
   "SMH", "091160.KS",     // 반도체 (필반·필반선물은 반도체 탭으로 이동 — 지수에서 제외)
   "PAVE", "117700.KS",    // 건설/인프라
   "LIT", "305720.KS",     // 2차전지
