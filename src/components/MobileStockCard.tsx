@@ -91,7 +91,7 @@ const WARN_TIPS: Record<string, string> = {
 
 
 export function MobileStockCard({
-  stock, price, krReg, sector, warning, chart, investorHistory, consensus, memo, otherGroups,
+  stock, price, krReg, sector, market, warning, chart, investorHistory, consensus, memo, otherGroups,
   onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf,
 }: Props) {
   // 투자자 매매동향 레이어 토글 (👥 버튼)
