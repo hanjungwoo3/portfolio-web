@@ -478,7 +478,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                   )}
                   {onEdit && (
                     <button onClick={() => onEdit(it.ticker)} title="보유 수정"
-                            className="text-xs leading-none opacity-60 hover:opacity-100">✏️</button>
+                            className="text-xs leading-none opacity-60 hover:opacity-100">⚙️</button>
                   )}
                   {shown.map(g => (
                     <button key={g} onClick={() => onSelectGroup?.(g)} title={`${g} 그룹으로 이동`} className={chip}>{g}</button>

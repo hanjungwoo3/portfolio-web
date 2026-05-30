@@ -8,7 +8,8 @@ import {
 import { loadHoldings, loadMemos, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
-import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY } from "./components/Tabs";
+import { EtfReverseTab } from "./components/EtfReverseTab";
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SimpleViewModal } from "./components/SimpleViewModal";
 import { SectorRankingTab } from "./components/SectorRankingTab";
@@ -22,6 +23,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { FeedbackDialog } from "./components/FeedbackDialog";
 import { DonateDialog } from "./components/DonateDialog";
 import { EtfCompositionDialog } from "./components/EtfCompositionDialog";
+import { EtfReverseDialog } from "./components/EtfReverseDialog";
 import { OnboardingDialog } from "./components/OnboardingDialog";
 import { SearchDialog } from "./components/SearchDialog";
 import { EditHoldingDialog } from "./components/EditHoldingDialog";
@@ -82,6 +84,7 @@ function Dashboard() {
   const [searchInitQuery, setSearchInitQuery] = useState("");
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
+  const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [editing, setEditing] = useState<Stock | null>(null);
@@ -513,6 +516,9 @@ function Dashboard() {
                           const s = holdings.find(h => h.ticker === ticker);
                           if (s) setEditing(s);
                         }} />
+        ) : activeTab === ETF_REVERSE_TAB_KEY ? (
+          <EtfReverseTab holdings={holdings}
+                         onOpenEtfComposition={(code, n) => setEtfDialog({ ticker: code, name: n })} />
         ) : visible.length === 0 ? (
           holdings.length === 0 ? (
             <div className="text-center py-16 text-gray-500">
@@ -610,6 +616,7 @@ function Dashboard() {
                   })}
                   onOpenMemo={t => setMemoTicker(t)}
                   onOpenEtf={(tk, nm) => setEtfDialog({ ticker: tk, name: nm })}
+                  onOpenEtfReverse={(tk, nm) => setEtfReverseDialog({ ticker: tk, name: nm })}
                 />
                 );
               })}
@@ -694,6 +701,15 @@ function Dashboard() {
                                 setSearchInitQuery(q);
                                 setSearchOpen(true);
                               }} />
+      )}
+
+      {etfReverseDialog && (
+        <EtfReverseDialog ticker={etfReverseDialog.ticker} name={etfReverseDialog.name}
+                          onClose={() => setEtfReverseDialog(null)}
+                          onOpenEtfComposition={(code, n) => {
+                            setEtfReverseDialog(null);
+                            setEtfDialog({ ticker: code, name: n });
+                          }} />
       )}
 
       {valuationTicker && (() => {

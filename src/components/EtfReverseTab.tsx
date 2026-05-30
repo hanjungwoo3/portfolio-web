@@ -1,0 +1,406 @@
+// 다중 종목 → 포함/제외 필터 기반 ETF 검색 탭.
+// - 포함 종목: 모두 포함("all") 또는 하나라도 포함("any") 토글
+// - 제외 종목: 하나라도 들어있으면 결과에서 제외
+// 데이터 소스: portfolio-etf-index (lib/etfIndex).
+
+import { useEffect, useMemo, useRef, useState } from "react";
+import type { Stock } from "../types";
+import {
+  loadEtfData, searchEtfs, type EtfMatchMulti,
+} from "../lib/etfIndex";
+import {
+  searchTossAutoComplete, searchNaverAutoComplete, type SearchResult,
+} from "../lib/api";
+
+interface Props {
+  holdings: Stock[];
+  onOpenEtfComposition?: (etfCode: string, etfName: string) => void;
+}
+
+type Slot = "include" | "exclude";
+
+export function EtfReverseTab({ holdings, onOpenEtfComposition }: Props) {
+  // 보유 종목 중 6자리 한국 종목만 (수량>0 + 중복 제거, 이름 기준 사전순)
+  const uniqStocks = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const h of holdings) {
+      if (!/^\d{6}$/.test(h.ticker)) continue;
+      if (h.shares <= 0) continue;
+      if (!m.has(h.ticker)) m.set(h.ticker, h.name || h.ticker);
+    }
+    return Array.from(m, ([ticker, name]) => ({ ticker, name }))
+      .sort((a, b) => a.name.localeCompare(b.name, "ko"));
+  }, [holdings]);
+
+  const [included, setIncluded] = useState<Set<string>>(new Set());
+  const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  const [query, setQuery] = useState("");
+  const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [nameCache, setNameCache] = useState<Record<string, string>>({});
+  const [mode, setMode] = useState<"all" | "any">("all");
+  const [results, setResults] = useState<EtfMatchMulti[] | null>(null);
+  const [dataReady, setDataReady] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const reqIdRef = useRef(0);
+
+  // 데이터 사전 로드
+  useEffect(() => {
+    let alive = true;
+    loadEtfData().then(() => { if (alive) setDataReady(true); })
+      .catch(e => { if (alive) setErr(String(e)); });
+    return () => { alive = false; };
+  }, []);
+
+  // include/exclude/mode 변경 시 결과 자동 갱신
+  useEffect(() => {
+    if (included.size === 0) { setResults(null); return; }
+    let alive = true;
+    void searchEtfs({ include: [...included], exclude: [...excluded], mode })
+      .then(r => { if (alive) setResults(r); })
+      .catch(e => { if (alive) setErr(String(e)); });
+    return () => { alive = false; };
+  }, [included, excluded, mode]);
+
+  // ticker 가 어느 슬롯에 있는지
+  const slotOf = (ticker: string): Slot | null =>
+    included.has(ticker) ? "include" : excluded.has(ticker) ? "exclude" : null;
+
+  // ticker 를 지정 슬롯으로 이동 (null = 제거)
+  const setSlot = (ticker: string, target: Slot | null) => {
+    setIncluded(prev => {
+      if (target === "include") {
+        if (prev.has(ticker)) return prev;
+        const n = new Set(prev); n.add(ticker); return n;
+      }
+      if (!prev.has(ticker)) return prev;
+      const n = new Set(prev); n.delete(ticker); return n;
+    });
+    setExcluded(prev => {
+      if (target === "exclude") {
+        if (prev.has(ticker)) return prev;
+        const n = new Set(prev); n.add(ticker); return n;
+      }
+      if (!prev.has(ticker)) return prev;
+      const n = new Set(prev); n.delete(ticker); return n;
+    });
+  };
+
+  // 보유 칩 클릭: 없음 → 포함 → 제외 → 없음 사이클
+  const cycleHolding = (ticker: string) => {
+    const cur = slotOf(ticker);
+    if (cur === null) setSlot(ticker, "include");
+    else if (cur === "include") setSlot(ticker, "exclude");
+    else setSlot(ticker, null);
+  };
+
+  // 종목명 자동완성
+  useEffect(() => {
+    const q = query.trim();
+    if (!q || /^[\d\s,]+$/.test(q)) { setSuggestions([]); return; }
+    const id = ++reqIdRef.current;
+    setSearching(true);
+    const t = setTimeout(async () => {
+      try {
+        let res: SearchResult[] = [];
+        try { res = await searchTossAutoComplete(q); }
+        catch { res = await searchNaverAutoComplete(q); }
+        if (id !== reqIdRef.current) return;
+        setSuggestions(res.filter(r => /^\d{6}$/.test(r.ticker)).slice(0, 10));
+      } catch {
+        if (id === reqIdRef.current) setSuggestions([]);
+      } finally {
+        if (id === reqIdRef.current) setSearching(false);
+      }
+    }, 300);
+    return () => clearTimeout(t);
+  }, [query]);
+
+  // 6자리 코드 직접 추가 — 슬롯 지정 필수
+  const addManual = (target: Slot) => {
+    const codes = query.match(/\b\d{6}\b/g) ?? [];
+    if (codes.length === 0) return;
+    for (const c of codes) setSlot(c, target);
+    setQuery("");
+    setSuggestions([]);
+  };
+
+  // 자동완성에서 토글 — 같은 슬롯 재클릭은 해제, 반대 슬롯이면 이동
+  // 드롭다운은 유지 (여러 종목 연속 처리 가능)
+  const toggleFromSuggestion = (s: SearchResult, target: Slot) => {
+    setNameCache(prev => prev[s.ticker] === s.name ? prev : { ...prev, [s.ticker]: s.name });
+    const cur = slotOf(s.ticker);
+    setSlot(s.ticker, cur === target ? null : target);
+  };
+
+  const nameOf = (ticker: string): string =>
+    uniqStocks.find(s => s.ticker === ticker)?.name ?? nameCache[ticker] ?? ticker;
+
+  const totalSelected = included.size + excluded.size;
+
+  return (
+    <div className="space-y-3">
+      <div className="bg-white border border-gray-300 rounded-lg shadow-sm p-3 space-y-2">
+        {/* 헤더 */}
+        <div className="flex items-baseline gap-2 flex-wrap">
+          <span className="text-base font-bold text-gray-800">🍱 ETF 검색</span>
+          <span className="text-xs text-gray-500">
+            포함/제외 종목으로 ETF를 필터링합니다
+          </span>
+          {dataReady && (
+            <span className="ml-auto text-[11px] text-gray-400">
+              인덱스 갱신: 매일 06:00 KST
+            </span>
+          )}
+        </div>
+
+        {/* 보유 종목 칩 — 클릭 시 없음→포함→제외→없음 사이클 */}
+        {uniqStocks.length > 0 && (
+          <div>
+            <div className="text-[11px] text-gray-500 mb-1">
+              보유 종목 ({uniqStocks.length}개) · 클릭하면 포함→제외→해제 사이클
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {uniqStocks.map(s => {
+                const slot = slotOf(s.ticker);
+                const cls = slot === "include"
+                  ? "bg-emerald-600 text-white border-emerald-700 font-bold"
+                  : slot === "exclude"
+                  ? "bg-rose-600 text-white border-rose-700 font-bold"
+                  : "bg-white text-gray-700 border-gray-300 hover:bg-gray-50";
+                return (
+                  <button key={s.ticker}
+                          onClick={() => cycleHolding(s.ticker)}
+                          title={slot === "include" ? "포함됨 (클릭: 제외로)" : slot === "exclude" ? "제외됨 (클릭: 해제)" : "클릭: 포함 추가"}
+                          className={`px-2 py-0.5 rounded-full text-xs border transition ${cls}`}>
+                    {slot === "include" ? "＋" : slot === "exclude" ? "－" : ""}{s.name}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 검색 입력 */}
+        <div className="relative inline-block max-w-full">
+          <div className="flex items-center gap-1.5">
+            <input value={query}
+                   onChange={e => setQuery(e.target.value)}
+                   onKeyDown={e => {
+                     if (e.key === "Enter") {
+                       // 검색 결과가 있으면 1번째를 포함으로, 아니면 6자리 코드를 포함으로
+                       if (suggestions.length > 0) toggleFromSuggestion(suggestions[0], "include");
+                       else if (/\d{6}/.test(query)) addManual("include");
+                     } else if (e.key === "Escape") {
+                       setSuggestions([]);
+                     }
+                   }}
+                   placeholder="종목명 또는 코드"
+                   className="w-64 px-2 py-1 text-sm border border-gray-300 rounded
+                              focus:outline-none focus:border-blue-500" />
+            {/* 6자리 코드 직접 입력 시에만 노출 */}
+            {/\d{6}/.test(query) && (
+              <>
+                <button onClick={() => addManual("include")}
+                        title="입력된 6자리 코드를 포함에 추가"
+                        className="px-2 py-1 text-xs font-bold rounded
+                                   bg-emerald-50 text-emerald-700 border border-emerald-300
+                                   hover:bg-emerald-100">
+                  ＋포함
+                </button>
+                <button onClick={() => addManual("exclude")}
+                        title="입력된 6자리 코드를 제외에 추가"
+                        className="px-2 py-1 text-xs font-bold rounded
+                                   bg-rose-50 text-rose-700 border border-rose-300
+                                   hover:bg-rose-100">
+                  －제외
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* 자동완성 드롭다운 — 각 항목에 포함/제외 버튼 */}
+          {(searching || suggestions.length > 0) && query.trim() && !/^[\d\s,]+$/.test(query) && (
+            <div className="absolute left-0 mt-1 z-10 bg-white border border-gray-300
+                            rounded-md shadow-lg max-h-80 overflow-hidden
+                            w-80 max-w-[calc(100vw-2rem)] flex flex-col">
+              {/* 헤더 + 닫기 */}
+              <div className="flex items-center justify-between px-3 py-1.5 bg-gray-50 border-b border-gray-200">
+                <span className="text-[11px] text-gray-500">
+                  {searching ? "검색 중…" : `검색 결과 ${suggestions.length}개`}
+                </span>
+                <button onClick={() => { setQuery(""); setSuggestions([]); }}
+                        title="닫기 (Esc)"
+                        className="text-gray-500 hover:text-gray-900 text-lg leading-none px-1">
+                  ×
+                </button>
+              </div>
+              <div className="overflow-y-auto">
+              {searching && suggestions.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-gray-400">검색 중…</div>
+              ) : suggestions.length === 0 ? (
+                <div className="px-3 py-2 text-xs text-gray-400">검색 결과 없음</div>
+              ) : (
+                suggestions.map(s => {
+                  const slot = slotOf(s.ticker);
+                  return (
+                    <div key={s.ticker}
+                         className="px-3 py-1.5 flex items-baseline gap-2 border-b border-gray-100 last:border-b-0">
+                      <span className="font-medium text-sm text-gray-800 truncate">{s.name}</span>
+                      <span className="text-[11px] text-gray-500 font-mono tabular-nums">{s.ticker}</span>
+                      <span className="text-[10px] text-gray-400 shrink-0">{s.market}</span>
+                      <span className="ml-auto flex items-center gap-1 shrink-0">
+                        {slot && (
+                          <span className={`text-[10px] mr-1 ${slot === "include" ? "text-emerald-700" : "text-rose-700"}`}>
+                            {slot === "include" ? "포함됨" : "제외됨"}
+                          </span>
+                        )}
+                        <button onClick={() => toggleFromSuggestion(s, "include")}
+                                title={slot === "include" ? "포함 해제" : "포함에 추가"}
+                                className={`px-1.5 py-0.5 rounded text-[11px] font-bold border transition
+                                            ${slot === "include"
+                                              ? "bg-emerald-600 text-white border-emerald-700"
+                                              : "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"}`}>
+                          ＋포함
+                        </button>
+                        <button onClick={() => toggleFromSuggestion(s, "exclude")}
+                                title={slot === "exclude" ? "제외 해제" : "제외에 추가"}
+                                className={`px-1.5 py-0.5 rounded text-[11px] font-bold border transition
+                                            ${slot === "exclude"
+                                              ? "bg-rose-600 text-white border-rose-700"
+                                              : "bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100"}`}>
+                          －제외
+                        </button>
+                      </span>
+                    </div>
+                  );
+                })
+              )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* 선택된 종목 — 포함 */}
+        {included.size > 0 && (
+          <div className="flex flex-wrap items-baseline gap-1.5 pt-1 border-t border-gray-100">
+            <span className="text-[11px] text-emerald-700 font-bold">＋포함 ({included.size}):</span>
+            {[...included].map(t => (
+              <span key={t}
+                    className="px-2 py-0.5 rounded-full text-xs bg-emerald-100 border border-emerald-300
+                               text-emerald-900 flex items-center gap-1">
+                {nameOf(t)} <span className="text-gray-500 font-mono text-[10px]">{t}</span>
+                <button onClick={() => setSlot(t, null)}
+                        className="text-emerald-700 hover:text-rose-700 font-bold">×</button>
+              </span>
+            ))}
+            <button onClick={() => setIncluded(new Set())}
+                    className="ml-1 text-[11px] text-gray-500 hover:text-rose-700 underline">
+              포함 해제
+            </button>
+          </div>
+        )}
+
+        {/* 선택된 종목 — 제외 */}
+        {excluded.size > 0 && (
+          <div className="flex flex-wrap items-baseline gap-1.5">
+            <span className="text-[11px] text-rose-700 font-bold">－제외 ({excluded.size}):</span>
+            {[...excluded].map(t => (
+              <span key={t}
+                    className="px-2 py-0.5 rounded-full text-xs bg-rose-100 border border-rose-300
+                               text-rose-900 flex items-center gap-1">
+                {nameOf(t)} <span className="text-gray-500 font-mono text-[10px]">{t}</span>
+                <button onClick={() => setSlot(t, null)}
+                        className="text-rose-700 hover:text-gray-700 font-bold">×</button>
+              </span>
+            ))}
+            <button onClick={() => setExcluded(new Set())}
+                    className="ml-1 text-[11px] text-gray-500 hover:text-rose-700 underline">
+              제외 해제
+            </button>
+          </div>
+        )}
+
+        {/* 모드 토글 — 포함 종목 2개 이상일 때 */}
+        {included.size >= 2 && (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-gray-500">포함 조건:</span>
+            <button onClick={() => setMode("all")}
+                    className={`px-2 py-0.5 rounded-full border transition
+                                ${mode === "all"
+                                  ? "bg-blue-600 text-white border-blue-700 font-bold"
+                                  : "bg-white text-gray-700 border-gray-300"}`}>
+              모두 포함
+            </button>
+            <button onClick={() => setMode("any")}
+                    className={`px-2 py-0.5 rounded-full border transition
+                                ${mode === "any"
+                                  ? "bg-blue-600 text-white border-blue-700 font-bold"
+                                  : "bg-white text-gray-700 border-gray-300"}`}>
+              하나라도 포함
+            </button>
+          </div>
+        )}
+      </div>
+
+      {/* 결과 */}
+      {err && (
+        <div className="text-rose-600 text-sm py-4 text-center">데이터 오류: {err}</div>
+      )}
+      {included.size === 0 ? (
+        <div className="text-center text-gray-400 py-12 text-sm">
+          {totalSelected === 0
+            ? (uniqStocks.length === 0
+                ? "보유 종목이 없습니다. 종목명이나 6자리 코드를 입력해 보세요."
+                : "포함할 종목을 하나 이상 선택하세요.")
+            : "제외만으로는 검색할 수 없습니다. 포함 종목을 추가하세요."}
+        </div>
+      ) : results === null ? (
+        <div className="text-center text-gray-400 py-8 text-sm">불러오는 중…</div>
+      ) : results.length === 0 ? (
+        <div className="text-center text-gray-500 py-8 text-sm">
+          매칭되는 ETF가 없습니다.
+          {mode === "all" && included.size > 1 && (
+            <div className="text-[11px] text-gray-400 mt-1">
+              "하나라도 포함" 모드로 바꿔보세요.
+            </div>
+          )}
+          {excluded.size > 0 && (
+            <div className="text-[11px] text-gray-400 mt-1">
+              제외 종목을 줄여보세요.
+            </div>
+          )}
+        </div>
+      ) : (
+        <div className="bg-white border border-gray-300 rounded-lg shadow-sm overflow-hidden">
+          <div className="px-3 py-2 bg-gray-50 border-b text-[11px] text-gray-600">
+            매칭 ETF <b className="text-gray-800">{results.length}</b>개 ·
+            {mode === "all" ? " 포함 종목 모두" : " 포함 종목 하나 이상"}
+            {excluded.size > 0 && ` · 제외 ${excluded.size}개 적용`} ·
+            비중합 내림차순
+          </div>
+          <div className="divide-y divide-gray-100 max-h-[60vh] overflow-y-auto">
+            {results.map(r => (
+              <button key={r.etfCode}
+                      onClick={() => onOpenEtfComposition?.(r.etfCode, r.etfName)}
+                      className="w-full px-3 py-2 text-left hover:bg-amber-50/40 transition flex items-baseline gap-3">
+                <span className="text-xs text-gray-500 font-mono tabular-nums shrink-0">
+                  {r.etfCode}
+                </span>
+                <span className="flex-1 min-w-0 text-sm text-gray-800 truncate">
+                  {r.etfName}
+                </span>
+                <span className="text-[11px] text-gray-500 shrink-0">
+                  {r.hitCount}/{included.size}
+                </span>
+                <span className="font-bold tabular-nums text-rose-600 text-sm shrink-0">
+                  {r.totalRatio.toFixed(2)}%
+                </span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

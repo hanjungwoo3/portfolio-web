@@ -1,4 +1,5 @@
-import { Settings } from "lucide-react";
+import { Settings, Cpu } from "lucide-react";
+import type { ReactNode } from "react";
 import type { Stock } from "../types";
 import { normalizeAccount } from "../lib/account";
 import { getIndependentGroupsMode } from "../lib/groupMode";
@@ -9,6 +10,7 @@ export interface TabSpec {
   key: string;
   label: string;
   emoji?: string;
+  icon?: ReactNode;     // SVG 아이콘 (있으면 emoji 보다 우선)
   count: number;
 }
 
@@ -57,7 +59,9 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders }:
                           ${active
                             ? "border-blue-500 text-blue-700 bg-white"
                             : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
-              {t.emoji && <span className="mr-1">{t.emoji}</span>}
+              {t.icon
+                ? <span className="mr-1 inline-flex align-middle">{t.icon}</span>
+                : t.emoji && <span className="mr-1">{t.emoji}</span>}
               {t.label}
               {t.count > 0 && (
                 <span className={`ml-1.5 text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>
@@ -113,7 +117,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders }:
                            ${active ? "border-blue-500 bg-white" : "border-transparent hover:bg-gray-100"}`}>
             <button onClick={() => onChange(current)}
                     className={`text-sm font-medium ${active ? "text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
-              📁 {folder.name}
+              📂 {folder.name}
             </button>
             <select value={current}
                     onChange={e => onChange(e.target.value)}
@@ -140,11 +144,13 @@ export const SECTOR_RANK_TAB_KEY = "__sector-rank__";
 export const MY_STOCKS_TAB_KEY = "__my-stocks__";
 // 분석 탭 — 컨센서스/연기금/변동성 sub탭 통합
 export const CONSENSUS_TAB_KEY = "__consensus__";
+// ETF 역검색 — 다중 종목으로 ETF 찾기
+export const ETF_REVERSE_TAB_KEY = "__etf-reverse__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
   "관심ETF", US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY,
-  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY,
+  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
 ]);
 
 // 미국증시 → 섹터순위 → 반도체 점검 → 내주식(합산) → 사용자 그룹 알파벳 순.
@@ -166,8 +172,11 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpe
   const tabs: TabSpec[] = [];
   if (showUs) tabs.push({ key: US_MARKET_TAB_KEY, label: "지수", emoji: "📈", count: 0 });
   // 섹터 — 지수와 반도체 사이 위치 (KODEX ETF 기반 4기간 ranking + 토스 핫 테마)
-  if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터", emoji: "🏷", count: 0 });
-  if (showSemi) tabs.push({ key: SEMI_CHECK_TAB_KEY, label: "반도체", emoji: "🔧", count: 0 });
+  if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터", emoji: "🧩", count: 0 });
+  if (showSemi) tabs.push({
+    key: SEMI_CHECK_TAB_KEY, label: "반도체",
+    icon: <Cpu size={14} strokeWidth={2.2} className="text-slate-600" />, count: 0,
+  });
   // 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
   if (showMy && uniqHeld.size > 0) {
     tabs.push({ key: MY_STOCKS_TAB_KEY, label: "내주식", emoji: "📦", count: uniqHeld.size });
@@ -176,12 +185,16 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpe
   if (showConsensus) {
     tabs.push({ key: CONSENSUS_TAB_KEY, label: "컨센서스", emoji: "🎯", count: 0 });
   }
+  // ETF 역검색 — 다중 종목 교집합/합집합
+  if (visibility?.etfReverse ?? true) {
+    tabs.push({ key: ETF_REVERSE_TAB_KEY, label: "ETF", emoji: "🍱", count: 0 });
+  }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())
     .filter(k => !["", "관심ETF"].includes(k))
     .sort();
   for (const g of userGroups) {
-    tabs.push({ key: g, label: g, emoji: "🏷", count: counts.get(g)! });
+    tabs.push({ key: g, label: g, emoji: "📁", count: counts.get(g)! });
   }
   // 관심ETF 는 별도 탭 X — 미국증시 탭의 섹터별 ETF 컬럼에서만 표시
   return tabs;

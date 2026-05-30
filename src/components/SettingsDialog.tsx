@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Settings } from "lucide-react";
+import { Settings, Cpu } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, applyImportedSettings, replaceAllMemos,
@@ -78,11 +78,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     persistFolders(next);
   };
 
-  const toggleTab = (key: "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "consensus", v: boolean) => {
+  const toggleTab = (key: "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "consensus" | "etfReverse", v: boolean) => {
     const next = { ...tabVis, [key]: v };
     setTabVis(next);
     setTabVisibility({ [key]: v });
-    const labelMap = { usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", consensus: "컨센서스" };
+    const labelMap = { usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", consensus: "컨센서스", etfReverse: "ETF" };
     setStatusMsg(`✅ ${labelMap[key]} 탭: ${v ? "표시" : "숨김"}`);
     onChanged();
   };
@@ -645,13 +645,15 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   <input type="checkbox" checked={tabVis.sectorRank}
                          onChange={e => toggleTab("sectorRank", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">🏷 섹터</span>
+                  <span className="text-[11px] text-gray-700">🧩 섹터</span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input type="checkbox" checked={tabVis.semiCheck}
                          onChange={e => toggleTab("semiCheck", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">🔧 반도체</span>
+                  <span className="text-[11px] text-gray-700 inline-flex items-center gap-1">
+                    <Cpu size={12} strokeWidth={2.2} className="text-slate-600" />반도체
+                  </span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input type="checkbox" checked={tabVis.myStocks}
@@ -664,6 +666,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                          onChange={e => toggleTab("consensus", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
                   <span className="text-[11px] text-gray-700">🎯 컨센서스</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={tabVis.etfReverse}
+                         onChange={e => toggleTab("etfReverse", e.target.checked)}
+                         className="w-4 h-4 accent-blue-600" />
+                  <span className="text-[11px] text-gray-700">🍱 ETF</span>
                 </label>
               </div>
               <div className="text-[10px] text-gray-500 mt-1">

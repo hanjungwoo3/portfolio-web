@@ -250,7 +250,7 @@ export function SectorRankingTab({ onRequestSearch }: SectorRankingTabProps = {}
   return (
     <div className="space-y-2">
       <div className="bg-blue-50/40 border border-blue-100 rounded p-2.5 text-xs text-gray-700 leading-relaxed">
-        <div className="font-bold text-gray-900 mb-0.5">🏷 한국 섹터 ETF 순위 — 돈의 흐름</div>
+        <div className="font-bold text-gray-900 mb-0.5">🧩 한국 섹터 ETF 순위 — 돈의 흐름</div>
         같은 섹터가 컬럼 사이에서 순위가 올라가면 자금이 그쪽으로 몰리고 있다는 신호입니다.
         <br />
         <span className="text-[11px] text-gray-500">

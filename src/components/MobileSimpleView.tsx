@@ -14,7 +14,8 @@ import {
 import {
   US_PAIRS,
 } from "../lib/usMarketData";
-import { Settings } from "lucide-react";
+import { Settings, Cpu } from "lucide-react";
+import type { ReactNode } from "react";
 import { isSymbolSleeping, fmtAgo, nowKstDateStr } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
@@ -65,8 +66,10 @@ import { WhatIfRow } from "./WhatIfRow";
 import { SemiCheckTab } from "./SemiCheckTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { CONSENSUS_TAB_KEY as CONSENSUS_KEY } from "./Tabs";
+import { CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY } from "./Tabs";
+import { EtfReverseTab } from "./EtfReverseTab";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
+import { EtfReverseDialog } from "./EtfReverseDialog";
 import { MobileTodayPnLLayer } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
 import { FeedbackDialog } from "./FeedbackDialog";
@@ -141,6 +144,7 @@ export function MobileSimpleView() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInitQuery, setSearchInitQuery] = useState("");
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
+  const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -167,7 +171,8 @@ export function MobileSimpleView() {
     return localStorage.getItem(TAB_KEY) ?? KR_KEY;
   });
   const isSystemTab = activeTab === KR_KEY || activeTab === US_KEY
-    || activeTab === SEMI_KEY || activeTab === SECTOR_KEY || activeTab === CONSENSUS_KEY;
+    || activeTab === SEMI_KEY || activeTab === SECTOR_KEY || activeTab === CONSENSUS_KEY
+    || activeTab === ETF_KEY;
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
   useEffect(() => {
@@ -207,16 +212,19 @@ export function MobileSimpleView() {
       counts.set(acc, (counts.get(acc) || 0) + 1);
     }
     const vis = getTabVisibility();
-    const tabs: { key: string; label: string; count: number }[] = [];
+    const tabs: { key: string; label: string; count: number; icon?: ReactNode }[] = [];
     if (vis.usMarket) {
       tabs.push({ key: KR_KEY, label: "📈지수", count: 0 });   // PC UsMarketTab 과 동일
       tabs.push({ key: US_KEY, label: "매크로", count: 0 });
     }
     if (vis.sectorRank) {
-      tabs.push({ key: SECTOR_KEY, label: "🏷섹터", count: 0 });
+      tabs.push({ key: SECTOR_KEY, label: "🧩섹터", count: 0 });
     }
     if (vis.semiCheck) {
-      tabs.push({ key: SEMI_KEY, label: "🔧반도체", count: 0 });
+      tabs.push({
+        key: SEMI_KEY, label: "반도체", count: 0,
+        icon: <Cpu size={12} strokeWidth={2.2} />,
+      });
     }
     // 합산 그룹 — 보유 수량 있는 unique ticker 수
     const uniqHeld = new Set<string>();
@@ -229,6 +237,9 @@ export function MobileSimpleView() {
     // 컨센서스 — 설정 ON 이면 항상 노출(종목 없으면 빈 안내 표시)
     if (vis.consensus) {
       tabs.push({ key: CONSENSUS_KEY, label: "🎯컨센서스", count: 0 });
+    }
+    if (vis.etfReverse) {
+      tabs.push({ key: ETF_KEY, label: "🍱ETF", count: 0 });
     }
     // "보유" 도 일반 사용자 그룹과 동일하게 취급 — 별도 분기 없음
     const userGroups = Array.from(counts.keys())
@@ -732,6 +743,7 @@ export function MobileSimpleView() {
                                 ${active
                                   ? "bg-blue-600 text-white font-bold"
                                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              {t.icon && <span className="mr-0.5 inline-flex align-middle">{t.icon}</span>}
               {t.label}
               {t.count > 0 && (
                 <span className={`ml-1 ${active ? "text-blue-100" : "text-gray-400"}`}>
@@ -814,6 +826,7 @@ export function MobileSimpleView() {
                                onOpenValuation={setValuationTicker}
                                onOpenMemo={t => setMemoTicker(t)}
                                onOpenEtf={(tk, nm) => setEtfDialog({ ticker: tk, name: nm })}
+                               onOpenEtfReverse={(tk, nm) => setEtfReverseDialog({ ticker: tk, name: nm })}
                                onEdit={isAggregated ? undefined : (st => setEditing(st))}
                                onDelete={isAggregated ? undefined : (async st => {
                                  const indep = getIndependentGroupsMode();
@@ -923,6 +936,12 @@ export function MobileSimpleView() {
               setSearchInitQuery(q);
               setSearchOpen(true);
             }} />
+          </div>;
+        }
+        if (activeTab === ETF_KEY) {
+          return <div className="px-2 py-2">
+            <EtfReverseTab holdings={holdings}
+                           onOpenEtfComposition={(code, n) => setEtfDialog({ ticker: code, name: n })} />
           </div>;
         }
         const order = activeTab === KR_KEY ? KR_ORDER : US_ORDER;
@@ -1096,6 +1115,15 @@ export function MobileSimpleView() {
                               }} />
       )}
 
+      {etfReverseDialog && (
+        <EtfReverseDialog ticker={etfReverseDialog.ticker} name={etfReverseDialog.name}
+                          onClose={() => setEtfReverseDialog(null)}
+                          onOpenEtfComposition={(code, n) => {
+                            setEtfReverseDialog(null);
+                            setEtfDialog({ ticker: code, name: n });
+                          }} />
+      )}
+
       {/* 보유 편집 (매수 / 매도 / 직접수정 / 삭제) */}
       <EditHoldingDialog
         isOpen={!!editing}
@@ -1172,7 +1200,7 @@ export function MobileSimpleView() {
             <div className="px-4 py-3 border-b">
               <div className="text-xs text-gray-500">그룹</div>
               <div className="text-base font-bold text-gray-800 truncate">
-                🏷 {tabMenu.label}
+                📁 {tabMenu.label}
               </div>
             </div>
             <button
@@ -1623,12 +1651,14 @@ function SettingsModal({
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                 {([
-                  { key: "usMarket" as const, label: "📈 지수" },
-                  { key: "sectorRank" as const, label: "🏷 섹터" },
-                  { key: "semiCheck" as const, label: "🔧 반도체" },
-                  { key: "myStocks" as const, label: "📦 내주식" },
-                  { key: "consensus" as const, label: "🎯 컨센서스" },
-                ]).map(({ key, label }) => (
+                  { key: "usMarket" as const, label: "📈 지수", icon: null as ReactNode | null },
+                  { key: "sectorRank" as const, label: "🧩 섹터", icon: null },
+                  { key: "semiCheck" as const, label: "반도체",
+                    icon: <Cpu size={12} strokeWidth={2.2} className="text-slate-600" /> },
+                  { key: "myStocks" as const, label: "📦 내주식", icon: null },
+                  { key: "consensus" as const, label: "🎯 컨센서스", icon: null },
+                  { key: "etfReverse" as const, label: "🍱 ETF", icon: null },
+                ]).map(({ key, label, icon }) => (
                   <label key={key} className="flex items-center gap-1.5 cursor-pointer select-none">
                     <input type="checkbox" defaultChecked={getTabVisibility()[key]}
                            onChange={e => {
@@ -1637,7 +1667,9 @@ function SettingsModal({
                              setTimeout(() => setSavedMsg(""), 2000);
                            }}
                            className="w-4 h-4 accent-blue-600" />
-                    <span className="text-[11px] text-gray-700">{label}</span>
+                    <span className="text-[11px] text-gray-700 inline-flex items-center gap-1">
+                      {icon}{label}
+                    </span>
                   </label>
                 ))}
               </div>

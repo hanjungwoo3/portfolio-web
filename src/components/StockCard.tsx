@@ -4,6 +4,7 @@ import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import type { PricePoint } from "../lib/api";
 import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, fmtAgo } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
+import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
 import { openTossStock } from "../lib/toss";
 import { Sparkline } from "./Sparkline";
@@ -40,7 +41,8 @@ interface Props {
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
   onOpenMemo?: (ticker: string) => void;             // 메모 아이콘 클릭
-  onOpenEtf?: (ticker: string, name: string) => void;  // ETF 책갈피 클릭
+  onOpenEtf?: (ticker: string, name: string) => void;  // ETF 책갈피 클릭 (정방향)
+  onOpenEtfReverse?: (ticker: string, name: string) => void;  // 포함 ETF 책갈피 (역방향)
 }
 
 // 신호 — 최근 5거래일 동향 + 연기금 5/20/60일 매수일 비율 (또는 외인비율 20일 fallback)
@@ -498,10 +500,12 @@ const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
   stock, price, krReg, investor, investorHistory, consensus, sector, market, warning, loading, chart, priceHistory, longHistory,
-  memo, otherGroups, onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf,
+  memo, otherGroups, onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
   const [intradayOpen, setIntradayOpen] = useState(false);
+  // 포함 ETF 카운트 — 이 종목이 들어있는 ETF 개수 (역색인)
+  const etfCount = useEtfCount(stock.ticker);
 
   useEffect(() => {
     const cur = price?.price;
@@ -935,6 +939,16 @@ export function StockCard({
                                 : "text-emerald-700 bg-emerald-50 border-emerald-200"}`}>
               {market === "KOSPI" ? "KSP" : "KSQ"}
             </span>
+          )}
+          {/* 포함 ETF 배지 — 이 종목을 포함한 ETF 수. 클릭 시 역색인 다이얼로그 */}
+          {etfCount > 0 && onOpenEtfReverse && (
+            <button onClick={() => onOpenEtfReverse(stock.ticker, stock.name)}
+                    title={`이 종목을 포함한 ETF ${etfCount}개`}
+                    className="px-1 py-0 rounded text-[10px] font-bold leading-none self-center
+                               text-amber-700 bg-amber-50 border border-amber-200
+                               opacity-40 hover:opacity-100 transition tabular-nums">
+              🍱{etfCount}
+            </button>
           )}
           {/* 액션 버튼 — 항상 노출 (메모 있으면 전구 노랑/켜짐, 없으면 회색/꺼짐) */}
           {onOpenMemo && (

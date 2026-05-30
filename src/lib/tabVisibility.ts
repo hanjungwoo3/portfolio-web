@@ -9,6 +9,7 @@ export interface TabVisibility {
   sectorRank: boolean;
   myStocks: boolean;
   consensus: boolean;
+  etfReverse: boolean;
 }
 
 const BASE_KEYS = {
@@ -17,6 +18,7 @@ const BASE_KEYS = {
   sectorRank: "portfolio_tab_sector_rank",
   myStocks:   "portfolio_tab_my_stocks",
   consensus:  "portfolio_tab_consensus",
+  etfReverse: "portfolio_tab_etf_reverse",
 } as const;
 
 // 디바이스 폼팩터 — App.tsx 의 useIsMobile 과 동일 기준(width < 768)
@@ -50,6 +52,7 @@ export function getTabVisibility(): TabVisibility {
     sectorRank: read(BASE_KEYS.sectorRank),
     myStocks:   read(BASE_KEYS.myStocks),
     consensus:  read(BASE_KEYS.consensus),
+    etfReverse: read(BASE_KEYS.etfReverse),
   };
 }
 
@@ -59,4 +62,5 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.sectorRank !== undefined) write(BASE_KEYS.sectorRank, patch.sectorRank);
   if (patch.myStocks   !== undefined) write(BASE_KEYS.myStocks,   patch.myStocks);
   if (patch.consensus  !== undefined) write(BASE_KEYS.consensus,  patch.consensus);
+  if (patch.etfReverse !== undefined) write(BASE_KEYS.etfReverse, patch.etfReverse);
 }
