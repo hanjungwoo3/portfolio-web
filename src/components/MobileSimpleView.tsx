@@ -941,7 +941,8 @@ export function MobileSimpleView() {
         if (activeTab === ETF_KEY) {
           return <div className="px-2 py-2">
             <EtfReverseTab holdings={holdings}
-                           onOpenEtfComposition={(code, n) => setEtfDialog({ ticker: code, name: n })} />
+                           onOpenEtfComposition={(code, n) => setEtfDialog({ ticker: code, name: n })}
+                           onRequestAdd={q => { setSearchInitQuery(q); setSearchOpen(true); }} />
           </div>;
         }
         const order = activeTab === KR_KEY ? KR_ORDER : US_ORDER;
@@ -1121,6 +1122,10 @@ export function MobileSimpleView() {
                           onOpenEtfComposition={(code, n) => {
                             setEtfReverseDialog(null);
                             setEtfDialog({ ticker: code, name: n });
+                          }}
+                          onRequestAdd={q => {
+                            setEtfReverseDialog(null);
+                            setSearchInitQuery(q); setSearchOpen(true);
                           }} />
       )}
 

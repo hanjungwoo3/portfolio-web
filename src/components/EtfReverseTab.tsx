@@ -15,11 +15,12 @@ import {
 interface Props {
   holdings: Stock[];
   onOpenEtfComposition?: (etfCode: string, etfName: string) => void;
+  onRequestAdd?: (query: string) => void;   // ETF 자체를 포트폴리오에 추가 (SearchDialog 오픈)
 }
 
 type Slot = "include" | "exclude";
 
-export function EtfReverseTab({ holdings, onOpenEtfComposition }: Props) {
+export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: Props) {
   // 보유 종목 중 6자리 한국 종목만 (수량>0 + 중복 제거, 이름 기준 사전순)
   const uniqStocks = useMemo(() => {
     const m = new Map<string, string>();
@@ -391,12 +392,11 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition }: Props) {
                     .map(t => ({ name: nameOf(t), ratio: r.perTicker[t] }))
                 : null;
               return (
-                <button key={r.etfCode}
-                        onClick={() => onOpenEtfComposition?.(r.etfCode, r.etfName)}
-                        className="px-2.5 py-1.5 text-left transition
-                                   bg-white border border-gray-200 rounded-md shadow-sm
-                                   hover:border-amber-300 hover:bg-amber-50/40 hover:shadow
-                                   min-w-0">
+                <div key={r.etfCode}
+                     className="group px-2.5 py-1.5 transition
+                                bg-white border border-gray-200 rounded-md shadow-sm
+                                hover:border-amber-300 hover:bg-amber-50/30 hover:shadow
+                                min-w-0">
                   <div className="flex items-baseline gap-2 min-w-0">
                     <span className="text-[10px] text-gray-500 font-mono tabular-nums shrink-0">
                       {r.etfCode}
@@ -404,6 +404,27 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition }: Props) {
                     <span className="flex-1 min-w-0 text-sm text-gray-800 truncate">
                       {r.etfName}
                     </span>
+                    {/* 액션: + 추가, 🍱 구성 — 기본 흐림, 행 hover 시 보이고 버튼 hover 시 더 진하게 */}
+                    {onRequestAdd && (
+                      <button onClick={() => onRequestAdd(r.etfCode)}
+                              title={`${r.etfName} 포트폴리오에 추가`}
+                              className="shrink-0 px-1.5 py-0 rounded text-[11px] font-bold leading-none self-center
+                                         text-emerald-700 bg-emerald-50 border border-emerald-200
+                                         opacity-30 group-hover:opacity-80 hover:!opacity-100
+                                         hover:bg-emerald-100 transition">
+                        ＋
+                      </button>
+                    )}
+                    {onOpenEtfComposition && (
+                      <button onClick={() => onOpenEtfComposition(r.etfCode, r.etfName)}
+                              title={`${r.etfName} 구성종목 보기`}
+                              className="shrink-0 px-1.5 py-0 rounded text-[11px] font-bold leading-none self-center
+                                         text-amber-700 bg-amber-50 border border-amber-200
+                                         opacity-30 group-hover:opacity-80 hover:!opacity-100
+                                         hover:bg-amber-100 transition">
+                        🍱
+                      </button>
+                    )}
                     {/* hit/total — "any" 모드에서만 의미있음 ("all" 모드는 항상 N/N) */}
                     {included.size > 1 && mode === "any" && (
                       <span className="text-[10px] text-gray-500 shrink-0">
@@ -424,7 +445,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition }: Props) {
                       ))}
                     </div>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>

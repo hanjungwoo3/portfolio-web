@@ -10,9 +10,10 @@ interface Props {
   name: string;
   onClose: () => void;
   onOpenEtfComposition?: (etfCode: string, etfName: string) => void;   // ETF → 정방향(EtfCompositionDialog) 열기
+  onRequestAdd?: (query: string) => void;                              // ETF 자체를 포트폴리오에 추가
 }
 
-export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition }: Props) {
+export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, onRequestAdd }: Props) {
   const [list, setList] = useState<EtfHolding[] | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
@@ -73,19 +74,40 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition }
               </div>
               <div className="space-y-1">
                 {list.map(h => (
-                  <button key={h.etfCode}
-                          onClick={() => onOpenEtfComposition?.(h.etfCode, h.etfName)}
-                          className="w-full flex items-baseline gap-2 px-2 py-1.5 rounded
-                                     border border-gray-200 hover:border-amber-300
-                                     hover:bg-amber-50/40 text-left transition">
+                  <div key={h.etfCode}
+                       className="group w-full flex items-baseline gap-2 px-2 py-1.5 rounded
+                                  border border-gray-200 hover:border-amber-300
+                                  hover:bg-amber-50/30 transition">
                     <span className="text-xs text-gray-500 font-mono tabular-nums shrink-0">
                       {h.etfCode}
                     </span>
                     <span className="flex-1 min-w-0 truncate text-sm text-gray-800">{h.etfName}</span>
+                    {/* + 포트폴리오 추가 — 기본 흐림 */}
+                    {onRequestAdd && (
+                      <button onClick={() => onRequestAdd(h.etfCode)}
+                              title={`${h.etfName} 포트폴리오에 추가`}
+                              className="shrink-0 px-1.5 py-0 rounded text-[11px] font-bold leading-none self-center
+                                         text-emerald-700 bg-emerald-50 border border-emerald-200
+                                         opacity-30 group-hover:opacity-80 hover:!opacity-100
+                                         hover:bg-emerald-100 transition">
+                        ＋
+                      </button>
+                    )}
+                    {/* 🍱 구성종목 보기 */}
+                    {onOpenEtfComposition && (
+                      <button onClick={() => onOpenEtfComposition(h.etfCode, h.etfName)}
+                              title={`${h.etfName} 구성종목 보기`}
+                              className="shrink-0 px-1.5 py-0 rounded text-[11px] font-bold leading-none self-center
+                                         text-amber-700 bg-amber-50 border border-amber-200
+                                         opacity-30 group-hover:opacity-80 hover:!opacity-100
+                                         hover:bg-amber-100 transition">
+                        🍱
+                      </button>
+                    )}
                     <span className="font-bold tabular-nums text-rose-600 text-sm shrink-0">
                       {h.ratio.toFixed(2)}%
                     </span>
-                  </button>
+                  </div>
                 ))}
               </div>
             </>

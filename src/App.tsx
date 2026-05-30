@@ -518,7 +518,8 @@ function Dashboard() {
                         }} />
         ) : activeTab === ETF_REVERSE_TAB_KEY ? (
           <EtfReverseTab holdings={holdings}
-                         onOpenEtfComposition={(code, n) => setEtfDialog({ ticker: code, name: n })} />
+                         onOpenEtfComposition={(code, n) => setEtfDialog({ ticker: code, name: n })}
+                         onRequestAdd={q => { setSearchInitQuery(q); setSearchOpen(true); }} />
         ) : visible.length === 0 ? (
           holdings.length === 0 ? (
             <div className="text-center py-16 text-gray-500">
@@ -709,6 +710,10 @@ function Dashboard() {
                           onOpenEtfComposition={(code, n) => {
                             setEtfReverseDialog(null);
                             setEtfDialog({ ticker: code, name: n });
+                          }}
+                          onRequestAdd={q => {
+                            setEtfReverseDialog(null);
+                            setSearchInitQuery(q); setSearchOpen(true);
                           }} />
       )}
 
