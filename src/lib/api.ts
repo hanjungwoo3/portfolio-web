@@ -804,6 +804,54 @@ export async function fetchYahooPriceHistory(
   return await fetchPriceHistoryFor(symbol, range);
 }
 
+// Sparkline / 미니 캔들 전용 — OHLC. interval 가변 (1d/1wk/1mo).
+// 한국 6자리 → .KS 우선, 실패 시 .KQ.
+export interface SparkPoint {
+  date: string;
+  open: number; high: number; low: number; close: number;
+}
+async function fetchSparkSeriesFor(
+  symbol: string, range: string, interval: string,
+): Promise<SparkPoint[]> {
+  const target =
+    `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}` +
+    `?range=${range}&interval=${interval}`;
+  const resp = await fetchProxied(target);
+  if (!resp.ok) return [];
+  const data = await resp.json() as YahooChartResp;
+  const res = data.chart?.result?.[0];
+  if (!res) return [];
+  const ts = res.timestamp ?? [];
+  const q = res.indicators?.quote?.[0] ?? {};
+  const opens = q.open ?? [];
+  const highs = q.high ?? [];
+  const lows = q.low ?? [];
+  const closes = q.close ?? [];
+  const out: SparkPoint[] = [];
+  for (let i = 0; i < ts.length; i++) {
+    const c = closes[i];
+    if (c == null) continue;
+    const d = new Date(ts[i] * 1000);
+    const kst = new Date(d.getTime() + (d.getTimezoneOffset() + 540) * 60_000);
+    out.push({
+      date: kst.toISOString().slice(0, 10),
+      open:  opens[i] ?? c,
+      high:  highs[i] ?? c,
+      low:   lows[i]  ?? c,
+      close: c,
+    });
+  }
+  return out;
+}
+export async function fetchKrSparkSeries(
+  ticker: string, range: string, interval: string,
+): Promise<SparkPoint[]> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
+  const ks = await fetchSparkSeriesFor(`${ticker}.KS`, range, interval);
+  if (ks.length >= 2) return ks;
+  return await fetchSparkSeriesFor(`${ticker}.KQ`, range, interval);
+}
+
 // 한국 종목 가격 + 배당 + 액면분할 이벤트 통합 fetch
 export async function fetchKrPriceHistoryWithEvents(
   ticker: string, range = "1y",

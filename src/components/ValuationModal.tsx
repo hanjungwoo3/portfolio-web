@@ -16,6 +16,7 @@ import {
 import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/fundamentals";
 import { FinancialCharts } from "./FinancialCharts";
 import { ConsensusCharts } from "./ConsensusCharts";
+import { PriceMultiSparks } from "./PriceMultiSparks";
 import { signColor } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
 import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchNaverInfo, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices } from "../lib/api";
@@ -780,6 +781,8 @@ function InvestorChartsSection({
 
   return (
     <div className="space-y-2 mt-2">
+      {/* 0. 기간별 추이 멀티 sparkline — 1주~MAX (상장 짧으면 자동 숨김) */}
+      <PriceMultiSparks ticker={ticker} />
       {/* 1. 주가 — 전체 폭 (외국인비율 % + 목표가/평단가 가로선) */}
       {alignedPrices.length > 1 ? (
         <PriceVolumeChart prices={alignedPrices} investors={data}

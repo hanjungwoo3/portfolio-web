@@ -71,6 +71,7 @@ export function IndexLineChart({
         textColor: "#374151",
         fontSize: 10,
         fontFamily: "system-ui, -apple-system, sans-serif",
+        attributionLogo: false,
       },
       grid: {
         vertLines: { color: "#f3f4f6" },

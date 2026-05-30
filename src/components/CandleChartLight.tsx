@@ -104,6 +104,7 @@ export function CandleChartLight({
         textColor: "#374151",
         fontSize: 11,
         fontFamily: "system-ui, -apple-system, sans-serif",
+        attributionLogo: false,
       },
       grid: {
         vertLines: { color: "#f3f4f6" },
