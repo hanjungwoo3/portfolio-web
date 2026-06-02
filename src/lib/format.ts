@@ -110,7 +110,9 @@ function dateStrInTz(tz: string): string {
 
 // 시장 정규장 시간 여부 — 흐림(dim) 판정용. 정규장 지나면 흐림(시간외 현재가는 그대로 표시).
 // - KR: 09:00-15:30 KST 정규장
-// - US / US_INDEX: 09:30-16:00 ET 정규장
+// - US(개별종목): 04:00-16:00 ET (프리마켓+정규장) — 프리마켓 실시간 거래라 흐림 제외.
+//   (애프터마켓 16:00~ 은 흐림 유지. 지수와 달리 종목은 프리마켓 가격이 들어옴)
+// - US_INDEX(지수 ^SOX/^GSPC 등): 09:30-16:00 ET 정규장만 — 프리마켓엔 지수 갱신 안 됨
 // - JP: 08:30-15:30 JST
 // - OTHER: 항상 열림 (환율/선물/암호화폐 등 24h — 흐림 없음)
 export function isMarketOpen(market: Market): boolean {
@@ -137,7 +139,9 @@ export function isMarketOpen(market: Market): boolean {
     // 정규장 기준 — 정규시간 지나면 흐림(현재가는 시간외도 그대로 표시).
     // 선물·환율·암호화폐(OTHER)는 24h 라 흐림 없음(default true).
     case "KR":      return 9*60       <= hhmm && hhmm < 15*60 + 30;
-    case "US":      return 9*60 + 30  <= hhmm && hhmm < 16*60;
+    // 개별 종목(MU/NVDA 등) — 프리마켓(04:00)~정규장 마감(16:00). 프리마켓은 실시간 거래 → 흐림 제외.
+    case "US":      return 4*60       <= hhmm && hhmm < 16*60;
+    // 지수(^SOX/^GSPC 등) — 프리마켓엔 갱신 안 됨 → 정규장(09:30-16:00)만 live.
     case "US_INDEX":return 9*60 + 30  <= hhmm && hhmm < 16*60;
     case "JP":      return 8*60 + 30  <= hhmm && hhmm < 15*60 + 30;
     default:        return true;

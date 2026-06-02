@@ -727,6 +727,7 @@ function Dashboard() {
             ticker={valuationTicker}
             name={s.name}
             curPrice={priceMap.get(valuationTicker)?.price}
+            todayBar={(() => { const p = priceMap.get(valuationTicker); return p ? { open: p.open, high: p.high, low: p.low } : undefined; })()}
             myAvgPrice={s.shares > 0 ? s.avg_price : undefined}
             entryPrice={memos.get(valuationTicker)?.entryPrice}
           />

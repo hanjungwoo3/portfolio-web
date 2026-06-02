@@ -17,7 +17,7 @@ import { MarketFlowModal } from "./MarketFlowModal";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 
 // KR ETF Yahoo 심볼 패턴 (예: "091160.KS") — 토스 compositions API 지원 대상
-const KR_ETF_SYMBOL_RE = /^(\d{6})\.K[SQ]$/;
+const KR_ETF_SYMBOL_RE = /^([\dA-Za-z]{6})\.K[SQ]$/;
 
 const WORKER_UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 function krEtfTicker(symbol: string): string | null {
@@ -39,7 +39,7 @@ function quoteUrl(symbol: string): string {
   if (symbol === "^KS200N") return "https://yasun.gg/kospi200";
   if (symbol === "^KQ150N") return "https://yasun.gg/kosdaq150";
   // 한국 보유 종목 (6자리) 또는 KODEX/.KS ETF (6자리.KS) — 모두 토스
-  const krMatch = /^(\d{6})(?:\.KS)?$/.exec(symbol);
+  const krMatch = /^([\dA-Za-z]{6})(?:\.KS)?$/.exec(symbol);
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
   // 지수/환율/미국 ETF 토스 매핑 (lib/toss.ts 공통 맵)
   if (TOSS_SYMBOL_URL[symbol]) return TOSS_SYMBOL_URL[symbol];

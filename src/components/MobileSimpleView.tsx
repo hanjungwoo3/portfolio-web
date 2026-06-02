@@ -31,7 +31,7 @@ import type { MarketIndexKey } from "../lib/api";
 import { MarketFlowModal } from "./MarketFlowModal";
 
 // PC UsMarketTab과 동일 — Yahoo .KS/.KQ 6자리 ETF 심볼 → 토스 compositions ticker
-const KR_ETF_SYMBOL_RE = /^(\d{6})\.K[SQ]$/;
+const KR_ETF_SYMBOL_RE = /^([\dA-Za-z]{6})\.K[SQ]$/;
 function krEtfTicker(symbol: string): string | null {
   const m = KR_ETF_SYMBOL_RE.exec(symbol);
   return m ? m[1] : null;
@@ -43,7 +43,7 @@ function quoteUrl(symbol: string): string {
   if (symbol === "^KS200N") return "https://yasun.gg/kospi200";
   if (symbol === "^KQ150N") return "https://yasun.gg/kosdaq150";
   // 한국 보유 종목 (6자리) 또는 KODEX/.KS ETF (6자리.KS) — 모두 토스
-  const krMatch = /^(\d{6})(?:\.KS)?$/.exec(symbol);
+  const krMatch = /^([\dA-Za-z]{6})(?:\.KS)?$/.exec(symbol);
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
   // 지수/환율/미국 ETF 토스 매핑 (lib/toss.ts 공통 맵)
   if (TOSS_SYMBOL_URL[symbol]) return TOSS_SYMBOL_URL[symbol];
@@ -1190,6 +1190,7 @@ export function MobileSimpleView() {
             ticker={valuationTicker}
             name={s.name}
             curPrice={groupPriceMap.get(valuationTicker)?.price}
+            todayBar={(() => { const p = groupPriceMap.get(valuationTicker); return p ? { open: p.open, high: p.high, low: p.low } : undefined; })()}
             myAvgPrice={s.shares > 0 ? s.avg_price : undefined}
             entryPrice={memos?.get(valuationTicker)?.entryPrice}
           />

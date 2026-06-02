@@ -17,7 +17,7 @@ import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/funda
 import { FinancialCharts } from "./FinancialCharts";
 import { ConsensusCharts } from "./ConsensusCharts";
 import { PriceMultiSparks } from "./PriceMultiSparks";
-import { signColor } from "../lib/format";
+import { signColor, nowKstDateStr } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
 import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchNaverInfo, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices } from "../lib/api";
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
@@ -31,9 +31,13 @@ interface Props {
   ticker: string;
   name: string;
   curPrice?: number;
+  todayBar?: TodayBar;       // 오늘 실시간 OHLC (일봉 오늘 캔들 보강용)
   myAvgPrice?: number;       // 보유 시 평단가 (차트 가로선)
   entryPrice?: number;       // 메모의 기대가 (차트 가로선)
 }
+
+// 오늘(당일) 실시간 시/고/저 — 부모 Price 객체에서 추출. 일봉 마지막 캔들 꼬리용.
+export interface TodayBar { open?: number; high?: number; low?: number }
 
 function IndicatorRow({ ikey, val, data }: {
   ikey: string; val: unknown; data: FundamentalData;
@@ -276,7 +280,7 @@ function NewsSection({ ticker }: { ticker: string }) {
 }
 
 export function ValuationModal({
-  isOpen, onClose, ticker, name, curPrice, myAvgPrice, entryPrice,
+  isOpen, onClose, ticker, name, curPrice, todayBar, myAvgPrice, entryPrice,
 }: Props) {
   useEscClose(isOpen, onClose);
   const { data, isLoading, error } = useQuery({
@@ -468,7 +472,9 @@ export function ValuationModal({
           <InvestorHistorySection ticker={ticker}
                                   targetPrice={targetPrice}
                                   myAvgPrice={myAvgPrice}
-                                  entryPrice={entryPrice} />
+                                  entryPrice={entryPrice}
+                                  curPrice={effCurPrice}
+                                  todayBar={todayBar} />
 
           {/* 종목 뉴스 (네이버) */}
           <NewsSection ticker={ticker} />
@@ -502,6 +508,8 @@ interface InvestorHistoryProps {
   targetPrice?: number;
   myAvgPrice?: number;
   entryPrice?: number;
+  curPrice?: number;
+  todayBar?: TodayBar;
 }
 
 const INVESTOR_COLS: { label: string; key: keyof Investor }[] = [
@@ -565,7 +573,7 @@ function computePeriodSummary(
 }
 
 function InvestorHistorySection({
-  ticker, targetPrice, myAvgPrice, entryPrice,
+  ticker, targetPrice, myAvgPrice, entryPrice, curPrice, todayBar,
 }: InvestorHistoryProps) {
   const { data: history, isLoading } = useQuery({
     queryKey: ["investor-history-modal", ticker],
@@ -603,7 +611,9 @@ function InvestorHistorySection({
         <InvestorChartsSection ticker={ticker} history={history ?? []}
                                targetPrice={targetPrice}
                                myAvgPrice={myAvgPrice}
-                               entryPrice={entryPrice} />
+                               entryPrice={entryPrice}
+                               curPrice={curPrice}
+                               todayBar={todayBar} />
       )}
 
       {history && history.length > 0 && (
@@ -714,11 +724,13 @@ function InvestorHistorySection({
 // ─── 수급 차트 모음 — 주가+거래량 (full) + 외국인/기관/연기금 (3분할) ───
 // 4개 차트 모두 lightweight-charts 기반, 한 hook 으로 crosshair 동기화.
 function InvestorChartsSection({
-  ticker, history, targetPrice, myAvgPrice, entryPrice,
+  ticker, history, targetPrice, myAvgPrice, entryPrice, curPrice, todayBar,
 }: {
   ticker: string; history: Investor[];
   targetPrice?: number; myAvgPrice?: number;
   entryPrice?: number;
+  curPrice?: number;
+  todayBar?: TodayBar;
 }) {
   // 가격 + 거래량 + 배당 + 액면분할 (Yahoo 1y, KOSPI→KOSDAQ 자동 폴백)
   const { data: priceData, isLoading: pricesLoading } = useQuery({
@@ -773,6 +785,30 @@ function InvestorChartsSection({
       .filter((p): p is PricePoint => p != null);
   }, [prices, dates]);
 
+  // 가격 차트 전용 — 오늘 캔들 보강.
+  // 투자자 데이터는 하루 지연이라 alignedPrices 가 어제까지만 → 오늘 봉이 안 나옴.
+  // 가격 차트는 별도 전체폭 차트이므로, 실제 OHLC(시/고/저 + 현재가=종가)로 오늘 봉을 덧붙인다.
+  // OHLC 출처: Toss 실시간(todayBar) 우선 → Yahoo 오늘봉 → (둘 다 없으면) 전일종가 기반.
+  const livePrices = useMemo(() => {
+    const base = alignedPrices;
+    if (base.length === 0 || !curPrice || curPrice <= 0) return base;
+    const today = nowKstDateStr();
+    const last = base[base.length - 1];
+    const yToday = (priceData?.prices ?? []).find(p => p.date === today);
+    const open = todayBar?.open ?? yToday?.open ?? last.close;
+    const hiSrc = todayBar?.high ?? yToday?.high;
+    const loSrc = todayBar?.low ?? yToday?.low;
+    const high = Math.max(hiSrc ?? curPrice, curPrice, open);
+    const low = Math.min(loSrc ?? curPrice, curPrice, open);
+    const todayCandle: PricePoint = {
+      date: today, open, high, low, close: curPrice, volume: yToday?.volume ?? 0,
+    };
+    // 이미 오늘 봉이 정렬에 포함(투자자 데이터 따라잡음)이면 교체, 아니면 덧붙임
+    return last.date === today
+      ? [...base.slice(0, -1), todayCandle]
+      : [...base, todayCandle];
+  }, [alignedPrices, curPrice, todayBar, priceData?.prices]);
+
   // 4 차트 crosshair sync
   const registerSync = useCrosshairSync();
 
@@ -784,8 +820,8 @@ function InvestorChartsSection({
       {/* 0. 기간별 추이 멀티 sparkline — 1주~MAX (상장 짧으면 자동 숨김) */}
       <PriceMultiSparks ticker={ticker} />
       {/* 1. 주가 — 전체 폭 (외국인비율 % + 목표가/평단가 가로선) */}
-      {alignedPrices.length > 1 ? (
-        <PriceVolumeChart prices={alignedPrices} investors={data}
+      {livePrices.length > 1 ? (
+        <PriceVolumeChart prices={livePrices} investors={data}
                           targetPrice={targetPrice} myAvgPrice={myAvgPrice} entryPrice={entryPrice}
                           dividends={dividends} splits={splits}
                           disclosures={disclosures} ticker={ticker}

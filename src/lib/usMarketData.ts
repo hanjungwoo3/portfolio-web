@@ -76,7 +76,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "KBE",   name: "KBE",   desc: "SPDR S&P 은행 — 지역은행 포함", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ITA",   name: "ITA",   desc: "iShares 미국 항공우주·방산 (Lockheed, RTX 등)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "XLV",   name: "XLV",   desc: "Health Care Select — 미국 대형 헬스케어", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "BOTZ",  name: "BOTZ",  desc: "Global X 로보틱스·AI", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "KOID",  name: "피지컬AI", desc: "KraneShares 휴머노이드·피지컬AI — 액추에이터(Harmonic Drive·THK)·반도체 글로벌 밸류체인. 한국 로봇주(레인보우로보틱스·두산로보틱스·에스피지) 선행 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   // 행 7 — 한국 섹터 KODEX ETF (대표 1개씩, .KS suffix → Yahoo 통해 일관 fetch)
   { symbol: "091160.KS", name: "KODEX 반도체",     desc: "한국 반도체 ETF — 삼성·하이닉스 대표", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "117700.KS", name: "KODEX 건설",       desc: "한국 건설주 ETF — 현대건설/삼성물산/GS건설", tier: "T0", sector: "dashboard", direction: "direct" },
@@ -85,7 +85,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "091170.KS", name: "KODEX 은행",       desc: "한국 은행주 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "449450.KS", name: "K-방산",         desc: "한국 방산 ETF — 한화에어로/LIG넥스원/KAI/현대로템", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "266420.KS", name: "KODEX 헬스케어",    desc: "한국 헬스케어 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "445290.KS", name: "KODEX 로봇",       desc: "K-로봇액티브 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "0190C0.KS", name: "RISE 피지컬AI",    desc: "RISE 현대차고정피지컬AI — 현대차 25% + 국내 피지컬AI 밸류체인(LG CNS·현대오토에버·두산로보틱스·레인보우로보틱스·에스피지). 미국 KOID 선행에 대응하는 한국 타깃", tier: "T0", sector: "dashboard", direction: "direct" },
 ];
 
 export const ETFS_BY_SECTOR: Record<string, string[]> = {};

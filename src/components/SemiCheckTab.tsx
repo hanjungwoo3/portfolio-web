@@ -14,7 +14,7 @@ import { isSymbolSleeping, marketOfSymbol, fmtAgo } from "../lib/format";
 import type { UsIndex } from "../lib/api";
 
 function quoteUrl(symbol: string): string {
-  const krMatch = /^(\d{6})(?:\.KS)?$/.exec(symbol);
+  const krMatch = /^([\dA-Za-z]{6})(?:\.KS)?$/.exec(symbol);
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
   // 지수/환율/미국 ETF 토스 매핑 (lib/toss.ts 공통 맵)
   if (TOSS_SYMBOL_URL[symbol]) return TOSS_SYMBOL_URL[symbol];

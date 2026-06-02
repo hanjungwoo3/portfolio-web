@@ -1613,7 +1613,8 @@ export async function fetchInvestingChart(symbol: string): Promise<number[]> {
 export async function fetchYahooBatch(
   pairs: { symbol: string; name: string }[]
 ): Promise<Map<string, UsIndex>> {
-  const ksRegex = /^(\d{6})\.KS$/;
+  // 신형 ETF 는 영숫자 코드(예: 0190C0) — 숫자 6자리로 좁히면 Toss 경로에서 누락됨
+  const ksRegex = /^([\dA-Za-z]{6})\.KS$/;
   const ksItems = pairs.filter(p => ksRegex.test(p.symbol));
   const tossIdxItems = pairs.filter(p => TOSS_INDEX_CODE[p.symbol]);
   const tossUsItems = pairs
