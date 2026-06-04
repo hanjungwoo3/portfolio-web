@@ -64,10 +64,12 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
             {curTab?.icon
               ? <span className="inline-flex align-middle">{curTab.icon}</span>
               : curTab?.emoji && <span className="text-sm">{curTab.emoji}</span>}
-            <select value={current}
-                    onChange={e => onChange(e.target.value)}
+            <select value={on ? current : ""}
+                    onChange={e => { if (e.target.value) onChange(e.target.value); }}
                     className={`text-sm font-medium bg-transparent border-0 focus:outline-none cursor-pointer
                                 ${on ? "text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
+              {/* 시스템 탭 비활성 시 placeholder — 첫 항목(지수)도 클릭으로 선택되게 */}
+              {!on && <option value="" disabled hidden>{curTab?.label}</option>}
               {sysTabs.map(t => (
                 <option key={t.key} value={t.key}>
                   {t.label}{t.count > 0 ? ` (${t.count})` : ""}

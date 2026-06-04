@@ -744,10 +744,12 @@ export function MobileSimpleView() {
             <span className={`shrink-0 inline-flex items-center rounded-md text-[11px] pl-1.5
                               ${on ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
               {curTab?.icon && <span className="inline-flex align-middle mr-0.5">{curTab.icon}</span>}
-              <select value={current}
-                      onChange={e => setActiveTab(e.target.value)}
+              <select value={on ? current : ""}
+                      onChange={e => { if (e.target.value) setActiveTab(e.target.value); }}
                       className={`bg-transparent text-[11px] py-1 pl-1 pr-1 rounded-md focus:outline-none
                                   ${on ? "text-white" : "text-gray-700"}`}>
+                {/* 비활성 시 placeholder — 첫 항목(지수)도 클릭 선택되게 */}
+                {!on && <option value="" disabled hidden className="text-gray-800">{curTab?.label}</option>}
                 {sys.map(t => (
                   <option key={t.key} value={t.key} className="text-gray-800">
                     {t.label}{t.count > 0 ? ` (${t.count})` : ""}
