@@ -118,9 +118,9 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
     ["^IXIC", "NQ=F", "^GSPC", "ES=F", "^DJI", "RTY=F"], // 미국 지수·선물 + 다우 + 러셀선물 (필반은 반도체 탭으로)
     ["SPY", "QQQ", "DIA", "IWM", "VTI"],                          // 미국 대표 ETF
     ["SMH", "PAVE", "LIT", "XBI",
-     "KBE", "ITA", "XLV", "BOTZ"],                                // 미국 섹터 ETF (KODEX 위)
+     "KBE", "ITA", "XLV", "KOID"],                                // 미국 섹터 ETF (KOID=피지컬AI, KODEX 위)
     ["091160.KS", "117700.KS", "305720.KS", "244580.KS",
-     "091170.KS", "449450.KS", "266420.KS", "445290.KS"],          // 한국 섹터 ETF (KODEX + K-방산)
+     "091170.KS", "449450.KS", "266420.KS", "0190C0.KS"],          // 한국 섹터 ETF (KODEX + K-방산 + RISE 피지컬AI)
   ];
 
   // T0 + 모든 섹터 현물·선물 Yahoo 심볼 통합 — 동일 캐시
