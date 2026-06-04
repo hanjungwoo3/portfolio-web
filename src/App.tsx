@@ -490,7 +490,7 @@ function Dashboard() {
               title="종목 검색 / 추가 — 검색 결과에서 수량·평단 입력 시 보유로 등록"
               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700
                          text-white rounded text-sm">
-              검색/주식추가
+              검색
             </button>
             <button
               onClick={() => setHelpOpen(true)}

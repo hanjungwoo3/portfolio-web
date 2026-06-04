@@ -14,7 +14,7 @@ import {
 import {
   US_PAIRS,
 } from "../lib/usMarketData";
-import { Settings, Cpu, Menu } from "lucide-react";
+import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, nowKstDateStr } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
@@ -155,6 +155,7 @@ export function MobileSimpleView() {
     try { localStorage.setItem("portfolio_header_collapsed", next ? "1" : "0"); } catch { /* noop */ }
     return next;
   });
+  const [moreOpen, setMoreOpen] = useState(false);   // 상단 더보기 메뉴(사용법/질문/후원/설정)
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [editing, setEditing] = useState<Stock | null>(null);
@@ -665,7 +666,7 @@ export function MobileSimpleView() {
         </div>
       )}
       {!headerCollapsed && (
-      <header className="sticky top-0 z-40 bg-white border-b border-gray-200
+      <header className="sticky top-0 z-50 bg-white border-b border-gray-200
                           px-3 py-2 flex items-center gap-1">
         <button onClick={toggleHeader} title="헤더 접기 (상단 메뉴 숨김)"
                 className="shrink-0 p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition">
@@ -690,34 +691,31 @@ export function MobileSimpleView() {
                            bg-blue-600 hover:bg-blue-700 text-white">
           검색
         </button>
-        <button onClick={() => setHelpOpen(true)}
-                title="사용법 빠른 시작"
-                className="px-2 py-1 rounded text-[11px] font-medium shrink-0
-                           bg-gray-100 hover:bg-gray-200 text-gray-700
-                           border border-gray-200">
-          사용법
-        </button>
-        <button onClick={() => setFeedbackOpen(true)}
-                title="기능 요청 / 의견 (가입 없이 익명 작성)"
-                className="px-2 py-1 rounded text-[11px] font-medium shrink-0
-                           bg-emerald-50 hover:bg-emerald-100 text-emerald-700
-                           border border-emerald-200">
-          질문
-        </button>
-        <button onClick={() => setDonateOpen(true)}
-                title="개발자 후원하기 (카카오페이)"
-                className="px-2 py-1 rounded text-[11px] font-medium shrink-0
-                           bg-gray-100 hover:bg-gray-200 text-gray-700
-                           border border-gray-200">
-          후원
-        </button>
-        <button onClick={() => setSettingsOpen(true)}
-                title="설정"
-                className="px-2 py-1 rounded text-[11px] font-medium shrink-0
-                           bg-gray-100 hover:bg-gray-200 text-gray-700
-                           border border-gray-200">
-          설정
-        </button>
+        {/* 더보기 — 사용법/질문하기/후원하기/설정 묶음 (문구는 PC 동일) */}
+        <div className="relative shrink-0">
+          <button onClick={() => setMoreOpen(o => !o)}
+                  title="더보기 — 사용법 / 질문하기 / 후원하기 / 설정"
+                  className="px-1.5 py-1 rounded text-gray-600 shrink-0
+                             bg-gray-100 hover:bg-gray-200 border border-gray-200">
+            <MoreVertical size={15} />
+          </button>
+          {moreOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
+              <div className="absolute right-0 top-full mt-1 z-50 min-w-[110px]
+                              bg-white border border-gray-200 rounded-md shadow-lg py-1 text-[12px]">
+                <button onClick={() => { setHelpOpen(true); setMoreOpen(false); }}
+                        className="block w-full text-left px-3 py-1.5 text-gray-700 hover:bg-gray-100">사용법</button>
+                <button onClick={() => { setFeedbackOpen(true); setMoreOpen(false); }}
+                        className="block w-full text-left px-3 py-1.5 text-emerald-700 hover:bg-emerald-50">질문하기</button>
+                <button onClick={() => { setDonateOpen(true); setMoreOpen(false); }}
+                        className="block w-full text-left px-3 py-1.5 text-gray-700 hover:bg-gray-100">후원하기</button>
+                <button onClick={() => { setSettingsOpen(true); setMoreOpen(false); }}
+                        className="block w-full text-left px-3 py-1.5 text-gray-700 hover:bg-gray-100">설정</button>
+              </div>
+            </>
+          )}
+        </div>
       </header>
       )}
 
