@@ -21,9 +21,10 @@ interface Props {
   onRename?: (oldName: string, newName: string) => void;
   onDelete?: (name: string) => void;
   folders?: GroupFolder[];   // 그룹 폴더 — 담긴 그룹은 드롭다운 하나로 합쳐 표시
+  leading?: ReactNode;       // 탭 바 맨 앞에 끼워넣을 요소 (예: 헤더 펼치기 버튼)
 }
 
-export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders }: Props) {
+export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, leading }: Props) {
   const handleRename = (oldKey: string, displayLabel: string) => {
     const next = window.prompt(`"${displayLabel}" 그룹명 변경 — 새 이름:`, displayLabel);
     if (next == null) return;
@@ -47,8 +48,9 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders }:
   const sysTabs = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key));
 
   return (
-    <nav className="flex gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap
+    <nav className="flex items-center gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap
                     border-b border-gray-200 mb-3 px-1 pt-1">
+      {leading && <span className="shrink-0">{leading}</span>}
       {/* 시스템 탭 묶음 — 선택된 탭 아이콘 + 선택박스만 (지수~ETF) */}
       {sysTabs.length > 0 && (() => {
         const activeSys = sysTabs.find(t => t.key === activeKey);

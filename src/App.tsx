@@ -14,6 +14,7 @@ import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SimpleViewModal } from "./components/SimpleViewModal";
 import { SectorRankingTab } from "./components/SectorRankingTab";
 import { getTabVisibility } from "./lib/tabVisibility";
+import { Menu } from "lucide-react";
 import { getGroupFolders } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
@@ -406,9 +407,29 @@ function Dashboard() {
     return m;
   }, [holdings]);
 
-  // 탭 바를 헤더 아래 sticky 로 고정. 그룹이 여러 줄로 wrap 되므로 높이를 측정해
-  // 아래 툴바(정렬/심플보기) sticky top 을 동적으로 내린다 (겹침 방지).
-  const HEADER_H = 56;   // sticky 헤더 높이 (top-14)
+  // 상단 헤더 접기/펼치기 (localStorage 지속)
+  const [headerCollapsed, setHeaderCollapsed] = useState(() => {
+    try { return localStorage.getItem("portfolio_header_collapsed") === "1"; } catch { return false; }
+  });
+  const toggleHeader = () => setHeaderCollapsed(v => {
+    const next = !v;
+    try { localStorage.setItem("portfolio_header_collapsed", next ? "1" : "0"); } catch { /* noop */ }
+    return next;
+  });
+
+  // 헤더/탭 높이를 측정해 sticky top 을 동적 계산 (헤더 접힘·탭 wrap 대응).
+  const headerRef = useRef<HTMLElement>(null);
+  const [headerH, setHeaderH] = useState(56);
+  useLayoutEffect(() => {
+    const el = headerRef.current;
+    if (!el) return;
+    const update = () => setHeaderH(el.offsetHeight);
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [headerCollapsed]);
+
   const tabsStickyRef = useRef<HTMLDivElement>(null);
   const [tabsH, setTabsH] = useState(0);
   useLayoutEffect(() => {
@@ -439,9 +460,14 @@ function Dashboard() {
           )}
         </div>
       )}
-      <header className="bg-white border-b border-gray-200 sticky top-0 z-30">
-        <div className="max-w-[1600px] mx-auto flex items-center
-                         gap-3 px-6 py-3">
+      {!headerCollapsed && (
+      <header ref={headerRef} className="bg-white border-b border-gray-200 sticky top-0 z-30">
+        <div className="max-w-[1600px] mx-auto flex items-center gap-3 px-6 py-3">
+          <button onClick={toggleHeader} title="헤더 접기 (포트폴리오~설정 숨김)"
+                  className="shrink-0 p-1 rounded text-gray-500
+                             hover:text-gray-800 hover:bg-gray-100 transition">
+            <Menu size={18} />
+          </button>
           <h1 className="text-xl font-bold text-gray-900 shrink-0">
             📈 포트폴리오
           </h1>
@@ -497,10 +523,12 @@ function Dashboard() {
           </div>
         </div>
       </header>
+      )}
 
       <main className="max-w-[1600px] mx-auto p-3">
         <div ref={tabsStickyRef}
-             className="sticky top-14 z-40 bg-white/95 backdrop-blur -mx-3 px-3 pt-1 mb-3 [&>nav]:!mb-0">
+             style={{ top: headerCollapsed ? 0 : headerH }}
+             className="sticky z-40 bg-white/95 backdrop-blur -mx-3 px-3 pt-1 mb-3 [&>nav]:!mb-0">
           <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab}
                  onRename={async (oldName, newName) => {
                    await renameGroup(oldName, newName);
@@ -512,7 +540,15 @@ function Dashboard() {
                    if (activeTab === name) setActiveTab("");
                    setReloadKey(k => k + 1);
                  }}
-                 folders={groupFolders} />
+                 folders={groupFolders}
+                 leading={headerCollapsed ? (
+                   <button onClick={toggleHeader}
+                           title="헤더 펼치기 (포트폴리오~설정 보이기)"
+                           className="p-1 rounded text-gray-500
+                                      hover:text-gray-800 hover:bg-gray-100 transition">
+                     <Menu size={18} />
+                   </button>
+                 ) : undefined} />
         </div>
 
         {activeTab === US_MARKET_TAB_KEY ? (
@@ -569,7 +605,7 @@ function Dashboard() {
           <>
             {/* 정렬 옵션 + 심플 보기 + 추가지표 일괄 토글 — sticky. 탭 바 바로 아래에 고정
                 (탭이 여러 줄로 wrap 되므로 top 을 헤더+탭 높이로 동적 계산) */}
-            <div style={{ top: HEADER_H + tabsH }}
+            <div style={{ top: (headerCollapsed ? 0 : headerH) + tabsH }}
                  className="sticky z-30 bg-white/95 backdrop-blur
                             flex items-center justify-end gap-2 mb-2 py-1.5
                             -mx-3 px-3 border-b border-gray-200">

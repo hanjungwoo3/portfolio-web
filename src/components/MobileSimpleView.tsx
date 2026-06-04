@@ -14,7 +14,7 @@ import {
 import {
   US_PAIRS,
 } from "../lib/usMarketData";
-import { Settings, Cpu } from "lucide-react";
+import { Settings, Cpu, Menu } from "lucide-react";
 import type { ReactNode } from "react";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, nowKstDateStr } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
@@ -146,6 +146,15 @@ export function MobileSimpleView() {
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
+  // 상단 헤더 접기/펼치기 (PC 와 동일 키)
+  const [headerCollapsed, setHeaderCollapsed] = useState(() => {
+    try { return localStorage.getItem("portfolio_header_collapsed") === "1"; } catch { return false; }
+  });
+  const toggleHeader = () => setHeaderCollapsed(v => {
+    const next = !v;
+    try { localStorage.setItem("portfolio_header_collapsed", next ? "1" : "0"); } catch { /* noop */ }
+    return next;
+  });
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [editing, setEditing] = useState<Stock | null>(null);
@@ -655,8 +664,13 @@ export function MobileSimpleView() {
               : `🚧 토스 점검 중${tossMaint.until ? ` (~${fmtUntil(tossMaint.until)})` : ""} — 네이버로 우회`}
         </div>
       )}
+      {!headerCollapsed && (
       <header className="sticky top-0 z-40 bg-white border-b border-gray-200
                           px-3 py-2 flex items-center gap-1">
+        <button onClick={toggleHeader} title="헤더 접기 (상단 메뉴 숨김)"
+                className="shrink-0 p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition">
+          <Menu size={16} />
+        </button>
         <h1 className="text-sm font-bold text-gray-800 shrink-0">📈</h1>
         <RefreshIndicator dataUpdatedAt={lastAt}
                           refetchIntervalMs={REFRESH_MS}
@@ -705,10 +719,19 @@ export function MobileSimpleView() {
           설정
         </button>
       </header>
+      )}
 
       {/* ─── 그룹 탭 (가로 스크롤, 작은 폰트) — 길게 누르기 = 액션 시트 ─── */}
-      <nav className="sticky top-[44px] z-40 bg-white border-b border-gray-200
-                       px-2 py-1 flex gap-1 overflow-x-auto whitespace-nowrap">
+      <nav style={{ top: headerCollapsed ? 0 : 44 }}
+           className="sticky z-40 bg-white border-b border-gray-200
+                       px-2 py-1 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
+        {/* 헤더 접힘 시 펼치기(≡) 버튼 — 탭 바 맨 앞 */}
+        {headerCollapsed && (
+          <button onClick={toggleHeader} title="헤더 펼치기 (상단 메뉴 보이기)"
+                  className="shrink-0 p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition">
+            <Menu size={16} />
+          </button>
+        )}
         {/* 시스템 탭 묶음 — 선택된 탭 아이콘 + 선택박스 (지수~ETF) */}
         {(() => {
           const SYS = new Set([KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, MY_KEY, CONSENSUS_KEY, ETF_KEY]);
