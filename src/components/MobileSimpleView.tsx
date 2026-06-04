@@ -1711,15 +1711,16 @@ function SettingsModal({
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
                 {([
-                  { key: "usMarket" as const, label: "📈 지수", icon: null as ReactNode | null },
-                  { key: "sectorRank" as const, label: "🧩 섹터", icon: null },
+                  { key: "usMarket" as const, label: "📈 지수", icon: null as ReactNode | null, cls: "" },
+                  { key: "sectorRank" as const, label: "🧩 섹터", icon: null, cls: "" },
                   { key: "semiCheck" as const, label: "반도체",
-                    icon: <Cpu size={12} strokeWidth={2.2} className="text-slate-600" /> },
-                  { key: "myStocks" as const, label: "📦 내주식", icon: null },
-                  { key: "consensus" as const, label: "🎯 컨센서스", icon: null },
-                  { key: "etfReverse" as const, label: "🍱 ETF", icon: null },
-                ]).map(({ key, label, icon }) => (
-                  <label key={key} className="flex items-center gap-1.5 cursor-pointer select-none">
+                    icon: <Cpu size={12} strokeWidth={2.2} className="text-slate-600" />, cls: "" },
+                  { key: "consensus" as const, label: "🎯 컨센서스", icon: null, cls: "" },
+                  { key: "etfReverse" as const, label: "🍱 ETF", icon: null, cls: "" },
+                  // 내주식 — 묶음에서 빠진 개별 탭이라 구분선 뒤(오른쪽)
+                  { key: "myStocks" as const, label: "📦 내주식", icon: null, cls: "pl-3 ml-1 border-l border-gray-200" },
+                ]).map(({ key, label, icon, cls }) => (
+                  <label key={key} className={`flex items-center gap-1.5 cursor-pointer select-none ${cls}`}>
                     <input type="checkbox" defaultChecked={getTabVisibility()[key]}
                            onChange={e => {
                              setTabVisibility({ [key]: e.target.checked });

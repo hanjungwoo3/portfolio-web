@@ -656,12 +656,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   </span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={tabVis.myStocks}
-                         onChange={e => toggleTab("myStocks", e.target.checked)}
-                         className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">📦 내주식 (합산)</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input type="checkbox" checked={tabVis.consensus}
                          onChange={e => toggleTab("consensus", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
@@ -672,6 +666,13 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                          onChange={e => toggleTab("etfReverse", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
                   <span className="text-[11px] text-gray-700">🍱 ETF</span>
+                </label>
+                {/* 내주식 — 묶음에서 빠진 개별 탭이라 구분선 뒤(오른쪽)에 배치 */}
+                <label className="flex items-center gap-1.5 cursor-pointer select-none pl-3 ml-1 border-l border-gray-200">
+                  <input type="checkbox" checked={tabVis.myStocks}
+                         onChange={e => toggleTab("myStocks", e.target.checked)}
+                         className="w-4 h-4 accent-blue-600" />
+                  <span className="text-[11px] text-gray-700">📦 내주식 (개별 탭)</span>
                 </label>
               </div>
               <div className="text-[10px] text-gray-500 mt-1">
