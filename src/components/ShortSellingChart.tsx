@@ -1,36 +1,30 @@
-// 공매도 미니 차트 — 외국인/기관계/연기금 차트 옆에 4번째로 표시
-//   라인 (우측 축, 가격 단위): 공매도 평단가 + 종가 → 둘의 거리가 곧 숏 손익
-//   히스토그램 (좌측 축, %): 일별 공매도 비중 (%)
-//   crosshair sync 지원 (다른 차트와 동일 패턴, anchor = 종가 라인)
+// 공매도 미니 차트 (종가 없음 — 상단 주가차트 + crosshair sync 로 대조)
+//   히스토그램(연파랑): 일별 공매도 수량(주)  /  라인(진파랑): 20일 이동평균(추세)
+//   (누적은 무의미 — 공매도는 상환됨, 실제 잔량은 대차잔고. 그래서 추세=이동평균)
+//   crosshair sync anchor = 이동평균 라인
 
 import { useEffect, useRef } from "react";
 import {
-  createChart,
-  ColorType,
-  LineSeries,
-  AreaSeries,
-  HistogramSeries,
-  LineStyle,
-  type IChartApi,
-  type ISeriesApi,
-  type SeriesType,
-  type Time,
-  type LogicalRange,
-  type MouseEventParams,
+  createChart, ColorType, LineSeries, HistogramSeries, LineStyle,
+  type IChartApi, type ISeriesApi, type SeriesType, type Time,
+  type LogicalRange, type MouseEventParams,
 } from "lightweight-charts";
-import type { PricePoint, ShortSellingPoint } from "../lib/api";
+import type { ShortSellingPoint } from "../lib/api";
 
-const PRICE_COLOR     = "#dc2626";    // 종가 라인 — 주가 차트와 동일 (red-600, 한국식 상승색)
-const SHORT_AVG_COLOR = "#2563eb";    // 공매도 평단 면적 — 하락 베팅 의미 (blue-600)
-// 공매도 비중 막대 — 갭 부호에 따라 색 분기 (빨강=공매도손실 / 파랑=공매도수익)
-const RATIO_BAR_UP_COLOR = "rgba(220, 38, 38, 0.5)";   // red-600 50% — 갭 +
-const RATIO_BAR_DN_COLOR = "rgba(37, 99, 235, 0.5)";   // blue-600 50% — 갭 -
-const RATIO_BAR_NEUTRAL  = "rgba(156, 163, 175, 0.4)"; // gray-400 — 평단 데이터 없음
+const SHORT_COLOR = "#2563eb";   // 이동평균 라인 + 헤더 (blue-600)
+const BAR_COLOR   = "#bfdbfe";   // 일별 막대 (blue-200)
+
+function fmtVol(v: number): string {
+  const abs = Math.abs(v), sign = v < 0 ? "-" : "";
+  if (abs >= 100_000_000) return `${sign}${(abs / 100_000_000).toFixed(1)}억`;
+  if (abs >= 10_000) return `${sign}${Math.round(abs / 10_000).toLocaleString()}만`;
+  return `${sign}${Math.round(abs).toLocaleString()}`;
+}
 
 interface Props {
   shortSelling: ShortSellingPoint[];
-  prices: PricePoint[];
-  dates: string[];   // X 축 통일용 (다른 차트와 같은 날짜 배열)
+  dates: string[];
+  desc?: string;   // 그래프 하단 설명
   onReady?: (
     chart: IChartApi,
     anchor: ISeriesApi<SeriesType>,
@@ -38,181 +32,98 @@ interface Props {
   ) => (() => void) | void;
 }
 
-export function ShortSellingChart({ shortSelling, prices, dates, onReady }: Props) {
+export function ShortSellingChart({ shortSelling, dates, desc, onReady }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const visibleRangeRef = useRef<LogicalRange | null>(null);
 
-  // 헤더: 최신 평단 + 같은 날짜 종가 대비 차이 (공매도 데이터 1-2일 지연 → 최신 종가와 어긋남 방지)
-  const lastShort = [...shortSelling].reverse().find(s => s.avgPrice > 0);
-  const matchingClose = lastShort
-    ? prices.find(p => p.date === lastShort.date)?.close
-    : undefined;
-  const lastDiff = lastShort && matchingClose && matchingClose > 0
-    ? ((matchingClose - lastShort.avgPrice) / lastShort.avgPrice) * 100
-    : null;
+  const valid = shortSelling.filter(s => s.shortVolume > 0);
+  const last = valid[valid.length - 1];
+  const recent = valid.slice(-20);
+  const recentAvg = recent.length > 0 ? recent.reduce((a, s) => a + s.shortVolume, 0) / recent.length : null;
 
   useEffect(() => {
     if (!containerRef.current) return;
     if (dates.length < 2) return;
 
-    const chart: IChartApi = createChart(containerRef.current, {
+    const chart = createChart(containerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: "#ffffff" },
-        textColor: "#374151",
-        fontSize: 10,
-        fontFamily: "system-ui, -apple-system, sans-serif",
-        attributionLogo: false,
+        textColor: "#374151", fontSize: 10,
+        fontFamily: "system-ui, -apple-system, sans-serif", attributionLogo: false,
       },
-      grid: {
-        vertLines: { color: "#f3f4f6" },
-        horzLines: { color: "#f3f4f6" },
-      },
-      rightPriceScale: {
-        borderColor: "#e5e7eb",
-        scaleMargins: { top: 0.08, bottom: 0.32 },
-      },
-      leftPriceScale: {
-        visible: false,
-        borderColor: "#e5e7eb",
-        scaleMargins: { top: 0.08, bottom: 0.32 },
-      },
-      timeScale: {
-        borderColor: "#e5e7eb",
-        timeVisible: false,
-        secondsVisible: false,
-      },
+      grid: { vertLines: { color: "#f3f4f6" }, horzLines: { color: "#f3f4f6" } },
+      rightPriceScale: { borderColor: "#e5e7eb", scaleMargins: { top: 0.12, bottom: 0.06 } },
+      leftPriceScale: { visible: false },
+      timeScale: { borderColor: "#e5e7eb", timeVisible: false, secondsVisible: false },
       crosshair: {
         mode: 1,
-        vertLine: {
-          color: "#9ca3af", width: 1, style: LineStyle.Dotted,
-          labelBackgroundColor: "#475569",
-        },
-        horzLine: {
-          color: "#9ca3af", width: 1, style: LineStyle.Dotted,
-          labelVisible: false,
-        },
+        vertLine: { color: "#9ca3af", width: 1, style: LineStyle.Dotted, labelBackgroundColor: "#475569" },
+        horzLine: { color: "#9ca3af", width: 1, style: LineStyle.Dotted, labelVisible: false },
       },
       autoSize: true,
     });
 
-    // ─── 데이터 lookup ──────────────────────────────────────
     const shortMap = new Map<string, ShortSellingPoint>();
     for (const s of shortSelling) shortMap.set(s.date, s);
-    const priceMap = new Map<string, number>();
-    for (const p of prices) priceMap.set(p.date, p.close);
 
-    // ─── 공매도 비중 히스토그램 (좌측 축, hidden) — 갭 부호로 색 분기 ──
-    const ratioBars = chart.addSeries(HistogramSeries, {
-      priceScaleId: "left",
-      priceFormat: { type: "custom", formatter: (v: number) => `${v.toFixed(2)}%` },
-      base: 0,
-      priceLineVisible: false,
-      lastValueVisible: false,
-    });
-    chart.priceScale("left").applyOptions({
-      scaleMargins: { top: 0.7, bottom: 0 },   // 하단 30% 영역만 사용
-    });
-    const ratioData = dates
-      .map(d => {
-        const s = shortMap.get(d);
-        if (!s) return null;
-        const close = priceMap.get(d);
-        let color = RATIO_BAR_NEUTRAL;
-        if (close !== undefined && s.avgPrice > 0) {
-          const gap = close - s.avgPrice;
-          color = gap > 0 ? RATIO_BAR_UP_COLOR
-                : gap < 0 ? RATIO_BAR_DN_COLOR
-                : RATIO_BAR_NEUTRAL;
-        }
-        return { time: d as Time, value: s.ratio, color };
-      })
-      .filter((x): x is { time: Time; value: number; color: string } => x !== null);
-    ratioBars.setData(ratioData);
-
-    // ─── 공매도 평단 (배경 면적, 핑크 그라디언트) ─────────────
-    // line 자체는 숨기고 fill 만 — 공매도 세력이 위치한 "구역" 시각화
-    const avgArea = chart.addSeries(AreaSeries, {
-      priceScaleId: "right",
-      lineColor: "rgba(0,0,0,0)",   // 라인 숨김 (transparent)
-      lineWidth: 1,
-      topColor: "rgba(37, 99, 235, 0.22)",     // blue-600 22%
-      bottomColor: "rgba(37, 99, 235, 0.02)",
-      priceLineVisible: false,
-      lastValueVisible: false,
-      crosshairMarkerVisible: false,
-    });
-    const avgData = dates
-      .map(d => {
-        const s = shortMap.get(d);
-        return s && s.avgPrice > 0 ? { time: d as Time, value: s.avgPrice } : null;
-      })
-      .filter((x): x is { time: Time; value: number } => x !== null);
-    avgArea.setData(avgData);
-
-    // ─── 종가 라인 (빨강 — 주가 차트와 동일) — 공매도 면적 위로 부각 ──
-    const closeSeries = chart.addSeries(LineSeries, {
-      priceScaleId: "right",
-      color: PRICE_COLOR,
-      lineWidth: 1,
-      priceLineVisible: false,
-      lastValueVisible: false,
-      crosshairMarkerVisible: false,
-    });
-    const closeData = dates
-      .map(d => {
-        const c = priceMap.get(d);
-        return c !== undefined ? { time: d as Time, value: c } : null;
-      })
-      .filter((x): x is { time: Time; value: number } => x !== null);
-    closeSeries.setData(closeData);
-
-    // ─── 줌 상태 복원/저장 ──────────────────────────────────
-    if (visibleRangeRef.current) {
-      chart.timeScale().setVisibleLogicalRange(visibleRangeRef.current);
-    } else {
-      chart.timeScale().fitContent();
+    // 20일 이동평균 (데이터 있는 날 순서 기준 trailing 20)
+    const ordered = dates
+      .map(d => ({ date: d, s: shortMap.get(d) }))
+      .filter(x => x.s && x.s.shortVolume > 0)
+      .map(x => ({ date: x.date, vol: x.s!.shortVolume }));
+    const maMap = new Map<string, number>();
+    for (let i = 0; i < ordered.length; i++) {
+      const win = ordered.slice(Math.max(0, i - 19), i + 1);
+      maMap.set(ordered[i].date, win.reduce((a, b) => a + b.vol, 0) / win.length);
     }
-    const rangeHandler = (range: LogicalRange | null) => {
-      if (range) visibleRangeRef.current = range;
-    };
+
+    // 일별 공매도 수량(주) 히스토그램 (연파랑) — 전 dates whitespace 정렬
+    const bars = chart.addSeries(HistogramSeries, {
+      priceScaleId: "right", color: BAR_COLOR, priceFormat: { type: "volume" },
+      base: 0, priceLineVisible: false, lastValueVisible: false,
+    });
+    bars.setData(dates.map(d => {
+      const s = shortMap.get(d);
+      return s && s.shortVolume > 0 ? { time: d as Time, value: s.shortVolume } : { time: d as Time };
+    }));
+
+    // 20일 이동평균 라인 (진파랑) — 추세
+    const maLine = chart.addSeries(LineSeries, {
+      priceScaleId: "right", color: SHORT_COLOR, lineWidth: 1,
+      priceFormat: { type: "volume" },
+      priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+    });
+    maLine.setData(dates.map(d => {
+      const m = maMap.get(d);
+      return m !== undefined ? { time: d as Time, value: m } : { time: d as Time };
+    }));
+
+    if (visibleRangeRef.current) chart.timeScale().setVisibleLogicalRange(visibleRangeRef.current);
+    else chart.timeScale().fitContent();
+    const rangeHandler = (r: LogicalRange | null) => { if (r) visibleRangeRef.current = r; };
     chart.timeScale().subscribeVisibleLogicalRangeChange(rangeHandler);
 
-    const hideTooltip = () => {
-      if (tooltipRef.current) tooltipRef.current.style.display = "none";
-    };
+    const hideTooltip = () => { if (tooltipRef.current) tooltipRef.current.style.display = "none"; };
 
-    // 툴팁 위치 — (timeScale.x, closeSeries.y) 교차점, sync 시에도 동일
     const updateTooltipForTime = (time: Time): boolean => {
-      const tooltip = tooltipRef.current;
-      const container = containerRef.current;
+      const tooltip = tooltipRef.current, container = containerRef.current;
       if (!tooltip || !container) return false;
-
       const x = chart.timeScale().timeToCoordinate(time);
-      const close = priceMap.get(String(time));
-      if (x == null || close === undefined) { hideTooltip(); return false; }
-      const y = closeSeries.priceToCoordinate(close);
-      if (y == null) { hideTooltip(); return false; }
-
       const s = shortMap.get(String(time));
-      let content = `<div class="text-[10px] text-gray-400 mb-0.5">${String(time)}</div>`;
-      content += `<div><span class="text-gray-500">종가 </span><span style="color:${PRICE_COLOR}">${close.toLocaleString()}원</span></div>`;
-      if (s && s.avgPrice > 0) {
-        const diff = ((close - s.avgPrice) / s.avgPrice) * 100;
-        const diffColor = diff >= 0 ? "#dc2626" : "#2563eb";   // 양수=숏손실(빨강), 음수=숏수익(파랑)
-        content += `<div><span class="text-gray-500">공매도 평단 </span><span style="color:${SHORT_AVG_COLOR}" class="font-bold">${s.avgPrice.toLocaleString()}원</span></div>`;
-        content += `<div><span class="text-gray-500">갭 </span><span style="color:${diffColor}">${diff >= 0 ? "+" : ""}${diff.toFixed(2)}%</span></div>`;
-        content += `<div><span class="text-gray-500">비중 </span><span>${s.ratio.toFixed(2)}%</span></div>`;
-      }
-      tooltip.innerHTML = content;
+      if (x == null || !s || !(s.shortVolume > 0)) { hideTooltip(); return false; }
+      const ma = maMap.get(String(time));
+      const y = (ma !== undefined ? maLine.priceToCoordinate(ma) : bars.priceToCoordinate(s.shortVolume)) ?? 12;
+      let html = `<div class="text-[10px] text-gray-400 mb-0.5">${String(time)}</div>`;
+      html += `<div><span class="text-gray-500">공매도 </span><span style="color:${SHORT_COLOR}" class="font-bold">${s.shortVolume.toLocaleString()}주</span></div>`;
+      if (ma !== undefined) html += `<div><span class="text-gray-500">20일평균 </span><span>${fmtVol(ma)}주</span></div>`;
+      if (s.amountRatio > 0) html += `<div><span class="text-gray-500">거래대금 대비 </span><span>${s.amountRatio.toFixed(2)}%</span></div>`;
+      if (s.ratio > 0) html += `<div><span class="text-gray-500">거래량 대비 </span><span>${s.ratio.toFixed(2)}%</span></div>`;
+      tooltip.innerHTML = html;
       tooltip.style.display = "block";
-
-      const W = container.clientWidth;
-      const H = container.clientHeight;
-      const tw = tooltip.offsetWidth || 110;
-      const th = tooltip.offsetHeight || 70;
-      let left = x + 12;
-      let top = y + 12;
+      const W = container.clientWidth, H = container.clientHeight;
+      const tw = tooltip.offsetWidth || 130, th = tooltip.offsetHeight || 70;
+      let left = x + 12, top = y + 12;
       if (left + tw > W - 4) left = x - tw - 12;
       if (top + th > H - 4) top = y - th - 12;
       if (left < 4) left = 4;
@@ -229,47 +140,35 @@ export function ShortSellingChart({ shortSelling, prices, dates, onReady }: Prop
     chart.subscribeCrosshairMove(tooltipHandler);
 
     const onSyncedHover = (time: Time | null) => {
-      if (time == null) {
-        chart.clearCrosshairPosition();
-        hideTooltip();
-        return;
-      }
-      const close = priceMap.get(String(time));
-      if (close !== undefined) chart.setCrosshairPosition(close, time, closeSeries);
+      if (time == null) { chart.clearCrosshairPosition(); hideTooltip(); return; }
+      const ma = maMap.get(String(time));
+      if (ma !== undefined) chart.setCrosshairPosition(ma, time, maLine);
       updateTooltipForTime(time);
     };
 
-    // sync anchor — 종가 라인 (다른 차트 hover 시 종가 위치에 마커)
-    const cleanupSync = onReady?.(chart, closeSeries, onSyncedHover);
+    const cleanupSync = onReady?.(chart, maLine, onSyncedHover);
 
     return () => {
       if (typeof cleanupSync === "function") cleanupSync();
       try { chart.unsubscribeCrosshairMove(tooltipHandler); } catch { /* noop */ }
-      try { chart.timeScale().unsubscribeVisibleLogicalRangeChange(rangeHandler); }
-      catch { /* chart already removed */ }
+      try { chart.timeScale().unsubscribeVisibleLogicalRangeChange(rangeHandler); } catch { /* noop */ }
       chart.remove();
     };
-  }, [shortSelling, prices, dates, onReady]);
+  }, [shortSelling, dates, onReady]);
 
   return (
     <div className="border border-gray-200 rounded p-2 bg-white">
       <div className="flex items-baseline gap-2 text-xs mb-1 flex-wrap">
-        <span className="font-bold" style={{ color: SHORT_AVG_COLOR }}>공매도 평단</span>
-        {lastShort && (
-          <span className="tabular-nums font-bold" style={{ color: SHORT_AVG_COLOR }}>
-            {lastShort.avgPrice.toLocaleString()}원
+        <span className="font-bold" style={{ color: SHORT_COLOR }}>공매도</span>
+        {last && (
+          <span className="tabular-nums font-bold" style={{ color: SHORT_COLOR }}>
+            {fmtVol(last.shortVolume)}주
           </span>
         )}
-        {lastDiff !== null && (
-          <span className={`tabular-nums ${lastDiff >= 0 ? "text-rose-600" : "text-blue-600"}`}>
-            ({lastDiff >= 0 ? "+" : ""}{lastDiff.toFixed(2)}%)
-          </span>
+        {recentAvg !== null && (
+          <span className="text-[10px] text-gray-400">20일평균 {fmtVol(recentAvg)}주</span>
         )}
-        {/* 종가 범례 — 주가 차트와 동일한 빨강 라인 */}
-        <span className="flex items-center gap-1 ml-1">
-          <span className="inline-block w-3 h-0.5" style={{ background: PRICE_COLOR }}></span>
-          <span style={{ color: PRICE_COLOR }} className="font-medium">종가</span>
-        </span>
+        <span className="text-gray-400 text-[10px] ml-auto">일별 + 20일평균</span>
       </div>
       <div className="relative">
         <div ref={containerRef} className="w-full h-[180px]" />
@@ -278,6 +177,7 @@ export function ShortSellingChart({ shortSelling, prices, dates, onReady }: Prop
                         px-2 py-1 text-xs text-gray-700 tabular-nums z-50 leading-snug"
              style={{ display: "none" }} />
       </div>
+      {desc && <div className="text-[10px] text-gray-600 mt-1 leading-snug">{desc}</div>}
     </div>
   );
 }

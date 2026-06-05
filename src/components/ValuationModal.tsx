@@ -8,6 +8,8 @@ import type { SyncRegistrar } from "../lib/useCrosshairSync";
 const CandleChartLight = lazy(() => import("./CandleChartLight"));
 const InvestorChartLight = lazy(() => import("./InvestorChartLight"));
 const ShortSellingChart = lazy(() => import("./ShortSellingChart"));
+const BalanceTrendChart = lazy(() => import("./BalanceTrendChart"));
+import type { BalanceTrendPoint } from "./BalanceTrendChart";
 import {
   fetchFullValuation, fetchWisereportSeries, matchBrokerToShareholder,
   INDICATOR_SECTIONS, INDICATOR_LABELS, INDICATOR_DESCRIPTIONS,
@@ -19,7 +21,7 @@ import { ConsensusCharts } from "./ConsensusCharts";
 import { PriceMultiSparks } from "./PriceMultiSparks";
 import { signColor, nowKstDateStr } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
-import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchNaverInfo, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchNaverInfo, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices } from "../lib/api";
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
 import type { PricePoint } from "../lib/api";
 import type { Investor } from "../types";
@@ -751,10 +753,39 @@ function InvestorChartsSection({
     staleTime: 30 * 60_000,    // 30분 — 공시 변동 빈도 적음
   });
 
-  // 공매도 (토스 API, 인증 불필요) — 일별 평단가 + 비중
+  // 공매도 (토스 API, 인증 불필요) — 일별 비율 + 비중
   const { data: shortSelling } = useQuery({
     queryKey: ["short-selling-modal", ticker],
     queryFn: () => fetchKrShortSelling(ticker, 12),
+    enabled: /^\d{6}$/.test(ticker),
+    staleTime: 30 * 60_000,
+  });
+
+  // 대차거래(securities lending) — 잠재 공매도 물량(대차잔고)
+  const { data: lending } = useQuery({
+    queryKey: ["lending-trading-modal", ticker],
+    queryFn: () => fetchKrLendingTrading(ticker, 12),
+    enabled: /^\d{6}$/.test(ticker),
+    staleTime: 30 * 60_000,
+  });
+  // 신용거래(신용융자) 잔고 — 개인 빚투 과열/반대매매 지표
+  const { data: credit } = useQuery({
+    queryKey: ["credit-loan-modal", ticker],
+    queryFn: () => fetchKrCreditLoan(ticker, 12),
+    enabled: /^\d{6}$/.test(ticker),
+    staleTime: 30 * 60_000,
+  });
+  // 프로그램매매 — 차익+비차익 순매수 (기관·외인 대량 수급)
+  const { data: program } = useQuery({
+    queryKey: ["program-trading-modal", ticker],
+    queryFn: () => fetchKrProgramTrading(ticker, 12),
+    enabled: /^\d{6}$/.test(ticker),
+    staleTime: 30 * 60_000,
+  });
+  // CFD — 개인 레버리지(매수/매도잔고). 종목 따라 데이터 없을 수 있음 → 있을 때만 표시.
+  const { data: cfd } = useQuery({
+    queryKey: ["cfd-modal", ticker],
+    queryFn: () => fetchKrCfd(ticker, 12),
     enabled: /^\d{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
@@ -774,6 +805,24 @@ function InvestorChartsSection({
   const cumPension = useMemo(() => {
     let s = 0; return data.map(d => { s += d.연기금; return s; });
   }, [data]);
+
+  // 프로그램매매 — dates 정렬 일별/누적 순매수 (InvestorChartLight 용)
+  const programByDate = useMemo(() => new Map((program ?? []).map(p => [p.date, p.totalNet])), [program]);
+  const dailyProgram = useMemo(() => dates.map(d => programByDate.get(d) ?? 0), [dates, programByDate]);
+  const cumProgram = useMemo(() => { let s = 0; return dailyProgram.map(v => (s += v)); }, [dailyProgram]);
+  const hasProgram = useMemo(() => (program ?? []).some(p => p.totalNet !== 0), [program]);
+
+  // 잔고 차트(BalanceTrendChart) 변환 — 대차/신용/CFD
+  const lendingPoints = useMemo<BalanceTrendPoint[]>(() => (lending ?? []).map(l => ({
+    date: l.date, volume: l.balanceVolume, amount: l.balanceAmount, fluctuation: l.fluctuation,
+    detail: `신규 ${l.newVolume.toLocaleString()} · 상환 ${l.repayVolume.toLocaleString()}`,
+  })), [lending]);
+  const creditPoints = useMemo<BalanceTrendPoint[]>(() => (credit ?? []).map(c => ({
+    date: c.date, volume: c.balanceVolume, rate: c.rate, fluctuation: c.fluctuation,
+  })), [credit]);
+  const cfdPoints = useMemo<BalanceTrendPoint[]>(() => (cfd ?? []).map(c => ({
+    date: c.date, volume: c.buyBalance, rate: c.buyRate, volume2: c.sellBalance,
+  })), [cfd]);
 
   // 가격을 history 날짜에 정렬 (4개 차트 X축 통일) — useMemo
   // 투자자 데이터 없음(토스 점검 등) → Yahoo 가격 전체 그대로 사용 (가격차트만이라도 표시)
@@ -831,10 +880,11 @@ function InvestorChartsSection({
           {pricesLoading ? "주가 로딩 중..." : "주가 데이터 없음 (Yahoo 미수록)"}
         </div>
       )}
-      {/* 2~5. 수급 3개 + 공매도 — 투자자 데이터(토스) 있을 때만. 점검 중엔 가격차트만 */}
+      {/* 투자 유형별 — ① 순매수 행(외국인/기관계/연기금/프로그램) ② 잔고·압력 행(공매도/대차/신용/CFD) */}
       {hasInvestor ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
-          <Suspense fallback={<div className="h-[220px]" />}>
+        <Suspense fallback={<div className="h-[220px]" />}>
+          {/* ① 순매수 (일별+누적) */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
             <InvestorChartLight
               label="외국인"
               daily={dailyForeign} cumulative={cumForeign} dates={dates}
@@ -853,16 +903,45 @@ function InvestorChartsSection({
               barColor="#fed7aa" cumColor="#c2410c"
               onReady={registerSync}
             />
-            {shortSelling && shortSelling.length > 0 && (
-              <ShortSellingChart
-                shortSelling={shortSelling}
-                prices={alignedPrices}
-                dates={dates}
+            {hasProgram && (
+              <InvestorChartLight
+                label="프로그램"
+                daily={dailyProgram} cumulative={cumProgram} dates={dates}
+                barColor="#bae6fd" cumColor="#0369a1"
                 onReady={registerSync}
               />
             )}
-          </Suspense>
-        </div>
+          </div>
+          {/* ② 잔고·압력 (공매도 비율 / 대차·신용·CFD 잔고 추세) */}
+          {((shortSelling && shortSelling.length > 0) || lendingPoints.length > 0
+            || creditPoints.length > 0 || cfdPoints.length > 0) && (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2 mt-2">
+              {shortSelling && shortSelling.length > 0 && (
+                <ShortSellingChart
+                  shortSelling={shortSelling}
+                  dates={dates}
+                  desc="일별 공매도 수량(주)과 20일 평균. 평균이 우상향이면 공매도가 늘어 하락 베팅이 강해지는 흐름."
+                  onReady={registerSync}
+                />
+              )}
+              {lendingPoints.length > 0 && (
+                <BalanceTrendChart title="대차잔고" color="#7c3aed"
+                  desc="빌려간 주식 잔고 = 잠재적 공매도 물량. 증가는 숏 빌드업(경계), 감소는 상환(숏커버 → 반등 신호)."
+                  points={lendingPoints} dates={dates} onReady={registerSync} />
+              )}
+              {creditPoints.length > 0 && (
+                <BalanceTrendChart title="신용잔고" color="#ea580c"
+                  desc="개인이 빚내서 산 신용융자 잔고. 증가는 과열(반대매매 리스크), 급감은 반대매매(투매) 신호."
+                  points={creditPoints} dates={dates} onReady={registerSync} />
+              )}
+              {cfdPoints.length > 0 && (
+                <BalanceTrendChart title="CFD 매수" color="#0d9488" title2="매도" color2="#e11d48"
+                  desc="개인 레버리지(CFD) 잔고. 매수=롱, 매도=숏 포지션. 한쪽이 급증하면 방향성 베팅 쏠림."
+                  points={cfdPoints} dates={dates} onReady={registerSync} />
+              )}
+            </div>
+          )}
+        </Suspense>
       ) : (
         <div className="text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1">
           🚧 토스 점검 중 — 투자자 수급(외국인/기관/연기금)·공매도는 복구 후 표시됩니다. 가격 차트만 우선 표시.

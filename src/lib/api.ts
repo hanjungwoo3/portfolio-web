@@ -975,6 +975,170 @@ export async function fetchKrShortSelling(
   return out;
 }
 
+// 일별 대차거래(securities lending) — 토스 lending-trading API
+//   대차잔고 = 빌려간 주식 잔고 = 잠재적 공매도 물량. 잔고 증가=숏 빌드업 / 감소=숏커버(상환).
+export interface LendingTradingPoint {
+  date: string;            // YYYY-MM-DD
+  balanceVolume: number;   // 대차 잔고수량 (주)
+  balanceAmount: number;   // 대차 잔고금액 (원)
+  newVolume: number;       // 신규 대차 (주)
+  repayVolume: number;     // 상환 (주)
+  fluctuation: number;     // 증감수량 (신규-상환, 주)
+  close: number;           // 종가
+}
+
+// 공매도와 동일 호스트(wts-info-api) — 워커 화이트리스트 추가 불필요. 페이지네이션 순차 fetch.
+export async function fetchKrLendingTrading(
+  ticker: string, months = 12,
+): Promise<LendingTradingPoint[]> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
+
+  const since = new Date();
+  since.setMonth(since.getMonth() - months);
+
+  const out: LendingTradingPoint[] = [];
+  let key: string | null = null;
+
+  for (let i = 0; i < 5; i++) {
+    let url = `https://wts-info-api.tossinvest.com/api/v1/mds/info/lending-trading?stockCode=A${ticker}&size=100`;
+    if (key) url += `&key=${encodeURIComponent(key)}`;
+    let resp: Response;
+    try { resp = await fetchProxied(url); }
+    catch { break; }
+    if (!resp.ok) break;
+    const data = await resp.json() as {
+      result?: {
+        body?: Array<{
+          baseDate?: string;
+          executionQuantity?: number;
+          repaymentQuantity?: number;
+          lendingTradingFluctuation?: number;
+          lendingTradingBalanceVolume?: number;
+          lendingTradingBalanceAmount?: number;
+          close?: number;
+        }>;
+        pagingParam?: { key?: string | null };
+      };
+    };
+    const body = data.result?.body;
+    if (!Array.isArray(body) || body.length === 0) break;
+
+    let stop = false;
+    for (const r of body) {
+      if (!r.baseDate) continue;
+      if (new Date(r.baseDate) < since) { stop = true; continue; }
+      out.push({
+        date: r.baseDate,
+        balanceVolume: r.lendingTradingBalanceVolume ?? 0,
+        balanceAmount: r.lendingTradingBalanceAmount ?? 0,
+        newVolume: r.executionQuantity ?? 0,
+        repayVolume: r.repaymentQuantity ?? 0,
+        fluctuation: r.lendingTradingFluctuation ?? 0,
+        close: r.close ?? 0,
+      });
+    }
+    if (stop) break;
+    key = data.result?.pagingParam?.key ?? null;
+    if (!key) break;
+  }
+
+  out.sort((a, b) => a.date.localeCompare(b.date));
+  return out;
+}
+
+// 토스 mds/info 일별 트렌드 공용 fetch — 공매도/대차/프로그램/신용/CFD 동일 페이지네이션 구조.
+async function fetchTossMdsTrend<T extends { date: string }>(
+  endpoint: string, ticker: string, months: number,
+  map: (r: Record<string, unknown>) => T | null,
+): Promise<T[]> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
+  const since = new Date();
+  since.setMonth(since.getMonth() - months);
+  const out: T[] = [];
+  let key: string | null = null;
+  for (let i = 0; i < 5; i++) {
+    let url = `https://wts-info-api.tossinvest.com/api/v1/mds/info/${endpoint}?stockCode=A${ticker}&size=100`;
+    if (key) url += `&key=${encodeURIComponent(key)}`;
+    let resp: Response;
+    try { resp = await fetchProxied(url); }
+    catch { break; }
+    if (!resp.ok) break;
+    const data = await resp.json() as {
+      result?: { body?: Array<Record<string, unknown>>; pagingParam?: { key?: string | null } };
+    };
+    const body = data.result?.body;
+    if (!Array.isArray(body) || body.length === 0) break;
+    let stop = false;
+    for (const r of body) {
+      const bd = r.baseDate as string | undefined;
+      if (!bd) continue;
+      if (new Date(bd) < since) { stop = true; continue; }
+      const m = map(r);
+      if (m) out.push(m);
+    }
+    if (stop) break;
+    key = data.result?.pagingParam?.key ?? null;
+    if (!key) break;
+  }
+  out.sort((a, b) => a.date.localeCompare(b.date));
+  return out;
+}
+
+// 프로그램매매 — 차익(arbitrage)/비차익(nonArbitrage)/합계 순매수. 기관·외인 대량 수급 + 선물 연계 차익.
+export interface ProgramTradingPoint {
+  date: string;
+  arbitrageNet: number;     // 차익 순매수 (주)
+  nonArbitrageNet: number;  // 비차익 순매수 (주)
+  totalNet: number;         // 합계 순매수 (주)
+}
+export function fetchKrProgramTrading(ticker: string, months = 12): Promise<ProgramTradingPoint[]> {
+  return fetchTossMdsTrend("program-trading", ticker, months, r => ({
+    date: r.baseDate as string,
+    arbitrageNet: (r.arbitrageNetBuyQuantity as number) ?? 0,
+    nonArbitrageNet: (r.nonArbitrageNetBuyQuantity as number) ?? 0,
+    totalNet: (r.totalNetBuyQuantity as number) ?? 0,
+  }));
+}
+
+// 신용거래(신용융자) 잔고 — 개인 빚투. 잔고 증가=과열·반대매매 리스크 / 급감=반대매매 투매.
+export interface CreditLoanPoint {
+  date: string;
+  balanceVolume: number;   // 신용융자 잔고수량 (주)
+  rate: number;            // 신용잔고 비율 (%)
+  fluctuation: number;     // 증감 (주)
+}
+export function fetchKrCreditLoan(ticker: string, months = 12): Promise<CreditLoanPoint[]> {
+  return fetchTossMdsTrend("credit", ticker, months, r => {
+    const v = (r.marginLoanBalanceQuantity as number) ?? 0;
+    if (!(v > 0)) return null;
+    return {
+      date: r.baseDate as string,
+      balanceVolume: v,
+      rate: (r.marginLoanBalanceRate as number) ?? 0,
+      fluctuation: (r.marginLoanIncreaseDecreaseQuantity as number) ?? 0,
+    };
+  });
+}
+
+// CFD(차액결제거래) — 개인 레버리지. 매수잔고(롱)/매도잔고(숏). 종목 따라 데이터 없을 수 있음.
+export interface CfdPoint {
+  date: string;
+  buyBalance: number;  buyRate: number;
+  sellBalance: number; sellRate: number;
+}
+export function fetchKrCfd(ticker: string, months = 12): Promise<CfdPoint[]> {
+  return fetchTossMdsTrend("cfd", ticker, months, r => {
+    const buy = (r.buyBalanceQuantity as number) ?? 0;
+    const sell = (r.sellBalanceQuantity as number) ?? 0;
+    if (!(buy > 0) && !(sell > 0)) return null;
+    return {
+      date: r.baseDate as string,
+      buyBalance: buy, buyRate: (r.buyBalanceRate as number) ?? 0,
+      sellBalance: sell, sellRate: (r.sellBalanceRate as number) ?? 0,
+    };
+  });
+}
+
 // ─── 컨센서스 예상치 시계열 (토스 v2 financial/estimate) ─────────────
 // 분기별 발표치 vs 애널리스트 예상치 + 서프라이즈율. POST {} 호출 — 워커 POST 통과 필요.
 export type EstimateMetric = "revenue" | "operating-income" | "eps";

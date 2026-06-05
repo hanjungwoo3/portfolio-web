@@ -201,7 +201,7 @@ export function InvestorChartLight({
         const dailyColor = dailyV >= 0 ? "#dc2626" : "#2563eb";  // 매수 빨강 / 매도 파랑
         content += `<div><span class="text-gray-500">일별 </span><span style="color:${dailyColor}">${sign}${fmtVol(dailyV)}${unit}</span></div>`;
       }
-      content += `<div><span class="text-gray-500">누적 </span><span style="color:${cumColor}" class="font-bold">${fmtVol(cumV)}${unit}</span></div>`;
+      content += `<div><span class="text-gray-500">누적 </span><span style="color:${cumColor}" class="font-bold">${cumV >= 0 ? "+" : ""}${fmtVol(cumV)}${unit}</span></div>`;
       tooltip.innerHTML = content;
       tooltip.style.display = "block";
 
@@ -254,10 +254,11 @@ export function InvestorChartLight({
     <div className="border border-gray-200 rounded p-2 bg-white">
       <div className="flex items-baseline gap-2 text-xs mb-1 flex-wrap">
         <span className="font-bold" style={{ color: cumColor }}>{label}</span>
+        <span className="text-gray-400 text-[10px]">누적</span>
         <span className="tabular-nums font-bold" style={{ color: cumColor }}>
-          {fmtVol(last)}{unit}
+          {last >= 0 ? "+" : ""}{fmtVol(last)}{unit}
         </span>
-        <span className="text-gray-400 text-[10px] ml-auto">일별 + 누적</span>
+        <span className="text-gray-400 text-[10px] ml-auto">일별+누적</span>
       </div>
       <div className="relative">
         <div ref={containerRef} className="w-full h-[180px]" />
