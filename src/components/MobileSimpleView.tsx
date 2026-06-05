@@ -18,7 +18,7 @@ import type { ReactNode } from "react";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, isEtfByName, signColor, formatSigned, holdingYesterdayBaseSum } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
-  getPersonalProxyUrl, setPersonalProxyUrl,
+  getPersonalProxies, setPersonalProxies, type PersonalProxy,
   getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS,
   getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
@@ -141,7 +141,6 @@ function fmtPrice(symbol: string, price: number): string {
 
 export function MobileSimpleView() {
   const queryClient = useQueryClient();
-  const [proxyUrl, setProxyUrl] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInitQuery, setSearchInitQuery] = useState("");
@@ -189,9 +188,6 @@ export function MobileSimpleView() {
     || activeTab === ETF_KEY || activeTab === MY_TRADES_KEY;
   const touchStart = useRef<{ x: number; y: number } | null>(null);
 
-  useEffect(() => {
-    setProxyUrl(getPersonalProxyUrl() ?? "");
-  }, []);
 
   // 활성 탭 변경 시 저장
   useEffect(() => {
@@ -1300,8 +1296,7 @@ export function MobileSimpleView() {
       })()}
 
       {settingsOpen && (
-        <SettingsModal proxyUrl={proxyUrl} setProxyUrl={setProxyUrl}
-                       savedMsg={savedMsg} setSavedMsg={setSavedMsg}
+        <SettingsModal savedMsg={savedMsg} setSavedMsg={setSavedMsg}
                        onClose={() => setSettingsOpen(false)}
                        groups={Array.from(new Set(
                          holdings.map(h => normalizeAccount(h.account)).filter(a => a && a !== "관심ETF")
@@ -1491,8 +1486,6 @@ export function MobileSimpleView() {
 }
 
 interface SettingsModalProps {
-  proxyUrl: string;
-  setProxyUrl: (v: string) => void;
   savedMsg: string;
   setSavedMsg: (v: string) => void;
   onClose: () => void;
@@ -1500,12 +1493,13 @@ interface SettingsModalProps {
 }
 
 function SettingsModal({
-  proxyUrl, setProxyUrl, savedMsg, setSavedMsg, onClose, groups: mgmtGroups,
+  savedMsg, setSavedMsg, onClose, groups: mgmtGroups,
 }: SettingsModalProps) {
   const downOnBackdropRef = useRef(false);
   const queryClient = useQueryClient();
   const [busy, setBusy] = useState(false);
   const [dataMsg, setDataMsg] = useState("");
+  const [proxies, setProxies] = useState<PersonalProxy[]>(() => getPersonalProxies());
   const [folderDraft, setFolderDraft] = useState<GroupFolder[]>([]);
   const [newFolderName, setNewFolderName] = useState("");
   const [pollMs, setPollMs] = useState(getPersonalPollMs());
@@ -1549,11 +1543,30 @@ function SettingsModal({
     setTimeout(() => setSavedMsg(""), 2500);
   };
 
-  const saveProxy = () => {
-    const v = proxyUrl.trim().replace(/\/+$/, "");
-    setPersonalProxyUrl(v || null);
-    setProxyUrl(v);
-    setSavedMsg(v ? "✅ 전용 프록시 적용" : "✅ 공개 4-way 사용");
+  const updateProxy = (i: number, patch: Partial<PersonalProxy>) =>
+    setProxies(ps => ps.map((p, idx) => idx === i ? { ...p, ...patch } : p));
+  const removeProxy = (i: number) => setProxies(ps => ps.filter((_, idx) => idx !== i));
+  const addProxy = () => setProxies(ps => [...ps, { url: "", enabled: true }]);
+  const hasEnabledProxy = proxies.some(p => p.enabled && p.url.trim() !== "");
+
+  const saveProxies = () => {
+    for (const p of proxies) {
+      const v = p.url.trim();
+      if (!v) continue;
+      try {
+        const u = new URL(v);
+        if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error("proto");
+      } catch {
+        alert(`❌ 잘못된 URL 형식\n입력: ${v}`);
+        return;
+      }
+    }
+    const cleaned = proxies
+      .map(p => ({ url: p.url.trim().replace(/\/+$/, ""), enabled: !!p.enabled }))
+      .filter(p => p.url);
+    setPersonalProxies(cleaned);
+    const n = cleaned.filter(p => p.enabled).length;
+    setSavedMsg(n === 0 ? "✅ 공개 4-way 사용" : `✅ 전용 프록시 ${n}개 적용${n > 1 ? " (랜덤 분산)" : ""}`);
     onClose();
     location.reload();
   };
@@ -1793,42 +1806,65 @@ function SettingsModal({
             <p className="text-[10px] text-gray-500">{dataMsg || "보유·예수금·그룹·폴더·탭 등 .json 백업/복원 (불러오기 = 전체 덮어쓰기)"}</p>
           </div>
 
-          {/* 1) 전용 프록시 URL */}
+          {/* 1) 전용 프록시 — 여러 개 가능 */}
           <div className="border border-gray-200 rounded p-3 bg-blue-50/30 space-y-1">
             <label className="text-xs font-bold text-gray-700 block">
-              🔧 내 전용 프록시 URL (선택)
+              🔧 내 전용 프록시 (여러 개 가능)
             </label>
             <p className="text-[11px] text-gray-500">
-              비워두면 공개 4-way 사용. 본인 worker URL 입력 시 본인만 사용.
+              없으면 공개 4-way. 본인 worker URL 등록 시 본인만 사용. 여러 개 등록·각각 켜고 끄기 가능,
+              켜진 게 여러 개면 요청마다 랜덤 분산.
             </p>
             <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md"
                target="_blank" rel="noopener noreferrer"
                className="text-[11px] text-blue-600 underline block">
               📖 배포 가이드 보기
             </a>
-            <input type="text" value={proxyUrl}
-                   onChange={e => setProxyUrl(e.target.value)}
-                   placeholder="https://your-proxy.workers.dev"
-                   className="w-full border rounded px-2 py-1.5 text-xs font-mono
-                              focus:outline-none focus:border-blue-500" />
-            <button onClick={saveProxy}
-                    className="w-full px-3 py-1.5 bg-blue-600 hover:bg-blue-700
-                               text-white text-sm rounded font-medium">
-              저장
-            </button>
+            <div className="space-y-1.5">
+              {proxies.length === 0 && (
+                <div className="text-[11px] text-gray-400 py-1">등록된 전용 프록시 없음 — 공개 4-way 사용 중</div>
+              )}
+              {proxies.map((p, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <input type="checkbox" checked={p.enabled}
+                         onChange={e => updateProxy(i, { enabled: e.target.checked })}
+                         className="shrink-0 w-4 h-4 accent-blue-600" />
+                  <input type="text" value={p.url}
+                         onChange={e => updateProxy(i, { url: e.target.value })}
+                         placeholder="https://your-proxy.workers.dev"
+                         className={`flex-1 border rounded px-2 py-1.5 text-xs font-mono
+                                     focus:outline-none focus:border-blue-500
+                                     ${p.enabled ? "" : "opacity-50 line-through"}`} />
+                  <button onClick={() => removeProxy(i)} title="삭제"
+                          className="shrink-0 px-1.5 py-1 text-gray-400 hover:text-rose-600 text-sm">✕</button>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button onClick={addProxy}
+                      className="px-2.5 py-1.5 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs
+                                 rounded border border-gray-200">
+                ➕ 프록시 추가
+              </button>
+              <button onClick={saveProxies}
+                      className="ml-auto px-3 py-1.5 bg-blue-600 hover:bg-blue-700
+                                 text-white text-sm rounded font-medium">
+                저장
+              </button>
+            </div>
             {savedMsg && (
               <p className="text-[11px] text-emerald-700">{savedMsg}</p>
             )}
 
             {/* 폴링 주기 — 전용 프록시 활성화 시만 enabled */}
             <div className="flex items-center gap-1 mt-2 flex-wrap">
-              <span className={`text-[11px] ${proxyUrl ? "text-gray-700" : "text-gray-400"}`}>
+              <span className={`text-[11px] ${hasEnabledProxy ? "text-gray-700" : "text-gray-400"}`}>
                 폴링 주기:
               </span>
               {POLL_OPTIONS.map(ms => {
                 const active = pollMs === ms;
                 // 수동(0)·공개 허용 주기(30초 이상=30/60초)는 프록시 무관 선택 가능.
-                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : !!proxyUrl;
+                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : hasEnabledProxy;
                 return (
                   <button key={ms}
                           onClick={() => handlePollChange(ms)}
@@ -1842,7 +1878,7 @@ function SettingsModal({
                   </button>
                 );
               })}
-              {!proxyUrl && (
+              {!hasEnabledProxy && (
                 <span className="text-[10px] text-gray-400 w-full mt-0.5">
                   (공개: 기본 60초 · 30·60·수동 선택 · 5·10초는 전용 프록시)
                 </span>

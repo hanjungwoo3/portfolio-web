@@ -5,7 +5,7 @@ import {
   exportAll, replaceAllHoldings, replaceAllPeaks, applyImportedSettings, replaceAllMemos, replaceAllTrades,
 } from "../lib/db";
 import {
-  getPersonalProxyUrl, setPersonalProxyUrl,
+  getPersonalProxies, setPersonalProxies, type PersonalProxy,
   getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS,
   getDimSleepingEnabled, setDimSleepingEnabled,
   checkPersonalProxyPostSupport, checkPersonalProxyInvestingSupport,
@@ -42,7 +42,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   const [busy, setBusy] = useState(false);
   const [statusMsg, setStatusMsg] = useState("");
   const downOnBackdropRef = useRef(false);
-  const [proxyUrl, setProxyUrl] = useState("");
+  const [proxies, setProxies] = useState<PersonalProxy[]>([]);
   const [pollMs, setPollMs] = useState(10_000);
   const [syncState, setSyncState] = useState(getSyncState());
   const [proxyStatus, setProxyStatus] = useState<PersonalProxyStatus | "checking">("checking");
@@ -122,7 +122,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   // 다이얼로그 열릴 때마다 현재 데이터 로드
   useEffect(() => {
     if (!isOpen) return;
-    setProxyUrl(getPersonalProxyUrl() ?? "");
+    setProxies(getPersonalProxies());
     setPollMs(getPersonalPollMs());
     setSyncState(getSyncState());
     setLastSyncedAt(getLastSyncedAt());
@@ -157,70 +157,59 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     })();
   }, [isOpen]);
 
-  const saveProxy = async () => {
-    const v = proxyUrl.trim().replace(/\/+$/, "");
+  // 행 편집 헬퍼
+  const updateProxy = (i: number, patch: Partial<PersonalProxy>) =>
+    setProxies(ps => ps.map((p, idx) => idx === i ? { ...p, ...patch } : p));
+  const removeProxy = (i: number) => setProxies(ps => ps.filter((_, idx) => idx !== i));
+  const addProxy = () => setProxies(ps => [...ps, { url: "", enabled: true }]);
+  const hasEnabledProxy = proxies.some(p => p.enabled && p.url.trim() !== "");
 
-    // 빈 값 = 해제 (검증 skip)
-    if (!v) {
-      setPersonalProxyUrl(null);
-      setProxyUrl("");
-      invalidatePersonalProxyStatusCache();
-      resetProxyStats();                // 옛 down 카운트 즉시 reset
-      setProxyStatus("no-personal");
-      setStatusMsg("✅ 전용 프록시 해제 — 공개 4-way 사용");
-      onChanged();
-      return;
-    }
-
-    // 1) URL 형식 검증
-    let parsed: URL;
-    try {
-      parsed = new URL(v);
-      if (parsed.protocol !== "https:" && parsed.protocol !== "http:") {
-        alert(`❌ 잘못된 URL — 프로토콜이 https/http 가 아닙니다\n입력: ${v}`);
-        return;
-      }
-    } catch {
-      alert(`❌ 잘못된 URL 형식입니다\n입력: ${v}\n\n예시: https://portfolio-proxy.your-name.workers.dev`);
-      return;
-    }
-
-    // 2) 실제 호출 검증 — Naver 검색 API 로 health check
-    setStatusMsg("⏳ 프록시 검증 중...");
+  // 한 프록시 실제 호출 검증 (Naver 검색 health check)
+  const verifyOne = async (v: string): Promise<boolean> => {
     try {
       const testTarget = "https://m.stock.naver.com/api/json/search/searchListJson.nhn?keyword=samsung";
-      const url = `${v}/?url=${encodeURIComponent(testTarget)}`;
-      const resp = await fetch(url, {
-        method: "GET",
-        signal: AbortSignal.timeout(5000),
+      const resp = await fetch(`${v}/?url=${encodeURIComponent(testTarget)}`, {
+        method: "GET", signal: AbortSignal.timeout(5000),
       });
-      if (!resp.ok) {
-        const text = await resp.text().catch(() => "");
-        alert(`❌ 프록시 응답 오류 ${resp.status}\nURL: ${v}\n\n응답: ${text.slice(0, 200)}\n\nWorker 가 정상 배포되었는지 확인하세요.`);
-        setStatusMsg("");
-        return;
-      }
-      // JSON 응답이어야 정상 (HTML 이면 다른 페이지)
+      if (!resp.ok) return false;
       const text = await resp.text();
-      const isJson = text.trimStart().startsWith("{") || text.trimStart().startsWith("[");
-      if (!isJson) {
-        alert(`❌ 프록시 응답이 JSON 이 아닙니다.\n\nURL: ${v}\n\nWorker 코드가 우리 코드와 동일한지 확인하세요.\n응답 시작: ${text.slice(0, 100)}`);
-        setStatusMsg("");
+      return text.trimStart().startsWith("{") || text.trimStart().startsWith("[");
+    } catch { return false; }
+  };
+
+  const saveProxies = async () => {
+    // 형식 검증 (비어있지 않은 url 만)
+    for (const p of proxies) {
+      const v = p.url.trim();
+      if (!v) continue;
+      try {
+        const u = new URL(v);
+        if (u.protocol !== "https:" && u.protocol !== "http:") throw new Error("proto");
+      } catch {
+        alert(`❌ 잘못된 URL 형식\n입력: ${v}\n\n예: https://your-proxy.workers.dev`);
         return;
       }
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      alert(`❌ 프록시 연결 실패\nURL: ${v}\n\n원인: ${msg}\n\n확인 사항:\n- Worker 가 배포됐는지\n- URL 오타\n- 인터넷 연결`);
-      setStatusMsg("");
-      return;
+    }
+    const cleaned = proxies
+      .map(p => ({ url: p.url.trim().replace(/\/+$/, ""), enabled: !!p.enabled }))
+      .filter(p => p.url);
+
+    // 켜진 프록시들 실제 호출 검증 (하나라도 실패하면 경고만, 저장은 진행)
+    const enabled = cleaned.filter(p => p.enabled);
+    if (enabled.length > 0) {
+      setStatusMsg("⏳ 프록시 검증 중...");
+      const results = await Promise.all(enabled.map(p => verifyOne(p.url)));
+      const failed = enabled.filter((_, i) => !results[i]).map(p => p.url);
+      if (failed.length > 0) {
+        const ok = confirm(`⚠️ 응답 확인 실패한 프록시:\n${failed.join("\n")}\n\n그래도 저장할까요? (오타·미배포 가능)`);
+        if (!ok) { setStatusMsg(""); return; }
+      }
     }
 
-    // 검증 통과 — 저장 + 옛 프록시 통계 리셋 + React Query 캐시 무효화
-    setPersonalProxyUrl(v);
-    setProxyUrl(v);
-    resetProxyStats();              // 옛 4-way down 상태 제거 → 적응형 polling 즉시 정상화
+    setPersonalProxies(cleaned);
+    setProxies(getPersonalProxies());
+    resetProxyStats();              // 옛 down 상태 제거 → 적응형 polling 즉시 정상화
     queryClient.invalidateQueries();
-    // POST 호환성 재검증 (새 URL)
     invalidatePersonalProxyStatusCache();
     setProxyStatus("checking");
     void checkPersonalProxyPostSupport().then(setProxyStatus);
@@ -228,7 +217,10 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     void checkPersonalProxyInvestingSupport().then(setInvestStatus);
     setFolders(getGroupFolders());
     onChanged();
-    setStatusMsg(`✅ 전용 프록시 검증 OK — 적용: ${v}`);
+    const n = cleaned.filter(p => p.enabled).length;
+    setStatusMsg(n === 0
+      ? "✅ 전용 프록시 없음 — 공개 4-way 사용"
+      : `✅ 전용 프록시 ${n}개 적용${n > 1 ? " (요청마다 랜덤 분산)" : ""}`);
   };
 
   const handlePollChange = (ms: number) => {
@@ -497,28 +489,53 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
           {/* 전용 프록시 URL */}
           <div className="border border-gray-200 rounded p-2.5 bg-blue-50/30 space-y-1">
             <div className="text-xs font-bold text-gray-700">
-              🔧 내 전용 프록시 URL (선택)
+              🔧 내 전용 프록시 (여러 개 가능)
             </div>
             <div className="text-[11px] text-gray-500">
-              비워두면 공개 4-way (Cloudflare/Vercel/Deno/Render). 본인 worker URL 입력 시
-              본인만 사용 — 공개 부담 0, 본인 100k/일 무료. 가이드:&nbsp;
+              없으면 공개 4-way (Cloudflare/Vercel/Deno/Render). 본인 worker URL 등록 시
+              본인만 사용 — 공개 부담 0, 본인 100k/일 무료. <b>여러 개 등록 후 각각 켜고 끌 수 있고,
+              켜진 게 여러 개면 요청마다 랜덤 분산</b>됩니다. 가이드:&nbsp;
               <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md"
                  target="_blank" rel="noopener noreferrer"
                  className="text-blue-600 underline">
                 Cloudflare Worker 1-click 배포
               </a>
             </div>
-            <div className="flex gap-2">
-              <input type="text" value={proxyUrl}
-                     onChange={e => setProxyUrl(e.target.value)}
-                     placeholder="예: https://your-proxy.workers.dev"
-                     className="flex-1 border rounded px-2 py-1 text-xs font-mono
-                                focus:outline-none focus:border-blue-500" />
-              <button onClick={saveProxy}
-                      className="px-3 py-1 bg-blue-600 hover:bg-blue-700
-                                 text-white text-xs rounded">
-                저장
-              </button>
+            <div className="space-y-1.5">
+              {proxies.length === 0 && (
+                <div className="text-[11px] text-gray-400 py-1">
+                  등록된 전용 프록시 없음 — 공개 4-way 사용 중
+                </div>
+              )}
+              {proxies.map((p, i) => (
+                <div key={i} className="flex items-center gap-1.5">
+                  <input type="checkbox" checked={p.enabled}
+                         onChange={e => updateProxy(i, { enabled: e.target.checked })}
+                         title={p.enabled ? "사용 중 — 끄려면 클릭" : "꺼짐 — 켜려면 클릭"}
+                         className="shrink-0 w-4 h-4 accent-blue-600" />
+                  <input type="text" value={p.url}
+                         onChange={e => updateProxy(i, { url: e.target.value })}
+                         placeholder="예: https://your-proxy.workers.dev"
+                         className={`flex-1 border rounded px-2 py-1 text-xs font-mono
+                                     focus:outline-none focus:border-blue-500
+                                     ${p.enabled ? "" : "opacity-50 line-through"}`} />
+                  <button onClick={() => removeProxy(i)} title="삭제"
+                          className="shrink-0 px-1.5 py-1 text-gray-400 hover:text-rose-600 text-xs">
+                    ✕
+                  </button>
+                </div>
+              ))}
+              <div className="flex gap-2 pt-0.5">
+                <button onClick={addProxy}
+                        className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs
+                                   rounded border border-gray-200">
+                  ➕ 프록시 추가
+                </button>
+                <button onClick={saveProxies}
+                        className="ml-auto px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded">
+                  저장
+                </button>
+              </div>
             </div>
             {/* POST 미지원 (구버전) 워커 경고 */}
             {proxyStatus === "outdated" && (
@@ -552,14 +569,14 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
             )}
             {/* 폴링 주기 — 공개는 30/60초·수동 선택, 5/10초는 전용 프록시 전용 */}
             <div className="flex items-center gap-2 mt-1">
-              <span className={`text-[11px] ${proxyUrl ? "text-gray-700" : "text-gray-400"}`}>
+              <span className={`text-[11px] ${hasEnabledProxy ? "text-gray-700" : "text-gray-400"}`}>
                 폴링 주기:
               </span>
               {POLL_OPTIONS.map(ms => {
                 const active = pollMs === ms;
                 // 수동(0)·공개 허용 주기(30초 이상=30/60초)는 프록시 무관 선택 가능.
                 // 더 빠른 5/10초는 전용 프록시일 때만.
-                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : !!proxyUrl;
+                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : hasEnabledProxy;
                 return (
                   <button key={ms}
                           onClick={() => handlePollChange(ms)}
@@ -573,7 +590,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   </button>
                 );
               })}
-              {!proxyUrl && (
+              {!hasEnabledProxy && (
                 <span className="text-[10px] text-gray-400 ml-1">
                   (공개: 기본 60초 · 30·60·수동 선택 · 5·10초는 전용 프록시)
                 </span>
@@ -590,7 +607,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 최근 7일 <b className="text-gray-800">{getRecentProxyCalls(7).toLocaleString()}</b>회
               </span>
               <span className="text-[10px] text-gray-400">
-                {proxyUrl ? "(전용 프록시 호출수)" : "(공개 프록시 합계)"}
+                {hasEnabledProxy ? "(전용 프록시 호출수)" : "(공개 프록시 합계)"}
               </span>
             </div>
 

@@ -123,6 +123,7 @@ function normalize(p: ExportPayload): string {
     tabVisibility: s.tabVisibility ?? null,
     dimSleeping: s.dimSleeping ?? null,
     personalProxyUrl: s.personalProxyUrl ?? null,
+    personalProxies: s.personalProxies ?? null,
     personalPollMs: s.personalPollMs ?? null,
   };
   return JSON.stringify({ holdings, peaks, memos, trades, settings });

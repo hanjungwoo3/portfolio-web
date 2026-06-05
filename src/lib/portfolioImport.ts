@@ -13,7 +13,8 @@ export interface ImportSettings {
   groupFolders?: GroupFolder[];        // 그룹 폴더 구성
   tabVisibility?: TabVisibility;       // 상단 탭 표시
   dimSleeping?: boolean;               // 장마감 흐림
-  personalProxyUrl?: string | null;    // 전용 프록시 URL
+  personalProxyUrl?: string | null;    // 전용 프록시 URL (레거시 단일)
+  personalProxies?: { url: string; enabled: boolean }[];   // 전용 프록시 목록
   personalPollMs?: number;             // 폴링 주기(ms)
 }
 
@@ -83,6 +84,13 @@ function parseSettings(obj: Record<string, unknown>): ImportSettings | undefined
   if (typeof src.dimSleeping === "boolean") out.dimSleeping = src.dimSleeping;
   if (typeof src.personalProxyUrl === "string" || src.personalProxyUrl === null) {
     out.personalProxyUrl = src.personalProxyUrl as string | null;
+  }
+  // 전용 프록시 목록 — [{ url, enabled }]
+  if (Array.isArray(src.personalProxies)) {
+    out.personalProxies = (src.personalProxies as unknown[])
+      .filter((p): p is { url: string; enabled?: unknown } =>
+        !!p && typeof p === "object" && typeof (p as { url?: unknown }).url === "string")
+      .map(p => ({ url: p.url, enabled: (p as { enabled?: unknown }).enabled !== false }));
   }
   if (typeof src.personalPollMs === "number") out.personalPollMs = src.personalPollMs;
   return Object.keys(out).length > 0 ? out : undefined;

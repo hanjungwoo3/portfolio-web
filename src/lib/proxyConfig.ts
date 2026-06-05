@@ -2,30 +2,67 @@
 // 입력 시 공개 4-way 라운드 로빈 대신 사용자 본인 worker 만 사용
 // → 공개 인프라 부담 0, 사용자 본인 100k/일 무료 한도 전용
 
-const KEY = "portfolio_personal_proxy_url";
+const KEY = "portfolio_personal_proxy_url";        // 레거시 단일 URL (마이그레이션/호환)
+const LIST_KEY = "portfolio_personal_proxies";     // 신규 — 여러 개 {url, enabled}
 const POLL_KEY = "portfolio_personal_poll_ms";
 
-export function getPersonalProxyUrl(): string | null {
-  try {
-    const v = localStorage.getItem(KEY);
-    if (!v) return null;
-    const trimmed = v.trim().replace(/\/+$/, "");  // 끝 슬래시 제거
-    return trimmed || null;
-  } catch {
-    return null;
-  }
+export interface PersonalProxy { url: string; enabled: boolean }
+
+function normUrl(u: string): string {
+  return u.trim().replace(/\/+$/, "");
 }
 
-export function setPersonalProxyUrl(url: string | null) {
+// 전용 프록시 목록 — 신규 LIST_KEY 우선, 없으면 레거시 단일 KEY 에서 1회 마이그레이션.
+export function getPersonalProxies(): PersonalProxy[] {
   try {
-    if (!url || url.trim() === "") {
-      localStorage.removeItem(KEY);
-    } else {
-      localStorage.setItem(KEY, url.trim());
+    const raw = localStorage.getItem(LIST_KEY);
+    if (raw) {
+      const arr = JSON.parse(raw);
+      if (Array.isArray(arr)) {
+        return arr
+          .filter((p): p is { url: unknown; enabled?: unknown } => !!p && typeof p === "object")
+          .map(p => ({ url: normUrl(String((p as { url: unknown }).url ?? "")), enabled: (p as { enabled?: unknown }).enabled !== false }))
+          .filter(p => p.url);
+      }
     }
-  } catch {
-    /* ignore quota / privacy errors */
-  }
+    const old = localStorage.getItem(KEY);
+    if (old && old.trim()) {
+      const list: PersonalProxy[] = [{ url: normUrl(old), enabled: true }];
+      localStorage.setItem(LIST_KEY, JSON.stringify(list));
+      return list;
+    }
+  } catch { /* noop */ }
+  return [];
+}
+
+export function setPersonalProxies(list: PersonalProxy[]) {
+  try {
+    const clean = list
+      .map(p => ({ url: normUrl(p.url), enabled: !!p.enabled }))
+      .filter(p => p.url);
+    if (clean.length === 0) localStorage.removeItem(LIST_KEY);
+    else localStorage.setItem(LIST_KEY, JSON.stringify(clean));
+    // 레거시 단일 키 동기화(구버전 앱·호환) — 첫 enabled 항목
+    const firstEnabled = clean.find(p => p.enabled)?.url;
+    if (firstEnabled) localStorage.setItem(KEY, firstEnabled);
+    else localStorage.removeItem(KEY);
+  } catch { /* ignore quota / privacy errors */ }
+}
+
+// 켜진 전용 프록시 URL 들 (요청 라우팅용 — 여러 개면 fetchProxied 가 랜덤 분산)
+export function getEnabledPersonalProxies(): string[] {
+  return getPersonalProxies().filter(p => p.enabled).map(p => p.url);
+}
+
+// 대표 전용 프록시(첫 enabled) — 상태/배지/폴링 판정 호환용
+export function getPersonalProxyUrl(): string | null {
+  return getEnabledPersonalProxies()[0] ?? null;
+}
+
+// 레거시 단일 setter — 구 백업(personalProxyUrl) import 호환
+export function setPersonalProxyUrl(url: string | null) {
+  if (!url || url.trim() === "") setPersonalProxies([]);
+  else setPersonalProxies([{ url: normUrl(url), enabled: true }]);
 }
 
 // 폴링 주기 — 전용 프록시 사용 시 5/10/30/60초 선택 가능. 0 = 수동(자동 갱신 끔).

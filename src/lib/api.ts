@@ -1,6 +1,6 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
-import { getPersonalProxyUrl } from "./proxyConfig";
+import { getEnabledPersonalProxies } from "./proxyConfig";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
 
 // 앱 로드 시 1회 — 30일 이상 된 일자 키 정리
@@ -18,10 +18,10 @@ const PUBLIC_PROXY_URLS: string[] = [
 ].filter(Boolean) as string[];
 if (PUBLIC_PROXY_URLS.length === 0) PUBLIC_PROXY_URLS.push("http://localhost:8787");
 
-// 런타임 — 사용자 전용 URL 있으면 그것만 사용, 없으면 공개 4-way
+// 런타임 — 켜진 전용 프록시가 있으면 그것들만 사용(여러 개면 랜덤 분산), 없으면 공개 4-way
 export function getProxyUrls(): string[] {
-  const personal = getPersonalProxyUrl();
-  return personal ? [personal] : PUBLIC_PROXY_URLS;
+  const personal = getEnabledPersonalProxies();
+  return personal.length > 0 ? personal : PUBLIC_PROXY_URLS;
 }
 
 // 호환용 — UI/통계 표시 (현재 활성 list)
