@@ -8,6 +8,7 @@ export interface TabVisibility {
   semiCheck: boolean;
   sectorRank: boolean;
   myStocks: boolean;
+  myTrades: boolean;
   consensus: boolean;
   etfReverse: boolean;
 }
@@ -17,6 +18,7 @@ const BASE_KEYS = {
   semiCheck:  "portfolio_tab_semi_check",
   sectorRank: "portfolio_tab_sector_rank",
   myStocks:   "portfolio_tab_my_stocks",
+  myTrades:   "portfolio_tab_my_trades",
   consensus:  "portfolio_tab_consensus",
   etfReverse: "portfolio_tab_etf_reverse",
 } as const;
@@ -51,6 +53,7 @@ export function getTabVisibility(): TabVisibility {
     semiCheck:  read(BASE_KEYS.semiCheck),
     sectorRank: read(BASE_KEYS.sectorRank),
     myStocks:   read(BASE_KEYS.myStocks),
+    myTrades:   read(BASE_KEYS.myTrades),
     consensus:  read(BASE_KEYS.consensus),
     etfReverse: read(BASE_KEYS.etfReverse),
   };
@@ -61,6 +64,7 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.semiCheck  !== undefined) write(BASE_KEYS.semiCheck,  patch.semiCheck);
   if (patch.sectorRank !== undefined) write(BASE_KEYS.sectorRank, patch.sectorRank);
   if (patch.myStocks   !== undefined) write(BASE_KEYS.myStocks,   patch.myStocks);
+  if (patch.myTrades   !== undefined) write(BASE_KEYS.myTrades,   patch.myTrades);
   if (patch.consensus  !== undefined) write(BASE_KEYS.consensus,  patch.consensus);
   if (patch.etfReverse !== undefined) write(BASE_KEYS.etfReverse, patch.etfReverse);
 }

@@ -197,7 +197,14 @@ export function EditHoldingDialog({
     const toAdd = [...groupSelection].filter(g => !originalGroups.has(g));
     const toRemove = [...originalGroups].filter(g => !groupSelection.has(g));
     if (toAdd.length === 0 && toRemove.length === 0) return setErr("그룹 변경 사항이 없습니다");
-    for (const g of toAdd) await upsertHoldingToGroup(cur, g);
+    // 독립(그룹별) 모드 — 새 그룹은 수량/평단 없이 0주로 추가 (그룹마다 별도 입력).
+    // sync 모드 — 모든 그룹이 같은 값이어야 하므로 현재 보유값 복사.
+    for (const g of toAdd) {
+      const stockForGroup: Stock = independent
+        ? { ...cur, shares: 0, avg_price: 0, invested: 0, buy_date: "", account: g }
+        : cur;
+      await upsertHoldingToGroup(stockForGroup, g);
+    }
     for (const g of toRemove) await removeHolding(stock.ticker, g);
     setOriginalGroups(new Set(groupSelection));
     onChanged();

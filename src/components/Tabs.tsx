@@ -46,44 +46,49 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
 
   // 시스템 탭 묶기 — 지수~ETF 를 항상 드롭다운 하나로
   const sysTabs = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key));
+  // 내자산 묶기 — 내주식 + 내거래 드롭다운 하나로
+  const myTabs = tabs.filter(t => MY_GROUP_KEYS.has(t.key));
+
+  // 묶음 드롭다운 렌더 (지수/내자산 공통)
+  const renderGroupDropdown = (groupTabs: typeof tabs, fallbackEmoji: string) => {
+    if (groupTabs.length === 0) return null;
+    const activeOne = groupTabs.find(t => t.key === activeKey);
+    const current = activeOne ? activeKey : groupTabs[0].key;
+    const curTab = groupTabs.find(t => t.key === current);
+    const on = !!activeOne;
+    return (
+      <div className={`shrink-0 inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-t-md border-b-2 -mb-px
+                       ${on ? "border-blue-500 bg-white" : "border-transparent hover:bg-gray-100"}`}>
+        {curTab?.icon
+          ? <span className="inline-flex align-middle">{curTab.icon}</span>
+          : <span className="text-sm">{curTab?.emoji ?? fallbackEmoji}</span>}
+        <select value={on ? current : ""}
+                onChange={e => { if (e.target.value) onChange(e.target.value); }}
+                className={`text-sm font-medium bg-transparent border-0 focus:outline-none cursor-pointer
+                            ${on ? "text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
+          {!on && <option value="" disabled hidden>{curTab?.label}</option>}
+          {groupTabs.map(t => (
+            <option key={t.key} value={t.key}>
+              {t.label}{t.count > 0 ? ` (${t.count})` : ""}
+            </option>
+          ))}
+        </select>
+      </div>
+    );
+  };
 
   return (
     <nav className="flex items-center gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap
                     border-b border-gray-200 mb-3 px-1 pt-1">
       {leading && <span className="shrink-0">{leading}</span>}
-      {/* 시스템 탭 묶음 — 선택된 탭 아이콘 + 선택박스만 (지수~ETF) */}
-      {sysTabs.length > 0 && (() => {
-        const activeSys = sysTabs.find(t => t.key === activeKey);
-        const current = activeSys ? activeKey : sysTabs[0].key;
-        const curTab = sysTabs.find(t => t.key === current);
-        const on = !!activeSys;
-        return (
-          <div className={`shrink-0 inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-t-md border-b-2 -mb-px
-                           ${on ? "border-blue-500 bg-white" : "border-transparent hover:bg-gray-100"}`}>
-            {/* 선택된 탭의 아이콘 (SVG 아이콘 우선, 없으면 이모지) */}
-            {curTab?.icon
-              ? <span className="inline-flex align-middle">{curTab.icon}</span>
-              : curTab?.emoji && <span className="text-sm">{curTab.emoji}</span>}
-            <select value={on ? current : ""}
-                    onChange={e => { if (e.target.value) onChange(e.target.value); }}
-                    className={`text-sm font-medium bg-transparent border-0 focus:outline-none cursor-pointer
-                                ${on ? "text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
-              {/* 시스템 탭 비활성 시 placeholder — 첫 항목(지수)도 클릭으로 선택되게 */}
-              {!on && <option value="" disabled hidden>{curTab?.label}</option>}
-              {sysTabs.map(t => (
-                <option key={t.key} value={t.key}>
-                  {t.label}{t.count > 0 ? ` (${t.count})` : ""}
-                </option>
-              ))}
-            </select>
-          </div>
-        );
-      })()}
+      {/* 시스템 탭 묶음(지수~ETF) → 내자산 묶음(내주식·내거래) 순서로 드롭다운 */}
+      {renderGroupDropdown(sysTabs, "📊")}
+      {renderGroupDropdown(myTabs, "📦")}
       {tabs.map(t => {
         const active = t.key === activeKey;
         const editable = !RESERVED.has(t.key);
-        // 시스템 탭은 위 드롭다운으로만 표시 (개별 탭 숨김)
-        if (SYSTEM_TAB_KEYS.has(t.key)) return null;
+        // 시스템·내자산 탭은 위 드롭다운으로만 표시 (개별 탭 숨김)
+        if (SYSTEM_TAB_KEYS.has(t.key) || MY_GROUP_KEYS.has(t.key)) return null;
         // 폴더에 담긴 그룹 탭은 개별로 안 그림 (폴더 드롭다운으로 표시)
         if (editable && folderedGroups.has(t.key)) return null;
         return (
@@ -178,6 +183,8 @@ export const SEMI_CHECK_TAB_KEY = "__semi-check__";
 export const SECTOR_RANK_TAB_KEY = "__sector-rank__";
 // 가상 합산 그룹 — 모든 그룹의 동일 ticker 를 합쳐 표시 (수량/평단 통합 뷰)
 export const MY_STOCKS_TAB_KEY = "__my-stocks__";
+// 내거래 — 모든 종목의 거래 기록(trades) 모아보기. 내주식과 한 묶음.
+export const MY_TRADES_TAB_KEY = "__my-trades__";
 // 분석 탭 — 컨센서스/연기금/변동성 sub탭 통합
 export const CONSENSUS_TAB_KEY = "__consensus__";
 // ETF 역검색 — 다중 종목으로 ETF 찾기
@@ -186,23 +193,29 @@ export const ETF_REVERSE_TAB_KEY = "__etf-reverse__";
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
   "관심ETF", US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY,
-  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
+  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
 ]);
 
-// 묶기 대상 시스템 탭 — 드롭다운 하나로 합침. 내주식은 제외(개별 탭 유지).
+// 묶기 대상 시스템 탭 — 드롭다운 하나로 합침.
 export const SYSTEM_TAB_KEYS = new Set<string>([
   US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
   CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
 ]);
 
+// 내자산 묶음 — 내주식 + 내거래를 별도 드롭다운 하나로 (지수 묶음과 동일 방식).
+export const MY_GROUP_KEYS = new Set<string>([
+  MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY,
+]);
+
 // 미국증시 → 섹터순위 → 반도체 점검 → 내주식(합산) → 사용자 그룹 알파벳 순.
 // "보유"도 일반 사용자 그룹과 동일하게 취급 (별도 분기 없음).
 // visibility 미지정 시 시스템 탭 모두 노출 (기본 동작).
-export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpec[] {
+export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCount = 0): TabSpec[] {
   const showUs = visibility?.usMarket ?? true;
   const showSemi = visibility?.semiCheck ?? true;
   const showSector = visibility?.sectorRank ?? true;
   const showMy = visibility?.myStocks ?? true;
+  const showMyTrades = visibility?.myTrades ?? true;
   const showConsensus = visibility?.consensus ?? true;
   const counts = new Map<string, number>();
   const uniqHeld = new Set<string>();
@@ -222,6 +235,10 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility): TabSpe
   // 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
   if (showMy && uniqHeld.size > 0) {
     tabs.push({ key: MY_STOCKS_TAB_KEY, label: "내주식", emoji: "📦", count: uniqHeld.size });
+  }
+  // 내거래 — 내주식 바로 옆(한 묶음). 거래 기록이 있거나 보유 종목이 있을 때 노출.
+  if (showMyTrades && (tradeCount > 0 || uniqHeld.size > 0)) {
+    tabs.push({ key: MY_TRADES_TAB_KEY, label: "내거래", emoji: "🧾", count: tradeCount });
   }
   // 컨센서스 — 내주식 옆. 설정 ON 이면 항상 노출(종목 없으면 빈 안내 표시).
   if (showConsensus) {

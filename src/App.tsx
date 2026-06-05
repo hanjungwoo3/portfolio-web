@@ -5,10 +5,11 @@ import {
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
   fetchInvestorHistorySafe, fetchNaverPrices,
 } from "./lib/api";
-import { loadHoldings, loadMemos, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits } from "./lib/db";
+import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits } from "./lib/db";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
-import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY } from "./components/Tabs";
+import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SimpleViewModal } from "./components/SimpleViewModal";
@@ -78,6 +79,7 @@ const queryClient = new QueryClient({
 function Dashboard() {
   const [holdings, setHoldings] = useState<Stock[]>([]);
   const [memos, setMemos] = useState<Map<string, Memo>>(new Map());
+  const [tradeCount, setTradeCount] = useState(0);
   const [activeTab, setActiveTab] = useState<string>("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -126,16 +128,17 @@ function Dashboard() {
   // IndexedDB 로드 — 마이그레이션은 AppRoot 에서 1회 완료 후 진입하므로 여기선 단순 로드
   useEffect(() => {
     void (async () => {
-      const [h, m] = await Promise.all([loadHoldings(), loadMemos()]);
+      const [h, m, t] = await Promise.all([loadHoldings(), loadMemos(), loadAllTrades()]);
       // eslint-disable-next-line no-console
-      console.log(`[v3 load] holdings=${h.length}, memos=${m.size}`);
+      console.log(`[v3 load] holdings=${h.length}, memos=${m.size}, trades=${t.length}`);
       setHoldings(h);
       setMemos(m);
+      setTradeCount(t.length);
     })();
   }, [reloadKey]);
 
   // reloadKey 의존성 — 설정에서 시스템 탭 visibility 변경 시 즉시 반영
-  const tabs = useMemo(() => buildTabs(holdings, getTabVisibility()), [holdings, reloadKey]);
+  const tabs = useMemo(() => buildTabs(holdings, getTabVisibility(), tradeCount), [holdings, reloadKey, tradeCount]);
   const groupFolders = useMemo(() => getGroupFolders(), [reloadKey]);
   // 사용자 그룹 이름들 (폴더 관리용) — 빈 계좌·관심ETF 제외
   const userGroups = useMemo(() => {
@@ -564,6 +567,8 @@ function Dashboard() {
           }} />
         ) : activeTab === SEMI_CHECK_TAB_KEY ? (
           <SemiCheckTab />
+        ) : activeTab === MY_TRADES_TAB_KEY ? (
+          <MyTradesTab holdings={holdings} pc />
         ) : activeTab === CONSENSUS_TAB_KEY ? (
           <ConsensusTab items={consensusItems} onOpenValuation={setValuationTicker}
                         onSelectGroup={setActiveTab}

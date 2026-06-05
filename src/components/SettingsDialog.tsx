@@ -78,11 +78,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     persistFolders(next);
   };
 
-  const toggleTab = (key: "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "consensus" | "etfReverse", v: boolean) => {
+  const toggleTab = (key: "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "myTrades" | "consensus" | "etfReverse", v: boolean) => {
     const next = { ...tabVis, [key]: v };
     setTabVis(next);
     setTabVisibility({ [key]: v });
-    const labelMap = { usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", consensus: "컨센서스", etfReverse: "ETF" };
+    const labelMap = { usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", myTrades: "내거래", consensus: "컨센서스", etfReverse: "ETF" };
     setStatusMsg(`✅ ${labelMap[key]} 탭: ${v ? "표시" : "숨김"}`);
     onChanged();
   };
@@ -668,12 +668,18 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                          className="w-4 h-4 accent-blue-600" />
                   <span className="text-[11px] text-gray-700">🍱 ETF</span>
                 </label>
-                {/* 내주식 — 묶음에서 빠진 개별 탭이라 구분선 뒤(오른쪽)에 배치 */}
+                {/* 내주식 / 내거래 — 묶음에서 빠진 개별 탭이라 구분선 뒤(오른쪽)에 한 묶음으로 배치 */}
                 <label className="flex items-center gap-1.5 cursor-pointer select-none pl-3 ml-1 border-l border-gray-200">
                   <input type="checkbox" checked={tabVis.myStocks}
                          onChange={e => toggleTab("myStocks", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
                   <span className="text-[11px] text-gray-700">📦 내주식 (개별 탭)</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={tabVis.myTrades}
+                         onChange={e => toggleTab("myTrades", e.target.checked)}
+                         className="w-4 h-4 accent-blue-600" />
+                  <span className="text-[11px] text-gray-700">🧾 내거래 (개별 탭)</span>
                 </label>
               </div>
               <div className="text-[10px] text-gray-500 mt-1">
