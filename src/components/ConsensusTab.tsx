@@ -3,7 +3,7 @@
 // 상승여력/정렬 기준 = 가장 최근(목표가 있는) 리포트. 같은 날 여러 건도 모두 표시.
 import { useEffect, useMemo, useState } from "react";
 import { useQuery, useQueries, keepPreviousData } from "@tanstack/react-query";
-import { fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchInvestorHistorySafe, fetchKrPriceHistory, fetchNaverNews } from "../lib/api";
+import { fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchInvestorHistorySafe, fetchKrPriceHistory, fetchNaverNews, fetchKrDisclosures } from "../lib/api";
 import { getTossMaintenance } from "../lib/tossMaintenance";
 import { fetchConsensusReports, fetchMajorShareholders, type Shareholder } from "../lib/fundamentals";
 import { openTossStock } from "../lib/toss";
@@ -180,6 +180,20 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     () => new Map(tickers.map((t, i) => [t, newsQs[i]?.data ?? []])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [tickers, newsQs.map(q => `${q.status}:${q.dataUpdatedAt}`).join(",")],
+  );
+  // 종목 공시 (DART) — 카드 하단 뉴스 옆 표시. ValuationModal 과 캐시 공유.
+  const discQs = useQueries({
+    queries: tickers.map(t => ({
+      queryKey: ["disclosures-modal", t],
+      queryFn: () => fetchKrDisclosures(t, 12),
+      staleTime: 30 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const discByTicker = useMemo(
+    () => new Map(tickers.map((t, i) => [t, discQs[i]?.data ?? []])),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [tickers, discQs.map(q => `${q.status}:${q.dataUpdatedAt}`).join(",")],
   );
   const anyLoading = naverQs.some(q => q.isLoading) || reportQs.some(q => q.isLoading)
                   || shQs.some(q => q.isLoading);
@@ -519,28 +533,51 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                 {/* 검색기준 섹션이 맨 위 (순서는 view 별) */}
                 {ordered[0]}{ordered[1]}{ordered[2]}
 
-                {/* 뉴스 (네이버) — 이미지 없이 제목·언론사·시각 */}
+                {/* 뉴스(좌) + 공시(우) */}
                 {(() => {
                   const news = newsByTicker.get(it.ticker) ?? [];
-                  if (news.length === 0) return null;
+                  const disc = [...(discByTicker.get(it.ticker) ?? [])].reverse();   // 최신순
+                  if (news.length === 0 && disc.length === 0) return null;
                   return (
-                    <div className="mt-1 px-1.5 py-1 border border-gray-200 rounded">
-                      <div className="text-[10px] text-gray-400 mb-0.5">📰 뉴스</div>
-                      <ul className="divide-y divide-gray-100">
-                        {news.slice(0, 5).map(n => (
-                          <li key={n.id}>
-                            <a href={n.url} target="_blank" rel="noopener noreferrer"
-                               className="block py-0.5 group">
-                              <div className="text-[11px] text-gray-700 leading-snug line-clamp-1 group-hover:text-blue-600">
-                                {n.title}
-                              </div>
-                              <div className="text-[9px] text-gray-400">
-                                {n.press}{n.press && n.datetime ? " · " : ""}{fmtNewsTime(n.datetime)}
-                              </div>
-                            </a>
-                          </li>
-                        ))}
-                      </ul>
+                    <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
+                      {news.length > 0 && (
+                        <div className="px-1.5 py-1 border border-gray-200 rounded">
+                          <div className="text-[10px] text-gray-400 mb-0.5">📰 뉴스</div>
+                          <ul className="divide-y divide-gray-100">
+                            {news.slice(0, 5).map(n => (
+                              <li key={n.id}>
+                                <a href={n.url} target="_blank" rel="noopener noreferrer"
+                                   className="block py-0.5 group">
+                                  <div className="text-[11px] text-gray-700 leading-snug line-clamp-1 group-hover:text-blue-600">
+                                    {n.title}
+                                  </div>
+                                  <div className="text-[9px] text-gray-400">
+                                    {n.press}{n.press && n.datetime ? " · " : ""}{fmtNewsTime(n.datetime)}
+                                  </div>
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                      {disc.length > 0 && (
+                        <div className="px-1.5 py-1 border border-gray-200 rounded">
+                          <div className="text-[10px] text-gray-400 mb-0.5">📋 공시</div>
+                          <ul className="divide-y divide-gray-100">
+                            {disc.slice(0, 5).map((d, i) => (
+                              <li key={`${d.url}-${i}`}>
+                                <a href={d.url} target="_blank" rel="noopener noreferrer"
+                                   className="block py-0.5 group">
+                                  <div className="text-[11px] text-gray-700 leading-snug line-clamp-1 group-hover:text-blue-600">
+                                    {d.title}
+                                  </div>
+                                  <div className="text-[9px] text-gray-400">{d.date}</div>
+                                </a>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
                     </div>
                   );
                 })()}
