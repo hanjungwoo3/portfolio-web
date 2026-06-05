@@ -19,8 +19,12 @@ export function TradeLogSection({ ticker, account, refreshKey, defaultOpen }:
   const [adding, setAdding] = useState(false);
   const [form, setForm] = useState<FormState>(emptyForm);
 
-  const reload = useCallback(async () => { setTrades(await getTradesForTicker(ticker)); }, [ticker]);
-  // ticker 변경 + 외부 refreshKey(매수/매도 자동기록 후) 시 재로드
+  // 같은 종목이라도 거래는 그룹(계좌)별로 다름 — (종목+그룹) 단위로만 표시.
+  const reload = useCallback(async () => {
+    const all = await getTradesForTicker(ticker);
+    setTrades(all.filter(t => (t.account ?? "") === (account ?? "")));
+  }, [ticker, account]);
+  // ticker/account 변경 + 외부 refreshKey(매수/매도 자동기록 후) 시 재로드
   useEffect(() => { void reload(); }, [reload, refreshKey]);
 
   const reset = () => { setForm(emptyForm()); setEditId(null); setAdding(false); };

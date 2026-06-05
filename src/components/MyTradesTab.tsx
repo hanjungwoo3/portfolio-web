@@ -1,7 +1,7 @@
 // 내거래 — 모든 종목의 거래 기록(trades)을 한 곳에 모아 보는 탭.
 // 분류(전체 시간순 / 종목별 / 날짜별) + 정렬방향 선택. 인라인 수정/삭제 지원.
 // 보유(수량/평단)와 무관 — 여기서 고쳐도 보유엔 영향 없음.
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import { Table2 } from "lucide-react";
 import { loadAllTrades, updateTrade, deleteTrade, type Trade } from "../lib/db";
 import { getIndependentGroupsMode } from "../lib/groupMode";
@@ -109,35 +109,34 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
 
   const won = (n: number) => n.toLocaleString();
 
-  // ── 표시 행 모델 ──
-  // 모든 거래를 다 표시. 그룹 키(날짜/종목)는 그룹의 첫 행에만 한 번 표시(나머지 빈칸).
-  // 전체: 그룹 없음(둘 다 매행 표시) / 날짜별: 날짜로 묶음 / 종목별: 종목으로 묶음.
-  type DRow = { t: Trade; showName: boolean; showDate: boolean; groupStart: boolean };
-  const buildRows = (m: ViewMode): DRow[] => {
+  // ── 그룹 구성 ──
+  // 전체: 그룹 1개(시간순) / 날짜별: 날짜로 묶음 / 종목별: 종목(독립모드는 종목+그룹)로 묶음.
+  // 각 그룹 끝에 '합계' 소계, 맨 마지막에 '전체 합계'.
+  const buildGroups = (m: ViewMode): { key: string; trades: Trade[] }[] => {
     if (m === "recent") {
-      return [...filtered].sort(sortByDate)
-        .map(t => ({ t, showName: true, showDate: true, groupStart: false }));
+      return [{ key: "all", trades: [...filtered].sort(sortByDate) }];
     }
     const byName = (a: Trade, b: Trade) => nameOf(a.ticker).localeCompare(nameOf(b.ticker));
     const byAcct = (a: Trade, b: Trade) => (a.account ?? "").localeCompare(b.account ?? "");
+    // 날짜만 비교(dir 반영) — createdAt 타이브레이크 없이, 같은 날짜는 종목명 가나다로 넘김
+    const dateCmp = (a: Trade, b: Trade) => {
+      const c = a.date.localeCompare(b.date);
+      return dir === "desc" ? -c : c;
+    };
     const sorted = [...filtered].sort((a, b) =>
-      m === "byStock" ? (byName(a, b) || (independent ? byAcct(a, b) : 0) || sortByDate(a, b))
-                      : (sortByDate(a, b) || byName(a, b)));
-    // 독립모드 종목별 묶음은 종목+그룹 단위로 (그룹마다 별도 보유라서)
+      m === "byStock"
+        ? (byName(a, b) || (independent ? byAcct(a, b) : 0) || dateCmp(a, b) || sortByDate(a, b))
+        : (dateCmp(a, b) || byName(a, b)));   // 날짜별: 날짜 → 같은 날짜는 종목명 가나다
     const keyOf = (t: Trade) =>
       m === "byStock" ? (independent ? `${t.ticker}␟${t.account ?? ""}` : t.ticker) : t.date;
-    let prev: string | null = null;
-    return sorted.map(t => {
+    const groups: { key: string; trades: Trade[] }[] = [];
+    let cur: { key: string; trades: Trade[] } | null = null;
+    for (const t of sorted) {
       const k = keyOf(t);
-      const groupStart = k !== prev;
-      prev = k;
-      return {
-        t,
-        showName: m === "byStock" ? groupStart : true,   // 종목별: 종목 한 번만
-        showDate: m === "byDate" ? groupStart : true,    // 날짜별: 날짜 한 번만
-        groupStart,
-      };
-    });
+      if (!cur || cur.key !== k) { cur = { key: k, trades: [] }; groups.push(cur); }
+      cur.trades.push(t);
+    }
+    return groups;
   };
 
   // 매수/매도 금액 셀 — 값 있으면 금액+수량·단가, 없으면 빈칸
@@ -187,14 +186,13 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
     </tr>
   );
 
-  const renderDataRow = (r: DRow) => {
-    const t = r.t;
+  const renderDataRow = (t: Trade, showName: boolean, showDate: boolean, groupStart: boolean) => {
     if (editId === t.id && form) return renderEditRow(t);
-    const top = r.groupStart ? "border-t border-gray-300" : "border-t border-gray-100";
+    const top = groupStart ? "border-t border-gray-300" : "border-t border-gray-100";
     return (
       <tr key={t.id} className={`${top} hover:bg-gray-50 align-top`}>
-        <td className="py-1 px-1.5 text-gray-700" title={r.showName ? nameOf(t.ticker) : ""}>
-          {r.showName && (
+        <td className="py-1 px-1.5 text-gray-700" title={showName ? nameOf(t.ticker) : ""}>
+          {showName && (
             <>
               <div className="truncate">{nameOf(t.ticker)}</div>
               {independent && t.account && (
@@ -203,7 +201,7 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
             </>
           )}
         </td>
-        <td className="py-1 px-1.5 text-gray-500 whitespace-nowrap">{r.showDate ? t.date : ""}</td>
+        <td className="py-1 px-1.5 text-gray-500 whitespace-nowrap">{showDate ? t.date : ""}</td>
         {valueCell(t.type === "buy" ? t.qty : 0, t.type === "buy" ? t.amount : 0, "buy")}
         {valueCell(t.type === "sell" ? t.qty : 0, t.type === "sell" ? t.amount : 0, "sell")}
         {actionsCell(t)}
@@ -211,11 +209,30 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
     );
   };
 
+  // 합계 행 — 금액만 (수량은 종목 섞여 무의미). strong=전체 합계.
+  const renderTotalRow = (key: string, label: string, rows: Trade[], strong: boolean) => {
+    const tot = totalsOf(rows);
+    const rowCls = strong
+      ? "border-t-2 border-emerald-400 bg-emerald-50"
+      : "border-t border-amber-200 bg-amber-50/70";
+    const labelCls = strong ? "text-emerald-800 font-bold" : "text-amber-700 font-semibold";
+    const amtCls = strong ? "text-[12px] font-bold" : "font-semibold";
+    return (
+      <tr key={key} className={rowCls}>
+        <td className={`py-1 px-1.5 text-[10px] ${labelCls}`}>{label}</td>
+        <td className="py-1 px-1.5"></td>
+        <td className={`py-1 px-1.5 text-right text-rose-600 ${amtCls}`}>{tot.buyQty > 0 ? won(tot.buyAmt) : ""}</td>
+        <td className={`py-1 px-1.5 text-right text-blue-600 ${amtCls}`}>{tot.sellQty > 0 ? won(tot.sellAmt) : ""}</td>
+        <td className="py-1 px-1.5"></td>
+      </tr>
+    );
+  };
+
   // 한 패널(모드) — 종목·날짜·매수·매도 단일 표 + 하단 합계
   const colW = ["27%", "17%", "23%", "23%", "10%"];
   const renderPanel = (m: ViewMode) => {
-    const rows = buildRows(m);
-    const gt = totalsOf(filtered);
+    const groups = buildGroups(m);
+    const grouped = m !== "recent";
     return (
       <table className="w-full table-fixed text-[11px] tabular-nums border-collapse border border-gray-200 rounded-md">
         <colgroup>{colW.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
@@ -228,15 +245,22 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
             <th className="py-1 px-1.5"></th>
           </tr>
         </thead>
-        <tbody>{rows.map(renderDataRow)}</tbody>
-        <tfoot className="bg-gray-50/70">
-          <tr className="border-t border-gray-300 font-medium">
-            <td className="py-1 px-1.5 text-[10px] text-gray-500">합계</td>
-            <td className="py-1 px-1.5"></td>
-            <td className="py-1 px-1.5 text-right text-rose-600">{gt.buyQty > 0 ? won(gt.buyAmt) : ""}</td>
-            <td className="py-1 px-1.5 text-right text-blue-600">{gt.sellQty > 0 ? won(gt.sellAmt) : ""}</td>
-            <td className="py-1 px-1.5"></td>
-          </tr>
+        <tbody>
+          {groups.map(g => (
+            <Fragment key={g.key}>
+              {g.trades.map((t, i) => renderDataRow(
+                t,
+                m === "byStock" ? i === 0 : true,   // 종목별: 종목 한 번만
+                m === "byDate" ? i === 0 : true,     // 날짜별: 날짜 한 번만
+                grouped && i === 0,
+              ))}
+              {/* 그룹별 소계 — 그룹 분류일 때만 중간에 */}
+              {grouped && renderTotalRow(`${g.key}__sub`, "합계", g.trades, false)}
+            </Fragment>
+          ))}
+        </tbody>
+        <tfoot>
+          {renderTotalRow("__grand", "전체 합계", filtered, true)}
         </tfoot>
       </table>
     );
