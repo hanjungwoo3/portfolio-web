@@ -118,15 +118,10 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
     }
     const byName = (a: Trade, b: Trade) => nameOf(a.ticker).localeCompare(nameOf(b.ticker));
     const byAcct = (a: Trade, b: Trade) => (a.account ?? "").localeCompare(b.account ?? "");
-    // 날짜만 비교(dir 반영) — createdAt 타이브레이크 없이, 같은 날짜는 종목명 가나다로 넘김
-    const dateCmp = (a: Trade, b: Trade) => {
-      const c = a.date.localeCompare(b.date);
-      return dir === "desc" ? -c : c;
-    };
     const sorted = [...filtered].sort((a, b) =>
       m === "byStock"
-        ? (byName(a, b) || (independent ? byAcct(a, b) : 0) || dateCmp(a, b) || sortByDate(a, b))
-        : (dateCmp(a, b) || byName(a, b)));   // 날짜별: 날짜 → 같은 날짜는 종목명 가나다
+        ? (byName(a, b) || (independent ? byAcct(a, b) : 0) || sortByDate(a, b))  // 종목 가나다 → 입력순(dir)
+        : sortByDate(a, b));                                                       // 날짜별: 날짜 → 입력순(dir)
     const keyOf = (t: Trade) =>
       m === "byStock" ? (independent ? `${t.ticker}␟${t.account ?? ""}` : t.ticker) : t.date;
     const groups: { key: string; trades: Trade[] }[] = [];
@@ -186,7 +181,8 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
     </tr>
   );
 
-  const renderDataRow = (t: Trade, showName: boolean, showDate: boolean, groupStart: boolean) => {
+  const renderDataRow = (t: Trade, showName: boolean, showDate: boolean, groupStart: boolean,
+                         boldName = false, boldDate = false) => {
     if (editId === t.id && form) return renderEditRow(t);
     const top = groupStart ? "border-t border-gray-300" : "border-t border-gray-100";
     return (
@@ -194,14 +190,14 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
         <td className="py-1 px-1.5 text-gray-700" title={showName ? nameOf(t.ticker) : ""}>
           {showName && (
             <>
-              <div className="truncate">{nameOf(t.ticker)}</div>
+              <div className={`truncate ${boldName ? "font-bold" : ""}`}>{nameOf(t.ticker)}</div>
               {independent && t.account && (
                 <div className="text-[10px] text-gray-400 truncate">{t.account}</div>
               )}
             </>
           )}
         </td>
-        <td className="py-1 px-1.5 text-gray-500 whitespace-nowrap">{showDate ? t.date : ""}</td>
+        <td className={`py-1 px-1.5 text-gray-500 whitespace-nowrap ${boldDate && showDate ? "font-bold text-gray-700" : ""}`}>{showDate ? t.date : ""}</td>
         {valueCell(t.type === "buy" ? t.qty : 0, t.type === "buy" ? t.amount : 0, "buy")}
         {valueCell(t.type === "sell" ? t.qty : 0, t.type === "sell" ? t.amount : 0, "sell")}
         {actionsCell(t)}
@@ -228,11 +224,13 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
     );
   };
 
-  // 한 패널(모드) — 종목·날짜·매수·매도 단일 표 + 하단 합계
+  // ── 한 패널 — 단일 표 (헤더 하나, 그룹 키는 첫 행에만, 그룹 소계 + 전체 합계) ──
   const colW = ["27%", "17%", "23%", "23%", "10%"];
   const renderPanel = (m: ViewMode) => {
     const groups = buildGroups(m);
     const grouped = m !== "recent";
+    // 전체 합계 — PC 는 3패널이 동일하므로 전체(시간순)에만. 모바일은 패널 하나씩이라 항상.
+    const showGrand = !pc || m === "recent";
     return (
       <table className="w-full table-fixed text-[11px] tabular-nums border-collapse border border-gray-200 rounded-md">
         <colgroup>{colW.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
@@ -253,15 +251,14 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
                 m === "byStock" ? i === 0 : true,   // 종목별: 종목 한 번만
                 m === "byDate" ? i === 0 : true,     // 날짜별: 날짜 한 번만
                 grouped && i === 0,
+                m === "byStock",                     // 종목별: 종목 볼드
+                m === "byDate",                      // 날짜별: 날짜 볼드
               ))}
-              {/* 그룹별 소계 — 그룹 분류일 때만 중간에 */}
               {grouped && renderTotalRow(`${g.key}__sub`, "합계", g.trades, false)}
             </Fragment>
           ))}
         </tbody>
-        <tfoot>
-          {renderTotalRow("__grand", "전체 합계", filtered, true)}
-        </tfoot>
+        {showGrand && <tfoot>{renderTotalRow("__grand", "전체 합계", filtered, true)}</tfoot>}
       </table>
     );
   };
