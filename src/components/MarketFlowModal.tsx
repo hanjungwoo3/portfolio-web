@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchKrMarketFlow, fetchYahooPriceHistory } from "../lib/api";
+import { fetchKrMarketFlow, fetchYahooPriceHistory, fetchInvestingPriceHistory } from "../lib/api";
 import type { MarketIndexKey, MarketFlowPoint } from "../lib/api";
 import { useCrosshairSync } from "../lib/useCrosshairSync";
 import { getMarketEvents } from "../lib/marketEvents";
@@ -81,12 +81,34 @@ export function MarketFlowModal({
   const toggleVix = () => {
     const next = !showVix;
     setShowVix(next);
+    if (next) { setShowVkospi(false); try { localStorage.setItem("market_flow_vkospi", "off"); } catch { /* noop */ } }
     try { localStorage.setItem("market_flow_vix", next ? "on" : "off"); } catch { /* noop */ }
   };
   const { data: vixPrices } = useQuery({
     queryKey: ["vix-prices"],
     queryFn: () => fetchYahooPriceHistory("^VIX", "1y"),
     enabled: isOpen && showVix,
+    staleTime: 5 * 60_000,
+  });
+
+  // V-KOSPI (한국 공포지수) — 기본 ON. 단 VIX 와 상호배타(VIX 켜져 있으면 끔), 저장값 "off" 면 끔.
+  const [showVkospi, setShowVkospi] = useState<boolean>(() => {
+    try {
+      if (localStorage.getItem("market_flow_vkospi") === "off") return false;
+      if (localStorage.getItem("market_flow_vix") === "on") return false;   // VIX 우선
+      return true;
+    } catch { return true; }
+  });
+  const toggleVkospi = () => {
+    const next = !showVkospi;
+    setShowVkospi(next);
+    if (next) { setShowVix(false); try { localStorage.setItem("market_flow_vix", "off"); } catch { /* noop */ } }
+    try { localStorage.setItem("market_flow_vkospi", next ? "on" : "off"); } catch { /* noop */ }
+  };
+  const { data: vkospiPrices } = useQuery({
+    queryKey: ["vkospi-prices"],
+    queryFn: () => fetchInvestingPriceHistory("VKOSPI"),
+    enabled: isOpen && showVkospi,
     staleTime: 5 * 60_000,
   });
 
@@ -214,6 +236,8 @@ export function MarketFlowModal({
                                   events={marketEvents}
                                   vixPrices={vixPrices} showVix={showVix}
                                   onToggleVix={toggleVix}
+                                  vkospiPrices={vkospiPrices} showVkospi={showVkospi}
+                                  onToggleVkospi={toggleVkospi}
                                   onReady={registerSync} />
                 ) : (
                   <div className="border border-gray-200 rounded p-2 h-[200px] text-xs text-gray-400 flex items-center justify-center">

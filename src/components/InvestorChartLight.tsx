@@ -52,6 +52,14 @@ export function InvestorChartLight({
   const visibleRangeRef = useRef<LogicalRange | null>(null);
   const last = cumulative[cumulative.length - 1] ?? 0;
 
+  // lightweight-charts 값 한계 ±9.007e13 — 원 단위 누적이 초과하면 차트 좌표만 축소.
+  // (툴팁/헤더는 dailyMap/cumMap/last 원본을 fmtVol 로 표시 → 표시값은 정확)
+  const LWC_LIMIT = 9e13;
+  let peakAbs = Math.max(1, Math.abs(dailyMaxAbs ?? 0), Math.abs(cumMaxAbs ?? 0));
+  for (const v of daily) { const a = Math.abs(v); if (a > peakAbs) peakAbs = a; }
+  for (const v of cumulative) { const a = Math.abs(v); if (a > peakAbs) peakAbs = a; }
+  const scale = peakAbs > LWC_LIMIT ? 1e8 : 1;   // 원 → 억 스케일 (한계 초과 시에만)
+
   useEffect(() => {
     if (!containerRef.current) return;
     if (daily.length < 2) return;
@@ -109,7 +117,7 @@ export function InvestorChartLight({
       autoscaleInfoProvider: (original: () => { priceRange: { minValue: number; maxValue: number }; margins?: unknown } | null) => {
         const auto = original();
         if (!auto) return null;
-        const max = dailyMaxAbs ?? Math.max(
+        const max = (dailyMaxAbs != null ? dailyMaxAbs / scale : null) ?? Math.max(
           Math.abs(auto.priceRange.minValue),
           Math.abs(auto.priceRange.maxValue),
         );
@@ -122,7 +130,7 @@ export function InvestorChartLight({
     // 일별 막대 — 양수(매수): 빨강, 음수(매도): 파랑 (한국식)
     const histData = daily.map((v, i) => ({
       time: dates[i] as Time,
-      value: v,
+      value: v / scale,
       color: v >= 0 ? "#fecaca" : "#bfdbfe",  // red-200 / blue-200
     }));
     histSeries.setData(histData);
@@ -138,7 +146,7 @@ export function InvestorChartLight({
       autoscaleInfoProvider: (original: () => { priceRange: { minValue: number; maxValue: number }; margins?: unknown } | null) => {
         const auto = original();
         if (!auto) return null;
-        const max = cumMaxAbs ?? Math.max(
+        const max = (cumMaxAbs != null ? cumMaxAbs / scale : null) ?? Math.max(
           Math.abs(auto.priceRange.minValue),
           Math.abs(auto.priceRange.maxValue),
         );
@@ -150,7 +158,7 @@ export function InvestorChartLight({
     });
     const cumData = cumulative.map((v, i) => ({
       time: dates[i] as Time,
-      value: v,
+      value: v / scale,
     }));
     cumSeries.setData(cumData);
 
@@ -184,7 +192,7 @@ export function InvestorChartLight({
       const cumV = cumMap.get(String(time));
       const dailyV = dailyMap.get(String(time));
       if (x == null || cumV === undefined) { hideTooltip(); return false; }
-      const y = cumSeries.priceToCoordinate(cumV);
+      const y = cumSeries.priceToCoordinate(cumV / scale);
       if (y == null) { hideTooltip(); return false; }
 
       let content = `<div class="text-[10px] text-gray-400 mb-0.5">${String(time)}</div>`;
@@ -226,7 +234,7 @@ export function InvestorChartLight({
         return;
       }
       const cumV = cumMap.get(String(time));
-      if (cumV !== undefined) chart.setCrosshairPosition(cumV, time, cumSeries);
+      if (cumV !== undefined) chart.setCrosshairPosition(cumV / scale, time, cumSeries);
       updateTooltipForTime(time);
     };
 
@@ -240,7 +248,7 @@ export function InvestorChartLight({
       catch { /* chart already removed */ }
       chart.remove();
     };
-  }, [daily, cumulative, dates, barColor, cumColor, unit, dailyMaxAbs, cumMaxAbs, onReady]);
+  }, [daily, cumulative, dates, barColor, cumColor, unit, dailyMaxAbs, cumMaxAbs, scale, onReady]);
 
   return (
     <div className="border border-gray-200 rounded p-2 bg-white">

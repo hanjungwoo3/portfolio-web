@@ -22,6 +22,7 @@ import { EVENT_COLORS, eventDisplay, eventShort } from "../lib/marketEvents";
 const UP_COLOR   = "#dc2626";   // 양봉 / 라인 (한국식 빨강)
 const DN_COLOR   = "#2563eb";   // 음봉 (한국식 파랑)
 const VIX_COLOR  = "#9333ea";   // VIX (purple-600 — 공포지수)
+const VKOSPI_COLOR = "#0d9488"; // V-KOSPI (teal-600 — 한국 변동성지수)
 
 interface Props {
   label: string;                      // "KOSPI" 등
@@ -33,6 +34,9 @@ interface Props {
   vixPrices?: PricePoint[];           // VIX 가격 (옵션, 좌측 축 오버레이)
   showVix?: boolean;                  // VIX 표시 여부
   onToggleVix?: () => void;           // VIX ON/OFF 토글 (옵션)
+  vkospiPrices?: PricePoint[];        // V-KOSPI 가격 (옵션, 좌측 축 오버레이)
+  showVkospi?: boolean;               // V-KOSPI 표시 여부
+  onToggleVkospi?: () => void;        // V-KOSPI ON/OFF 토글 (옵션)
   onReady?: (
     chart: IChartApi,
     anchor: ISeriesApi<SeriesType>,
@@ -49,6 +53,7 @@ export function IndexLineChart({
   mode = "line", onToggleMode,
   events,
   vixPrices, showVix = false, onToggleVix,
+  vkospiPrices, showVkospi = false, onToggleVkospi,
   onReady,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -83,7 +88,9 @@ export function IndexLineChart({
         minimumWidth: 64,    // 4 미니 차트와 폭 통일 (X축 정렬용)
       },
       leftPriceScale: {
-        visible: showVix && !!vixPrices && vixPrices.length >= 2,
+        // 좌측 축 = VIX 또는 V-KOSPI (둘은 상호배타로 한 번에 하나만 켜짐 → 축 공유해도 안 겹침)
+        visible: (showVix && !!vixPrices && vixPrices.length >= 2)
+              || (showVkospi && !!vkospiPrices && vkospiPrices.length >= 2),
         borderColor: "#e5e7eb",
         scaleMargins: { top: 0.08, bottom: 0.08 },
       },
@@ -119,7 +126,7 @@ export function IndexLineChart({
         upColor: UP_COLOR, downColor: DN_COLOR,
         borderUpColor: UP_COLOR, borderDownColor: DN_COLOR,
         wickUpColor: UP_COLOR, wickDownColor: DN_COLOR,
-        priceLineVisible: false, lastValueVisible: false,
+        priceLineVisible: false, lastValueVisible: true,   // 우측 축 현재값 라벨(지수 색)
       });
       s.setData(candleData);
       priceSeries = s;
@@ -128,7 +135,7 @@ export function IndexLineChart({
         color: lineColor,
         lineWidth: 1,
         priceLineVisible: false,
-        lastValueVisible: false,
+        lastValueVisible: true,        // 우측 축 현재값 라벨(라인 색)
         crosshairMarkerVisible: false,
       });
       s.setData(prices.map(p => ({ time: p.date as Time, value: p.close })));
@@ -137,7 +144,7 @@ export function IndexLineChart({
 
     // 거래량 히스토그램 제거 — Yahoo 가 indices 에 대해 의미있는 거래량 미제공
 
-    // VIX 라인 (좌측 축, 보라 점선) — 공포 지수 오버레이
+    // VIX 라인 (좌측 축, 보라 점선) — 현재값 라벨 보라
     if (showVix && vixPrices && vixPrices.length >= 2) {
       const priceDates = new Set(prices.map(p => p.date));
       const vixData = vixPrices
@@ -150,11 +157,38 @@ export function IndexLineChart({
           lineWidth: 1,
           lineStyle: LineStyle.Dashed,
           priceLineVisible: false,
-          lastValueVisible: false,
+          lastValueVisible: true,
           crosshairMarkerVisible: false,
         });
         vixSeries.setData(vixData);
       }
+    }
+
+    // V-KOSPI 라인 (좌측 축, 청록 점선) — 한국 변동성지수 오버레이.
+    // setData 는 시간 오름차순·중복없음 필수 → dedupe+정렬, 실패해도 앱 안 죽도록 try/catch.
+    if (showVkospi && vkospiPrices && vkospiPrices.length >= 2) {
+      try {
+        const priceDates = new Set(prices.map(p => p.date));
+        const m = new Map<string, number>();
+        for (const p of vkospiPrices) {
+          if (priceDates.has(p.date) && Number.isFinite(p.close)) m.set(p.date, p.close);
+        }
+        const vkData = Array.from(m.entries())
+          .sort((a, b) => a[0].localeCompare(b[0]))
+          .map(([date, value]) => ({ time: date as Time, value }));
+        if (vkData.length >= 2) {
+          const vkSeries = chart.addSeries(LineSeries, {
+            priceScaleId: "left",
+            color: VKOSPI_COLOR,
+            lineWidth: 1,
+            lineStyle: LineStyle.Dashed,
+            priceLineVisible: false,
+            lastValueVisible: true,   // 좌측 축 현재값 라벨(teal)
+            crosshairMarkerVisible: false,
+          });
+          vkSeries.setData(vkData);
+        }
+      } catch { /* 오버레이 실패 — 무시(메인 차트는 정상) */ }
     }
 
     // 시장 이벤트 마커 (옵션만기 / 쿼드 — HTML overlay, 배당락/공시와 동일 스타일)
@@ -164,6 +198,8 @@ export function IndexLineChart({
       if (!layer) return;
       layer.innerHTML = "";
       if (!events || events.length === 0) return;
+      // 좌측 축(V-KOSPI) 표시 시 plot 영역이 그만큼 오른쪽으로 밀림 → 마커 x 보정
+      const leftAxisW = chart.priceScale("left").width() ?? 0;
       for (const e of events) {
         const p = priceMap.get(e.date);
         if (!p) continue;
@@ -177,7 +213,7 @@ export function IndexLineChart({
 
         const wrap = document.createElement("div");
         wrap.style.cssText =
-          `position:absolute;left:${x}px;top:${baseY + 4}px;` +
+          `position:absolute;left:${x + leftAxisW}px;top:${baseY + 4}px;` +
           `transform:translateX(-50%);pointer-events:none;z-index:4;` +
           `display:flex;flex-direction:column;align-items:center;`;
         // 화살촉
@@ -256,6 +292,13 @@ export function IndexLineChart({
           content += `<div><span class="text-gray-500">VIX </span><span style="color:${VIX_COLOR}">${vix.close.toFixed(2)}</span></div>`;
         }
       }
+      // V-KOSPI 값
+      if (showVkospi && vkospiPrices) {
+        const vk = vkospiPrices.find(v => v.date === String(time));
+        if (vk) {
+          content += `<div><span class="text-gray-500">V-KOSPI </span><span style="color:${VKOSPI_COLOR}">${vk.close.toFixed(2)}</span></div>`;
+        }
+      }
       tip.innerHTML = content;
       tip.style.display = "block";
       void tip.offsetHeight;   // 강제 reflow — offsetWidth 정확히 측정
@@ -309,7 +352,7 @@ export function IndexLineChart({
       catch { /* removed */ }
       chart.remove();
     };
-  }, [prices, lineColor, mode, events, vixPrices, showVix, onReady]);
+  }, [prices, lineColor, mode, events, vixPrices, showVix, vkospiPrices, showVkospi, onReady]);
 
   return (
     <div className="border border-gray-200 rounded p-2 bg-white">
@@ -339,6 +382,18 @@ export function IndexLineChart({
             VIX {showVix ? "ON" : "OFF"}
           </button>
         )}
+        {/* V-KOSPI 토글 — 한국 변동성지수 오버레이 */}
+        {onToggleVkospi && (
+          <button onClick={onToggleVkospi}
+                  title={showVkospi ? "V-KOSPI 숨기기" : "V-KOSPI 보이기"}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                    showVkospi
+                      ? "bg-teal-100 text-teal-700 border-teal-300"
+                      : "text-gray-400 border-gray-200 hover:bg-gray-100"
+                  }`}>
+            V-KOSPI {showVkospi ? "ON" : "OFF"}
+          </button>
+        )}
         {/* 캔들 모드 토글 — 차트 헤더 우상단 */}
         {onToggleMode && (
           <button onClick={onToggleMode}
@@ -352,8 +407,10 @@ export function IndexLineChart({
           </button>
         )}
       </div>
-      {/* 이벤트 마커 범례 — 옵션만기 / 쿼드러플 + VIX */}
-      {(events && events.length > 0) || (showVix && vixPrices && vixPrices.length >= 2) ? (
+      {/* 이벤트 마커 범례 — 옵션만기 / 쿼드러플 + VIX / V-KOSPI */}
+      {(events && events.length > 0)
+        || (showVix && vixPrices && vixPrices.length >= 2)
+        || (showVkospi && vkospiPrices && vkospiPrices.length >= 2) ? (
         <div className="flex items-center gap-2 text-[10px] text-gray-500 mb-1 flex-wrap">
           {events && events.length > 0 && (
             <>
@@ -377,6 +434,14 @@ export function IndexLineChart({
               <span className="inline-block w-3 border-t border-dashed"
                     style={{ borderColor: VIX_COLOR }}></span>
               <span style={{ color: VIX_COLOR }}>VIX (공포지수)</span>
+            </span>
+          )}
+          {showVkospi && vkospiPrices && vkospiPrices.length >= 2 && (
+            <span className="flex items-center gap-1"
+                  title="V-KOSPI — 코스피200 옵션 내재변동성, 한국 공포지수">
+              <span className="inline-block w-3 border-t border-dashed"
+                    style={{ borderColor: VKOSPI_COLOR }}></span>
+              <span style={{ color: VKOSPI_COLOR }}>V-KOSPI (한국 공포지수)</span>
             </span>
           )}
         </div>

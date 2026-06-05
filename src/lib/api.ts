@@ -1622,6 +1622,20 @@ export async function fetchInvestingChart(symbol: string): Promise<number[]> {
   const rows = await fetchInvestingRows(symbol);
   return rows.map(r => r[4]).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
 }
+// 일자 정렬용 종가 시계열 (PricePoint[]) — VKOSPI 등 오버레이용.
+// lightweight-charts setData 는 시간 오름차순·중복 없는 데이터 필수 → 일자별 dedupe + 정렬.
+export async function fetchInvestingPriceHistory(symbol: string): Promise<PricePoint[]> {
+  const rows = await fetchInvestingRows(symbol);
+  const byDate = new Map<string, PricePoint>();
+  for (const r of rows) {
+    const ts = r[0], close = r[4];
+    if (typeof ts !== "number" || typeof close !== "number" || !Number.isFinite(close)) continue;
+    const ms = ts < 1e12 ? ts * 1000 : ts;   // 초 단위면 ms 로 보정
+    const date = new Date(ms + 9 * 3600_000).toISOString().slice(0, 10);   // KST 일자
+    byDate.set(date, { date, close, volume: 0, open: r[1], high: r[2], low: r[3] });  // 같은 날짜는 최신값
+  }
+  return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
 
 // 다수 심볼 한꺼번에 — 병렬 fetch.
 // 정책: 현재가 = 토스(가능하면), 차트·정규장 마감가(regularPrice/마감 책갈피) = Yahoo.
