@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, isTodayKst } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, isTodayKst, holdingYesterdayBaseSum } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
@@ -57,6 +57,7 @@ interface Props {
   consensus?: Consensus | null; // 네이버 컨센서스 (목표가 + 점수)
   memo?: Memo;
   otherGroups?: string[];     // 같은 ticker 가 속한 다른 그룹 이름들 (현재 그룹 제외)
+  heldGroups?: Set<string>;   // 그 중 보유수량>0 인 그룹들 (붉은색 표시용)
   onOpenValuation?: (ticker: string) => void;  // 📊 기업가치 모달
   onEdit?: (stock: Stock) => void;
   onDelete?: (stock: Stock) => void;
@@ -93,7 +94,7 @@ const WARN_TIPS: Record<string, string> = {
 
 
 export function MobileStockCard({
-  stock, price, krReg, sector, market, warning, chart, investorHistory, consensus, memo, otherGroups,
+  stock, price, krReg, sector, market, warning, chart, investorHistory, consensus, memo, otherGroups, heldGroups,
   onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse,
 }: Props) {
   // 투자자 매매동향 레이어 토글 (👥 버튼)
@@ -166,8 +167,8 @@ export function MobileStockCard({
 
   return (
     <div className={dimmed ? "opacity-60" : ""}>
-      {/* 메타 줄 — 좌: 경고 뱃지 / 우: 섹터. 종목명/버튼 줄을 밀지 않음. */}
-      {(warning || sector) && (
+      {/* 메타 줄 — 좌: 경고 뱃지 / 우: 섹션(섹터/ETF + 거래소). 종목명/버튼 줄을 밀지 않음. */}
+      {(warning || sector || market === "KOSPI" || market === "KOSDAQ" || isEtfByName(stock.name)) && (
         <div className="flex items-center justify-between gap-1 mx-2 mb-0.5">
           <div className="flex items-center gap-1 min-w-0">
             {warning && (
@@ -188,13 +189,41 @@ export function MobileStockCard({
               </Tooltip>
             )}
           </div>
-          {sector && (
-            <span className={`inline-flex items-center px-2 py-0.5 rounded-md
-                              border ${cardBorder} ${cardBg}
-                              text-[10px] text-gray-600 leading-none truncate`}>
-              {sector}
-            </span>
-          )}
+          <div className="flex items-center gap-1 shrink-0">
+            {/* 섹션 — "철강/코스피", ETF 면 "ETF/코스피". 섹터/ETF 없으면 거래소만.
+                ETF 는 탭하면 구성종목 보기 */}
+            {(() => {
+              const isEtf = isEtfByName(stock.name);
+              const head = isEtf ? "ETF" : sector;
+              const mkt = market === "KOSPI" ? "코스피" : market === "KOSDAQ" ? "코스닥" : "";
+              if (!head && !mkt) return null;
+              const title = [head, mkt].filter(Boolean).join(" ");
+              const cls = `inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded-md
+                           border ${cardBorder} ${cardBg}
+                           text-[9px] text-gray-600 leading-none truncate`;
+              // 거래소(코스피/코스닥)는 더 작게 + 색 구분(코스피 파랑·코스닥 초록), 구분자 "/" 없이 띄어쓰기
+              const mktSpan = mkt
+                ? <span className={`text-[8px] ${market === "KOSPI" ? "text-blue-500" : "text-emerald-600"}`}>{mkt}</span>
+                : null;
+              if (isEtf && onOpenEtf) {
+                // ETF 글자만 점선 밑줄 — 탭(구성종목) 가능 신호
+                return (
+                  <button title="ETF 구성 종목 보기"
+                          onClick={() => onOpenEtf(stock.ticker, stock.name)}
+                          className={cls}>
+                    <span className="underline decoration-dotted underline-offset-2">ETF</span>
+                    {mktSpan}
+                  </button>
+                );
+              }
+              return (
+                <span title={title} className={cls}>
+                  {head && <span>{head}</span>}
+                  {mktSpan}
+                </span>
+              );
+            })()}
+          </div>
         </div>
       )}
       {/* 책갈피 — 좌: 종목명 pill / 우: 수정·삭제 버튼 */}
@@ -237,27 +266,6 @@ export function MobileStockCard({
           )}
         </div>
         <div className="flex items-end gap-1 shrink-0">
-          {/* ETF 책갈피 — 메모 왼쪽. 평소 흐리게 */}
-          {isEtfByName(stock.name) && onOpenEtf && (
-            <button onClick={() => onOpenEtf(stock.ticker, stock.name)}
-                    title="ETF 구성 종목 보기"
-                    className="px-1.5 py-0.5 rounded text-xs font-bold leading-none
-                               text-violet-700 bg-violet-50 border border-violet-200
-                               opacity-40 hover:opacity-100 active:opacity-100 transition self-center">
-              ETF
-            </button>
-          )}
-          {/* 거래소 책갈피 — KSP(코스피)/KSQ(코스닥) */}
-          {(market === "KOSPI" || market === "KOSDAQ") && (
-            <span title={market}
-                  className={`px-1.5 py-0.5 rounded text-xs font-bold leading-none self-center
-                              opacity-40 border
-                              ${market === "KOSPI"
-                                ? "text-blue-700 bg-blue-50 border-blue-200"
-                                : "text-emerald-700 bg-emerald-50 border-emerald-200"}`}>
-              {market === "KOSPI" ? "KSP" : "KSQ"}
-            </span>
-          )}
           {/* 포함 ETF 배지 — 이 종목을 포함한 ETF 수. 탭하면 역색인 다이얼로그 */}
           {etfCount > 0 && onOpenEtfReverse && (
             <button onClick={() => onOpenEtfReverse(stock.ticker, stock.name)}
@@ -626,9 +634,9 @@ export function MobileStockCard({
                           text-[9px] leading-tight">
             {otherGroups.slice(0, 2).map(g => (
               <span key={g}
-                    className="bg-gradient-to-r from-emerald-100/20 to-green-200/20
-                               border border-emerald-300/20 rounded
-                               px-1 py-0.5 text-emerald-800 whitespace-nowrap">
+                    className={heldGroups?.has(g)
+                      ? "bg-gradient-to-r from-rose-100/30 to-red-200/30 border border-rose-300/30 rounded px-1 py-0.5 text-rose-700 whitespace-nowrap"
+                      : "bg-gradient-to-r from-emerald-100/20 to-green-200/20 border border-emerald-300/20 rounded px-1 py-0.5 text-emerald-800 whitespace-nowrap"}>
                 {g}
               </span>
             ))}
@@ -692,22 +700,24 @@ export function MobileStockCard({
         )}
 
         {/* 오늘 (보유만) — 보유분 어제대비 변동.
-            ※ 오늘 매수 종목은 어제 보유분이 없으므로 기준=매수단가(avg_price) → 전체와 동일 */}
+            오늘 매수분은 기준=매수단가, 그 외는 전일 종가. 합산(내주식)은 보유분별 분리 합산. */}
         {hasPosition && (() => {
-          const boughtToday = isTodayKst(stock.buy_date);
-          const baseForHold = boughtToday ? stock.avg_price : price.base;
-          const holdDayDiff = baseForHold > 0 ? price.price - baseForHold : 0;
-          const holdDayPct  = baseForHold > 0 ? (holdDayDiff / baseForHold) * 100 : 0;
+          const yBase = holdingYesterdayBaseSum(stock, price);
+          const dayAmount = yBase > 0 ? price.price * stock.shares - yBase : 0;
+          const holdDayPct = yBase > 0 ? (dayAmount / yBase) * 100 : 0;
+          const allToday = stock.todayShares != null
+            ? stock.todayShares >= stock.shares
+            : isTodayKst(stock.buy_date);
           return (
             <div className="text-[10px]">
               <span className="text-[9px] text-gray-500">오늘 </span>
-              <span className={`font-bold bg-yellow-100 rounded px-1 ${signColor(holdDayDiff)}`}>
-                {formatSigned(holdDayDiff * stock.shares)}원
+              <span className={`font-bold bg-yellow-100 rounded px-1 ${signColor(dayAmount)}`}>
+                {formatSigned(Math.round(dayAmount))}원
               </span>{" "}
-              <span className={signColor(holdDayDiff)}>
+              <span className={signColor(dayAmount)}>
                 ({holdDayPct >= 0 ? "+" : ""}{holdDayPct.toFixed(2)}%)
               </span>
-              {boughtToday && (
+              {allToday && (
                 <span className="ml-1 text-[8px] text-gray-400" title="오늘 매수 — 매수단가 기준">(당일)</span>
               )}
             </div>

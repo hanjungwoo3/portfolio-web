@@ -19,7 +19,7 @@ import { Menu } from "lucide-react";
 import { getGroupFolders } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable } from "./components/TodayPnLTable";
-import { isTodayKst, isEtfByName, signColor, formatSigned } from "./lib/format";
+import { holdingYesterdayBaseSum, isEtfByName, signColor, formatSigned } from "./lib/format";
 import { WhatIfRow } from "./components/WhatIfRow";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { FeedbackDialog } from "./components/FeedbackDialog";
@@ -29,6 +29,7 @@ import { EtfReverseDialog } from "./components/EtfReverseDialog";
 import { OnboardingDialog } from "./components/OnboardingDialog";
 import { SearchDialog } from "./components/SearchDialog";
 import { EditHoldingDialog } from "./components/EditHoldingDialog";
+import { MyStockEditDialog } from "./components/MyStockEditDialog";
 import { UsMarketTab } from "./components/UsMarketTab";
 import { SemiCheckTab } from "./components/SemiCheckTab";
 import { RefreshIndicator } from "./components/RefreshIndicator";
@@ -90,6 +91,7 @@ function Dashboard() {
   const [reloadKey, setReloadKey] = useState(0);
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [editing, setEditing] = useState<Stock | null>(null);
+  const [editAllStock, setEditAllStock] = useState<{ ticker: string; name: string } | null>(null);
   const [memoTicker, setMemoTicker] = useState<string | null>(null);
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
@@ -304,10 +306,9 @@ function Dashboard() {
       const p = priceMap.get(s.ticker);
       if (!p) continue;
       const c = p.price || s.avg_price;
-      const base = isTodayKst(s.buy_date) ? s.avg_price : (p.base || c);
       invested += s.avg_price * s.shares;
       cur += c * s.shares;
-      yest += base * s.shares;
+      yest += holdingYesterdayBaseSum(s, p);
     }
     if (cur > 0 && invested > 0 && yest > 0) {
       const won = (n: number) => `${n >= 0 ? "+" : ""}${Math.round(n).toLocaleString()}원`;
@@ -404,6 +405,18 @@ function Dashboard() {
       const arr = m.get(h.ticker) ?? [];
       if (!arr.includes(acc)) arr.push(acc);
       m.set(h.ticker, arr);
+    }
+    return m;
+  }, [holdings]);
+  // 보유수량>0 인 (ticker→그룹) — 그룹 칩 붉은색 표시용
+  const tickerHeldGroupsMap = useMemo(() => {
+    const m = new Map<string, Set<string>>();
+    for (const h of holdings) {
+      const acc = h.account || "";
+      if (!acc || !(h.shares > 0)) continue;
+      const set = m.get(h.ticker) ?? new Set<string>();
+      set.add(acc);
+      m.set(h.ticker, set);
     }
     return m;
   }, [holdings]);
@@ -676,8 +689,9 @@ function Dashboard() {
                     ? (tickerGroupsMap.get(stock.ticker) ?? [])
                     : (tickerGroupsMap.get(stock.ticker) ?? [])
                         .filter(g => g !== (stock.account || ""))}
+                  heldGroups={tickerHeldGroupsMap.get(stock.ticker)}
                   onOpenValuation={setValuationTicker}
-                  onEdit={isAggregated ? undefined : (s => setEditing(s))}
+                  onEdit={isAggregated ? (s => setEditAllStock({ ticker: s.ticker, name: s.name })) : (s => setEditing(s))}
                   onDelete={isAggregated ? undefined : (async s => {
                     await removeHolding(s.ticker, s.account || "");
                     setReloadKey(k => k + 1);
@@ -704,10 +718,9 @@ function Dashboard() {
                   if (!(s.shares > 0)) continue;
                   const p = priceMap.get(s.ticker);
                   const cur = p?.price || s.avg_price;
-                  const base = isTodayKst(s.buy_date) ? s.avg_price : (p?.base || cur);
                   invested += s.shares * s.avg_price;
                   current += cur * s.shares;
-                  yesterday += base * s.shares;
+                  yesterday += holdingYesterdayBaseSum(s, p ?? { price: s.avg_price, base: 0 });
                 }
                 const pnl = current - invested;
                 const dayDiff = current - yesterday;
@@ -806,6 +819,15 @@ function Dashboard() {
         curPrice={editing ? priceMap.get(editing.ticker)?.price : undefined}
         onChanged={() => setReloadKey(k => k + 1)}
       />
+
+      {editAllStock && (
+        <MyStockEditDialog
+          ticker={editAllStock.ticker}
+          name={editAllStock.name}
+          onClose={() => setEditAllStock(null)}
+          onChanged={() => setReloadKey(k => k + 1)}
+        />
+      )}
 
       <MemoDialog
         isOpen={!!memoTicker}

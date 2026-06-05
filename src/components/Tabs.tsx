@@ -2,6 +2,7 @@ import { Settings, Cpu } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Stock } from "../types";
 import { normalizeAccount } from "../lib/account";
+import { isTodayKst } from "../lib/format";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import type { TabVisibility } from "../lib/tabVisibility";
 import type { GroupFolder } from "../lib/groupFolders";
@@ -283,18 +284,24 @@ function aggregateHoldings(holdings: Stock[]): Stock[] {
         if (!prev || h.buy_date < prev) earliest.set(h.ticker, h.buy_date);
       }
     }
-    return Array.from(seen, ([ticker, h]) => ({
-      ticker, name: h.name, shares: h.shares, avg_price: h.avg_price,
-      invested: Math.round(h.shares * h.avg_price),
-      buy_date: earliest.get(ticker) ?? h.buy_date,
-      market: h.market,
-      account: MY_STOCKS_TAB_KEY,
-    }));
+    return Array.from(seen, ([ticker, h]) => {
+      const isToday = isTodayKst(h.buy_date);
+      return {
+        ticker, name: h.name, shares: h.shares, avg_price: h.avg_price,
+        invested: Math.round(h.shares * h.avg_price),
+        buy_date: earliest.get(ticker) ?? h.buy_date,
+        market: h.market,
+        account: MY_STOCKS_TAB_KEY,
+        todayShares: isToday ? h.shares : 0,
+        todayCost: isToday ? h.shares * h.avg_price : 0,
+      };
+    });
   }
   // 독립 보유 모드 — 그룹별 합산
   interface Acc {
     name: string; shares: number; investedSum: number;
     firstDate?: string; market?: string;
+    todayShares: number; todayCost: number;
   }
   const m = new Map<string, Acc>();
   // 미러 중복 가산 방지 — sync 모드는 같은 ticker 의 모든 그룹 row 를 동일 값으로 미러한다
@@ -311,14 +318,18 @@ function aggregateHoldings(holdings: Stock[]): Stock[] {
     sigs.add(sig);
     const cur = m.get(h.ticker);
     const invested = h.shares * h.avg_price;
+    const isToday = isTodayKst(h.buy_date);
     if (!cur) {
       m.set(h.ticker, {
         name: h.name, shares: h.shares, investedSum: invested,
         firstDate: h.buy_date, market: h.market,
+        todayShares: isToday ? h.shares : 0,
+        todayCost: isToday ? invested : 0,
       });
     } else {
       cur.shares += h.shares;
       cur.investedSum += invested;
+      if (isToday) { cur.todayShares += h.shares; cur.todayCost += invested; }
       if (h.buy_date && (!cur.firstDate || h.buy_date < cur.firstDate)) {
         cur.firstDate = h.buy_date;
       }
@@ -334,5 +345,7 @@ function aggregateHoldings(holdings: Stock[]): Stock[] {
     buy_date: v.firstDate,
     market: v.market,
     account: MY_STOCKS_TAB_KEY,
+    todayShares: v.todayShares,
+    todayCost: v.todayCost,
   }));
 }

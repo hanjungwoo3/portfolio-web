@@ -8,6 +8,10 @@ export interface Stock {
   buy_date?: string;
   market?: string;
   account?: string;
+  // 합산(내주식) 전용 — 매수일이 섞인 보유의 '오늘' 손익을 보유분별로 계산하기 위한 분리값.
+  // 일반 행은 미설정(카드/합계가 buy_date 로 당일 여부 판정). 합산 시에만 채워짐.
+  todayShares?: number;   // 이 중 '오늘' 매수한 주식 수
+  todayCost?: number;     // 그 오늘 매수분의 매입원가 합 (avg_price × shares)
 }
 
 export interface Price {

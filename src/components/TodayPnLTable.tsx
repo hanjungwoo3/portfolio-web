@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Stock, Price } from "../types";
-import { formatSigned, isTodayKst } from "../lib/format";
+import { formatSigned, holdingYesterdayBaseSum } from "../lib/format";
 
 // ─── 공용: 손익 계산 (오늘 / 전체) ────────────────────────────
 export interface TodayPnLRow {
@@ -15,11 +15,11 @@ export interface TodayPnLData {
   loseSum: number;
 }
 
-// basePriceOf 가 비교 기준 가격을 반환 — 오늘=어제종가(p.base), 전체=평단가(s.avg_price)
+// amountOf 가 손익 금액을 반환 (null = 제외). 오늘/전체에 따라 기준 다름.
 function computePnL(
   holdings: Stock[],
   prices: Map<string, Price>,
-  basePriceOf: (s: Stock, p: Price) => number,
+  amountOf: (s: Stock, p: Price) => number | null,
 ): TodayPnLData {
   const winners: TodayPnLRow[] = [];
   const losers: TodayPnLRow[] = [];
@@ -27,10 +27,8 @@ function computePnL(
     if (s.shares <= 0) continue;
     const p = prices.get(s.ticker);
     if (!p) continue;
-    const base = basePriceOf(s, p);
-    if (base <= 0) continue;
-    const amount = (p.price - base) * s.shares;
-    if (amount === 0) continue;
+    const amount = amountOf(s, p);
+    if (amount == null || amount === 0) continue;
     const row: TodayPnLRow = {
       ticker: s.ticker,
       name: s.name || s.ticker,
@@ -50,12 +48,15 @@ function computePnL(
 }
 
 export function computeTodayPnL(holdings: Stock[], prices: Map<string, Price>) {
-  // 오늘 매수 종목은 어제 보유분이 없으므로 매수단가 기준 (= 당일 손익)
-  return computePnL(holdings, prices, (s, p) =>
-    isTodayKst(s.buy_date) ? s.avg_price : p.base);
+  // 오늘 손익 = 현재 평가 − 어제 기준 평가합 (오늘 매수분은 매수단가 기준, 합산은 보유분별 분리)
+  return computePnL(holdings, prices, (s, p) => {
+    const yBase = holdingYesterdayBaseSum(s, p);
+    return yBase > 0 ? p.price * s.shares - yBase : null;
+  });
 }
 export function computeOverallPnL(holdings: Stock[], prices: Map<string, Price>) {
-  return computePnL(holdings, prices, (s) => s.avg_price);
+  return computePnL(holdings, prices, (s, p) =>
+    s.avg_price > 0 ? (p.price - s.avg_price) * s.shares : null);
 }
 
 interface Props {

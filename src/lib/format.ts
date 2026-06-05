@@ -41,6 +41,22 @@ export function isTodayKst(dateStr?: string): boolean {
   return dateStr.replace(/\D/g, "") === nowKstDateStr().replace(/-/g, "");
 }
 
+// 보유분의 '어제 기준' 평가합 — 오늘 손익(= 현재평가 − 이 값) 계산용.
+//  · 오늘 매수분: 어제 보유가 없으므로 기준 = 매입원가
+//  · 그 외(어제부터 보유): 기준 = 전일 종가(price.base). 비거래일(base=0)엔 현재가.
+// 합산(내주식)처럼 매수일이 섞인 경우 todayShares/todayCost 로 보유분별 분리 합산.
+export function holdingYesterdayBaseSum(
+  stock: { shares: number; avg_price: number; buy_date?: string; todayShares?: number; todayCost?: number },
+  price: { price: number; base: number },
+): number {
+  const baseUnit = price.base > 0 ? price.base : price.price;
+  if (stock.todayShares != null) {
+    const oldShares = stock.shares - stock.todayShares;
+    return baseUnit * oldShares + (stock.todayCost ?? 0);
+  }
+  return (isTodayKst(stock.buy_date) ? stock.avg_price : baseUnit) * stock.shares;
+}
+
 // KST 시(0~23)
 export function nowKstHour(): number {
   return nowKst().getUTCHours();
