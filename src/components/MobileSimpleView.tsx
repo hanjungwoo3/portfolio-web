@@ -19,6 +19,7 @@ import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, isEtfByName, sign
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxies, setPersonalProxies, type PersonalProxy,
+  fetchProxyUsage, type ProxyUsage,
   getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS,
   getDimSleepingEnabled, setDimSleepingEnabled,
 } from "../lib/proxyConfig";
@@ -1500,6 +1501,7 @@ function SettingsModal({
   const [busy, setBusy] = useState(false);
   const [dataMsg, setDataMsg] = useState("");
   const [proxies, setProxies] = useState<PersonalProxy[]>(() => getPersonalProxies());
+  const [usage, setUsage] = useState<Record<string, ProxyUsage | "unsupported" | "loading">>({});
   const [folderDraft, setFolderDraft] = useState<GroupFolder[]>([]);
   const [newFolderName, setNewFolderName] = useState("");
   const [pollMs, setPollMs] = useState(getPersonalPollMs());
@@ -1548,6 +1550,17 @@ function SettingsModal({
   const removeProxy = (i: number) => setProxies(ps => ps.filter((_, idx) => idx !== i));
   const addProxy = () => setProxies(ps => [...ps, { url: "", enabled: true }]);
   const hasEnabledProxy = proxies.some(p => p.enabled && p.url.trim() !== "");
+
+  const refreshUsage = (list: PersonalProxy[]) => {
+    for (const p of list) {
+      const url = p.url.trim().replace(/\/+$/, "");
+      if (!p.enabled || !url) continue;
+      setUsage(u => ({ ...u, [url]: "loading" }));
+      void fetchProxyUsage(url).then(r => setUsage(u => ({ ...u, [url]: r ?? "unsupported" })));
+    }
+  };
+  // 모달 열릴 때 1회 사용량 조회
+  useEffect(() => { refreshUsage(getPersonalProxies()); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
   const saveProxies = () => {
     for (const p of proxies) {
@@ -1824,21 +1837,49 @@ function SettingsModal({
               {proxies.length === 0 && (
                 <div className="text-[11px] text-gray-400 py-1">등록된 전용 프록시 없음 — 공개 4-way 사용 중</div>
               )}
-              {proxies.map((p, i) => (
-                <div key={i} className="flex items-center gap-1.5">
-                  <input type="checkbox" checked={p.enabled}
-                         onChange={e => updateProxy(i, { enabled: e.target.checked })}
-                         className="shrink-0 w-4 h-4 accent-blue-600" />
-                  <input type="text" value={p.url}
-                         onChange={e => updateProxy(i, { url: e.target.value })}
-                         placeholder="https://your-proxy.workers.dev"
-                         className={`flex-1 border rounded px-2 py-1.5 text-xs font-mono
-                                     focus:outline-none focus:border-blue-500
-                                     ${p.enabled ? "" : "opacity-50 line-through"}`} />
-                  <button onClick={() => removeProxy(i)} title="삭제"
-                          className="shrink-0 px-1.5 py-1 text-gray-400 hover:text-rose-600 text-sm">✕</button>
-                </div>
-              ))}
+              {proxies.map((p, i) => {
+                const url = p.url.trim().replace(/\/+$/, "");
+                const u = p.enabled && url ? usage[url] : undefined;
+                return (
+                  <div key={i} className="space-y-0.5">
+                    <div className="flex items-center gap-1.5">
+                      <input type="checkbox" checked={p.enabled}
+                             onChange={e => updateProxy(i, { enabled: e.target.checked })}
+                             className="shrink-0 w-4 h-4 accent-blue-600" />
+                      <input type="text" value={p.url}
+                             onChange={e => updateProxy(i, { url: e.target.value })}
+                             placeholder="https://your-proxy.workers.dev"
+                             className={`flex-1 border rounded px-2 py-1.5 text-xs font-mono
+                                         focus:outline-none focus:border-blue-500
+                                         ${p.enabled ? "" : "opacity-50 line-through"}`} />
+                      <button onClick={() => removeProxy(i)} title="삭제"
+                              className="shrink-0 px-1.5 py-1 text-gray-400 hover:text-rose-600 text-sm">✕</button>
+                    </div>
+                    {u && u !== "loading" && (
+                      u === "unsupported" ? (
+                        <div className="text-[10px] text-amber-600 pl-6">
+                          사용량 표시하려면 워커 업데이트 필요(/usage).&nbsp;
+                          <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md"
+                             target="_blank" rel="noopener noreferrer" className="underline">가이드 ↗</a>
+                        </div>
+                      ) : (() => {
+                        const pct = u.limit > 0 ? Math.min(100, (u.requests / u.limit) * 100) : 0;
+                        return (
+                          <div className="pl-6 flex items-center gap-1.5">
+                            <span className="text-[10px] text-gray-600 tabular-nums shrink-0">
+                              오늘 {u.requests.toLocaleString()} / {u.limit.toLocaleString()}
+                            </span>
+                            <span className="flex-1 h-1 bg-gray-200 rounded overflow-hidden">
+                              <span className={`block h-full ${pct > 90 ? "bg-rose-500" : pct > 70 ? "bg-amber-500" : "bg-emerald-500"}`}
+                                    style={{ width: `${pct}%` }} />
+                            </span>
+                          </div>
+                        );
+                      })()
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <div className="flex gap-2">
               <button onClick={addProxy}

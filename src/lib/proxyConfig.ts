@@ -65,6 +65,19 @@ export function setPersonalProxyUrl(url: string | null) {
   else setPersonalProxies([{ url: normUrl(url), enabled: true }]);
 }
 
+// 워커 사용량 — 신버전 워커의 GET /usage 엔드포인트 ({requests, limit}).
+// 구버전 워커(미지원)는 다른 응답/에러 → null 반환 (앱은 안내 문구 표시).
+export interface ProxyUsage { requests: number; limit: number }
+export async function fetchProxyUsage(base: string): Promise<ProxyUsage | null> {
+  try {
+    const resp = await fetch(`${normUrl(base)}/usage`, { signal: AbortSignal.timeout(5000) });
+    if (!resp.ok) return null;
+    const j = await resp.json() as { requests?: unknown; limit?: unknown };
+    if (typeof j.requests !== "number") return null;
+    return { requests: j.requests, limit: typeof j.limit === "number" ? j.limit : 100_000 };
+  } catch { return null; }
+}
+
 // 폴링 주기 — 전용 프록시 사용 시 5/10/30/60초 선택 가능. 0 = 수동(자동 갱신 끔).
 // 공개 프록시는 기본 60초, 30초까지 선택 가능 (무료 워커 호출 한도 보호 — 호출수가 병목).
 // 더 빠른 갱신(5/10초)이 필요하면 설정에서 개인 프록시 등록.

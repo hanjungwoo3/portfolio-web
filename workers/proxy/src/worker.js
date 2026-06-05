@@ -90,16 +90,52 @@ function needsYahooAuth(url) {
           url.pathname.includes("/v6/finance/quote"));
 }
 
+// 사용량 — GET /usage. env 에 CF_API_TOKEN(Account Analytics:Read) + CF_ACCOUNT_ID 설정 시
+// 오늘 이 워커(또는 계정)의 요청수를 Cloudflare GraphQL Analytics 로 조회해 반환.
+// 미설정이면 {error:"not-configured"} (앱은 "사용량 미지원"으로 처리 → 안내 표시).
+async function handleUsage(env) {
+  const out = (obj, status = 200) => new Response(JSON.stringify(obj), {
+    status, headers: { "Content-Type": "application/json", ...CORS_HEADERS },
+  });
+  const token = env && env.CF_API_TOKEN;
+  const account = env && env.CF_ACCOUNT_ID;
+  if (!token || !account) return out({ error: "not-configured" });
+  const today = new Date().toISOString().slice(0, 10);
+  const scriptFilter = env.CF_SCRIPT_NAME ? `, scriptName: "${env.CF_SCRIPT_NAME}"` : "";
+  const query = `query { viewer { accounts(filter: { accountTag: "${account}" }) {`
+    + ` workersInvocationsAdaptive(limit: 1000, filter: { datetime_geq: "${today}T00:00:00Z"${scriptFilter} })`
+    + ` { sum { requests } } } } }`;
+  try {
+    const r = await fetch("https://api.cloudflare.com/client/v4/graphql", {
+      method: "POST",
+      headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ query }),
+    });
+    const d = await r.json();
+    const rows = (((d || {}).data || {}).viewer || {}).accounts;
+    const list = rows && rows[0] && rows[0].workersInvocationsAdaptive || [];
+    let requests = 0;
+    for (const row of list) requests += (row && row.sum && row.sum.requests) || 0;
+    return out({ requests, limit: 100000, date: today });
+  } catch (e) {
+    return out({ error: "fetch-failed", message: String(e) });
+  }
+}
+
 export default {
-  async fetch(request) {
+  async fetch(request, env) {
     if (request.method === "OPTIONS") {
       return new Response(null, { status: 204, headers: CORS_HEADERS });
     }
+
+    const url = new URL(request.url);
+    // 사용량 엔드포인트 (신버전) — ?url= 프록시와 별개
+    if (url.pathname === "/usage") return handleUsage(env);
+
     if (request.method !== "GET" && request.method !== "POST") {
       return jsonError(405, "Method not allowed (GET/POST only)");
     }
 
-    const url = new URL(request.url);
     const target = url.searchParams.get("url");
     if (!target) return jsonError(400, "Missing 'url' query parameter");
 

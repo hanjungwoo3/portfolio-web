@@ -99,3 +99,38 @@ worker.js 의 변경 내용:
 - `workers/render-proxy/server.js`
 
 각 플랫폼 가이드에 따라 재배포하시면 됩니다 (Cloudflare 와 동일 패턴).
+
+---
+
+## 📊 전용 프록시 사용량 표시 (선택)
+
+설정 → 전용 프록시에서 각 프록시의 **오늘 요청수 / 100,000** 막대를 보고 싶을 때만.
+설정 안 해도 모든 기능은 정상이며, 사용량만 "미지원"으로 안내됩니다.
+
+> 원리: 앱이 `https<나의-워커>/usage` 호출 → 워커가 **Cloudflare GraphQL Analytics API** 로 오늘 요청수를 조회해 반환.
+> API 토큰은 **워커 환경변수(서버측)** 에만 저장 → 브라우저에 노출 안 됨.
+
+### 1) 워커 코드 최신화
+위 **업데이트 절차(1~5단계)** 그대로 최신 `worker.js` 로 교체하면 `/usage` 엔드포인트가 포함됩니다.
+
+### 2) Cloudflare API 토큰 만들기
+1. https://dash.cloudflare.com/profile/api-tokens → **Create Token** → **Create Custom Token**
+2. 권한: **Account → Account Analytics → Read** (이 하나면 충분)
+3. Account Resources: 내 계정 → **Continue → Create Token** → 토큰 값 복사 (한 번만 표시)
+
+### 3) 워커 환경변수 설정
+대시보드 → 내 워커 → **Settings → Variables and Secrets** 에서 추가 후 Deploy:
+
+| 이름 | 값 | 종류 |
+|---|---|---|
+| `CF_API_TOKEN` | 2)의 토큰 | **Secret (Encrypt)** |
+| `CF_ACCOUNT_ID` | 계정 ID (워커 Overview 의 Account ID) | Text |
+| `CF_SCRIPT_NAME` | (선택) 이 워커 스크립트명 | Text |
+
+- `CF_SCRIPT_NAME` 넣으면 *이 워커만*, 비우면 *계정 전체* Workers 요청수("Requests today"와 동일).
+
+### 4) 확인
+브라우저에서 `https<나의-워커>/usage` → `{ "requests": 9101, "limit": 100000, "date": "..." }` 면 성공.
+이제 앱 설정에서 프록시마다 사용량 막대가 표시됩니다.
+
+> 참고: 무료 한도는 **계정 단위 100,000 req/day**. GraphQL 수치는 수 분 지연될 수 있음.
