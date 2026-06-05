@@ -43,6 +43,7 @@ interface Props {
   title2?: string;     // 2번째 면적 라벨 (예: "매도")
   color2?: string;     // 2번째 면적 색 (hex)
   desc?: ReactNode;    // 그래프 하단 설명 (색상 마크업 가능)
+  upIsBad?: boolean;   // 잔고 증가가 '부정'인지 (대차/신용=true: 증가 파랑·감소 빨강 / CFD매수=false)
   points: BalanceTrendPoint[];
   dates: string[];
   onReady?: (
@@ -52,7 +53,7 @@ interface Props {
   ) => (() => void) | void;
 }
 
-export function BalanceTrendChart({ title, color, title2, color2, desc, points, dates, onReady }: Props) {
+export function BalanceTrendChart({ title, color, title2, color2, desc, upIsBad, points, dates, onReady }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const visibleRangeRef = useRef<LogicalRange | null>(null);
@@ -206,11 +207,15 @@ export function BalanceTrendChart({ title, color, title2, color2, desc, points, 
         {last?.rate != null && last.rate > 0 && (
           <span className="text-[10px] text-gray-400">{last.rate.toFixed(2)}%</span>
         )}
-        {trendPct !== null && (
-          <span className={`tabular-nums text-[11px] ${trendPct > 0 ? "text-violet-600" : "text-rose-600"}`}>
-            {trendPct > 0 ? "▲" : "▼"} {Math.abs(trendPct).toFixed(1)}% <span className="text-gray-400">(20일)</span>
-          </span>
-        )}
+        {trendPct !== null && (() => {
+          // 긍정=빨강 / 부정=파랑. 대차·신용은 증가가 부정(upIsBad), CFD매수는 증가가 긍정.
+          const positive = upIsBad ? trendPct < 0 : trendPct > 0;
+          return (
+            <span className={`tabular-nums text-[11px] ${positive ? "text-rose-600" : "text-blue-600"}`}>
+              {trendPct > 0 ? "▲" : "▼"} {Math.abs(trendPct).toFixed(1)}% <span className="text-gray-400">(20일)</span>
+            </span>
+          );
+        })()}
         {title2 && color2 && (
           <span className="flex items-center gap-1 ml-auto">
             <span className="inline-block w-3 h-0.5" style={{ background: color2 }}></span>

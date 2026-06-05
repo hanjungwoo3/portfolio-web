@@ -965,12 +965,12 @@ function InvestorChartsSection({
                 />
               )}
               {lendingPoints.length > 0 && (
-                <BalanceTrendChart title="대차잔고" color="#7c3aed"
+                <BalanceTrendChart title="대차잔고" color="#7c3aed" upIsBad
                   desc={<>빌려간 주식 잔고 = 잠재적 공매도 물량. <b style={{ color: "#2563eb" }}>증가=숏 빌드업(경계)</b>, <b style={{ color: "#dc2626" }}>감소=상환·숏커버(반등)</b>.</>}
                   points={lendingPoints} dates={dates} onReady={registerSync} />
               )}
               {creditPoints.length > 0 && (
-                <BalanceTrendChart title="신용잔고" color="#ea580c"
+                <BalanceTrendChart title="신용잔고" color="#ea580c" upIsBad
                   desc={<>개인이 빚내서 산 신용융자 잔고. <b style={{ color: "#d97706" }}>증가=과열(반대매매 리스크)</b>, <b style={{ color: "#2563eb" }}>급감=반대매매(투매)</b>.</>}
                   points={creditPoints} dates={dates} onReady={registerSync} />
               )}
