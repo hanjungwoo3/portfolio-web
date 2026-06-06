@@ -1792,9 +1792,15 @@ async function fetchInvestingIndexPrice(symbol: string, name: string): Promise<U
   const diff = close - base;
   const pct = base > 0 ? (diff / base) * 100 : 0;
   const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  // 마지막 데이터 시각 — 카드 "갱신" 표시용 (investing ts: 초/ms 혼재 → 초로 정규화)
+  const lastTs = rows[rows.length - 1]?.[0];
+  const regularMarketTime = typeof lastTs === "number"
+    ? Math.floor((lastTs < 1e12 ? lastTs * 1000 : lastTs) / 1000)
+    : undefined;
   return {
     symbol, name, price: close, prev: base, prevClose: base,
     diff, pct, currency: "", tradeDate: todayKst, marketState: "",
+    regularMarketTime,
   };
 }
 // 차트(스파크라인)용 종가 시계열
