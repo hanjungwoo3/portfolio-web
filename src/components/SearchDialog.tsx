@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  searchTossAutoComplete, searchNaverAutoComplete, fetchStockName, fetchTossPrices,
+  searchTossAutoComplete, searchNaverAutoComplete, fetchKrStockName, fetchTossPrices,
   searchNaverThemes,
   type SearchResult, type NaverThemeMatch,
 } from "../lib/api";
@@ -122,7 +122,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
           const stocksTask = (async () => {
             let stocks: SearchResult[] = [];
             if (codes.length > 0) {
-              const names = await Promise.all(codes.map(c => fetchStockName(c)));
+              const names = await Promise.all(codes.map(c => fetchKrStockName(c)));
               stocks = codes
                 .map((c, i) => ({ ticker: c, name: names[i] ?? "", market: "KOSPI" }))
                 .filter(s => s.name);
@@ -229,7 +229,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       const stocksTask = (async () => {
         let stocks: SearchResult[] = [];
         if (codes.length > 0) {
-          const names = await Promise.all(codes.map(c => fetchStockName(c)));
+          const names = await Promise.all(codes.map(c => fetchKrStockName(c)));
           stocks = codes
             .map((c, i) => ({ ticker: c, name: names[i] ?? "", market: "KOSPI" }))
             .filter(s => s.name);
