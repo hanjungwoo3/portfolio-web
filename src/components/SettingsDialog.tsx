@@ -565,6 +565,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                               <span className={`block h-full ${pct > 90 ? "bg-rose-500" : pct > 70 ? "bg-amber-500" : "bg-emerald-500"}`}
                                     style={{ width: `${pct}%` }} />
                             </span>
+                            <span className="text-[9px] text-gray-400 shrink-0" title="Cloudflare 무료 한도는 00:00 UTC(=09:00 KST)에 리셋">매일 09시 리셋</span>
                           </div>
                         );
                       })()
