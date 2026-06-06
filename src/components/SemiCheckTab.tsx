@@ -98,12 +98,15 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
   // 배경 색도 direction 따라
   const effUp = direction === "inverse" ? cdiff < 0 : cdiff > 0;
   const effDn = direction === "inverse" ? cdiff > 0 : cdiff < 0;
-  const bg = effUp ? "bg-rose-50 border-rose-200"
+  // 흐림(잠자는) 시 — 회색 채움 + 외곽선 제거 (지수 카드와 동일)
+  const dimNow = dimEnabled && (isClosed || sleeping);
+  const bg = dimNow ? "bg-gray-100 border-transparent"
+           : effUp ? "bg-rose-50 border-rose-200"
            : effDn ? "bg-blue-50 border-blue-200"
            : "bg-white border-gray-200";
   const cls = colorFor(pct, direction);
   // 마감 책갈피는 노란 배경 + 흐림 제외 → dim 은 콘텐츠 자식에만 적용 (지수 카드와 동일 구조)
-  const dimCls = dimEnabled && (isClosed || sleeping) ? "opacity-60" : "";
+  const dimCls = dimNow ? "opacity-60" : "";
   const closeVal = q?.regularPrice ?? effPrice;
   const regPct = q?.regularPct ?? pct;
   const regSign = regPct == null ? "text-gray-700"
