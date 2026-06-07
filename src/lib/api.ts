@@ -1316,9 +1316,7 @@ export async function fetchKrDisclosures(
 }
 
 // 8시 KST 이전 + body[0] 전부 0 → body[1] 폴백 (데스크톱 v2 동일)
-// 비거래일 (마지막 데이터의 KST 날짜 ≠ 오늘) → flow 값들을 0 으로 (외국인비율은 유지).
-//   가격 "어제대비 0" 과 일관 처리 — 주말/공휴일에 마지막 거래일 수급이
-//   "오늘 수급" 처럼 잘못 보이는 문제 해결.
+// 비거래일(주말/공휴일)엔 마지막 거래일 수급을 그대로 유지 — 가격 "어제% 유지"와 일관 (0 으로 비우지 않음).
 export function pickTodayInvestor(history: Investor[]): Investor | null {
   if (history.length === 0) return null;
   let item = history[0];
@@ -1326,19 +1324,6 @@ export function pickTodayInvestor(history: Investor[]): Investor | null {
     const isAllZero =
       item.개인 === 0 && item.외국인 === 0 && item.기관 === 0;
     if (isAllZero) item = history[1];
-  }
-  // 비거래일 보정 — 데이터 날짜가 오늘과 다르면 flow 0
-  if (item.date) {
-    const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-    if (item.date !== todayKst) {
-      return {
-        ...item,
-        개인: 0, 외국인: 0, 기관: 0, 연기금: 0,
-        금융투자: 0, 투신: 0, 사모: 0, 보험: 0,
-        은행: 0, 기타금융: 0, 기타법인: 0,
-        // 외국인비율 유지
-      };
-    }
   }
   return item;
 }
