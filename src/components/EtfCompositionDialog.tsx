@@ -4,7 +4,7 @@ import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegu
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
 import { Tooltip } from "./Tooltip";
-import { formatSigned, signColor, isEtfByName } from "../lib/format";
+import { formatSigned, signColor, isEtfByName, dayChangePct, dayChangeDiff } from "../lib/format";
 import { handleTossLinkClick, openExternal } from "../lib/toss";
 
 // ETF 구성 종목 모달 — 토스 v2 compositions endpoint
@@ -73,8 +73,7 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
     staleTime: 30_000,
   });
   const ownPrice = ownPriceList?.[0];
-  const ownPct = ownPrice && ownPrice.base > 0
-    ? ((ownPrice.price - ownPrice.base) / ownPrice.base) * 100 : undefined;
+  const ownPct = dayChangePct(ownPrice);
 
   // 비교검색 결과 ETF 들의 현재가/% — 드롭다운 표시용
   const cmpTickers = useMemo(
@@ -162,7 +161,7 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
                         {(() => {
                           const p = cmpPriceMap.get(r.ticker);
                           if (!p) return null;
-                          const pct = p.base > 0 ? ((p.price - p.base) / p.base) * 100 : undefined;
+                          const pct = dayChangePct(p);
                           return (
                             <span className="ml-auto tabular-nums text-xs">
                               <span className="font-bold">{p.price.toLocaleString()}원</span>
@@ -346,8 +345,8 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
             const chart = chartMap.get(tNum) ?? [];
             const krReg = krRegMap?.get(tNum);
 
-            const dayDiff = price ? price.price - price.base : 0;
-            const dayPct = price && price.base > 0 ? (dayDiff / price.base) * 100 : 0;
+            const dayDiff = dayChangeDiff(price);
+            const dayPct = dayChangePct(price) ?? 0;
             const colorDiff = price ? price.price - (price.prevClose || price.price) : 0;
             const priceColorCls = colorDiff > 0 ? "text-rose-600"
               : colorDiff < 0 ? "text-blue-600"

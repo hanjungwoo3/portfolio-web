@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { getEtfsContainingStock, type EtfHolding } from "../lib/etfIndex";
 import { fetchTossPrices } from "../lib/api";
-import { signColor } from "../lib/format";
+import { signColor, dayChangePct } from "../lib/format";
 import { useEscClose } from "../lib/useEscClose";
 
 interface Props {
@@ -98,7 +98,7 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
                     {(() => {
                       const p = priceMap.get(h.etfCode);
                       if (!p) return null;
-                      const pct = p.base > 0 ? ((p.price - p.base) / p.base) * 100 : undefined;
+                      const pct = dayChangePct(p);
                       return (
                         <span className="shrink-0 tabular-nums text-xs self-center">
                           <span className="font-bold text-gray-800">{p.price.toLocaleString()}원</span>

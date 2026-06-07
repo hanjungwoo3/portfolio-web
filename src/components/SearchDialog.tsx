@@ -710,8 +710,13 @@ function SearchResultRow({
   item, price, existing, pending, checked,
   onToggle, onRemoveGroup, onOpenEtf,
 }: RowProps) {
-  const dayPct = price && price.base > 0
-    ? ((price.price - price.base) / price.base) * 100 : undefined;
+  // 거래일엔 base 기준, 비거래일(자정 롤오버로 base 리셋→변동 0)이면 prevClose(마지막 거래일) 기준 유지
+  const dayPct = (() => {
+    if (!price) return undefined;
+    const d = price.price - price.base;
+    if (d !== 0) return price.base > 0 ? (d / price.base) * 100 : undefined;
+    return price.prevClose > 0 ? ((price.price - price.prevClose) / price.prevClose) * 100 : undefined;
+  })();
   const isFaded = existing.length > 0;
 
   const handleRowClick = (e: React.MouseEvent) => {

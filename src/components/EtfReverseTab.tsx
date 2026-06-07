@@ -12,7 +12,7 @@ import {
 import {
   searchTossAutoComplete, searchNaverAutoComplete, fetchTossPrices, type SearchResult,
 } from "../lib/api";
-import { signColor } from "../lib/format";
+import { signColor, dayChangePct } from "../lib/format";
 
 interface Props {
   holdings: Stock[];
@@ -80,7 +80,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
     if (resultSort === "ratio") return results;   // searchEtfs 가 이미 비중합 내림차순
     const dayPctOf = (code: string) => {
       const p = resultPriceMap.get(code);
-      return p && p.base > 0 ? (p.price - p.base) / p.base : -Infinity;
+      return p ? (dayChangePct(p) ?? -Infinity) : -Infinity;
     };
     return [...results].sort((a, b) => dayPctOf(b.etfCode) - dayPctOf(a.etfCode));
   }, [results, resultSort, resultPriceMap]);
@@ -293,7 +293,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
                       {(() => {
                         const p = suggPriceMap.get(s.ticker);
                         if (!p) return null;
-                        const pct = p.base > 0 ? ((p.price - p.base) / p.base) * 100 : undefined;
+                        const pct = dayChangePct(p);
                         return (
                           <span className="tabular-nums text-xs shrink-0">
                             <span className="font-bold">{p.price.toLocaleString()}원</span>
@@ -508,7 +508,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
                   {(() => {
                     const p = resultPriceMap.get(r.etfCode);
                     if (!p) return null;
-                    const pct = p.base > 0 ? ((p.price - p.base) / p.base) * 100 : undefined;
+                    const pct = dayChangePct(p);
                     return (
                       <div className="text-[11px] tabular-nums mt-0.5 text-right">
                         <span className="font-bold text-gray-800">{p.price.toLocaleString()}원</span>

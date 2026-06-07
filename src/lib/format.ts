@@ -41,6 +41,20 @@ export function isTodayKst(dateStr?: string): boolean {
   return dateStr.replace(/\D/g, "") === nowKstDateStr().replace(/-/g, "");
 }
 
+// 표시용 일변동 — 거래일엔 전일종가(base) 기준. 비거래일(자정 롤오버로 base 가 현재가로 리셋→변동 0)이면
+//  마지막 거래일 종가(prevClose) 기준으로 '어제%/금액'을 계속 유지. 새 거래일 시작 시 자동 전환.
+export function dayChangeDiff(p?: { price: number; base: number; prevClose?: number }): number {
+  if (!p) return 0;
+  const d = p.price - p.base;
+  return d !== 0 ? d : p.price - (p.prevClose ?? p.price);
+}
+export function dayChangePct(p?: { price: number; base: number; prevClose?: number }): number | undefined {
+  if (!p) return undefined;
+  const d = p.price - p.base;
+  if (d !== 0) return p.base > 0 ? (d / p.base) * 100 : undefined;
+  return p.prevClose && p.prevClose > 0 ? ((p.price - p.prevClose) / p.prevClose) * 100 : undefined;
+}
+
 // 보유분의 '어제 기준' 평가합 — 오늘 손익(= 현재평가 − 이 값) 계산용.
 //  · 오늘 매수분: 어제 보유가 없으므로 기준 = 매입원가
 //  · 그 외(어제부터 보유): 기준 = 전일 종가(price.base). 비거래일(base=0)엔 현재가.
