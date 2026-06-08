@@ -10,7 +10,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
 import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
 import { getDimSleepingEnabled, getEffectivePollMs } from "../lib/proxyConfig";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen } from "../lib/format";
 import type { UsIndex } from "../lib/api";
 
 function quoteUrl(symbol: string): string {
@@ -84,8 +84,12 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
   // isSymbolSleeping(시간대 기반)도 함께 OR 처리
   // 24h 시장(환율·금/은·원유·암호화폐 등)은 Yahoo가 CLOSED 를 자주 반환하지만 흐림 제외.
   const is24h = marketOfSymbol(symbol) === "OTHER";
-  const isClosed = !is24h && !!(q?.marketState
-    && ["POST", "POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState));
+  // 정규장 + 시간외(PRE/POST) 거래중이면 '열림' → 흐림 제외. 완전 마감(CLOSED)만 흐림.
+  //   marketState 가 stale/빈 값이어도, 미국 개별종목은 시간 기반(애프터마켓 ~20:00 ET)으로도 '열림' 판정.
+  const inSession = !!(q?.marketState
+      && ["REGULAR", "PRE", "POST", "POSTPOST", "PREPRE"].includes(q.marketState))
+    || (marketOfSymbol(symbol) === "US" && isUsExtendedTradingOpen());
+  const isClosed = !is24h && q?.marketState === "CLOSED";
   const sleeping = isSymbolSleeping(symbol);
   const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
   const effBase = q?.prevClose;
@@ -99,7 +103,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
   const effUp = direction === "inverse" ? cdiff < 0 : cdiff > 0;
   const effDn = direction === "inverse" ? cdiff > 0 : cdiff < 0;
   // 흐림(잠자는) 시 — 회색 채움 + 외곽선 제거 (지수 카드와 동일)
-  const dimNow = dimEnabled && (isClosed || sleeping);
+  const dimNow = dimEnabled && !inSession && (isClosed || sleeping);
   const bg = dimNow ? "bg-gray-100 border-transparent"
            : effUp ? "bg-rose-50 border-rose-200"
            : effDn ? "bg-blue-50 border-blue-200"
@@ -166,7 +170,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
         <div className="absolute -bottom-1 left-1 z-20 px-1.5 py-0 rounded
                         text-[9px] leading-tight whitespace-nowrap
                         text-gray-500 bg-gray-100 border border-gray-300/60">
-          {fmtAgo(q?.regularMarketTime)}
+          {fmtAgo(q?.regularMarketTime, "정규장 마감")}
         </div>
       )}
     </div>

@@ -190,6 +190,19 @@ export function isSymbolSleeping(symbol: string): boolean {
   return !isMarketOpen(marketOfSymbol(symbol));
 }
 
+// 미국 24시간 거래(토스 Blue Ocean ATS — 프리/정규/애프터/오버나이트) 열림 여부 — 시간 기반.
+//   거래 가능 창: 일요일 20:00 ET ~ 금요일 20:00 ET (그 사이 24h 연속). 주말 갭만 휴장.
+//   marketState 가 stale/빈 값(토스 소스)이어도, 거래중이면 '열림'으로 판정 → 흐림 제외.
+export function isUsExtendedTradingOpen(): boolean {
+  const t = nowInTz("America/New_York");
+  const hhmm = t.hour * 60 + t.minute;
+  const wd = t.weekday;                              // 0=일 ~ 6=토
+  if (wd === 6) return false;                        // 토요일 종일 휴장
+  if (wd === 0 && hhmm < 20 * 60) return false;      // 일요일 20:00 ET 개장 전
+  if (wd === 5 && hhmm >= 20 * 60) return false;     // 금요일 20:00 ET 폐장 후
+  return true;
+}
+
 // ISO 시각 → KST "HH:MM" (24시간). 잘못된 값이면 "".
 export function fmtKstHHMM(iso?: string): string {
   if (!iso) return "";
@@ -201,15 +214,15 @@ export function fmtKstHHMM(iso?: string): string {
 }
 
 // 유닉스 초(unix sec) → "3일 3시간전 갱신" 상대시간 — 잠자는 지수 카드 마지막 거래 표시용
-export function fmtAgo(sec?: number): string {
+export function fmtAgo(sec?: number, suffix = "갱신"): string {
   if (!sec || !Number.isFinite(sec)) return "";
   const diffMin = Math.floor((Date.now() - sec * 1000) / 60000);
   if (diffMin < 60) return "";   // 1시간 미만(최근 갱신)은 표시 안 함
   const hr = Math.floor(diffMin / 60);
-  if (hr < 24) return `${hr}시간전 갱신`;
+  if (hr < 24) return `${hr}시간전 ${suffix}`;
   const day = Math.floor(hr / 24);
   const remHr = hr % 24;
-  return remHr > 0 ? `${day}일 ${remHr}시간전 갱신` : `${day}일전 갱신`;
+  return remHr > 0 ? `${day}일 ${remHr}시간전 ${suffix}` : `${day}일전 ${suffix}`;
 }
 
 // 보유 종목 단일가 "마감 시간" 라벨 — 실제 단일가 종료 시각.

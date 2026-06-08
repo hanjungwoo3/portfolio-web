@@ -15,7 +15,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, isEtfByName, signColor, formatSigned, holdingYesterdayBaseSum } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, isEtfByName, signColor, formatSigned, holdingYesterdayBaseSum, isUsExtendedTradingOpen } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxies, setPersonalProxies, type PersonalProxy,
@@ -1178,6 +1178,12 @@ export function MobileSimpleView() {
               const is24h = marketOfSymbol(p.symbol) === "OTHER";
               const isClosed = !is24h && q?.marketState != null
                 && ["POST", "POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState);
+              // 거래중('열림')이면 흐림 제외 — 정규/시간외 marketState 또는 미국 개별종목 24h 거래창(토스).
+              //   (정규장 마감은 별도 '마감 책갈피'로 표시되므로 흐림과 무관)
+              const inSession = !!(q?.marketState
+                  && ["REGULAR", "PRE", "POST", "POSTPOST", "PREPRE"].includes(q.marketState))
+                || (marketOfSymbol(p.symbol) === "US" && isUsExtendedTradingOpen());
+              const dimNow = dimEnabled && !inSession && (sleeping || isClosed);
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
@@ -1187,7 +1193,7 @@ export function MobileSimpleView() {
                    : null);
               const cdiff = effPrice != null && effBase != null ? effPrice - effBase : 0;
               const isFuture = p.symbol.endsWith("=F") || p.symbol === "^KS200N" || p.symbol === "^KQ150N";
-              const bg = sleeping && dimEnabled
+              const bg = dimNow
                 ? "bg-gray-100 border-transparent"
                 : cdiff > 0 ? "bg-rose-50 border-rose-200"
                 : cdiff < 0 ? "bg-blue-50/70 border-blue-200"
@@ -1204,7 +1210,7 @@ export function MobileSimpleView() {
               const regSign = regPct == null ? "text-gray-700"
                 : regPct > 0 ? "text-rose-600" : regPct < 0 ? "text-blue-600" : "text-gray-700";
               // 마감 책갈피는 노란 배경(살짝 투명) + 흐림 제외 → dim 은 콘텐츠 자식에만
-              const dimCls = dimEnabled && (sleeping || isClosed) ? "opacity-60" : "";
+              const dimCls = dimNow ? "opacity-60" : "";
               return (
                 <div key={p.symbol} className="relative h-full">
                   {/* ETF 책갈피 — KR ETF (예: 069500.KS) 만. 왼쪽 위. 클릭 시 구성종목 모달 */}
@@ -1241,7 +1247,7 @@ export function MobileSimpleView() {
                                   rounded-lg border px-3 py-1.5 ${bg}`}>
                   <Sparkline data={t0ChartMap.get(p.symbol) ?? []}
                              width={300} height={70}
-                             color={sleeping && dimEnabled ? "#94a3b8" : undefined}
+                             color={dimNow ? "#94a3b8" : undefined}
                              className={`absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none ${dimCls}`} />
                   <div className={`relative flex items-baseline gap-1.5 ${dimCls}`}>
@@ -1283,7 +1289,7 @@ export function MobileSimpleView() {
                     <div className="absolute -bottom-1 left-1 z-20 px-1.5 py-0 rounded
                                     text-[9px] leading-tight whitespace-nowrap
                                     text-gray-500 bg-gray-100 border border-gray-300/60">
-                      {fmtAgo(q?.regularMarketTime)}
+                      {fmtAgo(q?.regularMarketTime, "정규장 마감")}
                     </div>
                   )}
                 </div>
