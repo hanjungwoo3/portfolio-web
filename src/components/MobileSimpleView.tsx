@@ -1257,7 +1257,7 @@ export function MobileSimpleView() {
                              className={`absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none ${dimCls}`} />
                   <div className={`relative flex items-baseline gap-1.5 ${dimCls}`}>
-                    {sleeping && (
+                    {sleeping && !inSession && (
                       <span className="text-[11px] text-gray-400">zZ</span>
                     )}
                     <a href={quoteUrl(p.symbol)}

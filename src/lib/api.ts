@@ -1694,6 +1694,7 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "ITA":  "US20060505010",
   "XLV":  "US19981222008",
   "BOTZ": "US20160913001",
+  "EWY":  "US20000512001",   // MSCI Korea — 외국인 투심 (Blue Ocean 24h 오버나잇)
 };
 
 // 토스 US 종목 가격(기존 fetchTossUsPrices) → UsIndex 변환. 현재가 = close, 기준 = base.

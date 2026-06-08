@@ -53,6 +53,8 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "ITA":  "https://www.tossinvest.com/stocks/US20060505010",
   "XLV":  "https://www.tossinvest.com/stocks/US19981222008",
   "BOTZ": "https://www.tossinvest.com/stocks/US20160913001",
+  // 외국인 투심 프록시 (MSCI Korea ETF)
+  "EWY":  "https://www.tossinvest.com/stocks/US20000512001",
 };
 
 // tossinvest.com URL 을 받아 토스 앱 deep link 로 변환.

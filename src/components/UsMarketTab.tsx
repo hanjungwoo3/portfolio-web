@@ -337,7 +337,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                              className={`absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none ${dimCls}`} />
                   <div className={`relative z-10 flex items-baseline gap-1.5 ${dimCls}`}>
-                    {sleeping && (
+                    {sleeping && !inSession && (
                       <span className="text-[11px] text-gray-400">zZ</span>
                     )}
                     {/* 종목명 자체가 외부 링크 (Toss/Yahoo) */}
