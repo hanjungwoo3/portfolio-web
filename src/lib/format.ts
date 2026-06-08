@@ -164,12 +164,13 @@ export function isMarketOpen(market: Market): boolean {
   if ((market === "US" || market === "US_INDEX")
       && US_MARKET_HOLIDAYS.has(dateStrInTz(tz))) return false;
   const hhmm = t.hour * 60 + t.minute;
-  // 한국 야간선물 — 평일 야간(월~금 18:00~24:00) + 다음날 새벽(화~토 00:00~05:00).
-  //   일요일·월 새벽은 휴장. 토 05:00 이후~일요일 전체 흐림.
+  // 한국 선물 — 주간(월~금 09:00~15:45) + 야간(월~금 18:00~24:00) + 다음날 새벽(화~토 00:00~05:00).
+  //   일요일·월 새벽은 휴장. 토 05:00 이후~일요일 전체 흐림. 주간/야간 모두 거래중이면 흐림 제외.
   if (market === "KR_NIGHT") {
+    const daySession   = t.weekday >= 1 && t.weekday <= 5 && hhmm >= 9 * 60 && hhmm < 15 * 60 + 45;  // 월~금 09:00~15:45
     const nightStart   = t.weekday >= 1 && t.weekday <= 5 && hhmm >= 18 * 60;   // 월~금 18:00+
     const earlyMorning = t.weekday >= 2 && t.weekday <= 6 && hhmm < 5 * 60;      // 화~토 00:00~04:59
-    return nightStart || earlyMorning;
+    return daySession || nightStart || earlyMorning;
   }
   if (t.weekday === 0 || t.weekday === 6) return false;
   switch (market) {
@@ -201,6 +202,23 @@ export function isUsExtendedTradingOpen(): boolean {
   if (wd === 0 && hhmm < 20 * 60) return false;      // 일요일 20:00 ET 개장 전
   if (wd === 5 && hhmm >= 20 * 60) return false;     // 금요일 20:00 ET 폐장 후
   return true;
+}
+
+// yasun.gg 한국 선물 — 현재 KST 시각 기준 야간 세션(18:00~05:00) 여부.
+//   그 외 시간대(주간 09:00~15:45 포함)는 주간선물(main 세션)로 간주.
+export function isKrNightSession(): boolean {
+  const t = nowInTz("Asia/Seoul");
+  const hhmm = t.hour * 60 + t.minute;
+  return hhmm >= 18 * 60 || hhmm < 5 * 60;
+}
+// KR 선물 가상심볼(^KS200N/^KQ150N) → 현재 세션 반영 표시명 (주간/야간선물)
+export function krFuturesName(symbol: string): string {
+  const base = symbol === "^KS200N" ? "코스피200" : symbol === "^KQ150N" ? "코스닥150" : symbol;
+  return `${base} ${isKrNightSession() ? "야간선물" : "주간선물"}`;
+}
+// KR 선물 카드 부제 — 현재 세션 거래시간 안내
+export function krFuturesDesc(): string {
+  return isKrNightSession() ? "yasun.gg · 18:00~05:00 KST" : "yasun.gg · 09:00~15:45 KST";
 }
 
 // ISO 시각 → KST "HH:MM" (24시간). 잘못된 값이면 "".

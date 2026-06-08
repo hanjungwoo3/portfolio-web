@@ -2,6 +2,7 @@ import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getEnabledPersonalProxies } from "./proxyConfig";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
+import { isKrNightSession, krFuturesName } from "./format";
 
 // 앱 로드 시 1회 — 30일 이상 된 일자 키 정리
 cleanupOldProxyCalls();
@@ -1396,25 +1397,31 @@ const YASUN_SYMBOL_MAP: Record<string, string> = {
   "^KS200N": "^KS200",
   "^KQ150N": "^KQ150",
 };
-const YASUN_NAME: Record<string, string> = {
-  "^KS200N": "코스피200 야간선물",
-  "^KQ150N": "코스닥150 야간선물",
-};
-
 export interface YasunNightData {
   index: UsIndex;
   closes: number[];       // 스파크라인 — 캔들 close 시계열
 }
 
+async function fetchYasunCandles(real: string, session: string): Promise<YasunCandle[]> {
+  const url = `https://yasun.gg/api/candles?symbol=${encodeURIComponent(real)}&interval=1m&limit=700&session=${session}`;
+  const resp = await fetchProxied(url);
+  if (!resp.ok) return [];
+  const data = await resp.json();
+  return Array.isArray(data) ? (data as YasunCandle[]) : [];
+}
+
 export async function fetchYasunNightFutures(virtualSymbol: string): Promise<YasunNightData | null> {
   const real = YASUN_SYMBOL_MAP[virtualSymbol];
   if (!real) return null;
-  const url = `https://yasun.gg/api/candles?symbol=${encodeURIComponent(real)}&interval=1m&limit=700&session=night`;
+  // 현재 KST 시각 기준 세션 선택 — 야간(18:00~05:00)은 night, 그 외(주간)는 main.
+  //   선택 세션이 비어 있으면(세션 간 공백) 다른 세션으로 폴백 → 마지막 값 유지.
+  const night = isKrNightSession();
+  const primary = night ? "night" : "main";
+  const fallback = night ? "main" : "night";
   try {
-    const resp = await fetchProxied(url);
-    if (!resp.ok) return null;
-    const allCandles = (await resp.json()) as YasunCandle[];
-    if (!Array.isArray(allCandles) || allCandles.length === 0) return null;
+    let allCandles = await fetchYasunCandles(real, primary);
+    if (allCandles.length === 0) allCandles = await fetchYasunCandles(real, fallback);
+    if (allCandles.length === 0) return null;
     // 응답에 여러 세션이 섞여 있을 수 있음 → 가장 큰 시간 갭(>30분) 뒤를 현재 세션 시작으로.
     let sessionStart = 0;
     for (let i = allCandles.length - 1; i > 0; i--) {
@@ -1433,7 +1440,7 @@ export async function fetchYasunNightFutures(virtualSymbol: string): Promise<Yas
     return {
       index: {
         symbol: virtualSymbol,
-        name: YASUN_NAME[virtualSymbol] ?? virtualSymbol,
+        name: krFuturesName(virtualSymbol),
         price,
         prev: base,
         prevClose: base,

@@ -3,7 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory, fetchInvestingChart, isInvestingIndex, fetchYasunNightFutures } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession } from "../lib/format";
 import { getDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
@@ -237,8 +237,12 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
         {T0_GROUPS.map((group, gi) => (
           <div key={gi} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-x-2 gap-y-4">
             {group.map(symbol => {
-              const p = tier0.find(x => x.symbol === symbol);
-              if (!p) return null;
+              const rawP = tier0.find(x => x.symbol === symbol);
+              if (!rawP) return null;
+              // 한국 선물(^KS200N/^KQ150N)은 현재 KST 세션에 따라 주간/야간선물로 표시명 변경
+              const p = marketOfSymbol(rawP.symbol) === "KR_NIGHT"
+                ? { ...rawP, name: krFuturesName(rawP.symbol), desc: krFuturesDesc() }
+                : rawP;
               const q = usMap?.get(p.symbol);
               const sleeping = isSymbolSleeping(p.symbol);
               // 메인 가격/변동률 — 한국 입장(미국장 마감 후 아침에 확인):
@@ -258,7 +262,9 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
               const inSession = !!(q?.marketState
                   && ["REGULAR", "PRE", "POST", "POSTPOST", "PREPRE"].includes(q.marketState))
                 || (marketOfSymbol(p.symbol) === "US" && isUsExtendedTradingOpen());
-              const dimNow = dimEnabled && !inSession && (sleeping || isClosed);
+              // 한국 야간선물(KR_NIGHT)은 주간 세션에 마지막 야간 마감값을 그대로 보여줌 → 흐림 제외
+              const isNightFut = marketOfSymbol(p.symbol) === "KR_NIGHT";
+              const dimNow = dimEnabled && !inSession && !isNightFut && (sleeping || isClosed);
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
@@ -382,7 +388,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                     <div className="absolute -bottom-1 left-1 z-20 px-1.5 py-0 rounded
                                     text-[9px] leading-tight whitespace-nowrap
                                     text-gray-500 bg-gray-100 border border-gray-300/60">
-                      {fmtAgo(q?.regularMarketTime, "정규장 마감")}
+                      {fmtAgo(q?.regularMarketTime, isNightFut ? (isKrNightSession() ? "야간 마감" : "주간 마감") : "정규장 마감")}
                     </div>
                   )}
                 </div>

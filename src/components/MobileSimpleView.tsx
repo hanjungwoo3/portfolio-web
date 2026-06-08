@@ -15,7 +15,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, isEtfByName, signColor, formatSigned, holdingYesterdayBaseSum, isUsExtendedTradingOpen } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, isEtfByName, signColor, formatSigned, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxies, setPersonalProxies, type PersonalProxy,
@@ -1165,8 +1165,12 @@ export function MobileSimpleView() {
         return (
           <div className="px-3 py-2 grid grid-cols-2 gap-x-2 gap-y-4">
             {order.map(symbol => {
-              const p = tier0.find(x => x.symbol === symbol);
-              if (!p) return null;
+              const rawP = tier0.find(x => x.symbol === symbol);
+              if (!rawP) return null;
+              // 한국 선물(^KS200N/^KQ150N)은 현재 KST 세션에 따라 주간/야간선물로 표시명 변경
+              const p = marketOfSymbol(rawP.symbol) === "KR_NIGHT"
+                ? { ...rawP, name: krFuturesName(rawP.symbol), desc: krFuturesDesc() }
+                : rawP;
               const q = usMap?.get(p.symbol);
               const sleeping = isSymbolSleeping(p.symbol);
               // 메인 가격/변동률 (PC UsMarketTab 동일 로직) — 한국 입장 누적 변동률:
@@ -1183,7 +1187,9 @@ export function MobileSimpleView() {
               const inSession = !!(q?.marketState
                   && ["REGULAR", "PRE", "POST", "POSTPOST", "PREPRE"].includes(q.marketState))
                 || (marketOfSymbol(p.symbol) === "US" && isUsExtendedTradingOpen());
-              const dimNow = dimEnabled && !inSession && (sleeping || isClosed);
+              // 한국 야간선물(KR_NIGHT)은 주간 세션에 마지막 야간 마감값을 그대로 보여줌 → 흐림 제외
+              const isNightFut = marketOfSymbol(p.symbol) === "KR_NIGHT";
+              const dimNow = dimEnabled && !inSession && !isNightFut && (sleeping || isClosed);
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
@@ -1289,7 +1295,7 @@ export function MobileSimpleView() {
                     <div className="absolute -bottom-1 left-1 z-20 px-1.5 py-0 rounded
                                     text-[9px] leading-tight whitespace-nowrap
                                     text-gray-500 bg-gray-100 border border-gray-300/60">
-                      {fmtAgo(q?.regularMarketTime, "정규장 마감")}
+                      {fmtAgo(q?.regularMarketTime, isNightFut ? (isKrNightSession() ? "야간 마감" : "주간 마감") : "정규장 마감")}
                     </div>
                   )}
                 </div>
