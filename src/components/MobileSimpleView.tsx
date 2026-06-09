@@ -1709,7 +1709,7 @@ function SettingsModal({
               💾 Google Drive 동기화
             </div>
             <div className="text-[11px] text-gray-500 leading-relaxed">
-              내 드라이브에 수동으로 업로드/다운로드해 여러 기기에서 공유합니다.
+              내 드라이브에 저장하고 다른 기기에서 불러와 공유합니다.
             </div>
             {syncStateLocal === "unconfigured" && (
               <button disabled={syncBusyLocal}
@@ -1724,11 +1724,11 @@ function SettingsModal({
                     const downloaded = await downloadFromDrive();
                     if (downloaded) {
                       void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
-                      setDataMsg("✅ Drive 가져옴 (자동 sync OFF)");
+                      setDataMsg("✅ Drive 에서 불러옴 (자동 sync OFF)");
                     } else {
-                      setSyncBusyMsgLocal("첫 업로드 중...");
+                      setSyncBusyMsgLocal("첫 저장 중...");
                       await uploadToDrive();
-                      setDataMsg("✅ 첫 업로드 (자동 sync OFF)");
+                      setDataMsg("✅ 첫 저장 (자동 sync OFF)");
                     }
                     setLastSyncedAtLocal(getLastSyncedAt());
                   } catch (e) {
@@ -1752,8 +1752,8 @@ function SettingsModal({
                   <button disabled={syncBusyLocal}
                     onClick={async () => {
                       setSyncBusyLocal(true);
-                      setSyncBusyMsgLocal("Drive 에 업로드 중...");
-                      try { await uploadToDrive(); setLastSyncedAtLocal(getLastSyncedAt()); setDataMsg("✅ 업로드"); }
+                      setSyncBusyMsgLocal("Drive 에 저장 중...");
+                      try { await uploadToDrive(); setLastSyncedAtLocal(getLastSyncedAt()); setDataMsg("✅ 저장됨"); }
                       catch (e) {
                         const msg = (e as Error).message;
                         // 토큰 만료 / 미로그인 — 자동 redirect 없이 로그아웃 상태로
@@ -1769,19 +1769,19 @@ function SettingsModal({
                       finally { setSyncBusyLocal(false); setSyncBusyMsgLocal(""); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                    ↑ 업로드
+                    ↑ 저장하기
                   </button>
                   <button disabled={syncBusyLocal}
                     onClick={async () => {
                       if (!confirm("Drive 의 데이터로 덮어쓸까요?")) return;
                       setSyncBusyLocal(true);
-                      setSyncBusyMsgLocal("Drive 에서 다운로드 중...");
+                      setSyncBusyMsgLocal("Drive 에서 불러오는 중...");
                       try {
                         const ok = await downloadFromDrive();
                         if (ok) {
                           void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
                           setLastSyncedAtLocal(getLastSyncedAt());
-                          setDataMsg("✅ 다운로드");
+                          setDataMsg("✅ 불러옴");
                         } else { setDataMsg("⚠️ Drive 데이터 없음"); }
                       } catch (e) {
                         const msg = (e as Error).message;
@@ -1797,7 +1797,7 @@ function SettingsModal({
                       finally { setSyncBusyLocal(false); setSyncBusyMsgLocal(""); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                    ↓ 다운로드
+                    ↓ 불러오기
                   </button>
                   <button disabled={syncBusyLocal}
                     onClick={async () => {

@@ -364,7 +364,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               💾 Google Drive 동기화
             </div>
             <div className="text-[11px] text-gray-500 leading-relaxed">
-              내 드라이브에 수동으로 업로드/다운로드해 여러 기기에서 공유합니다.
+              내 드라이브에 저장하고 다른 기기에서 불러와 공유합니다.
             </div>
             {syncState === "unconfigured" && (
               <button
@@ -376,16 +376,16 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   try {
                     await enableSync();
                     setSyncState("off");
-                    // 로그인 후 — Drive 에 파일 있으면 다운로드, 없으면 업로드
+                    // 로그인 후 — Drive 에 파일 있으면 불러오기, 없으면 첫 저장
                     setSyncBusyMsg("Drive 데이터 확인 중...");
                     const downloaded = await downloadFromDrive();
                     if (downloaded) {
                       onChanged();
-                      setStatusMsg("✅ 로그인 + Drive 데이터 가져옴 (자동 sync OFF)");
+                      setStatusMsg("✅ 로그인 + Drive 에서 불러옴 (자동 sync OFF)");
                     } else {
-                      setSyncBusyMsg("첫 업로드 중...");
+                      setSyncBusyMsg("첫 저장 중...");
                       await uploadToDrive();
-                      setStatusMsg("✅ 로그인 + 첫 업로드 완료 (자동 sync OFF)");
+                      setStatusMsg("✅ 로그인 + 첫 저장 완료 (자동 sync OFF)");
                     }
                     setLastSyncedAt(getLastSyncedAt());
                   } catch (e) {
@@ -415,11 +415,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   <button disabled={syncBusy}
                     onClick={async () => {
                       setSyncBusy(true);
-                      setSyncBusyMsg("Drive 에 업로드 중...");
+                      setSyncBusyMsg("Drive 에 저장 중...");
                       try {
                         await uploadToDrive();
                         setLastSyncedAt(getLastSyncedAt());
-                        setStatusMsg("✅ Drive 에 업로드");
+                        setStatusMsg("✅ Drive 에 저장됨");
                       } catch (e) {
                         const msg = (e as Error).message;
                         // 토큰 만료 / 미로그인 — 자동 redirect 없이 로그아웃 상태로 전환
@@ -430,27 +430,27 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                           setStatusMsg("ℹ️ 로그인이 만료되어 자동 로그아웃 — 다시 로그인해 주세요");
                           return;
                         }
-                        alert(`❌ Drive 업로드 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
+                        alert(`❌ Drive 저장 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
                         setStatusMsg(`⚠️ ${msg}`);
                       } finally { setSyncBusy(false); setSyncBusyMsg(""); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                    ↑ 업로드
+                    ↑ 저장하기
                   </button>
                   <button disabled={syncBusy}
                     onClick={async () => {
                       if (!confirm("Drive 의 데이터로 이 기기를 덮어씁니다. 계속할까요?")) return;
                       setSyncBusy(true);
-                      setSyncBusyMsg("Drive 에서 다운로드 중...");
+                      setSyncBusyMsg("Drive 에서 불러오는 중...");
                       try {
                         const ok = await downloadFromDrive();
                         if (ok) {
                           onChanged();
                           setLastSyncedAt(getLastSyncedAt());
-                          window.alert("✅ Drive 에서 가져왔습니다.");
+                          window.alert("✅ Drive 에서 불러왔습니다.");
                           onClose();   // 닫아서 메인 UI(그룹 폴더 등) 즉시 반영
                         } else {
-                          alert("⚠️ Drive 에 저장된 데이터가 없습니다.\n\n먼저 [↑ 업로드] 로 현재 기기 데이터를 Drive 에 저장하세요.");
+                          alert("⚠️ Drive 에 저장된 데이터가 없습니다.\n\n먼저 [↑ 저장하기] 로 현재 기기 데이터를 Drive 에 저장하세요.");
                           setStatusMsg("⚠️ Drive 에 데이터 없음");
                         }
                       } catch (e) {
@@ -463,12 +463,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                           setStatusMsg("ℹ️ 로그인이 만료되어 자동 로그아웃 — 다시 로그인해 주세요");
                           return;
                         }
-                        alert(`❌ Drive 다운로드 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
+                        alert(`❌ Drive 불러오기 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
                         setStatusMsg(`⚠️ ${msg}`);
                       } finally { setSyncBusy(false); setSyncBusyMsg(""); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                    ↓ 다운로드
+                    ↓ 불러오기
                   </button>
                   <button disabled={syncBusy}
                     onClick={async () => {
