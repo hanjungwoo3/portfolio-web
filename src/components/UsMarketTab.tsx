@@ -5,6 +5,7 @@ import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession } from "../lib/format";
 import { getDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
+import { buildDashboardSections } from "../lib/dashboardGroups";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
   allYahooSymbols, allKrEtfTickers,
@@ -110,47 +111,8 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
 
   const krMap = new Map((krPrices ?? []).map(p => [p.ticker, p]));
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
-  // T0 — "한국시장 영향 관계" 기준 그룹. PC 는 한 화면에 라벨 헤더와 함께 전부 표시.
-  //   (모바일은 화면 제약으로 지수/매크로 2탭 분리 — MobileSimpleView KR_ORDER/US_ORDER)
-  // 코스피200/코스닥150 야선은 야간 세션일 때만 '야간 선물' 그룹으로 이동, 주간 세션엔 한국 시장에 유지.
-  const nightSession = isKrNightSession();
-  const krNightFut = nightSession ? ["^KS200N", "^KQ150N"] : [];
-  const T0_SECTIONS: { label: string; rows: string[][]; gridClass?: string }[] = [
-    {
-      label: "🇰🇷 한국 시장",                       // 본체 지수 + (주간 세션 한정)야선 + 한국 공포
-      rows: [nightSession
-        ? ["^KS11", "^KQ11", "069500.KS", "VKOSPI"]
-        : ["^KS11", "^KQ11", "069500.KS", "^KS200N", "^KQ150N", "VKOSPI"]],
-    },
-    {
-      label: "📊 환율/달러/투심",                     // 환율·달러 강도 + 외국인 투심(EWY)·공포(VIX)
-      rows: [["KRW=X", "DX-Y.NYB", "EWY", "^VIX"]],
-    },
-    {
-      label: "🌙 야간 선물",                          // 미장 마감 후 다음 한국장 선행 신호 (+야간 세션엔 코스피/코스닥 야선)
-      rows: [[...krNightFut, "NQ=F", "ES=F", "RTY=F"]],
-    },
-    {
-      label: "💵 현물·매크로",                        // 가격 자체가 신호인 외부 변수
-      rows: [
-        ["^IXIC", "^GSPC", "^DJI", "^FVX", "^TNX", "^TYX"],     // 미국 지수 현물 + 미국 국채금리 커브(5/10/30Y)
-        ["GC=F", "SI=F", "HG=F", "CL=F", "NG=F", "BTC-USD"],    // 원자재(현물격) + 코인
-      ],
-    },
-    {
-      label: "🧩 섹터 ETF (미국 ↔ 한국 페어)",        // 한 줄 = 미국 2 + 짝 한국 2 (카드 폭은 8열 narrow 유지, 우측 절반 비움)
-      rows: [
-        ["SMH", "PAVE", "091160.KS", "117700.KS"],     // 반도체 · 건설
-        ["LIT", "XBI", "305720.KS", "244580.KS"],      // 2차전지 · 바이오
-        ["KBE", "ITA", "091170.KS", "449450.KS"],      // 은행 · 방산
-        ["XLV", "KOID", "266420.KS", "0190C0.KS"],     // 헬스케어 · 피지컬AI
-      ],
-    },
-    {
-      label: "📦 미국 대표 ETF",
-      rows: [["SPY", "QQQ", "DIA", "IWM", "VTI"]],
-    },
-  ];
+  // 지수 대시보드 그룹 — 데스크톱·모바일 공용 정의(lib/dashboardGroups). PC 는 라벨 헤더와 함께 전부 표시.
+  const T0_SECTIONS = buildDashboardSections(isKrNightSession());
 
   // T0 + 모든 섹터 현물·선물 Yahoo 심볼 통합 — 동일 캐시
   const allYahooForCharts: string[] = [];
@@ -270,7 +232,7 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
               <div className="flex-1 h-px bg-gray-200" />
             </div>
             {section.rows.map((group, gi) => (
-              <div key={gi} className={`grid ${section.gridClass ?? "grid-cols-3 sm:grid-cols-4 lg:grid-cols-8"} gap-x-2 gap-y-4`}>
+              <div key={gi} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-x-2 gap-y-4">
                 {group.map(symbol => {
               const rawP = tier0.find(x => x.symbol === symbol);
               if (!rawP) return null;
@@ -308,12 +270,16 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                 : (effPrice != null && effBase != null && effBase > 0
                    ? ((effPrice - effBase) / effBase) * 100
                    : null);
-              const cdiff = effPrice != null && effBase != null ? effPrice - effBase : 0;
+              // 개장 전·마감 등 현재 세션 변동이 0(토스 base==close)이면 마지막 정규장 %로 폴백 표시.
+              //   한국 지수·ETF 가 개장 전 % 가 비는 문제 — 미국 종목은 마감 후에도 마지막 % 가 노출되므로 동일하게 맞춤.
+              const liveFlat = pct == null || Math.abs(pct) < 0.005;
+              const showPct = (sleeping && liveFlat && q?.regularPct != null && Math.abs(q.regularPct) >= 0.005)
+                ? q.regularPct : pct;
               // direction === "inverse"(공포지수·환율·달러인덱스·금리 등) → 상승=한국 위험 → 색 반전
               // (빨강=좋음 / 파랑=나쁨 기준). SemiCheckTab 과 동일 규칙.
               const isInverse = p.direction === "inverse";
-              const effUp = isInverse ? cdiff < 0 : cdiff > 0;
-              const effDn = isInverse ? cdiff > 0 : cdiff < 0;
+              const effUp = isInverse ? (showPct != null && showPct < 0) : (showPct != null && showPct > 0);
+              const effDn = isInverse ? (showPct != null && showPct > 0) : (showPct != null && showPct < 0);
               const chartArr = t0ChartMap.get(p.symbol) ?? [];
               const sparkColor = dimNow ? "#94a3b8"
                 : (isInverse && chartArr.length > 1)
@@ -424,8 +390,8 @@ export function UsMarketTab({ onRequestSearch }: UsMarketTabProps = {}) {
                       {effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}
                     </span>
                     <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
-                      {pct != null && Math.abs(pct) >= 0.005
-                        ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%`
+                      {showPct != null && Math.abs(showPct) >= 0.005
+                        ? `${showPct >= 0 ? "+" : ""}${showPct.toFixed(2)}%`
                         : ""}
                     </span>
                   </div>

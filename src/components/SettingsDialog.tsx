@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Settings, Cpu } from "lucide-react";
+import { Settings } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, applyImportedSettings, replaceAllMemos, replaceAllTrades,
@@ -712,14 +712,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                          onChange={e => toggleTab("sectorRank", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
                   <span className="text-[11px] text-gray-700">🧩 섹터</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={tabVis.semiCheck}
-                         onChange={e => toggleTab("semiCheck", e.target.checked)}
-                         className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700 inline-flex items-center gap-1">
-                    <Cpu size={12} strokeWidth={2.2} className="text-slate-600" />반도체
-                  </span>
                 </label>
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input type="checkbox" checked={tabVis.consensus}

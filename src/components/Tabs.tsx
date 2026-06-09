@@ -1,4 +1,4 @@
-import { Settings, Cpu } from "lucide-react";
+import { Settings } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Stock } from "../types";
 import { normalizeAccount } from "../lib/account";
@@ -258,7 +258,6 @@ export const MY_GROUP_KEYS = new Set<string>([
 // visibility 미지정 시 시스템 탭 모두 노출 (기본 동작).
 export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCount = 0): TabSpec[] {
   const showUs = visibility?.usMarket ?? true;
-  const showSemi = visibility?.semiCheck ?? true;
   const showSector = visibility?.sectorRank ?? true;
   const showMy = visibility?.myStocks ?? true;
   const showMyTrades = visibility?.myTrades ?? true;
@@ -272,12 +271,8 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   }
   const tabs: TabSpec[] = [];
   if (showUs) tabs.push({ key: US_MARKET_TAB_KEY, label: "지수", emoji: "📈", count: 0 });
-  // 섹터 — 지수와 반도체 사이 위치 (KODEX ETF 기반 4기간 ranking + 토스 핫 테마)
+  // 섹터 (KODEX ETF 기반 4기간 ranking + 토스 핫 테마). 반도체는 지수 대시보드 그룹으로 통합됨.
   if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터", emoji: "🧩", count: 0 });
-  if (showSemi) tabs.push({
-    key: SEMI_CHECK_TAB_KEY, label: "반도체",
-    icon: <Cpu size={14} strokeWidth={2.2} className="text-slate-600" />, count: 0,
-  });
   // 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
   if (showMy && uniqHeld.size > 0) {
     tabs.push({ key: MY_STOCKS_TAB_KEY, label: "내주식", emoji: "📦", count: uniqHeld.size });
