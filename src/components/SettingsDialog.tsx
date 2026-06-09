@@ -86,7 +86,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     const next = { ...tabVis, [key]: v };
     setTabVis(next);
     setTabVisibility({ [key]: v });
-    const labelMap = { usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", myTrades: "내거래", consensus: "컨센서스", etfReverse: "ETF" };
+    const labelMap = { usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", myTrades: "내거래", consensus: "컨센서스", etfReverse: "ETF검색" };
     setStatusMsg(`✅ ${labelMap[key]} 탭: ${v ? "표시" : "숨김"}`);
     onChanged();
   };
@@ -723,7 +723,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   <input type="checkbox" checked={tabVis.etfReverse}
                          onChange={e => toggleTab("etfReverse", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">🍱 ETF</span>
+                  <span className="text-[11px] text-gray-700">🍱 ETF검색</span>
                 </label>
                 {/* 내주식 / 내거래 — 묶음에서 빠진 개별 탭이라 구분선 뒤(오른쪽)에 한 묶음으로 배치 */}
                 <label className="flex items-center gap-1.5 cursor-pointer select-none pl-3 ml-1 border-l border-gray-200">

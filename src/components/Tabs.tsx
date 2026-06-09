@@ -298,7 +298,7 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   }
   // ETF 역검색 — 다중 종목 교집합/합집합
   if (visibility?.etfReverse ?? true) {
-    tabs.push({ key: ETF_REVERSE_TAB_KEY, label: "ETF", emoji: "🍱", count: 0 });
+    tabs.push({ key: ETF_REVERSE_TAB_KEY, label: "ETF검색", emoji: "🍱", count: 0 });
   }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())

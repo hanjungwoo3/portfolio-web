@@ -1997,7 +1997,7 @@ function SettingsModal({
                   { key: "semiCheck" as const, label: "반도체",
                     icon: <Cpu size={12} strokeWidth={2.2} className="text-slate-600" />, cls: "" },
                   { key: "consensus" as const, label: "🎯 컨센서스", icon: null, cls: "" },
-                  { key: "etfReverse" as const, label: "🍱 ETF", icon: null, cls: "" },
+                  { key: "etfReverse" as const, label: "🍱 ETF검색", icon: null, cls: "" },
                   // 내주식 / 내거래 — 묶음에서 빠진 개별 탭이라 구분선 뒤(오른쪽)에 한 묶음
                   { key: "myStocks" as const, label: "📦 내주식", icon: null, cls: "pl-3 ml-1 border-l border-gray-200" },
                   { key: "myTrades" as const, label: "🧾 내거래", icon: null, cls: "" },
