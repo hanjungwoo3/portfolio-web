@@ -566,11 +566,11 @@ console.table({
 
 ### 공개 4-way 헬스체크
 ```js
+// 실제 URL 은 본인 .env(.env.production)의 VITE_PROXY_URL* 값으로 대체
 const PROXIES = [
-  'https://portfolio-proxy.hanjungwoo.workers.dev',
-  'https://vercel-proxy-chi-tawny.vercel.app',
-  'https://epic-zebra-73.hanjungwoo3.deno.net',
-  'https://portfolio-render-proxy.onrender.com',
+  'https://<your-cloudflare>.workers.dev',
+  'https://<your-netlify>.netlify.app',
+  'https://<your-project>.supabase.co/functions/v1/proxy',
 ];
 const TEST = 'https://query1.finance.yahoo.com/v8/finance/chart/AAPL';
 await Promise.all(PROXIES.map(async p => {

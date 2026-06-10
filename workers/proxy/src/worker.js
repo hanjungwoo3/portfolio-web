@@ -122,6 +122,24 @@ async function handleUsage(env) {
   }
 }
 
+// 허용 클라이언트 — 내 GitHub Pages 도메인 + 로컬 개발만 (fork·외부 무단 호출 차단).
+const ALLOWED_ORIGINS = new Set([
+  "https://hanjungwoo3.github.io",
+]);
+function clientAllowed(request) {
+  const origin = request.headers.get("Origin");
+  const referer = request.headers.get("Referer");
+  let host = "";
+  try {
+    if (origin) host = new URL(origin).hostname;
+    else if (referer) host = new URL(referer).hostname;
+  } catch { /* noop */ }
+  if (host === "localhost" || host === "127.0.0.1") return true;
+  if (origin) return ALLOWED_ORIGINS.has(origin);
+  if (referer) { try { return ALLOWED_ORIGINS.has(new URL(referer).origin); } catch { return false; } }
+  return false;
+}
+
 export default {
   async fetch(request, env) {
     if (request.method === "OPTIONS") {
@@ -134,6 +152,9 @@ export default {
 
     if (request.method !== "GET" && request.method !== "POST") {
       return jsonError(405, "Method not allowed (GET/POST only)");
+    }
+    if (!clientAllowed(request)) {
+      return jsonError(403, "Forbidden origin");
     }
 
     const target = url.searchParams.get("url");

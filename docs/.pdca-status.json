@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-06-10T04:02:06.982Z",
+  "lastUpdated": "2026-06-10T09:41:52.685Z",
   "activeFeatures": [
     "portfolio-web",
     "proxy",
@@ -34,9 +34,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-08T14:37:33.879Z",
-        "lastUpdated": "2026-06-05T22:54:52.999Z"
+        "lastUpdated": "2026-06-10T09:41:26.400Z"
       },
-      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/workers/proxy/src/worker.js"
+      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/workers/supabase-proxy/supabase/functions/proxy/index.ts"
     },
     "api": {
       "phase": "do",
@@ -60,7 +60,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-14T06:13:38.096Z",
-        "lastUpdated": "2026-05-28T14:43:20.349Z"
+        "lastUpdated": "2026-06-10T09:41:39.092Z"
       },
       "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/workers/deno-proxy/main.ts"
     },
@@ -73,7 +73,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-14T06:14:09.461Z",
-        "lastUpdated": "2026-05-28T14:42:52.335Z"
+        "lastUpdated": "2026-06-10T09:41:52.685Z"
       },
       "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/workers/render-proxy/server.js"
     },
@@ -86,7 +86,7 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-27T01:57:33.157Z",
-        "lastUpdated": "2026-05-28T14:39:04.428Z"
+        "lastUpdated": "2026-06-10T09:41:05.488Z"
       },
       "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/workers/netlify-proxy/netlify/edge-functions/proxy.ts"
     },
@@ -112,7 +112,7 @@
   "session": {
     "startedAt": "2026-05-01T03:34:12.578Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-06-10T04:02:06.982Z"
+    "lastActivity": "2026-06-10T09:41:52.685Z"
   },
   "history": [
     {
@@ -28552,6 +28552,42 @@
     {
       "timestamp": "2026-06-10T04:02:06.982Z",
       "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-10T09:40:31.239Z",
+      "feature": "proxy",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-10T09:40:45.522Z",
+      "feature": "proxy",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-10T09:41:05.488Z",
+      "feature": "edge-functions",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-10T09:41:26.400Z",
+      "feature": "proxy",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-10T09:41:39.092Z",
+      "feature": "deno-proxy",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-10T09:41:52.685Z",
+      "feature": "render-proxy",
       "phase": "do",
       "action": "updated"
     }
