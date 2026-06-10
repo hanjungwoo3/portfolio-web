@@ -102,20 +102,20 @@ export function NewVersionToast() {
   };
 
   return (
-    <div className="fixed top-2 left-1/2 -translate-x-1/2 z-50
-                    flex items-center gap-2
+    <div className="fixed top-2 inset-x-0 mx-auto w-fit max-w-[calc(100vw-1rem)] z-[60]
+                    flex items-center gap-2 whitespace-nowrap
                     bg-blue-600 text-white text-xs
                     px-3 py-1.5 rounded-full shadow-lg
                     animate-[fadeIn_0.3s_ease-out]">
-      <span>🆕 새 버전이 있어요</span>
+      <span className="shrink-0">🆕 새 버전이 있어요</span>
       <button onClick={() => void refresh()}
-              className="bg-white/20 hover:bg-white/30
+              className="shrink-0 bg-white/20 hover:bg-white/30
                          px-2 py-0.5 rounded font-medium transition">
         새로고침
       </button>
       <button onClick={dismiss}
               title="이번엔 넘기기"
-              className="text-white/70 hover:text-white px-1">
+              className="shrink-0 text-white/70 hover:text-white px-1">
         ✕
       </button>
     </div>
