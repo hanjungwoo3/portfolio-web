@@ -47,7 +47,7 @@ import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
 import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
-import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./components/HelpDialog";
+import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./components/HelpDialog";
 import type { Stock, Memo } from "./types";
 
 // viewport 감지 — 폰 (≤ 640px) 자동 모바일 뷰
@@ -95,6 +95,9 @@ function Dashboard() {
   const [memoTicker, setMemoTicker] = useState<string | null>(null);
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [helpStep, setHelpStep] = useState(0);   // 사용법 열 때 시작 단계 (현재 탭 기준)
+  // 첫 방문이면 사용법(빠른 시작)을 먼저 보여주고, 닫은 뒤에 프록시 안내를 노출(겹침 방지).
+  const [onboardReady, setOnboardReady] = useState(() => !shouldShowHelpFirstTime());
   const [simpleOpen, setSimpleOpen] = useState(false);
   const [codesCopied, setCodesCopied] = useState(false);
 
@@ -510,8 +513,8 @@ function Dashboard() {
               검색
             </button>
             <button
-              onClick={() => setHelpOpen(true)}
-              title="사용법 빠른 시작"
+              onClick={() => { setHelpStep(HELP_STEP_BY_TAB[activeTab] ?? 0); setHelpOpen(true); }}
+              title="사용법 빠른 시작 — 현재 탭 설명으로 바로 이동"
               className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
                          text-gray-700 rounded text-sm">
               사용법
@@ -786,11 +789,14 @@ function Dashboard() {
         )}
       </main>
 
-      <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
+      {onboardReady && (
+        <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
+      )}
 
       <HelpDialog
         isOpen={helpOpen}
-        onClose={() => { markHelpSeen(); setHelpOpen(false); }}
+        initialStep={helpStep}
+        onClose={() => { markHelpSeen(); setHelpOpen(false); setOnboardReady(true); }}
       />
 
       <SettingsDialog

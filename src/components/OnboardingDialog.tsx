@@ -47,8 +47,10 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
         </header>
 
         <div className="px-5 py-4 space-y-3 text-sm text-gray-700">
+          {/* 활성 공개 프록시 — .env(VITE_PROXY_URL*) 변동 시 함께 갱신.
+              현재 활성: Cloudflare / Netlify / Supabase (Vercel·Deno·Render는 한도초과로 일시 제외) */}
           <p>
-            현재 <b>공개 프록시 4개</b> (Cloudflare/Vercel/Deno/Render)를
+            현재 <b>공개 프록시 3개</b> (Cloudflare/Netlify/Supabase)를
             모든 사용자가 함께 사용하고 있습니다.
           </p>
 

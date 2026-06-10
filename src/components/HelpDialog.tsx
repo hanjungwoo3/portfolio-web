@@ -1,141 +1,130 @@
 import { useEffect, useRef, useState } from "react";
 
-// 첫 사용자 빠른 시작 가이드 — PC 6 step / 모바일 4 step.
+// 첫 사용자 빠른 시작 가이드 — PC 8 step / 모바일 7 step.
 // 헤더 ❓ 버튼으로 수동 호출 + 첫 방문 자동 노출 (localStorage flag).
+// 이미지 없이 텍스트만 — 한눈에 읽히는 간결한 캐러셀.
+// 순서대로 따라가면: 1~4 기본 사용 완성(추가→카드→편집), 5~ 분석 탭 순회 소개.
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
   variant?: "pc" | "mobile";
+  initialStep?: number;   // 특정 탭에서 열면 해당 단계로 바로 점프
 }
+
+// 탭 키 → 빠른 시작 단계 인덱스 (지수0·섹터1·컨센서스2·ETF검색3). App/Mobile 헤더에서 사용.
+export const HELP_STEP_BY_TAB: Record<string, number> = {
+  "__us-market__": 0, "__kr__": 0, "__us__": 0, "__semi__": 0,  // 지수 계열
+  "__sector-rank__": 1, "__sector__": 1,                        // 섹터
+  "__consensus__": 2,                                           // 컨센서스
+  "__etf-reverse__": 3, "__etf__": 3,                           // ETF검색
+};
 
 interface Step {
   title: string;
   caption: React.ReactNode;
-  image?: string;
-  alt?: string;
+}
+
+// 헤더 버튼 칩 — 실제 버튼 색을 따라감
+function SearchChip({ label = "검색" }: { label?: string }) {
+  return (
+    <span className="inline-block align-baseline px-1.5 py-0 rounded text-[11px]
+                     bg-blue-600 text-white font-medium">{label}</span>
+  );
+}
+function AskChip() {
+  return (
+    <span className="inline-block align-baseline px-1.5 py-0 rounded text-[11px]
+                     bg-emerald-50 text-emerald-700 border border-emerald-200">질문하기</span>
+  );
+}
+function SetChip() {
+  return (
+    <span className="inline-block align-baseline px-1.5 py-0 rounded text-[11px]
+                     bg-gray-100 text-gray-700 border border-gray-200">설정</span>
+  );
 }
 
 const PC_STEPS: Step[] = [
   {
-    title: "1. 검색 열기",
+    title: "1. 📈 지수 탭",
     caption: (
       <>
-        우상단{" "}
-        <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
-                         bg-blue-600 text-white font-medium">검색/주식추가</span>
-        {" "}에서 종목을 추가하며 시작하세요.
-        <span className="block mt-1 text-xs text-gray-600 leading-relaxed">
-          의견·건의는{" "}
-          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
-                           bg-emerald-50 text-emerald-700 border border-emerald-200">질문하기</span>
-          , 운영비 지원은{" "}
-          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
-                           bg-gray-100 text-gray-700">개발지원</span>
-          {" "}로 부탁드리며, 프록시·자동 백업·갱신 주기 등 환경 설정은{" "}
-          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
-                           bg-gray-100 text-gray-700">설정</span>
-          {" "}에서 변경할 수 있습니다.
+        📈 지수 탭에서는 <b>한국시장</b>은 물론 환율·공포지수·야간 선물 등<br />
+        한국 증시에 영향을 주는 지표를 한눈에 볼 수 있어요.
+        <span className="block mt-2 text-gray-500 text-xs">
+          한국 장이 열리기 전에 시장 전체 분위기를 확인할 수 있습니다.
+        </span>
+      </>
+    ),
+  },
+  {
+    title: "2. 🧩 섹터 탭",
+    caption: (
+      <>
+        🧩 섹터 탭에서는 한국 업종별 ETF 순위로 <b>돈의 흐름</b>을 볼 수 있어요.
+        <span className="block mt-2 text-gray-500 text-xs">
+          거래대금·등락률 순으로 어느 업종에 자금이 몰리는지 한눈에 파악할 수 있습니다.
+        </span>
+      </>
+    ),
+  },
+  {
+    title: "3. 🔮 컨센서스 탭",
+    caption: (
+      <>
+        🔮 컨센서스 탭에서는 내 종목의 증권사 <b>목표주가·투자의견</b>을 볼 수 있어요.
+        <span className="block mt-2 text-gray-500 text-xs">
+          최근 리포트 기준 <b>상승여력</b>이 큰 순으로 정렬돼요.
+        </span>
+      </>
+    ),
+  },
+  {
+    title: "4. 🍱 ETF검색 탭",
+    caption: (
+      <>
+        🍱 ETF검색 탭에서는 한 종목이 <b>담긴 ETF</b>를 거꾸로 찾을 수 있어요.
+        <span className="block mt-2 text-gray-500 text-xs">
+          예: 삼성전자를 담은 ETF를 비중 순으로 볼 수 있기 때문에 분산 점검에 유용합니다.
+        </span>
+      </>
+    ),
+  },
+  {
+    title: "5. 🔍 검색",
+    caption: (
+      <>
+        이제 내 종목을 담아볼까요? <SearchChip /> 버튼을 눌러요.
+        <span className="block mt-1">
+          종목명 일부만 입력해도 자동완성되고<br />
+          체크 후 <b>✅ 일괄적용</b> 하면 한 번에 추가됩니다.
         </span>
         <span className="block mt-2 text-gray-500 text-xs">
-          첫 화면은 지수 탭입니다. 본인 보유 종목을 추가해 나만의 포트폴리오를 만들어보세요.
+          수량 비우면 <b>관심종목</b>, 수량·평단가 채우면 <b>보유종목</b>이 됩니다.<br />
+          추가한 카드에 마우스를 올려 <b>📊</b> 기업가치 · <b>⚙️</b> 수정 · <b>🗑</b> 삭제로 편집할 수 있어요.
         </span>
       </>
     ),
-    image: "./help/quickstart-1-header.png",
-    alt: "헤더 — 검색/주식추가·사용법·질문하기·개발지원·설정 버튼",
   },
   {
-    title: "2. 종목 검색",
+    title: "6. 💬 질문하기",
     caption: (
       <>
-        종목명 일부만 입력해도 자동완성됩니다 (예: <code>삼성</code> → 10개).
-        <br />
-        <span className="text-gray-500 text-xs">
-          처음이면 <b>"관심"</b> 그룹이 자동 선택돼요. 원하는 행만 체크하거나 그대로 두세요.
+<AskChip /> 에서 가입 없이 익명으로 의견을 남길 수 있어요.
+        <span className="block mt-2 text-gray-500 text-xs">
+          기능 요청 · 버그 신고 · 문의 무엇이든 환영합니다.
         </span>
       </>
     ),
-    image: "./help/quickstart-2-search.png",
-    alt: "검색 다이얼로그 — 삼성 검색 결과 + 관심 그룹 자동 마킹",
   },
   {
-    title: "3. 일괄적용",
+    title: "7. ⚙️ 설정",
     caption: (
       <>
-        하단 <b>✅ 일괄적용</b> 클릭 — 체크된 모든 종목이 한 번에 추가됩니다.
-        <br />
-        <span className="text-gray-500 text-xs">
-          수량 비워두면 <b>관심종목</b>, 수량/평단가 채우면 <b>보유종목</b>.
-        </span>
-      </>
-    ),
-    image: "./help/quickstart-3-apply.png",
-    alt: "스크롤된 검색 결과 + 일괄적용 버튼",
-  },
-  {
-    title: "4. 결과 확인",
-    caption: (
-      <>
-        <b>관심 탭</b> 이 자동 생성되고 카드가 표시됩니다.
-        <br />
-        <span className="text-gray-500 text-xs">
-          어제대비 변동률 내림차순 정렬. 가격·외국인/기관/연기금·외인비율이 5초마다 갱신.
-        </span>
-      </>
-    ),
-    image: "./help/quickstart-4-result.png",
-    alt: "결과 — 관심 탭에 카드 표시",
-  },
-  {
-    title: "5. 카드 위에 마우스",
-    caption: (
-      <>
-        카드 위에 <b>마우스를 올리면</b> 책갈피 우측에 숨겨진 버튼이 등장합니다.
-        <br />
-        <span className="text-gray-500 text-xs">
-          <b>📊</b> 기업가치 / <b>⚙️</b> 수정 (수량·평단가) / <b>🗑</b> 삭제.
-        </span>
-      </>
-    ),
-    image: "./help/quickstart-5-hover.png",
-    alt: "카드 호버 — 숨겨진 버튼 등장",
-  },
-  {
-    title: "6. 기업가치 모달",
-    caption: (
-      <>
-        <b>📊</b> 클릭 시 외국인·기관·연기금 누적 흐름과 기간별 합계가 표시됩니다.
-        <br />
-        <span className="text-gray-500 text-xs">
-          좌측 외국인 / 우측 기관계 — 일별 막대 + 누적 라인. 표는 5/20/60/120/200일 합계.
-        </span>
-      </>
-    ),
-    image: "./help/quickstart-6-valuation.png",
-    alt: "기업가치 모달 — 외국인/기관 차트 + 기간별 합계 표",
-  },
-  {
-    title: "7. 잔고가 이상할 때 — 그룹 모드별 정리",
-    caption: (
-      <>
-        같은 종목을 여러 그룹에 등록하셨다면, <b>설정 → 그룹별 독립 보유</b> 모드에 따라 합산 방식이 달라집니다.
-        <span className="block mt-2 text-sm text-gray-700">
-          <b>● 독립 보유 ON</b> (다중 계좌)
-          <br />
-          <span className="text-gray-600 text-xs">
-            그룹마다의 행을 <b>모두 별도 보유</b>로 합산합니다 (의도된 동작).
-            합산을 원치 않는 그룹(보따리/날짜 등)은 그 종목의 <b>수량·평단을 0으로</b> 변경하세요.
-          </span>
-        </span>
-        <span className="block mt-2 text-sm text-gray-700">
-          <b>● 독립 보유 OFF</b> (동기화, 기본)
-          <br />
-          <span className="text-gray-600 text-xs">
-            모드 토글을 반복했다면 그룹별 값이 다른 채 sync가 잠시 멈춰 있을 수 있습니다.
-            카드 우측에 <b>다중 그룹 표시</b>가 있는 종목을 <b>어느 한 그룹에서 한 번 수정·저장</b>해 주세요.
-            그 값이 모든 그룹에 자동 적용되며 sync가 재개됩니다.
-          </span>
+        <SetChip /> 에서 전용 프록시 · 자동 백업 · 갱신 주기 등 환경을 바꿀 수 있어요.
+        <span className="block mt-4 font-bold text-gray-800">
+          자, 그럼 포트폴리오 앱 사용을 시작해 볼까요? 🚀
         </span>
       </>
     ),
@@ -144,130 +133,116 @@ const PC_STEPS: Step[] = [
 
 const MOBILE_STEPS: Step[] = [
   {
-    title: "1. 첫 화면",
+    title: "1. 📈 지수 탭",
     caption: (
       <>
-        상단{" "}
-        <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px] font-medium
-                         bg-blue-600 text-white">검색</span>
-        {" "}에서 종목을 추가하며 시작하세요.
-        <span className="block mt-1 text-xs text-gray-600 leading-relaxed">
-          의견·건의는{" "}
-          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
-                           bg-emerald-50 text-emerald-700 border border-emerald-200">질문</span>
-          , 운영비 지원은{" "}
-          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
-                           bg-gray-100 text-gray-700 border border-gray-200">개발지원</span>
-          {" "}으로 부탁드리며, 환경(프록시·자동 백업·갱신 주기) 변경은{" "}
-          <span className="inline-block align-baseline px-1.5 py-0 rounded text-[10px]
-                           bg-gray-100 text-gray-700 border border-gray-200">설정</span>
-          {" "}에서 할 수 있습니다.
+        📈 지수 탭에서는 <b>한국시장</b>은 물론 환율·공포지수·야간 선물 등<br />
+        한국 증시에 영향을 주는 지표를 한눈에 볼 수 있어요.
+        <span className="block mt-2 text-gray-500 text-xs">
+          한국 장이 열리기 전에 시장 전체 분위기를 확인할 수 있습니다.
+        </span>
+      </>
+    ),
+  },
+  {
+    title: "2. 🧩 섹터 탭",
+    caption: (
+      <>
+        🧩 섹터 탭에서는 한국 업종별 ETF 순위로 <b>돈의 흐름</b>을 볼 수 있어요.
+        <span className="block mt-2 text-gray-500 text-xs">
+          거래대금·등락률 순으로 어느 업종에 자금이 몰리는지 한눈에 파악할 수 있습니다.
+        </span>
+      </>
+    ),
+  },
+  {
+    title: "3. 🔮 컨센서스 탭",
+    caption: (
+      <>
+        🔮 컨센서스 탭에서는 내 종목의 증권사 <b>목표주가·투자의견</b>을 볼 수 있어요.
+        <span className="block mt-2 text-gray-500 text-xs">
+          최근 리포트 기준 <b>상승여력</b>이 큰 순으로 정렬돼요.
+        </span>
+      </>
+    ),
+  },
+  {
+    title: "4. 🍱 ETF검색 탭",
+    caption: (
+      <>
+        🍱 ETF검색 탭에서는 한 종목이 <b>담긴 ETF</b>를 거꾸로 찾을 수 있어요.
+        <span className="block mt-2 text-gray-500 text-xs">
+          예: 삼성전자를 담은 ETF를 비중 순으로 볼 수 있기 때문에 분산 점검에 유용합니다.
+        </span>
+      </>
+    ),
+  },
+  {
+    title: "5. 🔍 검색",
+    caption: (
+      <>
+        이제 내 종목을 담아볼까요? 상단 <SearchChip /> 버튼을 눌러요.
+        <span className="block mt-1">
+          종목명 일부만 입력해도 자동완성되고<br />
+          체크 후 <b>✅ 일괄적용</b> 하면 한 번에 추가됩니다.
         </span>
         <span className="block mt-2 text-gray-500 text-xs">
-          첫 화면은 섹터 탭입니다. 본인 보유 종목을 추가해 나만의 포트폴리오를 만들어보세요.
+          수량 비우면 관심, 채우면 보유. 관심 탭 카드 우측 <b>📊 ⚙️ 🗑</b> 로 편집. 종목명 클릭 = 토스 앱 이동.
         </span>
       </>
     ),
-    image: "./help/mobile-1-header.png",
-    alt: "모바일 헤더 + 첫 화면",
   },
   {
-    title: "2. 종목 검색",
-    caption: (
-      <>
-        종목명 일부만 입력해도 자동완성 결과가 나옵니다.
-        <br />
-        <span className="text-gray-500 text-xs">
-          처음이면 <b>"관심"</b> 그룹이 자동 선택돼요. 그대로 <b>일괄적용</b> 하면 등록 끝.
-        </span>
-      </>
-    ),
-    image: "./help/mobile-2-search.png",
-    alt: "모바일 검색 다이얼로그",
-  },
-  {
-    title: "3. 카드 + 편집",
-    caption: (
-      <>
-        <b>관심 탭</b> 자동 생성. 카드 우측의 <b>⚙️ 🗑</b> 으로 즉시 수정·삭제.
-        <br />
-        <span className="text-gray-500 text-xs">
-          가격·수급·외인비율이 5초마다 갱신. 종목명 클릭 = 토스 앱으로 이동.
-        </span>
-      </>
-    ),
-    image: "./help/mobile-3-result.png",
-    alt: "모바일 결과 — 카드 + 편집 버튼",
-  },
-  {
-    title: "4. 그룹 길게 누르기",
+    title: "6. 그룹 길게 누르기",
     caption: (
       <>
         그룹 탭을 <b>0.5초 길게 누르면</b> 바텀시트가 올라와요.
-        <br />
-        <span className="text-gray-500 text-xs">
+        <span className="block mt-2 text-gray-500 text-xs">
           ⚙️ 이름 변경 / 🗑 그룹 삭제. 주요 지수 탭은 보호 (편집 불가).
         </span>
       </>
     ),
-    image: "./help/mobile-4-action-sheet.png",
-    alt: "모바일 그룹 액션 시트",
   },
   {
-    title: "5. 잔고가 이상할 때 — 그룹 모드별 정리",
+    title: "7. 💬 질문하기",
     caption: (
       <>
-        같은 종목을 여러 그룹에 등록하셨다면, <b>설정 → 그룹별 독립 보유</b> 모드에 따라 합산 방식이 달라집니다.
-        <span className="block mt-2 text-sm text-gray-700">
-          <b>● 독립 보유 ON</b> (다중 계좌)
-          <br />
-          <span className="text-gray-600 text-xs">
-            그룹마다의 행을 <b>모두 별도 보유</b>로 합산합니다 (의도된 동작).
-            합산을 원치 않는 그룹(보따리/날짜 등)은 그 종목의 <b>수량·평단을 0으로</b> 변경하세요.
-          </span>
+        상단 <b>더보기</b> 메뉴의 <AskChip /> 에서 가입 없이 익명으로 의견을 남길 수 있어요.
+        <span className="block mt-2 text-gray-500 text-xs">
+          기능 요청 · 버그 신고 · 문의 무엇이든 환영합니다.
         </span>
-        <span className="block mt-2 text-sm text-gray-700">
-          <b>● 독립 보유 OFF</b> (동기화, 기본)
-          <br />
-          <span className="text-gray-600 text-xs">
-            모드 토글을 반복했다면 그룹별 값이 다른 채 sync가 잠시 멈춰 있을 수 있습니다.
-            카드 우측에 <b>다중 그룹 표시</b>가 있는 종목을 <b>어느 한 그룹에서 한 번 수정·저장</b>해 주세요.
-            그 값이 모든 그룹에 자동 적용되며 sync가 재개됩니다.
-          </span>
+      </>
+    ),
+  },
+  {
+    title: "8. ⚙️ 설정",
+    caption: (
+      <>
+        상단 <b>더보기</b> 메뉴의 <SetChip /> 에서 전용 프록시 · 자동 백업 · 갱신 주기 등 환경을 바꿀 수 있어요.
+        <span className="block mt-4 font-bold text-gray-800">
+          자, 그럼 포트폴리오 앱 사용을 시작해 볼까요? 🚀
         </span>
       </>
     ),
   },
 ];
 
-// 이미지 — 없으면 플레이스홀더
-function Shot({ src, alt }: { src: string; alt: string }) {
-  const [failed, setFailed] = useState(false);
-  useEffect(() => { setFailed(false); }, [src]);   // 페이지 이동 시 상태 리셋
-  if (failed) {
-    return (
-      <div className="rounded border border-dashed border-gray-300
-                      bg-gray-50 flex items-center justify-center text-xs
-                      text-gray-400 aspect-[16/9]">
-        📷 스크린샷 ({alt})
-      </div>
-    );
-  }
-  return (
-    <img src={src} alt={alt}
-         onError={() => setFailed(true)}
-         className="w-full rounded border border-gray-200 shadow-sm" />
-  );
+// 책갈피 칩 라벨 — 제목에서 번호·"종목 추가"·끝 "탭" 제거 (예: "1. 📈 지수 탭" → "📈 지수")
+function bookmarkLabel(title: string): string {
+  return title
+    .replace(/^\d+\.\s*/, "")
+    .replace(/\s*·.*$/, "")
+    .replace(/\s*탭$/, "");
 }
 
-export function HelpDialog({ isOpen, onClose, variant = "pc" }: Props) {
+export function HelpDialog({ isOpen, onClose, variant = "pc", initialStep = 0 }: Props) {
   const STEPS = variant === "mobile" ? MOBILE_STEPS : PC_STEPS;
   const [step, setStep] = useState(0);
   const downOnBackdropRef = useRef(false);
 
   useEffect(() => {
-    if (isOpen) setStep(0);
-  }, [isOpen]);
+    if (isOpen) setStep(Math.min(Math.max(0, initialStep), STEPS.length - 1));
+  }, [isOpen, initialStep, STEPS.length]);
 
   // ESC 닫기, ←→ 키 이동
   useEffect(() => {
@@ -293,18 +268,15 @@ export function HelpDialog({ isOpen, onClose, variant = "pc" }: Props) {
          onClick={e => {
            if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
          }}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-3xl
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg
                        max-h-[92vh] flex flex-col overflow-hidden">
 
         {/* 헤더 */}
         <header className="px-4 py-3 border-b bg-gradient-to-r from-blue-50 to-indigo-50
                             flex items-center">
           <h2 className="text-base font-bold text-gray-800 flex items-center gap-2">
-            <span>❓</span>빠른 시작 — {cur.title}
+            <span>❓</span>사용법
           </h2>
-          <span className="ml-2 text-xs text-gray-500">
-            ({step + 1} / {STEPS.length})
-          </span>
           <button onClick={onClose}
                   className="ml-auto px-3 py-1 rounded hover:bg-white/60
                              text-sm text-gray-600">
@@ -312,16 +284,30 @@ export function HelpDialog({ isOpen, onClose, variant = "pc" }: Props) {
           </button>
         </header>
 
-        {/* 본문 — 캡션 + 이미지 */}
-        <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4">
-          <p className="text-sm text-gray-700 leading-relaxed mb-3">
-            {cur.caption}
-          </p>
-          {cur.image && <Shot src={cur.image} alt={cur.alt ?? cur.title} />}
+        {/* 책갈피 — 각 단계(탭)로 바로 점프 */}
+        <div className="flex gap-1 overflow-x-auto px-3 py-2 border-b bg-gray-50/70
+                        [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {STEPS.map((s, i) => (
+            <button key={i} onClick={() => setStep(i)}
+                    className={`shrink-0 px-2 py-1 rounded text-xs whitespace-nowrap transition
+                               ${i === step
+                                 ? "bg-blue-600 text-white font-medium"
+                                 : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}>
+              {bookmarkLabel(s.title)}
+            </button>
+          ))}
         </div>
 
-        {/* 풋터 — 페이저 */}
-        <footer className="px-4 py-3 border-t bg-gray-50 flex items-center gap-2">
+        {/* 본문 — 캡션만 (가운데 정렬) */}
+        <div className="flex-1 overflow-y-auto px-6 py-10 min-h-[160px]
+                        flex items-center justify-center">
+          <p className="text-[15px] text-gray-800 leading-relaxed text-center max-w-md">
+            {cur.caption}
+          </p>
+        </div>
+
+        {/* 풋터 — 이전/다음 (페이지 표시는 상단 책갈피가 대신) */}
+        <footer className="px-4 py-3 border-t bg-gray-50 flex items-center justify-between gap-2">
           <button onClick={() => setStep(s => Math.max(0, s - 1))}
                   disabled={step === 0}
                   className="px-3 py-1.5 rounded text-sm bg-white border
@@ -329,16 +315,6 @@ export function HelpDialog({ isOpen, onClose, variant = "pc" }: Props) {
                              disabled:opacity-30 disabled:cursor-not-allowed">
             ◀ 이전
           </button>
-
-          {/* 도트 */}
-          <div className="flex items-center gap-1.5 mx-auto">
-            {STEPS.map((_, i) => (
-              <button key={i} onClick={() => setStep(i)}
-                      aria-label={`${i + 1} 단계로 이동`}
-                      className={`w-2 h-2 rounded-full transition
-                                 ${i === step ? "bg-blue-600 w-4" : "bg-gray-300"}`} />
-            ))}
-          </div>
 
           {!isLast ? (
             <button onClick={() => setStep(s => Math.min(STEPS.length - 1, s + 1))}

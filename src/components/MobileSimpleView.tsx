@@ -78,7 +78,7 @@ import { FeedbackDialog } from "./FeedbackDialog";
 import { DonateDialog } from "./DonateDialog";
 import { EditHoldingDialog } from "./EditHoldingDialog";
 import { MyStockEditDialog } from "./MyStockEditDialog";
-import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime } from "./HelpDialog";
+import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./HelpDialog";
 import { Sparkline } from "./Sparkline";
 import { ValuationModal } from "./ValuationModal";
 import {
@@ -132,6 +132,9 @@ export function MobileSimpleView() {
   const [marketSplit, setMarketSplitState] = useState(getMarketSplit());   // 일괄 / 시장분리 보기
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
+  const [helpStep, setHelpStep] = useState(0);   // 사용법 열 때 시작 단계 (현재 탭 기준)
+  // 첫 방문이면 사용법(빠른 시작)을 먼저 보여주고, 닫은 뒤에 프록시 안내를 노출(겹침 방지).
+  const [onboardReady, setOnboardReady] = useState(() => !shouldShowHelpFirstTime());
   const [editing, setEditing] = useState<Stock | null>(null);
   const [editAllStock, setEditAllStock] = useState<{ ticker: string; name: string } | null>(null);
   const [memoTicker, setMemoTicker] = useState<string | null>(null);
@@ -707,7 +710,7 @@ export function MobileSimpleView() {
               <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
               <div className="absolute right-0 top-full mt-1 z-50 min-w-[110px]
                               bg-white border border-gray-200 rounded-md shadow-lg py-1 text-[12px]">
-                <button onClick={() => { setHelpOpen(true); setMoreOpen(false); }}
+                <button onClick={() => { setHelpStep(HELP_STEP_BY_TAB[activeTab] ?? 0); setHelpOpen(true); setMoreOpen(false); }}
                         className="block w-full text-left px-3 py-1.5 text-gray-700 hover:bg-gray-100">사용법</button>
                 <button onClick={() => { setFeedbackOpen(true); setMoreOpen(false); }}
                         className="block w-full text-left px-3 py-1.5 text-emerald-700 hover:bg-emerald-50">질문하기</button>
@@ -1411,8 +1414,10 @@ export function MobileSimpleView() {
           void queryClient.invalidateQueries({ queryKey: ["m-memos"] });
         }} />
 
-      {/* 첫 접속 안내 팝업 — 전용 프록시 미설정 시 자동 표시 */}
-      <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
+      {/* 첫 접속 안내 팝업 — 전용 프록시 미설정 시 자동 표시. 첫 방문은 사용법 닫은 뒤 노출 */}
+      {onboardReady && (
+        <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
+      )}
 
       {/* 시장 매매동향 모달 — KOSPI/KOSDAQ 카드 📊 클릭 시 */}
       {marketFlowFor && (
@@ -1425,7 +1430,8 @@ export function MobileSimpleView() {
 
       <HelpDialog
         isOpen={helpOpen}
-        onClose={() => { markHelpSeen(); setHelpOpen(false); }}
+        initialStep={helpStep}
+        onClose={() => { markHelpSeen(); setHelpOpen(false); setOnboardReady(true); }}
         variant="mobile"
       />
 
