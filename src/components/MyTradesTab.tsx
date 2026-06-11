@@ -2,16 +2,33 @@
 // 분류(전체 시간순 / 종목별 / 날짜별) + 정렬방향 선택. 인라인 수정/삭제 지원.
 // 보유(수량/평단)와 무관 — 여기서 고쳐도 보유엔 영향 없음.
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { Table2 } from "lucide-react";
+import { Table2, GanttChartSquare } from "lucide-react";
 import { loadAllTrades, updateTrade, deleteTrade, type Trade } from "../lib/db";
 import { getIndependentGroupsMode } from "../lib/groupMode";
+import { formatSigned, signColor, signBg } from "../lib/format";
+import { computeRealizedByTrade, realizedChip } from "../lib/tradeCalc";
+import { TradeGantt } from "./TradeGantt";
 import type { Stock } from "../types";
 
 type ViewMode = "recent" | "byStock" | "byDate";
 type Dir = "desc" | "asc";
 type Period = "week" | "month" | "year" | "all";
 
-interface EditForm { type: "buy" | "sell"; date: string; qty: string; amount: string }
+// unit=주당가, amount=총액 — 둘 다 입력칸. 한쪽 입력 시 수량 기준 자동 계산.
+interface EditForm { type: "buy" | "sell"; date: string; qty: string; unit: string; amount: string; last: "unit" | "amount" }
+
+// 수량/주당가/총액 상호 계산 — 변경 필드 기준 파생값 갱신
+function recalcEdit(f: EditForm, field: "qty" | "unit" | "amount", v: string): EditForm {
+  const next = { ...f, [field]: v };
+  const q = Number(field === "qty" ? v : next.qty);
+  if (field === "unit") { next.last = "unit"; if (q > 0 && Number(v) > 0) next.amount = String(Math.round(Number(v) * q)); }
+  else if (field === "amount") { next.last = "amount"; if (q > 0 && Number(v) > 0) next.unit = String(Math.round(Number(v) / q)); }
+  else if (q > 0) {
+    if (next.last === "unit" && Number(next.unit) > 0) next.amount = String(Math.round(Number(next.unit) * q));
+    else if (Number(next.amount) > 0) next.unit = String(Math.round(Number(next.amount) / q));
+  }
+  return next;
+}
 
 // 기간 필터 — 오늘(KST) 기준 롤링 윈도우 시작일(YYYYMMDD). all 이면 제한 없음.
 function periodCutoff(p: Period): string | null {
@@ -25,9 +42,11 @@ function periodCutoff(p: Period): string | null {
 
 export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: boolean }) {
   const [trades, setTrades] = useState<Trade[] | null>(null);
+  const [view, setView] = useState<"chart" | "table">("chart");        // 차트 기본, 상세보기=테이블
+  const [scope, setScope] = useState<"all" | "byGroup">("all");        // 차트: 전체 / 그룹별
   const [mode, setMode] = useState<ViewMode>("recent");
   const [dir, setDir] = useState<Dir>("asc");   // 기본 오래된→최신 (마지막 거래가 맨 아래)
-  const [period, setPeriod] = useState<Period>("all");
+  const [period, setPeriod] = useState<Period>("month");   // 기본 최근 1개월
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm | null>(null);
 
@@ -67,9 +86,16 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
     return { buy, sell, buyN, sellN, total: filtered.length };
   }, [filtered]);
 
+  // 매도 건별 실현손익 — 전체 거래 기준 시간순 계산(원가 정확). 화면엔 보이는 매도행에만 표시.
+  const realizedByTrade = useMemo(
+    () => computeRealizedByTrade(trades ?? [], independent),
+    [trades, independent],
+  );
+
   const startEdit = (t: Trade) => {
     setEditId(t.id);
-    setForm({ type: t.type, date: t.date, qty: String(t.qty), amount: String(t.amount) });
+    setForm({ type: t.type, date: t.date, qty: String(t.qty), amount: String(t.amount),
+              unit: String(Math.round(t.amount / t.qty)), last: "amount" });
   };
   const cancelEdit = () => { setEditId(null); setForm(null); };
   const saveEdit = async (orig: Trade) => {
@@ -134,14 +160,30 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
     return groups;
   };
 
-  // 매수/매도 금액 셀 — 값 있으면 금액+수량·단가, 없으면 빈칸
-  const valueCell = (qty: number, amt: number, kind: "buy" | "sell") => {
+  // 매수/매도 금액 셀 — 값 있으면 금액+수량·단가, 없으면 빈칸.
+  //  매도 셀엔 그 매도의 실현손익(익절/손절)을 한 줄 더 — 그 시점 평단가 기준, 부분매도 포함.
+  const valueCell = (
+    qty: number, amt: number, kind: "buy" | "sell",
+    realized?: { realized: number; pct: number },
+  ) => {
     if (qty <= 0) return <td className="py-1 px-1.5"></td>;
     const color = kind === "buy" ? "text-rose-600" : "text-blue-600";
     return (
       <td className="py-1 px-1.5 text-right">
         <div className={`font-medium ${color}`}>{won(amt)}</div>
         <div className="text-[10px] text-gray-400">{won(qty)}주 · {won(Math.round(amt / qty))}</div>
+        {realized && (
+          <div className="mt-1 flex items-center justify-end gap-1 whitespace-nowrap"
+               title="이 매도의 실현손익 — 그 시점 평단가 기준 (부분매도 포함)">
+            <span className={`rounded-full px-1.5 py-px text-[9px] font-bold text-white leading-none ${realizedChip(realized.realized).bg}`}>
+              {realizedChip(realized.realized).label}
+            </span>
+            <span className={`text-[10px] font-semibold ${signColor(realized.realized)}`}>
+              {formatSigned(realized.realized)}
+              <span className="ml-0.5 text-[9px] opacity-70">({realized.pct >= 0 ? "+" : ""}{realized.pct.toFixed(1)}%)</span>
+            </span>
+          </div>
+        )}
       </td>
     );
   };
@@ -167,10 +209,13 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
           <input type="date" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })}
                  className="border rounded px-1 py-0.5 text-[11px]" />
           <input type="number" inputMode="numeric" value={form.qty} placeholder="수량"
-                 onChange={e => setForm({ ...form, qty: e.target.value })}
-                 className="border rounded px-1 py-0.5 w-16 text-right text-[11px] tabular-nums" />
-          <input type="number" inputMode="numeric" value={form.amount} placeholder="금액(원)"
-                 onChange={e => setForm({ ...form, amount: e.target.value })}
+                 onChange={e => setForm(f => f ? recalcEdit(f, "qty", e.target.value) : f)}
+                 className="border rounded px-1 py-0.5 w-14 text-right text-[11px] tabular-nums" />
+          <input type="number" inputMode="numeric" value={form.unit} placeholder="주당가"
+                 onChange={e => setForm(f => f ? recalcEdit(f, "unit", e.target.value) : f)}
+                 className="border rounded px-1 py-0.5 w-20 text-right text-[11px] tabular-nums" />
+          <input type="number" inputMode="numeric" value={form.amount} placeholder="총액"
+                 onChange={e => setForm(f => f ? recalcEdit(f, "amount", e.target.value) : f)}
                  className="border rounded px-1 py-0.5 w-24 text-right text-[11px] tabular-nums" />
           <span className="ml-auto whitespace-nowrap">
             <button onClick={() => void saveEdit(t)} className="text-blue-600 hover:underline mr-1.5">저장</button>
@@ -199,7 +244,8 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
         </td>
         <td className={`py-1 px-1.5 text-gray-500 whitespace-nowrap ${boldDate && showDate ? "font-bold text-gray-700" : ""}`}>{showDate ? t.date : ""}</td>
         {valueCell(t.type === "buy" ? t.qty : 0, t.type === "buy" ? t.amount : 0, "buy")}
-        {valueCell(t.type === "sell" ? t.qty : 0, t.type === "sell" ? t.amount : 0, "sell")}
+        {valueCell(t.type === "sell" ? t.qty : 0, t.type === "sell" ? t.amount : 0, "sell",
+                   t.type === "sell" ? realizedByTrade.get(t.id) : undefined)}
         {actionsCell(t)}
       </tr>
     );
@@ -219,6 +265,32 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
         <td className="py-1 px-1.5"></td>
         <td className={`py-1 px-1.5 text-right text-rose-600 ${amtCls}`}>{tot.buyQty > 0 ? won(tot.buyAmt) : ""}</td>
         <td className={`py-1 px-1.5 text-right text-blue-600 ${amtCls}`}>{tot.sellQty > 0 ? won(tot.sellAmt) : ""}</td>
+        <td className="py-1 px-1.5"></td>
+      </tr>
+    );
+  };
+
+  // 종목별 누적 실현손익 행 — 그 종목 매도들의 실현손익 합 + 청산원가 대비 %. 매도 없으면 표시 안 함.
+  const renderRealizedRow = (key: string, rows: Trade[]) => {
+    let realized = 0, cost = 0, has = false;
+    for (const t of rows) {
+      if (t.type !== "sell") continue;
+      const r = realizedByTrade.get(t.id);
+      if (r) { realized += r.realized; cost += r.cost; has = true; }
+    }
+    if (!has) return null;
+    const pct = cost > 0 ? (realized / cost) * 100 : 0;
+    const chip = realizedChip(realized);
+    return (
+      <tr key={`${key}__realized`} className={`border-t border-gray-200 ${signBg(realized)}`}>
+        <td className="py-1 px-1.5 whitespace-nowrap">
+          <span className="text-[9px] text-gray-400 mr-1">실현</span>
+          <span className={`rounded-full px-1.5 py-px text-[9px] font-bold text-white leading-none ${chip.bg}`}>{chip.label}</span>
+        </td>
+        <td className="py-1 px-1.5"></td>
+        <td colSpan={2} className={`py-1 px-1.5 text-right text-[11px] font-bold ${signColor(realized)}`}>
+          {formatSigned(realized)} <span className="text-[10px] font-normal opacity-70">({pct >= 0 ? "+" : ""}{pct.toFixed(2)}%)</span>
+        </td>
         <td className="py-1 px-1.5"></td>
       </tr>
     );
@@ -255,6 +327,7 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
                 m === "byDate",                      // 날짜별: 날짜 볼드
               ))}
               {grouped && renderTotalRow(`${g.key}__sub`, "합계", g.trades, false)}
+              {m === "byStock" && renderRealizedRow(g.key, g.trades)}
             </Fragment>
           ))}
         </tbody>
@@ -277,6 +350,19 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
           <Table2 size={15} className="text-emerald-600" /> 내거래
           <span className="text-gray-400 font-normal">({summary.total})</span>
         </span>
+        {/* 차트 / 상세보기 토글 */}
+        <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
+          <button onClick={() => { setView("chart"); cancelEdit(); }}
+                  className={`inline-flex items-center gap-1 px-2 py-1 ${view === "chart" ? "bg-emerald-500 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+            <GanttChartSquare size={13} /> 차트
+          </button>
+          <button onClick={() => { setView("table"); cancelEdit(); }}
+                  className={`px-2 py-1 border-l border-gray-300 ${view === "table" ? "bg-emerald-500 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+            상세보기
+          </button>
+        </div>
+
+        {/* 기간 — 차트·상세보기 공통 */}
         <select value={period} onChange={e => { setPeriod(e.target.value as Period); cancelEdit(); }}
                 title="기간 — 오늘 기준"
                 className="border border-gray-300 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer">
@@ -285,28 +371,41 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
           <option value="year">최근 1년</option>
           <option value="all">전체</option>
         </select>
-        {/* 분류 — 모바일만 (PC 는 3패널 동시 표시) */}
-        {!pc && (
-          <select value={mode} onChange={e => { setMode(e.target.value as ViewMode); cancelEdit(); }}
-                  className="border border-gray-300 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer">
-            <option value="recent">전체 시간순</option>
-            <option value="byStock">종목별</option>
-            <option value="byDate">날짜별</option>
-          </select>
+
+        {view === "chart" ? (
+          // 차트: 전체(같은 종목 합침) / 그룹별(그룹마다 별개)
+          <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
+            {(["all", "byGroup"] as const).map(s => (
+              <button key={s} onClick={() => setScope(s)}
+                      className={`px-2 py-1 ${s === "byGroup" ? "border-l border-gray-300" : ""} ${scope === s ? "bg-gray-700 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                {s === "all" ? "전체" : "그룹별"}
+              </button>
+            ))}
+          </div>
+        ) : (
+          // 상세보기(테이블): (모바일)분류 / 정렬방향
+          <>
+            {!pc && (
+              <select value={mode} onChange={e => { setMode(e.target.value as ViewMode); cancelEdit(); }}
+                      className="border border-gray-300 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer">
+                <option value="recent">전체 시간순</option>
+                <option value="byStock">종목별</option>
+                <option value="byDate">날짜별</option>
+              </select>
+            )}
+            <button onClick={() => setDir(d => d === "desc" ? "asc" : "desc")}
+                    title="날짜 정렬 방향"
+                    className="px-2 py-1 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
+              {dir === "desc" ? "↓ 최신순" : "↑ 오래된순"}
+            </button>
+          </>
         )}
-        <button onClick={() => setDir(d => d === "desc" ? "asc" : "desc")}
-                title="날짜 정렬 방향"
-                className="px-2 py-1 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
-          {dir === "desc" ? "↓ 최신순" : "↑ 오래된순"}
-        </button>
-        <span className="ml-auto tabular-nums text-gray-600">
-          <span className="text-rose-600 font-medium">매수 {won(summary.buy)}</span>
-          <span className="mx-1.5 text-gray-300">·</span>
-          <span className="text-blue-600 font-medium">매도 {won(summary.sell)}</span>
-        </span>
       </div>
 
-      {filtered.length === 0 ? (
+      {view === "chart" ? (
+        // 차트 — 기간 필터(표시만), 실현손익 원가는 전체 거래 기준
+        <TradeGantt trades={trades} nameOf={nameOf} scope={scope} cutoff={periodCutoff(period)} />
+      ) : filtered.length === 0 ? (
         <div className="text-center text-xs text-gray-400 py-10">
           이 기간에 거래 기록이 없습니다.
         </div>

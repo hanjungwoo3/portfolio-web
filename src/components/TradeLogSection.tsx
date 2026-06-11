@@ -8,8 +8,25 @@ function todayKstStr(): string {
   return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 }
 
-interface FormState { type: "buy" | "sell"; date: string; qty: string; amount: string }
-const emptyForm = (): FormState => ({ type: "buy", date: todayKstStr(), qty: "", amount: "" });
+// unit=주당가, amount=총액 — 둘 다 입력칸. 한쪽 입력 시 수량 기준으로 나머지 자동 계산.
+//  last: 직접 친 칸(unit|amount) — 수량 바뀌면 이 칸은 유지하고 반대편을 다시 계산.
+interface FormState { type: "buy" | "sell"; date: string; qty: string; unit: string; amount: string; last: "unit" | "amount" }
+const emptyForm = (): FormState => ({ type: "buy", date: todayKstStr(), qty: "", unit: "", amount: "", last: "amount" });
+
+// 수량/주당가/총액 상호 계산 — 변경된 필드 기준으로 파생값 갱신
+function recalc(f: FormState, field: "qty" | "unit" | "amount", v: string): FormState {
+  const next = { ...f, [field]: v };
+  const q = Number(field === "qty" ? v : next.qty);
+  if (field === "unit") { next.last = "unit"; if (q > 0 && Number(v) > 0) next.amount = String(Math.round(Number(v) * q)); }
+  else if (field === "amount") { next.last = "amount"; if (q > 0 && Number(v) > 0) next.unit = String(Math.round(Number(v) / q)); }
+  else { // qty 변경 — 마지막에 친 칸 유지, 반대편 재계산
+    if (q > 0) {
+      if (next.last === "unit" && Number(next.unit) > 0) next.amount = String(Math.round(Number(next.unit) * q));
+      else if (Number(next.amount) > 0) next.unit = String(Math.round(Number(next.amount) / q));
+    }
+  }
+  return next;
+}
 
 export function TradeLogSection({ ticker, account, refreshKey, defaultOpen }:
   { ticker: string; account?: string; refreshKey?: number; defaultOpen?: boolean }) {
@@ -45,7 +62,8 @@ export function TradeLogSection({ ticker, account, refreshKey, defaultOpen }:
   const startEdit = (t: Trade) => {
     setEditId(t.id);
     setAdding(true);
-    setForm({ type: t.type, date: t.date, qty: String(t.qty), amount: String(t.amount) });
+    setForm({ type: t.type, date: t.date, qty: String(t.qty), amount: String(t.amount),
+              unit: String(Math.round(t.amount / t.qty)), last: "amount" });
   };
   const remove = async (id: string) => {
     if (confirm("이 거래 기록을 삭제할까요? (보유엔 영향 없음)")) { await deleteTrade(id); await reload(); }
@@ -120,16 +138,31 @@ export function TradeLogSection({ ticker, account, refreshKey, defaultOpen }:
                   </button>
                 ))}
               </div>
-              <div className="grid grid-cols-3 gap-1">
+              <div className="grid grid-cols-2 gap-1">
                 <input type="date" value={form.date}
                        onChange={e => setForm(f => ({ ...f, date: e.target.value }))}
                        className="border rounded px-1 py-0.5 text-[11px] focus:outline-none focus:border-blue-500" />
-                <input type="number" inputMode="numeric" placeholder="수량" value={form.qty}
-                       onChange={e => setForm(f => ({ ...f, qty: e.target.value }))}
-                       className="border rounded px-1 py-0.5 text-[11px] text-right tabular-nums focus:outline-none focus:border-blue-500" />
-                <input type="number" inputMode="numeric" placeholder="금액(원)" value={form.amount}
-                       onChange={e => setForm(f => ({ ...f, amount: e.target.value }))}
-                       className="border rounded px-1 py-0.5 text-[11px] text-right tabular-nums focus:outline-none focus:border-blue-500" />
+                <label className="flex items-center gap-1 border rounded px-1 py-0.5 focus-within:border-blue-500">
+                  <span className="text-[10px] text-gray-400 shrink-0">수량</span>
+                  <input type="number" inputMode="numeric" placeholder="0" value={form.qty}
+                         onChange={e => setForm(f => recalc(f, "qty", e.target.value))}
+                         className="w-full text-[11px] text-right tabular-nums focus:outline-none" />
+                </label>
+              </div>
+              {/* 주당가 ↔ 총액 — 한 칸 입력 시 수량 기준 자동 계산 */}
+              <div className="grid grid-cols-2 gap-1">
+                <label className="flex items-center gap-1 border rounded px-1 py-0.5 focus-within:border-blue-500">
+                  <span className="text-[10px] text-gray-400 shrink-0">주당가</span>
+                  <input type="number" inputMode="numeric" placeholder="0" value={form.unit}
+                         onChange={e => setForm(f => recalc(f, "unit", e.target.value))}
+                         className="w-full text-[11px] text-right tabular-nums focus:outline-none" />
+                </label>
+                <label className="flex items-center gap-1 border rounded px-1 py-0.5 focus-within:border-blue-500">
+                  <span className="text-[10px] text-gray-400 shrink-0">총액</span>
+                  <input type="number" inputMode="numeric" placeholder="0" value={form.amount}
+                         onChange={e => setForm(f => recalc(f, "amount", e.target.value))}
+                         className="w-full text-[11px] text-right tabular-nums focus:outline-none" />
+                </label>
               </div>
               <div className="flex justify-end gap-1.5">
                 <button onClick={reset}
