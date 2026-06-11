@@ -12,7 +12,7 @@ import type { Stock } from "../types";
 
 type ViewMode = "recent" | "byStock" | "byDate";
 type Dir = "desc" | "asc";
-type Period = "week" | "month" | "year" | "all";
+type Period = "week" | "month" | "year" | "all" | "custom";
 
 // unit=주당가, amount=총액 — 둘 다 입력칸. 한쪽 입력 시 수량 기준 자동 계산.
 interface EditForm { type: "buy" | "sell"; date: string; qty: string; unit: string; amount: string; last: "unit" | "amount" }
@@ -30,14 +30,16 @@ function recalcEdit(f: EditForm, field: "qty" | "unit" | "amount", v: string): E
   return next;
 }
 
-// 기간 필터 — 오늘(KST) 기준 롤링 윈도우 시작일(YYYYMMDD). all 이면 제한 없음.
-function periodCutoff(p: Period): string | null {
-  if (p === "all") return null;
-  const d = new Date(Date.now() + 9 * 3600_000); // KST
+// 프리셋 → 시작일/종료일(YYYY-MM-DD). 오늘(KST) 종료, 시작은 롤링 윈도우. all=둘 다 빈값(제한 없음).
+function presetRange(p: Period): { from: string; to: string } {
+  if (p === "all" || p === "custom") return { from: "", to: "" };
+  const today = new Date(Date.now() + 9 * 3600_000); // KST
+  const to = today.toISOString().slice(0, 10);
+  const d = new Date(today);
   if (p === "week") d.setDate(d.getDate() - 7);
   else if (p === "month") d.setMonth(d.getMonth() - 1);
   else d.setFullYear(d.getFullYear() - 1);
-  return d.toISOString().slice(0, 10).replace(/-/g, "");
+  return { from: d.toISOString().slice(0, 10), to };
 }
 
 export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: boolean }) {
@@ -46,7 +48,10 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
   const [scope, setScope] = useState<"all" | "byGroup">("all");        // 차트: 전체 / 그룹별
   const [mode, setMode] = useState<ViewMode>("recent");
   const [dir, setDir] = useState<Dir>("asc");   // 기본 오래된→최신 (마지막 거래가 맨 아래)
-  const [period, setPeriod] = useState<Period>("month");   // 기본 최근 1개월
+  const [period, setPeriod] = useState<Period>("month");   // 프리셋(표시용) — 기본 최근 1개월
+  const [from, setFrom] = useState<string>(() => presetRange("month").from);  // 시작일 YYYY-MM-DD ('' = 제한없음)
+  const [to, setTo] = useState<string>(() => presetRange("month").to);        // 종료일 YYYY-MM-DD
+  const applyPreset = (p: Period) => { setPeriod(p); const r = presetRange(p); if (p !== "custom") { setFrom(r.from); setTo(r.to); } };
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm | null>(null);
 
@@ -56,13 +61,18 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
   // 그룹별 독립보유 모드 — 종목명 아래에 거래의 그룹(account) 표시
   const independent = getIndependentGroupsMode();
 
-  // 기간 필터 적용 — 분류/요약/합계 모두 이 결과 기준
+  // 기간 필터 적용 — 시작일~종료일(YYYYMMDD) 범위. 빈값이면 그쪽 제한 없음.
   const filtered = useMemo(() => {
     const all = trades ?? [];
-    const cutoff = periodCutoff(period);
-    if (!cutoff) return all;
-    return all.filter(t => t.date.replace(/\D/g, "") >= cutoff);
-  }, [trades, period]);
+    const f = from.replace(/\D/g, ""), t2 = to.replace(/\D/g, "");
+    if (!f && !t2) return all;
+    return all.filter(t => {
+      const d = t.date.replace(/\D/g, "");
+      if (f && d < f) return false;
+      if (t2 && d > t2) return false;
+      return true;
+    });
+  }, [trades, from, to]);
 
   // ticker → 종목명 (보유 목록에서). 없으면 코드 그대로.
   const nameOf = useMemo(() => {
@@ -350,7 +360,29 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
           <Table2 size={15} className="text-emerald-600" /> 내거래
           <span className="text-gray-400 font-normal">({summary.total})</span>
         </span>
-        {/* 차트 / 상세보기 토글 */}
+        {/* 기간 — 시작/종료일 직접 검색 → 프리셋 (날짜 먼저) */}
+        <span className="inline-flex items-center gap-1">
+          <input type="date" value={from} max={to || undefined}
+                 onChange={e => { setFrom(e.target.value); setPeriod("custom"); cancelEdit(); }}
+                 title="시작일"
+                 className="border border-gray-300 rounded px-1 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer" />
+          <span className="text-gray-400">~</span>
+          <input type="date" value={to} min={from || undefined}
+                 onChange={e => { setTo(e.target.value); setPeriod("custom"); cancelEdit(); }}
+                 title="종료일"
+                 className="border border-gray-300 rounded px-1 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer" />
+        </span>
+        <select value={period} onChange={e => { applyPreset(e.target.value as Period); cancelEdit(); }}
+                title="기간 프리셋 — 선택 시 시작/종료일 자동 입력"
+                className="border border-gray-300 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer">
+          <option value="week">1주</option>
+          <option value="month">1개월</option>
+          <option value="year">1년</option>
+          <option value="all">전체</option>
+          <option value="custom">직접</option>
+        </select>
+
+        {/* 보기 토글 — 맨 뒤. 차트/상세보기 + (차트)전체/그룹별 또는 (상세)분류/정렬 */}
         <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
           <button onClick={() => { setView("chart"); cancelEdit(); }}
                   className={`inline-flex items-center gap-1 px-2 py-1 ${view === "chart" ? "bg-emerald-500 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
@@ -361,19 +393,7 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
             상세보기
           </button>
         </div>
-
-        {/* 기간 — 차트·상세보기 공통 */}
-        <select value={period} onChange={e => { setPeriod(e.target.value as Period); cancelEdit(); }}
-                title="기간 — 오늘 기준"
-                className="border border-gray-300 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer">
-          <option value="week">최근 1주</option>
-          <option value="month">최근 1개월</option>
-          <option value="year">최근 1년</option>
-          <option value="all">전체</option>
-        </select>
-
         {view === "chart" ? (
-          // 차트: 전체(같은 종목 합침) / 그룹별(그룹마다 별개)
           <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
             {(["all", "byGroup"] as const).map(s => (
               <button key={s} onClick={() => setScope(s)}
@@ -383,7 +403,6 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
             ))}
           </div>
         ) : (
-          // 상세보기(테이블): (모바일)분류 / 정렬방향
           <>
             {!pc && (
               <select value={mode} onChange={e => { setMode(e.target.value as ViewMode); cancelEdit(); }}
@@ -403,8 +422,8 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
       </div>
 
       {view === "chart" ? (
-        // 차트 — 기간 필터(표시만), 실현손익 원가는 전체 거래 기준
-        <TradeGantt trades={trades} nameOf={nameOf} scope={scope} cutoff={periodCutoff(period)} />
+        // 차트 — 기간 범위(표시만), 실현손익 원가는 전체 거래 기준
+        <TradeGantt trades={trades} nameOf={nameOf} scope={scope} from={from} to={to} />
       ) : filtered.length === 0 ? (
         <div className="text-center text-xs text-gray-400 py-10">
           이 기간에 거래 기록이 없습니다.

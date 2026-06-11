@@ -26,16 +26,18 @@ function priceLabel(qty: number, amount: number): string {
 interface Ev { kind: "buy" | "sell"; ms: number; qty: number; amount: number; realized?: RealizedInfo }
 interface Col { key: string; name: string; account?: string; held: boolean; events: Ev[] }
 
-export function TradeGantt({ trades, nameOf, scope, cutoff }: {
+export function TradeGantt({ trades, nameOf, scope, from, to }: {
   trades: Trade[];
   nameOf: (t: string) => string;
   scope: "all" | "byGroup";
-  cutoff?: string | null;   // YYYYMMDD — 이 날짜 이후 거래만 표시(실현손익은 전체로 계산)
+  from?: string | null;   // 시작일(YYYY-MM-DD) — 이 범위 거래만 표시(실현손익은 전체로 계산)
+  to?: string | null;     // 종료일(YYYY-MM-DD)
 }) {
   const cols = useMemo(() => {
     const byGroup = scope === "byGroup";
     const realized = computeRealizedByTrade(trades, byGroup);   // 전체 거래로 원가 계산
-    const cutoffMs = cutoff ? parseDateMs(cutoff) : -Infinity;
+    const fromMs = from ? parseDateMs(from) : -Infinity;
+    const toMs = to ? parseDateMs(to) : Infinity;
     const groups = new Map<string, Trade[]>();
     for (const t of trades) {
       const k = byGroup ? `${t.ticker}␟${t.account ?? ""}` : t.ticker;
@@ -54,7 +56,7 @@ export function TradeGantt({ trades, nameOf, scope, cutoff }: {
           realized: t.type === "sell" ? realized.get(t.id) : undefined,
         };
       });
-      const events = all.filter(e => e.ms >= cutoffMs);   // 표시만 기간 필터
+      const events = all.filter(e => e.ms >= fromMs && e.ms <= toMs);   // 표시만 기간 범위
       if (events.length === 0) continue;                   // 이 기간에 거래 없는 종목은 숨김
       out.push({
         key, name: nameOf(rows[0].ticker),
@@ -68,7 +70,7 @@ export function TradeGantt({ trades, nameOf, scope, cutoff }: {
       || (a.events[0]?.ms ?? 0) - (b.events[0]?.ms ?? 0)
       || a.name.localeCompare(b.name));
     return out;
-  }, [trades, scope, nameOf, cutoff]);
+  }, [trades, scope, nameOf, from, to]);
 
   if (cols.length === 0) {
     return <div className="text-center text-xs text-gray-400 py-10">이 기간에 표시할 거래가 없습니다.</div>;
