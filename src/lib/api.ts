@@ -1642,6 +1642,131 @@ export async function fetchYahooQuote(symbol: string, name: string): Promise<UsI
   }
 }
 
+// Yahoo v7 quote — 다심볼 배치 (1요청에 ~40심볼). quoteSummary 심볼당 1콜 → 배치로 폴링당 요청수 급감.
+// Worker 가 v7 crumb 자동 처리(needsYahooAuth). v10 과 차이:
+//  · 값이 flat (regularMarketPrice: 123.4, {raw} 래핑 없음)
+//  · regularMarketChangePercent 가 이미 퍼센트 단위 (v10 fraction 처럼 ×100 안 함)
+interface V7Quote {
+  symbol?: string;
+  regularMarketPrice?: number;
+  regularMarketPreviousClose?: number;
+  regularMarketChangePercent?: number;   // 이미 % (예: 0.3545 = 0.3545%)
+  preMarketPrice?: number;
+  postMarketPrice?: number;
+  regularMarketTime?: number;
+  postMarketTime?: number;
+  preMarketTime?: number;
+  marketState?: string;
+  currency?: string;
+}
+interface V7Response { quoteResponse?: { result?: V7Quote[] | null } }
+
+const YAHOO_V7_CHUNK = 40;   // URL 길이 한도 — 40심볼/요청
+
+function _vnum(x: number | undefined): number | undefined {
+  return typeof x === "number" && Number.isFinite(x) ? x : undefined;
+}
+
+// v7 단일 quote → UsIndex. fetchYahooQuote(v10) 와 동일 분기 (flat 필드 + changePercent ×100 제거).
+function v7QuoteToUsIndex(q: V7Quote, name: string): UsIndex | null {
+  const symbol = q.symbol;
+  if (!symbol) return null;
+  const regP = _vnum(q.regularMarketPrice);
+  const regPrev = _vnum(q.regularMarketPreviousClose);
+  const preP = _vnum(q.preMarketPrice);
+  const postP = _vnum(q.postMarketPrice);
+  const state = (q.marketState ?? "").toUpperCase();
+
+  let price: number;
+  let prev: number;
+  if (state === "PRE" && _isValid(preP) && _isValid(regP)) {
+    price = preP; prev = regP;
+  } else if (state === "POST" && _isValid(postP) && _isValid(regP)) {
+    price = postP; prev = regP;
+  } else if (_isValid(regP)) {
+    price = regP;
+    prev = _isValid(regPrev) ? regPrev : regP;
+  } else {
+    return null;
+  }
+
+  let tradeDate = "";
+  if (typeof q.regularMarketTime === "number") {
+    const kstMs = q.regularMarketTime * 1000 + 9 * 3600 * 1000;
+    tradeDate = new Date(kstMs).toISOString().slice(0, 10);
+  }
+  const prevClose = prev;
+
+  let postPrice: number | undefined;
+  let postPct: number | undefined;
+  if (_isValid(postP) && _isValid(regP) && regP > 0 && postP !== regP) {
+    postPrice = postP;
+    postPct = ((postP - regP) / regP) * 100;
+  }
+
+  // 비거래일 보정 — KR(.KS/.KQ/^KS*/^KQ*) 만 (fetchYahooQuote 와 동일)
+  const isKr = /\.K[SQ]$|^\^K[SQ]/.test(symbol);
+  if (isKr && state === "CLOSED" && tradeDate) {
+    const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    if (tradeDate !== todayKst) prev = price;
+  }
+
+  const diff = price - prev;
+  const pct = prev > 0 ? (diff / prev) * 100 : 0;
+
+  let regularPrice: number | undefined;
+  let regularPct: number | undefined;
+  if (_isValid(regP)) {
+    regularPrice = regP;
+    const rawPct = _vnum(q.regularMarketChangePercent);
+    if (rawPct !== undefined) {
+      regularPct = rawPct;   // v7 은 이미 퍼센트 (v10 처럼 ×100 안 함)
+    } else if (_isValid(regPrev) && regPrev > 0) {
+      regularPct = ((regP - regPrev) / regPrev) * 100;
+    }
+  }
+
+  const freshTime = [q.regularMarketTime, q.postMarketTime, q.preMarketTime]
+    .filter((t): t is number => typeof t === "number" && t > 0)
+    .reduce<number | undefined>((mx, t) => (mx == null || t > mx ? t : mx), undefined);
+
+  return {
+    symbol, name, price, prev, prevClose, diff, pct,
+    currency: q.currency, tradeDate, regularMarketTime: q.regularMarketTime, freshTime, marketState: state,
+    postPrice, postPct, regularPrice, regularPct,
+  };
+}
+
+// 전 심볼 Yahoo 베이스 — 40개씩 청크 병렬 (요청 수: 심볼수/40 ≈ 2콜). 순서 무관(호출측이 symbol 으로 머지).
+async function fetchYahooBatchQuote(
+  pairs: { symbol: string; name: string }[]
+): Promise<(UsIndex | null)[]> {
+  if (pairs.length === 0) return [];
+  const nameBySymbol = new Map(pairs.map(p => [p.symbol, p.name]));
+  const chunks: { symbol: string; name: string }[][] = [];
+  for (let i = 0; i < pairs.length; i += YAHOO_V7_CHUNK) {
+    chunks.push(pairs.slice(i, i + YAHOO_V7_CHUNK));
+  }
+  const settled = await Promise.allSettled(chunks.map(async chunk => {
+    const symbols = chunk.map(p => encodeURIComponent(p.symbol)).join(",");
+    const target = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${symbols}`;
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return [] as V7Quote[];
+    const data = await resp.json() as V7Response;
+    return data.quoteResponse?.result ?? [];
+  }));
+
+  const out: (UsIndex | null)[] = [];
+  for (const s of settled) {
+    if (s.status !== "fulfilled") continue;
+    for (const q of s.value) {
+      const idx = v7QuoteToUsIndex(q, (q.symbol && nameBySymbol.get(q.symbol)) || q.symbol || "");
+      if (idx) out.push(idx);
+    }
+  }
+  return out;
+}
+
 // Yahoo chart v8 — 일봉 종가 시계열 (스파크라인용)
 // 예: fetchYahooChart("^GSPC", "3mo") → [7100, 7110, 7150, ...]
 interface ChartResp {
@@ -1732,6 +1857,14 @@ const TOSS_INDEX_CODE: Record<string, string> = {
   "^FVX":   "ROB.US5YT-RR",  // 미국 5년 금리 (차트 = Yahoo ^FVX)
   "^TNX":   "ROB.US10YT-RR", // 미국 10년 금리 (차트 = Yahoo ^TNX)
   "^TYX":   "ROB.US30YT-RR", // 미국 30년 금리 (차트 = Yahoo ^TYX)
+  // 원자재 선물 — 토스 overview 원자재 카테고리 (USD 값). 야후 대신 토스로 일원화.
+  "GC=F":   "RFU.GCv1",   // 금
+  "SI=F":   "RFU.SIv1",   // 은
+  "CL=F":   "RFU.CLv1",   // WTI 원유
+  "NG=F":   "RFU.NGv1",   // 천연가스
+  "HG=F":   "RFU.HGv1",   // 구리
+  // 비트코인 — 토스는 원화(VWAP.KRW-BTC) 기준. BTC-USD 심볼이지만 원화로 표시.
+  "BTC-USD": "VWAP.KRW-BTC",
 };
 
 // Yahoo 심볼 → 토스 미국 종목 코드 (현재가만 토스, 없으면 Yahoo fallback).
@@ -1800,37 +1933,58 @@ async function fetchTossUsIndexMap(
   return out;
 }
 
-// 토스 indices price API → UsIndex 변환
-async function fetchTossIndexPrice(
-  yahooSymbol: string, name: string,
-): Promise<UsIndex | null> {
-  const code = TOSS_INDEX_CODE[yahooSymbol];
-  if (!code) return null;
-  const url = `https://wts-info-api.tossinvest.com/api/v1/index-prices/${code}`;
+// 토스 대시보드 overview — 주가지수/환율/금리/원자재/가상자산을 1콜로 일괄 수신.
+// (기존 fetchTossIndexPrice 심볼당 1콜 + fetchTossExchangeRate 를 대체 → 폴링당 요청수 급감)
+const TOSS_OVERVIEW_URL =
+  "https://wts-cert-api.tossinvest.com/api/v3/dashboard/wts/overview/indicator/mini-chart";
+
+// 토스 코드 → 우리 야후 심볼 (TOSS_INDEX_CODE 역매핑 + 환율 특수 코드)
+const TOSS_CODE_TO_SYMBOL: Record<string, string> = (() => {
+  const m: Record<string, string> = { EXCHANGE_RATE: "KRW=X" };  // 달러 환율 → KRW=X
+  for (const [sym, code] of Object.entries(TOSS_INDEX_CODE)) m[code] = sym;
+  return m;
+})();
+
+interface TossOverviewItem {
+  code?: string;
+  price?: { latestPrice?: number; basePrice?: number };
+}
+interface TossOverviewResp {
+  result?: { indexMap?: Record<string, TossOverviewItem[]> };
+}
+
+// 1콜 → Map<야후심볼, UsIndex>. 실패하면 빈 Map (호출측에서 Yahoo base 가 폴백).
+async function fetchTossOverview(): Promise<Map<string, UsIndex>> {
+  const out = new Map<string, UsIndex>();
   try {
-    const resp = await fetchProxied(url);
-    if (!resp.ok) return null;
-    const data = await resp.json() as {
-      result?: {
-        close?: number;
-        base?: number;     // 어제 종가 (% 기준)
-        // open/high/low/volume/value/changeType/high52w/low52w/tradeTime 등 있음
-      };
-    };
-    const r = data.result;
-    if (!r || typeof r.close !== "number" || typeof r.base !== "number") return null;
-    const diff = r.close - r.base;
-    const pct = r.base > 0 ? (diff / r.base) * 100 : 0;
+    const resp = await fetchProxied(TOSS_OVERVIEW_URL);
+    if (!resp.ok) return out;
+    const data = await resp.json() as TossOverviewResp;
+    const indexMap = data.result?.indexMap;
+    if (!indexMap) return out;
     const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-    return {
-      symbol: yahooSymbol, name,
-      price: r.close, prev: r.base, prevClose: r.base,
-      diff, pct, currency: "KRW",
-      tradeDate: todayKst, marketState: "",
-    };
-  } catch {
-    return null;
-  }
+    for (const arr of Object.values(indexMap)) {
+      if (!Array.isArray(arr)) continue;
+      for (const it of arr) {
+        const sym = it.code ? TOSS_CODE_TO_SYMBOL[it.code] : undefined;
+        if (!sym || out.has(sym)) continue;   // SOX.NAI 등 중복 카테고리 — 먼저 본 것 유지
+        const close = it.price?.latestPrice;
+        const base = it.price?.basePrice;
+        if (typeof close !== "number" || typeof base !== "number") continue;
+        const diff = close - base;
+        const pct = base > 0 ? (diff / base) * 100 : 0;
+        out.set(sym, {
+          symbol: sym, name: sym === "KRW=X" ? "USD/KRW" : sym,  // name 은 merge 시 pairs(야후) 쪽 우선
+          price: close, prev: base, prevClose: base,
+          diff, pct, currency: "KRW",
+          // 마감 책갈피도 토스값으로 — 통화 일관(특히 BTC 원화). 미설정 시 Yahoo USD 책갈피가 남아 단위 혼선.
+          regularPrice: close, regularPct: pct,
+          tradeDate: todayKst, marketState: "",
+        });
+      }
+    }
+  } catch { /* Yahoo base 폴백 */ }
+  return out;
 }
 
 // investing.com financialdata — Yahoo/토스에 없는 지수 (VKOSPI 등).
@@ -1937,14 +2091,12 @@ export async function fetchYahooBatch(
   // 신형 ETF 는 영숫자 코드(예: 0190C0) — 숫자 6자리로 좁히면 Toss 경로에서 누락됨
   const ksRegex = /^([\dA-Za-z]{6})\.KS$/;
   const ksItems = pairs.filter(p => ksRegex.test(p.symbol));
-  const tossIdxItems = pairs.filter(p => TOSS_INDEX_CODE[p.symbol]);
   const tossUsItems = pairs
     .filter(p => TOSS_US_STOCK_CODE[p.symbol])
     .map(p => ({ ...p, code: TOSS_US_STOCK_CODE[p.symbol] }));
   const investItems = pairs.filter(p => isInvestingIndex(p.symbol));
-  const hasFx = pairs.some(p => p.symbol === "KRW=X");   // 원달러 환율은 토스 FX 로 교정
 
-  const [ksMap, idxResults, usMap, investResults, fxResult, yahooResults] = await Promise.all([
+  const [ksMap, overviewMap, usMap, investResults, yahooResults] = await Promise.all([
     ksItems.length > 0
       ? fetchTossPrices(ksItems.map(p => ksRegex.exec(p.symbol)![1]))
           .then(prices => {
@@ -1969,12 +2121,12 @@ export async function fetchYahooBatch(
           })
           .catch(() => new Map<string, UsIndex>())
       : Promise.resolve(new Map<string, UsIndex>()),
-    Promise.all(tossIdxItems.map(p => fetchTossIndexPrice(p.symbol, p.name))),
+    // 토스 overview 1콜 — 지수/환율/금리/원자재/BTC 일괄 (기존 인덱스 14콜 + FX 대체)
+    fetchTossOverview(),
     fetchTossUsIndexMap(tossUsItems),
     Promise.all(investItems.map(p => fetchInvestingIndexPrice(p.symbol, p.name))),
-    hasFx ? fetchTossExchangeRate() : Promise.resolve(null),
-    // 모든 심볼 Yahoo — 베이스(regularPrice/marketState/prevClose) + 토스 실패 시 fallback
-    Promise.all(pairs.map(p => fetchYahooQuote(p.symbol, p.name))),
+    // 모든 심볼 Yahoo 베이스 — v7 배치(~2콜). marketState/prevClose + 토스 실패 시 fallback
+    fetchYahooBatchQuote(pairs),
   ]);
 
   // 1) Yahoo 결과를 베이스로
@@ -2006,10 +2158,9 @@ export async function fetchYahooBatch(
     });
   };
   for (const [sym, t] of ksMap) applyToss(sym, t);
-  for (const r of idxResults) { if (r) applyToss(r.symbol, r); }
+  for (const [sym, t] of overviewMap) applyToss(sym, t);   // 지수/환율/금리/원자재/BTC (overview 1콜)
   for (const [sym, t] of usMap) applyToss(sym, t);
   for (const r of investResults) { if (r) applyToss(r.symbol, r); }
-  if (fxResult) applyToss(fxResult.symbol, fxResult);   // 원달러 환율 — 토스 base 기준 교정
 
   return merged;
 }
