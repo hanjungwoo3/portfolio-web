@@ -8,7 +8,7 @@ import { SortSelector, makeSortHandlers } from "./SortSelector";
 import {
   fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures,
   fetchKrRegularPrices, verifyKrMarkets,
-  fetchYahooChart, fetchKrPriceHistory,
+  fetchYahooChart, fetchKrPriceHistory, fetchUsHoldingPrices,
 } from "../lib/api";
 import {
   US_PAIRS,
@@ -383,7 +383,18 @@ export function MobileSimpleView() {
     refetchInterval: REFRESH_MS,
     refetchIntervalInBackground: true,   // 백그라운드에도 폴링 → 탭 제목 손익 계속 갱신
   });
+  // 미국 종목(알파벳 1~5자) — 토스US 우선 + Yahoo 폴백
+  const usGroupTickers = Array.from(new Set(
+    groupHoldingsUnsorted.map(s => s.ticker).filter(t => /^[A-Za-z][A-Za-z.]{0,4}$/.test(t))));
+  const { data: usGroupPrices } = useQuery({
+    queryKey: ["m-us-prices", activeTab, usGroupTickers.join(",")],
+    queryFn: () => fetchUsHoldingPrices(usGroupTickers),
+    enabled: !isSystemTab && usGroupTickers.length > 0,
+    refetchInterval: REFRESH_MS,
+    refetchIntervalInBackground: true,
+  });
   const groupPriceMap = new Map((groupPrices ?? []).map(p => [p.ticker, p]));
+  for (const p of usGroupPrices ?? []) groupPriceMap.set(p.ticker, p);   // 미국 종목 병합
 
   // 브라우저 탭 제목 — 전체금액 → 전체% → 오늘금액 → 오늘% 순서로 순환
   const titlePartsRef = useRef<string[]>([]);

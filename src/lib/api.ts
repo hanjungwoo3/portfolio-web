@@ -3,6 +3,7 @@ import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStat
 import { getEnabledPersonalProxies } from "./proxyConfig";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
 import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen } from "./format";
+import { rememberTossCode, getTossCode } from "./toss";
 
 // 앱 로드 시 1회 — 30일 이상 된 일자 키 정리
 cleanupOldProxyCalls();
@@ -146,6 +147,60 @@ export async function fetchTossUsPrices(codes: string[]): Promise<Map<string, To
       });
     }
   } catch { /* network failure — return empty */ }
+  return out;
+}
+
+// 사용자 보유 US 종목 가격 — 토스 우선(원화·24h, 내부코드 필요) + Yahoo 폴백.
+//  보유 priceMap 에 병합할 수 있게 Price[] 로 반환 (KR 종목과 동일 형식).
+//  토스코드는 검색/인기 랭킹에서 받아 localStorage 에 기억(rememberTossCode)해 둔 것 사용.
+export async function fetchUsHoldingPrices(tickers: string[]): Promise<Price[]> {
+  if (tickers.length === 0) return [];
+  const coded: { ticker: string; code: string }[] = [];
+  const uncoded: string[] = [];
+  for (const t of tickers) {
+    const code = getTossCode(t);
+    if (code && code.startsWith("US")) coded.push({ ticker: t, code });
+    else uncoded.push(t);
+  }
+  const out: Price[] = [];
+  // ── 토스 우선 (원화·애프터장 포함, fetchTossUsIndexMap 과 동일 변환)
+  if (coded.length) {
+    try {
+      const m = await fetchTossUsPrices(coded.map(c => c.code));
+      const afterOpen = isUsAfterMarketOpen();
+      for (const { ticker, code } of coded) {
+        const tp = m.get(code);
+        if (!tp) { uncoded.push(ticker); continue; }
+        const hasKrw = tp.closeKrw > tp.close;                  // 원화는 달러×~1500
+        const regClose = hasKrw ? tp.closeKrw : tp.close;
+        const yClose   = hasKrw ? tp.baseKrw  : tp.base;
+        const useAfter = hasKrw && afterOpen && tp.afterCloseKrw > 0;
+        const price = useAfter ? tp.afterCloseKrw : regClose;
+        const base  = useAfter ? regClose : yClose;             // 애프터: 정규종가 대비 / 그외: 어제 대비
+        out.push({
+          ticker, price, base, prevClose: base, open: 0, volume: 0,
+          trade_date: tp.tradeDateTime ? toKstDateString(tp.tradeDateTime) : "",
+          trade_dt: tp.tradeDateTime,
+        });
+      }
+    } catch {
+      for (const c of coded) uncoded.push(c.ticker);
+    }
+  }
+  // ── Yahoo 폴백 (토스코드 없거나 토스 실패분) — USD 그대로(환율 변환 없음)
+  if (uncoded.length) {
+    try {
+      const ym = await fetchYahooBatch([...new Set(uncoded)].map(t => ({ symbol: t, name: t })));
+      for (const t of new Set(uncoded)) {
+        const ui = ym.get(t);
+        if (!ui) continue;
+        out.push({
+          ticker: t, price: ui.price, base: ui.prev, prevClose: ui.prevClose,
+          open: 0, volume: 0, trade_date: ui.tradeDate,
+        });
+      }
+    } catch { /* noop */ }
+  }
   return out;
 }
 
@@ -385,6 +440,53 @@ export async function fetchKrSectorRanking(): Promise<KrSectorRankItem[]> {
       })
       .filter((x): x is KrSectorRankItem => x !== null)
       .sort((a, b) => a.ranking - b.ranking);
+  } catch {
+    return [];
+  }
+}
+
+// 토스 실시간 인기(관심) 종목 랭킹 — 한국(코스피/코스닥) + 미국 + ETF 혼합.
+//  symbol = 앱 ticker (KR 6자리 / US 티커). 첫 사용자 기본 목록 시드용.
+export async function fetchTossRealtimeRanking(size = 10): Promise<SearchResult[]> {
+  const target = `https://wts-info-api.tossinvest.com/api/v1/rankings/realtime/stock?size=${size}`;
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return [];
+    const data = await resp.json() as {
+      result?: { data?: Array<{
+        symbol?: string; name?: string; code?: string;
+        market?: { displayName?: string };
+      }> };
+    };
+    const out: SearchResult[] = [];
+    for (const r of data.result?.data ?? []) {
+      const ticker = (r.symbol ?? "").trim();
+      if (!ticker) continue;
+      if (r.code) rememberTossCode(ticker, r.code);   // US 내부코드 기억(링크용)
+      out.push({ ticker, name: r.name ?? ticker, market: r.market?.displayName ?? "" });
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
+// 토스 시가총액 Top — live (오늘 기준). KR 6자리 전용. stockCode 의 'A' 접두어 제거.
+export async function fetchTossMarketCap(size = 10): Promise<SearchResult[]> {
+  const target = "https://wts-info-api.tossinvest.com/api/v1/rankings/contents/market_cap/tags/kr";
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return [];
+    const data = await resp.json() as { result?: { data?: Array<{ stockCode?: string; title?: string }> } };
+    const out: SearchResult[] = [];
+    for (const r of data.result?.data ?? []) {
+      const raw = (r.stockCode ?? "").trim();
+      const ticker = raw.startsWith("A") ? raw.slice(1) : raw;   // 토스 A005930 → 005930
+      if (!/^[\dA-Za-z]{6}$/.test(ticker)) continue;
+      out.push({ ticker, name: r.title ?? ticker, market: "KOSPI" });
+      if (out.length >= size) break;
+    }
+    return out;
   } catch {
     return [];
   }
@@ -2362,8 +2464,10 @@ interface TossACProduct {
 // 토스 단축 market 코드 → 표준 라벨
 const TOSS_MARKET_LABEL: Record<string, string> = {
   KSP: "KOSPI", KSQ: "KOSDAQ", KNX: "KONEX",
-  NYS: "NYSE", NAS: "NASDAQ", AMS: "AMEX",
+  NYS: "NYSE", NSQ: "NASDAQ", NAS: "NASDAQ", AMX: "AMEX", AMS: "AMEX",
 };
+const KR_MARKETS = new Set(["KSP", "KSQ", "KNX", "KOSPI", "KOSDAQ", "KONEX"]);
+const US_MARKETS = new Set(["NYS", "NSQ", "NAS", "AMX", "AMS", "NYSE", "NASDAQ", "AMEX"]);
 // 응답을 재귀 탐색해 종목 정보를 가진 객체들을 평탄화 수집.
 // 토스 실제 응답: result[].data.items[] 안에 productCode/productName/symbol/market(KSP|KSQ).
 function extractTossProducts(node: unknown, acc: TossACProduct[] = []): TossACProduct[] {
@@ -2410,23 +2514,31 @@ export async function searchTossAutoComplete(
     const out: SearchResult[] = [];
     const seen = new Set<string>();
     for (const it of products) {
-      // ticker 추출 — productCode "A005930" → "005930", symbol 폴백
-      let code = (it.productCode ?? "").replace(/^A/, "")
-              || it.symbol || it.ticker || it.code || "";
-      code = code.trim();
-      // 한국 종목·ETF — 6자리 숫자 또는 영숫자(신형 KRX 코드, 예: 단일종목레버리지 ETF "0192L0").
-      if (!/^[\dA-Za-z]{6}$/.test(code)) continue;
-      const nation = it.nationCode || it.countryCode;
-      if (nation && nation !== "KOR") continue;
-      // 한국 ETF/주식만 (market KSP/KSQ/KNX) — 다른 시장은 검색 결과에서 제외
+      const productCode = (it.productCode ?? "").trim();   // KR: A005930 / US: US20100629001
+      const symbol = (it.symbol ?? it.ticker ?? it.code ?? "").trim();
       const rawMarket = (it.market ?? it.exchange ?? it.marketType ?? "").toString();
-      if (rawMarket && !["KSP", "KSQ", "KNX", "KOSPI", "KOSDAQ", "KONEX"].includes(rawMarket)) continue;
-      if (seen.has(code)) continue;
-      seen.add(code);
+      const name = (it.productName ?? it.korName ?? it.name ?? it.fullName ?? it.keyword ?? "").trim();
+      let ticker = "";
+      const isKr = KR_MARKETS.has(rawMarket) || (!rawMarket && /^A?[\dA-Za-z]{6}$/.test(productCode || symbol));
+      if (isKr) {
+        // 한국 종목·ETF — A005930 → 005930 (신형 영숫자 코드 "0192L0" 포함)
+        ticker = (productCode.replace(/^A/, "") || symbol).trim();
+        if (!/^[\dA-Za-z]{6}$/.test(ticker)) continue;
+      } else if (US_MARKETS.has(rawMarket) || /^(US|NAS|NSQ|NYS|AMX)/.test(productCode)) {
+        // 미국 등 해외 — symbol 이 ticker. 토스 내부코드(productCode) 기억 → 링크용.
+        ticker = symbol;
+        if (!/^[A-Za-z][A-Za-z.]{0,9}$/.test(ticker)) continue;   // 알파벳 티커만 (TSLA, BRK.B)
+        // 정식명 없는(name===ticker) US 단일종목 레버리지 ETF(TSLL/TSLY 등) 제외 — 토스도 숨김.
+        if (!name || name.toUpperCase() === ticker.toUpperCase()) continue;
+        if (productCode) rememberTossCode(ticker, productCode);
+      } else {
+        continue;   // 알 수 없는 시장 제외
+      }
+      if (!name || seen.has(ticker)) continue;
+      seen.add(ticker);
       out.push({
-        ticker: code,
-        name: (it.productName ?? it.korName ?? it.name ?? it.fullName ?? it.keyword ?? code).trim(),
-        market: TOSS_MARKET_LABEL[rawMarket] ?? rawMarket ?? "KOSPI",
+        ticker, name,
+        market: TOSS_MARKET_LABEL[rawMarket] ?? rawMarket ?? "",
       });
       if (out.length >= limit) break;
     }

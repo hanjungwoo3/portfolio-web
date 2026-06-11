@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   searchTossAutoComplete, searchNaverAutoComplete, fetchKrStockName, fetchTossPrices,
-  searchNaverThemes,
+  searchNaverThemes, fetchTossRealtimeRanking, fetchTossMarketCap, fetchUsHoldingPrices,
   type SearchResult, type NaverThemeMatch,
 } from "../lib/api";
 import {
@@ -13,7 +13,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { getEffectivePollMs } from "../lib/proxyConfig";
 import type { Stock, Price } from "../types";
 import { signColor, isEtfByName } from "../lib/format";
-import { handleTossLinkClick } from "../lib/toss";
+import { handleTossLinkClick, tossStockUrl } from "../lib/toss";
 import { useEscClose } from "../lib/useEscClose";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 
@@ -163,13 +163,23 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
 
   const REFRESH_MS = useAdaptiveRefreshMs(getEffectivePollMs());
   const tickers = allStocks.map(r => r.ticker);
+  const krTickers = tickers.filter(t => /^[\dA-Za-z]{6}$/.test(t));
+  const usTickers = tickers.filter(t => /^[A-Za-z][A-Za-z.]{0,4}$/.test(t));
   const { data: prices } = useQuery({
-    queryKey: ["search-prices", tickers],
-    queryFn: () => fetchTossPrices(tickers),
-    enabled: isOpen && tickers.length > 0,
+    queryKey: ["search-prices", krTickers],
+    queryFn: () => fetchTossPrices(krTickers),
+    enabled: isOpen && krTickers.length > 0,
+    refetchInterval: REFRESH_MS,
+  });
+  // 미국 종목 — 토스US 우선 + Yahoo 폴백 (KR 가격 fetch 와 분리해야 안 깨짐)
+  const { data: usPrices } = useQuery({
+    queryKey: ["search-us-prices", usTickers],
+    queryFn: () => fetchUsHoldingPrices(usTickers),
+    enabled: isOpen && usTickers.length > 0,
     refetchInterval: REFRESH_MS,
   });
   const priceMap = new Map((prices ?? []).map(p => [p.ticker, p]));
+  for (const p of usPrices ?? []) priceMap.set(p.ticker, p);
 
   const { data: userGroups = [] } = useQuery({
     queryKey: ["user-groups", reloadKey],
@@ -254,6 +264,27 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     } catch {
       if (reqIdRef.current !== myId) return;
       setStatusMsg("검색 실패");
+    } finally {
+      if (reqIdRef.current === myId) setSearching(false);
+    }
+  };
+
+  // 빠른 목록(시가총액/인기) 불러오기 → 결과에 채우고 전체 체크. 그룹 선택 후 [일괄적용].
+  const loadRanking = async (fetcher: () => Promise<SearchResult[]>, loadingMsg: string, label: string) => {
+    const myId = ++reqIdRef.current;
+    setSearching(true);
+    setStatusMsg(loadingMsg);
+    try {
+      const items = await fetcher();
+      if (reqIdRef.current !== myId) return;
+      setQuery(""); setThemeMatches([]); setExpandedThemes(new Set());
+      setResults(items);
+      setSelected(new Set(items.map(r => r.ticker)));
+      setStatusMsg(items.length === 0
+        ? "⚠️ 불러오기 실패 — 잠시 후 다시 시도"
+        : `✅ ${label} ${items.length}종목 — 그룹 선택 후 [일괄적용]`);
+    } catch {
+      if (reqIdRef.current === myId) setStatusMsg("⚠️ 불러오기 실패");
     } finally {
       if (reqIdRef.current === myId) setSearching(false);
     }
@@ -461,6 +492,21 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
 
         {/* 검색 입력 */}
         <div className="px-5 py-3 border-b">
+          {/* 빠른 목록 — 시가총액(live) / 토스 인기 */}
+          <div className="mb-2 flex gap-1.5">
+            <button onClick={() => loadRanking(() => fetchTossMarketCap(10), "📊 국내 시총 불러오는 중...", "국내 시총 TOP")}
+                    disabled={searching}
+                    className="px-2 py-0.5 text-[11px] rounded border border-gray-300 bg-gray-100
+                               text-gray-600 hover:bg-gray-200 disabled:opacity-50">
+              📊 국내 시총 TOP10
+            </button>
+            <button onClick={() => loadRanking(() => fetchTossRealtimeRanking(10), "🔥 인기 종목 불러오는 중...", "토스 인기 TOP")}
+                    disabled={searching}
+                    className="px-2 py-0.5 text-[11px] rounded border border-gray-300 bg-gray-100
+                               text-gray-600 hover:bg-gray-200 disabled:opacity-50">
+              🔥 토스 인기 TOP10
+            </button>
+          </div>
           <textarea
             ref={searchInputRef}
             value={query}
@@ -735,15 +781,18 @@ function SearchResultRow({
         <input type="checkbox" checked={checked} onChange={onToggle}
                onClick={e => e.stopPropagation()}
                className="w-4 h-4 accent-blue-600 shrink-0" />
-        <a href={`https://tossinvest.com/stocks/A${item.ticker}`}
-           target="_blank" rel="noopener noreferrer"
-           onClick={e => {
-             e.stopPropagation();
-             handleTossLinkClick(e, `https://tossinvest.com/stocks/A${item.ticker}`);
-           }}
-           className="font-bold text-sm hover:text-blue-600">
-          {item.name}
-        </a>
+        {(() => {
+          const tu = tossStockUrl(item.ticker);
+          return tu ? (
+            <a href={tu} target="_blank" rel="noopener noreferrer"
+               onClick={e => { e.stopPropagation(); handleTossLinkClick(e, tu); }}
+               className="font-bold text-sm hover:text-blue-600">
+              {item.name}
+            </a>
+          ) : (
+            <span className="font-bold text-sm">{item.name}</span>
+          );
+        })()}
         <span className="text-xs text-gray-500 font-mono">{item.ticker}</span>
         <span className="text-[10px] bg-gray-100 px-1 rounded text-gray-600">
           {item.market}

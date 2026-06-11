@@ -110,8 +110,41 @@ export function handleTossLinkClick(
   openExternal(url);
 }
 
-// 한국 종목 (6자리 ticker) — 토스 stocks 페이지.
+// 토스 종목 내부코드 기억 — 검색/랭킹에서 받은 productCode(US 등: US20100629001) 저장.
+//  US 종목은 ticker(TSLA)로 URL 못 만들고 내부코드가 필요해서, 받을 때 기억해 둠.
+const TOSS_CODE_KEY = "toss_stock_code";
+function loadTossCodes(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(TOSS_CODE_KEY) || "{}") as Record<string, string>; }
+  catch { return {}; }
+}
+export function getTossCode(ticker: string): string | null {
+  const remembered = loadTossCodes()[ticker];
+  if (remembered) return remembered;
+  // 명시 매핑(TOSS_SYMBOL_URL) 의 /stocks/US... 에서 내부코드 추출 (NVDA·MU·SPY 등)
+  const m = TOSS_SYMBOL_URL[ticker]?.match(/\/stocks\/(US\w+)/);
+  return m ? m[1] : null;
+}
+export function rememberTossCode(ticker: string, productCode: string): void {
+  if (!ticker || !productCode) return;
+  if (/^[\dA-Za-z]{6}$/.test(ticker)) return;   // KR 6자리는 A{ticker} 로 충분 — 기억 불필요
+  try {
+    const m = loadTossCodes();
+    if (m[ticker] === productCode) return;
+    m[ticker] = productCode;
+    localStorage.setItem(TOSS_CODE_KEY, JSON.stringify(m));
+  } catch { /* noop */ }
+}
+// 토스 종목 URL — 명시 매핑 > 기억된 US 내부코드 > KR 6자리. 알 수 없으면 null(ATSLA 같은 깨진 링크 방지).
+export function tossStockUrl(ticker: string): string | null {
+  if (TOSS_SYMBOL_URL[ticker]) return TOSS_SYMBOL_URL[ticker];
+  const code = loadTossCodes()[ticker];
+  if (code) return `https://www.tossinvest.com/stocks/${code}`;
+  if (/^[\dA-Za-z]{6}$/.test(ticker)) return `https://tossinvest.com/stocks/A${ticker}`;
+  return null;
+}
+
+// 종목 클릭 → 토스 stocks 페이지. KR/US 자동 (US는 기억된 내부코드 사용).
 export function openTossStock(ticker: string): void {
-  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return;
-  openExternal(`https://tossinvest.com/stocks/A${ticker}`);
+  const url = tossStockUrl(ticker);
+  if (url) openExternal(url);
 }

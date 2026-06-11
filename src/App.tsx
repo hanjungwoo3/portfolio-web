@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstac
 import {
   fetchTossPrices, fetchInvestorHistory, pickTodayInvestor, fetchKrRegularPrices, verifyKrMarkets,
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
-  fetchInvestorHistorySafe, fetchNaverPrices, fetchKrStockName,
+  fetchInvestorHistorySafe, fetchNaverPrices, fetchKrStockName, fetchUsHoldingPrices,
 } from "./lib/api";
 import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits, repairBrokenNames } from "./lib/db";
 import { StockCard } from "./components/StockCard";
@@ -174,6 +174,13 @@ function Dashboard() {
       .filter(t => /^[\dA-Za-z]{6}$/.test(t)),
     [visible]
   );
+  // 미국 종목(알파벳 티커 1~5자) — 토스US/Yahoo 로 별도 fetch
+  const usTickers = useMemo(
+    () => Array.from(new Set(visible
+      .map(s => s.ticker)
+      .filter(t => /^[A-Za-z][A-Za-z.]{0,4}$/.test(t)))),
+    [visible]
+  );
 
   // 가격 — 항상 토스 먼저(복구 자동 감지), 점검(490)이면 네이버 fallback
   const { data: prices, dataUpdatedAt: pricesUpdatedAt } = useQuery({
@@ -188,6 +195,15 @@ function Dashboard() {
     enabled: krxTickers.length > 0,
     refetchInterval: REFRESH_MS,
     refetchIntervalInBackground: true,   // 탭 비활성(백그라운드)에도 폴링 → 탭 제목 손익 계속 갱신
+  });
+
+  // 미국 종목 가격 — 토스US 우선 + Yahoo 폴백 (보유 priceMap 에 병합)
+  const { data: usPrices } = useQuery({
+    queryKey: ["us-prices", usTickers],
+    queryFn: () => fetchUsHoldingPrices(usTickers),
+    enabled: usTickers.length > 0,
+    refetchInterval: REFRESH_MS,
+    refetchIntervalInBackground: true,
   });
 
   // 한국 종목 거래소 자동 검증 — 토스 stock-infos API 사용 (market.code: KSP/KSQ).
@@ -295,10 +311,11 @@ function Dashboard() {
     })),
   });
 
-  const priceMap = useMemo(
-    () => new Map((prices ?? []).map(p => [p.ticker, p])),
-    [prices]
-  );
+  const priceMap = useMemo(() => {
+    const m = new Map((prices ?? []).map(p => [p.ticker, p]));
+    for (const p of usPrices ?? []) m.set(p.ticker, p);   // 미국 종목 가격 병합
+    return m;
+  }, [prices, usPrices]);
 
   // 브라우저 탭 제목 — 전체금액 → 전체% → 오늘금액 → 오늘% 순서로 순환 (좁은 탭에서도 안 잘림)
   const titlePartsRef = useRef<string[]>([]);
