@@ -246,35 +246,25 @@ export function CandleChartLight({
       },
     });
 
-    // ─── 목표가 / 평단가 priceLine ──────────────────
+    // ─── 목표가 / 평단가 priceLine — 제목은 차트 안에 그려져 캔들을 가리므로 제거.
+    //     금액은 axisLabelVisible 로 우측 가격축(차트 밖)에 색상 라벨로 표시. 종류는 색으로 구분
+    //     (목표=amber, 내평단=emerald, 기대=violet) + 하단 정보박스에 라벨/값 있음.
     if (targetPrice && targetPrice > 0) {
       priceSeries.createPriceLine({
-        price: targetPrice,
-        color: TARGET_COLOR,
-        lineStyle: LineStyle.Dashed,
-        lineWidth: 1,
+        price: targetPrice, color: TARGET_COLOR, lineStyle: LineStyle.Dashed, lineWidth: 1,
         axisLabelVisible: true,
-        title: `목표 ${targetPrice.toLocaleString()}`,
       });
     }
     if (myAvgPrice && myAvgPrice > 0) {
       priceSeries.createPriceLine({
-        price: myAvgPrice,
-        color: AVG_COLOR,
-        lineStyle: LineStyle.Dashed,
-        lineWidth: 1,
+        price: myAvgPrice, color: AVG_COLOR, lineStyle: LineStyle.Dashed, lineWidth: 1,
         axisLabelVisible: true,
-        title: `내평단 ${Math.round(myAvgPrice).toLocaleString()}`,
       });
     }
     if (entryPrice && entryPrice > 0) {
       priceSeries.createPriceLine({
-        price: entryPrice,
-        color: ENTRY_COLOR,
-        lineStyle: LineStyle.Dashed,
-        lineWidth: 1,
+        price: entryPrice, color: ENTRY_COLOR, lineStyle: LineStyle.Dashed, lineWidth: 1,
         axisLabelVisible: true,
-        title: `기대 ${Math.round(entryPrice).toLocaleString()}`,
       });
     }
 
@@ -424,6 +414,24 @@ export function CandleChartLight({
           setDiscPopup({ date, x: px, y: py });
         });
       }
+
+      // 목표 / 내평단 / 기대 — 각 라인 가격(우측 축 금액)의 '바로 아래 오른쪽'에 컬러 칩.
+      const renderChip = (price: number | undefined, color: string, text: string) => {
+        if (!price || price <= 0) return;
+        const y = priceSeries.priceToCoordinate(price);
+        if (y == null) return;
+        const chip = document.createElement("div");
+        chip.style.cssText =
+          `position:absolute;top:${y + 8}px;right:1px;` +
+          `background:#ffffff;border:1px solid ${color};color:${color};` +
+          `border-radius:3px;padding:0 3px;font-size:9px;font-weight:700;` +
+          `white-space:nowrap;line-height:1.5;pointer-events:none;z-index:5;`;
+        chip.textContent = text;
+        layer.appendChild(chip);
+      };
+      renderChip(targetPrice, TARGET_COLOR, "목표");
+      renderChip(myAvgPrice, AVG_COLOR, "내평단");
+      renderChip(entryPrice, ENTRY_COLOR, "기대");
     };
     const initMarkerTimer = window.setTimeout(renderEventMarkers, 0);
 

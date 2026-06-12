@@ -26,12 +26,13 @@ function priceLabel(qty: number, amount: number): string {
 interface Ev { kind: "buy" | "sell"; ms: number; qty: number; amount: number; realized?: RealizedInfo }
 interface Col { key: string; name: string; account?: string; held: boolean; events: Ev[] }
 
-export function TradeGantt({ trades, nameOf, scope, from, to }: {
+export function TradeGantt({ trades, nameOf, scope, from, to, desc }: {
   trades: Trade[];
   nameOf: (t: string) => string;
   scope: "all" | "byGroup";
   from?: string | null;   // 시작일(YYYY-MM-DD) — 이 범위 거래만 표시(실현손익은 전체로 계산)
   to?: string | null;     // 종료일(YYYY-MM-DD)
+  desc?: boolean;         // true = 최신 날짜가 위 (날짜축 역순)
 }) {
   const cols = useMemo(() => {
     const byGroup = scope === "byGroup";
@@ -84,7 +85,8 @@ export function TradeGantt({ trades, nameOf, scope, from, to }: {
       rounds: rs.map((round, i) => ({ startMs: round[0].ms, events: round, held: c.held && i === rs.length - 1 })),
     };
   });
-  const dateRows = [...new Set(colRounds.flatMap(cr => cr.rounds.map(r => r.startMs)))].sort((a, b) => a - b);
+  const dateRows = [...new Set(colRounds.flatMap(cr => cr.rounds.map(r => r.startMs)))]
+    .sort((a, b) => desc ? b - a : a - b);
   const gridCols = `56px repeat(${cols.length}, 168px)`;
 
   return (

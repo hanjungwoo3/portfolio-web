@@ -402,28 +402,25 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
               </button>
             ))}
           </div>
-        ) : (
-          <>
-            {!pc && (
-              <select value={mode} onChange={e => { setMode(e.target.value as ViewMode); cancelEdit(); }}
-                      className="border border-gray-300 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer">
-                <option value="recent">전체 시간순</option>
-                <option value="byStock">종목별</option>
-                <option value="byDate">날짜별</option>
-              </select>
-            )}
-            <button onClick={() => setDir(d => d === "desc" ? "asc" : "desc")}
-                    title="날짜 정렬 방향"
-                    className="px-2 py-1 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
-              {dir === "desc" ? "↓ 최신순" : "↑ 오래된순"}
-            </button>
-          </>
-        )}
+        ) : !pc ? (
+          <select value={mode} onChange={e => { setMode(e.target.value as ViewMode); cancelEdit(); }}
+                  className="border border-gray-300 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer">
+            <option value="recent">전체 시간순</option>
+            <option value="byStock">종목별</option>
+            <option value="byDate">날짜별</option>
+          </select>
+        ) : null}
+        {/* 정렬 방향 — 차트(날짜순)·테이블 공통 */}
+        <button onClick={() => setDir(d => d === "desc" ? "asc" : "desc")}
+                title="날짜 정렬 방향"
+                className="px-2 py-1 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
+          {dir === "desc" ? "↓ 최신순" : "↑ 오래된순"}
+        </button>
       </div>
 
       {view === "chart" ? (
         // 차트 — 기간 범위(표시만), 실현손익 원가는 전체 거래 기준
-        <TradeGantt trades={trades} nameOf={nameOf} scope={scope} from={from} to={to} />
+        <TradeGantt trades={trades} nameOf={nameOf} scope={scope} from={from} to={to} desc={dir === "desc"} />
       ) : filtered.length === 0 ? (
         <div className="text-center text-xs text-gray-400 py-10">
           이 기간에 거래 기록이 없습니다.
