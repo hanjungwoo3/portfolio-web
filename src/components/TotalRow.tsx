@@ -78,7 +78,7 @@ export function TotalRow({ holdings, prices, account, aggregated, onDepositChang
                      text-sm leading-tight whitespace-nowrap">
       {/* 내꺼먼저 책갈피 — 켜면 보유 종목 위로 정렬 */}
       {onToggleHeldFirst && (
-        <button onClick={onToggleHeldFirst}
+        <button onClick={e => { e.stopPropagation(); onToggleHeldFirst(); }}
                 title="보유한 종목(수량>0)을 목록 맨 위로 정렬"
                 className={`absolute -top-2.5 right-4 px-2 py-0.5 rounded-t-md text-[11px] font-bold
                             border border-b-0 shadow-sm
