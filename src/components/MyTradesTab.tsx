@@ -2,13 +2,15 @@
 // 분류(전체 시간순 / 종목별 / 날짜별) + 정렬방향 선택. 인라인 수정/삭제 지원.
 // 보유(수량/평단)와 무관 — 여기서 고쳐도 보유엔 영향 없음.
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { Table2, GanttChartSquare } from "lucide-react";
 import { loadAllTrades, updateTrade, deleteTrade, type Trade } from "../lib/db";
+import { fetchTossPrices, fetchUsHoldingPrices } from "../lib/api";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { formatSigned, signColor, signBg } from "../lib/format";
 import { computeRealizedByTrade, realizedChip } from "../lib/tradeCalc";
 import { TradeGantt } from "./TradeGantt";
-import type { Stock } from "../types";
+import type { Stock, Price } from "../types";
 
 type ViewMode = "recent" | "byStock" | "byDate";
 type Dir = "desc" | "asc";
@@ -42,15 +44,15 @@ function presetRange(p: Period): { from: string; to: string } {
   return { from: d.toISOString().slice(0, 10), to };
 }
 
-export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: boolean }) {
+export function MyTradesTab({ holdings, pc = false, prices }: { holdings: Stock[]; pc?: boolean; prices?: Map<string, Price> }) {
   const [trades, setTrades] = useState<Trade[] | null>(null);
   const [view, setView] = useState<"chart" | "table">("chart");        // 차트 기본, 상세보기=테이블
   const [scope, setScope] = useState<"all" | "byGroup">("all");        // 차트: 전체 / 그룹별
   const [mode, setMode] = useState<ViewMode>("recent");
-  const [dir, setDir] = useState<Dir>("asc");   // 기본 오래된→최신 (마지막 거래가 맨 아래)
-  const [period, setPeriod] = useState<Period>("month");   // 프리셋(표시용) — 기본 최근 1개월
-  const [from, setFrom] = useState<string>(() => presetRange("month").from);  // 시작일 YYYY-MM-DD ('' = 제한없음)
-  const [to, setTo] = useState<string>(() => presetRange("month").to);        // 종료일 YYYY-MM-DD
+  const [dir, setDir] = useState<Dir>("desc");   // 기본 최신순 (최신 거래가 맨 위)
+  const [period, setPeriod] = useState<Period>("week");   // 프리셋(표시용) — 기본 최근 1주
+  const [from, setFrom] = useState<string>(() => presetRange("week").from);  // 시작일 YYYY-MM-DD ('' = 제한없음)
+  const [to, setTo] = useState<string>(() => presetRange("week").to);        // 종료일 YYYY-MM-DD
   const applyPreset = (p: Period) => { setPeriod(p); const r = presetRange(p); if (p !== "custom") { setFrom(r.from); setTo(r.to); } };
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm | null>(null);
@@ -60,6 +62,28 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
 
   // 그룹별 독립보유 모드 — 종목명 아래에 거래의 그룹(account) 표시
   const independent = getIndependentGroupsMode();
+
+  // 거래 종목 현재가 — 보유중 미실현 손익용. 부모 priceMap 은 활성탭만 담겨 부족하므로 직접 fetch.
+  const tradeTickers = useMemo(
+    () => Array.from(new Set((trades ?? []).map(t => t.ticker))), [trades]);
+  const krTradeT = tradeTickers.filter(t => /^[\dA-Za-z]{6}$/.test(t));
+  const usTradeT = tradeTickers.filter(t => /^[A-Za-z][A-Za-z.]{0,4}$/.test(t));
+  const { data: krTradePrices } = useQuery({
+    queryKey: ["mt-kr-prices", krTradeT],
+    queryFn: () => fetchTossPrices(krTradeT),
+    enabled: krTradeT.length > 0, refetchInterval: 30_000,
+  });
+  const { data: usTradePrices } = useQuery({
+    queryKey: ["mt-us-prices", usTradeT],
+    queryFn: () => fetchUsHoldingPrices(usTradeT),
+    enabled: usTradeT.length > 0, refetchInterval: 30_000,
+  });
+  const livePrices = useMemo(() => {
+    const m = new Map<string, Price>(prices ?? []);   // 부모 가격 보강
+    for (const p of krTradePrices ?? []) m.set(p.ticker, p);
+    for (const p of usTradePrices ?? []) m.set(p.ticker, p);
+    return m;
+  }, [prices, krTradePrices, usTradePrices]);
 
   // 기간 필터 적용 — 시작일~종료일(YYYYMMDD) 범위. 빈값이면 그쪽 제한 없음.
   const filtered = useMemo(() => {
@@ -420,7 +444,7 @@ export function MyTradesTab({ holdings, pc = false }: { holdings: Stock[]; pc?: 
 
       {view === "chart" ? (
         // 차트 — 기간 범위(표시만), 실현손익 원가는 전체 거래 기준
-        <TradeGantt trades={trades} nameOf={nameOf} scope={scope} from={from} to={to} desc={dir === "desc"} />
+        <TradeGantt trades={trades} nameOf={nameOf} scope={scope} from={from} to={to} desc={dir === "desc"} prices={livePrices} />
       ) : filtered.length === 0 ? (
         <div className="text-center text-xs text-gray-400 py-10">
           이 기간에 거래 기록이 없습니다.
