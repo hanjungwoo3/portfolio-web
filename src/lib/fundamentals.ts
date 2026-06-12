@@ -4,7 +4,7 @@
 // - navercomp.wisereport.co.kr c1080001 (애널리스트 리포트)
 // - navercomp.wisereport.co.kr c1010001 (주요주주)
 
-import { fetchProxied } from "./api";
+import { fetchProxied, decodeHtmlBuf } from "./api";
 // PROXY_URLS는 api.ts에서 4-way로 자동 확장됨 (이 파일은 fetchProxied만 사용)
 
 async function fetchHtml(url: string): Promise<Document | null> {
@@ -12,14 +12,7 @@ async function fetchHtml(url: string): Promise<Document | null> {
     const resp = await fetchProxied(url);
     if (!resp.ok) return null;
     const buf = await resp.arrayBuffer();
-    const ct = resp.headers.get("Content-Type") || "";
-    const charset = /charset=([\w-]+)/i.exec(ct)?.[1]?.toLowerCase() || "euc-kr";
-    let html: string;
-    try {
-      html = new TextDecoder(charset).decode(buf);
-    } catch {
-      html = new TextDecoder("euc-kr").decode(buf);
-    }
+    const html = decodeHtmlBuf(buf, resp.headers.get("Content-Type") || "");
     return new DOMParser().parseFromString(html, "text/html");
   } catch {
     return null;

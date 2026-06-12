@@ -2295,16 +2295,8 @@ export async function fetchNaverInfo(ticker: string): Promise<NaverInfo> {
   try {
     const resp = await fetchProxied(target);
     if (!resp.ok) return empty;
-    // Naver finance 는 EUC-KR 가능 — Content-Type 체크 후 디코딩
     const buf = await resp.arrayBuffer();
-    const ct = resp.headers.get("Content-Type") || "";
-    const charset = /charset=([\w-]+)/i.exec(ct)?.[1]?.toLowerCase() || "euc-kr";
-    let html: string;
-    try {
-      html = new TextDecoder(charset).decode(buf);
-    } catch {
-      html = new TextDecoder("euc-kr").decode(buf);
-    }
+    const html = decodeHtmlBuf(buf, resp.headers.get("Content-Type") || "");
     const doc = new DOMParser().parseFromString(html, "text/html");
 
     // 섹터 — 동일업종 링크 텍스트
@@ -2590,13 +2582,23 @@ const THEME_LIST_CACHE_KEY = "naver_theme_list_v1";
 const THEME_LIST_TS_KEY = "naver_theme_list_ts";
 const THEME_LIST_TTL_MS = 24 * 60 * 60 * 1000;   // 24h
 
-// EUC-KR HTML 디코드 헬퍼 (네이버 금융 공통)
+// HTML charset 견고 디코드 — 일부 공용 프록시가 Content-Type charset 을 누락하므로
+// ①Content-Type → ②HTML <meta charset> 스니핑 → ③기본 UTF-8 순으로 결정.
+// (네이버 금융이 EUC-KR→UTF-8 전환 → 프록시가 charset 누락 시 euc-kr 폴백하면 깨짐)
+export function decodeHtmlBuf(buf: ArrayBuffer, contentType: string): string {
+  let charset = /charset=([\w-]+)/i.exec(contentType)?.[1]?.toLowerCase() || "";
+  if (!charset) {
+    const head = new TextDecoder("latin1").decode(buf.slice(0, 2048));
+    charset = /charset=["']?([\w-]+)/i.exec(head)?.[1]?.toLowerCase() || "utf-8";
+  }
+  try { return new TextDecoder(charset).decode(buf); }
+  catch { return new TextDecoder("utf-8").decode(buf); }
+}
+
+// 네이버 금융 공통 — Response → HTML 문자열
 async function decodeNaverHtml(resp: Response): Promise<string> {
   const buf = await resp.arrayBuffer();
-  const ct = resp.headers.get("Content-Type") || "";
-  const charset = /charset=([\w-]+)/i.exec(ct)?.[1]?.toLowerCase() || "euc-kr";
-  try { return new TextDecoder(charset).decode(buf); }
-  catch { return new TextDecoder("euc-kr").decode(buf); }
+  return decodeHtmlBuf(buf, resp.headers.get("Content-Type") || "");
 }
 
 // 전체 테마 목록 — 첫 로드 시 스크랩, 24h 캐시
@@ -2705,11 +2707,7 @@ export async function fetchRecentReports(ticker: string, limit = 8): Promise<Res
     const resp = await fetchProxied(target);
     if (!resp.ok) return [];
     const buf = await resp.arrayBuffer();
-    const ct = resp.headers.get("Content-Type") || "";
-    const charset = /charset=([\w-]+)/i.exec(ct)?.[1]?.toLowerCase() || "euc-kr";
-    let html: string;
-    try { html = new TextDecoder(charset).decode(buf); }
-    catch { html = new TextDecoder("euc-kr").decode(buf); }
+    const html = decodeHtmlBuf(buf, resp.headers.get("Content-Type") || "");
     const doc = new DOMParser().parseFromString(html, "text/html");
     const out: ResearchReport[] = [];
     const links = Array.from(doc.querySelectorAll("a[href*='company_read']"));
@@ -2750,11 +2748,7 @@ export async function fetchStockName(ticker: string): Promise<string | null> {
       `https://finance.naver.com/item/main.naver?code=${ticker}`);
     if (!resp.ok) return null;
     const buf = await resp.arrayBuffer();
-    const ct = resp.headers.get("Content-Type") || "";
-    const charset = /charset=([\w-]+)/i.exec(ct)?.[1]?.toLowerCase() || "euc-kr";
-    let html: string;
-    try { html = new TextDecoder(charset).decode(buf); }
-    catch { html = new TextDecoder("euc-kr").decode(buf); }
+    const html = decodeHtmlBuf(buf, resp.headers.get("Content-Type") || "");
     const doc = new DOMParser().parseFromString(html, "text/html");
     const t = doc.querySelector("div.wrap_company h2 a");
     const name = (t?.textContent ?? "").trim();
