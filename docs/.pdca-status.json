@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-06-13T00:20:55.044Z",
+  "lastUpdated": "2026-06-13T06:18:51.764Z",
   "activeFeatures": [
     "portfolio-web",
     "proxy",
@@ -21,9 +21,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-01T03:35:27.330Z",
-        "lastUpdated": "2026-06-13T00:20:55.044Z"
+        "lastUpdated": "2026-06-13T06:18:51.764Z"
       },
-      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/src/lib/toss.ts"
+      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/src/components/TradeGantt.tsx"
     },
     "proxy": {
       "phase": "do",
@@ -112,7 +112,7 @@
   "session": {
     "startedAt": "2026-05-01T03:34:12.578Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-06-13T00:20:55.044Z"
+    "lastActivity": "2026-06-13T06:18:51.764Z"
   },
   "history": [
     {
@@ -30255,6 +30255,30 @@
     },
     {
       "timestamp": "2026-06-13T00:20:55.044Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-13T06:17:14.347Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-13T06:18:02.219Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-13T06:18:43.766Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-13T06:18:51.764Z",
       "feature": "portfolio-web",
       "phase": "do",
       "action": "updated"

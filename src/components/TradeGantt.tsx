@@ -152,7 +152,7 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices }: {
                 <div className={`relative rounded-lg border shadow-sm text-center px-2 py-1.5 leading-tight ${tone.box}`}>
                   {/* 왼쪽 세로 책갈피 */}
                   {tone.tag && (
-                    <span className={`absolute right-full top-1/2 -translate-y-1/2 w-[18px] rounded-l-md py-1 text-[11px] font-bold text-white text-center leading-tight shadow-sm ${tone.tab}`}>
+                    <span className={`absolute right-full top-1/2 -translate-y-1/2 translate-x-[3px] w-[13px] rounded-l py-0.5 text-[8px] font-bold text-white text-center leading-tight shadow-sm ${tone.tab}`}>
                       {tone.tag}
                     </span>
                   )}
@@ -304,7 +304,7 @@ function EventCard({ e }: { e: Ev }) {
       <div className={`relative -mt-px w-full rounded-md border px-1 py-1 text-center leading-tight shadow-sm tabular-nums ${C.box}`}>
         {/* 익절/손절 — 왼쪽 책갈피 */}
         {chip && (
-          <span className={`absolute right-full top-1/2 -translate-y-1/2 rounded-l-md px-1 py-0.5 text-[11px] font-bold text-white shadow-sm ${chip.bg}`}>
+          <span className={`absolute right-full top-1/2 -translate-y-1/2 translate-x-[3px] w-[13px] rounded-l py-0.5 text-[8px] font-bold text-white text-center leading-tight shadow-sm ${chip.bg}`}>
             {chip.label}
           </span>
         )}
