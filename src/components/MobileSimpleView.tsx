@@ -1131,8 +1131,9 @@ export function MobileSimpleView() {
                     // 좌 미국·우 한국 — 미국 줄(rows[0])과 한국 줄(rows[1])을 열 단위로 zip → [US0,KR0, US1,KR1, …]
                     ? (() => {
                         const out: string[] = [];
-                        for (let r = 0; r + 1 < section.rows.length; r += 2) {
+                        for (let r = 0; r < section.rows.length; r += 2) {
                           const us = section.rows[r], kr = section.rows[r + 1];
+                          if (!kr) { out.push(...us); break; }   // 홀수 마지막 줄 → 그대로 펼침
                           const n = Math.max(us.length, kr.length);
                           for (let i = 0; i < n; i++) { if (us[i]) out.push(us[i]); if (kr[i]) out.push(kr[i]); }
                         }

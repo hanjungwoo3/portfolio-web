@@ -27,8 +27,7 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
       label: "🔧 반도체",                             // 필반 지수·선물 + 미국 반도체 대표주 (삼성·하이닉스 가늠자)
       rows: [
         ["^SOX", "SOX=F", "MU", "NVDA"],     // 필반 지수·선물 + 메모리/AI 대표
-        ["AMD", "AVGO", "ORCL", "INTC"],     // AI 반도체·인프라 대표주
-        ["AMAT", "LRCX", "ASML"],            // 반도체 장비
+        ["AMAT", "LRCX", "ASML"],            // 반도체 장비 (AMD·브로드컴·오라클·인텔은 빅테크로 이동)
       ],
     },
     {
@@ -44,11 +43,17 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
       ],
     },
     {
-      label: "🇺🇸 미국 빅테크·대표 ETF",        // 데스크톱: 위=빅테크·아래=ETF / 모바일: 좌 빅테크·우 ETF
+      label: "🍎 미국 빅테크",                  // 모바일: 좌 빅테크 / 우 스페이스X+AI
       mobilePair: true,
       rows: [
-        ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA"],   // 빅테크 개별주 (6) — 모바일 왼쪽
-        ["SPCX", "SPY", "QQQ", "DIA", "IWM", "VTI"],          // 스페이스X + 대표 ETF (6) — 모바일 오른쪽
+        ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA"],   // 빅테크 개별주
+        ["SPCX", "AMD", "AVGO", "ORCL", "INTC"],             // 스페이스X + AMD·브로드컴·오라클·인텔
+      ],
+    },
+    {
+      label: "📦 미국 대표 ETF",
+      rows: [
+        ["SPY", "QQQ", "DIA", "IWM", "VTI"],
       ],
     },
     {
