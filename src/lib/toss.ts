@@ -61,6 +61,10 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "AMAT": "https://www.tossinvest.com/stocks/US19721012001",
   "LRCX": "https://www.tossinvest.com/stocks/US19840504001",
   "ASML": "https://www.tossinvest.com/stocks/US19950315001",
+  "AMD":  "https://www.tossinvest.com/stocks/US20150102001",
+  "AVGO": "https://www.tossinvest.com/stocks/US20090806002",
+  "ORCL": "https://www.tossinvest.com/stocks/US19860312001",
+  "INTC": "https://www.tossinvest.com/stocks/US19711013001",
   // 미국 섹터 ETF (토스 종목 페이지)
   "SMH":  "https://www.tossinvest.com/stocks/US20191211007",
   "PAVE": "https://www.tossinvest.com/stocks/US20170308001",

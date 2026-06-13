@@ -27,6 +27,7 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
       label: "🔧 반도체",                             // 필반 지수·선물 + 미국 반도체 대표주 (삼성·하이닉스 가늠자)
       rows: [
         ["^SOX", "SOX=F", "MU", "NVDA"],     // 필반 지수·선물 + 메모리/AI 대표
+        ["AMD", "AVGO", "ORCL", "INTC"],     // AI 반도체·인프라 대표주
         ["AMAT", "LRCX", "ASML"],            // 반도체 장비
       ],
     },

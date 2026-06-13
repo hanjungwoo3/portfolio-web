@@ -61,6 +61,11 @@ export const US_PAIRS: Pair[] = [
   { symbol: "AMAT",     name: "어플라이드머티리얼즈", desc: "반도체 식각·증착 장비 회사 — AI 메모리 생산 설비 투자 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "LRCX",     name: "램리서치",     desc: "Lam Research — 식각·증착 장비. HBM 핵심 공정", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ASML",     name: "ASML",        desc: "EUV 노광 독점 — 첨단 반도체 공정 필수", tier: "T0", sector: "dashboard", direction: "direct" },
+  // AI 반도체·인프라 대표주 (NVDA 는 위 메모리/AI 줄)
+  { symbol: "AMD",      name: "AMD",         desc: "AMD — CPU·GPU. NVDA 의 AI 가속기 경쟁자", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "AVGO",     name: "브로드컴",     desc: "Broadcom — AI 네트워킹·커스텀 실리콘(ASIC). NVDA 다음 AI 핵심", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "ORCL",     name: "오라클",       desc: "Oracle — 클라우드(OCI)·AI 캐펙스 수혜", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "INTC",     name: "인텔",         desc: "Intel — CPU·파운드리. 미국 반도체 심리 게이지", tier: "T0", sector: "dashboard", direction: "direct" },
   // 행 3.5 — 미국 빅테크 개별주 (Mag7 + 스페이스X, NVDA 는 반도체 줄에 있음). 가격·링크 모두 토스.
   { symbol: "AAPL",     name: "애플",         desc: "Apple — 아이폰·서비스. 미국 시총 1위급 소비 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "MSFT",     name: "마이크로소프트", desc: "Microsoft — 클라우드(Azure)·AI(코파일럿). 엔터프라이즈 대표", tier: "T0", sector: "dashboard", direction: "direct" },
