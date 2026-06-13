@@ -44,7 +44,7 @@ function presetRange(p: Period): { from: string; to: string } {
   return { from: d.toISOString().slice(0, 10), to };
 }
 
-export function MyTradesTab({ holdings, pc = false, prices }: { holdings: Stock[]; pc?: boolean; prices?: Map<string, Price> }) {
+export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: { holdings: Stock[]; pc?: boolean; prices?: Map<string, Price>; onOpenValuation?: (ticker: string) => void }) {
   const [trades, setTrades] = useState<Trade[] | null>(null);
   const [view, setView] = useState<"chart" | "table">("chart");        // 차트 기본, 상세보기=테이블
   const [scope, setScope] = useState<"all" | "byGroup">("all");        // 차트: 전체 / 그룹별
@@ -444,7 +444,7 @@ export function MyTradesTab({ holdings, pc = false, prices }: { holdings: Stock[
 
       {view === "chart" ? (
         // 차트 — 기간 범위(표시만), 실현손익 원가는 전체 거래 기준
-        <TradeGantt trades={trades} nameOf={nameOf} scope={scope} from={from} to={to} desc={dir === "desc"} prices={livePrices} />
+        <TradeGantt trades={trades} nameOf={nameOf} scope={scope} from={from} to={to} desc={dir === "desc"} prices={livePrices} onOpenValuation={onOpenValuation} />
       ) : filtered.length === 0 ? (
         <div className="text-center text-xs text-gray-400 py-10">
           이 기간에 거래 기록이 없습니다.

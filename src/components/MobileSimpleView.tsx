@@ -1085,7 +1085,7 @@ export function MobileSimpleView() {
       {/* ─── 한국 / 미국 / 반도체 점검 / 섹터 순위 시스템 탭 ─── */}
       {isSystemTab && (() => {
         if (activeTab === MY_TRADES_KEY) {
-          return <div className="px-2 py-2 pb-32"><MyTradesTab holdings={holdings} prices={groupPriceMap} /></div>;
+          return <div className="px-2 py-2 pb-32"><MyTradesTab holdings={holdings} prices={groupPriceMap} onOpenValuation={setValuationTicker} /></div>;
         }
         if (activeTab === SEMI_KEY) {
           return <div className="px-2 py-2"><SemiCheckTab /></div>;

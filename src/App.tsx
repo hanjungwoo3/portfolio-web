@@ -609,7 +609,7 @@ function Dashboard() {
         ) : activeTab === SEMI_CHECK_TAB_KEY ? (
           <SemiCheckTab />
         ) : activeTab === MY_TRADES_TAB_KEY ? (
-          <MyTradesTab holdings={holdings} pc prices={priceMap} />
+          <MyTradesTab holdings={holdings} pc prices={priceMap} onOpenValuation={setValuationTicker} />
         ) : activeTab === CONSENSUS_TAB_KEY ? (
           <ConsensusTab items={consensusItems} onOpenValuation={setValuationTicker}
                         onSelectGroup={setActiveTab}

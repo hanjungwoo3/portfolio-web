@@ -5,6 +5,7 @@ import { useMemo, Fragment } from "react";
 import { ArrowDown } from "lucide-react";
 import { computeRealizedByTrade, realizedChip, type RealizedInfo } from "../lib/tradeCalc";
 import { formatSigned, signColor } from "../lib/format";
+import { openTossStock } from "../lib/toss";
 import type { Trade } from "../lib/db";
 import type { Price } from "../types";
 
@@ -27,7 +28,7 @@ function priceLabel(qty: number, amount: number): string {
 interface Ev { kind: "buy" | "sell"; ms: number; qty: number; amount: number; realized?: RealizedInfo }
 interface Col { key: string; name: string; account?: string; ticker: string; held: boolean; heldQty: number; heldAvg: number; events: Ev[] }
 
-export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices }: {
+export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices, onOpenValuation }: {
   trades: Trade[];
   nameOf: (t: string) => string;
   scope: "all" | "byGroup";
@@ -35,6 +36,7 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices }: {
   to?: string | null;     // 종료일(YYYY-MM-DD)
   desc?: boolean;         // true = 최신 날짜가 위 (날짜축 역순)
   prices?: Map<string, Price>;   // 현재가 — 보유중 종목 미실현 손익용
+  onOpenValuation?: (ticker: string) => void;   // 📊 기업가치 모달 열기
 }) {
   const cols = useMemo(() => {
     const byGroup = scope === "byGroup";
@@ -156,7 +158,16 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices }: {
                       {tone.tag}
                     </span>
                   )}
-                  <div className="truncate font-bold text-[13px] text-gray-800" title={col.name}>{col.name}</div>
+                  <div className="flex items-center justify-center gap-1">
+                    <button type="button" onClick={() => openTossStock(col.ticker)}
+                            className="truncate font-bold text-[13px] text-gray-800 hover:text-blue-600 hover:underline"
+                            title={`${col.name} — 토스에서 보기`}>{col.name}</button>
+                    {onOpenValuation && (
+                      <button type="button" onClick={() => onOpenValuation(col.ticker)}
+                              className="shrink-0 text-[11px] leading-none opacity-70 hover:opacity-100"
+                              title="기업가치 보기">📊</button>
+                    )}
+                  </div>
                   {col.account && <div className="truncate text-[11px] text-gray-400">{col.account}</div>}
                   {cur != null && (
                     <div className="text-[12px] tabular-nums mt-0.5">
