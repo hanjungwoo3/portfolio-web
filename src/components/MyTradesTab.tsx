@@ -3,13 +3,14 @@
 // 보유(수량/평단)와 무관 — 여기서 고쳐도 보유엔 영향 없음.
 import { Fragment, useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Table2, GanttChartSquare } from "lucide-react";
 import { loadAllTrades, updateTrade, deleteTrade, type Trade } from "../lib/db";
 import { fetchTossPrices, fetchUsHoldingPrices } from "../lib/api";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { formatSigned, signColor, signBg } from "../lib/format";
+import { getTickerNames } from "../lib/tickerNames";
 import { computeRealizedByTrade, realizedChip } from "../lib/tradeCalc";
 import { TradeGantt } from "./TradeGantt";
+import { TossImportDialog } from "./TossImportDialog";
 import type { Stock, Price } from "../types";
 
 type ViewMode = "recent" | "byStock" | "byDate";
@@ -46,9 +47,9 @@ function presetRange(p: Period): { from: string; to: string } {
 
 export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: { holdings: Stock[]; pc?: boolean; prices?: Map<string, Price>; onOpenValuation?: (ticker: string) => void }) {
   const [trades, setTrades] = useState<Trade[] | null>(null);
-  const [view, setView] = useState<"chart" | "table">("chart");        // 차트 기본, 상세보기=테이블
+  const view: "chart" | "table" = "chart";   // 차트보기 전용 (상세보기 제거)
   const [scope, setScope] = useState<"all" | "byGroup">("all");        // 차트: 전체 / 그룹별
-  const [mode, setMode] = useState<ViewMode>("recent");
+  const [mode] = useState<ViewMode>("recent");   // 차트 전용이라 고정(상세보기 제거)
   const [dir, setDir] = useState<Dir>("desc");   // 기본 최신순 (최신 거래가 맨 위)
   const [period, setPeriod] = useState<Period>("week");   // 프리셋(표시용) — 기본 최근 1주
   const [from, setFrom] = useState<string>(() => presetRange("week").from);  // 시작일 YYYY-MM-DD ('' = 제한없음)
@@ -56,6 +57,11 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
   const applyPreset = (p: Period) => { setPeriod(p); const r = presetRange(p); if (p !== "custom") { setFrom(r.from); setTo(r.to); } };
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm | null>(null);
+
+  const [importOpen, setImportOpen] = useState(false);
+  const groups = useMemo(
+    () => Array.from(new Set(holdings.map(h => h.account).filter((a): a is string => !!a && a !== "관심ETF"))).sort(),
+    [holdings]);
 
   const reload = async () => setTrades(await loadAllTrades());
   useEffect(() => { void reload(); }, []);
@@ -98,27 +104,21 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
     });
   }, [trades, from, to]);
 
-  // ticker → 종목명 (보유 목록에서). 없으면 코드 그대로.
+  // 보유 ticker 집합 — 기업가치 아이콘 흐리게 판정용
+  const heldTickers = useMemo(() => new Set(holdings.map(h => h.ticker)), [holdings]);
+  // ticker → 종목명. 보유 목록 우선, 없으면 저장된 이름(토스 가져오기 등), 그래도 없으면 코드.
   const nameOf = useMemo(() => {
+    const reg = getTickerNames();
     const m = new Map<string, string>();
     for (const h of holdings) if (h.name && !m.has(h.ticker)) m.set(h.ticker, h.name);
-    return (t: string) => m.get(t) ?? t;
-  }, [holdings]);
+    return (t: string) => m.get(t) ?? reg[t] ?? t;
+  }, [holdings, trades]);
 
   const sortByDate = (a: Trade, b: Trade) => {
     const c = a.date.localeCompare(b.date);
     const base = c !== 0 ? c : (a.createdAt ?? 0) - (b.createdAt ?? 0);
     return dir === "desc" ? -base : base;
   };
-
-  const summary = useMemo(() => {
-    let buy = 0, sell = 0, buyN = 0, sellN = 0;
-    for (const t of filtered) {
-      if (t.type === "buy") { buy += t.amount; buyN++; }
-      else { sell += t.amount; sellN++; }
-    }
-    return { buy, sell, buyN, sellN, total: filtered.length };
-  }, [filtered]);
 
   // 매도 건별 실현손익 — 전체 거래 기준 시간순 계산(원가 정확). 화면엔 보이는 매도행에만 표시.
   const realizedByTrade = useMemo(
@@ -153,6 +153,16 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
         <div className="text-4xl mb-3">🧾</div>
         <p>아직 거래 기록이 없습니다.<br />
           각 종목의 <b>보유 수정 → 매수/매도</b> 또는 <b>거래 기록</b>에서 추가하세요.</p>
+        {/* 거래 0건이어도 토스 가져오기 가능(PC) — 메시지 아래 버튼 */}
+        {pc && (
+          <button onClick={() => setImportOpen(true)}
+                  className="mt-4 px-3 py-1.5 rounded text-xs font-bold border transition
+                             bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">
+            📥 토스 가져오기
+          </button>
+        )}
+        <TossImportDialog isOpen={importOpen} onClose={() => setImportOpen(false)}
+                          groups={groups} onImported={() => void reload()} />
       </div>
     );
   }
@@ -380,12 +390,8 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
     <div className="space-y-3">
       {/* 컨트롤 바 + 요약 */}
       <div className="flex items-center flex-wrap gap-2 text-xs">
-        <span className="inline-flex items-center gap-1.5 font-bold text-gray-700">
-          <Table2 size={15} className="text-emerald-600" /> 내거래
-          <span className="text-gray-400 font-normal">({summary.total})</span>
-        </span>
-        {/* 기간 — 시작/종료일 직접 검색 → 프리셋 (날짜 먼저) */}
-        <span className="inline-flex items-center gap-1">
+        {/* 날짜 — 모바일은 맨 아래 줄(order-last·전체폭), PC는 인라인 */}
+        <span className="inline-flex items-center gap-1 order-last w-full sm:order-none sm:w-auto">
           <input type="date" value={from} max={to || undefined}
                  onChange={e => { setFrom(e.target.value); setPeriod("custom"); cancelEdit(); }}
                  title="시작일"
@@ -399,42 +405,30 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
         <select value={period} onChange={e => { applyPreset(e.target.value as Period); cancelEdit(); }}
                 title="기간 프리셋 — 선택 시 시작/종료일 자동 입력"
                 className="border border-gray-300 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer">
-          <option value="week">1주</option>
-          <option value="month">1개월</option>
-          <option value="year">1년</option>
-          <option value="all">전체</option>
-          <option value="custom">직접</option>
+          <option value="week">조회: 7일</option>
+          <option value="month">조회: 1개월</option>
+          <option value="year">조회: 1년</option>
+          <option value="all">조회: 전체</option>
+          <option value="custom">조회: 직접</option>
         </select>
 
-        {/* 보기 토글 — 맨 뒤. 차트/상세보기 + (차트)전체/그룹별 또는 (상세)분류/정렬 */}
-        <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
-          <button onClick={() => { setView("chart"); cancelEdit(); }}
-                  className={`inline-flex items-center gap-1 px-2 py-1 ${view === "chart" ? "bg-emerald-500 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-            <GanttChartSquare size={13} /> 차트
+        {/* 오른쪽 묶음 — (PC만)토스가져오기 → 전체/그룹별 → 최신순 */}
+        {pc && (
+          <button onClick={() => setImportOpen(true)}
+                  title="토스 거래내역 JSON 으로 누락된 거래 가져오기"
+                  className="ml-auto px-2 py-1 rounded text-[11px] font-bold border transition
+                             bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100">
+            📥 토스 가져오기
           </button>
-          <button onClick={() => { setView("table"); cancelEdit(); }}
-                  className={`px-2 py-1 border-l border-gray-300 ${view === "table" ? "bg-emerald-500 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-            상세보기
-          </button>
+        )}
+        <div className="inline-flex rounded-md border border-gray-300 overflow-hidden ml-auto sm:ml-0">
+          {(["all", "byGroup"] as const).map(s => (
+            <button key={s} onClick={() => setScope(s)}
+                    className={`px-2 py-1 ${s === "byGroup" ? "border-l border-gray-300" : ""} ${scope === s ? "bg-gray-700 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              {s === "all" ? "전체" : "그룹별"}
+            </button>
+          ))}
         </div>
-        {view === "chart" ? (
-          <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
-            {(["all", "byGroup"] as const).map(s => (
-              <button key={s} onClick={() => setScope(s)}
-                      className={`px-2 py-1 ${s === "byGroup" ? "border-l border-gray-300" : ""} ${scope === s ? "bg-gray-700 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-                {s === "all" ? "전체" : "그룹별"}
-              </button>
-            ))}
-          </div>
-        ) : !pc ? (
-          <select value={mode} onChange={e => { setMode(e.target.value as ViewMode); cancelEdit(); }}
-                  className="border border-gray-300 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer">
-            <option value="recent">전체 시간순</option>
-            <option value="byStock">종목별</option>
-            <option value="byDate">날짜별</option>
-          </select>
-        ) : null}
-        {/* 정렬 방향 — 차트(날짜순)·테이블 공통 */}
         <button onClick={() => setDir(d => d === "desc" ? "asc" : "desc")}
                 title="날짜 정렬 방향"
                 className="px-2 py-1 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
@@ -444,7 +438,7 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
 
       {view === "chart" ? (
         // 차트 — 기간 범위(표시만), 실현손익 원가는 전체 거래 기준
-        <TradeGantt trades={trades} nameOf={nameOf} scope={scope} from={from} to={to} desc={dir === "desc"} prices={livePrices} onOpenValuation={onOpenValuation} />
+        <TradeGantt trades={trades} nameOf={nameOf} heldTickers={heldTickers} scope={scope} from={from} to={to} desc={dir === "desc"} prices={livePrices} onOpenValuation={onOpenValuation} />
       ) : filtered.length === 0 ? (
         <div className="text-center text-xs text-gray-400 py-10">
           이 기간에 거래 기록이 없습니다.
@@ -462,6 +456,9 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
       ) : (
         renderPanel(mode)
       )}
+
+      <TossImportDialog isOpen={importOpen} onClose={() => setImportOpen(false)}
+                        groups={groups} onImported={() => void reload()} />
     </div>
   );
 }

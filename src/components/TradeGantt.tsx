@@ -19,6 +19,11 @@ function fmtMD(ms: number): string {
   const dt = new Date(ms);
   return `${dt.getUTCMonth() + 1}/${dt.getUTCDate()}`;
 }
+// 매수일 행 라벨 — 연도(2자리) 포함: "26/6/12"
+function fmtYMD(ms: number): string {
+  const dt = new Date(ms);
+  return `${String(dt.getUTCFullYear()).slice(2)}/${dt.getUTCMonth() + 1}/${dt.getUTCDate()}`;
+}
 // 툴팁 — "127,500×19 (2,422,500)" = 주당가×수량 (총액)
 function priceLabel(qty: number, amount: number): string {
   const unit = qty > 0 ? Math.round(amount / qty) : 0;
@@ -28,9 +33,10 @@ function priceLabel(qty: number, amount: number): string {
 interface Ev { kind: "buy" | "sell"; ms: number; qty: number; amount: number; realized?: RealizedInfo }
 interface Col { key: string; name: string; account?: string; ticker: string; held: boolean; heldQty: number; heldAvg: number; events: Ev[] }
 
-export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices, onOpenValuation }: {
+export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc, prices, onOpenValuation }: {
   trades: Trade[];
   nameOf: (t: string) => string;
+  heldTickers?: Set<string>;   // 보유중 ticker — 미보유면 기업가치 아이콘 흐리게
   scope: "all" | "byGroup";
   from?: string | null;   // 시작일(YYYY-MM-DD) — 이 범위 거래만 표시(실현손익은 전체로 계산)
   to?: string | null;     // 종료일(YYYY-MM-DD)
@@ -162,11 +168,15 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices, onOp
                     <button type="button" onClick={() => openTossStock(col.ticker)}
                             className="truncate font-bold text-[13px] text-gray-800 hover:text-blue-600 hover:underline"
                             title={`${col.name} — 토스에서 보기`}>{col.name}</button>
-                    {onOpenValuation && (
-                      <button type="button" onClick={() => onOpenValuation(col.ticker)}
-                              className="shrink-0 text-[11px] leading-none opacity-70 hover:opacity-100"
-                              title="기업가치 보기">📊</button>
-                    )}
+                    {onOpenValuation && (() => {
+                      // 보유중이 아니면(거래만 있는 종목) 기업가치 아이콘 흐리게
+                      const held = !heldTickers || heldTickers.has(col.ticker);
+                      return (
+                        <button type="button" onClick={() => onOpenValuation(col.ticker)}
+                                className={`shrink-0 text-[11px] leading-none ${held ? "opacity-70 hover:opacity-100" : "opacity-25 grayscale hover:opacity-60"}`}
+                                title={held ? "기업가치 보기" : "기업가치 보기 (미보유 종목)"}>📊</button>
+                      );
+                    })()}
                   </div>
                   {col.account && <div className="truncate text-[11px] text-gray-400">{col.account}</div>}
                   {cur != null && (
@@ -203,8 +213,8 @@ export function TradeGantt({ trades, nameOf, scope, from, to, desc, prices, onOp
           {/* 날짜 행 — 같은 시작일 라운드끼리 가로 정렬 */}
           {dateRows.map(ms => (
             <Fragment key={ms}>
-              <div className="sticky left-0 z-10 bg-white text-[14px] font-bold text-gray-600 tabular-nums text-right pr-1.5 pt-2 border-t border-dashed border-gray-300">
-                {fmtMD(ms)}
+              <div className="sticky left-0 z-10 bg-white text-[13px] font-bold text-gray-600 tabular-nums text-right pr-1.5 pt-2 border-t border-dashed border-gray-300">
+                {fmtYMD(ms)}
               </div>
               {colRounds.map(({ col, rounds, unreal, unrealPct }) => (
                 <div key={col.key} className="self-stretch flex flex-col items-center gap-1 pt-2 border-t border-l border-dashed border-gray-300">
