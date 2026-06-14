@@ -27,7 +27,7 @@ import {
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
-import { buildDashboardSections, dashboardGroupNav, SECTION_TINT } from "../lib/dashboardGroups";
+import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { normalizeAccount } from "../lib/account";
 import type { MarketIndexKey } from "../lib/api";
@@ -1266,11 +1266,12 @@ export function MobileSimpleView() {
             {sections.map(section => (
               <div key={section.label} id={`midx-${section.id}`}
                    style={{ scrollMarginTop: idxScrollMargin }}
-                   className={`space-y-1.5 rounded-xl border p-2 ${SECTION_TINT[section.id] ?? ""}`}>
-                <div className="flex items-center gap-1.5 px-0.5">
-                  <h3 className="text-xs font-bold text-gray-700 whitespace-nowrap">{section.label}</h3>
-                  <div className="flex-1 h-px bg-gray-200" />
-                </div>
+                   className="relative space-y-1.5 rounded-xl border border-gray-300 bg-white p-2 pt-3.5 mt-1.5">
+                {/* 섹터명 책갈피 — 카드 상단에 겹치게 */}
+                <span className="absolute -top-2.5 left-2.5 z-10 px-1.5 py-0.5 rounded-md border border-gray-300 bg-gray-50
+                                 text-[11px] font-bold text-gray-700 whitespace-nowrap">
+                  {section.label}
+                </span>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
                   {(section.mobilePair
                     // 좌 미국·우 한국 — 미국 줄(rows[0])과 한국 줄(rows[1])을 열 단위로 zip → [US0,KR0, US1,KR1, …]

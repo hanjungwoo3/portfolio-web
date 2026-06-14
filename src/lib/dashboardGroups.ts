@@ -78,18 +78,6 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
   ];
 }
 
-// 섹션별 배경+테두리 — 스크롤 시 그룹(섹터) 구분 명확히. id 기준.
-export const SECTION_TINT: Record<string, string> = {
-  kr: "bg-emerald-50 border-emerald-200",
-  fx: "bg-amber-50 border-amber-200",
-  semi: "bg-sky-50 border-sky-200",
-  night: "bg-violet-50 border-violet-200",
-  macro: "bg-orange-50 border-orange-200",
-  bigtech: "bg-cyan-50 border-cyan-200",
-  usetf: "bg-stone-100 border-stone-300",
-  sector: "bg-fuchsia-50 border-fuchsia-200",
-};
-
 // 색인 칩 네비게이션용 항목 — 이모지(라벨 첫 토큰) + 짧은 라벨 + 앵커 id
 export interface DashboardNavItem { id: string; emoji: string; short: string; }
 export function dashboardGroupNav(sections: DashboardSection[]): DashboardNavItem[] {
