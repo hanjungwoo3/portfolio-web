@@ -16,8 +16,9 @@ export interface TossJsonParseResult {
   rows: ImportTradeRow[];
   total: number;             // body 전체 항목 수
   skipped: number;           // 거래 아님/취소로 제외
-  lastPage?: boolean;        // 더 받을 페이지가 있는지(false 면 더 있음)
+  lastPage?: boolean;        // 더 받을 페이지가 있는지(false 면 같은 구간에 더 있음)
   range?: { from: string; to: string };   // 붙여넣은 응답의 조회 범위(pagingParam.range) — 구간 버튼 완료 표시용
+  oldestDate?: string;       // 이 페이지 body 의 가장 오래된 날짜 — 같은 구간 다음 페이지 to 로 사용
 }
 
 interface TossTx {
@@ -100,7 +101,12 @@ export function parseTossTransactionsJson(text: string): TossJsonParseResult | n
       amount,
     });
   }
-  return { rows, total: picked.body.length, skipped, lastPage: picked.lastPage, range: picked.range };
+  let oldestDate: string | undefined;
+  for (const tx of picked.body) {
+    const d = (tx.compositeKey?.date ?? tx.date ?? tx.dateTime?.slice(0, 10) ?? "").trim();
+    if (d && (!oldestDate || d < oldestDate)) oldestDate = d;
+  }
+  return { rows, total: picked.body.length, skipped, lastPage: picked.lastPage, range: picked.range, oldestDate };
 }
 
 // 거래 식별 키 — 기존 거래와 비교(중복 판정)·재가져오기 멱등 id 생성용

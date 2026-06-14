@@ -1,7 +1,7 @@
 // 거래 타임라인 — 가로=종목(열), 세로=날짜순. 한 종목 열에 매수→매도를 순서대로 쌓고
 //  아래 화살표로 연결. 각 박스 위에 날짜 책갈피. 매수=파랑 / 매도=빨강, 매도엔 익절/손절.
 //  scope=all: 같은 종목을 그룹 무관 한 열로 / scope=byGroup: 그룹마다 종목 별개 열.
-import { useMemo, Fragment } from "react";
+import { useMemo, useRef, Fragment } from "react";
 import { ArrowDown } from "lucide-react";
 import { computeRealizedByTrade, realizedChip, type RealizedInfo } from "../lib/tradeCalc";
 import { formatSigned, signColor } from "../lib/format";
@@ -44,6 +44,7 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
   prices?: Map<string, Price>;   // 현재가 — 보유중 종목 미실현 손익용
   onOpenValuation?: (ticker: string) => void;   // 📊 기업가치 모달 열기
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const cols = useMemo(() => {
     const byGroup = scope === "byGroup";
     const realized = computeRealizedByTrade(trades, byGroup);   // 전체 거래로 원가 계산
@@ -63,7 +64,10 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
         kind: t.type, ms: parseDateMs(t.date), qty: t.qty, amount: t.amount,
         realized: t.type === "sell" ? realized.get(t.id) : undefined,
       }));
-      const events = all.filter(e => e.ms >= fromMs && e.ms <= toMs);   // 표시만 기간 범위
+      // 라운드를 전체 거래로 만든 뒤, 기간과 겹치는(이벤트 하나라도 기간 내) 라운드만 통째로 표시.
+      //   → 매수가 기간 직전이어도 라운드 전체를 '실제 매수일' 행에 표시(고아 매도 행 방지 + 종목 누락 방지).
+      const keptRounds = buildRounds(all).filter(r => r.some(e => e.ms >= fromMs && e.ms <= toMs));
+      const events = keptRounds.flat();
       if (events.length === 0) continue;                   // 이 기간에 거래 없는 종목은 숨김
       // 보유분(미실현용) — 전체 거래 이동평균으로 남은 수량·평단
       let hq = 0, hc = 0;
@@ -92,6 +96,8 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
   // 라운드를 시작 날짜로 세로 정렬 — 행=라운드 시작일, 열=종목. 같은 시작일 라운드는 가로로 맞춰짐.
   //  + 종목별 실현손익 합 + 보유중 미실현(현재가 − 평단)×잔량.
   const colRoundsAll = cols.map(c => {
+    // c.events 는 이미 '기간과 겹치는 라운드'만(전체 거래 기준) → 그대로 라운드 복원.
+    //   매수가 DB 에 있으면 매수일에 묶이고, 매수 자체가 없는(매도만 있는) 종목은 매도일에 표시.
     const rs = buildRounds(c.events);
     const realizedSum = c.events.reduce((s, e) => s + (e.realized?.realized ?? 0), 0);
     const hasReal = c.events.some(e => e.realized);
@@ -107,15 +113,14 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
       rounds: rs.map((round, i) => ({ startMs: round[0].ms, events: round, held: c.held && i === rs.length - 1 })),
     };
   });
-  // 기간 내 매수가 있는 종목만 표시 — 매도만 들어온 종목(매수는 기간 밖)은 제외.
-  const hasBuy = (cr: typeof colRoundsAll[number]) => cr.col.events.some(e => e.kind === "buy");
+  // 표시할(매수로 시작하는) 라운드가 있는 종목만 — 고아 매도만 남은 종목은 제외.
   const buyMs = (cr: typeof colRoundsAll[number], pick: "last" | "first") => {
-    const buys = cr.col.events.filter(e => e.kind === "buy").map(e => e.ms);
+    const buys = cr.rounds.map(r => r.startMs);   // 라운드 시작=매수일
     return buys.length ? (pick === "last" ? Math.max(...buys) : Math.min(...buys)) : 0;
   };
   // 정렬 — 매수일 기준(행 방향 desc=최신순과 동일): ①최근 매수일 → ②첫 매수일 → 현재가 유무.
   const colRounds = colRoundsAll
-    .filter(hasBuy)
+    .filter(cr => cr.rounds.length > 0)
     .sort((a, b) =>
       (desc ? buyMs(b, "last") - buyMs(a, "last") : buyMs(a, "last") - buyMs(b, "last"))
       || (desc ? buyMs(b, "first") - buyMs(a, "first") : buyMs(a, "first") - buyMs(b, "first"))
@@ -135,17 +140,24 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
     return <div className="text-center text-xs text-gray-400 py-10">이 기간에 매수한 종목이 없습니다.</div>;
   }
 
+  // 종목 카드 클릭 → 그 종목의 가장 최근 거래(라운드) 셀로 스크롤
+  const scrollToCell = (colKey: string, ms: number) => {
+    const el = scrollRef.current?.querySelector<HTMLElement>(`[data-cell="${colKey}_${ms}"]`);
+    el?.scrollIntoView({ block: "center", behavior: "smooth" });
+  };
+
   return (
     <div>
       {/* 종목명 헤더·날짜축 고정 — 그 아래만 스크롤. data-noswipe: 모바일 그룹 스와이프 제외 */}
-      <div data-noswipe className="overflow-auto max-h-[72vh]">
+      <div ref={scrollRef} data-noswipe className="overflow-auto max-h-[72vh]">
         <div className="grid items-start min-w-min gap-x-2" style={{ gridTemplateColumns: gridCols }}>
           {/* 좌상단 코너(고정) — 날짜축 라벨 */}
           <div className="sticky top-0 left-0 z-30 bg-white flex items-end justify-end pr-1.5 pb-2">
             <span className="text-[11px] font-bold text-gray-400">매수일</span>
           </div>
           {/* 종목명 헤더(상단 고정) — 종목별 총손익(실현 익절·손절 + 보유 평가) */}
-          {colRounds.map(({ col, realizedSum, hasReal, unreal }) => {
+          {colRounds.map(({ col, rounds, realizedSum, hasReal, unreal }) => {
+            const lastMs = Math.max(...rounds.map(r => r.startMs));   // 가장 최근 라운드(마지막 거래일)
             const px = prices?.get(col.ticker);
             const cur = px?.price;
             const refPx = px ? (px.prevClose || px.base) : 0;
@@ -156,8 +168,10 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
               : CARD_TONE.neutral;
             return (
               <div key={col.key} className="sticky top-0 z-20 bg-white px-0.5 pt-0.5 pb-2">
-                {/* 종목명·현재가(%)·실현/평가. 카드색+왼쪽 책갈피로 상태표시 */}
-                <div className={`relative rounded-lg border shadow-sm text-center px-2 py-1.5 leading-tight ${tone.box}`}>
+                {/* 종목명·현재가(%)·실현/평가. 카드색+왼쪽 책갈피로 상태표시. 카드 클릭=마지막 거래일로 스크롤 */}
+                <div onClick={() => scrollToCell(col.key, lastMs)}
+                     title="클릭 — 이 종목 마지막 거래일로 이동"
+                     className={`relative rounded-lg border shadow-sm text-center px-2 py-1.5 leading-tight cursor-pointer ${tone.box}`}>
                   {/* 왼쪽 세로 책갈피 */}
                   {tone.tag && (
                     <span className={`absolute right-full top-1/2 -translate-y-1/2 translate-x-[3px] w-[13px] rounded-l py-0.5 text-[8px] font-bold text-white text-center leading-tight shadow-sm ${tone.tab}`}>
@@ -165,14 +179,14 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
                     </span>
                   )}
                   <div className="flex items-center justify-center gap-1">
-                    <button type="button" onClick={() => openTossStock(col.ticker)}
+                    <button type="button" onClick={e => { e.stopPropagation(); openTossStock(col.ticker); }}
                             className="truncate font-bold text-[13px] text-gray-800 hover:text-blue-600 hover:underline"
                             title={`${col.name} — 토스에서 보기`}>{col.name}</button>
                     {onOpenValuation && (() => {
                       // 보유중이 아니면(거래만 있는 종목) 기업가치 아이콘 흐리게
                       const held = !heldTickers || heldTickers.has(col.ticker);
                       return (
-                        <button type="button" onClick={() => onOpenValuation(col.ticker)}
+                        <button type="button" onClick={e => { e.stopPropagation(); onOpenValuation(col.ticker); }}
                                 className={`shrink-0 text-[11px] leading-none ${held ? "opacity-70 hover:opacity-100" : "opacity-25 grayscale hover:opacity-60"}`}
                                 title={held ? "기업가치 보기" : "기업가치 보기 (미보유 종목)"}>📊</button>
                       );
@@ -217,7 +231,8 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
                 {fmtYMD(ms)}
               </div>
               {colRounds.map(({ col, rounds, unreal, unrealPct }) => (
-                <div key={col.key} className="self-stretch flex flex-col items-center gap-1 pt-2 border-t border-l border-dashed border-gray-300">
+                <div key={col.key} data-cell={`${col.key}_${ms}`}
+                     className="self-stretch flex flex-col items-center gap-1 pt-2 border-t border-l border-dashed border-gray-300">
                   {rounds.filter(r => r.startMs === ms).map((r, i) => (
                     <RoundGroup key={i} round={r.events} held={r.held}
                                 heldUnreal={r.held && unreal != null

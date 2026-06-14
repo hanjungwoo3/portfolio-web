@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { Fragment, useMemo, useState } from "react";
 import { loadAllTrades, addTrade, replaceAllTrades, type Trade } from "../lib/db";
 import { parseTossTransactionsJson, tradeDedupeKey, type ImportTradeRow } from "../lib/parseTossTransactions";
 import { rememberTickerNames } from "../lib/tickerNames";
@@ -48,13 +48,15 @@ export function TossImportDialog({ isOpen, onClose, onImported, groups }: Props)
   const [err, setErr] = useState("");
   const [skipped, setSkipped] = useState(0);
   const [busy, setBusy] = useState(false);
-  const [doneRanges, setDoneRanges] = useState<Set<string>>(new Set());   // 분석 완료된 구간 "from~to"
+  const [pageDone, setPageDone] = useState<Set<string>>(new Set());          // 분석 완료된 페이지 "from~to"
+  const [extraTos, setExtraTos] = useState<Record<string, string[]>>({});    // 구간(from)별 추가페이지 to 목록(50건 초과)
 
+  const resetPages = () => { setPageDone(new Set()); setExtraTos({}); };
   const applyPeriod = (p: PeriodKey) => {
     setPeriod(p);
     if (p === "custom") return;
     const yrs = PERIODS.find(x => x.key === p)!.years;
-    setFrom(yearsAgo(yrs)); setTo(today()); setDoneRanges(new Set());
+    setFrom(yearsAgo(yrs)); setTo(today()); resetPages();
   };
 
   const buildUrl = (rFrom: string, rTo: string) =>
@@ -73,12 +75,11 @@ export function TossImportDialog({ isOpen, onClose, onImported, groups }: Props)
     return out;
   }, [from, to]);
   const ym = (d: string) => d.slice(2, 7).replace("-", ".");   // 2025-12-14 → 25.12
-  const rangeKey = (w: { from: string; to: string }) => `${w.from}~${w.to}`;
 
   // 토스 JSON 을 작은 팝업 창으로 — 화면 안 가리게(좌상단)
   const openToss = (url: string) => window.open(url, "tossImport", "popup,width=460,height=620,left=30,top=30");
 
-  const reset = () => { setCands(null); setPicked(new Set()); setSkipped(0); setErr(""); setDoneRanges(new Set()); };
+  const reset = () => { setCands(null); setPicked(new Set()); setSkipped(0); setErr(""); resetPages(); };
 
   const analyze = async () => {
     setErr("");
@@ -105,8 +106,19 @@ export function TossImportDialog({ isOpen, onClose, onImported, groups }: Props)
     setCands(arr);
     setPicked(newlyPicked);
     setSkipped(s => s + parsed.skipped);
-    setRaw("");   // 다음 구간 붙여넣기 위해 비움
-    if (parsed.range) setDoneRanges(prev => new Set(prev).add(`${parsed.range!.from}~${parsed.range!.to}`));
+    setRaw("");   // 다음 페이지 붙여넣기 위해 비움
+    if (parsed.range) {
+      const r = parsed.range;
+      setPageDone(prev => new Set(prev).add(`${r.from}~${r.to}`));   // 이 페이지 완료(✓)
+      // 50건 초과(lastPage false) → 같은 구간 다음 페이지(추가N) 버튼 생성
+      if (parsed.lastPage === false && parsed.oldestDate && parsed.oldestDate > r.from && parsed.oldestDate < r.to) {
+        const nextTo = parsed.oldestDate;
+        setExtraTos(prev => {
+          const list = prev[r.from] ?? [];
+          return list.includes(nextTo) ? prev : { ...prev, [r.from]: [...list, nextTo] };
+        });
+      }
+    }
   };
 
   const newCount = useMemo(() => cands?.filter(c => c.status === "new").length ?? 0, [cands]);
@@ -182,11 +194,11 @@ export function TossImportDialog({ isOpen, onClose, onImported, groups }: Props)
               </select>
             </label>
             <label className="text-[11px] text-gray-500">시작
-              <input type="date" value={from} onChange={e => { setFrom(e.target.value); setPeriod("custom"); setDoneRanges(new Set()); }}
+              <input type="date" value={from} onChange={e => { setFrom(e.target.value); setPeriod("custom"); resetPages(); }}
                      className="block border border-gray-300 rounded px-1.5 py-1 text-xs" />
             </label>
             <label className="text-[11px] text-gray-500">종료
-              <input type="date" value={to} onChange={e => { setTo(e.target.value); setPeriod("custom"); setDoneRanges(new Set()); }}
+              <input type="date" value={to} onChange={e => { setTo(e.target.value); setPeriod("custom"); resetPages(); }}
                      className="block border border-gray-300 rounded px-1.5 py-1 text-xs" />
             </label>
           </div>
@@ -198,16 +210,26 @@ export function TossImportDialog({ isOpen, onClose, onImported, groups }: Props)
           </div>
           <div className="flex flex-wrap gap-1.5">
             {windows.map(w => {
-              const done = doneRanges.has(rangeKey(w));
+              // 페이지 버튼 목록 — 본(本) 구간 + 추가N(50건 초과 시 누적). to=실제 요청 종료일.
+              const extras = extraTos[w.from] ?? [];
+              const pages = [{ to: w.to, label: `${ym(w.from)}~${ym(w.to)}` },
+                ...extras.map((t, i) => ({ to: t, label: `${ym(w.from)}~${ym(w.to)} 추가${i + 1}` }))];
               return (
-                <button key={rangeKey(w)} type="button" disabled={done}
-                        onClick={() => openToss(buildUrl(w.from, w.to))}
-                        title={`${w.from} ~ ${w.to}`}
-                        className={`px-2 py-1 rounded text-[11px] font-bold border tabular-nums
-                                    ${done ? "bg-emerald-100 text-emerald-700 border-emerald-300 cursor-default"
-                                           : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"}`}>
-                  {done ? "✓ " : ""}{ym(w.from)}~{ym(w.to)}
-                </button>
+                <Fragment key={w.from}>
+                  {pages.map(pg => {
+                    const done = pageDone.has(`${w.from}~${pg.to}`);
+                    return (
+                      <button key={pg.to} type="button" disabled={done}
+                              onClick={() => openToss(buildUrl(w.from, pg.to))}
+                              title={`${w.from} ~ ${pg.to}`}
+                              className={`px-2 py-1 rounded text-[11px] font-bold border tabular-nums
+                                          ${done ? "bg-emerald-100 text-emerald-700 border-emerald-300 cursor-default"
+                                                 : "bg-blue-600 text-white border-blue-600 hover:bg-blue-700"}`}>
+                        {done ? "✓ " : ""}{pg.label}
+                      </button>
+                    );
+                  })}
+                </Fragment>
               );
             })}
           </div>
