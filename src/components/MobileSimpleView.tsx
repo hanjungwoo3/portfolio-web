@@ -27,7 +27,7 @@ import {
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
-import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
+import { buildDashboardSections, dashboardGroupNav, SECTION_TINT } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { normalizeAccount } from "../lib/account";
 import type { MarketIndexKey } from "../lib/api";
@@ -299,9 +299,9 @@ export function MobileSimpleView() {
     const SYS = [KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, MY_KEY, MY_TRADES_KEY];
     const has = (k: string) => groupTabs.some(t => t.key === k);
     const keys: string[] = [];
-    if (has(KR_KEY)) keys.push(KR_KEY);                                  // 지수(별도 탭)
-    for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음
-    for (const k of [MY_KEY, MY_TRADES_KEY]) if (has(k)) keys.push(k);   // 내자산 묶음
+    for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음(섹터…)
+    for (const k of [MY_KEY, MY_TRADES_KEY]) if (has(k)) keys.push(k);   // 내자산 묶음(내주식·내거래)
+    if (has(KR_KEY)) keys.push(KR_KEY);                                  // 지수(별도 탭) — 3번째
     for (const t of groupTabs) if (!SYS.includes(t.key) && !folderedGroups.has(t.key)) keys.push(t.key);  // 사용자그룹
     for (const f of folders) {
       keys.push(...f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko")));
@@ -804,20 +804,7 @@ export function MobileSimpleView() {
             <Menu size={16} />
           </button>
         )}
-        {/* 지수 — 자주 쓰는 탭이라 드롭다운에서 빼서 섹터 왼쪽(맨 앞)에 별도 탭으로 노출 */}
-        {(() => {
-          const t = groupTabs.find(x => x.key === KR_KEY);
-          if (!t) return null;
-          const active = activeTab === KR_KEY;
-          return (
-            <button onClick={() => setActiveTab(KR_KEY)}
-                    className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition inline-flex items-center
-                                ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-              {t.label}
-            </button>
-          );
-        })()}
-        {/* 시스템 탭 묶음 — 섹터/컨센서스/ETF (지수는 위에서 별도 탭으로 분리) */}
+        {/* 시스템 탭 묶음 — 섹터/컨센서스/ETF (지수는 아래 3번째 별도 탭으로 분리) */}
         {(() => {
           const SYS = new Set([SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY]);
           const sys = groupTabs.filter(t => SYS.has(t.key));
@@ -893,6 +880,19 @@ export function MobileSimpleView() {
                 ))}
               </select>
             </span>
+          );
+        })()}
+        {/* 지수 — 섹터묶음·내자산묶음 뒤 3번째 별도 탭 */}
+        {(() => {
+          const t = groupTabs.find(x => x.key === KR_KEY);
+          if (!t) return null;
+          const active = activeTab === KR_KEY;
+          return (
+            <button onClick={() => setActiveTab(KR_KEY)}
+                    className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition inline-flex items-center
+                                ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              {t.label}
+            </button>
           );
         })()}
         {groupTabs.map(t => {
@@ -1261,12 +1261,12 @@ export function MobileSimpleView() {
         const idxScrollMargin = idxStickyTop + 38;                // + 색인바 높이 만큼 더 내려 착지
         return (
           <div className="px-3 py-2 space-y-3">
-            <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact
+            <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
                          stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />
             {sections.map(section => (
               <div key={section.label} id={`midx-${section.id}`}
                    style={{ scrollMarginTop: idxScrollMargin }}
-                   className="space-y-1.5">
+                   className={`space-y-1.5 rounded-xl border p-2 ${SECTION_TINT[section.id] ?? ""}`}>
                 <div className="flex items-center gap-1.5 px-0.5">
                   <h3 className="text-xs font-bold text-gray-700 whitespace-nowrap">{section.label}</h3>
                   <div className="flex-1 h-px bg-gray-200" />

@@ -5,7 +5,7 @@ import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale } from "../lib/format";
 import { getDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
-import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
+import { buildDashboardSections, dashboardGroupNav, SECTION_TINT } from "../lib/dashboardGroups";
 import { GroupNavBar } from "./GroupNavBar";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
@@ -237,7 +237,7 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
         {T0_SECTIONS.map((section) => (
           <div key={section.label} id={`usidx-${section.id}`}
                style={{ scrollMarginTop: idxScrollMargin }}
-               className="space-y-2">
+               className={`space-y-2 rounded-xl border p-2.5 ${SECTION_TINT[section.id] ?? ""}`}>
             <div className="flex items-center gap-2 px-0.5">
               <h3 className="text-sm font-bold text-gray-700 whitespace-nowrap">{section.label}</h3>
               <div className="flex-1 h-px bg-gray-200" />

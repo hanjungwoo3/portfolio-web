@@ -84,7 +84,7 @@ function Dashboard() {
   const [holdings, setHoldings] = useState<Stock[]>([]);
   const [memos, setMemos] = useState<Map<string, Memo>>(new Map());
   const [tradeCount, setTradeCount] = useState(0);
-  const [activeTab, setActiveTab] = useState<string>("");
+  const [activeTab, setActiveTab] = useState<string>(US_MARKET_TAB_KEY);   // 기본 페이지 = 지수
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInitQuery, setSearchInitQuery] = useState("");

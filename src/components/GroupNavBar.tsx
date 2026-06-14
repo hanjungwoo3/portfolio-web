@@ -13,14 +13,17 @@ interface GroupNavBarProps {
   compact?: boolean;         // 모바일: 더 작은 폰트/패딩
   className?: string;        // 추가 클래스 (non-sticky 배치용)
   bleedClass?: string;       // sticky 시 가로 블리드 — 부모 padding 에 맞춤 (기본 -mx-3 px-3)
+  floating?: boolean;        // 세로 스크롤 시에만 떠서 보이는 오버레이(레이아웃 공간 차지 안 함)
 }
 
 // 지수 그룹 색인 칩바 — 상단 고정. 칩 클릭 시 해당 그룹으로 부드럽게 스크롤,
 //   스크롤 위치에 따라 현재 보는 그룹 칩 자동 하이라이트(scroll-spy) + 바 안에서 가운데로 이동.
-export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, sticky = true, compact, className, bleedClass = "-mx-3 px-3" }: GroupNavBarProps) {
+export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, sticky = true, compact, className, bleedClass = "-mx-3 px-3", floating }: GroupNavBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const firstChip = items.find(i => !i.label)?.id ?? "";
   const [active, setActive] = useState(firstChip);
+  const [shown, setShown] = useState(false);       // floating: 스크롤 중에만 표시
+  const hideTimer = useRef<number | undefined>(undefined);
 
   // scroll-spy — sticky 바 바로 아래(probe)를 지나간 마지막 섹션을 현재 그룹으로 (라벨은 제외)
   useEffect(() => {
@@ -44,6 +47,18 @@ export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, s
       window.removeEventListener("resize", handler);
     };
   }, [items, idPrefix, scrollMarginTop]);
+
+  // floating — 실제 세로 스크롤에만 표시(재렌더로 깜빡이지 않게 별도 effect, deps=floating 으로 1회 구독)
+  useEffect(() => {
+    if (!floating) return;
+    const onScroll = () => {
+      setShown(true);
+      window.clearTimeout(hideTimer.current);
+      hideTimer.current = window.setTimeout(() => setShown(false), 1000);
+    };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    return () => { window.removeEventListener("scroll", onScroll); window.clearTimeout(hideTimer.current); };
+  }, [floating]);
 
   // 활성 칩을 바(가로 스크롤) 안에서 보이게 — 페이지 스크롤은 건드리지 않고 바만 이동
   useEffect(() => {
@@ -70,9 +85,13 @@ export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, s
 
   return (
     <div ref={barRef} data-noswipe
-         style={sticky ? { top: stickyTop } : undefined}
-         className={`flex items-center gap-1 overflow-x-auto whitespace-nowrap
-                     ${sticky ? `sticky z-30 ${bleedClass} py-1.5 bg-white/95 backdrop-blur border-b border-gray-200` : ""}
+         style={(floating || sticky) ? { top: stickyTop } : undefined}
+         className={`flex gap-1
+                     ${floating
+                       ? `fixed left-1 z-30 flex-col items-start max-h-[74vh] overflow-y-auto px-0.5 py-1
+                          transition-all duration-200 ${shown ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-3 pointer-events-none"}`
+                       : sticky ? `sticky z-30 ${bleedClass} py-1.5 items-center overflow-x-auto whitespace-nowrap bg-white/95 backdrop-blur border-b border-gray-200`
+                                : "items-center overflow-x-auto whitespace-nowrap"}
                      ${className ?? ""}`}>
       {items.map(it => {
         // 그룹 라벨 — 클릭 불가, 작은 회색 글씨 + 왼쪽 세로 구분선(│)
