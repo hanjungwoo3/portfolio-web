@@ -54,7 +54,7 @@ export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, s
     const onScroll = () => {
       setShown(true);
       window.clearTimeout(hideTimer.current);
-      hideTimer.current = window.setTimeout(() => setShown(false), 1000);
+      hideTimer.current = window.setTimeout(() => setShown(false), 5000);
     };
     window.addEventListener("scroll", onScroll, { passive: true });
     return () => { window.removeEventListener("scroll", onScroll); window.clearTimeout(hideTimer.current); };
