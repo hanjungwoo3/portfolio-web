@@ -7,7 +7,7 @@ import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
 import { openTossStock } from "../lib/toss";
-import { openGoogleAi } from "../lib/googleAi";
+import { openGoogleAi, STOCK_ANALYSIS_PROMPT } from "../lib/googleAi";
 import { Sparkline } from "./Sparkline";
 import { AuxIndicators } from "./AuxIndicators";
 import { Tooltip, ColorName } from "./Tooltip";
@@ -598,21 +598,20 @@ export function StockCard({
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
   const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
 
-  // 구글 AI 현재상태 분석 — 현재가·등락률·섹터·컨센서스를 짧은 질문으로
+  // 구글 AI 분석 — 분석 지시 프롬프트 + 종목 컨텍스트(현재가·등락률·섹터·컨센서스)
   const buildAiQuery = (): string => {
-    const parts: string[] = [`${stock.name}(${stock.ticker}) 주식 현재 상태 분석.`];
+    const ctx: string[] = [`${stock.name}(${stock.ticker})`];
     if (price?.price) {
       const chg = price.base > 0 ? ((price.price - price.base) / price.base) * 100 : null;
-      parts.push(`현재가 ${Math.round(price.price).toLocaleString()}원`
-        + (chg != null ? ` (${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%).` : "."));
+      ctx.push(`현재가 ${Math.round(price.price).toLocaleString()}원`
+        + (chg != null ? `(${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%)` : ""));
     }
-    if (sector) parts.push(`섹터 ${sector}.`);
+    if (sector) ctx.push(`섹터 ${sector}`);
     if (consensus?.opinion || consensus?.target) {
-      parts.push(`컨센서스 ${consensus.opinion ?? ""}`
-        + (consensus.target ? ` 목표가 ${consensus.target.toLocaleString()}원` : "") + ".");
+      ctx.push(`컨센서스 ${consensus.opinion ?? ""}`
+        + (consensus.target ? `/목표가 ${consensus.target.toLocaleString()}원` : ""));
     }
-    parts.push("오늘 등락 이유, 주요 뉴스·이슈, 투자 시 유의점을 일반 투자자가 알기 쉽게 정리해줘.");
-    return parts.join(" ");
+    return `${STOCK_ANALYSIS_PROMPT}\n\n[분석 대상] ${ctx.join(", ")}`;
   };
 
   // 손절 — 매수가 대비 -10% 이하 (보유 종목만)
