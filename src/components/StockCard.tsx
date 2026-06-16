@@ -10,6 +10,7 @@ import { openTossStock } from "../lib/toss";
 import { Sparkline } from "./Sparkline";
 import { AuxIndicators } from "./AuxIndicators";
 import { Tooltip, ColorName } from "./Tooltip";
+import { MarketAlertDialog } from "./MarketAlertDialog";
 import { IntradayPatternDialog } from "./IntradayPatternDialog";
 
 interface KrRegInfo {
@@ -505,6 +506,8 @@ export function StockCard({
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
   const [intradayOpen, setIntradayOpen] = useState(false);
+  // 경고 뱃지 클릭 → 시장조치 공시 모달
+  const [alertOpen, setAlertOpen] = useState(false);
   // 포함 ETF 카운트 — 이 종목이 들어있는 ETF 개수 (역색인)
   const etfCount = useEtfCount(stock.ticker);
 
@@ -836,13 +839,15 @@ export function StockCard({
                   <b>{stock.name}</b> 이(가) 거래소에 의해 지정되었습니다.
                 </div>
                 <div className="text-gray-600">{WARN_TIPS[warning] ?? warning}</div>
+                <div className="text-blue-600 mt-1">👆 눌러서 시장조치 공시 보기</div>
               </>
             }>
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-t-md
-                                text-white text-sm leading-none cursor-help
+              <button onClick={() => setAlertOpen(true)}
+                      className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                                text-white text-sm leading-none cursor-pointer active:opacity-80
                                 ${WARN_BG[warning] ?? "bg-gray-500"}`}>
                 {warning}
-              </span>
+              </button>
             </Tooltip>
           )}
           <Tooltip content={
@@ -1604,6 +1609,10 @@ export function StockCard({
         ticker={stock.ticker}
         stockName={stock.name}
       />
+    )}
+    {alertOpen && warning && (
+      <MarketAlertDialog ticker={stock.ticker} name={stock.name} warning={warning}
+                         onClose={() => setAlertOpen(false)} />
     )}
     </div>
   );

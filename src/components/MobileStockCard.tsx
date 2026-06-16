@@ -9,6 +9,7 @@ import { pickTodayInvestor } from "../lib/api";
 import { openTossStock } from "../lib/toss";
 import { Sparkline } from "./Sparkline";
 import { Tooltip, ColorName } from "./Tooltip";
+import { MarketAlertDialog } from "./MarketAlertDialog";
 import { AuxIndicators } from "./AuxIndicators";
 
 // 투자자별 매매동향 — PC StockCard 와 동일 정의 (모바일 레이어 표시용)
@@ -99,6 +100,8 @@ export function MobileStockCard({
 }: Props) {
   // 투자자 매매동향 레이어 토글 (👥 버튼)
   const [showFlow, setShowFlow] = useState(false);
+  // 경고 뱃지 클릭 → 시장조치 공시 모달
+  const [alertOpen, setAlertOpen] = useState(false);
   // 포함 ETF 카운트 — 이 종목이 들어있는 ETF 개수
   const etfCount = useEtfCount(stock.ticker);
   const investor = investorHistory ? pickTodayInvestor(investorHistory) : null;
@@ -183,13 +186,15 @@ export function MobileStockCard({
                     <b>{stock.name}</b> 이(가) 거래소에 의해 지정되었습니다.
                   </div>
                   <div className="text-gray-600">{WARN_TIPS[warning] ?? warning}</div>
+                  <div className="text-blue-600 mt-1">👆 눌러서 시장조치 공시 보기</div>
                 </>
               }>
-                <span className={`inline-flex items-center px-2 py-0.5 rounded-md
-                                  text-white text-[10px] font-medium leading-none cursor-help
-                                  ${WARN_BG[warning] ?? "bg-gray-500"}`}>
+                <button onClick={() => setAlertOpen(true)}
+                        className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md
+                                  text-white text-[10px] font-medium leading-none cursor-pointer
+                                  active:opacity-80 ${WARN_BG[warning] ?? "bg-gray-500"}`}>
                   ⚠️ {warning}
-                </span>
+                </button>
               </Tooltip>
             )}
           </div>
@@ -785,6 +790,10 @@ export function MobileStockCard({
 
       </div>
       </article>
+      {alertOpen && warning && (
+        <MarketAlertDialog ticker={stock.ticker} name={stock.name} warning={warning}
+                           onClose={() => setAlertOpen(false)} />
+      )}
     </div>
   );
 }

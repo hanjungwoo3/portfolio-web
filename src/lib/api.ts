@@ -1484,6 +1484,81 @@ export async function fetchWarning(ticker: string): Promise<string> {
   return "";
 }
 
+// ─── 시장조치(시장경보) 공시 — 경고 뱃지 클릭 시 표시 ───────────────
+// 네이버 공시 피드에서 거래소 시장조치(투자경고/위험/주의·매매거래정지·단기과열 등)만 추출.
+export interface MarketAlertNotice {
+  date: string;          // YYYY-MM-DD
+  title: string;         // 회사명 접두 제거
+  url: string;           // 네이버 공시 상세
+  disclosureId: number;
+}
+
+const MARKET_ALERT_RE =
+  /투자경고|투자위험|투자주의|관리종목|매매거래정지|거래정지|단기과열|시장경보|소수계좌|종가급변|투자유의|지정예고|지정해제|불성실공시|상장폐지/;
+
+export async function fetchMarketAlerts(ticker: string): Promise<MarketAlertNotice[]> {
+  if (!/^\d{6}$/.test(ticker)) return [];
+  try {
+    const resp = await fetchProxied(
+      `https://m.stock.naver.com/api/stock/${ticker}/disclosure?page=1&size=100`);
+    if (!resp.ok) return [];
+    const items = await resp.json() as Array<{ disclosureId: number; title: string; datetime: string }>;
+    if (!Array.isArray(items)) return [];
+    const seen = new Set<number>();
+    const out: MarketAlertNotice[] = [];
+    for (const it of items) {
+      if (!it || seen.has(it.disclosureId)) continue;
+      const title = it.title || "";
+      if (!MARKET_ALERT_RE.test(title)) continue;
+      seen.add(it.disclosureId);
+      const cleaned = title
+        .replace(/^[^()\s]+\(주\)\s*/, "")
+        .replace(/^\(주\)[^\s]+\s*/, "")
+        .trim() || title;
+      out.push({
+        date: (it.datetime || "").slice(0, 10),
+        title: cleaned,
+        url: `https://m.stock.naver.com/domestic/stock/${ticker}/notice/${it.disclosureId}`,
+        disclosureId: it.disclosureId,
+      });
+    }
+    out.sort((a, b) => b.date.localeCompare(a.date));
+    return out.slice(0, 15);
+  } catch {
+    return [];
+  }
+}
+
+// 공시 본문 → 원본 ASCII 표 구조 보존 (monospace 로 표시).
+//   <br>·블록끝 → 줄바꿈, &nbsp; → 공백(정렬 유지 위해 개수 보존, 공백 뭉개기 금지)
+export async function fetchDisclosureBody(ticker: string, disclosureId: number): Promise<string> {
+  if (!/^\d{6}$/.test(ticker)) return "";
+  try {
+    const resp = await fetchProxied(
+      `https://m.stock.naver.com/api/stock/${ticker}/disclosure/${disclosureId}`);
+    if (!resp.ok) return "";
+    const data = await resp.json() as { disclosure?: { contents?: string } };
+    const raw = data.disclosure?.contents ?? "";
+    if (!raw) return "";
+    const txt = raw
+      .replace(/<!--[\s\S]*?-->/g, "")              // XML 처리 주석(<!--?javax...?-->) 제거
+      .replace(/<br\s*\/?>/gi, "\n")                // <br> → 줄바꿈
+      .replace(/<\/(tr|td|div|p|table|h\d)>/gi, "\n") // 블록 끝 → 줄바꿈
+      .replace(/<[^>]+>/g, "")                      // 나머지 태그 제거
+      .replace(/&nbsp;/g, " ")                      // 정렬용 공백 — 개수 유지
+      .replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"').replace(/&#3[49];/g, "'");
+    return txt
+      .split("\n")
+      .map(l => l.replace(/[ \t]+$/, ""))           // 줄 끝 공백만 정리(좌측 정렬 보존)
+      .join("\n")
+      .replace(/\n{3,}/g, "\n\n")                   // 과도한 빈 줄 축소
+      .trim();
+  } catch {
+    return "";
+  }
+}
+
 // Yahoo Finance — 지수/심볼 가격 + 등락률
 export interface UsIndex {
   symbol: string;
