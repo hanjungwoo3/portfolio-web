@@ -47,6 +47,31 @@ export function MarketAlertDialog({ ticker, name, warning, onClose }: Props) {
 
   const warnColor = warning ? (WARN_COLOR[warning] ?? "text-gray-700") : "text-gray-700";
 
+  // 구글 AI 모드(udm=50) — 공시 본문을 쿼리로. 세션토큰 없이 깨끗한 URL(만료 안 됨).
+  //   iframe 은 구글이 차단 → 팝업 창으로 오픈.
+  const activeNotice = alerts?.find(a => a.disclosureId === activeId);
+  // AI 모드(udm=50)는 '짧은 질문'이어야 답을 생성 — 긴 원문 덤프는 웹결과 목록으로 떨어짐.
+  //   원문은 모달에 이미 보이므로, 여기선 사유·기간·조건을 묻는 자연어 질문만 전송.
+  const aiQuery = (() => {
+    const w = warning ?? "시장경보";
+    const noticeCtx = activeNotice?.title ? ` "${activeNotice.title}" 공시 기준으로` : "";
+    return `${name}(${ticker}) 주식이${noticeCtx} ${w}종목으로 지정된 이유, `
+      + `언제까지 유지되고 어떤 조건에서 해제되는지, 매매거래정지 조건은 무엇인지 `
+      + `일반 투자자가 알기 쉽게 설명해줘`;
+  })();
+  const aiUrl = `https://www.google.com/search?udm=50&q=${encodeURIComponent(aiQuery)}`;
+  const openGoogleAi = () => {
+    // 현재 앱 창 위치 기준으로 근처(가로 중앙·상단)에 팝업 — 다른 모니터로 튀지 않게
+    const w = Math.min(900, (window.screen?.availWidth ?? 900) - 80);
+    const h = Math.min(900, (window.screen?.availHeight ?? 900) - 80);
+    const baseX = window.screenX ?? window.screenLeft ?? 0;
+    const baseY = window.screenY ?? window.screenTop ?? 0;
+    const left = Math.max(0, Math.round(baseX + (window.outerWidth - w) / 2));
+    const top = Math.max(0, Math.round(baseY + 60));
+    window.open(aiUrl, "googleAi",
+      `popup,width=${w},height=${h},left=${left},top=${top}`);
+  };
+
   // 카드의 opacity(흐림)/transform stacking context 를 벗어나도록 body 로 portal
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/40 sm:p-4"
@@ -103,11 +128,18 @@ export function MarketAlertDialog({ ticker, name, warning, onClose }: Props) {
                   <div className="text-xs text-gray-400 py-3 text-center">본문을 불러오지 못했습니다.</div>
                 )}
                 {activeId != null && (
-                  <a href={`https://m.stock.naver.com/domestic/stock/${ticker}/notice/${activeId}`}
-                     target="_blank" rel="noopener noreferrer"
-                     className="inline-block mt-1.5 text-xs text-blue-600 hover:underline">
-                    네이버에서 원문 보기 →
-                  </a>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button onClick={openGoogleAi}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium
+                                       bg-blue-600 text-white hover:bg-blue-700 active:opacity-80">
+                      🔍 구글 AI로 해설 (팝업)
+                    </button>
+                    <a href={`https://m.stock.naver.com/domestic/stock/${ticker}/notice/${activeId}`}
+                       target="_blank" rel="noopener noreferrer"
+                       className="text-xs text-blue-600 hover:underline">
+                      네이버 원문 →
+                    </a>
+                  </div>
                 )}
               </div>
             </>
