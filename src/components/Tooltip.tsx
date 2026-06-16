@@ -65,7 +65,7 @@ export function Tooltip({ content, children, className = "" }: Props) {
       onMouseEnter={e => setPos({ x: e.clientX, y: e.clientY })}
       onMouseMove={e => setPos({ x: e.clientX, y: e.clientY })}
       onMouseLeave={() => { setPos(null); setSize(null); }}
-      className={`relative ${className}`}>
+      className={`relative inline-flex ${className}`}>
       {children}
       {adjusted && content && typeof document !== "undefined" && createPortal(
         <span

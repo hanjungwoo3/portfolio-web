@@ -7,6 +7,7 @@ import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
 import { pickTodayInvestor } from "../lib/api";
 import { openTossStock } from "../lib/toss";
+import { openGoogleAi } from "../lib/googleAi";
 import { Sparkline } from "./Sparkline";
 import { Tooltip, ColorName } from "./Tooltip";
 import { MarketAlertDialog } from "./MarketAlertDialog";
@@ -69,16 +70,16 @@ interface Props {
 
 const STOP_LOSS_PCT = -9;
 
-// 위험/관리/정지/경고/과열/환기/주의 뱃지 색상 (PC StockCard 동일)
-const WARN_BG: Record<string, string> = {
-  투자위험:     "bg-red-700",
-  관리종목:     "bg-red-700",
-  거래정지:     "bg-gray-500",
-  투자경고:     "bg-orange-600",
-  공매도과열:   "bg-orange-600",
-  단기과열:     "bg-orange-600",
-  투자주의환기: "bg-orange-600",
-  투자주의:     "bg-amber-500",
+// 모바일 — 경고를 섹션 태그처럼(연한 보더+배경) 표시할 색상. 글자는 풀네임 유지.
+const WARN_TAG: Record<string, string> = {
+  투자위험:     "border-red-300 bg-red-50 text-red-700",
+  관리종목:     "border-red-300 bg-red-50 text-red-700",
+  거래정지:     "border-gray-300 bg-gray-50 text-gray-600",
+  투자경고:     "border-orange-300 bg-orange-50 text-orange-700",
+  공매도과열:   "border-orange-300 bg-orange-50 text-orange-700",
+  단기과열:     "border-orange-300 bg-orange-50 text-orange-700",
+  투자주의환기: "border-orange-300 bg-orange-50 text-orange-700",
+  투자주의:     "border-amber-300 bg-amber-50 text-amber-700",
 };
 
 // 호버 툴팁 — 경고 뱃지 의미 설명
@@ -159,6 +160,23 @@ export function MobileStockCard({
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
   const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
+
+  // 구글 AI 현재상태 분석 — 현재가·등락률·섹터·컨센서스를 짧은 질문으로
+  const buildAiQuery = (): string => {
+    const parts: string[] = [`${stock.name}(${stock.ticker}) 주식 현재 상태 분석.`];
+    if (price?.price) {
+      const chg = price.base > 0 ? ((price.price - price.base) / price.base) * 100 : null;
+      parts.push(`현재가 ${Math.round(price.price).toLocaleString()}원`
+        + (chg != null ? ` (${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%).` : "."));
+    }
+    if (sector) parts.push(`섹터 ${sector}.`);
+    if (consensus?.opinion || consensus?.target) {
+      parts.push(`컨센서스 ${consensus.opinion ?? ""}`
+        + (consensus.target ? ` 목표가 ${consensus.target.toLocaleString()}원` : "") + ".");
+    }
+    parts.push("오늘 등락 이유, 주요 뉴스·이슈, 투자 시 유의점을 일반 투자자가 알기 쉽게 정리해줘.");
+    return parts.join(" ");
+  };
   const isStop = hasPosition && pnlPct <= STOP_LOSS_PCT;
 
   // 카드 배경/테두리 — 손익에 따라 (책갈피 pill 도 동일 색 사용해 하나처럼 보이게)
@@ -174,68 +192,70 @@ export function MobileStockCard({
 
   return (
     <div className={dimmed ? "opacity-60" : ""}>
-      {/* 메타 줄 — 좌: 경고 뱃지 / 우: 섹션(섹터/ETF + 거래소). 종목명/버튼 줄을 밀지 않음. */}
-      {(warning || sector || market === "KOSPI" || market === "KOSDAQ" || isEtfByName(stock.name)) && (
-        <div className="flex items-center justify-between gap-1 mx-2 mb-0.5">
-          <div className="flex items-center gap-1 min-w-0">
-            {warning && (
-              <Tooltip content={
-                <>
-                  <div className="font-bold text-amber-700 mb-1">⚠️ {warning}</div>
-                  <div className="mb-1">
-                    <b>{stock.name}</b> 이(가) 거래소에 의해 지정되었습니다.
-                  </div>
-                  <div className="text-gray-600">{WARN_TIPS[warning] ?? warning}</div>
-                  <div className="text-blue-600 mt-1">👆 눌러서 시장조치 공시 보기</div>
-                </>
-              }>
-                <button onClick={() => setAlertOpen(true)}
-                        className={`inline-flex items-center gap-0.5 px-2 py-0.5 rounded-md
-                                  text-white text-[10px] font-medium leading-none cursor-pointer
-                                  active:opacity-80 ${WARN_BG[warning] ?? "bg-gray-500"}`}>
-                  ⚠️ {warning}
-                </button>
-              </Tooltip>
-            )}
-          </div>
-          <div className="flex items-center gap-1 shrink-0">
-            {/* 섹션 — "철강/코스피", ETF 면 "ETF/코스피". 섹터/ETF 없으면 거래소만.
-                ETF 는 탭하면 구성종목 보기 */}
-            {(() => {
-              const isEtf = isEtfByName(stock.name);
-              const head = isEtf ? "ETF" : sector;
-              const mkt = market === "KOSPI" ? "코스피" : market === "KOSDAQ" ? "코스닥" : "";
-              if (!head && !mkt) return null;
-              const title = [head, mkt].filter(Boolean).join(" ");
-              const cls = `inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded-md
-                           border ${cardBorder} ${cardBg}
-                           text-[9px] text-gray-600 leading-none truncate`;
-              // 거래소(코스피/코스닥)는 더 작게 + 색 구분(코스피 파랑·코스닥 초록), 구분자 "/" 없이 띄어쓰기
-              const mktSpan = mkt
-                ? <span className={`text-[8px] ${market === "KOSPI" ? "text-blue-500" : "text-emerald-600"}`}>{mkt}</span>
-                : null;
-              if (isEtf && onOpenEtf) {
-                // ETF 글자만 점선 밑줄 — 탭(구성종목) 가능 신호
-                return (
-                  <button title="ETF 구성 종목 보기"
-                          onClick={() => onOpenEtf(stock.ticker, stock.name)}
-                          className={cls}>
-                    <span className="underline decoration-dotted underline-offset-2">ETF</span>
-                    {mktSpan}
-                  </button>
-                );
-              }
-              return (
-                <span title={title} className={cls}>
-                  {head && <span>{head}</span>}
-                  {mktSpan}
-                </span>
-              );
-            })()}
-          </div>
+      {/* 메타 줄 — 좌: 경고(섹션 태그 스타일) / 우: 섹션·거래소 + 🔍AI. 종목명 바로 위.
+          mb-px: 섹션·AI 아래 1px 간격 */}
+      <div className="flex items-center justify-between gap-1 mx-2 mb-px">
+        <div className="flex items-center gap-1 min-w-0">
+          {warning && (
+            <Tooltip content={
+              <>
+                <div className="font-bold text-amber-700 mb-1">⚠️ {warning}</div>
+                <div className="mb-1">
+                  <b>{stock.name}</b> 이(가) 거래소에 의해 지정되었습니다.
+                </div>
+                <div className="text-gray-600">{WARN_TIPS[warning] ?? warning}</div>
+                <div className="text-blue-600 mt-1">👆 눌러서 시장조치 공시 보기</div>
+              </>
+            }>
+              <button onClick={() => setAlertOpen(true)}
+                      className={`inline-flex items-center px-1.5 py-0.5 rounded border
+                                text-[9px] font-bold leading-none cursor-pointer active:opacity-80
+                                ${WARN_TAG[warning] ?? "border-gray-300 bg-gray-50 text-gray-600"}`}>
+                {warning}
+              </button>
+            </Tooltip>
+          )}
         </div>
-      )}
-      {/* 책갈피 — 좌: 종목명 pill / 우: 수정·삭제 버튼 */}
+        <div className="flex items-center gap-1 shrink-0">
+          {(() => {
+            const isEtf = isEtfByName(stock.name);
+            const head = isEtf ? "ETF" : sector;
+            const mkt = market === "KOSPI" ? "코스피" : market === "KOSDAQ" ? "코스닥" : "";
+            if (!head && !mkt) return null;
+            const title = [head, mkt].filter(Boolean).join(" ");
+            const cls = `inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded
+                         border ${cardBorder} ${cardBg}
+                         text-[9px] text-gray-600 leading-none truncate`;
+            const mktSpan = mkt
+              ? <span className={`text-[8px] ${market === "KOSPI" ? "text-blue-500" : "text-emerald-600"}`}>{mkt}</span>
+              : null;
+            if (isEtf && onOpenEtf) {
+              return (
+                <button title="ETF 구성 종목 보기"
+                        onClick={() => onOpenEtf(stock.ticker, stock.name)}
+                        className={cls}>
+                  <span className="underline decoration-dotted underline-offset-2">ETF</span>
+                  {mktSpan}
+                </button>
+              );
+            }
+            return (
+              <span title={title} className={cls}>
+                {head && <span>{head}</span>}
+                {mktSpan}
+              </span>
+            );
+          })()}
+          {/* 🔍AI — 섹션과 같은 9px, 아이콘 축소 */}
+          <button onClick={() => openGoogleAi(buildAiQuery())}
+                  title="현재가·등락률·컨센서스로 구글 AI에 현재상태 분석 요청 (팝업)"
+                  className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold leading-none
+                             border border-blue-300 text-blue-700 bg-blue-50 active:bg-blue-100">
+            <span className="text-[8px]">🔍</span>AI
+          </button>
+        </div>
+      </div>
+      {/* 책갈피 줄 — 좌: 종목명·메모 / 우: 액션 버튼 (종목명이 카드에 부착) */}
       <div className="flex items-end justify-between gap-1 mx-2">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
           <Tooltip content={
@@ -264,7 +284,6 @@ export function MobileStockCard({
               {stock.name}
             </button>
           </Tooltip>
-          {/* 메모 태그 칩 — 태그 있을 때만 */}
           {memo?.tag && onOpenMemo && (
             <button onClick={() => onOpenMemo(stock.ticker)}
                     className={`inline-flex items-center px-2 py-0.5 rounded-t-md

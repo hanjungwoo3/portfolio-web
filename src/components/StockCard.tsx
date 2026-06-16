@@ -7,6 +7,7 @@ import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
 import { openTossStock } from "../lib/toss";
+import { openGoogleAi } from "../lib/googleAi";
 import { Sparkline } from "./Sparkline";
 import { AuxIndicators } from "./AuxIndicators";
 import { Tooltip, ColorName } from "./Tooltip";
@@ -597,6 +598,23 @@ export function StockCard({
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
   const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
 
+  // 구글 AI 현재상태 분석 — 현재가·등락률·섹터·컨센서스를 짧은 질문으로
+  const buildAiQuery = (): string => {
+    const parts: string[] = [`${stock.name}(${stock.ticker}) 주식 현재 상태 분석.`];
+    if (price?.price) {
+      const chg = price.base > 0 ? ((price.price - price.base) / price.base) * 100 : null;
+      parts.push(`현재가 ${Math.round(price.price).toLocaleString()}원`
+        + (chg != null ? ` (${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%).` : "."));
+    }
+    if (sector) parts.push(`섹터 ${sector}.`);
+    if (consensus?.opinion || consensus?.target) {
+      parts.push(`컨센서스 ${consensus.opinion ?? ""}`
+        + (consensus.target ? ` 목표가 ${consensus.target.toLocaleString()}원` : "") + ".");
+    }
+    parts.push("오늘 등락 이유, 주요 뉴스·이슈, 투자 시 유의점을 일반 투자자가 알기 쉽게 정리해줘.");
+    return parts.join(" ");
+  };
+
   // 손절 — 매수가 대비 -10% 이하 (보유 종목만)
   const isStop = hasPosition && pnlPct <= STOP_LOSS_PCT;
 
@@ -1052,6 +1070,13 @@ export function StockCard({
               </span>
             );
           })()}
+          {/* 🔍AI — 섹션 오른쪽 (모바일과 동일). 현재상태 구글 AI 분석 팝업 */}
+          <button onClick={() => openGoogleAi(buildAiQuery())}
+                  title="현재가·등락률·컨센서스로 구글 AI에 현재상태 분석 요청 (팝업)"
+                  className="inline-flex items-center px-1.5 py-0.5 rounded-t-md text-[10px] font-bold leading-none
+                             border-t border-l border-r border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 transition">
+            🔍AI
+          </button>
         </div>
       </div>
 
