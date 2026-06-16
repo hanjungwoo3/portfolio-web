@@ -2059,6 +2059,7 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   // 반도체 개별주
   "MU":   "US19890516001",
   "NVDA": "US19990122001",
+  "SNDK": "NAS0250224006",   // 샌디스크 (2025 상장 → NAS 프리픽스)
   "AMAT": "US19721012001",
   "LRCX": "US19840504001",
   "ASML": "US19950315001",

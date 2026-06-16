@@ -29,33 +29,36 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
     },
     {
       id: "semi", short: "반도체",
-      label: "🔧 반도체",                             // 필반 지수·선물 + 미국 반도체 대표주 (삼성·하이닉스 가늠자)
+      label: "🔧 반도체",                             // 필반 지수 + 미국 반도체 대표주 (삼성·하이닉스 가늠자)
       rows: [
-        ["^SOX", "SOX=F", "MU", "NVDA"],     // 필반 지수·선물 + 메모리/AI 대표
-        ["AMAT", "LRCX", "ASML"],            // 반도체 장비 (AMD·브로드컴·오라클·인텔은 빅테크로 이동)
+        ["^SOX", "MU", "NVDA", "SNDK", "AMD", "AVGO", "INTC"],   // 지수 + 메모리·AI + 로직·CPU 한 줄
       ],
+    },
+    {
+      id: "semieq", short: "장비",
+      label: "🛠 반도체 장비",                         // 칩 제조 장비 — 삼성·하이닉스 CAPEX·증설 가늠자
+      rows: [["AMAT", "LRCX", "ASML"]],     // 어플라이드머티리얼즈·램리서치·ASML
     },
     {
       id: "night", short: "야간",
-      label: "🌙 야간 선물",                          // 미장 마감 후 다음 한국장 선행 신호 (+야간 세션엔 코스피/코스닥 야선)
-      rows: [[...krNightFut, "NQ=F", "ES=F", "RTY=F"]],
+      label: "🌙 야간 선물",                          // 미장 마감 후 다음 한국장 선행 신호 (+야간 세션엔 코스피/코스닥 야선, 필반선물 SOX=F)
+      rows: [[...krNightFut, "NQ=F", "ES=F", "RTY=F", "SOX=F"]],
     },
     {
-      id: "macro", short: "현물",
-      label: "💵 현물·매크로",                        // 가격 자체가 신호인 외부 변수
-      mobilePair: true,                               // 모바일: 좌=현물(원자재·코인) / 우=지수·금리
-      rows: [
-        ["GC=F", "SI=F", "HG=F", "CL=F", "NG=F"],     // 원자재(금·은·구리·원유·천연가스) — 모바일 왼쪽
-        ["^IXIC", "^GSPC", "^DJI", "^US2Y", "^TNX"],   // 미국 지수 + 금리 2Y·10Y — 모바일 오른쪽 (5/5 정렬: 2Y 아래 10Y)
-      ],
+      id: "spot", short: "현물",
+      label: "💵 현물 (원자재)",                       // 금·은·구리·원유·천연가스 — 가격 자체가 신호
+      rows: [["GC=F", "SI=F", "HG=F", "CL=F", "NG=F"]],
+    },
+    {
+      id: "macro", short: "매크로",
+      label: "📈 미국 지수·금리",                      // 나스닥·S&P·다우 + 미 국채 2Y·10Y
+      rows: [["^IXIC", "^GSPC", "^DJI", "^US2Y", "^TNX"]],
     },
     {
       id: "bigtech", short: "빅테크",
-      label: "🍎 미국 빅테크",                  // 모바일: 좌 빅테크 / 우 스페이스X+AI
-      mobilePair: true,
+      label: "🍎 미국 빅테크",                  // 플랫폼 + 머스크 + 오라클 (한 줄)
       rows: [
-        ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA"],   // 빅테크 개별주
-        ["SPCX", "AMD", "AVGO", "ORCL", "INTC"],             // 스페이스X + AMD·브로드컴·오라클·인텔
+        ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "SPCX", "ORCL"],   // 플랫폼 + 머스크(테슬라·스페이스X) + 오라클 한 줄
       ],
     },
     {
