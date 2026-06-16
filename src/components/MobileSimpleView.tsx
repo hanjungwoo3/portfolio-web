@@ -16,7 +16,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxies, setPersonalProxies, type PersonalProxy,
@@ -1321,7 +1321,9 @@ export function MobileSimpleView() {
               // 갱신 정체(흐림) — 24h 거래(시각창) 중에도 '진짜 멈춘' 종목(VIX·데이터 끊김)을 freshTime 90분+ 정체로 잡음.
               //   미국 종목/ETF 는 토스 실측 체결시각이 24h 갱신돼 통과(밝게), 주말·VIX 마감은 정체/시각창으로 흐림.
               const stale = isQuoteStale(q?.freshTime);
-              const dimNow = dimEnabled && (stale || (!inSession && (sleeping || isClosed)));
+              // 국채 yield(2Y/10Y 등)는 출처(토스·Yahoo)가 섞여도 표현 통일 — 흐림 제외.
+              const isRate = isUsRateSymbol(p.symbol);
+              const dimNow = dimEnabled && !isRate && (stale || (!inSession && (sleeping || isClosed)));
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
@@ -1447,7 +1449,7 @@ export function MobileSimpleView() {
                     </span>
                   </div>
                   </div>
-                  {sleeping && fmtAgo(q?.regularMarketTime) && (
+                  {sleeping && !isRate && fmtAgo(q?.regularMarketTime) && (
                     <div className="absolute -bottom-1 left-1 z-20 px-1.5 py-0 rounded
                                     text-[9px] leading-tight whitespace-nowrap
                                     text-gray-500 bg-gray-100 border border-gray-300/60">

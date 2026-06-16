@@ -110,6 +110,13 @@ export function marketOfSymbol(symbol: string): Market {
   return "US";
 }
 
+// 미국 국채 yield — 토스(2Y) / Yahoo(10Y) 등 출처가 섞여 흐림·마감 책갈피가 종목마다 달라지는
+// 문제를 막기 위해 24h 지표처럼 취급(흐림·마감 책갈피 제외). 2Y/10Y 표현 통일용.
+export function isUsRateSymbol(symbol: string): boolean {
+  return symbol === "^US2Y" || symbol === "^TNX" || symbol === "^FVX"
+      || symbol === "^TYX" || symbol === "^IRX";
+}
+
 // 특정 IANA timezone 의 현재 시각 (Intl 사용 — DST 자동 처리)
 function nowInTz(tz: string): { hour: number; minute: number; weekday: number } {
   const now = new Date();
