@@ -7,6 +7,7 @@ import { fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchInvestorHistory
 import { getTossMaintenance } from "../lib/tossMaintenance";
 import { fetchConsensusReports, fetchMajorShareholders, type Shareholder, type ConsensusReport } from "../lib/fundamentals";
 import { openTossStock } from "../lib/toss";
+import { openGoogleAi, STOCK_ANALYSIS_PROMPT } from "../lib/googleAi";
 import { signColor, formatSigned } from "../lib/format";
 import { Tooltip } from "./Tooltip";
 import type { Investor } from "../types";
@@ -393,7 +394,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                 {mkt === "KOSPI" ? "코스피" : "코스닥"}
                 <span className="text-[11px] text-gray-400 font-normal">{colItems.length}종목</span>
               </div>
-              {colItems.map((it, i) => {
+              {colItems.map((it) => {
             const up = it.upside;
             const chip = "text-[10px] px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 "
                        + "border border-emerald-200 hover:bg-emerald-100";
@@ -512,18 +513,18 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
             return (
               <div key={it.ticker}
                    className="border border-gray-200 rounded-lg px-3 py-2 hover:bg-gray-50 bg-white">
-                {/* 헤더 */}
+                {/* 헤더 — 한 줄: 순번·종목명·현재가/등락·그룹칩 (좌) / 📊·⚙️·섹터·🔍AI (우) */}
                 <div className="flex items-center gap-1.5 flex-wrap">
-                  <span className="text-xs text-gray-400 w-5 text-right tabular-nums">{i + 1}</span>
                   <button onClick={() => openTossStock(it.ticker)} className="font-bold text-gray-900 hover:underline">{it.name}</button>
-                  {onOpenValuation && (
-                    <button onClick={() => onOpenValuation(it.ticker)} title="기업가치 보기"
-                            className="text-xs leading-none opacity-60 hover:opacity-100">📊</button>
-                  )}
-                  {onEdit && (
-                    <button onClick={() => onEdit(it.ticker)} title="보유 수정"
-                            className="text-xs leading-none opacity-60 hover:opacity-100">⚙️</button>
-                  )}
+                  <span className="text-[13px] tabular-nums text-gray-600">
+                    <b className={it.price && it.pricePct !== 0 ? signColor(it.pricePct) : "text-gray-600"}>{it.price ? Math.round(it.price).toLocaleString() : "—"}</b>원
+                    {it.price && it.pricePct !== 0 ? (
+                      <span className={`ml-1 font-bold ${signColor(it.pricePct)}`}>
+                        {it.pricePct >= 0 ? "+" : ""}{it.pricePct.toFixed(2)}%
+                        <span className="ml-1 font-normal">({formatSigned(Math.round(it.priceDiff))})</span>
+                      </span>
+                    ) : null}
+                  </span>
                   {shown.map(g => (
                     <button key={g} onClick={() => onSelectGroup?.(g)} title={`${g} 그룹으로 이동`} className={chip}>{g}</button>
                   ))}
@@ -538,18 +539,33 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                       <span className="text-[10px] text-emerald-700 cursor-help">외 {more}개</span>
                     </Tooltip>
                   )}
-                  {it.sector && (
-                    <span className="ml-auto text-[11px] text-gray-500 whitespace-nowrap">{it.sector}</span>
-                  )}
-                </div>
-                <div className="text-[13px] tabular-nums text-gray-600 mt-0.5">
-                  현재 <b className={it.price && it.pricePct !== 0 ? signColor(it.pricePct) : "text-gray-600"}>{it.price ? Math.round(it.price).toLocaleString() : "—"}</b>원
-                  {it.price && it.pricePct !== 0 ? (
-                    <span className={`ml-1 font-bold ${signColor(it.pricePct)}`}>
-                      {it.pricePct >= 0 ? "+" : ""}{it.pricePct.toFixed(2)}%
-                      <span className="ml-1 font-normal">({formatSigned(Math.round(it.priceDiff))})</span>
-                    </span>
-                  ) : null}
+                  <span className="ml-auto flex items-center gap-1.5 shrink-0">
+                    {onOpenValuation && (
+                      <button onClick={() => onOpenValuation(it.ticker)} title="기업가치 보기"
+                              className="text-xs leading-none opacity-60 hover:opacity-100">📊</button>
+                    )}
+                    {onEdit && (
+                      <button onClick={() => onEdit(it.ticker)} title="보유 수정"
+                              className="text-xs leading-none opacity-60 hover:opacity-100">⚙️</button>
+                    )}
+                    {it.sector && (
+                      <span className="text-[11px] text-gray-500 whitespace-nowrap">{it.sector}</span>
+                    )}
+                    <button title="구글 AI 종목 분석 (팝업)"
+                            onClick={() => {
+                              const ctx: string[] = [`${it.name}(${it.ticker})`];
+                              if (it.price) ctx.push(`현재가 ${Math.round(it.price).toLocaleString()}원`
+                                + `(${it.pricePct >= 0 ? "+" : ""}${it.pricePct.toFixed(1)}%)`);
+                              if (it.sector) ctx.push(`섹터 ${it.sector}`);
+                              if (it.opinion || it.avgTarget) ctx.push(`컨센서스 ${it.opinion ?? ""}`
+                                + (it.avgTarget ? `/목표가 ${Math.round(it.avgTarget).toLocaleString()}원` : ""));
+                              openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[분석 대상] ${ctx.join(", ")}`);
+                            }}
+                            className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-bold leading-none
+                                       border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100">
+                      🔍AI
+                    </button>
+                  </span>
                 </div>
 
                 {/* 검색기준 섹션이 맨 위 (순서는 view 별) */}
