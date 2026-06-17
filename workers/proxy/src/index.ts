@@ -124,13 +124,22 @@ export default {
     if (request.method !== "GET" && request.method !== "POST") {
       return jsonError(405, "Method not allowed (GET/POST only)");
     }
+    const url = new URL(request.url);
+    const target = url.searchParams.get("url");
+    // ?url= 없는 직접 접속(루트/헬스체크) — origin 검사 전에 안내. 브라우저로 살아있는지 확인용.
+    if (!target) {
+      return new Response(JSON.stringify({
+        ok: true,
+        message: "포트폴리오 프록시 워커가 정상 작동 중입니다. 이 워커는 앱에서만 시세를 가져올 수 있어요(브라우저 직접 호출은 차단). 앱 ⚙️ 설정 → '내 전용 프록시 URL' 에 이 주소를 등록해 사용하세요.",
+      }, null, 2), {
+        status: 200,
+        headers: { "Content-Type": "application/json; charset=utf-8", ...CORS_HEADERS },
+      });
+    }
+    // 실제 우회(?url=)는 허용된 앱 origin 에서만
     if (!clientAllowed(request)) {
       return jsonError(403, "Forbidden origin");
     }
-
-    const url = new URL(request.url);
-    const target = url.searchParams.get("url");
-    if (!target) return jsonError(400, "Missing 'url' query parameter");
 
     let targetUrl: URL;
     try {
