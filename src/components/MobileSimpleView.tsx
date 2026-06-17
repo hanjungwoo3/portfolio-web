@@ -1335,14 +1335,10 @@ export function MobileSimpleView() {
               const liveFlat = pct == null || Math.abs(pct) < 0.005;
               const showPct = (sleeping && liveFlat && q?.regularPct != null && Math.abs(q.regularPct) >= 0.005)
                 ? q.regularPct : pct;
-              // 미국 종목/ETF 애프터장 — 메인 변동률을 '정규 마감가 대비 세션 변동'으로.
-              //   마감 변동(-1.27%)은 상단 뱃지가 담당하므로, 메인엔 애프터 변동(보합이면 0.00%)만.
-              //   (한국 지수·환율·야간선물 등은 의미가 달라 그대로 — 미국 + 마감 후 sleeping 일 때만)
-              const usAfterRegClose = q?.regularPrice;
-              const afterSessionPct = (marketOfSymbol(p.symbol) === "US" && sleeping
-                && usAfterRegClose != null && usAfterRegClose > 0 && effPrice != null)
-                ? ((effPrice - usAfterRegClose) / usAfterRegClose) * 100 : null;
-              const mainPct = afterSessionPct != null ? afterSessionPct : showPct;
+              // 메인 변동률(본문 큰 %) = 어제 종가 대비 누적(정규장 + 시간외) = showPct.
+              //   정규장 마감가·마감 변동%는 상단 노란 책갈피가 담당. (PC UsMarketTab 동일)
+              //   (예전엔 본문에 '애프터 변동분'만 떠서, 시간외 보합이면 0.00% 로 죽던 문제 → 누적으로 환원)
+              const mainPct = showPct;
               // direction === "inverse"(공포지수·환율·달러인덱스·금리 등) → 상승=한국 위험 → 색 반전
               // (빨강=좋음 / 파랑=나쁨 기준). SemiCheckTab 과 동일 규칙.
               const isInverse = p.direction === "inverse";
@@ -1441,11 +1437,9 @@ export function MobileSimpleView() {
                       {effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}
                     </span>
                     <span className={`flex-1 text-right text-base font-bold tabular-nums ${sign}`}>
-                      {afterSessionPct != null
-                        ? `${afterSessionPct >= 0 ? "+" : ""}${afterSessionPct.toFixed(2)}%`
-                        : (showPct != null && Math.abs(showPct) >= 0.005
-                            ? `${showPct >= 0 ? "+" : ""}${showPct.toFixed(2)}%`
-                            : "")}
+                      {showPct != null && Math.abs(showPct) >= 0.005
+                        ? `${showPct >= 0 ? "+" : ""}${showPct.toFixed(2)}%`
+                        : ""}
                     </span>
                   </div>
                   </div>

@@ -7,7 +7,7 @@ import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
 import { pickTodayInvestor } from "../lib/api";
 import { openTossStock } from "../lib/toss";
-import { openGoogleAi, STOCK_ANALYSIS_PROMPT } from "../lib/googleAi";
+import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { Sparkline } from "./Sparkline";
 import { Tooltip, ColorName } from "./Tooltip";
 import { MarketAlertDialog } from "./MarketAlertDialog";
@@ -174,7 +174,7 @@ export function MobileStockCard({
       ctx.push(`컨센서스 ${consensus.opinion ?? ""}`
         + (consensus.target ? `/목표가 ${consensus.target.toLocaleString()}원` : ""));
     }
-    return `${STOCK_ANALYSIS_PROMPT}\n\n[분석 대상] ${ctx.join(", ")}`;
+    return `${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${ctx.join(", ")}`;
   };
   const isStop = hasPosition && pnlPct <= STOP_LOSS_PCT;
 

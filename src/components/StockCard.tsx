@@ -7,7 +7,7 @@ import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
 import { openTossStock } from "../lib/toss";
-import { openGoogleAi, STOCK_ANALYSIS_PROMPT } from "../lib/googleAi";
+import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { Sparkline } from "./Sparkline";
 import { AuxIndicators } from "./AuxIndicators";
 import { Tooltip, ColorName } from "./Tooltip";
@@ -611,7 +611,7 @@ export function StockCard({
       ctx.push(`컨센서스 ${consensus.opinion ?? ""}`
         + (consensus.target ? `/목표가 ${consensus.target.toLocaleString()}원` : ""));
     }
-    return `${STOCK_ANALYSIS_PROMPT}\n\n[분석 대상] ${ctx.join(", ")}`;
+    return `${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${ctx.join(", ")}`;
   };
 
   // 손절 — 매수가 대비 -10% 이하 (보유 종목만)

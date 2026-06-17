@@ -66,9 +66,15 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
         kind: t.type, ms: parseDateMs(t.date), qty: t.qty, amount: t.amount,
         realized: t.type === "sell" ? realized.get(t.id) : undefined,
       }));
-      // 라운드를 전체 거래로 만든 뒤, 기간과 겹치는(이벤트 하나라도 기간 내) 라운드만 통째로 표시.
-      //   → 매수가 기간 직전이어도 라운드 전체를 '실제 매수일' 행에 표시(고아 매도 행 방지 + 종목 누락 방지).
-      const keptRounds = buildRounds(all).filter(r => r.some(e => e.ms >= fromMs && e.ms <= toMs));
+      // 라운드를 전체 거래로 만든 뒤, 기간과 겹치는(이벤트 하나라도 기간 내) 라운드만 표시.
+      //   · 기간 내 매도가 있으면 → 라운드 전체 유지(기간 밖 매수도, 매도 원가 표시·고아 매도 방지).
+      //   · 매수전용(기간 내 매도 없음) 라운드 → 기간 밖 매수는 숨기고 기간 내 매수만(불필요한 과거 매수 제거).
+      const keptRounds = buildRounds(all)
+        .filter(r => r.some(e => e.ms >= fromMs && e.ms <= toMs))
+        .map(r => {
+          const hasInRangeSell = r.some(e => e.kind === "sell" && e.ms >= fromMs && e.ms <= toMs);
+          return hasInRangeSell ? r : r.filter(e => e.ms >= fromMs && e.ms <= toMs);
+        });
       const events = keptRounds.flat();
       if (events.length === 0) continue;                   // 이 기간에 거래 없는 종목은 숨김
       // 보유분(미실현용) — 전체 거래 이동평균으로 남은 수량·평단
