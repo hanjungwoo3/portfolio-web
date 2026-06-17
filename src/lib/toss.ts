@@ -58,6 +58,7 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   // 미국 반도체 개별주 (토스 종목 페이지)
   "MU":   "https://www.tossinvest.com/stocks/US19890516001",
   "NVDA": "https://www.tossinvest.com/stocks/US19990122001",
+  "SNDK": "https://www.tossinvest.com/stocks/NAS0250224006",   // 샌디스크 (2025 상장 → NAS 프리픽스)
   "AMAT": "https://www.tossinvest.com/stocks/US19721012001",
   "LRCX": "https://www.tossinvest.com/stocks/US19840504001",
   "ASML": "https://www.tossinvest.com/stocks/US19950315001",
