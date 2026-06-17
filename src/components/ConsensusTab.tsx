@@ -65,11 +65,12 @@ interface Props {
   onEdit?: (ticker: string) => void;          // ✏️ 보유 수정 (그룹 추가/제외)
 }
 
-type View = "consensus" | "pension" | "screener";
+type View = "consensus" | "pension" | "screener" | "rise";
 type SortKey = "upside" | "date" | "npsPct" | "npsAmount"
-             | "vol" | "foreign60" | "inst60" | "pension60";
+             | "vol" | "foreign60" | "inst60" | "pension60"
+             | "riseDesc" | "riseAsc";   // 현재 등락률 높은순/낮은순 (세 탭 공통)
 type Period = "all" | "1w" | "1m";
-const DEFAULT_SORT: Record<View, SortKey> = { consensus: "date", pension: "npsPct", screener: "vol" };
+const DEFAULT_SORT: Record<View, SortKey> = { consensus: "date", pension: "npsPct", screener: "vol", rise: "riseDesc" };
 
 // "YY.MM.DD" / "YY/MM/DD" → epoch ms
 function parseRepDate(d?: string): number {
@@ -280,6 +281,8 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
         case "foreign60": return flowMode === "amount" ? b.forAmt - a.forAmt : b.foreign60 - a.foreign60;
         case "inst60": return flowMode === "amount" ? b.insAmt - a.insAmt : b.inst60 - a.inst60;
         case "pension60": return flowMode === "amount" ? b.penAmt - a.penAmt : b.pension60 - a.pension60;
+        case "riseDesc": return (b.pricePct ?? -1e9) - (a.pricePct ?? -1e9);   // 상승률 높은순
+        case "riseAsc": return (a.pricePct ?? 1e9) - (b.pricePct ?? 1e9);      // 상승률 낮은순
         default: return 0;
       }
     });
@@ -336,10 +339,17 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       <button className={btn(sortKey === "inst60")} onClick={() => setSortKey("inst60")}>기관</button>
       <button className={btn(sortKey === "pension60")} onClick={() => setSortKey("pension60")}>연기금</button>
     </>}
+    {view === "rise" && <>
+      <span className="text-[10px] text-gray-400">정렬</span>
+      <button className={btn(sortKey === "riseDesc")} onClick={() => setSortKey("riseDesc")}>높은순 ↓</button>
+      <button className={btn(sortKey === "riseAsc")} onClick={() => setSortKey("riseAsc")}>낮은순 ↑</button>
+    </>}
   </>);
 
   // 선택한 정렬 기준 설명 — 우측 상단
   const sortDesc = (() => {
+    if (sortKey === "riseDesc") return "오늘 등락률 높은 순 (상승 → 하락)";
+    if (sortKey === "riseAsc") return "오늘 등락률 낮은 순 (하락 → 상승)";
     if (view === "consensus")
       return sortKey === "upside" ? "현재가 대비 평균 목표주가 상승여력(%)" : "최근 리포트 발행일 순";
     if (view === "pension")
@@ -360,6 +370,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
         {subTab("consensus", "🎯 컨센서스")}
         {subTab("pension", "🏦 연기금")}
         {subTab("screener", "📊 변동폭")}
+        {subTab("rise", "📈 등락률")}
         <span className="ml-2 mb-1 text-xs text-gray-500">{displayed.length}종목</span>
         {anyLoading && <span className="mb-1 text-xs text-gray-400">불러오는 중…</span>}
         {/* 데스크톱 — 인라인 우측 */}
