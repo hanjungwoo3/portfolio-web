@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import type { PricePoint } from "../lib/api";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, isTodayKst, holdingYesterdayBaseSum, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, holdingYesterdayBaseSum, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
@@ -1523,9 +1523,7 @@ export function StockCard({
           const dayAmount = yBase > 0 ? price.price * stock.shares - yBase : 0;
           const holdDayPct = yBase > 0 ? (dayAmount / yBase) * 100 : 0;
           // 전량 오늘 매수일 때만 (당일) — 합산은 todayShares, 일반행은 buy_date 기준
-          const allToday = stock.todayShares != null
-            ? stock.todayShares >= stock.shares
-            : isTodayKst(stock.buy_date);
+          const allToday = stock.todayShares != null && stock.todayShares >= stock.shares;
           return (
             <div className="text-xs">
               <span className="text-[10px] text-gray-500">오늘 </span>

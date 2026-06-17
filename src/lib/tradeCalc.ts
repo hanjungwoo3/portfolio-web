@@ -1,5 +1,35 @@
 // 거래(trades) 실현손익 계산 — 내거래 테이블·간트 차트 공용.
 import type { Trade } from "./db";
+import type { Stock } from "../types";
+import { isTodayKst } from "./format";
+import { normalizeAccount } from "./account";
+
+// 보유에 '오늘 매수분'(todayShares/todayCost)을 거래 로그로부터 주입.
+//  추가매수로 holding.buy_date 가 오늘이 되면 holdingYesterdayBaseSum 이 '보유 전체를 오늘 산 것'으로
+//  잡아 오늘 손익 = 전체 손익이 되던 버그 방지 — 실제 오늘 산 수량만 분리해 어제분과 합산.
+//  · 독립 보유 ON: 그룹마다 별도 보유 → (종목+그룹)으로 매칭.
+//  · 동기화 OFF(기본): 같은 종목이 모든 그룹에 미러링, 거래는 한 그룹에만 기록 →
+//    종목으로만 매칭해 모든 미러 행에 동일하게 주입(특정 그룹 카드만 어긋나던 문제 해결).
+export function attachTodayBuys(holdings: Stock[], trades: Trade[], independent: boolean): Stock[] {
+  const keyOf = (ticker: string, account?: string) =>
+    independent ? `${ticker}|${normalizeAccount(account)}` : ticker;
+  const byKey = new Map<string, { shares: number; cost: number }>();
+  for (const t of trades) {
+    if (t.type !== "buy" || !isTodayKst(t.date)) continue;
+    const k = keyOf(t.ticker, t.account);
+    const cur = byKey.get(k) ?? { shares: 0, cost: 0 };
+    cur.shares += t.qty; cur.cost += t.amount;
+    byKey.set(k, cur);
+  }
+  if (byKey.size === 0) return holdings;
+  return holdings.map(s => {
+    const tb = byKey.get(keyOf(s.ticker, s.account));
+    if (!tb || !(tb.shares > 0) || !(s.shares > 0)) return s;
+    const todayShares = Math.min(tb.shares, s.shares);              // 보유보다 많이(이미 일부 매도) 방지
+    const todayCost = Math.round(tb.cost * (todayShares / tb.shares));
+    return { ...s, todayShares, todayCost };
+  });
+}
 
 export interface RealizedInfo {
   realized: number;   // 실현손익(원)

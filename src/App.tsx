@@ -6,6 +6,8 @@ import {
   fetchInvestorHistorySafe, fetchNaverPrices, fetchKrStockName, fetchUsHoldingPrices,
 } from "./lib/api";
 import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits, repairBrokenNames } from "./lib/db";
+import { attachTodayBuys } from "./lib/tradeCalc";
+import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY } from "./components/Tabs";
@@ -147,7 +149,8 @@ function Dashboard() {
       const [h, m, t] = await Promise.all([loadHoldings(), loadMemos(), loadAllTrades()]);
       // eslint-disable-next-line no-console
       console.log(`[v3 load] holdings=${h.length}, memos=${m.size}, trades=${t.length}`);
-      setHoldings(h);
+      // 오늘 매수분 주입 — 추가매수로 buy_date 가 오늘이 돼도 '오늘 손익=전체'로 잡히지 않게.
+      setHoldings(attachTodayBuys(h, t, getIndependentGroupsMode()));
       setMemos(m);
       setTradeCount(t.length);
     })();

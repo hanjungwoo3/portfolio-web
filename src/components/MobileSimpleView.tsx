@@ -30,6 +30,7 @@ import { getIndependentGroupsMode } from "../lib/groupMode";
 import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { normalizeAccount } from "../lib/account";
+import { attachTodayBuys } from "../lib/tradeCalc";
 import type { MarketIndexKey } from "../lib/api";
 import { MarketFlowModal } from "./MarketFlowModal";
 
@@ -219,7 +220,7 @@ export function MobileSimpleView() {
     : adaptiveRefreshMs;
 
   // 보유 종목 로드 (그룹 탭 라벨 + 그룹 종목 표시)
-  const { data: holdings = [] } = useQuery({
+  const { data: rawHoldings = [] } = useQuery({
     queryKey: ["m-holdings"],
     queryFn: loadHoldings,
     refetchOnWindowFocus: false,
@@ -236,6 +237,8 @@ export function MobileSimpleView() {
     refetchOnWindowFocus: false,
   });
   const tradeCount = allTrades.length;
+  // 오늘 매수분 주입 — 추가매수로 buy_date 가 오늘이 돼도 '오늘 손익=전체'로 잡히지 않게.
+  const holdings = useMemo(() => attachTodayBuys(rawHoldings, allTrades, getIndependentGroupsMode()), [rawHoldings, allTrades]);
 
   // 그룹 목록 (account 별 카운트) — 한국 + 미국 + 보유 + 사용자 그룹들
   const groupTabs = useMemo(() => {

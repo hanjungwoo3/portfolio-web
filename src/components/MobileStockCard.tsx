@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, isTodayKst, holdingYesterdayBaseSum } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, holdingYesterdayBaseSum } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
@@ -732,9 +732,7 @@ export function MobileStockCard({
           const yBase = holdingYesterdayBaseSum(stock, price);
           const dayAmount = yBase > 0 ? price.price * stock.shares - yBase : 0;
           const holdDayPct = yBase > 0 ? (dayAmount / yBase) * 100 : 0;
-          const allToday = stock.todayShares != null
-            ? stock.todayShares >= stock.shares
-            : isTodayKst(stock.buy_date);
+          const allToday = stock.todayShares != null && stock.todayShares >= stock.shares;
           return (
             <div className="text-[10px]">
               <span className="text-[9px] text-gray-500">오늘 </span>

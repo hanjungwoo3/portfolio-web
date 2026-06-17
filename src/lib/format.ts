@@ -56,9 +56,10 @@ export function dayChangePct(p?: { price: number; base: number; prevClose?: numb
 }
 
 // 보유분의 '어제 기준' 평가합 — 오늘 손익(= 현재평가 − 이 값) 계산용.
-//  · 오늘 매수분: 어제 보유가 없으므로 기준 = 매입원가
-//  · 그 외(어제부터 보유): 기준 = 전일 종가(price.base). 비거래일(base=0)엔 현재가.
-// 합산(내주식)처럼 매수일이 섞인 경우 todayShares/todayCost 로 보유분별 분리 합산.
+//  · todayShares 있음(거래로그로 주입): 기존분=전일 종가 + 오늘분=매입원가 로 분리 합산.
+//  · todayShares 없음: '오늘 산 수량'을 알 수 없으므로 buy_date 가 오늘이어도 전량 오늘매수로 보지 않고
+//    (그러면 오늘 손익=전체 손익이 됨) 보유 전량을 전일 종가 기준으로 → 오늘 = 그날 시장 변동분.
+//  비거래일(base=0)엔 현재가.
 export function holdingYesterdayBaseSum(
   stock: { shares: number; avg_price: number; buy_date?: string; todayShares?: number; todayCost?: number },
   price: { price: number; base: number },
@@ -68,7 +69,7 @@ export function holdingYesterdayBaseSum(
     const oldShares = stock.shares - stock.todayShares;
     return baseUnit * oldShares + (stock.todayCost ?? 0);
   }
-  return (isTodayKst(stock.buy_date) ? stock.avg_price : baseUnit) * stock.shares;
+  return baseUnit * stock.shares;
 }
 
 // KST 시(0~23)
