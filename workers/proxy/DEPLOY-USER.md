@@ -134,38 +134,34 @@ Cloudflare 에디터로 돌아와서:
 
 ---
 
-## 4단계 — 동작 검증 (선택, 1분)
+## 4단계 — 동작 검증
 
-### ⚠️ 가장 중요 — 헷갈리지 마세요
+### ⚠️ 가장 중요 — 브라우저로 직접 열면 막히는 게 정상입니다
 
-**worker URL을 그냥 직접 열면 다음 에러처럼 보이는 응답이 나옵니다:**
+**worker URL을 주소창에 직접 입력해 열면 다음과 같은 응답이 나옵니다:**
 
 ```json
-{"error":"Missing 'url' query parameter"}
+{"error":"Forbidden origin"}
 ```
 
-**이건 에러가 아니라 worker 가 정상 작동한다는 증거입니다.**
-worker 는 `?url=` 쿼리 파라미터로 대상 주소를 받아 우회하는 역할 — 파라미터 없이 호출하면 "url 빠졌어요" 라고 알려주는 게 정상.
+**이건 고장이 아니라 보안이 정상 작동한다는 증거입니다.**
+이 worker 는 **포트폴리오 앱에서 호출할 때만** 응답하도록 잠겨 있습니다.
+브라우저 주소창으로 직접 열면 보안 정보(Origin)가 실리지 않아 **의도적으로 차단**돼요.
+(`?url=...` 를 붙여서 직접 열어도 마찬가지로 `Forbidden origin` 이 정상입니다.)
 
-### 진짜 검증 — `?url=...` 붙여서 호출
-
-새 탭에서 아래 URL 접속 (Apple 주가 데이터):
-
-```
-https://portfolio-proxy.<본인계정>.workers.dev/?url=https%3A%2F%2Fquery1.finance.yahoo.com%2Fv8%2Ffinance%2Fchart%2FAAPL
-```
-
-- ✅ JSON 응답 (`{"chart":...`)이 보이면 정상
-- ❌ Error 502 / Error 1031 등이 뜨면 → 3.3 단계로 돌아가 코드 다시 붙여넣기
+> ⚠️ 즉, **워커는 브라우저에서 직접 테스트할 수 없습니다.** 진짜 동작 확인은 아래 5단계대로
+>     앱에 등록한 뒤 시세가 갱신되는지로 합니다.
 
 ### 검증 표
 
-| 호출 URL | 응답 | 의미 |
-|----------|------|------|
-| `/` (루트) | `{"error":"Missing 'url' query parameter"}` | ✅ 정상 (worker 살아있음) |
-| `/?url=https%3A%2F%2Fquery1.finance.yahoo.com%2F...` | `{"chart":...}` JSON | ✅ 완벽 |
-| 어떤 URL이든 | `Error 502` | ❌ 코드 잘못 붙여넣음 — 3.3 다시 |
-| 어떤 URL이든 | `Error 1101` 또는 빈 페이지 | ❌ 배포 실패 — Deploy 다시 클릭 |
+| 상황 | 응답 | 의미 |
+|------|------|------|
+| 브라우저 주소창으로 직접 열기 | `{"error":"Forbidden origin"}` | ✅ 정상 (보안 잠금 작동 — 앱에서만 호출 가능) |
+| 앱에 등록 후 시세 갱신됨 (5단계) | 시세·차트 정상 표시 | ✅ 완벽 |
+| 앱에 등록했는데 데이터 안 옴 | — | ❌ Deploy 실패/코드 오류 — 3.3~3.4 다시 |
+| 직접 열었을 때 `Error 1101` 또는 빈 페이지 | — | ❌ 배포 실패 — Deploy 다시 클릭 |
+
+> 💡 `Forbidden origin` 이 보였다면 배포는 성공한 거예요. 바로 5단계로 넘어가 앱에 등록하세요.
 
 ---
 
@@ -213,17 +209,13 @@ https://portfolio-proxy.<본인계정>.workers.dev/?url=https%3A%2F%2Fquery1.fin
 
 ## 트러블슈팅
 
-### Q0. (가장 흔함) worker URL 열었더니 `Missing 'url' query parameter` 에러 같은게 나옴
+### Q0. (가장 흔함) worker URL 열었더니 `{"error":"Forbidden origin"}` 가 나옴
 
-→ **이건 에러 아니라 정상입니다.** worker 가 `?url=...` 쿼리 파라미터로 대상 주소를 받아 우회하는데, 파라미터 없이 그냥 호출하면 "url 빠졌어요" 라고 알려주는 게 의도된 응답.
+→ **이건 에러 아니라 정상입니다.** 이 worker 는 보안상 **포트폴리오 앱에서 호출할 때만** 응답하도록 잠겨 있어요. 브라우저 주소창으로 직접 열면 보안 정보(Origin)가 안 실려서 **의도적으로 차단**됩니다.
 
-worker 가 살아있다는 신호. 그대로 5단계 (앱에 등록) 진행.
+`Forbidden origin` 이 보였다면 **배포는 성공**한 거예요. 브라우저로는 테스트가 안 되니 그대로 5단계(앱에 등록)로 진행하고, **앱에서 시세가 갱신되는지**로 확인하세요.
 
-진짜 검증 원하시면:
-```
-https://portfolio-proxy.<본인계정>.workers.dev/?url=https%3A%2F%2Fquery1.finance.yahoo.com%2Fv8%2Ffinance%2Fchart%2FAAPL
-```
-→ 길지만 그대로 복사·붙여넣기. JSON `{"chart":...}` 가 보이면 완벽.
+> 참고: `?url=...` 를 붙여서 직접 열어도 똑같이 `Forbidden origin` 이 나옵니다 (정상). 워커는 주소창에서 직접 검증할 수 없습니다.
 
 ### Q1. 코드 붙여넣었더니 "16 errors" 뜸
 
