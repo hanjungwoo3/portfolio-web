@@ -10,6 +10,7 @@ import { openTossStock } from "../lib/toss";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { signColor, formatSigned, isKrHoldingClosed } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
+import { useIncrementalRender } from "../lib/useIncrementalRender";
 import { Tooltip } from "./Tooltip";
 import type { Investor } from "../types";
 
@@ -295,6 +296,16 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       invQs.map(q => `${q.status}:${q.dataUpdatedAt}`).join(","),
       priceByTicker, nameByTicker, groupsByTicker, period, sortKey, volDays, flowMode]);
 
+  // 점진 렌더 — 코스피/코스닥 컬럼은 각각 독립 카운터 + 자기 컬럼 하단 sentinel.
+  //  (센티넬 하나로 합치면 짧은 컬럼은 더 안 채워짐 → 컬럼별로 분리)
+  const kospiItems = useMemo(
+    () => displayed.filter(it => marketByTicker.get(it.ticker) !== "KOSDAQ"), [displayed, marketByTicker]);
+  const kosdaqItems = useMemo(
+    () => displayed.filter(it => marketByTicker.get(it.ticker) === "KOSDAQ"), [displayed, marketByTicker]);
+  const incResetKey = `${view}|${sortKey}|${period}|${volDays}`;
+  const kospiInc = useIncrementalRender<HTMLDivElement>(kospiItems.length, 20, incResetKey);
+  const kosdaqInc = useIncrementalRender<HTMLDivElement>(kosdaqItems.length, 20, incResetKey);
+
   const btn = (active: boolean) =>
     `px-2.5 py-1 rounded-full text-xs font-bold border transition ${
       active ? "bg-gray-800 text-white border-gray-800"
@@ -396,8 +407,9 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 items-start">
           {(["KOSPI", "KOSDAQ"] as const).map(mkt => {
             // 거래소 미확인 종목은 코스피 쪽으로 (대부분 코스피 + 검증 지연 대비)
-            const colItems = displayed.filter(it =>
-              (marketByTicker.get(it.ticker) === "KOSDAQ" ? "KOSDAQ" : "KOSPI") === mkt);
+            const colItems = mkt === "KOSPI" ? kospiItems : kosdaqItems;
+            const inc = mkt === "KOSPI" ? kospiInc : kosdaqInc;
+            const renderItems = colItems.slice(0, inc.count);   // 실제 렌더(컬럼별 점진)
             const mktColor = mkt === "KOSPI" ? "#dc2626" : "#2563eb";
             return (
             <div key={mkt} className="space-y-2">
@@ -406,7 +418,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                 {mkt === "KOSPI" ? "코스피" : "코스닥"}
                 <span className="text-[11px] text-gray-400 font-normal">{colItems.length}종목</span>
               </div>
-              {colItems.map((it) => {
+              {renderItems.map((it) => {
             const up = it.upside;
             // 장마감 흐림 — 일반 카드와 동일 조건(시간외/프리장은 열림, 완전 마감만). 종목명·가격만.
             const dimCls = (getDimSleepingEnabled() && isKrHoldingClosed()) ? "opacity-60" : "";
@@ -636,6 +648,11 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
               </div>
             );
           })}
+              {/* 컬럼별 sentinel — 이 컬럼 하단 근처면 다음 배치 추가 */}
+              <div ref={inc.sentinelRef} aria-hidden className="h-1" />
+              {inc.hasMore && (
+                <div className="text-center text-xs text-gray-400 py-2">더 불러오는 중…</div>
+              )}
             </div>
             );
           })}

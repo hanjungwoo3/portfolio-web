@@ -195,6 +195,15 @@ function Dashboard() {
       .filter(t => /^[A-Za-z][A-Za-z.]{0,4}$/.test(t)))),
     [visible]
   );
+  // 거래소 분류 대상 — 활성 탭(visible)이 아닌 "전체 보유" KR 6자리.
+  //  컨센서스 탭은 visible 이 비어(계좌 그룹 아님) krxTickers=[] → 검증 쿼리가 꺼지면
+  //  consensusItems 가 거래소를 분류 못 해 코스닥이 코스피로 흘러간다. 그래서 전체 기준.
+  const allKrTickers = useMemo(
+    () => Array.from(new Set(holdings
+      .map(s => s.ticker)
+      .filter(t => /^[\dA-Za-z]{6}$/.test(t)))),
+    [holdings]
+  );
 
   // 가격 — 항상 토스 먼저(복구 자동 감지), 점검(490)이면 네이버 fallback
   const { data: prices, dataUpdatedAt: pricesUpdatedAt } = useQuery({
@@ -223,14 +232,14 @@ function Dashboard() {
   // 한국 종목 거래소 자동 검증 — 토스 stock-infos API 사용 (market.code: KSP/KSQ).
   // 결과는 localStorage 캐시 (24시간) — 매번 검증 부담 회피.
   const { data: verifiedMarketMap } = useQuery({
-    queryKey: ["kr-markets-verified", krxTickers],
+    queryKey: ["kr-markets-verified", allKrTickers],
     queryFn: async () => {
       const cacheRaw = localStorage.getItem("kr_markets_verified") ?? "{}";
       const cache = JSON.parse(cacheRaw) as Record<string, "KOSPI" | "KOSDAQ">;
       const cacheTs = Number(localStorage.getItem("kr_markets_verified_ts") ?? "0");
       const isFresh = Date.now() - cacheTs < 24 * 3600 * 1000;
       const known = isFresh ? new Map(Object.entries(cache)) : new Map();
-      const toVerify = krxTickers.filter(t => !known.has(t));
+      const toVerify = allKrTickers.filter(t => !known.has(t));
       if (toVerify.length === 0) return known;
       const fresh = await verifyKrMarkets(toVerify);
       for (const [t, mkt] of fresh) known.set(t, mkt);
@@ -240,7 +249,7 @@ function Dashboard() {
       localStorage.setItem("kr_markets_verified_ts", String(Date.now()));
       return known;
     },
-    enabled: krxTickers.length > 0,
+    enabled: allKrTickers.length > 0,
     staleTime: 60 * 60 * 1000,
   });
 
