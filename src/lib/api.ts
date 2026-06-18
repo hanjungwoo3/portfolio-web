@@ -2610,8 +2610,8 @@ export async function searchTossAutoComplete(
         // 미국 등 해외 — symbol 이 ticker. 토스 내부코드(productCode) 기억 → 링크용.
         ticker = symbol;
         if (!/^[A-Za-z][A-Za-z.]{0,9}$/.test(ticker)) continue;   // 알파벳 티커만 (TSLA, BRK.B)
-        // 정식명 없는(name===ticker) US 단일종목 레버리지 ETF(TSLL/TSLY 등) 제외 — 토스도 숨김.
-        if (!name || name.toUpperCase() === ticker.toUpperCase()) continue;
+        // 한글 정식명이 없으면 토스가 티커를 이름으로 줌(예: VNQ) — 그대로 노출(이름=티커도 허용).
+        //  (예전엔 name===ticker 를 레버리지 ETF로 보고 제외했으나 VNQ 같은 정상 ETF까지 누락돼 제거)
         if (productCode) rememberTossCode(ticker, productCode);
       } else {
         continue;   // 알 수 없는 시장 제외

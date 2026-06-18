@@ -221,7 +221,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     } catch (e) {
       const msg = (e as Error).message;
       if (await handleSyncAuthError(msg)) return;
-      alert(`❌ Drive 불러오기 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
+      alert(`❌ Drive 가져오기 실패\n\n${msg}\n\n네트워크 문제일 수 있습니다.`);
       setStatusMsg(`⚠️ ${msg}`);
     } finally { setSyncBusy(false); setSyncBusyMsg(""); }
   }, [handleSyncAuthError, onChanged, onClose]);
@@ -383,7 +383,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
         if (result.memos) await replaceAllMemos(result.memos);
         if (result.trades) await replaceAllTrades(result.trades);
       }
-      setStatusMsg("💾 불러오기 완료");
+      setStatusMsg("💾 가져오기 완료");
       onChanged();
       onClose();
     } catch (e) {
@@ -472,7 +472,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               )}
               {!signedIn && (
                 <div className="text-[11px] text-amber-700">
-                  🔐 로그인 안 됨 — 저장/불러오기를 누르면 Google 로그인 후 그대로 실행됩니다.
+                  🔐 로그인 안 됨 — 저장/가져오기를 누르면 Google 로그인 후 그대로 실행됩니다.
                 </div>
               )}
               <div className="flex gap-2 flex-wrap">
@@ -484,7 +484,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 <button disabled={syncBusy}
                   onClick={onDownloadClick}
                   className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                  ↓ 불러오기
+                  ↓ 가져오기
                 </button>
                 {signedIn && (
                   <button disabled={syncBusy}
@@ -518,11 +518,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                       disabled={busy}
                       className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 disabled:opacity-40
                                  text-gray-700 rounded text-xs font-medium">
-                📂 파일에서 불러오기
+                📂 파일에서 가져오기
               </button>
             </div>
             <div className="text-[10px] text-gray-500">
-              보유·예수금·그룹·폴더·탭·거래기록 등 모든 데이터를 .json 파일로 백업/복원합니다. (불러오기 = 전체 덮어쓰기)
+              보유·예수금·그룹·폴더·탭·거래기록 등 모든 데이터를 .json 파일로 백업/복원합니다. (가져오기 = 전체 덮어쓰기)
             </div>
           </div>
 

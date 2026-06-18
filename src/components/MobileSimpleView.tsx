@@ -1960,7 +1960,7 @@ function SettingsModal({
                       finally { setSyncBusyLocal(false); setSyncBusyMsgLocal(""); }
                     }}
                     className="px-2 py-1 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs rounded">
-                    ↓ 불러오기
+                    ↓ 가져오기
                   </button>
                   <button disabled={syncBusyLocal}
                     onClick={async () => {
@@ -1986,10 +1986,10 @@ function SettingsModal({
               <button onClick={handleLoadFile} disabled={busy}
                       className="flex-1 px-2 py-1.5 bg-gray-100 hover:bg-gray-200 disabled:opacity-40
                                  text-gray-700 text-xs rounded">
-                📂 파일 불러오기
+                📂 파일 가져오기
               </button>
             </div>
-            <p className="text-[10px] text-gray-500">{dataMsg || "보유·예수금·그룹·폴더·탭 등 .json 백업/복원 (불러오기 = 전체 덮어쓰기)"}</p>
+            <p className="text-[10px] text-gray-500">{dataMsg || "보유·예수금·그룹·폴더·탭 등 .json 백업/복원 (가져오기 = 전체 덮어쓰기)"}</p>
           </div>
 
           {/* 1) 전용 프록시 — 여러 개 가능 */}
