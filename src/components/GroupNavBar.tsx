@@ -88,7 +88,7 @@ export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, s
          style={(floating || sticky) ? { top: stickyTop } : undefined}
          className={`flex gap-1
                      ${floating
-                       ? `fixed left-1 z-30 flex-col items-start max-h-[74vh] overflow-y-auto px-0.5 py-1
+                       ? `fixed left-0 z-30 flex-col items-start max-h-[74vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pl-0 pr-0.5 py-1
                           transition-all duration-200 ${shown ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-3 pointer-events-none"}`
                        : sticky ? `sticky z-30 ${bleedClass} py-1.5 items-center overflow-x-auto whitespace-nowrap bg-white/95 backdrop-blur border-b border-gray-200`
                                 : "items-center overflow-x-auto whitespace-nowrap"}
