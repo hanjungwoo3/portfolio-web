@@ -51,8 +51,8 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
     },
     {
       id: "macro", short: "매크로",
-      label: "📈 미국 지수·금리",                      // 나스닥·S&P·다우 + 미 국채 2Y·10Y
-      rows: [["^IXIC", "^GSPC", "^DJI", "^US2Y", "^TNX"]],
+      label: "📈 미국 지수·금리",                      // 나스닥·S&P + 미 국채 2Y·10Y + 다우
+      rows: [["^IXIC", "^GSPC", "^US2Y", "^TNX", "^DJI"]],
     },
     {
       id: "bigtech", short: "빅테크",
