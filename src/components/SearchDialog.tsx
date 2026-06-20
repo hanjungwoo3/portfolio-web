@@ -15,6 +15,7 @@ import type { Stock, Price } from "../types";
 import { signColor, isEtfByName } from "../lib/format";
 import { handleTossLinkClick, tossStockUrl } from "../lib/toss";
 import { useEscClose } from "../lib/useEscClose";
+import { getRecentSearches, addRecentSearch, removeRecentSearch, clearRecentSearches } from "../lib/recentSearches";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 
 interface Props {
@@ -63,6 +64,8 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
   const [groupWarn, setGroupWarn] = useState(false);
   // ETF 구성종목 모달 — 검색 결과 행의 ETF 책갈피 클릭 시
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
+  // 최근 검색어 — 열릴 때 로드, 명시 검색 시 기록
+  const [recents, setRecents] = useState<string[]>([]);
   // 검색 input 포커스 ref — 열릴 때 자동 포커스
   const searchInputRef = useRef<HTMLTextAreaElement | null>(null);
   useEscClose(isOpen, onClose);
@@ -88,9 +91,10 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
     }
   }, [isOpen, initialQuery]);
 
-  // 다이얼로그 열릴 때 검색 input 자동 포커스
+  // 다이얼로그 열릴 때 검색 input 자동 포커스 + 최근 검색어 로드
   useEffect(() => {
     if (isOpen) {
+      setRecents(getRecentSearches());
       // 모바일 키보드 자동 노출 회피 위해 약간 지연
       const t = setTimeout(() => searchInputRef.current?.focus(), 50);
       return () => clearTimeout(t);
@@ -261,6 +265,8 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       setStatusMsg(total === 0
         ? "검색 결과 없음"
         : `${stocks.length}건${themePart} — 체크 후 그룹 선택 → [일괄적용]`);
+      // 결과 있을 때만 최근 검색어 기록(부분어·오타로 더럽혀지지 않게)
+      if (total > 0) setRecents(addRecentSearch(q));
     } catch {
       if (reqIdRef.current !== myId) return;
       setStatusMsg("검색 실패");
@@ -535,6 +541,32 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
               지우기
             </button>
           </div>
+          {/* 최근 검색어 — 입력 비어있을 때만 칩으로 표시 */}
+          {!query.trim() && recents.length > 0 && (
+            <div className="mt-2 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] text-gray-400 shrink-0">최근</span>
+              {recents.map(r => (
+                <span key={r}
+                      className="inline-flex items-center rounded-full border border-gray-300
+                                 bg-gray-50 text-gray-700 text-xs hover:bg-gray-100 transition">
+                  <button onClick={() => { setQuery(r); setRecents(addRecentSearch(r)); }}
+                          title={`"${r}" 다시 검색`}
+                          className="pl-2 pr-1 py-0.5">
+                    {r}
+                  </button>
+                  <button onClick={() => setRecents(removeRecentSearch(r))}
+                          title="삭제"
+                          className="pr-1.5 pl-0.5 py-0.5 text-gray-400 hover:text-rose-500 leading-none">
+                    ×
+                  </button>
+                </span>
+              ))}
+              <button onClick={() => setRecents(clearRecentSearches())}
+                      className="text-[11px] text-gray-400 hover:text-rose-500 ml-1">
+                전체 지우기
+              </button>
+            </div>
+          )}
         </div>
 
         {/* 그룹 일괄 토글 영역 */}

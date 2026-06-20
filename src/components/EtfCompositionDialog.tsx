@@ -59,20 +59,6 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
   const [compareQuery, setCompareQuery] = useState("");
   // 검색 드롭다운 키보드 선택 인덱스 (방향키 ↑/↓, Enter 선택)
   const [cmpActiveIdx, setCmpActiveIdx] = useState(0);
-  // 비교 모드 표시 방식 — 카드(좌우 2패널) ↔ 비교표(3열 diff)
-  const [compareView, setCompareView] = useState<"cards" | "table">("table");
-  // 각 panel 이 로드된 종목 ticker 목록 (공통 종목 계산용)
-  const [panelATickers, setPanelATickers] = useState<string[]>([]);
-  const [panelBTickers, setPanelBTickers] = useState<string[]>([]);
-
-  // 공통 종목 = A ∩ B
-  const dimTickers = useMemo(() => {
-    if (!secondEtf) return undefined;
-    const a = new Set(panelATickers);
-    const common = new Set<string>();
-    for (const t of panelBTickers) if (a.has(t)) common.add(t);
-    return common;
-  }, [secondEtf, panelATickers, panelBTickers]);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -85,7 +71,6 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
   useEffect(() => {
     if (!isOpen) {
       setSecondEtf(null); setCompareOpen(false); setCompareQuery("");
-      setPanelATickers([]); setPanelBTickers([]); setCompareView("table");
     }
   }, [isOpen]);
 
@@ -179,7 +164,7 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
               🔀 비교하기
             </button>
           ) : (
-            <button onClick={() => { setSecondEtf(null); setPanelBTickers([]); setCompareOpen(false); }}
+            <button onClick={() => { setSecondEtf(null); setCompareOpen(false); }}
                     title="비교 종료"
                     className="inline-flex items-center gap-1 px-2 py-1
                                border border-gray-300 rounded text-[11px] font-bold
@@ -242,49 +227,20 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
               )}
             </div>
           )}
-          {/* 비교 모드 — 카드 ↔ 비교표 토글 */}
-          {isCompare && (
-            <div className="inline-flex rounded-md border border-gray-300 overflow-hidden text-[11px] font-bold">
-              <button onClick={() => setCompareView("table")}
-                      className={`px-2 py-1 ${compareView === "table"
-                        ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-                📊 비교표
-              </button>
-              <button onClick={() => setCompareView("cards")}
-                      className={`px-2 py-1 border-l border-gray-300 ${compareView === "cards"
-                        ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-                🗂 카드
-              </button>
-            </div>
-          )}
-          {isCompare && compareView === "cards" && dimTickers && (
-            <span className="text-[11px] text-gray-500">
-              공통 종목 <b className="text-indigo-700">{dimTickers.size}개</b> 흐리게 표시
-            </span>
-          )}
           <button onClick={onClose}
                   className="ml-auto text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
-        {/* 본체 — 단일/카드 2패널/비교표 */}
-        {isCompare && compareView === "table" && secondEtf ? (
+        {/* 본체 — 단일 카드 그리드 / 비교 시 3열 비교표 */}
+        {isCompare && secondEtf ? (
           <div className="flex-1 overflow-y-auto">
             <EtfDiffTable tickerA={ticker} nameA={etfName}
                           tickerB={secondEtf.ticker} nameB={secondEtf.name}
                           onRequestSearch={onRequestSearch} />
           </div>
         ) : (
-          <div className={`flex-1 overflow-y-auto
-                           ${isCompare ? "grid grid-cols-1 lg:grid-cols-2 lg:divide-x" : ""}`}>
+          <div className="flex-1 overflow-y-auto">
             <EtfPanel ticker={ticker} etfName={etfName}
-                      onRequestSearch={onRequestSearch}
-                      dimTickers={dimTickers}
-                      onTickersChange={setPanelATickers} />
-            {isCompare && secondEtf && (
-              <EtfPanel ticker={secondEtf.ticker} etfName={secondEtf.name}
-                        onRequestSearch={onRequestSearch}
-                        dimTickers={dimTickers}
-                        onTickersChange={setPanelBTickers} />
-            )}
+                      onRequestSearch={onRequestSearch} />
           </div>
         )}
       </div>
@@ -412,6 +368,22 @@ function EtfDiffTable({ tickerA, nameA, tickerB, nameB, onRequestSearch }: DiffT
   const B_COLOR = "#0d9488";   // teal   — B(오른쪽)
   const endDateA = qa.data?.endDate ?? null;   // 구성 기준일
   const endDateB = qb.data?.endDate ?? null;
+  // 각 ETF 전체 구성 ticker(6자리 영숫자) — "한번에 추가"용
+  const allOf = (items?: { stockCode: string; name: string }[]) =>
+    (items ?? []).map(it => it.stockCode.replace(/^A/, "")).filter(t => /^[\dA-Za-z]{6}$/.test(t));
+  const aAll = allOf(qa.data?.items);
+  const bAll = allOf(qb.data?.items);
+
+  // "종목 N개 한번에 추가" 버튼
+  const addAllBtn = (tickers: string[]) =>
+    onRequestSearch && tickers.length > 0 ? (
+      <button onClick={() => onRequestSearch(tickers.join(" "))}
+              title="이 ETF 모든 구성 종목을 검색창에 한번에 추가"
+              className="mt-1 inline-flex items-center gap-1 px-2 py-0.5 border border-emerald-300
+                         rounded text-[10px] font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100">
+        ✅ 종목 {tickers.length}개 한번에 추가
+      </button>
+    ) : null;
 
   // ETF 전체 구성 → 파이용 데이터(표시 종목/그외/현금)
   const pieData = (raw: { stockCode: string; name: string; ratio: number }[]) => {
@@ -468,6 +440,7 @@ function EtfDiffTable({ tickerA, nameA, tickerB, nameB, onRequestSearch }: DiffT
               {diff.onlyA.length}종목 · 비중 {(diff.sumA - diff.overlapA).toFixed(1)}%
               {endDateA && <> · 기준일 {endDateA}</>}
             </div>
+            {addAllBtn(aAll)}
           </div>
           <div className="p-2 overflow-y-auto max-h-[70vh]">
             {etfHeader(tickerA, nameA, pieA)}
@@ -529,6 +502,7 @@ function EtfDiffTable({ tickerA, nameA, tickerB, nameB, onRequestSearch }: DiffT
               {diff.onlyB.length}종목 · 비중 {(diff.sumB - diff.overlapB).toFixed(1)}%
               {endDateB && <> · 기준일 {endDateB}</>}
             </div>
+            {addAllBtn(bAll)}
           </div>
           <div className="p-2 overflow-y-auto max-h-[70vh]">
             {etfHeader(tickerB, nameB, pieB)}
