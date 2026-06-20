@@ -211,13 +211,18 @@ export interface EtfComposition {
   name: string;
   ratio: number;       // 비중 (%)
 }
-export async function fetchEtfCompositions(ticker: string): Promise<EtfComposition[]> {
+export interface EtfCompositionResult {
+  items: EtfComposition[];
+  endDate: string | null;   // 구성(PDF) 기준일 (예: "2026-06-18") — 한국거래소 발표 최신 영업일
+}
+export async function fetchEtfCompositions(ticker: string): Promise<EtfCompositionResult> {
   const target = `https://wts-info-api.tossinvest.com/api/v2/stock-infos/A${ticker}/compositions`;
   try {
     const resp = await fetchProxied(target);
-    if (!resp.ok) return [];
+    if (!resp.ok) return { items: [], endDate: null };
     const data = await resp.json() as {
       result?: {
+        endDate?: string;
         items?: Array<{
           stockCode?: string;
           name?: string;
@@ -225,8 +230,7 @@ export async function fetchEtfCompositions(ticker: string): Promise<EtfCompositi
         }>;
       };
     };
-    const items = data.result?.items ?? [];
-    return items
+    const items = (data.result?.items ?? [])
       .map(it => ({
         stockCode: it.stockCode ?? "",   // 선물·"그 외" 는 null → 빈 문자열
         name: it.name ?? "",
@@ -234,8 +238,9 @@ export async function fetchEtfCompositions(ticker: string): Promise<EtfCompositi
       }))
       .filter(it => it.name)             // name 만 있으면 표시 (stockCode 없어도 OK)
       .sort((a, b) => b.ratio - a.ratio);
+    return { items, endDate: data.result?.endDate ?? null };
   } catch {
-    return [];
+    return { items: [], endDate: null };
   }
 }
 

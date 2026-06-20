@@ -1,12 +1,45 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete } from "../lib/api";
+import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, type KrRegularPrice } from "../lib/api";
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
 import { Tooltip } from "./Tooltip";
 import { formatSigned, signColor, isEtfByName, dayChangePct, dayChangeDiff, isKrHoldingClosed } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
-import { handleTossLinkClick, openExternal } from "../lib/toss";
+import { openExternal } from "../lib/toss";
+import type { Price } from "../types";
+
+// 현재가·일간% (+선택적 추세 스파크라인) 미니 카드 — 검색 드롭다운·비교표 공용
+function MiniPriceCard({ price, chart, showTrend = true }:
+                       { price?: Price; chart?: number[]; showTrend?: boolean }) {
+  const pct = price ? dayChangePct(price) : undefined;
+  const diff = price ? dayChangeDiff(price) : undefined;
+  const colorDiff = price ? price.price - (price.prevClose || price.price) : 0;
+  const priceCls = colorDiff > 0 ? "text-rose-600" : colorDiff < 0 ? "text-blue-600" : "text-gray-900";
+  const c = chart ?? [];
+  return (
+    <div className="relative overflow-hidden border border-gray-200 rounded-md
+                    bg-gray-50/60 px-2 py-1 min-h-[36px] flex flex-col justify-center">
+      {showTrend && c.length > 1 && (
+        <Sparkline data={c} width={300} height={36}
+                   className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" />
+      )}
+      <div className="relative z-10 flex items-baseline gap-1.5 flex-wrap">
+        <span className={`text-sm font-bold leading-tight tabular-nums ${priceCls}`}>
+          {price ? `${price.price.toLocaleString()}원` : "—"}
+        </span>
+        {pct !== undefined && (
+          <span className={`text-xs font-bold tabular-nums rounded px-1 bg-yellow-100 ${signColor(pct)}`}>
+            {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
+          </span>
+        )}
+        {diff !== undefined && (
+          <span className="text-[11px] text-gray-600 tabular-nums">({formatSigned(diff)}원)</span>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ETF 구성 종목 모달 — 토스 v2 compositions endpoint
 // 비교 모드: secondEtf 가 있으면 좌우 2-panel 으로 표시, 공통 종목은 opacity 로 흐리게
@@ -24,6 +57,10 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
   // 비교 검색 모드 — 열린 inline 검색 input + dropdown
   const [compareOpen, setCompareOpen] = useState(false);
   const [compareQuery, setCompareQuery] = useState("");
+  // 검색 드롭다운 키보드 선택 인덱스 (방향키 ↑/↓, Enter 선택)
+  const [cmpActiveIdx, setCmpActiveIdx] = useState(0);
+  // 비교 모드 표시 방식 — 카드(좌우 2패널) ↔ 비교표(3열 diff)
+  const [compareView, setCompareView] = useState<"cards" | "table">("table");
   // 각 panel 이 로드된 종목 ticker 목록 (공통 종목 계산용)
   const [panelATickers, setPanelATickers] = useState<string[]>([]);
   const [panelBTickers, setPanelBTickers] = useState<string[]>([]);
@@ -48,7 +85,7 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
   useEffect(() => {
     if (!isOpen) {
       setSecondEtf(null); setCompareOpen(false); setCompareQuery("");
-      setPanelATickers([]); setPanelBTickers([]);
+      setPanelATickers([]); setPanelBTickers([]); setCompareView("table");
     }
   }, [isOpen]);
 
@@ -91,6 +128,21 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
     () => new Map((cmpPriceList ?? []).map(p => [p.ticker, p])),
     [cmpPriceList],
   );
+  // 드롭다운 결과 변경 시 키보드 인덱스 리셋
+  const cmpKey = cmpTickers.join(",");
+  useEffect(() => { setCmpActiveIdx(0); }, [cmpKey]);
+  // 활성 항목 스크롤 into view
+  const cmpListRef = useRef<HTMLUListElement>(null);
+  useEffect(() => {
+    const el = cmpListRef.current?.children[cmpActiveIdx] as HTMLElement | undefined;
+    el?.scrollIntoView({ block: "nearest" });
+  }, [cmpActiveIdx]);
+
+  // 검색결과에서 ETF 선택 → 오른쪽 panel 로
+  const selectCmp = (r: { ticker: string; name: string }) => {
+    setSecondEtf({ ticker: r.ticker, name: r.name });
+    setCompareQuery(""); setCompareOpen(false); setCmpActiveIdx(0);
+  };
 
   if (!isOpen) return null;
 
@@ -140,43 +192,45 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
             <div className="relative flex-1 min-w-[240px]">
               <input autoFocus
                      value={compareQuery}
-                     onChange={e => setCompareQuery(e.target.value)}
-                     placeholder="비교할 ETF 검색 (예: KODEX 반도체)"
+                     onChange={e => { setCompareQuery(e.target.value); setCmpActiveIdx(0); }}
+                     onKeyDown={e => {
+                       const n = searchResults?.length ?? 0;
+                       if (n === 0) return;
+                       if (e.key === "ArrowDown") { e.preventDefault(); setCmpActiveIdx(i => (i + 1) % n); }
+                       else if (e.key === "ArrowUp") { e.preventDefault(); setCmpActiveIdx(i => (i - 1 + n) % n); }
+                       else if (e.key === "Enter") {
+                         e.preventDefault();
+                         const r = searchResults?.[Math.min(cmpActiveIdx, n - 1)];
+                         if (r) selectCmp(r);
+                       }
+                     }}
+                     placeholder="비교할 ETF 검색 (예: KODEX 반도체) · ↑↓ 선택, Enter"
                      className="w-full border border-gray-300 rounded px-2 py-1
                                 text-sm focus:outline-none focus:border-indigo-500" />
-              {/* 검색 결과 dropdown */}
+              {/* 검색 결과 dropdown — 종목 카드(현재가·%·추세) */}
               {searchResults && searchResults.length > 0 && (
-                <ul className="absolute left-0 right-0 top-full mt-1 z-20
+                <ul ref={cmpListRef}
+                    className="absolute left-0 right-0 top-full mt-1 z-20
                                bg-white border border-gray-200 rounded shadow-lg
-                               max-h-[280px] overflow-y-auto text-sm">
-                  {searchResults.map(r => (
-                    <li key={r.ticker}>
-                      <button onClick={() => {
-                                setSecondEtf({ ticker: r.ticker, name: r.name });
-                                setCompareQuery(""); setCompareOpen(false);
-                              }}
-                              className="w-full text-left px-2 py-1.5 hover:bg-indigo-50
-                                         flex items-center gap-2">
-                        <span className="font-bold">{r.name}</span>
-                        <span className="text-xs text-gray-500 font-mono">{r.ticker}</span>
-                        {(() => {
-                          const p = cmpPriceMap.get(r.ticker);
-                          if (!p) return null;
-                          const pct = dayChangePct(p);
-                          return (
-                            <span className="ml-auto tabular-nums text-xs">
-                              <span className="font-bold">{p.price.toLocaleString()}원</span>
-                              {pct !== undefined && (
-                                <span className={`ml-1 ${signColor(pct)}`}>
-                                  {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
-                                </span>
-                              )}
-                            </span>
-                          );
-                        })()}
-                      </button>
-                    </li>
-                  ))}
+                               max-h-[60vh] overflow-y-auto text-sm divide-y divide-gray-100">
+                  {searchResults.map((r, idx) => {
+                    const active = idx === Math.min(cmpActiveIdx, searchResults.length - 1);
+                    const p = cmpPriceMap.get(r.ticker);
+                    return (
+                      <li key={r.ticker}>
+                        <button onClick={() => selectCmp(r)}
+                                onMouseEnter={() => setCmpActiveIdx(idx)}
+                                className={`w-full text-left px-2 py-2 ${active ? "bg-indigo-50" : "hover:bg-gray-50"}`}>
+                          <div className="flex items-baseline gap-1.5 mb-1 min-w-0">
+                            <span className="font-bold truncate">{r.name}</span>
+                            <span className="text-[11px] text-gray-500 font-mono shrink-0">{r.ticker}</span>
+                          </div>
+                          {/* 가격 카드 — 추세그래프 제외(현재가·일간%만) */}
+                          <MiniPriceCard price={p} showTrend={false} />
+                        </button>
+                      </li>
+                    );
+                  })}
                 </ul>
               )}
               {searchResults && searchResults.length === 0 && debouncedQ.trim() && (
@@ -188,7 +242,22 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
               )}
             </div>
           )}
-          {isCompare && dimTickers && (
+          {/* 비교 모드 — 카드 ↔ 비교표 토글 */}
+          {isCompare && (
+            <div className="inline-flex rounded-md border border-gray-300 overflow-hidden text-[11px] font-bold">
+              <button onClick={() => setCompareView("table")}
+                      className={`px-2 py-1 ${compareView === "table"
+                        ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                📊 비교표
+              </button>
+              <button onClick={() => setCompareView("cards")}
+                      className={`px-2 py-1 border-l border-gray-300 ${compareView === "cards"
+                        ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                🗂 카드
+              </button>
+            </div>
+          )}
+          {isCompare && compareView === "cards" && dimTickers && (
             <span className="text-[11px] text-gray-500">
               공통 종목 <b className="text-indigo-700">{dimTickers.size}개</b> 흐리게 표시
             </span>
@@ -196,20 +265,28 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
           <button onClick={onClose}
                   className="ml-auto text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
-        {/* 본체 — 1 panel or 2 panel side-by-side (lg 이상) */}
-        <div className={`flex-1 overflow-y-auto
-                         ${isCompare ? "grid grid-cols-1 lg:grid-cols-2 lg:divide-x" : ""}`}>
-          <EtfPanel ticker={ticker} etfName={etfName}
-                    onRequestSearch={onRequestSearch}
-                    dimTickers={dimTickers}
-                    onTickersChange={setPanelATickers} />
-          {isCompare && secondEtf && (
-            <EtfPanel ticker={secondEtf.ticker} etfName={secondEtf.name}
+        {/* 본체 — 단일/카드 2패널/비교표 */}
+        {isCompare && compareView === "table" && secondEtf ? (
+          <div className="flex-1 overflow-y-auto">
+            <EtfDiffTable tickerA={ticker} nameA={etfName}
+                          tickerB={secondEtf.ticker} nameB={secondEtf.name}
+                          onRequestSearch={onRequestSearch} />
+          </div>
+        ) : (
+          <div className={`flex-1 overflow-y-auto
+                           ${isCompare ? "grid grid-cols-1 lg:grid-cols-2 lg:divide-x" : ""}`}>
+            <EtfPanel ticker={ticker} etfName={etfName}
                       onRequestSearch={onRequestSearch}
                       dimTickers={dimTickers}
-                      onTickersChange={setPanelBTickers} />
-          )}
-        </div>
+                      onTickersChange={setPanelATickers} />
+            {isCompare && secondEtf && (
+              <EtfPanel ticker={secondEtf.ticker} etfName={secondEtf.name}
+                        onRequestSearch={onRequestSearch}
+                        dimTickers={dimTickers}
+                        onTickersChange={setPanelBTickers} />
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -225,6 +302,430 @@ function useDebounce<T>(value: T, ms: number): T {
   return v;
 }
 
+// ─── EtfDiffTable — 두 ETF 구성 비교 3열표 (A에만 / 둘다 / B에만) ────────────
+interface DiffTableProps {
+  tickerA: string; nameA: string;
+  tickerB: string; nameB: string;
+  onRequestSearch?: (query: string) => void;
+}
+
+const isOtherCat = (name: string) => name === "그 외" || name === "기타";
+// 구성 배열 → { ticker(6자리): {name, ratio} } 맵. 선물·그외(6자리 아님)는 제외.
+function compMap(items: { stockCode: string; name: string; ratio: number }[]) {
+  const m = new Map<string, { name: string; ratio: number }>();
+  for (const it of items) {
+    if (isOtherCat(it.name)) continue;
+    const t = it.stockCode.replace(/^A/, "");
+    if (!/^\d{6}$/.test(t)) continue;
+    m.set(t, { name: it.name, ratio: it.ratio });
+  }
+  return m;
+}
+
+function EtfDiffTable({ tickerA, nameA, tickerB, nameB, onRequestSearch }: DiffTableProps) {
+  const [qa, qb] = useQueries({
+    queries: [tickerA, tickerB].map(t => ({
+      queryKey: ["etf-compositions", t],
+      queryFn: () => fetchEtfCompositions(t),
+      staleTime: 10 * 60_000,
+    })),
+  });
+
+  const diff = useMemo(() => {
+    const ma = compMap(qa.data?.items ?? []);
+    const mb = compMap(qb.data?.items ?? []);
+    const onlyA: { ticker: string; name: string; ratio: number }[] = [];
+    const onlyB: { ticker: string; name: string; ratio: number }[] = [];
+    const both: { ticker: string; name: string; ra: number; rb: number }[] = [];
+    for (const [t, v] of ma) {
+      if (mb.has(t)) both.push({ ticker: t, name: v.name, ra: v.ratio, rb: mb.get(t)!.ratio });
+      else onlyA.push({ ticker: t, name: v.name, ratio: v.ratio });
+    }
+    for (const [t, v] of mb) if (!ma.has(t)) onlyB.push({ ticker: t, name: v.name, ratio: v.ratio });
+    onlyA.sort((x, y) => y.ratio - x.ratio);
+    onlyB.sort((x, y) => y.ratio - x.ratio);
+    both.sort((x, y) => Math.max(y.ra, y.rb) - Math.max(x.ra, x.rb));
+    // 막대 스케일 — 양쪽 모든 비중 중 최댓값
+    const maxRatio = Math.max(1,
+      ...onlyA.map(x => x.ratio), ...onlyB.map(x => x.ratio),
+      ...both.map(x => Math.max(x.ra, x.rb)));
+    const sumA = (qa.data?.items ?? []).filter(it => !isOtherCat(it.name)).reduce((s, it) => s + it.ratio, 0);
+    const sumB = (qb.data?.items ?? []).filter(it => !isOtherCat(it.name)).reduce((s, it) => s + it.ratio, 0);
+    const overlapA = both.reduce((s, x) => s + x.ra, 0);
+    const overlapB = both.reduce((s, x) => s + x.rb, 0);
+    return { onlyA, onlyB, both, maxRatio, sumA, sumB, overlapA, overlapB };
+  }, [qa.data, qb.data]);
+
+  // 3열 모든 종목 ticker + ETF 자기 자신(A·B) — 카드(현재가·추세)용
+  const allTickers = useMemo(() => {
+    const s = new Set<string>();
+    if (/^[\dA-Za-z]{6}$/.test(tickerA)) s.add(tickerA);
+    if (/^[\dA-Za-z]{6}$/.test(tickerB)) s.add(tickerB);
+    diff.onlyA.forEach(x => s.add(x.ticker));
+    diff.onlyB.forEach(x => s.add(x.ticker));
+    diff.both.forEach(x => s.add(x.ticker));
+    return Array.from(s);
+  }, [diff, tickerA, tickerB]);
+  const { data: priceList } = useQuery({
+    queryKey: ["etf-diff-prices", allTickers],
+    queryFn: () => fetchTossPrices(allTickers),
+    enabled: allTickers.length > 0,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const priceMap = new Map((priceList ?? []).map(p => [p.ticker, p]));
+  const chartQs = useQueries({
+    queries: allTickers.map(t => ({
+      queryKey: ["price-history", t, "3mo"],
+      queryFn: () => fetchKrPriceHistory(t, "3mo"),
+      staleTime: 60 * 60_000,
+    })),
+  });
+  const chartMap = new Map(chartQs.map((q, i) => [allTickers[i], (q.data ?? []).map(p => p.close)]));
+  // 카드 — 장 마감 흐림 + 마감가 태그 + 보유 그룹 (카드뷰와 동일)
+  const dimEnabled = getDimSleepingEnabled();
+  const { data: krRegMap } = useQuery({
+    queryKey: ["etf-kr-reg-prices", allTickers],
+    queryFn: () => fetchKrRegularPrices(allTickers),
+    enabled: allTickers.length > 0,
+    refetchInterval: 5 * 60_000,
+    staleTime: 60_000,
+  });
+  const { data: holdings } = useQuery({
+    queryKey: ["holdings-for-etf-modal"],
+    queryFn: loadHoldings,
+    staleTime: 30_000,
+  });
+  const holdingGroups = new Map<string, string[]>();
+  for (const h of holdings ?? []) {
+    const acc = (h.account ?? "").trim();
+    if (!acc) continue;
+    const arr = holdingGroups.get(h.ticker) ?? [];
+    if (!arr.includes(acc)) arr.push(acc);
+    holdingGroups.set(h.ticker, arr);
+  }
+
+  const loading = qa.isLoading || qb.isLoading;
+  if (loading) return <div className="text-center text-xs text-gray-400 py-10">불러오는 중...</div>;
+
+  const A_COLOR = "#6366f1";   // indigo — A(왼쪽)
+  const B_COLOR = "#0d9488";   // teal   — B(오른쪽)
+  const endDateA = qa.data?.endDate ?? null;   // 구성 기준일
+  const endDateB = qb.data?.endDate ?? null;
+
+  // ETF 전체 구성 → 파이용 데이터(표시 종목/그외/현금)
+  const pieData = (raw: { stockCode: string; name: string; ratio: number }[]) => {
+    const vis = raw.filter(it => !isOtherCat(it.name));
+    const other = raw.filter(it => isOtherCat(it.name)).reduce((s, it) => s + it.ratio, 0);
+    const visRatio = vis.reduce((s, it) => s + it.ratio, 0);
+    const cash = Math.max(0, 100 - visRatio - other);
+    return { vis, other, cash };
+  };
+  const pieA = pieData(qa.data?.items ?? []);
+  const pieB = pieData(qb.data?.items ?? []);
+
+  // 열 상단 — ETF 자기 카드(좌) + 파이(우)
+  const etfHeader = (etfTicker: string, etfName: string, pie: ReturnType<typeof pieData>) => (
+    <div className="flex gap-2 items-start pt-3">
+      <div className="flex-1 min-w-0">
+        <StockCard i={0} item={{ stockCode: etfTicker, name: etfName, ratio: 0 }} hideRatio
+                   price={priceMap.get(etfTicker)} chart={chartMap.get(etfTicker)}
+                   krReg={krRegMap?.get(etfTicker)} groups={holdingGroups.get(etfTicker) ?? []}
+                   dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
+                   boxMinH="min-h-[128px]" bigFont />
+      </div>
+      <div className="flex-1 min-w-0">
+        <PieSlot items={pie.vis} otherRatio={pie.other} cashRatio={pie.cash}
+                 hoveredIdx={null} onHoverIdx={() => {}} />
+      </div>
+    </div>
+  );
+
+  // 단독 보유(A에만/B에만) 종목 → 리치 카드 세로 나열
+  const soloCards = (list: { ticker: string; name: string; ratio: number }[]) =>
+    list.length === 0
+      ? <div className="text-center text-[11px] text-gray-400 py-4">없음</div>
+      : (
+        <div className="grid grid-cols-2 gap-x-2 gap-y-5 pt-3 px-1">
+          {list.map((x, i) => (
+            <StockCard key={x.ticker} i={i}
+                       item={{ stockCode: x.ticker, name: x.name, ratio: x.ratio }}
+                       price={priceMap.get(x.ticker)} chart={chartMap.get(x.ticker)}
+                       krReg={krRegMap?.get(x.ticker)} groups={holdingGroups.get(x.ticker) ?? []}
+                       dimEnabled={dimEnabled} onRequestSearch={onRequestSearch} />
+          ))}
+        </div>
+      );
+
+  return (
+    <div className="p-3">
+      <div className="grid grid-cols-1 md:grid-cols-[2fr_1fr_2fr] gap-3">
+        {/* ─ A에만 — A 파이 + A 단독 카드 ─ */}
+        <section className="rounded-lg border border-indigo-200 bg-indigo-50/30 flex flex-col min-h-0">
+          <div className="px-3 py-2 border-b border-indigo-100">
+            <div className="text-xs font-bold text-indigo-800 truncate">◀ {nameA} 에만</div>
+            <div className="text-[11px] text-gray-500">
+              {diff.onlyA.length}종목 · 비중 {(diff.sumA - diff.overlapA).toFixed(1)}%
+              {endDateA && <> · 기준일 {endDateA}</>}
+            </div>
+          </div>
+          <div className="p-2 overflow-y-auto max-h-[70vh]">
+            {etfHeader(tickerA, nameA, pieA)}
+            {soloCards(diff.onlyA)}
+          </div>
+        </section>
+
+        {/* ─ 둘다 (비중 비교) ─ */}
+        <section className="rounded-lg border border-gray-300 bg-white flex flex-col min-h-0">
+          <div className="px-3 py-2 border-b border-gray-200">
+            <div className="text-xs font-bold text-gray-800">⇄ 둘 다 보유 · {diff.both.length}종목</div>
+            <div className="text-[11px] flex items-center gap-1 mt-0.5">
+              <span className="flex-1 truncate text-right font-bold" title={nameA} style={{ color: A_COLOR }}>◀ {nameA}</span>
+              <span className="text-gray-300 shrink-0">│</span>
+              <span className="flex-1 truncate font-bold" title={nameB} style={{ color: B_COLOR }}>{nameB} ▶</span>
+            </div>
+          </div>
+          <div className="p-2 space-y-4 overflow-y-auto max-h-[70vh]">
+            {diff.both.length === 0
+              ? <div className="text-center text-[11px] text-gray-400 py-4">겹치는 종목 없음</div>
+              : diff.both.map((x, i) => {
+                  const delta = Math.abs(x.ra - x.rb);
+                  const same = delta < 0.05;
+                  const aBigger = x.ra >= x.rb;
+                  // 차이 책갈피 — 동일하면 없음
+                  const diffBadge = same ? null : (
+                    <div className="border rounded px-1 py-0 leading-tight tabular-nums
+                                    text-[11px] font-bold bg-white whitespace-nowrap"
+                         style={{ color: "#ef4444", borderColor: "#ef444466" }}>
+                      +{delta.toFixed(1)}%
+                    </div>
+                  );
+                  const aTag = <RatioTag ratio={x.ra} color={A_COLOR} />;
+                  const bTag = <RatioTag ratio={x.rb} color={B_COLOR} />;
+                  // 차이 책갈피를 많은 쪽 비중 옆에 붙임
+                  const leftTag = !same && aBigger
+                    ? <div className="flex items-center gap-0.5">{aTag}{diffBadge}</div> : aTag;
+                  const rightTag = !same && !aBigger
+                    ? <div className="flex items-center gap-0.5">{diffBadge}{bTag}</div> : bTag;
+                  return (
+                    <div key={x.ticker}>
+                      {/* 종목 리치 카드 — A 비중(좌)·B 비중(우), 차이는 많은 쪽에 부착 */}
+                      <StockCard i={i} item={{ stockCode: x.ticker, name: x.name, ratio: 0 }} hideRatio
+                                 price={priceMap.get(x.ticker)} chart={chartMap.get(x.ticker)}
+                                 krReg={krRegMap?.get(x.ticker)} groups={holdingGroups.get(x.ticker) ?? []}
+                                 dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
+                                 leftTag={leftTag} rightTag={rightTag} />
+                    </div>
+                  );
+                })}
+          </div>
+        </section>
+
+        {/* ─ B에만 — B 파이 + B 단독 카드 ─ */}
+        <section className="rounded-lg border border-teal-200 bg-teal-50/30 flex flex-col min-h-0">
+          <div className="px-3 py-2 border-b border-teal-100">
+            <div className="text-xs font-bold text-teal-800 truncate">{nameB} 에만 ▶</div>
+            <div className="text-[11px] text-gray-500">
+              {diff.onlyB.length}종목 · 비중 {(diff.sumB - diff.overlapB).toFixed(1)}%
+              {endDateB && <> · 기준일 {endDateB}</>}
+            </div>
+          </div>
+          <div className="p-2 overflow-y-auto max-h-[70vh]">
+            {etfHeader(tickerB, nameB, pieB)}
+            {soloCards(diff.onlyB)}
+          </div>
+        </section>
+      </div>
+      <div className="text-[11px] text-gray-400 text-center mt-3">
+        둘 다 보유 <b className="text-gray-600">{diff.both.length}</b>종목 · 공통 비중 <span className="text-gray-500 font-bold">회색</span> · 더 담은 쪽은 그 ETF 색(<span className="text-indigo-600 font-bold">A</span>·<span className="text-teal-600 font-bold">B</span>)으로 강조 · 중앙 숫자는 차이(%) · 행 클릭 시 검색창에 추가
+      </div>
+    </div>
+  );
+}
+
+// ─── StockCard — ETF 구성 종목 1개 리치 카드 (탭·비중태그·추세·가격%·보유그룹) ──
+//     EtfPanel(카드뷰)과 EtfDiffTable(A/B 전용 열) 공용 — 한쪽만 바뀌지 않게 단일 소스.
+interface StockCardProps {
+  i: number;                 // 0-base 인덱스 — 번호 배지 + 비중태그 팔레트색
+  item: { stockCode: string; name: string; ratio: number };
+  price?: Price;
+  chart?: number[];
+  krReg?: KrRegularPrice;
+  groups: string[];          // 보유 그룹
+  dimEnabled: boolean;       // 장 마감 흐림 설정
+  onRequestSearch?: (query: string) => void;
+  extraDim?: string;         // 부모 지정 dim 클래스(공통종목/파이호버) — 있으면 우선
+  hideRatio?: boolean;       // ETF 자기 카드 등 — 번호배지·비중태그 숨김
+  leftTag?: ReactNode;       // 좌상단 책갈피 커스텀(없으면 마감가 태그)
+  rightTag?: ReactNode;      // 우상단 책갈피 커스텀(없으면 비중 태그)
+  centerTag?: ReactNode;     // 상단 가운데 책갈피(비교표 비중 차이 등)
+  className?: string;        // 루트에 추가(예: 그리드 self-end 정렬)
+  boxMinH?: string;          // 가격 박스 최소 높이 클래스(기본 min-h-[80px]) — ETF 자체 카드 등 크게
+  bigFont?: boolean;         // 가격·% 폰트 크게 — ETF 자체 카드용
+}
+// 비중 책갈피 — 색상 지정(비교표 A/B 등)
+function RatioTag({ ratio, color }: { ratio: number; color: string }) {
+  return (
+    <div className="border rounded px-1.5 py-0 leading-tight flex items-baseline gap-0.5"
+         style={{ backgroundColor: `${color}22`, borderColor: `${color}66` }}>
+      <span className="text-[9px]" style={{ color }}>비중</span>
+      <span className="font-bold text-xs tabular-nums" style={{ color }}>{ratio.toFixed(1)}%</span>
+    </div>
+  );
+}
+function StockCard({ i, item, price, chart = [], krReg, groups, dimEnabled, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont }: StockCardProps) {
+  const priceSize = bigFont ? "text-2xl" : "text-base";
+  const pctSize = bigFont ? "text-lg" : "text-sm";
+  const tNum = item.stockCode.replace(/^A/, "");
+  // 한국 코드는 영숫자 6자리 가능(신형 ETF 등) — 숫자만으로 좁히면 흐림 오작동
+  const isStandard = /^[\dA-Za-z]{6}$/.test(tNum);
+  const dayDiff = dayChangeDiff(price);
+  const dayPct = dayChangePct(price) ?? 0;
+  const colorDiff = price ? price.price - (price.prevClose || price.price) : 0;
+  const priceColorCls = colorDiff > 0 ? "text-rose-600"
+    : colorDiff < 0 ? "text-blue-600" : "text-gray-900";
+  const showRegTag = krReg && krReg.regularPrice !== price?.price
+                     && (price?.price ?? 0) > 0
+                     && Math.abs(krReg.regularPrice - (price?.price ?? 0)) / (price?.price ?? 1) < 0.15;
+  const regTagBg = !krReg ? "bg-white/20 border-gray-300/20"
+    : krReg.regularPct > 0 ? "bg-rose-100/20 border-rose-300/20"
+    : krReg.regularPct < 0 ? "bg-blue-100/20 border-blue-300/20"
+    : "bg-white/20 border-gray-300/20";
+  const isHeld = groups.length > 0;
+  const shownGroups = groups.length >= 3 ? groups.slice(0, 2) : groups;
+  const moreGroups = groups.length - shownGroups.length;
+  const closedDim = isStandard && dimEnabled
+    && isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price?.singlePrice);
+  const tabBg = closedDim ? "bg-gray-100/60 border-transparent"
+    : colorDiff > 0 ? "bg-rose-50 border-rose-300"
+    : colorDiff < 0 ? "bg-blue-50/70 border-blue-300"
+    : "bg-white border-gray-300";
+  const dimCls = extraDim || (!isStandard ? "opacity-60" : closedDim ? "opacity-60" : "");
+  return (
+    <div className={`group transition-opacity duration-150 ${dimCls} ${className ?? ""}`}>
+      <div className="flex items-end justify-between gap-1 mx-1">
+        <div className="flex items-end gap-0.5 flex-wrap min-w-0">
+          <button onClick={isStandard
+                    ? () => openExternal(`https://www.tossinvest.com/stocks/${item.stockCode}`)
+                    : undefined}
+                  disabled={!isStandard}
+                  className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                              border-t border-l border-r font-bold text-xs leading-none
+                              ${tabBg} ${priceColorCls}
+                              ${isStandard ? "cursor-pointer hover:brightness-95 transition" : ""}`}
+                  title={isStandard ? undefined : `${item.name} — 선물·기타 (추가 불가)`}>
+            {!hideRatio && <span className="text-[10px] text-gray-500 mr-1">{i + 1}</span>}
+            {item.name}
+          </button>
+        </div>
+        <div className="flex items-end gap-0.5">
+          {onRequestSearch && isStandard && (
+            <button onClick={e => { e.preventDefault(); e.stopPropagation(); onRequestSearch(tNum); }}
+                    title={`${item.name} (${tNum}) 추가하기`}
+                    className="px-1.5 py-0.5 rounded-t-md text-[10px] font-bold leading-none
+                               bg-blue-50 text-blue-700 border-t border-l border-r border-blue-300
+                               hover:bg-blue-100">
+              +
+            </button>
+          )}
+        </div>
+      </div>
+      <div className={`border rounded-lg bg-gray-100/60 px-1.5 pt-3 pb-1.5 relative
+                       ${closedDim ? "border-transparent" : "border-gray-300"}`}>
+        <div className="relative w-full h-full">
+          {/* 좌상단 책갈피 — leftTag 우선, 없으면 마감가 태그 */}
+          {leftTag ? (
+            <div className="absolute -top-2 left-1 z-10">{leftTag}</div>
+          ) : showRegTag && krReg ? (
+            <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0
+                             border rounded text-[10px] leading-tight whitespace-nowrap ${regTagBg}`}>
+              <span className="text-gray-500">마감 </span>
+              <span className="text-gray-800 tabular-nums">
+                {Math.round(krReg.regularPrice).toLocaleString()}
+              </span>
+              <span className={`tabular-nums ml-1 font-bold ${signColor(krReg.regularPct)}`}>
+                ({krReg.regularPct >= 0 ? "+" : ""}{krReg.regularPct.toFixed(2)}%)
+              </span>
+            </div>
+          ) : null}
+          {/* 우상단 책갈피 — rightTag 우선, 없으면 비중 태그(hideRatio 면 생략) */}
+          {rightTag ? (
+            <div className="absolute -top-2 right-1 z-10">{rightTag}</div>
+          ) : !hideRatio ? (() => {
+            const [pLight, pBase, pDark] = PIE_PALETTE[i % PIE_PALETTE.length];
+            return (
+              <div className="absolute -top-2 right-1 z-10 border rounded px-1.5 py-0
+                              leading-tight flex items-baseline gap-0.5"
+                   style={{ backgroundColor: `${pLight}33`, borderColor: `${pBase}66` }}>
+                <span className="text-[9px]" style={{ color: pBase }}>비중</span>
+                <span className="font-bold text-xs tabular-nums" style={{ color: pDark }}>
+                  {item.ratio.toFixed(1)}%
+                </span>
+              </div>
+            );
+          })() : null}
+          {/* 상단 가운데 책갈피 */}
+          {centerTag && (
+            <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">{centerTag}</div>
+          )}
+          <div className={`relative overflow-hidden border rounded-md
+                          bg-gray-50/60 px-2 py-1 space-y-0.5 w-full ${boxMinH}
+                          flex flex-col justify-center
+                          ${closedDim ? "border-transparent" : "border-gray-200"}`}>
+            {chart.length > 1 && (
+              <Sparkline data={chart} width={300} height={120}
+                         className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" />
+            )}
+            <div className="relative z-10">
+              <div className="flex items-baseline gap-2">
+                <span className={`${priceSize} font-bold leading-tight invisible`}>▲</span>
+                <span className={`${priceSize} font-bold leading-tight tabular-nums ${priceColorCls}`}>
+                  {price ? `${price.price.toLocaleString()}원` : "—"}
+                </span>
+              </div>
+              <div className={`flex items-baseline gap-1 pl-5 font-bold ${signColor(dayDiff)}`}>
+                <span className={`${pctSize} leading-tight bg-yellow-100 rounded px-1 tabular-nums`}>
+                  {dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%
+                </span>
+                <span className="text-[10px] font-normal text-gray-700 tabular-nums">
+                  ({formatSigned(dayDiff)}원)
+                </span>
+              </div>
+              {isHeld && (
+                <div className="flex flex-wrap items-center gap-1 pl-6 mt-1">
+                  {shownGroups.map(g => (
+                    <span key={g} title={`보유 그룹: ${g}`}
+                          className="px-1.5 py-0.5 rounded text-[10px] font-bold leading-none
+                                     bg-emerald-100/30 text-emerald-700/80 border border-emerald-300/30">
+                      {g}
+                    </span>
+                  ))}
+                  {moreGroups > 0 && (
+                    <Tooltip content={
+                      <div className="flex flex-wrap gap-1 max-w-[200px]">
+                        {groups.slice(shownGroups.length).map(g => (
+                          <span key={g} className="px-1.5 py-0.5 rounded text-[10px] font-bold leading-none
+                                                    bg-emerald-100 text-emerald-800 border border-emerald-300">
+                            {g}
+                          </span>
+                        ))}
+                      </div>
+                    }>
+                      <span className="text-[10px] font-bold text-emerald-700 cursor-help">
+                        외 {moreGroups}개
+                      </span>
+                    </Tooltip>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── EtfPanel — 단일 ETF 의 헤더(이름·+추가·토스링크) + 카드 grid + 파이 ────
 interface EtfPanelProps {
   ticker: string;
@@ -237,15 +738,20 @@ interface EtfPanelProps {
 function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChange }: EtfPanelProps) {
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
 
-  const { data: items, isLoading } = useQuery({
+  const { data: comp, isLoading } = useQuery({
     queryKey: ["etf-compositions", ticker],
     queryFn: () => fetchEtfCompositions(ticker),
     staleTime: 10 * 60_000,
   });
+  const items = comp?.items;
+  const endDate = comp?.endDate ?? null;
 
   const stockTickers = (items ?? [])
     .map(it => it.stockCode.replace(/^A/, ""))
     .filter(t => /^\d{6}$/.test(t));
+  // ETF 자기 카드용 — 가격/차트/마감 조회엔 ETF 자신도 포함(공통 종목 계산엔 미포함)
+  const selfTicker = /^[\dA-Za-z]{6}$/.test(ticker) ? ticker : null;
+  const cardTickers = selfTicker ? [selfTicker, ...stockTickers] : stockTickers;
 
   // 부모(비교 컨테이너) 로 ticker 목록 전달 — 공통 종목 계산용
   const tickersKey = stockTickers.join(",");
@@ -256,9 +762,9 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
   }, [tickersKey]);
 
   const { data: priceList } = useQuery({
-    queryKey: ["etf-stock-prices", stockTickers],
-    queryFn: () => fetchTossPrices(stockTickers),
-    enabled: stockTickers.length > 0,
+    queryKey: ["etf-stock-prices", cardTickers],
+    queryFn: () => fetchTossPrices(cardTickers),
+    enabled: cardTickers.length > 0,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
@@ -267,22 +773,22 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
   const dimEnabled = getDimSleepingEnabled();
 
   const { data: krRegMap } = useQuery({
-    queryKey: ["etf-kr-reg-prices", stockTickers],
-    queryFn: () => fetchKrRegularPrices(stockTickers),
-    enabled: stockTickers.length > 0,
+    queryKey: ["etf-kr-reg-prices", cardTickers],
+    queryFn: () => fetchKrRegularPrices(cardTickers),
+    enabled: cardTickers.length > 0,
     refetchInterval: 5 * 60_000,
     staleTime: 60_000,
   });
 
   const chartQs = useQueries({
-    queries: stockTickers.map(t => ({
+    queries: cardTickers.map(t => ({
       queryKey: ["price-history", t, "3mo"],
       queryFn: () => fetchKrPriceHistory(t, "3mo"),
       staleTime: 60 * 60_000,
     })),
   });
   const chartMap = new Map(chartQs.map((q, i) =>
-    [stockTickers[i], (q.data ?? []).map(p => p.close)]));
+    [cardTickers[i], (q.data ?? []).map(p => p.close)]));
 
   const { data: holdings } = useQuery({
     queryKey: ["holdings-for-etf-modal"],
@@ -320,18 +826,19 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
                              border border-emerald-300 rounded
                              text-[10px] font-bold text-emerald-700 bg-emerald-50
                              hover:bg-emerald-100">
-            ✅ 한번에 추가
+            ✅ 종목 {stockTickers.length}개 한번에 추가
           </button>
         )}
-        <a href={`https://www.tossinvest.com/stocks/A${ticker}`}
-           target="_blank" rel="noopener noreferrer"
-           onClick={e => handleTossLinkClick(e, `https://www.tossinvest.com/stocks/A${ticker}`)}
-           title="토스 ETF 페이지에서 보기"
-           className="ml-auto inline-flex items-center gap-1 px-2 py-0.5
-                      border border-blue-200 rounded
-                      text-[10px] text-blue-700 bg-blue-50/50 hover:bg-blue-100/70">
-          토스 ↗
-        </a>
+        {/* 요약 — 오른쪽 위 */}
+        {visibleItems.length > 0 && (
+          <span className="ml-auto text-[11px] text-gray-400 tabular-nums whitespace-nowrap">
+            {endDate && <>구성 기준일 <b className="text-gray-500">{endDate}</b> · </>}
+            종목 <b className="text-gray-500">{visibleItems.length}개</b> ·
+            합계 <b className="text-gray-500">{visibleRatio.toFixed(1)}%</b>
+            {otherRatio > 0.01 && <> · 그 외 <b className="text-gray-500">{otherRatio.toFixed(1)}%</b></>}
+            {cashRatio > 0.5 && <> · 현금·기타 <b className="text-gray-500">{cashRatio.toFixed(1)}%</b></>}
+          </span>
+        )}
       </header>
       {isLoading ? (
         <div className="text-center text-xs text-gray-400 py-8">불러오는 중...</div>
@@ -339,182 +846,31 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
         <div className="text-center text-xs text-gray-400 py-8">구성 종목 데이터 없음</div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-2 gap-y-5 pt-3 pb-2">
+          {/* ETF 자체 카드 — 좌상단 (비중태그·번호 없음) */}
+          {selfTicker && (
+            <StockCard i={0} item={{ stockCode: selfTicker, name: etfName, ratio: 0 }} hideRatio
+                       price={priceMap.get(selfTicker)} chart={chartMap.get(selfTicker)}
+                       krReg={krRegMap?.get(selfTicker)} groups={holdingGroups.get(selfTicker) ?? []}
+                       dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
+                       boxMinH="min-h-[128px]" bigFont />
+          )}
           <PieSlot items={visibleItems} otherRatio={otherRatio} cashRatio={cashRatio}
                    hoveredIdx={hoveredIdx} onHoverIdx={setHoveredIdx} />
           {visibleItems.map((it, i) => {
             const tNum = it.stockCode.replace(/^A/, "");
-            const isStandard = /^\d{6}$/.test(tNum);
-            const price = priceMap.get(tNum);
-            const chart = chartMap.get(tNum) ?? [];
-            const krReg = krRegMap?.get(tNum);
-
-            const dayDiff = dayChangeDiff(price);
-            const dayPct = dayChangePct(price) ?? 0;
-            const colorDiff = price ? price.price - (price.prevClose || price.price) : 0;
-            const priceColorCls = colorDiff > 0 ? "text-rose-600"
-              : colorDiff < 0 ? "text-blue-600"
-              : "text-gray-900";
-
-            const showRegTag = krReg && krReg.regularPrice !== price?.price
-                               && (price?.price ?? 0) > 0
-                               && Math.abs(krReg.regularPrice - (price?.price ?? 0)) / (price?.price ?? 1) < 0.15;
-            const regTagBg = !krReg ? "bg-white/20 border-gray-300/20"
-              : krReg.regularPct > 0 ? "bg-rose-100/20 border-rose-300/20"
-              : krReg.regularPct < 0 ? "bg-blue-100/20 border-blue-300/20"
-              : "bg-white/20 border-gray-300/20";
-
-            const groups = holdingGroups.get(tNum) ?? [];
-            const isHeld = groups.length > 0;
-            // 그룹 3개 이상이면 2개만 보이고 "외 N개"
-            const shownGroups = groups.length >= 3 ? groups.slice(0, 2) : groups;
-            const moreGroups = groups.length - shownGroups.length;
-            // dim 우선순위: 1) 비교 모드 공통 종목 2) 파이 호버 미선택 3) 장 마감(흐림) 4) 비표준(선물·기타)
+            // dim 우선순위: 1) 비교 모드 공통 종목 2) 파이 호버 미선택 (그 외 장마감·비표준은 StockCard 내부)
             const isCommon = dimTickers?.has(tNum) ?? false;
             const hoverDim = hoveredIdx !== null && hoveredIdx !== i;
-            const closedDim = isStandard && dimEnabled
-              && isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price?.singlePrice);
-            // 마감 흐림이면 테두리도 투명(메인 카드와 동일) — 색 테두리 제거해 더 가라앉게
-            const tabBg = closedDim ? "bg-gray-100/60 border-transparent"
-              : colorDiff > 0 ? "bg-rose-50 border-rose-300"
-              : colorDiff < 0 ? "bg-blue-50/70 border-blue-300"
-              : "bg-white border-gray-300";
-            const dimCls = isCommon ? "opacity-30"
-              : hoverDim ? "opacity-15"
-              : !isStandard ? "opacity-60"
-              : closedDim ? "opacity-60"
-              : "";
+            const extraDim = isCommon ? "opacity-30" : hoverDim ? "opacity-15" : "";
             return (
-              <div key={`${it.stockCode || "x"}-${i}`}
-                   className={`group transition-opacity duration-150 ${dimCls}`}>
-                <div className="flex items-end justify-between gap-1 mx-1">
-                  <div className="flex items-end gap-0.5 flex-wrap min-w-0">
-                    <button onClick={isStandard
-                              ? () => openExternal(`https://www.tossinvest.com/stocks/${it.stockCode}`)
-                              : undefined}
-                            disabled={!isStandard}
-                            className={`inline-flex items-center px-2 py-0.5 rounded-t-md
-                                        border-t border-l border-r font-bold text-sm leading-none
-                                        ${tabBg} ${priceColorCls}
-                                        ${isStandard ? "cursor-pointer hover:brightness-95 transition" : ""}`}
-                            title={isStandard ? undefined : `${it.name} — 선물·기타 (추가 불가)`}>
-                      <span className="text-[10px] text-gray-500 mr-1">{i + 1}</span>
-                      {it.name}
-                    </button>
-                  </div>
-                  <div className="flex items-end gap-0.5">
-                    {onRequestSearch && isStandard && (
-                      <button onClick={e => { e.preventDefault(); e.stopPropagation();
-                                              onRequestSearch(tNum); }}
-                              title={`${it.name} (${tNum}) 추가하기`}
-                              className="px-1.5 py-0.5 rounded-t-md text-[10px] font-bold leading-none
-                                         bg-blue-50 text-blue-700 border-t border-l border-r border-blue-300
-                                         hover:bg-blue-100">
-                        +
-                      </button>
-                    )}
-                  </div>
-                </div>
-                <div className={`border rounded-lg bg-gray-100/60 px-1.5 pt-3 pb-1.5 relative
-                                 ${closedDim ? "border-transparent" : "border-gray-300"}`}>
-                  <div className="relative w-full h-full">
-                    {showRegTag && krReg && (
-                      <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0
-                                       border rounded text-[10px] leading-tight whitespace-nowrap ${regTagBg}`}>
-                        <span className="text-gray-500">마감 </span>
-                        <span className="text-gray-800 tabular-nums">
-                          {Math.round(krReg.regularPrice).toLocaleString()}
-                        </span>
-                        <span className={`tabular-nums ml-1 font-bold ${signColor(krReg.regularPct)}`}>
-                          ({krReg.regularPct >= 0 ? "+" : ""}{krReg.regularPct.toFixed(2)}%)
-                        </span>
-                      </div>
-                    )}
-                    {(() => {
-                      const [pLight, pBase, pDark] = PIE_PALETTE[i % PIE_PALETTE.length];
-                      return (
-                        <div className="absolute -top-2 right-1 z-10 border rounded px-1.5 py-0
-                                        leading-tight flex items-baseline gap-0.5"
-                             style={{
-                               backgroundColor: `${pLight}33`,
-                               borderColor:     `${pBase}66`,
-                             }}>
-                          <span className="text-[10px]" style={{ color: pBase }}>비중</span>
-                          <span className="font-bold text-sm tabular-nums" style={{ color: pDark }}>
-                            {it.ratio.toFixed(1)}%
-                          </span>
-                        </div>
-                      );
-                    })()}
-                    <div className={`relative overflow-hidden border rounded-md
-                                    bg-gray-50/60 px-2 py-1 space-y-0.5 w-full min-h-[120px]
-                                    flex flex-col justify-center
-                                    ${closedDim ? "border-transparent" : "border-gray-200"}`}>
-                      {chart.length > 1 && (
-                        <Sparkline data={chart} width={300} height={120}
-                                   className="absolute inset-0 w-full h-full opacity-20
-                                              pointer-events-none" />
-                      )}
-                      <div className="relative z-10">
-                        <div className="flex items-baseline gap-2">
-                          <span className="text-xl font-bold leading-tight invisible">▲</span>
-                          <span className={`text-xl font-bold leading-tight tabular-nums ${priceColorCls}`}>
-                            {price ? `${price.price.toLocaleString()}원` : "—"}
-                          </span>
-                        </div>
-                        <div className={`flex items-baseline gap-1 pl-6 font-bold ${signColor(dayDiff)}`}>
-                          <span className="text-lg leading-tight bg-yellow-100 rounded px-1 tabular-nums">
-                            {dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%
-                          </span>
-                          <span className="text-xs font-normal text-gray-700 tabular-nums">
-                            ({formatSigned(dayDiff)}원)
-                          </span>
-                        </div>
-                        {/* 보유 그룹 — % 아래. 3개 이상이면 "외 N개" */}
-                        {isHeld && (
-                          <div className="flex flex-wrap items-center gap-1 pl-6 mt-1">
-                            {shownGroups.map(g => (
-                              <span key={g} title={`보유 그룹: ${g}`}
-                                    className="px-1.5 py-0.5 rounded text-[10px] font-bold leading-none
-                                               bg-emerald-100/30 text-emerald-700/80 border border-emerald-300/30">
-                                {g}
-                              </span>
-                            ))}
-                            {moreGroups > 0 && (
-                              <Tooltip content={
-                                <div className="flex flex-wrap gap-1 max-w-[200px]">
-                                  {groups.slice(shownGroups.length).map(g => (
-                                    <span key={g} className="px-1.5 py-0.5 rounded text-[10px] font-bold leading-none
-                                                              bg-emerald-100 text-emerald-800 border border-emerald-300">
-                                      {g}
-                                    </span>
-                                  ))}
-                                </div>
-                              }>
-                                <span className="text-[10px] font-bold text-emerald-700 cursor-help">
-                                  외 {moreGroups}개
-                                </span>
-                              </Tooltip>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <StockCard key={`${it.stockCode || "x"}-${i}`} i={i} item={it}
+                         price={priceMap.get(tNum)} chart={chartMap.get(tNum)}
+                         krReg={krRegMap?.get(tNum)} groups={holdingGroups.get(tNum) ?? []}
+                         dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
+                         extraDim={extraDim}
+                         className={i === 0 ? "self-end" : undefined} />
             );
           })}
-          <div className="sm:col-start-3 flex items-end justify-end
-                          px-2 pb-2 text-xs text-gray-400 tabular-nums whitespace-nowrap">
-            종목 <span className="font-bold text-gray-500 mx-0.5">{visibleItems.length}개</span> ·
-            합계 <span className="font-bold text-gray-500 mx-0.5">{visibleRatio.toFixed(1)}%</span>
-            {otherRatio > 0.01 && (
-              <> · 그 외 <span className="font-bold text-gray-500 ml-0.5">{otherRatio.toFixed(1)}%</span></>
-            )}
-            {cashRatio > 0.5 && (
-              <> · 현금·기타 <span className="font-bold text-gray-500 ml-0.5">{cashRatio.toFixed(1)}%</span></>
-            )}
-          </div>
         </div>
       )}
     </div>

@@ -464,7 +464,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center
+    <div className="fixed inset-0 z-[60] flex items-start justify-center
                      bg-black/40 sm:p-4 sm:pt-10"
          onMouseDown={e => { downOnBackdropRef.current = e.target === e.currentTarget; }}
          onClick={e => {

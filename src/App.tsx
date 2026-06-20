@@ -961,7 +961,7 @@ function Dashboard() {
                               ticker={etfDialog.ticker} etfName={etfDialog.name}
                               onClose={() => setEtfDialog(null)}
                               onRequestSearch={(q) => {
-                                setEtfDialog(null);
+                                // ETF 구성 창은 닫지 않고 검색만 위에 띄움 (SearchDialog z-[60] > ETF z-50)
                                 setSearchInitQuery(q);
                                 setSearchOpen(true);
                               }} />

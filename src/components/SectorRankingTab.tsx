@@ -307,10 +307,7 @@ export function SectorRankingTab({ onRequestSearch }: SectorRankingTabProps = {}
         <EtfCompositionDialog isOpen={true}
                               ticker={etfDialog.ticker} etfName={etfDialog.name}
                               onClose={() => setEtfDialog(null)}
-                              onRequestSearch={onRequestSearch ? (q) => {
-                                setEtfDialog(null);   // 모달 닫고
-                                onRequestSearch(q);   // SearchDialog 오픈
-                              } : undefined} />
+                              onRequestSearch={onRequestSearch} />
       )}
     </div>
   );
