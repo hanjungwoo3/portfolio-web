@@ -4,15 +4,18 @@
 // 데이터 소스: portfolio-etf-index (lib/etfIndex).
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import type { Stock } from "../types";
 import {
   loadEtfData, searchEtfs, type EtfMatchMulti,
 } from "../lib/etfIndex";
 import {
-  searchTossAutoComplete, searchNaverAutoComplete, fetchTossPrices, type SearchResult,
+  searchTossAutoComplete, searchNaverAutoComplete, fetchTossPrices, fetchKrPriceHistory, type SearchResult,
 } from "../lib/api";
 import { signColor, dayChangePct } from "../lib/format";
+import { StockCard, computeReturns } from "./EtfCompositionDialog";
+
+const TREND_CAP = 36;   // 추세·수익률 조회 상위 개수(전부 조회는 부담 — 정렬 상위만)
 
 interface Props {
   holdings: Stock[];
@@ -73,17 +76,67 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
     [resultPriceList],
   );
 
-  // 결과 정렬 — 비중(비중합 내림차순, searchEtfs 기본) / 상승율(전일대비 % 내림차순)
-  const [resultSort, setResultSort] = useState<"ratio" | "change">("ratio");
+  // 결과 정렬 — 비중 / 현재등락 / 1·3·6개월 수익률
+  const [resultSort, setResultSort] = useState<"ratio" | "day" | "m1" | "m3" | "m6">("ratio");
+  // ETF 이름 필터 — 포함(이 단어 들어간 것만) / 제외(이 단어 들어간 것 빼기)
+  const [nameInc, setNameInc] = useState("");
+  const [nameExc, setNameExc] = useState("");
+
+  // 추세·수익률 — 상위 TREND_CAP 개만 6개월 히스토리 조회.
+  //   비중/수익률 정렬 → 비중 기본순 상위(수익률 정렬은 이 집합 내에서만, 순환 방지).
+  //   현재(등락) 정렬 → 등락 상위(그래야 표시 상단 카드에 추세·수익률이 보임).
+  const trendCodes = useMemo(() => {
+    const base = results ?? [];
+    let ordered = base;
+    if (resultSort === "day") {
+      ordered = [...base].sort((a, b) => {
+        const pa = resultPriceMap.get(a.etfCode), pb = resultPriceMap.get(b.etfCode);
+        const va = pa ? (dayChangePct(pa) ?? -Infinity) : -Infinity;
+        const vb = pb ? (dayChangePct(pb) ?? -Infinity) : -Infinity;
+        return vb - va;
+      });
+    }
+    return ordered.slice(0, TREND_CAP).map(r => r.etfCode);
+  }, [results, resultSort, resultPriceMap]);
+  const trendQs = useQueries({
+    queries: trendCodes.map(code => ({
+      queryKey: ["price-history", code, "6mo"],
+      queryFn: () => fetchKrPriceHistory(code, "6mo"),
+      staleTime: 60 * 60_000,
+    })),
+  });
+  const trendHist = new Map(trendQs.map((q, i) => [trendCodes[i], q.data ?? []]));
+  const trendReturns = new Map(trendCodes.map(c => [c, computeReturns(trendHist.get(c) ?? [])]));
+  const trendStamp = trendQs.map(q => q.dataUpdatedAt).join(",");
+
   const sortedResults = useMemo(() => {
     if (!results) return results;
     if (resultSort === "ratio") return results;   // searchEtfs 가 이미 비중합 내림차순
-    const dayPctOf = (code: string) => {
-      const p = resultPriceMap.get(code);
-      return p ? (dayChangePct(p) ?? -Infinity) : -Infinity;
+    const metric = (code: string): number => {
+      if (resultSort === "day") {
+        const p = resultPriceMap.get(code);
+        return p ? (dayChangePct(p) ?? -Infinity) : -Infinity;
+      }
+      return trendReturns.get(code)?.[resultSort] ?? -Infinity;   // 수익률 미조회분은 하위로
     };
-    return [...results].sort((a, b) => dayPctOf(b.etfCode) - dayPctOf(a.etfCode));
-  }, [results, resultSort, resultPriceMap]);
+    return [...results].sort((a, b) => metric(b.etfCode) - metric(a.etfCode));
+    // trendReturns 는 매 렌더 새 Map — trendStamp 로 갱신 트리거(deps 직접 포함 시 무한루프)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results, resultSort, resultPriceList, trendStamp]);
+
+  // ETF 이름 포함/제외 필터 적용 (공백/쉼표로 여러 단어 — 각각 OR)
+  const displayResults = useMemo(() => {
+    const list = sortedResults ?? [];
+    const terms = (s: string) => s.toLowerCase().split(/[\s,]+/).filter(Boolean);
+    const inc = terms(nameInc), exc = terms(nameExc);
+    if (inc.length === 0 && exc.length === 0) return list;
+    return list.filter(r => {
+      const n = r.etfName.toLowerCase();
+      if (inc.length && !inc.some(t => n.includes(t))) return false;
+      if (exc.length && exc.some(t => n.includes(t))) return false;
+      return true;
+    });
+  }, [sortedResults, nameInc, nameExc]);
 
   // 데이터 사전 로드
   useEffect(() => {
@@ -432,13 +485,30 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
           <div className="px-3 py-2 bg-gray-50 border-b text-[11px] text-gray-600
                           flex items-center gap-2 flex-wrap">
             <span>
-              매칭 ETF <b className="text-gray-800">{results.length}</b>개 ·
+              매칭 ETF <b className="text-gray-800">{displayResults.length}</b>
+              {displayResults.length !== results.length && <span className="text-gray-400">/{results.length}</span>}개 ·
               {mode === "all" ? " 포함 종목 모두" : " 포함 종목 하나 이상"}
               {excluded.size > 0 && ` · 제외 ${excluded.size}개 적용`}
             </span>
+            {/* ETF 이름 포함/제외 */}
+            <span className="inline-flex items-center gap-1">
+              <span className="text-gray-400">ETF명</span>
+              <input value={nameInc} onChange={e => setNameInc(e.target.value)}
+                     placeholder="포함" title="ETF명에 이 단어 포함(공백/쉼표로 여러 개)"
+                     className="border border-emerald-300 rounded px-1.5 py-0.5 text-[11px] w-20
+                                focus:outline-none focus:border-emerald-500 bg-emerald-50/40" />
+              <input value={nameExc} onChange={e => setNameExc(e.target.value)}
+                     placeholder="제외" title="ETF명에 이 단어 들어가면 제외(공백/쉼표로 여러 개)"
+                     className="border border-rose-300 rounded px-1.5 py-0.5 text-[11px] w-20
+                                focus:outline-none focus:border-rose-500 bg-rose-50/40" />
+              {(nameInc || nameExc) && (
+                <button onClick={() => { setNameInc(""); setNameExc(""); }}
+                        className="text-gray-400 hover:text-rose-500 px-0.5">✕</button>
+              )}
+            </span>
             <span className="ml-auto inline-flex items-center gap-0.5">
               <span className="text-gray-400 mr-1">정렬</span>
-              {([["ratio", "비중"], ["change", "상승율"]] as const).map(([k, label]) => (
+              {([["ratio", "비중"], ["day", "현재"], ["m1", "1개월"], ["m3", "3개월"], ["m6", "6개월"]] as const).map(([k, label]) => (
                 <button key={k} onClick={() => setResultSort(k)}
                         className={`px-1.5 py-0.5 rounded text-[11px] font-bold border transition
                                     ${resultSort === k
@@ -450,9 +520,9 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
             </span>
           </div>
           {/* 3 컬럼 그리드 — 카드형 띄워 배치, 좁은 화면은 1/2 단 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 p-2
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2 p-2
                           max-h-[70vh] overflow-y-auto bg-gray-50">
-            {(sortedResults ?? []).map(r => {
+            {displayResults.map(r => {
               // 포함 종목별 비중 분해 (포함 2개 이상일 때만 표시)
               const breakdownItems = included.size > 1
                 ? [...included]
@@ -460,76 +530,52 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
                     .sort((a, b) => r.perTicker[b] - r.perTicker[a])
                     .map(t => ({ name: nameOf(t), ratio: r.perTicker[t] }))
                 : null;
+              const hist = trendHist.get(r.etfCode) ?? [];
+              const withTrend = hist.length > 1;
+              const closes = hist.map(p => p.close);
+              const rets = trendReturns.get(r.etfCode) ?? null;
               return (
-                <div key={r.etfCode}
-                     className="group px-2.5 py-1.5 transition
-                                bg-white border border-gray-200 rounded-md shadow-sm
-                                hover:border-amber-300 hover:bg-amber-50/30 hover:shadow
-                                min-w-0">
-                  <div className="flex items-baseline gap-2 min-w-0">
-                    <span className="text-[10px] text-gray-500 font-mono tabular-nums shrink-0">
-                      {r.etfCode}
-                    </span>
-                    <span className="flex-1 min-w-0 text-sm text-gray-800 truncate">
-                      {r.etfName}
-                    </span>
-                    {/* 액션: + 추가, 🍱 구성 — 기본 흐림, 행 hover 시 보이고 버튼 hover 시 더 진하게 */}
-                    {onRequestAdd && (
-                      <button onClick={() => onRequestAdd(r.etfCode)}
-                              title={`${r.etfName} 포트폴리오에 추가`}
-                              className="shrink-0 px-1.5 py-0 rounded text-[11px] font-bold leading-none self-center
-                                         text-emerald-700 bg-emerald-50 border border-emerald-200
-                                         opacity-30 group-hover:opacity-80 hover:!opacity-100
-                                         hover:bg-emerald-100 transition">
-                        ＋
-                      </button>
-                    )}
-                    {onOpenEtfComposition && (
-                      <button onClick={() => onOpenEtfComposition(r.etfCode, r.etfName)}
-                              title={`${r.etfName} 구성종목 보기`}
-                              className="shrink-0 px-1.5 py-0 rounded text-[11px] font-bold leading-none self-center
-                                         text-amber-700 bg-amber-50 border border-amber-200
-                                         opacity-30 group-hover:opacity-80 hover:!opacity-100
-                                         hover:bg-amber-100 transition">
-                        🍱
-                      </button>
-                    )}
-                    {/* hit/total — "any" 모드에서만 의미있음 ("all" 모드는 항상 N/N) */}
-                    {included.size > 1 && mode === "any" && (
-                      <span className="text-[10px] text-gray-500 shrink-0">
-                        {r.hitCount}/{included.size}
-                      </span>
-                    )}
-                    <span className="shrink-0 tabular-nums text-xs">
-                      <span className="text-[9px] text-gray-400 mr-0.5">비중</span>
-                      <span className="font-bold text-rose-600">{r.totalRatio.toFixed(2)}%</span>
-                    </span>
-                  </div>
-                  {(() => {
-                    const p = resultPriceMap.get(r.etfCode);
-                    if (!p) return null;
-                    const pct = dayChangePct(p);
-                    return (
-                      <div className="text-[11px] tabular-nums mt-0.5 text-right">
-                        <span className="font-bold text-gray-800">{p.price.toLocaleString()}원</span>
-                        {pct !== undefined && (
-                          <span className={`ml-1 ${signColor(pct)}`}>
-                            {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
-                          </span>
-                        )}
-                      </div>
-                    );
-                  })()}
-                  {breakdownItems && (
-                    <div className="text-[10px] text-gray-500 mt-0.5 truncate tabular-nums text-right">
-                      {breakdownItems.map((b, i) => (
-                        <span key={b.name + i}>
-                          {i > 0 && " + "}
-                          {b.name} <span className="text-rose-600 font-medium">{b.ratio.toFixed(2)}%</span>
-                        </span>
-                      ))}
-                    </div>
-                  )}
+                <div key={r.etfCode} className="group min-w-0">
+                  {/* ETF 리치 카드 — 이름(코드) + 구성(+옆) + 매칭비중(우) + 그래프(좌)·포함종목(우, 카드 내부) */}
+                  <StockCard i={0} item={{ stockCode: r.etfCode, name: `${r.etfName} (${r.etfCode})`, ratio: 0 }} hideRatio
+                             price={resultPriceMap.get(r.etfCode)} chart={closes}
+                             onRequestSearch={onRequestAdd}
+                             showReturns={withTrend} returns={rets}
+                             highlightReturn={resultSort === "m1" || resultSort === "m3" || resultSort === "m6" ? resultSort : undefined}
+                             highlightDay={resultSort === "day"}
+                             boxMinH="min-h-[52px]"
+                             actionLeft={onOpenEtfComposition ? (
+                               <button onClick={e => { e.preventDefault(); e.stopPropagation(); onOpenEtfComposition(r.etfCode, r.etfName); }}
+                                       title={`${r.etfName} 구성종목 보기`}
+                                       className="px-1.5 py-0.5 rounded-t-md text-[10px] font-bold leading-none
+                                                  bg-amber-50 text-amber-700 border-t border-l border-r border-amber-300
+                                                  hover:bg-amber-100">
+                                 🍱
+                               </button>
+                             ) : undefined}
+                             rightTag={
+                               <div className="border rounded px-1 py-0 leading-tight tabular-nums
+                                               text-[11px] font-bold bg-white whitespace-nowrap text-rose-600"
+                                    style={{ borderColor: "#fecaca" }}>
+                                 비중 {r.totalRatio.toFixed(1)}%
+                               </div>
+                             }
+                             boxRight={
+                               (breakdownItems || (included.size > 1 && mode === "any")) ? (
+                                 <div className="rounded-md border border-gray-200 bg-white/85 backdrop-blur-[1px]
+                                                 px-1.5 py-1 flex flex-col items-end gap-0.5
+                                                 text-[10px] text-gray-600 tabular-nums">
+                                   {included.size > 1 && mode === "any" && (
+                                     <span className="text-gray-400">{r.hitCount}/{included.size}</span>
+                                   )}
+                                   {breakdownItems && breakdownItems.map((b, i) => (
+                                     <div key={b.name + i} className="truncate max-w-full text-right">
+                                       {b.name} <span className="text-rose-600 font-medium">{b.ratio.toFixed(1)}%</span>
+                                     </div>
+                                   ))}
+                                 </div>
+                               ) : undefined
+                             } />
                 </div>
               );
             })}

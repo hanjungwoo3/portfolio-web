@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, type KrRegularPrice } from "../lib/api";
+import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, fetchYahooPriceHistory, type KrRegularPrice } from "../lib/api";
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
 import { Tooltip } from "./Tooltip";
@@ -59,6 +59,8 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
   const [compareQuery, setCompareQuery] = useState("");
   // 검색 드롭다운 키보드 선택 인덱스 (방향키 ↑/↓, Enter 선택)
   const [cmpActiveIdx, setCmpActiveIdx] = useState(0);
+  // 검색 결과 정렬 기준 — 관련도(기본)/현재등락/1·3·6개월
+  const [cmpSort, setCmpSort] = useState<"rel" | "day" | "m1" | "m3" | "m6">("rel");
 
   useEffect(() => {
     if (!isOpen) return;
@@ -113,6 +115,31 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
     () => new Map((cmpPriceList ?? []).map(p => [p.ticker, p])),
     [cmpPriceList],
   );
+  // 검색결과 ETF 6개월 히스토리 — 추세 스파크라인 + 1·3·6개월 수익률 + 정렬용
+  const cmpHistQs = useQueries({
+    queries: cmpTickers.map(t => ({
+      queryKey: ["price-history", t, "6mo"],
+      queryFn: () => fetchKrPriceHistory(t, "6mo"),
+      staleTime: 60 * 60_000,
+    })),
+  });
+  const cmpHist = new Map(cmpHistQs.map((q, i) => [cmpTickers[i], q.data ?? []]));
+  const cmpReturns = new Map(
+    cmpTickers.map(t => [t, computeReturns(cmpHist.get(t) ?? [])]),
+  );
+  // 정렬된 검색결과 — 선택 기준 내림차순(관련도면 원순서)
+  const sortedResults = useMemo(() => {
+    const list = searchResults ?? [];
+    if (cmpSort === "rel") return list;
+    const metric = (tk: string): number => {
+      if (cmpSort === "day") { const p = cmpPriceMap.get(tk); return p ? (dayChangePct(p) ?? -Infinity) : -Infinity; }
+      const r = cmpReturns.get(tk);
+      return r?.[cmpSort] ?? -Infinity;
+    };
+    return [...list].sort((a, b) => metric(b.ticker) - metric(a.ticker));
+    // cmpReturns/cmpPriceMap 는 매 렌더 새 Map 이라 deps 에서 제외(렌더마다 재계산 허용)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchResults, cmpSort, cmpPriceList, cmpHistQs.map(q => q.dataUpdatedAt).join(",")]);
   // 드롭다운 결과 변경 시 키보드 인덱스 리셋
   const cmpKey = cmpTickers.join(",");
   useEffect(() => { setCmpActiveIdx(0); }, [cmpKey]);
@@ -179,44 +206,71 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
                      value={compareQuery}
                      onChange={e => { setCompareQuery(e.target.value); setCmpActiveIdx(0); }}
                      onKeyDown={e => {
-                       const n = searchResults?.length ?? 0;
+                       const n = sortedResults.length;
                        if (n === 0) return;
                        if (e.key === "ArrowDown") { e.preventDefault(); setCmpActiveIdx(i => (i + 1) % n); }
                        else if (e.key === "ArrowUp") { e.preventDefault(); setCmpActiveIdx(i => (i - 1 + n) % n); }
                        else if (e.key === "Enter") {
                          e.preventDefault();
-                         const r = searchResults?.[Math.min(cmpActiveIdx, n - 1)];
+                         const r = sortedResults[Math.min(cmpActiveIdx, n - 1)];
                          if (r) selectCmp(r);
                        }
                      }}
                      placeholder="비교할 ETF 검색 (예: KODEX 반도체) · ↑↓ 선택, Enter"
                      className="w-full border border-gray-300 rounded px-2 py-1
                                 text-sm focus:outline-none focus:border-indigo-500" />
-              {/* 검색 결과 dropdown — 종목 카드(현재가·%·추세) */}
+              {/* 검색 결과 dropdown — 정렬바 + 종목 카드(현재가·%·추세·수익률) */}
               {searchResults && searchResults.length > 0 && (
-                <ul ref={cmpListRef}
-                    className="absolute left-0 right-0 top-full mt-1 z-20
-                               bg-white border border-gray-200 rounded shadow-lg
-                               max-h-[60vh] overflow-y-auto text-sm divide-y divide-gray-100">
-                  {searchResults.map((r, idx) => {
-                    const active = idx === Math.min(cmpActiveIdx, searchResults.length - 1);
-                    const p = cmpPriceMap.get(r.ticker);
-                    return (
-                      <li key={r.ticker}>
-                        <button onClick={() => selectCmp(r)}
-                                onMouseEnter={() => setCmpActiveIdx(idx)}
-                                className={`w-full text-left px-2 py-2 ${active ? "bg-indigo-50" : "hover:bg-gray-50"}`}>
-                          <div className="flex items-baseline gap-1.5 mb-1 min-w-0">
-                            <span className="font-bold truncate">{r.name}</span>
-                            <span className="text-[11px] text-gray-500 font-mono shrink-0">{r.ticker}</span>
-                          </div>
-                          {/* 가격 카드 — 추세그래프 제외(현재가·일간%만) */}
-                          <MiniPriceCard price={p} showTrend={false} />
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+                <div className="absolute left-0 right-0 top-full mt-1 z-20
+                                bg-white border border-gray-200 rounded shadow-lg overflow-hidden">
+                  {/* 정렬바 */}
+                  <div className="flex items-center gap-1 px-2 py-1 border-b bg-gray-50 text-[11px]">
+                    <span className="text-gray-400 shrink-0 mr-0.5">정렬</span>
+                    {([["rel", "관련도"], ["day", "등락"], ["m1", "1개월"], ["m3", "3개월"], ["m6", "6개월"]] as const).map(([k, lbl]) => (
+                      <button key={k} onClick={() => { setCmpSort(k); setCmpActiveIdx(0); }}
+                              className={`px-1.5 py-0.5 rounded font-bold ${cmpSort === k
+                                ? "bg-indigo-600 text-white"
+                                : "bg-white text-gray-600 border border-gray-200 hover:bg-gray-100"}`}>
+                        {lbl}
+                      </button>
+                    ))}
+                  </div>
+                  <ul ref={cmpListRef} className="max-h-[55vh] overflow-y-auto text-sm divide-y divide-gray-100">
+                    {sortedResults.map((r, idx) => {
+                      const active = idx === Math.min(cmpActiveIdx, sortedResults.length - 1);
+                      const p = cmpPriceMap.get(r.ticker);
+                      const closes = (cmpHist.get(r.ticker) ?? []).map(pt => pt.close);
+                      const ret = cmpReturns.get(r.ticker);
+                      return (
+                        <li key={r.ticker}>
+                          <button onClick={() => selectCmp(r)}
+                                  onMouseEnter={() => setCmpActiveIdx(idx)}
+                                  className={`w-full text-left px-2 py-2 ${active ? "bg-indigo-50" : "hover:bg-gray-50"}`}>
+                            <div className="flex items-baseline gap-1.5 mb-1 min-w-0">
+                              <span className="font-bold truncate">{r.name}</span>
+                              <span className="text-[11px] text-gray-500 font-mono shrink-0">{r.ticker}</span>
+                            </div>
+                            <MiniPriceCard price={p} chart={closes} showTrend />
+                            {/* 1·3·6개월 수익률 */}
+                            <div className="flex items-center gap-2 mt-1 text-[11px] font-bold tabular-nums">
+                              {([["1개월", ret?.m1], ["3개월", ret?.m3], ["6개월", ret?.m6]] as const).map(([lbl, v]) =>
+                                v == null ? (
+                                  <span key={lbl} className="text-gray-300">
+                                    <span className="font-normal mr-0.5">{lbl}</span>—
+                                  </span>
+                                ) : (
+                                  <span key={lbl} className={signColor(v)}>
+                                    <span className="text-gray-400 font-normal mr-0.5">{lbl}</span>
+                                    {v >= 0 ? "+" : ""}{v.toFixed(1)}%
+                                  </span>
+                                ))}
+                            </div>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
               )}
               {searchResults && searchResults.length === 0 && debouncedQ.trim() && (
                 <div className="absolute left-0 right-0 top-full mt-1 z-20
@@ -529,8 +583,8 @@ interface StockCardProps {
   price?: Price;
   chart?: number[];
   krReg?: KrRegularPrice;
-  groups: string[];          // 보유 그룹
-  dimEnabled: boolean;       // 장 마감 흐림 설정
+  groups?: string[];         // 보유 그룹
+  dimEnabled?: boolean;      // 장 마감 흐림 설정
   onRequestSearch?: (query: string) => void;
   extraDim?: string;         // 부모 지정 dim 클래스(공통종목/파이호버) — 있으면 우선
   hideRatio?: boolean;       // ETF 자기 카드 등 — 번호배지·비중태그 숨김
@@ -541,7 +595,14 @@ interface StockCardProps {
   boxMinH?: string;          // 가격 박스 최소 높이 클래스(기본 min-h-[80px]) — ETF 자체 카드 등 크게
   bigFont?: boolean;         // 가격·% 폰트 크게 — ETF 자체 카드용
   showReturns?: boolean;     // 1·3·6개월 수익률 표시 (ETF 자체 카드용, KR 한정)
+  returns?: { m1: number | null; m3: number | null; m6: number | null } | null;  // 외부 계산 주입(자체조회 대체)
+  actionLeft?: ReactNode;    // 상단 + 버튼 왼쪽 추가 액션(예: ETF 구성 보기)
+  boxRight?: ReactNode;      // 가격 박스 내부 오른쪽 영역(예: 포함 종목 분해)
+  highlightReturn?: "m1" | "m3" | "m6";  // 해당 기간 수익률 강조(정렬 기준)
+  highlightDay?: boolean;    // 일간% 강조(정렬=현재)
 }
+// 6개월 종가 → 수익률 계산 export (EtfReverseTab 등 재사용)
+export { computeReturns };
 
 // 6개월 히스토리 → 1/3/6개월 수익률(%) — 마지막 종가 기준 N개월 전 종가 대비
 function computeReturns(h: { date: string; close: number }[]): { m1: number | null; m3: number | null; m6: number | null } | null {
@@ -570,7 +631,7 @@ function RatioTag({ ratio, color }: { ratio: number; color: string }) {
     </div>
   );
 }
-function StockCard({ i, item, price: priceProp, chart = [], krReg, groups, dimEnabled, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, showReturns }: StockCardProps) {
+export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups = [], dimEnabled = false, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, showReturns, returns: returnsProp, actionLeft, boxRight, highlightReturn, highlightDay }: StockCardProps) {
   const priceSize = bigFont ? "text-2xl" : "text-base";
   const pctSize = bigFont ? "text-lg" : "text-sm";
   const rawCode = item.stockCode;
@@ -594,16 +655,25 @@ function StockCard({ i, item, price: priceProp, chart = [], krReg, groups, dimEn
   });
   // 해외면 US 가격으로, 아니면 부모가 넘긴 KR 가격으로
   const price = isForeignCode ? (usPriceList?.[0] ?? undefined) : priceProp;
+  // 해외 추세 — 부모는 KR 히스토리만 주므로 US 티커로 자체 조회
+  const { data: usHist } = useQuery({
+    queryKey: ["us-history", fSymbol],
+    queryFn: () => fetchYahooPriceHistory(fSymbol!, "3mo"),
+    enabled: !!fSymbol,
+    staleTime: 60 * 60_000,
+  });
+  const chartData = isForeignCode ? (usHist ?? []).map(p => p.close) : chart;
   const addTicker = fSymbol ?? tNum;                                // +추가/검색용
   // 해외는 심볼 해석되면 정상(추가가능), KR 은 영숫자 6자리면 정상
   const isStandard = isForeignCode ? !!fSymbol : krCode;
-  // 1·3·6개월 수익률(ETF 자체 카드) — KR 한정
-  const { data: returns } = useQuery({
+  // 1·3·6개월 수익률(ETF 자체 카드) — KR 한정. returns prop 주입되면 자체조회 생략.
+  const { data: selfReturns } = useQuery({
     queryKey: ["stockcard-returns", tNum],
     queryFn: async () => computeReturns(await fetchKrPriceHistory(tNum, "6mo")),
-    enabled: !!showReturns && krCode,
+    enabled: !!showReturns && krCode && returnsProp === undefined,
     staleTime: 60 * 60_000,
   });
+  const returns = returnsProp ?? selfReturns;
   const dayDiff = dayChangeDiff(price);
   const dayPct = dayChangePct(price) ?? 0;
   const colorDiff = price ? price.price - (price.prevClose || price.price) : 0;
@@ -644,6 +714,7 @@ function StockCard({ i, item, price: priceProp, chart = [], krReg, groups, dimEn
           </button>
         </div>
         <div className="flex items-end gap-0.5">
+          {actionLeft}
           {onRequestSearch && isStandard && (
             <button onClick={e => { e.preventDefault(); e.stopPropagation(); onRequestSearch(addTicker); }}
                     title={`${item.name} (${addTicker}) 추가하기`}
@@ -693,12 +764,14 @@ function StockCard({ i, item, price: priceProp, chart = [], krReg, groups, dimEn
           {centerTag && (
             <div className="absolute -top-2 left-1/2 -translate-x-1/2 z-10">{centerTag}</div>
           )}
+          {/* 내부: 그래프박스(좌) + boxRight 종목명박스(우) */}
+          <div className="flex items-stretch gap-1.5">
           <div className={`relative overflow-hidden border rounded-md
-                          bg-gray-50/60 px-2 py-1 space-y-0.5 w-full ${boxMinH}
+                          bg-gray-50/60 px-2 py-1 space-y-0.5 flex-1 min-w-0 ${boxMinH}
                           flex flex-col justify-center
                           ${closedDim ? "border-transparent" : "border-gray-200"}`}>
-            {chart.length > 1 && (
-              <Sparkline data={chart} width={300} height={120}
+            {chartData.length > 1 && (
+              <Sparkline data={chartData} width={300} height={120}
                          className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" />
             )}
             <div className="relative z-10">
@@ -709,19 +782,22 @@ function StockCard({ i, item, price: priceProp, chart = [], krReg, groups, dimEn
                 </span>
               </div>
               <div className={`flex items-baseline gap-1 pl-5 font-bold ${signColor(dayDiff)}`}>
-                <span className={`${pctSize} leading-tight bg-yellow-100 rounded px-1 tabular-nums`}>
+                <span className={`${pctSize} leading-tight rounded px-1 tabular-nums
+                                  ${highlightDay ? "bg-white border border-gray-300 shadow-sm" : "bg-yellow-100"}`}>
                   {dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%
                 </span>
                 <span className="text-[10px] font-normal text-gray-700 tabular-nums">
                   ({formatSigned(dayDiff)}원)
                 </span>
               </div>
-              {/* 1·3·6개월 수익률 */}
+              {/* 1·3·6개월 수익률 — 정렬 기준 기간은 박스+배경 강조 */}
               {showReturns && returns && (
-                <div className="flex items-center gap-2 pl-5 mt-1 text-[11px] font-bold tabular-nums">
-                  {([["1개월", returns.m1], ["3개월", returns.m3], ["6개월", returns.m6]] as const).map(([lbl, v]) =>
+                <div className="flex items-center gap-1.5 pl-5 mt-1 text-[11px] font-bold tabular-nums">
+                  {([["1개월", returns.m1, "m1"], ["3개월", returns.m3, "m3"], ["6개월", returns.m6, "m6"]] as const).map(([lbl, v, key]) =>
                     v == null ? null : (
-                      <span key={lbl} className={signColor(v)}>
+                      <span key={lbl}
+                            className={`${signColor(v)} ${highlightReturn === key
+                              ? "bg-white border border-gray-300 rounded px-1 py-0 shadow-sm" : ""}`}>
                         <span className="text-gray-400 font-normal mr-0.5">{lbl}</span>
                         {v >= 0 ? "+" : ""}{v.toFixed(1)}%
                       </span>
@@ -756,6 +832,10 @@ function StockCard({ i, item, price: priceProp, chart = [], krReg, groups, dimEn
                 </div>
               )}
             </div>
+          </div>
+          {boxRight && (
+            <div className="shrink-0 self-stretch flex items-center max-w-[48%]">{boxRight}</div>
+          )}
           </div>
         </div>
       </div>
