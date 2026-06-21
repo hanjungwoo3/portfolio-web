@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, type KrRegularPrice } from "../lib/api";
+import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, type KrRegularPrice } from "../lib/api";
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
 import { Tooltip } from "./Tooltip";
@@ -266,14 +266,17 @@ interface DiffTableProps {
 }
 
 const isOtherCat = (name: string) => name === "그 외" || name === "기타";
-// 구성 배열 → { ticker(6자리): {name, ratio} } 맵. 선물·그외(6자리 아님)는 제외.
+// 구성 배열 → { key: {name, ratio} } 맵. KR=6자리코드, 해외(미국)=토스 내부코드 그대로 key.
+//   선물·그외 등은 제외. 같은 미국 종목은 토스코드가 ETF 간 동일해 비교 매칭됨.
 function compMap(items: { stockCode: string; name: string; ratio: number }[]) {
   const m = new Map<string, { name: string; ratio: number }>();
   for (const it of items) {
     if (isOtherCat(it.name)) continue;
     const t = it.stockCode.replace(/^A/, "");
-    if (!/^\d{6}$/.test(t)) continue;
-    m.set(t, { name: it.name, ratio: it.ratio });
+    const krCode = /^[\dA-Za-z]{6}$/.test(t);
+    const isForeign = !krCode && /^[A-Z]{2,4}\d/.test(it.stockCode);
+    if (!krCode && !isForeign) continue;
+    m.set(krCode ? t : it.stockCode, { name: it.name, ratio: it.ratio });
   }
   return m;
 }
@@ -312,14 +315,15 @@ function EtfDiffTable({ tickerA, nameA, tickerB, nameB, onRequestSearch }: DiffT
     return { onlyA, onlyB, both, maxRatio, sumA, sumB, overlapA, overlapB };
   }, [qa.data, qb.data]);
 
-  // 3열 모든 종목 ticker + ETF 자기 자신(A·B) — 카드(현재가·추세)용
+  // KR 가격/차트/마감 조회용 ticker — KR 6자리만(미국 토스코드 섞이면 KR 배치 호출이 깨짐).
+  //   미국 종목 가격은 StockCard 가 자체 조회.
   const allTickers = useMemo(() => {
     const s = new Set<string>();
-    if (/^[\dA-Za-z]{6}$/.test(tickerA)) s.add(tickerA);
-    if (/^[\dA-Za-z]{6}$/.test(tickerB)) s.add(tickerB);
-    diff.onlyA.forEach(x => s.add(x.ticker));
-    diff.onlyB.forEach(x => s.add(x.ticker));
-    diff.both.forEach(x => s.add(x.ticker));
+    const addKr = (t: string) => { if (/^[\dA-Za-z]{6}$/.test(t)) s.add(t); };
+    addKr(tickerA); addKr(tickerB);
+    diff.onlyA.forEach(x => addKr(x.ticker));
+    diff.onlyB.forEach(x => addKr(x.ticker));
+    diff.both.forEach(x => addKr(x.ticker));
     return Array.from(s);
   }, [diff, tickerA, tickerB]);
   const { data: priceList } = useQuery({
@@ -404,7 +408,7 @@ function EtfDiffTable({ tickerA, nameA, tickerB, nameB, onRequestSearch }: DiffT
                    price={priceMap.get(etfTicker)} chart={chartMap.get(etfTicker)}
                    krReg={krRegMap?.get(etfTicker)} groups={holdingGroups.get(etfTicker) ?? []}
                    dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
-                   boxMinH="min-h-[128px]" bigFont />
+                   boxMinH="min-h-[128px]" bigFont showReturns />
       </div>
       <div className="flex-1 min-w-0">
         <PieSlot items={pie.vis} otherRatio={pie.other} cashRatio={pie.cash}
@@ -536,6 +540,25 @@ interface StockCardProps {
   className?: string;        // 루트에 추가(예: 그리드 self-end 정렬)
   boxMinH?: string;          // 가격 박스 최소 높이 클래스(기본 min-h-[80px]) — ETF 자체 카드 등 크게
   bigFont?: boolean;         // 가격·% 폰트 크게 — ETF 자체 카드용
+  showReturns?: boolean;     // 1·3·6개월 수익률 표시 (ETF 자체 카드용, KR 한정)
+}
+
+// 6개월 히스토리 → 1/3/6개월 수익률(%) — 마지막 종가 기준 N개월 전 종가 대비
+function computeReturns(h: { date: string; close: number }[]): { m1: number | null; m3: number | null; m6: number | null } | null {
+  if (h.length < 2) return null;
+  const last = h[h.length - 1].close;
+  const lastDate = new Date(h[h.length - 1].date);
+  const at = (months: number): number | null => {
+    const target = new Date(lastDate);
+    target.setMonth(target.getMonth() - months);
+    let base: number | null = null;
+    for (let i = h.length - 1; i >= 0; i--) {
+      if (new Date(h[i].date) <= target) { base = h[i].close; break; }
+    }
+    if (base == null) base = h[0].close;
+    return base > 0 ? ((last - base) / base) * 100 : null;
+  };
+  return { m1: at(1), m3: at(3), m6: at(6) };
 }
 // 비중 책갈피 — 색상 지정(비교표 A/B 등)
 function RatioTag({ ratio, color }: { ratio: number; color: string }) {
@@ -547,12 +570,40 @@ function RatioTag({ ratio, color }: { ratio: number; color: string }) {
     </div>
   );
 }
-function StockCard({ i, item, price, chart = [], krReg, groups, dimEnabled, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont }: StockCardProps) {
+function StockCard({ i, item, price: priceProp, chart = [], krReg, groups, dimEnabled, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, showReturns }: StockCardProps) {
   const priceSize = bigFont ? "text-2xl" : "text-base";
   const pctSize = bigFont ? "text-lg" : "text-sm";
-  const tNum = item.stockCode.replace(/^A/, "");
-  // 한국 코드는 영숫자 6자리 가능(신형 ETF 등) — 숫자만으로 좁히면 흐림 오작동
-  const isStandard = /^[\dA-Za-z]{6}$/.test(tNum);
+  const rawCode = item.stockCode;
+  const tNum = rawCode.replace(/^A/, "");
+  const krCode = /^[\dA-Za-z]{6}$/.test(tNum);   // 한국 코드(영숫자 6자리, 신형 ETF 포함)
+  // 해외(미국) 토스 내부코드(US.../NAS... 등) — 티커가 아니므로 해석 필요
+  const isForeignCode = !krCode && /^[A-Z]{2,4}\d/.test(rawCode);
+  const { data: fInfo } = useQuery({
+    queryKey: ["toss-code-info", rawCode],
+    queryFn: () => fetchTossCodeInfo(rawCode),
+    enabled: isForeignCode,
+    staleTime: 24 * 60 * 60_000,
+  });
+  const fSymbol = isForeignCode ? (fInfo?.symbol ?? null) : null;   // 예: SNDK, MU
+  const { data: usPriceList } = useQuery({
+    queryKey: ["stockcard-us-price", fSymbol],
+    queryFn: () => fetchUsHoldingPrices([fSymbol!]),
+    enabled: !!fSymbol,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  // 해외면 US 가격으로, 아니면 부모가 넘긴 KR 가격으로
+  const price = isForeignCode ? (usPriceList?.[0] ?? undefined) : priceProp;
+  const addTicker = fSymbol ?? tNum;                                // +추가/검색용
+  // 해외는 심볼 해석되면 정상(추가가능), KR 은 영숫자 6자리면 정상
+  const isStandard = isForeignCode ? !!fSymbol : krCode;
+  // 1·3·6개월 수익률(ETF 자체 카드) — KR 한정
+  const { data: returns } = useQuery({
+    queryKey: ["stockcard-returns", tNum],
+    queryFn: async () => computeReturns(await fetchKrPriceHistory(tNum, "6mo")),
+    enabled: !!showReturns && krCode,
+    staleTime: 60 * 60_000,
+  });
   const dayDiff = dayChangeDiff(price);
   const dayPct = dayChangePct(price) ?? 0;
   const colorDiff = price ? price.price - (price.prevClose || price.price) : 0;
@@ -594,8 +645,8 @@ function StockCard({ i, item, price, chart = [], krReg, groups, dimEnabled, onRe
         </div>
         <div className="flex items-end gap-0.5">
           {onRequestSearch && isStandard && (
-            <button onClick={e => { e.preventDefault(); e.stopPropagation(); onRequestSearch(tNum); }}
-                    title={`${item.name} (${tNum}) 추가하기`}
+            <button onClick={e => { e.preventDefault(); e.stopPropagation(); onRequestSearch(addTicker); }}
+                    title={`${item.name} (${addTicker}) 추가하기`}
                     className="px-1.5 py-0.5 rounded-t-md text-[10px] font-bold leading-none
                                bg-blue-50 text-blue-700 border-t border-l border-r border-blue-300
                                hover:bg-blue-100">
@@ -665,6 +716,18 @@ function StockCard({ i, item, price, chart = [], krReg, groups, dimEnabled, onRe
                   ({formatSigned(dayDiff)}원)
                 </span>
               </div>
+              {/* 1·3·6개월 수익률 */}
+              {showReturns && returns && (
+                <div className="flex items-center gap-2 pl-5 mt-1 text-[11px] font-bold tabular-nums">
+                  {([["1개월", returns.m1], ["3개월", returns.m3], ["6개월", returns.m6]] as const).map(([lbl, v]) =>
+                    v == null ? null : (
+                      <span key={lbl} className={signColor(v)}>
+                        <span className="text-gray-400 font-normal mr-0.5">{lbl}</span>
+                        {v >= 0 ? "+" : ""}{v.toFixed(1)}%
+                      </span>
+                    ))}
+                </div>
+              )}
               {isHeld && (
                 <div className="flex flex-wrap items-center gap-1 pl-6 mt-1">
                   {shownGroups.map(g => (
@@ -826,7 +889,7 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
                        price={priceMap.get(selfTicker)} chart={chartMap.get(selfTicker)}
                        krReg={krRegMap?.get(selfTicker)} groups={holdingGroups.get(selfTicker) ?? []}
                        dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
-                       boxMinH="min-h-[128px]" bigFont />
+                       boxMinH="min-h-[128px]" bigFont showReturns />
           )}
           <PieSlot items={visibleItems} otherRatio={otherRatio} cashRatio={cashRatio}
                    hoveredIdx={hoveredIdx} onHoverIdx={setHoveredIdx} />

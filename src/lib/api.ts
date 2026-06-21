@@ -528,6 +528,22 @@ export async function verifyKrMarkets(
   return out;
 }
 
+// ETF 구성의 해외(미국) 종목 토스 내부코드(US19890516001 / NAS0250224006 등) → 티커·시장 해석.
+//   compositions 응답의 해외 stockCode 는 티커가 아니라 토스 내부코드라 가격/추가에 쓰려면 변환 필요.
+export async function fetchTossCodeInfo(code: string): Promise<{ symbol: string; isUs: boolean } | null> {
+  try {
+    const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-infos/code-or-symbol/${code}`);
+    if (!r.ok) return null;
+    const j = await r.json() as { result?: { symbol?: string; market?: { code?: string } } };
+    const symbol = j.result?.symbol;
+    if (!symbol) return null;
+    const mk = j.result?.market?.code ?? "";   // NSQ=NASDAQ, NYS=NYSE, AMS=AMEX
+    return { symbol, isUs: mk === "NSQ" || mk === "NYS" || mk === "AMS" || mk === "NYSE" };
+  } catch {
+    return null;
+  }
+}
+
 // 종목명 재취득 — 토스 JSON(UTF-8, 인코딩 안전·시세와 같은 출처라 확실히 닿음) 우선, 실패 시 네이버 HTML.
 // 깨진 종목명 복구(repairBrokenNames)용 — 토스 stock-infos 의 name 필드 사용.
 export async function fetchKrStockName(ticker: string): Promise<string | null> {
