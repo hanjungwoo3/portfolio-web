@@ -1515,7 +1515,7 @@ export interface MarketAlertNotice {
 }
 
 const MARKET_ALERT_RE =
-  /투자경고|투자위험|투자주의|관리종목|매매거래정지|거래정지|단기과열|시장경보|소수계좌|종가급변|투자유의|지정예고|지정해제|불성실공시|상장폐지/;
+  /투자경고|투자위험|투자주의|관리종목|매매거래정지|거래정지|단기과열|공매도|과열종목|시장경보|소수계좌|종가급변|투자유의|지정예고|지정해제|불성실공시|상장폐지/;
 
 export async function fetchMarketAlerts(ticker: string): Promise<MarketAlertNotice[]> {
   if (!/^\d{6}$/.test(ticker)) return [];
