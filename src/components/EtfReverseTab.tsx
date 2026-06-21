@@ -234,7 +234,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
 
   return (
     <div className="space-y-3">
-      <div className="bg-white border border-gray-300 rounded-lg shadow-sm p-3 space-y-2">
+      <div className="relative z-20 bg-white border border-gray-300 rounded-lg shadow-sm p-3 space-y-2">
         {/* 헤더 */}
         <div className="flex items-baseline gap-2 flex-wrap">
           <span className="text-base font-bold text-gray-800">🍱 ETF 검색</span>
@@ -315,7 +315,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
 
           {/* 자동완성 드롭다운 — 각 항목에 포함/제외 버튼 */}
           {(searching || suggestions.length > 0) && query.trim() && !/^[\d\s,]+$/.test(query) && (
-            <div className="absolute left-0 mt-1 z-10 bg-white border border-gray-300
+            <div className="absolute left-0 mt-1 z-30 bg-white border border-gray-300
                             rounded-md shadow-lg max-h-80 overflow-hidden
                             w-[30rem] max-w-[calc(100vw-2rem)] flex flex-col">
               {/* 헤더 + 닫기 */}

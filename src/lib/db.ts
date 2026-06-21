@@ -557,7 +557,7 @@ export async function renameGroup(oldName: string, newName: string): Promise<num
   const next = newName.trim();
   if (!next || old === next) return 0;
   let count = 0;
-  await db.transaction("rw", db.holdings, async () => {
+  await db.transaction("rw", db.holdings, db.trades, async () => {
     const items = await db.holdings.where("account").equals(old).toArray();
     for (const it of items) {
       const oldId = holdingId(it as Stock);
@@ -566,6 +566,12 @@ export async function renameGroup(oldName: string, newName: string): Promise<num
       const newId = holdingId(updated as Stock);
       await db.holdings.put({ ...updated, id: newId } as Stock & { id: string });
       count += 1;
+    }
+    // 거래 기록(trades)의 그룹(account)도 갱신 — 안 하면 내거래 그룹별 보기에 옛 이름이 남음.
+    //   trades 는 account 인덱스가 없어 전체 스캔 + id 불변(ticker_time_rand)이라 단순 put.
+    const trs = await db.trades.toArray();
+    for (const tr of trs) {
+      if ((tr.account ?? "") === old) await db.trades.put({ ...tr, account: next });
     }
   });
   // 예수금 키도 새 이름으로 이전 — 안 그러면 옛 이름에 고아 예수금이 남음

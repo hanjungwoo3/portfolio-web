@@ -13,12 +13,12 @@ import { TradeGantt } from "./TradeGantt";
 import { TossImportDialog } from "./TossImportDialog";
 import type { Stock, Price } from "../types";
 
-type ViewMode = "recent" | "byStock" | "byDate";
+type ViewMode = "recent" | "byStock" | "byDate" | "byGroup";
 type Dir = "desc" | "asc";
 type Period = "week" | "month" | "year" | "all" | "custom";
 
 // unit=주당가, amount=총액 — 둘 다 입력칸. 한쪽 입력 시 수량 기준 자동 계산.
-interface EditForm { type: "buy" | "sell"; date: string; qty: string; unit: string; amount: string; last: "unit" | "amount" }
+interface EditForm { type: "buy" | "sell"; date: string; qty: string; unit: string; amount: string; account: string; last: "unit" | "amount" }
 
 // 수량/주당가/총액 상호 계산 — 변경 필드 기준 파생값 갱신
 function recalcEdit(f: EditForm, field: "qty" | "unit" | "amount", v: string): EditForm {
@@ -47,9 +47,8 @@ function presetRange(p: Period): { from: string; to: string } {
 
 export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: { holdings: Stock[]; pc?: boolean; prices?: Map<string, Price>; onOpenValuation?: (ticker: string) => void }) {
   const [trades, setTrades] = useState<Trade[] | null>(null);
-  const view: "chart" | "table" = "chart";   // 차트보기 전용 (상세보기 제거)
+  const [view, setView] = useState<"chart" | "table">("chart");   // 차트 / 상세(표·수정)
   const [scope, setScope] = useState<"all" | "byGroup">("all");        // 차트: 전체 / 그룹별
-  const [mode] = useState<ViewMode>("recent");   // 차트 전용이라 고정(상세보기 제거)
   const [dir, setDir] = useState<Dir>("desc");   // 기본 최신순 (최신 거래가 맨 위)
   const [period, setPeriod] = useState<Period>("week");   // 프리셋(표시용) — 기본 최근 1주
   const [from, setFrom] = useState<string>(() => presetRange("week").from);  // 시작일 YYYY-MM-DD ('' = 제한없음)
@@ -64,7 +63,8 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
     [holdings]);
 
   const reload = async () => setTrades(await loadAllTrades());
-  useEffect(() => { void reload(); }, []);
+  // holdings 변경(그룹 이름변경·삭제 등 reloadKey 반영) 시 거래도 다시 로드 — 옛 그룹명 잔존 방지
+  useEffect(() => { void reload(); }, [holdings]);
 
   // 그룹별 독립보유 모드 — 종목명 아래에 거래의 그룹(account) 표시
   const independent = getIndependentGroupsMode();
@@ -129,14 +129,14 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
   const startEdit = (t: Trade) => {
     setEditId(t.id);
     setForm({ type: t.type, date: t.date, qty: String(t.qty), amount: String(t.amount),
-              unit: String(Math.round(t.amount / t.qty)), last: "amount" });
+              unit: String(Math.round(t.amount / t.qty)), account: t.account ?? "", last: "amount" });
   };
   const cancelEdit = () => { setEditId(null); setForm(null); };
   const saveEdit = async (orig: Trade) => {
     if (!form) return;
     const qty = Number(form.qty), amount = Number(form.amount);
     if (!(qty > 0) || !(amount > 0) || !form.date) return;
-    await updateTrade({ ...orig, type: form.type, date: form.date, qty, amount });
+    await updateTrade({ ...orig, type: form.type, date: form.date, qty, amount, account: form.account || undefined });
     cancelEdit();
     await reload();
   };
@@ -191,9 +191,13 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
     const sorted = [...filtered].sort((a, b) =>
       m === "byStock"
         ? (byName(a, b) || (independent ? byAcct(a, b) : 0) || sortByDate(a, b))  // 종목 가나다 → 입력순(dir)
-        : sortByDate(a, b));                                                       // 날짜별: 날짜 → 입력순(dir)
+        : m === "byGroup"
+          ? (byAcct(a, b) || byName(a, b) || sortByDate(a, b))                    // 그룹 → 종목 → 입력순
+          : sortByDate(a, b));                                                     // 날짜별: 날짜 → 입력순(dir)
     const keyOf = (t: Trade) =>
-      m === "byStock" ? (independent ? `${t.ticker}␟${t.account ?? ""}` : t.ticker) : t.date;
+      m === "byStock" ? (independent ? `${t.ticker}␟${t.account ?? ""}` : t.ticker)
+      : m === "byGroup" ? (t.account ?? "")
+      : t.date;
     const groups: { key: string; trades: Trade[] }[] = [];
     let cur: { key: string; trades: Trade[] } | null = null;
     for (const t of sorted) {
@@ -261,6 +265,16 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
           <input type="number" inputMode="numeric" value={form.amount} placeholder="총액"
                  onChange={e => setForm(f => f ? recalcEdit(f, "amount", e.target.value) : f)}
                  className="border rounded px-1 py-0.5 w-24 text-right text-[11px] tabular-nums" />
+          {/* 그룹 변경 — 거래의 소속 그룹 직접 수정 */}
+          <select value={form.account}
+                  onChange={e => setForm(f => f ? { ...f, account: e.target.value } : f)}
+                  title="이 거래의 그룹"
+                  className="border rounded px-1 py-0.5 text-[11px] max-w-[7rem]">
+            <option value="">(그룹없음)</option>
+            {Array.from(new Set([...groups, form.account].filter(Boolean))).map(g => (
+              <option key={g} value={g}>{g}</option>
+            ))}
+          </select>
           <span className="ml-auto whitespace-nowrap">
             <button onClick={() => void saveEdit(t)} className="text-blue-600 hover:underline mr-1.5">저장</button>
             <button onClick={cancelEdit} className="text-gray-400 hover:underline">취소</button>
@@ -345,8 +359,7 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
   const renderPanel = (m: ViewMode) => {
     const groups = buildGroups(m);
     const grouped = m !== "recent";
-    // 전체 합계 — PC 는 3패널이 동일하므로 전체(시간순)에만. 모바일은 패널 하나씩이라 항상.
-    const showGrand = !pc || m === "recent";
+    const showGrand = true;   // 단일 패널 — 항상 전체 합계 표시
     return (
       <table className="w-full table-fixed text-[11px] tabular-nums border-collapse border border-gray-200 rounded-md">
         <colgroup>{colW.map((w, i) => <col key={i} style={{ width: w }} />)}</colgroup>
@@ -362,6 +375,14 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
         <tbody>
           {groups.map(g => (
             <Fragment key={g.key}>
+              {m === "byGroup" && (
+                <tr className="bg-gray-100/70 border-t border-gray-300">
+                  <td colSpan={5} className="py-1 px-1.5 font-bold text-gray-700">
+                    📁 {g.key || "(그룹없음)"}
+                    <span className="text-[10px] text-gray-400 font-normal ml-1">· {g.trades.length}건</span>
+                  </td>
+                </tr>
+              )}
               {g.trades.map((t, i) => renderDataRow(
                 t,
                 m === "byStock" ? i === 0 : true,   // 종목별: 종목 한 번만
@@ -379,12 +400,6 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
       </table>
     );
   };
-
-  const PC_PANELS: { m: ViewMode; label: string }[] = [
-    { m: "recent", label: "전체 (시간순)" },
-    { m: "byDate", label: "날짜별" },
-    { m: "byStock", label: "종목별" },
-  ];
 
   return (
     <div className="space-y-3">
@@ -421,7 +436,16 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
             📥 토스 가져오기
           </button>
         )}
+        {/* 차트 / 상세(표·수정) */}
         <div className="inline-flex rounded-md border border-gray-300 overflow-hidden ml-auto sm:ml-0">
+          {(["chart", "table"] as const).map(v => (
+            <button key={v} onClick={() => { setView(v); cancelEdit(); }}
+                    className={`px-2 py-1 ${v === "table" ? "border-l border-gray-300" : ""} ${view === v ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+              {v === "chart" ? "📊 차트" : "✎ 상세"}
+            </button>
+          ))}
+        </div>
+        <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
           {(["all", "byGroup"] as const).map(s => (
             <button key={s} onClick={() => setScope(s)}
                     className={`px-2 py-1 ${s === "byGroup" ? "border-l border-gray-300" : ""} ${scope === s ? "bg-gray-700 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
@@ -443,18 +467,9 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
         <div className="text-center text-xs text-gray-400 py-10">
           이 기간에 거래 기록이 없습니다.
         </div>
-      ) : pc ? (
-        // PC — 전체 / 날짜별 / 종목별 3패널 동시
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3 items-start">
-          {PC_PANELS.map(({ m, label }) => (
-            <div key={m} className="min-w-0">
-              <div className="text-xs font-bold text-gray-600 mb-1.5 px-0.5 pb-1 border-b border-gray-200">{label}</div>
-              {renderPanel(m)}
-            </div>
-          ))}
-        </div>
       ) : (
-        renderPanel(mode)
+        // 상세 표 — 그룹별이면 그룹 묶음, 아니면 시간순. 각 행 ✎수정(그룹 변경 포함)/🗑삭제.
+        renderPanel(scope === "byGroup" ? "byGroup" : "recent")
       )}
 
       <TossImportDialog isOpen={importOpen} onClose={() => setImportOpen(false)}
