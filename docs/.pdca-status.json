@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-06-21T23:11:58.125Z",
+  "lastUpdated": "2026-06-21T23:16:16.610Z",
   "activeFeatures": [
     "portfolio-web",
     "proxy",
@@ -21,9 +21,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-01T03:35:27.330Z",
-        "lastUpdated": "2026-06-21T23:11:58.125Z"
+        "lastUpdated": "2026-06-21T23:16:16.610Z"
       },
-      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/src/lib/api.ts"
+      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/src/components/EtfReverseDialog.tsx"
     },
     "proxy": {
       "phase": "do",
@@ -112,7 +112,7 @@
   "session": {
     "startedAt": "2026-05-01T03:34:12.578Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-06-21T23:11:58.125Z"
+    "lastActivity": "2026-06-21T23:16:16.610Z"
   },
   "history": [
     {
@@ -35061,6 +35061,24 @@
     },
     {
       "timestamp": "2026-06-21T23:11:58.125Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-21T23:15:48.423Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-21T23:15:56.969Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-21T23:16:16.610Z",
       "feature": "portfolio-web",
       "phase": "do",
       "action": "updated"

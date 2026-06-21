@@ -2,11 +2,11 @@
 // portfolio-etf-index 의 역색인 사용 (lib/etfIndex).
 
 import { useEffect, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { getEtfsContainingStock, type EtfHolding } from "../lib/etfIndex";
-import { fetchTossPrices } from "../lib/api";
-import { signColor, dayChangePct } from "../lib/format";
+import { fetchTossPrices, fetchKrPriceHistory } from "../lib/api";
 import { useEscClose } from "../lib/useEscClose";
+import { StockCard, computeReturns } from "./EtfCompositionDialog";
 
 interface Props {
   ticker: string;
@@ -44,6 +44,16 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
     staleTime: 30_000,
   });
   const priceMap = new Map((priceList ?? []).map(p => [p.ticker, p]));
+
+  // 각 ETF 추세·1·3·6개월 수익률 (6개월 히스토리)
+  const histQs = useQueries({
+    queries: etfCodes.map(code => ({
+      queryKey: ["price-history", code, "6mo"],
+      queryFn: () => fetchKrPriceHistory(code, "6mo"),
+      staleTime: 60 * 60_000,
+    })),
+  });
+  const histMap = new Map(histQs.map((q, i) => [etfCodes[i], q.data ?? []]));
 
   const downRef = { current: false };
 
@@ -85,59 +95,34 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
               <div className="text-[11px] text-gray-500 mb-2 px-1">
                 총 <b className="text-gray-800">{list.length}</b>개 ETF · 비중 내림차순
               </div>
-              <div className="space-y-1">
-                {list.map(h => (
-                  <div key={h.etfCode}
-                       className="group w-full flex items-baseline gap-2 px-2 py-1.5 rounded
-                                  border border-gray-200 hover:border-amber-300
-                                  hover:bg-amber-50/30 transition">
-                    <span className="text-xs text-gray-500 font-mono tabular-nums shrink-0">
-                      {h.etfCode}
-                    </span>
-                    <span className="flex-1 min-w-0 truncate text-sm text-gray-800">{h.etfName}</span>
-                    {(() => {
-                      const p = priceMap.get(h.etfCode);
-                      if (!p) return null;
-                      const pct = dayChangePct(p);
-                      return (
-                        <span className="shrink-0 tabular-nums text-xs self-center">
-                          <span className="font-bold text-gray-800">{p.price.toLocaleString()}원</span>
-                          {pct !== undefined && (
-                            <span className={`ml-1 ${signColor(pct)}`}>
-                              {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
-                            </span>
-                          )}
-                        </span>
-                      );
-                    })()}
-                    {/* + 포트폴리오 추가 — 기본 흐림 */}
-                    {onRequestAdd && (
-                      <button onClick={() => onRequestAdd(h.etfCode)}
-                              title={`${h.etfName} 포트폴리오에 추가`}
-                              className="shrink-0 px-1.5 py-0 rounded text-[11px] font-bold leading-none self-center
-                                         text-emerald-700 bg-emerald-50 border border-emerald-200
-                                         opacity-30 group-hover:opacity-80 hover:!opacity-100
-                                         hover:bg-emerald-100 transition">
-                        ＋
-                      </button>
-                    )}
-                    {/* 🍱 구성종목 보기 */}
-                    {onOpenEtfComposition && (
-                      <button onClick={() => onOpenEtfComposition(h.etfCode, h.etfName)}
-                              title={`${h.etfName} 구성종목 보기`}
-                              className="shrink-0 px-1.5 py-0 rounded text-[11px] font-bold leading-none self-center
-                                         text-amber-700 bg-amber-50 border border-amber-200
-                                         opacity-30 group-hover:opacity-80 hover:!opacity-100
-                                         hover:bg-amber-100 transition">
-                        🍱
-                      </button>
-                    )}
-                    <span className="shrink-0 tabular-nums text-sm self-center">
-                      <span className="text-[10px] text-gray-400 mr-0.5">비중</span>
-                      <span className="font-bold text-rose-600">{h.ratio.toFixed(2)}%</span>
-                    </span>
-                  </div>
-                ))}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {list.map(h => {
+                  const hist = histMap.get(h.etfCode) ?? [];
+                  return (
+                    <StockCard key={h.etfCode} i={0}
+                               item={{ stockCode: h.etfCode, name: `${h.etfName} (${h.etfCode})`, ratio: 0 }} hideRatio
+                               price={priceMap.get(h.etfCode)} chart={hist.map(p => p.close)}
+                               showReturns={hist.length > 1} returns={computeReturns(hist)}
+                               onRequestSearch={onRequestAdd}
+                               boxMinH="min-h-[52px]"
+                               actionLeft={onOpenEtfComposition ? (
+                                 <button onClick={e => { e.preventDefault(); e.stopPropagation(); onOpenEtfComposition(h.etfCode, h.etfName); }}
+                                         title={`${h.etfName} 구성종목 보기`}
+                                         className="px-1.5 py-0.5 rounded-t-md text-[10px] font-bold leading-none
+                                                    bg-amber-50 text-amber-700 border-t border-l border-r border-amber-300
+                                                    hover:bg-amber-100">
+                                   🍱
+                                 </button>
+                               ) : undefined}
+                               rightTag={
+                                 <div className="border rounded px-1 py-0 leading-tight tabular-nums
+                                                 text-[11px] font-bold bg-white whitespace-nowrap text-rose-600"
+                                      style={{ borderColor: "#fecaca" }}>
+                                   비중 {h.ratio.toFixed(1)}%
+                                 </div>
+                               } />
+                  );
+                })}
               </div>
             </>
           )}
