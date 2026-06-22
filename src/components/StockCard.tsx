@@ -1546,7 +1546,8 @@ export function StockCard({
             거래일엔 접혀있고 비거래일엔 펼쳐있음. 클릭으로 토글 */}
         <AuxIndicators chart={chart} investorHistory={investorHistory}
                        isTradingDay={!!price.high}
-                       defaultOpen={!hasPosition} />
+                       defaultOpen={!hasPosition}
+                       etfTicker={isEtfByName(stock.name) ? stock.ticker : undefined} />
 
         </div>
 

@@ -752,7 +752,8 @@ export function MobileStockCard({
         {/* ─── 보조 지표 — 우측 하단 네모 블럭 ──── */}
         <AuxIndicators chart={chart} investorHistory={investorHistory}
                        isTradingDay={!!price.high} textSize="10"
-                       defaultOpen={!hasPosition} />
+                       defaultOpen={!hasPosition}
+                       etfTicker={isEtfByName(stock.name) ? stock.ticker : undefined} />
 
         {/* ─── 투자자 매매동향 레이어 (👥 클릭 시) ─── */}
         {showFlow && investor && (
