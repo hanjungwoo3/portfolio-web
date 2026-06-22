@@ -10,14 +10,12 @@ import type { Investor } from "../types";
 import { signColor } from "../lib/format";
 import { fetchKrPriceHistory, fetchYahooPriceHistory, fetchEtfKeyIndicator } from "../lib/api";
 
-// 6개월 종가 → 마지막 종가 기준 N개월 전 대비 수익률(%). ETF 카드용.
+// 1년 종가 → 마지막 종가 기준 기간 전 대비 수익률(%). ETF 카드용 (1주일·1·3·6개월·1년).
 function periodReturns(h: { date: string; close: number }[]): { label: string; pct: number }[] {
   if (h.length < 2) return [];
   const last = h[h.length - 1].close;
   const lastDate = new Date(h[h.length - 1].date);
-  const at = (months: number): number | null => {
-    const target = new Date(lastDate);
-    target.setMonth(target.getMonth() - months);
+  const atDate = (target: Date): number | null => {
     let base: number | null = null;
     for (let i = h.length - 1; i >= 0; i--) {
       if (new Date(h[i].date) <= target) { base = h[i].close; break; }
@@ -25,9 +23,15 @@ function periodReturns(h: { date: string; close: number }[]): { label: string; p
     if (base == null) base = h[0].close;
     return base > 0 ? ((last - base) / base) * 100 : null;
   };
+  const monthsAgo = (m: number) => { const t = new Date(lastDate); t.setMonth(t.getMonth() - m); return t; };
+  const daysAgo = (d: number) => { const t = new Date(lastDate); t.setDate(t.getDate() - d); return t; };
+  const periods: [string, Date][] = [
+    ["1주일", daysAgo(7)], ["1개월", monthsAgo(1)], ["3개월", monthsAgo(3)],
+    ["6개월", monthsAgo(6)], ["1년", monthsAgo(12)],
+  ];
   const out: { label: string; pct: number }[] = [];
-  for (const [label, m] of [["1개월", 1], ["3개월", 3], ["6개월", 6], ["1년", 12]] as const) {
-    const v = at(m);
+  for (const [label, target] of periods) {
+    const v = atDate(target);
     if (v != null) out.push({ label, pct: v });
   }
   return out;
@@ -98,7 +102,7 @@ export function AuxIndicators({
     if (first > 0 && !isEtf) {
       const pct = ((last - first) / first) * 100;
       lines.push(
-        <div key="m3" className={`${sizeCls} leading-tight`}>
+        <div key="m3" className={`${sizeCls} leading-tight flex items-baseline justify-between gap-3`}>
           <span className="text-gray-500">3개월 </span>
           <span className={`font-medium ${signColor(pct)}`}>
             {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%
@@ -117,7 +121,7 @@ export function AuxIndicators({
       const variance = returns.reduce((s, v) => s + (v - mean) ** 2, 0) / returns.length;
       const vol = Math.sqrt(variance);
       lines.push(
-        <div key="vol" className={`${sizeCls} leading-tight`}>
+        <div key="vol" className={`${sizeCls} leading-tight flex items-baseline justify-between gap-3`}>
           <span className="text-gray-500">변동성 </span>
           <span className="text-gray-700 font-medium">
             ±{vol.toFixed(2)}%/일
@@ -131,15 +135,18 @@ export function AuxIndicators({
   if (isEtf) {
     if (etfKey?.totalFee != null) {
       lines.unshift(
-        <div key="fee" className={`${sizeCls} leading-tight`}>
+        <div key="fee" className={`${sizeCls} leading-tight flex items-baseline justify-between gap-3`}>
           <span className="text-gray-500">총보수 </span>
-          <span className="text-gray-700 font-bold">{etfKey.totalFee}%</span>
+          <span className="text-blue-600 font-bold">{etfKey.totalFee}%</span>
         </div>
       );
     }
     for (const r of etfRets) {
+      const hl = r.label === "1주일";   // 1주일 — 연한 노랑 배경 강조
       lines.push(
-        <div key={`ret-${r.label}`} className={`${sizeCls} leading-tight`}>
+        <div key={`ret-${r.label}`}
+             className={`${sizeCls} leading-tight flex items-baseline justify-between gap-3
+                         ${hl ? "bg-yellow-100/70 rounded px-1 -mx-1" : ""}`}>
           <span className="text-gray-500">{r.label} </span>
           <span className={`font-medium ${signColor(r.pct)}`}>
             {r.pct >= 0 ? "+" : ""}{r.pct.toFixed(2)}%
@@ -154,7 +161,7 @@ export function AuxIndicators({
     const foreignerSum = investorHistory.reduce((s, inv) => s + (inv.외국인 ?? 0), 0);
     if (foreignerSum !== 0) {
       lines.push(
-        <div key="foreigner" className={`${sizeCls} leading-tight`}>
+        <div key="foreigner" className={`${sizeCls} leading-tight flex items-baseline justify-between gap-3`}>
           <span className="text-gray-500">외국인 ({days}일) </span>
           <span className={`font-medium ${signColor(foreignerSum)}`}>
             {fmtShares(foreignerSum)}
@@ -167,7 +174,7 @@ export function AuxIndicators({
     const instSum = investorHistory.reduce((s, inv) => s + (inv.기관 ?? 0), 0);
     if (instSum !== 0) {
       lines.push(
-        <div key="inst" className={`${sizeCls} leading-tight`}>
+        <div key="inst" className={`${sizeCls} leading-tight flex items-baseline justify-between gap-3`}>
           <span className="text-gray-500">기관 ({days}일) </span>
           <span className={`font-medium ${signColor(instSum)}`}>
             {fmtShares(instSum)}
@@ -180,7 +187,7 @@ export function AuxIndicators({
     const pensionSum = investorHistory.reduce((s, inv) => s + (inv.연기금 ?? 0), 0);
     if (pensionSum !== 0) {
       lines.push(
-        <div key="pension" className={`${sizeCls} leading-tight`}>
+        <div key="pension" className={`${sizeCls} leading-tight flex items-baseline justify-between gap-3`}>
           <span className="text-gray-500">연기금 ({days}일) </span>
           <span className={`font-medium ${signColor(pensionSum)}`}>
             {fmtShares(pensionSum)}
@@ -200,7 +207,7 @@ export function AuxIndicators({
              title="클릭해 접기"
              className="border border-gray-300 rounded bg-white/95 px-1.5 py-0.5
                         shadow-sm cursor-pointer hover:bg-gray-50">
-          <div className="space-y-0">
+          <div className="space-y-0 tabular-nums">
             {lines}
           </div>
         </div>
