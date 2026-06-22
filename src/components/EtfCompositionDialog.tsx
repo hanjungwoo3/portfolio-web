@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, fetchYahooPriceHistory, type KrRegularPrice } from "../lib/api";
+import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, fetchYahooPriceHistory, fetchEtfKeyIndicator, type KrRegularPrice } from "../lib/api";
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
 import { Tooltip } from "./Tooltip";
@@ -61,6 +61,8 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
   const [cmpActiveIdx, setCmpActiveIdx] = useState(0);
   // 검색 결과 정렬 기준 — 관련도(기본)/현재등락/1·3·6개월
   const [cmpSort, setCmpSort] = useState<"rel" | "day" | "m1" | "m3" | "m6">("rel");
+  // ETF 수수료정보 팝업
+  const [infoOpen, setInfoOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -99,6 +101,14 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
   });
   const ownPrice = ownPriceList?.[0];
   const ownPct = dayChangePct(ownPrice);
+
+  // 해당 ETF 총보수 — 헤더 버튼 라벨용
+  const { data: ownEtfKey } = useQuery({
+    queryKey: ["etf-key-indicator", ticker],
+    queryFn: () => fetchEtfKeyIndicator(ticker),
+    enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
+    staleTime: 6 * 60 * 60_000,
+  });
 
   // 비교검색 결과 ETF 들의 현재가/% — 드롭다운 표시용
   const cmpTickers = useMemo(
@@ -199,6 +209,44 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
               ✕ 비교 종료
             </button>
           )}
+          {/* ETF 수수료정보 — 버튼 아래 레이어 팝오버 */}
+          <div className="relative">
+            <button onClick={() => setInfoOpen(o => !o)}
+                    title="총보수·분배율·괴리율·NAV 등 ETF 수수료/지표"
+                    className={`inline-flex items-center gap-1 px-2 py-1 border rounded text-[11px] font-bold
+                                ${infoOpen ? "border-amber-500 bg-amber-100 text-amber-800"
+                                           : "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100"}`}>
+              📊 ETF 수수료정보{ownEtfKey?.totalFee != null ? `(${ownEtfKey.totalFee}%)` : ""} {infoOpen ? "▴" : "▾"}
+            </button>
+            {infoOpen && (
+              <>
+                <div className="fixed inset-0 z-[55]" onClick={() => setInfoOpen(false)} />
+                <div className="absolute left-0 top-full mt-1 z-[60] bg-amber-50 border border-amber-200
+                                rounded-lg shadow-xl w-[min(92vw,28rem)] max-h-[78vh] overflow-y-auto p-3">
+                  <div className="flex gap-3 flex-wrap">
+                    <EtfIndicatorBlock ticker={ticker} name={etfName} />
+                    {isCompare && secondEtf && (
+                      <EtfIndicatorBlock ticker={secondEtf.ticker} name={secondEtf.name} />
+                    )}
+                  </div>
+                  {/* 총보수 적용 방식 설명 */}
+                  <div className="mt-3 border border-amber-200 rounded-md bg-white/60 p-2
+                                  text-[11px] text-gray-500 leading-relaxed">
+                    <div className="font-bold text-gray-600 mb-0.5">💡 총보수는 이렇게 적용돼요</div>
+                    <ul className="list-disc pl-4 space-y-0.5">
+                      <li>매일 순자산(NAV)에서 <b>연 보수 ÷ 365</b>씩 자동 차감 — 별도 청구·출금 없음</li>
+                      <li>ETF 가격에 이미 반영 → <b>보유한 일수만큼만 부담</b>
+                        {ownEtfKey?.totalFee != null && (
+                          <> (예: {ownEtfKey.totalFee}%면 1개월 보유 ≈ {(ownEtfKey.totalFee * 30 / 365).toFixed(3)}%)</>
+                        )}</li>
+                      <li>매수·매도가에 이미 녹아 있어 따로 떼거나 계산하지 않음</li>
+                      <li>증권사 매매수수료·세금, ETF 내부 매매비용은 <b>총보수와 별개</b></li>
+                    </ul>
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
           {/* inline 검색 — 비교 열림 + 미선택 상태 */}
           {compareOpen && !isCompare && (
             <div className="relative flex-1 min-w-[240px]">
@@ -843,6 +891,52 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   );
 }
 
+// ─── EtfIndicatorBlock — ETF 핵심 지표(총보수·분배율·괴리율·운용사·NAV·시총·기간수익률) 한 ETF분 ──
+function EtfIndicatorBlock({ ticker, name }: { ticker: string; name: string }) {
+  const { data } = useQuery({
+    queryKey: ["etf-key-indicator", ticker],
+    queryFn: () => fetchEtfKeyIndicator(ticker),
+    enabled: /^[\dA-Za-z]{6}$/.test(ticker),
+    staleTime: 6 * 60 * 60_000,
+  });
+  // [라벨, 값, 용어설명]
+  const rows: [string, string, string][] = [];
+  if (data?.issuerName) rows.push(["운용사", data.issuerName, "이 ETF를 운용하는 자산운용사"]);
+  if (data?.marketValue) rows.push(["시가총액", data.marketValue, "상장 시가총액"]);
+  if (data?.totalNav) rows.push(["순자산", data.totalNav, "ETF 총 순자산 규모 (AUM)"]);
+  if (data?.totalFee != null) rows.push(["총보수", `${data.totalFee}%`, "연 운용·판매 등 총 보수율 (낮을수록 비용 유리)"]);
+  if (data?.dividendYield != null) rows.push(["분배율", `${data.dividendYield}%`, "최근 1년 분배금 ÷ 주가 (ETF 배당수익률)"]);
+  if (data?.nav) rows.push(["NAV", data.nav, "1좌당 순자산가치 (ETF의 이론 적정가)"]);
+  if (data?.deviationRate != null) rows.push(["괴리율", `${data.deviationSign ?? ""}${data.deviationRate}%`, "시장가 − NAV 차이 (+면 비싸게, −면 싸게 거래)"]);
+  return (
+    <div className="flex-1 min-w-[170px]">
+      <div className="font-bold text-sm text-gray-800 mb-1.5 truncate">
+        {name} <span className="text-gray-400 font-normal text-xs">({ticker})</span>
+      </div>
+      {!data ? (
+        <div className="text-xs text-gray-400 py-3">불러오는 중…</div>
+      ) : rows.length === 0 ? (
+        <div className="text-xs text-gray-400 py-3">지표 데이터 없음</div>
+      ) : (
+        <div className="border border-amber-200 rounded-md bg-white/60 p-2 text-[12px] tabular-nums space-y-1.5">
+          {rows.map(([k, v, desc]) => {
+            const hl = k === "총보수";   // 총보수 — 흰 배경으로 강조
+            return (
+              <div key={k} className={hl ? "bg-white border border-amber-300 rounded px-1.5 py-1 shadow-sm" : ""}>
+                <div className="flex justify-between gap-2">
+                  <span className={`shrink-0 font-bold ${hl ? "text-amber-800" : "text-gray-500"}`}>{k}</span>
+                  <span className={`truncate text-right font-extrabold ${hl ? "text-amber-800 text-sm" : "text-amber-700"}`}>{v}</span>
+                </div>
+                <div className="text-[10px] text-gray-400 leading-tight">{desc}</div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── EtfPanel — 단일 ETF 의 헤더(이름·+추가·토스링크) + 카드 grid + 파이 ────
 interface EtfPanelProps {
   ticker: string;
@@ -965,11 +1059,13 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-2 gap-y-5 pt-3 pb-2">
           {/* ETF 자체 카드 — 좌상단 (비중태그·번호 없음) */}
           {selfTicker && (
-            <StockCard i={0} item={{ stockCode: selfTicker, name: etfName, ratio: 0 }} hideRatio
-                       price={priceMap.get(selfTicker)} chart={chartMap.get(selfTicker)}
-                       krReg={krRegMap?.get(selfTicker)} groups={holdingGroups.get(selfTicker) ?? []}
-                       dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
-                       boxMinH="min-h-[128px]" bigFont showReturns />
+            <div>
+              <StockCard i={0} item={{ stockCode: selfTicker, name: etfName, ratio: 0 }} hideRatio
+                         price={priceMap.get(selfTicker)} chart={chartMap.get(selfTicker)}
+                         krReg={krRegMap?.get(selfTicker)} groups={holdingGroups.get(selfTicker) ?? []}
+                         dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
+                         boxMinH="min-h-[128px]" bigFont showReturns />
+            </div>
           )}
           <PieSlot items={visibleItems} otherRatio={otherRatio} cashRatio={cashRatio}
                    hoveredIdx={hoveredIdx} onHoverIdx={setHoveredIdx} />

@@ -8,7 +8,7 @@ import { useEffect, useState, type ReactElement } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Investor } from "../types";
 import { signColor } from "../lib/format";
-import { fetchKrPriceHistory, fetchYahooPriceHistory } from "../lib/api";
+import { fetchKrPriceHistory, fetchYahooPriceHistory, fetchEtfKeyIndicator } from "../lib/api";
 
 // 6개월 종가 → 마지막 종가 기준 N개월 전 대비 수익률(%). ETF 카드용.
 function periodReturns(h: { date: string; close: number }[]): { label: string; pct: number }[] {
@@ -69,6 +69,13 @@ export function AuxIndicators({
     staleTime: 60 * 60_000,
   });
   const etfRets = isEtf ? periodReturns(etfHist ?? []) : [];
+  // ETF 총보수 — 맨 위 표시용
+  const { data: etfKey } = useQuery({
+    queryKey: ["etf-key-indicator", etfTicker],
+    queryFn: () => fetchEtfKeyIndicator(etfTicker!),
+    enabled: isEtf,
+    staleTime: 6 * 60 * 60_000,
+  });
 
   // 외부 일괄 토글 이벤트 — 닫기 / 열기
   useEffect(() => {
@@ -105,7 +112,7 @@ export function AuxIndicators({
       const p = chart[i - 1];
       if (p > 0) returns.push(((chart[i] - p) / p) * 100);
     }
-    if (returns.length >= 5) {
+    if (returns.length >= 5 && !isEtf) {   // ETF 는 변동성 제외(수수료·기간수익률만)
       const mean = returns.reduce((s, v) => s + v, 0) / returns.length;
       const variance = returns.reduce((s, v) => s + (v - mean) ** 2, 0) / returns.length;
       const vol = Math.sqrt(variance);
@@ -120,8 +127,16 @@ export function AuxIndicators({
     }
   }
 
-  // ETF — 외국인/기관/연기금 대신 1·3·6·12개월 수익률
+  // ETF — 맨 위 총보수 + 외국인/기관/연기금 대신 1·3·6·12개월 수익률 (변동성 제외)
   if (isEtf) {
+    if (etfKey?.totalFee != null) {
+      lines.unshift(
+        <div key="fee" className={`${sizeCls} leading-tight`}>
+          <span className="text-gray-500">총보수 </span>
+          <span className="text-gray-700 font-bold">{etfKey.totalFee}%</span>
+        </div>
+      );
+    }
     for (const r of etfRets) {
       lines.push(
         <div key={`ret-${r.label}`} className={`${sizeCls} leading-tight`}>

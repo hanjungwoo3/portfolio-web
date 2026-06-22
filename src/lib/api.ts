@@ -211,6 +211,32 @@ export interface EtfComposition {
   name: string;
   ratio: number;       // 비중 (%)
 }
+// ETF 핵심 지표 — 네이버 integration 의 etfKeyIndicator (총보수·분배율·괴리율·NAV·운용사 등)
+export interface EtfKeyIndicator {
+  totalFee?: number;        // 총보수(%)
+  dividendYield?: number;   // 분배율(TTM, %)
+  deviationRate?: number;   // 괴리율(%)
+  deviationSign?: string;   // + / -
+  issuerName?: string;      // 운용사
+  nav?: string;             // 1좌 NAV
+  totalNav?: string;        // 순자산총액(문자, 예 "32조 4,463억")
+  marketValue?: string;     // 시가총액(문자)
+  returnRate1m?: number;
+  returnRate3m?: number;
+  returnRate1y?: number;
+}
+export async function fetchEtfKeyIndicator(ticker: string): Promise<EtfKeyIndicator | null> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return null;
+  try {
+    const r = await fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/integration`);
+    if (!r.ok) return null;
+    const d = await r.json() as { etfKeyIndicator?: EtfKeyIndicator };
+    return d.etfKeyIndicator ?? null;
+  } catch {
+    return null;
+  }
+}
+
 export interface EtfCompositionResult {
   items: EtfComposition[];
   endDate: string | null;   // 구성(PDF) 기준일 (예: "2026-06-18") — 한국거래소 발표 최신 영업일
