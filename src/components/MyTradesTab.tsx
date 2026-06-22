@@ -406,31 +406,34 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
     <div className="space-y-3">
       {/* 컨트롤 바 + 요약 */}
       <div className="flex items-center flex-wrap gap-2 text-xs">
-        {/* 날짜 — 모바일은 맨 아래 줄(order-last·전체폭), PC는 인라인 */}
-        <span className="inline-flex items-center gap-1 order-last w-full sm:order-none sm:w-auto">
-          <input type="date" value={from} max={to || undefined}
-                 onChange={e => { setFrom(e.target.value); setPeriod("custom"); cancelEdit(); }}
-                 title="시작일"
-                 className="border border-gray-300 rounded px-1 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer" />
-          <span className="text-gray-400">~</span>
-          <input type="date" value={to} min={from || undefined}
-                 onChange={e => { setTo(e.target.value); setPeriod("custom"); cancelEdit(); }}
-                 title="종료일"
-                 className="border border-gray-300 rounded px-1 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer" />
-        </span>
-        <select value={period} onChange={e => { applyPreset(e.target.value as Period); cancelEdit(); }}
-                title="기간 프리셋 — 선택 시 시작/종료일 자동 입력"
-                className="border border-gray-300 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer">
-          <option value="week">조회: 7일</option>
-          <option value="month">조회: 1개월</option>
-          <option value="year">조회: 1년</option>
-          <option value="all">조회: 전체</option>
-          <option value="custom">조회: 직접</option>
-        </select>
+        {/* 조회 + 날짜 — 모바일은 2번째 줄(전체폭, 조회 먼저), PC는 인라인(sm:contents) */}
+        <div className="order-5 w-full flex flex-wrap items-center gap-2 sm:contents">
+          <select value={period} onChange={e => { applyPreset(e.target.value as Period); cancelEdit(); }}
+                  title="기간 프리셋 — 선택 시 시작/종료일 자동 입력"
+                  className="border border-gray-300 rounded px-1.5 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer">
+            <option value="week">조회: 7일</option>
+            <option value="month">조회: 1개월</option>
+            <option value="year">조회: 1년</option>
+            <option value="all">조회: 전체</option>
+            <option value="custom">조회: 직접</option>
+          </select>
+          <span className="inline-flex items-center gap-1">
+            <input type="date" value={from} max={to || undefined}
+                   onChange={e => { setFrom(e.target.value); setPeriod("custom"); cancelEdit(); }}
+                   title="시작일"
+                   className="border border-gray-300 rounded px-1 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer" />
+            <span className="text-gray-400">~</span>
+            <input type="date" value={to} min={from || undefined}
+                   onChange={e => { setTo(e.target.value); setPeriod("custom"); cancelEdit(); }}
+                   title="종료일"
+                   className="border border-gray-300 rounded px-1 py-1 bg-white text-gray-700 focus:outline-none cursor-pointer" />
+          </span>
+        </div>
 
         {/* 합계(화면에 보이는 종목 기준) — 총손익 = 실현 + 평가손익. 평가(손익) 강조 */}
         {view === "chart" && summary && (summary.anyReal || summary.anyHeld) && (
-          <span className="inline-flex items-baseline gap-1 tabular-nums ml-1 flex-wrap">
+          <span className="inline-flex items-baseline gap-1 tabular-nums flex-wrap
+                           order-6 w-full sm:order-none sm:w-auto sm:ml-1">
             <span className="text-gray-500">총손익</span>
             <span className={`font-bold ${signColor(summary.total)}`}>{formatSigned(summary.total)}</span>
             {summary.anyHeld && (
@@ -464,8 +467,8 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
             📥 토스 가져오기
           </button>
         )}
-        {/* 차트 / 상세(표·수정) */}
-        <div className="inline-flex rounded-md border border-gray-300 overflow-hidden ml-auto sm:ml-0">
+        {/* 차트 / 상세(표·수정) — 모바일 1번째 줄 맨앞 */}
+        <div className="inline-flex rounded-md border border-gray-300 overflow-hidden order-1 sm:order-none sm:ml-0">
           {(["chart", "table"] as const).map(v => (
             <button key={v} onClick={() => { setView(v); cancelEdit(); }}
                     className={`px-2 py-1 ${v === "table" ? "border-l border-gray-300" : ""} ${view === v ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
@@ -473,7 +476,7 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
             </button>
           ))}
         </div>
-        <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
+        <div className="inline-flex rounded-md border border-gray-300 overflow-hidden order-3 sm:order-none">
           {(["all", "byGroup"] as const).map(s => (
             <button key={s} onClick={() => setScope(s)}
                     className={`px-2 py-1 ${s === "byGroup" ? "border-l border-gray-300" : ""} ${scope === s ? "bg-gray-700 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
@@ -483,7 +486,8 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
         </div>
         <button onClick={() => setDir(d => d === "desc" ? "asc" : "desc")}
                 title="날짜 정렬 방향"
-                className="px-2 py-1 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50">
+                className="px-2 py-1 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-50
+                           order-4 sm:order-none">
           {dir === "desc" ? "↓ 최신순" : "↑ 오래된순"}
         </button>
       </div>
