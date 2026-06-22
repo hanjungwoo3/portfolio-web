@@ -1616,6 +1616,8 @@ export interface UsIndex {
   diff: number;
   pct: number;
   currency?: string;
+  priceUsd?: number;       // 미국 종목 달러 현재가(원화 표시와 함께 보조 표기용)
+  regularPriceUsd?: number; // 정규장 종가 달러(마감 책갈피용 — 현재가 달러와 구분)
   tradeDate: string;       // KST 날짜 (YYYY-MM-DD) — 마지막 거래 시각 기준
   regularMarketTime?: number;  // 마지막 "정규장" 거래 시각 (unix sec) — 마감가 책갈피("갱신") 표시용 (시간외엔 정규 종가에 고정)
   freshTime?: number;          // 실제 마지막 데이터 갱신 시각 (unix sec) — 정규/시간외/오버나잇 통틀어 가장 최신. 흐림(정체) 판정 전용
@@ -2160,6 +2162,9 @@ async function fetchTossUsIndexMap(
       symbol: it.symbol, name: it.name,
       price, prev: base, prevClose: base,
       diff, pct, currency: hasKrw ? "KRW" : "USD",
+      // 달러 보조표기 — 현재가 달러(실시간: 현재 원가 × 환율) / 마감 달러(정규 종가 USD)
+      priceUsd: (hasKrw && tp.closeKrw > 0) ? price * (tp.close / tp.closeKrw) : tp.close,
+      regularPriceUsd: tp.close,
       tradeDate: tp.tradeDateTime ? toKstDateString(tp.tradeDateTime) : "",
       // 토스 tradeDateTime = 실측 마지막 체결시각(체결 있을 때만 전진, 무체결 종목은 멈춤 — 폴링 검증됨).
       //   24h(Blue Ocean) 거래 중엔 계속 갱신 → 정체 판정에서 통과(밝게). 진짜 끊기면 흐림.
@@ -2391,6 +2396,8 @@ export async function fetchYahooBatch(
       regularPct: t.regularPct ?? y.regularPct,
       postPrice: t.postPrice ?? y.postPrice,
       currency: t.currency ?? y.currency,
+      priceUsd: t.priceUsd ?? y.priceUsd,   // 달러 보조표기값 유지
+      regularPriceUsd: t.regularPriceUsd ?? y.regularPriceUsd,
       tradeDate: t.tradeDate || y.tradeDate,
       freshTime: t.freshTime ?? y.freshTime,   // 토스가 메인값 → 토스 체결시각이 실제 갱신 기준
       marketState: "",             // 빈값 → 카드가 토스 현재가를 메인으로 표시

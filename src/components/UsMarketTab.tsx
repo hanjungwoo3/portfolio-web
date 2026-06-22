@@ -353,6 +353,11 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                     <div className="absolute -top-2 right-1 z-20 px-1.5 py-0
                                     border rounded bg-yellow-200/25 border-yellow-400/40
                                     text-[10px] font-medium leading-tight whitespace-nowrap">
+                      {q?.currency === "KRW" && q?.regularPriceUsd != null && (
+                        <span className={`tabular-nums mr-1 text-gray-900 ${dimNow ? "opacity-50" : ""}`}>
+                          (${q.regularPriceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })})
+                        </span>
+                      )}
                       <span className={`tabular-nums ${regSign}`}>
                         {closeVal < 1000 ? closeVal.toFixed(2) : Math.round(closeVal).toLocaleString()}
                       </span>
@@ -406,9 +411,14 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                       </a>
                     </div>
                   ) : (
-                  <div className={`relative z-10 flex items-baseline mt-auto ${dimCls}`}>
-                    <span className={`flex-1 text-left text-sm tabular-nums ${sign}`}>
-                      {effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}
+                  <div className={`relative z-10 flex items-end mt-auto ${dimCls}`}>
+                    <span className={`flex-1 text-left tabular-nums ${sign}`}>
+                      {q?.currency === "KRW" && q?.priceUsd != null && (
+                        <span className="block text-[10px] font-normal leading-tight text-gray-900">
+                          ${q.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                        </span>
+                      )}
+                      <span className="text-sm">{effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}</span>
                     </span>
                     <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
                       {showPct != null && Math.abs(showPct) >= 0.005
