@@ -1,10 +1,16 @@
 // 거래 타임라인 — 가로=종목(열), 세로=날짜순. 한 종목 열에 매수→매도를 순서대로 쌓고
 //  아래 화살표로 연결. 각 박스 위에 날짜 책갈피. 매수=파랑 / 매도=빨강, 매도엔 익절/손절.
 //  scope=all: 같은 종목을 그룹 무관 한 열로 / scope=byGroup: 그룹마다 종목 별개 열.
-import { useMemo, useRef, Fragment } from "react";
+import { useMemo, useRef, useEffect, Fragment } from "react";
 import { ArrowDown } from "lucide-react";
 import { computeRealizedByTrade, realizedChip, type RealizedInfo } from "../lib/tradeCalc";
 import { formatSigned, signColor } from "../lib/format";
+
+// 거래 합계 요약 — 부모(내거래 툴바)에서 표시
+export interface TradeSummary {
+  total: number; real: number; unreal: number; val: number;
+  anyReal: boolean; anyHeld: boolean;
+}
 import { openTossStock } from "../lib/toss";
 import type { Trade } from "../lib/db";
 import type { Price } from "../types";
@@ -33,7 +39,7 @@ function priceLabel(qty: number, amount: number): string {
 interface Ev { kind: "buy" | "sell"; ms: number; qty: number; amount: number; realized?: RealizedInfo }
 interface Col { key: string; name: string; account?: string; ticker: string; held: boolean; heldQty: number; heldAvg: number; events: Ev[] }
 
-export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc, prices, onOpenValuation }: {
+export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc, prices, onOpenValuation, onSummary }: {
   trades: Trade[];
   nameOf: (t: string) => string;
   heldTickers?: Set<string>;   // 보유중 ticker — 미보유면 기업가치 아이콘 흐리게
@@ -43,6 +49,7 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
   desc?: boolean;         // true = 최신 날짜가 위 (날짜축 역순)
   prices?: Map<string, Price>;   // 현재가 — 보유중 종목 미실현 손익용
   onOpenValuation?: (ticker: string) => void;   // 📊 기업가치 모달 열기
+  onSummary?: (s: TradeSummary) => void;         // 합계(총손익·평가금액 등) 부모 전달
 }) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const lastScrollLeft = useRef(0);
@@ -133,13 +140,22 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
       (desc ? buyMs(b, "last") - buyMs(a, "last") : buyMs(a, "last") - buyMs(b, "last"))
       || (desc ? buyMs(b, "first") - buyMs(a, "first") : buyMs(a, "first") - buyMs(b, "first"))
       || (a.cur != null ? 0 : 1) - (b.cur != null ? 0 : 1));
-  // 전체 합계 — 실현(익절+손절) + 보유 평가(미실현)
-  let gReal = 0, gUnreal = 0, anyReal = false, anyHeld = false;
+  // 전체 합계 — 실현(익절+손절) + 보유 평가(미실현) + 평가 금액(보유분 현재 시가)
+  let gReal = 0, gUnreal = 0, gVal = 0, anyReal = false, anyHeld = false;
   for (const ci of colRounds) {
     gReal += ci.realizedSum; if (ci.hasReal) anyReal = true;
-    if (ci.unreal != null) { gUnreal += ci.unreal; anyHeld = true; }
+    if (ci.unreal != null) {
+      gUnreal += ci.unreal; anyHeld = true;
+      if (ci.cur != null) gVal += Math.round(ci.col.heldQty * ci.cur);
+    }
   }
   const gTotal = gReal + gUnreal;
+  // 합계 부모(툴바)로 전달 — 총손익·평가금액 상단 표시용
+  useEffect(() => {
+    onSummary?.({ total: gTotal, real: gReal, unreal: gUnreal, val: gVal, anyReal, anyHeld });
+    // onSummary 는 부모의 안정적 setter — 값 변경 시에만 갱신
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gTotal, gReal, gUnreal, gVal, anyReal, anyHeld]);
   const dateRows = [...new Set(colRounds.flatMap(cr => cr.rounds.map(r => r.startMs)))]
     .sort((a, b) => desc ? b - a : a - b);
   const gridCols = `56px repeat(${colRounds.length}, 168px)`;
@@ -278,18 +294,6 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
             </Fragment>
           ))}
         </div>
-      </div>
-      {/* 범례 — 총손익만 */}
-      <div className="flex items-center gap-3 mt-3 text-[12px] text-gray-400">
-        {(anyReal || anyHeld) && (
-          <span className="inline-flex items-baseline gap-1 tabular-nums">
-            <span className="text-gray-500">총손익</span>
-            <span className={`text-[13px] font-bold ${signColor(gTotal)}`}>{formatSigned(gTotal)}</span>
-            {anyReal && anyHeld && (
-              <span className="text-[10px] text-gray-400">(실현 {formatSigned(gReal)} · 평가 {formatSigned(gUnreal)})</span>
-            )}
-          </span>
-        )}
       </div>
     </div>
   );

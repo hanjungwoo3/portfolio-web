@@ -9,7 +9,7 @@ import { getIndependentGroupsMode } from "../lib/groupMode";
 import { formatSigned, signColor, signBg } from "../lib/format";
 import { getTickerNames } from "../lib/tickerNames";
 import { computeRealizedByTrade, realizedChip } from "../lib/tradeCalc";
-import { TradeGantt } from "./TradeGantt";
+import { TradeGantt, type TradeSummary } from "./TradeGantt";
 import { TossImportDialog } from "./TossImportDialog";
 import type { Stock, Price } from "../types";
 
@@ -58,6 +58,7 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
   const [form, setForm] = useState<EditForm | null>(null);
 
   const [importOpen, setImportOpen] = useState(false);
+  const [summary, setSummary] = useState<TradeSummary | null>(null);   // 차트뷰 합계(총손익·평가금액)
   const groups = useMemo(
     () => Array.from(new Set(holdings.map(h => h.account).filter((a): a is string => !!a && a !== "관심ETF"))).sort(),
     [holdings]);
@@ -427,6 +428,33 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
           <option value="custom">조회: 직접</option>
         </select>
 
+        {/* 합계(화면에 보이는 종목 기준) — 총손익 = 실현 + 평가손익. 평가(손익) 강조 */}
+        {view === "chart" && summary && (summary.anyReal || summary.anyHeld) && (
+          <span className="inline-flex items-baseline gap-1 tabular-nums ml-1 flex-wrap">
+            <span className="text-gray-500">총손익</span>
+            <span className={`font-bold ${signColor(summary.total)}`}>{formatSigned(summary.total)}</span>
+            {summary.anyHeld && (
+              <span className="inline-flex items-baseline gap-1 text-[11px] text-gray-400">
+                <span>(</span>
+                {summary.anyReal && (
+                  <>
+                    <span>실현</span>
+                    <span className={`font-extrabold rounded px-1 bg-yellow-100 border border-yellow-300 ${signColor(summary.real)}`}>
+                      {formatSigned(summary.real)}
+                    </span>
+                    <span>+</span>
+                  </>
+                )}
+                <span>평가</span>
+                <span className={`font-extrabold rounded px-1 bg-emerald-100 border border-emerald-300 ${signColor(summary.unreal)}`}>
+                  {formatSigned(summary.unreal)}
+                </span>
+                <span>)</span>
+              </span>
+            )}
+          </span>
+        )}
+
         {/* 오른쪽 묶음 — (PC만)토스가져오기 → 전체/그룹별 → 최신순 */}
         {pc && (
           <button onClick={() => setImportOpen(true)}
@@ -462,7 +490,7 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
 
       {view === "chart" ? (
         // 차트 — 기간 범위(표시만), 실현손익 원가는 전체 거래 기준
-        <TradeGantt trades={trades} nameOf={nameOf} heldTickers={heldTickers} scope={scope} from={from} to={to} desc={dir === "desc"} prices={livePrices} onOpenValuation={onOpenValuation} />
+        <TradeGantt trades={trades} nameOf={nameOf} heldTickers={heldTickers} scope={scope} from={from} to={to} desc={dir === "desc"} prices={livePrices} onOpenValuation={onOpenValuation} onSummary={setSummary} />
       ) : filtered.length === 0 ? (
         <div className="text-center text-xs text-gray-400 py-10">
           이 기간에 거래 기록이 없습니다.
