@@ -59,6 +59,39 @@ class PortfolioDB extends Dexie {
 
 export const db = new PortfolioDB();
 
+// todayShares/todayCost 는 거래로그에서 매번 새로 계산되는 파생값 — DB 에 절대 저장 금지.
+//  (과거: 추가매수 등으로 in-memory 보유의 todayShares 가 holdings 로 새어 저장되면,
+//   다음날 오늘거래가 없어도 그 값이 살아남아 '오늘 손익 = 전체 손익' 으로 굳던 버그)
+//  쓰기 경로가 여러 곳(put 12+)이라 단일 차단점인 Dexie hook 으로 막는다.
+db.holdings.hook("creating", (_pk, obj) => {
+  delete (obj as Partial<Stock>).todayShares;
+  delete (obj as Partial<Stock>).todayCost;
+});
+db.holdings.hook("updating", (mods) => {
+  const m = mods as Record<string, unknown>;
+  if ("todayShares" in m || "todayCost" in m) {
+    return { todayShares: undefined, todayCost: undefined };
+  }
+  return undefined;
+});
+
+// 이미 새어 저장된 묵은 파생값을 1회 제거 — 앱 시작 시 호출.
+export async function purgeDerivedHoldingFields(): Promise<number> {
+  const rows = await db.holdings.toArray();
+  const dirty = rows.filter(r =>
+    (r as Partial<Stock>).todayShares != null || (r as Partial<Stock>).todayCost != null);
+  if (dirty.length === 0) return 0;
+  await db.transaction("rw", db.holdings, async () => {
+    for (const r of dirty) {
+      const clean = { ...r };
+      delete (clean as Partial<Stock>).todayShares;
+      delete (clean as Partial<Stock>).todayCost;
+      await db.holdings.put({ ...clean, id: holdingId(clean) } as Stock & { id: string });
+    }
+  });
+  return dirty.length;
+}
+
 export function holdingId(s: Stock): string {
   return `${s.ticker}__${s.account || ""}`;
 }

@@ -5,7 +5,7 @@ import {
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
   fetchInvestorHistorySafe, fetchNaverPrices, fetchKrStockName, fetchUsHoldingPrices,
 } from "./lib/api";
-import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits, repairBrokenNames } from "./lib/db";
+import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits, repairBrokenNames, purgeDerivedHoldingFields } from "./lib/db";
 import { attachTodayBuys } from "./lib/tradeCalc";
 import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
@@ -1020,9 +1020,11 @@ function AppRoot() {
       const migrated = await migrateEmptyAccountToHolding();
       // 고아 예수금 정리 — 삭제/이름변경된 그룹의 잔여 예수금이 '내주식' 총자산에 잡히던 문제
       const prunedDeposits = await pruneOrphanDeposits();
-      if (removed > 0 || migrated > 0 || prunedDeposits > 0) {
+      // 묵은 파생필드(todayShares/todayCost) 1회 정리 — 과거 누수로 '오늘=전체손익' 굳던 값 제거
+      const purgedDerived = await purgeDerivedHoldingFields();
+      if (removed > 0 || migrated > 0 || prunedDeposits > 0 || purgedDerived > 0) {
         // eslint-disable-next-line no-console
-        console.log(`[boot] cleaned=${removed}, migrated=${migrated}, deposits=${prunedDeposits}`);
+        console.log(`[boot] cleaned=${removed}, migrated=${migrated}, deposits=${prunedDeposits}, purgedDerived=${purgedDerived}`);
         await queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
       }
       setReady(true);

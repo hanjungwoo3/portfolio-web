@@ -21,13 +21,15 @@ export function attachTodayBuys(holdings: Stock[], trades: Trade[], independent:
     cur.shares += t.qty; cur.cost += t.amount;
     byKey.set(k, cur);
   }
-  if (byKey.size === 0) return holdings;
+  // 묵은 todayShares/todayCost(과거에 DB 로 새어들어간 값)는 항상 먼저 제거 — 이 함수가 유일 권위.
+  //  안 그러면 오늘 거래가 없어도(byKey 미스) 어제 굳은 값이 살아남아 '오늘=전체손익' 으로 표시됨.
   return holdings.map(s => {
-    const tb = byKey.get(keyOf(s.ticker, s.account));
-    if (!tb || !(tb.shares > 0) || !(s.shares > 0)) return s;
-    const todayShares = Math.min(tb.shares, s.shares);              // 보유보다 많이(이미 일부 매도) 방지
+    const { todayShares: _ts, todayCost: _tc, ...base } = s;
+    const tb = byKey.get(keyOf(base.ticker, base.account));
+    if (!tb || !(tb.shares > 0) || !(base.shares > 0)) return base;
+    const todayShares = Math.min(tb.shares, base.shares);          // 보유보다 많이(이미 일부 매도) 방지
     const todayCost = Math.round(tb.cost * (todayShares / tb.shares));
-    return { ...s, todayShares, todayCost };
+    return { ...base, todayShares, todayCost };
   });
 }
 
