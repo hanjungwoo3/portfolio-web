@@ -2,7 +2,6 @@ import { Settings } from "lucide-react";
 import type { ReactNode } from "react";
 import type { Stock } from "../types";
 import { normalizeAccount } from "../lib/account";
-import { isTodayKst } from "../lib/format";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import type { TabVisibility } from "../lib/tabVisibility";
 import type { GroupFolder } from "../lib/groupFolders";
@@ -374,18 +373,17 @@ function aggregateHoldings(holdings: Stock[]): Stock[] {
         if (!prev || h.buy_date < prev) earliest.set(h.ticker, h.buy_date);
       }
     }
-    return Array.from(seen, ([ticker, h]) => {
-      const isToday = isTodayKst(h.buy_date);
-      return {
-        ticker, name: h.name, shares: h.shares, avg_price: h.avg_price,
-        invested: Math.round(h.shares * h.avg_price),
-        buy_date: earliest.get(ticker) ?? h.buy_date,
-        market: h.market,
-        account: MY_STOCKS_TAB_KEY,
-        todayShares: isToday ? h.shares : 0,
-        todayCost: isToday ? h.shares * h.avg_price : 0,
-      };
-    });
+    return Array.from(seen, ([ticker, h]) => ({
+      ticker, name: h.name, shares: h.shares, avg_price: h.avg_price,
+      invested: Math.round(h.shares * h.avg_price),
+      buy_date: earliest.get(ticker) ?? h.buy_date,
+      market: h.market,
+      account: MY_STOCKS_TAB_KEY,
+      // 오늘매수분은 거래로그 기반(attachTodayBuys)만 신뢰 — buy_date 재계산 시
+      //  '오늘 일부만 산' 보유 전량이 오늘매수로 잡혀 오늘손익 폭증.
+      todayShares: h.todayShares ?? 0,
+      todayCost: h.todayCost ?? 0,
+    }));
   }
   // 독립 보유 모드 — 그룹별 합산
   interface Acc {
@@ -408,18 +406,19 @@ function aggregateHoldings(holdings: Stock[]): Stock[] {
     sigs.add(sig);
     const cur = m.get(h.ticker);
     const invested = h.shares * h.avg_price;
-    const isToday = isTodayKst(h.buy_date);
+    const tShares = h.todayShares ?? 0;   // 거래로그 기반 — buy_date 재계산 금지
+    const tCost = h.todayCost ?? 0;
     if (!cur) {
       m.set(h.ticker, {
         name: h.name, shares: h.shares, investedSum: invested,
         firstDate: h.buy_date, market: h.market,
-        todayShares: isToday ? h.shares : 0,
-        todayCost: isToday ? invested : 0,
+        todayShares: tShares,
+        todayCost: tCost,
       });
     } else {
       cur.shares += h.shares;
       cur.investedSum += invested;
-      if (isToday) { cur.todayShares += h.shares; cur.todayCost += invested; }
+      cur.todayShares += tShares; cur.todayCost += tCost;
       if (h.buy_date && (!cur.firstDate || h.buy_date < cur.firstDate)) {
         cur.firstDate = h.buy_date;
       }

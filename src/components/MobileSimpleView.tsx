@@ -16,7 +16,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isTodayKst, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxies, setPersonalProxies, type PersonalProxy,
@@ -366,17 +366,16 @@ export function MobileSimpleView() {
             if (!prev || h.buy_date < prev) earliest.set(h.ticker, h.buy_date);
           }
         }
-        return Array.from(seen, ([ticker, h]) => {
-          const isToday = isTodayKst(h.buy_date);
-          return {
-            ticker, name: h.name, shares: h.shares, avg_price: h.avg_price,
-            invested: Math.round(h.shares * h.avg_price),
-            buy_date: earliest.get(ticker) ?? h.buy_date,
-            market: h.market, account: MY_KEY,
-            todayShares: isToday ? h.shares : 0,
-            todayCost: isToday ? h.shares * h.avg_price : 0,
-          } as Stock;
-        });
+        return Array.from(seen, ([ticker, h]) => ({
+          ticker, name: h.name, shares: h.shares, avg_price: h.avg_price,
+          invested: Math.round(h.shares * h.avg_price),
+          buy_date: earliest.get(ticker) ?? h.buy_date,
+          market: h.market, account: MY_KEY,
+          // 오늘매수분은 거래로그 기반(attachTodayBuys)만 신뢰 — buy_date 로 재계산하면
+          //  '오늘 일부만 산' 보유의 전량을 오늘매수로 잡아 오늘손익이 폭증함.
+          todayShares: h.todayShares ?? 0,
+          todayCost: h.todayCost ?? 0,
+        } as Stock));
       }
       interface Acc { name: string; shares: number; investedSum: number; firstDate?: string; market?: string; todayShares: number; todayCost: number }
       const m = new Map<string, Acc>();
@@ -384,16 +383,17 @@ export function MobileSimpleView() {
         if (!(h.shares > 0) || !(h.avg_price > 0)) continue;
         const cur = m.get(h.ticker);
         const invested = h.shares * h.avg_price;
-        const isToday = isTodayKst(h.buy_date);
+        const tShares = h.todayShares ?? 0;   // 거래로그 기반 — buy_date 재계산 금지
+        const tCost = h.todayCost ?? 0;
         if (!cur) {
           m.set(h.ticker, {
             name: h.name, shares: h.shares, investedSum: invested, firstDate: h.buy_date, market: h.market,
-            todayShares: isToday ? h.shares : 0, todayCost: isToday ? invested : 0,
+            todayShares: tShares, todayCost: tCost,
           });
         } else {
           cur.shares += h.shares;
           cur.investedSum += invested;
-          if (isToday) { cur.todayShares += h.shares; cur.todayCost += invested; }
+          cur.todayShares += tShares; cur.todayCost += tCost;
           if (h.buy_date && (!cur.firstDate || h.buy_date < cur.firstDate)) cur.firstDate = h.buy_date;
           if (!cur.market && h.market) cur.market = h.market;
         }
