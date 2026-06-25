@@ -30,6 +30,8 @@ export interface Price {
   nxtSuspended?: boolean; // NXT 거래 불가(마감/정지) — 둘 다 true 면 거래 불가 = 마감
   high52w?: number;    // 52주(1년) 최고가
   low52w?: number;     // 52주(1년) 최저가
+  usRegClose?: number; // 미국 정규장 마감가(원화) — 애프터장에도 고정. 지수창 마감 책갈피용
+  usRegPct?: number;   // 정규장 마감가의 전일 종가 대비 등락률(%) — 지수창과 동일
 }
 
 // 토스 수급 — 데스크톱 v2 fetch_investor_flow 와 동일 키

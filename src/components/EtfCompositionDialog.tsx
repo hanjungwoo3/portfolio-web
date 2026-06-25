@@ -810,18 +810,23 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                 ({krReg.regularPct >= 0 ? "+" : ""}{krReg.regularPct.toFixed(2)}%)
               </span>
             </div>
-          ) : isForeignCode && price && price.base > 0 ? (
-            // 해외(미국) — 전일 종가 기준 책갈피 (KR 마감 태그의 대응). 현재가 대비 전일 종가·등락률.
-            <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0 border rounded text-[10px] leading-tight whitespace-nowrap
-                             ${dayPct > 0 ? "bg-rose-100/20 border-rose-300/20"
-                               : dayPct < 0 ? "bg-blue-100/20 border-blue-300/20"
-                               : "bg-white/20 border-gray-300/20"}`}>
-              <span className="text-gray-500">전일 </span>
-              <span className="text-gray-800 tabular-nums">{Math.round(price.base).toLocaleString()}</span>
-              <span className={`tabular-nums ml-1 font-bold ${signColor(dayPct)}`}>
-                ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
-              </span>
-            </div>
+          ) : isForeignCode && price && (price.usRegClose ?? 0) > 0 ? (
+            // 해외(미국) — 정규장 마감가 + 전일 종가 대비 등락률 (지수창과 동일). 애프터장에도 마감 기준 고정.
+            (() => {
+              const regPct = price.usRegPct ?? 0;
+              return (
+                <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0 border rounded text-[10px] leading-tight whitespace-nowrap
+                                 ${regPct > 0 ? "bg-rose-100/20 border-rose-300/20"
+                                   : regPct < 0 ? "bg-blue-100/20 border-blue-300/20"
+                                   : "bg-white/20 border-gray-300/20"}`}>
+                  <span className="text-gray-500">마감 </span>
+                  <span className={`tabular-nums font-bold ${signColor(regPct)}`}>{Math.round(price.usRegClose!).toLocaleString()}</span>
+                  <span className={`tabular-nums ml-1 font-bold ${signColor(regPct)}`}>
+                    ({regPct >= 0 ? "+" : ""}{regPct.toFixed(2)}%)
+                  </span>
+                </div>
+              );
+            })()
           ) : null}
           {/* 우상단 책갈피 — rightTag 우선, 없으면 비중 태그(hideRatio 면 생략) */}
           {rightTag ? (

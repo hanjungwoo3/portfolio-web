@@ -177,8 +177,10 @@ export async function fetchUsHoldingPrices(tickers: string[]): Promise<Price[]> 
         const useAfter = hasKrw && afterOpen && tp.afterCloseKrw > 0;
         const price = useAfter ? tp.afterCloseKrw : regClose;
         const base  = useAfter ? regClose : yClose;             // 애프터: 정규종가 대비 / 그외: 어제 대비
+        const regPct = yClose > 0 ? ((regClose - yClose) / yClose) * 100 : undefined;
         out.push({
           ticker, price, base, prevClose: base, open: 0, volume: 0,
+          usRegClose: regClose, usRegPct: regPct,   // 정규장 마감가·전일대비 등락률(지수창과 동일)
           trade_date: tp.tradeDateTime ? toKstDateString(tp.tradeDateTime) : "",
           trade_dt: tp.tradeDateTime,
         });
@@ -196,6 +198,8 @@ export async function fetchUsHoldingPrices(tickers: string[]): Promise<Price[]> 
         if (!ui) continue;
         out.push({
           ticker: t, price: ui.price, base: ui.prev, prevClose: ui.prevClose,
+          usRegClose: ui.price,
+          usRegPct: ui.prevClose > 0 ? ((ui.price - ui.prevClose) / ui.prevClose) * 100 : undefined,
           open: 0, volume: 0, trade_date: ui.tradeDate,
         });
       }
