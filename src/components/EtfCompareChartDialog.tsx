@@ -1,8 +1,9 @@
-// ETF 비교 차트 팝업 — 검색 결과 ETF 들을 한 그래프에 겹쳐 일별 등락률(누적 %)을 비교.
-//   각 ETF 의 6개월 종가 히스토리를 시작점=0% 로 정규화(rebase) → 라인 한 줄씩.
-//   기간 토글(1·3·6개월), 범례 클릭으로 개별 ON/OFF, 크로스헤어 시 범례에 해당일 % 표시.
-
+// ETF/종목 비교 차트 — seed(검색결과 전체 or 단일)로 시작, 검색으로 더 추가 가능. 한 그래프에 등락률 겹침.
+//   시간 토글: [분봉 / 주봉]. 분봉=최근 5거래일 1분봉(요일·시간대 패턴), 주봉=2년 일봉 리샘플. 시작점=0% 정규화.
+//   분봉 타임스탬프는 +9h(KST) 보정 → lightweight-charts UTC 축에 한국 벽시계로 표시
+//   (KR·US 모두 자기 장 시간대에 맞게 찍힘).
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useQueries } from "@tanstack/react-query";
 import {
   createChart,
@@ -15,68 +16,90 @@ import {
   type Time,
   type MouseEventParams,
 } from "lightweight-charts";
-import { fetchKrPriceHistory, type PricePoint } from "../lib/api";
+import {
+  fetchKrPriceHistory,
+  fetchYahooPriceHistory,
+  fetchKrIntraday,
+  fetchYahooIntraday,
+  type PricePoint,
+  type IntradayBar,
+} from "../lib/api";
 
-// 손으로 고른 12색 (코드 인덱스 고정 — ON/OFF 해도 색 안 바뀜). 13번째부터는 자동 생성.
-const PALETTE = [
-  "#dc2626", "#2563eb", "#16a34a", "#d97706", "#9333ea", "#0d9488",
-  "#db2777", "#0891b2", "#65a30d", "#e11d48", "#7c3aed", "#ca8a04",
-];
-// 인덱스별 라인 색 — 팔레트 우선, 초과분은 황금각(137.5°) HSL 로 고르게 분산(흰 글자 가독 위해 중간 명도)
-const lineColorAt = (i: number): string =>
-  i < PALETTE.length ? PALETTE[i] : `hsl(${Math.round((i * 137.508) % 360)}, 62%, 45%)`;
-
-interface EtfRef { code: string; name: string; }
+interface StockRef { ticker: string; name: string; }
 
 interface Props {
   isOpen: boolean;
   onClose: () => void;
-  etfs: EtfRef[];   // 비교할 ETF (정렬·필터 적용된 검색 결과)
+  seed: StockRef[];   // 초기 종목 (ETF 검색결과 전체 or 단일 ETF). 열릴 때 이걸로 초기화.
 }
 
-type Period = "1mo" | "3mo" | "6mo";
-const PERIOD_MONTHS: Record<Period, number> = { "1mo": 1, "3mo": 3, "6mo": 6 };
+const KST_OFFSET = 9 * 3600;                  // 분봉 UTC epoch → KST 벽시계 보정(초)
+const isKr = (t: string) => /^\d{6}$/.test(t);
 
-// lastISO 에서 months 개월 전 날짜(YYYY-MM-DD)
-function cutoffDate(lastISO: string, months: number): string {
-  const d = new Date(`${lastISO}T00:00:00`);
-  d.setMonth(d.getMonth() - months);
-  return d.toISOString().slice(0, 10);
-}
+// 종목 타입별 fetch 디스패치 (KR 6자리 → 토스/야후 KS·KQ, 그 외 → 야후 심볼)
+const fetchDaily = (ticker: string, range: string): Promise<PricePoint[]> =>
+  isKr(ticker) ? fetchKrPriceHistory(ticker, range) : fetchYahooPriceHistory(ticker, range);
+const fetchMin = (ticker: string, range: string): Promise<IntradayBar[]> =>
+  isKr(ticker) ? fetchKrIntraday(ticker, range, "1m") : fetchYahooIntraday(ticker, range, "1m");
+
+type Mode = "min" | "week";   // 분봉(요일·시간대 패턴) / 주봉(중기 추세)
 
 interface Built {
   data: { time: Time; value: number }[];
-  map: Map<string, number>;   // date → 누적%
-  final: number | null;       // 마지막 누적%
+  map: Map<string, number>;   // timeKey → 누적%
+  final: number | null;
+}
+const EMPTY: Built = { data: [], map: new Map(), final: null };
+
+// 주봉: 일봉을 7일 버킷으로 묶어 각 주 마지막 종가 → 시작주=0% 정규화
+function buildWeekly(hist: PricePoint[]): Built {
+  if (!hist || hist.length < 2) return EMPTY;
+  const weekly: { date: string; close: number }[] = [];
+  let curKey = "";
+  for (const p of hist) {
+    const key = String(Math.floor(Date.parse(`${p.date}T00:00:00Z`) / 86_400_000 / 7));
+    if (key !== curKey) { weekly.push({ date: p.date, close: p.close }); curKey = key; }
+    else weekly[weekly.length - 1] = { date: p.date, close: p.close };   // 같은 주 → 마지막 거래일로 갱신
+  }
+  if (weekly.length < 2) return EMPTY;
+  const base = weekly[0].close;
+  if (!(base > 0)) return EMPTY;
+  const data = weekly.map(p => ({ time: p.date as Time, value: (p.close / base - 1) * 100 }));
+  return { data, map: new Map(data.map(x => [String(x.time), x.value])), final: data[data.length - 1].value };
 }
 
-// 기간 윈도 잘라 시작점=0% 로 정규화
-function buildSeries(hist: PricePoint[], months: number): Built {
-  const empty: Built = { data: [], map: new Map(), final: null };
-  if (!hist || hist.length < 2) return empty;
-  const lastISO = hist[hist.length - 1].date;
-  const cut = cutoffDate(lastISO, months);
-  let win = hist.filter(p => p.date >= cut);
-  if (win.length < 2) win = hist;
-  const base = win[0].close;
-  if (!(base > 0)) return empty;
-  const data = win.map(p => ({ time: p.date as Time, value: (p.close / base - 1) * 100 }));
-  const map = new Map(data.map(d => [String(d.time), d.value]));
-  return { data, map, final: data[data.length - 1].value };
+// 분봉: 첫 봉=0% 정규화, time = epoch + 9h (KST 표시)
+function buildMin(bars: IntradayBar[]): Built {
+  if (!bars || bars.length < 2) return EMPTY;
+  const base = bars[0].close;
+  if (!(base > 0)) return EMPTY;
+  const data = bars.map(b => ({ time: (b.t + KST_OFFSET) as Time, value: (b.close / base - 1) * 100 }));
+  return { data, map: new Map(data.map(x => [String(x.time), x.value])), final: data[data.length - 1].value };
 }
 
-export function EtfCompareChartDialog({ isOpen, onClose, etfs }: Props) {
+// 라인 색 — base(보유종목)=빨강 고정, 추가 종목은 순서대로. 12색 초과 시 황금각 HSL 분산.
+const PALETTE = [
+  "#dc2626", "#2563eb", "#16a34a", "#d97706", "#9333ea", "#0d9488",
+  "#db2777", "#0891b2", "#65a30d", "#e11d48", "#7c3aed", "#ca8a04",
+];
+const lineColorAt = (i: number): string =>
+  i < PALETTE.length ? PALETTE[i] : `hsl(${Math.round((i * 137.508) % 360)}, 62%, 45%)`;
+
+export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
-  const tooltipRef = useRef<HTMLDivElement>(null);   // 마우스 추적 순위 박스 (DOM 직접 갱신)
-  const [period, setPeriod] = useState<Period>("3mo");
-  const [hidden, setHidden] = useState<Set<string>>(new Set());
+  const tooltipRef = useRef<HTMLDivElement>(null);
+  const bandRef = useRef<HTMLCanvasElement>(null);   // 배경 밴드(일/주 음영 + 요일 라벨)
+  const [mode, setMode] = useState<Mode>("min");
+  // seed 로 고정 (다이얼로그는 열 때마다 remount → seed 반영). 추가검색 없음.
+  const [items] = useState<StockRef[]>(seed);
 
-  const capped = useMemo(() => etfs, [etfs]);   // 전체 검색결과 (제한 없음)
-  const colorOf = useMemo(() => {
+  const stocks = items;
+  const colorMap = useMemo(() => {
     const m: Record<string, string> = {};
-    capped.forEach((e, i) => { m[e.code] = lineColorAt(i); });
+    stocks.forEach((s, i) => { m[s.ticker] = lineColorAt(i); });
     return m;
-  }, [capped]);
+  }, [stocks]);
+  const colorOf = (ticker: string) => colorMap[ticker] ?? "#64748b";
 
   // Esc 닫기
   useEffect(() => {
@@ -86,106 +109,119 @@ export function EtfCompareChartDialog({ isOpen, onClose, etfs }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [isOpen, onClose]);
 
-  // 각 ETF 6개월 히스토리 (기간 토글은 클라에서 슬라이스 — 재조회 없음)
+  // 데이터 — 모드별 fetch (mode 바뀌면 queryKey 달라져 재조회)
+  //   분봉: 최근 5거래일 1분봉(요일·시간대 패턴 보기) · 주봉: 2년 일봉 → 주 단위 리샘플
   const qs = useQueries({
-    queries: capped.map(e => ({
-      queryKey: ["price-history", e.code, "6mo"],
-      queryFn: () => fetchKrPriceHistory(e.code, "6mo"),
-      staleTime: 60 * 60_000,
-      enabled: isOpen,
-    })),
+    queries: stocks.map(s => mode === "week"
+      ? {
+          queryKey: ["cmp-week", s.ticker],
+          queryFn: () => fetchDaily(s.ticker, "2y"),
+          staleTime: 60 * 60_000,
+          enabled: isOpen,
+        }
+      : {
+          queryKey: ["cmp-min5d", s.ticker],
+          queryFn: () => fetchMin(s.ticker, "5d"),
+          staleTime: 5 * 60_000,
+          enabled: isOpen,
+        }),
   });
   const stamp = qs.map(q => q.dataUpdatedAt).join(",");
   const loading = qs.some(q => q.isLoading);
 
-  // code → 정규화 시리즈 (기간/데이터 변경 시 재계산)
+  // ticker → 정규화 시리즈
   const built = useMemo(() => {
     const m = new Map<string, Built>();
-    capped.forEach((e, i) => m.set(e.code, buildSeries(qs[i]?.data ?? [], PERIOD_MONTHS[period])));
+    stocks.forEach((s, i) => {
+      const data = qs[i]?.data;
+      m.set(s.ticker, mode === "week"
+        ? buildWeekly((data as PricePoint[]) ?? [])
+        : buildMin((data as IntradayBar[]) ?? []));
+    });
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [capped, period, stamp]);
-
-  const hiddenKey = [...hidden].sort().join(",");
+  }, [stocks, mode, stamp]);
 
   // 차트 그리기
   useEffect(() => {
     if (!isOpen || !containerRef.current) return;
-    const visible = capped.filter(e => !hidden.has(e.code) && (built.get(e.code)?.data.length ?? 0) >= 2);
+    const visible = stocks.filter(s => (built.get(s.ticker)?.data.length ?? 0) >= 2);
     if (visible.length === 0) return;
 
     const chart: IChartApi = createChart(containerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: "#ffffff" },
+        background: { type: ColorType.Solid, color: "rgba(255,255,255,0)" },   // 투명 — 뒤 배경밴드 캔버스 노출
         textColor: "#374151",
         fontSize: 11,
         fontFamily: "system-ui, -apple-system, sans-serif",
         attributionLogo: false,
       },
-      grid: {
-        vertLines: { color: "#f3f4f6" },
-        horzLines: { color: "#f3f4f6" },
-      },
-      rightPriceScale: {
+      grid: { vertLines: { color: "#f3f4f6" }, horzLines: { color: "#f3f4f6" } },
+      rightPriceScale: { borderColor: "#e5e7eb", scaleMargins: { top: 0.1, bottom: 0.1 } },
+      timeScale: {
         borderColor: "#e5e7eb",
-        scaleMargins: { top: 0.1, bottom: 0.1 },
+        timeVisible: mode === "min",       // 분봉은 시:분 표시
+        secondsVisible: false,
       },
-      timeScale: { borderColor: "#e5e7eb", timeVisible: false, secondsVisible: false },
       crosshair: {
         mode: 1,
         vertLine: { color: "#9ca3af", width: 1, style: LineStyle.Dotted, labelBackgroundColor: "#475569" },
         horzLine: { color: "#9ca3af", width: 1, style: LineStyle.Dotted, labelBackgroundColor: "#475569" },
       },
-      localization: {
-        priceFormatter: (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%`,
-      },
+      localization: { priceFormatter: (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(1)}%` },
       autoSize: true,
     });
 
-    const seriesList: { code: string; series: ISeriesApi<SeriesType> }[] = [];
+    const seriesList: { ticker: string }[] = [];
     let zeroAnchor: ISeriesApi<SeriesType> | null = null;
-    for (const e of visible) {
-      const b = built.get(e.code)!;
-      const s = chart.addSeries(LineSeries, {
-        color: colorOf[e.code],
-        lineWidth: 2,
+    for (const s of visible) {
+      const b = built.get(s.ticker)!;
+      const ser = chart.addSeries(LineSeries, {
+        color: colorOf(s.ticker),
+        lineWidth: 1,
         priceLineVisible: false,
-        lastValueVisible: true,   // 우측 축엔 % 값만 (종목명은 하단 범례 + 마우스 순위 박스)
+        lastValueVisible: true,
         crosshairMarkerVisible: true,
         crosshairMarkerRadius: 3,
       });
-      s.setData(b.data);
-      seriesList.push({ code: e.code, series: s });
-      if (!zeroAnchor) zeroAnchor = s;
+      ser.setData(b.data);
+      seriesList.push({ ticker: s.ticker });
+      if (!zeroAnchor) zeroAnchor = ser;
     }
-    // 0% 기준선 (시작점)
     zeroAnchor?.createPriceLine({
       price: 0, color: "#9ca3af", lineWidth: 1, lineStyle: LineStyle.Dashed,
       axisLabelVisible: true, title: "0%",
     });
-
     chart.timeScale().fitContent();
 
-    const nameByCode: Record<string, string> = {};
-    for (const e of capped) nameByCode[e.code] = e.name;
-    const PAD_L = 8, PAD_T = 8;   // wrapper 의 px-2 pt-2(8px) 보정
+    const nameByTicker: Record<string, string> = {};
+    for (const s of stocks) nameByTicker[s.ticker] = s.name;
+    const PAD_L = 8, PAD_T = 8;
+
+    const fmtTime = (timeKey: string): string => {
+      if (mode === "week") return timeKey;   // YYYY-MM-DD (주 마지막 거래일)
+      const dt = new Date(Number(timeKey) * 1000);   // +9h 반영된 epoch → UTC 표기가 KST 벽시계
+      const mm = String(dt.getUTCMonth() + 1).padStart(2, "0");
+      const dd = String(dt.getUTCDate()).padStart(2, "0");
+      const hh = String(dt.getUTCHours()).padStart(2, "0");
+      const mi = String(dt.getUTCMinutes()).padStart(2, "0");
+      return `${mm}/${dd} ${hh}:${mi}`;
+    };
 
     const onMove = (param: MouseEventParams) => {
       const tip = tooltipRef.current;
       const cont = containerRef.current;
       if (!tip || !cont) return;
       if (param.time == null || !param.point) { tip.style.display = "none"; return; }
-      const date = String(param.time);
-      // 해당일 등락률 내림차순(순위) 정렬
+      const key = String(param.time);
       const rows = seriesList
-        .map(({ code }) => ({ code, v: built.get(code)?.map.get(date), color: colorOf[code], name: nameByCode[code] ?? code }))
-        .filter((r): r is { code: string; v: number; color: string; name: string } => typeof r.v === "number")
+        .map(({ ticker }) => ({ ticker, v: built.get(ticker)?.map.get(key), color: colorOf(ticker), name: nameByTicker[ticker] ?? ticker }))
+        .filter((r): r is { ticker: string; v: number; color: string; name: string } => typeof r.v === "number")
         .sort((a, b) => b.v - a.v);
       if (rows.length === 0) { tip.style.display = "none"; return; }
-      let html = `<div style="color:#9ca3af;font-size:10px;margin-bottom:3px">${date}</div>`;
+      let html = `<div style="color:#9ca3af;font-size:10px;margin-bottom:3px">${fmtTime(key)}</div>`;
       rows.forEach((r, i) => {
         const pc = r.v >= 0 ? "#e11d48" : "#2563eb";
-        // 행 배경 = 라인 색 (범례와 동일) · 순번/이름 흰색 · % 는 흰 알약
         html += `<div style="display:flex;align-items:center;gap:5px;line-height:1.7;`
           + `background:${r.color};border-radius:4px;padding:1px 5px;margin-bottom:2px">`
           + `<span style="color:rgba(255,255,255,0.8);width:13px;text-align:right;flex:none;font-weight:700">${i + 1}</span>`
@@ -195,7 +231,6 @@ export function EtfCompareChartDialog({ isOpen, onClose, etfs }: Props) {
       });
       tip.innerHTML = html;
       tip.style.display = "block";
-      // 마우스 따라가기 — 가장자리 넘으면 반대편으로 flip
       const W = cont.clientWidth, H = cont.clientHeight;
       void tip.offsetHeight;
       const tw = tip.offsetWidth, th = tip.offsetHeight;
@@ -209,51 +244,144 @@ export function EtfCompareChartDialog({ isOpen, onClose, etfs }: Props) {
     };
     chart.subscribeCrosshairMove(onMove);
 
+    // ── 배경 밴드 — 분봉: 일 단위 음영 + 요일/날짜 라벨 + 매시 세로선·시각 라벨, 주봉: 주 단위 음영
+    const ts = chart.timeScale();
+    const refData = visible
+      .map(s => built.get(s.ticker)!.data)
+      .reduce((a, b) => (b.length > a.length ? b : a), [] as { time: Time; value: number }[]);
+    const refTimes = refData.map(d => d.time);
+    const WD = ["일", "월", "화", "수", "목", "금", "토"];
+    const groupOf = (t: Time): number =>
+      mode === "week"
+        ? Math.floor(Date.parse(`${String(t)}T00:00:00Z`) / 86_400_000 / 7)
+        : Math.floor(Number(t) / 86_400);
+
+    const drawBg = () => {
+      const canvas = bandRef.current;
+      if (!canvas) return;
+      const w = canvas.clientWidth, h = canvas.clientHeight;
+      if (!w || !h) return;
+      const dpr = window.devicePixelRatio || 1;
+      canvas.width = Math.round(w * dpr); canvas.height = Math.round(h * dpr);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, w, h);
+      if (refTimes.length < 2) return;
+      const plotW = ts.width();
+      const X = (t: Time) => ts.timeToCoordinate(t);
+
+      // 그룹(일/주) 교차 음영 + 분봉 요일·날짜 라벨
+      let i = 0;
+      while (i < refTimes.length) {
+        const g = groupOf(refTimes[i]);
+        let j = i;
+        while (j + 1 < refTimes.length && groupOf(refTimes[j + 1]) === g) j++;
+        const xs = X(refTimes[i]);
+        const xe = j + 1 < refTimes.length ? X(refTimes[j + 1]) : plotW;
+        if (xs != null && xe != null) {
+          const left = Math.max(0, xs), right = Math.min(plotW, xe);
+          if (right > left) {
+            if (((g % 2) + 2) % 2 === 1) {
+              ctx.fillStyle = "rgba(99,102,241,0.05)";
+              ctx.fillRect(left, 0, right - left, h);
+            }
+            if (mode === "min" && right - left > 30) {
+              const dt = new Date(Number(refTimes[i]) * 1000);
+              const dow = dt.getUTCDay();
+              ctx.fillStyle = dow === 6 ? "rgba(37,99,235,0.85)"
+                : dow === 0 ? "rgba(220,38,38,0.85)" : "rgba(55,65,81,0.75)";
+              ctx.font = "700 11px system-ui, -apple-system, sans-serif";
+              ctx.textBaseline = "top";
+              ctx.fillText(`${WD[dow]} ${dt.getUTCMonth() + 1}/${dt.getUTCDate()}`, left + 4, 3);
+            }
+          }
+        }
+        i = j + 1;
+      }
+
+      // 분봉: 매시 경계 세로 가이드선 + 시각(시) 라벨 — 하루 중 시간대 한눈에
+      if (mode === "min") {
+        let prevH = -1, prevD = -1;
+        for (let k = 0; k < refTimes.length; k++) {
+          const dt = new Date(Number(refTimes[k]) * 1000);
+          const hour = dt.getUTCHours();
+          const day = Math.floor(Number(refTimes[k]) / 86_400);
+          if (hour !== prevH || day !== prevD) {
+            const x = X(refTimes[k]);
+            if (x != null && x >= 0 && x <= plotW) {
+              ctx.strokeStyle = "rgba(148,163,184,0.22)";
+              ctx.lineWidth = 1;
+              ctx.beginPath(); ctx.moveTo(x, 18); ctx.lineTo(x, h); ctx.stroke();
+              ctx.fillStyle = "rgba(100,116,139,0.8)";
+              ctx.font = "600 9px system-ui, -apple-system, sans-serif";
+              ctx.textBaseline = "top";
+              ctx.fillText(`${hour}시`, x + 2, 17);
+            }
+            prevH = hour; prevD = day;
+          }
+        }
+      }
+    };
+
+    const rafDraw = () => requestAnimationFrame(drawBg);
+    rafDraw();
+    const t1 = setTimeout(drawBg, 120);   // autoSize 레이아웃 안정 후 1회 재그리기
+    ts.subscribeVisibleLogicalRangeChange(drawBg);
+    window.addEventListener("resize", rafDraw);
+
     return () => {
+      clearTimeout(t1);
       try { chart.unsubscribeCrosshairMove(onMove); } catch { /* noop */ }
+      try { ts.unsubscribeVisibleLogicalRangeChange(drawBg); } catch { /* noop */ }
+      window.removeEventListener("resize", rafDraw);
       chart.remove();
     };
-  }, [isOpen, built, hiddenKey, capped, colorOf, hidden]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, built, mode, stocks]);
 
   if (!isOpen) return null;
 
-  const toggle = (code: string) =>
-    setHidden(prev => {
-      const n = new Set(prev);
-      if (n.has(code)) n.delete(code); else n.add(code);
-      return n;
-    });
-
-  const periodLabel: Record<Period, string> = { "1mo": "1개월", "3mo": "3개월", "6mo": "6개월" };
-
-  return (
-    <div className="fixed inset-0 z-50 bg-black/40 flex items-stretch sm:items-center
+  return createPortal(
+    <div className="fixed inset-0 z-[9999] bg-black/40 flex items-stretch sm:items-center
                     justify-center p-0 sm:p-4 overflow-y-auto"
          onClick={onClose}>
-      <div className="bg-white w-full h-full sm:h-auto sm:max-h-[95vh] max-w-6xl
+      <div className="bg-white w-full h-full sm:h-auto sm:max-h-[95vh] max-w-5xl
                       rounded-none sm:rounded-lg shadow-xl flex flex-col my-auto"
            onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <header className="px-4 py-2 border-b bg-gray-50 flex items-center gap-2 flex-wrap">
           <span className="text-base font-bold">📊 ETF 등락률 비교</span>
-          <span className="text-[11px] text-gray-500">
-            시작점=0% 정규화 · {capped.length}개
-          </span>
-          {/* 기간 토글 */}
+          <span className="text-[11px] text-gray-500">시작점=0% 정규화</span>
+
+          {/* 분봉 / 주봉 토글 */}
           <span className="ml-auto inline-flex items-center gap-0.5">
-            {(["1mo", "3mo", "6mo"] as const).map(p => (
-              <button key={p} onClick={() => setPeriod(p)}
-                      className={`px-2 py-0.5 rounded text-[11px] font-bold border transition
-                                  ${period === p
-                                    ? "bg-gray-700 text-white border-gray-700"
+            {([["min", "분봉"], ["week", "주봉"]] as const).map(([m, label]) => (
+              <button key={m} onClick={() => setMode(m)}
+                      title={m === "min" ? "최근 5거래일 1분봉 — 요일·시간대 패턴" : "2년 주봉 — 중기 추세"}
+                      className={`px-2.5 py-0.5 rounded text-[11px] font-bold border transition
+                                  ${mode === m
+                                    ? "bg-gray-800 text-white border-gray-800"
                                     : "bg-white text-gray-600 border-gray-300 hover:bg-gray-100"}`}>
-                {periodLabel[p]}
+                {label}
               </button>
             ))}
           </span>
+
           <button onClick={onClose}
                   className="px-2 py-0.5 text-gray-400 hover:text-rose-500 text-lg leading-none">✕</button>
         </header>
+
+        {/* 종목 줄 — 비교 대상(색칩) */}
+        <div className="px-4 py-2 border-b flex items-center gap-2 flex-wrap">
+          {stocks.map(s => (
+            <span key={s.ticker}
+                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[12px] font-bold text-white"
+                  style={{ background: colorOf(s.ticker) }}>
+              {s.name} <span className="opacity-80 font-normal">{s.ticker}</span>
+            </span>
+          ))}
+        </div>
 
         {/* 차트 */}
         <div className="relative px-2 pt-2">
@@ -262,45 +390,44 @@ export function EtfCompareChartDialog({ isOpen, onClose, etfs }: Props) {
               불러오는 중…
             </div>
           )}
-          <div ref={containerRef} className="w-full h-[52vh] min-h-[300px]" />
-          {/* 마우스 추적 순위 박스 — 색상칩·이름·% (등락률 내림차순) */}
+          {!loading && items.length === 0 && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center text-sm text-gray-400">
+              비교할 종목을 검색해 추가하세요.
+            </div>
+          )}
+          <div className="relative w-full h-[56vh] min-h-[320px]">
+            <canvas ref={bandRef} className="absolute inset-0 w-full h-full pointer-events-none" />
+            <div ref={containerRef} className="absolute inset-0" />
+          </div>
           <div ref={tooltipRef}
                className="absolute pointer-events-none z-20 bg-white/95 border border-gray-200 rounded-md
                           shadow-lg px-2 py-1.5 text-[11px] leading-snug"
                style={{ display: "none", minWidth: "160px", maxWidth: "280px" }} />
         </div>
 
-        {/* 범례 — 클릭으로 ON/OFF, 최종 등락률(%). 마우스 올리면 차트 위 순위 박스에 해당일 % */}
-        <div className="px-3 py-2 border-t bg-gray-50 flex flex-wrap gap-1.5 overflow-y-auto max-h-[28vh]">
-          {capped.map(e => {
-            const b = built.get(e.code);
-            const off = hidden.has(e.code);
-            const shown = b?.final ?? null;
-            const noData = (b?.data.length ?? 0) < 2;
+        {/* 범례 + 안내 */}
+        <div className="px-4 py-2 border-t bg-gray-50 flex items-center gap-3 flex-wrap text-[11px]">
+          {stocks.map(s => {
+            const f = built.get(s.ticker)?.final ?? null;
             return (
-              <button key={e.code} onClick={() => toggle(e.code)}
-                      title={off ? "클릭: 표시" : "클릭: 숨김"}
-                      style={{ background: off ? "#e5e7eb" : colorOf[e.code] }}
-                      className={`inline-flex items-center gap-1.5 px-2 py-1 rounded border border-black/10
-                                  text-[11px] transition ${off ? "opacity-50" : "hover:brightness-110"}`}>
-                <span className={`font-bold ${off ? "text-gray-500 line-through" : "text-white"}`}
-                      style={off ? undefined : { textShadow: "0 1px 1px rgba(0,0,0,0.3)" }}>
-                  {e.name}
-                </span>
-                {noData ? (
-                  <span className={off ? "text-gray-400" : "text-white/70"}>—</span>
-                ) : shown != null && (
-                  <span className={`tabular-nums font-bold rounded px-1 bg-white
-                                    ${shown >= 0 ? "text-rose-600" : "text-blue-600"}`}>
-                    {shown >= 0 ? "+" : ""}{shown.toFixed(2)}%
+              <span key={s.ticker} className="inline-flex items-center gap-1.5">
+                <span className="w-3 h-3 rounded-sm inline-block" style={{ background: colorOf(s.ticker) }} />
+                <span className="font-semibold text-gray-700">{s.name}</span>
+                {f != null && (
+                  <span className={`tabular-nums font-bold ${f >= 0 ? "text-rose-600" : "text-blue-600"}`}>
+                    {f >= 0 ? "+" : ""}{f.toFixed(2)}%
                   </span>
                 )}
-              </button>
+              </span>
             );
           })}
+          <span className="ml-auto text-gray-400">
+            {mode === "min" ? "5일 1분봉 · KST · 요일·시간대 패턴 · 첫 봉 대비 %" : "주봉 2년 · 시작주 대비 %"}
+          </span>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 

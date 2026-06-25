@@ -7,6 +7,7 @@ import { Tooltip } from "./Tooltip";
 import { formatSigned, signColor, isEtfByName, dayChangePct, dayChangeDiff, isKrHoldingClosed } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { openExternal } from "../lib/toss";
+import { EtfCompareChartDialog } from "./EtfCompareChartDialog";
 import type { Price } from "../types";
 
 // 현재가·일간% (+선택적 추세 스파크라인) 미니 카드 — 검색 드롭다운·비교표 공용
@@ -63,6 +64,8 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
   const [cmpSort, setCmpSort] = useState<"rel" | "day" | "m1" | "m3" | "m6">("rel");
   // ETF 수수료정보 팝업
   const [infoOpen, setInfoOpen] = useState(false);
+  // 그래프 비교 팝업 (분봉/주봉 등락률)
+  const [graphOpen, setGraphOpen] = useState(false);
 
   useEffect(() => {
     if (!isOpen) return;
@@ -209,6 +212,15 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
               ✕ 비교 종료
             </button>
           )}
+          {isCompare && secondEtf && (
+            <button onClick={() => setGraphOpen(true)}
+                    title="두 ETF 등락률 그래프 비교 (분봉/주봉)"
+                    className="inline-flex items-center gap-1 px-2 py-1
+                               border border-indigo-300 rounded text-[11px] font-bold
+                               bg-indigo-50 text-indigo-700 hover:bg-indigo-100">
+              📈 그래프 비교
+            </button>
+          )}
           {/* ETF 수수료정보 — 버튼 아래 레이어 팝오버 */}
           <div className="relative">
             <button onClick={() => setInfoOpen(o => !o)}
@@ -346,6 +358,12 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
           </div>
         )}
       </div>
+      {graphOpen && secondEtf && (
+        <EtfCompareChartDialog
+          isOpen={graphOpen}
+          onClose={() => setGraphOpen(false)}
+          seed={[{ ticker, name: etfName }, { ticker: secondEtf.ticker, name: secondEtf.name }]} />
+      )}
     </div>
   );
 }
@@ -790,6 +808,18 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
               </span>
               <span className={`tabular-nums ml-1 font-bold ${signColor(krReg.regularPct)}`}>
                 ({krReg.regularPct >= 0 ? "+" : ""}{krReg.regularPct.toFixed(2)}%)
+              </span>
+            </div>
+          ) : isForeignCode && price && price.base > 0 ? (
+            // 해외(미국) — 전일 종가 기준 책갈피 (KR 마감 태그의 대응). 현재가 대비 전일 종가·등락률.
+            <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0 border rounded text-[10px] leading-tight whitespace-nowrap
+                             ${dayPct > 0 ? "bg-rose-100/20 border-rose-300/20"
+                               : dayPct < 0 ? "bg-blue-100/20 border-blue-300/20"
+                               : "bg-white/20 border-gray-300/20"}`}>
+              <span className="text-gray-500">전일 </span>
+              <span className="text-gray-800 tabular-nums">{Math.round(price.base).toLocaleString()}</span>
+              <span className={`tabular-nums ml-1 font-bold ${signColor(dayPct)}`}>
+                ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
               </span>
             </div>
           ) : null}

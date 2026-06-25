@@ -85,8 +85,10 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
   // ETF 이름 필터 — 포함(이 단어 들어간 것만) / 제외(이 단어 들어간 것 빼기)
   const [nameInc, setNameInc] = useState("");
   const [nameExc, setNameExc] = useState("");
-  // 비교 차트 팝업
+  // 비교 차트 팝업 — seed 로 초기 종목 지정(전체 검색결과 or 단일 ETF). 다이얼로그 안에서 추가 가능.
   const [compareOpen, setCompareOpen] = useState(false);
+  const [compareSeed, setCompareSeed] = useState<{ ticker: string; name: string }[]>([]);
+  const openCompare = (seed: { ticker: string; name: string }[]) => { setCompareSeed(seed); setCompareOpen(true); };
 
   // 추세·수익률 — 상위 TREND_CAP 개만 6개월 히스토리 조회.
   //   비중/수익률 정렬 → 비중 기본순 상위(수익률 정렬은 이 집합 내에서만, 순환 방지).
@@ -521,7 +523,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
                         className="text-gray-400 hover:text-rose-500 px-0.5">✕</button>
               )}
             </span>
-            <button onClick={() => setCompareOpen(true)}
+            <button onClick={() => openCompare(displayResults.map(r => ({ ticker: r.etfCode, name: r.etfName })))}
                     disabled={displayResults.length < 2}
                     title="검색된 ETF들을 한 그래프에서 등락률 비교"
                     className="ml-auto px-2 py-0.5 rounded text-[11px] font-bold border transition
@@ -609,7 +611,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
       <EtfCompareChartDialog
         isOpen={compareOpen}
         onClose={() => setCompareOpen(false)}
-        etfs={displayResults.map(r => ({ code: r.etfCode, name: r.etfName }))} />
+        seed={compareSeed} />
     </div>
   );
 }
