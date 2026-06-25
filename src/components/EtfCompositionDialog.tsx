@@ -737,7 +737,8 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   const isHeld = groups.length > 0;
   const shownGroups = groups.length >= 3 ? groups.slice(0, 2) : groups;
   const moreGroups = groups.length - shownGroups.length;
-  const closedDim = isStandard && dimEnabled
+  // 해외(미국) 종목은 한국 세션 마감과 무관 — 토스 24h 가격으로 밝게 유지(자기 시장 시간 따름)
+  const closedDim = isStandard && dimEnabled && !isForeignCode
     && isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price?.singlePrice);
   const tabBg = closedDim ? "bg-gray-100/60 border-transparent"
     : colorDiff > 0 ? "bg-rose-50 border-rose-300"
