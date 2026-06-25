@@ -17,13 +17,14 @@ import {
 } from "lightweight-charts";
 import { fetchKrPriceHistory, type PricePoint } from "../lib/api";
 
-const MAX_LINES = 12;   // 가독성 — 상위 N 개만 (그 이상은 선이 뭉개짐)
-
-// 12색 팔레트 (코드 인덱스 고정 — ON/OFF 해도 색 안 바뀜)
+// 손으로 고른 12색 (코드 인덱스 고정 — ON/OFF 해도 색 안 바뀜). 13번째부터는 자동 생성.
 const PALETTE = [
   "#dc2626", "#2563eb", "#16a34a", "#d97706", "#9333ea", "#0d9488",
   "#db2777", "#0891b2", "#65a30d", "#e11d48", "#7c3aed", "#ca8a04",
 ];
+// 인덱스별 라인 색 — 팔레트 우선, 초과분은 황금각(137.5°) HSL 로 고르게 분산(흰 글자 가독 위해 중간 명도)
+const lineColorAt = (i: number): string =>
+  i < PALETTE.length ? PALETTE[i] : `hsl(${Math.round((i * 137.508) % 360)}, 62%, 45%)`;
 
 interface EtfRef { code: string; name: string; }
 
@@ -70,10 +71,10 @@ export function EtfCompareChartDialog({ isOpen, onClose, etfs }: Props) {
   const [period, setPeriod] = useState<Period>("3mo");
   const [hidden, setHidden] = useState<Set<string>>(new Set());
 
-  const capped = useMemo(() => etfs.slice(0, MAX_LINES), [etfs]);
+  const capped = useMemo(() => etfs, [etfs]);   // 전체 검색결과 (제한 없음)
   const colorOf = useMemo(() => {
     const m: Record<string, string> = {};
-    capped.forEach((e, i) => { m[e.code] = PALETTE[i % PALETTE.length]; });
+    capped.forEach((e, i) => { m[e.code] = lineColorAt(i); });
     return m;
   }, [capped]);
 
@@ -236,7 +237,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, etfs }: Props) {
         <header className="px-4 py-2 border-b bg-gray-50 flex items-center gap-2 flex-wrap">
           <span className="text-base font-bold">📊 ETF 등락률 비교</span>
           <span className="text-[11px] text-gray-500">
-            시작점=0% 정규화 · {capped.length}개{etfs.length > MAX_LINES && ` (상위 ${MAX_LINES}개만)`}
+            시작점=0% 정규화 · {capped.length}개
           </span>
           {/* 기간 토글 */}
           <span className="ml-auto inline-flex items-center gap-0.5">
