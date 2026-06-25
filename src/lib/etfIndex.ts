@@ -8,9 +8,10 @@ const BASE = "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/
 const URL_INDEX = `${BASE}/etf-index.json`;
 const URL_LIST  = `${BASE}/etf-list.json`;
 
-const LS_INDEX = "etf_index_v1";
-const LS_LIST  = "etf_list_v1";
-const LS_TS    = "etf_data_ts";
+// v2: 해외 구성종목(US/NAS 토스코드) 색인 포함 — 키 변경으로 기존 캐시 무효화·즉시 재fetch
+const LS_INDEX = "etf_index_v2";
+const LS_LIST  = "etf_list_v2";
+const LS_TS    = "etf_data_ts_v2";
 const TTL_MS   = 12 * 60 * 60 * 1000;   // 12시간
 
 export interface EtfMeta { name: string }

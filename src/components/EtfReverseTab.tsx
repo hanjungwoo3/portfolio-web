@@ -13,7 +13,9 @@ import {
   searchTossAutoComplete, searchNaverAutoComplete, fetchTossPrices, fetchKrPriceHistory, type SearchResult,
 } from "../lib/api";
 import { signColor, dayChangePct } from "../lib/format";
+import { getTossCode } from "../lib/toss";
 import { StockCard, computeReturns } from "./EtfCompositionDialog";
+import { EtfCompareChartDialog } from "./EtfCompareChartDialog";
 
 const TREND_CAP = 36;   // 추세·수익률 조회 상위 개수(전부 조회는 부담 — 정렬 상위만)
 
@@ -44,6 +46,8 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
   const [suggestions, setSuggestions] = useState<SearchResult[]>([]);
   const [searching, setSearching] = useState(false);
   const [nameCache, setNameCache] = useState<Record<string, string>>({});
+  // 해외종목 검색키(US 토스코드) → 표시 심볼(MU) 매핑 — 칩에 코드 대신 심볼 노출용
+  const [symCache, setSymCache] = useState<Record<string, string>>({});
   const [mode, setMode] = useState<"all" | "any">("all");
   const [results, setResults] = useState<EtfMatchMulti[] | null>(null);
   const [dataReady, setDataReady] = useState(false);
@@ -81,6 +85,8 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
   // ETF 이름 필터 — 포함(이 단어 들어간 것만) / 제외(이 단어 들어간 것 빼기)
   const [nameInc, setNameInc] = useState("");
   const [nameExc, setNameExc] = useState("");
+  // 비교 차트 팝업
+  const [compareOpen, setCompareOpen] = useState(false);
 
   // 추세·수익률 — 상위 TREND_CAP 개만 6개월 히스토리 조회.
   //   비중/수익률 정렬 → 비중 기본순 상위(수익률 정렬은 이 집합 내에서만, 순환 방지).
@@ -188,6 +194,10 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
     else setSlot(ticker, null);
   };
 
+  // 검색결과 → 인덱스 키. 국내=6자리코드 그대로, 해외=토스코드(US...) — 심볼(MU)로는 인덱스 매칭 불가
+  const keyOf = (s: SearchResult): string =>
+    /^[\dA-Za-z]{6}$/.test(s.ticker) ? s.ticker : (getTossCode(s.ticker) ?? s.ticker);
+
   // 종목명 자동완성
   useEffect(() => {
     const q = query.trim();
@@ -200,7 +210,10 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
         try { res = await searchTossAutoComplete(q); }
         catch { res = await searchNaverAutoComplete(q); }
         if (id !== reqIdRef.current) return;
-        setSuggestions(res.filter(r => /^\d{6}$/.test(r.ticker)).slice(0, 10));
+        // 국내 6자리 + 해외(토스코드 확인 가능한 종목만 — 인덱스가 토스코드로 색인됨)
+        setSuggestions(
+          res.filter(r => /^[\dA-Za-z]{6}$/.test(r.ticker) || getTossCode(r.ticker) != null).slice(0, 12),
+        );
       } catch {
         if (id === reqIdRef.current) setSuggestions([]);
       } finally {
@@ -222,9 +235,11 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
   // 자동완성에서 토글 — 같은 슬롯 재클릭은 해제, 반대 슬롯이면 이동
   // 드롭다운은 유지 (여러 종목 연속 처리 가능)
   const toggleFromSuggestion = (s: SearchResult, target: Slot) => {
-    setNameCache(prev => prev[s.ticker] === s.name ? prev : { ...prev, [s.ticker]: s.name });
-    const cur = slotOf(s.ticker);
-    setSlot(s.ticker, cur === target ? null : target);
+    const key = keyOf(s);   // 해외는 토스코드, 국내는 6자리코드
+    setNameCache(prev => prev[key] === s.name ? prev : { ...prev, [key]: s.name });
+    if (key !== s.ticker) setSymCache(prev => prev[key] ? prev : { ...prev, [key]: s.ticker });
+    const cur = slotOf(key);
+    setSlot(key, cur === target ? null : target);
   };
 
   const nameOf = (ticker: string): string =>
@@ -336,7 +351,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
                 <div className="px-3 py-2 text-xs text-gray-400">검색 결과 없음</div>
               ) : (
                 suggestions.map(s => {
-                  const slot = slotOf(s.ticker);
+                  const slot = slotOf(keyOf(s));
                   return (
                     <div key={s.ticker}
                          className="px-3 py-1.5 flex items-baseline gap-2 border-b border-gray-100 last:border-b-0">
@@ -398,7 +413,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
               <span key={t}
                     className="px-2 py-0.5 rounded-full text-xs bg-emerald-100 border border-emerald-300
                                text-emerald-900 flex items-center gap-1">
-                {nameOf(t)} <span className="text-gray-500 font-mono text-[10px]">{t}</span>
+                {nameOf(t)} <span className="text-gray-500 font-mono text-[10px]">{symCache[t] ?? t}</span>
                 <button onClick={() => setSlot(t, null)}
                         className="text-emerald-700 hover:text-rose-700 font-bold">×</button>
               </span>
@@ -418,7 +433,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
               <span key={t}
                     className="px-2 py-0.5 rounded-full text-xs bg-rose-100 border border-rose-300
                                text-rose-900 flex items-center gap-1">
-                {nameOf(t)} <span className="text-gray-500 font-mono text-[10px]">{t}</span>
+                {nameOf(t)} <span className="text-gray-500 font-mono text-[10px]">{symCache[t] ?? t}</span>
                 <button onClick={() => setSlot(t, null)}
                         className="text-rose-700 hover:text-gray-700 font-bold">×</button>
               </span>
@@ -506,7 +521,15 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
                         className="text-gray-400 hover:text-rose-500 px-0.5">✕</button>
               )}
             </span>
-            <span className="ml-auto inline-flex items-center gap-0.5">
+            <button onClick={() => setCompareOpen(true)}
+                    disabled={displayResults.length < 2}
+                    title="검색된 ETF들을 한 그래프에서 등락률 비교"
+                    className="ml-auto px-2 py-0.5 rounded text-[11px] font-bold border transition
+                               bg-indigo-50 text-indigo-700 border-indigo-300 hover:bg-indigo-100
+                               disabled:opacity-40 disabled:cursor-not-allowed">
+              📊 비교 차트
+            </button>
+            <span className="inline-flex items-center gap-0.5">
               <span className="text-gray-400 mr-1">정렬</span>
               {([["ratio", "비중"], ["day", "현재"], ["m1", "1개월"], ["m3", "3개월"], ["m6", "6개월"]] as const).map(([k, label]) => (
                 <button key={k} onClick={() => setResultSort(k)}
@@ -582,6 +605,11 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
           </div>
         </div>
       )}
+
+      <EtfCompareChartDialog
+        isOpen={compareOpen}
+        onClose={() => setCompareOpen(false)}
+        etfs={displayResults.map(r => ({ code: r.etfCode, name: r.etfName }))} />
     </div>
   );
 }
