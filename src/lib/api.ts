@@ -228,6 +228,7 @@ export interface EtfKeyIndicator {
   dividendYield?: number;   // 분배율(TTM, %)
   deviationRate?: number;   // 괴리율(%)
   deviationSign?: string;   // + / -
+  chaseErrorRate?: number;  // 추적오차(%) — 기초지수 대비 이탈. 패시브 낮음(<1), 액티브 큼(10~). etfAnalysis 에서 보강
   issuerName?: string;      // 운용사
   nav?: string;             // 1좌 NAV
   totalNav?: string;        // 순자산총액(문자, 예 "32조 4,463억")
@@ -239,10 +240,22 @@ export interface EtfKeyIndicator {
 export async function fetchEtfKeyIndicator(ticker: string): Promise<EtfKeyIndicator | null> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return null;
   try {
-    const r = await fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/integration`);
-    if (!r.ok) return null;
-    const d = await r.json() as { etfKeyIndicator?: EtfKeyIndicator };
-    return d.etfKeyIndicator ?? null;
+    // integration = 핵심지표(보수·괴리율·NAV…), etfAnalysis = 추적오차(integration 엔 없음). 병렬.
+    const [rInt, rAna] = await Promise.all([
+      fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/integration`),
+      fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/etfAnalysis`).catch(() => null),
+    ]);
+    if (!rInt.ok) return null;
+    const d = await rInt.json() as { etfKeyIndicator?: EtfKeyIndicator };
+    const ki = d.etfKeyIndicator ?? null;
+    if (!ki) return null;
+    if (rAna?.ok) {
+      try {
+        const a = await rAna.json() as { chaseErrorRate?: number };
+        if (a.chaseErrorRate != null) ki.chaseErrorRate = a.chaseErrorRate;
+      } catch { /* etfAnalysis 파싱 실패 — 추적오차만 생략 */ }
+    }
+    return ki;
   } catch {
     return null;
   }

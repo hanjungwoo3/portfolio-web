@@ -4,7 +4,7 @@ import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegu
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
 import { Tooltip } from "./Tooltip";
-import { formatSigned, signColor, isEtfByName, dayChangePct, dayChangeDiff, isKrHoldingClosed } from "../lib/format";
+import { formatSigned, signColor, isEtfByName, etfActiveType, dayChangePct, dayChangeDiff, isKrHoldingClosed } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { openExternal } from "../lib/toss";
 import { EtfCompareChartDialog } from "./EtfCompareChartDialog";
@@ -944,10 +944,21 @@ function EtfIndicatorBlock({ ticker, name }: { ticker: string; name: string }) {
   if (data?.dividendYield != null) rows.push(["분배율", `${data.dividendYield}%`, "최근 1년 분배금 ÷ 주가 (ETF 배당수익률)"]);
   if (data?.nav) rows.push(["NAV", data.nav, "1좌당 순자산가치 (ETF의 이론 적정가)"]);
   if (data?.deviationRate != null) rows.push(["괴리율", `${data.deviationSign ?? ""}${data.deviationRate}%`, "시장가 − NAV 차이 (+면 비싸게, −면 싸게 거래)"]);
+  const active = etfActiveType(name);   // true=액티브 / false=패시브 / null=ETF 아님
+  if (data?.chaseErrorRate != null) rows.push(["추적오차", `${data.chaseErrorRate}%`,
+    active ? "기초지수 대비 이탈 정도 (액티브는 의도적 이탈 → 큰 게 정상)"
+           : "기초지수 대비 이탈 정도 (패시브는 낮을수록 추종 정확)"]);
   return (
     <div className="flex-1 min-w-[170px]">
-      <div className="font-bold text-sm text-gray-800 mb-1.5 truncate">
-        {name} <span className="text-gray-400 font-normal text-xs">({ticker})</span>
+      <div className="font-bold text-sm text-gray-800 mb-1.5 truncate flex items-center gap-1">
+        {active != null && (
+          <span className={`shrink-0 px-1 py-0.5 rounded text-[10px] font-bold leading-none border ${
+            active ? "bg-violet-100 text-violet-700 border-violet-300"
+                   : "bg-sky-100 text-sky-700 border-sky-300"}`}>
+            {active ? "액티브" : "패시브"}
+          </span>
+        )}
+        <span className="truncate">{name} <span className="text-gray-400 font-normal text-xs">({ticker})</span></span>
       </div>
       {!data ? (
         <div className="text-xs text-gray-400 py-3">불러오는 중…</div>
@@ -956,7 +967,7 @@ function EtfIndicatorBlock({ ticker, name }: { ticker: string; name: string }) {
       ) : (
         <div className="border border-amber-200 rounded-md bg-white/60 p-2 text-[12px] tabular-nums space-y-1.5">
           {rows.map(([k, v, desc]) => {
-            const hl = k === "총보수";   // 총보수 — 흰 배경으로 강조
+            const hl = k === "총보수" || k === "추적오차";   // 비용·추종품질 — 흰 배경으로 강조
             return (
               <div key={k} className={hl ? "bg-white border border-amber-300 rounded px-1.5 py-1 shadow-sm" : ""}>
                 <div className="flex justify-between gap-2">

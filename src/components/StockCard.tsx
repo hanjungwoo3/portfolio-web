@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import type { PricePoint } from "../lib/api";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, holdingYesterdayBaseSum, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, holdingYesterdayBaseSum, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
@@ -1041,9 +1041,13 @@ export function StockCard({
           {(() => {
             const isEtf = isEtfByName(stock.name);
             const head = isEtf ? "ETF" : sector;
+            const etfActive = etfActiveType(stock.name);   // true=액티브 / false=패시브 / null=ETF 아님
+            const typeSpan = etfActive != null
+              ? <span className={`text-[8px] font-bold ${etfActive ? "text-violet-600" : "text-sky-600"}`}>{etfActive ? "액티브" : "패시브"}</span>
+              : null;
             const mkt = market === "KOSPI" ? "코스피" : market === "KOSDAQ" ? "코스닥" : "";
             if (!head && !mkt) return null;
-            const title = [head, mkt].filter(Boolean).join(" ");
+            const title = [head, etfActive != null ? (etfActive ? "액티브" : "패시브") : "", mkt].filter(Boolean).join(" ");
             const cls = `inline-flex items-baseline gap-1 px-1.5 py-0.5 rounded-t-md
                          border-t border-l border-r ${cardBorder}
                          ${cardBg} text-[10px] text-gray-600 leading-none`;
@@ -1058,6 +1062,7 @@ export function StockCard({
                         onClick={() => onOpenEtf(stock.ticker, stock.name)}
                         className={`${cls} cursor-pointer hover:brightness-95 transition`}>
                   <span className="underline decoration-dotted underline-offset-2">ETF</span>
+                  {typeSpan}
                   {mktSpan}
                 </button>
               );
@@ -1065,6 +1070,7 @@ export function StockCard({
             return (
               <span title={title} className={cls}>
                 {head && <span>{head}</span>}
+                {typeSpan}
                 {mktSpan}
               </span>
             );

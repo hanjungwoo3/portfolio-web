@@ -402,6 +402,14 @@ export function isEtfByName(name: string | undefined | null): boolean {
   return ETF_NAME_PATTERNS.some(p => p.test(trimmed));
 }
 
+// ETF 패시브/액티브 구분 — 한국 금융위 규정상 액티브 ETF는 상품명에 "액티브" 필수 표기.
+//   따라서 종목명만으로 100% 판별 가능(API 불필요). 추적오차(chaseErrorRate)가 큰 게 정상.
+// 반환: true=액티브, false=패시브, null=ETF 아님.
+export function etfActiveType(name: string | undefined | null): boolean | null {
+  if (!isEtfByName(name)) return null;
+  return /액티브/.test(name!.trim());
+}
+
 // 보유 종목 sleeping 판정 (KR) — 데스크톱 v2 동일.
 // REGULAR: 항상 활성 / CLOSED: 항상 휴면 /
 // EXTENDED: 마지막 체결 후 10분 경과 시 휴면.
