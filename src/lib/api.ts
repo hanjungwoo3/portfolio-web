@@ -2,7 +2,7 @@ import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getEnabledPersonalProxies } from "./proxyConfig";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
-import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen } from "./format";
+import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen } from "./format";
 import { rememberTossCode, getTossCode } from "./toss";
 
 // 앱 로드 시 1회 — 30일 이상 된 일자 키 정리
@@ -172,12 +172,18 @@ export async function fetchUsHoldingPrices(tickers: string[]): Promise<Price[]> 
         const tp = m.get(code);
         if (!tp) { uncoded.push(ticker); continue; }
         const hasKrw = tp.closeKrw > tp.close;                  // 원화는 달러×~1500
-        const regClose = hasKrw ? tp.closeKrw : tp.close;
-        const yClose   = hasKrw ? tp.baseKrw  : tp.base;
+        const liveKrw = hasKrw ? tp.closeKrw : tp.close;        // 토스 close = 현재가 (정규·프리·오버나잇 live, 애프터·휴장 땐 정규 종가)
+        const baseKrw = hasKrw ? tp.baseKrw  : tp.base;         // 토스 base = 기준가
+        // 오버나잇·프리마켓(close 가 라이브)엔 정규 종가가 base 에, 애프터·휴장엔 close 가 정규 종가 (지수창과 동일 판정).
+        const closeIsLive = isUsExtendedTradingOpen() && !afterOpen;
+        const regClose = closeIsLive ? baseKrw : liveKrw;       // 정규장 마감가(usRegClose 책갈피용)
         const useAfter = hasKrw && afterOpen && tp.afterCloseKrw > 0;
-        const price = useAfter ? tp.afterCloseKrw : regClose;
-        const base  = useAfter ? regClose : yClose;             // 애프터: 정규종가 대비 / 그외: 어제 대비
-        const regPct = yClose > 0 ? ((regClose - yClose) / yClose) * 100 : undefined;
+        const price = useAfter ? tp.afterCloseKrw : liveKrw;
+        const base  = useAfter ? regClose : baseKrw;            // 애프터/오버나잇: 정규종가 대비 / 정규·휴장: 어제 대비
+        // 마감 등락률 = 정규 종가의 전일대비. 오버나잇/프리엔 전전일 종가가 없어 계산 불가 → undefined.
+        const regPct = closeIsLive
+          ? undefined
+          : (baseKrw > 0 ? ((regClose - baseKrw) / baseKrw) * 100 : undefined);
         out.push({
           ticker, price, base, prevClose: base, open: 0, volume: 0,
           usRegClose: regClose, usRegPct: regPct,   // 정규장 마감가·전일대비 등락률(지수창과 동일)
@@ -2153,23 +2159,32 @@ async function fetchTossUsIndexMap(
     if (!tp) continue;
     // 토스 앱과 동일하게 환산 원화로 표시. closeKrw 없으면(폴백) 달러 그대로.
     const hasKrw = tp.closeKrw > tp.close;   // 원화는 달러 × ~1500 → 항상 큼
-    const regClose = hasKrw ? tp.closeKrw : tp.close;   // 정규장 종가(원화) — 마감 책갈피용
-    const yClose   = hasKrw ? tp.baseKrw  : tp.base;    // 어제 종가(원화)
-    // 애프터장 거래중이고 애프터값(원화)이 있으면 메인 = 애프터 현재가, 아니면 정규 종가.
+    const liveKrw = hasKrw ? tp.closeKrw : tp.close;   // 토스 close(원화) = 현재가 (정규·프리·오버나잇 땐 live, 애프터·휴장 땐 정규 종가)
+    const baseKrw = hasKrw ? tp.baseKrw  : tp.base;    // 토스 base(원화) = 기준가
+    // 토스 close 가 '라이브 비정규' 인 세션(오버나잇·프리마켓) 여부 — 이땐 정규 종가가 base 에 들어옴.
+    //   (애프터장 16:00~20:00 ET·휴장 땐 close 가 정규 종가 그대로 → 그때만 close 가 마감가)
+    const closeIsLive = isUsExtendedTradingOpen() && !afterOpen;
+    // 정규장 마감가(책갈피용): close 가 라이브면 base(직전 정규 종가), 아니면 close 자체가 정규 종가.
+    const regClose    = closeIsLive ? baseKrw : liveKrw;
+    const regCloseUsd = closeIsLive ? tp.base : tp.close;
+    // 애프터장 거래중이고 애프터값(원화)이 있으면 메인 = 애프터 현재가, 아니면 close(라이브 or 정규 종가).
     const useAfter = hasKrw && afterOpen && tp.afterCloseKrw > 0;
-    const price = useAfter ? tp.afterCloseKrw : regClose;
-    // 변동 기준: 애프터장은 토스 앱처럼 '정규 종가 대비'(애프터 세션 변동만), 정규/오버나잇은 '어제 종가 대비'.
-    const base = useAfter ? regClose : yClose;
+    const price = useAfter ? tp.afterCloseKrw : liveKrw;
+    // 변동 기준: 애프터장은 토스 앱처럼 '정규 종가 대비'(애프터 세션 변동), 오버나잇/프리도 정규 종가(base) 대비, 정규/휴장은 어제(base) 대비.
+    const base = useAfter ? regClose : baseKrw;
     const diff = price - base;
     const pct = base > 0 ? (diff / base) * 100 : 0;
-    const regPct = yClose > 0 ? ((regClose - yClose) / yClose) * 100 : 0;   // 마감 책갈피 = 정규장(어제 대비)
+    // 마감 책갈피 등락률 = 정규 종가의 전일대비. 오버나잇/프리엔 전전일 종가가 없어 계산 불가 → undefined(머지 시 Yahoo regularPct 폴백).
+    const regPct = closeIsLive
+      ? undefined
+      : (baseKrw > 0 ? ((regClose - baseKrw) / baseKrw) * 100 : undefined);
     out.set(it.symbol, {
       symbol: it.symbol, name: it.name,
       price, prev: base, prevClose: base,
       diff, pct, currency: hasKrw ? "KRW" : "USD",
       // 달러 보조표기 — 현재가 달러(실시간: 현재 원가 × 환율) / 마감 달러(정규 종가 USD)
       priceUsd: (hasKrw && tp.closeKrw > 0) ? price * (tp.close / tp.closeKrw) : tp.close,
-      regularPriceUsd: tp.close,
+      regularPriceUsd: regCloseUsd,
       tradeDate: tp.tradeDateTime ? toKstDateString(tp.tradeDateTime) : "",
       // 토스 tradeDateTime = 실측 마지막 체결시각(체결 있을 때만 전진, 무체결 종목은 멈춤 — 폴링 검증됨).
       //   24h(Blue Ocean) 거래 중엔 계속 갱신 → 정체 판정에서 통과(밝게). 진짜 끊기면 흐림.

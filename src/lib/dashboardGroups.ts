@@ -20,7 +20,7 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
       label: "🇰🇷 한국 시장",                       // 본체 지수 + (주간 세션 한정)야선 + 한국 공포
       rows: [nightSession
         ? ["^KS11", "^KQ11", "069500.KS", "VKOSPI"]
-        : ["^KS11", "^KQ11", "069500.KS", "^KS200N", "^KQ150N", "VKOSPI"]],
+        : ["^KS11", "^KQ11", "^KS200N", "^KQ150N", "069500.KS", "VKOSPI"]],
     },
     {
       id: "fx", short: "환율",
