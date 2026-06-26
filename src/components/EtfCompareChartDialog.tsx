@@ -1,5 +1,5 @@
 // ETF/종목 비교 차트 — seed(검색결과 전체 or 단일)로 시작, 검색으로 더 추가 가능. 한 그래프에 등락률 겹침.
-//   시간 토글: [분봉 / 주봉]. 분봉=최근 5거래일 1분봉(요일·시간대 패턴), 주봉=2년 일봉 리샘플. 시작점=0% 정규화.
+//   시간 토글: [분봉 / 일봉 / 주봉 / 월봉]. 분봉=5거래일 1분봉(요일·시간대), 일봉=6개월, 주봉=2년 리샘플, 월봉=10년 리샘플. 시작점=0% 정규화.
 //   분봉 타임스탬프는 +9h(KST) 보정 → lightweight-charts UTC 축에 한국 벽시계로 표시
 //   (KR·US 모두 자기 장 시간대에 맞게 찍힘).
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -9,6 +9,7 @@ import {
   createChart,
   ColorType,
   LineSeries,
+  BaselineSeries,
   LineStyle,
   type IChartApi,
   type ISeriesApi,
@@ -42,7 +43,16 @@ const fetchDaily = (ticker: string, range: string): Promise<PricePoint[]> =>
 const fetchMin = (ticker: string, range: string): Promise<IntradayBar[]> =>
   isKr(ticker) ? fetchKrIntraday(ticker, range, "1m") : fetchYahooIntraday(ticker, range, "1m");
 
-type Mode = "min" | "week";   // 분봉(요일·시간대 패턴) / 주봉(중기 추세)
+type Mode = "min" | "day" | "week" | "month";   // 분봉(요일·시간대) / 일봉(단중기) / 주봉(중기) / 월봉(장기)
+
+// 봉별 선택 가능 기간(Yahoo range 토큰). 분봉은 1m 이라 최대 ~7일.
+const PERIODS: Record<Mode, { range: string; label: string }[]> = {
+  min:   [{ range: "1d", label: "1일" }, { range: "5d", label: "5일" }],
+  day:   [{ range: "1mo", label: "1개월" }, { range: "3mo", label: "3개월" }, { range: "6mo", label: "6개월" }, { range: "1y", label: "1년" }],
+  week:  [{ range: "1y", label: "1년" }, { range: "2y", label: "2년" }, { range: "5y", label: "5년" }],
+  month: [{ range: "2y", label: "2년" }, { range: "5y", label: "5년" }, { range: "10y", label: "10년" }, { range: "max", label: "전체" }],
+};
+const DEFAULT_RANGE: Record<Mode, string> = { min: "5d", day: "6mo", week: "2y", month: "10y" };
 
 interface Built {
   data: { time: Time; value: number }[];
@@ -68,6 +78,32 @@ function buildWeekly(hist: PricePoint[]): Built {
   return { data, map: new Map(data.map(x => [String(x.time), x.value])), final: data[data.length - 1].value };
 }
 
+// 일봉: 각 거래일 종가를 첫 거래일=0% 로 정규화
+function buildDaily(hist: PricePoint[]): Built {
+  if (!hist || hist.length < 2) return EMPTY;
+  const base = hist[0].close;
+  if (!(base > 0)) return EMPTY;
+  const data = hist.map(p => ({ time: p.date as Time, value: (p.close / base - 1) * 100 }));
+  return { data, map: new Map(data.map(x => [String(x.time), x.value])), final: data[data.length - 1].value };
+}
+
+// 월봉: 일봉을 YYYY-MM 버킷으로 묶어 각 월 마지막 종가 → 시작월=0% 정규화
+function buildMonthly(hist: PricePoint[]): Built {
+  if (!hist || hist.length < 2) return EMPTY;
+  const monthly: { date: string; close: number }[] = [];
+  let curKey = "";
+  for (const p of hist) {
+    const key = p.date.slice(0, 7);   // YYYY-MM
+    if (key !== curKey) { monthly.push({ date: p.date, close: p.close }); curKey = key; }
+    else monthly[monthly.length - 1] = { date: p.date, close: p.close };   // 같은 달 → 마지막 거래일로 갱신
+  }
+  if (monthly.length < 2) return EMPTY;
+  const base = monthly[0].close;
+  if (!(base > 0)) return EMPTY;
+  const data = monthly.map(p => ({ time: p.date as Time, value: (p.close / base - 1) * 100 }));
+  return { data, map: new Map(data.map(x => [String(x.time), x.value])), final: data[data.length - 1].value };
+}
+
 // 분봉: 첫 봉=0% 정규화, time = epoch + 9h (KST 표시)
 function buildMin(bars: IntradayBar[]): Built {
   if (!bars || bars.length < 2) return EMPTY;
@@ -85,11 +121,24 @@ const PALETTE = [
 const lineColorAt = (i: number): string =>
   i < PALETTE.length ? PALETTE[i] : `hsl(${Math.round((i * 137.508) % 360)}, 62%, 45%)`;
 
+// "#dc2626" + 알파 → rgba (격차 리본 채우기용). 비-hex(hsl)은 그대로 반환(2종목 비교는 항상 hex).
+const hexA = (hex: string, a: number): string => {
+  if (hex[0] !== "#" || hex.length < 7) return hex;
+  const n = parseInt(hex.slice(1, 7), 16);
+  return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
+};
+
 export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const bandRef = useRef<HTMLCanvasElement>(null);   // 배경 밴드(일/주 음영 + 요일 라벨)
   const [mode, setMode] = useState<Mode>("min");
+  const [range, setRange] = useState<string>(DEFAULT_RANGE.min);
+  // 모드 전환 시 그 모드의 기본 기간으로 (현재 range 가 새 모드에 없으면 기본값).
+  const pickMode = (m: Mode) => {
+    setMode(m);
+    setRange(r => (PERIODS[m].some(p => p.range === r) ? r : DEFAULT_RANGE[m]));
+  };
   // seed 로 고정 (다이얼로그는 열 때마다 remount → seed 반영). 추가검색 없음.
   const [items] = useState<StockRef[]>(seed);
 
@@ -112,19 +161,12 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
   // 데이터 — 모드별 fetch (mode 바뀌면 queryKey 달라져 재조회)
   //   분봉: 최근 5거래일 1분봉(요일·시간대 패턴 보기) · 주봉: 2년 일봉 → 주 단위 리샘플
   const qs = useQueries({
-    queries: stocks.map(s => mode === "week"
-      ? {
-          queryKey: ["cmp-week", s.ticker],
-          queryFn: () => fetchDaily(s.ticker, "2y"),
-          staleTime: 60 * 60_000,
-          enabled: isOpen,
-        }
-      : {
-          queryKey: ["cmp-min5d", s.ticker],
-          queryFn: () => fetchMin(s.ticker, "5d"),
-          staleTime: 5 * 60_000,
-          enabled: isOpen,
-        }),
+    queries: stocks.map(s => ({
+      queryKey: ["cmp", mode, range, s.ticker],
+      queryFn: () => (mode === "min" ? fetchMin(s.ticker, range) : fetchDaily(s.ticker, range)),
+      staleTime: mode === "min" ? 5 * 60_000 : mode === "day" ? 30 * 60_000 : 60 * 60_000,
+      enabled: isOpen,
+    })),
   });
   const stamp = qs.map(q => q.dataUpdatedAt).join(",");
   const loading = qs.some(q => q.isLoading);
@@ -134,8 +176,10 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
     const m = new Map<string, Built>();
     stocks.forEach((s, i) => {
       const data = qs[i]?.data;
-      m.set(s.ticker, mode === "week"
-        ? buildWeekly((data as PricePoint[]) ?? [])
+      m.set(s.ticker,
+        mode === "month" ? buildMonthly((data as PricePoint[]) ?? [])
+        : mode === "week" ? buildWeekly((data as PricePoint[]) ?? [])
+        : mode === "day" ? buildDaily((data as PricePoint[]) ?? [])
         : buildMin((data as IntradayBar[]) ?? []));
     });
     return m;
@@ -192,6 +236,44 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
       price: 0, color: "#9ca3af", lineWidth: 1, lineStyle: LineStyle.Dashed,
       axisLabelVisible: true, title: "0%",
     });
+
+    // ── 격차선 — 정확히 2종목 비교 시 하단 서브패널에 (A−B) %p 라인 + 0 기준선.
+    //    0 으로 향하면 수렴, 멀어지면 발산. 0 위/아래 색으로 어느 종목이 앞서는지 표시(BaselineSeries).
+    if (visible.length === 2) {
+      const [sa, sb] = visible;
+      const ba = built.get(sa.ticker)!, bb = built.get(sb.ticker)!;
+      const longer = ba.data.length >= bb.data.length ? ba : bb;
+      const spreadData: { time: Time; value: number }[] = [];
+      for (const d of longer.data) {
+        const key = String(d.time);
+        const va = ba.map.get(key), vb = bb.map.get(key);
+        if (va == null || vb == null) continue;
+        spreadData.push({ time: d.time, value: va - vb });   // sa 등락률 − sb 등락률 (%p)
+      }
+      if (spreadData.length >= 2) {
+        const ca = colorOf(sa.ticker), cb = colorOf(sb.ticker);
+        const spreadSer = chart.addSeries(BaselineSeries, {
+          baseValue: { type: "price", price: 0 },
+          topLineColor: ca, topFillColor1: hexA(ca, 0.28), topFillColor2: hexA(ca, 0.04),
+          bottomLineColor: cb, bottomFillColor1: hexA(cb, 0.04), bottomFillColor2: hexA(cb, 0.28),
+          lineWidth: 2,
+          priceLineVisible: false,
+          lastValueVisible: true,
+          crosshairMarkerVisible: true,
+          crosshairMarkerRadius: 3,
+        }, 1);   // paneIndex 1 = 하단 서브패널
+        spreadSer.setData(spreadData);
+        spreadSer.createPriceLine({
+          price: 0, color: "#9ca3af", lineWidth: 1, lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true, title: "동일",
+        });
+        // 상단(가격) 3 : 하단(격차) 1 비율
+        const panes = chart.panes();
+        panes[0]?.setStretchFactor(3);
+        panes[1]?.setStretchFactor(1);
+      }
+    }
+
     chart.timeScale().fitContent();
 
     const nameByTicker: Record<string, string> = {};
@@ -229,6 +311,15 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
           + `<span style="background:#fff;border-radius:3px;padding:0 3px;color:${pc};font-weight:700;font-variant-numeric:tabular-nums;flex:none">${r.v >= 0 ? "+" : ""}${r.v.toFixed(2)}%</span>`
           + `</div>`;
       });
+      // 격차 — 정확히 2종목일 때 두 등락률 차(%p)를 명시. 앞선 종목 색으로.
+      if (rows.length === 2) {
+        const gap = rows[0].v - rows[1].v;   // 정렬상 rows[0] 이 위 → gap ≥ 0
+        html += `<div style="display:flex;align-items:center;justify-content:space-between;gap:6px;`
+          + `margin-top:2px;padding:1px 5px;border-top:1px solid #e5e7eb;color:#374151;font-weight:600">`
+          + `<span>격차</span>`
+          + `<span style="color:${rows[0].color};font-weight:700;font-variant-numeric:tabular-nums">${gap.toFixed(2)}%p</span>`
+          + `</div>`;
+      }
       tip.innerHTML = html;
       tip.style.display = "block";
       const W = cont.clientWidth, H = cont.clientHeight;
@@ -251,10 +342,17 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
       .reduce((a, b) => (b.length > a.length ? b : a), [] as { time: Time; value: number }[]);
     const refTimes = refData.map(d => d.time);
     const WD = ["일", "월", "화", "수", "목", "금", "토"];
-    const groupOf = (t: Time): number =>
-      mode === "week"
-        ? Math.floor(Date.parse(`${String(t)}T00:00:00Z`) / 86_400_000 / 7)
-        : Math.floor(Number(t) / 86_400);
+    const groupOf = (t: Time): number => {
+      if (mode === "week") return Math.floor(Date.parse(`${String(t)}T00:00:00Z`) / 86_400_000 / 7);
+      if (mode === "month") {   // 연 단위 교차 음영
+        return new Date(`${String(t)}T00:00:00Z`).getUTCFullYear();
+      }
+      if (mode === "day") {   // 월 단위 교차 음영
+        const d = new Date(`${String(t)}T00:00:00Z`);
+        return d.getUTCFullYear() * 12 + d.getUTCMonth();
+      }
+      return Math.floor(Number(t) / 86_400);
+    };
 
     const drawBg = () => {
       const canvas = bandRef.current;
@@ -298,6 +396,37 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
           }
         }
         i = j + 1;
+      }
+
+      // ── 격차 리본 — 2종목 비교 시 두 선 사이를 음영으로 채움(두께=등락률 격차, 색=앞선 종목).
+      //    상단 가격 패널(pane 0, 캔버스 최상단) 좌표라 priceToCoordinate 가 곧 캔버스 y.
+      if (visible.length === 2 && zeroAnchor) {
+        const ma = built.get(visible[0].ticker)!.map, mb = built.get(visible[1].ticker)!.map;
+        const ca = colorOf(visible[0].ticker), cb = colorOf(visible[1].ticker);
+        const Y = (v: number) => zeroAnchor!.priceToCoordinate(v);
+        let rx: number[] = [], rya: number[] = [], ryb: number[] = [], rd: number[] = [];
+        const flush = () => {
+          for (let k = 0; k + 1 < rx.length; k++) {
+            ctx.beginPath();
+            ctx.moveTo(rx[k], rya[k]);
+            ctx.lineTo(rx[k + 1], rya[k + 1]);
+            ctx.lineTo(rx[k + 1], ryb[k + 1]);
+            ctx.lineTo(rx[k], ryb[k]);
+            ctx.closePath();
+            ctx.fillStyle = hexA((rd[k] + rd[k + 1]) >= 0 ? ca : cb, 0.13);   // 평균 격차 부호로 앞선 종목
+            ctx.fill();
+          }
+          rx = []; rya = []; ryb = []; rd = [];
+        };
+        for (const t of refTimes) {
+          const key = String(t);
+          const va = ma.get(key), vb = mb.get(key), x = X(t);
+          if (va == null || vb == null || x == null) { flush(); continue; }
+          const ya = Y(va), yb = Y(vb);
+          if (ya == null || yb == null) { flush(); continue; }
+          rx.push(x); rya.push(ya); ryb.push(yb); rd.push(va - vb);
+        }
+        flush();
       }
 
       // 분봉: 매시 경계 세로 가이드선 + 시각(시) 라벨 — 하루 중 시간대 한눈에
@@ -356,9 +485,12 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
 
           {/* 분봉 / 주봉 토글 */}
           <span className="ml-auto inline-flex items-center gap-0.5">
-            {([["min", "분봉"], ["week", "주봉"]] as const).map(([m, label]) => (
-              <button key={m} onClick={() => setMode(m)}
-                      title={m === "min" ? "최근 5거래일 1분봉 — 요일·시간대 패턴" : "2년 주봉 — 중기 추세"}
+            {([["min", "분봉"], ["day", "일봉"], ["week", "주봉"], ["month", "월봉"]] as const).map(([m, label]) => (
+              <button key={m} onClick={() => pickMode(m)}
+                      title={m === "min" ? "최근 5거래일 1분봉 — 요일·시간대 패턴"
+                             : m === "day" ? "6개월 일봉 — 단·중기 추세"
+                             : m === "week" ? "2년 주봉 — 중기 추세"
+                             : "10년 월봉 — 장기 추세"}
                       className={`px-2.5 py-0.5 rounded text-[11px] font-bold border transition
                                   ${mode === m
                                     ? "bg-gray-800 text-white border-gray-800"
@@ -371,6 +503,20 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
           <button onClick={onClose}
                   className="px-2 py-0.5 text-gray-400 hover:text-rose-500 text-lg leading-none">✕</button>
         </header>
+
+        {/* 기간 선택 — 현재 봉 모드에서 고를 수 있는 기간 칩 */}
+        <div className="px-4 py-1.5 border-b bg-white flex items-center justify-end gap-1.5 flex-wrap text-[11px]">
+          <span className="text-gray-400 font-medium mr-0.5">기간</span>
+          {PERIODS[mode].map(p => (
+            <button key={p.range} onClick={() => setRange(p.range)}
+                    className={`px-2 py-0.5 rounded border transition font-semibold
+                                ${range === p.range
+                                  ? "bg-indigo-600 text-white border-indigo-600"
+                                  : "bg-white text-gray-600 border-gray-300 hover:bg-gray-100"}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
 
         {/* 종목 줄 — 비교 대상(색칩) */}
         <div className="px-4 py-2 border-b flex items-center gap-2 flex-wrap">
@@ -421,8 +567,17 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
               </span>
             );
           })}
+          {stocks.length === 2 && (
+            <span className="text-gray-500">
+              하단 <b className="text-gray-700">격차선</b> = 두 등락률 차(%p) · 0선에 가까울수록 수렴(격차↓), 멀어지면 발산
+            </span>
+          )}
           <span className="ml-auto text-gray-400">
-            {mode === "min" ? "5일 1분봉 · KST · 요일·시간대 패턴 · 첫 봉 대비 %" : "주봉 2년 · 시작주 대비 %"}
+            {(PERIODS[mode].find(p => p.range === range)?.label ?? "")}{" "}
+            {mode === "min" ? "1분봉 · KST · 요일·시간대 패턴 · 첫 봉 대비 %"
+             : mode === "day" ? "일봉 · 첫 거래일 대비 %"
+             : mode === "week" ? "주봉 · 시작주 대비 %"
+             : "월봉 · 시작월 대비 %"}
           </span>
         </div>
       </div>
