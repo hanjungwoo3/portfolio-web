@@ -37,6 +37,14 @@ interface Props {
 const KST_OFFSET = 9 * 3600;                  // 분봉 UTC epoch → KST 벽시계 보정(초)
 const isKr = (t: string) => /^\d{6}$/.test(t);
 
+// 해당 연·월의 둘째 목요일(UTC) — 한국 선물옵션 만기일 = ETF 정기변경 기준일.
+//   KOSPI200·KOSDAQ150·FnGuide 반기지수 모두 6·12월 만기일 전후로 리밸런싱(추정 마커용).
+function secondThursday(year: number, monthIdx0: number): number {
+  const first = new Date(Date.UTC(year, monthIdx0, 1));
+  const toThu = (4 - first.getUTCDay() + 7) % 7;   // 0=일..4=목
+  return Date.UTC(year, monthIdx0, 1 + toThu + 7);
+}
+
 // 종목 타입별 fetch 디스패치 (KR 6자리 → 토스/야후 KS·KQ, 그 외 → 야후 심볼)
 const fetchDaily = (ticker: string, range: string): Promise<PricePoint[]> =>
   isKr(ticker) ? fetchKrPriceHistory(ticker, range) : fetchYahooPriceHistory(ticker, range);
@@ -429,6 +437,40 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
         flush();
       }
 
+      // ── ETF 정기변경(추정) 마커 — 6·12월 선물만기일(둘째 목요일) 세로선. 분봉 제외, KR ETF 포함 시만.
+      //    룰베이스라 전 구간 backfill. 실제 리밸런싱은 만기일 직전일~D+수일에 집중.
+      if (mode !== "min" && stocks.some(s => isKr(s.ticker))) {
+        const toMs = (t: Time) => Date.parse(`${String(t)}T00:00:00Z`);
+        const sMs = toMs(refTimes[0]), eMs = toMs(refTimes[refTimes.length - 1]);
+        const y0 = new Date(sMs).getUTCFullYear(), y1 = new Date(eMs).getUTCFullYear();
+        ctx.font = "700 9px system-ui, -apple-system, sans-serif";
+        ctx.textBaseline = "top";
+        for (let y = y0; y <= y1; y++) {
+          for (const mo of [5, 11]) {   // 6월(idx5)·12월(idx11)
+            const rbMs = secondThursday(y, mo);
+            if (rbMs < sMs || rbMs > eMs) continue;
+            // 가장 가까운 bar 에 스냅(임의 날짜는 timeToCoordinate 가 null 일 수 있음)
+            let bi = 0, bd = Infinity;
+            for (let k = 0; k < refTimes.length; k++) {
+              const d = Math.abs(toMs(refTimes[k]) - rbMs);
+              if (d < bd) { bd = d; bi = k; }
+            }
+            const x = X(refTimes[bi]);
+            if (x == null || x < 0 || x > plotW) continue;
+            ctx.strokeStyle = "rgba(217,119,6,0.5)";   // amber
+            ctx.lineWidth = 1.5;
+            ctx.setLineDash([4, 3]);
+            ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+            ctx.setLineDash([]);
+            const label = `정기변경 ${mo === 5 ? "6" : "12"}월`;
+            const tw = ctx.measureText(label).width;
+            const lx = x + 3 + tw > plotW ? x - 3 - tw : x + 3;
+            ctx.fillStyle = "rgba(180,83,9,0.95)";
+            ctx.fillText(label, lx, 3);
+          }
+        }
+      }
+
       // 분봉: 매시 경계 세로 가이드선 + 시각(시) 라벨 — 하루 중 시간대 한눈에
       if (mode === "min") {
         let prevH = -1, prevD = -1;
@@ -567,6 +609,12 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
               </span>
             );
           })}
+          {mode !== "min" && stocks.some(s => isKr(s.ticker)) && (
+            <span className="inline-flex items-center gap-1 text-gray-500">
+              <span className="inline-block w-4 border-t-2 border-dashed border-amber-600" />
+              <b className="text-amber-700">정기변경(추정)</b> 6·12월 선물만기일
+            </span>
+          )}
           {stocks.length === 2 && (
             <span className="text-gray-500">
               하단 <b className="text-gray-700">격차선</b> = 두 등락률 차(%p) · 0선에 가까울수록 수렴(격차↓), 멀어지면 발산
