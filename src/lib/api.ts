@@ -103,6 +103,7 @@ interface TossPriceItem {
   nxtSinglePrice?: boolean;
   krxTradingSuspended?: boolean;
   nxtTradingSuspended?: boolean;
+  krxAfterSingleClose?: number; // 시간외 단일가 예상체결가(16:00~18:00) — krxSinglePrice 시 제공
   high52w?: number;
   low52w?: number;
 }
@@ -691,6 +692,8 @@ async function fetchTossPricesBatch(tickers: string[]): Promise<Price[]> {
     let high: number | undefined = item.high;
     let low: number | undefined = item.low;
     let volume = item.volume;
+    // 시간외 단일가 예상체결가 — 단일가 매매중일 때만. 비거래일이면 직전 세션값이 남아있을 수 있어 아래서 무효화.
+    let afterSingle: number | undefined = item.krxSinglePrice ? item.krxAfterSingleClose : undefined;
     if (item.tradeDateTime) {
       const tradeKst = new Date(
         new Date(item.tradeDateTime).getTime() + 9 * 3600_000
@@ -702,6 +705,7 @@ async function fetchTossPricesBatch(tickers: string[]): Promise<Price[]> {
         high = undefined;
         low = undefined;
         volume = 0;
+        afterSingle = undefined;
       }
     }
     return {
@@ -716,6 +720,7 @@ async function fetchTossPricesBatch(tickers: string[]): Promise<Price[]> {
       high,
       low,
       singlePrice: !!(item.krxSinglePrice || item.nxtSinglePrice),
+      afterSinglePrice: afterSingle && afterSingle > 0 ? afterSingle : undefined,
       krxSuspended: item.krxTradingSuspended,
       nxtSuspended: item.nxtTradingSuspended,
       high52w: item.high52w,

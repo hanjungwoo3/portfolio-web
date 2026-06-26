@@ -26,6 +26,7 @@ export interface Price {
   high?: number;       // 오늘 고가
   low?: number;        // 오늘 저가
   singlePrice?: boolean; // 시간외 단일가 여부 (KRX/NXT 단일가 매매 중) — "(단일가)" 라벨용
+  afterSinglePrice?: number; // 시간외 단일가 예상체결가(원) — KRX 시간외 단일가(16:00~18:00). 어제종가 대비로 표시
   krxSuspended?: boolean; // KRX 거래 불가(마감/정지)
   nxtSuspended?: boolean; // NXT 거래 불가(마감/정지) — 둘 다 true 면 거래 불가 = 마감
   high52w?: number;    // 52주(1년) 최고가

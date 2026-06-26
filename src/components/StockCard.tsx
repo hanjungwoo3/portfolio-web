@@ -1319,6 +1319,22 @@ export function StockCard({
               </div>
             );
 
+            // 시간외 단일가 예상체결가 — 정규장 종가(price.price) 대비 등락. 현재가 바로 아래 고정.
+            const rowAfter = price.afterSinglePrice && price.afterSinglePrice > 0 && price.price > 0 ? (() => {
+              const ap = price.afterSinglePrice;
+              const aDiff = ap - price.price;
+              const aPct = (aDiff / price.price) * 100;
+              return (
+                <div key="after" className="text-xs text-gray-700">
+                  <span className="text-[10px] text-gray-500">시간외 </span>
+                  <span className={`font-bold ${signColor(aDiff)}`}>{ap.toLocaleString()}원</span>
+                  <span className={`ml-1 text-[10px] ${signColor(aDiff)}`}>
+                    ({formatSigned(aDiff)}원, {aPct >= 0 ? "+" : ""}{aPct.toFixed(2)}%)
+                  </span>
+                </div>
+              );
+            })() : null;
+
             const rowLow = price.low && price.low > 0 ? (() => {
               const lo = price.low;
               const loDiff = lo - price.price;
@@ -1416,6 +1432,8 @@ export function StockCard({
             const allRows: { price: number; el: React.ReactElement }[] = [];
             if (rowHigh && price.high) allRows.push({ price: price.high, el: rowHigh });
             allRows.push({ price: price.price, el: rowCur });
+            // 현재가 바로 아래 고정 (실제 시간외가가 현재가보다 높아도 정렬상 현재 다음)
+            if (rowAfter) allRows.push({ price: price.price - 0.5, el: rowAfter });
             if (rowLow && price.low) allRows.push({ price: price.low, el: rowLow });
             if (rowTarget && consensus?.target) allRows.push({ price: consensus.target, el: rowTarget });
             if (rowMemoTarget && memo?.targetPrice) allRows.push({ price: memo.targetPrice, el: rowMemoTarget });
