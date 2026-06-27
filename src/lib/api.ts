@@ -2085,7 +2085,7 @@ export async function fetchYahooIntraday(
 export async function fetchKrIntraday(
   ticker: string, range = "1mo", interval = "5m",
 ): Promise<IntradayBar[]> {
-  if (!/^\d{6}$/.test(ticker)) return [];
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];   // 영숫자 신형 ETF 코드(0167A0 등) 포함
   const [ks, kq] = await Promise.all([
     fetchYahooIntraday(`${ticker}.KS`, range, interval),
     fetchYahooIntraday(`${ticker}.KQ`, range, interval),

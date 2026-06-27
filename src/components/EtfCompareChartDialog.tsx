@@ -35,7 +35,9 @@ interface Props {
 }
 
 const KST_OFFSET = 9 * 3600;                  // 분봉 UTC epoch → KST 벽시계 보정(초)
-const isKr = (t: string) => /^\d{6}$/.test(t);
+// 한국 코드: 6자리 영숫자 + 숫자 1개 이상(신형 ETF 0167A0 등 영문 섞인 단축코드 포함).
+// 순수 영문 US 심볼(AAPL 등)은 숫자가 없어 자동 제외 → 야후 경로로.
+const isKr = (t: string) => /^[\dA-Za-z]{6}$/.test(t) && /\d/.test(t);
 
 // 해당 연·월의 둘째 목요일(UTC) — 한국 선물옵션 만기일 = ETF 정기변경 기준일.
 //   KOSPI200·KOSDAQ150·FnGuide 반기지수 모두 6·12월 만기일 전후로 리밸런싱(추정 마커용).
