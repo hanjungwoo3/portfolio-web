@@ -1656,6 +1656,8 @@ export interface UsIndex {
   // 정규장 종가 + 변동률 — marketState 무관하게 항상 유지
   regularPrice?: number;
   regularPct?: number;     // (regularPrice - prevClose) / prevClose × 100
+  // 토스 overview mini-chart 캔들 close 시계열 — Yahoo 가 historical 안 주는 심볼(^US2Y 등)의 sparkline 폴백
+  sparkline?: number[];
 }
 
 // ─── 코스피200/코스닥150 야간선물 — yasun.gg 1분봉 캔들 ─────────
@@ -2230,6 +2232,7 @@ const TOSS_CODE_TO_SYMBOL: Record<string, string> = (() => {
 interface TossOverviewItem {
   code?: string;
   price?: { latestPrice?: number; basePrice?: number };
+  miniChart?: { candles?: { price?: number }[] };
 }
 interface TossOverviewResp {
   result?: { indexMap?: Record<string, TossOverviewItem[]> };
@@ -2255,6 +2258,11 @@ async function fetchTossOverview(): Promise<Map<string, UsIndex>> {
         if (typeof close !== "number" || typeof base !== "number") continue;
         const diff = close - base;
         const pct = base > 0 ? (diff / base) * 100 : 0;
+        // mini-chart 캔들 close 시계열 — Yahoo 가 차트 안 주는 심볼(^US2Y)의 sparkline 폴백용
+        const candles = it.miniChart?.candles;
+        const sparkline = Array.isArray(candles)
+          ? candles.map(c => c.price).filter((v): v is number => typeof v === "number" && Number.isFinite(v))
+          : [];
         out.set(sym, {
           symbol: sym, name: sym === "KRW=X" ? "USD/KRW" : sym,  // name 은 merge 시 pairs(야후) 쪽 우선
           price: close, prev: base, prevClose: base,
@@ -2262,6 +2270,7 @@ async function fetchTossOverview(): Promise<Map<string, UsIndex>> {
           // 마감 책갈피도 토스값으로 — 통화 일관(특히 BTC 원화). 미설정 시 Yahoo USD 책갈피가 남아 단위 혼선.
           regularPrice: close, regularPct: pct,
           tradeDate: todayKst, marketState: "",
+          sparkline: sparkline.length > 1 ? sparkline : undefined,
         });
       }
     }
@@ -2439,6 +2448,7 @@ export async function fetchYahooBatch(
       tradeDate: t.tradeDate || y.tradeDate,
       freshTime: t.freshTime ?? y.freshTime,   // 토스가 메인값 → 토스 체결시각이 실제 갱신 기준
       marketState: "",             // 빈값 → 카드가 토스 현재가를 메인으로 표시
+      sparkline: t.sparkline ?? y.sparkline,   // 토스 mini-chart 시계열 (^US2Y sparkline 폴백)
     });
   };
   for (const [sym, t] of ksMap) applyToss(sym, t);

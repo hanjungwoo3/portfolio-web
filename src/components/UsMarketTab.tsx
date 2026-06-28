@@ -160,7 +160,13 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
       const own = yahooChartMap.get(p.symbol) ?? [];
       if (own.length > 1) return [p.symbol, own];
       const fb = SPARKLINE_FALLBACK[p.symbol];
-      if (fb) return [p.symbol, yahooChartMap.get(fb) ?? own];
+      if (fb) {
+        const fbArr = yahooChartMap.get(fb) ?? [];
+        if (fbArr.length > 1) return [p.symbol, fbArr];
+      }
+      // Yahoo 가 차트 안 주는 심볼(^US2Y) — 토스 overview mini-chart 시계열로 폴백
+      const tossSpark = usMap?.get(p.symbol)?.sparkline;
+      if (tossSpark && tossSpark.length > 1) return [p.symbol, tossSpark];
       return [p.symbol, own];
     })
   );
