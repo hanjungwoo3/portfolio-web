@@ -75,7 +75,7 @@ import { EtfReverseTab } from "./EtfReverseTab";
 import { MyTradesTab } from "./MyTradesTab";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { EtfReverseDialog } from "./EtfReverseDialog";
-import { MobileTodayPnLLayer } from "./TodayPnLTable";
+import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
 import { FeedbackDialog } from "./FeedbackDialog";
 import { DonateDialog } from "./DonateDialog";
@@ -239,6 +239,12 @@ export function MobileSimpleView() {
   const tradeCount = allTrades.length;
   // 오늘 매수분 주입 — 추가매수로 buy_date 가 오늘이 돼도 '오늘 손익=전체'로 잡히지 않게.
   const holdings = useMemo(() => attachTodayBuys(rawHoldings, allTrades, getIndependentGroupsMode()), [rawHoldings, allTrades]);
+  // ticker→이름 (전체 보유 기준) — 오늘 매도 카드에서 풀매도된 종목명 해석용
+  const nameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const h of holdings) if (h.name) m.set(h.ticker, h.name);
+    return m;
+  }, [holdings]);
 
   // 그룹 목록 (account 별 카운트) — 한국 + 미국 + 보유 + 사용자 그룹들
   const groupTabs = useMemo(() => {
@@ -1181,9 +1187,12 @@ export function MobileSimpleView() {
                                    pb-2 px-3 flex flex-col items-center gap-2
                                    pointer-events-none">
                     {todayPnLOpen && (
-                      <div className="pointer-events-auto cursor-pointer"
+                      <div className="pointer-events-auto cursor-pointer flex flex-col items-center gap-2"
                            onClick={() => setTodayPnLOpen(false)}>
                         <WhatIfRow holdings={groupHoldings} prices={groupPriceMap} />
+                        <MobileTodayRealizedCard trades={allTrades} account={activeTab}
+                                                 aggregated={activeTab === MY_KEY}
+                                                 holdings={groupHoldings} prices={groupPriceMap} nameMap={nameMap} />
                       </div>
                     )}
                     <div className="pointer-events-auto cursor-pointer"
@@ -1215,6 +1224,9 @@ export function MobileSimpleView() {
                     <div className="pointer-events-auto cursor-pointer flex flex-col items-center gap-2"
                          onClick={() => setTodayPnLOpen(false)}>
                       <WhatIfRow holdings={groupHoldings} prices={groupPriceMap} />
+                      <MobileTodayRealizedCard trades={allTrades} account={activeTab}
+                                               aggregated={activeTab === MY_KEY}
+                                               holdings={groupHoldings} prices={groupPriceMap} nameMap={nameMap} />
                       <MobileTodayPnLLayer holdings={groupHoldings} prices={groupPriceMap} />
                     </div>
                   )}

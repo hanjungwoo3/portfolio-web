@@ -21,7 +21,8 @@ import { getHeldFirst, setHeldFirst } from "./lib/heldFirst";
 import { Menu } from "lucide-react";
 import { getGroupFolders } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
-import { TodayPnLTable } from "./components/TodayPnLTable";
+import { TodayPnLTable, TodayRealizedCard } from "./components/TodayPnLTable";
+import type { Trade } from "./lib/db";
 import { holdingYesterdayBaseSum, signColor, formatSigned } from "./lib/format";
 import { splitByMarket, splitHeldAndMarket, type MarketSection } from "./lib/marketSplit";
 import { GroupNavBar, type GroupNavItem } from "./components/GroupNavBar";
@@ -87,6 +88,7 @@ function Dashboard() {
   const [holdings, setHoldings] = useState<Stock[]>([]);
   const [memos, setMemos] = useState<Map<string, Memo>>(new Map());
   const [tradeCount, setTradeCount] = useState(0);
+  const [allTrades, setAllTrades] = useState<Trade[]>([]);   // 오늘 매도(실현) 집계용 — 무영속, 로드시 갱신
   const [activeTab, setActiveTab] = useState<string>(US_MARKET_TAB_KEY);   // 기본 페이지 = 지수
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
@@ -153,6 +155,7 @@ function Dashboard() {
       setHoldings(attachTodayBuys(h, t, getIndependentGroupsMode()));
       setMemos(m);
       setTradeCount(t.length);
+      setAllTrades(t);
     })();
   }, [reloadKey]);
 
@@ -167,6 +170,12 @@ function Dashboard() {
       if (a && a !== "관심ETF") set.add(a);
     }
     return Array.from(set).sort();
+  }, [holdings]);
+  // ticker→이름 (전체 보유 기준) — 오늘 매도 카드에서 풀매도된 종목명 해석용
+  const nameMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const h of holdings) if (h.name) m.set(h.ticker, h.name);
+    return m;
   }, [holdings]);
 
   // 데이터 로드 후 첫 탭 자동 선택
@@ -701,6 +710,10 @@ function Dashboard() {
                         account={activeTab}
                         aggregated={activeTab === MY_STOCKS_TAB_KEY}
                         onDepositChange={() => setReloadKey(k => k + 1)} />
+              {/* 오늘 전량 매도해 보유 0이어도 오늘 실현은 보이게 */}
+              <TodayRealizedCard trades={allTrades} account={activeTab}
+                                 aggregated={activeTab === MY_STOCKS_TAB_KEY}
+                                 holdings={visible} prices={priceMap} nameMap={nameMap} />
             </div>
           )
         ) : (
@@ -879,6 +892,9 @@ function Dashboard() {
                         heldFirst={heldFirst} onToggleHeldFirst={toggleHeldFirst}
                         onDepositChange={() => setReloadKey(k => k + 1)} />
               <TodayPnLTable holdings={visible} prices={priceMap} />
+              <TodayRealizedCard trades={allTrades} account={activeTab}
+                                 aggregated={activeTab === MY_STOCKS_TAB_KEY}
+                                 holdings={visible} prices={priceMap} nameMap={nameMap} />
               <div className="ml-auto">
                 <WhatIfRow holdings={visible} prices={priceMap} />
               </div>
