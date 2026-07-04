@@ -1,6 +1,6 @@
 {
   "version": "2.0",
-  "lastUpdated": "2026-06-28T11:19:49.859Z",
+  "lastUpdated": "2026-07-04T06:07:40.539Z",
   "activeFeatures": [
     "portfolio-web",
     "proxy",
@@ -8,7 +8,9 @@
     "deno-proxy",
     "render-proxy",
     "edge-functions",
-    "scripts"
+    "scripts",
+    "today_service",
+    "s"
   ],
   "primaryFeature": "portfolio-web",
   "features": {
@@ -21,9 +23,9 @@
       "documents": {},
       "timestamps": {
         "started": "2026-05-01T03:35:27.330Z",
-        "lastUpdated": "2026-06-28T11:19:49.859Z"
+        "lastUpdated": "2026-07-04T06:07:40.539Z"
       },
-      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/src/components/MobileSimpleView.tsx"
+      "lastFile": "/Users/jwhan-macbook/Repository/github-self/portfolio-web/src/components/FinancialCharts.tsx"
     },
     "proxy": {
       "phase": "do",
@@ -102,6 +104,32 @@
         "lastUpdated": "2026-06-25T07:47:32.000Z"
       },
       "lastFile": "/private/tmp/claude-501/-Users-jwhan-macbook-Repository-github-self-portfolio-web/8930779f-f877-442c-9930-9a02e122ddea/scratchpad/portfolio-etf-index/scripts/crawl.js"
+    },
+    "today_service": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-07-04T00:05:09.389Z",
+        "lastUpdated": "2026-07-04T00:09:06.170Z"
+      },
+      "lastFile": "/Users/jwhan-macbook/Repository/github-self/today_service/pages/admin_member.php"
+    },
+    "s": {
+      "phase": "do",
+      "phaseNumber": 3,
+      "matchRate": null,
+      "iterationCount": 0,
+      "requirements": [],
+      "documents": {},
+      "timestamps": {
+        "started": "2026-07-04T00:18:22.983Z",
+        "lastUpdated": "2026-07-04T00:18:37.250Z"
+      },
+      "lastFile": "/Users/jwhan-macbook/Repository/github-self/today_service/s/view.php"
     }
   },
   "pipeline": {
@@ -112,7 +140,7 @@
   "session": {
     "startedAt": "2026-05-01T03:34:12.578Z",
     "onboardingCompleted": false,
-    "lastActivity": "2026-06-28T11:19:49.859Z"
+    "lastActivity": "2026-07-04T06:07:40.539Z"
   },
   "history": [
     {
@@ -36795,6 +36823,156 @@
     },
     {
       "timestamp": "2026-06-28T11:19:49.859Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-29T20:28:31.880Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-29T20:28:41.867Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-29T20:36:01.749Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-29T20:36:12.048Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:37:26.748Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:38:04.744Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:38:12.594Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:38:24.904Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:38:31.901Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:38:40.658Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:38:46.203Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:38:54.080Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:39:03.189Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:39:14.146Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:39:28.789Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:39:36.923Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-06-30T08:48:48.338Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-04T00:05:09.389Z",
+      "feature": "today_service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-04T00:09:02.824Z",
+      "feature": "today_service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-04T00:09:06.170Z",
+      "feature": "today_service",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-04T00:18:22.983Z",
+      "feature": "s",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-04T00:18:37.250Z",
+      "feature": "s",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-04T06:07:26.957Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-04T06:07:34.948Z",
+      "feature": "portfolio-web",
+      "phase": "do",
+      "action": "updated"
+    },
+    {
+      "timestamp": "2026-07-04T06:07:40.539Z",
       "feature": "portfolio-web",
       "phase": "do",
       "action": "updated"

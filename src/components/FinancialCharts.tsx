@@ -312,13 +312,23 @@ export function FinancialCharts({ series }: { series: FinancialSeries }) {
   // 차트 5 — 주주환원: DPS (막대) + 배당성향/수익률 (우축 라인)
   const chart5Visible = !allNull(series.dps) || !allNull(series.dividend_yield);
 
+  // 차트 6 — 설비투자: CAPEX (막대, 절대규모) + 매출대비 비율 (우축 점선)
+  // Wisereport 부호 관습이 종목마다 달라 abs 로 항상 '투자 규모'(양수) 표시.
+  const capexAbs = series.capex.map(v => (v == null ? null : Math.abs(v)));
+  const capexRatio = series.capex.map((v, i) => {
+    const rev = series.revenue[i];
+    if (v == null || rev == null || rev === 0) return null;
+    return (Math.abs(v) / rev) * 100;
+  });
+  const chart6Visible = !allNull(series.capex);
+
   return (
     <section className="mt-3">
       <header className="mb-2 flex items-baseline gap-2 flex-wrap">
         <h3 className="text-sm font-bold text-gray-700">📈 재무 추이 (연간 {years.length}년)</h3>
         <span className="text-[10px] text-gray-400">출처: Wisereport / 단위: 억원 또는 %</span>
       </header>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-2">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-2">
         {chart1Visible && (
           <ChartCard title="손익 추이" sub="매출·영업이익·순이익 + 마진"
                      criteriaMetric="순이익" betterUp={true}
@@ -446,6 +456,26 @@ export function FinancialCharts({ series }: { series: FinancialSeries }) {
               { label: "DPS (좌)", color: "#f59e0b", bar: true },
               { label: "배당수익률 (우)", color: "#dc2626" },
               { label: "배당성향 (우)", color: "#94a3b8", dashed: true },
+            ]} />
+          </ChartCard>
+        )}
+
+        {chart6Visible && (
+          <ChartCard title="설비투자 (CAPEX)" sub="설비투자 규모 + 매출대비 비율(우축)">
+            <Chart cfg={{
+              width: W, height: H, years,
+              bars: [
+                { label: "CAPEX", values: capexAbs, color: "#0891b2" },  // cyan-600
+              ],
+              lines: [
+                { label: "매출대비", values: capexRatio, color: "#dc2626", axis: "right", dashed: true },
+              ],
+              formatLeft: fmtEok,
+              formatRight: fmtPct,
+            }} />
+            <Legend items={[
+              { label: "CAPEX (좌)", color: "#0891b2", bar: true },
+              { label: "매출대비 % (우)", color: "#dc2626", dashed: true },
             ]} />
           </ChartCard>
         )}
