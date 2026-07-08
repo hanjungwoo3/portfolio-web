@@ -12,9 +12,11 @@ export interface DashboardSection {
   mobilePair?: boolean;
 }
 
-export function buildDashboardSections(nightSession: boolean): DashboardSection[] {
+// krClosed=true (한국 정규장 마감 → 카드 흐림) 이면 한국 관련 그룹(한국 시장·한국 섹터 ETF·반도체 TOP2+)을
+//   맨 아래로 내림 — 마감 후엔 움직이는 미국/야간 지표를 위로.
+export function buildDashboardSections(nightSession: boolean, krClosed = false): DashboardSection[] {
   const krNightFut = nightSession ? ["^KS200N", "^KQ150N"] : [];
-  return [
+  const sections: DashboardSection[] = [
     {
       id: "kr", short: "한국",
       label: "🇰🇷 한국 시장",                       // 본체 지수 + (주간 세션 한정)야선 + 한국 공포
@@ -85,6 +87,11 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
       ],
     },
   ];
+  if (krClosed) {
+    const krIds = new Set(["kr", "sector", "semitop2"]);   // 한국 관련 그룹 → 맨 아래(상대 순서 유지)
+    return [...sections.filter(s => !krIds.has(s.id)), ...sections.filter(s => krIds.has(s.id))];
+  }
+  return sections;
 }
 
 // 색인 칩 네비게이션용 항목 — 이모지(라벨 첫 토큰) + 짧은 라벨 + 앵커 id
