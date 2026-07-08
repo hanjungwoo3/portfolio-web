@@ -510,6 +510,25 @@ export async function fetchMarketDeposit(): Promise<MarketDepositData | null> {
   };
 }
 
+// ─── 시장 투자자 순매수 — 네이버 금융 sise 메인 (코스피/코스닥 개인·외국인·기관, 단위 억원) ───
+export interface InvestorNet { indiv: number; foreign: number; inst: number; }
+export type MarketInvestor = Partial<Record<"KOSPI" | "KOSDAQ", InvestorNet>>;
+export async function fetchMarketInvestor(): Promise<MarketInvestor | null> {
+  const resp = await fetchProxied("https://finance.naver.com/sise/");
+  if (!resp.ok) return null;
+  const html = decodeHtmlBuf(await resp.arrayBuffer(), resp.headers.get("Content-Type") || "");
+  const txt = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
+  const re = /(코스피|코스닥)\s*개인\s*([+\-]?[\d,]+)\s*억\s*외국인\s*([+\-]?[\d,]+)\s*억\s*기관\s*([+\-]?[\d,]+)\s*억/g;
+  const num = (s: string) => Number(s.replace(/,/g, ""));
+  const out: MarketInvestor = {};
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(txt))) {
+    const key = m[1] === "코스피" ? "KOSPI" : "KOSDAQ";
+    if (!out[key]) out[key] = { indiv: num(m[2]), foreign: num(m[3]), inst: num(m[4]) };
+  }
+  return Object.keys(out).length ? out : null;
+}
+
 // 한국 업종(섹터) ranking — 토스 TICS (Toss Industry Classification System) depth1 = 대분류.
 // 응답: 섹터별 오늘 등락률 + 순위 + 상승/하락 종목 수 + 아이콘.
 // 기간(5/10/20일) 별 endpoint 는 미확인 → 우선 오늘만.

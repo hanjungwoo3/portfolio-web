@@ -1287,12 +1287,15 @@ export function MobileSimpleView() {
         const sections = buildDashboardSections(isKrNightSession(), !isMarketOpen("KR"));
         const idxStickyTop = (headerCollapsed ? 0 : 44) + navH;   // 헤더(44) + 메인 탭바 아래
         const idxScrollMargin = idxStickyTop + 38;                // + 색인바 높이 만큼 더 내려 착지
+        const idxNavItems = [{ id: "fundflow", emoji: "💰", short: "자금" }, ...dashboardGroupNav(sections)];
         return (
           <div className="px-3 py-2 space-y-3">
-            <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
+            <GroupNavBar items={idxNavItems} idPrefix="midx-" compact floating
                          stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />
-            {/* 증시 자금동향 — 맨 위 고정 (고객예탁금·신용잔고·펀드) */}
-            <FundFlowCard />
+            {/* 증시 자금동향 (내부 맨 위에 코스피/코스닥/코스피200 미니 차트 + 고객예탁금·신용잔고·펀드) */}
+            <div id="midx-fundflow" style={{ scrollMarginTop: idxScrollMargin }}>
+              <FundFlowCard />
+            </div>
             {sections.map(section => (
               <div key={section.label} id={`midx-${section.id}`}
                    style={{ scrollMarginTop: idxScrollMargin }}
