@@ -71,7 +71,7 @@ import { WhatIfRow } from "./WhatIfRow";
 import { SemiCheckTab } from "./SemiCheckTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY } from "./Tabs";
+import { CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
 import { EtfReverseTab } from "./EtfReverseTab";
 import { MyTradesTab } from "./MyTradesTab";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
@@ -199,7 +199,7 @@ export function MobileSimpleView() {
     if (typeof localStorage === "undefined") return KR_KEY;
     return localStorage.getItem(TAB_KEY) ?? KR_KEY;
   });
-  const isSystemTab = activeTab === KR_KEY || activeTab === US_KEY
+  const isSystemTab = activeTab === MONEY_KEY || activeTab === KR_KEY || activeTab === US_KEY
     || activeTab === SEMI_KEY || activeTab === SECTOR_KEY || activeTab === CONSENSUS_KEY
     || activeTab === ETF_KEY || activeTab === MY_TRADES_KEY;
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -256,6 +256,10 @@ export function MobileSimpleView() {
     }
     const vis = getTabVisibility();
     const tabs: { key: string; label: string; count: number; icon?: ReactNode }[] = [];
+    // 증시 — 지수 왼쪽. 증시 자금동향 + 실시간 지수·투자자 차트.
+    if (vis.stockMarket) {
+      tabs.push({ key: MONEY_KEY, label: "💰증시", count: 0 });
+    }
     if (vis.usMarket) {
       // 지수·매크로·반도체를 하나로 통합 (PC UsMarketTab 과 동일한 단일 그룹 뷰)
       tabs.push({ key: KR_KEY, label: "📈지수", count: 0 });
@@ -312,12 +316,13 @@ export function MobileSimpleView() {
   //  시각 순서: 지수 → (섹터·반도체·컨센서스·ETF 묶음) → (내주식·내거래 묶음) → 사용자그룹 → 폴더
   //  (groupTabs 원순서는 내거래가 컨센서스/ETF 앞이라 ETF에서 스와이프 시 내거래를 건너뛰던 문제 수정)
   const navKeys = useMemo(() => {
-    const SYS = [KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, MY_KEY, MY_TRADES_KEY];
+    const SYS = [MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, MY_KEY, MY_TRADES_KEY];
     const has = (k: string) => groupTabs.some(t => t.key === k);
     const keys: string[] = [];
     for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음(섹터…)
     for (const k of [MY_KEY, MY_TRADES_KEY]) if (has(k)) keys.push(k);   // 내자산 묶음(내주식·내거래)
-    if (has(KR_KEY)) keys.push(KR_KEY);                                  // 지수(별도 탭) — 3번째
+    if (has(MONEY_KEY)) keys.push(MONEY_KEY);                            // 증시(별도 탭)
+    if (has(KR_KEY)) keys.push(KR_KEY);                                  // 지수(별도 탭)
     for (const t of groupTabs) if (!SYS.includes(t.key) && !folderedGroups.has(t.key)) keys.push(t.key);  // 사용자그룹
     for (const f of folders) {
       keys.push(...f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko")));
@@ -904,7 +909,20 @@ export function MobileSimpleView() {
             </span>
           );
         })()}
-        {/* 지수 — 섹터묶음·내자산묶음 뒤 3번째 별도 탭 */}
+        {/* 증시 — 지수 왼쪽 별도 탭 */}
+        {(() => {
+          const t = groupTabs.find(x => x.key === MONEY_KEY);
+          if (!t) return null;
+          const active = activeTab === MONEY_KEY;
+          return (
+            <button onClick={() => setActiveTab(MONEY_KEY)}
+                    className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition inline-flex items-center
+                                ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              {t.label}
+            </button>
+          );
+        })()}
+        {/* 지수 — 섹터묶음·내자산묶음 뒤 별도 탭 */}
         {(() => {
           const t = groupTabs.find(x => x.key === KR_KEY);
           if (!t) return null;
@@ -918,8 +936,8 @@ export function MobileSimpleView() {
           );
         })()}
         {groupTabs.map(t => {
-          // 시스템·내자산 탭은 위 드롭다운으로만 표시 (개별 탭 숨김)
-          if ([KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, MY_KEY, MY_TRADES_KEY].includes(t.key)) return null;
+          // 시스템·내자산 탭은 위 드롭다운/별도 버튼으로만 표시 (개별 탭 숨김)
+          if ([MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, MY_KEY, MY_TRADES_KEY].includes(t.key)) return null;
           // 폴더에 담긴 그룹은 개별 탭에서 숨김 (아래 📁 드롭다운으로)
           if (folderedGroups.has(t.key)) return null;
           const active = t.key === activeTab;
@@ -1251,6 +1269,9 @@ export function MobileSimpleView() {
 
       {/* ─── 한국 / 미국 / 반도체 점검 / 섹터 순위 시스템 탭 ─── */}
       {isSystemTab && (() => {
+        if (activeTab === MONEY_KEY) {
+          return <div className="px-3 py-2 pb-32"><FundFlowCard /></div>;
+        }
         if (activeTab === MY_TRADES_KEY) {
           return <div className="px-2 py-2 pb-32"><MyTradesTab holdings={holdings} prices={groupPriceMap} onOpenValuation={setValuationTicker} /></div>;
         }
@@ -1287,15 +1308,10 @@ export function MobileSimpleView() {
         const sections = buildDashboardSections(isKrNightSession(), !isMarketOpen("KR"));
         const idxStickyTop = (headerCollapsed ? 0 : 44) + navH;   // 헤더(44) + 메인 탭바 아래
         const idxScrollMargin = idxStickyTop + 38;                // + 색인바 높이 만큼 더 내려 착지
-        const idxNavItems = [{ id: "fundflow", emoji: "💰", short: "자금" }, ...dashboardGroupNav(sections)];
         return (
           <div className="px-3 py-2 space-y-3">
-            <GroupNavBar items={idxNavItems} idPrefix="midx-" compact floating
+            <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
                          stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />
-            {/* 증시 자금동향 (내부 맨 위에 코스피/코스닥/코스피200 미니 차트 + 고객예탁금·신용잔고·펀드) */}
-            <div id="midx-fundflow" style={{ scrollMarginTop: idxScrollMargin }}>
-              <FundFlowCard />
-            </div>
             {sections.map(section => (
               <div key={section.label} id={`midx-${section.id}`}
                    style={{ scrollMarginTop: idxScrollMargin }}

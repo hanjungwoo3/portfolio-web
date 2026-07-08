@@ -10,7 +10,7 @@ import { attachTodayBuys } from "./lib/tradeCalc";
 import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
-import { Tabs, buildTabs, filterByTab, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY } from "./components/Tabs";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
@@ -38,6 +38,7 @@ import { SearchDialog } from "./components/SearchDialog";
 import { EditHoldingDialog } from "./components/EditHoldingDialog";
 import { MyStockEditDialog } from "./components/MyStockEditDialog";
 import { UsMarketTab } from "./components/UsMarketTab";
+import { FundFlowCard } from "./components/FundFlowCard";
 import { SemiCheckTab } from "./components/SemiCheckTab";
 import { RefreshIndicator } from "./components/RefreshIndicator";
 import { forceUpdate } from "./components/VersionBadge";
@@ -659,7 +660,9 @@ function Dashboard() {
                  ) : undefined} />
         </div>
 
-        {activeTab === US_MARKET_TAB_KEY ? (
+        {activeTab === MARKET_MONEY_TAB_KEY ? (
+          <FundFlowCard />
+        ) : activeTab === US_MARKET_TAB_KEY ? (
           <UsMarketTab navStickyTop={(headerCollapsed ? 0 : headerH) + tabsH}
             onRequestSearch={(q) => {
             setSearchInitQuery(q);

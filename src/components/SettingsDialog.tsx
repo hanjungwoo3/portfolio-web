@@ -86,11 +86,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     persistFolders(next);
   };
 
-  const toggleTab = (key: "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "myTrades" | "consensus" | "etfReverse", v: boolean) => {
+  const toggleTab = (key: "stockMarket" | "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "myTrades" | "consensus" | "etfReverse", v: boolean) => {
     const next = { ...tabVis, [key]: v };
     setTabVis(next);
     setTabVisibility({ [key]: v });
-    const labelMap = { usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", myTrades: "내거래", consensus: "컨센서스", etfReverse: "ETF검색" };
+    const labelMap = { stockMarket: "증시", usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", myTrades: "내거래", consensus: "컨센서스", etfReverse: "ETF검색" };
     setStatusMsg(`✅ ${labelMap[key]} 탭: ${v ? "표시" : "숨김"}`);
     onChanged();
   };
@@ -742,6 +742,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 상단 탭 표시
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={tabVis.stockMarket}
+                         onChange={e => toggleTab("stockMarket", e.target.checked)}
+                         className="w-4 h-4 accent-blue-600" />
+                  <span className="text-[11px] text-gray-700">💰 증시</span>
+                </label>
                 <label className="flex items-center gap-1.5 cursor-pointer select-none">
                   <input type="checkbox" checked={tabVis.usMarket}
                          onChange={e => toggleTab("usMarket", e.target.checked)}

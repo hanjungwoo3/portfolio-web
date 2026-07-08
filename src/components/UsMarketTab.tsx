@@ -7,7 +7,6 @@ import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFu
 import { getDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
 import { GroupNavBar } from "./GroupNavBar";
-import { FundFlowCard } from "./FundFlowCard";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
   allYahooSymbols, allKrEtfTickers,
@@ -238,8 +237,7 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
   const hasPersonalProxy = !!getPersonalProxyUrl();
 
   // 그룹 색인 칩바 — 헤더+탭바 아래(navStickyTop)에 고정. 섹션 앵커 = "usidx-" + section.id
-  // 증시 자금동향(맨 위 카드)용 칩 — 섹션이 아니라 별도로 맨 앞에 추가
-  const navItems = [{ id: "fundflow", emoji: "💰", short: "자금" }, ...dashboardGroupNav(T0_SECTIONS)];
+  const navItems = dashboardGroupNav(T0_SECTIONS);
   const idxScrollMargin = navStickyTop + 44;
 
   return (
@@ -248,10 +246,6 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                    stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin} />
       {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
       <div className="space-y-4">
-        {/* 증시 자금동향 (내부 맨 위에 코스피/코스닥/코스피200 미니 차트 + 고객예탁금·신용잔고·펀드) */}
-        <div id="usidx-fundflow" style={{ scrollMarginTop: idxScrollMargin }}>
-          <FundFlowCard />
-        </div>
         {T0_SECTIONS.map((section) => (
           <div key={section.label} id={`usidx-${section.id}`}
                style={{ scrollMarginTop: idxScrollMargin }}

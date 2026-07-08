@@ -4,6 +4,7 @@
 // 저장/불러오기(JSON)에는 포함하지 않음(디바이스별로 환경이 달라서).
 
 export interface TabVisibility {
+  stockMarket: boolean;
   usMarket: boolean;
   semiCheck: boolean;
   sectorRank: boolean;
@@ -14,6 +15,7 @@ export interface TabVisibility {
 }
 
 const BASE_KEYS = {
+  stockMarket: "portfolio_tab_stock_market",
   usMarket:   "portfolio_tab_us_market",
   semiCheck:  "portfolio_tab_semi_check",
   sectorRank: "portfolio_tab_sector_rank",
@@ -49,6 +51,7 @@ function write(base: string, v: boolean): void {
 
 export function getTabVisibility(): TabVisibility {
   return {
+    stockMarket: read(BASE_KEYS.stockMarket),
     usMarket:   read(BASE_KEYS.usMarket),
     semiCheck:  read(BASE_KEYS.semiCheck),
     sectorRank: read(BASE_KEYS.sectorRank),
@@ -60,6 +63,7 @@ export function getTabVisibility(): TabVisibility {
 }
 
 export function setTabVisibility(patch: Partial<TabVisibility>): void {
+  if (patch.stockMarket !== undefined) write(BASE_KEYS.stockMarket, patch.stockMarket);
   if (patch.usMarket   !== undefined) write(BASE_KEYS.usMarket,   patch.usMarket);
   if (patch.semiCheck  !== undefined) write(BASE_KEYS.semiCheck,  patch.semiCheck);
   if (patch.sectorRank !== undefined) write(BASE_KEYS.sectorRank, patch.sectorRank);

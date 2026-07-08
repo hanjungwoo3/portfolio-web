@@ -46,9 +46,11 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
   const folderedGroups = new Set<string>();
   for (const f of folderList) for (const g of f.groups) if (presentGroups.has(g)) folderedGroups.add(g);
 
-  // 시스템 탭 묶기 — 섹터~ETF 를 드롭다운 하나로 (지수는 자주 써서 오른쪽 별도 고정 탭으로 분리)
-  const sysTabs = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key) && t.key !== US_MARKET_TAB_KEY);
+  // 시스템 탭 묶기 — 섹터~ETF 를 드롭다운 하나로 (증시·지수는 자주 써서 별도 고정 탭으로 분리)
+  const sysTabs = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key)
+    && t.key !== US_MARKET_TAB_KEY && t.key !== MARKET_MONEY_TAB_KEY);
   const usMarketTab = tabs.find(t => t.key === US_MARKET_TAB_KEY);
+  const marketMoneyTab = tabs.find(t => t.key === MARKET_MONEY_TAB_KEY);
   // 내자산 묶기 — 내주식 + 내거래 드롭다운 하나로
   const myTabs = tabs.filter(t => MY_GROUP_KEYS.has(t.key));
 
@@ -112,7 +114,17 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
       {/* 섹터~ETF 드롭다운 → 내자산 묶음(내주식·내거래) → 지수 순서 */}
       {renderGroupDropdown(sysTabs, "📊")}
       {renderGroupDropdown(myTabs, "📦")}
-      {/* 지수 — 3번째 별도 탭 */}
+      {/* 증시 — 지수 왼쪽 별도 탭 */}
+      {marketMoneyTab && (
+        <button onClick={() => onChange(marketMoneyTab.key)}
+                className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 transition-colors -mb-px
+                            ${marketMoneyTab.key === activeKey
+                              ? "border-blue-500 text-blue-700 bg-white"
+                              : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
+          <span className="mr-1">{marketMoneyTab.emoji ?? "💰"}</span>{marketMoneyTab.label}
+        </button>
+      )}
+      {/* 지수 — 별도 탭 */}
       {usMarketTab && (
         <button onClick={() => onChange(usMarketTab.key)}
                 className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 transition-colors -mb-px
@@ -272,6 +284,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
   );
 }
 
+// 증시 — 증시 자금동향(예탁금·신용·펀드) + 코스피/코스닥/코스피200 실시간 차트. 지수 왼쪽 별도 탭.
+export const MARKET_MONEY_TAB_KEY = "__market-money__";
 export const US_MARKET_TAB_KEY = "__us-market__";
 export const SEMI_CHECK_TAB_KEY = "__semi-check__";
 // 한국 섹터 순위 — 토스 TICS depth1 기반, 돈의 흐름 시각화
@@ -287,13 +301,13 @@ export const ETF_REVERSE_TAB_KEY = "__etf-reverse__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
-  "관심ETF", US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY,
+  "관심ETF", MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY,
   SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
 ]);
 
-// 묶기 대상 시스템 탭 — 드롭다운 하나로 합침.
+// 묶기 대상 시스템 탭 — 드롭다운 하나로 합침. (증시·지수는 자주 써서 별도 고정 탭)
 export const SYSTEM_TAB_KEYS = new Set<string>([
-  US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
+  MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
   CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
 ]);
 
@@ -319,6 +333,8 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
     if (s.shares > 0 && s.avg_price > 0) uniqHeld.add(s.ticker);
   }
   const tabs: TabSpec[] = [];
+  // 증시 — 지수 왼쪽. 증시 자금동향 + 실시간 지수·투자자 차트.
+  if (visibility?.stockMarket ?? true) tabs.push({ key: MARKET_MONEY_TAB_KEY, label: "증시", emoji: "💰", count: 0 });
   if (showUs) tabs.push({ key: US_MARKET_TAB_KEY, label: "지수", emoji: "📈", count: 0 });
   // 섹터 (KODEX ETF 기반 4기간 ranking + 토스 핫 테마). 반도체는 지수 대시보드 그룹으로 통합됨.
   if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터", emoji: "🧩", count: 0 });
