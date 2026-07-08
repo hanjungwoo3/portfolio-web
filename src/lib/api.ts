@@ -315,11 +315,20 @@ export const KR_SECTOR_ETFS: KrSectorEtf[] = [
   { ticker: "091170", name: "은행",     fullName: "KODEX 은행" },
   { ticker: "449450", name: "방산",     fullName: "K-방산" },
   { ticker: "266420", name: "헬스케어", fullName: "KODEX 헬스케어" },
+  { ticker: "0190C0", name: "피지컬AI", fullName: "RISE 피지컬AI" },
   { ticker: "445290", name: "로봇",     fullName: "KODEX 로봇" },
   { ticker: "091180", name: "자동차",   fullName: "KODEX 자동차" },
   { ticker: "102970", name: "증권",     fullName: "KODEX 증권" },
   { ticker: "117680", name: "철강",     fullName: "KODEX 철강" },
   { ticker: "117460", name: "에너지화학", fullName: "KODEX 에너지화학" },
+  { ticker: "266410", name: "필수소비재", fullName: "KODEX 필수소비재" },
+  { ticker: "228790", name: "화장품",   fullName: "TIGER 화장품" },
+  { ticker: "466920", name: "조선",     fullName: "SOL 조선TOP3플러스" },
+  { ticker: "434730", name: "원자력",   fullName: "HANARO 원자력iSelect" },
+  { ticker: "266360", name: "K콘텐츠",  fullName: "KODEX K콘텐츠" },
+  { ticker: "300950", name: "게임",     fullName: "KODEX 게임산업" },
+  { ticker: "140700", name: "보험",     fullName: "KODEX 보험" },
+  { ticker: "329200", name: "리츠",     fullName: "TIGER 리츠부동산인프라" },
 ];
 
 export interface KrSectorEtfRank {

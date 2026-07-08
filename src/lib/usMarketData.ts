@@ -83,16 +83,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "DIA",      name: "DIA",         desc: "SPDR Dow Jones 30 — 미국 대형주 30선", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "IWM",      name: "IWM",         desc: "iShares Russell 2000 — 미국 소형주", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "VTI",      name: "VTI",         desc: "Vanguard Total Stock Market — 미국 전체", tier: "T0", sector: "dashboard", direction: "direct" },
-  // 행 6 — 미국 섹터 ETF (KODEX 줄과 짝 매칭 — 같은 순서)
-  { symbol: "SMH",   name: "SMH",   desc: "VanEck 반도체 — NVDA·TSM·AMD 등", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "PAVE",  name: "PAVE",  desc: "Global X 미국 인프라 — 건설·소재·기계", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "LIT",   name: "LIT",   desc: "Global X 리튬·배터리", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "XBI",   name: "XBI",   desc: "SPDR 바이오테크 — 중소형 바이오", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "KBE",   name: "KBE",   desc: "SPDR S&P 은행 — 지역은행 포함", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "ITA",   name: "ITA",   desc: "iShares 미국 항공우주·방산 (Lockheed, RTX 등)", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "XLV",   name: "XLV",   desc: "Health Care Select — 미국 대형 헬스케어", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "KOID",  name: "피지컬AI", desc: "KraneShares 휴머노이드·피지컬AI — 액추에이터(Harmonic Drive·THK)·반도체 글로벌 밸류체인. 한국 로봇주(레인보우로보틱스·두산로보틱스·에스피지) 선행 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
-  // 행 7 — 한국 섹터 KODEX ETF (대표 1개씩, .KS suffix → Yahoo 통해 일관 fetch)
+  // 행 6 — 한국 섹터 KODEX ETF (대표 1개씩, .KS suffix → Yahoo 통해 일관 fetch)
   { symbol: "091160.KS", name: "KODEX 반도체",     desc: "한국 반도체 ETF — 삼성·하이닉스 대표", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "117700.KS", name: "KODEX 건설",       desc: "한국 건설주 ETF — 현대건설/삼성물산/GS건설", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "305720.KS", name: "KODEX 2차전지",    desc: "2차전지 산업 ETF — LG·SK", tier: "T0", sector: "dashboard", direction: "direct" },
@@ -100,7 +91,20 @@ export const US_PAIRS: Pair[] = [
   { symbol: "091170.KS", name: "KODEX 은행",       desc: "한국 은행주 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "449450.KS", name: "K-방산",         desc: "한국 방산 ETF — 한화에어로/LIG넥스원/KAI/현대로템", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "266420.KS", name: "KODEX 헬스케어",    desc: "한국 헬스케어 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "266410.KS", name: "KODEX 필수소비재",  desc: "한국 필수소비재 ETF — 음식료·생활필수품 방어주", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "228790.KS", name: "TIGER 화장품",      desc: "한국 화장품 ETF — 아모레퍼시픽/LG생활건강/코스맥스 등", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "0190C0.KS", name: "RISE 피지컬AI",    desc: "RISE 현대차고정피지컬AI — 현대차 25% + 국내 피지컬AI 밸류체인(LG CNS·현대오토에버·두산로보틱스·레인보우로보틱스·에스피지). 미국 KOID 선행에 대응하는 한국 타깃", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "445290.KS", name: "KODEX 로봇",       desc: "한국 로봇 ETF — 레인보우로보틱스/두산로보틱스/에스피지 등", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "091180.KS", name: "KODEX 자동차",     desc: "한국 자동차 ETF — 현대차/기아/현대모비스 등", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "102970.KS", name: "KODEX 증권",       desc: "한국 증권주 ETF — 미래에셋/삼성증권/키움 등", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "117680.KS", name: "KODEX 철강",       desc: "한국 철강 ETF — 포스코/현대제철 등", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "117460.KS", name: "KODEX 에너지화학",  desc: "한국 에너지·화학 ETF — LG화학/롯데케미칼/S-Oil 등", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "466920.KS", name: "SOL 조선TOP3플러스", desc: "한국 조선 ETF — HD현대중공업/삼성중공업/한화오션", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "434730.KS", name: "HANARO 원자력iSelect", desc: "한국 원자력·전력 ETF — 두산에너빌리티/한전/SMR 밸류체인", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "266360.KS", name: "KODEX K콘텐츠",    desc: "한국 엔터·콘텐츠 ETF — 하이브/JYP/에스엠/CJ ENM", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "300950.KS", name: "KODEX 게임산업",   desc: "한국 게임 ETF — 크래프톤/엔씨소프트/넷마블 등", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "140700.KS", name: "KODEX 보험",       desc: "한국 보험 ETF — 삼성생명/삼성화재/DB손보 등", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "329200.KS", name: "TIGER 리츠부동산인프라", desc: "한국 리츠·부동산 ETF — 배당·금리인하 수혜", tier: "T0", sector: "dashboard", direction: "direct" },
 ];
 
 export const ETFS_BY_SECTOR: Record<string, string[]> = {};

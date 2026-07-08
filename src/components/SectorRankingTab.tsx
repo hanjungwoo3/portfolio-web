@@ -3,7 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import {
   fetchKrSectorEtfRanking, type KrSectorEtfRank,
   fetchKrSectorRanking, type KrSectorRankItem,
+  KR_SECTOR_ETFS,
 } from "../lib/api";
+
+// 시장 proxy(KODEX 200/코스닥150) 제외한 순수 섹터 ETF 개수 — 캡션 표기용 (목록 변경 시 자동 반영)
+const SECTOR_ETF_COUNT = KR_SECTOR_ETFS.filter(e => !e.isMarket).length;
 import { SectorBumpChart } from "./SectorBumpChart";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 
@@ -20,7 +24,7 @@ function sortKey(mode: SortMode, pct: number | null, amt: number | null, obv: nu
   return obv;
 }
 
-// 한국 섹터 순위 — 우리 KODEX/TIGER ETF 12개 기반 자체 ranking (4기간 활성).
+// 한국 섹터 순위 — 우리 KODEX/TIGER 섹터 ETF 기반 자체 ranking (4기간 활성). 목록은 KR_SECTOR_ETFS.
 // + 토스 TICS depth1 ranking (오늘만, 세분화된 leaf 분류) 도 보조로 표시.
 // 색: 한국식 빨강=상승 / 파랑=하락.
 
@@ -53,15 +57,18 @@ function pctColor(pct: number | null): string {
   if (pct < 0) return "text-blue-600";
   return "text-gray-500";
 }
-// 그래프 SectorBumpChart 와 동일 12색 팔레트 (Tableau)
-const PALETTE_12 = [
+// 그래프 SectorBumpChart 와 동일 24색 팔레트 (Tableau) — 순서 반드시 일치시켜 색 매칭 유지
+const PALETTE = [
   "#1f77b4", "#ff7f0e", "#2ca02c", "#d62728",
   "#9467bd", "#8c564b", "#e377c2", "#17becf",
   "#bcbd22", "#e7ba52", "#ad494a", "#a55194",
+  "#7f7f7f", "#393b79", "#637939", "#8c6d31",
+  "#843c39", "#5254a3", "#4b0082", "#00a0a0",
+  "#b5651d", "#c71585", "#2f4f4f", "#66a61e",
 ];
 function tickerColor(index: number, _total: number, isMarket?: boolean): string {
   if (isMarket) return "#d1d5db";  // gray-300 (연한 회색)
-  return PALETTE_12[index % PALETTE_12.length];
+  return PALETTE[index % PALETTE.length];
 }
 
 function rankBg(rank: number): string {
@@ -254,7 +261,7 @@ export function SectorRankingTab({ onRequestSearch }: SectorRankingTabProps = {}
         같은 섹터가 컬럼 사이에서 순위가 올라가면 자금이 그쪽으로 몰리고 있다는 신호입니다.
         <br />
         <span className="text-[11px] text-gray-500">
-          시장 ETF(KODEX 200·KODEX 코스닥150) + 섹터 ETF 12개 · Yahoo 일별 종가 기반 · 1분 자동 갱신
+          시장 ETF(KODEX 200·KODEX 코스닥150) + 섹터 ETF {SECTOR_ETF_COUNT}개 · Yahoo 일별 종가 기반 · 1분 자동 갱신
         </span>
       </div>
 

@@ -29,8 +29,8 @@ const PERIODS: { key: Period; amtKey: AmtKey; obvKey: ObvKey; label: string }[] 
   { key: "today", amtKey: "amountToday", obvKey: "obvToday", label: "오늘" },
 ];
 
-// 12색 카테고리 팔레트 — Tableau 10 + 2개 보강. HSL 균등 분포보다 인접 색 구분 잘됨.
-const PALETTE_12 = [
+// 24색 카테고리 팔레트 — Tableau 10/20 조합. 섹터 21종 + 시장 2종까지 색 겹침 없이 커버.
+const PALETTE = [
   "#1f77b4", // 파랑
   "#ff7f0e", // 주황
   "#2ca02c", // 초록
@@ -43,10 +43,22 @@ const PALETTE_12 = [
   "#e7ba52", // 황금
   "#ad494a", // 진홍
   "#a55194", // 자주
+  "#7f7f7f", // 회색
+  "#393b79", // 남색
+  "#637939", // 짙은 올리브
+  "#8c6d31", // 카키
+  "#843c39", // 벽돌
+  "#5254a3", // 인디고
+  "#4b0082", // 짙은 보라
+  "#00a0a0", // 틸
+  "#b5651d", // 구리
+  "#c71585", // 마젠타
+  "#2f4f4f", // 다크슬레이트
+  "#66a61e", // 라임
 ];
 function colorOf(i: number, _n: number, isMarket?: boolean): string {
   if (isMarket) return "#d1d5db";  // gray-300
-  return PALETTE_12[i % PALETTE_12.length];
+  return PALETTE[i % PALETTE.length];
 }
 
 interface Props {
