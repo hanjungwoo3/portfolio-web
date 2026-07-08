@@ -11,6 +11,14 @@ const META: { key: FundFlowKey; label: string }[] = [
   { key: "stock", label: "주식형" }, { key: "mixed", label: "혼합형" }, { key: "bond", label: "채권형" },
 ];
 const LABEL: Record<FundFlowKey, string> = Object.fromEntries(META.map(m => [m.key, m.label])) as Record<FundFlowKey, string>;
+// 각 지표 짧은 설명 (흐린 작은 글씨)
+const HINT: Record<FundFlowKey, string> = {
+  deposit: "증시 대기 매수자금",
+  credit: "빚내서 산 잔고(레버리지)",
+  stock: "주식형 펀드 설정액",
+  mixed: "주식+채권 혼합 펀드",
+  bond: "채권형 펀드 설정액",
+};
 
 const fmtJo = (eok: number) => `${(eok / 10000).toFixed(1)}조`;
 function fmtDiff(eok: number): string {
@@ -64,8 +72,8 @@ function AxisChart({ data, dates, up }: { data: number[]; dates: string[]; up: b
   );
 }
 
-function Metric({ label, value, diff, series, dates }: {
-  label: string; value: number; diff: number; series: number[]; dates: string[];
+function Metric({ label, hint, value, diff, series, dates }: {
+  label: string; hint: string; value: number; diff: number; series: number[]; dates: string[];
 }) {
   const up = series.length >= 2 && series[series.length - 1] >= series[0];
   return (
@@ -77,6 +85,7 @@ function Metric({ label, value, diff, series, dates }: {
         <div className="text-sm font-bold text-gray-600 truncate">{label}</div>
         <div className="text-lg font-extrabold tabular-nums text-gray-900">{fmtJo(value)}</div>
         <div className={`text-base font-bold tabular-nums ${diffColor(diff)}`}>{fmtDiff(diff)}</div>
+        <div className="text-[10px] text-gray-400 leading-tight mt-0.5">{hint}</div>
       </div>
     </div>
   );
@@ -101,7 +110,7 @@ export function FundFlowCard() {
       </a>
       <div className="grid grid-cols-5 gap-1.5">
         {data.metrics.map(m => (
-          <Metric key={m.key} label={LABEL[m.key]} value={m.value} diff={m.diff} series={m.series} dates={data.dates} />
+          <Metric key={m.key} label={LABEL[m.key]} hint={HINT[m.key]} value={m.value} diff={m.diff} series={m.series} dates={data.dates} />
         ))}
       </div>
     </div>
