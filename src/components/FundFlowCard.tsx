@@ -74,9 +74,9 @@ function Metric({ label, value, diff, series, dates }: {
       <div className="basis-1/2 shrink min-w-0"><AxisChart data={series} dates={dates} up={up} /></div>
       {/* 텍스트 오른쪽 */}
       <div className="min-w-0 leading-tight">
-        <div className="text-xs font-bold text-gray-600 truncate">{label}</div>
-        <div className="text-sm font-extrabold tabular-nums text-gray-900">{fmtJo(value)}</div>
-        <div className={`text-[11px] font-semibold tabular-nums ${diffColor(diff)}`}>{fmtDiff(diff)}</div>
+        <div className="text-sm font-bold text-gray-600 truncate">{label}</div>
+        <div className="text-lg font-extrabold tabular-nums text-gray-900">{fmtJo(value)}</div>
+        <div className={`text-base font-bold tabular-nums ${diffColor(diff)}`}>{fmtDiff(diff)}</div>
       </div>
     </div>
   );
