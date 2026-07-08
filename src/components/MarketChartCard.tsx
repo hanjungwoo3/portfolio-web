@@ -15,16 +15,22 @@ const CHARTS: { key: string; label: string; investor: "KOSPI" | "KOSDAQ" }[] = [
 const imgUrl = (market: string, sid: number) =>
   `https://ssl.pstatic.net/imgfinance/chart/sise/siseMain${market}.png?sid=${sid}`;
 
-const netColor = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-400");
 const fmtNet = (v: number) => `${v > 0 ? "+" : ""}${v.toLocaleString()}`;
 
-function InvestorLine({ net }: { net: InvestorNet }) {
-  const items: [string, number][] = [["개인", net.indiv], ["외국인", net.foreign], ["기관", net.inst]];
+// 시장명(녹색=코스피 지수 색) + 투자자 순매수(네이버 차트 라인 색: 개인=보라/외국인=주황/기관=파랑) 한 줄
+function InfoLine({ label, net }: { label: string; net?: InvestorNet }) {
+  const items = net ? [
+    { label: "개인", v: net.indiv, color: "text-purple-600" },
+    { label: "외국인", v: net.foreign, color: "text-orange-500" },
+    { label: "기관", v: net.inst, color: "text-blue-500" },
+  ] : [];
   return (
-    <div className="flex flex-wrap gap-x-2 gap-y-0 text-sm tabular-nums leading-tight">
-      {items.map(([label, v]) => (
-        <span key={label}><span className="text-gray-400">{label}</span> <span className={`font-bold ${netColor(v)}`}>{fmtNet(v)}</span></span>
+    <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 text-sm tabular-nums leading-tight">
+      <span className="font-bold text-green-600">{label}</span>
+      {items.map(it => (
+        <span key={it.label} className={it.color}>{it.label} <span className="font-bold">{fmtNet(it.v)}</span></span>
       ))}
+      <span className="text-[9px] text-gray-400">↗</span>
     </div>
   );
 }
@@ -52,11 +58,7 @@ export function MarketChartCard() {
         return (
           <a key={c.key} href={NAVER_URL} target="_blank" rel="noopener noreferrer"
              className="block rounded-lg border border-gray-200 bg-white p-1 min-w-0 hover:border-gray-300 self-start">
-            <div className="flex items-baseline justify-between gap-1">
-              <span className="text-[10px] font-bold text-gray-600">{c.label}</span>
-              <span className="text-[9px] text-gray-400">↗</span>
-            </div>
-            {net && <InvestorLine net={net} />}
+            <InfoLine label={c.label} net={net} />
             <img src={imgUrl(c.key, sid)} alt={`${c.label} 실시간 차트`} loading="lazy"
                  className="block w-full h-auto mt-0.5" />
           </a>
