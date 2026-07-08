@@ -795,6 +795,24 @@ function Dashboard() {
                 />
               );
               if (!marketSplit || !marketSplitData) {
+                // 시장 분리 OFF. 내꺼먼저 ON 이면 PC 에서 좌(보유)/우(관심) 2단 분할.
+                // (모바일은 좁아서 MobileSimpleView 가 세로 스택으로 별도 처리)
+                const heldCards = shown.filter(s => s.shares > 0);
+                const notHeldCards = shown.filter(s => !(s.shares > 0));
+                if (heldFirst && heldCards.length > 0 && notHeldCards.length > 0) {
+                  return (
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-3 gap-y-2 items-start">
+                      <div className="space-y-2">
+                        <div className="text-[11px] font-bold text-gray-500 px-0.5">📌 내꺼 (보유) <span className="text-gray-400">{heldCards.length}종목</span></div>
+                        <div className="grid grid-cols-1 gap-2">{heldCards.map(renderCard)}</div>
+                      </div>
+                      <div className="space-y-2">
+                        <div className="text-[11px] font-bold text-gray-500 px-0.5">👀 내꺼 아님 (관심) <span className="text-gray-400">{notHeldCards.length}종목</span></div>
+                        <div className="grid grid-cols-1 gap-2">{notHeldCards.map(renderCard)}</div>
+                      </div>
+                    </div>
+                  );
+                }
                 return <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">{shown.map(renderCard)}</div>;
               }
               // 시장 분리 보기 — heldFirst 면 내꺼/내꺼아님 2단, 아니면 시장만.
