@@ -16,7 +16,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import {
   getPersonalProxies, setPersonalProxies, type PersonalProxy,
@@ -1300,7 +1300,11 @@ export function MobileSimpleView() {
                   {section.label}
                 </span>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
-                  {(section.mobilePair
+                  {(section.id === "sector"
+                    // 한국 섹터 ETF — 테마 무시하고 오늘 등락률(%) 내림차순 정렬 (PC 동일)
+                    ? section.rows.flat().sort((a, b) =>
+                        (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity))
+                    : section.mobilePair
                     // 좌 미국·우 한국 — 미국 줄(rows[0])과 한국 줄(rows[1])을 열 단위로 zip → [US0,KR0, US1,KR1, …]
                     ? (() => {
                         const out: string[] = [];

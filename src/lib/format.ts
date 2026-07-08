@@ -199,6 +199,23 @@ export function isSymbolSleeping(symbol: string): boolean {
   return !isMarketOpen(marketOfSymbol(symbol));
 }
 
+// 표시용 등락률(%) — 대시보드 카드 본문 mainPct(showPct)와 동일 규칙:
+//   어제 종가 대비 정규장+시간외 누적, 개장 전·마감 보합이면 마지막 정규장 %로 폴백. 값 없으면 null.
+//   PC/모바일 지수 대시보드에서 카드 표시·정렬(예: 한국 섹터 ETF % 정렬) 공용.
+export type SortQuote = { marketState?: string | null; postPrice?: number | null; price?: number | null; prevClose?: number | null; regularPct?: number | null };
+export function displayPctOf(symbol: string, q: SortQuote | undefined): number | null {
+  if (!q) return null;
+  const offHours = q.marketState != null && ["PRE", "POST", "POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState);
+  const effPrice = offHours && q.postPrice ? q.postPrice : q.price;
+  const effBase = q.prevClose;
+  const pct = (q.marketState === "REGULAR" && q.regularPct != null)
+    ? q.regularPct
+    : (effPrice != null && effBase != null && effBase > 0 ? ((effPrice - effBase) / effBase) * 100 : null);
+  const liveFlat = pct == null || Math.abs(pct) < 0.005;
+  return (isSymbolSleeping(symbol) && liveFlat && q.regularPct != null && Math.abs(q.regularPct) >= 0.005)
+    ? q.regularPct : pct;
+}
+
 // 데이터 갱신 정체 판정 — 마지막 실측 체결(freshTime)이 STALE_MIN 분 이상 지났으면 '멈춤'(흐림 대상).
 //   미국 종목/ETF·지수선물은 24h 거래(isUsExtendedTradingOpen 시각창)로 밝게 유지되지만,
 //   그 안에서도 '진짜 멈춘' 종목(VIX = 정규장 후 갱신중단, 데이터 끊김 등)을 이 정체 판정이 잡아 흐림.
