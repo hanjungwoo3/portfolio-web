@@ -16,8 +16,9 @@ const imgUrl = (market: string, sid: number) =>
   `https://ssl.pstatic.net/imgfinance/chart/sise/siseMain${market}.png?sid=${sid}`;
 
 const fmtNet = (v: number) => `${v > 0 ? "+" : ""}${v.toLocaleString()}`;
+const netColor = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-400");
 
-// 시장명(녹색=코스피 지수 색) + 투자자 순매수(네이버 차트 라인 색: 개인=보라/외국인=주황/기관=파랑) 한 줄
+// 시장명(녹색) + 투자자 순매수 한 줄. 라벨=투자자 색(개인 보라/외국인 주황/기관 파랑), 금액=부호 색(+빨강/−파랑)
 function InfoLine({ label, net }: { label: string; net?: InvestorNet }) {
   const items = net ? [
     { label: "개인", v: net.indiv, color: "text-purple-600" },
@@ -28,7 +29,7 @@ function InfoLine({ label, net }: { label: string; net?: InvestorNet }) {
     <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0 text-sm tabular-nums leading-tight">
       <span className="font-bold text-green-600">{label}</span>
       {items.map(it => (
-        <span key={it.label} className={it.color}>{it.label} <span className="font-bold">{fmtNet(it.v)}</span></span>
+        <span key={it.label}><span className={it.color}>{it.label}</span> <span className={`font-bold ${netColor(it.v)}`}>{fmtNet(it.v)}</span></span>
       ))}
       <span className="text-[9px] text-gray-400">↗</span>
     </div>
