@@ -29,7 +29,7 @@ import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMai
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
-import { FundFlowCard } from "./FundFlowCard";
+import { StockMarketTab } from "./StockMarketTab";
 import { normalizeAccount } from "../lib/account";
 import { attachTodayBuys } from "../lib/tradeCalc";
 import type { MarketIndexKey } from "../lib/api";
@@ -1270,7 +1270,7 @@ export function MobileSimpleView() {
       {/* ─── 한국 / 미국 / 반도체 점검 / 섹터 순위 시스템 탭 ─── */}
       {isSystemTab && (() => {
         if (activeTab === MONEY_KEY) {
-          return <div className="px-3 py-2 pb-32"><FundFlowCard /></div>;
+          return <div className="px-3 py-2 pb-32"><StockMarketTab /></div>;
         }
         if (activeTab === MY_TRADES_KEY) {
           return <div className="px-2 py-2 pb-32"><MyTradesTab holdings={holdings} prices={groupPriceMap} onOpenValuation={setValuationTicker} /></div>;

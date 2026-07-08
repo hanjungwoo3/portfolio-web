@@ -529,6 +529,62 @@ export async function fetchMarketInvestor(): Promise<MarketInvestor | null> {
   return Object.keys(out).length ? out : null;
 }
 
+// ─── 증시 뉴스 — 토스증권 뉴스 (POST /dashboard/wts/news, 익명 가능). tossinvest.com/feed/news 와 동일 소스 ───
+//   카테고리 4종 모두 익명 접근 가능(로그인 시 인기뉴스만 개인화, 익명은 '많이 보는 뉴스' 일반본).
+export interface TossNewsStock { stockCode: string; stockName: string; fluctuation?: number; market?: string; }
+export interface TossNewsItem {
+  newsId: string;
+  title: string;
+  summary: string;
+  agency: string;      // 언론사 (이데일리 등)
+  nation: string;      // "KR" | "US" 등
+  createdAt: string;   // ISO
+  imageUrl?: string;
+  stocks: TossNewsStock[];
+}
+interface TossNewsRaw {
+  newsId: string; title: string; summary?: string; contentText?: string;
+  source?: string; agencyName?: string; nation?: string; createdAt: string;
+  imageUrl?: string | null;
+  relatedStocks?: { stockCode: string; stockName: string; fluctuation?: number; market?: string }[];
+}
+// 뉴스 원문 링크(언론사 기사 URL) — 상세 엔드포인트의 linkUrl. 클릭 시 토스가 아니라 원문으로 이동.
+export async function fetchTossNewsLink(newsId: string): Promise<string | null> {
+  try {
+    const resp = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/news/${encodeURIComponent(newsId)}`);
+    if (!resp.ok) return null;
+    const data = await resp.json() as { result?: { availableLanguages?: string[]; [lang: string]: { linkUrl?: string } | string[] | undefined } };
+    const r = data.result;
+    if (!r) return null;
+    const lang = (Array.isArray(r.availableLanguages) && r.availableLanguages[0]) || "kr";
+    const pick = (r[lang] ?? r.kr) as { linkUrl?: string } | undefined;
+    return pick?.linkUrl ?? null;
+  } catch { return null; }
+}
+// 카테고리 4종 — 인기(PERSONALIZED)/주요(ALL_HIGHLIGHT)/최신(HOT)/급상승(SOARING_STOCK). 전부 익명 가능.
+export type TossNewsCategory = "PERSONALIZED" | "ALL_HIGHLIGHT" | "HOT" | "SOARING_STOCK";
+export async function fetchTossNews(category: TossNewsCategory = "ALL_HIGHLIGHT"): Promise<TossNewsItem[]> {
+  const resp = await fetchProxied("https://wts-info-api.tossinvest.com/api/v1/dashboard/wts/news", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ type: category }),
+  });
+  if (!resp.ok) return [];
+  const data = await resp.json() as { result?: { news?: TossNewsRaw[] } };
+  return (data.result?.news ?? []).map(n => ({
+    newsId: n.newsId,
+    title: n.title,
+    summary: n.summary ?? n.contentText ?? "",
+    agency: n.agencyName || n.source || "",
+    nation: n.nation || "",
+    createdAt: n.createdAt,
+    imageUrl: n.imageUrl || undefined,
+    stocks: (n.relatedStocks ?? []).map(s => ({
+      stockCode: s.stockCode, stockName: s.stockName, fluctuation: s.fluctuation, market: s.market,
+    })),
+  }));
+}
+
 // 한국 업종(섹터) ranking — 토스 TICS (Toss Industry Classification System) depth1 = 대분류.
 // 응답: 섹터별 오늘 등락률 + 순위 + 상승/하락 종목 수 + 아이콘.
 // 기간(5/10/20일) 별 endpoint 는 미확인 → 우선 오늘만.

@@ -38,7 +38,7 @@ import { SearchDialog } from "./components/SearchDialog";
 import { EditHoldingDialog } from "./components/EditHoldingDialog";
 import { MyStockEditDialog } from "./components/MyStockEditDialog";
 import { UsMarketTab } from "./components/UsMarketTab";
-import { FundFlowCard } from "./components/FundFlowCard";
+import { StockMarketTab } from "./components/StockMarketTab";
 import { SemiCheckTab } from "./components/SemiCheckTab";
 import { RefreshIndicator } from "./components/RefreshIndicator";
 import { forceUpdate } from "./components/VersionBadge";
@@ -661,7 +661,7 @@ function Dashboard() {
         </div>
 
         {activeTab === MARKET_MONEY_TAB_KEY ? (
-          <FundFlowCard />
+          <StockMarketTab />
         ) : activeTab === US_MARKET_TAB_KEY ? (
           <UsMarketTab navStickyTop={(headerCollapsed ? 0 : headerH) + tabsH}
             onRequestSearch={(q) => {
