@@ -454,6 +454,62 @@ export async function fetchKrSectorEtfRanking(): Promise<KrSectorEtfRank[]> {
   return results;
 }
 
+// ─── 증시 자금동향 — 네이버 금융 sise_deposit (고객예탁금·신용잔고·주식형/혼합형/채권형 펀드, 단위 억원, 일자별) ───
+//   finance.naver.com 은 이미 프록시 화이트리스트에 있음(테마·종목과 동일 호스트). EUC-KR → decodeHtmlBuf.
+export type FundFlowKey = "deposit" | "credit" | "stock" | "mixed" | "bond";
+export interface FundFlowMetric {
+  key: FundFlowKey;
+  value: number;     // 최신값 (억원)
+  diff: number;      // 전일대비 (억원, 부호)
+  series: number[];  // 최근 시계열 (과거→최신, 억원)
+}
+export interface MarketDepositData {
+  date: string;             // 최신 일자 (YY.MM.DD)
+  dates: string[];          // series 와 정렬된 일자 (과거→최신, YY.MM.DD)
+  metrics: FundFlowMetric[];
+}
+// 표 컬럼 인덱스 — [날짜, 고객예탁금, 대비, 신용잔고, 대비, 주식형, 대비, 혼합형, 대비, 채권형, 대비]
+const FUND_FLOW_COLS: { key: FundFlowKey; idx: number }[] = [
+  { key: "deposit", idx: 1 }, { key: "credit", idx: 3 },
+  { key: "stock", idx: 5 }, { key: "mixed", idx: 7 }, { key: "bond", idx: 9 },
+];
+export async function fetchMarketDeposit(): Promise<MarketDepositData | null> {
+  const resp = await fetchProxied("https://finance.naver.com/sise/sise_deposit.naver");
+  if (!resp.ok) return null;
+  const html = decodeHtmlBuf(await resp.arrayBuffer(), resp.headers.get("Content-Type") || "");
+  const rows: Record<FundFlowKey, number>[] = [];
+  const rowDates: string[] = [];
+  for (const tr of html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) ?? []) {
+    const cells = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
+      .map(m => m[1].replace(/<[^>]+>/g, "").replace(/&nbsp;/g, "").trim())
+      .filter(c => c !== "");
+    if (cells.length >= 10 && /^\d{2}\.\d{2}\.\d{2}$/.test(cells[0])) {
+      const num = (s: string) => Number(s.replace(/,/g, ""));
+      const row = {} as Record<FundFlowKey, number>;
+      let ok = true;
+      for (const { key, idx } of FUND_FLOW_COLS) {
+        const v = num(cells[idx]);
+        if (!Number.isFinite(v)) { ok = false; break; }
+        row[key] = v;
+      }
+      if (ok) { rowDates.push(cells[0]); rows.push(row); }
+    }
+  }
+  if (!rows.length) return null;
+  const latest = rows[0], prev = rows[1];
+  const idx = rows.slice(0, 20).map((_, i) => i).reverse();   // 과거→최신 인덱스
+  return {
+    date: rowDates[0],
+    dates: idx.map(i => rowDates[i]),
+    metrics: FUND_FLOW_COLS.map(({ key }) => ({
+      key,
+      value: latest[key],
+      diff: prev ? latest[key] - prev[key] : 0,
+      series: idx.map(i => rows[i][key]),
+    })),
+  };
+}
+
 // 한국 업종(섹터) ranking — 토스 TICS (Toss Industry Classification System) depth1 = 대분류.
 // 응답: 섹터별 오늘 등락률 + 순위 + 상승/하락 종목 수 + 아이콘.
 // 기간(5/10/20일) 별 endpoint 는 미확인 → 우선 오늘만.

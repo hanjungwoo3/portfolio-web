@@ -29,6 +29,7 @@ import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMai
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
+import { FundFlowCard } from "./FundFlowCard";
 import { normalizeAccount } from "../lib/account";
 import { attachTodayBuys } from "../lib/tradeCalc";
 import type { MarketIndexKey } from "../lib/api";
@@ -1290,6 +1291,8 @@ export function MobileSimpleView() {
           <div className="px-3 py-2 space-y-3">
             <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
                          stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />
+            {/* 증시 자금동향 — 맨 위 고정 (고객예탁금·신용잔고·펀드) */}
+            <FundFlowCard />
             {sections.map(section => (
               <div key={section.label} id={`midx-${section.id}`}
                    style={{ scrollMarginTop: idxScrollMargin }}

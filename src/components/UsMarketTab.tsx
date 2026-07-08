@@ -7,6 +7,7 @@ import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFu
 import { getDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
 import { GroupNavBar } from "./GroupNavBar";
+import { FundFlowCard } from "./FundFlowCard";
 import {
   US_PAIRS, ETFS_BY_SECTOR, ETF_NAMES, SECTOR_EMOJI, SECTOR_ORDER,
   allYahooSymbols, allKrEtfTickers,
@@ -246,6 +247,8 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                    stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin} />
       {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
       <div className="space-y-4">
+        {/* 증시 자금동향 — 맨 위 고정 (고객예탁금·신용잔고·펀드) */}
+        <FundFlowCard />
         {T0_SECTIONS.map((section) => (
           <div key={section.label} id={`usidx-${section.id}`}
                style={{ scrollMarginTop: idxScrollMargin }}
