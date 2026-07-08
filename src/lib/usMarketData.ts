@@ -105,6 +105,12 @@ export const US_PAIRS: Pair[] = [
   { symbol: "300950.KS", name: "KODEX 게임산업",   desc: "한국 게임 ETF — 크래프톤/엔씨소프트/넷마블 등", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "140700.KS", name: "KODEX 보험",       desc: "한국 보험 ETF — 삼성생명/삼성화재/DB손보 등", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "329200.KS", name: "TIGER 리츠부동산인프라", desc: "한국 리츠·부동산 ETF — 배당·금리인하 수혜", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 반도체 TOP2+ / HBM 테마 ETF — 삼성전자·SK하이닉스 집중
+  { symbol: "395160.KS", name: "KODEX AI반도체TOP2플러스", desc: "삼성전자·SK하이닉스 집중 + AI반도체 밸류체인", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "395270.KS", name: "HANARO Fn K-반도체",   desc: "한국 반도체 대표 — 삼성·하이닉스 TOP2 비중", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "0167A0.KS", name: "SOL AI반도체TOP2플러스", desc: "삼성전자·SK하이닉스 집중 + AI반도체", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "0210A0.KS", name: "ACE K반도체TOP2+",    desc: "삼성전자·SK하이닉스 집중 반도체", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "442580.KS", name: "PLUS 글로벌HBM반도체",  desc: "글로벌 HBM 밸류체인 — 하이닉스·마이크론·엔비디아 등", tier: "T0", sector: "dashboard", direction: "direct" },
 ];
 
 export const ETFS_BY_SECTOR: Record<string, string[]> = {};

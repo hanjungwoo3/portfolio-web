@@ -32,6 +32,13 @@ export function buildDashboardSections(nightSession: boolean): DashboardSection[
       ],
     },
     {
+      id: "semitop2", short: "TOP2",
+      label: "🏆 반도체 TOP2+ ETF",                    // 삼성·하이닉스 집중 반도체 TOP2/HBM 테마 ETF 비교
+      rows: [
+        ["395160.KS", "395270.KS", "0167A0.KS", "0210A0.KS", "442580.KS"],   // KODEX AI반도체TOP2플러스·HANARO Fn K-반도체·SOL AI반도체TOP2플러스·ACE K반도체TOP2+·PLUS 글로벌HBM반도체
+      ],
+    },
+    {
       id: "fx", short: "환율",
       label: "📊 환율/달러/투심",                     // 환율·달러 강도 + 외국인 투심(EWY)·공포(VIX)
       rows: [["KRW=X", "DX-Y.NYB", "EWY", "^VIX"]],
