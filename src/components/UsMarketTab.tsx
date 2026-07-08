@@ -255,8 +255,8 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                              text-sm font-bold text-gray-700 whitespace-nowrap">
               {section.label}
             </span>
-            {/* 한국 섹터 ETF 그룹은 테마 무시하고 오늘 등락률(%) 내림차순으로 정렬 (8개씩 줄바꿈) */}
-            {(section.id === "sector"
+            {/* 한국 섹터 ETF·반도체 TOP2+ 그룹은 오늘 등락률(%) 내림차순으로 정렬 (8개씩 줄바꿈) */}
+            {(section.id === "sector" || section.id === "semitop2"
               ? chunk(
                   section.rows.flat().sort((a, b) =>
                     (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity)),
