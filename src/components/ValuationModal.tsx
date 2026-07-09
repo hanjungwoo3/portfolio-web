@@ -2,6 +2,7 @@ import { lazy, Suspense, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCrosshairSync } from "../lib/useCrosshairSync";
 import { useEscClose } from "../lib/useEscClose";
+import { maColor, parseMaPeriods, MA_DEFAULT_PERIODS, MA_MAX_LINES, MA_MAX_PERIOD } from "../lib/indicators";
 import type { SyncRegistrar } from "../lib/useCrosshairSync";
 
 // 무거운 차트 라이브러리는 lazy — 모달 열릴 때만 로드 (~50KB gzip)
@@ -1011,6 +1012,28 @@ function saveDiscToggle(on: boolean): void {
   try { localStorage.setItem(DISC_TOGGLE_KEY, on ? "on" : "off"); } catch { /* noop */ }
 }
 
+// 보조지표 토글 — 이평선 / 볼린저밴드(20, 2σ). 둘 다 기본 OFF.
+function loadOnOff(key: string): boolean {
+  try { return localStorage.getItem(key) === "on"; }
+  catch { return false; }
+}
+function saveOnOff(key: string, on: boolean): void {
+  try { localStorage.setItem(key, on ? "on" : "off"); } catch { /* noop */ }
+}
+const MA_TOGGLE_KEY = "price_chart_ma";
+const BB_TOGGLE_KEY = "price_chart_bb";
+
+// 이평선 기간 — 사용자가 직접 입력. 원문 문자열을 저장해 편집 중 커서/중간상태를 보존한다.
+const MA_PERIODS_KEY = "price_chart_ma_periods";
+const MA_DEFAULT_INPUT = MA_DEFAULT_PERIODS.join(", ");
+function loadMaInput(): string {
+  try { return localStorage.getItem(MA_PERIODS_KEY) ?? MA_DEFAULT_INPUT; }
+  catch { return MA_DEFAULT_INPUT; }
+}
+function saveMaInput(raw: string): void {
+  try { localStorage.setItem(MA_PERIODS_KEY, raw); } catch { /* noop */ }
+}
+
 
 function PriceVolumeChart({
   prices, investors, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, ticker, onReady,
@@ -1028,6 +1051,18 @@ function PriceVolumeChart({
   const setModePersist = (m: ChartMode) => { setMode(m); saveChartMode(m); };
   const [showDisc, setShowDisc] = useState<boolean>(loadDiscToggle);
   const toggleDisc = () => { const v = !showDisc; setShowDisc(v); saveDiscToggle(v); };
+  const [showMA, setShowMA] = useState<boolean>(() => loadOnOff(MA_TOGGLE_KEY));
+  const toggleMA = () => { const v = !showMA; setShowMA(v); saveOnOff(MA_TOGGLE_KEY, v); };
+  const [showBB, setShowBB] = useState<boolean>(() => loadOnOff(BB_TOGGLE_KEY));
+  const toggleBB = () => { const v = !showBB; setShowBB(v); saveOnOff(BB_TOGGLE_KEY, v); };
+  const [maInput, setMaInput] = useState<string>(loadMaInput);
+  const setMaInputPersist = (raw: string) => { setMaInput(raw); saveMaInput(raw); };
+  // 차트 effect 의 dep — 파싱 결과가 같으면 같은 배열 identity 를 유지해야 재생성이 안 일어난다.
+  const maKey = showMA ? parseMaPeriods(maInput).join(",") : "";
+  const maPeriods = useMemo(
+    () => (maKey ? maKey.split(",").map(Number) : []),
+    [maKey],
+  );
   const N = prices.length;
   if (N < 2) return null;
 
@@ -1091,7 +1126,45 @@ function PriceVolumeChart({
             </span>
           );
         })()}
+        {showMA && (
+          <span className="flex items-center gap-1.5">
+            {maPeriods.map((p, i) => (
+              <span key={p} className="flex items-center gap-0.5">
+                <span className="inline-block w-3 h-0.5" style={{ background: maColor(i) }}></span>
+                <span style={{ color: maColor(i) }} className="font-medium">MA{p}</span>
+              </span>
+            ))}
+            <input value={maInput}
+                   onChange={e => setMaInputPersist(e.target.value)}
+                   onBlur={() => setMaInputPersist(
+                     parseMaPeriods(maInput).join(", ") || MA_DEFAULT_INPUT)}
+                   placeholder={MA_DEFAULT_INPUT}
+                   title={`쉼표로 구분해 입력 (1~${MA_MAX_PERIOD}일, 최대 ${MA_MAX_LINES}개)`}
+                   className="w-20 px-1 py-0 rounded border border-gray-200 text-[10px] tabular-nums
+                              text-gray-600 focus:outline-none focus:border-cyan-400" />
+          </span>
+        )}
         <span className="ml-auto inline-flex items-center gap-1">
+          {/* 이동평균선 토글 — 기간은 켰을 때 나오는 입력칸에서 조정 */}
+          <button onClick={toggleMA}
+                  title={showMA ? "이평선 숨기기" : `이평선 보이기 (${MA_DEFAULT_INPUT}일)`}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                    showMA
+                      ? "bg-cyan-100 text-cyan-700 border-cyan-300"
+                      : "text-gray-400 border-gray-200 hover:bg-gray-100"
+                  }`}>
+            📈 이평 {showMA ? "ON" : "OFF"}
+          </button>
+          {/* 볼린저밴드 (20, 2σ) 토글 */}
+          <button onClick={toggleBB}
+                  title={showBB ? "볼린저밴드 숨기기" : "볼린저밴드 보이기 (20일, 2σ)"}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                    showBB
+                      ? "bg-slate-200 text-slate-700 border-slate-400"
+                      : "text-gray-400 border-gray-200 hover:bg-gray-100"
+                  }`}>
+            〰 볼린저 {showBB ? "ON" : "OFF"}
+          </button>
           {/* 공시 마커 표시 토글 */}
           <button onClick={toggleDisc}
                   title={showDisc ? "공시 마커 숨기기" : "공시 마커 보이기"}
@@ -1120,6 +1193,7 @@ function PriceVolumeChart({
         </div>
       }>
         <CandleChartLight prices={prices} investors={investors} mode={mode}
+                          maPeriods={maPeriods} showBB={showBB}
                           targetPrice={targetPrice} myAvgPrice={myAvgPrice} entryPrice={entryPrice}
                           dividends={dividends} splits={splits}
                           disclosures={showDisc ? disclosures : []}

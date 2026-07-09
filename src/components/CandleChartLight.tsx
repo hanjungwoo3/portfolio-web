@@ -19,6 +19,7 @@ import {
   type MouseEventParams,
 } from "lightweight-charts";
 import type { PricePoint, DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
+import { sma, bollinger, maColor, BB_COLOR, BB_MID_COLOR } from "../lib/indicators";
 import type { Investor } from "../types";
 
 const UP_COLOR    = "#dc2626";  // 양봉 빨강
@@ -49,12 +50,20 @@ interface Props {
   disclosures?: DartDisclosure[];
   ticker?: string;
   mode: "line" | "candle";
+  maPeriods?: number[];   // 빈 배열이면 이평선 없음. 호출자가 useMemo 로 안정화할 것 (effect dep)
+  showBB?: boolean;
   onReady?: (
     chart: IChartApi,
     anchor: ISeriesApi<SeriesType>,
     onSyncedHover?: (time: Time | null) => void,
   ) => (() => void) | void;
 }
+
+// 기본값을 인라인 [] 로 두면 매 렌더마다 새 배열 → effect 가 매번 재실행되어 차트가 재생성된다.
+const EMPTY_PERIODS: number[] = [];
+
+const BB_PERIOD = 20;
+const BB_MULT = 2;
 
 const DIV_COLOR = "#0d9488";   // 배당락 marker — teal-600
 const SPLIT_COLOR = "#a855f7"; // 액면분할 marker — purple-500
@@ -84,7 +93,8 @@ function pickImportantKeyword(titles: string[]): string | null {
 }
 
 export function CandleChartLight({
-  prices, investors, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, ticker, mode, onReady,
+  prices, investors, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, ticker, mode,
+  maPeriods = EMPTY_PERIODS, showBB = false, onReady,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -196,6 +206,35 @@ export function CandleChartLight({
       };
     });
     volSeries.setData(volData);
+
+    // ─── 볼린저밴드 (20, 2σ) — 이평선보다 먼저 추가(= 이평선 아래에 깔림) ────
+    //     중심선은 SMA(BB_PERIOD) 와 완전히 같은 값이라, 같은 기간 이평선이 이미 그려지면
+    //     생략해 중복 렌더를 피한다.
+    const overlayLine = (color: string) => chart.addSeries(LineSeries, {
+      color, lineWidth: 1,
+      lastValueVisible: false,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+    });
+    const toLine = (pts: { date: string; value: number }[]) =>
+      pts.map(d => ({ time: d.date as Time, value: d.value }));
+
+    const bb = showBB ? bollinger(prices, BB_PERIOD, BB_MULT) : null;
+    if (bb && bb.upper.length >= 2) {
+      overlayLine(BB_COLOR).setData(toLine(bb.upper));
+      overlayLine(BB_COLOR).setData(toLine(bb.lower));
+      if (!maPeriods.includes(BB_PERIOD)) overlayLine(BB_MID_COLOR).setData(toLine(bb.middle));
+    }
+
+    // ─── 이동평균선 — 기간은 사용자 지정, 색은 순서대로 팔레트에서 ────
+    const maSeries: { period: number; color: string; byDate: Map<string, number> }[] = [];
+    maPeriods.forEach((period, i) => {
+      const line = sma(prices, period);
+      if (line.length < 2) return;   // 기간보다 짧은 데이터 — 선 생략
+      const color = maColor(i);
+      overlayLine(color).setData(toLine(line));
+      maSeries.push({ period, color, byDate: new Map(line.map(d => [d.date, d.value])) });
+    });
 
     // ─── 외국인 지분율 (좌측 축, 실선 — target/avg 점선과 구분) ─────
     const ratioByDate = new Map<string, number>();
@@ -500,6 +539,12 @@ export function CandleChartLight({
       if (p.volume > 0) {
         content += `<div><span class="text-gray-500">거래량 </span><span style="color:${dirColor}">${fmtVol(p.volume)}</span></div>`;
       }
+      for (const ma of maSeries) {
+        const v = ma.byDate.get(String(time));
+        if (v === undefined) continue;   // 워밍업 구간
+        content += `<div><span class="text-gray-500">MA${ma.period} </span>` +
+          `<span style="color:${ma.color}">${Math.round(v).toLocaleString()}원</span></div>`;
+      }
       const r = ratioMap.get(String(time));
       if (r !== undefined) {
         content += `<div><span class="text-gray-500">외인지분 </span><span style="color:${RATIO_COLOR}">${r.toFixed(2)}%</span></div>`;
@@ -563,7 +608,7 @@ export function CandleChartLight({
       catch { /* chart already removed */ }
       chart.remove();
     };
-  }, [prices, investors, mode, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, ticker, onReady]);
+  }, [prices, investors, mode, maPeriods, showBB, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, ticker, onReady]);
 
   // 팝업 dismiss — 외부 클릭 / Esc
   useEffect(() => {
