@@ -510,21 +510,26 @@ export async function fetchMarketDeposit(): Promise<MarketDepositData | null> {
   };
 }
 
-// ─── 시장 투자자 순매수 — 네이버 금융 sise 메인 (코스피/코스닥 개인·외국인·기관, 단위 억원) ───
+// ─── 시장 투자자 순매수 — 네이버 금융 sise 메인 (코스피/코스닥/코스피200 개인·외국인·기관, 단위 억원) ───
 export interface InvestorNet { indiv: number; foreign: number; inst: number; }
-export type MarketInvestor = Partial<Record<"KOSPI" | "KOSDAQ", InvestorNet>>;
+export type MarketInvestor = Partial<Record<"KOSPI" | "KOSDAQ" | "KPI200", InvestorNet>>;
+const INVESTOR_MARKETS: Record<string, keyof MarketInvestor> = {
+  "코스피200": "KPI200",   // 코스피보다 먼저 매칭돼야 함(정규식 대안 순서)
+  "코스피": "KOSPI",
+  "코스닥": "KOSDAQ",
+};
 export async function fetchMarketInvestor(): Promise<MarketInvestor | null> {
   const resp = await fetchProxied("https://finance.naver.com/sise/");
   if (!resp.ok) return null;
   const html = decodeHtmlBuf(await resp.arrayBuffer(), resp.headers.get("Content-Type") || "");
   const txt = html.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
-  const re = /(코스피|코스닥)\s*개인\s*([+\-]?[\d,]+)\s*억\s*외국인\s*([+\-]?[\d,]+)\s*억\s*기관\s*([+\-]?[\d,]+)\s*억/g;
+  const re = /(코스피200|코스피|코스닥)\s*개인\s*([+\-]?[\d,]+)\s*억\s*외국인\s*([+\-]?[\d,]+)\s*억\s*기관\s*([+\-]?[\d,]+)\s*억/g;
   const num = (s: string) => Number(s.replace(/,/g, ""));
   const out: MarketInvestor = {};
   let m: RegExpExecArray | null;
   while ((m = re.exec(txt))) {
-    const key = m[1] === "코스피" ? "KOSPI" : "KOSDAQ";
-    if (!out[key]) out[key] = { indiv: num(m[2]), foreign: num(m[3]), inst: num(m[4]) };
+    const key = INVESTOR_MARKETS[m[1]];
+    if (key && !out[key]) out[key] = { indiv: num(m[2]), foreign: num(m[3]), inst: num(m[4]) };
   }
   return Object.keys(out).length ? out : null;
 }

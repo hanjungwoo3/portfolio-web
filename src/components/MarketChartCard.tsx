@@ -7,10 +7,10 @@ import { fetchMarketInvestor, type MarketInvestor, type InvestorNet } from "../l
 //   sid(캐시버스터) 주기 갱신으로 장중 실시간 반영. 투자자 순매수는 sise 페이지 파싱.
 
 const NAVER_URL = "https://finance.naver.com/sise/";
-const CHARTS: { key: string; label: string; investor: "KOSPI" | "KOSDAQ" }[] = [
-  { key: "KOSPI", label: "코스피", investor: "KOSPI" },
-  { key: "KOSDAQ", label: "코스닥", investor: "KOSDAQ" },
-  { key: "KPI200", label: "코스피200", investor: "KOSPI" },   // 코스피200 은 코스피 수급 기준
+const CHARTS: { key: keyof MarketInvestor; label: string }[] = [
+  { key: "KOSPI", label: "코스피" },
+  { key: "KOSDAQ", label: "코스닥" },
+  { key: "KPI200", label: "코스피200" },
 ];
 const imgUrl = (market: string, sid: number) =>
   `https://ssl.pstatic.net/imgfinance/chart/sise/siseMain${market}.png?sid=${sid}`;
@@ -55,7 +55,7 @@ export function MarketChartCard() {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
       {CHARTS.map(c => {
-        const net = investor?.[c.investor];
+        const net = investor?.[c.key];
         return (
           <a key={c.key} href={NAVER_URL} target="_blank" rel="noopener noreferrer"
              className="block rounded-lg border border-gray-200 bg-white p-1 min-w-0 hover:border-gray-300 self-start">
