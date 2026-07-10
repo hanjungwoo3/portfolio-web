@@ -71,8 +71,9 @@ import { WhatIfRow } from "./WhatIfRow";
 import { SemiCheckTab } from "./SemiCheckTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
+import { CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
 import { EtfReverseTab } from "./EtfReverseTab";
+import { EtfRankingTab } from "./EtfRankingTab";
 import { MyTradesTab } from "./MyTradesTab";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { EtfReverseDialog } from "./EtfReverseDialog";
@@ -201,7 +202,7 @@ export function MobileSimpleView() {
   });
   const isSystemTab = activeTab === MONEY_KEY || activeTab === KR_KEY || activeTab === US_KEY
     || activeTab === SEMI_KEY || activeTab === SECTOR_KEY || activeTab === CONSENSUS_KEY
-    || activeTab === ETF_KEY || activeTab === MY_TRADES_KEY;
+    || activeTab === ETF_KEY || activeTab === ETF_RANK_KEY || activeTab === MY_TRADES_KEY;
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   // 스와이프 시작이 가로 스크롤 영역(data-noswipe) 안이면 그 시작 scrollLeft 기억 — 실제 스크롤됐는지 판정용
   const swipeScroll = useRef<{ el: HTMLElement; left: number } | null>(null);
@@ -286,6 +287,9 @@ export function MobileSimpleView() {
     if (vis.etfReverse) {
       tabs.push({ key: ETF_KEY, label: "🍱ETF", count: 0 });
     }
+    if (vis.etfRanking) {
+      tabs.push({ key: ETF_RANK_KEY, label: "🏅ETF랭킹", count: 0 });
+    }
     // "보유" 도 일반 사용자 그룹과 동일하게 취급 — 별도 분기 없음
     const userGroups = Array.from(counts.keys())
       .filter(k => !["", "관심ETF"].includes(k))
@@ -316,10 +320,10 @@ export function MobileSimpleView() {
   //  시각 순서: 지수 → (섹터·반도체·컨센서스·ETF 묶음) → (내주식·내거래 묶음) → 사용자그룹 → 폴더
   //  (groupTabs 원순서는 내거래가 컨센서스/ETF 앞이라 ETF에서 스와이프 시 내거래를 건너뛰던 문제 수정)
   const navKeys = useMemo(() => {
-    const SYS = [MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, MY_KEY, MY_TRADES_KEY];
+    const SYS = [MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, MY_KEY, MY_TRADES_KEY];
     const has = (k: string) => groupTabs.some(t => t.key === k);
     const keys: string[] = [];
-    for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음(섹터…)
+    for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음(섹터…)
     for (const k of [MY_KEY, MY_TRADES_KEY]) if (has(k)) keys.push(k);   // 내자산 묶음(내주식·내거래)
     if (has(MONEY_KEY)) keys.push(MONEY_KEY);                            // 증시(별도 탭)
     if (has(KR_KEY)) keys.push(KR_KEY);                                  // 지수(별도 탭)
@@ -833,7 +837,7 @@ export function MobileSimpleView() {
         )}
         {/* 시스템 탭 묶음 — 섹터/컨센서스/ETF (지수는 아래 3번째 별도 탭으로 분리) */}
         {(() => {
-          const SYS = new Set([SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY]);
+          const SYS = new Set([SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY]);
           const sys = groupTabs.filter(t => SYS.has(t.key));
           if (sys.length === 0) return null;
           // 묶을 항목이 1개뿐이면 드롭다운 대신 일반 탭으로 바로 노출
@@ -937,7 +941,7 @@ export function MobileSimpleView() {
         })()}
         {groupTabs.map(t => {
           // 시스템·내자산 탭은 위 드롭다운/별도 버튼으로만 표시 (개별 탭 숨김)
-          if ([MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, MY_KEY, MY_TRADES_KEY].includes(t.key)) return null;
+          if ([MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, MY_KEY, MY_TRADES_KEY].includes(t.key)) return null;
           // 폴더에 담긴 그룹은 개별 탭에서 숨김 (아래 📁 드롭다운으로)
           if (folderedGroups.has(t.key)) return null;
           const active = t.key === activeTab;
@@ -1302,6 +1306,11 @@ export function MobileSimpleView() {
             <EtfReverseTab holdings={holdings}
                            onOpenEtfComposition={(code, n) => setEtfDialog({ ticker: code, name: n })}
                            onRequestAdd={q => { setSearchInitQuery(q); setSearchOpen(true); }} />
+          </div>;
+        }
+        if (activeTab === ETF_RANK_KEY) {
+          return <div className="px-2 py-2">
+            <EtfRankingTab onOpenEtfComposition={(code, n) => setEtfDialog({ ticker: code, name: n })} />
           </div>;
         }
         // 지수 — PC(UsMarketTab)와 동일한 공용 그룹 정의를 그룹 헤더 + 2열 카드로 렌더 (단일 통합 뷰)

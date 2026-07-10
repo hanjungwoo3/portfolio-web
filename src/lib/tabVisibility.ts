@@ -12,6 +12,7 @@ export interface TabVisibility {
   myTrades: boolean;
   consensus: boolean;
   etfReverse: boolean;
+  etfRanking: boolean;
 }
 
 const BASE_KEYS = {
@@ -23,6 +24,7 @@ const BASE_KEYS = {
   myTrades:   "portfolio_tab_my_trades",
   consensus:  "portfolio_tab_consensus",
   etfReverse: "portfolio_tab_etf_reverse",
+  etfRanking: "portfolio_tab_etf_ranking",
 } as const;
 
 // 디바이스 폼팩터 — App.tsx 의 useIsMobile 과 동일 기준(width < 768)
@@ -59,6 +61,7 @@ export function getTabVisibility(): TabVisibility {
     myTrades:   read(BASE_KEYS.myTrades),
     consensus:  read(BASE_KEYS.consensus),
     etfReverse: read(BASE_KEYS.etfReverse),
+    etfRanking: read(BASE_KEYS.etfRanking),
   };
 }
 
@@ -71,6 +74,7 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.myTrades   !== undefined) write(BASE_KEYS.myTrades,   patch.myTrades);
   if (patch.consensus  !== undefined) write(BASE_KEYS.consensus,  patch.consensus);
   if (patch.etfReverse !== undefined) write(BASE_KEYS.etfReverse, patch.etfReverse);
+  if (patch.etfRanking !== undefined) write(BASE_KEYS.etfRanking, patch.etfRanking);
 }
 
 // 종목 목록 시장 분리 보기 — 코스피/코스닥/ETF 섹션으로 나눠 표시. 기본 OFF(전체보기).

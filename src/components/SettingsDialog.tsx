@@ -85,11 +85,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     persistFolders(next);
   };
 
-  const toggleTab = (key: "stockMarket" | "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "myTrades" | "consensus" | "etfReverse", v: boolean) => {
+  const toggleTab = (key: "stockMarket" | "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "myTrades" | "consensus" | "etfReverse" | "etfRanking", v: boolean) => {
     const next = { ...tabVis, [key]: v };
     setTabVis(next);
     setTabVisibility({ [key]: v });
-    const labelMap = { stockMarket: "증시", usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", myTrades: "내거래", consensus: "컨센서스", etfReverse: "ETF검색" };
+    const labelMap = { stockMarket: "증시", usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", myTrades: "내거래", consensus: "컨센서스", etfReverse: "ETF검색", etfRanking: "ETF랭킹" };
     setStatusMsg(`✅ ${labelMap[key]} 탭: ${v ? "표시" : "숨김"}`);
     onChanged();
   };
@@ -751,6 +751,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                          onChange={e => toggleTab("etfReverse", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
                   <span className="text-[11px] text-gray-700">🍱 ETF검색</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={tabVis.etfRanking}
+                         onChange={e => toggleTab("etfRanking", e.target.checked)}
+                         className="w-4 h-4 accent-blue-600" />
+                  <span className="text-[11px] text-gray-700">🏅 ETF랭킹</span>
                 </label>
                 {/* 내주식 / 내거래 — 묶음에서 빠진 개별 탭이라 구분선 뒤(오른쪽)에 한 묶음으로 배치 */}
                 <label className="flex items-center gap-1.5 cursor-pointer select-none pl-3 ml-1 border-l border-gray-200">

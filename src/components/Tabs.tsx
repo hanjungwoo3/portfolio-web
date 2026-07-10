@@ -298,17 +298,20 @@ export const MY_TRADES_TAB_KEY = "__my-trades__";
 export const CONSENSUS_TAB_KEY = "__consensus__";
 // ETF 역검색 — 다중 종목으로 ETF 찾기
 export const ETF_REVERSE_TAB_KEY = "__etf-reverse__";
+// ETF 랭킹 — 전체 ETF 등락률 순위 (새로고침 눌러야 조회, 17콜)
+export const ETF_RANKING_TAB_KEY = "__etf-ranking__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
   "관심ETF", MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY,
-  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
+  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY,
+  ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY,
 ]);
 
 // 묶기 대상 시스템 탭 — 드롭다운 하나로 합침. (증시·지수는 자주 써서 별도 고정 탭)
 export const SYSTEM_TAB_KEYS = new Set<string>([
   MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
-  CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY,
+  CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY,
 ]);
 
 // 내자산 묶음 — 내주식 + 내거래를 별도 드롭다운 하나로 (지수 묶음과 동일 방식).
@@ -353,6 +356,10 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // ETF 역검색 — 다중 종목 교집합/합집합
   if (visibility?.etfReverse ?? true) {
     tabs.push({ key: ETF_REVERSE_TAB_KEY, label: "ETF검색", emoji: "🍱", count: 0 });
+  }
+  // ETF 랭킹 — 전체 ETF 등락률 순위
+  if (visibility?.etfRanking ?? true) {
+    tabs.push({ key: ETF_RANKING_TAB_KEY, label: "ETF랭킹", emoji: "🏅", count: 0 });
   }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())
