@@ -9,7 +9,7 @@ import { SortSelector, makeSortHandlers } from "./SortSelector";
 import {
   fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures,
   fetchKrRegularPrices, verifyKrMarkets,
-  fetchYahooChart, fetchKrPriceHistory, fetchUsHoldingPrices,
+  fetchYahooChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices,
 } from "../lib/api";
 import {
   US_PAIRS,
@@ -550,11 +550,22 @@ export function MobileSimpleView() {
       enabled: !isSystemTab,  // 장중에도 fetch — AuxIndicators 의 3개월/변동성 표시
     })),
   });
+  // 미국 종목 일봉(3개월) — 배경 sparkline + AuxIndicators 기간수익률용. 야후, 1시간 캐시.
+  const usGroupChartQs = useQueries({
+    queries: usGroupTickers.map(t => ({
+      queryKey: ["us-price-history", t, "3mo"],
+      queryFn: () => fetchYahooPriceHistory(t, "3mo"),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      enabled: !isSystemTab,
+    })),
+  });
   const groupChartMap = new Map(
     groupChartQs.map((q, i) =>
       [groupTickers[i], (q.data ?? []).map(p => p.close)]
     )
   );
+  usGroupChartQs.forEach((q, i) => groupChartMap.set(usGroupTickers[i], (q.data ?? []).map(p => p.close)));
 
   // 정렬 옵션 — 7가지 + asc/desc 토글 (PC 와 동일 localStorage 공유)
   const [sortKey, setSortKey] = useState<SortKey>(loadSortKey);

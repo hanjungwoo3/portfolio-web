@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import type { PricePoint } from "../lib/api";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, holdingYesterdayBaseSum, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, holdingYesterdayBaseSum, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
@@ -546,7 +546,12 @@ export function StockCard({
   }
 
   // 흐림(마감) 판정 — 토스 거래가능 플래그(KRX·NXT 둘 다 suspended = 마감) 기반.
-  const sleeping = isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price.singlePrice);
+  // 미국 보유 종목은 한국 세션이 아니라 미국 세션 기준으로 흐림 (지수창 dimNow 로직의 최소 형태).
+  //   24h(Blue Ocean) 창이 열려있으면 밝게, 닫히거나(주말) 체결 정체(90분)면 흐림.
+  const isUsHolding = marketOfSymbol(stock.ticker) === "US";
+  const sleeping = isUsHolding
+    ? (!isUsExtendedTradingOpen() || isQuoteStale(price.freshTime))
+    : isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price.singlePrice);
   const dimmed = sleeping && getDimSleepingEnabled();
   // 시간외 포함 최종 매매 마감 임박(기본 30분 이내) — 남은 분. 아니면 null.
   const closeImminentMin = !sleeping ? krCloseImminentMin(krReg?.exchange, krReg?.tradingEnd) : null;
@@ -1300,6 +1305,12 @@ export function StockCard({
                   }`}>
                     {price.price.toLocaleString()}원
                   </span>
+                  {/* 달러 보조표기 — 미국 보유(토스 원화 환산분의 달러값). 지수창과 동일 패턴. */}
+                  {price.currency === "KRW" && price.priceUsd != null && (
+                    <span className="text-xs font-normal text-gray-500">
+                      ${price.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </span>
+                  )}
                   {/* 메모 — 목표가/손절가 도달 인디케이터 */}
                   {memoTargetReached && (
                     <span title={`목표가 ${memo!.targetPrice!.toLocaleString()}원 도달`}
@@ -1571,7 +1582,8 @@ export function StockCard({
         <AuxIndicators chart={chart} investorHistory={investorHistory}
                        isTradingDay={!!price.high}
                        defaultOpen={!hasPosition}
-                       etfTicker={isEtfByName(stock.name) ? stock.ticker : undefined} />
+                       etfTicker={isEtfByName(stock.name) ? stock.ticker : undefined}
+                       usTicker={isUsHolding && !isEtfByName(stock.name) ? stock.ticker : undefined} />
 
         </div>
 

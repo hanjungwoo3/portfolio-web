@@ -160,7 +160,9 @@ export async function fetchUsHoldingPrices(tickers: string[]): Promise<Price[]> 
   const uncoded: string[] = [];
   for (const t of tickers) {
     const code = getTossCode(t);
-    if (code && code.startsWith("US")) coded.push({ ticker: t, code });
+    // 토스 US 시세 경로(원화 환산) — 레거시 US 접두뿐 아니라 신형·ADR 상장의 NAS/NYS/AMX 도 포함.
+    //   (US 만 보면 ADR(NAS…)이 Yahoo USD 로 빠져 달러값에 원이 붙는 버그) 코드 없으면 Yahoo 폴백.
+    if (code && /^(US|NAS|NYS|AMX)/.test(code)) coded.push({ ticker: t, code });
     else uncoded.push(t);
   }
   const out: Price[] = [];
@@ -188,6 +190,10 @@ export async function fetchUsHoldingPrices(tickers: string[]): Promise<Price[]> 
         out.push({
           ticker, price, base, prevClose: base, open: 0, volume: 0,
           usRegClose: regClose, usRegPct: regPct,   // 정규장 마감가·전일대비 등락률(지수창과 동일)
+          // 달러 보조표기·흐림 판정용 — 지수창(fetchTossUsIndexMap)과 동일 계산.
+          priceUsd: (hasKrw && tp.closeKrw > 0) ? price * (tp.close / tp.closeKrw) : tp.close,
+          currency: hasKrw ? "KRW" : "USD",
+          freshTime: isoToUnixSec(tp.tradeDateTime),
           trade_date: tp.tradeDateTime ? toKstDateString(tp.tradeDateTime) : "",
           trade_dt: tp.tradeDateTime,
         });
@@ -207,6 +213,7 @@ export async function fetchUsHoldingPrices(tickers: string[]): Promise<Price[]> 
           ticker: t, price: ui.price, base: ui.prev, prevClose: ui.prevClose,
           usRegClose: ui.price,
           usRegPct: ui.prevClose > 0 ? ((ui.price - ui.prevClose) / ui.prevClose) * 100 : undefined,
+          currency: "USD",   // Yahoo 폴백 = 달러 그대로 → priceUsd 미설정($ 보조표기 스킵), 흐림은 시간창 폴백
           open: 0, volume: 0, trade_date: ui.tradeDate,
         });
       }
@@ -2284,6 +2291,7 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "MU":   "US19890516001",
   "NVDA": "US19990122001",
   "SNDK": "NAS0250224006",   // 샌디스크 (2025 상장 → NAS 프리픽스)
+  "SKHYV":"NAS2607010002",   // SK하이닉스 ADR (2026 상장 → NAS 프리픽스) — 원화 시세용
   "AMAT": "US19721012001",
   "LRCX": "US19840504001",
   "ASML": "US19950315001",

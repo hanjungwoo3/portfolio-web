@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
 import {
   fetchTossPrices, fetchInvestorHistory, pickTodayInvestor, fetchKrRegularPrices, verifyKrMarkets,
-  fetchWarning, fetchNaverInfo, fetchKrPriceHistory,
+  fetchWarning, fetchNaverInfo, fetchKrPriceHistory, fetchYahooPriceHistory,
   fetchInvestorHistorySafe, fetchNaverPrices, fetchKrStockName, fetchUsHoldingPrices,
 } from "./lib/api";
 import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits, repairBrokenNames, purgeDerivedHoldingFields } from "./lib/db";
@@ -344,6 +344,15 @@ function Dashboard() {
       refetchOnWindowFocus: false,
     })),
   });
+  // 미국 종목 일봉(3개월) — 배경 sparkline + AuxIndicators 기간수익률용. 야후, 1시간 캐시.
+  const usChartQs = useQueries({
+    queries: usTickers.map(t => ({
+      queryKey: ["us-price-history", t, "3mo"],
+      queryFn: () => fetchYahooPriceHistory(t, "3mo"),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
+  });
 
   const priceMap = useMemo(() => {
     const m = new Map((prices ?? []).map(p => [p.ticker, p]));
@@ -449,15 +458,23 @@ function Dashboard() {
   }, [visible, priceMap, naverMap, sortKey, sortDir, heldFirst]);
 
   const chartMap = useMemo(
-    () => new Map(chartQs.map((q, i) =>
-      [krxTickers[i], (q.data ?? []).map(p => p.close)]
-    )),
-    [chartQs, krxTickers]
+    () => {
+      const m = new Map(chartQs.map((q, i) =>
+        [krxTickers[i], (q.data ?? []).map(p => p.close)]
+      ));
+      usChartQs.forEach((q, i) => m.set(usTickers[i], (q.data ?? []).map(p => p.close)));
+      return m;
+    },
+    [chartQs, krxTickers, usChartQs, usTickers]
   );
   // OHLC 포함 원본 — StockCard 가격 박스 호버 툴팁의 1개월 캔들차트용
   const priceHistoryMap = useMemo(
-    () => new Map(chartQs.map((q, i) => [krxTickers[i], q.data ?? []])),
-    [chartQs, krxTickers]
+    () => {
+      const m = new Map(chartQs.map((q, i) => [krxTickers[i], q.data ?? []]));
+      usChartQs.forEach((q, i) => m.set(usTickers[i], q.data ?? []));
+      return m;
+    },
+    [chartQs, krxTickers, usChartQs, usTickers]
   );
 
   // 같은 ticker 가 속한 그룹들 — 카드 상단 알약 표시용

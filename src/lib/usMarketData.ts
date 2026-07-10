@@ -60,6 +60,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "MU",       name: "마이크론",     desc: "Micron — 미국 메모리 반도체 (삼성·하이닉스 직접 경쟁사·메모리 사이클 가늠자)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "NVDA",     name: "엔비디아",     desc: "Nvidia — AI 수요 대표주. MU 와 동행이면 메모리 사이클 동조화 신호", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "SNDK",     name: "샌디스크",     desc: "SanDisk — NAND 플래시/SSD (WD 에서 분사, 2025 상장). 삼성·하이닉스 NAND 메모리 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "SKHYV",    name: "SK하이닉스(ADR)", desc: "SK Hynix ADR — 나스닥 상장(2026, When Issued). 원화 시세는 토스, 배경차트는 상장 직후라 데이터 축적 중", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "AMAT",     name: "어플라이드머티리얼즈", desc: "반도체 식각·증착 장비 회사 — AI 메모리 생산 설비 투자 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "LRCX",     name: "램리서치",     desc: "Lam Research — 식각·증착 장비. HBM 핵심 공정", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ASML",     name: "ASML",        desc: "EUV 노광 독점 — 첨단 반도체 공정 필수", tier: "T0", sector: "dashboard", direction: "direct" },

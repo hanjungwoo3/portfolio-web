@@ -33,6 +33,9 @@ export interface Price {
   low52w?: number;     // 52주(1년) 최저가
   usRegClose?: number; // 미국 정규장 마감가(원화) — 애프터장에도 고정. 지수창 마감 책갈피용
   usRegPct?: number;   // 정규장 마감가의 전일 종가 대비 등락률(%) — 지수창과 동일
+  priceUsd?: number;   // 달러 보조표기(현재가 달러) — 미국 보유(토스 원화 환산분의 달러값)
+  currency?: "KRW" | "USD"; // 미국 보유 통화 — 토스 원화경로=KRW, Yahoo 폴백=USD
+  freshTime?: number;  // 마지막 실측 체결 unix초 — 미국 보유 정체(흐림) 판정용
 }
 
 // 토스 수급 — 데스크톱 v2 fetch_investor_flow 와 동일 키
