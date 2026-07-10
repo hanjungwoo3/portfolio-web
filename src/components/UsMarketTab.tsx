@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory, fetchInvestingChart, isInvestingIndex, fetchYasunNightFutures } from "../lib/api";
+import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory, fetchCnbcChart, isCnbcIndex, fetchYasunNightFutures } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, isMarketOpen } from "../lib/format";
-import { getDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
+import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
 import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
 import { GroupNavBar } from "./GroupNavBar";
 import {
@@ -132,7 +132,7 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
   const yahooChartQs = useQueries({
     queries: allYahooForCharts.map(sym => ({
       queryKey: ["yahoo-chart", sym, "3mo"],
-      queryFn: () => isInvestingIndex(sym) ? fetchInvestingChart(sym) : fetchYahooChart(sym, "3mo"),
+      queryFn: () => isCnbcIndex(sym) ? fetchCnbcChart(sym) : fetchYahooChart(sym, "3mo"),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -233,8 +233,13 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
   const dimEnabled = getDimSleepingEnabled();
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
-  // 개인 워커 사용 중이면, investing 미허용으로 V-KOSPI 값이 빌 수 있음 → 카드 안에 업데이트 안내
-  const hasPersonalProxy = !!getPersonalProxyUrl();
+  // 야간선물(yasun.gg)은 프록시를 타므로 구버전 개인 워커면 값이 빈다 → 그때만 업데이트 안내.
+  //   "값이 없다"만으로 워커를 탓하면 업스트림 차단(예: investing.com Cloudflare 챌린지)까지
+  //   워커 탓으로 오진한다. 반드시 실제 화이트리스트 검사 결과("outdated")로만 띄운다.
+  const [yasunOutdated, setYasunOutdated] = useState(false);
+  useEffect(() => {
+    void checkPersonalProxyYasunSupport().then(s => setYasunOutdated(s === "outdated"));
+  }, []);
 
   // 그룹 색인 칩바 — 헤더+탭바 아래(navStickyTop)에 고정. 섹션 앵커 = "usidx-" + section.id
   const navItems = dashboardGroupNav(T0_SECTIONS);
@@ -419,9 +424,9 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                   <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}
                   </div>
-                  {(p.symbol === "VKOSPI" || p.symbol === "^KS200N" || p.symbol === "^KQ150N")
-                    && effPrice == null && hasPersonalProxy ? (
-                    /* 개인 워커 구버전 — investing(VKOSPI) 또는 yasun.gg(야선) 화이트리스트 누락 */
+                  {(p.symbol === "^KS200N" || p.symbol === "^KQ150N")
+                    && effPrice == null && yasunOutdated ? (
+                    /* 개인 워커 구버전 — yasun.gg(야선) 화이트리스트 누락 */
                     <div className="relative z-10 flex items-center mt-auto min-h-[1.75rem]">
                       <a href={WORKER_UPDATE_GUIDE_URL} target="_blank" rel="noopener noreferrer"
                          title={`개인 워커가 구버전이라 ${p.name} 미표시 — 업데이트 가이드`}

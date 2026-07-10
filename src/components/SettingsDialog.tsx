@@ -9,7 +9,7 @@ import {
   fetchProxyUsage, type ProxyUsage,
   getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS,
   getDimSleepingEnabled, setDimSleepingEnabled,
-  checkPersonalProxyPostSupport, checkPersonalProxyInvestingSupport,
+  checkPersonalProxyPostSupport,
   invalidatePersonalProxyStatusCache,
   type PersonalProxyStatus,
 } from "../lib/proxyConfig";
@@ -53,7 +53,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   // syncState 값은 더 이상 직접 안 읽음(저장/불러오기 항상 노출) — setter 로 만료 시 상태만 갱신
   const [, setSyncState] = useState(getSyncState());
   const [proxyStatus, setProxyStatus] = useState<PersonalProxyStatus | "checking">("checking");
-  const [investStatus, setInvestStatus] = useState<PersonalProxyStatus | "checking">("checking");
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncBusyMsg, setSyncBusyMsg] = useState("");   // 진행 중 오버레이 메시지
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(getLastSyncedAt());
@@ -141,8 +140,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     // 개인 프록시 POST 호환성 검증 — 캐시된 결과 우선, 없으면 비동기 호출
     setProxyStatus("checking");
     void checkPersonalProxyPostSupport().then(setProxyStatus);
-    setInvestStatus("checking");
-    void checkPersonalProxyInvestingSupport().then(setInvestStatus);
     setFolders(getGroupFolders());
     // 다이얼로그 열 때 — 토큰 silent refresh 시도, 실패하면 자동 logout (설정 안에서만 표시)
     // 평소 다른 곳에선 로그인 UI 가 안 보임 (업로드/다운로드 시점에만 필요)
@@ -329,8 +326,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     invalidatePersonalProxyStatusCache();
     setProxyStatus("checking");
     void checkPersonalProxyPostSupport().then(setProxyStatus);
-    setInvestStatus("checking");
-    void checkPersonalProxyInvestingSupport().then(setInvestStatus);
     setFolders(getGroupFolders());
     onChanged();
     const n = cleaned.filter(p => p.enabled).length;
@@ -614,21 +609,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 </p>
                 <p className="text-amber-700 mt-0.5 leading-relaxed">
                   기존 기능은 정상 작동합니다. 컨센서스 예상치 차트만 비어 보입니다.
-                </p>
-                <a href={UPDATE_GUIDE_URL} target="_blank" rel="noopener noreferrer"
-                   className="inline-block mt-1.5 text-amber-700 underline font-bold">
-                  📘 5분 업데이트 가이드 ↗
-                </a>
-              </div>
-            )}
-            {/* investing 호스트 미허용 (구버전) 워커 경고 — V-KOSPI */}
-            {investStatus === "outdated" && (
-              <div className="p-2 bg-amber-50 border border-amber-300 rounded text-[11px]">
-                <p className="font-bold text-amber-800">
-                  ⚠️ 등록하신 워커가 구버전 (V-KOSPI 미지원) 입니다
-                </p>
-                <p className="text-amber-700 mt-0.5 leading-relaxed">
-                  기존 기능은 정상 작동합니다. V-KOSPI 등 일부 지수(investing.com)만 비어 보입니다.
                 </p>
                 <a href={UPDATE_GUIDE_URL} target="_blank" rel="noopener noreferrer"
                    className="inline-block mt-1.5 text-amber-700 underline font-bold">

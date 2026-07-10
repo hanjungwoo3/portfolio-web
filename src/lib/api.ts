@@ -2423,68 +2423,123 @@ async function fetchTossOverview(): Promise<Map<string, UsIndex>> {
   return out;
 }
 
-// investing.com financialdata — Yahoo/토스에 없는 지수 (VKOSPI 등).
-// 응답: { data: [[ts_ms, open, high, low, close, vol, ...], ...] } 일봉.
-const INVESTING_ID: Record<string, number> = {
-  "VKOSPI": 956761,   // 코스피200 변동성지수 (한국 공포지수)
+// CNBC — Yahoo/토스에 없는 지수 (VKOSPI 등).
+//
+// 구 소스였던 api.investing.com 은 Cloudflare 봇 챌린지(cf-mitigated: challenge)가 엣지에 걸려
+// 데이터센터 IP 에서 전면 403 이다. 브라우저 UA·Referer·domain-id·Bearer 토큰 다 붙여도, 프록시
+// (Cloudflare/Netlify/Supabase) 를 태워도 뚫리지 않는다. → CNBC 로 교체.
+//
+// CNBC 는 두 엔드포인트 모두 ACAO: * 라 프록시 없이 브라우저가 직접 호출한다(프록시 호출수 절약).
+const CNBC_SYMBOL: Record<string, string> = {
+  "VKOSPI": ".KSVKOSPI",   // 코스피200 변동성지수 (한국 공포지수)
 };
-export function isInvestingIndex(symbol: string): boolean {
-  return symbol in INVESTING_ID;
+export function isCnbcIndex(symbol: string): boolean {
+  return symbol in CNBC_SYMBOL;
 }
-function investingUrl(id: number): string {
-  return `https://api.investing.com/api/financialdata/${id}/historical/chart/?interval=P1D&pointscount=160`;
-}
-async function fetchInvestingRows(symbol: string): Promise<number[][]> {
-  const id = INVESTING_ID[symbol];
-  if (!id) return [];
+
+const CNBC_TIMEOUT_MS = 8000;
+async function fetchCnbcJson<T>(url: string): Promise<T | null> {
   try {
-    const resp = await fetchProxied(investingUrl(id));
-    if (!resp.ok) return [];
-    const data = await resp.json() as { data?: number[][] };
-    return Array.isArray(data.data) ? data.data : [];
+    const resp = await fetch(url, { signal: AbortSignal.timeout(CNBC_TIMEOUT_MS) });
+    if (!resp.ok) return null;
+    return await resp.json() as T;
   } catch {
-    return [];
+    return null;
   }
 }
-// 현재가 = 최근 종가, 기준 = 직전 종가 (일변동률)
-async function fetchInvestingIndexPrice(symbol: string, name: string): Promise<UsIndex | null> {
-  const rows = await fetchInvestingRows(symbol);
-  if (rows.length < 2) return null;
-  const close = rows[rows.length - 1]?.[4];
-  const base = rows[rows.length - 2]?.[4];
-  if (typeof close !== "number" || typeof base !== "number") return null;
-  const diff = close - base;
-  const pct = base > 0 ? (diff / base) * 100 : 0;
-  const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-  // 마지막 데이터 시각 — 카드 "갱신" 표시용 (investing ts: 초/ms 혼재 → 초로 정규화)
-  const lastTs = rows[rows.length - 1]?.[0];
-  const regularMarketTime = typeof lastTs === "number"
-    ? Math.floor((lastTs < 1e12 ? lastTs * 1000 : lastTs) / 1000)
-    : undefined;
+// CNBC 응답은 수치도 전부 문자열("78.15", "-8.58%") → 숫자로 강제 변환
+function cnbcNum(v: unknown): number | null {
+  if (typeof v === "number") return Number.isFinite(v) ? v : null;
+  if (typeof v !== "string") return null;
+  const n = parseFloat(v.replace(/[%,]/g, ""));
+  return Number.isFinite(n) ? n : null;
+}
+
+interface CnbcQuote {
+  last?: string; previous_day_closing?: string; change?: string; change_pct?: string;
+  last_time?: string;
+}
+// 현재가 — 가볍다(~1KB). 폴링 주기마다 호출되는 경로라 차트(43KB) 대신 이쪽을 쓴다.
+async function fetchCnbcIndexPrice(symbol: string, name: string): Promise<UsIndex | null> {
+  const cnbcSym = CNBC_SYMBOL[symbol];
+  if (!cnbcSym) return null;
+  const url = "https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol"
+    + `?symbols=${encodeURIComponent(cnbcSym)}`
+    + "&requestMethod=itv&noform=1&partnerId=2&fund=1&exthrs=1&output=json&events=1";
+  const data = await fetchCnbcJson<{
+    FormattedQuoteResult?: { FormattedQuote?: CnbcQuote[] };
+  }>(url);
+  const q = data?.FormattedQuoteResult?.FormattedQuote?.[0];
+  if (!q) return null;
+
+  const price = cnbcNum(q.last);
+  const prevClose = cnbcNum(q.previous_day_closing);
+  if (price === null || prevClose === null) return null;
+  const diff = cnbcNum(q.change) ?? price - prevClose;
+  const pct = cnbcNum(q.change_pct) ?? (prevClose > 0 ? (diff / prevClose) * 100 : 0);
+
+  // last_time 은 KST 오프셋 포함 ISO ("2026-07-10T15:51:10.000+0900") — 실측 체결시각.
+  const lastMs = q.last_time ? Date.parse(q.last_time) : NaN;
+  const tradeDate = Number.isFinite(lastMs)
+    ? new Date(lastMs + 9 * 3600_000).toISOString().slice(0, 10)   // KST 일자
+    : new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+
   return {
-    symbol, name, price: close, prev: base, prevClose: base,
-    diff, pct, currency: "", tradeDate: todayKst, marketState: "",
-    regularMarketTime,
-    // freshTime 미설정 — investing 은 '일봉'이라 장중에도 타임스탬프가 오늘 일봉에 고정됨.
-    //   (값은 갱신되나 시각은 안 움직여 정체로 오판) → KR 세션 로직(isMarketOpen)으로 흐림 판정 폴백.
+    symbol, name, price, prev: prevClose, prevClose,
+    diff, pct, currency: "", tradeDate, marketState: "",
+    regularMarketTime: Number.isFinite(lastMs) ? Math.floor(lastMs / 1000) : undefined,
+    // freshTime 미설정 — VKOSPI 는 장 마감 후 시각이 멈춘다. 정체로 오판하지 않도록
+    //   KR 세션 로직(isMarketOpen)으로 흐림 판정 폴백. (구 investing 구현과 동일한 판단)
   };
 }
-// 차트(스파크라인)용 종가 시계열
-export async function fetchInvestingChart(symbol: string): Promise<number[]> {
-  const rows = await fetchInvestingRows(symbol);
-  return rows.map(r => r[4]).filter((v): v is number => typeof v === "number" && Number.isFinite(v));
+
+// 일봉 — CNBC 의 timeRange 라벨은 실제 기간과 다르다. 실측(2026-07 기준):
+//   "1M" → 일봉 244봉(약 1년) · "1Y" → 일봉 485봉(약 2년) · "5Y" → 주봉 522봉(약 10년)
+// 1년치 일봉이 필요하므로 "1M" 이 맞다.
+const CNBC_CHART_HASH = "9e1670c29a10707c417a1efd327d4b2b1d456b77f1426e7e84fb7d399416bb6b";
+interface CnbcBar {
+  open?: string; high?: string; low?: string; close?: string;
+  tradeTime?: string;        // "20260710000000" — 당일 미완성 봉도 항상 채워짐
+  tradeTimeinMills?: string | null;   // 당일 미완성 봉은 null → 날짜 산출에 쓰면 안 됨
 }
+async function fetchCnbcBars(symbol: string): Promise<CnbcBar[]> {
+  const cnbcSym = CNBC_SYMBOL[symbol];
+  if (!cnbcSym) return [];
+  const variables = JSON.stringify({ symbol: cnbcSym, timeRange: "1M" });
+  const extensions = JSON.stringify({ persistedQuery: { version: 1, sha256Hash: CNBC_CHART_HASH } });
+  const url = "https://webql-redesign.cnbcfm.com/graphql?operationName=getQuoteChartData"
+    + `&variables=${encodeURIComponent(variables)}`
+    + `&extensions=${encodeURIComponent(extensions)}`;
+  const data = await fetchCnbcJson<{
+    data?: { chartData?: { priceBars?: CnbcBar[] } };
+  }>(url);
+  const bars = data?.data?.chartData?.priceBars;
+  return Array.isArray(bars) ? bars : [];
+}
+
+// 차트(스파크라인)용 종가 시계열
+export async function fetchCnbcChart(symbol: string): Promise<number[]> {
+  const bars = await fetchCnbcBars(symbol);
+  return bars.map(b => cnbcNum(b.close)).filter((v): v is number => v !== null);
+}
+
 // 일자 정렬용 종가 시계열 (PricePoint[]) — VKOSPI 등 오버레이용.
 // lightweight-charts setData 는 시간 오름차순·중복 없는 데이터 필수 → 일자별 dedupe + 정렬.
-export async function fetchInvestingPriceHistory(symbol: string): Promise<PricePoint[]> {
-  const rows = await fetchInvestingRows(symbol);
+export async function fetchCnbcPriceHistory(symbol: string): Promise<PricePoint[]> {
+  const bars = await fetchCnbcBars(symbol);
   const byDate = new Map<string, PricePoint>();
-  for (const r of rows) {
-    const ts = r[0], close = r[4];
-    if (typeof ts !== "number" || typeof close !== "number" || !Number.isFinite(close)) continue;
-    const ms = ts < 1e12 ? ts * 1000 : ts;   // 초 단위면 ms 로 보정
-    const date = new Date(ms + 9 * 3600_000).toISOString().slice(0, 10);   // KST 일자
-    byDate.set(date, { date, close, volume: 0, open: r[1], high: r[2], low: r[3] });  // 같은 날짜는 최신값
+  for (const b of bars) {
+    const close = cnbcNum(b.close);
+    // tradeTimeinMills 는 당일 봉에서 null 이라 tradeTime("YYYYMMDD...") 을 날짜 근거로 쓴다
+    const t = b.tradeTime;
+    if (close === null || typeof t !== "string" || !/^\d{8}/.test(t)) continue;
+    const date = `${t.slice(0, 4)}-${t.slice(4, 6)}-${t.slice(6, 8)}`;
+    byDate.set(date, {                                  // 같은 날짜는 최신값
+      date, close, volume: 0,
+      open: cnbcNum(b.open) ?? close,
+      high: cnbcNum(b.high) ?? close,
+      low: cnbcNum(b.low) ?? close,
+    });
   }
   return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
 }
@@ -2530,7 +2585,7 @@ export async function fetchYahooBatch(
   const tossUsItems = pairs
     .filter(p => TOSS_US_STOCK_CODE[p.symbol])
     .map(p => ({ ...p, code: TOSS_US_STOCK_CODE[p.symbol] }));
-  const investItems = pairs.filter(p => isInvestingIndex(p.symbol));
+  const investItems = pairs.filter(p => isCnbcIndex(p.symbol));
 
   const [ksMap, overviewMap, usMap, investResults, yahooResults] = await Promise.all([
     ksItems.length > 0
@@ -2560,7 +2615,7 @@ export async function fetchYahooBatch(
     // 토스 overview 1콜 — 지수/환율/금리/원자재/BTC 일괄 (기존 인덱스 14콜 + FX 대체)
     fetchTossOverview(),
     fetchTossUsIndexMap(tossUsItems),
-    Promise.all(investItems.map(p => fetchInvestingIndexPrice(p.symbol, p.name))),
+    Promise.all(investItems.map(p => fetchCnbcIndexPrice(p.symbol, p.name))),
     // 모든 심볼 Yahoo 베이스 — v7 배치(~2콜). marketState/prevClose + 토스 실패 시 fallback
     fetchYahooBatchQuote(pairs),
   ]);

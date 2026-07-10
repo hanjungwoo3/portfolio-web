@@ -39,8 +39,8 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "HG=F":  "https://www.tossinvest.com/indices/RFU.HGv1",
   // 비트코인 — 토스 원화 인덱스
   "BTC-USD": "https://www.tossinvest.com/indices/VWAP.KRW-BTC",
-  // V-KOSPI — investing.com (토스/야후 미제공)
-  "VKOSPI": "https://www.investing.com/indices/kospi-volatility",
+  // V-KOSPI — CNBC (토스/야후 미제공)
+  "VKOSPI": "https://www.cnbc.com/quotes/.KSVKOSPI",
   // 미국 빅테크 개별주 (토스 종목 페이지)
   "SPCX": "https://www.tossinvest.com/stocks/NAS2606012004",
   "AAPL": "https://www.tossinvest.com/stocks/US19801212001",

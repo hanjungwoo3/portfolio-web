@@ -6,7 +6,7 @@
 
 import { useEffect, useMemo, useState, lazy, Suspense } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchKrMarketFlow, fetchYahooPriceHistory, fetchInvestingPriceHistory } from "../lib/api";
+import { fetchKrMarketFlow, fetchYahooPriceHistory, fetchCnbcPriceHistory } from "../lib/api";
 import type { MarketIndexKey, MarketFlowPoint } from "../lib/api";
 import { useCrosshairSync } from "../lib/useCrosshairSync";
 import { getMarketEvents } from "../lib/marketEvents";
@@ -107,7 +107,7 @@ export function MarketFlowModal({
   };
   const { data: vkospiPrices } = useQuery({
     queryKey: ["vkospi-prices"],
-    queryFn: () => fetchInvestingPriceHistory("VKOSPI"),
+    queryFn: () => fetchCnbcPriceHistory("VKOSPI"),
     enabled: isOpen && showVkospi,
     staleTime: 5 * 60_000,
   });
