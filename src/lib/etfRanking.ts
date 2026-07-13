@@ -36,6 +36,11 @@ export function isLeverageEtf(name: string): boolean {
   return name.includes("레버리지");
 }
 
+// 선물 ETF 판별 — 이름에 "선물" 포함 (예: HANARO 코스닥150선물레버리지, KODEX 골드선물). 랭킹 "선물 제외" 필터용.
+export function isFuturesEtf(name: string): boolean {
+  return name.includes("선물");
+}
+
 const LS_KEY = "etf_ranking_v1";
 
 export function loadCachedRanking(): EtfRanking | null {

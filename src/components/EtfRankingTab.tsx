@@ -9,7 +9,7 @@ import { signColor, formatVolume } from "../lib/format";
 import { fetchKrPriceHistory } from "../lib/api";
 import { Sparkline } from "./Sparkline";
 import {
-  fetchEtfRanking, loadCachedRanking, isLeverageEtf, RANK_SHOW, RANK_KEEP,
+  fetchEtfRanking, loadCachedRanking, isLeverageEtf, isFuturesEtf, RANK_SHOW, RANK_KEEP,
   type EtfRanking, type EtfRankRow,
 } from "../lib/etfRanking";
 
@@ -75,6 +75,7 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
   const [side, setSide] = useState<Side>("top");
   const [expanded, setExpanded] = useState(false);
   const [hideLeverage, setHideLeverage] = useState(true);   // 레버리지 ETF 제외 (기본 ON)
+  const [hideFutures, setHideFutures] = useState(true);     // 선물 ETF 제외 (기본 ON)
   const { ranking, loading, err } = state;
 
   const run = (alive: () => boolean) =>
@@ -104,7 +105,8 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
   const allRows: EtfRankRow[] = ranking
     ? (side === "top" ? ranking.top : ranking.bottom)
     : [];
-  const rows = hideLeverage ? allRows.filter(r => !isLeverageEtf(r.name)) : allRows;
+  const rows = allRows.filter(r =>
+    (!hideLeverage || !isLeverageEtf(r.name)) && (!hideFutures || !isFuturesEtf(r.name)));
   const shown = expanded ? rows.slice(0, RANK_KEEP) : rows.slice(0, RANK_SHOW);
 
   return (
@@ -138,6 +140,15 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
                               ? "border-indigo-300 bg-indigo-50 text-indigo-700"
                               : "border-gray-300 bg-white text-gray-600 hover:bg-gray-100"}`}>
           {hideLeverage ? "✓ 레버리지 제외" : "레버리지 제외"}
+        </button>
+
+        <button onClick={() => { setHideFutures(v => !v); setExpanded(false); }}
+                title="이름에 '선물' 이 든 ETF 를 목록에서 제외합니다"
+                className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors
+                            ${hideFutures
+                              ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                              : "border-gray-300 bg-white text-gray-600 hover:bg-gray-100"}`}>
+          {hideFutures ? "✓ 선물 제외" : "선물 제외"}
         </button>
 
         <div className="ml-auto text-[11px] text-gray-500 leading-tight text-right">
