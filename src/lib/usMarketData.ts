@@ -31,6 +31,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "^KS11",    name: "KOSPI",       desc: "코스피 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KS200N",  name: "코스피200 야간선물", desc: "yasun.gg · 18:00~05:00 KST", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "069500.KS", name: "KODEX 200",  desc: "KOSPI 200 추종 ETF — 실물 매매 가능", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "229200.KS", name: "KODEX 코스닥150", desc: "코스닥150 추종 ETF — 실물 매매 가능", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KQ11",    name: "KOSDAQ",      desc: "코스닥 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KQ150N",  name: "코스닥150 야간선물", desc: "yasun.gg · 18:00~05:00 KST", tier: "T0", sector: "dashboard", direction: "direct" },
   // 행 2 — 환율 + 매크로 + 외국인 투심 + 공포
@@ -112,6 +113,12 @@ export const US_PAIRS: Pair[] = [
   { symbol: "0167A0.KS", name: "SOL AI반도체TOP2플러스", desc: "삼성전자·SK하이닉스 집중 + AI반도체", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "0210A0.KS", name: "ACE K반도체TOP2+",    desc: "삼성전자·SK하이닉스 집중 반도체", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "442580.KS", name: "PLUS 글로벌HBM반도체",  desc: "글로벌 HBM 밸류체인 — 하이닉스·마이크론·엔비디아 등", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 반도체 소부장(소재·부품·장비)·공정 테마 ETF
+  { symbol: "475300.KS", name: "SOL 반도체전공정",      desc: "반도체 전공정 소부장 ETF — 장비·소재 밸류체인", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "482030.KS", name: "KoAct 반도체&2차전지핵심소재", desc: "반도체·2차전지 핵심소재 액티브 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "476260.KS", name: "HANARO 반도체핵심공정주도주", desc: "반도체 핵심공정 주도주 ETF — 소부장 대표", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "455850.KS", name: "SOL AI반도체소부장",     desc: "AI반도체 소재·부품·장비 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "471990.KS", name: "KODEX AI반도체핵심장비",  desc: "AI반도체 핵심장비 ETF — 전공정 장비주", tier: "T0", sector: "dashboard", direction: "direct" },
 ];
 
 export const ETFS_BY_SECTOR: Record<string, string[]> = {};

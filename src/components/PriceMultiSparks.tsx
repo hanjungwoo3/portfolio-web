@@ -39,6 +39,21 @@ function aggregateBy(points: SparkPoint[], bucketKey: (date: string) => string):
 const yearBucket  = (d: string) => `${d.slice(0, 4)}-01-01`;
 const monthBucket = (d: string) => `${d.slice(0, 7)}-01`;
 
+// 월봉 5개월 추이선 — 단순이동평균(슬라이딩 합, O(n)). 전체 이력으로 계산해야
+// 표시 구간 왼쪽 끝 봉도 앞 4개월을 포함한 정확한 값이 나온다(주석 방침과 동일).
+const MA_MONTH = 5;
+function smaOnClose(pts: SparkPoint[], period: number): (number | null)[] {
+  const out: (number | null)[] = [];
+  let sum = 0;
+  for (let i = 0; i < pts.length; i++) {
+    sum += pts[i].close;
+    if (i >= period) sum -= pts[i - period].close;
+    out.push(i >= period - 1 ? sum / period : null);
+  }
+  return out;
+}
+const MA_MONTH_COLOR = "#d97706";   // amber-600 — MiniCandleLight MA 색과 통일
+
 interface Slot {
   key: string;
   label: string;
@@ -94,6 +109,10 @@ export function PriceMultiSparks({ ticker }: Props) {
           // 표시 슬라이스 — 최근 displayN 개
           const startIdx = Math.max(0, s.full.length - s.displayN);
           const displayData = s.full.slice(startIdx);
+          // 월봉만 5개월 추이선 — 전체 이력으로 SMA 계산 후 표시 구간만 슬라이스
+          const maMonth = s.key === "mo" && s.full.length >= MA_MONTH
+            ? smaOnClose(s.full, MA_MONTH).slice(startIdx)
+            : undefined;
 
           // 표시 구간 최저/최고 — 저점 대비 고점 변동폭
           let lo = Infinity, hi = -Infinity;
@@ -113,6 +132,9 @@ export function PriceMultiSparks({ ticker }: Props) {
                   <span className="text-gray-400 font-normal">
                     {(displayData.length / s.perYear).toFixed(s.perYear === 1 ? 0 : 1)}년
                   </span>
+                  {maMonth && (
+                    <span className="ml-1 font-medium" style={{ color: MA_MONTH_COLOR }}>· 5개월선</span>
+                  )}
                 </span>
                 <span className="text-[10px] tabular-nums text-gray-500"
                       title={`최저 ${lo.toLocaleString()} → 최고 ${hi.toLocaleString()}`}>
@@ -120,7 +142,7 @@ export function PriceMultiSparks({ ticker }: Props) {
                 </span>
               </div>
               <Suspense fallback={<div style={{ height: 220 }} />}>
-                <MiniCandleLight data={displayData} height={220} className="w-full" />
+                <MiniCandleLight data={displayData} ma={maMonth} height={220} className="w-full" />
               </Suspense>
             </div>
           );

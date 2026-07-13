@@ -3,10 +3,13 @@
 // 조회는 17 프록시 콜이라 폴링하지 않는다. 캐시가 없을 때 1회 자동 조회하고,
 // 그 뒤로는 "새로고침" 버튼을 누를 때만 다시 받는다. (etfRanking.ts 주석 참고)
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { signColor, formatVolume } from "../lib/format";
+import { fetchKrPriceHistory } from "../lib/api";
+import { Sparkline } from "./Sparkline";
 import {
-  fetchEtfRanking, loadCachedRanking, RANK_SHOW, RANK_KEEP,
+  fetchEtfRanking, loadCachedRanking, isLeverageEtf, RANK_SHOW, RANK_KEEP,
   type EtfRanking, type EtfRankRow,
 } from "../lib/etfRanking";
 
@@ -30,6 +33,38 @@ interface State {
   err: string | null;
 }
 
+// 랭킹 카드 배경 추이 그래프 — 뷰포트에 들어온 카드만 3개월 일봉을 지연 fetch.
+//   (전체 ETF 시세 스캔은 17콜 배치지만, 종목별 차트는 개별 호출이라 호출수 병목을 피하려 lazy 로딩)
+function RankSparkline({ code }: { code: string }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [inView, setInView] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const io = new IntersectionObserver(([e]) => {
+      if (e.isIntersecting) { setInView(true); io.disconnect(); }
+    }, { rootMargin: "150px" });
+    io.observe(el);
+    return () => io.disconnect();
+  }, []);
+  const { data } = useQuery({
+    queryKey: ["etf-rank-spark", code],
+    queryFn: () => fetchKrPriceHistory(code, "3mo"),
+    enabled: inView,
+    staleTime: 60 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  const arr = (data ?? []).map(p => p.close);
+  return (
+    <div ref={ref} className="absolute inset-0 pointer-events-none">
+      {arr.length > 1 && (
+        <Sparkline data={arr} width={400} height={80}
+                   className="absolute inset-0 w-full h-full opacity-40" />
+      )}
+    </div>
+  );
+}
+
 export function EtfRankingTab({ onOpenEtfComposition }: Props) {
   // 캐시가 있으면 그대로 쓰고, 없으면 loading=true 로 시작해 마운트 직후 자동 1회 조회.
   // (이펙트 본문에서 setState 를 동기 호출하지 않기 위해 초기값에서 결정한다)
@@ -39,6 +74,7 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
   });
   const [side, setSide] = useState<Side>("top");
   const [expanded, setExpanded] = useState(false);
+  const [hideLeverage, setHideLeverage] = useState(true);   // 레버리지 ETF 제외 (기본 ON)
   const { ranking, loading, err } = state;
 
   const run = (alive: () => boolean) =>
@@ -65,9 +101,10 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const rows: EtfRankRow[] = ranking
+  const allRows: EtfRankRow[] = ranking
     ? (side === "top" ? ranking.top : ranking.bottom)
     : [];
+  const rows = hideLeverage ? allRows.filter(r => !isLeverageEtf(r.name)) : allRows;
   const shown = expanded ? rows.slice(0, RANK_KEEP) : rows.slice(0, RANK_SHOW);
 
   return (
@@ -92,6 +129,15 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
                 className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300
                            bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50">
           {loading ? "조회 중…" : "🔄 새로고침"}
+        </button>
+
+        <button onClick={() => { setHideLeverage(v => !v); setExpanded(false); }}
+                title="이름에 '레버리지' 가 든 ETF 를 목록에서 제외합니다"
+                className={`px-3 py-1.5 text-sm font-medium rounded-md border transition-colors
+                            ${hideLeverage
+                              ? "border-indigo-300 bg-indigo-50 text-indigo-700"
+                              : "border-gray-300 bg-white text-gray-600 hover:bg-gray-100"}`}>
+          {hideLeverage ? "✓ 레버리지 제외" : "레버리지 제외"}
         </button>
 
         <div className="ml-auto text-[11px] text-gray-500 leading-tight text-right">
@@ -127,22 +173,23 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
       )}
 
       {shown.length > 0 && (
-        <div className="rounded-xl border border-gray-300 bg-white overflow-hidden">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
           {shown.map((r, i) => (
             <button key={r.code}
                     onClick={() => onOpenEtfComposition?.(r.code, r.name)}
-                    className="w-full flex items-center gap-2 px-2.5 py-2 text-left
-                               border-b border-gray-100 last:border-b-0 hover:bg-gray-50">
-              <span className="w-7 shrink-0 text-[11px] tabular-nums text-gray-400 text-right">
+                    className="relative overflow-hidden flex items-center gap-2 px-2.5 py-2 text-left rounded-lg
+                               border border-gray-200 bg-white hover:bg-gray-50">
+              <RankSparkline code={r.code} />
+              <span className="relative z-10 w-7 shrink-0 text-[11px] tabular-nums text-gray-400 text-right">
                 {i + 1}
               </span>
-              <span className="flex-1 min-w-0">
+              <span className="relative z-10 flex-1 min-w-0">
                 <span className="block truncate text-sm font-medium text-gray-800">{r.name}</span>
                 <span className="block text-[11px] text-gray-500 tabular-nums">
                   {r.code} · 거래량 {formatVolume(r.volume)}
                 </span>
               </span>
-              <span className="shrink-0 text-right">
+              <span className="relative z-10 shrink-0 text-right">
                 <span className={`block text-sm font-bold tabular-nums ${signColor(r.pct)}`}>
                   {r.pct > 0 ? "+" : ""}{r.pct.toFixed(2)}%
                 </span>

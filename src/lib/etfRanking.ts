@@ -31,6 +31,11 @@ export interface EtfRanking {
 export const RANK_KEEP = 100;
 export const RANK_SHOW = 50;
 
+// 레버리지 ETF 판별 — 이름에 "레버리지" 포함 (예: KODEX 2차전지산업레버리지). 랭킹 "레버리지 제외" 필터용.
+export function isLeverageEtf(name: string): boolean {
+  return name.includes("레버리지");
+}
+
 const LS_KEY = "etf_ranking_v1";
 
 export function loadCachedRanking(): EtfRanking | null {
