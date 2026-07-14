@@ -2329,8 +2329,8 @@ export async function fetchYahooChart(
 
 // Yahoo 분봉 (intraday) — timestamp 포함. 시간대 겹침(intraday overlay) 차트용.
 // 5분봉은 Yahoo 가 최대 ~60일 제공 → range="1mo"(약 20거래일) 권장.
-// 반환: { t: epoch초(UTC), close } 배열 (null 봉 제외, 시간순).
-export interface IntradayBar { t: number; close: number; }
+// 반환: { t: epoch초(UTC), close, volume } 배열 (null 봉 제외, 시간순).
+export interface IntradayBar { t: number; close: number; volume: number; }
 export async function fetchYahooIntraday(
   symbol: string,
   range = "1mo",
@@ -2345,11 +2345,16 @@ export async function fetchYahooIntraday(
     const data = await resp.json() as ChartResp;
     const r = data.chart?.result?.[0];
     const ts = r?.timestamp ?? [];
-    const closes = r?.indicators?.quote?.[0]?.close ?? [];
+    const q = r?.indicators?.quote?.[0];
+    const closes = q?.close ?? [];
+    const vols = (q as { volume?: (number | null)[] })?.volume ?? [];
     const out: IntradayBar[] = [];
     for (let i = 0; i < ts.length; i++) {
       const c = closes[i];
-      if (typeof c === "number" && Number.isFinite(c)) out.push({ t: ts[i], close: c });
+      if (typeof c === "number" && Number.isFinite(c)) {
+        const v = vols[i];
+        out.push({ t: ts[i], close: c, volume: typeof v === "number" && Number.isFinite(v) ? v : 0 });
+      }
     }
     return out;
   } catch {

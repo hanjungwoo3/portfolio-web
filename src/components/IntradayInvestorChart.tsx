@@ -2,12 +2,13 @@
 //   투자자 on/off 는 상위(IntradayInvestorSection)의 공통 토글로 제어(controlled).
 //   series 는 이미 (당일=누적 스냅샷 / 일별=기간 누적) 계산된 값. summary=헤더 표시값.
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   createChart,
   ColorType,
   LineSeries,
-  AreaSeries,
+  BaselineSeries,
+  HistogramSeries,
   LineStyle,
   type IChartApi,
   type ISeriesApi,
@@ -17,6 +18,7 @@ import {
 } from "lightweight-charts";
 import type { IntradayKey } from "../lib/intradayInvestor";
 import { INTRADAY_SERIES } from "../lib/intradayInvestor";
+import type { SyncRegistrar } from "../lib/useCrosshairSync";
 
 export interface FlowSeriesPoint {
   t: UTCTimestamp;
@@ -40,7 +42,7 @@ const netColor = (v: number) => (v > 0 ? "#dc2626" : v < 0 ? "#2563eb" : "#9ca3a
 const MARK_TIMES = ["09:00", "12:00", "15:00"];
 
 export function IntradayInvestorChart({
-  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel,
+  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel, indexBaseline, volumeSeries, onReady,
 }: {
   series: FlowSeriesPoint[];
   summary: Record<IntradayKey, number>;
@@ -51,10 +53,16 @@ export function IntradayInvestorChart({
   summaryHint?: string;
   indexSeries?: { t: UTCTimestamp; value: number }[];   // 배경 지수(코스피/코스닥) — 같은 시간축
   indexLabel?: string;
+  indexBaseline?: number;                               // 전일 종가(기준가) — 위=빨강/아래=파랑
+  volumeSeries?: { t: UTCTimestamp; value: number }[];  // 지수 거래량 — 차트 하단 막대
+  onReady?: SyncRegistrar;                              // 3개 차트 crosshair 동기화
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const vlinesRef = useRef<HTMLDivElement>(null);
+  const fracKeyRef = useRef("");
+  // 09:00/12:00/15:00 의 차트 내 x 위치(0~1) — 아래 값표 컬럼 정렬용.
+  const [colFrac, setColFrac] = useState<{ label: string; frac: number }[]>([]);
 
   const byT = useMemo(() => {
     const m = new Map<number, FlowSeriesPoint>();
@@ -97,12 +105,28 @@ export function IntradayInvestorChart({
       autoSize: true,
     });
 
-    // 배경 지수(코스피/코스닥) — 왼쪽(숨김) 스케일에 옅은 area. 투자자 라인보다 먼저 그려 뒤에 깔림.
+    // 지수 거래량 — 하단 오버레이 히스토그램(자체 스케일, 아래 ~25%).
+    if (volumeSeries && volumeSeries.length > 1) {
+      const vol = chart.addSeries(HistogramSeries, {
+        priceScaleId: "vol",
+        color: "rgba(5,150,105,0.6)",   // emerald-600, 진하게
+        priceLineVisible: false, lastValueVisible: false,
+      });
+      vol.priceScale().applyOptions({ scaleMargins: { top: 0.75, bottom: 0 } });
+      vol.setData(volumeSeries.map(p => ({ time: p.t as Time, value: p.value })));
+    }
+
+    // 배경 지수(코스피/코스닥) — 전일 종가 기준 위=빨강/아래=파랑(한국식). 투자자 라인 뒤에 깔림.
     if (indexSeries && indexSeries.length > 1) {
-      const idx = chart.addSeries(AreaSeries, {
+      const base = indexBaseline ?? indexSeries[0].value;
+      const idx = chart.addSeries(BaselineSeries, {
         priceScaleId: "left",
-        lineColor: "rgba(22,163,74,0.55)", lineWidth: 1,
-        topColor: "rgba(22,163,74,0.14)", bottomColor: "rgba(22,163,74,0.01)",
+        baseValue: { type: "price", price: base },
+        topLineColor: "rgba(220,38,38,0.7)",
+        topFillColor1: "rgba(220,38,38,0.28)", topFillColor2: "rgba(220,38,38,0.05)",
+        bottomLineColor: "rgba(37,99,235,0.7)",
+        bottomFillColor1: "rgba(37,99,235,0.05)", bottomFillColor2: "rgba(37,99,235,0.28)",
+        lineWidth: 1,
         priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       });
       idx.setData(indexSeries.map(p => ({ time: p.t as Time, value: p.value })));
@@ -130,13 +154,14 @@ export function IntradayInvestorChart({
     const idxByT = new Map<number, number>();
     if (indexSeries) for (const p of indexSeries) idxByT.set(p.t as number, p.value);
 
-    const onMove = (param: MouseEventParams) => {
+    // 툴팁 렌더+위치 (onMove·동기화 hover 공용)
+    const showAt = (time: Time, xPixel: number) => {
       const tip = tooltipRef.current, cont = containerRef.current;
-      if (!tip || !cont || param.time == null || param.point == null) { hide(); return; }
-      const pt = byT.get(param.time as number);
+      if (!tip || !cont) return;
+      const pt = byT.get(time as number);
       if (!pt) { hide(); return; }
       let html = `<div class="text-[10px] text-gray-400 mb-0.5">${pt.label}</div>`;
-      const iv = idxByT.get(param.time as number);
+      const iv = idxByT.get(time as number);
       if (iv != null) {
         html += `<div class="flex justify-between gap-3"><span style="color:#16a34a">${indexLabel ?? "지수"}</span>`
               + `<span class="font-bold text-gray-700">${iv.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>`;
@@ -151,15 +176,34 @@ export function IntradayInvestorChart({
       tip.style.display = "block";
       const W = cont.clientWidth;
       const tw = tip.offsetWidth || 110;
-      let left = param.point.x + 12;
-      if (left + tw > W - 4) left = param.point.x - tw - 12;
+      let left = xPixel + 12;
+      if (left + tw > W - 4) left = xPixel - tw - 12;
       if (left < 4) left = 4;
       tip.style.left = `${left}px`;
       tip.style.top = `4px`;
     };
+
+    const onMove = (param: MouseEventParams) => {
+      if (param.time == null || param.point == null) { hide(); return; }
+      showAt(param.time, param.point.x);
+    };
     chart.subscribeCrosshairMove(onMove);
 
-    // 12:00 / 15:00 세로선 — timeScale 좌표 기반 HTML 오버레이 (줌·리사이즈 시 재배치).
+    // 다른 차트 hover 시 동기화 — 같은 시각의 최근접 포인트로 crosshair+툴팁 표시.
+    const onSyncedHover = (time: Time | null) => {
+      if (time == null) { try { chart.clearCrosshairPosition(); } catch { /* noop */ } hide(); return; }
+      const tt = time as number;
+      let best: FlowSeriesPoint | null = null, bestD = Infinity;
+      for (const p of series) { const d = Math.abs((p.t as number) - tt); if (d < bestD) { bestD = d; best = p; } }
+      if (!best) { hide(); return; }
+      try { chart.setCrosshairPosition(0, best.t as Time, zero); } catch { /* noop */ }
+      let lw = 0; try { lw = chart.priceScale("left").width(); } catch { /* noop */ }
+      const x = chart.timeScale().timeToCoordinate(best.t as Time);
+      if (x != null) showAt(best.t, x + lw);
+    };
+    const syncCleanup = onReady?.(chart, zero, onSyncedHover);
+
+    // 12:00 / 15:00 세로선 + 아래 값표 컬럼 위치 — timeScale 좌표 기반 (줌·리사이즈 시 재배치).
     const vlEl = vlinesRef.current;
     let ro: ResizeObserver | null = null;
     let reposition: (() => void) | null = null;
@@ -187,6 +231,16 @@ export function IntradayInvestorChart({
           it.tag.style.display = show ? "block" : "none";
           if (show) { it.line.style.left = `${x + lw}px`; it.tag.style.left = `${x + lw}px`; }
         }
+        // 값표 컬럼 x 비율(0~1) 갱신 — 컨테이너 폭 기준.
+        const cw = containerRef.current?.clientWidth || 1;
+        const fr = timeCols
+          .map(c => {
+            const x = chart.timeScale().timeToCoordinate(c.pt.t as Time);
+            return { label: c.label, frac: x == null ? -1 : (x + lw) / cw };
+          })
+          .filter(f => f.frac >= 0);
+        const key = fr.map(f => `${f.label}:${f.frac.toFixed(3)}`).join(",");
+        if (key !== fracKeyRef.current) { fracKeyRef.current = key; setColFrac(fr); }
       };
       reposition();
       // 왼쪽 지수축 등장 등 레이아웃이 다음 프레임 이후 확정 → 지연 재계산 필요.
@@ -197,13 +251,16 @@ export function IntradayInvestorChart({
 
     return () => {
       try { chart.unsubscribeCrosshairMove(onMove); } catch { /* noop */ }
+      if (syncCleanup) syncCleanup();
       if (reposition) { try { chart.timeScale().unsubscribeVisibleLogicalRangeChange(reposition); } catch { /* noop */ } }
       if (ro) ro.disconnect();
       timers.forEach(clearTimeout);
       if (vlEl) vlEl.innerHTML = "";
       chart.remove();
     };
-  }, [series, enabled, unit, timeVisible, byT, indexSeries, indexLabel, timeCols]);
+  }, [series, enabled, unit, timeVisible, byT, indexSeries, indexLabel, indexBaseline, volumeSeries, timeCols, onReady]);
+
+  const enabledDefs = INTRADAY_SERIES.filter(d => enabled[d.key]);
 
   return (
     <div className="border border-gray-200 rounded p-1.5 bg-white min-w-0">
@@ -232,35 +289,29 @@ export function IntradayInvestorChart({
              style={{ display: "none" }} />
       </div>
 
-      {/* 차트 아래 값표 — 09:00 / 12:00 / 15:00 × 선택 투자자 (당일만) */}
-      {timeVisible && timeCols.length > 0 && (
-        <div className="mt-1.5 overflow-x-auto">
-          <table className="w-full text-[10px] tabular-nums border-collapse">
-            <thead>
-              <tr className="text-gray-500 border-b border-gray-100">
-                <th className="text-left font-normal px-1 py-0.5"></th>
-                {timeCols.map(c => (
-                  <th key={c.label} className="text-right font-semibold px-1 py-0.5">{c.label}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {INTRADAY_SERIES.filter(d => enabled[d.key]).map(def => (
-                <tr key={def.key} className="border-b border-gray-50 last:border-0">
-                  <td className="px-1 py-0.5">
-                    <span className="text-white px-1 rounded text-[10px] font-medium"
+      {/* 차트 아래 값표 — 09:00 / 12:00 / 15:00 을 그래프의 실제 시간 위치에 맞춰 배치 */}
+      {timeVisible && colFrac.length > 0 && enabledDefs.length > 0 && (
+        <div className="relative mt-1.5 text-[10px] tabular-nums"
+             style={{ height: 16 + enabledDefs.length * 15 }}>
+          {colFrac.map(c => {
+            const col = timeCols.find(tc => tc.label === c.label);
+            if (!col) return null;
+            return (
+              <div key={c.label} className="absolute top-0 flex flex-col gap-0.5"
+                   style={{ left: `${c.frac * 100}%`, maxWidth: "34%" }}>
+                <span className="text-gray-500 font-semibold leading-none">{c.label}</span>
+                {enabledDefs.map(def => (
+                  <span key={def.key} className="inline-flex items-center gap-1 whitespace-nowrap leading-none">
+                    <span className="text-white px-1 rounded text-[9px]"
                           style={{ backgroundColor: def.color }}>{def.label}</span>
-                  </td>
-                  {timeCols.map(c => (
-                    <td key={c.label} className="text-right px-1 py-0.5 font-bold"
-                        style={{ color: netColor(c.pt.values[def.key]) }}>
-                      {fmtNet(c.pt.values[def.key], unit)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                    <span className="font-bold" style={{ color: netColor(col.pt.values[def.key]) }}>
+                      {fmtNet(col.pt.values[def.key], unit)}
+                    </span>
+                  </span>
+                ))}
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

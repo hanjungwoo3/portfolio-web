@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntraday, fetchYahooPriceHistory } from "../lib/api";
 import type { IntradayMarket } from "../lib/api";
 import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
+import { useCrosshairSync, type SyncRegistrar } from "../lib/useCrosshairSync";
 import type { FlowSeriesPoint } from "./IntradayInvestorChart";
 import type { UTCTimestamp } from "lightweight-charts";
 
@@ -47,8 +48,9 @@ function dateToTime(d: string): UTCTimestamp {
   const [y, mo, day] = d.split("-").map(Number);
   return (Date.UTC(y, mo - 1, day) / 1000) as UTCTimestamp;
 }
-// 배경 지수 — 코스피/코스닥만 (선물 제외).
-const YAHOO_SYM: Partial<Record<IntradayMarket, string>> = { kospi: "^KS11", kosdaq: "^KQ11" };
+// 배경 지수 — 코스피(^KS11)·코스닥(^KQ11)·선물(^KS200=코스피200 지수, 선물과 거의 동일).
+const YAHOO_SYM: Partial<Record<IntradayMarket, string>> = { kospi: "^KS11", kosdaq: "^KQ11", futures: "^KS200" };
+const INDEX_LABEL: Partial<Record<IntradayMarket, string>> = { kospi: "코스피 지수", kosdaq: "코스닥 지수", futures: "KOSPI200 지수" };
 // Yahoo intraday 봉(UTC epoch초) → KST 날짜 + 당일 시간축 타임스탬프.
 function kstFromEpoch(sec: number): { date: string; t: UTCTimestamp } {
   const d = new Date((sec + 9 * 3600) * 1000);
@@ -58,9 +60,9 @@ function kstFromEpoch(sec: number): { date: string; t: UTCTimestamp } {
   };
 }
 
-function MarketBlock({ market, label, enabled, mode, days, bizdate, on }: {
+function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady }: {
   market: IntradayMarket; label: string; enabled: Record<string, boolean>;
-  mode: "intraday" | "daily"; days: number; bizdate: string; on: boolean;
+  mode: "intraday" | "daily"; days: number; bizdate: string; on: boolean; onReady: SyncRegistrar;
 }) {
   const intra = useQuery({
     queryKey: ["market-flow-intraday", market, bizdate],
@@ -103,6 +105,8 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on }: {
   let summary = {} as Record<IntradayKey, number>;
   let unit = market === "futures" ? "계약" : "억원";
   let indexSeries: { t: UTCTimestamp; value: number }[] | undefined;
+  let indexBaseline: number | undefined;   // 전일 종가(기준가)
+  let volumeSeries: { t: UTCTimestamp; value: number }[] | undefined;
 
   if (mode === "intraday") {
     const pts = intra.data?.points ?? [];
@@ -111,12 +115,13 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on }: {
     series = pts.map(p => ({ t: hmToTime(p.time), label: p.time, values: pick(p) }));
     summary = pick(pts[pts.length - 1]);   // 당일 누적 최신
     if (ysym && idxIntra.data) {
+      const withKst = idxIntra.data.map(b => ({ ...kstFromEpoch(b.t), close: b.close, volume: b.volume }));   // 야후 ascending 유지
+      // 전일 종가 = 선택일 이전 마지막 봉의 종가 (기준선/빨강·파랑)
+      const prior = withKst.filter(b => b.date < bizdate);
+      if (prior.length) indexBaseline = prior[prior.length - 1].close;
       // 지수 봉을 투자자 시각 격자에 리샘플 → 같은 t만 사용(추가 슬롯 없음)해야
       // ordinal 시간축이 안 틀어지고 세로선/축이 정확히 맞음.
-      const bars = idxIntra.data
-        .map(b => ({ ...kstFromEpoch(b.t), close: b.close }))
-        .filter(b => b.date === bizdate)
-        .sort((a, b) => (a.t as number) - (b.t as number));
+      const bars = withKst.filter(b => b.date === bizdate).sort((a, b) => (a.t as number) - (b.t as number));
       if (bars.length > 1) {
         let j = 0;
         indexSeries = series.map(sp => {
@@ -124,6 +129,16 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on }: {
           while (j < bars.length - 1 && Math.abs((bars[j + 1].t as number) - st) <= Math.abs((bars[j].t as number) - st)) j++;
           return { t: sp.t, value: bars[j].close };
         });
+        // 거래량: 각 지수 봉을 가장 가까운 투자자 시점에 배치(중복 방지, 0으로 채움)
+        const volMap = new Map<number, number>();
+        let k = 0;
+        for (const bar of bars) {
+          const bt = bar.t as number;
+          while (k < series.length - 1 && Math.abs((series[k + 1].t as number) - bt) <= Math.abs((series[k].t as number) - bt)) k++;
+          const key = series[k].t as number;
+          volMap.set(key, (volMap.get(key) ?? 0) + bar.volume);
+        }
+        volumeSeries = series.map(sp => ({ t: sp.t, value: volMap.get(sp.t as number) ?? 0 }));
       }
     }
   } else {
@@ -139,9 +154,14 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on }: {
     summary = { ...acc };   // 기간 합계 = 최종 누적
     if (ysym && idxDaily.data) {
       const closeByDate = new Map(idxDaily.data.map(p => [p.date, p.close]));
+      const volByDate = new Map(idxDaily.data.map(p => [p.date, p.volume]));
       indexSeries = pts
         .map(p => ({ t: dateToTime(p.date), value: closeByDate.get(p.date) }))
         .filter((p): p is { t: UTCTimestamp; value: number } => typeof p.value === "number");
+      volumeSeries = pts.map(p => ({ t: dateToTime(p.date), value: volByDate.get(p.date) ?? 0 }));
+      // 기준선 = 기간 첫날 직전 거래일 종가
+      const prior = idxDaily.data.filter(p => p.date < pts[0].date);
+      if (prior.length) indexBaseline = prior[prior.length - 1].close;
     }
   }
 
@@ -150,7 +170,8 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on }: {
       <IntradayInvestorChart series={series} summary={summary} enabled={enabled}
         unit={unit} marketLabel={label} timeVisible={mode === "intraday"}
         summaryHint={mode === "daily" ? "기간합계" : undefined}
-        indexSeries={indexSeries} indexLabel={ysym ? label + " 지수" : undefined} />
+        indexSeries={indexSeries} indexLabel={ysym ? INDEX_LABEL[market] : undefined}
+        indexBaseline={indexBaseline} volumeSeries={volumeSeries} onReady={onReady} />
     </Suspense>
   );
 }
@@ -176,6 +197,8 @@ export function IntradayInvestorSection() {
     return init;
   });
   const toggleInvestor = (k: string) => setEnabled(e => ({ ...e, [k]: !e[k] }));
+
+  const registerSync = useCrosshairSync();   // 3개 차트 crosshair 동기화
 
   return (
     <div className="relative rounded-xl border border-gray-300 bg-white p-2.5 pt-4 mt-1.5">
@@ -248,7 +271,7 @@ export function IntradayInvestorSection() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {MARKETS.map(m => (
               <MarketBlock key={m.key} market={m.key} label={m.label} enabled={enabled}
-                mode={mode} days={days} bizdate={intraDate} on={open} />
+                mode={mode} days={days} bizdate={intraDate} on={open} onReady={registerSync} />
             ))}
           </div>
         </>
