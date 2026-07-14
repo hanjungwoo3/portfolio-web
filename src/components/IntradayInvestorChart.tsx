@@ -126,16 +126,17 @@ export function IntradayInvestorChart({
 
   return (
     <div className="border border-gray-200 rounded p-1.5 bg-white min-w-0">
-      {/* 헤더 — 시장명(녹색) + 개인/외국인/기관 최신 누적값 (이미지 #2 스타일) */}
-      <div className="flex flex-wrap items-baseline gap-x-2 text-xs mb-1 px-0.5 tabular-nums leading-tight">
-        <span className="font-bold text-green-600">{marketLabel}</span>
-        {latest && (
-          <>
-            <span><span className="text-purple-600">개인</span> <span className="font-bold" style={{ color: netColor(latest.individuals) }}>{fmtNet(latest.individuals, unit)}</span></span>
-            <span><span className="text-orange-500">외국인</span> <span className="font-bold" style={{ color: netColor(latest.foreigners) }}>{fmtNet(latest.foreigners, unit)}</span></span>
-            <span><span className="text-blue-500">기관</span> <span className="font-bold" style={{ color: netColor(latest.institutions) }}>{fmtNet(latest.institutions, unit)}</span></span>
-          </>
-        )}
+      {/* 헤더 — 시장명(녹색) + 전체 투자자(개인~기타법인) 최신 누적값. 여러 줄 wrap. */}
+      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[11px] mb-1 px-0.5 tabular-nums leading-tight">
+        <span className="font-bold text-green-600 text-xs">{marketLabel}</span>
+        {latest && INTRADAY_SERIES.map(def => (
+          <span key={def.key} className={`inline-flex items-baseline gap-1 ${enabled[def.key] ? "" : "opacity-50"}`}>
+            <span className="text-white px-1 rounded text-[10px] font-medium"
+                  style={{ backgroundColor: def.color }}>{def.label}</span>
+            <span className={enabled[def.key] ? "font-bold" : "font-normal"}
+                  style={{ color: netColor(latest[def.key]) }}>{fmtNet(latest[def.key], unit)}</span>
+          </span>
+        ))}
       </div>
       <div className="relative">
         <div ref={containerRef} className="w-full h-[220px] lg:h-[240px]" />
