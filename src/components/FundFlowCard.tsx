@@ -1,6 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchMarketDeposit, type MarketDepositData, type FundFlowKey } from "../lib/api";
-import { MarketChartCard } from "./MarketChartCard";
 
 // 증시 자금동향 — 네이버 금융 sise_deposit (고객예탁금·신용잔고·주식형/혼합형/채권형 펀드).
 //   지수 대시보드 맨 위 고정. 5개 지표를 한 줄에 — 각 칸에 축(조 눈금 Y·날짜 X·격자) 있는 미니 라인차트.
@@ -109,8 +108,6 @@ export function FundFlowCard() {
                     text-sm font-bold text-gray-700 whitespace-nowrap hover:bg-gray-100 hover:text-blue-600">
         💰 증시 자금동향 <span className="text-[10px] text-gray-400">↗</span>
       </a>
-      {/* 코스피/코스닥/코스피200 실시간 미니 차트 — 카드 맨 위 */}
-      <div className="mb-2"><MarketChartCard /></div>
       <div className="grid grid-cols-1 sm:grid-cols-5 gap-1.5">
         {data.metrics.map(m => (
           <Metric key={m.key} label={LABEL[m.key]} hint={HINT[m.key]} value={m.value} diff={m.diff} series={m.series} dates={data.dates} />

@@ -1620,6 +1620,73 @@ export async function fetchKrMarketFlow(
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// ─── 당일 시간별 투자자 순매수 (네이버 investorDealTrendTime) ────────────────
+//   HTS "시간별동향" 과 동일 — 당일 누적 순매수 시계열 (개인/외국인/기관+세부).
+//   sosok: 01 코스피(억원) · 02 코스닥(억원) · 03 선물(계약). 로그인 불필요.
+//   페이지당 ~10행(~14분), page=1 최신→과거. 09:00 도달 또는 빈 페이지까지 수집.
+//   값은 이미 "당일 누적" 순매수 → 그대로 라인차트(누적) 사용.
+export type IntradayMarket = "kospi" | "kosdaq" | "futures";
+const INTRADAY_SOSOK: Record<IntradayMarket, string> = { kospi: "01", kosdaq: "02", futures: "03" };
+export interface IntradayFlowPoint {
+  time: string;   // "HH:MM"
+  individuals: number; foreigners: number; institutions: number;
+  financialInvestment: number; insurance: number; trust: number;
+  bank: number; otherFinancial: number; pensionFund: number; otherCorp: number;
+}
+export interface IntradayFlow { unit: "억원" | "계약"; points: IntradayFlowPoint[]; }
+
+// 컬럼 순서(네이버): 개인·외국인·기관계·금융투자·보험·투신(사모포함)·은행·기타금융·연기금·기타법인.
+// (기관계 = 금융투자+보험+투신+은행+기타금융+연기금 으로 검증됨)
+function parseIntradayInvestor(html: string): IntradayFlowPoint[] {
+  const txt = html.replace(/<[^>]+>/g, " ").replace(/[ \t ]+/g, " ");
+  const re = /(\d{2}:\d{2})((?:\s+-?[\d,]+){10})(?!\d)/g;
+  const num = (s: string) => Number(s.replace(/,/g, "")) || 0;
+  const out: IntradayFlowPoint[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(txt))) {
+    const v = m[2].trim().split(/\s+/).map(num);
+    if (v.length < 10) continue;
+    out.push({
+      time: m[1],
+      individuals: v[0], foreigners: v[1], institutions: v[2],
+      financialInvestment: v[3], insurance: v[4], trust: v[5],
+      bank: v[6], otherFinancial: v[7], pensionFund: v[8], otherCorp: v[9],
+    });
+  }
+  return out;
+}
+
+export async function fetchKrIntradayInvestorFlow(market: IntradayMarket): Promise<IntradayFlow> {
+  const sosok = INTRADAY_SOSOK[market];
+  const bizdate = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
+  const byTime = new Map<string, IntradayFlowPoint>();
+  const MAX_PAGES = 42;   // ~14분/페이지 → 개장(09:00)~시간외(18:00) 전체 커버
+  const BATCH = 7;        // 병렬 배치 (프록시 라운드로빈 분산)
+  let reachedOpen = false;
+  for (let start = 1; start <= MAX_PAGES && !reachedOpen; start += BATCH) {
+    const pages = Array.from({ length: Math.min(BATCH, MAX_PAGES - start + 1) }, (_, i) => start + i);
+    const results = await Promise.all(pages.map(async p => {
+      try {
+        const resp = await fetchProxied(
+          `https://finance.naver.com/sise/investorDealTrendTime.naver?bizdate=${bizdate}&sosok=${sosok}&page=${p}`);
+        if (!resp.ok) return [] as IntradayFlowPoint[];
+        return parseIntradayInvestor(decodeHtmlBuf(await resp.arrayBuffer(), resp.headers.get("Content-Type") || ""));
+      } catch { return [] as IntradayFlowPoint[]; }
+    }));
+    let anyRows = false;
+    for (const pts of results) {
+      if (pts.length > 0) anyRows = true;
+      for (const pt of pts) {
+        if (!byTime.has(pt.time)) byTime.set(pt.time, pt);
+        if (pt.time <= "09:00") reachedOpen = true;   // 정규 개장 도달 → 더 과거 없음
+      }
+    }
+    if (!anyRows) break;   // 빈 배치 = 데이터 끝
+  }
+  const points = [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time));
+  return { unit: market === "futures" ? "계약" : "억원", points };
+}
+
 export async function fetchKrDisclosures(
   ticker: string, months = 12,
 ): Promise<DartDisclosure[]> {

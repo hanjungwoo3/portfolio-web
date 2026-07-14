@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { getEtfsContainingStock, type EtfHolding } from "../lib/etfIndex";
 import { fetchTossPrices, fetchKrPriceHistory } from "../lib/api";
+import { dayChangePct } from "../lib/format";
 import { useEscClose } from "../lib/useEscClose";
 import { StockCard, computeReturns } from "./EtfCompositionDialog";
 
@@ -44,6 +45,16 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
     staleTime: 30_000,
   });
   const priceMap = new Map((priceList ?? []).map(p => [p.ticker, p]));
+
+  // 표시 순서 — 현재(당일) 수익률 내림차순. 가격 로딩 전이거나 값 없으면 맨 뒤(-Infinity).
+  // 정렬 기준은 카드에 보이는 등락률(dayChangePct)과 동일하게 맞춤.
+  const sortedList = list
+    ? [...list].sort((a, b) => {
+        const pa = dayChangePct(priceMap.get(a.etfCode)) ?? -Infinity;
+        const pb = dayChangePct(priceMap.get(b.etfCode)) ?? -Infinity;
+        return pb - pa;
+      })
+    : null;
 
   // 각 ETF 추세·1·3·6개월 수익률 (6개월 히스토리)
   const histQs = useQueries({
@@ -93,10 +104,10 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
           ) : (
             <>
               <div className="text-[11px] text-gray-500 mb-2 px-1">
-                총 <b className="text-gray-800">{list.length}</b>개 ETF · 비중 내림차순
+                총 <b className="text-gray-800">{list.length}</b>개 ETF · 수익률 내림차순
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                {list.map(h => {
+                {(sortedList ?? list).map(h => {
                   const hist = histMap.get(h.etfCode) ?? [];
                   return (
                     <StockCard key={h.etfCode} i={0}
