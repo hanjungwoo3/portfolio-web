@@ -1342,8 +1342,8 @@ export function MobileSimpleView() {
                   {section.label}
                 </span>
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
-                  {(section.id === "sector" || section.id === "semitop2"
-                    // 한국 섹터 ETF·반도체 TOP2+ — 오늘 등락률(%) 내림차순 정렬 (PC 동일)
+                  {(section.id === "sector" || section.id === "semitop2" || section.id === "semisobu"
+                    // 한국 섹터 ETF·반도체 TOP2+·소부장 — 오늘 등락률(%) 내림차순 정렬 (PC 동일)
                     ? section.rows.flat().sort((a, b) =>
                         (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity))
                     : section.mobilePair
