@@ -1687,6 +1687,56 @@ export async function fetchKrIntradayInvestorFlow(market: IntradayMarket): Promi
   return { unit: market === "futures" ? "계약" : "억원", points };
 }
 
+// ─── 일별 투자자 순매수 (네이버 investorDealTrendDay, 기간별) ────────────────
+//   HTS "일별동향" 과 동일. sosok 01/02/03 (선물=계약). 페이지당 10거래일, page=1 최신→과거.
+//   값 = 일별 순매수(비누적). 화면에서 기간 합계·누적을 계산.
+export interface DailyFlowPoint {
+  date: string;   // "YYYY-MM-DD"
+  individuals: number; foreigners: number; institutions: number;
+  financialInvestment: number; insurance: number; trust: number;
+  bank: number; otherFinancial: number; pensionFund: number; otherCorp: number;
+}
+export interface DailyFlow { unit: "억원" | "계약"; points: DailyFlowPoint[]; }
+
+function parseDailyInvestor(html: string): DailyFlowPoint[] {
+  const txt = html.replace(/<[^>]+>/g, " ").replace(/[ \t ]+/g, " ");
+  const re = /(\d{2})\.(\d{2})\.(\d{2})((?:\s+-?[\d,]+){10})(?!\d)/g;
+  const num = (s: string) => Number(s.replace(/,/g, "")) || 0;
+  const out: DailyFlowPoint[] = [];
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(txt))) {
+    const v = m[4].trim().split(/\s+/).map(num);
+    if (v.length < 10) continue;
+    out.push({
+      date: `20${m[1]}-${m[2]}-${m[3]}`,   // 26.07.14 → 2026-07-14
+      individuals: v[0], foreigners: v[1], institutions: v[2],
+      financialInvestment: v[3], insurance: v[4], trust: v[5],
+      bank: v[6], otherFinancial: v[7], pensionFund: v[8], otherCorp: v[9],
+    });
+  }
+  return out;
+}
+
+// days = 조회할 거래일 수(대략). 10거래일/페이지 → ceil(days/10) 페이지 + 여유 1.
+export async function fetchKrDailyInvestorFlow(market: IntradayMarket, days = 22): Promise<DailyFlow> {
+  const sosok = INTRADAY_SOSOK[market];
+  const bizdate = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
+  const maxPages = Math.min(30, Math.ceil(days / 10) + 1);   // 상한 30페이지(~300거래일)
+  const byDate = new Map<string, DailyFlowPoint>();
+  const pages = Array.from({ length: maxPages }, (_, i) => i + 1);
+  const results = await Promise.all(pages.map(async p => {
+    try {
+      const resp = await fetchProxied(
+        `https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate=${bizdate}&sosok=${sosok}&page=${p}`);
+      if (!resp.ok) return [] as DailyFlowPoint[];
+      return parseDailyInvestor(decodeHtmlBuf(await resp.arrayBuffer(), resp.headers.get("Content-Type") || ""));
+    } catch { return [] as DailyFlowPoint[]; }
+  }));
+  for (const pts of results) for (const pt of pts) if (!byDate.has(pt.date)) byDate.set(pt.date, pt);
+  const points = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-days);
+  return { unit: market === "futures" ? "계약" : "억원", points };
+}
+
 export async function fetchKrDisclosures(
   ticker: string, months = 12,
 ): Promise<DartDisclosure[]> {

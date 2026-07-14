@@ -1,6 +1,6 @@
-// 당일 시간별 투자자 순매수 차트 (1개 시장) — HTS "시간별동향" 형식.
+// 투자자 순매수 다중 라인 차트 — 당일(시간축) / 일별(날짜축) 공용.
 //   투자자 on/off 는 상위(IntradayInvestorSection)의 공통 토글로 제어(controlled).
-//   데이터: fetchKrIntradayInvestorFlow (네이버 investorDealTrendTime).
+//   series 는 이미 (당일=누적 스냅샷 / 일별=기간 누적) 계산된 값. summary=헤더 표시값.
 
 import { useEffect, useMemo, useRef } from "react";
 import {
@@ -14,14 +14,15 @@ import {
   type UTCTimestamp,
   type MouseEventParams,
 } from "lightweight-charts";
-import type { IntradayFlowPoint } from "../lib/api";
+import type { IntradayKey } from "../lib/intradayInvestor";
 import { INTRADAY_SERIES } from "../lib/intradayInvestor";
 
-// "HH:MM" → 고정일자 UTC 타임스탬프 (뷰어 TZ 무관하게 축에 HH:MM 표기되도록 UTC 취급)
-function toTime(hhmm: string): UTCTimestamp {
-  const [h, m] = hhmm.split(":").map(Number);
-  return (Date.UTC(2000, 0, 1, h, m) / 1000) as UTCTimestamp;
+export interface FlowSeriesPoint {
+  t: UTCTimestamp;
+  label: string;                        // 툴팁 표기용 (HH:MM 또는 MM/DD)
+  values: Record<IntradayKey, number>;
 }
+
 // 금액 표시 — 억원은 조/억원(예: -4조 1,411억원), 선물은 계약.
 function fmtNet(v: number, unit: string): string {
   const sign = v > 0 ? "+" : v < 0 ? "-" : "";
@@ -35,26 +36,27 @@ function fmtNet(v: number, unit: string): string {
 const netColor = (v: number) => (v > 0 ? "#dc2626" : v < 0 ? "#2563eb" : "#9ca3af");
 
 export function IntradayInvestorChart({
-  points, unit, enabled, marketLabel,
+  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint,
 }: {
-  points: IntradayFlowPoint[];
-  unit: string;
+  series: FlowSeriesPoint[];
+  summary: Record<IntradayKey, number>;
   enabled: Record<string, boolean>;
+  unit: string;
   marketLabel: string;
+  timeVisible: boolean;
+  summaryHint?: string;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
 
-  const byTime = useMemo(() => {
-    const m = new Map<number, IntradayFlowPoint>();
-    for (const p of points) m.set(toTime(p.time) as number, p);
+  const byT = useMemo(() => {
+    const m = new Map<number, FlowSeriesPoint>();
+    for (const p of series) m.set(p.t as number, p);
     return m;
-  }, [points]);
-
-  const latest = points[points.length - 1];
+  }, [series]);
 
   useEffect(() => {
-    if (!containerRef.current || points.length < 2) return;
+    if (!containerRef.current || series.length < 2) return;
 
     const chart: IChartApi = createChart(containerRef.current, {
       layout: {
@@ -65,7 +67,7 @@ export function IntradayInvestorChart({
       },
       grid: { vertLines: { color: "#f3f4f6" }, horzLines: { color: "#f3f4f6" } },
       rightPriceScale: { borderColor: "#e5e7eb", scaleMargins: { top: 0.1, bottom: 0.1 } },
-      timeScale: { borderColor: "#e5e7eb", timeVisible: true, secondsVisible: false },
+      timeScale: { borderColor: "#e5e7eb", timeVisible, secondsVisible: false },
       crosshair: {
         mode: 1,
         vertLine: { color: "#9ca3af", width: 1, style: LineStyle.Dotted, labelBackgroundColor: "#475569" },
@@ -74,21 +76,20 @@ export function IntradayInvestorChart({
       autoSize: true,
     });
 
-    // 0 기준선 (순매수 부호 판독용)
+    // 0 기준선
     const zero = chart.addSeries(LineSeries, {
       color: "#d1d5db", lineWidth: 1, lineStyle: LineStyle.Dashed,
       priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     });
-    zero.setData(points.map(p => ({ time: toTime(p.time) as Time, value: 0 })));
+    zero.setData(series.map(p => ({ time: p.t as Time, value: 0 })));
 
-    // 선택된 투자자 라인
     for (const def of INTRADAY_SERIES) {
       if (!enabled[def.key]) continue;
       const s: ISeriesApi<"Line"> = chart.addSeries(LineSeries, {
         color: def.color, lineWidth: 2, priceFormat: { type: "volume" },
         priceLineVisible: false, lastValueVisible: false,
       });
-      s.setData(points.map(p => ({ time: toTime(p.time) as Time, value: p[def.key] })));
+      s.setData(series.map(p => ({ time: p.t as Time, value: p.values[def.key] })));
     }
 
     chart.timeScale().fitContent();
@@ -97,12 +98,12 @@ export function IntradayInvestorChart({
     const onMove = (param: MouseEventParams) => {
       const tip = tooltipRef.current, cont = containerRef.current;
       if (!tip || !cont || param.time == null || param.point == null) { hide(); return; }
-      const pt = byTime.get(param.time as number);
+      const pt = byT.get(param.time as number);
       if (!pt) { hide(); return; }
-      let html = `<div class="text-[10px] text-gray-400 mb-0.5">${pt.time}</div>`;
+      let html = `<div class="text-[10px] text-gray-400 mb-0.5">${pt.label}</div>`;
       for (const def of INTRADAY_SERIES) {
         if (!enabled[def.key]) continue;
-        const v = pt[def.key];
+        const v = pt.values[def.key];
         html += `<div class="flex justify-between gap-3"><span style="color:${def.color}">${def.label}</span>`
               + `<span class="font-bold" style="color:${netColor(v)}">${fmtNet(v, unit)}</span></div>`;
       }
@@ -122,19 +123,20 @@ export function IntradayInvestorChart({
       try { chart.unsubscribeCrosshairMove(onMove); } catch { /* noop */ }
       chart.remove();
     };
-  }, [points, enabled, unit, byTime]);
+  }, [series, enabled, unit, timeVisible, byT]);
 
   return (
     <div className="border border-gray-200 rounded p-1.5 bg-white min-w-0">
-      {/* 헤더 — 시장명(녹색) + 전체 투자자(개인~기타법인) 최신 누적값. 여러 줄 wrap. */}
+      {/* 헤더 — 시장명(녹색) + 전체 투자자 요약값(당일=최신 / 일별=기간합계). 여러 줄 wrap. */}
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[11px] mb-1 px-0.5 tabular-nums leading-tight">
         <span className="font-bold text-green-600 text-xs">{marketLabel}</span>
-        {latest && INTRADAY_SERIES.map(def => (
+        {summaryHint && <span className="text-[10px] text-gray-400">{summaryHint}</span>}
+        {INTRADAY_SERIES.map(def => (
           <span key={def.key} className={`inline-flex items-baseline gap-1 ${enabled[def.key] ? "" : "opacity-50"}`}>
             <span className="text-white px-1 rounded text-[10px] font-medium"
                   style={{ backgroundColor: def.color }}>{def.label}</span>
             <span className={enabled[def.key] ? "font-bold" : "font-normal"}
-                  style={{ color: netColor(latest[def.key]) }}>{fmtNet(latest[def.key], unit)}</span>
+                  style={{ color: netColor(summary[def.key]) }}>{fmtNet(summary[def.key], unit)}</span>
           </span>
         ))}
       </div>
