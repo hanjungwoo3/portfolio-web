@@ -4,7 +4,7 @@
 
 import { useState, lazy, Suspense, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow } from "../lib/api";
+import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntraday, fetchYahooPriceHistory } from "../lib/api";
 import type { IntradayMarket } from "../lib/api";
 import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
 import type { FlowSeriesPoint } from "./IntradayInvestorChart";
@@ -31,6 +31,14 @@ function pick(p: Record<IntradayKey, number>): Record<IntradayKey, number> {
   for (const k of KEYS) o[k] = p[k];
   return o;
 }
+function todayKST(): string {
+  return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+}
+function shiftDate(d: string, delta: number): string {
+  const dt = new Date(`${d}T00:00:00Z`);
+  dt.setUTCDate(dt.getUTCDate() + delta);
+  return dt.toISOString().slice(0, 10);
+}
 function hmToTime(hm: string): UTCTimestamp {
   const [h, m] = hm.split(":").map(Number);
   return (Date.UTC(2000, 0, 1, h, m) / 1000) as UTCTimestamp;
@@ -39,14 +47,24 @@ function dateToTime(d: string): UTCTimestamp {
   const [y, mo, day] = d.split("-").map(Number);
   return (Date.UTC(y, mo - 1, day) / 1000) as UTCTimestamp;
 }
+// 배경 지수 — 코스피/코스닥만 (선물 제외).
+const YAHOO_SYM: Partial<Record<IntradayMarket, string>> = { kospi: "^KS11", kosdaq: "^KQ11" };
+// Yahoo intraday 봉(UTC epoch초) → KST 날짜 + 당일 시간축 타임스탬프.
+function kstFromEpoch(sec: number): { date: string; t: UTCTimestamp } {
+  const d = new Date((sec + 9 * 3600) * 1000);
+  return {
+    date: d.toISOString().slice(0, 10),
+    t: (Date.UTC(2000, 0, 1, d.getUTCHours(), d.getUTCMinutes()) / 1000) as UTCTimestamp,
+  };
+}
 
-function MarketBlock({ market, label, enabled, mode, days, on }: {
+function MarketBlock({ market, label, enabled, mode, days, bizdate, on }: {
   market: IntradayMarket; label: string; enabled: Record<string, boolean>;
-  mode: "intraday" | "daily"; days: number; on: boolean;
+  mode: "intraday" | "daily"; days: number; bizdate: string; on: boolean;
 }) {
   const intra = useQuery({
-    queryKey: ["market-flow-intraday", market],
-    queryFn: () => fetchKrIntradayInvestorFlow(market),
+    queryKey: ["market-flow-intraday", market, bizdate],
+    queryFn: () => fetchKrIntradayInvestorFlow(market, bizdate.replace(/-/g, "")),
     enabled: on && mode === "intraday",
     staleTime: 60_000, refetchOnWindowFocus: false,
   });
@@ -54,6 +72,21 @@ function MarketBlock({ market, label, enabled, mode, days, on }: {
     queryKey: ["market-flow-daily", market, days],
     queryFn: () => fetchKrDailyInvestorFlow(market, days),
     enabled: on && mode === "daily",
+    staleTime: 5 * 60_000, refetchOnWindowFocus: false,
+  });
+
+  // 배경 지수(코스피/코스닥) — 당일=Yahoo 분봉, 일별=Yahoo 일봉.
+  const ysym = YAHOO_SYM[market];
+  const idxIntra = useQuery({
+    queryKey: ["idx-intra", ysym, bizdate],
+    queryFn: () => fetchYahooIntraday(ysym!, "5d", "5m"),
+    enabled: on && mode === "intraday" && !!ysym,
+    staleTime: 60_000, refetchOnWindowFocus: false,
+  });
+  const idxDaily = useQuery({
+    queryKey: ["idx-daily", ysym],
+    queryFn: () => fetchYahooPriceHistory(ysym!, "1y"),
+    enabled: on && mode === "daily" && !!ysym,
     staleTime: 5 * 60_000, refetchOnWindowFocus: false,
   });
 
@@ -69,6 +102,7 @@ function MarketBlock({ market, label, enabled, mode, days, on }: {
   let series: FlowSeriesPoint[] = [];
   let summary = {} as Record<IntradayKey, number>;
   let unit = market === "futures" ? "계약" : "억원";
+  let indexSeries: { t: UTCTimestamp; value: number }[] | undefined;
 
   if (mode === "intraday") {
     const pts = intra.data?.points ?? [];
@@ -76,6 +110,22 @@ function MarketBlock({ market, label, enabled, mode, days, on }: {
     unit = intra.data!.unit;
     series = pts.map(p => ({ t: hmToTime(p.time), label: p.time, values: pick(p) }));
     summary = pick(pts[pts.length - 1]);   // 당일 누적 최신
+    if (ysym && idxIntra.data) {
+      // 지수 봉을 투자자 시각 격자에 리샘플 → 같은 t만 사용(추가 슬롯 없음)해야
+      // ordinal 시간축이 안 틀어지고 세로선/축이 정확히 맞음.
+      const bars = idxIntra.data
+        .map(b => ({ ...kstFromEpoch(b.t), close: b.close }))
+        .filter(b => b.date === bizdate)
+        .sort((a, b) => (a.t as number) - (b.t as number));
+      if (bars.length > 1) {
+        let j = 0;
+        indexSeries = series.map(sp => {
+          const st = sp.t as number;
+          while (j < bars.length - 1 && Math.abs((bars[j + 1].t as number) - st) <= Math.abs((bars[j].t as number) - st)) j++;
+          return { t: sp.t, value: bars[j].close };
+        });
+      }
+    }
   } else {
     const pts = daily.data?.points ?? [];
     if (pts.length < 2) return shell(<span>일별 데이터 없음</span>);
@@ -87,13 +137,20 @@ function MarketBlock({ market, label, enabled, mode, days, on }: {
       return { t: dateToTime(p.date), label: p.date.slice(5).replace("-", "/"), values: { ...acc } };
     });
     summary = { ...acc };   // 기간 합계 = 최종 누적
+    if (ysym && idxDaily.data) {
+      const closeByDate = new Map(idxDaily.data.map(p => [p.date, p.close]));
+      indexSeries = pts
+        .map(p => ({ t: dateToTime(p.date), value: closeByDate.get(p.date) }))
+        .filter((p): p is { t: UTCTimestamp; value: number } => typeof p.value === "number");
+    }
   }
 
   return (
     <Suspense fallback={<div className="h-[260px]" />}>
       <IntradayInvestorChart series={series} summary={summary} enabled={enabled}
         unit={unit} marketLabel={label} timeVisible={mode === "intraday"}
-        summaryHint={mode === "daily" ? "기간합계" : undefined} />
+        summaryHint={mode === "daily" ? "기간합계" : undefined}
+        indexSeries={indexSeries} indexLabel={ysym ? label + " 지수" : undefined} />
     </Suspense>
   );
 }
@@ -110,6 +167,8 @@ export function IntradayInvestorSection() {
 
   const [mode, setMode] = useState<"intraday" | "daily">("intraday");
   const [days, setDays] = useState<number>(22);   // 일별 기간 (기본 1개월)
+  const [intraDate, setIntraDate] = useState<string>(todayKST());   // 당일 뷰 조회일
+  const today = todayKST();
 
   const [enabled, setEnabled] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
@@ -150,8 +209,24 @@ export function IntradayInvestorSection() {
                 ))}
               </div>
             )}
+            {mode === "intraday" && (
+              <div className="flex items-center gap-1 text-xs">
+                <button onClick={() => setIntraDate(d => shiftDate(d, -1))}
+                        title="이전 날" className="px-1.5 py-1 rounded border border-gray-300 hover:bg-gray-50 leading-none">‹</button>
+                <input type="date" value={intraDate} max={today}
+                       onChange={e => e.target.value && setIntraDate(e.target.value)}
+                       className="border border-gray-300 rounded px-1.5 py-0.5 text-xs" />
+                <button onClick={() => setIntraDate(d => (d < today ? shiftDate(d, 1) : d))}
+                        disabled={intraDate >= today} title="다음 날"
+                        className="px-1.5 py-1 rounded border border-gray-300 hover:bg-gray-50 leading-none disabled:opacity-40">›</button>
+                {intraDate !== today && (
+                  <button onClick={() => setIntraDate(today)}
+                          className="px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 font-medium">오늘</button>
+                )}
+              </div>
+            )}
             <span className="text-[10px] text-gray-400">
-              {mode === "intraday" ? "당일 시간별 누적" : "기간 누적 (합계 상단 표시)"} · 코스피·코스닥 억원 / 선물 계약
+              {mode === "intraday" ? "시간별 누적(날짜 선택)" : "기간 누적 (합계 상단 표시)"} · 코스피·코스닥 억원 / 선물 계약
             </span>
           </div>
 
@@ -173,7 +248,7 @@ export function IntradayInvestorSection() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {MARKETS.map(m => (
               <MarketBlock key={m.key} market={m.key} label={m.label} enabled={enabled}
-                mode={mode} days={days} on={open} />
+                mode={mode} days={days} bizdate={intraDate} on={open} />
             ))}
           </div>
         </>

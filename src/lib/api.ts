@@ -1656,9 +1656,10 @@ function parseIntradayInvestor(html: string): IntradayFlowPoint[] {
   return out;
 }
 
-export async function fetchKrIntradayInvestorFlow(market: IntradayMarket): Promise<IntradayFlow> {
+// bizdate(YYYYMMDD) 생략 시 오늘(KST). 과거 날짜도 조회 가능(네이버가 당일 시계열 보관).
+export async function fetchKrIntradayInvestorFlow(market: IntradayMarket, bizdate?: string): Promise<IntradayFlow> {
   const sosok = INTRADAY_SOSOK[market];
-  const bizdate = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
+  const bd = bizdate ?? new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
   const byTime = new Map<string, IntradayFlowPoint>();
   const MAX_PAGES = 42;   // ~14분/페이지 → 개장(09:00)~시간외(18:00) 전체 커버
   const BATCH = 7;        // 병렬 배치 (프록시 라운드로빈 분산)
@@ -1668,7 +1669,7 @@ export async function fetchKrIntradayInvestorFlow(market: IntradayMarket): Promi
     const results = await Promise.all(pages.map(async p => {
       try {
         const resp = await fetchProxied(
-          `https://finance.naver.com/sise/investorDealTrendTime.naver?bizdate=${bizdate}&sosok=${sosok}&page=${p}`);
+          `https://finance.naver.com/sise/investorDealTrendTime.naver?bizdate=${bd}&sosok=${sosok}&page=${p}`);
         if (!resp.ok) return [] as IntradayFlowPoint[];
         return parseIntradayInvestor(decodeHtmlBuf(await resp.arrayBuffer(), resp.headers.get("Content-Type") || ""));
       } catch { return [] as IntradayFlowPoint[]; }
