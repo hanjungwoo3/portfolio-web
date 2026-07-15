@@ -105,21 +105,21 @@ export function IntradayInvestorChart({
     return m;
   }, [timeCols, indexSeries]);
 
-  // 각 값표 컬럼 시각의 거래량 — 20분 이내 최근접. 값표에 거래량도 숫자로 표시.
+  // 각 값표 컬럼 시각의 거래량 — 20분 이내 '비-0' 최근접 봉.
+  //   5분봉 지수 거래량을 투자자 격자에 리샘플하면 봉이 안 걸린 슬롯이 0(구멍)이 됨 →
+  //   15:00 등 컬럼이 그 0 슬롯을 잡아 '거래량 0' 오표시. 0은 건너뛰고 실제 거래량을 씀.
   const volAtCol = useMemo(() => {
     const m = new Map<string, number>();
     if (!volumeSeries || volumeSeries.length === 0) return m;
     for (const c of timeCols) {
       const tt = c.pt.t as number;
       let best: number | null = null, bestD = Infinity;
-      for (const p of volumeSeries) { const d = Math.abs((p.t as number) - tt); if (d < bestD) { bestD = d; best = p.value; } }
-      if (best != null && bestD <= 20 * 60) m.set(c.label, best);
-    }
-    // "현재" 슬롯은 최신 지수봉이 직전 슬롯에 매핑돼 0이 되기 쉬움 → 마지막 실제 거래량으로 대체.
-    if ((m.get("현재") ?? 0) === 0) {
-      for (let i = volumeSeries.length - 1; i >= 0; i--) {
-        if (volumeSeries[i].value > 0) { m.set("현재", volumeSeries[i].value); break; }
+      for (const p of volumeSeries) {
+        if (p.value <= 0) continue;
+        const d = Math.abs((p.t as number) - tt);
+        if (d < bestD) { bestD = d; best = p.value; }
       }
+      if (best != null && bestD <= 20 * 60) m.set(c.label, best);
     }
     return m;
   }, [timeCols, volumeSeries]);
