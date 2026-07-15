@@ -1174,12 +1174,13 @@ export async function fetchKrPriceHistory(
   ticker: string, range = "1y",
 ): Promise<PricePoint[]> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
-  // KOSDAQ 종목을 .KS 로 받으면 노이즈 1봉만 나오는 경우가 있어(>0 폴백으론 부족),
-  //   2봉 미만이면 .KQ 로 폴백 — fetchKrSparkSeries 와 동일 규칙.
-  const ks = await fetchPriceHistoryFor(`${ticker}.KS`, range);
-  if (ks.length >= 2) return ks;
-  const kq = await fetchPriceHistoryFor(`${ticker}.KQ`, range);
-  return kq.length >= ks.length ? kq : ks;
+  // KOSDAQ 종목을 .KS 로 받으면 노이즈 5~20봉이 나와(>0·2봉 폴백으론 부족) 3일치만 그려지는 버그 →
+  //   fetchKrIntraday 와 동일하게 둘 다 받아 봉 많은 쪽 선택. (1시간 캐시라 호출수 영향 미미)
+  const [ks, kq] = await Promise.all([
+    fetchPriceHistoryFor(`${ticker}.KS`, range),
+    fetchPriceHistoryFor(`${ticker}.KQ`, range),
+  ]);
+  return ks.length >= kq.length ? ks : kq;
 }
 
 // Yahoo 임의 심볼 가격 history (^KS11, ^KQ11 등 인덱스 포함)
@@ -1232,9 +1233,12 @@ export async function fetchKrSparkSeries(
   ticker: string, range: string, interval: string,
 ): Promise<SparkPoint[]> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
-  const ks = await fetchSparkSeriesFor(`${ticker}.KS`, range, interval);
-  if (ks.length >= 2) return ks;
-  return await fetchSparkSeriesFor(`${ticker}.KQ`, range, interval);
+  // 노이즈 봉 문제(fetchKrPriceHistory 참조) — 둘 다 받아 봉 많은 쪽 선택.
+  const [ks, kq] = await Promise.all([
+    fetchSparkSeriesFor(`${ticker}.KS`, range, interval),
+    fetchSparkSeriesFor(`${ticker}.KQ`, range, interval),
+  ]);
+  return ks.length >= kq.length ? ks : kq;
 }
 
 // 한국 종목 가격 + 배당 + 액면분할 이벤트 통합 fetch
@@ -1243,11 +1247,12 @@ export async function fetchKrPriceHistoryWithEvents(
 ): Promise<{ prices: PricePoint[]; dividends: DividendEvent[]; splits: SplitEvent[] }> {
   const empty = { prices: [] as PricePoint[], dividends: [] as DividendEvent[], splits: [] as SplitEvent[] };
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return empty;
-  // KOSDAQ 종목을 .KS 로 받으면 노이즈 1봉만 나오는 경우가 있어(>0 폴백으론 부족), 2봉 미만이면 .KQ 로 폴백.
-  const ks = await fetchPriceHistoryWithEventsFor(`${ticker}.KS`, range);
-  if (ks.prices.length >= 2) return ks;
-  const kq = await fetchPriceHistoryWithEventsFor(`${ticker}.KQ`, range);
-  return kq.prices.length >= ks.prices.length ? kq : ks;
+  // 노이즈 봉 문제(fetchKrPriceHistory 참조) — 둘 다 받아 봉 많은 쪽 선택.
+  const [ks, kq] = await Promise.all([
+    fetchPriceHistoryWithEventsFor(`${ticker}.KS`, range),
+    fetchPriceHistoryWithEventsFor(`${ticker}.KQ`, range),
+  ]);
+  return ks.prices.length >= kq.prices.length ? ks : kq;
 }
 
 // 공시 fetch — Naver 모바일 API (인증 불필요, m.stock.naver.com 이미 워커 화이트리스트)
