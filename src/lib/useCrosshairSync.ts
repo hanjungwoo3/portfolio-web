@@ -4,7 +4,7 @@
 
 import { useCallback, useRef } from "react";
 import type {
-  IChartApi, ISeriesApi, SeriesType, Time, LogicalRange, MouseEventParams,
+  IChartApi, ISeriesApi, SeriesType, Time, MouseEventParams,
 } from "lightweight-charts";
 
 export type SyncRegistrar = (
@@ -46,14 +46,19 @@ export function useCrosshairSync(): SyncRegistrar {
     chart.subscribeCrosshairMove(moveHandler);
 
     // ─── 2) Time scale sync (줌/팬) ───────────────────────────
-    const rangeHandler = (range: LogicalRange | null) => {
-      if (isSyncingRangeRef.current || !range) return;
+    //   ⚠️ logical range(바 인덱스)가 아닌 '시간 범위'로 동기화해야 함.
+    //   차트마다 포인트 개수가 달라(코스피/코스닥 vs 선물) 인덱스 기준이면
+    //   선물의 남는 봉이 오른쪽 밖으로 밀려 '현재'가 영역 밖으로 나감.
+    const rangeHandler = () => {
+      if (isSyncingRangeRef.current) return;
+      const tr = chart.timeScale().getVisibleRange();
+      if (!tr) return;
       isSyncingRangeRef.current = true;
       try {
         for (const other of entriesRef.current) {
           if (other.chart === chart) continue;
-          try { other.chart.timeScale().setVisibleLogicalRange(range); }
-          catch { /* 차트 제거됨 */ }
+          try { other.chart.timeScale().setVisibleRange(tr); }
+          catch { /* 차트 제거됨 / 범위 밖 */ }
         }
       } finally {
         isSyncingRangeRef.current = false;

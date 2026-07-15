@@ -50,7 +50,7 @@ function dateToTime(d: string): UTCTimestamp {
 }
 // 배경 지수 — 코스피(^KS11)·코스닥(^KQ11)·선물(^KS200=코스피200 지수, 선물과 거의 동일).
 const YAHOO_SYM: Partial<Record<IntradayMarket, string>> = { kospi: "^KS11", kosdaq: "^KQ11", futures: "^KS200" };
-const INDEX_LABEL: Partial<Record<IntradayMarket, string>> = { kospi: "코스피 지수", kosdaq: "코스닥 지수", futures: "KOSPI200 지수" };
+const INDEX_LABEL: Partial<Record<IntradayMarket, string>> = { kospi: "코스피", kosdaq: "코스닥", futures: "KOSPI200" };
 // Yahoo intraday 봉(UTC epoch초) → KST 날짜 + 당일 시간축 타임스탬프.
 function kstFromEpoch(sec: number): { date: string; t: UTCTimestamp } {
   const d = new Date((sec + 9 * 3600) * 1000);
@@ -270,8 +270,11 @@ export function IntradayInvestorSection() {
           {/* 코스피 / 코스닥 / 선물 — 한 줄에 3개 */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {MARKETS.map(m => (
-              <MarketBlock key={m.key} market={m.key} label={m.label} enabled={enabled}
-                mode={mode} days={days} bizdate={intraDate} on={open} onReady={registerSync} />
+              // min-w-0 — grid 자식 기본 min-width:auto 로 선물(칩 많음) 셀이 안 줄고 나머지를 압축하는 것 방지.
+              <div key={m.key} className="min-w-0">
+                <MarketBlock market={m.key} label={m.label} enabled={enabled}
+                  mode={mode} days={days} bizdate={intraDate} on={open} onReady={registerSync} />
+              </div>
             ))}
           </div>
         </>

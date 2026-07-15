@@ -2,7 +2,7 @@
 //   투자자 on/off 는 상위(IntradayInvestorSection)의 공통 토글로 제어(controlled).
 //   series 는 이미 (당일=누적 스냅샷 / 일별=기간 누적) 계산된 값. summary=헤더 표시값.
 
-import { useEffect, useMemo, useRef, useState, Fragment } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, Fragment } from "react";
 import {
   createChart,
   ColorType,
@@ -18,6 +18,7 @@ import {
 } from "lightweight-charts";
 import type { IntradayKey } from "../lib/intradayInvestor";
 import { INTRADAY_SERIES } from "../lib/intradayInvestor";
+import { formatVolume } from "../lib/format";
 import type { SyncRegistrar } from "../lib/useCrosshairSync";
 
 export interface FlowSeriesPoint {
@@ -63,6 +64,11 @@ export function IntradayInvestorChart({
   const fracKeyRef = useRef("");
   // 09:00/12:00/15:00 의 차트 내 x 위치(0~1) — 아래 값표 컬럼 정렬용.
   const [colFrac, setColFrac] = useState<{ label: string; frac: number }[]>([]);
+  // 값표 컬럼 충돌 회피 — 측정 폭 기반으로 겹치면 오른쪽으로 밀어낸 최종 left(px).
+  const valueTableRef = useRef<HTMLDivElement>(null);
+  const colRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const colPosKeyRef = useRef("");
+  const [colLeft, setColLeft] = useState<Record<string, number>>({});
 
   const byT = useMemo(() => {
     const m = new Map<number, FlowSeriesPoint>();
@@ -73,9 +79,11 @@ export function IntradayInvestorChart({
   // 09:00 / 12:00 / 15:00 최근접 포인트(20분 이내) + 맨 오른쪽 "현재"(최신) — 차트 아래 값표용.
   const timeCols = useMemo(() => {
     if (!timeVisible || series.length === 0) return [] as { label: string; pt: FlowSeriesPoint }[];
+    const lastT = series[series.length - 1].t as number;   // 최신 데이터 시각
     const cols = MARK_TIMES.map(hm => {
       const [h, mm] = hm.split(":").map(Number);
       const tt = Date.UTC(2000, 0, 1, h, mm) / 1000;
+      if (tt > lastT) return null;   // 아직 도달 안 한 마커(예: 14:50 인데 15:00)는 숨김
       let best: FlowSeriesPoint | null = null, bestD = Infinity;
       for (const p of series) { const d = Math.abs((p.t as number) - tt); if (d < bestD) { bestD = d; best = p; } }
       return best && bestD <= 20 * 60 ? { label: hm, pt: best } : null;
@@ -83,6 +91,38 @@ export function IntradayInvestorChart({
     cols.push({ label: "현재", pt: series[series.length - 1] });   // 최신값 = 맨 오른쪽
     return cols;
   }, [series, timeVisible]);
+
+  // 각 값표 컬럼 시각의 지수(코스피/코스닥) 값 — 20분 이내 최근접. 값표에 지수도 함께 표시.
+  const indexAtCol = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!indexSeries || indexSeries.length === 0) return m;
+    for (const c of timeCols) {
+      const tt = c.pt.t as number;
+      let best: number | null = null, bestD = Infinity;
+      for (const p of indexSeries) { const d = Math.abs((p.t as number) - tt); if (d < bestD) { bestD = d; best = p.value; } }
+      if (best != null && bestD <= 20 * 60) m.set(c.label, best);
+    }
+    return m;
+  }, [timeCols, indexSeries]);
+
+  // 각 값표 컬럼 시각의 거래량 — 20분 이내 최근접. 값표에 거래량도 숫자로 표시.
+  const volAtCol = useMemo(() => {
+    const m = new Map<string, number>();
+    if (!volumeSeries || volumeSeries.length === 0) return m;
+    for (const c of timeCols) {
+      const tt = c.pt.t as number;
+      let best: number | null = null, bestD = Infinity;
+      for (const p of volumeSeries) { const d = Math.abs((p.t as number) - tt); if (d < bestD) { bestD = d; best = p.value; } }
+      if (best != null && bestD <= 20 * 60) m.set(c.label, best);
+    }
+    // "현재" 슬롯은 최신 지수봉이 직전 슬롯에 매핑돼 0이 되기 쉬움 → 마지막 실제 거래량으로 대체.
+    if ((m.get("현재") ?? 0) === 0) {
+      for (let i = volumeSeries.length - 1; i >= 0; i--) {
+        if (volumeSeries[i].value > 0) { m.set("현재", volumeSeries[i].value); break; }
+      }
+    }
+    return m;
+  }, [timeCols, volumeSeries]);
 
   useEffect(() => {
     if (!containerRef.current || series.length < 2) return;
@@ -155,6 +195,8 @@ export function IntradayInvestorChart({
     const hide = () => { if (tooltipRef.current) tooltipRef.current.style.display = "none"; };
     const idxByT = new Map<number, number>();
     if (indexSeries) for (const p of indexSeries) idxByT.set(p.t as number, p.value);
+    const volByT = new Map<number, number>();
+    if (volumeSeries) for (const p of volumeSeries) volByT.set(p.t as number, p.value);
 
     // 툴팁 렌더+위치 (onMove·동기화 hover 공용)
     const showAt = (time: Time, xPixel: number) => {
@@ -167,6 +209,11 @@ export function IntradayInvestorChart({
       if (iv != null) {
         html += `<div class="flex justify-between gap-3"><span style="color:#16a34a">${indexLabel ?? "지수"}</span>`
               + `<span class="font-bold text-gray-700">${iv.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>`;
+      }
+      const vv = volByT.get(time as number);
+      if (vv != null && vv > 0) {
+        html += `<div class="flex justify-between gap-3"><span style="color:#9ca3af">거래량</span>`
+              + `<span class="font-bold text-gray-600">${formatVolume(vv)}</span></div>`;
       }
       for (const def of INTRADAY_SERIES) {
         if (!enabled[def.key]) continue;
@@ -265,6 +312,37 @@ export function IntradayInvestorChart({
   // 값표도 헤더와 동일하게 금액 내림차순(+ 위 / − 아래) 정렬.
   const enabledDefs = INTRADAY_SERIES.filter(d => enabled[d.key]).sort((a, b) => summary[b.key] - summary[a.key]);
 
+  // 값표 컬럼 충돌 회피 — 각 컬럼 실제 폭을 측정해 좌→우로 겹치면 오른쪽으로 밀고,
+  //   우측 경계를 넘으면 마지막을 당긴 뒤 앞 컬럼들을 역방향으로 정리(선물 '현재'가 박스 밖으로 나가던 것 방지).
+  //   deps 없이 매 렌더 실행하되 결과가 바뀔 때만 setState (무한루프 방지).
+  useLayoutEffect(() => {
+    const cont = valueTableRef.current;
+    if (!cont) return;
+    const CW = cont.clientWidth || 1;
+    const GAP = 8;
+    const cols = colFrac
+      .filter(c => timeCols.some(tc => tc.label === c.label))
+      .slice()
+      .sort((a, b) => a.frac - b.frac);
+    if (cols.length === 0) { if (colPosKeyRef.current !== "") { colPosKeyRef.current = ""; setColLeft({}); } return; }
+    const widths = cols.map(c => colRefs.current[c.label]?.offsetWidth ?? 70);
+    const pos: number[] = [];
+    for (let i = 0; i < cols.length; i++) {
+      let p = cols[i].frac * CW;                                  // 목표 = 마커 x 위치
+      if (i > 0) p = Math.max(p, pos[i - 1] + widths[i - 1] + GAP);  // 앞과 겹치면 오른쪽으로
+      pos.push(p);
+    }
+    const last = cols.length - 1;
+    if (pos[last] + widths[last] > CW) {                          // 우측 경계 초과 → 당겨서 맞추고 앞쪽 정리
+      pos[last] = Math.max(0, CW - widths[last]);
+      for (let i = last - 1; i >= 0; i--) pos[i] = Math.max(0, Math.min(pos[i], pos[i + 1] - widths[i] - GAP));
+    }
+    const map: Record<string, number> = {};
+    cols.forEach((c, i) => { map[c.label] = pos[i]; });
+    const key = cols.map((c, i) => `${c.label}:${Math.round(pos[i])}`).join(",");
+    if (key !== colPosKeyRef.current) { colPosKeyRef.current = key; setColLeft(map); }
+  });
+
   return (
     <div className="border border-gray-200 rounded p-1.5 bg-white min-w-0">
       {/* 헤더 — 시장명(녹색) + 전체 투자자 요약값(당일=최신 / 일별=기간합계). 여러 줄 wrap. */}
@@ -300,20 +378,40 @@ export function IntradayInvestorChart({
              style={{ display: "none" }} />
       </div>
 
-      {/* 차트 아래 값표 — 09:00 / 12:00 / 15:00 을 그래프의 실제 시간 위치에 맞춰 배치 */}
+      {/* 차트 아래 값표 — 09:00 / 12:00 / 15:00 / 현재 를 그래프 x 위치에 맞추되, 서로 겹치면 오른쪽으로 밀어냄(useLayoutEffect) */}
       {timeVisible && colFrac.length > 0 && enabledDefs.length > 0 && (
-        <div className="relative mt-1.5 text-[10px] tabular-nums"
-             style={{ height: 16 + enabledDefs.length * 15 }}>
+        <div ref={valueTableRef} className="relative mt-1.5 text-[10px] tabular-nums"
+             style={{ height: 16 + (enabledDefs.length + (indexAtCol.size ? 1 : 0) + (volAtCol.size ? 1 : 0)) * 15 }}>
           {colFrac.map(c => {
             const col = timeCols.find(tc => tc.label === c.label);
             if (!col) return null;
-            const rightSide = c.frac > 0.5;   // 오른쪽 절반은 우측 앵커(화면 밖으로 안 나가게)
-            const pos = rightSide ? { right: `${(1 - c.frac) * 100}%` } : { left: `${c.frac * 100}%` };
+            const left = colLeft[c.label];   // 충돌 회피 후 최종 위치(px). 아직 미측정이면 frac% 로 임시 배치(레이아웃이펙트가 페인트 전 확정).
+            const idxVal = indexAtCol.get(c.label);
+            const volVal = volAtCol.get(c.label);
             return (
               <div key={c.label}
-                   className={`absolute top-0 flex flex-col gap-0.5 ${rightSide ? "items-end" : "items-start"}`}
-                   style={{ ...pos, maxWidth: "34%" }}>
+                   ref={el => { colRefs.current[c.label] = el; }}
+                   className="absolute top-0 flex flex-col gap-0.5 items-start"
+                   style={left != null ? { left: `${left}px` } : { left: `${c.frac * 100}%` }}>
                 <span className="text-gray-500 font-semibold leading-none">{c.label}</span>
+                {/* 배경 지수(코스피/코스닥) 값 — 툴팁과 같은 녹색 */}
+                {idxVal != null && (
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap leading-none">
+                    <span className="text-white px-1 rounded text-[9px]" style={{ backgroundColor: "#16a34a" }}>
+                      {indexLabel ?? "지수"}
+                    </span>
+                    <span className="font-bold text-gray-700">
+                      {idxVal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                    </span>
+                  </span>
+                )}
+                {/* 거래량 — 히스토그램 값 숫자 */}
+                {volVal != null && (
+                  <span className="inline-flex items-center gap-1 whitespace-nowrap leading-none">
+                    <span className="text-white px-1 rounded text-[9px]" style={{ backgroundColor: "#9ca3af" }}>거래량</span>
+                    <span className="font-bold text-gray-600">{formatVolume(volVal)}</span>
+                  </span>
+                )}
                 {enabledDefs.map(def => (
                   <span key={def.key} className="inline-flex items-center gap-1 whitespace-nowrap leading-none">
                     <span className="text-white px-1 rounded text-[9px]"
