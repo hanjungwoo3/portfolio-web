@@ -252,6 +252,7 @@ export interface TodayRealizedRow {
   qty: number;       // 오늘 매도 수량
   realized: number;  // 실현손익(원)
   pct: number;       // 수익률(%) — 청산원가 가중
+  sellAvg: number;   // 오늘 매도 평단가(원) = 매도금액 / 매도수량
 }
 export interface TodayRealizedData {
   rows: TodayRealizedRow[];
@@ -269,7 +270,7 @@ export function computeTodayRealized(
 ): TodayRealizedData {
   const realizedMap = computeRealizedByTrade(trades, getIndependentGroupsMode());
   const acc = normalizeAccount(account);
-  const byTicker = new Map<string, TodayRealizedRow & { cost: number }>();
+  const byTicker = new Map<string, TodayRealizedRow & { cost: number; sellAmt: number }>();
   for (const t of trades) {
     if (t.type !== "sell" || !isTodayKst(t.date)) continue;
     if (!aggregated && normalizeAccount(t.account) !== acc) continue;
@@ -277,16 +278,18 @@ export function computeTodayRealized(
     if (!info) continue;   // 원가 불명 매도(보유 없이 나온 매도) → 제외
     const cur = byTicker.get(t.ticker) ?? {
       ticker: t.ticker, name: nameMap.get(t.ticker) || t.ticker,
-      qty: 0, realized: 0, pct: 0, cost: 0,
+      qty: 0, realized: 0, pct: 0, sellAvg: 0, cost: 0, sellAmt: 0,
     };
     cur.qty += t.qty;
     cur.realized += info.realized;
     cur.cost += info.cost;
+    cur.sellAmt += t.amount;
     byTicker.set(t.ticker, cur);
   }
   const rows: TodayRealizedRow[] = [...byTicker.values()].map(r => ({
     ticker: r.ticker, name: r.name, qty: r.qty, realized: r.realized,
     pct: r.cost > 0 ? (r.realized / r.cost) * 100 : 0,
+    sellAvg: r.qty > 0 ? r.sellAmt / r.qty : 0,
   }));
   rows.sort((a, b) => b.realized - a.realized);
   return { rows, realizedSum: rows.reduce((s, r) => s + r.realized, 0) };
@@ -322,17 +325,31 @@ export function TodayRealizedCard({ trades, account, aggregated, holdings, price
         <span className="text-gray-400 text-[10px] leading-none">{open ? "▼" : "▲"}</span>
       </button>
       {open && (
-        <div className="max-h-[125px] overflow-y-auto overflow-x-hidden">
-          {rows.map(r => (
-            <div key={r.ticker}
-                 className="border-b border-gray-100 last:border-0 flex items-center px-2 py-0.5 gap-1.5">
-              <span className="truncate flex-1 min-w-0 text-gray-700">{r.name}</span>
-              <span className="text-gray-400 text-[10px] shrink-0 tabular-nums">{r.qty}주</span>
-              <span className={`font-medium tabular-nums shrink-0 ${signColor(r.realized)}`}>
-                {formatSigned(r.realized)} ({r.pct >= 0 ? "+" : ""}{r.pct.toFixed(1)}%)
-              </span>
-            </div>
-          ))}
+        <div className="max-h-[160px] overflow-y-auto overflow-x-hidden">
+          {rows.map(r => {
+            const nowPrice = prices.get(r.ticker)?.price ?? 0;
+            const diff = nowPrice > 0 && r.sellAvg > 0 ? (nowPrice - r.sellAvg) / r.sellAvg * 100 : null;
+            return (
+              <div key={r.ticker}
+                   className="border-b border-gray-100 last:border-0 px-2 py-0.5">
+                <div className="flex items-center gap-1.5">
+                  <span className="truncate flex-1 min-w-0 text-gray-700">{r.name}</span>
+                  <span className="text-gray-400 text-[10px] shrink-0 tabular-nums">{r.qty}주</span>
+                  <span className={`font-medium tabular-nums shrink-0 ${signColor(r.realized)}`}>
+                    {formatSigned(r.realized)} ({r.pct >= 0 ? "+" : ""}{r.pct.toFixed(1)}%)
+                  </span>
+                </div>
+                <div className="flex items-center gap-1 text-[10px] text-gray-400 tabular-nums pl-0.5">
+                  <span>매도 {Math.round(r.sellAvg).toLocaleString()}</span>
+                  <span className="text-gray-300">→</span>
+                  <span>현재 {nowPrice > 0 ? Math.round(nowPrice).toLocaleString() : "–"}</span>
+                  {diff !== null && (
+                    <span className={signColor(diff)}>({diff >= 0 ? "+" : ""}{diff.toFixed(1)}%)</span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
       <div className="px-2 py-1 border-t border-gray-300 bg-gray-50 flex justify-between items-baseline">
@@ -363,17 +380,31 @@ export function MobileTodayRealizedCard({ trades, account, aggregated, holdings,
       <div className="px-2 py-1 bg-amber-50 text-amber-700 font-semibold text-xs border-b border-gray-200">
         오늘 매도<span className="ml-1 text-gray-500 font-normal text-[10px]">{rows.length}종목</span>
       </div>
-      <div className="max-h-[145px] overflow-y-auto overflow-x-hidden">
-        {rows.map(r => (
-          <div key={r.ticker}
-               className="border-b border-gray-100 last:border-0 flex items-center px-2 py-1 gap-1.5">
-            <span className="truncate flex-1 min-w-0 text-gray-700">{r.name}</span>
-            <span className="text-gray-400 text-[10px] shrink-0 tabular-nums">{r.qty}주</span>
-            <span className={`font-medium tabular-nums shrink-0 ${signColor(r.realized)}`}>
-              {formatSigned(r.realized)} ({r.pct >= 0 ? "+" : ""}{r.pct.toFixed(1)}%)
-            </span>
-          </div>
-        ))}
+      <div className="max-h-[190px] overflow-y-auto overflow-x-hidden">
+        {rows.map(r => {
+          const nowPrice = prices.get(r.ticker)?.price ?? 0;
+          const diff = nowPrice > 0 && r.sellAvg > 0 ? (nowPrice - r.sellAvg) / r.sellAvg * 100 : null;
+          return (
+            <div key={r.ticker}
+                 className="border-b border-gray-100 last:border-0 px-2 py-1">
+              <div className="flex items-center gap-1.5">
+                <span className="truncate flex-1 min-w-0 text-gray-700">{r.name}</span>
+                <span className="text-gray-400 text-[10px] shrink-0 tabular-nums">{r.qty}주</span>
+                <span className={`font-medium tabular-nums shrink-0 ${signColor(r.realized)}`}>
+                  {formatSigned(r.realized)} ({r.pct >= 0 ? "+" : ""}{r.pct.toFixed(1)}%)
+                </span>
+              </div>
+              <div className="flex items-center gap-1 text-[10px] text-gray-400 tabular-nums pl-0.5 mt-0.5">
+                <span>매도 {Math.round(r.sellAvg).toLocaleString()}</span>
+                <span className="text-gray-300">→</span>
+                <span>현재 {nowPrice > 0 ? Math.round(nowPrice).toLocaleString() : "–"}</span>
+                {diff !== null && (
+                  <span className={signColor(diff)}>({diff >= 0 ? "+" : ""}{diff.toFixed(1)}%)</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
       </div>
       <div className="px-2 py-1 border-t border-gray-300 bg-gray-50 flex justify-between items-baseline">
         <span className="text-gray-500 text-xs">오늘 실현</span>
