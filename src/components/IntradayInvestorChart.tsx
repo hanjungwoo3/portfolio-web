@@ -8,7 +8,6 @@ import {
   ColorType,
   LineSeries,
   BaselineSeries,
-  HistogramSeries,
   LineStyle,
   type IChartApi,
   type ISeriesApi,
@@ -18,7 +17,6 @@ import {
 } from "lightweight-charts";
 import type { IntradayKey } from "../lib/intradayInvestor";
 import { INTRADAY_SERIES } from "../lib/intradayInvestor";
-import { formatVolume } from "../lib/format";
 import type { SyncRegistrar } from "../lib/useCrosshairSync";
 
 export interface FlowSeriesPoint {
@@ -43,7 +41,7 @@ const netColor = (v: number) => (v > 0 ? "#dc2626" : v < 0 ? "#2563eb" : "#9ca3a
 const MARK_TIMES = ["09:00", "12:00", "15:00"];
 
 export function IntradayInvestorChart({
-  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel, indexBaseline, volumeSeries, onReady,
+  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel, indexBaseline, onReady,
 }: {
   series: FlowSeriesPoint[];
   summary: Record<IntradayKey, number>;
@@ -55,7 +53,6 @@ export function IntradayInvestorChart({
   indexSeries?: { t: UTCTimestamp; value: number }[];   // 배경 지수(코스피/코스닥) — 같은 시간축
   indexLabel?: string;
   indexBaseline?: number;                               // 전일 종가(기준가) — 위=빨강/아래=파랑
-  volumeSeries?: { t: UTCTimestamp; value: number }[];  // 지수 거래량 — 차트 하단 막대
   onReady?: SyncRegistrar;                              // 3개 차트 crosshair 동기화
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -105,25 +102,6 @@ export function IntradayInvestorChart({
     return m;
   }, [timeCols, indexSeries]);
 
-  // 각 값표 컬럼 시각의 거래량 — 20분 이내 '비-0' 최근접 봉.
-  //   5분봉 지수 거래량을 투자자 격자에 리샘플하면 봉이 안 걸린 슬롯이 0(구멍)이 됨 →
-  //   15:00 등 컬럼이 그 0 슬롯을 잡아 '거래량 0' 오표시. 0은 건너뛰고 실제 거래량을 씀.
-  const volAtCol = useMemo(() => {
-    const m = new Map<string, number>();
-    if (!volumeSeries || volumeSeries.length === 0) return m;
-    for (const c of timeCols) {
-      const tt = c.pt.t as number;
-      let best: number | null = null, bestD = Infinity;
-      for (const p of volumeSeries) {
-        if (p.value <= 0) continue;
-        const d = Math.abs((p.t as number) - tt);
-        if (d < bestD) { bestD = d; best = p.value; }
-      }
-      if (best != null && bestD <= 20 * 60) m.set(c.label, best);
-    }
-    return m;
-  }, [timeCols, volumeSeries]);
-
   useEffect(() => {
     if (!containerRef.current || series.length < 2) return;
 
@@ -146,17 +124,6 @@ export function IntradayInvestorChart({
       },
       autoSize: true,
     });
-
-    // 지수 거래량 — 하단 오버레이 히스토그램(자체 스케일, 아래 ~25%).
-    if (volumeSeries && volumeSeries.length > 1) {
-      const vol = chart.addSeries(HistogramSeries, {
-        priceScaleId: "vol",
-        color: "rgba(5,150,105,0.6)",   // emerald-600, 진하게
-        priceLineVisible: false, lastValueVisible: false,
-      });
-      vol.priceScale().applyOptions({ scaleMargins: { top: 0.75, bottom: 0 } });
-      vol.setData(volumeSeries.map(p => ({ time: p.t as Time, value: p.value })));
-    }
 
     // 배경 지수(코스피/코스닥) — 전일 종가 기준 위=빨강/아래=파랑(한국식). 투자자 라인 뒤에 깔림.
     if (indexSeries && indexSeries.length > 1) {
@@ -195,9 +162,6 @@ export function IntradayInvestorChart({
     const hide = () => { if (tooltipRef.current) tooltipRef.current.style.display = "none"; };
     const idxByT = new Map<number, number>();
     if (indexSeries) for (const p of indexSeries) idxByT.set(p.t as number, p.value);
-    const volByT = new Map<number, number>();
-    if (volumeSeries) for (const p of volumeSeries) volByT.set(p.t as number, p.value);
-
     // 툴팁 렌더+위치 (onMove·동기화 hover 공용)
     const showAt = (time: Time, xPixel: number) => {
       const tip = tooltipRef.current, cont = containerRef.current;
@@ -209,11 +173,6 @@ export function IntradayInvestorChart({
       if (iv != null) {
         html += `<div class="flex justify-between gap-3"><span style="color:#16a34a">${indexLabel ?? "지수"}</span>`
               + `<span class="font-bold text-gray-700">${iv.toLocaleString(undefined, { maximumFractionDigits: 2 })}</span></div>`;
-      }
-      const vv = volByT.get(time as number);
-      if (vv != null && vv > 0) {
-        html += `<div class="flex justify-between gap-3"><span style="color:#9ca3af">거래량</span>`
-              + `<span class="font-bold text-gray-600">${formatVolume(vv)}</span></div>`;
       }
       for (const def of INTRADAY_SERIES) {
         if (!enabled[def.key]) continue;
@@ -307,7 +266,7 @@ export function IntradayInvestorChart({
       if (vlEl) vlEl.innerHTML = "";
       chart.remove();
     };
-  }, [series, enabled, unit, timeVisible, byT, indexSeries, indexLabel, indexBaseline, volumeSeries, timeCols, onReady]);
+  }, [series, enabled, unit, timeVisible, byT, indexSeries, indexLabel, indexBaseline, timeCols, onReady]);
 
   // 값표도 헤더와 동일하게 금액 내림차순(+ 위 / − 아래) 정렬.
   const enabledDefs = INTRADAY_SERIES.filter(d => enabled[d.key]).sort((a, b) => summary[b.key] - summary[a.key]);
@@ -381,13 +340,12 @@ export function IntradayInvestorChart({
       {/* 차트 아래 값표 — 09:00 / 12:00 / 15:00 / 현재 를 그래프 x 위치에 맞추되, 서로 겹치면 오른쪽으로 밀어냄(useLayoutEffect) */}
       {timeVisible && colFrac.length > 0 && enabledDefs.length > 0 && (
         <div ref={valueTableRef} className="relative mt-1.5 text-[10px] tabular-nums"
-             style={{ height: 16 + (enabledDefs.length + (indexAtCol.size ? 1 : 0) + (volAtCol.size ? 1 : 0)) * 15 }}>
+             style={{ height: 16 + (enabledDefs.length + (indexAtCol.size ? 1 : 0)) * 15 }}>
           {colFrac.map(c => {
             const col = timeCols.find(tc => tc.label === c.label);
             if (!col) return null;
             const left = colLeft[c.label];   // 충돌 회피 후 최종 위치(px). 아직 미측정이면 frac% 로 임시 배치(레이아웃이펙트가 페인트 전 확정).
             const idxVal = indexAtCol.get(c.label);
-            const volVal = volAtCol.get(c.label);
             return (
               <div key={c.label}
                    ref={el => { colRefs.current[c.label] = el; }}
@@ -403,13 +361,6 @@ export function IntradayInvestorChart({
                     <span className="font-bold text-gray-700">
                       {idxVal.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                     </span>
-                  </span>
-                )}
-                {/* 거래량 — 히스토그램 값 숫자 */}
-                {volVal != null && (
-                  <span className="inline-flex items-center gap-1 whitespace-nowrap leading-none">
-                    <span className="text-white px-1 rounded text-[9px]" style={{ backgroundColor: "#9ca3af" }}>거래량</span>
-                    <span className="font-bold text-gray-600">{formatVolume(volVal)}</span>
                   </span>
                 )}
                 {enabledDefs.map(def => (

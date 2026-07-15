@@ -106,7 +106,6 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady 
   let unit = market === "futures" ? "계약" : "억원";
   let indexSeries: { t: UTCTimestamp; value: number }[] | undefined;
   let indexBaseline: number | undefined;   // 전일 종가(기준가)
-  let volumeSeries: { t: UTCTimestamp; value: number }[] | undefined;
 
   if (mode === "intraday") {
     const pts = intra.data?.points ?? [];
@@ -115,7 +114,7 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady 
     series = pts.map(p => ({ t: hmToTime(p.time), label: p.time, values: pick(p) }));
     summary = pick(pts[pts.length - 1]);   // 당일 누적 최신
     if (ysym && idxIntra.data) {
-      const withKst = idxIntra.data.map(b => ({ ...kstFromEpoch(b.t), close: b.close, volume: b.volume }));   // 야후 ascending 유지
+      const withKst = idxIntra.data.map(b => ({ ...kstFromEpoch(b.t), close: b.close }));   // 야후 ascending 유지
       // 전일 종가 = 선택일 이전 마지막 봉의 종가 (기준선/빨강·파랑)
       const prior = withKst.filter(b => b.date < bizdate);
       if (prior.length) indexBaseline = prior[prior.length - 1].close;
@@ -129,16 +128,6 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady 
           while (j < bars.length - 1 && Math.abs((bars[j + 1].t as number) - st) <= Math.abs((bars[j].t as number) - st)) j++;
           return { t: sp.t, value: bars[j].close };
         });
-        // 거래량: 각 지수 봉을 가장 가까운 투자자 시점에 배치(중복 방지, 0으로 채움)
-        const volMap = new Map<number, number>();
-        let k = 0;
-        for (const bar of bars) {
-          const bt = bar.t as number;
-          while (k < series.length - 1 && Math.abs((series[k + 1].t as number) - bt) <= Math.abs((series[k].t as number) - bt)) k++;
-          const key = series[k].t as number;
-          volMap.set(key, (volMap.get(key) ?? 0) + bar.volume);
-        }
-        volumeSeries = series.map(sp => ({ t: sp.t, value: volMap.get(sp.t as number) ?? 0 }));
       }
     }
   } else {
@@ -154,11 +143,9 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady 
     summary = { ...acc };   // 기간 합계 = 최종 누적
     if (ysym && idxDaily.data) {
       const closeByDate = new Map(idxDaily.data.map(p => [p.date, p.close]));
-      const volByDate = new Map(idxDaily.data.map(p => [p.date, p.volume]));
       indexSeries = pts
         .map(p => ({ t: dateToTime(p.date), value: closeByDate.get(p.date) }))
         .filter((p): p is { t: UTCTimestamp; value: number } => typeof p.value === "number");
-      volumeSeries = pts.map(p => ({ t: dateToTime(p.date), value: volByDate.get(p.date) ?? 0 }));
       // 기준선 = 기간 첫날 직전 거래일 종가
       const prior = idxDaily.data.filter(p => p.date < pts[0].date);
       if (prior.length) indexBaseline = prior[prior.length - 1].close;
@@ -171,7 +158,7 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady 
         unit={unit} marketLabel={label} timeVisible={mode === "intraday"}
         summaryHint={mode === "daily" ? "기간합계" : undefined}
         indexSeries={indexSeries} indexLabel={ysym ? INDEX_LABEL[market] : undefined}
-        indexBaseline={indexBaseline} volumeSeries={volumeSeries} onReady={onReady} />
+        indexBaseline={indexBaseline} onReady={onReady} />
     </Suspense>
   );
 }
