@@ -2,7 +2,7 @@
 //   투자자 on/off 는 상위(IntradayInvestorSection)의 공통 토글로 제어(controlled).
 //   series 는 이미 (당일=누적 스냅샷 / 일별=기간 누적) 계산된 값. summary=헤더 표시값.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, Fragment } from "react";
 import {
   createChart,
   ColorType,
@@ -70,16 +70,18 @@ export function IntradayInvestorChart({
     return m;
   }, [series]);
 
-  // 09:00 / 12:00 / 15:00 최근접 포인트 (당일에서만, 20분 이내) — 차트 아래 값표용.
+  // 09:00 / 12:00 / 15:00 최근접 포인트(20분 이내) + 맨 오른쪽 "현재"(최신) — 차트 아래 값표용.
   const timeCols = useMemo(() => {
-    if (!timeVisible) return [] as { label: string; pt: FlowSeriesPoint }[];
-    return MARK_TIMES.map(hm => {
+    if (!timeVisible || series.length === 0) return [] as { label: string; pt: FlowSeriesPoint }[];
+    const cols = MARK_TIMES.map(hm => {
       const [h, mm] = hm.split(":").map(Number);
       const tt = Date.UTC(2000, 0, 1, h, mm) / 1000;
       let best: FlowSeriesPoint | null = null, bestD = Infinity;
       for (const p of series) { const d = Math.abs((p.t as number) - tt); if (d < bestD) { bestD = d; best = p; } }
       return best && bestD <= 20 * 60 ? { label: hm, pt: best } : null;
     }).filter((c): c is { label: string; pt: FlowSeriesPoint } => c != null);
+    cols.push({ label: "현재", pt: series[series.length - 1] });   // 최신값 = 맨 오른쪽
+    return cols;
   }, [series, timeVisible]);
 
   useEffect(() => {
@@ -260,7 +262,8 @@ export function IntradayInvestorChart({
     };
   }, [series, enabled, unit, timeVisible, byT, indexSeries, indexLabel, indexBaseline, volumeSeries, timeCols, onReady]);
 
-  const enabledDefs = INTRADAY_SERIES.filter(d => enabled[d.key]);
+  // 값표도 헤더와 동일하게 금액 내림차순(+ 위 / − 아래) 정렬.
+  const enabledDefs = INTRADAY_SERIES.filter(d => enabled[d.key]).sort((a, b) => summary[b.key] - summary[a.key]);
 
   return (
     <div className="border border-gray-200 rounded p-1.5 bg-white min-w-0">
@@ -271,14 +274,22 @@ export function IntradayInvestorChart({
         {indexLabel && indexSeries && indexSeries.length > 1 && (
           <span className="text-[10px] text-green-700/70">▨ {indexLabel}</span>
         )}
-        {INTRADAY_SERIES.map(def => (
-          <span key={def.key} className={`inline-flex items-baseline gap-1 ${enabled[def.key] ? "" : "opacity-50"}`}>
-            <span className="text-white px-1 rounded text-[10px] font-medium"
-                  style={{ backgroundColor: def.color }}>{def.label}</span>
-            <span className={enabled[def.key] ? "font-bold" : "font-normal"}
-                  style={{ color: netColor(summary[def.key]) }}>{fmtNet(summary[def.key], unit)}</span>
-          </span>
-        ))}
+        {(() => {
+          // 금액 내림차순 → 순매수(+) 위, 순매도(−) 아래. 그 경계에서 줄바꿈으로 분리.
+          const sorted = [...INTRADAY_SERIES].sort((a, b) => summary[b.key] - summary[a.key]);
+          const firstNeg = sorted.findIndex(d => summary[d.key] < 0);
+          return sorted.map((def, i) => (
+            <Fragment key={def.key}>
+              {i === firstNeg && firstNeg > 0 && <div className="basis-full h-0" />}
+              <span className={`inline-flex items-baseline gap-1 ${enabled[def.key] ? "" : "opacity-50"}`}>
+                <span className="text-white px-1 rounded text-[10px] font-medium"
+                      style={{ backgroundColor: def.color }}>{def.label}</span>
+                <span className={enabled[def.key] ? "font-bold" : "font-normal"}
+                      style={{ color: netColor(summary[def.key]) }}>{fmtNet(summary[def.key], unit)}</span>
+              </span>
+            </Fragment>
+          ));
+        })()}
       </div>
       <div className="relative">
         <div ref={containerRef} className="w-full h-[220px] lg:h-[240px]" />
@@ -296,9 +307,12 @@ export function IntradayInvestorChart({
           {colFrac.map(c => {
             const col = timeCols.find(tc => tc.label === c.label);
             if (!col) return null;
+            const rightSide = c.frac > 0.5;   // 오른쪽 절반은 우측 앵커(화면 밖으로 안 나가게)
+            const pos = rightSide ? { right: `${(1 - c.frac) * 100}%` } : { left: `${c.frac * 100}%` };
             return (
-              <div key={c.label} className="absolute top-0 flex flex-col gap-0.5"
-                   style={{ left: `${c.frac * 100}%`, maxWidth: "34%" }}>
+              <div key={c.label}
+                   className={`absolute top-0 flex flex-col gap-0.5 ${rightSide ? "items-end" : "items-start"}`}
+                   style={{ ...pos, maxWidth: "34%" }}>
                 <span className="text-gray-500 font-semibold leading-none">{c.label}</span>
                 {enabledDefs.map(def => (
                   <span key={def.key} className="inline-flex items-center gap-1 whitespace-nowrap leading-none">
