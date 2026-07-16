@@ -136,6 +136,9 @@ export function CandleChartLight({
         borderColor: "#e5e7eb",
         timeVisible: false,
         secondsVisible: false,
+        // 데이터 양끝 고정 — 끝에서 더 끌 때 막대가 늘어나며 확대되는(스트레치) 동작 방지 → 그냥 이동만.
+        fixLeftEdge: true,
+        fixRightEdge: true,
       },
       crosshair: {
         mode: 1,
@@ -148,8 +151,9 @@ export function CandleChartLight({
           labelVisible: false,    // 우측 axis hover 라벨 숨김 — HTML 툴팁으로 대체
         },
       },
-      handleScroll: true,
-      handleScale: true,
+      // 드래그는 '이동(팬)'만 — 시간축을 잡고 끌어도 줌이 안 되게(axisPressedMouseMove.time=false). 줌은 휠/핀치로.
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: { time: false, price: true } },
       autoSize: true,
     });
 

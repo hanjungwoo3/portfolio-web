@@ -91,7 +91,12 @@ export function InvestorChartLight({
         borderColor: "#e5e7eb",
         timeVisible: false,
         secondsVisible: false,
+        fixLeftEdge: true,
+        fixRightEdge: true,
       },
+      // 드래그는 이동(팬)만 — 시간축 드래그 줌·끝단 스트레치 방지. 줌은 휠/핀치.
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: { time: false, price: true } },
       crosshair: {
         mode: 1,
         vertLine: {

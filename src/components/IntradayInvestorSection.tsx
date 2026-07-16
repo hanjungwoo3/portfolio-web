@@ -1,4 +1,4 @@
-// 증시탭 — 투자자 순매수. 코스피·코스닥·선물 3개를 한 줄에, 공통 투자자 토글로 제어.
+// 증시탭 — 투자자 순매수. 코스피·선물·코스닥 3개를 한 줄에, 공통 투자자 토글로 제어.
 //   [당일] 시간별 누적(네이버 intraday) / [일별] 기간별 누적(네이버 daily) 토글.
 //   일별은 기간 선택 + 기간 합계(헤더)를 표시. 데이터: 네이버 investorDealTrend*(로그인 불필요).
 
@@ -15,8 +15,8 @@ const IntradayInvestorChart = lazy(() => import("./IntradayInvestorChart"));
 
 const MARKETS: { key: IntradayMarket; label: string }[] = [
   { key: "kospi",   label: "코스피" },
-  { key: "kosdaq",  label: "코스닥" },
   { key: "futures", label: "선물" },
+  { key: "kosdaq",  label: "코스닥" },
 ];
 const PERIODS: { label: string; days: number }[] = [
   { label: "1주",   days: 5 },
@@ -60,9 +60,10 @@ function kstFromEpoch(sec: number): { date: string; t: UTCTimestamp } {
   };
 }
 
-function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady }: {
+function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady, onToggle }: {
   market: IntradayMarket; label: string; enabled: Record<string, boolean>;
   mode: "intraday" | "daily"; days: number; bizdate: string; on: boolean; onReady: SyncRegistrar;
+  onToggle: (k: IntradayKey) => void;
 }) {
   const intra = useQuery({
     queryKey: ["market-flow-intraday", market, bizdate],
@@ -158,7 +159,7 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady 
         unit={unit} marketLabel={label} timeVisible={mode === "intraday"}
         summaryHint={mode === "daily" ? "기간합계" : undefined}
         indexSeries={indexSeries} indexLabel={ysym ? INDEX_LABEL[market] : undefined}
-        indexBaseline={indexBaseline} onReady={onReady} />
+        indexBaseline={indexBaseline} onReady={onReady} onToggle={onToggle} />
     </Suspense>
   );
 }
@@ -254,20 +255,20 @@ export function IntradayInvestorSection() {
             ))}
           </div>
 
-          {/* 코스피 / 코스닥 / 선물 — 한 줄에 3개 */}
+          {/* 코스피 / 선물 / 코스닥 — 한 줄에 3개 */}
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {MARKETS.map(m => (
               // min-w-0 — grid 자식 기본 min-width:auto 로 선물(칩 많음) 셀이 안 줄고 나머지를 압축하는 것 방지.
               <div key={m.key} className="min-w-0">
                 <MarketBlock market={m.key} label={m.label} enabled={enabled}
-                  mode={mode} days={days} bizdate={intraDate} on={open} onReady={registerSync} />
+                  mode={mode} days={days} bizdate={intraDate} on={open} onReady={registerSync} onToggle={toggleInvestor} />
               </div>
             ))}
           </div>
         </>
       ) : (
         <div className="text-[11px] text-gray-400 pt-1 pl-1">
-          접힘 — 배지를 눌러 코스피·코스닥·선물 투자자 순매수(당일/일별)를 펼칠 수 있어요.
+          접힘 — 배지를 눌러 코스피·선물·코스닥 투자자 순매수(당일/일별)를 펼칠 수 있어요.
         </div>
       )}
     </div>

@@ -41,7 +41,7 @@ const netColor = (v: number) => (v > 0 ? "#dc2626" : v < 0 ? "#2563eb" : "#9ca3a
 const MARK_TIMES = ["09:00", "12:00", "15:00"];
 
 export function IntradayInvestorChart({
-  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel, indexBaseline, onReady,
+  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel, indexBaseline, onReady, onToggle,
 }: {
   series: FlowSeriesPoint[];
   summary: Record<IntradayKey, number>;
@@ -54,6 +54,7 @@ export function IntradayInvestorChart({
   indexLabel?: string;
   indexBaseline?: number;                               // 전일 종가(기준가) — 위=빨강/아래=파랑
   onReady?: SyncRegistrar;                              // 3개 차트 crosshair 동기화
+  onToggle?: (key: IntradayKey) => void;                // 헤더/값표 칩 클릭 → 상위 공통 토글
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -116,7 +117,10 @@ export function IntradayInvestorChart({
       grid: { vertLines: { color: "#f3f4f6" }, horzLines: { color: "#f3f4f6" } },
       rightPriceScale: { borderColor: "#e5e7eb", scaleMargins: { top: 0.1, bottom: 0.1 } },
       leftPriceScale: { visible: hasIndex, borderColor: "#e5e7eb", scaleMargins: { top: 0.05, bottom: 0.05 } },   // 배경 지수(코스피/코스닥)만 표시
-      timeScale: { borderColor: "#e5e7eb", timeVisible, secondsVisible: false },
+      timeScale: { borderColor: "#e5e7eb", timeVisible, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
+      // 드래그는 이동(팬)만 — 시간축 드래그 줌·끝단 스트레치 방지. 줌은 휠/핀치.
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: { time: false, price: true } },
       crosshair: {
         mode: 1,
         vertLine: { color: "#9ca3af", width: 1, style: LineStyle.Dotted, labelBackgroundColor: "#475569" },
@@ -318,12 +322,16 @@ export function IntradayInvestorChart({
           return sorted.map((def, i) => (
             <Fragment key={def.key}>
               {i === firstNeg && firstNeg > 0 && <div className="basis-full h-0" />}
-              <span className={`inline-flex items-baseline gap-1 ${enabled[def.key] ? "" : "opacity-50"}`}>
+              {/* 칩 클릭 → 상위 공통 토글(위쪽 체크박스와 동기화). 켜짐=진하게 / 꺼짐=흐리게. */}
+              <button type="button"
+                      onClick={onToggle ? () => onToggle(def.key) : undefined}
+                      title={`${def.label} ${enabled[def.key] ? "끄기" : "켜기"}`}
+                      className={`inline-flex items-baseline gap-1 rounded ${onToggle ? "cursor-pointer hover:bg-gray-100" : ""} ${enabled[def.key] ? "" : "opacity-50"}`}>
                 <span className="text-white px-1 rounded text-[10px] font-medium"
                       style={{ backgroundColor: def.color }}>{def.label}</span>
                 <span className={enabled[def.key] ? "font-bold" : "font-normal"}
                       style={{ color: netColor(summary[def.key]) }}>{fmtNet(summary[def.key], unit)}</span>
-              </span>
+              </button>
             </Fragment>
           ));
         })()}
