@@ -41,7 +41,7 @@ const netColor = (v: number) => (v > 0 ? "#dc2626" : v < 0 ? "#2563eb" : "#9ca3a
 const MARK_TIMES = ["09:00", "12:00", "15:00"];
 
 export function IntradayInvestorChart({
-  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel, indexBaseline, onReady, onToggle,
+  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel, indexBaseline, onReady, onToggle, refFirstT, refLastT,
 }: {
   series: FlowSeriesPoint[];
   summary: Record<IntradayKey, number>;
@@ -55,6 +55,8 @@ export function IntradayInvestorChart({
   indexBaseline?: number;                               // 전일 종가(기준가) — 위=빨강/아래=파랑
   onReady?: SyncRegistrar;                              // 3개 차트 crosshair 동기화
   onToggle?: (key: IntradayKey) => void;                // 헤더/값표 칩 클릭 → 상위 공통 토글
+  refFirstT?: UTCTimestamp;                             // 기준 시간범위(코스피·코스닥) — 후행 선물이 도메인을 맞추도록
+  refLastT?: UTCTimestamp;                              //   선물은 우측 공백, 코스피·코스닥이 시간축 기준
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
@@ -146,11 +148,17 @@ export function IntradayInvestorChart({
     }
 
     // 0 기준선 — 순매수 부호 판독용. 눈에 띄게 진한 회색.
+    //   후행 선물은 기준 시간범위(코스피·코스닥) 끝까지 0선을 연장해 도메인을 맞춤 →
+    //   세 차트가 같은 범위로 fit 되고, 선물 순매수 라인만 일찍 끝나 우측이 공백으로 남음.
     const zero = chart.addSeries(LineSeries, {
       color: "#475569", lineWidth: 1, lineStyle: LineStyle.Dashed,   // slate-600
       priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     });
-    zero.setData(series.map(p => ({ time: p.t as Time, value: 0 })));
+    const zeroData = series.map(p => ({ time: p.t as Time, value: 0 }));
+    const firstT = series[0].t as number, lastT = series[series.length - 1].t as number;
+    if (refFirstT != null && (refFirstT as number) < firstT) zeroData.unshift({ time: refFirstT as Time, value: 0 });
+    if (refLastT != null && (refLastT as number) > lastT) zeroData.push({ time: refLastT as Time, value: 0 });
+    zero.setData(zeroData);
 
     for (const def of INTRADAY_SERIES) {
       if (!enabled[def.key]) continue;
@@ -270,7 +278,7 @@ export function IntradayInvestorChart({
       if (vlEl) vlEl.innerHTML = "";
       chart.remove();
     };
-  }, [series, enabled, unit, timeVisible, byT, indexSeries, indexLabel, indexBaseline, timeCols, onReady]);
+  }, [series, enabled, unit, timeVisible, byT, indexSeries, indexLabel, indexBaseline, timeCols, onReady, refFirstT, refLastT]);
 
   // 값표도 헤더와 동일하게 금액 내림차순(+ 위 / − 아래) 정렬.
   const enabledDefs = INTRADAY_SERIES.filter(d => enabled[d.key]).sort((a, b) => summary[b.key] - summary[a.key]);

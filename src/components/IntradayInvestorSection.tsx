@@ -2,7 +2,7 @@
 //   [당일] 시간별 누적(네이버 intraday) / [일별] 기간별 누적(네이버 daily) 토글.
 //   일별은 기간 선택 + 기간 합계(헤더)를 표시. 데이터: 네이버 investorDealTrend*(로그인 불필요).
 
-import { useState, lazy, Suspense, type ReactNode } from "react";
+import { useState, useMemo, lazy, Suspense, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntraday, fetchYahooPriceHistory } from "../lib/api";
 import type { IntradayMarket } from "../lib/api";
@@ -60,10 +60,11 @@ function kstFromEpoch(sec: number): { date: string; t: UTCTimestamp } {
   };
 }
 
-function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady, onToggle }: {
+function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady, onToggle, refFirstT, refLastT }: {
   market: IntradayMarket; label: string; enabled: Record<string, boolean>;
   mode: "intraday" | "daily"; days: number; bizdate: string; on: boolean; onReady: SyncRegistrar;
   onToggle: (k: IntradayKey) => void;
+  refFirstT?: UTCTimestamp; refLastT?: UTCTimestamp;   // 기준 시간범위(코스피·코스닥)
 }) {
   const intra = useQuery({
     queryKey: ["market-flow-intraday", market, bizdate],
@@ -159,7 +160,8 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady,
         unit={unit} marketLabel={label} timeVisible={mode === "intraday"}
         summaryHint={mode === "daily" ? "기간합계" : undefined}
         indexSeries={indexSeries} indexLabel={ysym ? INDEX_LABEL[market] : undefined}
-        indexBaseline={indexBaseline} onReady={onReady} onToggle={onToggle} />
+        indexBaseline={indexBaseline} onReady={onReady} onToggle={onToggle}
+        refFirstT={refFirstT} refLastT={refLastT} />
     </Suspense>
   );
 }
@@ -187,6 +189,46 @@ export function IntradayInvestorSection() {
   const toggleInvestor = (k: string) => setEnabled(e => ({ ...e, [k]: !e[k] }));
 
   const registerSync = useCrosshairSync();   // 3개 차트 crosshair 동기화
+
+  // 기준 시간범위 = 코스피·코스닥 데이터 범위(선물 제외). 선물이 후행이라 끝시각이 이르므로,
+  //   이 범위를 각 차트에 내려 선물이 우측을 공백으로 맞추게 함(코스피·코스닥이 시간축 기준).
+  //   MarketBlock 과 동일 queryKey → react-query 가 요청을 중복 없이 공유(추가 네트워크 없음).
+  const refKospiIntra = useQuery({
+    queryKey: ["market-flow-intraday", "kospi", intraDate],
+    queryFn: () => fetchKrIntradayInvestorFlow("kospi", intraDate.replace(/-/g, "")),
+    enabled: open && mode === "intraday", staleTime: 60_000, refetchOnWindowFocus: false,
+  });
+  const refKosdaqIntra = useQuery({
+    queryKey: ["market-flow-intraday", "kosdaq", intraDate],
+    queryFn: () => fetchKrIntradayInvestorFlow("kosdaq", intraDate.replace(/-/g, "")),
+    enabled: open && mode === "intraday", staleTime: 60_000, refetchOnWindowFocus: false,
+  });
+  const refKospiDaily = useQuery({
+    queryKey: ["market-flow-daily", "kospi", days],
+    queryFn: () => fetchKrDailyInvestorFlow("kospi", days),
+    enabled: open && mode === "daily", staleTime: 5 * 60_000, refetchOnWindowFocus: false,
+  });
+  const refKosdaqDaily = useQuery({
+    queryKey: ["market-flow-daily", "kosdaq", days],
+    queryFn: () => fetchKrDailyInvestorFlow("kosdaq", days),
+    enabled: open && mode === "daily", staleTime: 5 * 60_000, refetchOnWindowFocus: false,
+  });
+  const refRange = useMemo(() => {
+    const stamps: number[] = [];
+    if (mode === "intraday") {
+      for (const d of [refKospiIntra.data, refKosdaqIntra.data]) {
+        const p = d?.points;
+        if (p && p.length) stamps.push(hmToTime(p[0].time) as number, hmToTime(p[p.length - 1].time) as number);
+      }
+    } else {
+      for (const d of [refKospiDaily.data, refKosdaqDaily.data]) {
+        const p = d?.points;
+        if (p && p.length) stamps.push(dateToTime(p[0].date) as number, dateToTime(p[p.length - 1].date) as number);
+      }
+    }
+    if (!stamps.length) return undefined;
+    return { from: Math.min(...stamps) as UTCTimestamp, to: Math.max(...stamps) as UTCTimestamp };
+  }, [mode, refKospiIntra.data, refKosdaqIntra.data, refKospiDaily.data, refKosdaqDaily.data]);
 
   return (
     <div className="relative rounded-xl border border-gray-300 bg-white p-2.5 pt-4 mt-1.5">
@@ -261,7 +303,8 @@ export function IntradayInvestorSection() {
               // min-w-0 — grid 자식 기본 min-width:auto 로 선물(칩 많음) 셀이 안 줄고 나머지를 압축하는 것 방지.
               <div key={m.key} className="min-w-0">
                 <MarketBlock market={m.key} label={m.label} enabled={enabled}
-                  mode={mode} days={days} bizdate={intraDate} on={open} onReady={registerSync} onToggle={toggleInvestor} />
+                  mode={mode} days={days} bizdate={intraDate} on={open} onReady={registerSync} onToggle={toggleInvestor}
+                  refFirstT={refRange?.from} refLastT={refRange?.to} />
               </div>
             ))}
           </div>
