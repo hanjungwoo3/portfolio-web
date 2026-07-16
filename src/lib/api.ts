@@ -151,6 +151,28 @@ export async function fetchTossUsPrices(codes: string[]): Promise<Map<string, To
   return out;
 }
 
+// 토스 US 종목 일봉 캔들 — Yahoo 가 히스토리를 안 주는 신규 상장/ADR(예: SK하이닉스 ADR)용.
+//   c-chart/us-s/{code}/day:1 엔드포인트가 종목 자체 일봉(OHLC·USD)을 줌 → 배경 sparkline.
+//   응답 candles 는 최신→과거 순 → close 만 뽑아 과거→최신(오름차순)으로 반환.
+//   (sparkline 은 형태만 필요 → USD 원값 그대로. 환율 곱은 상수라 정규화 형태 불변)
+export async function fetchTossUsStockCandles(symbol: string, count = 120): Promise<number[]> {
+  const code = TOSS_US_STOCK_CODE[symbol] ?? getTossCode(symbol);
+  if (!code) return [];
+  const target = `https://wts-info-api.tossinvest.com/api/v1/c-chart/us-s/${code}/day:1?count=${count}&useAdjustedRate=true`;
+  try {
+    const resp = await fetchProxied(target);
+    if (!resp.ok) return [];
+    const data = await resp.json() as {
+      result?: { candles?: Array<{ close?: number }> };
+    };
+    const candles = data.result?.candles ?? [];
+    const closes = candles
+      .map(c => c.close)
+      .filter((v): v is number => typeof v === "number" && v > 0);
+    return closes.reverse();   // 최신→과거 → 과거→최신
+  } catch { return []; }
+}
+
 // 사용자 보유 US 종목 가격 — 토스 우선(원화·24h, 내부코드 필요) + Yahoo 폴백.
 //  보유 priceMap 에 병합할 수 있게 Price[] 로 반환 (KR 종목과 동일 형식).
 //  토스코드는 검색/인기 랭킹에서 받아 localStorage 에 기억(rememberTossCode)해 둔 것 사용.

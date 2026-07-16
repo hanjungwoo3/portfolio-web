@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory, fetchCnbcChart, isCnbcIndex, fetchYasunNightFutures } from "../lib/api";
+import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory, fetchCnbcChart, isCnbcIndex, fetchYasunNightFutures, fetchTossUsStockCandles } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, isMarketOpen } from "../lib/format";
@@ -129,10 +129,9 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
     allYahooForCharts.push(p.symbol);
     if (p.future) allYahooForCharts.push(p.future);
   }
-  // 배경 sparkline 폴백용 추가 심볼 — 자체 히스토리가 없는 심볼의 대체 차트.
-  //   SKHYV(SK하이닉스 ADR)는 2026 상장 직후라 Yahoo/토스 일봉 히스토리가 전무 →
-  //   기초자산 SK하이닉스 본주(000660.KS) 3개월 추세를 배경으로 사용(가격은 토스 원화 유지).
-  const EXTRA_CHART_SYMBOLS = ["000660.KS"];
+  // 배경 sparkline 폴백용 추가 Yahoo 심볼 — 카드 내부 심볼과 야후 심볼이 다른 경우.
+  //   SKHYV(SK하이닉스 ADR, 2026 상장)는 야후에선 'SKHY' 로 조회됨 → 그 일봉을 배경으로.
+  const EXTRA_CHART_SYMBOLS = ["SKHY"];
   for (const s of EXTRA_CHART_SYMBOLS) if (!allYahooForCharts.includes(s)) allYahooForCharts.push(s);
   const yahooChartQs = useQueries({
     queries: allYahooForCharts.map(sym => ({
@@ -159,10 +158,24 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
     krEtfs.map((t, i) => [t, (krEtfChartQs[i]?.data ?? []).map(p => p.close)])
   );
 
+  // Yahoo 히스토리가 없는 신규 상장/ADR(SKHYV 등) — 토스 자체 일봉(c-chart)으로 배경 sparkline.
+  const TOSS_CHART_SYMBOLS = ["SKHYV"];
+  const tossStockChartQs = useQueries({
+    queries: TOSS_CHART_SYMBOLS.map(sym => ({
+      queryKey: ["toss-us-candles", sym],
+      queryFn: () => fetchTossUsStockCandles(sym),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const tossStockChartMap = new Map(
+    TOSS_CHART_SYMBOLS.map((sym, i) => [sym, tossStockChartQs[i]?.data ?? []])
+  );
+
   // T0 카드 sparkline — 일부 심볼 (SOX=F) 은 Yahoo 가 historical 안 줌 → 가장 가까운 현물 차트로 폴백
   const SPARKLINE_FALLBACK: Record<string, string> = {
     "SOX=F": "^SOX",   // 필반 선물 → 필반 현물
-    "SKHYV": "000660.KS",   // SK하이닉스 ADR(히스토리 없음) → 기초자산 본주 3개월 추세
+    "SKHYV": "SKHY",   // SK하이닉스 ADR — 카드 심볼(SKHYV) vs 야후 심볼(SKHY) 불일치 보정
   };
   const t0ChartMap = new Map(
     tier0.map(p => {
@@ -171,11 +184,15 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
       if (yasunCloses && yasunCloses.length > 1) return [p.symbol, yasunCloses];
       const own = yahooChartMap.get(p.symbol) ?? [];
       if (own.length > 1) return [p.symbol, own];
+      // 야후 심볼 별칭(SKHYV→SKHY 등) — 카드 심볼과 야후 심볼이 다를 때
       const fb = SPARKLINE_FALLBACK[p.symbol];
       if (fb) {
         const fbArr = yahooChartMap.get(fb) ?? [];
         if (fbArr.length > 1) return [p.symbol, fbArr];
       }
+      // 토스 자체 일봉(c-chart) — 야후가 아직 안 주는 신규 ADR 의 본인 데이터 폴백
+      const tossOwn = tossStockChartMap.get(p.symbol);
+      if (tossOwn && tossOwn.length > 1) return [p.symbol, tossOwn];
       // Yahoo 가 차트 안 주는 심볼(^US2Y) — 토스 overview mini-chart 시계열로 폴백
       const tossSpark = usMap?.get(p.symbol)?.sparkline;
       if (tossSpark && tossSpark.length > 1) return [p.symbol, tossSpark];
