@@ -56,7 +56,7 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
       id: "semi", short: "반도체",
       label: "🔧 반도체",                             // 필반 지수 + 미국 반도체 대표주 (삼성·하이닉스 가늠자)
       rows: [
-        ["^SOX", "MU", "SNDK", "SKHYV"],            // 지수 + 메모리(마이크론·샌디스크·SK하이닉스)
+        ["^SOX", "MU", "SNDK", "SKHYV", "TSM"],     // 지수 + 메모리(마이크론·샌디스크·SK하이닉스) + 파운드리(TSMC)
         ["NVDA", "AMD", "AVGO", "INTC", "QCOM"],    // AI/GPU(엔비디아·AMD·브로드컴) + CPU(인텔·퀄컴)
       ],
     },

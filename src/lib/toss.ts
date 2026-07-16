@@ -68,6 +68,7 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "ORCL": "https://www.tossinvest.com/stocks/US19860312001",
   "INTC": "https://www.tossinvest.com/stocks/US19711013001",
   "QCOM": "https://www.tossinvest.com/stocks/US19911213001",
+  "TSM":  "https://www.tossinvest.com/stocks/US19971008002",   // TSMC (파운드리)
   // 미국 섹터 ETF (토스 종목 페이지)
   "SMH":  "https://www.tossinvest.com/stocks/US20191211007",
   "PAVE": "https://www.tossinvest.com/stocks/US20170308001",

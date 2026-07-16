@@ -2468,6 +2468,7 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "ORCL": "US19860312001",
   "INTC": "US19711013001",
   "QCOM": "US19911213001",
+  "TSM":  "US19971008002",   // TSMC (파운드리) — 원화 시세용
   // 미국 ETF
   "SPY":  "US19930122001",
   "QQQ":  "US19990310001",
