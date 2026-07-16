@@ -129,6 +129,11 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
     allYahooForCharts.push(p.symbol);
     if (p.future) allYahooForCharts.push(p.future);
   }
+  // 배경 sparkline 폴백용 추가 심볼 — 자체 히스토리가 없는 심볼의 대체 차트.
+  //   SKHYV(SK하이닉스 ADR)는 2026 상장 직후라 Yahoo/토스 일봉 히스토리가 전무 →
+  //   기초자산 SK하이닉스 본주(000660.KS) 3개월 추세를 배경으로 사용(가격은 토스 원화 유지).
+  const EXTRA_CHART_SYMBOLS = ["000660.KS"];
+  for (const s of EXTRA_CHART_SYMBOLS) if (!allYahooForCharts.includes(s)) allYahooForCharts.push(s);
   const yahooChartQs = useQueries({
     queries: allYahooForCharts.map(sym => ({
       queryKey: ["yahoo-chart", sym, "3mo"],
@@ -157,6 +162,7 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
   // T0 카드 sparkline — 일부 심볼 (SOX=F) 은 Yahoo 가 historical 안 줌 → 가장 가까운 현물 차트로 폴백
   const SPARKLINE_FALLBACK: Record<string, string> = {
     "SOX=F": "^SOX",   // 필반 선물 → 필반 현물
+    "SKHYV": "000660.KS",   // SK하이닉스 ADR(히스토리 없음) → 기초자산 본주 3개월 추세
   };
   const t0ChartMap = new Map(
     tier0.map(p => {

@@ -5,9 +5,9 @@ export type IntradayKey = keyof Omit<IntradayFlowPoint, "time">;
 
 // 투자자 정의 — 공통 토글(Section)과 차트(Chart)가 공유. on=기본 표시.
 export const INTRADAY_SERIES: { key: IntradayKey; label: string; color: string; on: boolean }[] = [
-  { key: "individuals",         label: "개인",     color: "#7c3aed", on: false },
+  { key: "individuals",         label: "개인",     color: "#7c3aed", on: true },
   { key: "foreigners",          label: "외국인",   color: "#ea580c", on: true },
-  { key: "institutions",        label: "기관계",   color: "#2563eb", on: false },
+  { key: "institutions",        label: "기관계",   color: "#2563eb", on: true },
   { key: "financialInvestment", label: "금융투자", color: "#0891b2", on: true },
   { key: "pensionFund",         label: "연기금",   color: "#c2410c", on: false },
   { key: "trust",               label: "투신",     color: "#db2777", on: false },

@@ -736,11 +736,24 @@ export function MobileSimpleView() {
       refetchOnWindowFocus: false,
     })),
   });
+  // 배경 sparkline 폴백용 추가 심볼 — 자체 히스토리 없는 심볼의 대체 차트.
+  //   SKHYV(SK하이닉스 ADR)는 2026 상장 직후라 히스토리 전무 → 기초자산 본주(000660.KS) 추세 사용.
+  const EXTRA_CHART_SYMBOLS = ["000660.KS"];
+  const extraChartQs = useQueries({
+    queries: EXTRA_CHART_SYMBOLS.map(sym => ({
+      queryKey: ["yahoo-chart", sym, "3mo"],
+      queryFn: () => fetchYahooChart(sym, "3mo"),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
+  });
   // 일부 심볼 sparkline 은 Yahoo 가 historical 안 줌 → 가까운 현물 차트로 폴백
   const SPARKLINE_FALLBACK: Record<string, string> = {
     "SOX=F": "^SOX",
+    "SKHYV": "000660.KS",   // SK하이닉스 ADR(히스토리 없음) → 기초자산 본주 3개월 추세
   };
-  const t0ChartByIndex = new Map(tier0.map((p, i) => [p.symbol, t0ChartQs[i]?.data ?? []]));
+  const t0ChartByIndex = new Map<string, number[]>(tier0.map((p, i) => [p.symbol, t0ChartQs[i]?.data ?? []]));
+  EXTRA_CHART_SYMBOLS.forEach((sym, i) => t0ChartByIndex.set(sym, extraChartQs[i]?.data ?? []));
   const t0ChartMap = new Map(
     tier0.map(p => {
       // 야간선물 — yasun 캔들 close 시계열
