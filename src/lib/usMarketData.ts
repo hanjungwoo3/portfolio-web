@@ -51,6 +51,10 @@ export const US_PAIRS: Pair[] = [
   { symbol: "NG=F",     name: "천연가스",     desc: "헨리허브 — LNG·발전·난방·화학", tier: "T0", sector: "dashboard", direction: "neutral" },
   { symbol: "BTC-USD",  name: "비트코인",    desc: "위험자산 — 한국 IT/플랫폼 상관", tier: "T0", sector: "dashboard", direction: "direct" },
   // 행 3 — 미국 지수 + 야간 선물 + 닛케이 + 반도체 (필반·필반선물)
+  // 미국 전체 시장 지수 — 대표 3대(나스닥·S&P·다우)보다 넓은 커버리지
+  { symbol: "^W5000",   name: "윌셔5000",    desc: "Wilshire 5000 — 미국 상장 사실상 전체(~3,400종목). 가장 정통한 미국 전체 시장 지수", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^RUA",     name: "러셀3000",    desc: "Russell 3000 — 미국 시총 ~98% 커버(대형+중소형 전체)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "^NYA",     name: "NYSE종합",    desc: "NYSE Composite — NYSE 상장 전체 종목 시가총액 가중", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^IXIC",    name: "나스닥",      desc: "미국 기술주 전체", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "NQ=F",     name: "나스닥 선물",  desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^GSPC",    name: "S&P 500",     desc: "미국 대형주 — 글로벌 리스크 온/오프", tier: "T0", sector: "dashboard", direction: "direct" },

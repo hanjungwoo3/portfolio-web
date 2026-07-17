@@ -48,9 +48,17 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
       ],
     },
     {
-      id: "fx", short: "환율",
-      label: "📊 환율/달러/투심",                     // 환율·달러 강도 + 외국인 투심(EWY)·공포(VIX) + 한국 3배(KORU)
-      rows: [["KRW=X", "DX-Y.NYB", "EWY", "^VIX", "KORU"]],
+      id: "macro", short: "미국지수",
+      label: "📈 미국 지수",                          // 전체시장(윌셔5000·러셀3000·NYSE) + 대표(나스닥·S&P·다우)
+      rows: [["^W5000", "^RUA", "^NYA", "^IXIC", "^GSPC", "^DJI"]],
+    },
+    {
+      id: "fx", short: "환율금리",
+      label: "📊 환율/달러/금리/투심",                 // 1줄=환율·달러·미국채금리, 2줄=외국인 투심
+      rows: [
+        ["KRW=X", "DX-Y.NYB", "^US2Y", "^TNX"],   // 환율·달러 강도 + 미 국채 2Y·10Y
+        ["EWY", "^VIX", "KORU"],                  // 외국인 투심(EWY)·공포(VIX)·한국 3배(KORU)
+      ],
     },
     {
       id: "semi", short: "반도체",
@@ -74,11 +82,6 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
       id: "spot", short: "현물",
       label: "💵 현물 (원자재)",                       // 금·은·구리·원유·천연가스 — 가격 자체가 신호
       rows: [["GC=F", "SI=F", "HG=F", "CL=F", "NG=F"]],
-    },
-    {
-      id: "macro", short: "매크로",
-      label: "📈 미국 지수·금리",                      // 나스닥·S&P + 미 국채 2Y·10Y + 다우
-      rows: [["^IXIC", "^GSPC", "^US2Y", "^TNX", "^DJI"]],
     },
     {
       id: "bigtech", short: "빅테크",
