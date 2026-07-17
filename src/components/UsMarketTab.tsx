@@ -268,7 +268,8 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
       <GroupNavBar items={navItems} idPrefix="usidx-"
                    stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin} />
       {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
-      <div className="space-y-4">
+      {/* lg 이상 6열 그리드 + 75% 폭 — 8열 대비 카드 크기 동일하게 유지하면서 전체 폭만 축소 */}
+      <div className="space-y-4 lg:max-w-[75%]">
         {T0_SECTIONS.map((section) => (
           <div key={section.label} id={`usidx-${section.id}`}
                style={{ scrollMarginTop: idxScrollMargin }}
@@ -278,15 +279,16 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                              text-sm font-bold text-gray-700 whitespace-nowrap">
               {section.label}
             </span>
-            {/* 한국 섹터 ETF·반도체 TOP2+·소부장 그룹은 오늘 등락률(%) 내림차순으로 정렬 (8개씩 줄바꿈) */}
+            {/* 한국 섹터 ETF·반도체 TOP2+·소부장 그룹은 오늘 등락률(%) 내림차순으로 정렬 (6개씩 줄바꿈) */}
             {(section.id === "sector" || section.id === "semitop2" || section.id === "semisobu"
               ? chunk(
                   section.rows.flat().sort((a, b) =>
                     (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity)),
-                  8)
+                  6)
               : section.rows
             ).map((group, gi) => (
-              <div key={gi} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-x-2 gap-y-4">
+              // 6열 그리드 — 컨테이너(space-y-4)를 lg 75% 폭으로 줄여 카드 크기는 8열 때와 동일하게 유지
+              <div key={gi} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-x-2 gap-y-4">
                 {group.map(symbol => {
               const rawP = tier0.find(x => x.symbol === symbol);
               if (!rawP) return null;
@@ -426,7 +428,7 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                        target="_blank" rel="noopener noreferrer"
                        onClick={e => handleTossLinkClick(e, quoteUrl(p.symbol))}
                        title={`${p.name} 자세히 보기`}
-                       className={`text-base font-bold ${nameColor} hover:underline`}>
+                       className={`text-base font-bold ${nameColor} hover:underline min-w-0 truncate`}>
                       {p.name}
                     </a>
                     {/* 매매동향 모달 버튼 — KOSPI/KOSDAQ 만 */}

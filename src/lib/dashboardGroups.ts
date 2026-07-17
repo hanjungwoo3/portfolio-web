@@ -85,9 +85,10 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
     },
     {
       id: "bigtech", short: "빅테크",
-      label: "🍎 미국 빅테크",                  // 플랫폼 + 머스크 + 오라클 (한 줄)
+      label: "🍎 미국 빅테크",                  // 1줄=플랫폼 4대, 2줄=메타·머스크(테슬라·스페이스X)·오라클
       rows: [
-        ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "SPCX", "ORCL"],   // 플랫폼 + 머스크(테슬라·스페이스X) + 오라클 한 줄
+        ["AAPL", "MSFT", "GOOGL", "AMZN"],   // 플랫폼 대장 — 애플·MS·구글·아마존
+        ["META", "TSLA", "SPCX", "ORCL"],    // 메타 + 머스크(테슬라·스페이스X) + 오라클
       ],
     },
     {
