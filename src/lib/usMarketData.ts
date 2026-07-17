@@ -61,7 +61,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "MU",       name: "마이크론",     desc: "Micron — 미국 메모리 반도체 (삼성·하이닉스 직접 경쟁사·메모리 사이클 가늠자)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "NVDA",     name: "엔비디아",     desc: "Nvidia — AI 수요 대표주. MU 와 동행이면 메모리 사이클 동조화 신호", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "SNDK",     name: "샌디스크",     desc: "SanDisk — NAND 플래시/SSD (WD 에서 분사, 2025 상장). 삼성·하이닉스 NAND 메모리 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "SKHYV",    name: "SK하이닉스(ADR)", desc: "SK Hynix ADR — 나스닥 상장(2026, When Issued). 원화 시세는 토스, 배경차트는 상장 직후라 데이터 축적 중", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "SKHY",     name: "SK하이닉스(ADR)", desc: "SK Hynix ADR(나스닥 상장, 2026) — 삼성과 함께 메모리·HBM 대표. 원화 시세는 토스", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "AMAT",     name: "어플라이드머티리얼즈", desc: "반도체 식각·증착 장비 회사 — AI 메모리 생산 설비 투자 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "LRCX",     name: "램리서치",     desc: "Lam Research — 식각·증착 장비. HBM 핵심 공정", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ASML",     name: "ASML",        desc: "EUV 노광 독점 — 첨단 반도체 공정 필수", tier: "T0", sector: "dashboard", direction: "direct" },
@@ -72,6 +72,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "INTC",     name: "인텔",         desc: "Intel — CPU·파운드리. 미국 반도체 심리 게이지", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "QCOM",     name: "퀄컴",         desc: "Qualcomm — 모바일 AP(스냅드래곤)·모뎀 팹리스. 스마트폰 수요·온디바이스 AI 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "TSM",      name: "TSMC(ADR)",   desc: "TSMC ADR(뉴욕 상장) — 세계 최대 파운드리(NVDA·AMD·애플 칩 위탁생산). 반도체 전방수요·삼성 파운드리 경쟁 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "KXIAY",    name: "키오시아(ADR)", desc: "Kioxia ADR(미국 OTC) — NAND 플래시 대표(구 도시바 메모리). 삼성·하이닉스 NAND 경쟁 가늠자. 토스 미지원 → 달러 표시", tier: "T0", sector: "dashboard", direction: "direct" },
   // 행 3.5 — 미국 빅테크 개별주 (Mag7 + 스페이스X, NVDA 는 반도체 줄에 있음). 가격·링크 모두 토스.
   { symbol: "AAPL",     name: "애플",         desc: "Apple — 아이폰·서비스. 미국 시총 1위급 소비 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "MSFT",     name: "마이크로소프트", desc: "Microsoft — 클라우드(Azure)·AI(코파일럿). 엔터프라이즈 대표", tier: "T0", sector: "dashboard", direction: "direct" },

@@ -129,10 +129,6 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
     allYahooForCharts.push(p.symbol);
     if (p.future) allYahooForCharts.push(p.future);
   }
-  // 배경 sparkline 폴백용 추가 Yahoo 심볼 — 카드 내부 심볼과 야후 심볼이 다른 경우.
-  //   SKHYV(SK하이닉스 ADR, 2026 상장)는 야후에선 'SKHY' 로 조회됨 → 그 일봉을 배경으로.
-  const EXTRA_CHART_SYMBOLS = ["SKHY"];
-  for (const s of EXTRA_CHART_SYMBOLS) if (!allYahooForCharts.includes(s)) allYahooForCharts.push(s);
   const yahooChartQs = useQueries({
     queries: allYahooForCharts.map(sym => ({
       queryKey: ["yahoo-chart", sym, "3mo"],
@@ -158,8 +154,8 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
     krEtfs.map((t, i) => [t, (krEtfChartQs[i]?.data ?? []).map(p => p.close)])
   );
 
-  // Yahoo 히스토리가 없는 신규 상장/ADR(SKHYV 등) — 토스 자체 일봉(c-chart)으로 배경 sparkline.
-  const TOSS_CHART_SYMBOLS = ["SKHYV"];
+  // 야후 히스토리가 빈약한 신규 ADR(SKHY 등) — 야후 own 이 비면 토스 자체 일봉(c-chart) 폴백.
+  const TOSS_CHART_SYMBOLS = ["SKHY"];
   const tossStockChartQs = useQueries({
     queries: TOSS_CHART_SYMBOLS.map(sym => ({
       queryKey: ["toss-us-candles", sym],
@@ -175,7 +171,6 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
   // T0 카드 sparkline — 일부 심볼 (SOX=F) 은 Yahoo 가 historical 안 줌 → 가장 가까운 현물 차트로 폴백
   const SPARKLINE_FALLBACK: Record<string, string> = {
     "SOX=F": "^SOX",   // 필반 선물 → 필반 현물
-    "SKHYV": "SKHY",   // SK하이닉스 ADR — 카드 심볼(SKHYV) vs 야후 심볼(SKHY) 불일치 보정
   };
   const t0ChartMap = new Map(
     tier0.map(p => {
@@ -184,7 +179,7 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
       if (yasunCloses && yasunCloses.length > 1) return [p.symbol, yasunCloses];
       const own = yahooChartMap.get(p.symbol) ?? [];
       if (own.length > 1) return [p.symbol, own];
-      // 야후 심볼 별칭(SKHYV→SKHY 등) — 카드 심볼과 야후 심볼이 다를 때
+      // 야후 심볼 별칭(SOX=F→^SOX 등) — 카드 심볼과 야후 심볼이 다를 때
       const fb = SPARKLINE_FALLBACK[p.symbol];
       if (fb) {
         const fbArr = yahooChartMap.get(fb) ?? [];

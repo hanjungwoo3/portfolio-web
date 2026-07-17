@@ -2459,7 +2459,7 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "MU":   "US19890516001",
   "NVDA": "US19990122001",
   "SNDK": "NAS0250224006",   // 샌디스크 (2025 상장 → NAS 프리픽스)
-  "SKHYV":"NAS2607010002",   // SK하이닉스 ADR (2026 상장 → NAS 프리픽스) — 원화 시세용
+  "SKHY": "NAS2607010002",   // SK하이닉스 ADR (2026 상장, WI→정규 SKHY) — 원화 시세용
   "AMAT": "US19721012001",
   "LRCX": "US19840504001",
   "ASML": "US19950315001",

@@ -736,19 +736,8 @@ export function MobileSimpleView() {
       refetchOnWindowFocus: false,
     })),
   });
-  // 배경 sparkline 폴백용 추가 Yahoo 심볼 — 카드 내부 심볼과 야후 심볼이 다른 경우.
-  //   SKHYV(SK하이닉스 ADR, 2026 상장)는 야후에선 'SKHY' 로 조회됨 → 그 일봉을 배경으로.
-  const EXTRA_CHART_SYMBOLS = ["SKHY"];
-  const extraChartQs = useQueries({
-    queries: EXTRA_CHART_SYMBOLS.map(sym => ({
-      queryKey: ["yahoo-chart", sym, "3mo"],
-      queryFn: () => fetchYahooChart(sym, "3mo"),
-      staleTime: 60 * 60 * 1000,
-      refetchOnWindowFocus: false,
-    })),
-  });
-  // 야후가 아직 안 주는 신규 ADR(SKHYV 등) — 토스 자체 일봉(c-chart) 폴백
-  const TOSS_CHART_SYMBOLS = ["SKHYV"];
+  // 야후 히스토리가 빈약한 신규 ADR(SKHY 등) — 야후 own 이 비면 토스 자체 일봉(c-chart) 폴백.
+  const TOSS_CHART_SYMBOLS = ["SKHY"];
   const tossStockChartQs = useQueries({
     queries: TOSS_CHART_SYMBOLS.map(sym => ({
       queryKey: ["toss-us-candles", sym],
@@ -763,10 +752,8 @@ export function MobileSimpleView() {
   // 일부 심볼 sparkline 은 Yahoo 가 historical 안 줌 → 가까운 현물 차트로 폴백
   const SPARKLINE_FALLBACK: Record<string, string> = {
     "SOX=F": "^SOX",
-    "SKHYV": "SKHY",   // SK하이닉스 ADR — 카드 심볼(SKHYV) vs 야후 심볼(SKHY) 불일치 보정
   };
   const t0ChartByIndex = new Map<string, number[]>(tier0.map((p, i) => [p.symbol, t0ChartQs[i]?.data ?? []]));
-  EXTRA_CHART_SYMBOLS.forEach((sym, i) => t0ChartByIndex.set(sym, extraChartQs[i]?.data ?? []));
   const t0ChartMap = new Map(
     tier0.map(p => {
       // 야간선물 — yasun 캔들 close 시계열
@@ -774,7 +761,7 @@ export function MobileSimpleView() {
       if (yasunCloses && yasunCloses.length > 1) return [p.symbol, yasunCloses];
       const own = t0ChartByIndex.get(p.symbol) ?? [];
       if (own.length > 1) return [p.symbol, own];
-      // 야후 심볼 별칭(SKHYV→SKHY 등)
+      // 야후 심볼 별칭(SOX=F→^SOX 등)
       const fb = SPARKLINE_FALLBACK[p.symbol];
       if (fb) {
         const fbArr = t0ChartByIndex.get(fb) ?? [];
