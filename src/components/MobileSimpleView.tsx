@@ -79,6 +79,7 @@ import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { EtfReverseDialog } from "./EtfReverseDialog";
 import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
+import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { FeedbackDialog } from "./FeedbackDialog";
 import { DonateDialog } from "./DonateDialog";
 import { EditHoldingDialog } from "./EditHoldingDialog";
@@ -1505,7 +1506,7 @@ export function MobileSimpleView() {
                        target="_blank" rel="noopener noreferrer"
                        onClick={e => handleTossLinkClick(e, quoteUrl(p.symbol))}
                        title={`${p.name} 자세히 보기`}
-                       className={`text-base font-bold ${nameColor} active:underline`}>
+                       className={`text-base font-bold ${nameColor} active:underline min-w-0 truncate`}>
                       {p.name}
                     </a>
                     {(p.symbol === "^KS11" || p.symbol === "^KQ11") && (
@@ -1517,6 +1518,21 @@ export function MobileSimpleView() {
                         📊
                       </button>
                     )}
+                    {/* 🔍AI — 현재상태 구글 AI 분석 팝업 (PC 동일 프롬프트) */}
+                    <button
+                      onClick={() => {
+                        const ctx: string[] = [`${p.name}(${p.symbol})`];
+                        if (effPrice != null) ctx.push(
+                          `현재가 ${effPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                          + (mainPct != null ? `(${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""));
+                        if (p.desc) ctx.push(p.desc);
+                        openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${ctx.join(", ")}`);
+                      }}
+                      title={`${p.name} 현재상태 구글 AI 분석`}
+                      className="ml-auto shrink-0 inline-flex items-center px-1 rounded text-[9px] font-bold leading-none
+                                 border border-blue-300 text-blue-700 bg-blue-50 active:bg-blue-100">
+                      🔍AI
+                    </button>
                   </div>
                   <div className={`relative text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}

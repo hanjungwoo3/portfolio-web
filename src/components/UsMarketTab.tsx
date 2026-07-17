@@ -14,6 +14,7 @@ import {
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
 import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
+import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { Sparkline } from "./Sparkline";
 import { MarketFlowModal } from "./MarketFlowModal";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
@@ -440,6 +441,21 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                         📊
                       </button>
                     )}
+                    {/* 🔍AI — 현재상태 구글 AI 분석 팝업 (StockCard 와 동일 프롬프트) */}
+                    <button
+                      onClick={() => {
+                        const ctx: string[] = [`${p.name}(${p.symbol})`];
+                        if (effPrice != null) ctx.push(
+                          `현재가 ${effPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
+                          + (mainPct != null ? `(${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""));
+                        if (p.desc) ctx.push(p.desc);
+                        openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${ctx.join(", ")}`);
+                      }}
+                      title={`${p.name} 현재상태 구글 AI 분석 (팝업)`}
+                      className="ml-auto shrink-0 inline-flex items-center px-1 rounded text-[9px] font-bold leading-none
+                                 border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 transition">
+                      🔍AI
+                    </button>
                   </div>
                   <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}
