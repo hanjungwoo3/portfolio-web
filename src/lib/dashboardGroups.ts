@@ -49,8 +49,8 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
     },
     {
       id: "fx", short: "환율",
-      label: "📊 환율/달러/투심",                     // 환율·달러 강도 + 외국인 투심(EWY)·공포(VIX)
-      rows: [["KRW=X", "DX-Y.NYB", "EWY", "^VIX"]],
+      label: "📊 환율/달러/투심",                     // 환율·달러 강도 + 외국인 투심(EWY)·공포(VIX) + 한국 3배(KORU)
+      rows: [["KRW=X", "DX-Y.NYB", "EWY", "^VIX", "KORU"]],
     },
     {
       id: "semi", short: "반도체",

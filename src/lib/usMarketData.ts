@@ -40,6 +40,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "^US2Y",    name: "미국 2Y",     desc: "미 2년 국채금리 — Fed 정책금리 기대. 10Y 보다 높으면(역전) 침체 신호", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "^TNX",     name: "미국 10Y",    desc: "미 10년 국채금리 — 외국인 수급·성장주 할인율·시장 벤치마크", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "EWY",      name: "EWY",         desc: "MSCI Korea — 외국인 투심", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "KORU",     name: "KORU(3x한국)", desc: "Direxion Daily South Korea Bull 3X — MSCI 한국 3배 레버리지(EWY×3). 한국 증시 선행·외국인 투심 증폭 게이지", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^VIX",     name: "VIX",         desc: "공포지수 — 20↑ 경계, 30↑ 공포", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "VKOSPI",   name: "V-KOSPI",     desc: "코스피200 변동성지수 — 한국 공포지수 (20↑ 경계, 30↑ 공포). CNBC", tier: "T0", sector: "dashboard", direction: "inverse" },
   // 행 2 — 원자재 + 위험자산

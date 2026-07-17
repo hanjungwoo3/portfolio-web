@@ -2485,6 +2485,7 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "KOID": "NAS0250605002",   // KraneShares 휴머노이드·피지컬AI
   "BOTZ": "US20160913001",
   "EWY":  "US20000512001",   // MSCI Korea — 외국인 투심 (Blue Ocean 24h 오버나잇)
+  "KORU": "US20130410003",   // Direxion 3x 한국 불 — 원화 시세용
 };
 
 // 토스 US 종목 가격(기존 fetchTossUsPrices) → UsIndex 변환. 현재가 = close, 기준 = base.
