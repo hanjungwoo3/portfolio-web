@@ -1,4 +1,4 @@
-import { lazy, Suspense, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useCrosshairSync } from "../lib/useCrosshairSync";
 import { useEscClose } from "../lib/useEscClose";
@@ -868,11 +868,16 @@ function InvestorChartsSection({
   // 가격을 history 날짜에 정렬 (4개 차트 X축 통일) — useMemo
   // 투자자 데이터 없음(토스 점검 등) → Yahoo 가격 전체 그대로 사용 (가격차트만이라도 표시)
   const alignedPrices = useMemo(() => {
-    if (dates.length === 0) return prices ?? [];
-    const byDate = new Map((prices ?? []).map(p => [p.date, p]));
-    return dates
+    const full = prices ?? [];
+    if (dates.length === 0) return full;
+    const byDate = new Map(full.map(p => [p.date, p]));
+    const aligned = dates
       .map(d => byDate.get(d))
       .filter((p): p is PricePoint => p != null);
+    // ETF 등 투자자별 데이터가 희박하면(예: 2일치) 정렬 결과가 몇 봉으로 붕괴 → 가격 캔들은 전체 가격 사용.
+    //   (CandleChartLight 는 외국인비율을 '날짜'로 매칭하므로 prices 가 많아도 안전)
+    if (aligned.length < 20 && full.length > aligned.length) return full;
+    return aligned;
   }, [prices, dates]);
 
   // 가격 차트 전용 — 오늘 캔들 보강.
@@ -899,8 +904,15 @@ function InvestorChartsSection({
       : [...base, todayCandle];
   }, [alignedPrices, curPrice, todayBar, priceData?.prices]);
 
-  // 4 차트 crosshair sync
+  // 4 차트 crosshair sync — 가격차트는 range 마스터(broadcast·receive 거부), 수급 패널은 팔로워(receive only).
+  //   ETF 등 일부 패널(공매도/대차/신용/CFD)이 2일치만 있어 fitContent 로 좁은 시간범위를 전파하면
+  //   가격차트(전체 일봉)가 그 2일로 클램프되던 버그 → 패널이 broadcast 안 하므로 가격차트를 클램프 못 함.
+  //   crosshair(hover) 동기화는 그대로 유지, 줌은 가격차트가 주도(패널 따라옴).
   const registerSync = useCrosshairSync();
+  const registerPriceSync = useCallback<SyncRegistrar>(
+    (c, a, h) => registerSync(c, a, h, { rangeReceive: false }), [registerSync]);
+  const registerPanelSync = useCallback<SyncRegistrar>(
+    (c, a, h) => registerSync(c, a, h, { rangeBroadcast: false }), [registerSync]);
 
   const hasInvestor = history.length >= 2;
   if (!hasInvestor && alignedPrices.length < 2) return null;
@@ -915,7 +927,7 @@ function InvestorChartsSection({
                           targetPrice={targetPrice} myAvgPrice={myAvgPrice} entryPrice={entryPrice}
                           dividends={dividends} splits={splits}
                           disclosures={disclosures} ticker={ticker}
-                          onReady={registerSync} />
+                          onReady={registerPriceSync} />
       ) : (
         <div className="text-xs text-gray-400 p-2 border border-gray-200 rounded">
           {pricesLoading ? "주가 로딩 중..." : "주가 데이터 없음 (Yahoo 미수록)"}
@@ -930,26 +942,26 @@ function InvestorChartsSection({
               label="외국인"
               daily={dailyForeign} cumulative={cumForeign} dates={dates}
               barColor="#ddd6fe" cumColor="#6d28d9"
-              onReady={registerSync}
+              onReady={registerPanelSync}
             />
             <InvestorChartLight
               label="기관계"
               daily={dailyInst} cumulative={cumInst} dates={dates}
               barColor="#bbf7d0" cumColor="#047857"
-              onReady={registerSync}
+              onReady={registerPanelSync}
             />
             <InvestorChartLight
               label="연기금"
               daily={dailyPension} cumulative={cumPension} dates={dates}
               barColor="#fed7aa" cumColor="#c2410c"
-              onReady={registerSync}
+              onReady={registerPanelSync}
             />
             {hasProgram && (
               <InvestorChartLight
                 label="프로그램"
                 daily={dailyProgram} cumulative={cumProgram} dates={dates}
                 barColor="#bae6fd" cumColor="#0369a1"
-                onReady={registerSync}
+                onReady={registerPanelSync}
               />
             )}
           </div>
@@ -962,23 +974,23 @@ function InvestorChartsSection({
                   shortSelling={shortSelling}
                   dates={dates}
                   desc={<>일별 공매도 수량(주)과 20일 평균. <b style={{ color: "#2563eb" }}>평균 우상향 = 공매도 증가(하락 베팅 강화)</b>.</>}
-                  onReady={registerSync}
+                  onReady={registerPanelSync}
                 />
               )}
               {lendingPoints.length > 0 && (
                 <BalanceTrendChart title="대차잔고" color="#7c3aed" upIsBad
                   desc={<>빌려간 주식 잔고 = 잠재적 공매도 물량. <b style={{ color: "#2563eb" }}>증가=숏 빌드업(경계)</b>, <b style={{ color: "#dc2626" }}>감소=상환·숏커버(반등)</b>.</>}
-                  points={lendingPoints} dates={dates} onReady={registerSync} />
+                  points={lendingPoints} dates={dates} onReady={registerPanelSync} />
               )}
               {creditPoints.length > 0 && (
                 <BalanceTrendChart title="신용잔고" color="#ea580c" upIsBad
                   desc={<>개인이 빚내서 산 신용융자 잔고. <b style={{ color: "#d97706" }}>증가=과열(반대매매 리스크)</b>, <b style={{ color: "#2563eb" }}>급감=반대매매(투매)</b>.</>}
-                  points={creditPoints} dates={dates} onReady={registerSync} />
+                  points={creditPoints} dates={dates} onReady={registerPanelSync} />
               )}
               {cfdPoints.length > 0 && (
                 <BalanceTrendChart title="CFD 매수" color="#0d9488" title2="매도" color2="#e11d48"
                   desc={<>개인 레버리지(CFD) 잔고. <b style={{ color: "#0d9488" }}>매수=롱</b>, <b style={{ color: "#e11d48" }}>매도=숏</b> 포지션. 한쪽이 급증하면 방향성 베팅 쏠림.</>}
-                  points={cfdPoints} dates={dates} onReady={registerSync} />
+                  points={cfdPoints} dates={dates} onReady={registerPanelSync} />
               )}
             </div>
           )}

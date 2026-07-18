@@ -7,10 +7,16 @@ import type {
   IChartApi, ISeriesApi, SeriesType, Time, MouseEventParams,
 } from "lightweight-charts";
 
+// range 동기화 역할 옵션 — 기본은 양방향(both). 마스터/팔로워 구성에 사용.
+//   rangeBroadcast=false: 자기 visible range 변화를 남에게 전파 안 함(희박 차트가 남을 클램프하는 것 방지).
+//   rangeReceive=false: 남의 range 전파를 받지 않음(전체 데이터 차트가 클램프당하는 것 방지).
+export interface SyncOpts { rangeBroadcast?: boolean; rangeReceive?: boolean }
+
 export type SyncRegistrar = (
   chart: IChartApi,
   anchor: ISeriesApi<SeriesType>,
   onSyncedHover?: (time: Time | null) => void,
+  opts?: SyncOpts,
 ) => () => void;
 
 export function useCrosshairSync(): SyncRegistrar {
@@ -18,11 +24,14 @@ export function useCrosshairSync(): SyncRegistrar {
     chart: IChartApi;
     anchor: ISeriesApi<SeriesType>;
     onSyncedHover?: (time: Time | null) => void;
+    rangeReceive: boolean;
   }>>([]);
   const isSyncingRangeRef = useRef(false);
 
-  return useCallback((chart, anchor, onSyncedHover) => {
-    const entry = { chart, anchor, onSyncedHover };
+  return useCallback((chart, anchor, onSyncedHover, opts) => {
+    const rangeBroadcast = opts?.rangeBroadcast !== false;
+    const rangeReceive = opts?.rangeReceive !== false;
+    const entry = { chart, anchor, onSyncedHover, rangeReceive };
     entriesRef.current.push(entry);
 
     // ─── 1) Crosshair sync (hover) ────────────────────────────
@@ -57,6 +66,7 @@ export function useCrosshairSync(): SyncRegistrar {
       try {
         for (const other of entriesRef.current) {
           if (other.chart === chart) continue;
+          if (!other.rangeReceive) continue;   // receive 거부 차트(예: 전체 일봉 가격차트)는 클램프 안 함
           try { other.chart.timeScale().setVisibleRange(tr); }
           catch { /* 차트 제거됨 / 범위 밖 */ }
         }
@@ -64,13 +74,16 @@ export function useCrosshairSync(): SyncRegistrar {
         isSyncingRangeRef.current = false;
       }
     };
-    chart.timeScale().subscribeVisibleLogicalRangeChange(rangeHandler);
+    // broadcast 거부 차트(예: 희박한 수급 패널)는 range 변화를 전파하지 않음 → 남을 클램프 못 함.
+    if (rangeBroadcast) chart.timeScale().subscribeVisibleLogicalRangeChange(rangeHandler);
 
     return () => {
       entriesRef.current = entriesRef.current.filter(e => e !== entry);
       try { chart.unsubscribeCrosshairMove(moveHandler); } catch { /* noop */ }
-      try { chart.timeScale().unsubscribeVisibleLogicalRangeChange(rangeHandler); }
-      catch { /* noop */ }
+      if (rangeBroadcast) {
+        try { chart.timeScale().unsubscribeVisibleLogicalRangeChange(rangeHandler); }
+        catch { /* noop */ }
+      }
     };
   }, []);
 }
