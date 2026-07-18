@@ -10,10 +10,11 @@ import { attachTodayBuys } from "./lib/tradeCalc";
 import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
-import { Tabs, buildTabs, filterByTab, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY } from "./components/Tabs";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
 import { EtfRankingTab } from "./components/EtfRankingTab";
+import { EtfCompareTab } from "./components/EtfCompareTab";
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SimpleViewModal } from "./components/SimpleViewModal";
 import { SectorRankingTab } from "./components/SectorRankingTab";
@@ -100,6 +101,7 @@ function Dashboard() {
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
+  const [valuationName, setValuationName] = useState<string | null>(null);   // 비보유 종목(ETF비교 등) 이름 폴백
   const [editing, setEditing] = useState<Stock | null>(null);
   const [editAllStock, setEditAllStock] = useState<{ ticker: string; name: string } | null>(null);
   const [memoTicker, setMemoTicker] = useState<string | null>(null);
@@ -708,6 +710,8 @@ function Dashboard() {
                          onRequestAdd={q => { setSearchInitQuery(q); setSearchOpen(true); }} />
         ) : activeTab === ETF_RANKING_TAB_KEY ? (
           <EtfRankingTab onOpenEtfComposition={(code, n) => setEtfDialog({ ticker: code, name: n })} />
+        ) : activeTab === ETF_COMPARE_TAB_KEY ? (
+          <EtfCompareTab onOpenValuation={(code, n) => { setValuationName(n); setValuationTicker(code); }} />
         ) : visible.length === 0 ? (
           holdings.length === 0 ? (
             <div className="text-center py-16 text-gray-500">
@@ -1038,17 +1042,18 @@ function Dashboard() {
       )}
 
       {valuationTicker && (() => {
+        // 보유종목이면 평단/이름 사용, 비보유(예: ETF비교에서 연 ETF)면 전달받은 이름 폴백.
         const s = holdings.find(h => h.ticker === valuationTicker);
-        if (!s) return null;
+        const nm = s?.name ?? valuationName ?? valuationTicker;
         return (
           <ValuationModal
             isOpen={true}
-            onClose={() => setValuationTicker(null)}
+            onClose={() => { setValuationTicker(null); setValuationName(null); }}
             ticker={valuationTicker}
-            name={s.name}
+            name={nm}
             curPrice={priceMap.get(valuationTicker)?.price}
             todayBar={(() => { const p = priceMap.get(valuationTicker); return p ? { open: p.open, high: p.high, low: p.low } : undefined; })()}
-            myAvgPrice={s.shares > 0 ? s.avg_price : undefined}
+            myAvgPrice={s && s.shares > 0 ? s.avg_price : undefined}
             entryPrice={memos.get(valuationTicker)?.entryPrice}
           />
         );

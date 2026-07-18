@@ -928,7 +928,7 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
 }
 
 // ─── EtfIndicatorBlock — ETF 핵심 지표(총보수·분배율·괴리율·운용사·NAV·시총·기간수익률) 한 ETF분 ──
-function EtfIndicatorBlock({ ticker, name }: { ticker: string; name: string }) {
+export function EtfIndicatorBlock({ ticker, name }: { ticker: string; name: string }) {
   const { data } = useQuery({
     queryKey: ["etf-key-indicator", ticker],
     queryFn: () => fetchEtfKeyIndicator(ticker),
@@ -941,7 +941,10 @@ function EtfIndicatorBlock({ ticker, name }: { ticker: string; name: string }) {
   if (data?.marketValue) rows.push(["시가총액", data.marketValue, "상장 시가총액"]);
   if (data?.totalNav) rows.push(["순자산", data.totalNav, "ETF 총 순자산 규모 (AUM)"]);
   if (data?.totalFee != null) rows.push(["총보수", `${data.totalFee}%`, "연 운용·판매 등 총 보수율 (낮을수록 비용 유리)"]);
-  if (data?.dividendYield != null) rows.push(["분배율", `${data.dividendYield}%`, "최근 1년 분배금 ÷ 주가 (ETF 배당수익률)"]);
+  {
+    const dy = data?.dividendYieldTtm ?? data?.dividendYield;
+    if (dy != null) rows.push(["분배율", `${dy}%`, "최근 1년 분배금 ÷ 주가 (ETF 배당수익률)"]);
+  }
   if (data?.nav) rows.push(["NAV", data.nav, "1좌당 순자산가치 (ETF의 이론 적정가)"]);
   if (data?.deviationRate != null) rows.push(["괴리율", `${data.deviationSign ?? ""}${data.deviationRate}%`, "시장가 − NAV 차이 (+면 비싸게, −면 싸게 거래)"]);
   const active = etfActiveType(name);   // true=액티브 / false=패시브 / null=ETF 아님

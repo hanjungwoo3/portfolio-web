@@ -254,7 +254,8 @@ export interface EtfComposition {
 // ETF 핵심 지표 — 네이버 integration 의 etfKeyIndicator (총보수·분배율·괴리율·NAV·운용사 등)
 export interface EtfKeyIndicator {
   totalFee?: number;        // 총보수(%)
-  dividendYield?: number;   // 분배율(TTM, %)
+  dividendYield?: number;   // 분배율(TTM, %) — 구 필드명
+  dividendYieldTtm?: number; // 분배율(TTM, %) — 네이버 실제 응답 필드
   deviationRate?: number;   // 괴리율(%)
   deviationSign?: string;   // + / -
   chaseErrorRate?: number;  // 추적오차(%) — 기초지수 대비 이탈. 패시브 낮음(<1), 액티브 큼(10~). etfAnalysis 에서 보강
