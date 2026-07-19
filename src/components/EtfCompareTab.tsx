@@ -78,7 +78,7 @@ const fmtPct = (v?: number) => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFi
 
 export function EtfCompareTab({ onOpenValuation }: Props = {}) {
   const [groupId, setGroupId] = useState<string>(ETF_COMPARE_GROUPS[0].id);
-  const [sortKey, setSortKey] = useState<SortKey>("aum");
+  const [sortKey, setSortKey] = useState<SortKey>("r1w");
   const [sortAsc, setSortAsc] = useState<boolean>(false);
   const group = ETF_COMPARE_GROUPS.find(g => g.id === groupId) ?? ETF_COMPARE_GROUPS[0];
   const codes = group.items.map(i => i.code);
@@ -277,7 +277,7 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
         </div>
       </div>
       <p className="text-[11px] text-gray-400">
-        종목명 클릭=기업가치 상세, 🔍AI=구글 AI 분석. 헤더 클릭 정렬(기본 순자산순). 기간수익률=일봉 종가(1h 캐시), 총보수·분배율 30분 캐시, 현재가 실시간. 초록=최저보수·최고분배율·최고 1년.
+        종목명 클릭=기업가치 상세, 🔍AI=구글 AI 분석. 헤더 클릭 정렬(기본 1주 수익률순). 기간수익률=일봉 종가(1h 캐시), 총보수·분배율 30분 캐시, 현재가 실시간. 초록=최저보수·최고분배율·최고 1년.
       </p>
 
       {/* 용어 설명 — 표 아래 */}
