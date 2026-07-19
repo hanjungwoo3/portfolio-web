@@ -7,6 +7,7 @@ import { fetchEtfKeyIndicator, fetchTossPrices, fetchKrPriceHistory } from "../l
 import type { PricePoint } from "../lib/api";
 import { ETF_COMPARE_GROUPS } from "../lib/etfCompareGroups";
 import { Sparkline } from "./Sparkline";
+import { fmtAgo } from "../lib/format";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 
 interface Props {
@@ -43,7 +44,7 @@ const round = (v: number | undefined, d: number): number | null =>
 
 interface Row {
   code: string; name: string; issuer?: string;
-  price?: number; base?: number; closes: number[];
+  price?: number; base?: number; prevClose?: number; closes: number[]; tradeDt?: string;
   fee?: number; div?: number;
   aumStr?: string; aum: number | null;
   mcapStr?: string; mcap: number | null;
@@ -56,7 +57,6 @@ interface Row {
 type SortKey = "name" | "price" | "aum" | "mcap" | "nav" | "fee" | "div" | "dev" | "chase" | "r1w" | "r1m" | "r3m" | "r6m" | "r1y";
 interface ColDef { key: SortKey; label: string; sub?: string; }
 const COLS: ColDef[] = [
-  { key: "price", label: "현재가" },
   { key: "mcap",  label: "시총" },
   { key: "aum",   label: "순자산", sub: "AUM" },
   { key: "nav",   label: "NAV", sub: "1좌 순자산" },
@@ -70,8 +70,8 @@ const COLS: ColDef[] = [
   { key: "r6m",   label: "6개월" },
   { key: "r1y",   label: "1년" },
 ];
-// name(넓게) + 13개 데이터 컬럼. 모바일은 가로 스크롤.
-const GRID_COLS = "minmax(250px,2.4fr) repeat(13, minmax(52px,1fr))";
+// name(넓게, 현재가 포함) + 12개 데이터 컬럼. 모바일은 가로 스크롤.
+const GRID_COLS = "minmax(250px,2.4fr) repeat(12, minmax(52px,1fr))";
 
 const pctColor = (v?: number) => v == null ? "text-gray-400" : v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500";
 const fmtPct = (v?: number) => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
@@ -110,7 +110,7 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
     const p = priceMap.get(it.code);
     return {
       code: it.code, name: it.name, issuer: ki?.issuerName,
-      price: p?.price, base: p?.base, closes: (hist ?? []).map(h => h.close),
+      price: p?.price, base: p?.base, prevClose: p?.prevClose, closes: (hist ?? []).map(h => h.close), tradeDt: p?.trade_dt,
       fee: ki?.totalFee,
       div: ki?.dividendYieldTtm ?? ki?.dividendYield,
       aumStr: ki?.totalNav, aum: parseEok(ki?.totalNav),
@@ -185,7 +185,7 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
 
       {/* 비교 — 한 종목당 한 줄. 행 배경에 1년 추세 스파크라인. 가로 스크롤(모바일). */}
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        <div className="min-w-[1220px]">
+        <div className="min-w-[1160px]">
           {/* 헤더 */}
           <div className="grid items-end gap-x-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-gray-500 text-xs"
                style={{ gridTemplateColumns: GRID_COLS }}>
@@ -199,7 +199,13 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
           </div>
           {/* 행 */}
           {sorted.map(r => {
-            const chg = r.price != null && r.base ? ((r.price - r.base) / r.base) * 100 : undefined;
+            // 등락 기준가 = 직전 거래일 종가(prevClose). 비거래일엔 base=현재가라 0%가 되므로 prevClose 우선.
+            const ref = r.prevClose && r.prevClose > 0 ? r.prevClose : r.base;
+            const chg = r.price != null && ref ? ((r.price - ref) / ref) * 100 : undefined;
+            const diff = r.price != null && ref ? Math.round(r.price - ref) : undefined;
+            // 일반 카드 스타일 — 현재가·% 방향색 + 옅은 배경 틴트
+            const clr = chg == null ? "text-gray-800" : chg > 0 ? "text-rose-600" : chg < 0 ? "text-blue-600" : "text-gray-800";
+            const tint = chg == null ? "" : chg > 0 ? "bg-rose-50/40" : chg < 0 ? "bg-blue-50/40" : "";
             const sparkColor = r.closes.length > 1
               ? (r.closes[r.closes.length - 1] >= r.closes[0] ? "#dc2626" : "#2563eb") : undefined;
             const feeBest = r.fee != null && r.fee === bestFee;
@@ -210,12 +216,12 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
                 <div className="grid items-center gap-x-2 px-3 text-sm tabular-nums min-h-[84px]"
                      style={{ gridTemplateColumns: GRID_COLS }}>
                   {/* 종목 — 배경에 1년 추세 스파크라인 (이 칸만) */}
-                  <div className="relative self-stretch min-w-0 overflow-hidden flex flex-col justify-center">
+                  <div className={`relative self-stretch min-w-0 overflow-hidden flex flex-col justify-center ${tint}`}>
                     {r.closes.length > 1 && (
-                      <Sparkline data={r.closes} width={200} height={84} color={sparkColor}
+                      <Sparkline data={r.closes} width={200} height={84} color={sparkColor} strokeWidth={0.7}
                                  className="absolute inset-0 w-full h-full opacity-30 pointer-events-none" />
                     )}
-                    <div className="relative z-10">
+                    <div className="relative z-10 pl-4">
                     <div className="flex items-center gap-1.5">
                       <span className="text-[8px] font-bold text-amber-700 bg-amber-100/80 border border-amber-300/50 rounded px-0.5 leading-tight shrink-0">ETF</span>
                       <button onClick={() => onOpenValuation
@@ -229,16 +235,18 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
                                          border border-blue-300 text-blue-700 bg-blue-50/90 hover:bg-blue-100">🔍AI</button>
                     </div>
                     <div className="text-[10px] text-gray-400 leading-tight truncate">{r.issuer ?? (r.loading ? "…" : r.code)}</div>
+                    {r.price != null && (
+                      <div className="flex items-baseline gap-1.5 mt-0.5 flex-wrap">
+                        <span className={`text-lg font-bold tabular-nums leading-none ${clr}`}>{Math.round(r.price).toLocaleString()}원</span>
+                        {chg != null && <span className={`text-sm font-bold tabular-nums ${clr}`}>{fmtPct(chg)}</span>}
+                        {diff ? <span className="text-[10px] text-gray-400 tabular-nums">({diff >= 0 ? "+" : ""}{diff.toLocaleString()}원)</span> : null}
+                      </div>
+                    )}
+                    {(() => {
+                      const ago = r.tradeDt ? fmtAgo(Date.parse(r.tradeDt) / 1000, "정규장 마감") : "";
+                      return ago ? <div className="text-[9px] text-gray-400 leading-none mt-0.5">{ago}</div> : null;
+                    })()}
                     </div>
-                  </div>
-                  {/* 현재가 */}
-                  <div className="text-right">
-                    {r.price != null ? (
-                      <>
-                        <div className="font-semibold text-gray-800">{Math.round(r.price).toLocaleString()}</div>
-                        {chg != null && <div className={`text-[10px] ${pctColor(chg)}`}>{fmtPct(chg)}</div>}
-                      </>
-                    ) : "—"}
                   </div>
                   <div className="text-right text-gray-700">{r.mcapStr ?? "—"}</div>
                   <div className="text-right text-gray-700">{r.aumStr ?? "—"}</div>

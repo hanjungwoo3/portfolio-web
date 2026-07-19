@@ -14,10 +14,12 @@ interface Props {
   avgPrice?: number;
   // 기대가 가로선 (옵션) — Y 축 범위에 포함 (점선, violet)
   entry?: number;
+  // 라인 두께 (옵션, 기본 1.5). 배경용으로 얇게 하고 싶을 때.
+  strokeWidth?: number;
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color, target, avgPrice, entry,
+  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5,
 }: Props) {
   if (!data || data.length < 2) {
     return (
@@ -84,7 +86,7 @@ export function Sparkline({
         </linearGradient>
       </defs>
       <path d={areaPath} fill={`url(#${gradId})`} />
-      <path d={linePath} fill="none" stroke={trendColor} strokeWidth="1.5"
+      <path d={linePath} fill="none" stroke={trendColor} strokeWidth={strokeWidth}
             strokeLinejoin="round" strokeLinecap="round" />
       {/* 목표가 — amber 점선 */}
       {targetY !== null && (
