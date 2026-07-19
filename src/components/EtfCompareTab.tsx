@@ -35,8 +35,7 @@ function periodReturn(prices: PricePoint[] | undefined, back: { d?: number; m?: 
   const target = dt.toISOString().slice(0, 10);
   let base: PricePoint | undefined;
   for (const p of prices) { if (p.date <= target) base = p; else break; }
-  if (!base) base = prices[0];
-  if (!(base.close > 0)) return undefined;
+  if (!base || !(base.close > 0)) return undefined;   // 히스토리가 그 기간을 못 덮으면 — (예: 신생 ETF의 2·3년)
   return (last.close - base.close) / base.close * 100;
 }
 const round = (v: number | undefined, d: number): number | null =>
@@ -50,11 +49,11 @@ interface Row {
   mcapStr?: string; mcap: number | null;
   navStr?: string; navNum: number | null;
   devRate?: number; devSign?: string; chaseErr?: number;
-  r1w?: number; r1m?: number; r3m?: number; r6m?: number; r1y?: number;
+  r1w?: number; r1m?: number; r3m?: number; r6m?: number; r1y?: number; r2y?: number; r3y?: number;
   loading: boolean;
 }
 
-type SortKey = "name" | "price" | "aum" | "mcap" | "nav" | "fee" | "div" | "dev" | "chase" | "r1w" | "r1m" | "r3m" | "r6m" | "r1y";
+type SortKey = "name" | "price" | "aum" | "mcap" | "nav" | "fee" | "div" | "dev" | "chase" | "r1w" | "r1m" | "r3m" | "r6m" | "r1y" | "r2y" | "r3y";
 interface ColDef { key: SortKey; label: string; sub?: string; }
 const COLS: ColDef[] = [
   { key: "r1w",   label: "1주" },
@@ -62,6 +61,8 @@ const COLS: ColDef[] = [
   { key: "r3m",   label: "3개월" },
   { key: "r6m",   label: "6개월" },
   { key: "r1y",   label: "1년" },
+  { key: "r2y",   label: "2년" },
+  { key: "r3y",   label: "3년" },
   { key: "fee",   label: "총보수", sub: "낮을수록↑" },
   { key: "div",   label: "분배율", sub: "TTM" },
   { key: "dev",   label: "괴리율", sub: "시장가-NAV" },
@@ -70,8 +71,8 @@ const COLS: ColDef[] = [
   { key: "aum",   label: "순자산", sub: "AUM" },
   { key: "nav",   label: "NAV", sub: "1좌 순자산" },
 ];
-// name(넓게, 현재가 포함) + 12개 데이터 컬럼. 모바일은 가로 스크롤.
-const GRID_COLS = "minmax(250px,2.4fr) repeat(12, minmax(52px,1fr))";
+// name(넓게, 현재가 포함) + 14개 데이터 컬럼. 모바일은 가로 스크롤.
+const GRID_COLS = "minmax(250px,2.4fr) repeat(14, minmax(52px,1fr))";
 
 const pctColor = (v?: number) => v == null ? "text-gray-400" : v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500";
 const fmtPct = (v?: number) => v == null ? "—" : `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
@@ -92,8 +93,8 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
   });
   const histQs = useQueries({
     queries: group.items.map(it => ({
-      queryKey: ["etf-compare-hist", it.code],
-      queryFn: () => fetchKrPriceHistory(it.code, "1y"),
+      queryKey: ["etf-compare-hist", it.code, "5y"],
+      queryFn: () => fetchKrPriceHistory(it.code, "5y"),
       staleTime: 60 * 60_000, refetchOnWindowFocus: false,
     })),
   });
@@ -119,7 +120,7 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
       devRate: ki?.deviationRate, devSign: ki?.deviationSign, chaseErr: ki?.chaseErrorRate,
       r1w: periodReturn(hist, { d: 7 }), r1m: periodReturn(hist, { m: 1 }),
       r3m: periodReturn(hist, { m: 3 }), r6m: periodReturn(hist, { m: 6 }),
-      r1y: periodReturn(hist, { m: 12 }),
+      r1y: periodReturn(hist, { m: 12 }), r2y: periodReturn(hist, { m: 24 }), r3y: periodReturn(hist, { m: 36 }),
       loading: (kiQs[i]?.isLoading ?? false) || (histQs[i]?.isLoading ?? false),
     };
   });
@@ -135,6 +136,7 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
       case "chase": return r.chaseErr ?? null;
       case "r1w": return r.r1w ?? null; case "r1m": return r.r1m ?? null;
       case "r3m": return r.r3m ?? null; case "r6m": return r.r6m ?? null; case "r1y": return r.r1y ?? null;
+      case "r2y": return r.r2y ?? null; case "r3y": return r.r3y ?? null;
     }
   };
   const sorted = [...rows].sort((a, b) => {
@@ -148,7 +150,10 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
   // 최적값 — 총보수는 원값 그대로 최저(소수점 다 표시, 동률이면 모두 최저). 배당·1년은 표시 자릿수(2자리) 최고.
   const bestFee = Math.min(...rows.map(r => r.fee).filter((v): v is number => typeof v === "number"), Infinity);
   const bestDiv = Math.max(...rows.map(r => round(r.div, 2)).filter((v): v is number => v != null), -Infinity);
-  const bestR1y = Math.max(...rows.map(r => round(r.r1y, 2)).filter((v): v is number => v != null), -Infinity);
+  const maxOf = (get: (r: Row) => number | undefined) =>
+    Math.max(...rows.map(r => round(get(r), 2)).filter((v): v is number => v != null), -Infinity);
+  const bestR1w = maxOf(r => r.r1w), bestR1m = maxOf(r => r.r1m), bestR3m = maxOf(r => r.r3m),
+        bestR6m = maxOf(r => r.r6m), bestR1y = maxOf(r => r.r1y), bestR2y = maxOf(r => r.r2y), bestR3y = maxOf(r => r.r3y);
 
   const onSort = (k: SortKey) => {
     if (k === sortKey) setSortAsc(a => !a);
@@ -185,7 +190,7 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
 
       {/* 비교 — 한 종목당 한 줄. 행 배경에 1년 추세 스파크라인. 가로 스크롤(모바일). */}
       <div className="overflow-x-auto border border-gray-200 rounded-lg">
-        <div className="min-w-[1160px]">
+        <div className="min-w-[1300px]">
           {/* 헤더 */}
           <div className="grid items-end gap-x-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-gray-500 text-xs"
                style={{ gridTemplateColumns: GRID_COLS }}>
@@ -210,7 +215,12 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
               ? (r.closes[r.closes.length - 1] >= r.closes[0] ? "#dc2626" : "#2563eb") : undefined;
             const feeBest = r.fee != null && r.fee === bestFee;
             const divBest = round(r.div, 2) === bestDiv;
-            const r1yBest = round(r.r1y, 2) === bestR1y;
+            // 기간 수익률 셀 — 그룹 내 최고면 초록 배경 강조.
+            const pcell = (v: number | undefined, best: number) => (
+              <div className={`text-right ${round(v, 2) === best ? "bg-emerald-100 rounded px-0.5 font-bold" : ""} ${pctColor(v)}`}>
+                {fmtPct(v)}
+              </div>
+            );
             return (
               <div key={r.code} className="border-b border-gray-100 last:border-b-0 hover:bg-blue-50/20">
                 <div className="grid items-center gap-x-2 px-3 text-sm tabular-nums min-h-[84px]"
@@ -248,12 +258,14 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
                     })()}
                     </div>
                   </div>
-                  {/* 기간 수익률 (이름 오른쪽) */}
-                  <div className={`text-right ${pctColor(r.r1w)}`}>{fmtPct(r.r1w)}</div>
-                  <div className={`text-right ${pctColor(r.r1m)}`}>{fmtPct(r.r1m)}</div>
-                  <div className={`text-right ${pctColor(r.r3m)}`}>{fmtPct(r.r3m)}</div>
-                  <div className={`text-right ${pctColor(r.r6m)}`}>{fmtPct(r.r6m)}</div>
-                  <div className={`text-right font-semibold ${r1yBest ? "bg-emerald-50 rounded px-0.5" : ""} ${pctColor(r.r1y)}`}>{fmtPct(r.r1y)}</div>
+                  {/* 기간 수익률 (이름 오른쪽) — 각 기간 최고는 초록 강조 */}
+                  {pcell(r.r1w, bestR1w)}
+                  {pcell(r.r1m, bestR1m)}
+                  {pcell(r.r3m, bestR3m)}
+                  {pcell(r.r6m, bestR6m)}
+                  {pcell(r.r1y, bestR1y)}
+                  {pcell(r.r2y, bestR2y)}
+                  {pcell(r.r3y, bestR3y)}
                   {/* 지표 — 총보수·분배율·괴리율·추적오차·시총·순자산·NAV */}
                   <div className={`text-right font-semibold ${feeBest ? "text-emerald-600" : "text-gray-800"}`}>
                     {feeBest && <span className="mr-0.5 text-[9px] font-normal">최저</span>}{r.fee != null ? `${r.fee}%` : "—"}
@@ -277,7 +289,7 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
         </div>
       </div>
       <p className="text-[11px] text-gray-400">
-        종목명 클릭=기업가치 상세, 🔍AI=구글 AI 분석. 헤더 클릭 정렬(기본 1주 수익률순). 기간수익률=일봉 종가(1h 캐시), 총보수·분배율 30분 캐시, 현재가 실시간. 초록=최저보수·최고분배율·최고 1년.
+        종목명 클릭=기업가치 상세, 🔍AI=구글 AI 분석. 헤더 클릭 정렬(기본 1주 수익률순). 기간수익률=일봉 종가(1h 캐시), 총보수·분배율 30분 캐시, 현재가 실시간. 초록=최저보수·최고분배율·기간별 최고수익. 2·3년은 상장기간 부족 시 "—". (신생 ETF는 10·20년 데이터 없음)
       </p>
 
       {/* 용어 설명 — 표 아래 */}
