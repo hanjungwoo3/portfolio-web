@@ -20,7 +20,7 @@ import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/funda
 import { FinancialCharts } from "./FinancialCharts";
 import { ConsensusCharts } from "./ConsensusCharts";
 import { PriceMultiSparks } from "./PriceMultiSparks";
-import { signColor, nowKstDateStr } from "../lib/format";
+import { signColor, nowKstDateStr, isEtfByName } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
 import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchNaverInfo, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices } from "../lib/api";
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
@@ -323,28 +323,31 @@ export function ValuationModal({
   isOpen, onClose, ticker, name, curPrice, todayBar, myAvgPrice, entryPrice,
 }: Props) {
   useEscClose(isOpen, onClose);
+  // ETF(특히 채권형)는 재무·컨센서스·대차·신용·CFD·프로그램·공시가 없음 → 그 조회를 전부 건너뛰어
+  //   기업가치 열 때 프록시 요청 폭주(호출수 병목)를 방지. (일봉·수급·뉴스만 조회)
+  const isEtf = isEtfByName(name);
   const { data, isLoading, error } = useQuery({
     queryKey: ["valuation", ticker],
     queryFn: () => fetchFullValuation(ticker),
-    enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
+    enabled: isOpen && !isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 24 * 3600_000,  // 24시간 캐시
   });
   // 네이버 기업개요 — App.tsx 와 동일 queryKey 라 캐시 공유
   const { data: naverInfo } = useQuery({
     queryKey: ["naver", ticker],
     queryFn: () => fetchNaverInfo(ticker),
-    enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
+    enabled: isOpen && !isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 24 * 3600_000,
   });
   // 재무 시계열 (Wisereport cF1001 같은 페이지의 다년치 파싱) — 24시간 캐시
   const { data: finSeries } = useQuery({
     queryKey: ["wise-series", ticker],
     queryFn: () => fetchWisereportSeries(ticker),
-    enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
+    enabled: isOpen && !isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 24 * 3600_000,
   });
   // 컨센서스 예상치 — 분기별 발표치 vs 애널리스트 예상 (매출/영업이익/EPS)
-  const estEnabled = isOpen && /^\d{6}$/.test(ticker);
+  const estEnabled = isOpen && !isEtf && /^\d{6}$/.test(ticker);
   const { data: estRevenue } = useQuery({
     queryKey: ["est", ticker, "revenue"],
     queryFn: () => fetchTossEstimate(ticker, "revenue"),
@@ -514,12 +517,13 @@ export function ValuationModal({
                                   myAvgPrice={myAvgPrice}
                                   entryPrice={entryPrice}
                                   curPrice={effCurPrice}
-                                  todayBar={todayBar} />
+                                  todayBar={todayBar} isEtf={isEtf} />
 
           {/* 뉴스(좌) + 공시(우) */}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
             <NewsSection ticker={ticker} />
-            <DisclosureSection ticker={ticker} />
+            {/* ETF는 공시(DART)가 없음 → 렌더·조회 생략(요청 폭주 방지) */}
+            {!isEtf && <DisclosureSection ticker={ticker} />}
           </div>
 
           {/* 외부 링크 */}
@@ -553,6 +557,7 @@ interface InvestorHistoryProps {
   entryPrice?: number;
   curPrice?: number;
   todayBar?: TodayBar;
+  isEtf?: boolean;
 }
 
 const INVESTOR_COLS: { label: string; key: keyof Investor }[] = [
@@ -616,7 +621,7 @@ function computePeriodSummary(
 }
 
 function InvestorHistorySection({
-  ticker, targetPrice, myAvgPrice, entryPrice, curPrice, todayBar,
+  ticker, targetPrice, myAvgPrice, entryPrice, curPrice, todayBar, isEtf = false,
 }: InvestorHistoryProps) {
   const { data: history, isLoading } = useQuery({
     queryKey: ["investor-history-modal", ticker],
@@ -656,7 +661,7 @@ function InvestorHistorySection({
                                myAvgPrice={myAvgPrice}
                                entryPrice={entryPrice}
                                curPrice={curPrice}
-                               todayBar={todayBar} />
+                               todayBar={todayBar} isEtf={isEtf} />
       )}
 
       {history && history.length > 0 && (
@@ -767,13 +772,14 @@ function InvestorHistorySection({
 // ─── 수급 차트 모음 — 주가+거래량 (full) + 외국인/기관/연기금 (3분할) ───
 // 4개 차트 모두 lightweight-charts 기반, 한 hook 으로 crosshair 동기화.
 function InvestorChartsSection({
-  ticker, history, targetPrice, myAvgPrice, entryPrice, curPrice, todayBar,
+  ticker, history, targetPrice, myAvgPrice, entryPrice, curPrice, todayBar, isEtf = false,
 }: {
   ticker: string; history: Investor[];
   targetPrice?: number; myAvgPrice?: number;
   entryPrice?: number;
   curPrice?: number;
   todayBar?: TodayBar;
+  isEtf?: boolean;   // ETF면 공시·대차·신용·CFD·프로그램 조회 생략(요청 폭주 방지)
 }) {
   // 가격 + 거래량 + 배당 + 액면분할 (Yahoo 1y, KOSPI→KOSDAQ 자동 폴백)
   const { data: priceData, isLoading: pricesLoading } = useQuery({
@@ -790,7 +796,7 @@ function InvestorChartsSection({
   const { data: disclosures } = useQuery({
     queryKey: ["disclosures-modal", ticker],
     queryFn: () => fetchKrDisclosures(ticker, 12),
-    enabled: /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^\d{6}$/.test(ticker),
     staleTime: 30 * 60_000,    // 30분 — 공시 변동 빈도 적음
   });
 
@@ -798,7 +804,7 @@ function InvestorChartsSection({
   const { data: shortSelling } = useQuery({
     queryKey: ["short-selling-modal", ticker],
     queryFn: () => fetchKrShortSelling(ticker, 12),
-    enabled: /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^\d{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
 
@@ -806,28 +812,28 @@ function InvestorChartsSection({
   const { data: lending } = useQuery({
     queryKey: ["lending-trading-modal", ticker],
     queryFn: () => fetchKrLendingTrading(ticker, 12),
-    enabled: /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^\d{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
   // 신용거래(신용융자) 잔고 — 개인 빚투 과열/반대매매 지표
   const { data: credit } = useQuery({
     queryKey: ["credit-loan-modal", ticker],
     queryFn: () => fetchKrCreditLoan(ticker, 12),
-    enabled: /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^\d{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
   // 프로그램매매 — 차익+비차익 순매수 (기관·외인 대량 수급)
   const { data: program } = useQuery({
     queryKey: ["program-trading-modal", ticker],
     queryFn: () => fetchKrProgramTrading(ticker, 12),
-    enabled: /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^\d{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
   // CFD — 개인 레버리지(매수/매도잔고). 종목 따라 데이터 없을 수 있음 → 있을 때만 표시.
   const { data: cfd } = useQuery({
     queryKey: ["cfd-modal", ticker],
     queryFn: () => fetchKrCfd(ticker, 12),
-    enabled: /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^\d{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
 
