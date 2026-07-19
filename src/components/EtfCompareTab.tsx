@@ -57,18 +57,18 @@ interface Row {
 type SortKey = "name" | "price" | "aum" | "mcap" | "nav" | "fee" | "div" | "dev" | "chase" | "r1w" | "r1m" | "r3m" | "r6m" | "r1y";
 interface ColDef { key: SortKey; label: string; sub?: string; }
 const COLS: ColDef[] = [
-  { key: "mcap",  label: "시총" },
-  { key: "aum",   label: "순자산", sub: "AUM" },
-  { key: "nav",   label: "NAV", sub: "1좌 순자산" },
-  { key: "fee",   label: "총보수", sub: "낮을수록↑" },
-  { key: "div",   label: "분배율", sub: "TTM" },
-  { key: "dev",   label: "괴리율", sub: "시장가-NAV" },
-  { key: "chase", label: "추적오차", sub: "낮을수록↑" },
   { key: "r1w",   label: "1주" },
   { key: "r1m",   label: "1개월" },
   { key: "r3m",   label: "3개월" },
   { key: "r6m",   label: "6개월" },
   { key: "r1y",   label: "1년" },
+  { key: "fee",   label: "총보수", sub: "낮을수록↑" },
+  { key: "div",   label: "분배율", sub: "TTM" },
+  { key: "dev",   label: "괴리율", sub: "시장가-NAV" },
+  { key: "chase", label: "추적오차", sub: "낮을수록↑" },
+  { key: "mcap",  label: "시총" },
+  { key: "aum",   label: "순자산", sub: "AUM" },
+  { key: "nav",   label: "NAV", sub: "1좌 순자산" },
 ];
 // name(넓게, 현재가 포함) + 12개 데이터 컬럼. 모바일은 가로 스크롤.
 const GRID_COLS = "minmax(250px,2.4fr) repeat(12, minmax(52px,1fr))";
@@ -248,9 +248,13 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
                     })()}
                     </div>
                   </div>
-                  <div className="text-right text-gray-700">{r.mcapStr ?? "—"}</div>
-                  <div className="text-right text-gray-700">{r.aumStr ?? "—"}</div>
-                  <div className="text-right text-gray-700">{r.navStr ?? "—"}</div>
+                  {/* 기간 수익률 (이름 오른쪽) */}
+                  <div className={`text-right ${pctColor(r.r1w)}`}>{fmtPct(r.r1w)}</div>
+                  <div className={`text-right ${pctColor(r.r1m)}`}>{fmtPct(r.r1m)}</div>
+                  <div className={`text-right ${pctColor(r.r3m)}`}>{fmtPct(r.r3m)}</div>
+                  <div className={`text-right ${pctColor(r.r6m)}`}>{fmtPct(r.r6m)}</div>
+                  <div className={`text-right font-semibold ${r1yBest ? "bg-emerald-50 rounded px-0.5" : ""} ${pctColor(r.r1y)}`}>{fmtPct(r.r1y)}</div>
+                  {/* 지표 — 총보수·분배율·괴리율·추적오차·시총·순자산·NAV */}
                   <div className={`text-right font-semibold ${feeBest ? "text-emerald-600" : "text-gray-800"}`}>
                     {feeBest && <span className="mr-0.5 text-[9px] font-normal">최저</span>}{r.fee != null ? `${r.fee}%` : "—"}
                   </div>
@@ -263,11 +267,9 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
                   <div className="text-right text-gray-600">
                     {r.chaseErr != null ? `${r.chaseErr}%` : "—"}
                   </div>
-                  <div className={`text-right ${pctColor(r.r1w)}`}>{fmtPct(r.r1w)}</div>
-                  <div className={`text-right ${pctColor(r.r1m)}`}>{fmtPct(r.r1m)}</div>
-                  <div className={`text-right ${pctColor(r.r3m)}`}>{fmtPct(r.r3m)}</div>
-                  <div className={`text-right ${pctColor(r.r6m)}`}>{fmtPct(r.r6m)}</div>
-                  <div className={`text-right font-semibold ${r1yBest ? "bg-emerald-50 rounded px-0.5" : ""} ${pctColor(r.r1y)}`}>{fmtPct(r.r1y)}</div>
+                  <div className="text-right text-gray-700">{r.mcapStr ?? "—"}</div>
+                  <div className="text-right text-gray-700">{r.aumStr ?? "—"}</div>
+                  <div className="text-right text-gray-700">{r.navStr ?? "—"}</div>
                 </div>
               </div>
             );
