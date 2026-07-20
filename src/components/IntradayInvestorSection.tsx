@@ -154,6 +154,12 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady,
     }
   }
 
+  // 선물(KOSPI200)은 원 스케일(×100)로 표시 — KODEX 200 ETF(≈지수×100) 가격대와 맞춤(예: 1,060.16 → 106,016).
+  if (market === "futures") {
+    if (indexSeries) indexSeries = indexSeries.map(p => ({ t: p.t, value: p.value * 100 }));
+    if (indexBaseline != null) indexBaseline *= 100;
+  }
+
   return (
     <Suspense fallback={<div className="h-[260px]" />}>
       <IntradayInvestorChart series={series} summary={summary} enabled={enabled}

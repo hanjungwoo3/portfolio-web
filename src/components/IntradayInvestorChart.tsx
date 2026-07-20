@@ -136,6 +136,7 @@ export function IntradayInvestorChart({
       const base = indexBaseline ?? indexSeries[0].value;
       const idx = chart.addSeries(BaselineSeries, {
         priceScaleId: "left",
+        priceFormat: { type: "price", precision: 0, minMove: 1 },   // 지수 축 정수 표시(6800.00 → 6,800)
         baseValue: { type: "price", price: base },
         topLineColor: "rgba(220,38,38,0.7)",
         topFillColor1: "rgba(220,38,38,0.28)", topFillColor2: "rgba(220,38,38,0.05)",
@@ -152,6 +153,7 @@ export function IntradayInvestorChart({
     //   세 차트가 같은 범위로 fit 되고, 선물 순매수 라인만 일찍 끝나 우측이 공백으로 남음.
     const zero = chart.addSeries(LineSeries, {
       color: "#475569", lineWidth: 1, lineStyle: LineStyle.Dashed,   // slate-600
+      priceFormat: { type: "price", precision: 0, minMove: 1 },   // 순매수 축 정수(억원/계약)
       priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     });
     const zeroData = series.map(p => ({ time: p.t as Time, value: 0 }));
@@ -163,7 +165,8 @@ export function IntradayInvestorChart({
     for (const def of INTRADAY_SERIES) {
       if (!enabled[def.key]) continue;
       const s: ISeriesApi<"Line"> = chart.addSeries(LineSeries, {
-        color: def.color, lineWidth: 2, priceFormat: { type: "volume" },
+        color: def.color, lineWidth: 2,
+        priceFormat: { type: "price", precision: 0, minMove: 1 },   // 순매수 정수(억원/계약)
         priceLineVisible: false, lastValueVisible: false,
       });
       s.setData(series.map(p => ({ time: p.t as Time, value: p.values[def.key] })));

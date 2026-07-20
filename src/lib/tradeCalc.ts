@@ -13,21 +13,44 @@ import { normalizeAccount } from "./account";
 export function attachTodayBuys(holdings: Stock[], trades: Trade[], independent: boolean): Stock[] {
   const keyOf = (ticker: string, account?: string) =>
     independent ? `${ticker}|${normalizeAccount(account)}` : ticker;
-  const byKey = new Map<string, { shares: number; cost: number }>();
+  // 키별 전체 거래를 FIFO(선입선출)로 처리해 '현재 보유분 중 실제 오늘 매수분' 수량·원가 산출.
+  //  ⚠️ 오늘 매수만 합산하면(과거 방식) 오늘 아침에 사고판(왕복) 물량까지 오늘매수로 잡혀
+  //     현재 보유분 오늘 원가가 오염됨(오늘 손익 오류). 매도가 오래된 랏부터 소진(FIFO)해야
+  //     '지금 들고 있는 게 오늘 산 것인지'가 정확히 갈림.
+  const byKey = new Map<string, Trade[]>();
   for (const t of trades) {
-    if (t.type !== "buy" || !isTodayKst(t.date)) continue;
     const k = keyOf(t.ticker, t.account);
-    const cur = byKey.get(k) ?? { shares: 0, cost: 0 };
-    cur.shares += t.qty; cur.cost += t.amount;
-    byKey.set(k, cur);
+    const arr = byKey.get(k); if (arr) arr.push(t); else byKey.set(k, [t]);
+  }
+  const todayByKey = new Map<string, { shares: number; cost: number }>();
+  for (const [k, rows] of byKey) {
+    const sorted = [...rows].sort((a, b) =>
+      a.date.localeCompare(b.date) || (a.createdAt ?? 0) - (b.createdAt ?? 0));
+    const lots: { qty: number; price: number; today: boolean }[] = [];
+    for (const t of sorted) {
+      if (t.type === "buy") {
+        if (t.qty > 0) lots.push({ qty: t.qty, price: t.amount / t.qty, today: isTodayKst(t.date) });
+      } else {
+        let sell = t.qty;
+        while (sell > 0 && lots.length > 0) {           // 오래된 랏부터 소진(FIFO)
+          const lot = lots[0];
+          const take = Math.min(sell, lot.qty);
+          lot.qty -= take; sell -= take;
+          if (lot.qty <= 1e-9) lots.shift();
+        }
+      }
+    }
+    let shares = 0, cost = 0;                            // 잔여 랏 중 '오늘 산 것'만 합산
+    for (const lot of lots) if (lot.today) { shares += lot.qty; cost += lot.qty * lot.price; }
+    if (shares > 0) todayByKey.set(k, { shares, cost });
   }
   // 묵은 todayShares/todayCost(과거에 DB 로 새어들어간 값)는 항상 먼저 제거 — 이 함수가 유일 권위.
-  //  안 그러면 오늘 거래가 없어도(byKey 미스) 어제 굳은 값이 살아남아 '오늘=전체손익' 으로 표시됨.
+  //  안 그러면 오늘 거래가 없어도 어제 굳은 값이 살아남아 '오늘=전체손익' 으로 표시됨.
   return holdings.map(s => {
     const { todayShares: _ts, todayCost: _tc, ...base } = s;
-    const tb = byKey.get(keyOf(base.ticker, base.account));
+    const tb = todayByKey.get(keyOf(base.ticker, base.account));
     if (!tb || !(tb.shares > 0) || !(base.shares > 0)) return base;
-    const todayShares = Math.min(tb.shares, base.shares);          // 보유보다 많이(이미 일부 매도) 방지
+    const todayShares = Math.min(tb.shares, base.shares);          // 거래로그-보유 불일치 시 보유 초과분 캡
     const todayCost = Math.round(tb.cost * (todayShares / tb.shares));
     return { ...base, todayShares, todayCost };
   });
