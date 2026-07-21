@@ -131,12 +131,16 @@ function normalize(p: ExportPayload): string {
   const depKeys = Object.keys(s.deposits ?? {}).sort();
   const deposits: Record<string, number> = {};
   for (const k of depKeys) deposits[k] = s.deposits![k];
+  const pendKeys = Object.keys(s.pendingBuys ?? {}).sort();
+  const pendingBuys: Record<string, unknown> = {};
+  for (const k of pendKeys) pendingBuys[k] = s.pendingBuys![k];   // 건별 배열 그대로(직렬화로 비교)
   const groupFolders = [...(s.groupFolders ?? [])]
     .map(f => ({ name: f.name, groups: [...f.groups].sort() }))
     .sort((a, b) => a.name.localeCompare(b.name));
   const settings = {
     independentGroups: !!s.independentGroups,
     deposits,
+    pendingBuys,
     groupFolders,
     tabVisibility: s.tabVisibility ?? null,
     dimSleeping: s.dimSleeping ?? null,

@@ -18,11 +18,13 @@ import {
 import type { IntradayKey } from "../lib/intradayInvestor";
 import { INTRADAY_SERIES } from "../lib/intradayInvestor";
 import type { SyncRegistrar } from "../lib/useCrosshairSync";
+import { StackedNetSeries, type StackBarData } from "../lib/stackedNetSeries";
 
 export interface FlowSeriesPoint {
   t: UTCTimestamp;
   label: string;                        // 툴팁 표기용 (HH:MM 또는 MM/DD)
-  values: Record<IntradayKey, number>;
+  values: Record<IntradayKey, number>;  // 누적(라인용)
+  daily?: Record<IntradayKey, number>;  // 그날 순매수(비누적) — 하단 스택 막대용(일별 모드만)
 }
 
 // 금액 표시 — 억원은 조/억원(예: -4조 1,411억원), 선물은 계약.
@@ -172,6 +174,33 @@ export function IntradayInvestorChart({
       s.setData(series.map(p => ({ time: p.t as Time, value: p.values[def.key] })));
     }
 
+    // ─── 하단 일별 스택 막대 (daily 값이 있을 때 = 일별 모드) ───────────────
+    //   체크된 주체를 각자 색으로 다이버징 스택(양수 0 위 / 음수 0 아래). 커스텀 시리즈로 진짜 세그먼트 렌더.
+    //   상단 라인 패널(right)과 축 분리(오버레이 스케일 "hist", 아래 30%).
+    //   스택은 '합산'이라 포함관계 항목 이중계산 방지 — '기관계'(= 금융투자+투신+보험+연기금+은행+기타금융)가
+    //   켜져 있으면 그 세부는 스택에서 제외(라인차트는 세부까지 그대로 표시).
+    const INST_DETAIL = new Set<IntradayKey>([
+      "financialInvestment", "insurance", "trust", "bank", "otherFinancial", "pensionFund",
+    ]);
+    const stackDefs = INTRADAY_SERIES
+      .filter(d => enabled[d.key])
+      .filter(d => !(enabled["institutions"] && INST_DETAIL.has(d.key)));   // 스택 순서(개인이 맨 안쪽)
+    if (stackDefs.length > 0 && series.some(p => p.daily)) {
+      const stackData: (StackBarData | { time: Time })[] = series.map(p =>
+        p.daily
+          ? { time: p.t as Time, segments: stackDefs.map(def => ({ value: p.daily![def.key] ?? 0, color: def.color })) }
+          : { time: p.t as Time });
+      const stack = chart.addCustomSeries(new StackedNetSeries(), {
+        priceScaleId: "hist",
+        priceFormat: { type: "price", precision: 0, minMove: 1 },
+        priceLineVisible: false, lastValueVisible: false,
+      });
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      stack.setData(stackData as any);
+      chart.priceScale("hist").applyOptions({ scaleMargins: { top: 0.7, bottom: 0 } });
+      chart.priceScale("right").applyOptions({ scaleMargins: { top: 0.1, bottom: 0.36 } });
+    }
+
     chart.timeScale().fitContent();
 
     const hide = () => { if (tooltipRef.current) tooltipRef.current.style.display = "none"; };
@@ -192,8 +221,11 @@ export function IntradayInvestorChart({
       for (const def of INTRADAY_SERIES) {
         if (!enabled[def.key]) continue;
         const v = pt.values[def.key];
+        const dv = pt.daily?.[def.key];   // 그날 순매수(일별 모드만) — 누적 옆에 (+일별) 병기
         html += `<div class="flex justify-between gap-3"><span style="color:${def.color}">${def.label}</span>`
-              + `<span class="font-bold" style="color:${netColor(v)}">${fmtNet(v, unit)}</span></div>`;
+              + `<span><span class="font-bold" style="color:${netColor(v)}">${fmtNet(v, unit)}</span>`
+              + (dv != null ? ` <span class="text-[9px]" style="color:${netColor(dv)}">(${fmtNet(dv, unit)})</span>` : "")
+              + `</span></div>`;
       }
       tip.innerHTML = html;
       tip.style.display = "block";
@@ -348,7 +380,9 @@ export function IntradayInvestorChart({
         })()}
       </div>
       <div className="relative">
-        <div ref={containerRef} className="w-full h-[220px] lg:h-[240px]" />
+        {/* 고정 높이 대신 가로세로 비율 유지 — 카드 수가 줄어 폭이 커지면 세로도 비례해 커짐(3개→2개→1개).
+            min/max 로 너무 납작하거나 과대해지는 것 방지. */}
+        <div ref={containerRef} className="w-full aspect-[16/10] min-h-[190px] max-h-[460px]" />
         <div ref={vlinesRef} className="absolute inset-0 pointer-events-none overflow-hidden z-10" />
         <div ref={tooltipRef}
              className="absolute pointer-events-none bg-white/30 backdrop-blur-[2px] border border-gray-200/60 rounded shadow-sm

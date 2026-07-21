@@ -1,6 +1,6 @@
 import Dexie, { type Table } from "dexie";
 import type { Stock, Memo } from "../types";
-import { getDeposits, getDeposit, setDeposit, replaceAllDeposits } from "./deposits";
+import { getDeposits, getDeposit, setDeposit, replaceAllDeposits, getPendingBuys, setPendingBuy, movePendingItems, replaceAllPendingBuys, type PendingBuyItem } from "./deposits";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "./groupFolders";
 import type { TabVisibility } from "./tabVisibility";
 import {
@@ -458,6 +458,7 @@ export interface ExportPayload {
   settings?: {
     independentGroups?: boolean;
     deposits?: Record<string, number>;   // 그룹(account)별 예수금
+    pendingBuys?: Record<string, PendingBuyItem[]>; // 그룹별 구매대기(건별 목록: 수량×단가)
     groupFolders?: GroupFolder[];        // 그룹 폴더 구성
     tabVisibility?: TabVisibility;       // 상단 탭 표시
     dimSleeping?: boolean;               // 장마감 흐림
@@ -497,6 +498,7 @@ export async function exportAll(): Promise<ExportPayload> {
     settings: {
       independentGroups,
       deposits: getDeposits(),
+      pendingBuys: getPendingBuys(),
       groupFolders: getGroupFolders(),
       // tabVisibility 는 디바이스(모바일/PC) 별로 별도 저장 — 백업에 포함 안 함
       dimSleeping: getDimSleepingEnabled(),
@@ -519,6 +521,7 @@ export function applyImportedSettings(settings?: ExportPayload["settings"]): voi
     } catch { /* noop */ }
   }
   if (settings.deposits) replaceAllDeposits(settings.deposits);
+  if (settings.pendingBuys) replaceAllPendingBuys(settings.pendingBuys);
   if (settings.groupFolders) setGroupFolders(settings.groupFolders);
   // tabVisibility 는 디바이스(모바일/PC) 별로 별도 관리 — 불러오기 적용 안 함
   if (typeof settings.dimSleeping === "boolean") setDimSleepingEnabled(settings.dimSleeping);
@@ -531,8 +534,9 @@ export function applyImportedSettings(settings?: ExportPayload["settings"]): voi
 // 그룹 일괄 삭제 — 해당 그룹의 모든 holdings 삭제 (반환: 삭제 건수)
 export async function deleteGroup(groupName: string): Promise<number> {
   const removed = await db.holdings.where("account").equals(groupName).delete();
-  // 그룹 예수금도 함께 제거 — 안 그러면 고아 예수금이 '내주식' 합산(getTotalDeposits)에 계속 남음
+  // 그룹 예수금·구매대기도 함께 제거 — 안 그러면 고아 값이 '내주식' 합산(getTotal*)에 계속 남음
   setDeposit(groupName, 0);
+  setPendingBuy(groupName, 0);
   // 그룹 폴더에서도 제거 — 삭제된 그룹이 폴더 멤버로 남지 않게
   const folders = getGroupFolders();
   let changed = false;
@@ -607,12 +611,13 @@ export async function renameGroup(oldName: string, newName: string): Promise<num
       if ((tr.account ?? "") === old) await db.trades.put({ ...tr, account: next });
     }
   });
-  // 예수금 키도 새 이름으로 이전 — 안 그러면 옛 이름에 고아 예수금이 남음
+  // 예수금·구매대기 키도 새 이름으로 이전 — 안 그러면 옛 이름에 고아 값이 남음
   const dep = getDeposit(old);
   if (dep > 0) {
     setDeposit(next, getDeposit(next) + dep);
     setDeposit(old, 0);
   }
+  movePendingItems(old, next);   // 구매대기 건별 그대로 이전
   // 그룹 폴더 멤버 이름도 갱신 — 안 하면 폴더에서 빠져 sub바가 사라지고 그룹이 폴더 밖으로 튕김
   const folders = getGroupFolders();
   let folderChanged = false;

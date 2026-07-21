@@ -5,11 +5,13 @@ import type { Stock, Memo } from "../types";
 import type { Trade } from "./db";
 import type { GroupFolder } from "./groupFolders";
 import type { TabVisibility } from "./tabVisibility";
+import type { PendingBuyItem } from "./deposits";
 
 // 동기화 대상 설정 (exportAll.settings 와 동일 형태)
 export interface ImportSettings {
   independentGroups?: boolean;
   deposits?: Record<string, number>;   // 그룹(account)별 예수금
+  pendingBuys?: Record<string, PendingBuyItem[]>; // 그룹별 구매대기(건별 목록)
   groupFolders?: GroupFolder[];        // 그룹 폴더 구성
   tabVisibility?: TabVisibility;       // 상단 탭 표시
   dimSleeping?: boolean;               // 장마감 흐림
@@ -69,6 +71,21 @@ function parseSettings(obj: Record<string, unknown>): ImportSettings | undefined
       if (typeof v === "number" && Number.isFinite(v) && v > 0) dep[k] = v;
     }
     out.deposits = dep;
+  }
+  if (src.pendingBuys && typeof src.pendingBuys === "object" && !Array.isArray(src.pendingBuys)) {
+    const pend: Record<string, PendingBuyItem[]> = {};
+    for (const [k, v] of Object.entries(src.pendingBuys as Record<string, unknown>)) {
+      if (Array.isArray(v)) {
+        const items = v.filter((x): x is PendingBuyItem =>
+          !!x && typeof x === "object"
+          && typeof (x as PendingBuyItem).qty === "number" && (x as PendingBuyItem).qty > 0
+          && typeof (x as PendingBuyItem).price === "number" && (x as PendingBuyItem).price > 0);
+        if (items.length) pend[k] = items;
+      } else if (typeof v === "number" && Number.isFinite(v) && v > 0) {
+        pend[k] = [{ id: `legacy-${k}`, qty: 1, price: Math.round(v) }];   // 레거시 금액 → 1건
+      }
+    }
+    out.pendingBuys = pend;
   }
   // 그룹 폴더 — [{ name, groups[] }]
   if (Array.isArray(src.groupFolders)) {

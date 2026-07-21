@@ -344,7 +344,11 @@ export function TodayRealizedCard({ trades, account, aggregated, holdings, price
                   <span className="text-gray-300">→</span>
                   <span>현재 {nowPrice > 0 ? Math.round(nowPrice).toLocaleString() : "–"}</span>
                   {diff !== null && (
-                    <span className={signColor(diff)}>({diff >= 0 ? "+" : ""}{diff.toFixed(1)}%)</span>
+                    diff < -0.05
+                      ? <span className="text-emerald-600 font-medium" title="매도가보다 현재가가 낮음 — 잘 팔았어요">선방 {Math.abs(diff).toFixed(1)}%↓</span>
+                      : diff > 0.05
+                        ? <span className="text-gray-400" title="매도 후 더 오름">이후 +{diff.toFixed(1)}%↑</span>
+                        : <span className="text-gray-400">보합</span>
                   )}
                 </div>
               </div>
@@ -399,7 +403,11 @@ export function MobileTodayRealizedCard({ trades, account, aggregated, holdings,
                 <span className="text-gray-300">→</span>
                 <span>현재 {nowPrice > 0 ? Math.round(nowPrice).toLocaleString() : "–"}</span>
                 {diff !== null && (
-                  <span className={signColor(diff)}>({diff >= 0 ? "+" : ""}{diff.toFixed(1)}%)</span>
+                  diff < -0.05
+                      ? <span className="text-emerald-600 font-medium" title="매도가보다 현재가가 낮음 — 잘 팔았어요">선방 {Math.abs(diff).toFixed(1)}%↓</span>
+                      : diff > 0.05
+                        ? <span className="text-gray-400" title="매도 후 더 오름">이후 +{diff.toFixed(1)}%↑</span>
+                        : <span className="text-gray-400">보합</span>
                 )}
               </div>
             </div>

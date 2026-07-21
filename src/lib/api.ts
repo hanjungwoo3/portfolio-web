@@ -1206,6 +1206,43 @@ export async function fetchKrPriceHistory(
   return ks.length >= kq.length ? ks : kq;
 }
 
+// KOSPI200 '실선물' 시세 — 네이버 연결선물(FUT).
+//  야후 ^KS200 은 현물(스팟) 지수라 실선물과 베이시스(선물-현물)만큼 차이나
+//  차트 오른쪽 가격이 HTS 선물가와 어긋남. m.stock 은 이미 프록시 허용 호스트라
+//  워커 변경 없이 실선물 일별 OHLC + 현재가 + 전일종가를 한 콜로 받음.
+//  · series: 오름차순 {date, close} (일봉 배경/일별 모드)
+//  · price:  최신 선물가 (일중 모드에서 야후 스팟 형태를 이 레벨로 베이시스-시프트)
+//  · prevClose: 전일 종가 (기준선=빨강·파랑 판정)
+export interface KrFuturesData {
+  series: { date: string; close: number }[];
+  price: number;
+  prevClose: number;
+}
+// count 은 60 이하만 — m.stock 이 pageSize>60 에 400 반환.
+export async function fetchKrFuturesDaily(count = 60): Promise<KrFuturesData | null> {
+  const num = (s: string) => Number(String(s).replace(/,/g, ""));
+  try {
+    const resp = await fetchProxied(
+      `https://m.stock.naver.com/api/index/FUT/price?pageSize=${count}&page=1`,
+    );
+    if (!resp.ok) return null;
+    const rows = (await resp.json()) as Array<{
+      localTradedAt: string; closePrice: string; compareToPreviousClosePrice: string;
+    }>;
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    const parsed = rows
+      .map(r => ({ date: String(r.localTradedAt), close: num(r.closePrice) }))
+      .filter(r => r.date && Number.isFinite(r.close) && r.close > 0);
+    if (parsed.length === 0) return null;
+    const series = [...parsed].reverse();   // newest-first → 오름차순
+    const price = num(rows[0].closePrice);
+    const prevClose = price - num(rows[0].compareToPreviousClosePrice);
+    return { series, price, prevClose };
+  } catch {
+    return null;
+  }
+}
+
 // Yahoo 임의 심볼 가격 history (^KS11, ^KQ11 등 인덱스 포함)
 export async function fetchYahooPriceHistory(
   symbol: string, range = "1y",
@@ -1764,6 +1801,70 @@ export async function fetchKrDailyInvestorFlow(market: IntradayMarket, days = 22
   for (const pts of results) for (const pt of pts) if (!byDate.has(pt.date)) byDate.set(pt.date, pt);
   const points = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-days);
   return { unit: market === "futures" ? "계약" : "억원", points };
+}
+
+// ─── 단일종목 레버리지 수급 (증권사별 레버리지 ETF/ETN 바스켓 합산) ────────────
+//   단일종목 레버리지는 운용사·증권사별로 여러 티커(KODEX/TIGER/ACE/RISE/PLUS/SOL/1Q/KIWOOM/미래에셋…)로
+//   쪼개져 있어, 한 기초자산의 총수급을 보려면 전 종목을 합산해야 함.
+//   · 개별종목 투자자 데이터는 '일별'만 무료(m.stock trend) — 시간별 없음.
+//   · trend 값은 '순매수 수량(주)' → 종목별 종가로 금액 환산(주×종가) 후 합산 → 억원.
+//   · 분류는 개인/외국인/기관 3개만(개별종목 한계). 나머지 세부는 0.
+export interface LeverageBasket {
+  key: string; name: string; underlyingTicker: string; codes: string[];
+}
+//  순서: 종목별로 레버리지·인버스를 붙여 한 줄에 4개(삼성레버·삼성인버스·SK레버·SK인버스).
+//  인버스2X 매수 = 하락 베팅(레버리지와 방향 반대). 인버스는 각 1종씩만 상장(PLUS/SOL).
+export const LEVERAGE_BASKETS: LeverageBasket[] = [
+  { key: "lev-samsung", name: "삼성전자 레버리지", underlyingTicker: "005930",
+    codes: ["0193W0", "0195R0", "0194M0", "520100", "0192M0", "0198B0", "0193K0", "0194N0"] },
+  { key: "inv-samsung", name: "삼성전자 인버스2X", underlyingTicker: "005930", codes: ["0193L0"] },
+  { key: "lev-hynix", name: "SK하이닉스 레버리지", underlyingTicker: "000660",
+    codes: ["0193T0", "0195S0", "0194T0", "0197W0", "520101", "0192L0", "0198D0", "0194R0"] },
+  { key: "inv-hynix", name: "SK하이닉스 인버스2X", underlyingTicker: "000660", codes: ["0197X0"] },
+];
+
+interface StockTrendRow {
+  bizdate: string; closePrice: string;
+  individualPureBuyQuant: string; foreignerPureBuyQuant: string; organPureBuyQuant: string;
+}
+export async function fetchLeverageDailyFlow(codes: string[], days = 22): Promise<DailyFlow> {
+  const num = (s: string) => Number(String(s).replace(/[+,]/g, "")) || 0;   // "+9,173,980" → 9173980
+  const pageSize = Math.min(60, Math.max(days + 5, 15));
+  // 날짜별 개인/외국인/기관 억원 누산.
+  const byDate = new Map<string, { indiv: number; foreign: number; inst: number }>();
+  const results = await Promise.all(codes.map(async code => {
+    try {
+      const resp = await fetchProxied(
+        `https://m.stock.naver.com/api/stock/${code}/trend?pageSize=${pageSize}&page=1`);
+      if (!resp.ok) return [] as StockTrendRow[];
+      const j = await resp.json();
+      return Array.isArray(j) ? (j as StockTrendRow[]) : [];
+    } catch { return [] as StockTrendRow[]; }
+  }));
+  for (const rows of results) {
+    for (const r of rows) {
+      const bd = String(r.bizdate);
+      if (bd.length !== 8) continue;
+      const date = `${bd.slice(0, 4)}-${bd.slice(4, 6)}-${bd.slice(6, 8)}`;
+      const price = num(r.closePrice);
+      if (!price) continue;
+      const eok = (q: number) => (q * price) / 1e8;   // 주 × 종가 → 억원
+      const cur = byDate.get(date) ?? { indiv: 0, foreign: 0, inst: 0 };
+      cur.indiv += eok(num(r.individualPureBuyQuant));
+      cur.foreign += eok(num(r.foreignerPureBuyQuant));
+      cur.inst += eok(num(r.organPureBuyQuant));
+      byDate.set(date, cur);
+    }
+  }
+  const points: DailyFlowPoint[] = [...byDate.keys()].sort().map(date => {
+    const v = byDate.get(date)!;
+    return {
+      date,
+      individuals: Math.round(v.indiv), foreigners: Math.round(v.foreign), institutions: Math.round(v.inst),
+      financialInvestment: 0, insurance: 0, trust: 0, bank: 0, otherFinancial: 0, pensionFund: 0, otherCorp: 0,
+    };
+  });
+  return { unit: "억원", points: points.slice(-days) };
 }
 
 export async function fetchKrDisclosures(
@@ -3329,3 +3430,79 @@ export async function fetchStockName(ticker: string): Promise<string | null> {
   }
 }
 
+
+// ─── KOSPI/KOSDAQ 히트맵 (TradingView scanner) ────────────────────────────
+//   TradingView 스톡 히트맵과 동일 소스. 무인증 POST. 종목별 등락률·거래량·시총·섹터 일괄.
+//   ⚠️ scanner.tradingview.com 은 워커 프록시 화이트리스트에 추가 필요(미추가 시 403 Host not allowed)
+//      → ProxyHostError 로 구분해 UI 가 워커 수정 안내 + TradingView 원본 링크 폴백.
+export class ProxyHostError extends Error {}
+
+export type HeatmapSource = "kospi200" | "kospi" | "kosdaq150" | "kosdaq" | "all";
+export interface HeatmapItem {
+  code: string;      // 6자리 종목코드
+  name: string;      // 영문 회사명(scanner description) — 없으면 코드
+  changePct: number; // 등락률 %
+  close: number;
+  volume: number;
+  marketCap: number; // 시가총액(원)
+  sector: string;    // 섹터(영문)
+}
+// TradingView index 멤버십 symbolset. all=전체(필터 없음).
+const HEATMAP_SYMBOLSET: Record<HeatmapSource, string | null> = {
+  kospi200: "SYML:KRX;KOSPI200",
+  kospi: "SYML:KRX;KOSPI",
+  kosdaq150: "SYML:KRX;KOSDAQ150",
+  kosdaq: "SYML:KRX;KOSDAQ",
+  all: null,
+};
+export const HEATMAP_SOURCE_LABEL: Record<HeatmapSource, string> = {
+  kospi200: "KOSPI 200",
+  kospi: "코스피 전체",
+  kosdaq150: "KOSDAQ 150",
+  kosdaq: "코스닥 전체",
+  all: "전체(한국)",
+};
+// TradingView 히트맵 원본 URL(폴백 링크) — dataSource 만 바꿈.
+const HEATMAP_TV_DS: Record<HeatmapSource, string> = {
+  kospi200: "KOSPI200", kospi: "KOSPI", kosdaq150: "KOSDAQ150", kosdaq: "KOSDAQ", all: "allKR",
+};
+export function heatmapTradingViewUrl(source: HeatmapSource): string {
+  const cfg = { dataSource: HEATMAP_TV_DS[source], blockColor: "change", blockSize: "market_cap_basic", grouping: "sector" };
+  return `https://kr.tradingview.com/heatmap/stock/#${encodeURIComponent(JSON.stringify(cfg))}`;
+}
+
+export async function fetchKrHeatmap(source: HeatmapSource, limit = 500): Promise<HeatmapItem[]> {
+  const set = HEATMAP_SYMBOLSET[source];
+  const body = {
+    ...(set ? { symbols: { symbolset: [set] } } : {}),
+    columns: ["name", "description", "change", "close", "volume", "market_cap_basic", "sector"],
+    sort: { sortBy: "market_cap_basic", sortOrder: "desc" },
+    range: [0, limit],
+  };
+  const resp = await fetchProxied("https://scanner.tradingview.com/korea/scan", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  const text = await resp.text();
+  let j: { error?: string; data?: { s: string; d: unknown[] }[] };
+  try { j = JSON.parse(text); } catch { throw new Error("히트맵 응답 파싱 실패"); }
+  if (typeof j.error === "string") {
+    if (/host not allowed/i.test(j.error)) throw new ProxyHostError(j.error);
+    throw new Error(j.error);
+  }
+  const rows = Array.isArray(j.data) ? j.data : [];
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  return rows
+    .map(r => {
+      const d = r.d;
+      return {
+        code: String(d[0] ?? ""),
+        name: typeof d[1] === "string" && d[1] ? d[1] : String(d[0] ?? ""),
+        changePct: num(d[2]),
+        close: num(d[3]),
+        volume: num(d[4]),
+        marketCap: num(d[5]),
+        sector: typeof d[6] === "string" && d[6] ? d[6] : "기타",
+      };
+    })
+    .filter(x => x.code && (x.marketCap > 0 || x.volume > 0));
+}

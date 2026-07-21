@@ -302,18 +302,20 @@ export const ETF_REVERSE_TAB_KEY = "__etf-reverse__";
 export const ETF_RANKING_TAB_KEY = "__etf-ranking__";
 // ETF 비교 — 같은 기초지수(SCHD/QQQ 등) 추종 국내 ETF 운용사·보수·배당·수익률 비교
 export const ETF_COMPARE_TAB_KEY = "__etf-compare__";
+// 히트맵 — KOSPI/KOSDAQ 종목 트리맵 (TradingView scanner)
+export const HEATMAP_TAB_KEY = "__heatmap__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
   "관심ETF", MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY,
   SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY,
-  ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY,
+  ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
 ]);
 
 // 묶기 대상 시스템 탭 — 드롭다운 하나로 합침. (증시·지수는 자주 써서 별도 고정 탭)
 export const SYSTEM_TAB_KEYS = new Set<string>([
   MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
-  CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY,
+  CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
 ]);
 
 // 내자산 묶음 — 내주식 + 내거래를 별도 드롭다운 하나로 (지수 묶음과 동일 방식).
@@ -366,6 +368,10 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // ETF 비교 — 같은 지수 추종 국내 ETF 비교(SCHD/QQQ 등)
   if (visibility?.etfCompare ?? true) {
     tabs.push({ key: ETF_COMPARE_TAB_KEY, label: "ETF미국", emoji: "⚖️", count: 0 });
+  }
+  // 히트맵 — KOSPI/KOSDAQ 트리맵
+  if (visibility?.heatmap ?? true) {
+    tabs.push({ key: HEATMAP_TAB_KEY, label: "히트맵", emoji: "🗺️", count: 0 });
   }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())

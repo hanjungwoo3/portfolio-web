@@ -1,7 +1,8 @@
 import { useState } from "react";
 import type { Stock, Price } from "../types";
 import { formatSigned, signColor, holdingYesterdayBaseSum } from "../lib/format";
-import { getDeposit, getTotalDeposits, setDeposit } from "../lib/deposits";
+import { getDeposit, getTotalDeposits, setDeposit, getPendingBuy, getTotalPendingBuys } from "../lib/deposits";
+import { PendingBuysDialog } from "./PendingBuysDialog";
 
 interface Props {
   holdings: Stock[];
@@ -23,8 +24,9 @@ interface Props {
 // 예수금(현금) 은 평가손익 없음 — 총자산에만 합산, pnl/오늘 계산엔 미반영.
 
 export function TotalRow({ holdings, prices, account, aggregated, onDepositChange, heldFirst, onToggleHeldFirst }: Props) {
-  const [editing, setEditing] = useState(false);
+  const [editingDeposit, setEditingDeposit] = useState(false);
   const [draft, setDraft] = useState("");
+  const [pendingOpen, setPendingOpen] = useState(false);   // 구매대기 관리 팝업
 
   let totalInvested = 0;
   let totalCurrent = 0;
@@ -44,29 +46,30 @@ export function TotalRow({ holdings, prices, account, aggregated, onDepositChang
   }
 
   const deposit = aggregated ? getTotalDeposits() : getDeposit(account ?? "");
+  const pending = aggregated ? getTotalPendingBuys() : getPendingBuy(account ?? "");   // 구매대기(묶임)
   const editable = !aggregated && account !== undefined;
 
-  // 종목도 없고 예수금도 0 이면 합계 카드 숨김 (편집 중이면 유지)
-  if (activeCount === 0 && deposit <= 0 && !editing) return null;
+  // 종목도 없고 예수금·구매대기도 0 이면 합계 카드 숨김 (편집/팝업 중이면 유지)
+  if (activeCount === 0 && deposit <= 0 && pending <= 0 && !editingDeposit && !pendingOpen) return null;
 
   const pnl = totalCurrent - totalInvested;
   const pnlPct = totalInvested > 0 ? (pnl / totalInvested) * 100 : 0;
   const dayDiff = totalCurrent - totalYesterday;
   const dayPct = totalYesterday > 0 ? (dayDiff / totalYesterday) * 100 : 0;
-  const grandTotal = totalCurrent + deposit;
-  const showTotal = deposit > 0;   // 예수금 있을 때만 총자산 헤드라인 표시
+  const grandTotal = totalCurrent + deposit + pending;   // 구매대기도 현금성 → 총자산 포함
+  const showTotal = deposit > 0 || pending > 0;   // 예수금·구매대기 있을 때만 총자산 헤드라인 표시
 
   const totalColor = signColor(pnl) || "text-rose-700";
 
   const startEdit = () => {
     if (!editable) return;
     setDraft(deposit > 0 ? String(deposit) : "");
-    setEditing(true);
+    setEditingDeposit(true);
   };
   const commit = () => {
     const v = Number(draft.replace(/[, ]/g, ""));
     setDeposit(account ?? "", Number.isFinite(v) ? v : 0);
-    setEditing(false);
+    setEditingDeposit(false);
     onDepositChange?.();
   };
 
@@ -111,7 +114,7 @@ export function TotalRow({ holdings, prices, account, aggregated, onDepositChang
       {/* Row 3: 예수금 (편집 가능) */}
       <div className="text-gray-500 text-xs">예수금</div>
       <div className="text-right col-span-3">
-        {editing ? (
+        {editingDeposit ? (
           <span className="inline-flex items-center gap-1"
                 onClick={e => e.stopPropagation()}>
             <input
@@ -122,7 +125,7 @@ export function TotalRow({ holdings, prices, account, aggregated, onDepositChang
               onChange={e => setDraft(e.target.value)}
               onKeyDown={e => {
                 if (e.key === "Enter") commit();
-                if (e.key === "Escape") setEditing(false);
+                if (e.key === "Escape") setEditingDeposit(false);
               }}
               onBlur={commit}
               placeholder="0"
@@ -141,7 +144,27 @@ export function TotalRow({ holdings, prices, account, aggregated, onDepositChang
         )}
       </div>
 
-      {/* Row 4: 총자산 (평가액 + 예수금) — 예수금 있을 때만 헤드라인(xl) */}
+      {/* Row 3b: 구매대기 🔒 — 총액만 표시, 클릭 시 팝업에서 건별 관리. 값 없고 편집 불가면 숨김. */}
+      {(pending > 0 || editable) && (
+        <>
+          <div className="text-gray-400 text-xs" title="미체결 매수 주문에 묶여 못 쓰는 현금(체결 전). 총자산엔 포함.">
+            🔒 구매대기
+          </div>
+          <div className="text-right col-span-3">
+            {editable ? (
+              <button onClick={e => { e.stopPropagation(); setPendingOpen(true); }}
+                      title="클릭해서 구매대기 목록 관리"
+                      className="text-gray-500 hover:text-blue-600 hover:underline">
+                {pending > 0 ? `${pending.toLocaleString()}원` : "+ 입력"}
+              </button>
+            ) : (
+              <span className="text-gray-500">{pending.toLocaleString()}원</span>
+            )}
+          </div>
+        </>
+      )}
+
+      {/* Row 4: 총자산 (평가액 + 예수금 + 구매대기) — 예수금·구매대기 있을 때만 헤드라인(xl) */}
       {showTotal && (
         <>
           <div className="text-gray-600 text-xs font-medium">총자산</div>
@@ -149,6 +172,14 @@ export function TotalRow({ holdings, prices, account, aggregated, onDepositChang
             {grandTotal.toLocaleString()}원
           </div>
         </>
+      )}
+
+      {pendingOpen && editable && (
+        <PendingBuysDialog
+          account={account ?? ""}
+          holdings={holdings}
+          onClose={() => setPendingOpen(false)}
+          onChange={() => onDepositChange?.()} />
       )}
     </div>
   );
