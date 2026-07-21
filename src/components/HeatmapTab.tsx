@@ -4,13 +4,38 @@
 import { useState, useRef, useLayoutEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  fetchKrHeatmap, heatmapTradingViewUrl, ProxyHostError,
+  fetchKrHeatmap, heatmapTradingViewUrl, heatmapLogoUrl, ProxyHostError,
   HEATMAP_SOURCE_LABEL, type HeatmapSource, type HeatmapItem,
 } from "../lib/api";
 import { squarify } from "../lib/treemap";
 
 const SOURCES: HeatmapSource[] = ["kospi200", "kospi", "kosdaq150", "kosdaq", "all"];
 type SizeMode = "marketCap" | "volume";
+
+// TradingView 섹터(영문) → 한글
+const SECTOR_KR: Record<string, string> = {
+  "Commercial Services": "상업 서비스",
+  "Communications": "커뮤니케이션",
+  "Consumer Durables": "소비자 내구재",
+  "Consumer Non-Durables": "소비재 비내구재",
+  "Consumer Services": "소비자 서비스",
+  "Distribution Services": "유통 서비스",
+  "Electronic Technology": "전자 기술",
+  "Energy Minerals": "에너지 광물",
+  "Finance": "금융",
+  "Health Services": "의료 서비스",
+  "Health Technology": "의료 기술",
+  "Industrial Services": "산업 서비스",
+  "Miscellaneous": "기타",
+  "Non-Energy Minerals": "비에너지 광물",
+  "Process Industries": "공정 산업",
+  "Producer Manufacturing": "생산자 제조",
+  "Retail Trade": "소매업",
+  "Technology Services": "기술 서비스",
+  "Transportation": "운송",
+  "Utilities": "유틸리티",
+};
+const sectorKr = (s: string) => SECTOR_KR[s] ?? s;
 
 // 등락률 → 한국식 색(빨강 상승 / 파랑 하락). ±3% 에서 포화.
 const mix = (a: number, b: number, t: number) => Math.round(a + (b - a) * t);
@@ -22,12 +47,20 @@ function heatColor(pct: number): string {
   const k = -t; return `rgb(${mix(g[0], b[0], k)},${mix(g[1], b[1], k)},${mix(g[2], b[2], k)})`;
 }
 const fmtPct = (p: number) => `${p >= 0 ? "+" : ""}${p.toFixed(2)}%`;
+// 시가총액(원) → 조/억 축약
+function fmtCap(v: number): string {
+  if (v >= 1e12) return `${(v / 1e12).toFixed(1)}조원`;
+  if (v >= 1e8) return `${Math.round(v / 1e8).toLocaleString()}억원`;
+  return `${Math.round(v).toLocaleString()}원`;
+}
 
 export function HeatmapTab() {
   const [source, setSource] = useState<HeatmapSource>("kospi200");
-  const [sizeMode, setSizeMode] = useState<SizeMode>("marketCap");
+  const [sizeMode, setSizeMode] = useState<SizeMode>("volume");
   const boxRef = useRef<HTMLDivElement>(null);
   const [size, setSize] = useState({ w: 0, h: 0 });
+  // 커스텀 호버 툴팁 — title 은 브라우저 지연이 있어 느림. 마우스 따라다니는 레이어로 즉시 표시.
+  const [hover, setHover] = useState<{ it: HeatmapItem; x: number; y: number } | null>(null);
 
   useLayoutEffect(() => {
     const el = boxRef.current;
@@ -136,35 +169,74 @@ export function HeatmapTab() {
           <div key={`h-${h.sec}-${Math.round(h.x)}-${Math.round(h.y)}`}
                className="absolute text-[9px] font-semibold text-gray-500 px-1 truncate pointer-events-none"
                style={{ left: h.x, top: h.y, width: h.w, height: 13, lineHeight: "13px" }}>
-            {h.sec}
+            {sectorKr(h.sec)}
           </div>
         ))}
 
-        {/* 종목 타일 */}
+        {/* 종목 타일 — 로고 아이콘 + 코드 + 등락%. hover 시 흰 아웃라인 강조 + 커스텀 툴팁. */}
         {layout.stocks.map(t => {
-          const showLabel = t.w > 34 && t.h > 22;
-          const small = t.w < 60 || t.h < 40;
+          const showLabel = t.w > 30 && t.h > 20;
+          const big = t.w >= 66 && t.h >= 50;
+          const logoSize = t.w >= 62 && t.h >= 52 ? 30 : t.w >= 40 && t.h >= 34 ? 18 : 0;
           return (
-            <div key={`${t.it.code}`}
-                 title={`${t.it.name} (${t.it.code}) ${fmtPct(t.it.changePct)}`}
-                 className="absolute flex flex-col items-center justify-center overflow-hidden text-white"
+            <div key={t.it.code}
+                 onMouseMove={e => setHover({ it: t.it, x: e.clientX, y: e.clientY })}
+                 onMouseLeave={() => setHover(null)}
+                 className="absolute flex flex-col items-center justify-center overflow-hidden text-white cursor-default
+                            hover:outline hover:outline-2 hover:-outline-offset-2 hover:outline-white hover:z-10 hover:brightness-110"
                  style={{
                    left: t.x + 0.5, top: t.y + 0.5,
                    width: Math.max(0, t.w - 1), height: Math.max(0, t.h - 1),
                    background: heatColor(t.it.changePct),
                  }}>
+              {logoSize > 0 && t.it.logoid && (
+                <img src={heatmapLogoUrl(t.it.logoid)} alt="" loading="lazy"
+                     onError={e => { e.currentTarget.style.display = "none"; }}
+                     className="rounded-full bg-white/90 object-contain mb-0.5 pointer-events-none"
+                     style={{ width: logoSize, height: logoSize, padding: 1 }} />
+              )}
               {showLabel && (
                 <>
-                  <span className={`font-semibold leading-none truncate max-w-full px-0.5 ${small ? "text-[8px]" : "text-[11px]"}`}>
+                  {/* 공간 넉넉하면 회사명(영문)도 — 코드만으론 알아보기 어려움 */}
+                  {t.w >= 84 && t.h >= 60 && (
+                    <span className="font-semibold leading-tight text-center max-w-full px-1 pointer-events-none text-[10px] line-clamp-2">
+                      {t.it.name}
+                    </span>
+                  )}
+                  <span className={`font-semibold leading-none truncate max-w-full px-0.5 pointer-events-none ${big ? "text-[11px]" : "text-[8px]"}`}>
                     {t.it.code}
                   </span>
-                  <span className={`leading-none ${small ? "text-[7px]" : "text-[10px]"}`}>{fmtPct(t.it.changePct)}</span>
+                  <span className={`leading-none pointer-events-none ${big ? "text-[10px]" : "text-[7px]"}`}>{fmtPct(t.it.changePct)}</span>
                 </>
               )}
             </div>
           );
         })}
       </div>
+
+      {/* 커스텀 호버 툴팁 — 마우스 따라다니며 즉시 표시(title 지연 회피) */}
+      {hover && (
+        <div className="fixed z-[60] pointer-events-none bg-gray-900/95 text-white rounded-md shadow-lg px-2.5 py-1.5 text-xs leading-tight"
+             style={{ left: Math.min(hover.x + 14, window.innerWidth - 210), top: hover.y + 14 }}>
+          <div className="flex items-center gap-1.5 mb-1">
+            {hover.it.logoid && (
+              <img src={heatmapLogoUrl(hover.it.logoid)} alt="" className="w-4 h-4 rounded-full bg-white object-contain"
+                   onError={e => { e.currentTarget.style.display = "none"; }} />
+            )}
+            <span className="font-bold truncate max-w-[180px]">{hover.it.name}</span>
+          </div>
+          <div className="text-gray-400 text-[10px] mb-1">{hover.it.code} · {sectorKr(hover.it.sector)}</div>
+          <div className="tabular-nums space-y-0.5">
+            <div className="flex justify-between gap-4">
+              <span className="text-gray-400">등락</span>
+              <span className="font-bold" style={{ color: hover.it.changePct >= 0 ? "#f87171" : "#60a5fa" }}>{fmtPct(hover.it.changePct)}</span>
+            </div>
+            <div className="flex justify-between gap-4"><span className="text-gray-400">현재가</span><span>{hover.it.close.toLocaleString()}원</span></div>
+            <div className="flex justify-between gap-4"><span className="text-gray-400">거래량</span><span>{hover.it.volume.toLocaleString()}</span></div>
+            <div className="flex justify-between gap-4"><span className="text-gray-400">시총</span><span>{fmtCap(hover.it.marketCap)}</span></div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

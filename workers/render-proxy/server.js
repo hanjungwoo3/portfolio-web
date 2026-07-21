@@ -18,6 +18,7 @@ const ALLOWED_HOSTS = new Set([
   "query2.finance.yahoo.com",
   "api.investing.com",        // VKOSPI 등 — investing financialdata chart API
   "yasun.gg",                 // 코스피200/코스닥150 야간선물 1분봉 캔들
+  "scanner.tradingview.com",  // KOSPI/KOSDAQ 히트맵 — TradingView scanner (POST)
 ]);
 
 const DEFAULT_CACHE_TTL = 3;

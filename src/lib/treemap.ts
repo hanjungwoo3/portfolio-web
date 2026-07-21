@@ -46,12 +46,17 @@ export function squarify<T>(data: TmInput<T>[], rect: Rect): Tile<T>[] {
     if (row.length === 0 || worst([...cur, next.area], side) <= worst(cur, side)) {
       row.push(next); i++;
     } else {
-      const horizontal = side === h;   // 짧은 변이 세로(h)면 가로 행으로 채움
+      // 짧은 변이 w(세로로 긴 rect)면 폭 전체 가로 밴드로, 짧은 변이 h면 높이 전체 세로 열로 채움.
+      const horizontal = side === w;
       const thick = layoutRow(row, { x, y, w, h }, horizontal, out);
       if (horizontal) { y += thick; h -= thick; } else { x += thick; w -= thick; }
       row = [];
     }
   }
-  if (row.length) layoutRow(row, { x, y, w, h }, Math.min(w, h) === h, out);
+  if (row.length) {
+    const horizontal = Math.min(w, h) === w;
+    const thick = layoutRow(row, { x, y, w, h }, horizontal, out);
+    if (horizontal) { y += thick; h -= thick; } else { x += thick; w -= thick; }
+  }
   return out;
 }

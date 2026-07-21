@@ -3441,11 +3441,16 @@ export type HeatmapSource = "kospi200" | "kospi" | "kosdaq150" | "kosdaq" | "all
 export interface HeatmapItem {
   code: string;      // 6자리 종목코드
   name: string;      // 영문 회사명(scanner description) — 없으면 코드
+  logoid: string;    // TradingView 로고 ID (s3-symbol-logo.tradingview.com/{logoid}.svg)
   changePct: number; // 등락률 %
   close: number;
   volume: number;
   marketCap: number; // 시가총액(원)
   sector: string;    // 섹터(영문)
+}
+// TradingView 심볼 로고 URL. img src 직접 로드(이미지라 프록시 불필요). 없으면 빈 문자열.
+export function heatmapLogoUrl(logoid: string): string {
+  return logoid ? `https://s3-symbol-logo.tradingview.com/${logoid}.svg` : "";
 }
 // TradingView index 멤버십 symbolset. all=전체(필터 없음).
 const HEATMAP_SYMBOLSET: Record<HeatmapSource, string | null> = {
@@ -3475,7 +3480,7 @@ export async function fetchKrHeatmap(source: HeatmapSource, limit = 500): Promis
   const set = HEATMAP_SYMBOLSET[source];
   const body = {
     ...(set ? { symbols: { symbolset: [set] } } : {}),
-    columns: ["name", "description", "change", "close", "volume", "market_cap_basic", "sector"],
+    columns: ["name", "description", "logoid", "change", "close", "volume", "market_cap_basic", "sector"],
     sort: { sortBy: "market_cap_basic", sortOrder: "desc" },
     range: [0, limit],
   };
@@ -3497,11 +3502,12 @@ export async function fetchKrHeatmap(source: HeatmapSource, limit = 500): Promis
       return {
         code: String(d[0] ?? ""),
         name: typeof d[1] === "string" && d[1] ? d[1] : String(d[0] ?? ""),
-        changePct: num(d[2]),
-        close: num(d[3]),
-        volume: num(d[4]),
-        marketCap: num(d[5]),
-        sector: typeof d[6] === "string" && d[6] ? d[6] : "기타",
+        logoid: typeof d[2] === "string" ? d[2] : "",
+        changePct: num(d[3]),
+        close: num(d[4]),
+        volume: num(d[5]),
+        marketCap: num(d[6]),
+        sector: typeof d[7] === "string" && d[7] ? d[7] : "기타",
       };
     })
     .filter(x => x.code && (x.marketCap > 0 || x.volume > 0));
