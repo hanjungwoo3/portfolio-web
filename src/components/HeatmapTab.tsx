@@ -12,8 +12,9 @@ import { loadKrNameDict, getRuntimeNames, fetchMissingKrNames } from "../lib/krS
 import { isMarketOpen } from "../lib/format";
 import { reportRefresh } from "../lib/lastRefresh";
 import { getEffectivePollMs } from "../lib/proxyConfig";
+import { takePendingHeatmap } from "../lib/heatmapNav";
 
-const KR_SOURCES: HeatmapSource[] = ["kospi200", "kospi", "kosdaq150", "kosdaq", "all"];
+const KR_SOURCES: HeatmapSource[] = ["kospi200", "kospi", "kosdaq150", "kosdaq", "kr_valueup", "all"];
 const US_SOURCES: HeatmapSource[] = ["us_sp500", "us_ndx", "us_tech", "us_nasdaq", "us_dow", "us_dowcomp",
   "us_dowtrans", "us_dowutil", "us_kbwbank", "us_r1000", "us_r2000", "us_r3000", "us_all"];
 // 종목 많은 소스는 상위 N만(트리맵 가독성·부하)
@@ -90,8 +91,10 @@ function fmtCapUsd(v: number): string {
 }
 
 export function HeatmapTab() {
-  const [source, setSource] = useState<HeatmapSource>("kospi200");
-  const [sizeMode, setSizeMode] = useState<SizeMode>("marketCap");
+  // 딥링크(밸류업 카드 등)로 요청된 소스·크기모드가 있으면 그걸로 시작. 마운트 시 1회만 소비.
+  const pending = useRef(takePendingHeatmap()).current;
+  const [source, setSource] = useState<HeatmapSource>(() => pending?.source ?? "kospi200");
+  const [sizeMode, setSizeMode] = useState<SizeMode>(() => pending?.sizeMode ?? "marketCap");
   const [colorMode, setColorMode] = useState<ColorMode>("change");
   const [groupMode, setGroupMode] = useState<GroupMode>("sector");
   const boxRef = useRef<HTMLDivElement>(null);

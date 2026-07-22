@@ -8,6 +8,7 @@ import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntrad
 import type { IntradayMarket, LeverageBasket } from "../lib/api";
 import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
 import { useCrosshairSync, type SyncRegistrar } from "../lib/useCrosshairSync";
+import { nextFuturesExpiry } from "../lib/futuresExpiry";
 import type { FlowSeriesPoint } from "./IntradayInvestorChart";
 import type { UTCTimestamp } from "lightweight-charts";
 
@@ -280,6 +281,27 @@ function LeverageBlock({ basket, enabled, days, on, onReady, onToggle }: {
   );
 }
 
+// 선물·옵션 동시만기 배지 — 만기 1주 이내에만 표시(당일은 강조). 만기일 현물 변동성↑ 경고.
+function FuturesExpiryBadge() {
+  const info = nextFuturesExpiry();
+  if (info.daysLeft > 7) return null;
+  const mmdd = `${info.date.getUTCMonth() + 1}/${info.date.getUTCDate()}`;
+  if (info.isToday) {
+    return (
+      <span className="text-[10px] font-bold text-white bg-rose-600 rounded px-1.5 py-0.5 animate-pulse"
+            title="선물·옵션 동시만기(네 마녀의 날) — 차익거래 청산·프로그램 매매로 현물 변동성이 커지고 마감 동시호가가 급변할 수 있어요.">
+        🔮 오늘 선물·옵션 만기일
+      </span>
+    );
+  }
+  return (
+    <span className="text-[10px] font-medium text-rose-600 border border-rose-300 bg-rose-50 rounded px-1.5 py-0.5"
+          title="선물·옵션 동시만기 임박 — 만기일엔 현물 변동성이 커질 수 있어요.">
+      🔮 선물·옵션 만기 D-{info.daysLeft} ({mmdd} 목)
+    </span>
+  );
+}
+
 export function IntradayInvestorSection() {
   const [open, setOpen] = useState<boolean>(() => {
     try { return localStorage.getItem(OPEN_KEY) !== "off"; } catch { return true; }
@@ -415,6 +437,7 @@ export function IntradayInvestorSection() {
             <span className="text-[10px] text-gray-400">
               {mode === "intraday" ? "시간별 누적(날짜 선택)" : "기간 누적 (합계 상단 표시)"} · 전 종목 억원(선물=계약 환산)
             </span>
+            <FuturesExpiryBadge />
           </div>
 
           {/* 공통 투자자 토글 (모든 차트 동시 제어) */}

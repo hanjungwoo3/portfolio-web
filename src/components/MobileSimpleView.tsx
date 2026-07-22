@@ -77,6 +77,7 @@ import { EtfRankingTab } from "./EtfRankingTab";
 import { EtfCompareTab } from "./EtfCompareTab";
 import { HeatmapTab } from "./HeatmapTab";
 import { ValueupMiniCard } from "./ValueupCard";
+import { GOTO_HEATMAP_EVENT, requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
 import { MyTradesTab } from "./MyTradesTab";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { EtfReverseDialog } from "./EtfReverseDialog";
@@ -219,6 +220,13 @@ export function MobileSimpleView() {
     localStorage.setItem(TAB_KEY, activeTab);
   }, [activeTab]);
 
+  // 밸류업 카드 등에서 히트맵 딥링크 요청 → 히트맵 탭으로 전환.
+  useEffect(() => {
+    const h = () => setActiveTab(HEATMAP_KEY);
+    window.addEventListener(GOTO_HEATMAP_EVENT, h);
+    return () => window.removeEventListener(GOTO_HEATMAP_EVENT, h);
+  }, []);
+
   // PC 동일 자동 갱신 — 전용 프록시 시 5/10/30/60초 / 공개 기본 60초(30초 선택 가능) + 다운/마감 시 자동 증가
   const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), []);
   const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
@@ -332,10 +340,10 @@ export function MobileSimpleView() {
   //  시각 순서: 지수 → (섹터·반도체·컨센서스·ETF 묶음) → (내주식·내거래 묶음) → 사용자그룹 → 폴더
   //  (groupTabs 원순서는 내거래가 컨센서스/ETF 앞이라 ETF에서 스와이프 시 내거래를 건너뛰던 문제 수정)
   const navKeys = useMemo(() => {
-    const SYS = [MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, MY_KEY, MY_TRADES_KEY];
+    const SYS = [MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, MY_KEY, MY_TRADES_KEY];
     const has = (k: string) => groupTabs.some(t => t.key === k);
     const keys: string[] = [];
-    for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음(섹터…)
+    for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음(섹터…히트맵)
     for (const k of [MY_KEY, MY_TRADES_KEY]) if (has(k)) keys.push(k);   // 내자산 묶음(내주식·내거래)
     if (has(MONEY_KEY)) keys.push(MONEY_KEY);                            // 증시(별도 탭)
     if (has(KR_KEY)) keys.push(KR_KEY);                                  // 지수(별도 탭)
@@ -875,9 +883,9 @@ export function MobileSimpleView() {
             <Menu size={16} />
           </button>
         )}
-        {/* 시스템 탭 묶음 — 섹터/컨센서스/ETF (지수는 아래 3번째 별도 탭으로 분리) */}
+        {/* 시스템 탭 묶음 — 섹터/컨센서스/ETF/히트맵 (지수는 아래 3번째 별도 탭으로 분리, PC 동일) */}
         {(() => {
-          const SYS = new Set([SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY]);
+          const SYS = new Set([SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY]);
           const sys = groupTabs.filter(t => SYS.has(t.key));
           if (sys.length === 0) return null;
           // 묶을 항목이 1개뿐이면 드롭다운 대신 일반 탭으로 바로 노출
@@ -981,7 +989,7 @@ export function MobileSimpleView() {
         })()}
         {groupTabs.map(t => {
           // 시스템·내자산 탭은 위 드롭다운/별도 버튼으로만 표시 (개별 탭 숨김)
-          if ([MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, MY_KEY, MY_TRADES_KEY].includes(t.key)) return null;
+          if ([MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, MY_KEY, MY_TRADES_KEY].includes(t.key)) return null;
           // 폴더에 담긴 그룹은 개별 탭에서 숨김 (아래 📁 드롭다운으로)
           if (folderedGroups.has(t.key)) return null;
           const active = t.key === activeTab;
@@ -1539,7 +1547,16 @@ export function MobileSimpleView() {
                         📊
                       </button>
                     )}
-                    {/* 🔍AI — 현재상태 구글 AI 분석 팝업 (PC 동일 프롬프트) */}
+                    {/* 코덱스200·코스닥150 은 🔍AI 대신 히트맵 링크(KOSPI200/KOSDAQ150 히트맵) */}
+                    {CARD_HEATMAP_LINK[p.symbol] ? (
+                    <button
+                      onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
+                      title={`${p.name} 구성종목 히트맵(거래량) 보기`}
+                      className="ml-auto shrink-0 inline-flex items-center px-1 rounded text-[9px] font-bold leading-none
+                                 border border-emerald-300 text-emerald-700 bg-emerald-50 active:bg-emerald-100">
+                      🗺️히트맵
+                    </button>
+                    ) : (
                     <button
                       onClick={() => {
                         const ctx: string[] = [`${p.name}(${p.symbol})`];
@@ -1554,6 +1571,7 @@ export function MobileSimpleView() {
                                  border border-blue-300 text-blue-700 bg-blue-50 active:bg-blue-100">
                       🔍AI
                     </button>
+                    )}
                   </div>
                   <div className={`relative text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}

@@ -3438,7 +3438,7 @@ export async function fetchStockName(ticker: string): Promise<string | null> {
 export class ProxyHostError extends Error {}
 
 export type HeatmapSource =
-  | "kospi200" | "kospi" | "kosdaq150" | "kosdaq" | "all"
+  | "kospi200" | "kospi" | "kosdaq150" | "kosdaq" | "all" | "kr_valueup"
   | "us_sp500" | "us_ndx" | "us_nasdaq" | "us_dow" | "us_dowcomp" | "us_dowtrans" | "us_dowutil"
   | "us_kbwbank" | "us_r1000" | "us_r2000" | "us_r3000" | "us_all" | "us_tech";
 export interface HeatmapItem {
@@ -3466,6 +3466,8 @@ const HEATMAP_META: Record<HeatmapSource, HeatmapMeta> = {
   kosdaq150: { label: "KOSDAQ 150",  region: "kr", symbolset: "SYML:KRX;KOSDAQ150", tvDs: "KOSDAQ150" },
   kosdaq:    { label: "코스닥 전체",  region: "kr", symbolset: "SYML:KRX;KOSDAQ",    tvDs: "KOSDAQ" },
   all:       { label: "전체(한국)",   region: "kr", symbolset: null,                 tvDs: "allKR" },
+  // 코리아 밸류업 — symbolset 미지원. 네이버 편입종목 100코드를 런타임 tickers 로 조회(fetchKrHeatmap 분기).
+  kr_valueup:{ label: "코리아 밸류업", region: "kr", symbolset: null,                 tvDs: "allKR" },
   us_sp500:    { label: "S&P 500",       region: "us", symbolset: "SYML:SP;SPX",       tvDs: "SPX500" },
   us_ndx:      { label: "나스닥 100",     region: "us", symbolset: "SYML:NASDAQ;NDX",   tvDs: "NASDAQ100" },
   us_nasdaq:   { label: "나스닥 전체",    region: "us", symbolset: "SYML:NASDAQ;IXIC",  tvDs: "allNASDAQ" },
@@ -3492,8 +3494,13 @@ export function heatmapTradingViewUrl(source: HeatmapSource): string {
 export async function fetchKrHeatmap(source: HeatmapSource, limit = 500): Promise<HeatmapItem[]> {
   const meta = HEATMAP_META[source];
   const endpoint = meta.region === "us" ? "america" : "korea";
+  // 코리아 밸류업 — 네이버 편입종목 100코드를 tickers 로 scanner 조회(symbolset 미지원).
+  const tickers = source === "kr_valueup"
+    ? (await fetchValueupConstituents()).map(s => `KRX:${s.code}`)
+    : null;
   const body = {
-    ...(meta.symbolset ? { symbols: { symbolset: [meta.symbolset] } } : {}),
+    ...(tickers && tickers.length ? { symbols: { tickers } }
+      : meta.symbolset ? { symbols: { symbolset: [meta.symbolset] } } : {}),
     ...(meta.sectorFilter ? { filter: [{ left: "sector", operation: "equal", right: meta.sectorFilter }] } : {}),
     columns: ["name", "description", "logoid", "change", "close", "volume", "Value.Traded",
       "market_cap_basic", "Perf.W", "Perf.1M", "Perf.3M", "Perf.6M", "Perf.YTD", "Perf.Y", "sector"],

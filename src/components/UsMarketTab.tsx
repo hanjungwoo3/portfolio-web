@@ -19,6 +19,7 @@ import { Sparkline } from "./Sparkline";
 import { MarketFlowModal } from "./MarketFlowModal";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { ValueupMiniCard } from "./ValueupCard";
+import { requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
 
 // KR ETF Yahoo 심볼 패턴 (예: "091160.KS") — 토스 compositions API 지원 대상
 const KR_ETF_SYMBOL_RE = /^([\dA-Za-z]{6})\.K[SQ]$/;
@@ -444,7 +445,16 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                         📊
                       </button>
                     )}
-                    {/* 🔍AI — 현재상태 구글 AI 분석 팝업 (StockCard 와 동일 프롬프트) */}
+                    {/* 코덱스200·코스닥150 은 🔍AI 대신 히트맵 링크(KOSPI200/KOSDAQ150 히트맵) */}
+                    {CARD_HEATMAP_LINK[p.symbol] ? (
+                    <button
+                      onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
+                      title={`${p.name} 구성종목 히트맵(거래량) 보기`}
+                      className="ml-auto shrink-0 inline-flex items-center px-1 rounded text-[9px] font-bold leading-none
+                                 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition">
+                      🗺️히트맵
+                    </button>
+                    ) : (
                     <button
                       onClick={() => {
                         const ctx: string[] = [`${p.name}(${p.symbol})`];
@@ -459,6 +469,7 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                                  border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 transition">
                       🔍AI
                     </button>
+                    )}
                   </div>
                   <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}

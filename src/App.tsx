@@ -56,6 +56,7 @@ import {
 import { SortSelector, makeSortHandlers } from "./components/SortSelector";
 import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
 import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
+import { GOTO_HEATMAP_EVENT } from "./lib/heatmapNav";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./components/HelpDialog";
@@ -189,6 +190,13 @@ function Dashboard() {
       setActiveTab(tabs[0].key);
     }
   }, [tabs, activeTab]);
+
+  // 밸류업 카드 등에서 히트맵 딥링크 요청 → 히트맵 탭으로 전환(소스는 HeatmapTab 이 소비).
+  useEffect(() => {
+    const h = () => setActiveTab(HEATMAP_TAB_KEY);
+    window.addEventListener(GOTO_HEATMAP_EVENT, h);
+    return () => window.removeEventListener(GOTO_HEATMAP_EVENT, h);
+  }, []);
 
   const visible = useMemo(
     () => filterByTab(holdings, activeTab),
