@@ -1815,12 +1815,12 @@ export interface LeverageBasket {
 //  순서: 종목별로 레버리지·인버스를 붙여 한 줄에 4개(삼성레버·삼성인버스·SK레버·SK인버스).
 //  인버스2X 매수 = 하락 베팅(레버리지와 방향 반대). 인버스는 각 1종씩만 상장(PLUS/SOL).
 export const LEVERAGE_BASKETS: LeverageBasket[] = [
-  { key: "lev-samsung", name: "삼성전자 레버리지", underlyingTicker: "005930",
-    codes: ["0193W0", "0195R0", "0194M0", "520100", "0192M0", "0198B0", "0193K0", "0194N0"] },
-  { key: "inv-samsung", name: "삼성전자 인버스2X", underlyingTicker: "005930", codes: ["0193L0"] },
   { key: "lev-hynix", name: "SK하이닉스 레버리지", underlyingTicker: "000660",
     codes: ["0193T0", "0195S0", "0194T0", "0197W0", "520101", "0192L0", "0198D0", "0194R0"] },
+  { key: "lev-samsung", name: "삼성전자 레버리지", underlyingTicker: "005930",
+    codes: ["0193W0", "0195R0", "0194M0", "520100", "0192M0", "0198B0", "0193K0", "0194N0"] },
   { key: "inv-hynix", name: "SK하이닉스 인버스2X", underlyingTicker: "000660", codes: ["0197X0"] },
+  { key: "inv-samsung", name: "삼성전자 인버스2X", underlyingTicker: "005930", codes: ["0193L0"] },
 ];
 
 interface StockTrendRow {
@@ -3437,54 +3437,70 @@ export async function fetchStockName(ticker: string): Promise<string | null> {
 //      → ProxyHostError 로 구분해 UI 가 워커 수정 안내 + TradingView 원본 링크 폴백.
 export class ProxyHostError extends Error {}
 
-export type HeatmapSource = "kospi200" | "kospi" | "kosdaq150" | "kosdaq" | "all";
+export type HeatmapSource =
+  | "kospi200" | "kospi" | "kosdaq150" | "kosdaq" | "all"
+  | "us_sp500" | "us_ndx" | "us_nasdaq" | "us_dow" | "us_dowcomp" | "us_dowtrans" | "us_dowutil"
+  | "us_kbwbank" | "us_r1000" | "us_r2000" | "us_r3000" | "us_all" | "us_tech";
 export interface HeatmapItem {
   code: string;      // 6자리 종목코드
   name: string;      // 영문 회사명(scanner description) — 없으면 코드
   logoid: string;    // TradingView 로고 ID (s3-symbol-logo.tradingview.com/{logoid}.svg)
-  changePct: number; // 등락률 %
+  changePct: number; // 등락률 %(1일)
   close: number;
-  volume: number;
+  volume: number;    // 거래량(1일)
+  valueTraded: number; // 거래대금(가격×거래량)
   marketCap: number; // 시가총액(원)
+  perfW: number; perf1M: number; perf3M: number; perf6M: number; perfYTD: number; perfY: number; // 기간 수익률 %
   sector: string;    // 섹터(영문)
 }
 // TradingView 심볼 로고 URL. img src 직접 로드(이미지라 프록시 불필요). 없으면 빈 문자열.
 export function heatmapLogoUrl(logoid: string): string {
   return logoid ? `https://s3-symbol-logo.tradingview.com/${logoid}.svg` : "";
 }
-// TradingView index 멤버십 symbolset. all=전체(필터 없음).
-const HEATMAP_SYMBOLSET: Record<HeatmapSource, string | null> = {
-  kospi200: "SYML:KRX;KOSPI200",
-  kospi: "SYML:KRX;KOSPI",
-  kosdaq150: "SYML:KRX;KOSDAQ150",
-  kosdaq: "SYML:KRX;KOSDAQ",
-  all: null,
+// 히트맵 소스 메타 — region(scanner 엔드포인트), 멤버십 symbolset(null=전체), 라벨, TV 원본 dataSource.
+export type HeatmapRegion = "kr" | "us";
+interface HeatmapMeta { label: string; region: HeatmapRegion; symbolset: string | null; tvDs: string; sectorFilter?: string }
+const HEATMAP_META: Record<HeatmapSource, HeatmapMeta> = {
+  kospi200:  { label: "KOSPI 200",   region: "kr", symbolset: "SYML:KRX;KOSPI200",  tvDs: "KOSPI200" },
+  kospi:     { label: "코스피 전체",  region: "kr", symbolset: "SYML:KRX;KOSPI",     tvDs: "KOSPI" },
+  kosdaq150: { label: "KOSDAQ 150",  region: "kr", symbolset: "SYML:KRX;KOSDAQ150", tvDs: "KOSDAQ150" },
+  kosdaq:    { label: "코스닥 전체",  region: "kr", symbolset: "SYML:KRX;KOSDAQ",    tvDs: "KOSDAQ" },
+  all:       { label: "전체(한국)",   region: "kr", symbolset: null,                 tvDs: "allKR" },
+  us_sp500:    { label: "S&P 500",       region: "us", symbolset: "SYML:SP;SPX",       tvDs: "SPX500" },
+  us_ndx:      { label: "나스닥 100",     region: "us", symbolset: "SYML:NASDAQ;NDX",   tvDs: "NASDAQ100" },
+  us_nasdaq:   { label: "나스닥 전체",    region: "us", symbolset: "SYML:NASDAQ;IXIC",  tvDs: "allNASDAQ" },
+  us_dow:      { label: "다우 30",        region: "us", symbolset: "SYML:DJ;DJI",       tvDs: "DJDJI" },
+  us_dowcomp:  { label: "다우 컴포짓",    region: "us", symbolset: "SYML:DJ;DJA",       tvDs: "DJDJA" },
+  us_dowtrans: { label: "다우 운송",      region: "us", symbolset: "SYML:DJ;DJT",       tvDs: "DJDJT" },
+  us_dowutil:  { label: "다우 유틸",      region: "us", symbolset: "SYML:DJ;DJU",       tvDs: "DJDJU" },
+  us_kbwbank:  { label: "KBW 은행",       region: "us", symbolset: "SYML:NASDAQ;BKX",   tvDs: "KBWBANK" },
+  us_r1000:    { label: "러셀 1000",      region: "us", symbolset: "SYML:TVC;RUI",      tvDs: "RUSSELL1000" },
+  us_r2000:    { label: "러셀 2000",      region: "us", symbolset: "SYML:TVC;RUT",      tvDs: "RUSSELL2000" },
+  us_r3000:    { label: "러셀 3000",      region: "us", symbolset: "SYML:TVC;RUA",      tvDs: "RUSSELL3000" },
+  us_all:      { label: "전체(미국)",     region: "us", symbolset: null,                tvDs: "allUSA" },
+  // 미국 전자기술(반도체·IT HW) — SK하이닉스 ADR(SKHY)·TSM 등 포함. sector 필터.
+  us_tech:     { label: "미국 전자기술",   region: "us", symbolset: null,                tvDs: "allUSA", sectorFilter: "Electronic Technology" },
 };
-export const HEATMAP_SOURCE_LABEL: Record<HeatmapSource, string> = {
-  kospi200: "KOSPI 200",
-  kospi: "코스피 전체",
-  kosdaq150: "KOSDAQ 150",
-  kosdaq: "코스닥 전체",
-  all: "전체(한국)",
-};
-// TradingView 히트맵 원본 URL(폴백 링크) — dataSource 만 바꿈.
-const HEATMAP_TV_DS: Record<HeatmapSource, string> = {
-  kospi200: "KOSPI200", kospi: "KOSPI", kosdaq150: "KOSDAQ150", kosdaq: "KOSDAQ", all: "allKR",
-};
+export const HEATMAP_SOURCE_LABEL: Record<HeatmapSource, string> =
+  Object.fromEntries(Object.entries(HEATMAP_META).map(([k, m]) => [k, m.label])) as Record<HeatmapSource, string>;
+export function heatmapRegion(source: HeatmapSource): HeatmapRegion { return HEATMAP_META[source].region; }
 export function heatmapTradingViewUrl(source: HeatmapSource): string {
-  const cfg = { dataSource: HEATMAP_TV_DS[source], blockColor: "change", blockSize: "market_cap_basic", grouping: "sector" };
+  const cfg = { dataSource: HEATMAP_META[source].tvDs, blockColor: "change", blockSize: "market_cap_basic", grouping: "sector" };
   return `https://kr.tradingview.com/heatmap/stock/#${encodeURIComponent(JSON.stringify(cfg))}`;
 }
 
 export async function fetchKrHeatmap(source: HeatmapSource, limit = 500): Promise<HeatmapItem[]> {
-  const set = HEATMAP_SYMBOLSET[source];
+  const meta = HEATMAP_META[source];
+  const endpoint = meta.region === "us" ? "america" : "korea";
   const body = {
-    ...(set ? { symbols: { symbolset: [set] } } : {}),
-    columns: ["name", "description", "logoid", "change", "close", "volume", "market_cap_basic", "sector"],
+    ...(meta.symbolset ? { symbols: { symbolset: [meta.symbolset] } } : {}),
+    ...(meta.sectorFilter ? { filter: [{ left: "sector", operation: "equal", right: meta.sectorFilter }] } : {}),
+    columns: ["name", "description", "logoid", "change", "close", "volume", "Value.Traded",
+      "market_cap_basic", "Perf.W", "Perf.1M", "Perf.3M", "Perf.6M", "Perf.YTD", "Perf.Y", "sector"],
     sort: { sortBy: "market_cap_basic", sortOrder: "desc" },
     range: [0, limit],
   };
-  const resp = await fetchProxied("https://scanner.tradingview.com/korea/scan", {
+  const resp = await fetchProxied(`https://scanner.tradingview.com/${endpoint}/scan`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
   });
   const text = await resp.text();
@@ -3506,9 +3522,106 @@ export async function fetchKrHeatmap(source: HeatmapSource, limit = 500): Promis
         changePct: num(d[3]),
         close: num(d[4]),
         volume: num(d[5]),
-        marketCap: num(d[6]),
-        sector: typeof d[7] === "string" && d[7] ? d[7] : "기타",
+        valueTraded: num(d[6]),
+        marketCap: num(d[7]),
+        perfW: num(d[8]), perf1M: num(d[9]), perf3M: num(d[10]),
+        perf6M: num(d[11]), perfYTD: num(d[12]), perfY: num(d[13]),
+        sector: typeof d[14] === "string" && d[14] ? d[14] : "기타",
       };
     })
     .filter(x => x.code && (x.marketCap > 0 || x.volume > 0));
+}
+
+// ─── 코리아 밸류업 지수 (네이버 KVALUE) ─── 지수탭 카드용. Yahoo 미제공 → 네이버 m.stock 무인증.
+//   TradingView symbolset 미지원이라 히트맵이 아닌 '지수 카드 + 구성종목' 형태로 표시.
+export interface ValueupIndex {
+  price: number;        // 현재 지수값
+  diff: number;         // 전일 종가 대비(부호 포함)
+  changePct: number;    // 변동률 %(부호 포함)
+  sparkline: number[];  // 최근 일봉 종가(오래→최신)
+  tradedAt: string;     // 최근 체결 시각(ISO)
+}
+export interface ValueupStock {
+  code: string; name: string; price: number; changePct: number; marketCap: number; logoUrl: string;
+}
+// 네이버 문자열 숫자("3,452.04")는 상단 naverNum 헬퍼 재사용.
+// compareToPreviousPrice.code — 1 상한·2 상승·3 보합·4 하한·5 하락. 하락 계열이면 음수 부호.
+const naverDown = (code?: string): boolean => code === "4" || code === "5";
+
+export async function fetchValueupIndex(): Promise<ValueupIndex> {
+  const [basicR, priceR] = await Promise.all([
+    fetchProxied("https://m.stock.naver.com/api/index/KVALUE/basic"),
+    fetchProxied("https://m.stock.naver.com/api/index/KVALUE/price?pageSize=60"),
+  ]);
+  const b = await basicR.json() as {
+    closePrice?: string; compareToPreviousClosePrice?: string; fluctuationsRatio?: string;
+    compareToPreviousPrice?: { code?: string }; localTradedAt?: string;
+  };
+  const down = naverDown(b.compareToPreviousPrice?.code);
+  const sign = down ? -1 : 1;
+  let sparkline: number[] = [];
+  try {
+    const arr = await priceR.json() as { closePrice?: string }[];
+    // price 응답은 최신→과거(desc) → 뒤집어 과거→최신 순으로.
+    sparkline = (Array.isArray(arr) ? arr : []).map(x => naverNum(x.closePrice)).filter(n => n > 0).reverse();
+  } catch { /* 스파크라인 없으면 무시 */ }
+  return {
+    price: naverNum(b.closePrice),
+    diff: naverNum(b.compareToPreviousClosePrice) * sign,
+    changePct: naverNum(b.fluctuationsRatio) * sign,
+    sparkline,
+    tradedAt: b.localTradedAt ?? "",
+  };
+}
+
+// 구성종목 — 네이버 PC 금융 편입종목 표(finance.naver.com, EUC-KR HTML). 10페이지 = 100종목 전체.
+//   m.stock enrollStocks 는 대표 20개뿐이라, 100종목 전체는 이 PC 표를 페이지별로 스크래핑.
+//   표 컬럼: [종목명, 현재가, 전일비(상승/하락+숫자), 등락률(%), 거래량, 거래대금(백만), 시가총액(억)]
+const VALUEUP_PAGES = 10;
+function valueupLogoUrl(code: string): string {
+  return `https://ssl.pstatic.net/imgstock/fn/real/logo/png/stock/Stock${code}.png`;
+}
+function parseValueupPage(html: string): ValueupStock[] {
+  const out: ValueupStock[] = [];
+  for (const tr of html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) ?? []) {
+    const cm = /\/item\/main\.naver\?code=(\d{6})/.exec(tr);
+    if (!cm) continue;
+    const code = cm[1];
+    const cells = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
+      .map(m => m[1].replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim())
+      .filter(c => c !== "");
+    if (cells.length < 7) continue;
+    const down = cells[2].includes("하락");   // 전일비 방향어(상승/하락/보합)
+    // 등락률 셀은 "+5.21%" 형태 — naverNum 은 % 를 못 벗겨 NaN→0 되므로 별도 파싱.
+    const pctMag = Math.abs(parseFloat(cells[3].replace(/[^\d.]/g, "")) || 0);
+    out.push({
+      code,
+      name: cells[0],
+      price: naverNum(cells[1]),
+      changePct: pctMag * (down ? -1 : 1),   // 등락률 크기 × 방향
+      marketCap: naverNum(cells[6]),   // 시가총액(억원)
+      logoUrl: valueupLogoUrl(code),
+    });
+  }
+  return out;
+}
+export async function fetchValueupConstituents(): Promise<ValueupStock[]> {
+  const pages = await Promise.all(
+    Array.from({ length: VALUEUP_PAGES }, (_, i) => i + 1).map(async page => {
+      try {
+        const resp = await fetchProxied(`https://finance.naver.com/sise/entryJongmok.naver?type=KVALUE&page=${page}`);
+        if (!resp.ok) return [];
+        const html = decodeHtmlBuf(await resp.arrayBuffer(), resp.headers.get("Content-Type") || "");
+        return parseValueupPage(html);
+      } catch { return []; }
+    })
+  );
+  // 페이지 경계 중복 제거(시총 내림차순 정렬은 표 순서 그대로 유지).
+  const seen = new Set<string>();
+  const all: ValueupStock[] = [];
+  for (const list of pages) for (const s of list) {
+    if (seen.has(s.code)) continue;
+    seen.add(s.code); all.push(s);
+  }
+  return all;
 }

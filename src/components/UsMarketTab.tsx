@@ -18,6 +18,7 @@ import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi
 import { Sparkline } from "./Sparkline";
 import { MarketFlowModal } from "./MarketFlowModal";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
+import { ValueupMiniCard } from "./ValueupCard";
 
 // KR ETF Yahoo 심볼 패턴 (예: "091160.KS") — 토스 compositions API 지원 대상
 const KR_ETF_SYMBOL_RE = /^([\dA-Za-z]{6})\.K[SQ]$/;
@@ -291,6 +292,8 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
               // 6열 그리드 — 컨테이너(space-y-4)를 lg 75% 폭으로 줄여 카드 크기는 8열 때와 동일하게 유지
               <div key={gi} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-x-2 gap-y-4">
                 {group.map(symbol => {
+              // 코리아 밸류업 — 네이버 KVALUE 전용 카드(Yahoo 미제공). 다른 지수 카드와 동일 크기 셀.
+              if (symbol === "KVALUE") return <ValueupMiniCard key="KVALUE" />;
               const rawP = tier0.find(x => x.symbol === symbol);
               if (!rawP) return null;
               // 한국 선물(^KS200N/^KQ150N)은 현재 KST 세션에 따라 주간/야간선물로 표시명 변경
