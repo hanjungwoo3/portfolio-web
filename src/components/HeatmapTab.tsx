@@ -23,11 +23,12 @@ const SOURCE_LIMIT: Partial<Record<HeatmapSource, number>> = {
 };
 
 // 크기 기준
-type SizeMode = "marketCap" | "volume" | "value";
+type SizeMode = "marketCap" | "volume" | "value" | "change";
 const SIZE_OPTS: { key: SizeMode; label: string }[] = [
   { key: "marketCap", label: "시가총액" },
   { key: "volume", label: "거래량" },
   { key: "value", label: "거래대금" },
+  { key: "change", label: "등락률(변동폭)" },
 ];
 // 색 기준 — 등락(1일) + 기간 수익률. 각 기준별 색 포화 범위(%)가 달라 강도 스케일도 다름.
 type ColorMode = "change" | "w" | "m1" | "m3" | "m6" | "ytd" | "y";
@@ -131,9 +132,24 @@ export function HeatmapTab() {
   useEffect(() => { if (q.dataUpdatedAt > 0) reportRefresh(q.dataUpdatedAt); }, [q.dataUpdatedAt]);
 
   const sizeVal = (it: HeatmapItem) =>
-    (sizeMode === "marketCap" ? it.marketCap : sizeMode === "value" ? it.valueTraded : it.volume) || 0;
+    sizeMode === "change"
+      // 등락률 변동폭 — 트리맵 면적은 음수 불가라 절댓값. 방향은 색으로 표현.
+      // 보합(0%)도 사라지지 않게 하한 0.01 부여.
+      ? Math.max(Math.abs(it.changePct), 0.01)
+      : (sizeMode === "marketCap" ? it.marketCap : sizeMode === "value" ? it.valueTraded : it.volume) || 0;
   const colorDef = COLOR_OPTS.find(o => o.key === colorMode)!;
   const colorOf = (it: HeatmapItem) => heatColor(colorDef.field(it), colorDef.sat);
+
+  // 등락률 변동폭 크기 모드의 허수 필터 — 거래량 1·거래대금 미미한데 ±100% 찍히는 호가는
+  // 실제 자금 이동이 없는 허수라 크기 왜곡을 유발. 데이터셋 거래대금 중앙값의 2% 미만이면 제외.
+  // (시총/거래량 모드에선 이런 종목이 이미 작게 잡혀 필터 불필요 → change 모드에서만 적용)
+  const liqFloor = useMemo(() => {
+    if (sizeMode !== "change") return 0;
+    const vals = (q.data ?? []).map(it => it.valueTraded).filter(v => v > 0).sort((a, b) => a - b);
+    if (!vals.length) return 0;
+    const median = vals[Math.floor(vals.length / 2)];
+    return median * 0.02;
+  }, [sizeMode, q.data]);
 
   // 한글 종목명 — 정적 사전(0콜) + 런타임 캐시. 사전에 없는 코드만 폴백 조회.
   const dictQ = useQuery({ queryKey: ["kr-name-dict"], queryFn: loadKrNameDict, staleTime: Infinity, refetchOnWindowFocus: false, enabled: isKr });
@@ -154,7 +170,8 @@ export function HeatmapTab() {
 
   // 트리맵 — 그룹=섹터면 2단계(섹터→종목), 그룹없음이면 종목만 1단계.
   const layout = useMemo(() => {
-    const items = q.data ?? [];
+    // change 모드에선 유동성 미달(허수) 종목 제외 — liqFloor=0 이면 전체 통과
+    const items = (q.data ?? []).filter(it => liqFloor <= 0 || it.valueTraded >= liqFloor);
     const empty = { stocks: [] as { it: HeatmapItem; x: number; y: number; w: number; h: number }[], headers: [] as { sec: string; x: number; y: number; w: number }[] };
     if (!items.length || size.w < 40 || size.h < 40) return empty;
     const stocks: { it: HeatmapItem; x: number; y: number; w: number; h: number }[] = [];
@@ -179,7 +196,7 @@ export function HeatmapTab() {
     }
     return { stocks, headers };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q.data, size.w, size.h, sizeMode, groupMode]);
+  }, [q.data, size.w, size.h, sizeMode, groupMode, liqFloor]);
 
   const isHostErr = q.error instanceof ProxyHostError;
 
@@ -327,6 +344,7 @@ export function HeatmapTab() {
             <li><b>시가총액</b> — 회사 전체 가치(주가×주식수). 큰 기업일수록 타일이 큼</li>
             <li><b>거래량</b> — 오늘 거래된 주식 수. 활발히 거래된 종목이 큼</li>
             <li><b>거래대금</b> — 가격×거래량. 실제 돈이 많이 오간 종목이 큼</li>
+            <li><b>등락률(변동폭)</b> — 오늘 움직인 폭(±). 많이 오르거나 많이 내린 종목이 큼(방향은 색). 거래 미미한 허수(거래량 1 등)는 제외</li>
           </ul>
         </div>
         <div className="bg-gray-50 border border-gray-200 rounded-lg p-2.5">

@@ -5,12 +5,18 @@
 import { fetchProxied } from "./api";
 
 let dictPromise: Promise<Record<string, string>> | null = null;
-// 정적 사전 로드(1회, 메모리 캐시). 실패해도 빈 객체(영문명 폴백).
+// 정적 사전 로드(성공 1회 메모리 캐시). 실패/빈 응답이면 캐시 무효화 + 예외 → 호출측 재시도.
+//   → 최초 fetch 가 일시 실패해도 영구히 {} 로 굳어 모든 이름이 네이버(워커) 폴백되던 문제 방지.
+//     (React Query staleTime:Infinity 라도 reject 는 성공 캐시가 안 돼 자동 재시도됨.)
 export function loadKrNameDict(): Promise<Record<string, string>> {
   if (!dictPromise) {
     dictPromise = fetch(`${import.meta.env.BASE_URL}kr-stock-names.json`)
-      .then(r => (r.ok ? r.json() : {}))
-      .catch(() => ({}));
+      .then(r => (r.ok ? r.json() : Promise.reject(new Error(`kr-names HTTP ${r.status}`))))
+      .then((dict: Record<string, string>) => {
+        if (!dict || Object.keys(dict).length === 0) throw new Error("kr-names empty");
+        return dict;
+      })
+      .catch(err => { dictPromise = null; throw err; });  // 캐시 무효화 → 다음 호출/RQ 재시도
   }
   return dictPromise;
 }
