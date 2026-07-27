@@ -13,6 +13,7 @@ import { AuxIndicators } from "./AuxIndicators";
 import { Tooltip, ColorName } from "./Tooltip";
 import { MarketAlertDialog } from "./MarketAlertDialog";
 import { IntradayPatternDialog } from "./IntradayPatternDialog";
+import { CommunityDialog } from "./CommunityDialog";
 
 interface KrRegInfo {
   ticker: string;
@@ -509,6 +510,8 @@ export function StockCard({
   const [intradayOpen, setIntradayOpen] = useState(false);
   // 경고 뱃지 클릭 → 시장조치 공시 모달
   const [alertOpen, setAlertOpen] = useState(false);
+  // 💬 → 토스·네이버 커뮤니티 팝업
+  const [communityOpen, setCommunityOpen] = useState(false);
   // 포함 ETF 카운트 — 이 종목이 들어있는 ETF 개수 (역색인)
   const etfCount = useEtfCount(stock.ticker);
 
@@ -1014,6 +1017,16 @@ export function StockCard({
               className="opacity-60 hover:opacity-100
                          text-xs leading-none px-0.5 transition-opacity">
               📊
+            </button>
+          )}
+          {/^[\dA-Za-z]{6}$/.test(stock.ticker) && (
+            <button
+              type="button"
+              onClick={() => setCommunityOpen(true)}
+              title="토스·네이버 커뮤니티"
+              className="opacity-60 hover:opacity-100
+                         text-xs leading-none px-0.5 transition-opacity">
+              💬
             </button>
           )}
           {onEdit && (
@@ -1673,6 +1686,8 @@ export function StockCard({
       <MarketAlertDialog ticker={stock.ticker} name={stock.name} warning={warning}
                          onClose={() => setAlertOpen(false)} />
     )}
+    <CommunityDialog isOpen={communityOpen} onClose={() => setCommunityOpen(false)}
+                     ticker={stock.ticker} name={stock.name} />
     </div>
   );
 }

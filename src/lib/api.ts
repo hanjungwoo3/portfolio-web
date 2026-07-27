@@ -620,6 +620,118 @@ export async function fetchTossNews(category: TossNewsCategory = "ALL_HIGHLIGHT"
   }));
 }
 
+// ─── 종목 커뮤니티 — 토스증권 커뮤니티 댓글 (wts-cert-api /api/v4/comments, 익명 가능) ───
+//   subjectId = ISIN 코드(예: KR7005930003). 티커(6자리)→ISIN 은 stock-infos 로 해석(캐시).
+const isinCache = new Map<string, string>();  // ticker(6) → ISIN
+async function resolveKrIsin(ticker: string): Promise<string | null> {
+  const cached = isinCache.get(ticker);
+  if (cached) return cached;
+  try {
+    const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-infos/code-or-symbol/A${ticker}`);
+    if (!r.ok) return null;
+    const j = await r.json() as { result?: { isinCode?: string; guid?: string } };
+    const isin = j.result?.isinCode || j.result?.guid;
+    if (isin) { isinCache.set(ticker, isin); return isin; }
+  } catch { /* noop */ }
+  return null;
+}
+
+export interface TossCommunityComment {
+  id: string;
+  nickname: string;
+  profileUrl: string;
+  badge: string;          // 작성자 뱃지 ("10억대 자산가" 등), 없으면 ""
+  message: string;
+  likeCount: number;
+  replyCount: number;
+  holding: boolean;       // 작성자가 이 종목 보유중인지
+  createdAt: string;      // ISO
+}
+interface TossCommentRaw {
+  type?: string;
+  commentId?: number | string;
+  author?: { nickname?: string; profilePictureUrl?: string; badge?: { title?: string } | null };
+  message?: { message?: string };
+  statistic?: { likeCount?: number; replyCount?: number };
+  holding?: { shareHoldingStatus?: string };
+  createdAt?: string;
+}
+// 종목 커뮤니티 댓글 최신순. RECENT 정렬. 익명 접근 가능. 티커=6자리 KR 코드.
+export async function fetchTossCommunity(ticker: string): Promise<TossCommunityComment[]> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
+  const isin = await resolveKrIsin(ticker);
+  if (!isin) return [];
+  const url = `https://wts-cert-api.tossinvest.com/api/v4/comments`
+            + `?subjectType=STOCK&subjectId=${encodeURIComponent(isin)}&commentSortType=RECENT`;
+  try {
+    const resp = await fetchProxied(url);
+    if (!resp.ok) return [];
+    const j = await resp.json() as { result?: { results?: TossCommentRaw[] } };
+    const rows = j.result?.results ?? [];
+    return rows
+      .filter(c => c.type === "USER_COMMENT" && c.message?.message)
+      .map(c => ({
+        id: String(c.commentId ?? ""),
+        nickname: c.author?.nickname ?? "익명",
+        profileUrl: c.author?.profilePictureUrl ?? "",
+        badge: c.author?.badge?.title ?? "",
+        message: c.message?.message ?? "",
+        likeCount: c.statistic?.likeCount ?? 0,
+        replyCount: c.statistic?.replyCount ?? 0,
+        holding: c.holding?.shareHoldingStatus === "HOLDING",
+        createdAt: c.createdAt ?? "",
+      }));
+  } catch { return []; }
+}
+
+// ─── 네이버 종목토론실 — finance.naver.com/item/board.naver 글 목록 스크랩(UTF-8) ───
+//   커뮤니티 부분(글 목록)만 파싱 → 좌우 분할 뷰에서 토스와 나란히 표시. 제목 클릭은 read.naver 원문.
+export interface NaverBoardPost {
+  id: string;       // nid
+  title: string;
+  author: string;
+  date: string;     // "2026.07.27 08:49"
+  views: number;
+  up: number;       // 공감
+  down: number;     // 비공감
+  url: string;      // 원문(read) 절대 URL
+}
+export async function fetchNaverBoard(ticker: string): Promise<NaverBoardPost[]> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
+  try {
+    const resp = await fetchProxied(`https://finance.naver.com/item/board.naver?code=${ticker}`);
+    if (!resp.ok) return [];
+    // board.naver 는 현재 UTF-8(meta charset=utf-8). content-type 이 euc-kr 로 와도 utf-8 우선 시도.
+    const buf = await resp.arrayBuffer();
+    let html = new TextDecoder("utf-8").decode(buf);
+    if (/[�]{2,}/.test(html.slice(0, 5000))) {
+      html = decodeHtmlBuf(buf, resp.headers.get("Content-Type") || "");  // 폴백(EUC-KR 등)
+    }
+    const posts: NaverBoardPost[] = [];
+    // 글 1행 = board_read 링크(제목) 포함 <tr>. td 순서: 날짜·제목·글쓴이·조회·공감·비공감.
+    for (const m of html.matchAll(/<tr[^>]*>((?:(?!<\/tr>)[\s\S])*?board_read\.naver[\s\S]*?)<\/tr>/g)) {
+      const row = m[1];
+      const link = row.match(/href="(\/item\/board_read\.naver\?[^"]+)"[^>]*title="([^"]+)"/);
+      if (!link) continue;
+      const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
+        .map(t => t[1].replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").trim());
+      const nid = link[1].match(/nid=(\d+)/)?.[1] ?? "";
+      const numAt = (i: number) => Number((tds[i] ?? "").replace(/[^\d]/g, "")) || 0;
+      posts.push({
+        id: nid,
+        title: link[2].replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
+        date: tds[0] ?? "",
+        author: tds[2] ?? "",
+        views: numAt(3),
+        up: numAt(4),
+        down: numAt(5),
+        url: `https://finance.naver.com${link[1]}`,
+      });
+    }
+    return posts;
+  } catch { return []; }
+}
+
 // 한국 업종(섹터) ranking — 토스 TICS (Toss Industry Classification System) depth1 = 대분류.
 // 응답: 섹터별 오늘 등락률 + 순위 + 상승/하락 종목 수 + 아이콘.
 // 기간(5/10/20일) 별 endpoint 는 미확인 → 우선 오늘만.
