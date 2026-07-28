@@ -2672,6 +2672,8 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   // 반도체 개별주
   "MU":   "US19890516001",
   "NVDA": "US19990122001",
+  "STX":  "US20021211002",   // 씨게이트 (HDD·스토리지)
+  "DRAM": "AMX2604002001",   // Roundhill Memory ETF (AMEX) — 메모리 반도체 바스켓
   "SNDK": "NAS0250224006",   // 샌디스크 (2025 상장 → NAS 프리픽스)
   "SKHY": "NAS2607010002",   // SK하이닉스 ADR (2026 상장, WI→정규 SKHY) — 원화 시세용
   "AMAT": "US19721012001",
