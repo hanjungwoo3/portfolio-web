@@ -3665,8 +3665,6 @@ export interface ValueupStock {
 }
 // 네이버 문자열 숫자("3,452.04")는 상단 naverNum 헬퍼 재사용.
 // compareToPreviousPrice.code — 1 상한·2 상승·3 보합·4 하한·5 하락. 하락 계열이면 음수 부호.
-const naverDown = (code?: string): boolean => code === "4" || code === "5";
-
 export async function fetchValueupIndex(): Promise<ValueupIndex> {
   const [basicR, priceR] = await Promise.all([
     fetchProxied("https://m.stock.naver.com/api/index/KVALUE/basic"),
@@ -3674,10 +3672,10 @@ export async function fetchValueupIndex(): Promise<ValueupIndex> {
   ]);
   const b = await basicR.json() as {
     closePrice?: string; compareToPreviousClosePrice?: string; fluctuationsRatio?: string;
-    compareToPreviousPrice?: { code?: string }; localTradedAt?: string;
+    localTradedAt?: string;
   };
-  const down = naverDown(b.compareToPreviousPrice?.code);
-  const sign = down ? -1 : 1;
+  // 네이버 응답의 compareToPreviousClosePrice·fluctuationsRatio 는 이미 부호 포함("-7.24").
+  //   과거엔 compareToPreviousPrice.code 로 부호를 또 곱해 하락이 +로 뒤집히는 버그가 있었음 → 그대로 사용.
   let sparkline: number[] = [];
   try {
     const arr = await priceR.json() as { closePrice?: string }[];
@@ -3686,8 +3684,8 @@ export async function fetchValueupIndex(): Promise<ValueupIndex> {
   } catch { /* 스파크라인 없으면 무시 */ }
   return {
     price: naverNum(b.closePrice),
-    diff: naverNum(b.compareToPreviousClosePrice) * sign,
-    changePct: naverNum(b.fluctuationsRatio) * sign,
+    diff: naverNum(b.compareToPreviousClosePrice),
+    changePct: naverNum(b.fluctuationsRatio),
     sparkline,
     tradedAt: b.localTradedAt ?? "",
   };

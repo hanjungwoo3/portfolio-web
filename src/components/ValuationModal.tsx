@@ -6,6 +6,7 @@ import { maColor, parseMaPeriods, MA_DEFAULT_PERIODS, MA_MAX_LINES, MA_MAX_PERIO
 import type { SyncRegistrar } from "../lib/useCrosshairSync";
 
 // 무거운 차트 라이브러리는 lazy — 모달 열릴 때만 로드 (~50KB gzip)
+import { StockOverviewCharts } from "./StockOverviewCharts";
 const CandleChartLight = lazy(() => import("./CandleChartLight"));
 const InvestorChartLight = lazy(() => import("./InvestorChartLight"));
 const ShortSellingChart = lazy(() => import("./ShortSellingChart"));
@@ -518,6 +519,13 @@ export function ValuationModal({
                                   entryPrice={entryPrice}
                                   curPrice={effCurPrice}
                                   todayBar={todayBar} isEtf={isEtf} />
+
+          {/* 외국인 지분율·시총 + 상대수익률 (네이버 기업분석 스타일 오버뷰) */}
+          {!isEtf && (
+            <StockOverviewCharts ticker={ticker}
+                                 marketCapText={fund.market_cap_text}
+                                 price={effCurPrice} />
+          )}
 
           {/* 뉴스(좌) + 공시(우) */}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
