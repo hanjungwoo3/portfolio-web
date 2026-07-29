@@ -64,8 +64,8 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
       id: "semi", short: "반도체",
       label: "🔧 반도체",                             // 필반 지수 + 미국 반도체 대표주 (삼성·하이닉스 가늠자)
       rows: [
-        ["^SOX", "TSM"],                                  // 지수·파운드리: 필라델피아반도체 + TSMC
-        ["MU", "DRAM", "SKHY", "SNDK", "STX", "KXIAY"],   // 메모리·스토리지: 마이크론·DRAM ETF·SK하이닉스·샌디스크·씨게이트·키오시아
+        ["SKHY", "SKHY-PERP", "SMSN-PERP", "KXIAY"],      // SK하이닉스 ADR·SK하이닉스 24h·삼성전자 24h 무기한선물·키오시아(NAND) — 핵심 첫줄
+        ["^SOX", "TSM", "MU", "DRAM", "SNDK", "STX"],     // 지수·파운드리(필반·TSMC) + 메모리·스토리지(마이크론·DRAM ETF·샌디스크·씨게이트)
         ["NVDA", "AMD", "AVGO", "INTC", "QCOM"],          // AI·로직: 엔비디아·AMD·브로드컴·인텔·퀄컴
       ],
     },

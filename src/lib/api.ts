@@ -3697,6 +3697,49 @@ export async function fetchValueupIndex(): Promise<ValueupIndex> {
   };
 }
 
+// ─── 하이퍼리퀴드 주식 무기한선물 (xyz DEX) — 24시간 거래 → 한국·미국 장마감 시간외 가늠자 ───
+//   API(api.hyperliquid.xyz)가 CORS 완전 개방(ACAO:*)이라 프록시 없이 브라우저에서 직접 호출.
+//   coin 은 "xyz:SKHY"(SK하이닉스)·"xyz:SMSN"(삼성전자) 등. 맵 키는 프리픽스 뗀 짧은 이름.
+export interface HlPerp { price: number; prevDay: number; changePct: number; volumeUsd: number; }
+export async function fetchHlXyzPerps(): Promise<Map<string, HlPerp>> {
+  const out = new Map<string, HlPerp>();
+  try {
+    const resp = await fetch("https://api.hyperliquid.xyz/info", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "metaAndAssetCtxs", dex: "xyz" }),
+    });
+    if (!resp.ok) return out;
+    const j = await resp.json() as [
+      { universe?: { name?: string }[] },
+      { markPx?: string; prevDayPx?: string; dayNtlVlm?: string }[],
+    ];
+    const uni = j[0]?.universe ?? [];
+    const ctxs = j[1] ?? [];
+    for (let i = 0; i < uni.length; i++) {
+      const c = ctxs[i]; if (!c) continue;
+      const price = Number(c.markPx), prev = Number(c.prevDayPx);
+      if (!Number.isFinite(price) || !Number.isFinite(prev) || prev <= 0) continue;
+      const coin = String(uni[i]?.name ?? "").replace(/^xyz:/, "");
+      if (!coin) continue;
+      out.set(coin, { price, prevDay: prev, changePct: (price - prev) / prev * 100, volumeUsd: Number(c.dayNtlVlm) || 0 });
+    }
+  } catch { /* 네트워크 실패 시 빈 맵 */ }
+  return out;
+}
+// 스파크라인용 — 최근 24시간 15분봉 종가. coin 은 "xyz:SKHY" 처럼 프리픽스 포함.
+export async function fetchHlPerpCandles(coin: string): Promise<number[]> {
+  try {
+    const end = Date.now(), start = end - 24 * 60 * 60 * 1000;
+    const resp = await fetch("https://api.hyperliquid.xyz/info", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "candleSnapshot", req: { coin, interval: "15m", startTime: start, endTime: end } }),
+    });
+    if (!resp.ok) return [];
+    const arr = await resp.json() as { c?: string }[];
+    return (Array.isArray(arr) ? arr : []).map(k => Number(k.c)).filter(n => Number.isFinite(n));
+  } catch { return []; }
+}
+
 // 구성종목 — 네이버 PC 금융 편입종목 표(finance.naver.com, EUC-KR HTML). 10페이지 = 100종목 전체.
 //   m.stock enrollStocks 는 대표 20개뿐이라, 100종목 전체는 이 PC 표를 페이지별로 스크래핑.
 //   표 컬럼: [종목명, 현재가, 전일비(상승/하락+숫자), 등락률(%), 거래량, 거래대금(백만), 시가총액(억)]
