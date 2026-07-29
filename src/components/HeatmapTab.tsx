@@ -31,9 +31,12 @@ const SIZE_OPTS: { key: SizeMode; label: string }[] = [
   { key: "change", label: "등락률(변동폭)" },
 ];
 // 색 기준 — 등락(1일) + 기간 수익률. 각 기준별 색 포화 범위(%)가 달라 강도 스케일도 다름.
-type ColorMode = "change" | "w" | "m1" | "m3" | "m6" | "ytd" | "y";
-const COLOR_OPTS: { key: ColorMode; label: string; sat: number; field: (it: HeatmapItem) => number }[] = [
+//   프리장·애프터장(usOnly)은 미국만 값이 있음(한국 scanner 는 null→0) → US 소스에서만 노출.
+type ColorMode = "change" | "pre" | "post" | "w" | "m1" | "m3" | "m6" | "ytd" | "y";
+const COLOR_OPTS: { key: ColorMode; label: string; sat: number; usOnly?: boolean; field: (it: HeatmapItem) => number }[] = [
   { key: "change", label: "1일 등락률", sat: 3, field: it => it.changePct },
+  { key: "pre", label: "프리장", sat: 3, usOnly: true, field: it => it.premarketPct },
+  { key: "post", label: "애프터장", sat: 3, usOnly: true, field: it => it.postmarketPct },
   { key: "w", label: "1주 수익률", sat: 8, field: it => it.perfW },
   { key: "m1", label: "1개월 수익률", sat: 15, field: it => it.perf1M },
   { key: "m3", label: "3개월 수익률", sat: 25, field: it => it.perf3M },
@@ -137,7 +140,10 @@ export function HeatmapTab() {
       // 보합(0%)도 사라지지 않게 하한 0.01 부여.
       ? Math.max(Math.abs(it.changePct), 0.01)
       : (sizeMode === "marketCap" ? it.marketCap : sizeMode === "value" ? it.valueTraded : it.volume) || 0;
-  const colorDef = COLOR_OPTS.find(o => o.key === colorMode)!;
+  // 프리장·애프터장은 미국 소스에서만 선택 가능(한국은 값이 없음). 선택 후 KR 로 바꾸면 1일 등락률로 폴백.
+  const visibleColorOpts = isKr ? COLOR_OPTS.filter(o => !o.usOnly) : COLOR_OPTS;
+  const colorDef = visibleColorOpts.find(o => o.key === colorMode)
+                ?? COLOR_OPTS.find(o => o.key === "change")!;
   const colorOf = (it: HeatmapItem) => heatColor(colorDef.field(it), colorDef.sat);
 
   // 등락률 변동폭 크기 모드의 허수 필터 — 거래량 1·거래대금 미미한데 ±100% 찍히는 호가는
@@ -225,9 +231,9 @@ export function HeatmapTab() {
         </label>
         <label className="flex items-center gap-1 text-xs">
           <span className="text-gray-400">색</span>
-          <select value={colorMode} onChange={e => setColorMode(e.target.value as ColorMode)}
+          <select value={colorDef.key} onChange={e => setColorMode(e.target.value as ColorMode)}
                   className="border border-gray-300 rounded px-1.5 py-1 bg-white font-medium text-gray-700">
-            {COLOR_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+            {visibleColorOpts.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
         </label>
         <label className="flex items-center gap-1 text-xs">
@@ -351,6 +357,7 @@ export function HeatmapTab() {
           <div className="font-bold text-gray-700 mb-1">🎨 색 (빨강▲상승 / 파랑▼하락)</div>
           <ul className="space-y-0.5 leading-relaxed">
             <li><b>1일 등락률</b> — 오늘 하루 등락</li>
+            <li><b>프리장·애프터장</b> — 미국 정규장 전(프리)/후(애프터) 시간외 등락 (미국 지수 선택 시에만)</li>
             <li><b>1주~1년 수익률</b> — 그 기간 전 대비 주가 변화율(배당 아님). 장기 추세 파악용</li>
             <li><b>연초대비(YTD)</b> — 올해 1월 1일 대비 변화율</li>
             <li className="text-gray-400">기간이 길수록 색이 더 큰 변동에서 진해짐(스케일 자동)</li>
