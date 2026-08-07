@@ -2771,20 +2771,17 @@ const TOSS_CODE_TO_SYMBOL: Record<string, string> = (() => {
 interface TossOverviewItem {
   code?: string;
   price?: { latestPrice?: number; basePrice?: number };
-  miniChart?: { candles?: { price?: number }[] };
+  miniChart?: { candles?: { price?: number; startDate?: string }[] };
 }
 interface TossOverviewResp {
   result?: { indexMap?: Record<string, TossOverviewItem[]> };
 }
 
-// 1콜 → Map<야후심볼, UsIndex>. 실패하면 빈 Map (호출측에서 Yahoo base 가 폴백).
-async function fetchTossOverviewRaw(): Promise<Map<string, UsIndex>> {
+// overview 응답 → Map<야후심볼, UsIndex>. 비면 호출측에서 Yahoo base 가 폴백.
+function mapTossOverview(data: TossOverviewResp | null): Map<string, UsIndex> {
   const out = new Map<string, UsIndex>();
-  try {
-    const resp = await fetchProxied(TOSS_OVERVIEW_URL);
-    if (!resp.ok) return out;
-    const data = await resp.json() as TossOverviewResp;
-    const indexMap = data.result?.indexMap;
+  {
+    const indexMap = data?.result?.indexMap;
     if (!indexMap) return out;
     const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
     for (const arr of Object.values(indexMap)) {
@@ -2813,28 +2810,66 @@ async function fetchTossOverviewRaw(): Promise<Map<string, UsIndex>> {
         });
       }
     }
-  } catch { /* Yahoo base 폴백 */ }
+  }
   return out;
 }
 
-// overview 는 지수 탭(fetchYahooBatch)과 하단 티커바가 같은 주기로 각각 부른다.
-//  같은 1콜을 두 번 태우지 않도록 진행 중 요청은 공유하고, 방금 받은 결과는 짧게 재사용.
+// overview 는 지수 탭(fetchYahooBatch)·하단 티커바·증시탭 배경지수가 같은 주기로 각각 부른다.
+//  같은 1콜을 여러 번 태우지 않도록 응답 JSON 을 공유(진행 중 요청 공유 + 방금 받은 값 짧게 재사용).
 const OVERVIEW_SHARE_MS = 3000;
-let overviewInflight: Promise<Map<string, UsIndex>> | null = null;
-let overviewCache: { at: number; map: Map<string, UsIndex> } | null = null;
+let overviewInflight: Promise<TossOverviewResp | null> | null = null;
+let overviewCache: { at: number; data: TossOverviewResp } | null = null;
 
-export function fetchTossOverview(): Promise<Map<string, UsIndex>> {
+function fetchTossOverviewJson(): Promise<TossOverviewResp | null> {
   if (overviewCache && Date.now() - overviewCache.at < OVERVIEW_SHARE_MS) {
-    return Promise.resolve(overviewCache.map);
+    return Promise.resolve(overviewCache.data);
   }
   if (overviewInflight) return overviewInflight;
-  overviewInflight = fetchTossOverviewRaw()
-    .then(m => {
-      if (m.size > 0) overviewCache = { at: Date.now(), map: m };   // 실패(빈 Map)는 캐시하지 않음
-      return m;
-    })
-    .finally(() => { overviewInflight = null; });
+  overviewInflight = (async () => {
+    try {
+      const resp = await fetchProxied(TOSS_OVERVIEW_URL);
+      if (!resp.ok) return null;
+      const data = await resp.json() as TossOverviewResp;
+      if (data.result?.indexMap) overviewCache = { at: Date.now(), data };   // 실패는 캐시하지 않음
+      return data;
+    } catch { return null; }   // Yahoo base 폴백
+  })().finally(() => { overviewInflight = null; });
   return overviewInflight;
+}
+
+export async function fetchTossOverview(): Promise<Map<string, UsIndex>> {
+  return mapTossOverview(await fetchTossOverviewJson());
+}
+
+// 당일 지수 10분봉(토스 mini-chart) — KST "HH:MM" + 종가. 증시탭 배경 지수용.
+//   야후 ^KS11/^KQ11 은 20분 지연이라 실시간 시세·티커바와 어긋난다. 토스는 실시간이고
+//   위 overview 응답을 공유하므로 추가 프록시 호출이 없다.
+export interface TossIndexIntraday { base: number; points: { hm: string; close: number }[] }
+export async function fetchTossIndexIntraday(): Promise<Map<string, TossIndexIntraday>> {
+  const out = new Map<string, TossIndexIntraday>();
+  const data = await fetchTossOverviewJson();
+  const indexMap = data?.result?.indexMap;
+  if (!indexMap) return out;
+  for (const arr of Object.values(indexMap)) {
+    if (!Array.isArray(arr)) continue;
+    for (const it of arr) {
+      const sym = it.code ? TOSS_CODE_TO_SYMBOL[it.code] : undefined;
+      if (!sym || out.has(sym)) continue;
+      const base = it.price?.basePrice;
+      const candles = it.miniChart?.candles;
+      if (typeof base !== "number" || !Array.isArray(candles) || candles.length < 2) continue;
+      const points: { hm: string; close: number }[] = [];
+      for (const c of candles) {
+        // startDate 는 UTC ISO ("2026-08-07T01:30:00Z") → KST 시:분
+        if (typeof c.price !== "number" || !c.startDate) continue;
+        const ms = Date.parse(c.startDate);
+        if (!Number.isFinite(ms)) continue;
+        points.push({ hm: new Date(ms + 9 * 3600_000).toISOString().slice(11, 16), close: c.price });
+      }
+      if (points.length > 1) out.set(sym, { base, points });
+    }
+  }
+  return out;
 }
 
 // ─── 하단 지수 티커바 보조 시세 ───────────────────────────────────────────

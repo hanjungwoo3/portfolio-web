@@ -4,11 +4,12 @@
 
 import { useState, useMemo, useCallback, lazy, Suspense, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntraday, fetchYahooPriceHistory, fetchKrFuturesDaily, fetchLeverageDailyFlow, fetchKrPriceHistory, LEVERAGE_BASKETS } from "../lib/api";
+import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntraday, fetchTossIndexIntraday, fetchYahooPriceHistory, fetchKrFuturesDaily, fetchLeverageDailyFlow, fetchKrPriceHistory, LEVERAGE_BASKETS } from "../lib/api";
 import type { IntradayMarket, LeverageBasket } from "../lib/api";
 import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
 import { useCrosshairSync, type SyncRegistrar } from "../lib/useCrosshairSync";
 import { nextFuturesExpiry } from "../lib/futuresExpiry";
+import { isMarketOpen, nowKstDateStr } from "../lib/format";
 import type { FlowSeriesPoint } from "./IntradayInvestorChart";
 import type { UTCTimestamp } from "lightweight-charts";
 
@@ -79,10 +80,16 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady,
   onToggle: (k: IntradayKey) => void;
   refFirstT?: UTCTimestamp; refLastT?: UTCTimestamp;   // 기준 시간범위(코스피·코스닥)
 }) {
+  // 당일·장중일 때만 60초 폴링 — 안 걸면 첫 로드 값에 그대로 굳어(지수선이 실제와 어긋남) 있게 된다.
+  //   과거 날짜 조회·장 마감 후·섹션 접힘 상태에서는 폴링 없음(프록시 호출수 절약).
+  const live = on && bizdate === nowKstDateStr() && isMarketOpen("KR");
+  const livePoll = live ? 60_000 : (false as const);
+
   const intra = useQuery({
     queryKey: ["market-flow-intraday", market, bizdate],
     queryFn: () => fetchKrIntradayInvestorFlow(market, bizdate.replace(/-/g, "")),
     enabled: on && mode === "intraday",
+    refetchInterval: mode === "intraday" ? livePoll : false,
     staleTime: 60_000, refetchOnWindowFocus: false,
   });
   const daily = useQuery({
@@ -94,10 +101,24 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady,
 
   // 배경 지수(코스피/코스닥) — 당일=Yahoo 분봉, 일별=Yahoo 일봉.
   const ysym = YAHOO_SYM[market];
+  // 당일 배경 지수(코스피·코스닥) — 토스 10분봉. 야후 ^KS11/^KQ11 은 20분 지연이라
+  //  실시간 시세와 어긋난다(현재값이 실제와 수십 포인트 차이). 토스는 실시간 + overview 응답 공유(추가 콜 0).
+  const tossIdxOk = market === "kospi" || market === "kosdaq";
+  const tossIdx = useQuery({
+    queryKey: ["toss-index-intraday"],
+    queryFn: () => fetchTossIndexIntraday(),
+    enabled: on && mode === "intraday" && tossIdxOk && live,
+    refetchInterval: mode === "intraday" ? livePoll : false,
+    staleTime: 3000, refetchOnWindowFocus: false,
+  });
+  const tossIdxData = tossIdxOk && ysym ? tossIdx.data?.get(ysym) : undefined;
+
+  // 야후 분봉 — 선물(^KS200) 전용 + 토스가 못 주는 경우(과거 날짜·장마감) 폴백.
   const idxIntra = useQuery({
     queryKey: ["idx-intra", ysym, bizdate],
     queryFn: () => fetchYahooIntraday(ysym!, "5d", "5m"),
-    enabled: on && mode === "intraday" && !!ysym,
+    enabled: on && mode === "intraday" && !!ysym && !tossIdxData,
+    refetchInterval: mode === "intraday" ? livePoll : false,   // 배경 지수도 같이 갱신(현재값 어긋남 방지)
     staleTime: 60_000, refetchOnWindowFocus: false,
   });
   const idxDaily = useQuery({
@@ -112,6 +133,7 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady,
     queryKey: ["kr-futures-daily"],
     queryFn: () => fetchKrFuturesDaily(60),
     enabled: on && market === "futures",
+    refetchInterval: livePoll,        // 실선물가(베이시스 보정 기준)도 장중 갱신
     staleTime: 60_000, refetchOnWindowFocus: false,
   });
 
@@ -122,94 +144,115 @@ function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady,
       <span className="font-bold text-green-600">{label}</span>{inner}
     </div>
   );
-  if (q.isLoading) return shell(<span>불러오는 중…</span>);
 
-  let series: FlowSeriesPoint[] = [];
-  let summary = {} as Record<IntradayKey, number>;
-  let unit = market === "futures" ? "계약" : "억원";
-  let indexSeries: { t: UTCTimestamp; value: number }[] | undefined;
-  let indexBaseline: number | undefined;   // 전일 종가(기준가)
+  // 시리즈 계산은 데이터가 바뀔 때만 — 매 렌더 새 배열을 만들면 차트가 통째로 재생성된다
+  //  (IntradayInvestorChart 의 생성 effect deps 에 series/indexSeries 가 들어감).
+  const built = useMemo(() => {
+    let series: FlowSeriesPoint[] = [];
+    let summary = {} as Record<IntradayKey, number>;
+    let unit = market === "futures" ? "계약" : "억원";
+    let indexSeries: { t: UTCTimestamp; value: number }[] | undefined;
+    let indexBaseline: number | undefined;   // 전일 종가(기준가)
+    const empty = (msg: "intraday" | "daily") => ({ empty: msg, series, summary, unit, indexSeries, indexBaseline });
 
-  if (mode === "intraday") {
-    const pts = intra.data?.points ?? [];
-    if (pts.length < 2) return shell(<span>당일 데이터 없음 <span className="text-[10px]">(장 시작 전/집계 전)</span></span>);
-    unit = intra.data!.unit;
-    series = pts.map(p => ({ t: hmToTime(p.time), label: p.time, values: pick(p) }));
-    summary = pick(pts[pts.length - 1]);   // 당일 누적 최신
-    if (ysym && idxIntra.data) {
-      const withKst = idxIntra.data.map(b => ({ ...kstFromEpoch(b.t), close: b.close }));   // 야후 ascending 유지
-      // 전일 종가 = 선택일 이전 마지막 봉의 종가 (기준선/빨강·파랑)
-      const prior = withKst.filter(b => b.date < bizdate);
-      if (prior.length) indexBaseline = prior[prior.length - 1].close;
-      // 지수 봉을 투자자 시각 격자에 리샘플 → 같은 t만 사용(추가 슬롯 없음)해야
-      // ordinal 시간축이 안 틀어지고 세로선/축이 정확히 맞음.
-      const bars = withKst.filter(b => b.date === bizdate).sort((a, b) => (a.t as number) - (b.t as number));
-      if (bars.length > 1) {
+    if (mode === "intraday") {
+      const pts = intra.data?.points ?? [];
+      if (pts.length < 2) return empty("intraday");
+      unit = intra.data!.unit;
+      series = pts.map(p => ({ t: hmToTime(p.time), label: p.time, values: pick(p) }));
+      summary = pick(pts[pts.length - 1]);   // 당일 누적 최신
+      if (tossIdxData) {
+        // 토스 10분봉을 투자자 시각 격자에 계단식으로 붙임(각 시각 이하의 마지막 봉).
+        indexBaseline = tossIdxData.base;
+        const cs = tossIdxData.points;
         let j = 0;
         indexSeries = series.map(sp => {
-          const st = sp.t as number;
-          while (j < bars.length - 1 && Math.abs((bars[j + 1].t as number) - st) <= Math.abs((bars[j].t as number) - st)) j++;
-          return { t: sp.t, value: bars[j].close };
+          while (j < cs.length - 1 && cs[j + 1].hm <= sp.label) j++;
+          return { t: sp.t, value: cs[j].close };
         });
+      } else if (ysym && idxIntra.data) {
+        const withKst = idxIntra.data.map(b => ({ ...kstFromEpoch(b.t), close: b.close }));   // 야후 ascending 유지
+        // 전일 종가 = 선택일 이전 마지막 봉의 종가 (기준선/빨강·파랑)
+        const prior = withKst.filter(b => b.date < bizdate);
+        if (prior.length) indexBaseline = prior[prior.length - 1].close;
+        // 지수 봉을 투자자 시각 격자에 리샘플 → 같은 t만 사용(추가 슬롯 없음)해야
+        // ordinal 시간축이 안 틀어지고 세로선/축이 정확히 맞음.
+        const bars = withKst.filter(b => b.date === bizdate).sort((a, b) => (a.t as number) - (b.t as number));
+        if (bars.length > 1) {
+          let j = 0;
+          indexSeries = series.map(sp => {
+            const st = sp.t as number;
+            while (j < bars.length - 1 && Math.abs((bars[j + 1].t as number) - st) <= Math.abs((bars[j].t as number) - st)) j++;
+            return { t: sp.t, value: bars[j].close };
+          });
+        }
+        // 선물: 분봉 실선물 소스가 프록시 허용 호스트에 없어, 야후 ^KS200(스팟) 형태를
+        //  실선물가 레벨로 평행이동(베이시스-시프트) — 오른쪽 끝을 HTS 선물가와 정확히 일치시키고
+        //  기준선(빨강·파랑)은 실선물 전일종가 기준. (베이시스는 일중 거의 일정)
+        if (market === "futures" && fut.data && indexSeries && indexSeries.length) {
+          const basis = fut.data.price - indexSeries[indexSeries.length - 1].value;
+          indexSeries = indexSeries.map(p => ({ t: p.t, value: p.value + basis }));
+          indexBaseline = fut.data.prevClose;
+        }
       }
-      // 선물: 분봉 실선물 소스가 프록시 허용 호스트에 없어, 야후 ^KS200(스팟) 형태를
-      //  실선물가 레벨로 평행이동(베이시스-시프트) — 오른쪽 끝을 HTS 선물가와 정확히 일치시키고
-      //  기준선(빨강·파랑)은 실선물 전일종가 기준. (베이시스는 일중 거의 일정)
-      if (market === "futures" && fut.data && indexSeries && indexSeries.length) {
-        const basis = fut.data.price - indexSeries[indexSeries.length - 1].value;
-        indexSeries = indexSeries.map(p => ({ t: p.t, value: p.value + basis }));
-        indexBaseline = fut.data.prevClose;
+    } else {
+      const pts = daily.data?.points ?? [];
+      if (pts.length < 2) return empty("daily");
+      unit = daily.data!.unit;
+      const acc = {} as Record<IntradayKey, number>;
+      for (const k of KEYS) acc[k] = 0;
+      series = pts.map(p => {
+        for (const k of KEYS) acc[k] += p[k];
+        return { t: dateToTime(p.date), label: p.date.slice(5).replace("-", "/"), values: { ...acc }, daily: pick(p) };
+      });
+      summary = { ...acc };   // 기간 합계 = 최종 누적
+      if (market === "futures" && fut.data) {
+        // 선물 일별은 실선물(FUT) 일봉을 배경으로 직접 사용 — 스팟이 아니라 정확.
+        const closeByDate = new Map(fut.data.series.map(p => [p.date, p.close]));
+        indexSeries = pts
+          .map(p => ({ t: dateToTime(p.date), value: closeByDate.get(p.date) }))
+          .filter((p): p is { t: UTCTimestamp; value: number } => typeof p.value === "number");
+        const prior = fut.data.series.filter(p => p.date < pts[0].date);
+        indexBaseline = prior.length ? prior[prior.length - 1].close : fut.data.prevClose;
+      } else if (ysym && idxDaily.data) {
+        const closeByDate = new Map(idxDaily.data.map(p => [p.date, p.close]));
+        indexSeries = pts
+          .map(p => ({ t: dateToTime(p.date), value: closeByDate.get(p.date) }))
+          .filter((p): p is { t: UTCTimestamp; value: number } => typeof p.value === "number");
+        // 기준선 = 기간 첫날 직전 거래일 종가
+        const prior = idxDaily.data.filter(p => p.date < pts[0].date);
+        if (prior.length) indexBaseline = prior[prior.length - 1].close;
       }
     }
-  } else {
-    const pts = daily.data?.points ?? [];
-    if (pts.length < 2) return shell(<span>일별 데이터 없음</span>);
-    unit = daily.data!.unit;
-    const acc = {} as Record<IntradayKey, number>;
-    for (const k of KEYS) acc[k] = 0;
-    series = pts.map(p => {
-      for (const k of KEYS) acc[k] += p[k];
-      return { t: dateToTime(p.date), label: p.date.slice(5).replace("-", "/"), values: { ...acc }, daily: pick(p) };
-    });
-    summary = { ...acc };   // 기간 합계 = 최종 누적
-    if (market === "futures" && fut.data) {
-      // 선물 일별은 실선물(FUT) 일봉을 배경으로 직접 사용 — 스팟이 아니라 정확.
-      const closeByDate = new Map(fut.data.series.map(p => [p.date, p.close]));
-      indexSeries = pts
-        .map(p => ({ t: dateToTime(p.date), value: closeByDate.get(p.date) }))
-        .filter((p): p is { t: UTCTimestamp; value: number } => typeof p.value === "number");
-      const prior = fut.data.series.filter(p => p.date < pts[0].date);
-      indexBaseline = prior.length ? prior[prior.length - 1].close : fut.data.prevClose;
-    } else if (ysym && idxDaily.data) {
-      const closeByDate = new Map(idxDaily.data.map(p => [p.date, p.close]));
-      indexSeries = pts
-        .map(p => ({ t: dateToTime(p.date), value: closeByDate.get(p.date) }))
-        .filter((p): p is { t: UTCTimestamp; value: number } => typeof p.value === "number");
-      // 기준선 = 기간 첫날 직전 거래일 종가
-      const prior = idxDaily.data.filter(p => p.date < pts[0].date);
-      if (prior.length) indexBaseline = prior[prior.length - 1].close;
-    }
-  }
 
-  // 선물(KOSPI200)은 원 스케일(×100)로 표시 — KODEX 200 ETF(≈지수×100) 가격대와 맞춤(예: 1,060.16 → 106,016).
-  if (market === "futures") {
-    if (indexSeries) indexSeries = indexSeries.map(p => ({ t: p.t, value: p.value * 100 }));
-    if (indexBaseline != null) indexBaseline *= 100;
+    // 선물(KOSPI200)은 원 스케일(×100)로 표시 — KODEX 200 ETF(≈지수×100) 가격대와 맞춤(예: 1,060.16 → 106,016).
+    if (market === "futures") {
+      if (indexSeries) indexSeries = indexSeries.map(p => ({ t: p.t, value: p.value * 100 }));
+      if (indexBaseline != null) indexBaseline *= 100;
+    }
+    // 선물 순매수 계약 → 금액(억원) 환산: 계약 × 선물지수 × 25만원(거래승수) ÷ 1억.
+    //  네이버 선물 엔드포인트는 계약만 주므로 실선물가로 환산해 코스피·코스닥과 같은 억원 단위로 비교.
+    //  (누적 순계약 × 당일 선물가로 근사 — 정확한 거래대금은 아니나 규모 비교엔 충분)
+    if (market === "futures" && fut.data) {
+      const perContractEok = (fut.data.price * 250_000) / 1e8;   // 계약당 억원
+      const conv = (o: Record<IntradayKey, number>) => {
+        const r = {} as Record<IntradayKey, number>;
+        for (const k of KEYS) r[k] = Math.round(o[k] * perContractEok);
+        return r;
+      };
+      series = series.map(sp => ({ ...sp, values: conv(sp.values), daily: sp.daily ? conv(sp.daily) : undefined }));
+      summary = conv(summary);
+      unit = "억원";
+    }
+    return { empty: null as null | "intraday" | "daily", series, summary, unit, indexSeries, indexBaseline };
+  }, [mode, market, bizdate, ysym, intra.data, daily.data, idxIntra.data, idxDaily.data, fut.data, tossIdxData]);
+
+  if (q.isLoading) return shell(<span>불러오는 중…</span>);
+  if (built.empty === "intraday") {
+    return shell(<span>당일 데이터 없음 <span className="text-[10px]">(장 시작 전/집계 전)</span></span>);
   }
-  // 선물 순매수 계약 → 금액(억원) 환산: 계약 × 선물지수 × 25만원(거래승수) ÷ 1억.
-  //  네이버 선물 엔드포인트는 계약만 주므로 실선물가로 환산해 코스피·코스닥과 같은 억원 단위로 비교.
-  //  (누적 순계약 × 당일 선물가로 근사 — 정확한 거래대금은 아니나 규모 비교엔 충분)
-  if (market === "futures" && fut.data) {
-    const perContractEok = (fut.data.price * 250_000) / 1e8;   // 계약당 억원
-    const conv = (o: Record<IntradayKey, number>) => {
-      const r = {} as Record<IntradayKey, number>;
-      for (const k of KEYS) r[k] = Math.round(o[k] * perContractEok);
-      return r;
-    };
-    series = series.map(sp => ({ ...sp, values: conv(sp.values), daily: sp.daily ? conv(sp.daily) : undefined }));
-    summary = conv(summary);
-    unit = "억원";
-  }
+  if (built.empty === "daily") return shell(<span>일별 데이터 없음</span>);
+  const { series, summary, unit, indexSeries, indexBaseline } = built;
 
   return (
     <Suspense fallback={<div className="h-[260px]" />}>
