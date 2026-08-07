@@ -26,3 +26,19 @@ body {
 .ticker-scroll::-webkit-scrollbar {
   display: none;
 }
+
+/* 티커바 흐름 — 폭이 모자랄 때(모바일) 한 벌 폭(--ticker-shift)만큼 왼쪽으로 무한 이동.
+   같은 줄을 두 벌 렌더하므로 한 벌 이동하면 원위치와 그림이 같아 끊기지 않는다. */
+@keyframes ticker-marquee {
+  from { transform: translateX(0); }
+  to   { transform: translateX(calc(-1 * var(--ticker-shift, 100%))); }
+}
+.ticker-marquee {
+  animation-name: ticker-marquee;
+  animation-timing-function: linear;
+  animation-iteration-count: infinite;
+  will-change: transform;
+}
+.ticker-marquee:hover {
+  animation-play-state: paused;   /* 읽는 중엔 멈춤 */
+}

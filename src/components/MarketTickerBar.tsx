@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronUp, X } from "lucide-react";
 import { fetchTossOverview, fetchTickerKrExtras, fetchTickerUsStockExtras } from "../lib/api";
@@ -12,7 +12,8 @@ import {
 // 화면 하단 고정 지수 티커바 — 토스 웹 하단 띠와 같은 자리.
 //  묶음(국내/해외/환율·금리)은 사용자가 골라 고정(마지막 선택 유지) — 자동 전환 없이 그 값만 폴링 주기마다 갱신.
 //  값 출처: 대부분 지수 탭과 같은 fetchTossOverview 1콜. 그걸로 안 되는 것만 묶음별 보조 쿼리
-//  (국내: 야선·KODEX·밸류업·V-KOSPI / 환율: EWY·KORU) — 고른 묶음일 때만 호출된다.
+//  (국내: 야선·KODEX·밸류업·V-KOSPI / 해외: KORU / 환율: EWY) — 고른 묶음일 때만 호출된다.
+//  폭이 모자라면(모바일) 항목이 왼쪽으로 흐른다 — 마우스 올리면 멈춤.
 interface TickerItem { symbol: string; label: string }
 
 const KR_ITEMS: TickerItem[] = [
@@ -35,6 +36,7 @@ const US_ITEMS: TickerItem[] = [
   { symbol: "^DJI",  label: "다우존스" },
   { symbol: "^SOX",  label: "필라델피아 반도체" },
   { symbol: "^VIX",  label: "VIX" },
+  { symbol: "KORU",  label: "KORU(3x한국)" },
 ];
 
 // 환율·달러·금리·투심 — 지수 탭 동명 그룹과 같은 구성
@@ -44,8 +46,6 @@ const FX_ITEMS: TickerItem[] = [
   { symbol: "^US2Y",    label: "미국 2Y" },
   { symbol: "^TNX",     label: "미국 10Y" },
   { symbol: "EWY",      label: "EWY" },
-  { symbol: "^VIX",     label: "VIX" },
-  { symbol: "KORU",     label: "KORU(3x한국)" },
 ];
 
 const SCOPES: [TickerScope, string, TickerItem[]][] = [
@@ -98,14 +98,39 @@ export function MarketTickerBar({ refreshMs }: MarketTickerBarProps) {
     enabled: open && scope === "kr",
     staleTime: 3000,
   });
-  // 환율 보조 — EWY·KORU (환율·금리 묶음 볼 때만)
-  const { data: fxExtra } = useQuery({
-    queryKey: ["ticker-bar-us-stock-extras"],
-    queryFn: () => fetchTickerUsStockExtras(),
+  // 미국 종목 보조 — 해외=KORU, 환율=EWY (토스 US 1콜). 보고 있는 묶음 것만.
+  const usStockSyms = scope === "us" ? ["KORU"] : scope === "fx" ? ["EWY"] : [];
+  const { data: stockExtra } = useQuery({
+    queryKey: ["ticker-bar-us-stock-extras", usStockSyms.join(",")],
+    queryFn: () => fetchTickerUsStockExtras(usStockSyms),
     refetchInterval: interval,
-    enabled: open && scope === "fx",
+    enabled: open && usStockSyms.length > 0,
     staleTime: 3000,
   });
+
+  // 폭이 모자라면 왼쪽으로 흐르게 — 이동 거리(한 벌 폭 + 간격)와 속도(40px/s)를 실측해 정한다.
+  const wrapRef = useRef<HTMLDivElement>(null);
+  const rowRef = useRef<HTMLDivElement>(null);
+  const [flow, setFlow] = useState(0);   // 애니메이션 길이(초). 0 = 안 흐름(가운데 정렬)
+  useLayoutEffect(() => {
+    const wrap = wrapRef.current, r = rowRef.current;
+    if (!wrap || !r) { setFlow(0); return; }
+    const GAP = 16;   // gap-4
+    const measure = () => {
+      const rowW = r.scrollWidth;
+      const fits = rowW + 24 <= wrap.clientWidth;   // px-3 좌우 여백 포함
+      if (fits) { setFlow(0); wrap.style.removeProperty("--ticker-shift"); return; }
+      wrap.style.setProperty("--ticker-shift", `${rowW + GAP}px`);
+      // 값이 갱신될 때마다 폭이 1~2px 흔들린다 — 그때마다 duration 을 바꾸면 흐름이 튄다.
+      //   1초 이상 차이날 때만 반영(이동 거리는 CSS 변수라 애니메이션 끊김 없이 반영됨).
+      const secs = Math.max(10, Math.round((rowW + GAP) / 40));   // 40px/s
+      setFlow(prev => (Math.abs(prev - secs) >= 1 ? secs : prev));
+    };
+    measure();
+    const ro = new ResizeObserver(measure);
+    ro.observe(wrap); ro.observe(r);
+    return () => ro.disconnect();
+  }, [open, scope, base, krExtra, stockExtra]);
 
   if (!open) {
     return (
@@ -122,6 +147,29 @@ export function MarketTickerBar({ refreshMs }: MarketTickerBarProps) {
 
   const items = SCOPES.find(([v]) => v === scope)?.[2] ?? US_ITEMS;
   const pickScope = (v: TickerScope) => { setScope(v); setTickerScope(v); };
+
+  const row = () => items.map(({ symbol, label }) => {
+    const q = base?.get(symbol) ?? krExtra?.get(symbol) ?? stockExtra?.get(symbol);
+    const url = quoteUrl(symbol);
+    return (
+      <a key={symbol} href={url} target="_blank" rel="noopener noreferrer"
+         onClick={e => handleTossLinkClick(e, url)}
+         title={`${label} — 시세 페이지 열기`}
+         className="flex items-center gap-1.5 text-[11px] hover:bg-gray-50 rounded px-1 py-0.5">
+        <span className="text-gray-500">{label}</span>
+        {q ? (
+          <>
+            <span className="font-semibold text-gray-900 tabular-nums">{fmtNum(q.price)}</span>
+            <span className={`tabular-nums ${signColor(q.diff)}`}>
+              {fmtDiff(q.diff)} ({Math.abs(q.pct).toFixed(2)}%)
+            </span>
+          </>
+        ) : (
+          <span className="text-gray-300 tabular-nums">—</span>
+        )}
+      </a>
+    );
+  });
 
   return (
     <>
@@ -144,30 +192,14 @@ export function MarketTickerBar({ refreshMs }: MarketTickerBarProps) {
         ))}
       </div>
 
-      <div className="flex-1 min-w-0 overflow-x-auto ticker-scroll">
-        <div className="flex items-center gap-4 px-3 whitespace-nowrap w-max mx-auto">
-          {items.map(({ symbol, label }) => {
-            const q = base?.get(symbol) ?? krExtra?.get(symbol) ?? fxExtra?.get(symbol);
-            const url = quoteUrl(symbol);
-            return (
-              <a key={symbol} href={url} target="_blank" rel="noopener noreferrer"
-                 onClick={e => handleTossLinkClick(e, url)}
-                 title={`${label} — 시세 페이지 열기`}
-                 className="flex items-center gap-1.5 text-[11px] hover:bg-gray-50 rounded px-1 py-0.5">
-                <span className="text-gray-500">{label}</span>
-                {q ? (
-                  <>
-                    <span className="font-semibold text-gray-900 tabular-nums">{fmtNum(q.price)}</span>
-                    <span className={`tabular-nums ${signColor(q.diff)}`}>
-                      {fmtDiff(q.diff)} ({Math.abs(q.pct).toFixed(2)}%)
-                    </span>
-                  </>
-                ) : (
-                  <span className="text-gray-300 tabular-nums">—</span>
-                )}
-              </a>
-            );
-          })}
+      <div ref={wrapRef}
+           className={`flex-1 min-w-0 ${flow > 0 ? "overflow-hidden" : "overflow-x-auto ticker-scroll"}`}>
+        <div className={`flex items-center gap-4 px-3 whitespace-nowrap w-max
+                         ${flow > 0 ? "ticker-marquee" : "mx-auto"}`}
+             style={flow > 0 ? { animationDuration: `${flow}s` } : undefined}>
+          <div ref={rowRef} className="flex items-center gap-4">{row()}</div>
+          {/* 흐를 때만 같은 줄을 한 벌 더 — 끊김 없이 이어지게 */}
+          {flow > 0 && <div className="flex items-center gap-4" aria-hidden>{row()}</div>}
         </div>
       </div>
 

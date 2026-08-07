@@ -2929,15 +2929,12 @@ export async function fetchTickerKrExtras(): Promise<Map<string, UsIndex>> {
   return out;
 }
 
-// 환율·금리 묶음 보조: EWY·KORU (토스 US 시세 1콜, 원화 환산)
-const TICKER_US_STOCKS = [
-  { symbol: "EWY",  name: "EWY" },
-  { symbol: "KORU", name: "KORU(3x한국)" },
-];
-export async function fetchTickerUsStockExtras(): Promise<Map<string, UsIndex>> {
-  const items = TICKER_US_STOCKS
-    .filter(p => TOSS_US_STOCK_CODE[p.symbol])
-    .map(p => ({ ...p, code: TOSS_US_STOCK_CODE[p.symbol] }));
+// 티커바 미국 종목 보조: EWY·KORU 등 (토스 US 시세 1콜, 원화 환산). 묶음별로 필요한 심볼만.
+export async function fetchTickerUsStockExtras(symbols: string[]): Promise<Map<string, UsIndex>> {
+  const items = symbols
+    .filter(sym => TOSS_US_STOCK_CODE[sym])
+    .map(sym => ({ symbol: sym, name: sym, code: TOSS_US_STOCK_CODE[sym] }));
+  if (items.length === 0) return new Map<string, UsIndex>();
   try { return await fetchTossUsIndexMap(items); }
   catch { return new Map<string, UsIndex>(); }
 }
