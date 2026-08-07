@@ -7,6 +7,7 @@ import {
   fetchKrHeatmap, heatmapTradingViewUrl, heatmapLogoUrl, heatmapRegion, ProxyHostError,
   HEATMAP_SOURCE_LABEL, type HeatmapSource, type HeatmapItem,
 } from "../lib/api";
+import { loadEtfWeights } from "../lib/etfWeights";
 import { squarify } from "../lib/treemap";
 import { loadKrNameDict, getRuntimeNames, fetchMissingKrNames } from "../lib/krStockNames";
 import { isMarketOpen } from "../lib/format";
@@ -23,13 +24,21 @@ const SOURCE_LIMIT: Partial<Record<HeatmapSource, number>> = {
 };
 
 // 크기 기준
-type SizeMode = "marketCap" | "volume" | "value" | "change";
-const SIZE_OPTS: { key: SizeMode; label: string }[] = [
+type SizeMode = "marketCap" | "volume" | "value" | "change" | "etfWeight";
+const SIZE_OPTS: { key: SizeMode; label: string; etfOnly?: boolean }[] = [
   { key: "marketCap", label: "시가총액" },
   { key: "volume", label: "거래량" },
   { key: "value", label: "거래대금" },
   { key: "change", label: "등락률(변동폭)" },
+  { key: "etfWeight", label: "ETF 비중", etfOnly: true },   // 지수 추종 ETF PDF 비중
 ];
+// 지수 소스 → 대표 ETF (ETF 비중 크기 모드용). weightKey = etf-weights.json 의 키. 매핑 없는 소스는 옵션 숨김.
+// 딱 그 ETF 가 추종하는 지수에서만 매핑(전체 소스엔 안 넣음 — 넣으면 ETF 편입종목만 남아 KOSPI200/KOSDAQ150 와 동일해짐).
+const SOURCE_ETF: Partial<Record<HeatmapSource, { name: string; weightKey: string }>> = {
+  kospi200:   { name: "KODEX 200",        weightKey: "kodex200" },
+  kosdaq150:  { name: "KODEX 코스닥150",   weightKey: "kodex_kosdaq150" },
+  kr_valueup: { name: "KODEX 코리아밸류업", weightKey: "kodex_valueup" },
+};
 // 색 기준 — 등락(1일) + 기간 수익률. 각 기준별 색 포화 범위(%)가 달라 강도 스케일도 다름.
 //   프리장·애프터장(usOnly)은 미국만 값이 있음(한국 scanner 는 null→0) → US 소스에서만 노출.
 type ColorMode = "change" | "pre" | "post" | "w" | "m1" | "m3" | "m6" | "ytd" | "y";
@@ -134,12 +143,39 @@ export function HeatmapTab() {
   // 상단 갱신 시계(전역 lastRefresh)에 히트맵 폴링 시각도 반영 — 히트맵 탭에서 시계 멈추던 문제 해결.
   useEffect(() => { if (q.dataUpdatedAt > 0) reportRefresh(q.dataUpdatedAt); }, [q.dataUpdatedAt]);
 
+  // ETF 비중 크기 모드 — 정적 사전(public/etf-weights.json, KODEX PDF 스냅샷)에서 비중 조회. 매핑 없으면 옵션 숨김.
+  const etfRef = SOURCE_ETF[source];
+  const sizeModeEff: SizeMode = sizeMode === "etfWeight" && !etfRef ? "marketCap" : sizeMode;
+  const etfWeightsQ = useQuery({
+    queryKey: ["etf-weights"],
+    queryFn: loadEtfWeights,
+    enabled: !!etfRef,   // KODEX 추종 소스면 크기 모드와 무관하게 로드 → 비중 항상 표시
+    staleTime: Infinity, refetchOnWindowFocus: false,
+  });
+  const weightMap = useMemo(() => {
+    const m = new Map<string, number>();
+    const src = etfRef && etfWeightsQ.data?.weights[etfRef.weightKey];
+    if (src) for (const [code, ratio] of Object.entries(src)) {
+      if (Number.isFinite(ratio) && ratio > 0) m.set(code, ratio);
+    }
+    return m;
+  }, [etfWeightsQ.data, etfRef]);
+  const weightOf = (code: string): number | null => {
+    const w = weightMap.get(code);
+    return w != null && Number.isFinite(w) ? w : null;
+  };
+
   const sizeVal = (it: HeatmapItem) =>
-    sizeMode === "change"
+    sizeModeEff === "etfWeight"
+      // ETF 비중(%) 로 면적. 로딩 전(맵 빈 상태)엔 시총으로 폴백해 빈 화면 방지. 미편입 종목은 0(안 보임).
+      ? (weightMap.size > 0 ? (weightMap.get(it.code) ?? 0) : (it.marketCap || 0))
+      : sizeModeEff === "change"
       // 등락률 변동폭 — 트리맵 면적은 음수 불가라 절댓값. 방향은 색으로 표현.
       // 보합(0%)도 사라지지 않게 하한 0.01 부여.
       ? Math.max(Math.abs(it.changePct), 0.01)
-      : (sizeMode === "marketCap" ? it.marketCap : sizeMode === "value" ? it.valueTraded : it.volume) || 0;
+      : (sizeModeEff === "marketCap" ? it.marketCap : sizeModeEff === "value" ? it.valueTraded : it.volume) || 0;
+  // ETF 비중은 추종 ETF 가 매핑된 지수에서만. 없으면 옵션 숨김.
+  const visibleSizeOpts = etfRef ? SIZE_OPTS : SIZE_OPTS.filter(o => !o.etfOnly);
   // 프리장·애프터장은 미국 소스에서만 선택 가능(한국은 값이 없음). 선택 후 KR 로 바꾸면 1일 등락률로 폴백.
   const visibleColorOpts = isKr ? COLOR_OPTS.filter(o => !o.usOnly) : COLOR_OPTS;
   const colorDef = visibleColorOpts.find(o => o.key === colorMode)
@@ -150,12 +186,12 @@ export function HeatmapTab() {
   // 실제 자금 이동이 없는 허수라 크기 왜곡을 유발. 데이터셋 거래대금 중앙값의 2% 미만이면 제외.
   // (시총/거래량 모드에선 이런 종목이 이미 작게 잡혀 필터 불필요 → change 모드에서만 적용)
   const liqFloor = useMemo(() => {
-    if (sizeMode !== "change") return 0;
+    if (sizeModeEff !== "change") return 0;
     const vals = (q.data ?? []).map(it => it.valueTraded).filter(v => v > 0).sort((a, b) => a - b);
     if (!vals.length) return 0;
     const median = vals[Math.floor(vals.length / 2)];
     return median * 0.02;
-  }, [sizeMode, q.data]);
+  }, [sizeModeEff, q.data]);
 
   // 한글 종목명 — 정적 사전(0콜) + 런타임 캐시. 사전에 없는 코드만 폴백 조회.
   const dictQ = useQuery({ queryKey: ["kr-name-dict"], queryFn: loadKrNameDict, staleTime: Infinity, refetchOnWindowFocus: false, enabled: isKr });
@@ -202,7 +238,7 @@ export function HeatmapTab() {
     }
     return { stocks, headers };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q.data, size.w, size.h, sizeMode, groupMode, liqFloor]);
+  }, [q.data, size.w, size.h, sizeModeEff, groupMode, liqFloor, weightMap]);
 
   const isHostErr = q.error instanceof ProxyHostError;
 
@@ -224,9 +260,9 @@ export function HeatmapTab() {
         </label>
         <label className="flex items-center gap-1 text-xs">
           <span className="text-gray-400">크기</span>
-          <select value={sizeMode} onChange={e => setSizeMode(e.target.value as SizeMode)}
+          <select value={sizeModeEff} onChange={e => setSizeMode(e.target.value as SizeMode)}
                   className="border border-gray-300 rounded px-1.5 py-1 bg-white font-medium text-gray-700">
-            {SIZE_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+            {visibleSizeOpts.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
           </select>
         </label>
         <label className="flex items-center gap-1 text-xs">
@@ -335,6 +371,12 @@ export function HeatmapTab() {
                     {t.it.code}
                   </span>
                   <span className="leading-none pointer-events-none" style={{ fontSize: pctFs }}>{fmtPct(colorDef.field(t.it))}</span>
+                  {weightOf(t.it.code) != null && (
+                    <span className="leading-none font-bold pointer-events-none bg-black/25 rounded px-1"
+                          style={{ fontSize: Math.max(7, Math.round(codeFs * 0.7)) }}>
+                      비중 {weightOf(t.it.code)!.toFixed(2)}%
+                    </span>
+                  )}
                 </>
               )}
             </div>
@@ -393,6 +435,9 @@ export function HeatmapTab() {
             <div className="flex justify-between gap-4"><span className="text-gray-400">거래량</span><span>{hover.it.volume.toLocaleString()}</span></div>
             <div className="flex justify-between gap-4"><span className="text-gray-400">거래대금</span><span>{isKr ? fmtCap(hover.it.valueTraded) : fmtCapUsd(hover.it.valueTraded)}</span></div>
             <div className="flex justify-between gap-4"><span className="text-gray-400">시총</span><span>{isKr ? fmtCap(hover.it.marketCap) : fmtCapUsd(hover.it.marketCap)}</span></div>
+            {etfRef && weightOf(hover.it.code) != null && (
+              <div className="flex justify-between gap-4"><span className="text-gray-400">{etfRef.name} 비중</span><span className="font-bold text-amber-300">{weightOf(hover.it.code)!.toFixed(2)}%</span></div>
+            )}
           </div>
         </div>
       )}
