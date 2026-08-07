@@ -2778,7 +2778,7 @@ interface TossOverviewResp {
 }
 
 // 1콜 → Map<야후심볼, UsIndex>. 실패하면 빈 Map (호출측에서 Yahoo base 가 폴백).
-async function fetchTossOverview(): Promise<Map<string, UsIndex>> {
+async function fetchTossOverviewRaw(): Promise<Map<string, UsIndex>> {
   const out = new Map<string, UsIndex>();
   try {
     const resp = await fetchProxied(TOSS_OVERVIEW_URL);
@@ -2815,6 +2815,96 @@ async function fetchTossOverview(): Promise<Map<string, UsIndex>> {
     }
   } catch { /* Yahoo base 폴백 */ }
   return out;
+}
+
+// overview 는 지수 탭(fetchYahooBatch)과 하단 티커바가 같은 주기로 각각 부른다.
+//  같은 1콜을 두 번 태우지 않도록 진행 중 요청은 공유하고, 방금 받은 결과는 짧게 재사용.
+const OVERVIEW_SHARE_MS = 3000;
+let overviewInflight: Promise<Map<string, UsIndex>> | null = null;
+let overviewCache: { at: number; map: Map<string, UsIndex> } | null = null;
+
+export function fetchTossOverview(): Promise<Map<string, UsIndex>> {
+  if (overviewCache && Date.now() - overviewCache.at < OVERVIEW_SHARE_MS) {
+    return Promise.resolve(overviewCache.map);
+  }
+  if (overviewInflight) return overviewInflight;
+  overviewInflight = fetchTossOverviewRaw()
+    .then(m => {
+      if (m.size > 0) overviewCache = { at: Date.now(), map: m };   // 실패(빈 Map)는 캐시하지 않음
+      return m;
+    })
+    .finally(() => { overviewInflight = null; });
+  return overviewInflight;
+}
+
+// ─── 하단 지수 티커바 보조 시세 ───────────────────────────────────────────
+// overview 1콜로 못 채우는 항목만 묶음별로 따로 받는다. 티커바에서 '고른 묶음'일 때만
+// 호출되므로(다른 묶음은 enabled=false) 안 보는 묶음의 폴링 비용은 0.
+
+// 티커바용 최소 UsIndex — 가격/기준가만 있으면 diff·pct 는 파생.
+function tickerIndex(symbol: string, name: string, price: number, base: number): UsIndex {
+  const diff = price - base;
+  return {
+    symbol, name, price, prev: base, prevClose: base,
+    diff, pct: base > 0 ? (diff / base) * 100 : 0,
+    currency: "", tradeDate: "", marketState: "",
+  };
+}
+
+// yasun 실시간 피드는 전 종목 1응답 — 주간/야간선물 2종을 1콜로 받는다(캔들은 티커바에 불필요).
+async function fetchYasunQuotesForTicker(): Promise<Map<string, UsIndex>> {
+  const out = new Map<string, UsIndex>();
+  try {
+    const resp = await fetchProxied("https://yasun.gg/api/prices");
+    if (!resp.ok) return out;
+    const arr = await resp.json();
+    if (!Array.isArray(arr)) return out;
+    const byReal = new Map((arr as YasunPrice[]).map(x => [x.symbol, x]));
+    for (const [virtual, real] of Object.entries(YASUN_SYMBOL_MAP)) {
+      const q = byReal.get(real);
+      if (!q || typeof q.price !== "number") continue;
+      // yasun 은 change(전일 정산가 대비)를 그대로 주므로 base 를 역산해 공통 형식으로 변환.
+      out.set(virtual, tickerIndex(virtual, virtual, q.price, q.price - (q.change ?? 0)));
+    }
+  } catch { /* 실패 시 해당 항목만 '—' */ }
+  return out;
+}
+
+// 국내 묶음 보조: 야선 1콜 + KODEX 1콜 + 밸류업 1콜 + V-KOSPI(CNBC 직접 = 프록시 0)
+const TICKER_KR_ETFS = ["069500", "229200"];   // KODEX 200 · KODEX 코스닥150
+export async function fetchTickerKrExtras(): Promise<Map<string, UsIndex>> {
+  const out = new Map<string, UsIndex>();
+  const [yasun, etfs, valueup, vkospi] = await Promise.all([
+    fetchYasunQuotesForTicker(),
+    fetchTossPrices(TICKER_KR_ETFS).catch(() => [] as Price[]),
+    // 밸류업 지수 — basic 만 필요(스파크라인 없음)라 1콜.
+    fetchProxied("https://m.stock.naver.com/api/index/KVALUE/basic")
+      .then(r => r.json() as Promise<{ closePrice?: string; compareToPreviousClosePrice?: string }>)
+      .catch(() => null),
+    fetchCnbcIndexPrice("VKOSPI", "V-KOSPI"),
+  ]);
+  for (const [sym, v] of yasun) out.set(sym, v);
+  for (const p of etfs) out.set(p.ticker, tickerIndex(p.ticker, p.ticker, p.price, p.base || p.prevClose));
+  if (valueup) {
+    const price = naverNum(valueup.closePrice);
+    const diff = naverNum(valueup.compareToPreviousClosePrice);   // 부호 포함
+    if (price > 0) out.set("KVALUE", tickerIndex("KVALUE", "코리아 밸류업", price, price - diff));
+  }
+  if (vkospi) out.set("VKOSPI", vkospi);
+  return out;
+}
+
+// 환율·금리 묶음 보조: EWY·KORU (토스 US 시세 1콜, 원화 환산)
+const TICKER_US_STOCKS = [
+  { symbol: "EWY",  name: "EWY" },
+  { symbol: "KORU", name: "KORU(3x한국)" },
+];
+export async function fetchTickerUsStockExtras(): Promise<Map<string, UsIndex>> {
+  const items = TICKER_US_STOCKS
+    .filter(p => TOSS_US_STOCK_CODE[p.symbol])
+    .map(p => ({ ...p, code: TOSS_US_STOCK_CODE[p.symbol] }));
+  try { return await fetchTossUsIndexMap(items); }
+  catch { return new Map<string, UsIndex>(); }
 }
 
 // CNBC — Yahoo/토스에 없는 지수 (VKOSPI 등).
@@ -3577,9 +3667,9 @@ export function heatmapLogoUrl(logoid: string): string {
 export type HeatmapRegion = "kr" | "us";
 interface HeatmapMeta { label: string; region: HeatmapRegion; symbolset: string | null; tvDs: string; sectorFilter?: string }
 const HEATMAP_META: Record<HeatmapSource, HeatmapMeta> = {
-  kospi200:  { label: "KOSPI 200",   region: "kr", symbolset: "SYML:KRX;KOSPI200",  tvDs: "KOSPI200" },
+  kospi200:  { label: "KODEX 200",   region: "kr", symbolset: "SYML:KRX;KOSPI200",  tvDs: "KOSPI200" },
   kospi:     { label: "코스피 전체",  region: "kr", symbolset: "SYML:KRX;KOSPI",     tvDs: "KOSPI" },
-  kosdaq150: { label: "KOSDAQ 150",  region: "kr", symbolset: "SYML:KRX;KOSDAQ150", tvDs: "KOSDAQ150" },
+  kosdaq150: { label: "KODEX 코스닥150", region: "kr", symbolset: "SYML:KRX;KOSDAQ150", tvDs: "KOSDAQ150" },
   kosdaq:    { label: "코스닥 전체",  region: "kr", symbolset: "SYML:KRX;KOSDAQ",    tvDs: "KOSDAQ" },
   all:       { label: "전체(한국)",   region: "kr", symbolset: null,                 tvDs: "allKR" },
   // 코리아 밸류업 — symbolset 미지원. 네이버 편입종목 100코드를 런타임 tickers 로 조회(fetchKrHeatmap 분기).

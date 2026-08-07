@@ -54,6 +54,8 @@ function quoteUrl(symbol: string): string {
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
+import { MarketTickerBar } from "./MarketTickerBar";
+import { TICKER_BAR_H, useTickerBarOpen } from "../lib/tickerBar";
 import { RefreshIndicator } from "./RefreshIndicator";
 import { forceUpdate } from "./VersionBadge";
 import { NewVersionToast } from "./NewVersionToast";
@@ -235,6 +237,9 @@ export function MobileSimpleView() {
   const REFRESH_MS = tossMaint.active
     ? (tossMaint.needsWorkerUpdate ? 300_000 : 60_000)
     : adaptiveRefreshMs;
+
+  // 하단 지수 티커바 펼침 여부 — 합계바(fixed bottom)를 그 높이만큼 올리는 데 사용
+  const tickerBarOpen = useTickerBarOpen();
 
   // 보유 종목 로드 (그룹 탭 라벨 + 그룹 종목 표시)
   const { data: rawHoldings = [] } = useQuery({
@@ -1255,7 +1260,8 @@ export function MobileSimpleView() {
                   {todayPnLOpen && (
                     <div className="fixed inset-0 z-30" onClick={() => setTodayPnLOpen(false)} />
                   )}
-                  <div className="fixed bottom-0 left-0 right-0 z-40
+                  <div style={{ bottom: tickerBarOpen ? TICKER_BAR_H : 0 }}
+                       className="fixed left-0 right-0 z-40
                                    pb-2 px-3 flex flex-col items-center gap-2
                                    pointer-events-none">
                     {todayPnLOpen && (
@@ -1289,7 +1295,8 @@ export function MobileSimpleView() {
                   <div className="fixed inset-0 z-30"
                        onClick={() => setTodayPnLOpen(false)} />
                 )}
-                <div className="fixed bottom-0 left-0 right-0 z-40
+                <div style={{ bottom: tickerBarOpen ? TICKER_BAR_H : 0 }}
+                     className="fixed left-0 right-0 z-40
                                  pb-2 px-3 flex flex-col items-center gap-2
                                  pointer-events-none">
                   {todayPnLOpen && (
@@ -1804,6 +1811,9 @@ export function MobileSimpleView() {
           </div>
         </div>
       )}
+
+      {/* 하단 고정 지수 티커바 — PC(App)와 동일 컴포넌트. 합계바는 이 높이만큼 위로 올라간다 */}
+      <MarketTickerBar refreshMs={REFRESH_MS} />
     </div>
   );
 }

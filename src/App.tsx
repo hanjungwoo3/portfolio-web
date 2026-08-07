@@ -43,6 +43,8 @@ import { MyStockEditDialog } from "./components/MyStockEditDialog";
 import { UsMarketTab } from "./components/UsMarketTab";
 import { StockMarketTab } from "./components/StockMarketTab";
 import { SemiCheckTab } from "./components/SemiCheckTab";
+import { MarketTickerBar } from "./components/MarketTickerBar";
+import { TICKER_BAR_H, useTickerBarOpen } from "./lib/tickerBar";
 import { RefreshIndicator } from "./components/RefreshIndicator";
 import { forceUpdate } from "./components/VersionBadge";
 import { NewVersionToast } from "./components/NewVersionToast";
@@ -136,6 +138,8 @@ function Dashboard() {
   const manualPoll = BASE_REFRESH_MS === 0;
   const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey]);
   const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
+  // 하단 지수 티커바 펼침 여부 — 합계 sticky 행을 그 높이만큼 위로 올리는 데 사용
+  const tickerBarOpen = useTickerBarOpen();
   // 토스 점검 중 — 네이버 fallback(60초), 워커 미지원 시 5분 백오프
   const tossMaint = useTossMaintenance();
   const REFRESH_MS = tossMaint.active
@@ -941,7 +945,9 @@ function Dashboard() {
                 </div>
               );
             })()}
-            <div className="sticky bottom-0 z-40 mt-3 w-full flex flex-wrap items-start gap-2">
+            {/* 하단 티커바 위에 붙도록 bottom 오프셋 — 티커바 접으면 0 */}
+            <div style={{ bottom: tickerBarOpen ? TICKER_BAR_H : 0 }}
+                 className="sticky z-40 mt-3 w-full flex flex-wrap items-start gap-2">
               <TotalRow holdings={visible} prices={priceMap}
                         account={activeTab}
                         aggregated={activeTab === MY_STOCKS_TAB_KEY}
@@ -958,6 +964,9 @@ function Dashboard() {
           </>
         )}
       </main>
+
+      {/* 하단 고정 지수 티커바 (S&P500·선물·러셀·다우·필반·VIX) — 폴링 주기마다 자동 갱신 */}
+      <MarketTickerBar refreshMs={REFRESH_MS} />
 
       {onboardReady && (
         <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />

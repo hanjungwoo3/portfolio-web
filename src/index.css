@@ -17,3 +17,12 @@ body {
   color: #1f2937;
   overflow-x: clip;
 }
+
+/* 하단 지수 티커바 — 30px 높이라 가로 스크롤바가 보이면 값이 가려진다. 스크롤은 유지, 바만 숨김. */
+.ticker-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.ticker-scroll::-webkit-scrollbar {
+  display: none;
+}
