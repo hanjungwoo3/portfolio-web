@@ -5,14 +5,37 @@
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { fetchValuationRow, type ValuationRow } from "../lib/fundamentals";
+import { fetchInvestorHistorySafe } from "../lib/api";
 import { openTossStock } from "../lib/toss";
+import { signColor } from "../lib/format";
+import type { Investor } from "../types";
 import type { ConsensusItem } from "./ConsensusTab";
 
 const VALUATION_STALE_MS = 6 * 60 * 60 * 1000;
+const INVESTOR_STALE_MS = 60 * 60 * 1000;   // 수급은 하루 1회 확정 — 1시간 캐시(컨센서스 탭과 공유)
+
+// 최근 순매수 기간 — 기업가치 팝업의 "5일/20일/60일" 과 동일
+const FLOW_DAYS = [5, 20, 60] as const;
+type FlowDays = typeof FLOW_DAYS[number];
+const FLOW_LABEL: Record<FlowDays, string> = { 5: "5일", 20: "20일(1개월)", 60: "60일(3개월)" };
+
+// 최근 n일 누적 순매수(주식수) — 배열은 최신순
+function sumLast(arr: Investor[] | undefined, key: "개인" | "외국인" | "기관" | "연기금", n: number): number | null {
+  if (!arr || arr.length === 0) return null;
+  return arr.slice(0, n).reduce((s, d) => s + (Number(d[key]) || 0), 0);
+}
+// 주식수 — 억/만 단위 축약(부호 포함)
+function fmtShares(v: number): string {
+  const a = Math.abs(v), sign = v < 0 ? "-" : v > 0 ? "+" : "";
+  if (a >= 1e8) return `${sign}${(a / 1e8).toFixed(1)}억`;
+  if (a >= 1e4) return `${sign}${Math.round(a / 1e4).toLocaleString()}만`;
+  return `${sign}${a.toLocaleString()}`;
+}
 
 type ColKey =
   | "name" | "market_cap" | "per" | "pbr" | "eps" | "bps" | "industry_per"
-  | "revenue" | "operating_income" | "operating_margin" | "net_margin" | "roe";
+  | "revenue" | "operating_income" | "operating_margin" | "net_margin" | "roe"
+  | "flow_foreign" | "flow_inst" | "flow_pension" | "flow_indiv";
 
 interface Col {
   key: ColKey;
@@ -21,6 +44,7 @@ interface Col {
   hint: string;
   digits?: number;      // 소수점 자리 (미지정 = 정수)
   goodHigh?: boolean;   // true = 클수록 좋음(초록), false = 작을수록 좋음
+  flow?: boolean;       // 순매수 열 — 주식수 축약 + 매수/매도 색
 }
 
 const COLS: Col[] = [
@@ -36,6 +60,11 @@ const COLS: Col[] = [
   { key: "operating_margin", label: "영업이익률",   unit: "%", digits: 2, goodHigh: true, hint: "영업이익 ÷ 매출액. 높을수록 경쟁력." },
   { key: "net_margin",       label: "순이익률",     unit: "%", digits: 2, goodHigh: true, hint: "순이익 ÷ 매출액." },
   { key: "roe",              label: "ROE",          unit: "%", digits: 2, goodHigh: true, hint: "자기자본수익률. 15% 이상이면 우수." },
+  // 최근 수급 — 선택한 기간(5/20/60일) 누적 순매수 주식수
+  { key: "flow_foreign",     label: "외국인",       unit: "주", flow: true, hint: "선택 기간 외국인 누적 순매수(주식수). +매수 / −매도." },
+  { key: "flow_inst",        label: "기관계",       unit: "주", flow: true, hint: "선택 기간 기관 누적 순매수(주식수)." },
+  { key: "flow_pension",     label: "연기금",       unit: "주", flow: true, hint: "선택 기간 연기금 누적 순매수(주식수). 국민연금 등." },
+  { key: "flow_indiv",       label: "개인",         unit: "주", flow: true, hint: "선택 기간 개인 누적 순매수(주식수)." },
 ];
 
 interface Row extends ValuationRow {
@@ -43,6 +72,10 @@ interface Row extends ValuationRow {
   label: string;                 // 표시용 종목명 (보유 목록 기준, 없으면 네이버 이름)
   market?: "KOSPI" | "KOSDAQ";
   loading: boolean;
+  flow_foreign?: number | null;
+  flow_inst?: number | null;
+  flow_pension?: number | null;
+  flow_indiv?: number | null;
 }
 
 function numOf(r: Row, key: ColKey): number | null {
@@ -53,12 +86,14 @@ function numOf(r: Row, key: ColKey): number | null {
 
 function fmtCell(v: number | null, col: Col): string {
   if (v == null) return "—";
+  if (col.flow) return fmtShares(v);
   if (col.digits) return v.toLocaleString("ko-KR", { minimumFractionDigits: col.digits, maximumFractionDigits: col.digits });
   return Math.round(v).toLocaleString("ko-KR");
 }
 
 // 값 색 — 손익 색과 헷갈리지 않게 회색 기본, 판단 기준이 뚜렷한 열만 강조.
 function cellColor(v: number | null, col: Col): string {
+  if (col.flow) return v == null ? "text-gray-800" : signColor(v);   // 순매수 = 매수 빨강 / 매도 파랑
   if (v == null || col.goodHigh === undefined) return "text-gray-800";
   if (col.key === "roe") return v >= 15 ? "text-emerald-600 font-bold" : v < 0 ? "text-rose-600" : "text-gray-800";
   if (col.key === "per") return v > 0 && v < 10 ? "text-emerald-600 font-bold" : "text-gray-800";
@@ -79,6 +114,7 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
   );
   const [sortKey, setSortKey] = useState<ColKey>("market_cap");
   const [asc, setAsc] = useState(false);
+  const [flowDays, setFlowDays] = useState<FlowDays>(20);
 
   const qs = useQueries({
     queries: tickers.map(t => ({
@@ -88,6 +124,16 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
       gcTime: VALUATION_STALE_MS,
       refetchOnWindowFocus: false,
       retry: 1,
+    })),
+  });
+
+  // 최근 수급(외국인·기관·연기금·개인) — 종목당 1콜. 컨센서스 탭과 같은 쿼리키라 캐시를 공유한다.
+  const invQs = useQueries({
+    queries: tickers.map(t => ({
+      queryKey: ["investor-history-long", t],
+      queryFn: () => fetchInvestorHistorySafe(t, [200, 120, 60]),
+      staleTime: INVESTOR_STALE_MS,
+      refetchOnWindowFocus: false,
     })),
   });
 
@@ -101,12 +147,17 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
     const q = qs[i];
     const d = q?.data;
     const meta = metaByTicker.get(t);
+    const inv = invQs[i]?.data;
     return {
       ...(d ?? { ticker: t }),
       ticker: t,
       label: meta?.name || d?.name || t,
       market: meta?.market,
       loading: !!q?.isLoading,
+      flow_foreign: sumLast(inv, "외국인", flowDays),
+      flow_inst:    sumLast(inv, "기관", flowDays),
+      flow_pension: sumLast(inv, "연기금", flowDays),
+      flow_indiv:   sumLast(inv, "개인", flowDays),
     };
   });
 
@@ -146,11 +197,28 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
           {loaded < tickers.length ? `불러오는 중 ${loaded}/${tickers.length}` : `${tickers.length}종목`}
           {" · 열 제목을 누르면 정렬"}
         </span>
+        {/* 수급 기간 — 외국인·기관계·연기금·개인 열에 적용 */}
+        <div className="ml-auto flex items-center gap-1">
+          <span className="text-[10px] text-gray-500">수급 기간</span>
+          {FLOW_DAYS.map(d => (
+            <button key={d} onClick={() => setFlowDays(d)}
+                    title={`최근 ${FLOW_LABEL[d]} 누적 순매수로 보기`}
+                    className={`px-1.5 py-0.5 rounded text-[11px] transition
+                                ${flowDays === d
+                                  ? "bg-gray-900 text-white font-bold"
+                                  : "text-gray-500 hover:bg-gray-100"}`}>
+              {d}일
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="overflow-x-auto border border-gray-200 rounded bg-white">
+      {/* 표 자체를 스크롤 영역으로 — 그래야 헤더 행이 위에 고정된 채로 세로 스크롤된다.
+          (페이지 스크롤에 맡기면 가로 스크롤 컨테이너 안이라 헤더가 같이 밀려 올라간다) */}
+      <div className="overflow-auto border border-gray-200 rounded bg-white
+                      max-h-[calc(100vh-150px)] overscroll-contain">
         <table className="min-w-full text-[11px] border-collapse">
-          <thead className="sticky top-0 z-10 bg-gray-50">
+          <thead className="sticky top-0 z-20 bg-gray-50 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
             <tr>
               {COLS.map(col => {
                 const active = col.key === sortKey;
@@ -159,10 +227,12 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
                       onClick={() => clickCol(col.key)}
                       title={`${col.hint}\n(클릭: 정렬)`}
                       className={`px-2 py-1.5 whitespace-nowrap cursor-pointer select-none border-b border-gray-200
-                                  ${col.key === "name" ? "text-left sticky left-0 bg-gray-50 z-10" : "text-right"}
+                                  ${col.key === "name" ? "text-left sticky left-0 bg-gray-50 z-30" : "text-right"}
                                   ${active ? "text-blue-700 font-bold" : "text-gray-600 hover:text-gray-900"}`}>
                     {col.label}
-                    {col.unit && <span className="text-[10px] text-gray-400">{` (${col.unit})`}</span>}
+                    {col.flow
+                      ? <span className="text-[10px] text-gray-400">{` ${flowDays}일`}</span>
+                      : col.unit && <span className="text-[10px] text-gray-400">{` (${col.unit})`}</span>}
                     {active && <span className="ml-0.5">{asc ? "▲" : "▼"}</span>}
                   </th>
                 );
@@ -210,7 +280,8 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
       </div>
 
       <div className="text-[10px] text-gray-400 px-1 leading-relaxed">
-        출처: 네이버 금융(시총·PER·PBR·EPS·BPS·동일업종 PER) · 와이즈리포트(매출액·영업이익·이익률·ROE, 최근 연간).
+        출처: 네이버 금융(시총·PER·PBR·EPS·BPS·동일업종 PER, 일별 투자자 순매수) · 와이즈리포트(매출액·영업이익·이익률·ROE, 최근 연간).
+        수급은 선택 기간 누적 <span className="text-rose-600">순매수(+)</span>/<span className="text-blue-600">순매도(−)</span> 주식수입니다.
         값이 <span className="text-gray-500">—</span> 인 항목은 해당 종목에 공시 데이터가 없는 경우입니다(ETF·리츠 등).
       </div>
     </div>
