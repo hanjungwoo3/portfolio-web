@@ -651,3 +651,60 @@ export function formatIndicator(key: string, val: unknown): string {
   const formatted = isInt ? Math.round(num).toLocaleString() : num.toFixed(2);
   return unit ? `${formatted}${unit}` : formatted;
 }
+
+// ─────────── 관심종목 가치지표 표 (ValuationTableTab) ───────────
+// 표는 종목 수만큼 호출이 나간다(종목당 네이버 메인 1 + 와이즈리포트 1 = 2콜).
+// 한꺼번에 쏘면 프록시가 막히므로 동시 실행을 제한하고, 도착하는 대로 표에 채운다.
+const VALUATION_CONCURRENCY = 3;
+let valuationRunning = 0;
+const valuationQueue: (() => void)[] = [];
+
+function acquireValuationSlot(): Promise<void> {
+  if (valuationRunning < VALUATION_CONCURRENCY) {
+    valuationRunning++;
+    return Promise.resolve();
+  }
+  return new Promise<void>(resolve => valuationQueue.push(() => { valuationRunning++; resolve(); }));
+}
+function releaseValuationSlot(): void {
+  valuationRunning--;
+  const next = valuationQueue.shift();
+  if (next) next();
+}
+
+// "2,838" / "1조 2,345" 형태 시총 텍스트 → 억원 숫자 (정렬·포맷용)
+export function marketCapEok(text?: string): number | null {
+  if (!text) return null;
+  const cleaned = text.replace(/[,\s]/g, "");
+  const jo = /([\d.]+)조/.exec(cleaned);
+  const eok = /([\d.]+)억/.exec(cleaned);
+  if (!jo && !eok) {
+    const n = Number(cleaned.replace(/[^\d.]/g, ""));
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+  const v = (jo ? Number(jo[1]) * 10_000 : 0) + (eok ? Number(eok[1]) : 0);
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
+export interface ValuationRow extends FundamentalData {
+  ticker: string;
+  market_cap?: number;   // 억원 (정렬용 숫자)
+}
+
+// 표 한 줄 — 네이버 메인(시총/PER/PBR/EPS/BPS/동일업종PER) + 와이즈리포트(매출/영업이익/이익률/ROE).
+//   기업가치 팝업(fetchFullValuation)과 달리 리포트·주주 조회는 하지 않는다(표에 안 쓰므로 2콜만).
+export async function fetchValuationRow(ticker: string): Promise<ValuationRow> {
+  if (!/^\d{6}$/.test(ticker)) return { ticker };
+  await acquireValuationSlot();
+  try {
+    const [naver, wise] = await Promise.all([
+      fetchNaverMain(ticker),
+      fetchWisereport(ticker),
+    ]);
+    const merged: ValuationRow = { ...naver, ...wise, ticker };
+    merged.market_cap = marketCapEok(merged.market_cap_text) ?? undefined;
+    return merged;
+  } finally {
+    releaseValuationSlot();
+  }
+}
