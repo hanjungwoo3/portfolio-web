@@ -5,7 +5,12 @@
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { fetchValuationRow, type ValuationRow } from "../lib/fundamentals";
-import { fetchInvestorHistorySafe } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistory } from "../lib/api";
+import {
+  computeValueBurst, dateToNum, toEok, burstThresholdWon,
+  loadBurstLevel, saveBurstLevel, BURST_BARS, BURST_LEVELS,
+  type BurstStat, type BurstLevel,
+} from "../lib/valueBurst";
 import { openTossStock } from "../lib/toss";
 import { signColor } from "../lib/format";
 import type { Investor } from "../types";
@@ -18,6 +23,9 @@ const INVESTOR_STALE_MS = 60 * 60 * 1000;   // 수급은 하루 1회 확정 — 
 const FLOW_DAYS = [5, 20, 60] as const;
 type FlowDays = typeof FLOW_DAYS[number];
 const FLOW_LABEL: Record<FlowDays, string> = { 5: "5일", 20: "20일(1개월)", 60: "60일(3개월)" };
+
+// 거래대금 급증일 기준(BURST_BARS/BURST_LEVELS)은 valueBurst.ts 에서 공유 —
+// 여기서 고른 기준이 기업가치 차트의 거래량 강조에도 그대로 적용된다.
 
 // 최근 n일 누적 순매수(주식수) — 배열은 최신순
 function sumLast(arr: Investor[] | undefined, key: "개인" | "외국인" | "기관" | "연기금", n: number): number | null {
@@ -35,7 +43,8 @@ function fmtShares(v: number): string {
 type ColKey =
   | "name" | "market_cap" | "per" | "pbr" | "eps" | "bps" | "industry_per"
   | "revenue" | "operating_income" | "operating_margin" | "net_margin" | "roe"
-  | "flow_foreign" | "flow_inst" | "flow_pension" | "flow_indiv";
+  | "flow_foreign" | "flow_inst" | "flow_pension" | "flow_indiv"
+  | "burst_days" | "burst_max" | "burst_last" | "burst_turnover";
 
 interface Col {
   key: ColKey;
@@ -45,6 +54,8 @@ interface Col {
   digits?: number;      // 소수점 자리 (미지정 = 정수)
   goodHigh?: boolean;   // true = 클수록 좋음(초록), false = 작을수록 좋음
   flow?: boolean;       // 순매수 열 — 주식수 축약 + 매수/매도 색
+  burst?: boolean;      // 거래대금 급증 열 — 0/없음을 흐리게 표시
+  date?: boolean;       // YYYYMMDD 숫자를 날짜로 표시
 }
 
 const COLS: Col[] = [
@@ -65,6 +76,11 @@ const COLS: Col[] = [
   { key: "flow_inst",        label: "기관계",       unit: "주", flow: true, hint: "선택 기간 기관 누적 순매수(주식수)." },
   { key: "flow_pension",     label: "연기금",       unit: "주", flow: true, hint: "선택 기간 연기금 누적 순매수(주식수). 국민연금 등." },
   { key: "flow_indiv",       label: "개인",         unit: "주", flow: true, hint: "선택 기간 개인 누적 순매수(주식수)." },
+  // 거래대금 급증 — 최근 30거래일 중 양봉이면서 기준금액을 넘긴 날
+  { key: "burst_days",     label: "터진일수",   unit: "일",   burst: true, hint: `최근 ${BURST_BARS}거래일 중 양봉 + 거래대금이 기준을 넘은 날의 수. 셀에 마우스를 올리면 날짜별 상세.` },
+  { key: "burst_max",      label: "최대대금",   unit: "억원", burst: true, hint: "그 날들 중 가장 큰 거래대금. 종가 × 거래량 근사." },
+  { key: "burst_turnover", label: "시총대비",   unit: "%", digits: 1, burst: true, hint: "최대대금 ÷ 시가총액. 소형주가 크게 나오면 손바뀜이 격했다는 뜻 — 테마주 판별에 유용." },
+  { key: "burst_last",     label: "최근터진날", burst: true, date: true, hint: "가장 최근에 조건을 충족한 날." },
 ];
 
 interface Row extends ValuationRow {
@@ -76,6 +92,11 @@ interface Row extends ValuationRow {
   flow_inst?: number | null;
   flow_pension?: number | null;
   flow_indiv?: number | null;
+  burst_days?: number | null;
+  burst_max?: number | null;
+  burst_turnover?: number | null;
+  burst_last?: number | null;     // YYYYMMDD (정렬 가능하도록 숫자)
+  burst?: BurstStat;              // 툴팁용 원본
 }
 
 function numOf(r: Row, key: ColKey): number | null {
@@ -86,6 +107,11 @@ function numOf(r: Row, key: ColKey): number | null {
 
 function fmtCell(v: number | null, col: Col): string {
   if (v == null) return "—";
+  if (col.date) {                      // 20260807 → 08-07
+    const s = String(v);
+    return s.length === 8 ? `${s.slice(4, 6)}-${s.slice(6, 8)}` : s;
+  }
+  if (col.key === "burst_days" && v === 0) return "—";   // 0일은 '없음'으로 읽히게
   if (col.flow) return fmtShares(v);
   if (col.digits) return v.toLocaleString("ko-KR", { minimumFractionDigits: col.digits, maximumFractionDigits: col.digits });
   return Math.round(v).toLocaleString("ko-KR");
@@ -93,6 +119,18 @@ function fmtCell(v: number | null, col: Col): string {
 
 // 값 색 — 손익 색과 헷갈리지 않게 회색 기본, 판단 기준이 뚜렷한 열만 강조.
 function cellColor(v: number | null, col: Col): string {
+  if (col.burst) {
+    // 조건 충족이 있는 종목만 눈에 띄게 — 없는 종목은 흐리게 깔아둔다.
+    if (v == null || v === 0) return "text-gray-300";
+    if (col.key === "burst_days") {
+      // 터진일수 = 이 표의 핵심 열 — 빈도에 따라 배경까지 단계적으로 진해진다.
+      if (v >= 5) return "text-white font-bold bg-rose-600 rounded";
+      if (v >= 3) return "text-rose-700 font-bold bg-rose-100 rounded";
+      return "text-rose-600 font-bold bg-rose-50 rounded";
+    }
+    if (col.key === "burst_turnover") return v >= 20 ? "text-rose-600 font-bold" : "text-gray-800";
+    return "text-gray-800";
+  }
   if (col.flow) return v == null ? "text-gray-800" : signColor(v);   // 순매수 = 매수 빨강 / 매도 파랑
   if (v == null || col.goodHigh === undefined) return "text-gray-800";
   if (col.key === "roe") return v >= 15 ? "text-emerald-600 font-bold" : v < 0 ? "text-rose-600" : "text-gray-800";
@@ -100,6 +138,17 @@ function cellColor(v: number | null, col: Col): string {
   if (col.key === "pbr") return v > 0 && v < 1 ? "text-emerald-600 font-bold" : "text-gray-800";
   if (col.goodHigh) return v < 0 ? "text-rose-600" : "text-gray-800";
   return "text-gray-800";
+}
+
+// 급증일 셀 호버 — 날짜별 거래대금/등락을 한 번에 (표 밖으로 안 나가게 최대 8줄)
+function burstTooltip(r: Row): string | undefined {
+  const hits = r.burst?.hits;
+  if (!hits || hits.length === 0) return undefined;
+  const lines = hits.slice(0, 8).map(h =>
+    `${h.date}  ${toEok(h.value).toLocaleString()}억  ` +
+    `${h.open.toLocaleString()}→${h.close.toLocaleString()} (+${h.pct.toFixed(2)}%)`);
+  if (hits.length > 8) lines.push(`… 외 ${hits.length - 8}일`);
+  return `${r.label} — 조건 충족 ${hits.length}일\n${lines.join("\n")}`;
 }
 
 interface ValuationTableTabProps {
@@ -115,6 +164,8 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
   const [sortKey, setSortKey] = useState<ColKey>("market_cap");
   const [asc, setAsc] = useState(false);
   const [flowDays, setFlowDays] = useState<FlowDays>(20);
+  const [burstLevel, setBurstLevel] = useState<BurstLevel>(loadBurstLevel);
+  const pickBurstLevel = (v: BurstLevel) => { setBurstLevel(v); saveBurstLevel(v); };
 
   const qs = useQueries({
     queries: tickers.map(t => ({
@@ -137,6 +188,16 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
     })),
   });
 
+  // 일봉(3개월) — 대시보드 카드 sparkline 과 같은 쿼리키라 캐시를 그대로 쓴다(추가 호출 없음).
+  const priceQs = useQueries({
+    queries: tickers.map(t => ({
+      queryKey: ["kr-price-history", t, "3mo"],
+      queryFn: () => fetchKrPriceHistory(t, "3mo"),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
+  });
+
   const metaByTicker = useMemo(() => {
     const m = new Map<string, ConsensusItem>();
     for (const i of items) if (!m.has(i.ticker)) m.set(i.ticker, i);
@@ -148,6 +209,11 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
     const d = q?.data;
     const meta = metaByTicker.get(t);
     const inv = invQs[i]?.data;
+    const burst = computeValueBurst(
+      priceQs[i]?.data, BURST_BARS, burstThresholdWon(burstLevel));
+    // 시총(억원) 대비 최대대금(억원) — 소형주 손바뀜 강도
+    const mcap = typeof d?.market_cap === "number" ? d.market_cap : null;
+    const maxEok = burst.maxValue != null ? toEok(burst.maxValue) : null;
     return {
       ...(d ?? { ticker: t }),
       ticker: t,
@@ -158,6 +224,11 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
       flow_inst:    sumLast(inv, "기관", flowDays),
       flow_pension: sumLast(inv, "연기금", flowDays),
       flow_indiv:   sumLast(inv, "개인", flowDays),
+      burst,
+      burst_days: priceQs[i]?.data ? burst.days : null,
+      burst_max: maxEok,
+      burst_turnover: maxEok != null && mcap != null && mcap > 0 ? (maxEok / mcap) * 100 : null,
+      burst_last: dateToNum(burst.lastDate),
     };
   });
 
@@ -211,6 +282,22 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
             </button>
           ))}
         </div>
+      </div>
+      {/* 거래대금 급증 기준 — 터진일수/최대대금/시총대비/최근터진날 열에 적용 */}
+      <div className="flex items-center gap-1 px-1">
+        <span className="text-[10px] text-gray-500">
+          거래대금 기준 (최근 {BURST_BARS}거래일 · 양봉만)
+        </span>
+        {BURST_LEVELS.map(v => (
+          <button key={v} onClick={() => pickBurstLevel(v)}
+                  title={`양봉이면서 거래대금 ${v.toLocaleString()}억 이상인 날을 셉니다.\n기업가치 차트의 거래량 강조에도 같은 기준이 적용됩니다.`}
+                  className={`px-1.5 py-0.5 rounded text-[11px] transition
+                              ${burstLevel === v
+                                ? "bg-rose-600 text-white font-bold"
+                                : "text-gray-500 hover:bg-gray-100"}`}>
+            {v.toLocaleString()}억
+          </button>
+        ))}
       </div>
 
       {/* 표 자체를 스크롤 영역으로 — 그래야 헤더 행이 위에 고정된 채로 세로 스크롤된다.
@@ -268,6 +355,7 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
                   const v = numOf(r, col.key);
                   return (
                     <td key={col.key}
+                        title={col.burst ? burstTooltip(r) : undefined}
                         className={`px-2 py-1 text-right whitespace-nowrap tabular-nums ${cellColor(v, col)}`}>
                       {r.loading && v == null ? <span className="text-gray-300">…</span> : fmtCell(v, col)}
                     </td>

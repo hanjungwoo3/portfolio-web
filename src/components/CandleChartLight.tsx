@@ -26,6 +26,14 @@ import { formatMarkerDate, type TradeMarker } from "../lib/tradeMarkers";
 const UP_COLOR    = "#dc2626";  // 양봉 빨강
 const DN_COLOR    = "#2563eb";  // 음봉 파랑
 
+// 거래대금 = 종가 × 거래량 근사. 국내 일봉 소스에 실제 거래대금 필드가 없다
+// (KRX 전종목 시세는 로그인 필요). TradingView Value.Traded 도 동일 계산.
+function fmtAmount(v: number): string {
+  if (v >= 1_000_000_000_000) return `${(v / 1_000_000_000_000).toFixed(2)}조`;
+  if (v >= 100_000_000) return `${Math.round(v / 100_000_000).toLocaleString()}억`;
+  return `${Math.round(v / 10_000).toLocaleString()}만`;
+}
+
 function fmtVol(v: number): string {
   if (v >= 100_000_000) return `${(v / 100_000_000).toFixed(1)}억`;
   if (v >= 10_000_000) return `${(v / 10_000_000).toFixed(1)}천만`;
@@ -50,6 +58,7 @@ interface Props {
   splits?: SplitEvent[];
   disclosures?: DartDisclosure[];
   tradeMarkers?: TradeMarker[];   // 내 매수/매도 지점 — 거래로그 있는 종목만 표시
+  burstThreshold?: number;        // 거래대금(원) 기준 — 양봉 + 이 값 초과일의 거래량 막대를 강조
   ticker?: string;
   mode: "line" | "candle";
   maPeriods?: number[];   // 빈 배열이면 이평선 없음. 호출자가 useMemo 로 안정화할 것 (effect dep)
@@ -70,6 +79,8 @@ const BB_MULT = 2;
 const DIV_COLOR = "#0d9488";   // 배당락 marker — teal-600
 const SPLIT_COLOR = "#a855f7"; // 액면분할 marker — purple-500
 const DART_COLOR = "#ea580c";  // DART 공시 marker — orange-600
+// 거래대금 터진 날의 거래량 막대 — 평소 막대(반투명 빨강/파랑)와 확실히 구분되는 진보라.
+const BURST_VOL_COLOR = "rgba(147, 51, 234, 0.95)";
 const BUY_COLOR  = "#f59e0b";  // 내 매수 marker — amber-500 (증권사 앱 관례: 매수=주황 ↑)
 const SELL_COLOR = "#38bdf8";  // 내 매도 marker — sky-400 (매도=파랑 ↓)
 
@@ -98,7 +109,7 @@ function pickImportantKeyword(titles: string[]): string | null {
 
 export function CandleChartLight({
   prices, investors, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures,
-  tradeMarkers, ticker, mode,
+  tradeMarkers, burstThreshold, ticker, mode,
   maPeriods = EMPTY_PERIODS, showBB = false, onReady,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -209,12 +220,17 @@ export function CandleChartLight({
     chart.priceScale("vol").applyOptions({
       scaleMargins: { top: 0.75, bottom: 0 },
     });
+    // 거래대금이 터진 날(양봉 + 기준 초과)은 막대를 진하게 — 가치표의 '터진일수' 와 같은 판정.
     const volData = prices.map(p => {
       const isUp = p.open != null ? p.close >= p.open : true;
+      const burst = burstThreshold != null && burstThreshold > 0
+        && p.open != null && p.close > p.open
+        && p.close * p.volume >= burstThreshold;
       return {
         time: p.date as Time,
         value: p.volume,
-        color: isUp ? "rgba(220, 38, 38, 0.45)" : "rgba(37, 99, 235, 0.45)",
+        color: burst ? BURST_VOL_COLOR
+          : isUp ? "rgba(220, 38, 38, 0.45)" : "rgba(37, 99, 235, 0.45)",
       };
     });
     volSeries.setData(volData);
@@ -613,6 +629,7 @@ export function CandleChartLight({
       }
       if (p.volume > 0) {
         content += `<div><span class="text-gray-500">거래량 </span><span style="color:${dirColor}">${fmtVol(p.volume)}</span></div>`;
+        content += `<div><span class="text-gray-500">거래대금 </span><span style="color:${dirColor}">${fmtAmount(p.close * p.volume)}</span></div>`;
       }
       for (const ma of maSeries) {
         const v = ma.byDate.get(String(time));
@@ -683,7 +700,7 @@ export function CandleChartLight({
       catch { /* chart already removed */ }
       chart.remove();
     };
-  }, [prices, investors, mode, maPeriods, showBB, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, tradeMarkers, ticker, onReady]);
+  }, [prices, investors, mode, maPeriods, showBB, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, tradeMarkers, burstThreshold, ticker, onReady]);
 
   // 팝업 dismiss — 외부 클릭 / Esc
   useEffect(() => {

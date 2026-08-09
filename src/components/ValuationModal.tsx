@@ -29,6 +29,7 @@ import type { PricePoint } from "../lib/api";
 import type { Investor } from "../types";
 import { getTradesForTicker } from "../lib/db";
 import { aggregateTradeMarkers } from "../lib/tradeMarkers";
+import { loadBurstLevel, saveBurstLevel, burstThresholdWon, BURST_LEVELS, type BurstLevel } from "../lib/valueBurst";
 import { useTossMaintenance, getTossMaintenance } from "../lib/tossMaintenance";
 
 interface Props {
@@ -1054,6 +1055,7 @@ const BB_TOGGLE_KEY = "price_chart_bb";
 // 내 거래 마커 — 기본 ON (거래로그가 있는 종목에서 바로 보이는 게 기대 동작).
 // loadOnOff 는 기본 OFF 라 별도 로더를 쓴다.
 const TRADES_TOGGLE_KEY = "price_chart_trades";
+const BURST_TOGGLE_KEY = "price_chart_burst";   // 거래대금 급증일 거래량 막대 강조 (기본 OFF)
 function loadTradesToggle(): boolean {
   try { return localStorage.getItem(TRADES_TOGGLE_KEY) !== "off"; }
   catch { return true; }
@@ -1095,6 +1097,14 @@ function PriceVolumeChart({
   const setMaInputPersist = (raw: string) => { setMaInput(raw); saveMaInput(raw); };
   const [showTrades, setShowTrades] = useState<boolean>(loadTradesToggle);
   const toggleTrades = () => { const v = !showTrades; setShowTrades(v); saveOnOff(TRADES_TOGGLE_KEY, v); };
+  // 거래대금 급증일 강조 — 기준은 가치표 탭과 공유(localStorage). OFF 면 강조 없음.
+  const [showBurst, setShowBurst] = useState<boolean>(() => loadOnOff(BURST_TOGGLE_KEY));
+  const toggleBurst = () => { const v = !showBurst; setShowBurst(v); saveOnOff(BURST_TOGGLE_KEY, v); };
+  const [burstLevel, setBurstLevel] = useState<BurstLevel>(loadBurstLevel);
+  const cycleBurstLevel = () => {
+    const next = BURST_LEVELS[(BURST_LEVELS.indexOf(burstLevel) + 1) % BURST_LEVELS.length];
+    setBurstLevel(next); saveBurstLevel(next);
+  };
   // 내 거래 마커 — Dexie 로컬 조회라 가볍다. 모달 열 때마다 최신화 (매수/매도 직후 반영).
   const { data: myTrades } = useQuery({
     queryKey: ["trade-markers", ticker],
@@ -1236,6 +1246,26 @@ function PriceVolumeChart({
               ▲▼ 내거래 {showTrades ? "ON" : "OFF"}
             </button>
           )}
+          {/* 거래대금 급증일 강조 — 켜면 기준 버튼이 따라 나오고, 눌러서 기준 순환 */}
+          <button onClick={toggleBurst}
+                  title={showBurst
+                    ? "거래대금 터진 날 강조 끄기"
+                    : "양봉이면서 거래대금이 기준을 넘은 날의 거래량 막대를 진하게 표시"}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                    showBurst
+                      ? "bg-purple-100 text-purple-700 border-purple-300"
+                      : "text-gray-400 border-gray-200 hover:bg-gray-100"
+                  }`}>
+            💥 대금 {showBurst ? "ON" : "OFF"}
+          </button>
+          {showBurst && (
+            <button onClick={cycleBurstLevel}
+                    title="기준 금액 바꾸기 (가치표 탭과 공유)"
+                    className="px-1.5 py-0.5 rounded text-[10px] font-bold border
+                               bg-purple-600 text-white border-purple-700">
+              {burstLevel.toLocaleString()}억
+            </button>
+          )}
           {/* 캔들 모드 토글 — OFF=라인, ON=캔들 */}
           <button onClick={() => setModePersist(mode === "candle" ? "line" : "candle")}
                   title={mode === "candle" ? "라인 차트로" : "캔들 차트로"}
@@ -1259,6 +1289,7 @@ function PriceVolumeChart({
                           dividends={dividends} splits={splits}
                           disclosures={showDisc ? disclosures : []}
                           tradeMarkers={tradeMarkers}
+                          burstThreshold={showBurst ? burstThresholdWon(burstLevel) : undefined}
                           ticker={ticker}
                           onReady={onReady} />
       </Suspense>
