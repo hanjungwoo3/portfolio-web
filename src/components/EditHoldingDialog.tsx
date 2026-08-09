@@ -70,6 +70,7 @@ export function EditHoldingDialog({
   const [okMsg, setOkMsg] = useState("");
   const [editShares, setEditShares] = useState("");
   const [editAvg, setEditAvg] = useState("");
+  const [editBuyDate, setEditBuyDate] = useState("");   // 직접수정의 매수일 — 비우면 기존 유지
   const [err, setErr] = useState("");
   const downOnBackdropRef = useRef(false);
 
@@ -85,6 +86,7 @@ export function EditHoldingDialog({
     setLive(stock);
     setShares(""); setPrice(""); setSellPrice(""); setTradeDate(todayKstStr());
     setEditShares(""); setEditAvg(""); setOkMsg("");
+    setEditBuyDate(stock.buy_date ?? "");   // 현재 매수일을 보여줘야 잘못된 값을 알아채고 고침
     void (async () => {
       const [holdings, userGroups] = await Promise.all([
         loadHoldings(), getUserGroups(),
@@ -162,16 +164,21 @@ export function EditHoldingDialog({
         market: stock.market, name: stock.name,
       });
     } else {
-      if (!editShares && !editAvg) return setErr("수정할 값 입력");
+      // 매수일만 고치는 경우도 유효한 수정 — 수량/평단 없이 날짜만 바꿔도 통과시킨다.
+      const dateChanged = editBuyDate !== (cur.buy_date ?? "");
+      if (!editShares && !editAvg && !dateChanged) return setErr("수정할 값 입력");
       const sh = Number(editShares || curShares);
       const ap = Number(editAvg || curAvg);
       if (!Number.isFinite(sh) || sh < 0) return setErr("수량 오류");
       if (!Number.isFinite(ap) || ap <= 0) return setErr("매수가 오류");
       willDelete = sh === 0;
+      // 비우면 기존 유지, 기존도 없으면 오늘. (buy_date 는 정렬용 표기일 뿐 —
+      //  '오늘 손익' 은 거래로그 기반 todayShares 만 신뢰하므로 여기서 오늘로 잡혀도 영향 없음)
+      const bd = editBuyDate || cur.buy_date || todayKstStr();
       modeAction = () => sh === 0
         ? applyTickerDelete(stock)
         : applyTickerUpdate(stock, {
-            shares: sh, avg_price: ap, buy_date: cur.buy_date || todayKstStr(),
+            shares: sh, avg_price: ap, buy_date: bd,
             market: stock.market, name: stock.name,
           });
     }
@@ -186,6 +193,7 @@ export function EditHoldingDialog({
     if (fresh) setLive(fresh);
     setShares(""); setPrice(""); setSellPrice(""); setTradeDate(todayKstStr());
     setEditShares(""); setEditAvg("");
+    setEditBuyDate(fresh?.buy_date ?? "");   // 반영된 매수일을 그대로 다시 보여줌
     setLogKey(k => k + 1);
     setOkMsg(mode === "buy" ? "✅ 매수 반영 + 기록 추가"
       : mode === "sell" ? "✅ 매도 반영 + 기록 추가" : "✅ 수정 반영");
@@ -353,6 +361,11 @@ export function EditHoldingDialog({
                 <input type="number" inputMode="numeric" value={editAvg}
                        onChange={e => setEditAvg(e.target.value)}
                        placeholder={String(Math.round(curAvg))} className={inputCls} />
+              </Field>
+              <Field label="매수일 (정렬 기준)">
+                <input type="date" value={editBuyDate}
+                       onChange={e => setEditBuyDate(e.target.value)}
+                       className={inputCls} />
               </Field>
               <p className="text-xs text-gray-400">
                 비워두면 기존 값 유지. 수량을 0 으로 설정하면 보유에서 삭제됩니다.

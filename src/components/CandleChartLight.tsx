@@ -21,6 +21,7 @@ import {
 import type { PricePoint, DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
 import { sma, bollinger, maColor, BB_COLOR, BB_MID_COLOR } from "../lib/indicators";
 import type { Investor } from "../types";
+import { formatMarkerDate, type TradeMarker } from "../lib/tradeMarkers";
 
 const UP_COLOR    = "#dc2626";  // 양봉 빨강
 const DN_COLOR    = "#2563eb";  // 음봉 파랑
@@ -48,6 +49,7 @@ interface Props {
   dividends?: DividendEvent[];
   splits?: SplitEvent[];
   disclosures?: DartDisclosure[];
+  tradeMarkers?: TradeMarker[];   // 내 매수/매도 지점 — 거래로그 있는 종목만 표시
   ticker?: string;
   mode: "line" | "candle";
   maPeriods?: number[];   // 빈 배열이면 이평선 없음. 호출자가 useMemo 로 안정화할 것 (effect dep)
@@ -68,6 +70,8 @@ const BB_MULT = 2;
 const DIV_COLOR = "#0d9488";   // 배당락 marker — teal-600
 const SPLIT_COLOR = "#a855f7"; // 액면분할 marker — purple-500
 const DART_COLOR = "#ea580c";  // DART 공시 marker — orange-600
+const BUY_COLOR  = "#f59e0b";  // 내 매수 marker — amber-500 (증권사 앱 관례: 매수=주황 ↑)
+const SELL_COLOR = "#38bdf8";  // 내 매도 marker — sky-400 (매도=파랑 ↓)
 
 // 공시 제목에서 차트 라벨용 짧은 키워드 추출 (우선순위 순)
 //   매칭 안 되면 null → 호출자가 "N건" 카운트로 폴백
@@ -93,7 +97,8 @@ function pickImportantKeyword(titles: string[]): string | null {
 }
 
 export function CandleChartLight({
-  prices, investors, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, ticker, mode,
+  prices, investors, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures,
+  tradeMarkers, ticker, mode,
   maPeriods = EMPTY_PERIODS, showBB = false, onReady,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -101,6 +106,9 @@ export function CandleChartLight({
   const markersRef = useRef<HTMLDivElement>(null);
   // 공시 팝업 — 마커 클릭 시 활성, 닫기 전까지 유지
   const [discPopup, setDiscPopup] = useState<{ date: string; x: number; y: number } | null>(null);
+  // 내 거래 마커 팝업 — 마커 자체를 담아둔다 (effect 밖에서 tradeMarkers 를 다시 찾지 않도록)
+  const [tradePopup, setTradePopup] =
+    useState<{ marker: TradeMarker; x: number; y: number } | null>(null);
   // 재생성 시 줌 상태 복원용 — 마지막 visible logical range
   const visibleRangeRef = useRef<LogicalRange | null>(null);
 
@@ -434,21 +442,84 @@ export function CandleChartLight({
         layer.appendChild(wrap);
       };
 
-      // 배당락 (아래)
+      // ─── 내 매수/매도 마커 (캔들에 붙는 작은 삼각형) ─────────
+      //     매수는 캔들 아래(▲), 매도는 캔들 위(▼). 탭하면 상세 팝업.
+      //     거래가 잦으면 마커끼리 겹쳐 캔들을 가리므로 — 작게 그리고, x 가 가까운
+      //     마커는 바깥쪽으로 한 칸씩 밀어 레인을 나눈다 (레인은 3칸까지만).
+      const TRI = 7;              // 삼각형 밑변/높이 (px) — 캔들 가림 최소화
+      const LANE_GAP = TRI + 2;
+      const MAX_LANE = 2;         // 0,1,2 — 그 이상은 겹쳐도 그대로 (무한히 밀면 차트 밖)
+      const lanesOf = { buy: [] as number[][], sell: [] as number[][] };
+
+      const pickLane = (side: "buy" | "sell", x: number): number => {
+        const lanes = lanesOf[side];
+        for (let i = 0; i <= MAX_LANE; i++) {
+          if (!lanes[i]) lanes[i] = [];
+          if (lanes[i].every(ox => Math.abs(ox - x) >= LANE_GAP)) {
+            lanes[i].push(x);
+            return i;
+          }
+        }
+        lanes[MAX_LANE].push(x);
+        return MAX_LANE;
+      };
+
+      const renderTradeBadge = (m: TradeMarker) => {
+        const p = priceMap.get(m.date);
+        if (!p) return;                 // 거래일이 조회 구간 밖이거나 휴장일 → 찍을 자리 없음
+        const x = chart.timeScale().timeToCoordinate(m.date as Time);
+        if (x == null) return;
+        const buy = m.type === "buy";
+        const anchor = buy ? (p.low ?? p.close) : (p.high ?? p.close);
+        const baseY = priceSeries.priceToCoordinate(anchor);
+        if (baseY == null) return;
+        const lane = pickLane(m.type, x);
+        const off = 3 + lane * LANE_GAP;
+        const top = buy ? baseY + off : baseY - off - TRI;
+        const color = buy ? BUY_COLOR : SELL_COLOR;
+        // 클릭 영역은 삼각형보다 넉넉하게 (모바일 탭) — 안쪽에 삼각형만 그린다.
+        const hit = document.createElement("div");
+        const pad = 4;
+        hit.style.cssText =
+          `position:absolute;left:${x}px;top:${top - pad}px;` +
+          `width:${TRI + pad * 2}px;height:${TRI + pad * 2}px;` +
+          `display:flex;align-items:center;justify-content:center;` +
+          `transform:translateX(-50%);pointer-events:auto;cursor:pointer;z-index:6;`;
+        const tri = document.createElement("div");
+        tri.style.cssText =
+          `width:0;height:0;` +
+          `border-left:${TRI / 2}px solid transparent;` +
+          `border-right:${TRI / 2}px solid transparent;` +
+          (buy ? `border-bottom:${TRI}px solid ${color};`
+               : `border-top:${TRI}px solid ${color};`);
+        hit.appendChild(tri);
+        hit.title = `${buy ? "매수" : "매도"} ${m.date} · 평균 ${Math.round(m.avgPrice).toLocaleString()}원 · ${m.qty.toLocaleString()}주`;
+        hit.addEventListener("click", e => {
+          e.stopPropagation();
+          setTradePopup({ marker: m, x, y: top });
+        });
+        layer.appendChild(hit);
+      };
+      const buyDates  = new Set((tradeMarkers ?? []).filter(m => m.type === "buy").map(m => m.date));
+      const sellDates = new Set((tradeMarkers ?? []).filter(m => m.type === "sell").map(m => m.date));
+      for (const m of tradeMarkers ?? []) renderTradeBadge(m);
+
+      // 배당락 (아래) — 같은 날 내 매수 배지가 있으면 한 칸 밀어 겹침 방지
       for (const [date, amount] of divMap) {
-        renderBelow(date, DIV_COLOR, `배당락 ${Math.round(amount).toLocaleString()}원`);
+        renderBelow(date, DIV_COLOR, `배당락 ${Math.round(amount).toLocaleString()}원`,
+                    buyDates.has(date) ? 1 : 0);
       }
       // 액면분할 (위) — 정확히 같은 날 Naver 분할 공시 있을 때만 클릭 가능
       for (const [date, ratio] of splitMap) {
         const url = splitDiscUrlMap.get(date);
         renderAbove(
-          date, SPLIT_COLOR, `분할 ${ratio}`, 0,
+          date, SPLIT_COLOR, `분할 ${ratio}`, sellDates.has(date) ? 1 : 0,
           url ? () => window.open(url, "_blank", "noopener,noreferrer") : undefined,
         );
       }
       // 공시 (위) — 클릭 가능, 클릭 시 useState 로 팝업 활성화 (닫기 전까지 유지)
       for (const [date, info] of dartMap) {
-        const slot = splitMap.has(date) ? 1 : 0;
+        const slot = (splitMap.has(date) ? 1 : 0) + (sellDates.has(date) ? 1 : 0);
         const keyword = pickImportantKeyword(info.titles);
         const text = keyword
           ? keyword + (info.count > 1 ? ` +${info.count - 1}` : "")
@@ -612,7 +683,7 @@ export function CandleChartLight({
       catch { /* chart already removed */ }
       chart.remove();
     };
-  }, [prices, investors, mode, maPeriods, showBB, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, ticker, onReady]);
+  }, [prices, investors, mode, maPeriods, showBB, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, tradeMarkers, ticker, onReady]);
 
   // 팝업 dismiss — 외부 클릭 / Esc
   useEffect(() => {
@@ -631,6 +702,23 @@ export function CandleChartLight({
       window.clearTimeout(t);
     };
   }, [discPopup]);
+
+  // 거래 마커 팝업 dismiss — 외부 클릭 / Esc (공시 팝업과 동일 패턴)
+  useEffect(() => {
+    if (!tradePopup) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setTradePopup(null); };
+    const onClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest("[data-trade-popup]")) setTradePopup(null);
+    };
+    window.addEventListener("keydown", onKey);
+    const t = window.setTimeout(() => window.addEventListener("click", onClick), 0);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("click", onClick);
+      window.clearTimeout(t);
+    };
+  }, [tradePopup]);
 
   const popupItems = discPopup
     ? (disclosures ?? []).filter(d => d.date === discPopup.date)
@@ -672,6 +760,42 @@ export function CandleChartLight({
                 📋 {d.title}
               </a>
             ))}
+          </div>
+        </div>
+      )}
+      {tradePopup && (
+        <div data-trade-popup
+             className="absolute z-30 rounded-lg shadow-xl text-xs leading-snug
+                        bg-slate-700/95 text-white"
+             style={{
+               left: tradePopup.x,
+               top: Math.max(4, tradePopup.y - 6),
+               transform: "translate(-50%, -100%)",
+               minWidth: 150,
+             }}>
+          <div className="flex items-center justify-between px-2.5 py-1.5 border-b border-white/15">
+            <span className="font-bold">
+              {tradePopup.marker.type === "buy" ? "매수" : "매도"}{" "}
+              {formatMarkerDate(tradePopup.marker.date)}
+            </span>
+            <button onClick={() => setTradePopup(null)}
+                    className="text-white/60 hover:text-white text-sm leading-none ml-2">
+              ✕
+            </button>
+          </div>
+          <div className="px-2.5 py-1.5 space-y-0.5 tabular-nums">
+            {tradePopup.marker.accounts.length > 0 && (
+              <div className="text-white/70 text-[11px]">
+                {tradePopup.marker.accounts.join(", ")}
+              </div>
+            )}
+            <div>평균 {Math.round(tradePopup.marker.avgPrice).toLocaleString()}원</div>
+            <div>수량 {tradePopup.marker.qty.toLocaleString()}</div>
+            {tradePopup.marker.count > 1 && (
+              <div className="text-white/60 text-[11px]">
+                그날 {tradePopup.marker.count}건 합산
+              </div>
+            )}
           </div>
         </div>
       )}

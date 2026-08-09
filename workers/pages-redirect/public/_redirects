@@ -1,0 +1,4 @@
+# pages.dev → GitHub Pages 본체로 넘기는 진입용 별칭.
+# 최종 origin 이 github.io 로 유지되므로 프록시 허용목록/OAuth/로컬 DB 전부 그대로.
+# 302 유지 — 301 은 브라우저가 영구 캐시해서 되돌리기 어려움.
+/*  https://hanjungwoo3.github.io/portfolio-web/:splat  302

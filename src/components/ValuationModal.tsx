@@ -27,6 +27,8 @@ import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclos
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
 import type { PricePoint } from "../lib/api";
 import type { Investor } from "../types";
+import { getTradesForTicker } from "../lib/db";
+import { aggregateTradeMarkers } from "../lib/tradeMarkers";
 import { useTossMaintenance, getTossMaintenance } from "../lib/tossMaintenance";
 
 interface Props {
@@ -1049,6 +1051,14 @@ function saveOnOff(key: string, on: boolean): void {
 const MA_TOGGLE_KEY = "price_chart_ma";
 const BB_TOGGLE_KEY = "price_chart_bb";
 
+// 내 거래 마커 — 기본 ON (거래로그가 있는 종목에서 바로 보이는 게 기대 동작).
+// loadOnOff 는 기본 OFF 라 별도 로더를 쓴다.
+const TRADES_TOGGLE_KEY = "price_chart_trades";
+function loadTradesToggle(): boolean {
+  try { return localStorage.getItem(TRADES_TOGGLE_KEY) !== "off"; }
+  catch { return true; }
+}
+
 // 이평선 기간 — 사용자가 직접 입력. 원문 문자열을 저장해 편집 중 커서/중간상태를 보존한다.
 const MA_PERIODS_KEY = "price_chart_ma_periods";
 const MA_DEFAULT_INPUT = MA_DEFAULT_PERIODS.join(", ");
@@ -1083,6 +1093,19 @@ function PriceVolumeChart({
   const toggleBB = () => { const v = !showBB; setShowBB(v); saveOnOff(BB_TOGGLE_KEY, v); };
   const [maInput, setMaInput] = useState<string>(loadMaInput);
   const setMaInputPersist = (raw: string) => { setMaInput(raw); saveMaInput(raw); };
+  const [showTrades, setShowTrades] = useState<boolean>(loadTradesToggle);
+  const toggleTrades = () => { const v = !showTrades; setShowTrades(v); saveOnOff(TRADES_TOGGLE_KEY, v); };
+  // 내 거래 마커 — Dexie 로컬 조회라 가볍다. 모달 열 때마다 최신화 (매수/매도 직후 반영).
+  const { data: myTrades } = useQuery({
+    queryKey: ["trade-markers", ticker],
+    queryFn: () => getTradesForTicker(ticker!),
+    enabled: !!ticker,
+    staleTime: 0,
+  });
+  const tradeMarkers = useMemo(
+    () => (showTrades && myTrades ? aggregateTradeMarkers(myTrades) : []),
+    [showTrades, myTrades],
+  );
   // 차트 effect 의 dep — 파싱 결과가 같으면 같은 배열 identity 를 유지해야 재생성이 안 일어난다.
   const maKey = showMA ? parseMaPeriods(maInput).join(",") : "";
   const maPeriods = useMemo(
@@ -1201,6 +1224,18 @@ function PriceVolumeChart({
                   }`}>
             📋 공시 {showDisc ? "ON" : "OFF"}
           </button>
+          {/* 내 매수/매도 마커 토글 — 거래기록이 있는 종목에서만 의미 있음 */}
+          {(myTrades?.length ?? 0) > 0 && (
+            <button onClick={toggleTrades}
+                    title={showTrades ? "내 매수/매도 표시 숨기기" : "내 매수/매도 표시 보이기"}
+                    className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                      showTrades
+                        ? "bg-amber-100 text-amber-700 border-amber-300"
+                        : "text-gray-400 border-gray-200 hover:bg-gray-100"
+                    }`}>
+              ▲▼ 내거래 {showTrades ? "ON" : "OFF"}
+            </button>
+          )}
           {/* 캔들 모드 토글 — OFF=라인, ON=캔들 */}
           <button onClick={() => setModePersist(mode === "candle" ? "line" : "candle")}
                   title={mode === "candle" ? "라인 차트로" : "캔들 차트로"}
@@ -1223,6 +1258,7 @@ function PriceVolumeChart({
                           targetPrice={targetPrice} myAvgPrice={myAvgPrice} entryPrice={entryPrice}
                           dividends={dividends} splits={splits}
                           disclosures={showDisc ? disclosures : []}
+                          tradeMarkers={tradeMarkers}
                           ticker={ticker}
                           onReady={onReady} />
       </Suspense>
