@@ -404,19 +404,34 @@ export function isAnyMarketActive(): boolean {
   return 4 * 60 <= m && m < 20 * 60;
 }
 
-// 종목명 prefix 로 ETF 판단 — 한국 ETF 발행사 prefix 매칭 (정확도 95%+).
+// 종목명 prefix 로 ETF 판단 — 한국 ETF 발행사 브랜드 매칭.
 // 예: "KODEX 200", "TIGER 반도체", "K-방산", "ACE 미국S&P500"
-const ETF_NAME_PATTERNS = [
-  /^KODEX\b/i, /^TIGER\b/i, /^ACE\b/i, /^KBSTAR\b/i, /^PLUS\b/i,
-  /^HANARO\b/i, /^ARIRANG\b/i, /^SOL\b/i, /^KOSEF\b/i, /^RISE\b/i,
-  /^FOCUS\b/i, /^SMART\b/i, /^TIMEFOLIO\b/i, /^KIWOOM\b/i,
-  /^K-/i,             // K-방산, K-로봇 등
-  /^마이티\b/, /^WON\b/i, /^ITF\b/i, /^HK\b/i, /^WOORI\b/i,
+//
+// 브랜드 뒤에는 반드시 공백(또는 문자열 끝)이 와야 한다. \b 를 쓰면 안 되는데,
+// JS 의 \b 는 ASCII 기준이라 "HK" 와 "이노엔" 사이도 단어 경계로 쳐서
+// HK이노엔(제약사) 같은 일반 종목이 ETF 로 잡힌다. 반대로 "마이티 200TR" 은
+// 한글·공백 양쪽 다 \w 가 아니라 경계가 없어 매칭에 실패했다.
+// 네이버 ETF 전체 목록(1,160종)에서 브랜드 뒤에 공백 없이 한글이 붙는 이름은 0건이라
+// 이 규칙이 안전하다.
+const ETF_BRANDS = [
+  "KODEX", "TIGER", "ACE", "KBSTAR", "PLUS", "HANARO", "ARIRANG", "SOL",
+  "KOSEF", "RISE", "FOCUS", "SMART", "TIMEFOLIO", "KIWOOM", "WON", "ITF",
+  "HK", "WOORI", "TIME", "1Q", "KoAct", "IBK", "BNK", "UNICORN", "MIDAS",
+  "DAISHIN343", "TREX", "TRUSTON", "DS", "KCGI",
+  "마이티", "에셋플러스", "파워", "아이엠에셋", "더제이",
 ];
+// 긴 브랜드 먼저 — "TIME" 이 "TIMEFOLIO" 를 가로채지 않도록(둘 다 뒤에 공백 요구라
+// 실제로는 충돌하지 않지만, 순서를 고정해 두면 브랜드 추가 시 실수를 막는다).
+const ETF_BRAND_RE = new RegExp(
+  `^(?:${[...ETF_BRANDS].sort((a, b) => b.length - a.length)
+    .map(b => b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?=\\s|$)`,
+  "i",
+);
 export function isEtfByName(name: string | undefined | null): boolean {
   if (!name) return false;
   const trimmed = name.trim();
-  return ETF_NAME_PATTERNS.some(p => p.test(trimmed));
+  if (/^K-/i.test(trimmed)) return true;   // K-방산, K-로봇 — 하이픈으로 이어붙는 형식
+  return ETF_BRAND_RE.test(trimmed);
 }
 
 // ETF 패시브/액티브 구분 — 한국 금융위 규정상 액티브 ETF는 상품명에 "액티브" 필수 표기.
