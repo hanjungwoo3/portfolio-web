@@ -2,12 +2,17 @@
 //   워밍업 구간(period-1 개)은 값이 없으므로 아예 포인트를 만들지 않는다.
 //   lightweight-charts 는 whitespace 를 허용하지만, 빈 구간을 넘기면 선이 0 에서 시작하는 것처럼 보임.
 
-import type { PricePoint } from "./api";
+// 지표는 종가와 날짜만 쓴다 — PricePoint(일봉)든 SparkPoint(월/주봉 미니차트)든 받도록
+// 최소 구조 타입으로 받는다. (둘 다 이 형태에 구조적으로 대입 가능)
+export interface ClosePoint { date: string; close: number }
 
 // 차트 본체와 범례가 같은 값을 쓰도록 여기서 한 번만 정의한다.
 // 기간을 사용자가 바꿀 수 있으므로 색은 기간이 아니라 '몇 번째 선인가'로 정한다.
 // 캔들(빨강/파랑)·외인지분(violet)·목표/평단/기대(amber/emerald/violet) 와 겹치지 않게 고름.
-export const MA_DEFAULT_PERIODS = [5, 20, 60];
+// 정배열/역배열 판정 기간(maTrend.ts MA_TREND_PERIODS)과 일부러 같은 값 —
+// 차트에 그려지는 선과 배열 배지·가치표 추세 열이 같은 이평을 가리켜야 눈으로 대조가 된다.
+// (여기서 maTrend 를 import 하면 순환 참조라 값만 맞춘다)
+export const MA_DEFAULT_PERIODS = [20, 60, 120];
 export const MA_MAX_LINES = 5;          // 그 이상은 캔들이 안 보임
 export const MA_MAX_PERIOD = 500;       // 1년치(약 245봉)를 넘겨도 입력 자체는 허용
 const MA_PALETTE = [
@@ -44,7 +49,7 @@ export interface BollingerBands {
 }
 
 // 단순이동평균 — 슬라이딩 합(O(n))
-export function sma(prices: PricePoint[], period: number): IndicatorPoint[] {
+export function sma(prices: ClosePoint[], period: number): IndicatorPoint[] {
   if (period < 1 || prices.length < period) return [];
   const out: IndicatorPoint[] = [];
   let sum = 0;
@@ -60,7 +65,7 @@ export function sma(prices: PricePoint[], period: number): IndicatorPoint[] {
 //   표본(n-1)이 아닌 모집단(n) 분산을 쓴다 — 볼린저 원저 및 국내 HTS 관행.
 //   창마다 직접 합산(O(n·period)) — 1년치 × 20일이면 5천 회 수준이라 슬라이딩 제곱합의
 //   부동소수점 상쇄 오차를 감수할 이유가 없다.
-export function bollinger(prices: PricePoint[], period = 20, mult = 2): BollingerBands {
+export function bollinger(prices: ClosePoint[], period = 20, mult = 2): BollingerBands {
   const empty: BollingerBands = { upper: [], middle: [], lower: [] };
   if (period < 1 || prices.length < period) return empty;
 

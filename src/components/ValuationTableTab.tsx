@@ -5,12 +5,16 @@
 import { useMemo, useState } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { fetchValuationRow, type ValuationRow } from "../lib/fundamentals";
-import { fetchInvestorHistorySafe, fetchKrPriceHistory } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistory, fetchTossKrCandles } from "../lib/api";
 import {
   computeValueBurst, dateToNum, toEok, burstThresholdWon,
   loadBurstLevel, saveBurstLevel, BURST_BARS, BURST_LEVELS,
   type BurstStat, type BurstLevel,
 } from "../lib/valueBurst";
+import {
+  computeMaTrend, maTrendTooltip, MA_TREND_PERIODS, MA_TREND_LABEL, MA_TREND_CLASS,
+  type MaTrend,
+} from "../lib/maTrend";
 import { openTossStock } from "../lib/toss";
 import { signColor } from "../lib/format";
 import type { Investor } from "../types";
@@ -18,6 +22,12 @@ import type { ConsensusItem } from "./ConsensusTab";
 
 const VALUATION_STALE_MS = 6 * 60 * 60 * 1000;
 const INVESTOR_STALE_MS = 60 * 60 * 1000;   // 수급은 하루 1회 확정 — 1시간 캐시(컨센서스 탭과 공유)
+// 이평 배열 판정용 캔들 — 일봉은 장중에도 마지막 봉이 움직여 1시간, 월봉은 한 달에 한 번
+// 확정되므로 12시간. 종목당 2콜이 더 들어가는 만큼 캐시를 길게 잡는다.
+const CANDLE_DAY_STALE_MS = 60 * 60 * 1000;
+const CANDLE_MONTH_STALE_MS = 12 * 60 * 60 * 1000;
+// 월봉 MA120 = 120개월(10년). 300개면 25년치라 상장이 오래된 종목은 넉넉히 채워진다.
+const MONTH_CANDLE_COUNT = 300;
 
 // 최근 순매수 기간 — 기업가치 팝업의 "5일/20일/60일" 과 동일
 const FLOW_DAYS = [5, 20, 60] as const;
@@ -41,7 +51,8 @@ function fmtShares(v: number): string {
 }
 
 type ColKey =
-  | "name" | "market_cap" | "per" | "pbr" | "eps" | "bps" | "industry_per"
+  | "name" | "trend_d" | "trend_m"
+  | "market_cap" | "per" | "pbr" | "eps" | "bps" | "industry_per"
   | "revenue" | "operating_income" | "operating_margin" | "net_margin" | "roe"
   | "flow_foreign" | "flow_inst" | "flow_pension" | "flow_indiv"
   | "burst_days" | "burst_max" | "burst_last" | "burst_turnover";
@@ -56,10 +67,24 @@ interface Col {
   flow?: boolean;       // 순매수 열 — 주식수 축약 + 매수/매도 색
   burst?: boolean;      // 거래대금 급증 열 — 0/없음을 흐리게 표시
   date?: boolean;       // YYYYMMDD 숫자를 날짜로 표시
+  trend?: "day" | "month";   // 이평 배열 열 — 숫자 대신 정배열/역배열 배지
 }
+
+const [P20, P60, P120] = MA_TREND_PERIODS;
+const TREND_HINT = (unit: string, extra: string) =>
+  `MA${P20} > MA${P60} > MA${P120} 이면 정배열(빨강), 반대면 역배열(파랑), 그 외는 혼조.\n`
+  + `화살표는 종가가 MA${P20} 위(↑)/아래(↓)라는 뜻 — 배열이 더 확실한 상태.\n`
+  + `${unit} 기준. ${extra}\n셀에 마우스를 올리면 이평값·이격도·기울기·교차 시점.`;
 
 const COLS: Col[] = [
   { key: "name",             label: "종목명",       hint: "클릭하면 토스 종목 페이지" },
+  // 이평 배열 — 장기(월봉) 추세 안에서 단기(일봉)가 어디 있는지 한눈에 보려고 나란히 둔다.
+  //   예) 월 정배열 + 일 역배열 = 장기 추세는 살아있는 눌림목
+  { key: "trend_d", label: "일추세", trend: "day",
+    hint: TREND_HINT(`일봉 MA${P20}/${P60}/${P120}일`, `약 ${P120}거래일(6개월)치가 필요합니다.`) },
+  { key: "trend_m", label: "월추세", trend: "month",
+    hint: TREND_HINT(`월봉 MA${P20}/${P60}/${P120}개월`,
+                     `MA${P120} 이 ${P120}개월 = 10년치라 상장 10년 미만 종목·신형 ETF 는 "—" 로 나옵니다.`) },
   { key: "market_cap",       label: "시가총액",     unit: "억원", hint: "발행주식수 × 주가. 회사 규모." },
   { key: "per",              label: "PER",          unit: "배", digits: 2, goodHigh: false, hint: "주가 ÷ EPS. 낮을수록 저평가(시장 평균 약 15배)." },
   { key: "industry_per",     label: "동일업종 PER", unit: "배", digits: 2, hint: "같은 업종 평균 PER. 종목 PER 이 이보다 낮으면 업종 대비 저평가." },
@@ -97,6 +122,12 @@ interface Row extends ValuationRow {
   burst_turnover?: number | null;
   burst_last?: number | null;     // YYYYMMDD (정렬 가능하도록 숫자)
   burst?: BurstStat;              // 툴팁용 원본
+  // 이평 배열 — 정렬은 점수(정배열 +3~ 역배열 −3)로, 표시는 원본(trendD/trendM)으로.
+  trend_d?: number | null;
+  trend_m?: number | null;
+  trendD?: MaTrend | null;
+  trendM?: MaTrend | null;
+  trendLoading?: boolean;         // 캔들 로딩 중 — "—"(데이터 없음)과 구분
 }
 
 function numOf(r: Row, key: ColKey): number | null {
@@ -138,6 +169,19 @@ function cellColor(v: number | null, col: Col): string {
   if (col.key === "pbr") return v > 0 && v < 1 ? "text-emerald-600 font-bold" : "text-gray-800";
   if (col.goodHigh) return v < 0 ? "text-rose-600" : "text-gray-800";
   return "text-gray-800";
+}
+
+// 이평 배열 셀 — 배지 텍스트/색/툴팁. 숫자 열과 달리 라벨을 그대로 보여준다.
+function trendOf(r: Row, col: Col): MaTrend | null {
+  return (col.trend === "month" ? r.trendM : r.trendD) ?? null;
+}
+function trendTooltip(r: Row, col: Col): string {
+  const month = col.trend === "month";
+  return maTrendTooltip(
+    trendOf(r, col),
+    `${r.label} — ${month ? "월봉" : "일봉"} 이평 배열`,
+    month ? "개월" : "일",
+  );
 }
 
 // 급증일 셀 호버 — 날짜별 거래대금/등락을 한 번에 (표 밖으로 안 나가게 최대 8줄)
@@ -198,6 +242,30 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
     })),
   });
 
+  // 이평 배열용 캔들 — 위 3mo(약 62봉)로는 MA120 이 안 나오고, 그 쿼리키는 대시보드
+  //   sparkline 과 공유라 기간을 늘릴 수 없다. 토스 c-chart 로 따로 받는다(종목당 2콜).
+  //   일봉 450 = 약 21개월 → MA120 이 330봉 넘게 채워진다.
+  const dayCandleQs = useQueries({
+    queries: tickers.map(t => ({
+      queryKey: ["toss-candles", t, "day"],
+      queryFn: () => fetchTossKrCandles(t, "day"),
+      staleTime: CANDLE_DAY_STALE_MS,
+      gcTime: CANDLE_DAY_STALE_MS,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    })),
+  });
+  const monthCandleQs = useQueries({
+    queries: tickers.map(t => ({
+      queryKey: ["toss-candles", t, "month"],
+      queryFn: () => fetchTossKrCandles(t, "month", MONTH_CANDLE_COUNT),
+      staleTime: CANDLE_MONTH_STALE_MS,
+      gcTime: CANDLE_MONTH_STALE_MS,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    })),
+  });
+
   const metaByTicker = useMemo(() => {
     const m = new Map<string, ConsensusItem>();
     for (const i of items) if (!m.has(i.ticker)) m.set(i.ticker, i);
@@ -214,6 +282,8 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
     // 시총(억원) 대비 최대대금(억원) — 소형주 손바뀜 강도
     const mcap = typeof d?.market_cap === "number" ? d.market_cap : null;
     const maxEok = burst.maxValue != null ? toEok(burst.maxValue) : null;
+    const trendD = computeMaTrend(dayCandleQs[i]?.data);
+    const trendM = computeMaTrend(monthCandleQs[i]?.data);
     return {
       ...(d ?? { ticker: t }),
       ticker: t,
@@ -229,6 +299,10 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
       burst_max: maxEok,
       burst_turnover: maxEok != null && mcap != null && mcap > 0 ? (maxEok / mcap) * 100 : null,
       burst_last: dateToNum(burst.lastDate),
+      trendD, trendM,
+      trend_d: trendD?.score ?? null,
+      trend_m: trendM?.score ?? null,
+      trendLoading: !!(dayCandleQs[i]?.isLoading || monthCandleQs[i]?.isLoading),
     };
   });
 
@@ -352,6 +426,20 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
                       </td>
                     );
                   }
+                  if (col.trend) {
+                    const t = trendOf(r, col);
+                    return (
+                      <td key={col.key}
+                          title={trendTooltip(r, col)}
+                          className="px-2 py-1 text-right whitespace-nowrap">
+                        {t
+                          ? <span className={`px-1 py-0.5 ${MA_TREND_CLASS[t.state]}`}>
+                              {MA_TREND_LABEL[t.state]}
+                            </span>
+                          : <span className="text-gray-300">{r.trendLoading ? "…" : "—"}</span>}
+                      </td>
+                    );
+                  }
                   const v = numOf(r, col.key);
                   return (
                     <td key={col.key}
@@ -371,6 +459,11 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
         출처: 네이버 금융(시총·PER·PBR·EPS·BPS·동일업종 PER, 일별 투자자 순매수) · 와이즈리포트(매출액·영업이익·이익률·ROE, 최근 연간).
         수급은 선택 기간 누적 <span className="text-rose-600">순매수(+)</span>/<span className="text-blue-600">순매도(−)</span> 주식수입니다.
         값이 <span className="text-gray-500">—</span> 인 항목은 해당 종목에 공시 데이터가 없는 경우입니다(ETF·리츠 등).
+        <br />
+        일·월추세는 토스 일봉/월봉 종가의 단순이동평균 {P20}·{P60}·{P120} 배열입니다 —
+        <span className="text-rose-600"> 정배열</span>(단기가 위) /
+        <span className="text-blue-600"> 역배열</span>(단기가 아래) / <span className="text-gray-500">혼조</span>.
+        월추세의 MA{P120}은 10년치라 상장 10년 미만 종목·신형 ETF 는 산출되지 않습니다.
       </div>
     </div>
   );

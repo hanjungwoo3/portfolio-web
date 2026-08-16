@@ -50,6 +50,10 @@ const LABEL_BG    = "#475569";  // crosshair label 배경 — slate-600 (산뜻 
 
 interface Props {
   prices: PricePoint[];
+  // 보조지표(이평선·볼린저) 계산용 장기 이력 — 화면에 그리는 구간(prices)보다 길게 넘기면
+  // MA120 같은 긴 선의 워밍업이 화면 왼쪽 밖에서 끝나 전 구간에 값이 채워진다.
+  // 없거나 prices 보다 짧으면 prices 로 계산(기존 동작).
+  maPrices?: PricePoint[];
   investors: Investor[];
   targetPrice?: number;
   myAvgPrice?: number;
@@ -108,7 +112,7 @@ function pickImportantKeyword(titles: string[]): string | null {
 }
 
 export function CandleChartLight({
-  prices, investors, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures,
+  prices, maPrices, investors, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures,
   tradeMarkers, burstThreshold, ticker, mode,
   maPeriods = EMPTY_PERIODS, showBB = false, onReady,
 }: Props) {
@@ -244,20 +248,29 @@ export function CandleChartLight({
       priceLineVisible: false,
       crosshairMarkerVisible: false,
     });
+    // 보조지표는 화면에 그리는 구간(prices)보다 긴 이력(indicatorSource)으로 계산한다.
+    //   그리는 구간만으로 계산하면 앞 period-1 봉이 워밍업으로 비어, MA120 처럼 긴 선은
+    //   200봉 화면에서 오른쪽 80봉에만 나타난다(= "그리다 만" 것처럼 보임).
+    //   계산은 길게, 표시는 화면 구간으로 잘라서 왼쪽 끝 봉까지 값을 채운다.
+    const indicatorSource = maPrices && maPrices.length > prices.length ? maPrices : prices;
+    const firstDate = prices[0].date;
+    const lastDate = prices[prices.length - 1].date;
+    const clip = (pts: { date: string; value: number }[]) =>
+      pts.filter(d => d.date >= firstDate && d.date <= lastDate);
     const toLine = (pts: { date: string; value: number }[]) =>
       pts.map(d => ({ time: d.date as Time, value: d.value }));
 
-    const bb = showBB ? bollinger(prices, BB_PERIOD, BB_MULT) : null;
+    const bb = showBB ? bollinger(indicatorSource, BB_PERIOD, BB_MULT) : null;
     if (bb && bb.upper.length >= 2) {
-      overlayLine(BB_COLOR).setData(toLine(bb.upper));
-      overlayLine(BB_COLOR).setData(toLine(bb.lower));
-      if (!maPeriods.includes(BB_PERIOD)) overlayLine(BB_MID_COLOR).setData(toLine(bb.middle));
+      overlayLine(BB_COLOR).setData(toLine(clip(bb.upper)));
+      overlayLine(BB_COLOR).setData(toLine(clip(bb.lower)));
+      if (!maPeriods.includes(BB_PERIOD)) overlayLine(BB_MID_COLOR).setData(toLine(clip(bb.middle)));
     }
 
     // ─── 이동평균선 — 기간은 사용자 지정, 색은 순서대로 팔레트에서 ────
     const maSeries: { period: number; color: string; byDate: Map<string, number> }[] = [];
     maPeriods.forEach((period, i) => {
-      const line = sma(prices, period);
+      const line = clip(sma(indicatorSource, period));
       if (line.length < 2) return;   // 기간보다 짧은 데이터 — 선 생략
       const color = maColor(i);
       overlayLine(color).setData(toLine(line));
@@ -637,6 +650,23 @@ export function CandleChartLight({
         content += `<div><span class="text-gray-500">MA${ma.period} </span>` +
           `<span style="color:${ma.color}">${Math.round(v).toLocaleString()}원</span></div>`;
       }
+      // 이평 배열 — 이 봉에서 단기→장기가 계속 내림차순이면 정배열, 오름차순이면 역배열.
+      //   봉마다 판정하므로 배열이 뒤집힌 시점을 hover 로 짚을 수 있다(헤더 배지는 현재 상태만).
+      //   선이 3개 이상 켜져 있고 그 봉에서 전부 값이 있을 때만(워밍업 구간 제외).
+      if (maSeries.length >= 3) {
+        const vals = maSeries.map(m => m.byDate.get(String(time)));
+        if (vals.every((v): v is number => v !== undefined)) {
+          const v = vals as number[];
+          const desc = v.every((x, i) => i === 0 || v[i - 1] > x);   // maSeries 는 기간 오름차순
+          const asc  = v.every((x, i) => i === 0 || v[i - 1] < x);
+          const [label, col] = desc ? ["정배열", UP_COLOR]
+                             : asc  ? ["역배열", DN_COLOR]
+                                    : ["혼조", "#9ca3af"];
+          content += `<div><span class="text-gray-500">배열 </span>`
+            + `<span style="color:${col}" class="font-bold">${label}</span>`
+            + `<span class="text-gray-400"> (${maSeries.map(m => m.period).join("&gt;")})</span></div>`;
+        }
+      }
       const r = ratioMap.get(String(time));
       if (r !== undefined) {
         content += `<div><span class="text-gray-500">외인지분 </span><span style="color:${RATIO_COLOR}">${r.toFixed(2)}%</span></div>`;
@@ -700,7 +730,7 @@ export function CandleChartLight({
       catch { /* chart already removed */ }
       chart.remove();
     };
-  }, [prices, investors, mode, maPeriods, showBB, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, tradeMarkers, burstThreshold, ticker, onReady]);
+  }, [prices, maPrices, investors, mode, maPeriods, showBB, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, tradeMarkers, burstThreshold, ticker, onReady]);
 
   // 팝업 dismiss — 외부 클릭 / Esc
   useEffect(() => {

@@ -23,7 +23,10 @@ import { ConsensusCharts } from "./ConsensusCharts";
 import { PriceMultiSparks } from "./PriceMultiSparks";
 import { signColor, nowKstDateStr, isEtfByName } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
-import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchNaverInfo, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchNaverInfo, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices, fetchTossKrCandles, TOSS_CANDLE_MAX } from "../lib/api";
+import {
+  computeMaTrend, maTrendTooltip, MA_TREND_PERIODS, MA_TREND_LABEL, MA_TREND_CLASS,
+} from "../lib/maTrend";
 import type { DividendEvent, SplitEvent, DartDisclosure } from "../lib/api";
 import type { PricePoint } from "../lib/api";
 import type { Investor } from "../types";
@@ -1072,6 +1075,11 @@ function saveMaInput(raw: string): void {
   try { localStorage.setItem(MA_PERIODS_KEY, raw); } catch { /* noop */ }
 }
 
+// 이평 배열 확인용 프리셋 — 누르면 이평 입력이 20, 60, 120 으로 바뀐다(정배열 판정 기간과 일치).
+// 주가 차트는 일봉 전용 — 주/월봉 추세는 위쪽 '기간별 추이'(PriceMultiSparks) 에서 본다.
+// (가격 차트는 crosshair range 마스터라 여기서 월봉 25년 범위를 뿌리면 일별 수급 패널이 눌린다)
+const MA_TREND_INPUT = MA_TREND_PERIODS.join(", ");
+
 
 function PriceVolumeChart({
   prices, investors, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, ticker, onReady,
@@ -1122,6 +1130,24 @@ function PriceVolumeChart({
     () => (maKey ? maKey.split(",").map(Number) : []),
     [maKey],
   );
+
+  // 보조지표 계산용 장기 일봉 — 화면에 그리는 구간은 투자자 데이터 날짜에 맞춘 약 200봉이라
+  //   그것만으로 MA120 을 계산하면 오른쪽 80봉에만 선이 그려진다(왼쪽은 워밍업).
+  //   토스 450봉(약 21개월)으로 계산해 화면 구간으로 잘라 쓰면 왼쪽 끝까지 채워진다.
+  //   쿼리키는 가치표의 '일추세' 열과 동일 → 캐시 공유(추가 호출 없음) + 같은 값으로 판정.
+  const { data: maSource } = useQuery({
+    queryKey: ["toss-candles", ticker, "day"],
+    queryFn: () => fetchTossKrCandles(ticker!, "day", TOSS_CANDLE_MAX),
+    enabled: !!ticker,
+    staleTime: 60 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+
+  // 이평 배열 판정 — 일봉 20/60/120일 기준. 이평선 입력값과 무관하게 항상
+  //   MA_TREND_PERIODS 로 계산해 가치표의 '일추세' 열과 같은 값을 쓴다.
+  const trend = useMemo(() => computeMaTrend(maSource ?? prices), [maSource, prices]);
+
   const N = prices.length;
   if (N < 2) return null;
 
@@ -1141,6 +1167,14 @@ function PriceVolumeChart({
         <span className="tabular-nums font-bold" style={{ color }}>
           {last.close.toLocaleString()}원
         </span>
+        {/* 이평 배열 — 일봉 기준. 봉이 120개 미만이면 아예 표시하지 않는다. */}
+        {trend && (
+          <span className={`px-1 py-0.5 text-[10px] ${MA_TREND_CLASS[trend.state]}`}
+                title={maTrendTooltip(trend, "일봉 이평 배열", "일")}>
+            {MA_TREND_LABEL[trend.state]}
+            <span className="ml-0.5 opacity-70">{MA_TREND_PERIODS.join("·")}일</span>
+          </span>
+        )}
         {lastRatio !== undefined && (
           <span className="flex items-center gap-1 ml-2">
             <span className="inline-block w-3 h-0.5"
@@ -1201,6 +1235,15 @@ function PriceVolumeChart({
                    title={`쉼표로 구분해 입력 (1~${MA_MAX_PERIOD}일, 최대 ${MA_MAX_LINES}개)`}
                    className="w-20 px-1 py-0 rounded border border-gray-200 text-[10px] tabular-nums
                               text-gray-600 focus:outline-none focus:border-cyan-400" />
+            {/* 배열 판정과 같은 기간으로 맞추는 프리셋 — 판정 근거를 눈으로 확인할 때 */}
+            {maInput.trim() !== MA_TREND_INPUT && (
+              <button onClick={() => setMaInputPersist(MA_TREND_INPUT)}
+                      title={`이평선을 배열 판정과 같은 ${MA_TREND_INPUT} 로 맞춥니다`}
+                      className="px-1 py-0 rounded text-[10px] font-medium border
+                                 text-gray-400 border-gray-200 hover:bg-gray-100">
+                {MA_TREND_INPUT.replace(/, /g, "·")}
+              </button>
+            )}
           </span>
         )}
         <span className="ml-auto inline-flex items-center gap-1">
@@ -1283,7 +1326,7 @@ function PriceVolumeChart({
           차트 로딩 중...
         </div>
       }>
-        <CandleChartLight prices={prices} investors={investors} mode={mode}
+        <CandleChartLight prices={prices} maPrices={maSource} investors={investors} mode={mode}
                           maPeriods={maPeriods} showBB={showBB}
                           targetPrice={targetPrice} myAvgPrice={myAvgPrice} entryPrice={entryPrice}
                           dividends={dividends} splits={splits}

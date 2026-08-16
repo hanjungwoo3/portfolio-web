@@ -173,6 +173,44 @@ export async function fetchTossUsStockCandles(symbol: string, count = 120): Prom
   } catch { return []; }
 }
 
+// 토스 c-chart 국내 종목/ETF 캔들 — 일/주/월봉. (위 US 일봉과 같은 계열 엔드포인트, 무인증)
+//   야후 v8 은 국내 종목의 주/월봉을 range 조합에 따라 들쭉날쭉 주는데(SparkPoint 는 거래량도 없음),
+//   이쪽은 한 번에 OHLC+거래량+실거래대금(amount)을 준다. 국내 코드는 앞에 A 를 붙인 게 토스코드.
+//   count 상한은 실측 450 (480 부터 400 에러). 월봉 300 이면 25년치라 월봉 MA120(=10년)도 채워진다.
+//   응답 candles 는 최신→과거 순 → 과거→최신(오름차순)으로 뒤집어 PricePoint[] 로 맞춘다.
+export type TossCandleInterval = "day" | "week" | "month";
+export const TOSS_CANDLE_MAX = 450;
+
+export async function fetchTossKrCandles(
+  ticker: string, interval: TossCandleInterval = "day", count = TOSS_CANDLE_MAX,
+): Promise<PricePoint[]> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
+  const n = Math.min(Math.max(count, 1), TOSS_CANDLE_MAX);
+  const target = `https://wts-info-api.tossinvest.com/api/v1/c-chart/kr-s/A${ticker}/${interval}:1`
+               + `?count=${n}&useAdjustedRate=true`;
+  // 실패는 삼키지 않고 던진다 — 빈 배열로 돌려주면 react-query 가 '성공'으로 보고
+  // staleTime(월봉 12시간) 내내 캐시해, 일시적 실패 한 번이 반나절 '데이터 없음'이 된다.
+  // 던져야 재시도되고, 캐시에도 안 남는다. (상장 전 등 진짜 빈 응답만 [] 로 반환)
+  const resp = await fetchProxied(target);
+  if (!resp.ok) throw new Error(`toss candles ${interval} ${ticker}: HTTP ${resp.status}`);
+  const data = await resp.json() as {
+    result?: { candles?: Array<{
+      dt?: string; open?: number; high?: number; low?: number; close?: number; volume?: number;
+    }> };
+  };
+  const out: PricePoint[] = [];
+  for (const c of data.result?.candles ?? []) {
+    // dt 는 "2026-08-14T00:00:00+09:00" — 이미 KST 기준이라 앞 10자만 잘라 쓴다.
+    const date = c.dt?.slice(0, 10);
+    if (!date || !(c.close && c.close > 0)) continue;
+    out.push({
+      date, close: c.close, volume: c.volume ?? 0,
+      open: c.open, high: c.high, low: c.low,
+    });
+  }
+  return out.reverse();   // 최신→과거 → 과거→최신
+}
+
 // 사용자 보유 US 종목 가격 — 토스 우선(원화·24h, 내부코드 필요) + Yahoo 폴백.
 //  보유 priceMap 에 병합할 수 있게 Price[] 로 반환 (KR 종목과 동일 형식).
 //  토스코드는 검색/인기 랭킹에서 받아 localStorage 에 기억(rememberTossCode)해 둔 것 사용.
