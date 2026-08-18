@@ -23,6 +23,9 @@ const SOURCE_LIMIT: Partial<Record<HeatmapSource, number>> = {
   all: 700, kosdaq: 700, us_tech: 500, us_nasdaq: 1000, us_r2000: 1000, us_r3000: 1000, us_all: 1000,
 };
 
+// 국내 주식 일일 가격제한폭(±30%). 이보다 큰 1일 등락률은 스캐너 기준가 오류로 본다.
+const KR_DAILY_LIMIT_PCT = 30;
+
 // 크기 기준
 type SizeMode = "marketCap" | "volume" | "value" | "change" | "etfWeight";
 const SIZE_OPTS: { key: SizeMode; label: string; etfOnly?: boolean }[] = [
@@ -54,7 +57,7 @@ const COLOR_OPTS: { key: ColorMode; label: string; sat: number; usOnly?: boolean
   { key: "y", label: "1년 수익률", sat: 40, field: it => it.perfY },
 ];
 // 그룹 기준
-type GroupMode = "sector" | "none";
+type GroupMode = "sector" | "dir" | "none";
 
 // TradingView 섹터(영문) → 한글
 const SECTOR_KR: Record<string, string> = {
@@ -182,16 +185,31 @@ export function HeatmapTab() {
                 ?? COLOR_OPTS.find(o => o.key === "change")!;
   const colorOf = (it: HeatmapItem) => heatColor(colorDef.field(it), colorDef.sat);
 
+  // 기준가 오류 필터 — 국내 주식은 일일 등락 제한이 ±30% 라 그 밖의 값은 물리적으로 불가능하다.
+  //   거래정지 후 재개 + 액면병합 종목에서 스캐너가 병합 전 종가를 기준가로 들고 있으면
+  //   (예: 아이윈 090150 — 실제 +4.21% 인데 +942% 로 보고) 크기·색이 모두 오염된다.
+  //   기존 허수 필터(거래대금 하한)는 거래가 조금이라도 붙으면 못 걸러 별도로 둔다.
+  //   1일 등락률에만 적용 — 기간 수익률(1주~1년)은 30% 를 넘는 게 정상이고,
+  //   미국은 상하한가 제도가 없으므로 국내 소스에서만 적용한다.
+  //   신규상장 첫날(공모가 대비 최대 +300%)도 같이 빠지지만, 트리맵을 삼키는 건 마찬가지라 감수.
+  const rows = useMemo(
+    // 0.5%p 여유 — 상한가는 정확히 +30% 지만 (1300/1000-1)*100 이 부동소수점상
+    //   30.000000000000004 로 나와 정상 상한가가 걸러질 수 있다.
+    () => (q.data ?? []).filter(it => !isKr || Math.abs(it.changePct) <= KR_DAILY_LIMIT_PCT + 0.5),
+    [q.data, isKr],
+  );
+  const dropped = (q.data?.length ?? 0) - rows.length;
+
   // 등락률 변동폭 크기 모드의 허수 필터 — 거래량 1·거래대금 미미한데 ±100% 찍히는 호가는
   // 실제 자금 이동이 없는 허수라 크기 왜곡을 유발. 데이터셋 거래대금 중앙값의 2% 미만이면 제외.
   // (시총/거래량 모드에선 이런 종목이 이미 작게 잡혀 필터 불필요 → change 모드에서만 적용)
   const liqFloor = useMemo(() => {
     if (sizeModeEff !== "change") return 0;
-    const vals = (q.data ?? []).map(it => it.valueTraded).filter(v => v > 0).sort((a, b) => a - b);
+    const vals = rows.map(it => it.valueTraded).filter(v => v > 0).sort((a, b) => a - b);
     if (!vals.length) return 0;
     const median = vals[Math.floor(vals.length / 2)];
     return median * 0.02;
-  }, [sizeModeEff, q.data]);
+  }, [sizeModeEff, rows]);
 
   // 한글 종목명 — 정적 사전(0콜) + 런타임 캐시. 사전에 없는 코드만 폴백 조회.
   const dictQ = useQuery({ queryKey: ["kr-name-dict"], queryFn: loadKrNameDict, staleTime: Infinity, refetchOnWindowFocus: false, enabled: isKr });
@@ -199,8 +217,8 @@ export function HeatmapTab() {
     if (!isKr) return [];
     const dict = dictQ.data; if (!dict) return [];
     const runtime = getRuntimeNames();
-    return (q.data ?? []).map(it => it.code).filter(c => !dict[c] && !runtime[c]);
-  }, [isKr, dictQ.data, q.data]);
+    return rows.map(it => it.code).filter(c => !dict[c] && !runtime[c]);
+  }, [isKr, dictQ.data, rows]);
   const missQ = useQuery({
     queryKey: ["kr-name-miss", missCodes.join(",")],
     queryFn: () => fetchMissingKrNames(missCodes),
@@ -210,10 +228,10 @@ export function HeatmapTab() {
   const krName = (it: HeatmapItem): string =>
     isKr ? (dictQ.data?.[it.code] ?? getRuntimeNames()[it.code] ?? missQ.data?.[it.code] ?? it.name) : it.name;
 
-  // 트리맵 — 그룹=섹터면 2단계(섹터→종목), 그룹없음이면 종목만 1단계.
+  // 트리맵 — 그룹=섹터/등락방향이면 2단계(그룹→종목), 그룹없음이면 종목만 1단계.
   const layout = useMemo(() => {
     // change 모드에선 유동성 미달(허수) 종목 제외 — liqFloor=0 이면 전체 통과
-    const items = (q.data ?? []).filter(it => liqFloor <= 0 || it.valueTraded >= liqFloor);
+    const items = rows.filter(it => liqFloor <= 0 || it.valueTraded >= liqFloor);
     const empty = { stocks: [] as { it: HeatmapItem; x: number; y: number; w: number; h: number }[], headers: [] as { sec: string; x: number; y: number; w: number }[] };
     if (!items.length || size.w < 40 || size.h < 40) return empty;
     const stocks: { it: HeatmapItem; x: number; y: number; w: number; h: number }[] = [];
@@ -223,9 +241,41 @@ export function HeatmapTab() {
       for (const c of cells) stocks.push({ it: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
       return { stocks, headers };
     }
-    const bySector = new Map<string, HeatmapItem[]>();
-    for (const it of items) { const a = bySector.get(it.sector); if (a) a.push(it); else bySector.set(it.sector, [it]); }
-    const sectorInputs = [...bySector].map(([sec, list]) => ({
+    // 그룹 키 — 섹터 또는 등락 방향. 방향은 '색 기준'과 같은 값으로 나눈다.
+    //   1일 등락으로 나누고 색은 1개월 수익률이면 상승 블록에 파란 타일이 섞여 읽기 어렵다.
+    const groupKey = groupMode === "dir"
+      ? (it: HeatmapItem) => { const v = colorDef.field(it); return v > 0 ? "상승" : v < 0 ? "하락" : "보합"; }
+      : (it: HeatmapItem) => it.sector;
+    const byGroup = new Map<string, HeatmapItem[]>();
+    for (const it of items) { const k = groupKey(it); const a = byGroup.get(k); if (a) a.push(it); else byGroup.set(k, [it]); }
+
+    // 방향 그룹은 좌→우로 상승·보합·하락 고정 배치 — 매번 자리가 바뀌면 비교가 안 된다.
+    //   squarify 는 내부에서 값 내림차순 정렬을 하므로(면적비 최적화) 상위 단계에 쓰면
+    //   상승/하락 위치가 그날 크기에 따라 뒤바뀐다 → 여기서는 폭만 비례 배분해 직접 나눈다.
+    if (groupMode === "dir") {
+      const blocks = ["상승", "보합", "하락"]
+        .map(k => ({ k, list: byGroup.get(k) ?? [] }))
+        .filter(g => g.list.length > 0)
+        .map(g => ({ ...g, total: g.list.reduce((s, x) => s + sizeVal(x), 0) }));
+      const sum = blocks.reduce((s, g) => s + g.total, 0);
+      if (sum <= 0) return empty;
+      let x = 0;
+      blocks.forEach((g, i) => {
+        // 마지막 블록은 남은 폭을 다 써서 반올림 오차로 빈 틈이 생기지 않게 한다
+        const w = i === blocks.length - 1 ? size.w - x : (size.w * g.total) / sum;
+        const head = size.h > 34 && w > 46 ? 13 : 0;
+        if (head) headers.push({ sec: `${g.k} ${g.list.length}`, x, y: 0, w });
+        const cells = squarify(
+          g.list.map(it => ({ item: it, value: sizeVal(it) })),
+          { x, y: head, w, h: size.h - head },
+        );
+        for (const c of cells) stocks.push({ it: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
+        x += w;
+      });
+      return { stocks, headers };
+    }
+
+    const sectorInputs = [...byGroup].map(([sec, list]) => ({
       item: { sec, list }, value: list.reduce((s, x) => s + sizeVal(x), 0),
     }));
     const sectorTiles = squarify(sectorInputs, { x: 0, y: 0, w: size.w, h: size.h });
@@ -238,7 +288,7 @@ export function HeatmapTab() {
     }
     return { stocks, headers };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [q.data, size.w, size.h, sizeModeEff, groupMode, liqFloor, weightMap]);
+  }, [rows, size.w, size.h, sizeModeEff, groupMode, colorDef, liqFloor, weightMap]);
 
   const isHostErr = q.error instanceof ProxyHostError;
 
@@ -277,10 +327,19 @@ export function HeatmapTab() {
           <select value={groupMode} onChange={e => setGroupMode(e.target.value as GroupMode)}
                   className="border border-gray-300 rounded px-1.5 py-1 bg-white font-medium text-gray-700">
             <option value="sector">섹터</option>
+            <option value="dir">상승/하락</option>
             <option value="none">그룹없음</option>
           </select>
         </label>
-        <span className="text-[10px] text-gray-400">색: 빨강▲/파랑▼ · {q.data?.length ?? 0}종목</span>
+        <span className="text-[10px] text-gray-400">
+          색: 빨강▲/파랑▼ · {rows.length}종목
+          {dropped > 0 && (
+            <span className="text-gray-300"
+                  title={`1일 등락률이 ±${KR_DAILY_LIMIT_PCT}% 를 벗어난 ${dropped}종목 제외.\n국내 가격제한폭상 불가능한 값 — 거래정지·액면병합 종목의 기준가 오류로 보고 걸러냅니다.`}>
+              {` · 기준가 이상 ${dropped} 제외`}
+            </span>
+          )}
+        </span>
         {ago != null && (
           <span className="text-[10px] text-gray-400 flex items-center gap-1">
             <span className={marketOpen ? "text-emerald-500" : "text-gray-300"}>●</span>
@@ -409,6 +468,7 @@ export function HeatmapTab() {
           <div className="font-bold text-gray-700 mb-1">🗂️ 그룹 (배치 방식)</div>
           <ul className="space-y-0.5 leading-relaxed">
             <li><b>섹터</b> — 업종(전자기술·금융·생산자제조 등)별로 묶어 배치. 어느 업종이 강한지 한눈에</li>
+            <li><b>상승/하락</b> — 왼쪽 상승 · 오른쪽 하락으로 갈라 배치(자리 고정). 블록 폭이 곧 비중이고, 헤더 숫자가 각 블록 종목 수(기준은 위에서 고른 <b>색</b> 기준과 동일)</li>
             <li><b>그룹없음</b> — 업종 구분 없이 전체를 크기순으로 배치</li>
           </ul>
         </div>
