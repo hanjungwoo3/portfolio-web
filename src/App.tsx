@@ -5,12 +5,12 @@ import {
   fetchWarning, fetchNaverInfo, fetchKrPriceHistory, fetchYahooPriceHistory,
   fetchInvestorHistorySafe, fetchNaverPrices, fetchKrStockName, fetchUsHoldingPrices,
 } from "./lib/api";
-import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits, repairBrokenNames, purgeDerivedHoldingFields } from "./lib/db";
+import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits, repairBrokenNames, purgeDerivedHoldingFields, saveAssetSnapshot } from "./lib/db";
 import { attachTodayBuys } from "./lib/tradeCalc";
 import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
-import { Tabs, buildTabs, filterByTab, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, VALUATION_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, VALUATION_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
 import { EtfRankingTab } from "./components/EtfRankingTab";
@@ -27,7 +27,7 @@ import { getGroupFolders } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable, TodayRealizedCard } from "./components/TodayPnLTable";
 import type { Trade } from "./lib/db";
-import { holdingYesterdayBaseSum, signColor, formatSigned } from "./lib/format";
+import { holdingYesterdayBaseSum, signColor, formatSigned, nowKstDateStr } from "./lib/format";
 import { splitByMarket, splitHeldAndMarket, type MarketSection } from "./lib/marketSplit";
 import { GroupNavBar, type GroupNavItem } from "./components/GroupNavBar";
 import { WhatIfRow } from "./components/WhatIfRow";
@@ -38,6 +38,9 @@ import { DonateDialog } from "./components/DonateDialog";
 import { EtfCompositionDialog } from "./components/EtfCompositionDialog";
 import { EtfReverseDialog } from "./components/EtfReverseDialog";
 import { OnboardingDialog } from "./components/OnboardingDialog";
+import { enterDemo, exitDemo, isDemoActive, DEMO_GROUP } from "./lib/demoMode";
+import { AssetTrendTab } from "./components/AssetTrendTab";
+import { getTotalDeposits } from "./lib/deposits";
 import { SearchDialog } from "./components/SearchDialog";
 import { EditHoldingDialog } from "./components/EditHoldingDialog";
 import { MyStockEditDialog } from "./components/MyStockEditDialog";
@@ -105,6 +108,9 @@ function Dashboard() {
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // 데모 모드 — 켜져 있으면 하단에 '데모 데이터' 배너를 띄워 실제 보유와 헷갈리지 않게 한다.
+  const [demoOn, setDemoOn] = useState(isDemoActive);
+  const [pendingTab, setPendingTab] = useState<string | null>(null);
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [valuationName, setValuationName] = useState<string | null>(null);   // 비보유 종목(ETF비교 등) 이름 폴백
   const [editing, setEditing] = useState<Stock | null>(null);
@@ -189,12 +195,22 @@ function Dashboard() {
     return m;
   }, [holdings]);
 
-  // 데이터 로드 후 첫 탭 자동 선택
+  // 데이터 로드 후 첫 탭 자동 선택 + 예약된 탭으로 이동.
+  //   pendingTab 은 '아직 없는 탭으로 가고 싶다'는 예약 — 데모 시작처럼 그룹을 만들고
+  //   그리로 가는 경우, 아래 가드가 없는 탭을 첫 탭으로 되돌려 버리므로
+  //   탭 목록에 실제로 나타난 뒤에 선택해야 한다. (가드보다 먼저 검사)
   useEffect(() => {
+    if (pendingTab) {
+      if (tabs.find(t => t.key === pendingTab)) {
+        setActiveTab(pendingTab);
+        setPendingTab(null);
+      }
+      return;
+    }
     if (tabs.length > 0 && !tabs.find(t => t.key === activeTab)) {
       setActiveTab(tabs[0].key);
     }
-  }, [tabs, activeTab]);
+  }, [tabs, activeTab, pendingTab]);
 
   // 밸류업 카드 등에서 히트맵 딥링크 요청 → 히트맵 탭으로 전환(소스는 HeatmapTab 이 소비).
   useEffect(() => {
@@ -375,6 +391,30 @@ function Dashboard() {
     for (const p of usPrices ?? []) m.set(p.ticker, p);   // 미국 종목 가격 병합
     return m;
   }, [prices, usPrices]);
+
+  // 일별 자산 스냅샷 — 하루 1회 실측 기록. 역산(assetHistory)이 못 담는 값을 남겨,
+  //   시간이 지날수록 자산추이 곡선이 실측으로 대체되게 한다. 데모 데이터는 기록하지 않는다.
+  //   같은 ticker 가 여러 그룹에 있으면 한 번만 센다(그룹 row 는 syncAllRowsForTicker 로 동일 값).
+  const snapshotDayRef = useRef("");
+  useEffect(() => {
+    const today = nowKstDateStr();
+    if (snapshotDayRef.current === today || demoOn) return;
+    if (holdings.length === 0 || priceMap.size === 0) return;
+    const uniq = new Map<string, Stock>();
+    for (const h of holdings) {
+      if (h.shares > 0 && /^\d{6}$/.test(h.ticker) && !uniq.has(h.ticker)) uniq.set(h.ticker, h);
+    }
+    let value = 0, principal = 0;
+    for (const h of uniq.values()) {
+      const px = priceMap.get(h.ticker)?.price;
+      principal += h.shares * h.avg_price;
+      value += h.shares * (px && px > 0 ? px : h.avg_price);
+    }
+    if (value <= 0) return;
+    snapshotDayRef.current = today;
+    void saveAssetSnapshot({ date: today, value, principal, deposit: getTotalDeposits() });
+  }, [holdings, priceMap, demoOn]);
+
 
   // 브라우저 탭 제목 — 전체금액 → 전체% → 오늘금액 → 오늘% 순서로 순환 (좁은 탭에서도 안 잘림)
   const titlePartsRef = useRef<string[]>([]);
@@ -668,6 +708,23 @@ function Dashboard() {
       </header>
       )}
 
+      {/* 데모 배너 — 실제 보유와 헷갈리지 않도록 항상 눈에 띄게. 하단 티커바와 겹치지 않게 상단 배치 */}
+      {demoOn && (
+        <div className="sticky top-0 z-20 bg-amber-500 text-white px-3 py-1.5
+                        text-xs flex items-center justify-center gap-3 shadow">
+          <span>🎬 <b>데모 데이터</b>로 보는 중입니다 — 실제 보유가 아닙니다</span>
+          <button
+            onClick={async () => {
+              await exitDemo();
+              setDemoOn(false);
+              setReloadKey(k => k + 1);
+            }}
+            className="px-2 py-0.5 rounded bg-white/20 hover:bg-white/30 font-bold">
+            데모 지우기
+          </button>
+        </div>
+      )}
+
       <main className="max-w-[1600px] mx-auto p-3">
         <div ref={tabsStickyRef}
              style={{ top: headerCollapsed ? 0 : headerH }}
@@ -728,6 +785,8 @@ function Dashboard() {
           <EtfCompareTab onOpenValuation={(code, n) => { setValuationName(n); setValuationTicker(code); }} />
         ) : activeTab === HEATMAP_TAB_KEY ? (
           <HeatmapTab />
+        ) : activeTab === ASSET_TREND_TAB_KEY ? (
+          <AssetTrendTab trades={allTrades} />
         ) : activeTab === VALUATION_TAB_KEY ? (
           <ValuationTableTab items={consensusItems} onOpenValuation={setValuationTicker} />
         ) : visible.length === 0 ? (
@@ -738,12 +797,31 @@ function Dashboard() {
                 아직 등록된 종목이 없습니다.<br />
                 상단 [⚙️ 설정]에서 JSON 붙여넣기로 가져오세요.
               </p>
-              <button
-                onClick={() => setSettingsOpen(true)}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-700
-                           text-white rounded text-sm font-medium">
-                ⚙️ 설정 열기
-              </button>
+              <div className="flex items-center justify-center gap-2">
+                <button
+                  onClick={() => setSettingsOpen(true)}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-700
+                             text-white rounded text-sm font-medium">
+                  ⚙️ 설정 열기
+                </button>
+                {/* 처음 온 사람용 — 대형주 10종목을 넣어 채워진 화면을 보여준다. 언제든 되돌릴 수 있음 */}
+                <button
+                  onClick={async () => {
+                    const r = await enterDemo();
+                    if (!r.ok) { alert(r.reason ?? "데모를 시작할 수 없습니다"); return; }
+                    setDemoOn(true);
+                    setPendingTab(DEMO_GROUP);   // 탭이 생긴 뒤 자동 이동
+                    setReloadKey(k => k + 1);
+                  }}
+                  title="대형주 10종목을 임시로 넣어 화면을 채웁니다. 내 데이터는 건드리지 않고, 언제든 지울 수 있습니다."
+                  className="px-4 py-2 border border-gray-300 hover:bg-gray-100
+                             text-gray-700 rounded text-sm font-medium">
+                  🎬 데모로 둘러보기
+                </button>
+              </div>
+              <p className="mt-3 text-[11px] text-gray-400">
+                데모는 대형주 10종목을 임시로 넣어 보여줍니다 · 언제든 한 번에 지울 수 있습니다
+              </p>
             </div>
           ) : (
             <div className="space-y-3">

@@ -16,6 +16,7 @@ export interface TabVisibility {
   etfCompare: boolean;
   heatmap: boolean;
   valuation: boolean;
+  assetTrend: boolean;
 }
 
 const BASE_KEYS = {
@@ -31,6 +32,7 @@ const BASE_KEYS = {
   etfCompare: "portfolio_tab_etf_compare",
   heatmap:    "portfolio_tab_heatmap",
   valuation:  "portfolio_tab_valuation",
+  assetTrend: "portfolio_tab_asset_trend",
 } as const;
 
 // 디바이스 폼팩터 — App.tsx 의 useIsMobile 과 동일 기준(width < 768)
@@ -71,6 +73,7 @@ export function getTabVisibility(): TabVisibility {
     etfCompare: read(BASE_KEYS.etfCompare),
     heatmap:    read(BASE_KEYS.heatmap),
     valuation:  read(BASE_KEYS.valuation),
+    assetTrend: read(BASE_KEYS.assetTrend),
   };
 }
 
@@ -87,6 +90,7 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.etfCompare !== undefined) write(BASE_KEYS.etfCompare, patch.etfCompare);
   if (patch.heatmap    !== undefined) write(BASE_KEYS.heatmap,    patch.heatmap);
   if (patch.valuation  !== undefined) write(BASE_KEYS.valuation,  patch.valuation);
+  if (patch.assetTrend !== undefined) write(BASE_KEYS.assetTrend, patch.assetTrend);
 }
 
 // 종목 목록 시장 분리 보기 — 코스피/코스닥/ETF 섹션으로 나눠 표시. 기본 OFF(전체보기).

@@ -25,12 +25,23 @@ export interface Trade {
   createdAt?: number;        // 기록 생성 시각(정렬 보조)
 }
 
+// 일별 자산 스냅샷 — 거래로그 역산이 못 담는 값(예수금·미국분·수기 조정)을 실측으로 남긴다.
+//   역산은 과거를 채우고, 스냅샷은 오늘부터 정확도를 올린다. date(YYYY-MM-DD, KST) 당 1건.
+export interface AssetSnapshot {
+  date: string;
+  value: number;       // 주식 평가금액(원)
+  principal: number;   // 매입원금(원)
+  deposit: number;     // 예수금(원)
+  savedAt: number;     // 기록 시각 — 같은 날 여러 번이면 마지막 값으로 덮어씀
+}
+
 class PortfolioDB extends Dexie {
   holdings!: Table<Stock, string>;       // PK: ticker_account composite (string)
   peaks!: Table<Peak, string>;           // PK: ticker
   config!: Table<ConfigKV, string>;      // PK: key
   memos!: Table<Memo, string>;           // PK: ticker
   trades!: Table<Trade, string>;         // PK: id (거래 기록)
+  snapshots!: Table<AssetSnapshot, string>;   // PK: date
 
   constructor() {
     super("portfolio_v3");
@@ -53,6 +64,15 @@ class PortfolioDB extends Dexie {
       config: "&key",
       memos: "&ticker",
       trades: "&id, ticker",
+    });
+    // v4: snapshots 테이블 추가 (일별 자산 스냅샷)
+    this.version(4).stores({
+      holdings: "&id, ticker, account",
+      peaks: "&ticker",
+      config: "&key",
+      memos: "&ticker",
+      trades: "&id, ticker",
+      snapshots: "&date",
     });
   }
 }
@@ -753,4 +773,20 @@ export async function replaceAllMemos(memos: Memo[]): Promise<void> {
     );
     if (valid.length > 0) await db.memos.bulkAdd(valid);
   });
+}
+
+// ───────── 일별 자산 스냅샷 ─────────
+// 하루 1건(date PK) — 같은 날 다시 부르면 최신 값으로 덮어쓴다.
+// 장중에 계속 덮어쓰이므로 '그날의 마지막 조회 시점' 값이 남는다. 종가 확정 전이라도
+// 역산 곡선보다 실측에 가깝고(예수금 포함), 다음 날이면 사실상 종가 기준이 된다.
+export async function saveAssetSnapshot(
+  s: { date: string; value: number; principal: number; deposit: number },
+): Promise<void> {
+  if (!s.date) return;
+  await db.snapshots.put({ ...s, savedAt: Date.now() });
+}
+
+export async function loadAssetSnapshots(): Promise<AssetSnapshot[]> {
+  const rows = await db.snapshots.toArray();
+  return rows.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
 }

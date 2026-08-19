@@ -306,6 +306,7 @@ export const ETF_COMPARE_TAB_KEY = "__etf-compare__";
 export const HEATMAP_TAB_KEY = "__heatmap__";
 // 가치표 — 관심종목 전체의 기업가치 지표(시총·PER·ROE 등)를 한 표로, 열별 정렬
 export const VALUATION_TAB_KEY = "__valuation__";
+export const ASSET_TREND_TAB_KEY = "__asset-trend__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
@@ -380,6 +381,10 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 가치표 — 관심종목 기업가치 지표 표
   if (visibility?.valuation ?? true) {
     tabs.push({ key: VALUATION_TAB_KEY, label: "가치표", emoji: "🧮", count: 0 });
+  }
+  // 자산추이 — 일별 총자산·원금 대비 수익. 거래 기록이 있을 때만 의미가 있어 그때만 노출.
+  if ((visibility?.assetTrend ?? true) && tradeCount > 0) {
+    tabs.push({ key: ASSET_TREND_TAB_KEY, label: "자산추이", emoji: "📈", count: 0 });
   }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())
