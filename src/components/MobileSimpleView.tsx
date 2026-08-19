@@ -83,6 +83,7 @@ import { ValueupMiniCard } from "./ValueupCard";
 import { HlPerpCard } from "./HlPerpCard";
 import { GOTO_HEATMAP_EVENT, requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
 import { MyTradesTab } from "./MyTradesTab";
+import { AssetTrendTab } from "./AssetTrendTab";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { EtfReverseDialog } from "./EtfReverseDialog";
 import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
@@ -112,6 +113,7 @@ const SEMI_KEY = "__semi__";  // 반도체 점검 — MU·NVDA·장비주·환�
 const SECTOR_KEY = "__sector__";  // 한국 섹터 순위 — 토스 TICS depth1 ranking
 const MY_KEY = "__my-stocks__";  // 내주식(가상 합산) — 모든 그룹의 동일 ticker 를 shares 합/가중평균 평단
 const MY_TRADES_KEY = "__my-trades__";  // 내거래 — 모든 종목 거래 기록 모아보기 (내주식과 한 묶음)
+const ASSET_TREND_KEY = "__asset-trend__";  // 자산추이 — 일별 총자산·원금 대비 수익 (내자산 묶음 세 번째)
 const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 
 // 지수 카드 순서·그룹은 PC 와 공용 정의 사용 (lib/dashboardGroups buildDashboardSections).
@@ -213,7 +215,8 @@ export function MobileSimpleView() {
   const isSystemTab = activeTab === MONEY_KEY || activeTab === KR_KEY || activeTab === US_KEY
     || activeTab === SEMI_KEY || activeTab === SECTOR_KEY || activeTab === CONSENSUS_KEY
     || activeTab === ETF_KEY || activeTab === ETF_RANK_KEY || activeTab === ETF_COMPARE_KEY
-    || activeTab === HEATMAP_KEY || activeTab === VALUATION_KEY || activeTab === MY_TRADES_KEY;
+    || activeTab === HEATMAP_KEY || activeTab === VALUATION_KEY || activeTab === MY_TRADES_KEY
+    || activeTab === ASSET_TREND_KEY;
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   // 스와이프 시작이 가로 스크롤 영역(data-noswipe) 안이면 그 시작 scrollLeft 기억 — 실제 스크롤됐는지 판정용
   const swipeScroll = useRef<{ el: HTMLElement; left: number } | null>(null);
@@ -301,6 +304,10 @@ export function MobileSimpleView() {
     if (vis.myTrades && (tradeCount > 0 || uniqHeld.size > 0)) {
       tabs.push({ key: MY_TRADES_KEY, label: "🧾내거래", count: tradeCount });
     }
+    // 자산추이 — 거래 기록으로 역산하므로 기록이 있을 때만 (데스크톱 buildTabs 와 동일 조건)
+    if (vis.assetTrend && tradeCount > 0) {
+      tabs.push({ key: ASSET_TREND_KEY, label: "📈자산추이", count: 0 });
+    }
     // 컨센서스 — 설정 ON 이면 항상 노출(종목 없으면 빈 안내 표시)
     if (vis.consensus) {
       tabs.push({ key: CONSENSUS_KEY, label: "🎯컨센서스", count: 0 });
@@ -350,11 +357,11 @@ export function MobileSimpleView() {
   //  시각 순서: 지수 → (섹터·반도체·컨센서스·ETF 묶음) → (내주식·내거래 묶음) → 사용자그룹 → 폴더
   //  (groupTabs 원순서는 내거래가 컨센서스/ETF 앞이라 ETF에서 스와이프 시 내거래를 건너뛰던 문제 수정)
   const navKeys = useMemo(() => {
-    const SYS = [MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY];
+    const SYS = [MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY];
     const has = (k: string) => groupTabs.some(t => t.key === k);
     const keys: string[] = [];
     for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음(섹터…히트맵)
-    for (const k of [MY_KEY, MY_TRADES_KEY]) if (has(k)) keys.push(k);   // 내자산 묶음(내주식·내거래)
+    for (const k of [MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY]) if (has(k)) keys.push(k);   // 내자산 묶음(내주식·내거래·자산추이)
     if (has(MONEY_KEY)) keys.push(MONEY_KEY);                            // 증시(별도 탭)
     if (has(KR_KEY)) keys.push(KR_KEY);                                  // 지수(별도 탭)
     for (const t of groupTabs) if (!SYS.includes(t.key) && !folderedGroups.has(t.key)) keys.push(t.key);  // 사용자그룹
@@ -935,7 +942,7 @@ export function MobileSimpleView() {
         })()}
         {/* 내자산 묶음 — 내주식 + 내거래 드롭다운 하나로 (지수 묶음과 동일) */}
         {(() => {
-          const MY = new Set([MY_KEY, MY_TRADES_KEY]);
+          const MY = new Set([MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY]);
           const my = groupTabs.filter(t => MY.has(t.key));
           if (my.length === 0) return null;
           // 묶을 항목이 1개뿐이면 드롭다운 대신 일반 탭으로 바로 노출
@@ -999,7 +1006,7 @@ export function MobileSimpleView() {
         })()}
         {groupTabs.map(t => {
           // 시스템·내자산 탭은 위 드롭다운/별도 버튼으로만 표시 (개별 탭 숨김)
-          if ([MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY].includes(t.key)) return null;
+          if ([MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY].includes(t.key)) return null;
           // 폴더에 담긴 그룹은 개별 탭에서 숨김 (아래 📁 드롭다운으로)
           if (folderedGroups.has(t.key)) return null;
           const active = t.key === activeTab;
@@ -1335,6 +1342,9 @@ export function MobileSimpleView() {
       {isSystemTab && (() => {
         if (activeTab === MONEY_KEY) {
           return <div className="px-3 py-2 pb-32"><StockMarketTab /></div>;
+        }
+        if (activeTab === ASSET_TREND_KEY) {
+          return <div className="px-2 py-2 pb-32"><AssetTrendTab trades={allTrades} /></div>;
         }
         if (activeTab === MY_TRADES_KEY) {
           return <div className="px-2 py-2 pb-32"><MyTradesTab holdings={holdings} prices={groupPriceMap} onOpenValuation={setValuationTicker} /></div>;

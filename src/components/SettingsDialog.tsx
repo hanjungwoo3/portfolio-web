@@ -85,11 +85,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     persistFolders(next);
   };
 
-  const toggleTab = (key: "stockMarket" | "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "myTrades" | "consensus" | "etfReverse" | "etfRanking", v: boolean) => {
+  const toggleTab = (key: "stockMarket" | "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "myTrades" | "assetTrend" | "consensus" | "etfReverse" | "etfRanking", v: boolean) => {
     const next = { ...tabVis, [key]: v };
     setTabVis(next);
     setTabVisibility({ [key]: v });
-    const labelMap = { stockMarket: "증시", usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", myTrades: "내거래", consensus: "컨센서스", etfReverse: "ETF검색", etfRanking: "ETF랭킹" };
+    const labelMap = { stockMarket: "증시", usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", myTrades: "내거래", assetTrend: "자산추이", consensus: "컨센서스", etfReverse: "ETF검색", etfRanking: "ETF랭킹" };
     setStatusMsg(`✅ ${labelMap[key]} 탭: ${v ? "표시" : "숨김"}`);
     onChanged();
   };
@@ -770,6 +770,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                          onChange={e => toggleTab("myTrades", e.target.checked)}
                          className="w-4 h-4 accent-blue-600" />
                   <span className="text-[11px] text-gray-700">🧾 내거래 (개별 탭)</span>
+                </label>
+                <label className="flex items-center gap-1.5 cursor-pointer select-none">
+                  <input type="checkbox" checked={tabVis.assetTrend}
+                         onChange={e => toggleTab("assetTrend", e.target.checked)}
+                         className="w-4 h-4 accent-blue-600" />
+                  <span className="text-[11px] text-gray-700">📈 자산추이 (개별 탭)</span>
                 </label>
               </div>
               <div className="text-[10px] text-gray-500 mt-1">

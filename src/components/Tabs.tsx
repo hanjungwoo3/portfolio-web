@@ -325,7 +325,7 @@ export const SYSTEM_TAB_KEYS = new Set<string>([
 
 // 내자산 묶음 — 내주식 + 내거래를 별도 드롭다운 하나로 (지수 묶음과 동일 방식).
 export const MY_GROUP_KEYS = new Set<string>([
-  MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY,
+  MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, ASSET_TREND_TAB_KEY,
 ]);
 
 // 미국증시 → 섹터순위 → 반도체 점검 → 내주식(합산) → 사용자 그룹 알파벳 순.
@@ -358,6 +358,10 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   if (showMyTrades && (tradeCount > 0 || uniqHeld.size > 0)) {
     tabs.push({ key: MY_TRADES_TAB_KEY, label: "내거래", emoji: "🧾", count: tradeCount });
   }
+  // 자산추이 — 내자산 묶음(내주식·내거래)의 세 번째. 거래 기록이 있어야 역산이 되므로 그때만.
+  if ((visibility?.assetTrend ?? true) && tradeCount > 0) {
+    tabs.push({ key: ASSET_TREND_TAB_KEY, label: "자산추이", emoji: "📈", count: 0 });
+  }
   // 컨센서스 — 내주식 옆. 설정 ON 이면 항상 노출(종목 없으면 빈 안내 표시).
   if (showConsensus) {
     tabs.push({ key: CONSENSUS_TAB_KEY, label: "컨센서스", emoji: "🎯", count: 0 });
@@ -381,10 +385,6 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 가치표 — 관심종목 기업가치 지표 표
   if (visibility?.valuation ?? true) {
     tabs.push({ key: VALUATION_TAB_KEY, label: "가치표", emoji: "🧮", count: 0 });
-  }
-  // 자산추이 — 일별 총자산·원금 대비 수익. 거래 기록이 있을 때만 의미가 있어 그때만 노출.
-  if ((visibility?.assetTrend ?? true) && tradeCount > 0) {
-    tabs.push({ key: ASSET_TREND_TAB_KEY, label: "자산추이", emoji: "📈", count: 0 });
   }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())
