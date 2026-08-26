@@ -1344,7 +1344,7 @@ export function MobileSimpleView() {
           return <div className="px-3 py-2 pb-32"><StockMarketTab /></div>;
         }
         if (activeTab === ASSET_TREND_KEY) {
-          return <div className="px-2 py-2 pb-32"><AssetTrendTab trades={allTrades} /></div>;
+          return <div className="px-2 py-2 pb-32"><AssetTrendTab trades={allTrades} holdings={holdings} /></div>;
         }
         if (activeTab === MY_TRADES_KEY) {
           return <div className="px-2 py-2 pb-32"><MyTradesTab holdings={holdings} prices={groupPriceMap} onOpenValuation={setValuationTicker} /></div>;

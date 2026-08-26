@@ -394,18 +394,15 @@ function Dashboard() {
 
   // 일별 자산 스냅샷 — 하루 1회 실측 기록. 역산(assetHistory)이 못 담는 값을 남겨,
   //   시간이 지날수록 자산추이 곡선이 실측으로 대체되게 한다. 데모 데이터는 기록하지 않는다.
-  //   같은 ticker 가 여러 그룹에 있으면 한 번만 센다(그룹 row 는 syncAllRowsForTicker 로 동일 값).
+  //   합산 기준은 '내주식' 탭과 동일(filterByTab) — 그룹 미러 중복 제거·미국 보유 포함(원화).
   const snapshotDayRef = useRef("");
   useEffect(() => {
     const today = nowKstDateStr();
     if (snapshotDayRef.current === today || demoOn) return;
     if (holdings.length === 0 || priceMap.size === 0) return;
-    const uniq = new Map<string, Stock>();
-    for (const h of holdings) {
-      if (h.shares > 0 && /^\d{6}$/.test(h.ticker) && !uniq.has(h.ticker)) uniq.set(h.ticker, h);
-    }
     let value = 0, principal = 0;
-    for (const h of uniq.values()) {
+    for (const h of filterByTab(holdings, MY_STOCKS_TAB_KEY)) {
+      if (!(h.shares > 0)) continue;
       const px = priceMap.get(h.ticker)?.price;
       principal += h.shares * h.avg_price;
       value += h.shares * (px && px > 0 ? px : h.avg_price);
@@ -786,7 +783,7 @@ function Dashboard() {
         ) : activeTab === HEATMAP_TAB_KEY ? (
           <HeatmapTab />
         ) : activeTab === ASSET_TREND_TAB_KEY ? (
-          <AssetTrendTab trades={allTrades} />
+          <AssetTrendTab trades={allTrades} holdings={holdings} />
         ) : activeTab === VALUATION_TAB_KEY ? (
           <ValuationTableTab items={consensusItems} onOpenValuation={setValuationTicker} />
         ) : visible.length === 0 ? (

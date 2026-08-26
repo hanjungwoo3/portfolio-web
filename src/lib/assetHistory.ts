@@ -1,13 +1,20 @@
-// 일별 자산 추이 역산 — 거래 로그 + 과거 종가로 "그날의 평가금액·매입원금"을 되짚는다.
+// 일별 자산 추이 역산 — 거래 로그 + 보유현황 + 과거 종가로 "그날의 평가금액·매입원금"을 되짚는다.
 //
 // 앱에 과거 스냅샷이 없어서(예수금도 현재값만 존재) 과거 곡선을 보려면 재구성뿐이다.
-// 재료: trades(매수/매도 로그) + 종목별 일봉 종가. 둘 다 이미 앱에 있다.
+// 재료: trades(매수/매도 로그) + 종목별 일봉 종가 + 지금 보유현황(정답지).
 //
 // 원가 계산은 평균단가법 — 국내 증권사 MTS 와 같은 방식.
 //   매수: qty += q,  cost += 매수금액
 //   매도: 실현손익 += 매도금액 − 평단×q,  cost -= 평단×q,  qty -= q
 // 그래서 "매입원금(principal)"은 지금 들고 있는 수량의 취득원가이지, 누적 투입금이 아니다.
 // 누적 투입금(netInvested)도 같이 내보내 필요에 따라 고를 수 있게 한다.
+//
+// ★ 기초 잔고(baseline) — 거래 로그는 '내주식'의 전부가 아니다.
+//   토스 거래내역을 가져오기 전부터 들고 있던 종목, 수기로 입력한 보유는 로그에 없다.
+//   로그만 합치면 마지막 시점 합계가 내주식 화면(총원금/평가액)과 어긋난다.
+//   → 로그를 끝까지 재생한 결과와 실제 보유현황의 차이를 "처음부터 들고 있던 수량"으로 보고
+//     전 구간에 상수로 깔아 준다(computeBaseline). 마지막 점은 항상 내주식과 일치한다.
+//   취득 시점을 모르니 과거 구간에서도 계속 보유한 것으로 가정한다 — 화면에 그 사실을 밝힌다.
 
 import type { Trade } from "./db";
 
@@ -24,34 +31,108 @@ export interface AssetPoint {
   priced: number;        // 그중 그날 종가를 구한 종목 수 (신뢰도)
 }
 
+// 거래 로그로 설명되지 않는 보유분 — 전 구간에 상수로 깔린다. 음수면 '기록 밖 매도'.
+export interface BaselineLot { qty: number; cost: number }
+
 interface Pos { qty: number; cost: number }
 
-// closes: ticker → (date → 종가). 없는 날은 직전 종가를 이어 쓴다(휴장·거래정지).
-export function buildAssetHistory(
-  trades: Trade[],
-  closes: Map<string, Map<string, number>>,
-): AssetPoint[] {
-  const sorted = [...trades]
+function sortTrades(trades: Trade[]): Trade[] {
+  return [...trades]
     .filter(t => t.date && t.qty > 0)
     .sort((a, b) => (a.date === b.date
       ? (a.createdAt ?? 0) - (b.createdAt ?? 0)
       : a.date < b.date ? -1 : 1));
-  if (sorted.length === 0) return [];
+}
 
-  // 날짜 축 = 종가가 존재하는 모든 날(= 거래일) 중 첫 거래일 이후.
+// 거래 1건을 포지션에 반영 — 평균단가법. 실현손익과 순투입 변화를 돌려준다.
+function applyTrade(pos: Map<string, Pos>, t: Trade): { realized: number; net: number } {
+  const p = pos.get(t.ticker) ?? { qty: 0, cost: 0 };
+  let realized = 0;
+  let net: number;
+  if (t.type === "buy") {
+    p.qty += t.qty;
+    p.cost += t.amount;
+    net = t.amount;
+  } else {
+    const avg = p.qty > 0 ? p.cost / p.qty : 0;
+    const q = Math.min(t.qty, p.qty);          // 로그가 어긋나도 음수 보유는 만들지 않는다
+    realized = t.amount - avg * q;
+    p.qty -= q;
+    p.cost -= avg * q;
+    net = -t.amount;
+    if (p.qty <= 0) { p.qty = 0; p.cost = 0; }  // 전량 매도 — 반올림 잔여 제거
+  }
+  pos.set(t.ticker, p);
+  return { realized, net };
+}
+
+// 거래 로그를 끝까지 재생한 '지금' 포지션 — 보유현황과 맞대 볼 기준.
+function replayToEnd(trades: Trade[]): Map<string, Pos> {
+  const pos = new Map<string, Pos>();
+  for (const t of sortTrades(trades)) applyTrade(pos, t);
+  return pos;
+}
+
+// 기초 잔고 = 실제 보유현황 − 거래 로그가 설명하는 몫.
+//   holdings 는 '내주식'과 같은 기준(ticker 중복 제거 완료)으로 넘길 것.
+//   · 로그에 없는 보유          → 양수 lot (처음부터 보유한 것으로 간주)
+//   · 로그엔 남았는데 보유 없음 → 음수 lot (기록 밖 매도 — 마지막 점에서 정확히 0 이 된다)
+export function computeBaseline(
+  trades: Trade[],
+  holdings: { ticker: string; shares: number; avg_price: number }[],
+): Map<string, BaselineLot> {
+  const pos = replayToEnd(trades);
+  const out = new Map<string, BaselineLot>();
+  const seen = new Set<string>();
+  for (const h of holdings) {
+    if (!(h.shares > 0) || seen.has(h.ticker)) continue;
+    seen.add(h.ticker);
+    const l = pos.get(h.ticker);
+    const dq = h.shares - (l?.qty ?? 0);
+    const dc = h.shares * h.avg_price - (l?.cost ?? 0);
+    if (Math.abs(dq) < 1e-9 && Math.abs(dc) < 1) continue;   // 로그가 이미 정확 — 손댈 것 없음
+    out.set(h.ticker, { qty: dq, cost: dc });
+  }
+  for (const [ticker, l] of pos) {
+    if (l.qty <= 0 || seen.has(ticker)) continue;
+    out.set(ticker, { qty: -l.qty, cost: -l.cost });
+  }
+  return out;
+}
+
+// closes: ticker → (date → 종가·원). 없는 날은 직전 종가를 이어 쓴다(휴장·거래정지).
+// baseline: 거래 로그 밖 보유분(computeBaseline). 넘기지 않으면 예전처럼 로그만으로 그린다.
+export function buildAssetHistory(
+  trades: Trade[],
+  closes: Map<string, Map<string, number>>,
+  baseline?: Map<string, BaselineLot>,
+): AssetPoint[] {
+  const sorted = sortTrades(trades);
+  const base = baseline ?? new Map<string, BaselineLot>();
+  let baseCost = 0;
+  let hasBase = false;
+  for (const b of base.values()) {
+    if (b.qty > 1e-9) { hasBase = true; baseCost += Math.max(0, b.cost); }
+  }
+  if (sorted.length === 0 && !hasBase) return [];
+
+  // 날짜 축 = 종가가 존재하는 모든 날(= 거래일).
+  //   기초 잔고가 있으면 첫 거래 이전에도 보유가 있었다는 뜻이라 조회 가능한 전 구간을 그린다.
+  //   기초 잔고가 없으면 예전대로 첫 거래일 이후만.
   //   거래일이 축에 없을 수도 있어(데이터 누락) 거래는 '축 날짜 <= 거래일' 조건으로 흘려보낸다.
-  const firstTrade = sorted[0].date;
+  const floor = hasBase ? "" : sorted[0].date;
   const axis = new Set<string>();
   for (const m of closes.values()) {
-    for (const d of m.keys()) if (d >= firstTrade) axis.add(d);
+    for (const d of m.keys()) if (d >= floor) axis.add(d);
   }
   const dates = [...axis].sort();
   if (dates.length === 0) return [];
 
   const pos = new Map<string, Pos>();
   const lastClose = new Map<string, number>();
+  const universe = new Set<string>(base.keys());   // 한 번이라도 등장한 종목
   let realizedCum = 0;
-  let netInvested = 0;
+  let netInvested = baseCost;      // 기초 잔고는 시작 시점에 투입된 것으로 본다
   let ti = 0;
   const out: AssetPoint[] = [];
 
@@ -59,33 +140,26 @@ export function buildAssetHistory(
     // 이 날짜까지의 거래를 모두 반영 (같은 날 여러 건도 순서대로)
     while (ti < sorted.length && sorted[ti].date <= d) {
       const t = sorted[ti++];
-      const p = pos.get(t.ticker) ?? { qty: 0, cost: 0 };
-      if (t.type === "buy") {
-        p.qty += t.qty;
-        p.cost += t.amount;
-        netInvested += t.amount;
-      } else {
-        const avg = p.qty > 0 ? p.cost / p.qty : 0;
-        const q = Math.min(t.qty, p.qty);          // 로그가 어긋나도 음수 보유는 만들지 않는다
-        realizedCum += t.amount - avg * q;
-        p.qty -= q;
-        p.cost -= avg * q;
-        netInvested -= t.amount;
-        if (p.qty <= 0) { p.qty = 0; p.cost = 0; }  // 전량 매도 — 반올림 잔여 제거
-      }
-      pos.set(t.ticker, p);
+      const r = applyTrade(pos, t);
+      realizedCum += r.realized;
+      netInvested += r.net;
+      universe.add(t.ticker);
     }
 
     let value = 0, principal = 0, held = 0, priced = 0;
-    for (const [ticker, p] of pos) {
-      if (p.qty <= 0) continue;
+    for (const ticker of universe) {
+      const p = pos.get(ticker);
+      const b = base.get(ticker);
+      const qty = (p?.qty ?? 0) + (b?.qty ?? 0);
+      if (qty <= 1e-9) continue;                  // 기록 밖 매도분이 로그 잔량을 다 상쇄한 구간
+      const cost = Math.max(0, (p?.cost ?? 0) + (b?.cost ?? 0));
       held++;
-      principal += p.cost;
+      principal += cost;
       const c = closes.get(ticker)?.get(d);
       if (c != null && c > 0) { lastClose.set(ticker, c); priced++; }
       const px = c ?? lastClose.get(ticker);
-      if (px != null && px > 0) value += p.qty * px;
-      else value += p.cost;        // 종가를 끝내 못 구하면 원가로 — 곡선이 0 으로 꺼지는 것보다 낫다
+      if (px != null && px > 0) value += qty * px;
+      else value += cost;        // 종가를 끝내 못 구하면 원가로 — 곡선이 0 으로 꺼지는 것보다 낫다
     }
     if (held === 0 && out.length === 0) continue;   // 첫 매수 전 구간은 그리지 않는다
 
