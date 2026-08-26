@@ -50,10 +50,16 @@ function toKrwCloses(rows: PricePoint[], fx: PricePoint[]): Map<string, number> 
   return out;
 }
 
+// 표는 대략치가 아니라 대사(對査)용 — 억/만 축약 대신 원 단위 그대로 보여준다
+const full = (v: number): string => Math.round(v).toLocaleString();
+const signed = (v: number): string => `${v >= 0 ? "+" : "-"}${full(Math.abs(v))}`;
+const fmtDate = (d: string): string => d.slice(2).replace(/-/g, ".");   // 2026-08-14 → 26.08.14
+
 interface Props { trades: Trade[]; holdings: Stock[] }
 
 export function AssetTrendTab({ trades, holdings }: Props) {
   const [range, setRange] = useState<RangeKey>("6m");
+  const [tableOpen, setTableOpen] = useState(true);   // 차트와 표를 같이 본다 — 표는 접을 수 있게만
 
   // 정답지 — '내주식'과 같은 합산 규칙(그룹 미러 중복 제거, 독립보유 모드 반영)
   const held = useMemo(
@@ -156,6 +162,22 @@ export function AssetTrendTab({ trades, holdings }: Props) {
   );
   const points = useMemo(() => sliceByRange(all, range), [all, range]);
 
+  // 표 행 — 최신이 위. 일간 손익 = 그날 번 돈(평가손익 변화 + 그날 실현손익) = totalPnl 증감.
+  //   단순 '자산 증감'을 쓰면 그날 추가매수한 돈까지 수익으로 잡혀서 안 된다.
+  const rows = useMemo(() => {
+    const idx = new Map(all.map((p, i) => [p.date, i]));
+    const out = points.map(p => {
+      const i = idx.get(p.date) ?? -1;
+      const prev = i > 0 ? all[i - 1] : undefined;   // 구간 밖이라도 바로 앞 거래일을 쓴다
+      const diff = prev ? p.totalPnl - prev.totalPnl : 0;
+      return {
+        p, prev, diff,
+        pct: prev && prev.value > 0 ? (diff / prev.value) * 100 : 0,
+      };
+    });
+    return out.reverse();
+  }, [points, all]);
+
   if (held.length === 0 && usable.trades.length === 0) {
     return (
       <div className="text-center py-16 text-gray-500 text-sm">
@@ -234,6 +256,66 @@ export function AssetTrendTab({ trades, holdings }: Props) {
         <Suspense fallback={<div className="h-[320px]" />}>
           <AssetTrendChart points={points} />
         </Suspense>
+      </div>
+
+      {/* 일별 표 — 차트 아래. MTS 의 '일별 수익률' 표와 같은 자리. */}
+      <div className="border border-gray-200 rounded bg-white overflow-hidden">
+        <button onClick={() => setTableOpen(o => !o)}
+                className="w-full flex items-center gap-2 text-[11px] px-2 py-1.5 hover:bg-gray-50 transition">
+          <span className="font-bold text-gray-700">📋 일별 수익</span>
+          <span className="text-gray-400">{rows.length}일</span>
+          <span className="ml-auto text-gray-500">
+            구간 손익 <span className={`font-bold tabular-nums ${signColor(periodPnl)}`}>
+              {periodPnl >= 0 ? "+" : ""}{full(periodPnl)}
+            </span>
+          </span>
+          <span className="text-gray-400">{tableOpen ? "▾" : "▸"}</span>
+        </button>
+        {tableOpen && (<>
+          <div className="max-h-[560px] overflow-y-auto overflow-x-auto border-t border-gray-100">
+            <table className="w-full text-[11px] tabular-nums">
+              <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500">
+                <tr>
+                  <th className="text-left  px-2 py-1.5 font-medium whitespace-nowrap">기준일</th>
+                  <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">일간 손익</th>
+                  <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">누적 손익</th>
+                  <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">평가금액</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(({ p, prev, diff, pct }) => (
+                  <tr key={p.date} className="border-t border-gray-100 hover:bg-gray-50">
+                    <td className="px-2 py-1.5 text-gray-600 whitespace-nowrap align-top">
+                      {fmtDate(p.date)}
+                      <div className="text-[10px] text-gray-400">{p.held}종목</div>
+                    </td>
+                    <td className={`px-2 py-1.5 text-right whitespace-nowrap align-top font-bold ${
+                          prev ? signColor(diff) : "text-gray-400"}`}>
+                      {prev ? signed(diff) : "—"}
+                      <div className="text-[10px] font-normal">
+                        {prev ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%` : ""}
+                      </div>
+                    </td>
+                    <td className={`px-2 py-1.5 text-right whitespace-nowrap align-top ${signColor(p.unrealized)}`}>
+                      {signed(p.unrealized)}
+                      <div className="text-[10px]">
+                        {p.returnPct >= 0 ? "+" : ""}{p.returnPct.toFixed(2)}%
+                      </div>
+                    </td>
+                    <td className="px-2 py-1.5 text-right whitespace-nowrap align-top font-bold text-gray-900">
+                      {full(p.value)}
+                      <div className="text-[10px] font-normal text-gray-400">{full(p.principal)}</div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="text-[10px] text-gray-400 px-2 py-1.5 border-t border-gray-100 leading-relaxed">
+            일간 손익 = 그날 평가손익 변화 + 그날 실현손익 — 추가 매수·입금은 수익으로 치지 않습니다.
+            일간 % 는 전일 평가금액 대비. 평가금액 아래 회색 숫자는 매입원금.
+          </div>
+        </>)}
       </div>
 
       <div className="text-[10px] text-gray-400 px-1 leading-relaxed">
