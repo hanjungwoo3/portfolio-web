@@ -9,7 +9,7 @@
 // 오늘부터는 App 이 매일 실측 스냅샷을 남기므로, 시간이 지날수록 실측 구간이 늘어난다.
 // 미국 종목은 야후 일봉(USD) × 그날 원달러 환율로 원화 환산해 함께 합산한다.
 
-import { lazy, Suspense, useMemo, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchTossKrCandles, fetchYahooPriceHistory, TOSS_CANDLE_MAX, type PricePoint } from "../lib/api";
 import {
@@ -55,11 +55,36 @@ const full = (v: number): string => Math.round(v).toLocaleString();
 const signed = (v: number): string => `${v >= 0 ? "+" : "-"}${full(Math.abs(v))}`;
 const fmtDate = (d: string): string => d.slice(2).replace(/-/g, ".");   // 2026-08-14 → 26.08.14
 
+// 표 열 수 — PC 는 남는 가로를 신문처럼 나눠 쓴다.
+//   한 열을 위에서 아래까지 채우고, 다음 열 맨 위로 이어진다(열 우선 채움).
+const COL_BREAKS = [
+  { q: "(min-width: 1600px)", n: 4 },
+  { q: "(min-width: 1200px)", n: 3 },
+  { q: "(min-width: 768px)",  n: 2 },
+] as const;
+
+function pickCols(): number {
+  if (typeof window === "undefined") return 1;
+  return COL_BREAKS.find(b => window.matchMedia(b.q).matches)?.n ?? 1;
+}
+
+function useTableCols(): number {
+  const [n, setN] = useState(pickCols);
+  useEffect(() => {
+    const mqls = COL_BREAKS.map(b => window.matchMedia(b.q));
+    const on = () => setN(pickCols());
+    mqls.forEach(m => m.addEventListener("change", on));
+    return () => mqls.forEach(m => m.removeEventListener("change", on));
+  }, []);
+  return n;
+}
+
 interface Props { trades: Trade[]; holdings: Stock[] }
 
 export function AssetTrendTab({ trades, holdings }: Props) {
   const [range, setRange] = useState<RangeKey>("6m");
   const [tableOpen, setTableOpen] = useState(true);   // 차트와 표를 같이 본다 — 표는 접을 수 있게만
+  const cols = useTableCols();
 
   // 정답지 — '내주식'과 같은 합산 규칙(그룹 미러 중복 제거, 독립보유 모드 반영)
   const held = useMemo(
@@ -178,6 +203,14 @@ export function AssetTrendTab({ trades, holdings }: Props) {
     return out.reverse();
   }, [points, all]);
 
+  // 열 우선 채움 — 앞 조각이 왼쪽 열, 각 열은 위에서 아래로
+  const chunks = useMemo(() => {
+    const size = Math.max(1, Math.ceil(rows.length / Math.max(1, cols)));
+    const out: (typeof rows)[] = [];
+    for (let i = 0; i < rows.length; i += size) out.push(rows.slice(i, i + size));
+    return out;
+  }, [rows, cols]);
+
   if (held.length === 0 && usable.trades.length === 0) {
     return (
       <div className="text-center py-16 text-gray-500 text-sm">
@@ -272,44 +305,50 @@ export function AssetTrendTab({ trades, holdings }: Props) {
           <span className="text-gray-400">{tableOpen ? "▾" : "▸"}</span>
         </button>
         {tableOpen && (<>
-          <div className="max-h-[560px] overflow-y-auto overflow-x-auto border-t border-gray-100">
-            <table className="w-full text-[11px] tabular-nums">
-              <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500">
-                <tr>
-                  <th className="text-left  px-2 py-1.5 font-medium whitespace-nowrap">기준일</th>
-                  <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">일간 손익</th>
-                  <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">누적 손익</th>
-                  <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">평가금액</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rows.map(({ p, prev, diff, pct }) => (
-                  <tr key={p.date} className="border-t border-gray-100 hover:bg-gray-50">
-                    <td className="px-2 py-1.5 text-gray-600 whitespace-nowrap align-top">
-                      {fmtDate(p.date)}
-                      <div className="text-[10px] text-gray-400">{p.held}종목</div>
-                    </td>
-                    <td className={`px-2 py-1.5 text-right whitespace-nowrap align-top font-bold ${
-                          prev ? signColor(diff) : "text-gray-400"}`}>
-                      {prev ? signed(diff) : "—"}
-                      <div className="text-[10px] font-normal">
-                        {prev ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%` : ""}
-                      </div>
-                    </td>
-                    <td className={`px-2 py-1.5 text-right whitespace-nowrap align-top ${signColor(p.unrealized)}`}>
-                      {signed(p.unrealized)}
-                      <div className="text-[10px]">
-                        {p.returnPct >= 0 ? "+" : ""}{p.returnPct.toFixed(2)}%
-                      </div>
-                    </td>
-                    <td className="px-2 py-1.5 text-right whitespace-nowrap align-top font-bold text-gray-900">
-                      {full(p.value)}
-                      <div className="text-[10px] font-normal text-gray-400">{full(p.principal)}</div>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="max-h-[620px] overflow-y-auto overflow-x-auto border-t border-gray-100 bg-gray-50">
+            <div className="flex items-start gap-2 p-2">
+              {chunks.map((chunk, ci) => (
+                <div key={ci} className="flex-1 min-w-[190px] border border-gray-200 rounded bg-white shadow-sm">
+                  <table className="w-full text-[11px] tabular-nums">
+                    <thead className="sticky top-0 z-10 bg-gray-50 text-gray-500 shadow-[inset_0_-1px_0_0_rgb(229,231,235)]">
+                      <tr>
+                        <th className="text-left  px-2 py-1.5 font-medium whitespace-nowrap">기준일</th>
+                        <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">일간 손익</th>
+                        <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">누적 손익</th>
+                        <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">평가금액</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {chunk.map(({ p, prev, diff, pct }) => (
+                        <tr key={p.date} className="border-t border-gray-100 hover:bg-gray-50">
+                          <td className="px-2 py-1.5 text-gray-600 whitespace-nowrap align-top">
+                            {fmtDate(p.date)}
+                            <div className="text-[10px] text-gray-400">{p.held}종목</div>
+                          </td>
+                          <td className={`px-2 py-1.5 text-right whitespace-nowrap align-top font-bold ${
+                                prev ? signColor(diff) : "text-gray-400"}`}>
+                            {prev ? signed(diff) : "—"}
+                            <div className="text-[10px] font-normal">
+                              {prev ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%` : ""}
+                            </div>
+                          </td>
+                          <td className={`px-2 py-1.5 text-right whitespace-nowrap align-top ${signColor(p.unrealized)}`}>
+                            {signed(p.unrealized)}
+                            <div className="text-[10px]">
+                              {p.returnPct >= 0 ? "+" : ""}{p.returnPct.toFixed(2)}%
+                            </div>
+                          </td>
+                          <td className="px-2 py-1.5 text-right whitespace-nowrap align-top font-bold text-gray-900">
+                            {full(p.value)}
+                            <div className="text-[10px] font-normal text-gray-400">{full(p.principal)}</div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ))}
+            </div>
           </div>
           <div className="text-[10px] text-gray-400 px-2 py-1.5 border-t border-gray-100 leading-relaxed">
             일간 손익 = 그날 평가손익 변화 + 그날 실현손익 — 추가 매수·입금은 수익으로 치지 않습니다.
