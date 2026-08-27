@@ -123,6 +123,8 @@ const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 
 function fmtPrice(symbol: string, price: number): string {
   if (symbol === "^TNX" || symbol === "^VIX" || symbol === "VKOSPI") return price.toFixed(2);
+  // 원엔은 한국 관행대로 100엔 기준 표기 (Yahoo 는 1엔당 원 = 8.6원 꼴)
+  if (symbol === "JPYKRW=X") return (price * 100).toFixed(2);
   if (symbol.includes("KRW")) return price.toFixed(2);
   if (price >= 1000) return Math.round(price).toLocaleString();
   return price.toFixed(2);

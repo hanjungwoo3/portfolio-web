@@ -56,7 +56,7 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
       id: "fx", short: "환율금리",
       label: "📊 환율/달러/금리/투심",                 // 1줄=환율·달러·미국채금리, 2줄=외국인 투심
       rows: [
-        ["KRW=X", "DX-Y.NYB", "^US2Y", "^TNX"],   // 환율·달러 강도 + 미 국채 2Y·10Y
+        ["KRW=X", "JPYKRW=X", "DX-Y.NYB", "^US2Y", "^TNX"],   // 원달러·원엔 환율·달러 강도 + 미 국채 2Y·10Y
         ["EWY", "^VIX", "KORU"],                  // 외국인 투심(EWY)·공포(VIX)·한국 3배(KORU)
       ],
     },

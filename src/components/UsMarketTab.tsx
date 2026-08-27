@@ -34,6 +34,8 @@ function krEtfTicker(symbol: string): string | null {
 const BASE_REFRESH_MS = 10_000;
 
 function fmtPrice(symbol: string, price: number): string {
+  // 원엔은 한국 관행대로 100엔 기준 표기 (Yahoo 는 1엔당 원 = 8.6원 꼴)
+  if (symbol === "JPYKRW=X") return (price * 100).toFixed(2);
   if (symbol.includes("KRW")) return price.toFixed(2);
   if (symbol === "^VIX" || symbol === "^TNX" || symbol === "^US2Y") return price.toFixed(2);
   if (price >= 1000) return Math.round(price).toLocaleString();
