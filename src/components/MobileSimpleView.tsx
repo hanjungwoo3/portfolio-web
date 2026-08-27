@@ -91,6 +91,7 @@ import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
 import { FeedbackDialog } from "./FeedbackDialog";
 import { DonateDialog } from "./DonateDialog";
+import { PromoBanner } from "./PromoBanner";
 import { EditHoldingDialog } from "./EditHoldingDialog";
 import { MyStockEditDialog } from "./MyStockEditDialog";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./HelpDialog";
@@ -1085,6 +1086,8 @@ export function MobileSimpleView() {
           );
         })}
       </nav>
+
+      <div className="px-2 pt-2"><PromoBanner /></div>
 
       {/* ─── 폴더 sub 링크바 — 폴더 안 그룹에 있을 때, 그 폴더의 그룹들을 칩으로 펼쳐 빠르게 전환 ─── */}
       {(() => {

@@ -35,6 +35,7 @@ import { SettingsDialog } from "./components/SettingsDialog";
 import { peekPendingSyncAction } from "./lib/syncManager";
 import { FeedbackDialog } from "./components/FeedbackDialog";
 import { DonateDialog } from "./components/DonateDialog";
+import { PromoBanner } from "./components/PromoBanner";
 import { EtfCompositionDialog } from "./components/EtfCompositionDialog";
 import { EtfReverseDialog } from "./components/EtfReverseDialog";
 import { OnboardingDialog } from "./components/OnboardingDialog";
@@ -723,6 +724,7 @@ function Dashboard() {
       )}
 
       <main className="max-w-[1600px] mx-auto p-3">
+        <PromoBanner />
         <div ref={tabsStickyRef}
              style={{ top: headerCollapsed ? 0 : headerH }}
              className="sticky z-40 bg-white/95 backdrop-blur -mx-3 px-3 pt-1 mb-3 [&>nav]:!mb-0">
