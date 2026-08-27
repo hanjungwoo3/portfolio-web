@@ -2943,26 +2943,15 @@ async function fetchYasunQuotesForTicker(): Promise<Map<string, UsIndex>> {
   return out;
 }
 
-// 국내 묶음 보조: 야선 1콜 + KODEX 1콜 + 밸류업 1콜 + V-KOSPI(CNBC 직접 = 프록시 0)
-const TICKER_KR_ETFS = ["069500", "229200"];   // KODEX 200 · KODEX 코스닥150
+// 국내 묶음 보조: 야선 1콜 + V-KOSPI(CNBC 직접 = 프록시 0)
+//   티커바 국내는 코스피·코스닥·선물 2종·V-KOSPI 만 — 지수는 overview 1콜로 이미 들어온다.
 export async function fetchTickerKrExtras(): Promise<Map<string, UsIndex>> {
   const out = new Map<string, UsIndex>();
-  const [yasun, etfs, valueup, vkospi] = await Promise.all([
+  const [yasun, vkospi] = await Promise.all([
     fetchYasunQuotesForTicker(),
-    fetchTossPrices(TICKER_KR_ETFS).catch(() => [] as Price[]),
-    // 밸류업 지수 — basic 만 필요(스파크라인 없음)라 1콜.
-    fetchProxied("https://m.stock.naver.com/api/index/KVALUE/basic")
-      .then(r => r.json() as Promise<{ closePrice?: string; compareToPreviousClosePrice?: string }>)
-      .catch(() => null),
     fetchCnbcIndexPrice("VKOSPI", "V-KOSPI"),
   ]);
   for (const [sym, v] of yasun) out.set(sym, v);
-  for (const p of etfs) out.set(p.ticker, tickerIndex(p.ticker, p.ticker, p.price, p.base || p.prevClose));
-  if (valueup) {
-    const price = naverNum(valueup.closePrice);
-    const diff = naverNum(valueup.compareToPreviousClosePrice);   // 부호 포함
-    if (price > 0) out.set("KVALUE", tickerIndex("KVALUE", "코리아 밸류업", price, price - diff));
-  }
   if (vkospi) out.set("VKOSPI", vkospi);
   return out;
 }

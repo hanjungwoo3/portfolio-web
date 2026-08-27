@@ -1,9 +1,10 @@
-import { useLayoutEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronUp, X } from "lucide-react";
 import { fetchTossOverview, fetchTickerKrExtras, fetchTickerUsStockExtras } from "../lib/api";
 import { TOSS_SYMBOL_URL, handleTossLinkClick } from "../lib/toss";
 import { signColor } from "../lib/format";
+import { US_PAIRS } from "../lib/usMarketData";
 import {
   TICKER_BAR_H, useTickerBarOpen, setTickerBarOpen,
   getTickerScope, setTickerScope, type TickerScope,
@@ -12,8 +13,8 @@ import {
 // 화면 하단 고정 지수 티커바 — 토스 웹 하단 띠와 같은 자리.
 //  묶음(국내/해외/환율·금리)은 사용자가 골라 고정(마지막 선택 유지) — 자동 전환 없이 그 값만 폴링 주기마다 갱신.
 //  값 출처: 대부분 지수 탭과 같은 fetchTossOverview 1콜. 그걸로 안 되는 것만 묶음별 보조 쿼리
-//  (국내: 야선·KODEX·밸류업·V-KOSPI / 해외: KORU / 환율: EWY) — 고른 묶음일 때만 호출된다.
-//  폭이 모자라면(모바일) 항목이 왼쪽으로 흐른다 — 마우스 올리면 멈춤.
+//  (국내: 야선·V-KOSPI / 해외: KORU / 환율: EWY) — 고른 묶음일 때만 호출된다.
+//  폭이 모자라면 가로 스크롤 — 자동으로 흐르지 않는다(흐르면 읽기 어려워 걷어냄).
 interface TickerItem { symbol: string; label: string }
 
 const KR_ITEMS: TickerItem[] = [
@@ -21,18 +22,12 @@ const KR_ITEMS: TickerItem[] = [
   { symbol: "^KQ11",   label: "코스닥" },
   { symbol: "^KS200N", label: "코스피200 선물" },
   { symbol: "^KQ150N", label: "코스닥150 선물" },
-  { symbol: "069500",  label: "KODEX 200" },
-  { symbol: "229200",  label: "KODEX 코스닥150" },
-  { symbol: "KVALUE",  label: "코리아 밸류업" },
   { symbol: "VKOSPI",  label: "V-KOSPI" },
 ];
 
 const US_ITEMS: TickerItem[] = [
   { symbol: "^IXIC", label: "나스닥" },
-  { symbol: "NQ=F",  label: "나스닥 100 선물" },
   { symbol: "^GSPC", label: "S&P 500" },
-  { symbol: "ES=F",  label: "S&P 500 선물" },
-  { symbol: "RTY=F", label: "러셀 2000 선물" },
   { symbol: "^DJI",  label: "다우존스" },
   { symbol: "^SOX",  label: "필라델피아 반도체" },
   { symbol: "^VIX",  label: "VIX" },
@@ -47,6 +42,12 @@ const FX_ITEMS: TickerItem[] = [
   { symbol: "^TNX",     label: "미국 10Y" },
   { symbol: "EWY",      label: "EWY" },
 ];
+
+// 색 반전 — 오르면 한국 증시엔 악재인 것들(공포지수·환율·달러인덱스·금리)은 내리면 빨강.
+//   지수 카드와 같은 단일 소스에서 뽑는다(usMarketData 의 direction: "inverse").
+//   현재 대상: V-KOSPI · VIX · 달러환율 · 달러 인덱스 · 미국 2Y · 미국 10Y
+const INVERSE_SYMBOLS = new Set(
+  US_PAIRS.filter(p => p.direction === "inverse").map(p => p.symbol));
 
 const SCOPES: [TickerScope, string, TickerItem[]][] = [
   ["kr", "국내",    KR_ITEMS],
@@ -108,30 +109,6 @@ export function MarketTickerBar({ refreshMs }: MarketTickerBarProps) {
     staleTime: 3000,
   });
 
-  // 폭이 모자라면 왼쪽으로 흐르게 — 이동 거리(한 벌 폭 + 간격)와 속도(40px/s)를 실측해 정한다.
-  const wrapRef = useRef<HTMLDivElement>(null);
-  const rowRef = useRef<HTMLDivElement>(null);
-  const [flow, setFlow] = useState(0);   // 애니메이션 길이(초). 0 = 안 흐름(가운데 정렬)
-  useLayoutEffect(() => {
-    const wrap = wrapRef.current, r = rowRef.current;
-    if (!wrap || !r) { setFlow(0); return; }
-    const GAP = 16;   // gap-4
-    const measure = () => {
-      const rowW = r.scrollWidth;
-      const fits = rowW + 24 <= wrap.clientWidth;   // px-3 좌우 여백 포함
-      if (fits) { setFlow(0); wrap.style.removeProperty("--ticker-shift"); return; }
-      wrap.style.setProperty("--ticker-shift", `${rowW + GAP}px`);
-      // 값이 갱신될 때마다 폭이 1~2px 흔들린다 — 그때마다 duration 을 바꾸면 흐름이 튄다.
-      //   1초 이상 차이날 때만 반영(이동 거리는 CSS 변수라 애니메이션 끊김 없이 반영됨).
-      const secs = Math.max(10, Math.round((rowW + GAP) / 40));   // 40px/s
-      setFlow(prev => (Math.abs(prev - secs) >= 1 ? secs : prev));
-    };
-    measure();
-    const ro = new ResizeObserver(measure);
-    ro.observe(wrap); ro.observe(r);
-    return () => ro.disconnect();
-  }, [open, scope, base, krExtra, stockExtra]);
-
   if (!open) {
     return (
       <button onClick={() => setTickerBarOpen(true)}
@@ -160,7 +137,7 @@ export function MarketTickerBar({ refreshMs }: MarketTickerBarProps) {
         {q ? (
           <>
             <span className="font-semibold text-gray-900 tabular-nums">{fmtNum(q.price)}</span>
-            <span className={`tabular-nums ${signColor(q.diff)}`}>
+            <span className={`tabular-nums ${signColor(INVERSE_SYMBOLS.has(symbol) ? -q.diff : q.diff)}`}>
               {fmtDiff(q.diff)} ({Math.abs(q.pct).toFixed(2)}%)
             </span>
           </>
@@ -192,14 +169,21 @@ export function MarketTickerBar({ refreshMs }: MarketTickerBarProps) {
         ))}
       </div>
 
-      <div ref={wrapRef}
-           className={`flex-1 min-w-0 ${flow > 0 ? "overflow-hidden" : "overflow-x-auto ticker-scroll"}`}>
-        <div className={`flex items-center gap-4 px-3 whitespace-nowrap w-max
-                         ${flow > 0 ? "ticker-marquee" : "mx-auto"}`}
-             style={flow > 0 ? { animationDuration: `${flow}s` } : undefined}>
-          <div ref={rowRef} className="flex items-center gap-4">{row()}</div>
-          {/* 흐를 때만 같은 줄을 한 벌 더 — 끊김 없이 이어지게 */}
-          {flow > 0 && <div className="flex items-center gap-4" aria-hidden>{row()}</div>}
+      {/* 좌우 스크롤 — 폭이 모자라면 직접 밀어서 본다(자동 흐름 없음).
+          휠만 있는 마우스도 밀 수 있게 세로 휠을 가로로 넘긴다(끝에 닿으면 페이지로 넘김). */}
+      <div className="flex-1 min-w-0 overflow-x-auto ticker-scroll overscroll-x-contain"
+           onWheel={e => {
+             const el = e.currentTarget;
+             const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+             const max = el.scrollWidth - el.clientWidth;
+             if (max <= 0) return;
+             const next = Math.min(max, Math.max(0, el.scrollLeft + d));
+             if (next === el.scrollLeft) return;   // 끝 — 페이지 스크롤 방해하지 않는다
+             e.preventDefault();
+             el.scrollLeft = next;
+           }}>
+        <div className="flex items-center gap-4 px-3 whitespace-nowrap w-max mx-auto">
+          {row()}
         </div>
       </div>
 
