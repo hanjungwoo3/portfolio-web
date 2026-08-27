@@ -174,6 +174,19 @@ export function buildAssetHistory(
   return out;
 }
 
+// 자산추이 색 — 차트 곡선과 탭 범례가 어긋나지 않도록 한 곳에서만 정한다.
+export const ASSET_UP_COLOR   = "#dc2626";   // 이익 — red-600
+export const ASSET_DN_COLOR   = "#2563eb";   // 손실 — blue-600
+export const ASSET_COST_COLOR = "#9ca3af";   // 매입원금 — gray-400
+export const ASSET_INDEX_COLORS: Record<string, string> = {
+  kospi:  "#ef4444",   // red-500 — 자산 곡선(이익 시 #dc2626)보다 밝고 선이 얇아 구분된다
+  kosdaq: "#f59e0b",   // amber-500
+};
+// 평가금액 곡선 색 — 마지막 시점이 이익이면 빨강, 손실이면 파랑(한국식)
+export function assetLineColor(unrealized: number): string {
+  return unrealized >= 0 ? ASSET_UP_COLOR : ASSET_DN_COLOR;
+}
+
 // 표시 기간 — MTS 관행(1개월/3개월/6개월/1년/전체)
 export const RANGE_OPTS = [
   { key: "1m", label: "1개월", days: 30 },

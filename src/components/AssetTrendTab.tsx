@@ -14,7 +14,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchTossKrCandles, fetchYahooPriceHistory, TOSS_CANDLE_MAX, type PricePoint } from "../lib/api";
 import {
   buildAssetHistory, computeBaseline, mergeSnapshots, sliceByRange,
-  RANGE_OPTS, type RangeKey,
+  assetLineColor, ASSET_INDEX_COLORS, RANGE_OPTS, type RangeKey,
 } from "../lib/assetHistory";
 import { loadAssetSnapshots, type Trade } from "../lib/db";
 import { signColor } from "../lib/format";
@@ -23,6 +23,14 @@ import type { Stock } from "../types";
 
 const AssetTrendChart = lazy(() =>
   import("./AssetTrendChart").then(m => ({ default: m.AssetTrendChart })));
+
+
+// 뒤에 깔 시장 지수 — 각각 켜고 끈다. 지수마다 전용 축이라 동시에 깔아도 서로 안 눌린다.
+const INDEX_OPTS = [
+  { key: "kospi",  label: "코스피", symbol: "^KS11" },
+  { key: "kosdaq", label: "코스닥", symbol: "^KQ11" },
+] as const;
+type IndexKey = typeof INDEX_OPTS[number]["key"];
 
 const CANDLE_STALE_MS = 60 * 60 * 1000;
 const US_RANGE = "2y";                       // 토스 일봉(450거래일)과 얼추 같은 구간
@@ -84,6 +92,7 @@ interface Props { trades: Trade[]; holdings: Stock[] }
 export function AssetTrendTab({ trades, holdings }: Props) {
   const [range, setRange] = useState<RangeKey>("6m");
   const [tableOpen, setTableOpen] = useState(true);   // 차트와 표를 같이 본다 — 표는 접을 수 있게만
+  const [onIndexes, setOnIndexes] = useState<IndexKey[]>(["kospi"]);
   const cols = useTableCols();
 
   // 정답지 — '내주식'과 같은 합산 규칙(그룹 미러 중복 제거, 독립보유 모드 반영)
@@ -141,6 +150,20 @@ export function AssetTrendTab({ trades, holdings }: Props) {
     retry: 1,
   });
 
+  // 시장 지수 일봉 — 켜진 것만 호출한다(끄면 호출 안 함)
+  const indexQs = useQueries({
+    queries: INDEX_OPTS.map(o => ({
+      queryKey: ["asset-trend-index", o.symbol, US_RANGE],
+      queryFn: () => fetchYahooPriceHistory(o.symbol, US_RANGE),
+      enabled: onIndexes.includes(o.key),
+      staleTime: CANDLE_STALE_MS,
+      gcTime: CANDLE_STALE_MS,
+      refetchOnWindowFocus: false,
+      retry: 1,
+    })),
+  });
+  const indexLoaded = indexQs.filter(q => q.isSuccess).length;
+
   const total = krTickers.length + usTickers.length;
   const loaded = krQs.filter(q => q.isSuccess).length + usQs.filter(q => q.isSuccess).length;
   const fxRows = fxQ.data;
@@ -186,6 +209,20 @@ export function AssetTrendTab({ trades, holdings }: Props) {
     [usable, closes, baseline, snaps],
   );
   const points = useMemo(() => sliceByRange(all, range), [all, range]);
+
+  const indexOverlays = useMemo(
+    () => INDEX_OPTS.flatMap((o, i) => {
+      if (!onIndexes.includes(o.key)) return [];
+      const rows = indexQs[i]?.data;
+      if (!rows?.length) return [];
+      return [{
+        key: o.key, label: o.label, color: ASSET_INDEX_COLORS[o.key],
+        closes: rows.map(r => ({ date: r.date, close: r.close })),
+      }];
+    }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [onIndexes, indexLoaded],
+  );
 
   // 표 행 — 최신이 위. 일간 손익 = 그날 번 돈(평가손익 변화 + 그날 실현손익) = totalPnl 증감.
   //   단순 '자산 증감'을 쓰면 그날 추가매수한 돈까지 수익으로 잡혀서 안 된다.
@@ -271,14 +308,36 @@ export function AssetTrendTab({ trades, holdings }: Props) {
       </div>
 
       <div className="border border-gray-200 rounded bg-white p-2">
-        <div className="flex items-center gap-3 text-[11px] mb-1 px-1">
+        <div className="flex items-center gap-3 text-[11px] mb-1 px-1 flex-wrap">
           <span className="flex items-center gap-1">
-            <span className="inline-block w-3 h-0.5 bg-blue-600"></span>
+            {/* 곡선 색은 이익/손실에 따라 바뀐다 — 범례도 같은 색을 쓴다(assetLineColor) */}
+            <span className="inline-block w-3 h-0.5"
+                  style={{ backgroundColor: assetLineColor(last.unrealized) }}></span>
             <span className="text-gray-600">평가금액</span>
           </span>
           <span className="flex items-center gap-1">
             <span className="inline-block w-3 border-t border-dashed border-gray-400"></span>
             <span className="text-gray-600">매입원금</span>
+          </span>
+          {/* 지수 겹쳐보기 — 켜진 것이 곧 범례(색 점 + 이름). 각각 독립 토글 */}
+          <span className="flex items-center gap-1">
+            <span className="text-gray-400">지수</span>
+            {INDEX_OPTS.map(o => {
+              const on = onIndexes.includes(o.key);
+              return (
+                <button key={o.key}
+                        onClick={() => setOnIndexes(prev =>
+                          prev.includes(o.key) ? prev.filter(k => k !== o.key) : [...prev, o.key])}
+                        title={`${o.label} 겹쳐보기 ${on ? "끄기" : "켜기"}`}
+                        className={`inline-flex items-center gap-1 px-1 rounded border transition ${
+                          on ? "border-gray-300 bg-white text-gray-700 font-bold"
+                             : "border-transparent text-gray-400 hover:bg-gray-100"}`}>
+                  <span className="inline-block w-2.5 h-0.5"
+                        style={{ backgroundColor: on ? ASSET_INDEX_COLORS[o.key] : "#d1d5db" }}></span>
+                  {o.label}
+                </button>
+              );
+            })}
           </span>
           <span className="ml-auto text-gray-500">
             구간 손익 <span className={`font-bold tabular-nums ${signColor(periodPnl)}`}>
@@ -287,7 +346,7 @@ export function AssetTrendTab({ trades, holdings }: Props) {
           </span>
         </div>
         <Suspense fallback={<div className="h-[320px]" />}>
-          <AssetTrendChart points={points} />
+          <AssetTrendChart points={points} indexes={indexOverlays} />
         </Suspense>
       </div>
 
