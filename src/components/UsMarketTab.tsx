@@ -20,6 +20,7 @@ import { MarketFlowModal } from "./MarketFlowModal";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { ValueupMiniCard } from "./ValueupCard";
 import { HlPerpCard } from "./HlPerpCard";
+import { TickArrow } from "./TickArrow";
 import { requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
 
 // KR ETF Yahoo 심볼 패턴 (예: "091160.KS") — 토스 compositions API 지원 대상
@@ -498,6 +499,8 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                       <span className="text-sm">{effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}</span>
                     </span>
                     <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
+                      {/* 직전 틱 대비 화살표 — 주식 카드와 같은 규칙, % 왼쪽 */}
+                      <TickArrow value={effPrice} className="mr-1 text-sm" />
                       {showPct != null && Math.abs(showPct) >= 0.005
                         ? `${showPct >= 0 ? "+" : ""}${showPct.toFixed(2)}%`
                         : ""}

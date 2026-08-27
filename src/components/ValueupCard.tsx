@@ -5,6 +5,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { isMarketOpen } from "../lib/format";
 import { Sparkline } from "./Sparkline";
+import { TickArrow } from "./TickArrow";
 
 // 코리아 밸류업 지수 (네이버 KVALUE) — 지수탭 한국 시장 행에 다른 지수와 같은 크기의 카드로 렌더.
 //   Yahoo 미제공·TradingView symbolset 미지원이라 지수 시세는 네이버 m.stock 별도 사용.
@@ -67,6 +68,7 @@ export function ValueupMiniCard() {
             </span>
           </span>
           <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
+            <TickArrow value={idx?.price} className="mr-1 text-sm" />
             {idx && Math.abs(pct) >= 0.005 ? fmtPct(pct) : ""}
           </span>
         </div>

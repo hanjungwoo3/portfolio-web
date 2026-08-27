@@ -84,6 +84,7 @@ import { HlPerpCard } from "./HlPerpCard";
 import { GOTO_HEATMAP_EVENT, requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
 import { MyTradesTab } from "./MyTradesTab";
 import { AssetTrendTab } from "./AssetTrendTab";
+import { TickArrow } from "./TickArrow";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { EtfReverseDialog } from "./EtfReverseDialog";
 import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
@@ -1615,6 +1616,8 @@ export function MobileSimpleView() {
                       <span className="text-sm">{effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}</span>
                     </span>
                     <span className={`flex-1 text-right text-base font-bold tabular-nums ${sign}`}>
+                      {/* 직전 틱 대비 화살표 — 주식 카드와 같은 규칙, % 왼쪽 */}
+                      <TickArrow value={effPrice} className="mr-1 text-xs" />
                       {showPct != null && Math.abs(showPct) >= 0.005
                         ? `${showPct >= 0 ? "+" : ""}${showPct.toFixed(2)}%`
                         : ""}

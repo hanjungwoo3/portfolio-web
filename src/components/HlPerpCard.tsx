@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchHlXyzPerps, fetchHlPerpCandles } from "../lib/api";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { Sparkline } from "./Sparkline";
+import { TickArrow } from "./TickArrow";
 
 // 하이퍼리퀴드 주식 무기한선물 카드 — 지수탭 반도체 섹션에 다른 지수 카드와 동일 크기로 렌더.
 //   24시간 거래(한국·미국 장마감 시간외도 실시간) → 시간외 가늠자. 데이터는 하이퍼리퀴드 직접 호출.
@@ -68,6 +69,7 @@ export function HlPerpCard({ coin, name }: Props) {
             </span>
           </span>
           <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
+            <TickArrow value={p?.price} className="mr-1 text-sm" />
             {p && Math.abs(pct) >= 0.005 ? fmtPct(pct) : ""}
           </span>
         </div>
