@@ -89,7 +89,6 @@ import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { EtfReverseDialog } from "./EtfReverseDialog";
 import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
-import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { FeedbackDialog } from "./FeedbackDialog";
 import { DonateDialog } from "./DonateDialog";
 import { EditHoldingDialog } from "./EditHoldingDialog";
@@ -1577,29 +1576,14 @@ export function MobileSimpleView() {
                         📊
                       </button>
                     )}
-                    {/* 코덱스200·코스닥150 은 🔍AI 대신 히트맵 링크(KOSPI200/KOSDAQ150 히트맵) */}
-                    {CARD_HEATMAP_LINK[p.symbol] ? (
+                    {/* 구성종목 히트맵 링크 — 코덱스200·코스닥150 만 */}
+                    {CARD_HEATMAP_LINK[p.symbol] && (
                     <button
                       onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
                       title={`${p.name} 구성종목 히트맵(거래량) 보기`}
                       className="ml-auto shrink-0 inline-flex items-center px-1 rounded text-[9px] font-bold leading-none
-                                 border border-emerald-300 text-emerald-700 bg-emerald-50 active:bg-emerald-100">
+                                 border border-emerald-300 text-emerald-700 bg-emerald-50 active:bg-emerald-100 transition">
                       🗺️히트맵
-                    </button>
-                    ) : (
-                    <button
-                      onClick={() => {
-                        const ctx: string[] = [`${p.name}(${p.symbol})`];
-                        if (effPrice != null) ctx.push(
-                          `현재가 ${effPrice.toLocaleString(undefined, { maximumFractionDigits: 2 })}`
-                          + (mainPct != null ? `(${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""));
-                        if (p.desc) ctx.push(p.desc);
-                        openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${ctx.join(", ")}`);
-                      }}
-                      title={`${p.name} 현재상태 구글 AI 분석`}
-                      className="ml-auto shrink-0 inline-flex items-center px-1 rounded text-[9px] font-bold leading-none
-                                 border border-blue-300 text-blue-700 bg-blue-50 active:bg-blue-100">
-                      🔍AI
                     </button>
                     )}
                   </div>

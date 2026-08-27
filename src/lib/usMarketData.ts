@@ -105,6 +105,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "266410.KS", name: "KODEX 필수소비재",  desc: "한국 필수소비재 ETF — 음식료·생활필수품 방어주", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "228790.KS", name: "TIGER 화장품",      desc: "한국 화장품 ETF — 아모레퍼시픽/LG생활건강/코스맥스 등", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "0190C0.KS", name: "RISE 피지컬AI",    desc: "RISE 현대차고정피지컬AI — 현대차 25% + 국내 피지컬AI 밸류체인(LG CNS·현대오토에버·두산로보틱스·레인보우로보틱스·에스피지). 미국 KOID 선행에 대응하는 한국 타깃", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "487240.KS", name: "KODEX AI전력핵심설비", desc: "AI 데이터센터 전력설비 ETF — 변압기·전선·발전기 등 전력기기 밸류체인", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "445290.KS", name: "KODEX 로봇",       desc: "한국 로봇 ETF — 레인보우로보틱스/두산로보틱스/에스피지 등", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "091180.KS", name: "KODEX 자동차",     desc: "한국 자동차 ETF — 현대차/기아/현대모비스 등", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "102970.KS", name: "KODEX 증권",       desc: "한국 증권주 ETF — 미래에셋/삼성증권/키움 등", tier: "T0", sector: "dashboard", direction: "direct" },

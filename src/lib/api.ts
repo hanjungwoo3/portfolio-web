@@ -384,6 +384,7 @@ export const KR_SECTOR_ETFS: KrSectorEtf[] = [
   { ticker: "449450", name: "방산",     fullName: "K-방산" },
   { ticker: "266420", name: "헬스케어", fullName: "KODEX 헬스케어" },
   { ticker: "0190C0", name: "피지컬AI", fullName: "RISE 피지컬AI" },
+  { ticker: "487240", name: "AI전력설비", fullName: "KODEX AI전력핵심설비" },
   { ticker: "445290", name: "로봇",     fullName: "KODEX 로봇" },
   { ticker: "091180", name: "자동차",   fullName: "KODEX 자동차" },
   { ticker: "102970", name: "증권",     fullName: "KODEX 증권" },
