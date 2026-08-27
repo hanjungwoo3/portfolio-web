@@ -34,8 +34,8 @@ export function PromoBanner() {
       </span>
       <a href={PROMO_URL} target="_blank" rel="noopener noreferrer sponsored"
          className="min-w-0 flex-1 truncate text-amber-900 hover:underline">
-        <b>카카오페이증권</b>에서{" "}
-        <b className="text-rose-700">삼성전자 1,000원 + SK하이닉스 500원</b> 주식을 공짜로 줍니다
+        <b className="text-rose-700">삼성전자 SK하이닉스 주식 무료로 받기</b>
+        <span className="text-amber-800">(카카오페이증권)</span>
         <span className="ml-1 text-amber-700">↗</span>
       </a>
       <button onClick={dismiss} title="다시 보지 않기"
