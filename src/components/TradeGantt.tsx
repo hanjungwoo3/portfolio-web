@@ -104,9 +104,10 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
     return out;
   }, [trades, scope, nameOf, from, to]);
 
-  if (cols.length === 0) {
-    return <div className="text-center text-xs text-gray-400 py-10">이 기간에 표시할 거래가 없습니다.</div>;
-  }
+  // ★ 여기서 early return 하면 안 된다. 아래 useEffect(onSummary) 가 건너뛰어져
+  //   렌더마다 훅 개수가 달라진다 → "Rendered more hooks than during the previous render"
+  //   로 트리 전체가 죽어 백지 화면이 된다(기간을 빈 구간↔데이터 구간으로 바꿀 때 발생).
+  //   빈 구간 안내는 훅을 모두 부른 뒤(아래) 반환한다.
 
   // 라운드를 시작 날짜로 세로 정렬 — 행=라운드 시작일, 열=종목. 같은 시작일 라운드는 가로로 맞춰짐.
   //  + 종목별 실현손익 합 + 보유중 미실현(현재가 − 평단)×잔량.
@@ -156,13 +157,18 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
     // onSummary 는 부모의 안정적 setter — 값 변경 시에만 갱신
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gTotal, gReal, gUnreal, gVal, anyReal, anyHeld]);
-  const dateRows = [...new Set(colRounds.flatMap(cr => cr.rounds.map(r => r.startMs)))]
-    .sort((a, b) => desc ? b - a : a - b);
-  const gridCols = `56px repeat(${colRounds.length}, 168px)`;
 
+  // 빈 구간 안내 — 훅을 모두 호출한 뒤라 안전하다
+  if (cols.length === 0) {
+    return <div className="text-center text-xs text-gray-400 py-10">이 기간에 표시할 거래가 없습니다.</div>;
+  }
   if (colRounds.length === 0) {
     return <div className="text-center text-xs text-gray-400 py-10">이 기간에 매수한 종목이 없습니다.</div>;
   }
+
+  const dateRows = [...new Set(colRounds.flatMap(cr => cr.rounds.map(r => r.startMs)))]
+    .sort((a, b) => desc ? b - a : a - b);
+  const gridCols = `56px repeat(${colRounds.length}, 168px)`;
 
   // 종목별 마지막 거래일(가장 최근 라운드 시작일)
   const lastMsByCol: Record<string, number> = {};
