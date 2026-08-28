@@ -864,10 +864,10 @@ export function MobileSimpleView() {
                            bg-blue-600 hover:bg-blue-700 text-white">
           검색
         </button>
-        {/* 더보기 — 사용법/질문하기/개발지원/설정 묶음 (문구는 PC 동일) */}
+        {/* 더보기 — 사용법/질문하기/후원하기/설정 묶음 (문구는 PC 동일) */}
         <div className="relative shrink-0">
           <button onClick={() => setMoreOpen(o => !o)}
-                  title="더보기 — 사용법 / 질문하기 / 개발지원 / 설정"
+                  title="더보기 — 사용법 / 질문하기 / 후원하기 / 설정"
                   className="px-1.5 py-1 rounded text-gray-600 shrink-0
                              bg-gray-100 hover:bg-gray-200 border border-gray-200">
             <MoreVertical size={15} />
@@ -882,7 +882,7 @@ export function MobileSimpleView() {
                 <button onClick={() => { setFeedbackOpen(true); setMoreOpen(false); }}
                         className="block w-full text-left px-3 py-1.5 text-emerald-700 hover:bg-emerald-50">질문하기</button>
                 <button onClick={() => { setDonateOpen(true); setMoreOpen(false); }}
-                        className="block w-full text-left px-3 py-1.5 text-gray-700 hover:bg-gray-100">개발지원</button>
+                        className="block w-full text-left px-3 py-1.5 text-gray-700 hover:bg-gray-100">후원하기</button>
                 <button onClick={() => { setSettingsOpen(true); setMoreOpen(false); }}
                         className="block w-full text-left px-3 py-1.5 text-gray-700 hover:bg-gray-100">설정</button>
               </div>

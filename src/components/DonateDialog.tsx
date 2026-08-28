@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useEscClose } from "../lib/useEscClose";
+import { PromoBanner } from "./PromoBanner";
 
 // 개발자 후원 모달 — PC + 모바일 공통.
 // 카카오페이 / 계좌이체 두 옵션을 탭으로 분리 (QR 동시 노출 방지)
@@ -43,7 +44,7 @@ export function DonateDialog({ isOpen, onClose }: Props) {
          onClick={onClose}>
       <div className="bg-white rounded-lg shadow-xl max-w-sm w-full p-6 text-center my-auto"
            onClick={e => e.stopPropagation()}>
-        <h2 className="text-lg font-bold mb-1">☕ 한 잔을 위한 개발지원 감사합니다.</h2>
+        <h2 className="text-lg font-bold mb-1">☕ 한 잔을 위한 후원 감사합니다.</h2>
         <p className="text-xs text-gray-600 leading-relaxed mb-4">
           포트폴리오 웹은 여러분의 후원으로 꾸준히 개발됩니다.
           <br />필요한 기능이나 수정이 필요하면 언제든 알려주세요.
@@ -70,7 +71,7 @@ export function DonateDialog({ isOpen, onClose }: Props) {
                className="block px-4 py-3 sm:py-2 rounded font-bold text-[#191919]
                           hover:brightness-95 text-base sm:text-sm"
                style={{ backgroundColor: "#FEE500" }}>
-              카카오페이로 개발지원
+              카카오페이로 후원하기
             </a>
           </>
         )}
@@ -91,13 +92,18 @@ export function DonateDialog({ isOpen, onClose }: Props) {
                className="block px-4 py-3 sm:py-2 rounded font-bold text-white
                           hover:brightness-95 text-base sm:text-sm
                           bg-blue-600 hover:bg-blue-700">
-              계좌이체로 개발지원
+              계좌이체로 후원하기
             </a>
           </>
         )}
 
+        {/* 제휴 광고 — 후원 페이지에는 닫기 없이 상시 노출 */}
+        <div className="mt-4 text-left">
+          <PromoBanner dismissible={false} />
+        </div>
+
         <button onClick={onClose}
-                className="mt-4 text-sm text-gray-500 hover:text-gray-700">
+                className="text-sm text-gray-500 hover:text-gray-700">
           닫기
         </button>
       </div>
