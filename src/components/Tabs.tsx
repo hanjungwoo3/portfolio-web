@@ -67,7 +67,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                 className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md
                             border-b-2 transition-colors -mb-px
                             ${active
-                              ? "border-blue-500 text-blue-700 bg-white"
+                              ? "border-blue-500 text-blue-700 bg-blue-50"
                               : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
           {t.icon
             ? <span className="mr-1 inline-flex align-middle">{t.icon}</span>
@@ -87,7 +87,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
     const on = !!activeOne;
     return (
       <div className={`shrink-0 inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-t-md border-b-2 -mb-px
-                       ${on ? "border-blue-500 bg-white" : "border-transparent hover:bg-gray-100"}`}>
+                       ${on ? "border-blue-500 bg-blue-50" : "border-transparent hover:bg-gray-100"}`}>
         {curTab?.icon
           ? <span className="inline-flex align-middle">{curTab.icon}</span>
           : <span className="text-sm">{curTab?.emoji ?? fallbackEmoji}</span>}
@@ -119,7 +119,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
         <button onClick={() => onChange(marketMoneyTab.key)}
                 className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 transition-colors -mb-px
                             ${marketMoneyTab.key === activeKey
-                              ? "border-blue-500 text-blue-700 bg-white"
+                              ? "border-blue-500 text-blue-700 bg-blue-50"
                               : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
           <span className="mr-1">{marketMoneyTab.emoji ?? "💰"}</span>{marketMoneyTab.label}
         </button>
@@ -129,7 +129,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
         <button onClick={() => onChange(usMarketTab.key)}
                 className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 transition-colors -mb-px
                             ${usMarketTab.key === activeKey
-                              ? "border-blue-500 text-blue-700 bg-white"
+                              ? "border-blue-500 text-blue-700 bg-blue-50"
                               : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
           <span className="mr-1">{usMarketTab.emoji ?? "📈"}</span>{usMarketTab.label}
         </button>
@@ -148,7 +148,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
               className={`px-3 py-2 text-sm font-medium rounded-t-md
                           border-b-2 transition-colors -mb-px
                           ${active
-                            ? "border-blue-500 text-blue-700 bg-white"
+                            ? "border-blue-500 text-blue-700 bg-blue-50"
                             : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
               {/* 일반 그룹 탭 — 모바일처럼 아이콘/이모지 없이 이름만 */}
               {t.label}
@@ -208,7 +208,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
             <button key={`__folder__${folder.name}`}
                     onClick={() => onChange(g)}
                     className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px transition-colors
-                                ${active ? "border-blue-500 text-blue-700 bg-white" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
+                                ${active ? "border-blue-500 text-blue-700 bg-blue-50" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
               📁{folder.name}({g})
               {cnt > 0 && (
                 <span className={`ml-1.5 text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>{cnt}</span>
@@ -221,7 +221,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
           <button key={`__folder__${folder.name}`}
                   onClick={() => onChange(current)}
                   className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px transition-colors
-                              ${active ? "border-blue-500 text-blue-700 bg-white"
+                              ${active ? "border-blue-500 text-blue-700 bg-blue-50"
                                        : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
             📁{folder.name}
           </button>
