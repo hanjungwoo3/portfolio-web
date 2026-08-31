@@ -830,7 +830,7 @@ function SearchResultRow({
           {item.market}
         </span>
         {/* ETF 책갈피 — 이름이 ETF 패턴이면. 클릭 시 구성종목 모달 (이벤트 전파 차단) */}
-        {isEtfByName(item.name) && /^\d{6}$/.test(item.ticker) && (
+        {isEtfByName(item.name) && /^[\dA-Za-z]{6}$/.test(item.ticker) && (
           <button onClick={e => { e.stopPropagation(); onOpenEtf(); }}
                   title="ETF 구성 종목 보기"
                   className="px-1.5 py-0 rounded text-[10px] font-bold leading-none

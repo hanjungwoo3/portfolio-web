@@ -1490,7 +1490,7 @@ const DISCLOSURE_NOISE_PATTERNS = [
 export async function fetchKrShortSelling(
   ticker: string, months = 12,
 ): Promise<ShortSellingPoint[]> {
-  if (!/^\d{6}$/.test(ticker)) return [];
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
 
   const since = new Date();
   since.setMonth(since.getMonth() - months);
@@ -1736,7 +1736,7 @@ const ESTIMATE_KEY: Record<EstimateMetric, { actual: string; est: string }> = {
 export async function fetchTossEstimate(
   ticker: string, metric: EstimateMetric,
 ): Promise<EstimateSeries | null> {
-  if (!/^\d{6}$/.test(ticker)) return null;
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return null;
   const target = `https://wts-info-api.tossinvest.com/api/v2/companies/A${ticker}/financial/estimate/${metric}`;
   let resp: Response;
   try {
@@ -2021,7 +2021,7 @@ export async function fetchLeverageDailyFlow(codes: string[], days = 22): Promis
 export async function fetchKrDisclosures(
   ticker: string, months = 12,
 ): Promise<DartDisclosure[]> {
-  if (!/^\d{6}$/.test(ticker)) return [];
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
 
   const since = new Date();
   since.setMonth(since.getMonth() - months);
@@ -2127,7 +2127,7 @@ const MARKET_ALERT_RE =
   /투자경고|투자위험|투자주의|관리종목|매매거래정지|거래정지|단기과열|공매도|과열종목|시장경보|소수계좌|종가급변|투자유의|지정예고|지정해제|불성실공시|상장폐지/;
 
 export async function fetchMarketAlerts(ticker: string): Promise<MarketAlertNotice[]> {
-  if (!/^\d{6}$/.test(ticker)) return [];
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
   try {
     const resp = await fetchProxied(
       `https://m.stock.naver.com/api/stock/${ticker}/disclosure?page=1&size=100`);
@@ -2162,7 +2162,7 @@ export async function fetchMarketAlerts(ticker: string): Promise<MarketAlertNoti
 // 공시 본문 → 원본 ASCII 표 구조 보존 (monospace 로 표시).
 //   <br>·블록끝 → 줄바꿈, &nbsp; → 공백(정렬 유지 위해 개수 보존, 공백 뭉개기 금지)
 export async function fetchDisclosureBody(ticker: string, disclosureId: number): Promise<string> {
-  if (!/^\d{6}$/.test(ticker)) return "";
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return "";
   try {
     const resp = await fetchProxied(
       `https://m.stock.naver.com/api/stock/${ticker}/disclosure/${disclosureId}`);
@@ -3587,7 +3587,7 @@ export async function fetchNaverThemeStocks(no: number): Promise<SearchResult[]>
     const resp = await fetchProxied(url);
     if (!resp.ok) return [];
     const html = await decodeNaverHtml(resp);
-    const re = /href="\/item\/main\.naver\?code=(\d{6})">([^<]+)/g;
+    const re = /href="\/item\/main\.naver\?code=([\dA-Za-z]{6})">([^<]+)/g;
     const seen = new Set<string>();
     const out: SearchResult[] = [];
     let m: RegExpExecArray | null;
@@ -3637,7 +3637,7 @@ export async function searchNaverThemes(
 // 같은 날 여러 리포트가 올라올 수 있어 다건 반환 (최신순).
 export interface ResearchReport { title: string; broker: string; date: string; url?: string }
 export async function fetchRecentReports(ticker: string, limit = 8): Promise<ResearchReport[]> {
-  if (!/^\d{6}$/.test(ticker)) return [];
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
   const target = `https://finance.naver.com/research/company_list.naver?searchType=itemCode&itemCode=${ticker}`;
   try {
     const resp = await fetchProxied(target);
@@ -3900,7 +3900,7 @@ function valueupLogoUrl(code: string): string {
 function parseValueupPage(html: string): ValueupStock[] {
   const out: ValueupStock[] = [];
   for (const tr of html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) ?? []) {
-    const cm = /\/item\/main\.naver\?code=(\d{6})/.exec(tr);
+    const cm = /\/item\/main\.naver\?code=([\dA-Za-z]{6})/.exec(tr);
     if (!cm) continue;
     const code = cm[1];
     const cells = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]

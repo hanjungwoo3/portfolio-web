@@ -294,7 +294,7 @@ function DisclosureSection({ ticker }: { ticker: string }) {
   const { data: disc, isLoading } = useQuery({
     queryKey: ["disclosures-modal", ticker],
     queryFn: () => fetchKrDisclosures(ticker, 12),
-    enabled: /^\d{6}$/.test(ticker),
+    enabled: /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
   return (
@@ -354,7 +354,7 @@ export function ValuationModal({
     staleTime: 24 * 3600_000,
   });
   // 컨센서스 예상치 — 분기별 발표치 vs 애널리스트 예상 (매출/영업이익/EPS)
-  const estEnabled = isOpen && !isEtf && /^\d{6}$/.test(ticker);
+  const estEnabled = isOpen && !isEtf && /^[\dA-Za-z]{6}$/.test(ticker);
   const { data: estRevenue } = useQuery({
     queryKey: ["est", ticker, "revenue"],
     queryFn: () => fetchTossEstimate(ticker, "revenue"),
@@ -383,7 +383,7 @@ export function ValuationModal({
         throw e;
       }
     },
-    enabled: isOpen && curPrice == null && /^\d{6}$/.test(ticker),
+    enabled: isOpen && curPrice == null && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
@@ -810,7 +810,7 @@ function InvestorChartsSection({
   const { data: disclosures } = useQuery({
     queryKey: ["disclosures-modal", ticker],
     queryFn: () => fetchKrDisclosures(ticker, 12),
-    enabled: !isEtf && /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 30 * 60_000,    // 30분 — 공시 변동 빈도 적음
   });
 
@@ -818,7 +818,7 @@ function InvestorChartsSection({
   const { data: shortSelling } = useQuery({
     queryKey: ["short-selling-modal", ticker],
     queryFn: () => fetchKrShortSelling(ticker, 12),
-    enabled: !isEtf && /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
 
@@ -826,28 +826,28 @@ function InvestorChartsSection({
   const { data: lending } = useQuery({
     queryKey: ["lending-trading-modal", ticker],
     queryFn: () => fetchKrLendingTrading(ticker, 12),
-    enabled: !isEtf && /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
   // 신용거래(신용융자) 잔고 — 개인 빚투 과열/반대매매 지표
   const { data: credit } = useQuery({
     queryKey: ["credit-loan-modal", ticker],
     queryFn: () => fetchKrCreditLoan(ticker, 12),
-    enabled: !isEtf && /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
   // 프로그램매매 — 차익+비차익 순매수 (기관·외인 대량 수급)
   const { data: program } = useQuery({
     queryKey: ["program-trading-modal", ticker],
     queryFn: () => fetchKrProgramTrading(ticker, 12),
-    enabled: !isEtf && /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
   // CFD — 개인 레버리지(매수/매도잔고). 종목 따라 데이터 없을 수 있음 → 있을 때만 표시.
   const { data: cfd } = useQuery({
     queryKey: ["cfd-modal", ticker],
     queryFn: () => fetchKrCfd(ticker, 12),
-    enabled: !isEtf && /^\d{6}$/.test(ticker),
+    enabled: !isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 30 * 60_000,
   });
 

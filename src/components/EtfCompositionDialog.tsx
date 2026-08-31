@@ -1009,7 +1009,7 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
 
   const stockTickers = (items ?? [])
     .map(it => it.stockCode.replace(/^A/, ""))
-    .filter(t => /^\d{6}$/.test(t));
+    .filter(t => /^[\dA-Za-z]{6}$/.test(t));
   // ETF 자기 카드용 — 가격/차트/마감 조회엔 ETF 자신도 포함(공통 종목 계산엔 미포함)
   const selfTicker = /^[\dA-Za-z]{6}$/.test(ticker) ? ticker : null;
   const cardTickers = selfTicker ? [selfTicker, ...stockTickers] : stockTickers;

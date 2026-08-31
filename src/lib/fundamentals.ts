@@ -694,7 +694,7 @@ export interface ValuationRow extends FundamentalData {
 // 표 한 줄 — 네이버 메인(시총/PER/PBR/EPS/BPS/동일업종PER) + 와이즈리포트(매출/영업이익/이익률/ROE).
 //   기업가치 팝업(fetchFullValuation)과 달리 리포트·주주 조회는 하지 않는다(표에 안 쓰므로 2콜만).
 export async function fetchValuationRow(ticker: string): Promise<ValuationRow> {
-  if (!/^\d{6}$/.test(ticker)) return { ticker };
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return { ticker };
   await acquireValuationSlot();
   try {
     const [naver, wise] = await Promise.all([

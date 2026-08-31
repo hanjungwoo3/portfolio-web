@@ -32,7 +32,7 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
   const uniqStocks = useMemo(() => {
     const m = new Map<string, string>();
     for (const h of holdings) {
-      if (!/^\d{6}$/.test(h.ticker)) continue;
+      if (!/^[\dA-Za-z]{6}$/.test(h.ticker)) continue;
       if (h.shares <= 0) continue;
       if (!m.has(h.ticker)) m.set(h.ticker, h.name || h.ticker);
     }

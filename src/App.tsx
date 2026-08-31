@@ -301,7 +301,7 @@ function Dashboard() {
   const krMarketMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const s of holdings) {
-      if (!/^\d{6}$/.test(s.ticker)) continue;
+      if (!/^[\dA-Za-z]{6}$/.test(s.ticker)) continue;
       const v = verifiedMarketMap?.get(s.ticker);
       if (v) m.set(s.ticker, v);
       else if (s.market) m.set(s.ticker, s.market);
@@ -485,7 +485,7 @@ function Dashboard() {
     const seen = new Set<string>();
     const out: ConsensusItem[] = [];
     for (const s of holdings) {
-      if (!/^\d{6}$/.test(s.ticker) || seen.has(s.ticker)) continue;
+      if (!/^[\dA-Za-z]{6}$/.test(s.ticker) || seen.has(s.ticker)) continue;
       seen.add(s.ticker);
       // 거래소 — 검증맵(토스 market.code) 우선, 없으면 저장된 Stock.market 정규화
       const market = verifiedMarketMap?.get(s.ticker)

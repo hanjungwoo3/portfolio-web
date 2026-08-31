@@ -202,7 +202,7 @@ interface ValuationTableTabProps {
 
 export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabProps) {
   const tickers = useMemo(
-    () => Array.from(new Set(items.map(i => i.ticker).filter(t => /^\d{6}$/.test(t)))),
+    () => Array.from(new Set(items.map(i => i.ticker).filter(t => /^[\dA-Za-z]{6}$/.test(t)))),
     [items],
   );
   const [sortKey, setSortKey] = useState<ColKey>("market_cap");

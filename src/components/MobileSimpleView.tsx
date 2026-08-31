@@ -387,7 +387,7 @@ export function MobileSimpleView() {
     const seen = new Set<string>();
     const out: ConsensusItem[] = [];
     for (const s of holdings) {
-      if (!/^\d{6}$/.test(s.ticker) || seen.has(s.ticker)) continue;
+      if (!/^[\dA-Za-z]{6}$/.test(s.ticker) || seen.has(s.ticker)) continue;
       seen.add(s.ticker);
       out.push({ ticker: s.ticker, name: s.name, groups: groupsBy.get(s.ticker) ?? [] });
     }
@@ -535,7 +535,7 @@ export function MobileSimpleView() {
   }, []);
 
   // 한국 종목 거래소 자동 검증 — Toss stock-infos API (24h localStorage 캐시) — PC 동일 로직
-  const krxOnlyTickers = groupTickers.filter(t => /^\d{6}$/.test(t));
+  const krxOnlyTickers = groupTickers.filter(t => /^[\dA-Za-z]{6}$/.test(t));
   const { data: verifiedMarketMap } = useQuery({
     queryKey: ["m-kr-markets-verified", krxOnlyTickers],
     queryFn: async () => {
@@ -562,7 +562,7 @@ export function MobileSimpleView() {
   const krMarketMap = useMemo(() => {
     const m = new Map<string, string>();
     for (const s of groupHoldingsUnsorted) {
-      if (!/^\d{6}$/.test(s.ticker)) continue;
+      if (!/^[\dA-Za-z]{6}$/.test(s.ticker)) continue;
       const v = verifiedMarketMap?.get(s.ticker);
       if (v) m.set(s.ticker, v);
       else if (s.market) m.set(s.ticker, s.market);

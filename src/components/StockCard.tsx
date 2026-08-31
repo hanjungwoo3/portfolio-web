@@ -999,7 +999,7 @@ export function StockCard({
                           fill={memo ? "currentColor" : "none"} />
             </button>
           )}
-          {/^\d{6}$/.test(stock.ticker) && (
+          {/^[\dA-Za-z]{6}$/.test(stock.ticker) && (
             <button
               type="button"
               onClick={() => setIntradayOpen(true)}
