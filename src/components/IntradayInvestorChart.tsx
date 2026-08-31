@@ -38,6 +38,8 @@ function fmtNet(v: number, unit: string): string {
   return `${sign}${abs.toLocaleString()}억원`;
 }
 const netColor = (v: number) => (v > 0 ? "#dc2626" : v < 0 ? "#2563eb" : "#9ca3af");
+// 일별 막대 색 — 체크된 주체 합계 기준. 0 이상 빨강 / 0 미만 파랑(국내 관행).
+const barColor = (v: number) => (v >= 0 ? "#dc2626" : "#2563eb");
 
 // 차트 아래 값표 표시 시각 (09:00 / 12:00 / 15:00) — 각 시각 최근접 포인트 사용.
 const MARK_TIMES = ["09:00", "12:00", "15:00"];
@@ -174,22 +176,24 @@ export function IntradayInvestorChart({
       s.setData(series.map(p => ({ time: p.t as Time, value: p.values[def.key] })));
     }
 
-    // ─── 하단 일별 스택 막대 (daily 값이 있을 때 = 일별 모드) ───────────────
-    //   체크된 주체를 각자 색으로 다이버징 스택(양수 0 위 / 음수 0 아래). 커스텀 시리즈로 진짜 세그먼트 렌더.
+    // ─── 하단 일별 막대 (daily 값이 있을 때 = 일별 모드) ───────────────
+    //   체크된 주체들의 그날 순매수를 '합산'해 한 덩어리로 — 0 이상 빨강 / 0 미만 파랑.
     //   상단 라인 패널(right)과 축 분리(오버레이 스케일 "hist", 아래 30%).
-    //   스택은 '합산'이라 포함관계 항목 이중계산 방지 — '기관계'(= 금융투자+투신+보험+연기금+은행+기타금융)가
-    //   켜져 있으면 그 세부는 스택에서 제외(라인차트는 세부까지 그대로 표시).
+    //   합산이라 포함관계 항목 이중계산 방지 — '기관계'(= 금융투자+투신+보험+연기금+은행+기타금융)가
+    //   켜져 있으면 그 세부는 합산에서 제외(라인차트는 세부까지 그대로 표시).
     const INST_DETAIL = new Set<IntradayKey>([
       "financialInvestment", "insurance", "trust", "bank", "otherFinancial", "pensionFund",
     ]);
-    const stackDefs = INTRADAY_SERIES
+    const sumDefs = INTRADAY_SERIES
       .filter(d => enabled[d.key])
-      .filter(d => !(enabled["institutions"] && INST_DETAIL.has(d.key)));   // 스택 순서(개인이 맨 안쪽)
-    if (stackDefs.length > 0 && series.some(p => p.daily)) {
-      const stackData: (StackBarData | { time: Time })[] = series.map(p =>
-        p.daily
-          ? { time: p.t as Time, segments: stackDefs.map(def => ({ value: p.daily![def.key] ?? 0, color: def.color })) }
-          : { time: p.t as Time });
+      .filter(d => !(enabled["institutions"] && INST_DETAIL.has(d.key)));
+    if (sumDefs.length > 0 && series.some(p => p.daily)) {
+      // 세그먼트 1개(0 → 합계)로 그린다 — 커스텀 시리즈를 유지해 막대 폭·반투명은 기존 그대로.
+      const stackData: (StackBarData | { time: Time })[] = series.map(p => {
+        if (!p.daily) return { time: p.t as Time };
+        const total = sumDefs.reduce((acc, def) => acc + (p.daily![def.key] ?? 0), 0);
+        return { time: p.t as Time, segments: [{ value: total, color: barColor(total) }] };
+      });
       const stack = chart.addCustomSeries(new StackedNetSeries(), {
         priceScaleId: "hist",
         priceFormat: { type: "price", precision: 0, minMove: 1 },
