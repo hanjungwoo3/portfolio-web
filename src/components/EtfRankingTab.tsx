@@ -184,20 +184,28 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
       )}
 
       {shown.length > 0 && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+        // 세로 우선 배치 — 1위부터 아래로 채우고 다음 칸(오른쪽)으로 넘어간다.
+        //   grid 는 가로로 채운 뒤 줄바꿈(row-major)이라 순위를 세로로 읽을 수 없다.
+        //   grid-flow-col 은 행 수를 고정해야 해서 반응형(칸 수 가변)과 안 맞음 →
+        //   CSS 다단(columns)은 칸 수만 주면 개수에 맞춰 알아서 세로로 분배(column-major).
+        //   gap-2 는 다단에서 column-gap 만 먹으므로 세로 간격은 각 카드의 mb-2 로 준다.
+        <div className="columns-1 sm:columns-2 lg:columns-4 xl:columns-6 gap-2">
           {shown.map((r, i) => (
             <button key={r.code}
                     onClick={() => onOpenEtfComposition?.(r.code, r.name)}
                     className="relative overflow-hidden flex items-center gap-2 px-2.5 py-2 text-left rounded-lg
-                               border border-gray-200 bg-white hover:bg-gray-50">
+                               border border-gray-200 bg-white hover:bg-gray-50
+                               w-full mb-2 break-inside-avoid">
               <RankSparkline code={r.code} />
               <span className="relative z-10 w-7 shrink-0 text-[11px] tabular-nums text-gray-400 text-right">
                 {i + 1}
               </span>
               <span className="relative z-10 flex-1 min-w-0">
-                <span className="block truncate text-sm font-medium text-gray-800">{r.name}</span>
+                <span className="line-clamp-2 min-h-[2.5em] text-sm font-medium text-gray-800 leading-tight">
+                  {r.name}
+                </span>
                 <span className="block text-[11px] text-gray-500 tabular-nums">
-                  {r.code} · 거래량 {formatVolume(r.volume)}
+                  거래량 {formatVolume(r.volume)}
                 </span>
               </span>
               <span className="relative z-10 shrink-0 text-right">
