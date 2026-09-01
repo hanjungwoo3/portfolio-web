@@ -1,7 +1,10 @@
 import { useState } from "react";
 import type { Stock, Price } from "../types";
 import { formatSigned, signColor, holdingYesterdayBaseSum } from "../lib/format";
-import { getDeposit, getTotalDeposits, setDeposit, getPendingBuy, getTotalPendingBuys } from "../lib/deposits";
+import {
+  getDeposit, getTotalDeposits, setDeposit, getPendingBuy, getTotalPendingBuys,
+  getDepositsOf, getPendingBuysOf,
+} from "../lib/deposits";
 import { PendingBuysDialog } from "./PendingBuysDialog";
 
 interface Props {
@@ -11,6 +14,8 @@ interface Props {
   account?: string;
   // 합산(내주식) 탭이면 모든 그룹 예수금 합을 읽기 전용으로 표시
   aggregated?: boolean;
+  // 폴더 전체보기 — 이 그룹들만 합산해 읽기 전용 표시(전역 합계 aggregated 와 구분)
+  scopeAccounts?: string[];
   // 예수금 변경 후 부모 리로드 트리거
   onDepositChange?: () => void;
   // "내꺼먼저" — 켜면 보유 종목을 위로 정렬 (책갈피 토글)
@@ -23,7 +28,7 @@ interface Props {
 // 장마감 종목도 종가 vs 어제 종가 차이로 합계에 정상 반영 (다음 장 시작 전까지 유효).
 // 예수금(현금) 은 평가손익 없음 — 총자산에만 합산, pnl/오늘 계산엔 미반영.
 
-export function TotalRow({ holdings, prices, account, aggregated, onDepositChange, heldFirst, onToggleHeldFirst }: Props) {
+export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts, onDepositChange, heldFirst, onToggleHeldFirst }: Props) {
   const [editingDeposit, setEditingDeposit] = useState(false);
   const [draft, setDraft] = useState("");
   const [pendingOpen, setPendingOpen] = useState(false);   // 구매대기 관리 팝업
@@ -45,9 +50,12 @@ export function TotalRow({ holdings, prices, account, aggregated, onDepositChang
     activeCount++;
   }
 
-  const deposit = aggregated ? getTotalDeposits() : getDeposit(account ?? "");
-  const pending = aggregated ? getTotalPendingBuys() : getPendingBuy(account ?? "");   // 구매대기(묶임)
-  const editable = !aggregated && account !== undefined;
+  const deposit = scopeAccounts ? getDepositsOf(scopeAccounts)
+    : aggregated ? getTotalDeposits() : getDeposit(account ?? "");
+  const pending = scopeAccounts ? getPendingBuysOf(scopeAccounts)
+    : aggregated ? getTotalPendingBuys() : getPendingBuy(account ?? "");   // 구매대기(묶임)
+  // 폴더 전체보기도 여러 그룹을 합친 값이라 편집 불가 (어느 그룹에 저장할지 정할 수 없음)
+  const editable = !aggregated && !scopeAccounts && account !== undefined;
 
   // 종목도 없고 예수금·구매대기도 0 이면 합계 카드 숨김 (편집/팝업 중이면 유지)
   if (activeCount === 0 && deposit <= 0 && pending <= 0 && !editingDeposit && !pendingOpen) return null;

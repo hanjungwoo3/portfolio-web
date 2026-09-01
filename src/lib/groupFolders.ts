@@ -36,3 +36,20 @@ export function setGroupFolders(folders: GroupFolder[]): void {
 export function folderOfGroup(folders: GroupFolder[], group: string): string | undefined {
   return folders.find(f => f.groups.includes(group))?.name;
 }
+
+// ─── 폴더 전체보기 ────────────────────────────────────────────────────────
+// 폴더 안 모든 그룹의 종목을 한 번에 보는 가상 탭. 실제 그룹(account)이 아니라
+// 탭 키로만 존재하며, 사용자 그룹명과 절대 겹치지 않도록 접두사를 붙인다.
+export const FOLDER_ALL_PREFIX = "__folder_all__";
+export const FOLDER_ALL_LABEL = "전체보기";
+
+export function folderAllKey(folderName: string): string {
+  return `${FOLDER_ALL_PREFIX}${folderName}`;
+}
+export function isFolderAllKey(key: string): boolean {
+  return key.startsWith(FOLDER_ALL_PREFIX);
+}
+// 전체보기 키 → 폴더 이름 (전체보기 키가 아니면 undefined)
+export function folderNameOfAllKey(key: string): string | undefined {
+  return isFolderAllKey(key) ? key.slice(FOLDER_ALL_PREFIX.length) : undefined;
+}

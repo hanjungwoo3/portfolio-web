@@ -74,7 +74,7 @@ import { WhatIfRow } from "./WhatIfRow";
 import { SemiCheckTab } from "./SemiCheckTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, VALUATION_TAB_KEY as VALUATION_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
+import { filterByTab, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, VALUATION_TAB_KEY as VALUATION_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
 import { EtfReverseTab } from "./EtfReverseTab";
 import { EtfRankingTab } from "./EtfRankingTab";
 import { EtfCompareTab } from "./EtfCompareTab";
@@ -106,7 +106,10 @@ import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 import type { Stock } from "../types";
 import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
 import { splitByMarket, splitHeldAndMarket, type MarketSection } from "../lib/marketSplit";
-import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
+import {
+  getGroupFolders, setGroupFolders, type GroupFolder,
+  folderAllKey, isFolderAllKey, folderNameOfAllKey, FOLDER_ALL_LABEL,
+} from "../lib/groupFolders";
 
 const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 ETF + 짝 미국 섹터 ETF)
 const US_KEY = "__us__";  // 미국 (환율·매크로·원자재·미국지수·미국 대표 ETF)
@@ -337,12 +340,28 @@ export function MobileSimpleView() {
     for (const g of userGroups) {
       tabs.push({ key: g, label: g, count: counts.get(g)! });
     }
+    // 폴더 전체보기 — 멤버 2개 이상 폴더마다 가상 탭 하나. 탭바에는 안 그리고
+    //  폴더 sub 링크바 칩으로만 노출하지만, 아래 '없는 탭이면 지수로' 가드를
+    //  통과하려면 목록에 있어야 한다. count 는 중복 제거한 종목 수.
+    for (const f of getGroupFolders()) {
+      if (f.groups.filter(g => counts.has(g)).length < 2) continue;
+      const inFolder = new Set(f.groups);
+      const uniq = new Set<string>();
+      for (const s of holdings) if (inFolder.has(normalizeAccount(s.account))) uniq.add(s.ticker);
+      tabs.push({ key: folderAllKey(f.name), label: FOLDER_ALL_LABEL, count: uniq.size });
+    }
     return tabs;
     // settingsOpen 의존 — 설정 모달 닫힐 때 visibility 재평가
   }, [holdings, settingsOpen, tradeCount]);
 
   // 그룹 폴더 — 폴더에 담긴 그룹은 개별 탭 대신 📁 드롭다운으로 묶음
   const folders = useMemo(() => getGroupFolders(), [settingsOpen, holdings]);
+  // 폴더 전체보기일 때의 소속 그룹들 — 예수금·오늘실현을 폴더 범위로만 집계 (PC 와 동일)
+  const folderScope = useMemo(() => {
+    const name = folderNameOfAllKey(activeTab);
+    if (name == null) return undefined;
+    return folders.find(f => f.name === name)?.groups;
+  }, [activeTab, folders]);
   // 시장분리 보기 — 설정에서 토글, 설정 모달 닫힐 때 재반영
   const marketSplit = useMemo(() => getMarketSplit(), [settingsOpen]);
   const presentGroups = useMemo(
@@ -367,9 +386,11 @@ export function MobileSimpleView() {
     for (const k of [MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY]) if (has(k)) keys.push(k);   // 내자산 묶음(내주식·내거래·자산추이)
     if (has(MONEY_KEY)) keys.push(MONEY_KEY);                            // 증시(별도 탭)
     if (has(KR_KEY)) keys.push(KR_KEY);                                  // 지수(별도 탭)
-    for (const t of groupTabs) if (!SYS.includes(t.key) && !folderedGroups.has(t.key)) keys.push(t.key);  // 사용자그룹
+    for (const t of groupTabs) if (!SYS.includes(t.key) && !folderedGroups.has(t.key) && !isFolderAllKey(t.key)) keys.push(t.key);  // 사용자그룹(전체보기 가상탭 제외 — 아래 폴더 루프에서 넣음)
     for (const f of folders) {
-      keys.push(...f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko")));
+      const ms = f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko"));
+      if (ms.length >= 2) keys.push(folderAllKey(f.name));   // 전체보기가 폴더의 첫 자리
+      keys.push(...ms);
     }
     return keys;
   }, [groupTabs, folderedGroups, folders, presentGroups]);
@@ -463,6 +484,8 @@ export function MobileSimpleView() {
         todayShares: v.todayShares, todayCost: v.todayCost,
       } as Stock));
     }
+    // 폴더 전체보기 — 폴더 안 모든 그룹 합쳐 중복 제거 (PC 와 같은 로직 재사용)
+    if (isFolderAllKey(activeTab)) return filterByTab(holdings, activeTab);
     return holdings.filter(s => normalizeAccount(s.account) === activeTab);
   }, [holdings, activeTab, isSystemTab]);
 
@@ -1012,6 +1035,8 @@ export function MobileSimpleView() {
           if ([MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY].includes(t.key)) return null;
           // 폴더에 담긴 그룹은 개별 탭에서 숨김 (아래 📁 드롭다운으로)
           if (folderedGroups.has(t.key)) return null;
+          // 폴더 전체보기 가상 탭도 숨김 (폴더 sub 링크바 칩으로만)
+          if (isFolderAllKey(t.key)) return null;
           const active = t.key === activeTab;
           // 시스템 탭(한국/미국)은 길게 누르기 무시
           const editable = t.key !== US_KEY && t.key !== KR_KEY && t.key !== CONSENSUS_KEY;
@@ -1073,8 +1098,10 @@ export function MobileSimpleView() {
             );
           }
           // 폴더명 링크 — 클릭 시 폴더로 진입(현재 멤버 또는 첫 멤버). 멤버 전환은 아래 sub 링크바에서.
-          const current = members.includes(activeTab) ? activeTab : members[0];
-          const folderActive = members.includes(activeTab);
+          // 폴더 진입 기본은 '전체보기' — 이미 폴더 안 그룹에 있으면 그 그룹 유지.
+          const allKey = folderAllKey(folder.name);
+          const current = members.includes(activeTab) ? activeTab : allKey;
+          const folderActive = members.includes(activeTab) || activeTab === allKey;
           return (
             <button key={`folder_${folder.name}`}
                     onClick={() => setActiveTab(current)}
@@ -1092,7 +1119,8 @@ export function MobileSimpleView() {
       {/* ─── 폴더 sub 링크바 — 폴더 안 그룹에 있을 때, 그 폴더의 그룹들을 칩으로 펼쳐 빠르게 전환 ─── */}
       {(() => {
         const activeFolder = folders.find(f =>
-          f.groups.some(g => g === activeTab && presentGroups.has(g)));
+          f.groups.some(g => g === activeTab && presentGroups.has(g))
+          || folderAllKey(f.name) === activeTab);
         if (!activeFolder) return null;
         const members = activeFolder.groups.filter(g => presentGroups.has(g))
                                     .sort((a, b) => a.localeCompare(b, "ko"));
@@ -1101,6 +1129,21 @@ export function MobileSimpleView() {
           <div ref={folderBarRef} data-noswipe style={{ top: (headerCollapsed ? 0 : 44) + navH }}
                className="sticky z-30 bg-white/95 backdrop-blur border-b border-gray-200
                           px-2 py-1.5 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
+            {/* 전체보기 — 폴더 안 모든 그룹의 종목을 한 번에. 실제 그룹이 아니라 이름변경·삭제 없음 */}
+            {(() => {
+              const allKey = folderAllKey(activeFolder.name);
+              const on = activeTab === allKey;
+              const cnt = countByKey.get(allKey) ?? 0;
+              return (
+                <button onClick={() => setActiveTab(allKey)}
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] transition inline-flex items-center gap-1
+                                    ${on ? "bg-blue-600 text-white font-bold"
+                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  <span>{FOLDER_ALL_LABEL}</span>
+                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
+                </button>
+              );
+            })()}
             {members.map(g => {
               const on = g === activeTab;
               const cnt = countByKey.get(g) ?? 0;
@@ -1286,6 +1329,7 @@ export function MobileSimpleView() {
                         <WhatIfRow holdings={groupHoldings} prices={groupPriceMap} />
                         <MobileTodayRealizedCard trades={allTrades} account={activeTab}
                                                  aggregated={activeTab === MY_KEY}
+                                                 scopeAccounts={folderScope}
                                                  holdings={groupHoldings} prices={groupPriceMap} nameMap={nameMap} />
                       </div>
                     )}
@@ -1295,6 +1339,7 @@ export function MobileSimpleView() {
                       <TotalRow holdings={groupHoldings} prices={groupPriceMap}
                                 account={activeTab}
                                 aggregated={activeTab === MY_KEY}
+                                scopeAccounts={folderScope}
                                 heldFirst={heldFirst} onToggleHeldFirst={toggleHeldFirst}
                                 onDepositChange={() => {
                                   void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
@@ -1321,6 +1366,7 @@ export function MobileSimpleView() {
                       <WhatIfRow holdings={groupHoldings} prices={groupPriceMap} />
                       <MobileTodayRealizedCard trades={allTrades} account={activeTab}
                                                aggregated={activeTab === MY_KEY}
+                                               scopeAccounts={folderScope}
                                                holdings={groupHoldings} prices={groupPriceMap} nameMap={nameMap} />
                       <MobileTodayPnLLayer holdings={groupHoldings} prices={groupPriceMap} />
                     </div>
@@ -1331,6 +1377,7 @@ export function MobileSimpleView() {
                     <TotalRow holdings={groupHoldings} prices={groupPriceMap}
                               account={activeTab}
                               aggregated={activeTab === MY_KEY}
+                              scopeAccounts={folderScope}
                               heldFirst={heldFirst} onToggleHeldFirst={toggleHeldFirst}
                               onDepositChange={() => {
                                 void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });

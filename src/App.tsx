@@ -23,7 +23,7 @@ import { SectorRankingTab } from "./components/SectorRankingTab";
 import { getTabVisibility, getMarketSplit } from "./lib/tabVisibility";
 import { getHeldFirst, setHeldFirst } from "./lib/heldFirst";
 import { Menu } from "lucide-react";
-import { getGroupFolders } from "./lib/groupFolders";
+import { getGroupFolders, folderNameOfAllKey } from "./lib/groupFolders";
 import { TotalRow } from "./components/TotalRow";
 import { TodayPnLTable, TodayRealizedCard } from "./components/TodayPnLTable";
 import type { Trade } from "./lib/db";
@@ -224,6 +224,13 @@ function Dashboard() {
     () => filterByTab(holdings, activeTab),
     [holdings, activeTab]
   );
+  // 폴더 전체보기일 때의 소속 그룹들 — 예수금·오늘실현을 '전역 합계'가 아니라
+  //  이 폴더 범위로만 집계하기 위함. 전체보기가 아니면 undefined.
+  const folderScope = useMemo(() => {
+    const name = folderNameOfAllKey(activeTab);
+    if (name == null) return undefined;
+    return groupFolders.find(f => f.name === name)?.groups;
+  }, [activeTab, groupFolders]);
 
   // 보이는 종목만 KRX 6자리 필터링 (가격 fetch 대상)
   const krxTickers = useMemo(
@@ -831,10 +838,12 @@ function Dashboard() {
               <TotalRow holdings={visible} prices={priceMap}
                         account={activeTab}
                         aggregated={activeTab === MY_STOCKS_TAB_KEY}
+                        scopeAccounts={folderScope}
                         onDepositChange={() => setReloadKey(k => k + 1)} />
               {/* 오늘 전량 매도해 보유 0이어도 오늘 실현은 보이게 */}
               <TodayRealizedCard trades={allTrades} account={activeTab}
                                  aggregated={activeTab === MY_STOCKS_TAB_KEY}
+                                 scopeAccounts={folderScope}
                                  holdings={visible} prices={priceMap} nameMap={nameMap} />
             </div>
           )
@@ -1031,11 +1040,13 @@ function Dashboard() {
               <TotalRow holdings={visible} prices={priceMap}
                         account={activeTab}
                         aggregated={activeTab === MY_STOCKS_TAB_KEY}
+                        scopeAccounts={folderScope}
                         heldFirst={heldFirst} onToggleHeldFirst={toggleHeldFirst}
                         onDepositChange={() => setReloadKey(k => k + 1)} />
               <TodayPnLTable holdings={visible} prices={priceMap} />
               <TodayRealizedCard trades={allTrades} account={activeTab}
                                  aggregated={activeTab === MY_STOCKS_TAB_KEY}
+                                 scopeAccounts={folderScope}
                                  holdings={visible} prices={priceMap} nameMap={nameMap} />
               <div className="ml-auto">
                 <WhatIfRow holdings={visible} prices={priceMap} />

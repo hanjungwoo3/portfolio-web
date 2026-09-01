@@ -5,6 +5,9 @@ import { normalizeAccount } from "../lib/account";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import type { TabVisibility } from "../lib/tabVisibility";
 import type { GroupFolder } from "../lib/groupFolders";
+import {
+  getGroupFolders, folderAllKey, isFolderAllKey, folderNameOfAllKey, FOLDER_ALL_LABEL,
+} from "../lib/groupFolders";
 
 export interface TabSpec {
   key: string;
@@ -141,6 +144,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
         if (SYSTEM_TAB_KEYS.has(t.key) || MY_GROUP_KEYS.has(t.key)) return null;
         // 폴더에 담긴 그룹 탭은 개별로 안 그림 (폴더 드롭다운으로 표시)
         if (editable && folderedGroups.has(t.key)) return null;
+        // 폴더 전체보기 가상 탭도 개별로 안 그림 (폴더 sub 링크바의 칩으로만)
+        if (isFolderAllKey(t.key)) return null;
         return (
           <div key={t.key} className="group relative inline-flex shrink-0">
             <button
@@ -198,8 +203,10 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
         const members = folder.groups.filter(g => presentGroups.has(g))
                               .sort((a, b) => a.localeCompare(b, "ko"));   // 이름순
         if (members.length === 0) return null;
-        const current = members.includes(activeKey) ? activeKey : members[0];
-        const active = members.includes(activeKey);
+        // 폴더 진입 기본은 '전체보기' — 이미 폴더 안 그룹에 있으면 그 그룹 유지.
+        const allKey = folderAllKey(folder.name);
+        const current = members.includes(activeKey) ? activeKey : allKey;
+        const active = members.includes(activeKey) || activeKey === allKey;
         // 멤버 1개 → 폴더명(그룹명) 단일 탭 (드롭다운 없이 바로 클릭)
         if (members.length === 1) {
           const g = members[0];
@@ -232,7 +239,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
           Tabs(=tabsStickyRef) 안에 두어 sticky 측정 높이에 포함 → 아래 정렬 툴바가 자동으로 밀려 내려감. */}
       {(() => {
         const activeFolder = folderList.find(f =>
-          f.groups.some(g => g === activeKey && presentGroups.has(g)));
+          f.groups.some(g => g === activeKey && presentGroups.has(g))
+          || folderAllKey(f.name) === activeKey);
         if (!activeFolder) return null;
         const members = activeFolder.groups.filter(g => presentGroups.has(g))
                                     .sort((a, b) => a.localeCompare(b, "ko"));
@@ -240,6 +248,21 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
         return (
           <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap
                           px-1 py-1.5 border-b border-gray-200 bg-white">
+            {/* 전체보기 — 폴더 안 모든 그룹의 종목을 한 번에. 실제 그룹이 아니라 이름변경·삭제 없음 */}
+            {(() => {
+              const allKey = folderAllKey(activeFolder.name);
+              const on = activeKey === allKey;
+              const cnt = countByKey.get(allKey) ?? 0;
+              return (
+                <button onClick={() => onChange(allKey)}
+                        className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition inline-flex items-center gap-1
+                                    ${on ? "bg-blue-600 text-white"
+                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  <span>{FOLDER_ALL_LABEL}</span>
+                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
+                </button>
+              );
+            })()}
             {members.map(g => {
               const on = g === activeKey;
               const cnt = countByKey.get(g) ?? 0;
@@ -393,13 +416,62 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   for (const g of userGroups) {
     tabs.push({ key: g, label: g, emoji: "📁", count: counts.get(g)! });
   }
+  // 폴더 전체보기 — 폴더(멤버 2개 이상)마다 가상 탭 하나.
+  //   탭 바에는 안 그리고 폴더 sub 링크바의 칩으로만 노출하지만,
+  //   App 의 'activeTab 이 탭 목록에 없으면 첫 탭으로 되돌리기' 가드를 통과하려면
+  //   목록에는 반드시 들어 있어야 한다. count 는 중복 제거한 종목 수.
+  for (const f of getGroupFolders()) {
+    if (f.groups.filter(g => counts.has(g)).length < 2) continue;
+    const inFolder = new Set(f.groups);
+    const uniq = new Set<string>();
+    for (const s of holdings) if (inFolder.has(normalizeAccount(s.account))) uniq.add(s.ticker);
+    tabs.push({ key: folderAllKey(f.name), label: FOLDER_ALL_LABEL, count: uniq.size });
+  }
   // 관심ETF 는 별도 탭 X — 미국증시 탭의 섹터별 ETF 컬럼에서만 표시
   return tabs;
 }
 
 export function filterByTab(holdings: Stock[], tabKey: string): Stock[] {
   if (tabKey === MY_STOCKS_TAB_KEY) return aggregateHoldings(holdings);
+  const folderName = folderNameOfAllKey(tabKey);
+  if (folderName != null) return folderAllHoldings(holdings, folderName);
   return holdings.filter(s => normalizeAccount(s.account) === tabKey);
+}
+
+// 폴더 전체보기 — 폴더 안 모든 그룹의 종목을 ticker 기준으로 합쳐 한 번씩만 보여준다.
+//  ⚠️ 내주식 합산(aggregateHoldings)과 달리 0주 관심종목도 남긴다 —
+//     관심종목 위주 폴더가 전체보기에서 통째로 비어버리는 걸 막기 위함.
+//  독립 보유 ON  → 그룹마다 실제 보유가 다르므로 수량·매수금액 합산 후 평단 재계산.
+//  독립 보유 OFF → 모든 그룹이 같은 값(동기화)이라 합치면 부풀려짐 → 첫 발견만 채택.
+const investedOf = (s: Stock) => s.invested || s.shares * s.avg_price;
+function folderAllHoldings(holdings: Stock[], folderName: string): Stock[] {
+  const folder = getGroupFolders().find(f => f.name === folderName);
+  if (!folder) return [];
+  const members = new Set(folder.groups);
+  const independent = getIndependentGroupsMode();
+  const key = folderAllKey(folderName);
+  const out = new Map<string, Stock>();
+  for (const h of holdings) {
+    if (!members.has(normalizeAccount(h.account))) continue;
+    const prev = out.get(h.ticker);
+    if (!prev) { out.set(h.ticker, { ...h, account: key }); continue; }   // 사본 — 원본 불변
+    if (h.buy_date && (!prev.buy_date || h.buy_date < prev.buy_date)) prev.buy_date = h.buy_date;
+    if (!prev.name && h.name) prev.name = h.name;
+    if (!prev.market && h.market) prev.market = h.market;
+    if (independent) {
+      const shares = prev.shares + h.shares;
+      const invested = investedOf(prev) + investedOf(h);
+      prev.shares = shares;
+      prev.invested = Math.round(invested);
+      prev.avg_price = shares > 0 ? invested / shares : 0;
+      prev.todayShares = (prev.todayShares ?? 0) + (h.todayShares ?? 0);
+      prev.todayCost = (prev.todayCost ?? 0) + (h.todayCost ?? 0);
+    } else if (!(prev.shares > 0) && h.shares > 0) {
+      // 0주 행이 먼저 잡혔으면 보유 있는 행으로 교체 (매수일은 이른 쪽 유지)
+      out.set(h.ticker, { ...h, account: key, buy_date: prev.buy_date ?? h.buy_date });
+    }
+  }
+  return Array.from(out.values());
 }
 
 // 합산 — 모드별 처리:

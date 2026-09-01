@@ -58,6 +58,11 @@ export function getDeposit(account: string): number {
 export function getTotalDeposits(): number {
   return Object.values(getDeposits()).reduce((a, b) => a + b, 0);
 }
+// 지정한 그룹들만 합산 — 폴더 전체보기용(전역 합계가 아니라 폴더 범위여야 함)
+export function getDepositsOf(accounts: string[]): number {
+  const m = getDeposits();
+  return accounts.reduce((a, g) => a + (Number.isFinite(m[g]) ? m[g] : 0), 0);
+}
 export function setDeposit(account: string, amount: number): void { writeAmount(KEY_DEPOSIT, account, amount); }
 // import 시 통째로 교체 (Drive 동기화)
 export function replaceAllDeposits(map?: Record<string, number>): void { replaceMap(KEY_DEPOSIT, map); }
@@ -125,6 +130,10 @@ export function setPendingItems(account: string, items: PendingBuyItem[]): void 
 // 그룹 구매대기 총합(수량×단가 합) — 카드 표시용. 시그니처 유지(기존 호출부 호환).
 export function getPendingBuy(account: string): number {
   return getPendingItems(account).reduce((a, x) => a + itemAmount(x), 0);
+}
+// 지정한 그룹들만 합산 — 폴더 전체보기용
+export function getPendingBuysOf(accounts: string[]): number {
+  return accounts.reduce((a, g) => a + getPendingBuy(g), 0);
 }
 export function getTotalPendingBuys(): number {
   return Object.values(readPendingMap()).reduce((a, items) => a + items.reduce((s, x) => s + itemAmount(x), 0), 0);

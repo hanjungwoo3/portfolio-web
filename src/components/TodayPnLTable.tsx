@@ -267,13 +267,16 @@ export function computeTodayRealized(
   account: string | undefined,
   aggregated: boolean | undefined,
   nameMap: Map<string, string>,
+  scopeAccounts?: string[],   // 폴더 전체보기 — 이 그룹들의 매도만 집계
 ): TodayRealizedData {
   const realizedMap = computeRealizedByTrade(trades, getIndependentGroupsMode());
   const acc = normalizeAccount(account);
+  const scope = scopeAccounts && new Set(scopeAccounts.map(normalizeAccount));
   const byTicker = new Map<string, TodayRealizedRow & { cost: number; sellAmt: number }>();
   for (const t of trades) {
     if (t.type !== "sell" || !isTodayKst(t.date)) continue;
-    if (!aggregated && normalizeAccount(t.account) !== acc) continue;
+    if (scope) { if (!scope.has(normalizeAccount(t.account))) continue; }
+    else if (!aggregated && normalizeAccount(t.account) !== acc) continue;
     const info = realizedMap.get(t.id);
     if (!info) continue;   // 원가 불명 매도(보유 없이 나온 매도) → 제외
     const cur = byTicker.get(t.ticker) ?? {
@@ -298,6 +301,7 @@ export function computeTodayRealized(
 interface RealizedProps {
   trades: Trade[];
   account?: string;
+  scopeAccounts?: string[];   // 폴더 전체보기 범위
   aggregated?: boolean;
   holdings: Stock[];          // 오늘 종합(평가+실현) 라인용 — 평가는 TotalRow 와 동일 기준
   prices: Map<string, Price>;
@@ -305,9 +309,9 @@ interface RealizedProps {
 }
 
 // ─── 데스크톱: 오늘 매도 카드 (합계 줄 옆에 떠오름) ───────────────
-export function TodayRealizedCard({ trades, account, aggregated, holdings, prices, nameMap }: RealizedProps) {
+export function TodayRealizedCard({ trades, account, aggregated, scopeAccounts, holdings, prices, nameMap }: RealizedProps) {
   const [open, setOpen] = useState(true);
-  const { rows, realizedSum } = computeTodayRealized(trades, account, aggregated, nameMap);
+  const { rows, realizedSum } = computeTodayRealized(trades, account, aggregated, nameMap, scopeAccounts);
   if (rows.length === 0) return null;   // 오늘 매도 없으면 통째로 숨김
   const today = computeTodayPnL(holdings, prices);
   const evalSum = today.winSum + today.loseSum;   // 오늘 평가손익(보유분) — TotalRow '오늘'과 동일
@@ -371,8 +375,8 @@ export function TodayRealizedCard({ trades, account, aggregated, holdings, price
 }
 
 // ─── 모바일: 오늘 매도 카드 (오늘 손익 레이어 안에 전폭) ───────────
-export function MobileTodayRealizedCard({ trades, account, aggregated, holdings, prices, nameMap }: RealizedProps) {
-  const { rows, realizedSum } = computeTodayRealized(trades, account, aggregated, nameMap);
+export function MobileTodayRealizedCard({ trades, account, aggregated, scopeAccounts, holdings, prices, nameMap }: RealizedProps) {
+  const { rows, realizedSum } = computeTodayRealized(trades, account, aggregated, nameMap, scopeAccounts);
   if (rows.length === 0) return null;
   const today = computeTodayPnL(holdings, prices);
   const evalSum = today.winSum + today.loseSum;
