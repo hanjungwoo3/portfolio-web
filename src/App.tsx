@@ -1,8 +1,8 @@
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
 import {
   fetchTossPrices, fetchInvestorHistory, pickTodayInvestor, fetchKrRegularPrices, verifyKrMarkets,
-  fetchWarning, fetchNaverInfo, fetchKrPriceHistory, fetchYahooPriceHistory,
+  fetchWarning, fetchNaverInfoLight, fetchKrPriceHistory, fetchYahooPriceHistory,
   fetchInvestorHistorySafe, fetchNaverPrices, fetchKrStockName, fetchUsHoldingPrices,
 } from "./lib/api";
 import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits, repairBrokenNames, purgeDerivedHoldingFields, saveAssetSnapshot } from "./lib/db";
@@ -10,6 +10,7 @@ import { attachTodayBuys } from "./lib/tradeCalc";
 import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
+import { useIncrementalRender } from "./lib/useIncrementalRender";
 import { Tabs, buildTabs, filterByTab, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, VALUATION_TAB_KEY, INVESTOR_FLOW_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
@@ -154,6 +155,13 @@ function Dashboard() {
   const REFRESH_MS = tossMaint.active
     ? (tossMaint.needsWorkerUpdate ? 300_000 : 60_000)
     : adaptiveRefreshMs;
+  // 일 단위로 확정되는 데이터는 시세와 같은 주기로 폴링할 이유가 없다.
+  //   수급(80KB/종목)·뱃지·네이버 info 를 5초마다 돌리면 종목 10개에 분당 500건이 넘어
+  //   상류가 400 으로 끊고, 그 여파로 시세 배치까지 실패해 카드 전체가 스켈레톤이 된다.
+  //   수동 모드(0)는 그대로 0 을 유지해 자동 폴링 없음을 보존.
+  const slow = (floor: number) => (REFRESH_MS > 0 ? Math.max(REFRESH_MS, floor) : REFRESH_MS);
+  const INVESTOR_REFRESH_MS = slow(120_000);   // 수급 — 장중 추정치라 2분이면 충분
+  const META_REFRESH_MS = slow(600_000);       // 위험뱃지·섹터/컨센서스 — 거의 안 변함
   // 토스 점검 해제 시 — 토스 기반 쿼리(투자자/마감/공매도/기업가치 차트) 즉시 갱신
   useEffect(() => {
     if (tossMaint.active) return;
@@ -337,21 +345,38 @@ function Dashboard() {
     setSortKey, setSortDir, saveSortKey, saveSortDir, sortDir,
   );
 
+  // 표시용 per-ticker 쿼리(수급·뱃지·섹터·차트) 게이팅 — 화면에 들어온 카드만 받는다.
+  //  이게 없으면 비용이 카드 수에 정비례해, 200종목 폴더 전체보기가 첫 로드에서 수백 요청이 된다.
+  //  시세(prices)·마감정보(kr-reg)는 전 종목 배치라 게이팅 대상이 아니다 → 정렬·합계는 항상 완전.
+  const [activeTickers, setActiveTickers] = useState<Set<string>>(new Set());
+  const activateTicker = useCallback((t: string) => {
+    setActiveTickers(prev => (prev.has(t) ? prev : new Set(prev).add(t)));
+  }, []);
   // 종목별 수급 (60일 history) — 5초
   const investorQs = useQueries({
     queries: krxTickers.map(t => ({
       queryKey: ["investor-history", t],
       queryFn: () => fetchInvestorHistory(t, 60),
-      refetchInterval: REFRESH_MS,
+      enabled: activeTickers.has(t),
+      refetchInterval: INVESTOR_REFRESH_MS,
+      staleTime: INVESTOR_REFRESH_MS,
     })),
   });
 
   // 종목별 long history (200일) — 카드 hover tooltip 의 5/20/60/120/200일 누적용
   // 1시간 캐시 (느림, 폴링 X)
+  //  ⚠️ 종목당 ~270KB. 전 종목을 처음부터 받으면 폴더 전체보기(수십~수백 종목)에서
+  //     초기 로드가 수 MB·수백 요청으로 불어나 시세 배치까지 밀린다 → 카드 전체 스켈레톤.
+  //     오직 툴팁에서만 쓰이므로 카드에 마우스가 처음 올라온 종목만 받는다.
+  const [longHistoryPrimed, setLongHistoryPrimed] = useState<Set<string>>(new Set());
+  const primeLongHistory = useCallback((t: string) => {
+    setLongHistoryPrimed(prev => (prev.has(t) ? prev : new Set(prev).add(t)));
+  }, []);
   const longHistoryQs = useQueries({
     queries: krxTickers.map(t => ({
       queryKey: ["investor-history-long", t],
       queryFn: () => fetchInvestorHistorySafe(t, [200, 120, 60]),
+      enabled: longHistoryPrimed.has(t),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -362,7 +387,9 @@ function Dashboard() {
     queries: krxTickers.map(t => ({
       queryKey: ["warning", t],
       queryFn: () => fetchWarning(t),
-      refetchInterval: REFRESH_MS,
+      enabled: activeTickers.has(t),
+      refetchInterval: META_REFRESH_MS,
+      staleTime: META_REFRESH_MS,
     })),
   });
 
@@ -370,8 +397,10 @@ function Dashboard() {
   const naverQs = useQueries({
     queries: krxTickers.map(t => ({
       queryKey: ["naver", t],
-      queryFn: () => fetchNaverInfo(t),
-      refetchInterval: REFRESH_MS,
+      queryFn: () => fetchNaverInfoLight(t),
+      enabled: activeTickers.has(t),
+      refetchInterval: META_REFRESH_MS,
+      staleTime: META_REFRESH_MS,
     })),
   });
 
@@ -381,6 +410,7 @@ function Dashboard() {
     queries: krxTickers.map(t => ({
       queryKey: ["kr-price-history", t, "3mo"],
       queryFn: () => fetchKrPriceHistory(t, "3mo"),
+      enabled: activeTickers.has(t),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -390,6 +420,7 @@ function Dashboard() {
     queries: usTickers.map(t => ({
       queryKey: ["us-price-history", t, "3mo"],
       queryFn: () => fetchYahooPriceHistory(t, "3mo"),
+      enabled: activeTickers.has(t),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -519,6 +550,17 @@ function Dashboard() {
     return [...base.filter(s => s.shares > 0), ...base.filter(s => !(s.shares > 0))];
   }, [visible, priceMap, naverMap, sortKey, sortDir, heldFirst]);
 
+  // 점진 렌더 — 200종목짜리 폴더를 한 번에 그리면 메인 스레드가 묶여 첫 화면이 늦다.
+  //  ConsensusTab 과 같은 훅 사용: 처음 20개만 그리고 하단 sentinel 이 보이면 20씩 추가.
+  //  합계·정렬·심플보기는 전체(sortedVisible) 기준이라 영향 없다 — 여기선 DOM 개수만 제어.
+  const incReset = `${activeTab}|${sortKey}|${sortDir}|${heldFirst}`;
+  const { count: renderCount, sentinelRef: incSentinelRef, hasMore: incHasMore } =
+    useIncrementalRender<HTMLDivElement>(sortedVisible.length, 20, incReset);
+  const renderVisible = useMemo(
+    () => sortedVisible.slice(0, renderCount),
+    [sortedVisible, renderCount]
+  );
+
   const chartMap = useMemo(
     () => {
       const m = new Map(chartQs.map((q, i) =>
@@ -581,12 +623,12 @@ function Dashboard() {
   // 시장분리 섹션 — 점프바·콘텐츠 공용 (가격 들어온 종목 기준)
   const marketSplitData = useMemo(() => {
     if (!marketSplit) return null;
-    const shown = sortedVisible.filter(s =>
+    const shown = renderVisible.filter(s =>
       prices === undefined || priceMap.size === 0 || priceMap.has(s.ticker));
     return heldFirst
       ? { mode: "held" as const, ...splitHeldAndMarket(shown, krMarketMap) }
       : { mode: "flat" as const, sections: splitByMarket(shown, krMarketMap) };
-  }, [marketSplit, heldFirst, sortedVisible, prices, priceMap, krMarketMap]);
+  }, [marketSplit, heldFirst, renderVisible, prices, priceMap, krMarketMap]);
   // PC 점프바 칩 — 행 단위 묶음(코스피·코스닥 / ETF·기타). heldFirst 면 그룹 라벨 칩 추가.
   const pcRowItems = (sections: MarketSection[], idp: string) => {
     const mk = (rowName: string, pairs: [string, string][]) => {
@@ -894,7 +936,7 @@ function Dashboard() {
               const isAggregated = activeTab === MY_STOCKS_TAB_KEY;
               // 가격이 한 번도 안 들어온 종목(KRX300 처럼 유효하지 않은 코드)은 숨김.
               // 단 ① 첫 로딩(prices 미정) ② 전체 실패(priceMap 비어있음) 시엔 모두 표시.
-              const shown = sortedVisible.filter(stock =>
+              const shown = renderVisible.filter(stock =>
                 prices === undefined || priceMap.size === 0 || priceMap.has(stock.ticker));
               const renderCard = (stock: Stock) => (
                 <StockCard
@@ -911,6 +953,8 @@ function Dashboard() {
                   chart={chartMap.get(stock.ticker)}
                   priceHistory={priceHistoryMap.get(stock.ticker)}
                   longHistory={longHistoryMap.get(stock.ticker)}
+                  onNeedLongHistory={() => primeLongHistory(stock.ticker)}
+                  onVisible={() => activateTicker(stock.ticker)}
                   memo={memos.get(stock.ticker)}
                   otherGroups={isAggregated
                     ? (tickerGroupsMap.get(stock.ticker) ?? [])
@@ -1037,6 +1081,8 @@ function Dashboard() {
                 </div>
               );
             })()}
+            {/* 점진 렌더 sentinel — 여기가 보이면 다음 20개를 그린다 */}
+            {incHasMore && <div ref={incSentinelRef} className="h-1" />}
             {/* 하단 티커바 위에 붙도록 bottom 오프셋 — 티커바 접으면 0 */}
             <div style={{ bottom: tickerBarOpen ? TICKER_BAR_H : 0 }}
                  className="sticky z-40 mt-3 w-full flex flex-wrap items-start gap-2">

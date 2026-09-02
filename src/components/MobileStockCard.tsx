@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
 import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, holdingYesterdayBaseSum, marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale } from "../lib/format";
@@ -56,6 +56,7 @@ interface Props {
   warning?: string;
   chart?: number[];           // 비거래일 sparkline 용 일봉 종가 시계열
   investorHistory?: Investor[] | null;   // 60일 수급 (AuxIndicators 외국인/기관/연기금)
+  onVisible?: () => void;                // 카드가 화면에 처음 들어왔을 때 1회 (표시용 쿼리 게이팅)
   consensus?: Consensus | null; // 네이버 컨센서스 (목표가 + 점수)
   memo?: Memo;
   otherGroups?: string[];     // 같은 ticker 가 속한 다른 그룹 이름들 (현재 그룹 제외)
@@ -97,8 +98,29 @@ const WARN_TIPS: Record<string, string> = {
 
 export function MobileStockCard({
   stock, price, krReg, sector, market, warning, chart, investorHistory, consensus, memo, otherGroups, heldGroups,
-  onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse,
+  onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse, onVisible,
 }: Props) {
+  // 뷰포트 진입 감지 — PC(StockCard) 와 동일. 화면 밖 카드의 표시용 쿼리를 켜지 않기 위함.
+  const ioRef = useRef<IntersectionObserver | null>(null);
+  const seenRef = useRef(false);
+  const onVisibleRef = useRef(onVisible);
+  // 렌더 중 ref 쓰기는 금지(react-hooks/refs) → 커밋 후 최신 콜백으로 동기화.
+  // 첫 마운트 땐 useRef 초기값이 이미 최신이라 callback ref 가 먼저 실행돼도 안전하다.
+  useEffect(() => { onVisibleRef.current = onVisible; });
+  const visibilityRef = useCallback((el: HTMLElement | null) => {
+    ioRef.current?.disconnect();
+    ioRef.current = null;
+    if (!el || seenRef.current || !onVisibleRef.current) return;
+    const io = new IntersectionObserver(entries => {
+      if (!entries.some(e => e.isIntersecting)) return;
+      seenRef.current = true;
+      io.disconnect();
+      ioRef.current = null;
+      onVisibleRef.current?.();
+    }, { rootMargin: "800px 0px" });
+    io.observe(el);
+    ioRef.current = io;
+  }, []);
   // 투자자 매매동향 레이어 토글 (👥 버튼)
   const [showFlow, setShowFlow] = useState(false);
   // 경고 뱃지 클릭 → 시장조치 공시 모달
@@ -194,7 +216,7 @@ export function MobileStockCard({
 
 
   return (
-    <div className={dimmed ? "opacity-60" : ""}>
+    <div ref={visibilityRef} className={dimmed ? "opacity-60" : ""}>
       {/* 메타 줄 — 좌: 경고(섹션 태그 스타일) / 우: 섹션·거래소 + 🔍AI. 종목명 바로 위.
           mb-px: 섹션·AI 아래 1px 간격 */}
       <div className="flex items-center justify-between gap-1 mx-2 mb-px">

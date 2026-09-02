@@ -7,7 +7,7 @@ import {
 import { getHeldFirst, setHeldFirst } from "../lib/heldFirst";
 import { SortSelector, makeSortHandlers } from "./SortSelector";
 import {
-  fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfo, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures,
+  fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfoLight, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures,
   fetchKrRegularPrices, verifyKrMarkets,
   fetchYahooChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices, fetchTossUsStockCandles,
 } from "../lib/api";
@@ -249,6 +249,16 @@ export function MobileSimpleView() {
   const REFRESH_MS = tossMaint.active
     ? (tossMaint.needsWorkerUpdate ? 300_000 : 60_000)
     : adaptiveRefreshMs;
+  // 일 단위 확정 데이터(수급·뱃지)는 시세와 같은 주기로 돌리지 않는다 — PC(App.tsx)와 동일 기준.
+  const slow = (floor: number) => (REFRESH_MS > 0 ? Math.max(REFRESH_MS, floor) : REFRESH_MS);
+  const INVESTOR_REFRESH_MS = slow(120_000);
+  const META_REFRESH_MS = slow(600_000);
+  // 표시용 per-ticker 쿼리 게이팅 — 화면에 들어온 카드만 (PC 와 동일 기준).
+  //  시세·마감정보는 배치라 게이팅 대상이 아니다 → 정렬·합계는 항상 완전.
+  const [activeTickers, setActiveTickers] = useState<Set<string>>(new Set());
+  const activateTicker = useCallback((t: string) => {
+    setActiveTickers(prev => (prev.has(t) ? prev : new Set(prev).add(t)));
+  }, []);
 
   // 하단 지수 티커바 펼침 여부 — 합계바(fixed bottom)를 그 높이만큼 올리는 데 사용
   const tickerBarOpen = useTickerBarOpen();
@@ -647,8 +657,9 @@ export function MobileSimpleView() {
     queries: groupTickers.map(t => ({
       queryKey: ["m-warning", t],
       queryFn: () => fetchWarning(t),
-      enabled: !isSystemTab,
-      refetchInterval: REFRESH_MS,
+      enabled: !isSystemTab && activeTickers.has(t),
+      refetchInterval: META_REFRESH_MS,
+      staleTime: META_REFRESH_MS,
     })),
   });
   const warningMap = new Map(
@@ -660,8 +671,9 @@ export function MobileSimpleView() {
     queries: groupTickers.map(t => ({
       queryKey: ["m-investor-history", t],
       queryFn: () => fetchInvestorHistory(t, 60),
-      enabled: !isSystemTab,
-      refetchInterval: REFRESH_MS,
+      enabled: !isSystemTab && activeTickers.has(t),
+      refetchInterval: INVESTOR_REFRESH_MS,
+      staleTime: INVESTOR_REFRESH_MS,
     })),
   });
   const investorHistoryMap = new Map(
@@ -669,14 +681,14 @@ export function MobileSimpleView() {
   );
 
   // 종목별 sector + consensus (Naver) — 그룹 탭에서만 fetch (캐시)
-  type NaverInfo = Awaited<ReturnType<typeof fetchNaverInfo>>;
+  type NaverInfo = Awaited<ReturnType<typeof fetchNaverInfoLight>>;
   const naverInfos = useQuery({
     queryKey: ["m-naver-info", groupTickers.join(",")],
     queryFn: async () => {
       const map = new Map<string, NonNullable<NaverInfo>>();
       await Promise.all(groupTickers.map(async t => {
         try {
-          const info = await fetchNaverInfo(t);
+          const info = await fetchNaverInfoLight(t);
           if (info) map.set(t, info);
         } catch { /* ignore */ }
       }));
@@ -1212,6 +1224,7 @@ export function MobileSimpleView() {
                                warning={warningMap.get(s.ticker) || undefined}
                                chart={groupChartMap.get(s.ticker)}
                                investorHistory={investorHistoryMap.get(s.ticker)}
+                               onVisible={() => activateTicker(s.ticker)}
                                consensus={naverInfos.data?.get(s.ticker)?.consensus}
                                memo={memos?.get(s.ticker)}
                                otherGroups={isAggregated

@@ -41,6 +41,33 @@ function buildProxyUrl(base: string, targetUrl: string): string {
   return `${base}/?url=${encodeURIComponent(targetUrl)}`;
 }
 
+// 다른 프록시로 재시도할 가치가 있는 status.
+//   ⚠️ 토스는 과호출 시 "400 + 빈 본문"을 돌려준다 (실측: 같은 size 가 한 번은 400, 잠시 뒤 200).
+//      즉 400 은 파라미터 오류가 아니라 사실상 레이트리밋 신호다. 여기서 다른 프록시로 즉시
+//      재시도하면 논리적 호출 1건이 실제 요청 N건이 되어 스스로 상황을 악화시킨다.
+//      → 물러나서 react-query 의 백오프 재시도에 맡긴다.
+//   403(워커 origin/host 차단)·429·5xx·408 만 "이 프록시 문제일 수 있다"로 보고 넘긴다.
+function isProxyRetryable(status: number): boolean {
+  return status === 403 || status === 408 || status === 429 || status >= 500;
+}
+
+// 동시 요청 상한 — 초기 로드·탭 포커스 시 수백 건이 한꺼번에 나가면 상류가 400 으로 끊는다.
+// 슬롯은 응답 헤더 수신(=fetch resolve) 시점에 반납하므로 본문 다운로드는 겹쳐서 진행된다.
+// 12 = 브라우저가 origin 당 거는 ~6 을 프록시 2개 기준으로 맞춘 값. 평상시엔 사실상 무제한이고
+// 프록시를 여러 개 켜서 동시성이 폭주할 때만 backstop 으로 작동한다 (초기 로드를 늦추지 않게).
+const MAX_INFLIGHT = 12;
+const PROXY_TIMEOUT_MS = 25_000;
+let inflight = 0;
+const waiters: Array<() => void> = [];
+function acquireSlot(): Promise<void> {
+  if (inflight < MAX_INFLIGHT) { inflight++; return Promise.resolve(); }
+  return new Promise<void>(res => waiters.push(() => { inflight++; res(); }));
+}
+function releaseSlot(): void {
+  inflight--;
+  waiters.shift()?.();
+}
+
 // 자동 fallback — 건강한 proxy 우선 + 실패 시 다른 proxy로 재시도
 // init 옵션 — POST + body 등 RequestInit 일부 전달 가능 (워커가 POST 지원)
 export async function fetchProxied(
@@ -57,20 +84,37 @@ export async function fetchProxied(
   const order = [...healthy, ...down];
   let lastErr: unknown;
   let lastResp: Response | undefined;
-  for (const base of order) {
-    try {
-      const resp = await fetch(buildProxyUrl(base, targetUrl), init);
-      // 응답을 돌려받았다 = 프록시(워커)는 살아있음. 타깃 소스의 4xx/5xx 는
-      // 프록시 다운으로 치지 않음 (특정 소스 에러로 "모두 다운" 오판 방지).
-      reportProxySuccess(base);
-      if (resp.ok) return resp;
-      lastResp = resp;   // 비-ok 응답 보관 — 호출측이 status 보고 판단 (예: 토스 490 점검)
-      lastErr = new Error(`HTTP ${resp.status} from ${base}`);
-    } catch (e) {
-      // 네트워크 에러(연결 자체 실패) 만 프록시 다운으로 집계
-      reportProxyFailure(base);
-      lastErr = e;
+  // 400 류(=토스 스로틀링)는 시점에 따라 갈리고, Netlify·Supabase 는 Cloudflare 와 egress 가 달라
+  // 다른 프록시에서 성공하는 경우가 실제로 있다. 전 프록시 순회(호출 N배)와 재시도 없음 사이 절충 —
+  // 딱 한 번만 다른 프록시로 넘긴다 (최대 2회).
+  let hardRetriesLeft = 1;
+  await acquireSlot();
+  try {
+    for (const base of order) {
+      try {
+        // 응답이 안 오는 요청이 슬롯을 붙잡고 큐 전체를 막지 않게 타임아웃 (호출측 signal 우선)
+        const signal = init?.signal ?? AbortSignal.timeout(PROXY_TIMEOUT_MS);
+        const resp = await fetch(buildProxyUrl(base, targetUrl), { ...init, signal });
+        // 응답을 돌려받았다 = 프록시(워커)는 살아있음. 타깃 소스의 4xx/5xx 는
+        // 프록시 다운으로 치지 않음 (특정 소스 에러로 "모두 다운" 오판 방지).
+        reportProxySuccess(base);
+        if (resp.ok) return resp;
+        lastResp = resp;   // 비-ok 응답 보관 — 호출측이 status 보고 판단 (예: 토스 490 점검)
+        lastErr = new Error(`HTTP ${resp.status} from ${base}`);
+        // 토스 점검(490)은 앱 차원의 확정 신호 — 다른 프록시로 물어봐야 답이 같다.
+        if (resp.status === 490) return resp;
+        if (!isProxyRetryable(resp.status)) {
+          if (hardRetriesLeft <= 0) return resp;
+          hardRetriesLeft--;
+        }
+      } catch (e) {
+        // 네트워크 에러(연결 자체 실패) 만 프록시 다운으로 집계
+        reportProxyFailure(base);
+        lastErr = e;
+      }
     }
+  } finally {
+    releaseSlot();
   }
   if (lastResp) return lastResp;   // 모두 비-ok 면 마지막 응답 반환 (호출측에서 처리)
   throw lastErr instanceof Error ? lastErr : new Error("All proxies failed");
@@ -335,9 +379,14 @@ export interface EtfCompositionResult {
 }
 export async function fetchEtfCompositions(ticker: string): Promise<EtfCompositionResult> {
   const target = `https://wts-info-api.tossinvest.com/api/v2/stock-infos/A${ticker}/compositions`;
-  try {
+  // 실패는 삼키지 않고 던진다 (fetchTossKrCandles 와 같은 규칙).
+  //  빈 결과를 돌려주면 react-query 가 '성공'으로 보고 staleTime(10분) 내내 캐시해,
+  //  토스가 워커 IP 를 잠깐 스로틀링한 400 한 번이 "구성 종목 데이터 없음" 으로 굳는다.
+  //  던지면 백오프 재시도가 돌고 캐시에도 안 남는다.
+  //  (진짜 구성이 없는 ETF 는 200 + 빈 items 로 오므로 아래 정상 경로에서 [] 가 나간다)
+  {
     const resp = await fetchProxied(target);
-    if (!resp.ok) return { items: [], endDate: null };
+    if (!resp.ok) throw new Error(`etf compositions ${ticker}: HTTP ${resp.status}`);
     const data = await resp.json() as {
       result?: {
         endDate?: string;
@@ -357,8 +406,6 @@ export async function fetchEtfCompositions(ticker: string): Promise<EtfCompositi
       .filter(it => it.name)             // name 만 있으면 표시 (stockCode 없어도 OK)
       .sort((a, b) => b.ratio - a.ratio);
     return { items, endDate: data.result?.endDate ?? null };
-  } catch {
-    return { items: [], endDate: null };
   }
 }
 
@@ -947,6 +994,18 @@ export async function fetchKrRegularPrices(
 ): Promise<Map<string, KrRegularPrice>> {
   const out = new Map<string, KrRegularPrice>();
   if (tickers.length === 0) return out;
+  // 200종목 폴더처럼 코드가 많으면 URL 이 길어져 토스가 거절한다 → 시세와 같은 50개 단위로 분할.
+  //  한 청크가 실패해도 나머지는 살린다 (allSettled).
+  const CHUNK = 50;
+  if (tickers.length > CHUNK) {
+    const chunks: string[][] = [];
+    for (let i = 0; i < tickers.length; i += CHUNK) chunks.push(tickers.slice(i, i + CHUNK));
+    const settled = await Promise.allSettled(chunks.map(c => fetchKrRegularPrices(c)));
+    for (const r of settled) {
+      if (r.status === "fulfilled") for (const [k, v] of r.value) out.set(k, v);
+    }
+    return out;
+  }
   const codes = tickers
     .filter(t => /^[\dA-Za-z]{6}$/.test(t))
     .map(t => `A${t}`)
@@ -1344,17 +1403,45 @@ async function fetchPriceHistoryWithEventsFor(
 }
 
 // 한국 6자리 → KOSPI 시도 → 실패 시 KOSDAQ
+// 검증된 거래소 캐시(App 의 kr_markets_verified, 24시간) 에서 야후 접미사 확정.
+// 모르면 null → 예전처럼 .KS/.KQ 양쪽을 받는다.
+function knownKrSuffix(ticker: string): ".KS" | ".KQ" | null {
+  try {
+    const ts = Number(localStorage.getItem("kr_markets_verified_ts") ?? "0");
+    if (!(Date.now() - ts < 24 * 3600 * 1000)) return null;
+    const map = JSON.parse(localStorage.getItem("kr_markets_verified") ?? "{}") as Record<string, string>;
+    const v = map[ticker];
+    return v === "KOSPI" ? ".KS" : v === "KOSDAQ" ? ".KQ" : null;
+  } catch { return null; }
+}
+
+// 한국 종목 야후 조회 — 거래소를 이미 알면 1콜, 모르면 양쪽 받아 "봉 많은 쪽" (기존 규칙 유지).
+// KOSDAQ 을 .KS 로 받으면 노이즈 5~20봉이 나오므로 개수 비교 폴백은 그대로 둔다.
+// 종목당 요청이 2 → 1 로 줄어 초기 로드(특히 폴더 전체보기)의 절반을 덜어낸다.
+async function fetchKrEitherExchange<T>(
+  ticker: string,
+  fetchOne: (symbol: string) => Promise<T>,
+  countOf: (v: T) => number,
+): Promise<T> {
+  const suffix = knownKrSuffix(ticker);
+  if (suffix) {
+    const one = await fetchOne(`${ticker}${suffix}`);
+    if (countOf(one) > 0) return one;   // 빈 응답이면 아래 양쪽 조회로 폴백
+  }
+  const [ks, kq] = await Promise.all([
+    fetchOne(`${ticker}.KS`),
+    fetchOne(`${ticker}.KQ`),
+  ]);
+  return countOf(ks) >= countOf(kq) ? ks : kq;
+}
+
 export async function fetchKrPriceHistory(
   ticker: string, range = "1y",
 ): Promise<PricePoint[]> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
   // KOSDAQ 종목을 .KS 로 받으면 노이즈 5~20봉이 나와(>0·2봉 폴백으론 부족) 3일치만 그려지는 버그 →
   //   fetchKrIntraday 와 동일하게 둘 다 받아 봉 많은 쪽 선택. (1시간 캐시라 호출수 영향 미미)
-  const [ks, kq] = await Promise.all([
-    fetchPriceHistoryFor(`${ticker}.KS`, range),
-    fetchPriceHistoryFor(`${ticker}.KQ`, range),
-  ]);
-  return ks.length >= kq.length ? ks : kq;
+  return fetchKrEitherExchange(ticker, sym => fetchPriceHistoryFor(sym, range), v => v.length);
 }
 
 // KOSPI200 '실선물' 시세 — 네이버 연결선물(FUT).
@@ -1445,11 +1532,7 @@ export async function fetchKrSparkSeries(
 ): Promise<SparkPoint[]> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
   // 노이즈 봉 문제(fetchKrPriceHistory 참조) — 둘 다 받아 봉 많은 쪽 선택.
-  const [ks, kq] = await Promise.all([
-    fetchSparkSeriesFor(`${ticker}.KS`, range, interval),
-    fetchSparkSeriesFor(`${ticker}.KQ`, range, interval),
-  ]);
-  return ks.length >= kq.length ? ks : kq;
+  return fetchKrEitherExchange(ticker, sym => fetchSparkSeriesFor(sym, range, interval), v => v.length);
 }
 
 // 한국 종목 가격 + 배당 + 액면분할 이벤트 통합 fetch
@@ -1459,11 +1542,7 @@ export async function fetchKrPriceHistoryWithEvents(
   const empty = { prices: [] as PricePoint[], dividends: [] as DividendEvent[], splits: [] as SplitEvent[] };
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return empty;
   // 노이즈 봉 문제(fetchKrPriceHistory 참조) — 둘 다 받아 봉 많은 쪽 선택.
-  const [ks, kq] = await Promise.all([
-    fetchPriceHistoryWithEventsFor(`${ticker}.KS`, range),
-    fetchPriceHistoryWithEventsFor(`${ticker}.KQ`, range),
-  ]);
-  return ks.prices.length >= kq.prices.length ? ks : kq;
+  return fetchKrEitherExchange(ticker, sym => fetchPriceHistoryWithEventsFor(sym, range), v => v.prices.length);
 }
 
 // 공시 fetch — Naver 모바일 API (인증 불필요, m.stock.naver.com 이미 워커 화이트리스트)
@@ -2661,11 +2740,7 @@ export async function fetchKrIntraday(
   ticker: string, range = "1mo", interval = "5m",
 ): Promise<IntradayBar[]> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];   // 영숫자 신형 ETF 코드(0167A0 등) 포함
-  const [ks, kq] = await Promise.all([
-    fetchYahooIntraday(`${ticker}.KS`, range, interval),
-    fetchYahooIntraday(`${ticker}.KQ`, range, interval),
-  ]);
-  return ks.length >= kq.length ? ks : kq;
+  return fetchKrEitherExchange(ticker, sym => fetchYahooIntraday(sym, range, interval), v => v.length);
 }
 
 // Yahoo ^지수 → 토스 indices 코드 매핑 (현재가만 토스, 없으면 Yahoo fallback)
@@ -3292,6 +3367,72 @@ export async function fetchNaverInfo(ticker: string): Promise<NaverInfo> {
     return { sector, consensus, description };
   } catch {
     return empty;
+  }
+}
+
+// 카드용 경량 종목정보 — 섹터 + 컨센서스만.
+//  main.naver HTML 은 종목당 ~199KB(실측). 카드가 쓰는 건 섹터 라벨과 컨센서스뿐인데
+//  폴더 전체보기처럼 수십 종목을 한 번에 열면 이것만으로 수 MB 가 되어 초기 로드가 통째로 밀린다.
+//  · 컨센서스 → m.stock integration JSON (~9KB, 21배 작음)
+//  · 섹터     → 사실상 안 변하는 값이라 localStorage 에 영구 캐시. 캐시에 없을 때만 HTML 1회.
+//  기업개요(description)·투자의견 원문이 필요한 곳(기업가치 모달·컨센서스 탭)은 fetchNaverInfo 그대로 사용.
+const SECTOR_CACHE_KEY = "kr_sector_cache";
+function loadSectorCache(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(SECTOR_CACHE_KEY) ?? "{}") as Record<string, string>; }
+  catch { return {}; }
+}
+function saveSector(ticker: string, sector: string): void {
+  if (!sector) return;
+  try {
+    const c = loadSectorCache();
+    if (c[ticker] === sector) return;
+    c[ticker] = sector;
+    localStorage.setItem(SECTOR_CACHE_KEY, JSON.stringify(c));
+  } catch { /* 용량 초과 등 — 캐시는 최적화일 뿐이라 무시 */ }
+}
+
+// recommMean(1~5) → 네이버 표기와 같은 투자의견 라벨.
+// integration JSON 은 점수만 주고 원문 라벨을 안 줘서 점수대로 환산한다.
+function opinionFromScore(score: number): string | undefined {
+  if (!Number.isFinite(score) || score <= 0) return undefined;
+  if (score >= 4.5) return "적극매수";
+  if (score >= 3.5) return "매수";
+  if (score >= 2.5) return "중립";
+  if (score >= 1.5) return "매도";
+  return "적극매도";
+}
+
+interface NaverIntegration {
+  consensusInfo?: { recommMean?: string; priceTargetMean?: string };
+}
+export async function fetchNaverInfoLight(ticker: string): Promise<NaverInfo> {
+  const empty: NaverInfo = { sector: "", consensus: null };
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return empty;
+  const cachedSector = loadSectorCache()[ticker];
+  // 섹터를 아직 모르면 이번 한 번만 HTML 로 받아 캐시 — 다음부터는 9KB 경로만 탄다.
+  if (cachedSector == null) {
+    const full = await fetchNaverInfo(ticker);
+    saveSector(ticker, full.sector);
+    return full;
+  }
+  try {
+    const resp = await fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/integration`);
+    if (!resp.ok) return { sector: cachedSector, consensus: null };
+    const d = await resp.json() as NaverIntegration;
+    const ci = d.consensusInfo;
+    let consensus: Consensus | null = null;
+    if (ci) {
+      const target = Number(String(ci.priceTargetMean ?? "").replace(/,/g, ""));
+      const score = Number(ci.recommMean);
+      consensus = {
+        target: target > 0 ? target : undefined,
+        score: Number.isFinite(score) && score > 0 ? score : undefined,
+        opinion: opinionFromScore(score),
+      };
+    }
+    return { sector: cachedSector, consensus };
+  } catch {
+    return { sector: cachedSector, consensus: null };
   }
 }
 

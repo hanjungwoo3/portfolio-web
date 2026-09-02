@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import type { PricePoint } from "../lib/api";
@@ -40,6 +40,12 @@ interface Props {
   otherGroups?: string[];  // 같은 ticker 가 속한 다른 그룹 이름들 (현재 그룹 제외)
   heldGroups?: Set<string>;  // 그 중 보유수량>0 인 그룹들 (붉은색 표시용)
   longHistory?: Investor[] | null;  // 200일 long history — 그리드 행 tooltip 의 5/20/60/120/200일 누적용
+  // 200일 history 는 종목당 ~270KB 라 전 종목을 처음부터 받으면 초기 로드가 통째로 밀린다.
+  // 툴팁 전용 데이터이므로 카드에 마우스가 처음 올라올 때 부모에게 "이제 받아라"를 알린다.
+  onNeedLongHistory?: () => void;
+  // 카드가 화면(+여유분)에 처음 들어왔을 때 1회. 부모가 이 종목의 표시용 쿼리를 켠다.
+  //  화면 밖 카드까지 수급·뱃지·차트를 받으면 비용이 카드 수에 정비례해 폴더 전체보기가 느려진다.
+  onVisible?: () => void;
   memo?: Memo;                                       // 종목별 메모 (있으면)
   onOpenValuation?: (ticker: string) => void;
   onEdit?: (stock: Stock) => void;
@@ -503,7 +509,7 @@ interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
 const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
-  stock, price, krReg, investor, investorHistory, consensus, sector, market, warning, loading, chart, priceHistory, longHistory,
+  stock, price, krReg, investor, investorHistory, consensus, sector, market, warning, loading, chart, priceHistory, longHistory, onNeedLongHistory, onVisible,
   memo, otherGroups, heldGroups, onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
@@ -514,6 +520,31 @@ export function StockCard({
   const [communityOpen, setCommunityOpen] = useState(false);
   // 포함 ETF 카운트 — 이 종목이 들어있는 ETF 개수 (역색인)
   const etfCount = useEtfCount(stock.ticker);
+
+  // 뷰포트 진입 감지 — 화면(+여유분)에 처음 들어올 때 부모에게 1회 알린다.
+  //  callback ref 로 둔 이유: 스켈레톤 <article> → 본 카드 <div> 로 루트가 바뀌어도
+  //  새 노드에 자동으로 다시 붙는다 (useEffect 라면 떨어져 나간 노드를 관찰하게 됨).
+  //  한 번 알린 뒤엔 관찰을 끊는다 — 정렬로 순서가 바뀌어도 쿼리를 껐다 켜지 않기 위함.
+  const ioRef = useRef<IntersectionObserver | null>(null);
+  const seenRef = useRef(false);
+  const onVisibleRef = useRef(onVisible);
+  // 렌더 중 ref 쓰기는 금지(react-hooks/refs) → 커밋 후 최신 콜백으로 동기화.
+  // 첫 마운트 땐 useRef 초기값이 이미 최신이라 callback ref 가 먼저 실행돼도 안전하다.
+  useEffect(() => { onVisibleRef.current = onVisible; });
+  const visibilityRef = useCallback((el: HTMLElement | null) => {
+    ioRef.current?.disconnect();
+    ioRef.current = null;
+    if (!el || seenRef.current || !onVisibleRef.current) return;
+    const io = new IntersectionObserver(entries => {
+      if (!entries.some(e => e.isIntersecting)) return;
+      seenRef.current = true;
+      io.disconnect();
+      ioRef.current = null;
+      onVisibleRef.current?.();
+    }, { rootMargin: "800px 0px" });   // 화면 한 개 높이쯤 미리 준비 — 스크롤 시 빈 칸 방지
+    io.observe(el);
+    ioRef.current = io;
+  }, []);
 
   useEffect(() => {
     const cur = price?.price;
@@ -540,7 +571,7 @@ export function StockCard({
 
   if (loading || !price) {
     return (
-      <article className="rounded-lg bg-white shadow-sm p-4 animate-pulse">
+      <article ref={visibilityRef} className="rounded-lg bg-white shadow-sm p-4 animate-pulse">
         <div className="h-6 bg-gray-200 rounded w-1/3 mb-2" />
         <div className="h-8 bg-gray-200 rounded w-1/2 mb-2" />
         <div className="h-4 bg-gray-200 rounded w-2/3" />
@@ -852,7 +883,9 @@ export function StockCard({
   };
 
   return (
-    <div className={`group ${dimmed ? "opacity-60" : ""}`}>
+    <div ref={visibilityRef}
+         className={`group ${dimmed ? "opacity-60" : ""}`}
+         onMouseEnter={onNeedLongHistory}>
       {/* 책갈피 — 종목명 + 섹터 + 위험 (좌) / 신호 + hover 버튼 (우) — 모두 책갈피 통일 */}
       <div className="flex items-end justify-between gap-1 mx-2">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
