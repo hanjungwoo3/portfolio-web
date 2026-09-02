@@ -329,6 +329,8 @@ export const ETF_COMPARE_TAB_KEY = "__etf-compare__";
 export const HEATMAP_TAB_KEY = "__heatmap__";
 // 가치표 — 관심종목 전체의 기업가치 지표(시총·PER·ROE 등)를 한 표로, 열별 정렬
 export const VALUATION_TAB_KEY = "__valuation__";
+// 수급 — 외국인·기관·개인 순매수/순매도 종목 랭킹 (토스 1콜)
+export const INVESTOR_FLOW_TAB_KEY = "__investor-flow__";
 export const ASSET_TREND_TAB_KEY = "__asset-trend__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
@@ -336,14 +338,14 @@ const RESERVED = new Set<string>([
   "관심ETF", MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY,
   SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY,
   ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
-  VALUATION_TAB_KEY,
+  VALUATION_TAB_KEY, INVESTOR_FLOW_TAB_KEY,
 ]);
 
 // 묶기 대상 시스템 탭 — 드롭다운 하나로 합침. (증시·지수는 자주 써서 별도 고정 탭)
 export const SYSTEM_TAB_KEYS = new Set<string>([
   MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
   CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
-  VALUATION_TAB_KEY,
+  VALUATION_TAB_KEY, INVESTOR_FLOW_TAB_KEY,
 ]);
 
 // 내자산 묶음 — 내주식 + 내거래를 별도 드롭다운 하나로 (지수 묶음과 동일 방식).
@@ -408,6 +410,10 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 가치표 — 관심종목 기업가치 지표 표
   if (visibility?.valuation ?? true) {
     tabs.push({ key: VALUATION_TAB_KEY, label: "가치표", emoji: "🧮", count: 0 });
+  }
+  // 수급 — 외국인·기관·개인 순매수/순매도 랭킹. 시스템 묶음의 마지막(가치표 다음).
+  if (visibility?.investorFlow ?? true) {
+    tabs.push({ key: INVESTOR_FLOW_TAB_KEY, label: "수급", emoji: "👥", count: 0 });
   }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())

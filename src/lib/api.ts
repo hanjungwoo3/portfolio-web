@@ -3941,3 +3941,78 @@ export async function fetchValueupConstituents(): Promise<ValueupStock[]> {
   }
   return all;
 }
+
+// ─── 투자자별 순매수/순매도 종목 랭킹 (토스) ──────────────────────────────
+// 1콜로 외국인·기관·개인 × 매수/매도 각 size 건 = 최대 600행. 인증 불필요.
+//  amount 는 '순매수(또는 순매도) 금액(원)' — 열 이름이 거래액이라 헷갈리지만,
+//  네이버 개별종목 수급(주수×종가)과 2% 이내로 맞는 걸 확인했다.
+//  ⚠️ basedAt 이 투자자별로 다르다 — 외국인·기관은 장중, 개인은 하루 밀린다.
+//     그래서 컬럼마다 기준시각을 따로 표시해야 오해가 없다.
+const INVESTOR_RANK_URL =
+  "https://wts-cert-api.tossinvest.com/api/v1/dashboard/wts/overview/rankings/by-investors";
+
+export interface InvestorFlowRow {
+  ticker: string;      // 6자리 (토스 A접두 제거)
+  name: string;
+  logo?: string;
+  amount: number;      // 순매수/순매도 금액 (원)
+  close: number;
+  pct: number;         // (close - base) / base × 100
+}
+export interface InvestorFlowGroup {
+  key: "foreigner" | "institution" | "individual";
+  type: string;        // 외국인 / 기관 / 개인
+  basedAt: string;     // ISO (UTC)
+  buy: InvestorFlowRow[];
+  sell: InvestorFlowRow[];
+}
+
+interface RawInvestorStock {
+  stockCode?: string; name?: string; logoImageUrl?: string;
+  amount?: number; base?: number; close?: number;
+}
+function mapInvestorRows(arr: RawInvestorStock[] | undefined, limit: number): InvestorFlowRow[] {
+  if (!Array.isArray(arr)) return [];
+  const out: InvestorFlowRow[] = [];
+  for (const x of arr) {
+    const code = (x.stockCode ?? "").replace(/^A/, "");
+    const amount = x.amount, close = x.close, base = x.base;
+    if (!code || typeof amount !== "number" || typeof close !== "number") continue;
+    out.push({
+      ticker: code, name: x.name || code, logo: x.logoImageUrl,
+      amount, close,
+      pct: typeof base === "number" && base > 0 ? ((close - base) / base) * 100 : 0,
+    });
+    if (out.length >= limit) break;
+  }
+  return out;
+}
+
+const INVESTOR_ORDER: InvestorFlowGroup["key"][] = ["foreigner", "institution", "individual"];
+
+export async function fetchInvestorRankings(limit = 100): Promise<InvestorFlowGroup[]> {
+  // size 는 서버가 주는 최대치 — 화면에는 limit 만 쓰되 한 번에 받아둔다.
+  const resp = await fetchProxied(`${INVESTOR_RANK_URL}?size=100`);
+  if (!resp.ok) return [];
+  const data = await resp.json() as {
+    result?: {
+      rankings?: Record<string, {
+        basedAt?: string; type?: string;
+        buyStocks?: RawInvestorStock[]; sellStocks?: RawInvestorStock[];
+      }>;
+    };
+  };
+  const rankings = data.result?.rankings;
+  if (!rankings) return [];
+  const out: InvestorFlowGroup[] = [];
+  for (const key of INVESTOR_ORDER) {
+    const r = rankings[key];
+    if (!r) continue;
+    out.push({
+      key, type: r.type || key, basedAt: r.basedAt ?? "",
+      buy: mapInvestorRows(r.buyStocks, limit),
+      sell: mapInvestorRows(r.sellStocks, limit),
+    });
+  }
+  return out;
+}

@@ -16,6 +16,7 @@ export interface TabVisibility {
   etfCompare: boolean;
   heatmap: boolean;
   valuation: boolean;
+  investorFlow: boolean;
   assetTrend: boolean;
 }
 
@@ -32,6 +33,7 @@ const BASE_KEYS = {
   etfCompare: "portfolio_tab_etf_compare",
   heatmap:    "portfolio_tab_heatmap",
   valuation:  "portfolio_tab_valuation",
+  investorFlow: "portfolio_tab_investor_flow",
   assetTrend: "portfolio_tab_asset_trend",
 } as const;
 
@@ -73,6 +75,7 @@ export function getTabVisibility(): TabVisibility {
     etfCompare: read(BASE_KEYS.etfCompare),
     heatmap:    read(BASE_KEYS.heatmap),
     valuation:  read(BASE_KEYS.valuation),
+    investorFlow: read(BASE_KEYS.investorFlow),
     assetTrend: read(BASE_KEYS.assetTrend),
   };
 }
@@ -90,6 +93,7 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.etfCompare !== undefined) write(BASE_KEYS.etfCompare, patch.etfCompare);
   if (patch.heatmap    !== undefined) write(BASE_KEYS.heatmap,    patch.heatmap);
   if (patch.valuation  !== undefined) write(BASE_KEYS.valuation,  patch.valuation);
+  if (patch.investorFlow !== undefined) write(BASE_KEYS.investorFlow, patch.investorFlow);
   if (patch.assetTrend !== undefined) write(BASE_KEYS.assetTrend, patch.assetTrend);
 }
 
