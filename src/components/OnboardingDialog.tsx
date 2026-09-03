@@ -8,8 +8,22 @@ interface Props {
   onOpenSettings: () => void;
 }
 
-// 첫 접속 + 매 접속 시 전용 프록시 도입 권유 팝업.
-// 전용 프록시 설정 전까지 계속 표시 — 공개 인프라 부담 분산이 목적.
+// 전용 프록시 도입 권유 팝업 — 공개 인프라(합계 40만 req/일) 부담 분산이 목적.
+// 전용 프록시를 설정하면 영영 안 뜬다. 설정 안 한 사용자에게도 '매 새로고침'은 과해서
+// 닫으면 SNOOZE_DAYS 동안 쉰다 (권유는 유지하되 잔소리는 안 되게).
+const SNOOZE_KEY = "onboarding_snoozed_at";
+const SNOOZE_DAYS = 7;
+
+function isSnoozed(): boolean {
+  try {
+    const ts = Number(localStorage.getItem(SNOOZE_KEY) ?? "0");
+    return Date.now() - ts < SNOOZE_DAYS * 24 * 3600 * 1000;
+  } catch { return false; }
+}
+function snooze(): void {
+  try { localStorage.setItem(SNOOZE_KEY, String(Date.now())); } catch { /* 무시 */ }
+}
+
 // 1초 지연 후 등장 — 즉시 띄우면 부담.
 export function OnboardingDialog({ onOpenSettings }: Props) {
   const [open, setOpen] = useState(false);
@@ -18,15 +32,18 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
   useEffect(() => {
     const personal = getPersonalProxyUrl();
     if (personal) return;  // 이미 전용 프록시 설정 → 영원히 안 띄움
+    if (isSnoozed()) return;
     const t = setTimeout(() => setOpen(true), 1000);
     return () => clearTimeout(t);
   }, []);
 
   if (!open) return null;
 
-  const close = () => setOpen(false);
+  // 어떤 경로로 닫든 유예 시작 — 배경 클릭·나중에·설정 열기 모두 '봤다'로 친다.
+  const close = () => { snooze(); setOpen(false); };
 
   const openSettingsAndClose = () => {
+    snooze();
     setOpen(false);
     onOpenSettings();
   };
