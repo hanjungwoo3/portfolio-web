@@ -47,26 +47,30 @@ function buildProxyUrl(base: string, targetUrl: string): string {
 //      재시도하면 논리적 호출 1건이 실제 요청 N건이 되어 스스로 상황을 악화시킨다.
 //      → 물러나서 react-query 의 백오프 재시도에 맡긴다.
 //   403(워커 origin/host 차단)·429·5xx·408 만 "이 프록시 문제일 수 있다"로 보고 넘긴다.
+// 프록시 URL → egress 공급자. 같은 공급자면 나가는 IP 풀이 같아 스로틀 결과도 같다.
+function proxyProvider(base: string): string {
+  try {
+    const h = new URL(base).hostname;
+    if (h.endsWith("workers.dev")) return "cloudflare";
+    if (h.endsWith("netlify.app")) return "netlify";
+    if (h.endsWith("supabase.co")) return "supabase";
+    if (h.endsWith("vercel.app")) return "vercel";
+    if (h.endsWith("deno.net")) return "deno";
+    if (h.endsWith("onrender.com")) return "render";
+    return h;
+  } catch { return base; }
+}
+
 function isProxyRetryable(status: number): boolean {
   return status === 403 || status === 408 || status === 429 || status >= 500;
 }
 
-// 동시 요청 상한 — 초기 로드·탭 포커스 시 수백 건이 한꺼번에 나가면 상류가 400 으로 끊는다.
-// 슬롯은 응답 헤더 수신(=fetch resolve) 시점에 반납하므로 본문 다운로드는 겹쳐서 진행된다.
-// 12 = 브라우저가 origin 당 거는 ~6 을 프록시 2개 기준으로 맞춘 값. 평상시엔 사실상 무제한이고
-// 프록시를 여러 개 켜서 동시성이 폭주할 때만 backstop 으로 작동한다 (초기 로드를 늦추지 않게).
-const MAX_INFLIGHT = 12;
+// 동시 요청 상한은 두지 않는다.
+//  한때 전역 FIFO 큐(상한 12)를 뒀지만, 우선순위가 없어서 5초마다 도는 시세 쿼리가
+//  차트·섹터 같은 배경 요청 뒤에 줄을 서다 갱신이 멈추는 문제가 있었다.
+//  부하는 '요청 수·용량을 줄이는 것'(뷰포트 게이팅·폴링 완화)으로 잡고,
+//  동시성은 브라우저가 origin 당 거는 기본 제한(~6)에 맡긴다.
 const PROXY_TIMEOUT_MS = 25_000;
-let inflight = 0;
-const waiters: Array<() => void> = [];
-function acquireSlot(): Promise<void> {
-  if (inflight < MAX_INFLIGHT) { inflight++; return Promise.resolve(); }
-  return new Promise<void>(res => waiters.push(() => { inflight++; res(); }));
-}
-function releaseSlot(): void {
-  inflight--;
-  waiters.shift()?.();
-}
 
 // 자동 fallback — 건강한 proxy 우선 + 실패 시 다른 proxy로 재시도
 // init 옵션 — POST + body 등 RequestInit 일부 전달 가능 (워커가 POST 지원)
@@ -84,13 +88,16 @@ export async function fetchProxied(
   const order = [...healthy, ...down];
   let lastErr: unknown;
   let lastResp: Response | undefined;
-  // 400 류(=토스 스로틀링)는 시점에 따라 갈리고, Netlify·Supabase 는 Cloudflare 와 egress 가 달라
-  // 다른 프록시에서 성공하는 경우가 실제로 있다. 전 프록시 순회(호출 N배)와 재시도 없음 사이 절충 —
-  // 딱 한 번만 다른 프록시로 넘긴다 (최대 2회).
-  let hardRetriesLeft = 1;
-  await acquireSlot();
-  try {
+  // 400 류(=토스 스로틀링)는 IP 풀 단위라 같은 공급자로 다시 쏘면 결과가 같다 (실측: CF 워커 3개 동시 400).
+  //  그래서 폴백은 '다른 공급자가 남아 있을 때만' 딱 한 번. 없으면 그냥 물러나 백오프에 맡긴다.
+  //  (예전엔 전 프록시를 순회해, 스로틀 걸린 순간에 호출만 N배로 늘렸다)
+  let hardFailed = false;
+  const triedProviders = new Set<string>();
+  {
     for (const base of order) {
+      const provider = proxyProvider(base);
+      if (hardFailed && triedProviders.has(provider)) continue;   // 같은 egress → 결과 동일, 건너뜀
+      triedProviders.add(provider);
       try {
         // 응답이 안 오는 요청이 슬롯을 붙잡고 큐 전체를 막지 않게 타임아웃 (호출측 signal 우선)
         const signal = init?.signal ?? AbortSignal.timeout(PROXY_TIMEOUT_MS);
@@ -104,8 +111,8 @@ export async function fetchProxied(
         // 토스 점검(490)은 앱 차원의 확정 신호 — 다른 프록시로 물어봐야 답이 같다.
         if (resp.status === 490) return resp;
         if (!isProxyRetryable(resp.status)) {
-          if (hardRetriesLeft <= 0) return resp;
-          hardRetriesLeft--;
+          if (hardFailed) return resp;   // 다른 공급자까지 시도했는데 또 실패 → 그대로 반환
+          hardFailed = true;             // 다음 루프에서 '아직 안 써본 공급자'만 찾는다
         }
       } catch (e) {
         // 네트워크 에러(연결 자체 실패) 만 프록시 다운으로 집계
@@ -113,8 +120,6 @@ export async function fetchProxied(
         lastErr = e;
       }
     }
-  } finally {
-    releaseSlot();
   }
   if (lastResp) return lastResp;   // 모두 비-ok 면 마지막 응답 반환 (호출측에서 처리)
   throw lastErr instanceof Error ? lastErr : new Error("All proxies failed");
