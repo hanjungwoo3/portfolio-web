@@ -187,13 +187,27 @@ $ true
 "build.command" failed
 ```
 
-`netlify.toml` 의 no-op 빌드 명령이 유닉스 전용 `true` 였던 문제로, 지금은 고쳐져 있습니다.
-`git pull` 후 다시 배포하세요. 저장소를 다시 받기 어렵다면
-`workers/netlify-proxy/netlify.toml` 의 `command` 한 줄만 고쳐도 됩니다.
+`netlify.toml` 의 no-op 빌드 명령이 유닉스 전용 `true` 였던 문제입니다.
+`true` 는 리눅스·맥의 셸 명령이라 Windows 의 cmd.exe 에는 없습니다.
+
+**고치는 법 — 이미 받으신 파일에서 한 줄만 바꾸면 됩니다.**
+
+`workers/netlify-proxy/netlify.toml` 을 메모장 등으로 열어
+
+```toml
+command = "true"
+```
+
+이 줄을 이렇게 바꾸고 저장한 뒤, 배포 명령을 다시 실행하세요.
 
 ```toml
 command = "echo no build"
 ```
+
+`echo` 는 cmd.exe 와 sh 양쪽의 내장 명령이라 어디서든 동작합니다.
+
+> 저장소를 `git clone` 으로 받으셨다면 `git pull` 로도 최신 코드를 받을 수 있지만,
+> 고칠 게 한 줄뿐이라 위 방법이 더 빠릅니다. ZIP 으로 받으셨다면 위 방법만 됩니다.
 
 ---
 
