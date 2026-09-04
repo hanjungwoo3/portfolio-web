@@ -1,6 +1,6 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
-import { getEnabledPersonalProxies } from "./proxyConfig";
+import { getEnabledPersonalProxies, isLocalProxyUrl } from "./proxyConfig";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
 import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen } from "./format";
 import { rememberTossCode, getTossCode } from "./toss";
@@ -36,6 +36,34 @@ export const PROXY_URLS = new Proxy([] as string[], {
     return typeof v === "function" ? v.bind(arr) : v;
   },
 });
+
+// ─── 업스트림별 프록시 선택 ──────────────────────────────────
+// Yahoo 는 가정용 IP 를 429("Edge: Too Many Requests")로 막는다 — query1/query2,
+// v8 chart·v7 quote 전부, UA 를 브라우저로 바꿔도 동일(실측).
+// 토스는 정반대다: 클라우드 egress IP 풀을 400 으로 막고 가정용 IP 는 통과시킨다.
+// 두 요구가 정면으로 상충해 프록시를 하나로 통일할 수 없다 →
+// Yahoo 로 가는 요청에서만 '내 PC' 로컬 프록시를 빼고 원격으로 보낸다.
+const RESIDENTIAL_BLOCKED_HOSTS = ["yahoo.com"];
+
+function blocksResidentialIp(targetUrl: string): boolean {
+  try {
+    const h = new URL(targetUrl).hostname;
+    return RESIDENTIAL_BLOCKED_HOSTS.some(d => h === d || h.endsWith(`.${d}`));
+  } catch { return false; }
+}
+
+// 이 요청에 쓸 프록시 목록.
+//  주의 — PUBLIC_PROXY_URLS 는 env 가 비면 localhost 로 채워진다(위 참조). 그래서
+//  폴백에서도 로컬을 한 번 더 걸러야 하고, 그러고도 남는 게 없으면 원래 목록을 쓴다.
+//  빈 배열을 돌려주면 루프가 한 번도 안 돌아 "All proxies failed" 로 즉시 죽는다.
+function proxyUrlsFor(targetUrl: string): string[] {
+  const urls = getProxyUrls();
+  if (!blocksResidentialIp(targetUrl)) return urls;
+  const remote = urls.filter(u => !isLocalProxyUrl(u));
+  if (remote.length > 0) return remote;
+  const publicRemote = PUBLIC_PROXY_URLS.filter(u => !isLocalProxyUrl(u));
+  return publicRemote.length > 0 ? publicRemote : urls;
+}
 
 function buildProxyUrl(base: string, targetUrl: string): string {
   return `${base}/?url=${encodeURIComponent(targetUrl)}`;
@@ -79,7 +107,7 @@ export async function fetchProxied(
 ): Promise<Response> {
   // 호출 카운트 — 이 브라우저 일자별 (논리적 fetch 1회로 집계, 재시도 무관)
   incrementProxyCall();
-  const urls = getProxyUrls();
+  const urls = proxyUrlsFor(targetUrl);
   // 건강(=down 아님) 우선, down은 후순위. 그 안에서는 랜덤 (부하 분산)
   const healthy = urls.filter(u => !isProxyDown(u))
                       .sort(() => Math.random() - 0.5);
