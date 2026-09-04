@@ -578,17 +578,37 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                         ✕
                       </button>
                     </div>
-                    {/* 사용량 — 신버전 워커(/usage) 만. 구버전이면 안내 */}
-                    {u && u !== "loading" && (
+                    {/* 로컬 프록시 — 한도 개념이 없어 별도 안내. 사용량 조회 전(방금 추가해
+                        아직 저장 안 함)에도 반드시 무언가 그린다: u 로 감싸면 행이 통째로 비어
+                        가이드 링크에 닿을 방법이 없어진다. */}
+                    {isLocalProxyUrl(url) ? (
+                      <div className="pl-6 text-[10px]">
+                        {u && u !== "loading" && u !== "unsupported" ? (
+                          <span className="text-emerald-700 tabular-nums">
+                            💻 내 PC · 이번 실행 {u.requests.toLocaleString()}건 · <b>호출 한도 없음</b>
+                          </span>
+                        ) : u === "unsupported" ? (
+                          <span className="text-amber-600">
+                            ⚠️ 응답 없음 — 터미널에서 <code className="bg-gray-100 px-1 rounded">npm run proxy</code> 실행 필요
+                          </span>
+                        ) : (
+                          <span className="text-gray-500">
+                            💻 내 PC — <code className="bg-gray-100 px-1 rounded">npm run proxy</code> 실행 중에만 동작
+                          </span>
+                        )}
+                        &nbsp;
+                        <a href={LOCAL_GUIDE_URL} target="_blank" rel="noopener noreferrer"
+                           className="text-blue-600 underline">가이드 ↗</a>
+                      </div>
+                    ) : u && u !== "loading" && (
                       u === "unsupported" ? (
                         <div className="text-[10px] text-amber-600 pl-6">
                           사용량 표시하려면 워커 업데이트 필요(/usage).&nbsp;
                           <a href={USAGE_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="underline">가이드 ↗</a>
                         </div>
                       ) : u.limit === 0 ? (
-                        // 로컬 프록시 — 일일 한도가 없어 한도 바/리셋 안내가 무의미.
                         <div className="pl-6 text-[10px] text-emerald-700 tabular-nums">
-                          💻 내 PC · 이번 실행 {u.requests.toLocaleString()}건 · <b>호출 한도 없음</b>
+                          이번 실행 {u.requests.toLocaleString()}건 · <b>호출 한도 없음</b>
                         </div>
                       ) : (() => {
                         const pct = u.limit > 0 ? Math.min(100, (u.requests / u.limit) * 100) : 0;
