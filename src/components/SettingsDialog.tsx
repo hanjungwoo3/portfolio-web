@@ -601,9 +601,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                            className="text-blue-600 underline">가이드 ↗</a>
                       </div>
                     ) : u && u !== "loading" && u !== "unsupported" && (
-                      // /usage 를 실제로 주는 프록시만 표시한다. 저장소의 워커 6종에는 아직
-                      // 이 엔드포인트가 없어 '업데이트 필요' 안내가 항상 떴다 — 존재하지 않는
-                      // 버전으로 업데이트하라는 안내라 노이즈일 뿐이었다. 미제공이면 그냥 비운다.
+                      // /usage 를 실제로 주는 프록시만 표시한다.
+                      //   · Cloudflare(workers/proxy/src/worker.js)는 CF_API_TOKEN +
+                      //     CF_ACCOUNT_ID 를 설정하면 /usage 를 준다.
+                      //   · deno/render/netlify/vercel/supabase 는 구현 자체가 없어
+                      //     '워커 업데이트 필요' 안내가 영구히 떴다 — 사용자가 고칠 방법이
+                      //     없는 안내라 노이즈였다. 미제공이면 그냥 비운다.
                       u.limit === 0 ? (
                         <div className="pl-6 text-[10px] text-emerald-700 tabular-nums">
                           이번 실행 {u.requests.toLocaleString()}건 · <b>호출 한도 없음</b>
