@@ -19,6 +19,10 @@ import { resetProxyStats } from "../lib/proxyStatus";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 const LOCAL_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/local-proxy/README.md";
+// 전용 프록시 배포 가이드 — Deno 가 가장 빠르다(브라우저만, GitHub 1클릭 가입).
+// Cloudflare 는 기능은 같지만 가입 절차가 길어 두 번째로 둔다.
+const DENO_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/deno-proxy/README.md";
+const CF_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md";
 import { getIndependentGroupsMode, setIndependentGroupsMode } from "../lib/groupMode";
 import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
@@ -536,11 +540,17 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
             <div className="text-[11px] text-gray-500">
               없으면 공개 4-way (Cloudflare/Vercel/Deno/Render). 본인 worker URL 등록 시
               본인만 사용 — 공개 부담 0, 본인 100k/일 무료. <b>여러 개 등록 후 각각 켜고 끌 수 있고,
-              켜진 게 여러 개면 요청마다 랜덤 분산</b>됩니다. 가이드:&nbsp;
-              <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md"
-                 target="_blank" rel="noopener noreferrer"
+              켜진 게 여러 개면 요청마다 랜덤 분산</b>됩니다.
+              <br />
+              가이드 —&nbsp;
+              <a href={DENO_GUIDE_URL} target="_blank" rel="noopener noreferrer"
+                 className="text-blue-600 underline font-bold">
+                Deno Deploy (가장 빠름 · 브라우저만 1~2분) ↗
+              </a>
+              &nbsp;·&nbsp;
+              <a href={CF_GUIDE_URL} target="_blank" rel="noopener noreferrer"
                  className="text-blue-600 underline">
-                Cloudflare Worker 1-click 배포
+                Cloudflare Worker (10분) ↗
               </a>
             </div>
             <div className="text-[11px] text-gray-500">
