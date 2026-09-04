@@ -19,9 +19,16 @@
 
 ## 쓰는 법
 
+저장소를 받을 필요 없습니다. **의존성이 0개**라(Node 18+ 내장 기능만 사용)
+파일 하나만 내려받아 실행하면 됩니다.
+
 ```bash
-npm run proxy
+curl -fsSL -O https://raw.githubusercontent.com/hanjungwoo3/portfolio-web/main/workers/local-proxy/server.mjs
+node server.mjs
 ```
+
+`package.json` 도 `npm install` 도 필요 없습니다. 저장소를 이미 받아둔 경우엔
+`npm run proxy` 로 같은 걸 실행할 수 있습니다.
 
 ```
 ✅ 로컬 프록시 실행 중 — http://127.0.0.1:8787
@@ -30,7 +37,8 @@ npm run proxy
 
 그다음 앱에서 **⚙️ 설정 → 내 전용 프록시 → 💻 내 PC** 버튼 → **저장**.
 
-포트를 바꾸려면 `npm run proxy -- --port 9000` (설정에 등록하는 주소도 같이 바꿔야 합니다).
+포트를 바꾸려면 `node server.mjs --port 9000` (저장소에서는 `npm run proxy -- --port 9000`).
+설정에 등록하는 주소도 같이 바꿔야 합니다.
 
 터미널을 닫으면 프록시도 꺼집니다. 그때는 설정에서 체크를 해제하면 공개 프록시로 돌아갑니다.
 
@@ -68,7 +76,7 @@ yahoo.com  → 클라우드 프록시만 (로컬 제외)
   https 페이지가 http로 요청하는 걸 허용하는 예외는 `localhost`/`127.0.0.1`에만 적용되기 때문입니다.
 - **Safari 미지원.** Chrome·Edge·Firefox는 `https` 페이지 → `http://localhost`를 허용하지만
   Safari는 막습니다.
-- **PC가 켜져 있고 `npm run proxy`가 떠 있어야** 합니다.
+- **PC가 켜져 있고 `node server.mjs`가 떠 있어야** 합니다.
 
 ## 동작
 
@@ -91,7 +99,7 @@ yahoo.com  → 클라우드 프록시만 (로컬 제외)
 - **Private Network Access** — Chrome이 공인 origin → 사설망 요청에 요구하는
   `Access-Control-Allow-Private-Network: true` 응답
 
-의존성은 없습니다(Node 18+ 내장 `http` + `fetch`).
+의존성은 없습니다(Node 18+ 내장 `http` + `fetch`). 그래서 파일 하나만 있으면 돕니다.
 
 ## 확인
 

@@ -545,8 +545,9 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               </a>
             </div>
             <div className="text-[11px] text-gray-500">
-              <b>💻 내 PC</b> — 터미널에서 <code className="bg-gray-100 px-1 rounded">npm run proxy</code> 실행 후
-              아래 <b>💻 내 PC</b> 버튼. 가정용 IP 라 토스 과호출 차단(400)을 잘 피하고 호출 한도도 없습니다.
+              <b>💻 내 PC</b> — 파일 하나(<code className="bg-gray-100 px-1 rounded">server.mjs</code>)를 받아
+              <code className="bg-gray-100 px-1 rounded">node server.mjs</code> 로 띄운 뒤 아래 <b>💻 내 PC</b> 버튼.
+              설치할 것도 저장소도 필요 없습니다(의존성 0). 가정용 IP 라 토스 과호출 차단(400)을 잘 피하고 호출 한도도 없습니다.
               단 <b>PC 전용</b>(휴대폰은 불가)이고 <b>Safari 는 미지원</b>, PC·서버가 켜져 있어야 합니다.&nbsp;
               <a href={LOCAL_GUIDE_URL} target="_blank" rel="noopener noreferrer"
                  className="text-blue-600 underline">로컬 프록시 가이드 ↗</a>
@@ -589,11 +590,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                           </span>
                         ) : u === "unsupported" ? (
                           <span className="text-amber-600">
-                            ⚠️ 응답 없음 — 터미널에서 <code className="bg-gray-100 px-1 rounded">npm run proxy</code> 실행 필요
+                            ⚠️ 응답 없음 — <code className="bg-gray-100 px-1 rounded">node server.mjs</code> 실행 필요
                           </span>
                         ) : (
                           <span className="text-gray-500">
-                            💻 내 PC — <code className="bg-gray-100 px-1 rounded">npm run proxy</code> 실행 중에만 동작
+                            💻 내 PC — <code className="bg-gray-100 px-1 rounded">node server.mjs</code> 실행 중에만 동작
                           </span>
                         )}
                         &nbsp;
@@ -636,7 +637,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   ➕ 프록시 추가
                 </button>
                 <button onClick={addLocalProxy}
-                        title={`내 PC 로컬 프록시(${LOCAL_PROXY_URL}) 등록 — 터미널에서 npm run proxy 실행 필요`}
+                        title={`내 PC 로컬 프록시(${LOCAL_PROXY_URL}) 등록 — server.mjs 를 받아 node server.mjs 로 실행해두어야 합니다`}
                         className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs
                                    rounded border border-emerald-200">
                   💻 내 PC
