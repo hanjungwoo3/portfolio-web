@@ -42,6 +42,31 @@ node server.mjs
 
 터미널을 닫으면 프록시도 꺼집니다. 그때는 설정에서 체크를 해제하면 공개 프록시로 돌아갑니다.
 
+### Windows
+
+1. **Node 설치** — [nodejs.org](https://nodejs.org) 에서 LTS 설치 프로그램을 받아 실행합니다.
+   Node 재단이 서명한 설치 파일이라 보안 경고가 뜨지 않습니다.
+2. **PowerShell** 을 열고:
+
+```powershell
+curl.exe -fsSL -O https://raw.githubusercontent.com/hanjungwoo3/portfolio-web/main/workers/local-proxy/server.mjs
+node server.mjs
+```
+
+`curl.exe` 로 확장자까지 적어야 합니다. PowerShell 에서 그냥 `curl` 은
+`Invoke-WebRequest` 의 별칭이라 `-O` 옵션이 다르게 동작합니다.
+
+브라우저는 Chrome 이나 Edge 를 쓰세요(Safari 는 Windows 에 없으니 신경 쓸 필요 없습니다).
+중지는 `Ctrl+C` 입니다.
+
+> **방화벽 경고가 뜨지 않는 이유** — 이 서버는 `127.0.0.1`(내 컴퓨터 안)에만 바인딩합니다.
+> 외부 네트워크에 열리지 않아 Windows 방화벽이 묻지 않습니다.
+
+단일 실행파일(.exe)은 제공하지 않습니다. Bun 으로 만들면 110MB 에 코드 서명이 없어
+Windows SmartScreen 경고와 백신 오탐이 따라붙는데, 시세를 중계하는 도구에서
+"보안 경고를 무시하라"고 안내하는 건 좋지 않다고 판단했습니다.
+Node 설치 한 번이 더 안전하고 갱신도 쉽습니다.
+
 ## Yahoo 는 자동으로 클라우드로 나갑니다
 
 토스와 Yahoo 는 요구가 정반대입니다.
