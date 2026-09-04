@@ -4,4 +4,8 @@
 [build]
   publish = "public"
   # no-op — 빈 문자열이면 Netlify 가 프레임워크 자동감지(잘못된 Remix/Hydrogen) 프롬프트를 띄움.
-  command = "true"
+  # 반드시 크로스 플랫폼 명령이어야 한다. 예전엔 "true" 였는데 유닉스 셸 전용이라
+  # Windows 에서 netlify deploy 시 build.command 가 실패했다:
+  #   'true'은(는) 내부 또는 외부 명령, 실행할 수 있는 프로그램, 또는 배치 파일이 아닙니다.
+  # echo 는 cmd.exe 와 sh 양쪽의 내장 명령이라 어디서든 0 으로 끝난다.
+  command = "echo no build"
