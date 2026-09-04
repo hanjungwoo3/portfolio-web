@@ -1920,6 +1920,40 @@ export async function fetchKrMarketFlow(
   return out.sort((a, b) => a.date.localeCompare(b.date));
 }
 
+// ─── 시장 일별 거래대금 (토스 c-chart 지수 캔들) ─────────────────────────────
+//   종목 일봉과 같은 kr-s 엔드포인트가 지수코드(KGG01P/QGG01P)도 받는다 — 종목과 달리
+//   'A' 프리픽스는 붙이지 않는다(A 붙이면 400).
+//   amount = KRX 집계 실거래대금(원). 종목 쪽 거래대금(valueBurst·섹터순위)은 종가×거래량
+//   근사인데, 지수는 이 값이 그대로 와서 근사가 필요 없다.
+//   count 상한은 종목 일봉과 동일한 450봉.
+export interface MarketTurnoverPoint {
+  date: string;
+  close: number;    // 지수 종가
+  amount: number;   // 거래대금 (원)
+  volume: number;   // 거래량 (주)
+}
+export async function fetchKrMarketTurnover(
+  indexKey: MarketIndexKey, count = 250,
+): Promise<MarketTurnoverPoint[]> {
+  const code = MARKET_INDEX_CODES[indexKey];
+  const n = Math.min(Math.max(count, 1), TOSS_CANDLE_MAX);
+  const target = `https://wts-info-api.tossinvest.com/api/v1/c-chart/kr-s/${code}/day:1?count=${n}`;
+  // 실패를 [] 로 삼키면 react-query 가 '성공'으로 보고 staleTime 내내 빈 차트를 캐시한다 → 던져서 재시도.
+  const resp = await fetchProxied(target);
+  if (!resp.ok) throw new Error(`market turnover ${indexKey}: HTTP ${resp.status}`);
+  const data = await resp.json() as {
+    result?: { candles?: Array<{ dt?: string; close?: number; volume?: number; amount?: number }> };
+  };
+  const out: MarketTurnoverPoint[] = [];
+  for (const c of data.result?.candles ?? []) {
+    // dt 는 "2026-09-03T00:00:00+09:00" — 이미 KST 라 앞 10자만.
+    const date = c.dt?.slice(0, 10);
+    if (!date || !(c.close && c.close > 0) || !(c.amount && c.amount > 0)) continue;
+    out.push({ date, close: c.close, amount: c.amount, volume: c.volume ?? 0 });
+  }
+  return out.reverse();   // 최신→과거 → 과거→최신
+}
+
 // ─── 당일 시간별 투자자 순매수 (네이버 investorDealTrendTime) ────────────────
 //   HTS "시간별동향" 과 동일 — 당일 누적 순매수 시계열 (개인/외국인/기관+세부).
 //   sosok: 01 코스피(억원) · 02 코스닥(억원) · 03 선물(계약). 로그인 불필요.
