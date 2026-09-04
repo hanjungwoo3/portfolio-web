@@ -18,7 +18,6 @@ import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { resetProxyStats } from "../lib/proxyStatus";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
-const USAGE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/PROXY-USAGE.md";
 const LOCAL_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/local-proxy/README.md";
 import { getIndependentGroupsMode, setIndependentGroupsMode } from "../lib/groupMode";
 import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
@@ -601,13 +600,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                         <a href={LOCAL_GUIDE_URL} target="_blank" rel="noopener noreferrer"
                            className="text-blue-600 underline">가이드 ↗</a>
                       </div>
-                    ) : u && u !== "loading" && (
-                      u === "unsupported" ? (
-                        <div className="text-[10px] text-amber-600 pl-6">
-                          사용량 표시하려면 워커 업데이트 필요(/usage).&nbsp;
-                          <a href={USAGE_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="underline">가이드 ↗</a>
-                        </div>
-                      ) : u.limit === 0 ? (
+                    ) : u && u !== "loading" && u !== "unsupported" && (
+                      // /usage 를 실제로 주는 프록시만 표시한다. 저장소의 워커 6종에는 아직
+                      // 이 엔드포인트가 없어 '업데이트 필요' 안내가 항상 떴다 — 존재하지 않는
+                      // 버전으로 업데이트하라는 안내라 노이즈일 뿐이었다. 미제공이면 그냥 비운다.
+                      u.limit === 0 ? (
                         <div className="pl-6 text-[10px] text-emerald-700 tabular-nums">
                           이번 실행 {u.requests.toLocaleString()}건 · <b>호출 한도 없음</b>
                         </div>
