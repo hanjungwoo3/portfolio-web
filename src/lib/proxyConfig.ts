@@ -65,6 +65,20 @@ export function setPersonalProxyUrl(url: string | null) {
   else setPersonalProxies([{ url: normUrl(url), enabled: true }]);
 }
 
+// ─── 내 PC 로컬 프록시 ────────────────────────────────────────
+// `npm run proxy` 로 띄우는 로컬 서버(workers/local-proxy). 가정용 IP 라 토스의
+// egress IP 풀 스로틀링을 피하고 일일 호출 한도도 없다.
+// 제약: https 페이지 → http://localhost 는 Chrome/Edge/Firefox 만 허용(Safari 차단),
+//       휴대폰에서 PC 의 LAN IP 로 붙는 건 mixed content 로 막혀 사실상 PC 전용.
+export const LOCAL_PROXY_URL = "http://127.0.0.1:8787";
+
+export function isLocalProxyUrl(u: string): boolean {
+  try {
+    const h = new URL(u).hostname;
+    return h === "localhost" || h === "127.0.0.1" || h === "::1";
+  } catch { return false; }
+}
+
 // 워커 사용량 — 신버전 워커의 GET /usage 엔드포인트 ({requests, limit}).
 // 구버전 워커(미지원)는 다른 응답/에러 → null 반환 (앱은 안내 문구 표시).
 export interface ProxyUsage { requests: number; limit: number }
@@ -74,6 +88,7 @@ export async function fetchProxyUsage(base: string): Promise<ProxyUsage | null> 
     if (!resp.ok) return null;
     const j = await resp.json() as { requests?: unknown; limit?: unknown };
     if (typeof j.requests !== "number") return null;
+    // limit 0 = 무제한(로컬 프록시). 숫자가 아니면 Cloudflare 무료 한도로 가정.
     return { requests: j.requests, limit: typeof j.limit === "number" ? j.limit : 100_000 };
   } catch { return null; }
 }

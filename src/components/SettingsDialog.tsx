@@ -11,6 +11,7 @@ import {
   getDimSleepingEnabled, setDimSleepingEnabled,
   checkPersonalProxyPostSupport,
   invalidatePersonalProxyStatusCache,
+  isLocalProxyUrl, LOCAL_PROXY_URL,
   type PersonalProxyStatus,
 } from "../lib/proxyConfig";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
@@ -18,6 +19,7 @@ import { resetProxyStats } from "../lib/proxyStatus";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 const USAGE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/PROXY-USAGE.md";
+const LOCAL_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/local-proxy/README.md";
 import { getIndependentGroupsMode, setIndependentGroupsMode } from "../lib/groupMode";
 import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
@@ -263,6 +265,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     setProxies(ps => ps.map((p, idx) => idx === i ? { ...p, ...patch } : p));
   const removeProxy = (i: number) => setProxies(ps => ps.filter((_, idx) => idx !== i));
   const addProxy = () => setProxies(ps => [...ps, { url: "", enabled: true }]);
+  // 내 PC 로컬 프록시 한 번에 등록 — 이미 있으면 중복 추가 대신 켜기만.
+  const addLocalProxy = () => setProxies(ps => {
+    const i = ps.findIndex(p => isLocalProxyUrl(p.url));
+    if (i >= 0) return ps.map((p, idx) => idx === i ? { ...p, enabled: true } : p);
+    return [...ps, { url: LOCAL_PROXY_URL, enabled: true }];
+  });
   const hasEnabledProxy = proxies.some(p => p.enabled && p.url.trim() !== "");
 
   // 켜진 프록시들 사용량 조회 (워커 /usage)
@@ -536,6 +544,13 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 Cloudflare Worker 1-click 배포
               </a>
             </div>
+            <div className="text-[11px] text-gray-500">
+              <b>💻 내 PC</b> — 터미널에서 <code className="bg-gray-100 px-1 rounded">npm run proxy</code> 실행 후
+              아래 <b>💻 내 PC</b> 버튼. 가정용 IP 라 토스 과호출 차단(400)을 잘 피하고 호출 한도도 없습니다.
+              단 <b>PC 전용</b>(휴대폰은 불가)이고 <b>Safari 는 미지원</b>, PC·서버가 켜져 있어야 합니다.&nbsp;
+              <a href={LOCAL_GUIDE_URL} target="_blank" rel="noopener noreferrer"
+                 className="text-blue-600 underline">로컬 프록시 가이드 ↗</a>
+            </div>
             <div className="space-y-1.5">
               {proxies.length === 0 && (
                 <div className="text-[11px] text-gray-400 py-1">
@@ -570,6 +585,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                           사용량 표시하려면 워커 업데이트 필요(/usage).&nbsp;
                           <a href={USAGE_GUIDE_URL} target="_blank" rel="noopener noreferrer" className="underline">가이드 ↗</a>
                         </div>
+                      ) : u.limit === 0 ? (
+                        // 로컬 프록시 — 일일 한도가 없어 한도 바/리셋 안내가 무의미.
+                        <div className="pl-6 text-[10px] text-emerald-700 tabular-nums">
+                          💻 내 PC · 이번 실행 {u.requests.toLocaleString()}건 · <b>호출 한도 없음</b>
+                        </div>
                       ) : (() => {
                         const pct = u.limit > 0 ? Math.min(100, (u.requests / u.limit) * 100) : 0;
                         return (
@@ -594,6 +614,12 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                         className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs
                                    rounded border border-gray-200">
                   ➕ 프록시 추가
+                </button>
+                <button onClick={addLocalProxy}
+                        title={`내 PC 로컬 프록시(${LOCAL_PROXY_URL}) 등록 — 터미널에서 npm run proxy 실행 필요`}
+                        className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs
+                                   rounded border border-emerald-200">
+                  💻 내 PC
                 </button>
                 <button onClick={saveProxies}
                         className="ml-auto px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded">
