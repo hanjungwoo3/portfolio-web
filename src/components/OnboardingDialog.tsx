@@ -1,8 +1,16 @@
 import { useEffect, useRef, useState } from "react";
 import { getPersonalProxyUrl } from "../lib/proxyConfig";
 
-const GUIDE_URL =
+// 권장은 Deno — 브라우저만으로 1~2분이고, 무엇보다 Cloudflare 와 나가는 IP 풀이 다르다.
+//   토스는 IP 풀 단위로 막기 때문에, 공개 프록시(Cloudflare 포함)가 막힐 때 개인
+//   Cloudflare 워커를 배포해봐야 같이 막힌다. 안내가 그걸 권하면 사용자가 10분을 쓰고도
+//   증상이 그대로다. Cloudflare 가이드는 보조 링크로만 남긴다.
+const DENO_GUIDE_URL =
+  "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/deno-proxy/README.md";
+const CF_GUIDE_URL =
   "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md";
+const EXT_GUIDE_URL =
+  "https://github.com/hanjungwoo3/portfolio-web/blob/main/extension/README.md";
 
 interface Props {
   onOpenSettings: () => void;
@@ -83,27 +91,49 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
           </div>
 
           <p className="font-medium text-gray-800">
-            💡 본인 전용 Cloudflare Worker 배포 시:
+            💡 본인 전용 프록시를 하나 두시면:
           </p>
           <ul className="text-xs space-y-1 pl-4 list-disc text-gray-600">
             <li>본인 <b>100k req/일 전용</b> (사실상 무제한)</li>
             <li>폴링 주기 <b>5초/10초/30초/60초</b> 선택 가능</li>
             <li>공개 인프라 한도 영향 없음</li>
-            <li><b>무료</b>, 신용카드 불필요, 약 10분 소요</li>
-            <li>코딩 지식 불필요 — 가이드 따라 클릭만</li>
+            <li><b>시세가 빈 칸으로 나오는 문제</b>도 같이 해결됩니다</li>
+            <li><b>무료</b>, 신용카드 불필요, 코딩 지식 불필요</li>
           </ul>
 
+          <div className="bg-emerald-50 border border-emerald-200 rounded p-2.5 text-xs text-emerald-900">
+            👍 <b>Deno Deploy 를 권합니다</b> — GitHub 로 1클릭 가입 후 코드를 붙여넣고
+            저장하면 끝. 터미널 없이 <b>브라우저만으로 1~2분</b>입니다.
+            <div className="mt-1 text-emerald-800/80">
+              Cloudflare 도 되지만 가입 절차가 길고(약 10분), 공개 프록시와 나가는 IP 를
+              공유해서 시세가 막히는 문제는 그대로일 수 있습니다.
+            </div>
+          </div>
+
+          <div className="text-xs text-gray-500">
+            🧩 <b>PC 크롬·엣지</b>를 쓰신다면 <b>확장 프로그램</b>이 더 간편합니다 —
+            설치만 하면 프록시 배포가 아예 필요 없습니다(휴대폰은 불가).&nbsp;
+            <a href={EXT_GUIDE_URL} target="_blank" rel="noopener noreferrer"
+               className="text-blue-600 underline">확장 안내 ↗</a>
+          </div>
+
           <div className="flex gap-2 pt-1">
-            <a href={GUIDE_URL} target="_blank" rel="noopener noreferrer"
+            <a href={DENO_GUIDE_URL} target="_blank" rel="noopener noreferrer"
                className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700
                           text-white text-xs text-center rounded font-medium">
-              📖 배포 가이드 보기
+              📖 Deno 배포 가이드 (1~2분)
             </a>
             <button onClick={openSettingsAndClose}
                     className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700
                                text-white text-xs rounded font-medium">
               ⚙️ 설정 열기
             </button>
+          </div>
+
+          <div className="text-[11px] text-gray-400 pt-0.5">
+            다른 방법:&nbsp;
+            <a href={CF_GUIDE_URL} target="_blank" rel="noopener noreferrer"
+               className="underline hover:text-gray-600">Cloudflare Worker 배포 (약 10분)</a>
           </div>
         </div>
 
