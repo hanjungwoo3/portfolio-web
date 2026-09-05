@@ -113,6 +113,25 @@ function GroupChart({ lines, dates, mode }: { lines: Line[]; dates: string[]; mo
     }
   }
 
+  // 값 뱃지 — 예탁금·신용잔고 차트의 중간·끝 지점에 조 단위 숫자를 얹는다.
+  //   이중 축이라 어느 선이 어느 축인지 헷갈릴 수 있어, 선 색과 같은 배경의 뱃지로 직접 표기.
+  //   두 계열을 각각 점 위/아래로 갈라 배치해 서로 겹치지 않게 하고, 차트 밖으로 나가지 않게 클램프.
+  const badges: { x: number; y: number; w: number; text: string; color: string }[] = [];
+  if (isDual) {
+    const marks = [Math.round((n - 1) / 2), n - 1];
+    lines.forEach((l, li) => {
+      marks.forEach((idx, mi) => {
+        const v = plot[li][idx];
+        const text = `${(v / 10000).toFixed(1)}조`;
+        const w = text.length * 4.2 + 6;
+        // 마지막 뱃지는 오른쪽 축 라벨과 겹치지 않게 안쪽으로 당긴다.
+        const cx = mi === marks.length - 1 ? x(idx) - w / 2 : x(idx);
+        const cy = Math.min(Math.max(yOf[li](v, li) + (li === 0 ? -9 : 9), mT + 5), mT + ph - 5);
+        badges.push({ x: cx, y: cy, w, text, color: COLOR[l.key] });
+      });
+    });
+  }
+
   const xIdx = [0, Math.round((n - 1) / 2), n - 1];
   return (
     <svg viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="xMidYMid meet" className="block">
@@ -135,6 +154,15 @@ function GroupChart({ lines, dates, mode }: { lines: Line[]; dates: string[]; mo
         <path key={li} d={d.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${yOf[li](v, li).toFixed(1)}`).join(" ")}
               fill="none" stroke={COLOR[lines[li].key]} strokeWidth={1.5}
               strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      ))}
+      {/* 값 뱃지 — 선보다 뒤에 그리면 가려지므로 마지막에 */}
+      {badges.map((b, i) => (
+        <g key={`b${i}`}>
+          <rect x={b.x - b.w / 2} y={b.y - 5} width={b.w} height={10} rx={2.5}
+                fill={b.color} opacity={0.93} />
+          <text x={b.x} y={b.y + 2.6} textAnchor="middle" fontSize="6.6"
+                fontWeight="700" fill="#ffffff">{b.text}</text>
+        </g>
       ))}
     </svg>
   );
