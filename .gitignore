@@ -17,3 +17,4 @@ dist/
 # Proxy worker CLI 생성물
 workers/netlify-proxy/deno.lock
 workers/supabase-proxy/supabase/.temp/
+dist-extension/

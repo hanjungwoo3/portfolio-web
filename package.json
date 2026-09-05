@@ -11,6 +11,7 @@
     "preview": "vite preview",
     "predeploy": "npm run build",
     "deploy": "git push origin main && gh-pages -d dist -b gh-pages",
+    "pack:extension": "node scripts/pack-extension.mjs",
     "gen-names": "node scripts/gen-stock-names.mjs",
     "gen-etf-weights": "node scripts/gen-etf-weights.mjs"
   },

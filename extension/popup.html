@@ -2,21 +2,27 @@
 <meta charset="utf-8">
 <title>포트폴리오</title>
 <style>
-  html, body { margin: 0; width: 780px; height: 580px; overflow: hidden;
+  /* 앱은 640px 이하에서 모바일 뷰로 전환된다(App.tsx matchMedia). iframe 안에서는
+     iframe 폭을 재므로 좁게 잡으면 세로형 화면이 나온다. 크롬 팝업 상한은 800×600.
+
+     zoom 0.85 — 모바일 뷰는 폰(고DPI) 기준이라 데스크톱에서 그대로 보면 글씨가 크다.
+     iframe 을 494×675 로 잡고 0.85 배로 줄이면 실제 표시는 420×574 가 되고,
+     내부 레이아웃 폭은 494px 로 계산돼 640px 미만 → 모바일 뷰는 그대로 유지된다. */
+  html, body { margin: 0; width: 420px; height: 600px; overflow: hidden;
                font: 12px system-ui, -apple-system, sans-serif; background: #fff; }
   #bar { display: flex; align-items: center; gap: 8px; height: 26px; padding: 0 8px;
          border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
-  #st { font-weight: 700; }
+  #st { font-weight: 700; white-space: nowrap; }
   #st.on  { color: #059669; }
   #st.off { color: #9ca3af; }
   #bar button { margin-left: auto; font: inherit; padding: 2px 8px; cursor: pointer;
-                border: 1px solid #d1d5db; border-radius: 4px; background: #fff; }
+                white-space: nowrap; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; }
   #bar button:hover { background: #f3f4f6; }
-  iframe { width: 780px; height: 554px; border: 0; display: block; }
+  iframe { width: 494px; height: 675px; zoom: 0.85; border: 0; display: block; }
 </style>
 <div id="bar">
-  <span id="st" class="off">● 프록시 연결 확인 중</span>
-  <button id="tab">새 탭에서 열기 ↗</button>
+  <span id="st" class="off">● 확인 중</span>
+  <button id="tab">넓게 보기 ↗</button>
 </div>
 <iframe id="app" src="https://hanjungwoo3.github.io/portfolio-web/"></iframe>
 <script src="popup.js"></script>
