@@ -151,9 +151,13 @@ function GroupChart({ lines, dates, mode }: { lines: Line[]; dates: string[]; mo
     setHover(Math.min(Math.max(i, 0), n - 1));
   };
 
-  const hoverPct = (li: number) => {
+  // 툴팁 % — 직전 틱(전일) 대비 증감률. 그 날 얼마나 움직였는지가 궁금한 값이라
+  //   누적(시작일 대비)보다 이쪽이 읽기 쉽다. 첫 봉은 직전이 없어 null.
+  const hoverPct = (li: number): number | null => {
+    if (hover == null || hover === 0) return null;
     const d = lines[li].data;
-    return d[0] ? (d[hover!] / d[0] - 1) * 100 : 0;
+    const prev = d[hover - 1];
+    return prev ? (d[hover] / prev - 1) * 100 : null;
   };
   const leftPct = hover != null ? (x(hover) / W) * 100 : 0;
   const flip = leftPct > 55;   // 오른쪽 절반이면 툴팁을 왼쪽으로 — 카드 밖으로 안 나가게
@@ -220,13 +224,15 @@ function GroupChart({ lines, dates, mode }: { lines: Line[]; dates: string[]; mo
               <span className="w-1.5 h-1.5 rounded-sm shrink-0" style={{ backgroundColor: COLOR[l.key] }} />
               <span className="text-gray-500">{LABEL[l.key]}</span>
               <span className="font-bold tabular-nums text-gray-800">{fmtJo(l.data[hover])}</span>
-              <span className={`tabular-nums ${pc > 0 ? "text-rose-600" : pc < 0 ? "text-blue-600" : "text-gray-400"}`}>
-                {pc > 0 ? "+" : ""}{pc.toFixed(2)}%
-              </span>
+              {pc != null && (
+                <span className={`tabular-nums ${pc > 0 ? "text-rose-600" : pc < 0 ? "text-blue-600" : "text-gray-400"}`}>
+                  {pc > 0 ? "+" : ""}{pc.toFixed(2)}%
+                </span>
+              )}
             </div>
           );
         })}
-        <div className="text-[9px] text-gray-400 mt-0.5">% = 시작일 대비</div>
+        <div className="text-[9px] text-gray-400 mt-0.5">% = 전일 대비</div>
       </div>
     )}
     </div>
