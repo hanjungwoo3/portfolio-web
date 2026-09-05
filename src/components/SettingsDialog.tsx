@@ -16,7 +16,7 @@ import {
 } from "../lib/proxyConfig";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { resetProxyStats } from "../lib/proxyStatus";
-import { isExtensionProxyReady } from "../lib/extensionProxy";
+import { useExtensionProxyReady } from "../lib/extensionProxy";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 const LOCAL_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/local-proxy/README.md";
@@ -54,8 +54,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   const [statusMsg, setStatusMsg] = useState("");
   const downOnBackdropRef = useRef(false);
   const [proxies, setProxies] = useState<PersonalProxy[]>([]);
-  // 확장 감지 — content script 핸드셰이크가 비동기라 열릴 때 잠시 재확인한다.
-  const [extReady, setExtReady] = useState(false);
+  // 확장 감지 — 핸드셰이크가 끝나면 구독으로 알아서 리렌더된다.
+  const extReady = useExtensionProxyReady();
   // 프록시별 사용량 (워커 /usage) — url → 결과/상태
   const [usage, setUsage] = useState<Record<string, ProxyUsage | "unsupported" | "loading">>({});
   const [pollMs, setPollMs] = useState(10_000);
@@ -134,17 +134,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
       }
     }
   };
-
-  // 확장 감지 — content script 와의 ping/ready 핸드셰이크가 비동기라 열릴 때 잠깐 재확인.
-  useEffect(() => {
-    if (!isOpen) return;
-    let n = 0;
-    const t = setInterval(() => {
-      setExtReady(isExtensionProxyReady());
-      if (++n >= 8) clearInterval(t);   // 약 1.6초면 충분
-    }, 200);
-    return () => clearInterval(t);
-  }, [isOpen]);
 
   // 다이얼로그 열릴 때마다 현재 데이터 로드
   useEffect(() => {
@@ -285,6 +274,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   const addProxy = () => setProxies(ps => [...ps, { url: "", enabled: true }]);
 
   const hasEnabledProxy = proxies.some(p => p.enabled && p.url.trim() !== "");
+  // 5·10초 빠른 폴링 허용 조건 — 공개 인프라를 안 쓰는 경우.
+  const fastPollAllowed = hasEnabledProxy || extReady;
 
   // 켜진 프록시들 사용량 조회 (워커 /usage)
   const refreshUsage = (list: PersonalProxy[]) => {
@@ -694,16 +685,17 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 </a>
               </div>
             )}
-            {/* 폴링 주기 — 공개는 30/60초·수동 선택, 5/10초는 전용 프록시 전용 */}
+            {/* 폴링 주기 — 공개는 30/60초·수동만. 5/10초는 전용 프록시 또는 확장일 때.
+                확장은 브라우저가 직접 요청하므로 워커 호출 한도가 아예 없다. */}
             <div className="flex items-center gap-2 mt-1">
-              <span className={`text-[11px] ${hasEnabledProxy ? "text-gray-700" : "text-gray-400"}`}>
+              <span className={`text-[11px] ${fastPollAllowed ? "text-gray-700" : "text-gray-400"}`}>
                 폴링 주기:
               </span>
               {POLL_OPTIONS.map(ms => {
                 const active = pollMs === ms;
                 // 수동(0)·공개 허용 주기(30초 이상=30/60초)는 프록시 무관 선택 가능.
-                // 더 빠른 5/10초는 전용 프록시일 때만.
-                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : hasEnabledProxy;
+                // 더 빠른 5/10초는 전용 프록시 또는 확장일 때만.
+                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : fastPollAllowed;
                 return (
                   <button key={ms}
                           onClick={() => handlePollChange(ms)}
@@ -717,9 +709,9 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   </button>
                 );
               })}
-              {!hasEnabledProxy && (
+              {!fastPollAllowed && (
                 <span className="text-[10px] text-gray-400 ml-1">
-                  (공개: 기본 60초 · 30·60·수동 선택 · 5·10초는 전용 프록시)
+                  (공개: 기본 60초 · 30·60·수동 선택 · 5·10초는 전용 프록시 또는 확장)
                 </span>
               )}
             </div>
@@ -734,7 +726,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 최근 7일 <b className="text-gray-800">{getRecentProxyCalls(7).toLocaleString()}</b>회
               </span>
               <span className="text-[10px] text-gray-400">
-                {hasEnabledProxy ? "(전용 프록시 호출수)" : "(공개 프록시 합계)"}
+                {extReady ? "(대부분 확장이 처리 — 프록시는 Yahoo 등만)"
+                  : hasEnabledProxy ? "(전용 프록시 호출수)" : "(공개 프록시 합계)"}
               </span>
             </div>
 

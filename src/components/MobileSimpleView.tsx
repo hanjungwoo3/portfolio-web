@@ -30,6 +30,7 @@ import { getIndependentGroupsMode } from "../lib/groupMode";
 import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { StockMarketTab } from "./StockMarketTab";
+import { useExtensionProxyReady } from "../lib/extensionProxy";
 import { ValuationTableTab } from "./ValuationTableTab";
 import { normalizeAccount } from "../lib/account";
 import { attachTodayBuys } from "../lib/tradeCalc";
@@ -242,8 +243,11 @@ export function MobileSimpleView() {
     return () => window.removeEventListener(GOTO_HEATMAP_EVENT, h);
   }, []);
 
-  // PC 동일 자동 갱신 — 전용 프록시 시 5/10/30/60초 / 공개 기본 60초(30초 선택 가능) + 다운/마감 시 자동 증가
-  const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), []);
+  // PC 동일 자동 갱신 — 전용 프록시·확장 시 5/10/30/60초 / 공개 기본 60초(30초 선택 가능) + 다운/마감 시 자동 증가
+  //   extReady 의존성 필수 — 확장 감지는 postMessage 핸드셰이크라 마운트 뒤에 켜질 수 있다.
+  //   빼먹으면 확장이 붙어도 공개 기준(60초)에 묶인 채 새로고침 전까지 안 풀린다.
+  const mainExtReady = useExtensionProxyReady();
+  const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), [mainExtReady]);
   const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
   const tossMaint = useTossMaintenance();   // 토스 점검 — 네이버 fallback(60s) / 워커 미지원 시 5분
   const REFRESH_MS = tossMaint.active
@@ -1916,6 +1920,7 @@ function SettingsModal({
   const [folderDraft, setFolderDraft] = useState<GroupFolder[]>([]);
   const [newFolderName, setNewFolderName] = useState("");
   const [pollMs, setPollMs] = useState(getPersonalPollMs());
+  const extReady = useExtensionProxyReady();
   const [syncStateLocal, setSyncStateLocal] = useState(getSyncState());
   const [syncBusyLocal, setSyncBusyLocal] = useState(false);
   const [syncBusyMsgLocal, setSyncBusyMsgLocal] = useState("");
@@ -1961,6 +1966,10 @@ function SettingsModal({
   const removeProxy = (i: number) => setProxies(ps => ps.filter((_, idx) => idx !== i));
   const addProxy = () => setProxies(ps => [...ps, { url: "", enabled: true }]);
   const hasEnabledProxy = proxies.some(p => p.enabled && p.url.trim() !== "");
+  // 5·10초 빠른 폴링 허용 조건 — 공개 인프라를 안 쓰는 경우(전용 프록시 또는 확장).
+  //   확장은 브라우저가 직접 요청하므로 워커 호출 한도가 아예 없다.
+  //   (확장은 크롬 안드로이드에서 안 되지만, 이 뷰는 좁은 데스크톱 창에서도 뜬다)
+  const fastPollAllowed = hasEnabledProxy || extReady;
 
   const refreshUsage = (list: PersonalProxy[]) => {
     for (const p of list) {
@@ -2309,15 +2318,15 @@ function SettingsModal({
               <p className="text-[11px] text-emerald-700">{savedMsg}</p>
             )}
 
-            {/* 폴링 주기 — 전용 프록시 활성화 시만 enabled */}
+            {/* 폴링 주기 — 5·10초는 전용 프록시 또는 확장일 때만 enabled */}
             <div className="flex items-center gap-1 mt-2 flex-wrap">
-              <span className={`text-[11px] ${hasEnabledProxy ? "text-gray-700" : "text-gray-400"}`}>
+              <span className={`text-[11px] ${fastPollAllowed ? "text-gray-700" : "text-gray-400"}`}>
                 폴링 주기:
               </span>
               {POLL_OPTIONS.map(ms => {
                 const active = pollMs === ms;
                 // 수동(0)·공개 허용 주기(30초 이상=30/60초)는 프록시 무관 선택 가능.
-                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : hasEnabledProxy;
+                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : fastPollAllowed;
                 return (
                   <button key={ms}
                           onClick={() => handlePollChange(ms)}
@@ -2331,9 +2340,9 @@ function SettingsModal({
                   </button>
                 );
               })}
-              {!hasEnabledProxy && (
+              {!fastPollAllowed && (
                 <span className="text-[10px] text-gray-400 w-full mt-0.5">
-                  (공개: 기본 60초 · 30·60·수동 선택 · 5·10초는 전용 프록시)
+                  (공개: 기본 60초 · 30·60·수동 선택 · 5·10초는 전용 프록시 또는 확장)
                 </span>
               )}
             </div>

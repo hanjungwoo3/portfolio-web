@@ -7,6 +7,8 @@
 //
 //   ⚠️ Yahoo 는 여기로 보내면 안 된다 — 가정용 IP 를 429 로 막는다. 라우팅은 api.ts 가 판단.
 
+import { useSyncExternalStore } from "react";
+
 const TAG = "__pfx";
 const TIMEOUT_MS = 20_000;
 
@@ -20,6 +22,8 @@ interface ExtResponse {
 let ready = false;
 const pending = new Map<string, (r: ExtResponse) => void>();
 let seq = 0;
+// ready 는 핸드셰이크 후 비동기로 켜진다 → 구독으로 알린다(폴링 없이 UI 가 따라오게).
+const readyListeners = new Set<() => void>();
 
 if (typeof window !== "undefined") {
   window.addEventListener("message", (e: MessageEvent) => {
@@ -27,7 +31,10 @@ if (typeof window !== "undefined") {
     const m = e.data as Record<string, unknown> | null;
     if (!m || typeof m !== "object") return;
     const kind = m[TAG];
-    if (kind === "ready") { ready = true; return; }
+    if (kind === "ready") {
+      if (!ready) { ready = true; readyListeners.forEach(l => l()); }
+      return;
+    }
     if (kind !== "res") return;
     const cb = pending.get(String(m.id));
     if (cb) { pending.delete(String(m.id)); cb(m as ExtResponse); }
@@ -38,6 +45,17 @@ if (typeof window !== "undefined") {
 
 export function isExtensionProxyReady(): boolean {
   return ready;
+}
+
+function subscribeReady(cb: () => void): () => void {
+  readyListeners.add(cb);
+  return () => { readyListeners.delete(cb); };
+}
+
+// 확장 감지 상태를 구독하는 훅 — 감지되면 리렌더된다.
+// (서버 스냅샷은 false: 확장은 브라우저에만 존재)
+export function useExtensionProxyReady(): boolean {
+  return useSyncExternalStore(subscribeReady, isExtensionProxyReady, () => false);
 }
 
 // base64 → 바이트. 네이버 자금동향은 EUC-KR 이라 텍스트로 옮기면 깨진다 →

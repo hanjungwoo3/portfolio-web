@@ -2,6 +2,8 @@
 // 입력 시 공개 4-way 라운드 로빈 대신 사용자 본인 worker 만 사용
 // → 공개 인프라 부담 0, 사용자 본인 100k/일 무료 한도 전용
 
+import { isExtensionProxyReady } from "./extensionProxy";
+
 const KEY = "portfolio_personal_proxy_url";        // 레거시 단일 URL (마이그레이션/호환)
 const LIST_KEY = "portfolio_personal_proxies";     // 신규 — 여러 개 {url, enabled}
 const POLL_KEY = "portfolio_personal_poll_ms";
@@ -205,7 +207,9 @@ export function setPersonalPollMs(ms: number) {
 export function getEffectivePollMs(): number {
   const ms = getPersonalPollMs();
   if (ms === MANUAL_POLL_MS) return 0;
-  if (getPersonalProxyUrl()) return ms;
+  // 전용 프록시 또는 크롬 확장이면 제한 없음 — 둘 다 공개 인프라를 쓰지 않는다.
+  //   확장은 브라우저가 직접 요청하므로 워커 호출 한도라는 개념 자체가 없다.
+  if (getPersonalProxyUrl() || isExtensionProxyReady()) return ms;
   // 공개: 30초 이상만 허용(30/60초), 더 빠른 값은 기본(60초)으로 클램프
   return ms >= PUBLIC_MIN_POLL_MS ? ms : DEFAULT_PUBLIC_POLL_MS;
 }

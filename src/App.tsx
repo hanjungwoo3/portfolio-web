@@ -68,6 +68,7 @@ import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { GOTO_HEATMAP_EVENT } from "./lib/heatmapNav";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
+import { useExtensionProxyReady } from "./lib/extensionProxy";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./components/HelpDialog";
 import type { Stock, Memo } from "./types";
 
@@ -141,9 +142,12 @@ function Dashboard() {
     return () => clearTimeout(t);
   }, []);
 
+  const extReady = useExtensionProxyReady();
   // 자동 동기화 제거됨 — 백업은 설정의 파일 저장/불러오기 또는 수동 구글 업·다운로드 사용.
   // 설정 변경 시 reloadKey 증가 → BASE_REFRESH_MS / usePersonalProxy 재계산
-  const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), [reloadKey]);
+  // extReady 도 의존성 — 확장 감지는 postMessage 핸드셰이크라 마운트 뒤에 켜질 수 있다.
+  //   빼먹으면 확장이 붙어도 공개 기준(60초)에 묶인 채 새로고침 전까지 안 풀린다.
+  const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), [reloadKey, extReady]);
   // 수동 모드 — 자동 폴링 전면 중단 (버튼/탭 진입 시에만 갱신)
   const manualPoll = BASE_REFRESH_MS === 0;
   const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey]);
