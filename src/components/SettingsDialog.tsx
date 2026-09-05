@@ -11,14 +11,16 @@ import {
   getDimSleepingEnabled, setDimSleepingEnabled,
   checkPersonalProxyPostSupport,
   invalidatePersonalProxyStatusCache,
-  isLocalProxyUrl, LOCAL_PROXY_URL,
+  isLocalProxyUrl,
   type PersonalProxyStatus,
 } from "../lib/proxyConfig";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { resetProxyStats } from "../lib/proxyStatus";
+import { isExtensionProxyReady } from "../lib/extensionProxy";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 const LOCAL_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/local-proxy/README.md";
+const EXT_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/extension/README.md";
 // 전용 프록시 배포 가이드 — Deno 가 가장 빠르다(브라우저만, GitHub 1클릭 가입).
 // Cloudflare 는 기능은 같지만 가입 절차가 길어 두 번째로 둔다.
 const DENO_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/deno-proxy/README.md";
@@ -52,6 +54,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   const [statusMsg, setStatusMsg] = useState("");
   const downOnBackdropRef = useRef(false);
   const [proxies, setProxies] = useState<PersonalProxy[]>([]);
+  // 확장 감지 — content script 핸드셰이크가 비동기라 열릴 때 잠시 재확인한다.
+  const [extReady, setExtReady] = useState(false);
   // 프록시별 사용량 (워커 /usage) — url → 결과/상태
   const [usage, setUsage] = useState<Record<string, ProxyUsage | "unsupported" | "loading">>({});
   const [pollMs, setPollMs] = useState(10_000);
@@ -130,6 +134,17 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
       }
     }
   };
+
+  // 확장 감지 — content script 와의 ping/ready 핸드셰이크가 비동기라 열릴 때 잠깐 재확인.
+  useEffect(() => {
+    if (!isOpen) return;
+    let n = 0;
+    const t = setInterval(() => {
+      setExtReady(isExtensionProxyReady());
+      if (++n >= 8) clearInterval(t);   // 약 1.6초면 충분
+    }, 200);
+    return () => clearInterval(t);
+  }, [isOpen]);
 
   // 다이얼로그 열릴 때마다 현재 데이터 로드
   useEffect(() => {
@@ -268,12 +283,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     setProxies(ps => ps.map((p, idx) => idx === i ? { ...p, ...patch } : p));
   const removeProxy = (i: number) => setProxies(ps => ps.filter((_, idx) => idx !== i));
   const addProxy = () => setProxies(ps => [...ps, { url: "", enabled: true }]);
-  // 내 PC 로컬 프록시 한 번에 등록 — 이미 있으면 중복 추가 대신 켜기만.
-  const addLocalProxy = () => setProxies(ps => {
-    const i = ps.findIndex(p => isLocalProxyUrl(p.url));
-    if (i >= 0) return ps.map((p, idx) => idx === i ? { ...p, enabled: true } : p);
-    return [...ps, { url: LOCAL_PROXY_URL, enabled: true }];
-  });
+
   const hasEnabledProxy = proxies.some(p => p.enabled && p.url.trim() !== "");
 
   // 켜진 프록시들 사용량 조회 (워커 /usage)
@@ -558,13 +568,25 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 Cloudflare Worker (10분) ↗
               </a>
             </div>
-            <div className="text-[11px] text-gray-500">
-              <b>💻 내 PC</b> — 파일 하나(<code className="bg-gray-100 px-1 rounded">server.mjs</code>)를 받아
-              <code className="bg-gray-100 px-1 rounded">node server.mjs</code> 로 띄운 뒤 아래 <b>💻 내 PC</b> 버튼.
-              설치할 것도 저장소도 필요 없습니다(의존성 0). 가정용 IP 라 토스 과호출 차단(400)을 잘 피하고 호출 한도도 없습니다.
-              단 <b>PC 전용</b>(휴대폰은 불가)이고 <b>Safari 는 미지원</b>, PC·서버가 켜져 있어야 합니다.&nbsp;
-              <a href={LOCAL_GUIDE_URL} target="_blank" rel="noopener noreferrer"
-                 className="text-blue-600 underline">로컬 프록시 가이드 ↗</a>
+            <div className={`text-[11px] rounded p-2 border ${extReady
+                ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+                : "bg-gray-50 border-gray-200 text-gray-600"}`}>
+              {extReady ? (
+                <>
+                  <b>🧩 크롬 확장 사용 중</b> — 시세를 <b>이 브라우저가 직접</b> 가져오고 있습니다.
+                  가정용 IP 라 토스 과호출 차단(400)에 걸리지 않고 호출 한도도 없습니다.
+                  아래 프록시는 <b>Yahoo(차트·과거시세·미국지수)</b> 와 확장 실패 시에만 쓰입니다.
+                </>
+              ) : (
+                <>
+                  <b>🧩 크롬 확장</b> — 설치하면 시세를 <b>브라우저가 직접</b> 가져옵니다.
+                  프록시 배포도 서버 실행도 필요 없고 호출 한도가 없어, 토스 과호출 차단(400)으로
+                  종목이 빈 칸이 되는 문제를 근본적으로 피합니다. 크롬·엣지 전용(모바일 불가).
+                </>
+              )}
+              &nbsp;
+              <a href={EXT_GUIDE_URL} target="_blank" rel="noopener noreferrer"
+                 className="text-blue-600 underline">확장 가이드 ↗</a>
             </div>
             <div className="space-y-1.5">
               {proxies.length === 0 && (
@@ -650,12 +672,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                         className="px-2.5 py-1 bg-gray-100 hover:bg-gray-200 text-gray-700 text-xs
                                    rounded border border-gray-200">
                   ➕ 프록시 추가
-                </button>
-                <button onClick={addLocalProxy}
-                        title={`내 PC 로컬 프록시(${LOCAL_PROXY_URL}) 등록 — server.mjs 를 받아 node server.mjs 로 실행해두어야 합니다`}
-                        className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs
-                                   rounded border border-emerald-200">
-                  💻 내 PC
                 </button>
                 <button onClick={saveProxies}
                         className="ml-auto px-3 py-1 bg-blue-600 hover:bg-blue-700 text-white text-xs rounded">
