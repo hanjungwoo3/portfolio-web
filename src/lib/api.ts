@@ -39,17 +39,21 @@ export const PROXY_URLS = new Proxy([] as string[], {
 });
 
 // ─── 업스트림별 프록시 선택 ──────────────────────────────────
-// Yahoo 는 가정용 IP 를 429("Edge: Too Many Requests")로 막는다 — query1/query2,
-// v8 chart·v7 quote 전부, UA 를 브라우저로 바꿔도 동일(실측).
-// 토스는 정반대다: 클라우드 egress IP 풀을 400 으로 막고 가정용 IP 는 통과시킨다.
-// 두 요구가 정면으로 상충해 프록시를 하나로 통일할 수 없다 →
-// Yahoo 로 가는 요청에서만 '내 PC' 로컬 프록시를 빼고 원격으로 보낸다.
-const RESIDENTIAL_BLOCKED_HOSTS = ["yahoo.com"];
+// Yahoo 는 '가정용 IP' 가 아니라 '브라우저가 아닌 클라이언트' 를 막는다.
+//   실측: 같은 회선에서 curl 은 429("Edge: Too Many Requests") — 헤더를 브라우저와
+//   똑같이 맞추고 HTTP/2 를 써도 동일. 반면 크롬 확장의 서비스워커 fetch 는 200.
+//   즉 TLS/HTTP2 지문으로 걸러내는 것이고, 브라우저 네트워크 스택이면 통과한다.
+//   → 확장은 Yahoo 를 처리할 수 있다. 로컬 Node 프록시(undici)는 curl 과 같은 처지라 못 한다.
+//
+// 토스는 정반대다: 클라우드 egress IP 풀을 400 으로 막고 가정용은 통과시킨다.
+// 그래서 확장이 양쪽을 다 만족하는 유일한 경로다.
+const NON_BROWSER_BLOCKED_HOSTS = ["yahoo.com"];
 
-function blocksResidentialIp(targetUrl: string): boolean {
+// 이 호스트로는 '브라우저가 아닌' 전송 수단(로컬 Node 프록시)을 쓸 수 없다.
+function blocksNonBrowserClient(targetUrl: string): boolean {
   try {
     const h = new URL(targetUrl).hostname;
-    return RESIDENTIAL_BLOCKED_HOSTS.some(d => h === d || h.endsWith(`.${d}`));
+    return NON_BROWSER_BLOCKED_HOSTS.some(d => h === d || h.endsWith(`.${d}`));
   } catch { return false; }
 }
 
@@ -69,10 +73,10 @@ function blocksResidentialIp(targetUrl: string): boolean {
 //  로컬을 거를 때 공개 목록도 한 번 더 걸러야 하고, 그러고도 남는 게 없으면 원래 목록을 쓴다.
 //  빈 배열을 돌려주면 루프가 한 번도 안 돌아 "All proxies failed" 로 즉시 죽는다.
 function proxyPlanFor(targetUrl: string): { primary: string[]; fallback: string[] } {
-  // Yahoo 는 가정용 IP 를 막으므로 로컬 프록시와 확장을 모두 뺀다(둘 다 가정용 egress).
-  const dropResidential = blocksResidentialIp(targetUrl);
+  // Yahoo 로는 로컬 Node 프록시를 못 쓴다(비브라우저 지문 → 429). 확장은 브라우저라 괜찮다.
+  const dropNonBrowser = blocksNonBrowserClient(targetUrl);
   const keep = (list: string[]) =>
-    dropResidential ? list.filter(u => !isLocalProxyUrl(u) && !isExtensionProxyUrl(u)) : list;
+    dropNonBrowser ? list.filter(u => !isLocalProxyUrl(u)) : list;
   const publicPool = keep(PUBLIC_PROXY_URLS);
 
   const personal = keep(getEnabledPersonalProxies());
@@ -129,11 +133,11 @@ export async function fetchProxied(
   // 호출 카운트 — 이 브라우저 일자별 (논리적 fetch 1회로 집계, 재시도 무관)
   incrementProxyCall();
 
-  // 확장 프로그램이 있으면 최우선 — 브라우저가 직접 보내므로 가정용 IP 이고 호출 한도가 없다.
-  //   토스가 클라우드 egress 를 막아도(400 + 빈 본문) 영향을 받지 않는다.
-  //   Yahoo 만은 제외 — 가정용 IP 를 429 로 막으므로 아래 클라우드 프록시로 보낸다.
+  // 확장이 있으면 최우선 — 브라우저가 직접 보내므로 호출 한도가 없고,
+  //   토스(클라우드 IP 차단)와 Yahoo(비브라우저 차단)를 동시에 만족하는 유일한 경로다.
+  //   Yahoo 의 crumb 은 확장이 직접 처리한다(background.js).
   //   확장이 실패하면 삼키고 기존 프록시 경로로 계속한다(확장이 단일 실패점이 되지 않게).
-  if (isExtensionProxyReady() && !blocksResidentialIp(targetUrl)) {
+  if (isExtensionProxyReady()) {
     try {
       const r = await fetchViaExtension(targetUrl, init);
       if (r.ok || r.status === 490) return r;   // 490 = 토스 점검, 다른 경로로 물어도 답이 같다

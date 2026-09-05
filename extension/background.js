@@ -20,6 +20,38 @@ const ALLOWED_HOSTS = new Set([
   "query2.finance.yahoo.com",
 ]);
 
+// ─── Yahoo crumb 인증 ────────────────────────────────────────
+// v7/quote·quoteSummary 는 crumb 없이는 401. v8/chart 는 필요 없다(실측).
+// 워커와 달리 쿠키를 직접 나를 필요가 없다 — credentials:"include" 로 부르면
+// 브라우저 쿠키 저장소가 알아서 유지·전송한다.
+const CRUMB_TTL_MS = 30 * 60 * 1000;
+let crumbCache = null;   // { crumb, ts }
+
+function needsCrumb(u) {
+  return u.hostname.endsWith("yahoo.com") &&
+         (u.pathname.includes("/quoteSummary") ||
+          u.pathname.includes("/v7/finance/quote") ||
+          u.pathname.includes("/v6/finance/quote"));
+}
+
+async function getYahooCrumb() {
+  if (crumbCache && Date.now() - crumbCache.ts < CRUMB_TTL_MS) return crumbCache.crumb;
+  try {
+    // 1) 세션 쿠키 발급 — 응답은 안 봐도 된다. 쿠키만 저장소에 들어가면 된다.
+    await fetch("https://fc.yahoo.com/", { credentials: "include" }).catch(() => {});
+    // 2) crumb 발급 — 위에서 받은 쿠키가 자동으로 실려 나간다.
+    const r = await fetch("https://query1.finance.yahoo.com/v1/test/getcrumb",
+                          { credentials: "include" });
+    if (!r.ok) return null;
+    const c = (await r.text()).trim();
+    if (!c || c.length > 50) return null;   // 에러 페이지를 crumb 으로 오인하지 않게
+    crumbCache = { crumb: c, ts: Date.now() };
+    return c;
+  } catch {
+    return null;
+  }
+}
+
 // ─── 요청 헤더 재작성 ────────────────────────────────────────
 // Origin·Referer 는 fetch() 로 못 바꾼다(브라우저 금지 헤더). 확장 서비스워커도 마찬가지라
 // declarativeNetRequest 로 갈아끼운다. 토스는 Origin 이 tossinvest.com 이 아니면 403 이다
@@ -100,11 +132,23 @@ async function doFetch(msg) {
   try { u = new URL(msg.url); } catch { return { error: "invalid-url" }; }
   if (!ALLOWED_HOSTS.has(u.hostname)) return { error: `host-not-allowed: ${u.hostname}` };
   try {
+    let url = msg.url;
+    // Yahoo 는 쿠키가 필요하고(crumb 발급·검증), 일부 엔드포인트는 crumb 자체가 필요하다.
+    const isYahoo = u.hostname.endsWith("yahoo.com");
+    if (needsCrumb(u)) {
+      const crumb = await getYahooCrumb();
+      if (crumb) {
+        const withCrumb = new URL(url);
+        withCrumb.searchParams.set("crumb", crumb);
+        url = withCrumb.toString();
+      }
+    }
     const init = msg.method === "POST"
       ? { method: "POST", body: msg.body,
           headers: msg.contentType ? { "Content-Type": msg.contentType } : {} }
       : { method: "GET" };
-    const r = await fetch(msg.url, init);
+    if (isYahoo) init.credentials = "include";
+    const r = await fetch(url, init);
     return {
       status: r.status,
       contentType: r.headers.get("Content-Type") || "application/octet-stream",

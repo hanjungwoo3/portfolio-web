@@ -19,7 +19,8 @@
     "https://yasun.gg/*",
     "https://scanner.tradingview.com/*",
     "https://query1.finance.yahoo.com/*",
-    "https://query2.finance.yahoo.com/*"
+    "https://query2.finance.yahoo.com/*",
+    "https://fc.yahoo.com/*"
   ],
   "background": {
     "service_worker": "background.js"

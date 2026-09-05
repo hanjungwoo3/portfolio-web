@@ -151,7 +151,7 @@ chrome://extensions
    │ chrome.runtime.sendMessage
 서비스워커 (background.js)
    │ fetch  ← 여기가 내 IP
-토스 · 네이버 · yasun · investing · TradingView
+토스 · 네이버 · yasun · investing · TradingView · Yahoo
 ```
 
 - **호스트 화이트리스트** — 위 목록만. 그 외 도메인은 거부합니다.
@@ -166,10 +166,25 @@ chrome://extensions
   앱 주소(`hanjungwoo3.github.io`)는 호스트 권한으로만 받습니다. `tabs` 권한을 쓰면
   "방문 기록 읽기" 경고가 뜨는데, 호스트 하나만 받으면 그게 없습니다.
 
-## Yahoo 는 확장으로 안 갑니다
+## Yahoo — 확장이라서 되는 부분
 
-Yahoo는 반대로 **가정용 IP를 `429`로 막습니다**(`Edge: Too Many Requests`).
-그래서 앱이 Yahoo 요청만 클라우드 프록시로 보냅니다(`blocksResidentialIp`). 설정할 것은 없습니다.
+Yahoo는 **IP가 아니라 "브라우저가 아닌 클라이언트"를 막습니다.** 실측:
+
+| 클라이언트 | 결과 |
+|---|---|
+| curl (같은 회선, 브라우저 헤더·HTTP/2 맞춤) | `429 Edge: Too Many Requests` |
+| **확장 서비스워커 fetch** | **`200`** |
+
+TLS/HTTP2 지문으로 걸러내는 것이라, 헤더를 아무리 흉내내도 curl로는 못 넘습니다.
+브라우저 네트워크 스택으로 나가는 확장은 그대로 통과합니다.
+
+`v7/quote`·`quoteSummary`는 crumb 인증이 필요해 crumb 없이는 `401`입니다.
+확장이 직접 발급합니다 — `fc.yahoo.com`으로 세션 쿠키를 받고 `getcrumb`으로
+문자열을 얻어 30분 캐시합니다. 워커와 달리 쿠키를 손으로 나를 필요가 없습니다
+(`credentials: "include"` 면 브라우저 쿠키 저장소가 알아서 유지합니다).
+
+> 로컬 Node 프록시(`workers/local-proxy`)는 undici를 쓰므로 curl과 같은 처지라
+> Yahoo를 처리하지 못합니다. 앱이 그쪽으로는 Yahoo를 안 보냅니다.
 
 ## 아이콘
 
