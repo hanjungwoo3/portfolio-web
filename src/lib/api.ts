@@ -1,6 +1,7 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
 import { getEnabledPersonalProxies, isLocalProxyUrl } from "./proxyConfig";
+import { isExtensionProxyReady, fetchViaExtension } from "./extensionProxy";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
 import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen } from "./format";
 import { rememberTossCode, getTossCode } from "./toss";
@@ -124,6 +125,18 @@ export async function fetchProxied(
 ): Promise<Response> {
   // 호출 카운트 — 이 브라우저 일자별 (논리적 fetch 1회로 집계, 재시도 무관)
   incrementProxyCall();
+
+  // 확장 프로그램이 있으면 최우선 — 브라우저가 직접 보내므로 가정용 IP 이고 호출 한도가 없다.
+  //   토스가 클라우드 egress 를 막아도(400 + 빈 본문) 영향을 받지 않는다.
+  //   Yahoo 만은 제외 — 가정용 IP 를 429 로 막으므로 아래 클라우드 프록시로 보낸다.
+  //   확장이 실패하면 삼키고 기존 프록시 경로로 계속한다(확장이 단일 실패점이 되지 않게).
+  if (isExtensionProxyReady() && !blocksResidentialIp(targetUrl)) {
+    try {
+      const r = await fetchViaExtension(targetUrl, init);
+      if (r.ok || r.status === 490) return r;   // 490 = 토스 점검, 다른 경로로 물어도 답이 같다
+    } catch { /* 확장 실패 → 아래 프록시로 폴백 */ }
+  }
+
   const plan = proxyPlanFor(targetUrl);
   // 건강(=down 아님) 우선, down은 후순위. 그 안에서는 랜덤 (부하 분산)
   const rank = (list: string[]) => [
