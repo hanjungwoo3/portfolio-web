@@ -106,11 +106,27 @@ async function doFetch(msg) {
   }
 }
 
-// 툴바 아이콘 클릭 → 사이드 패널 열기.
-//   팝업은 크롬 상한이 800×600 이라 세로가 부족했다. 사이드 패널은 창 높이 전체를 쓰고
-//   폭도 사용자가 끌어서 조절할 수 있다.
-chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true })
-  .catch(e => console.error("[포트폴리오] 사이드 패널 설정 실패", e));
+// 툴바 아이콘 클릭 → 앱을 탭으로 연다.
+//   팝업(최대 800×600)이나 사이드 패널을 iframe 으로 감싸면 크기 제약과 축소가 따라붙는다.
+//   그냥 탭으로 열면 브라우저 크기 그대로라 제약이 없고, 콘텐트 스크립트는 URL 기준으로
+//   주입되므로 프록시는 똑같이 동작한다.
+//   이미 열려 있으면 새로 만들지 않고 그 탭으로 이동한다.
+const APP_URL = "https://hanjungwoo3.github.io/portfolio-web/";
+
+chrome.action.onClicked.addListener(async () => {
+  try {
+    const [tab] = await chrome.tabs.query({ url: `${APP_URL}*` });
+    if (tab) {
+      await chrome.tabs.update(tab.id, { active: true });
+      await chrome.windows.update(tab.windowId, { focused: true });
+    } else {
+      await chrome.tabs.create({ url: APP_URL });
+    }
+  } catch (e) {
+    console.error("[포트폴리오] 탭 열기 실패", e);
+    chrome.tabs.create({ url: APP_URL });
+  }
+});
 
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg) return;

@@ -4,11 +4,10 @@
   "version": "1.0.0",
   "description": "포트폴리오 앱을 팝업으로 띄우고, 시세 요청을 브라우저에서 직접 중계합니다. 가정용 IP 라 토스 과호출 차단(400)을 피하고 호출 한도가 없습니다.",
   "permissions": [
-    "declarativeNetRequest",
-    "storage",
-    "sidePanel"
+    "declarativeNetRequest"
   ],
   "host_permissions": [
+    "https://hanjungwoo3.github.io/*",
     "https://wts-info-api.tossinvest.com/*",
     "https://wts-cert-api.tossinvest.com/*",
     "https://tossinvest.com/*",
@@ -39,8 +38,5 @@
       "run_at": "document_start",
       "all_frames": true
     }
-  ],
-  "side_panel": {
-    "default_path": "sidepanel.html"
-  }
+  ]
 }
