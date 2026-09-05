@@ -64,6 +64,27 @@ chrome://extensions
 
 ---
 
+# 업데이트
+
+개발자 모드로 설치한 확장은 **자동으로 업데이트되지 않습니다.**
+그래서 앱이 대신 알려줍니다.
+
+새 버전이 나오면 **⚙️ 설정 → 내 전용 프록시** 에 이렇게 표시됩니다.
+
+> ⚠️ **새 확장 버전 v1.1.0** 이 나왔습니다 (현재 v1.0.0).
+> 개발자 모드 확장은 자동 업데이트가 없어 **새 zip 을 받아 다시 등록**해야 합니다.
+
+**업데이트 방법**
+
+1. 새 zip 을 받아 압축을 풉니다 (기존 폴더에 덮어써도 됩니다)
+2. `chrome://extensions` 에서 이 확장의 **새로고침(⟳)** 버튼을 누릅니다
+   - 폴더 위치가 바뀌었으면 기존 것을 **삭제**하고 설치 4단계부터 다시 하세요
+3. 앱 화면을 새로고침합니다
+
+경고가 사라지면 완료입니다.
+
+---
+
 # 자주 묻는 것
 
 **꼭 툴바 아이콘으로 열어야 하나요?**
@@ -150,10 +171,28 @@ chrome://extensions
 Yahoo는 반대로 **가정용 IP를 `429`로 막습니다**(`Edge: Too Many Requests`).
 그래서 앱이 Yahoo 요청만 클라우드 프록시로 보냅니다(`blocksResidentialIp`). 설정할 것은 없습니다.
 
+## 버전 관리
+
+버전이 두 곳에 있고 **반드시 같아야** 합니다.
+
+| 위치 | 역할 |
+|---|---|
+| `extension/manifest.json` 의 `version` | 확장이 앱에 보고하는 값 |
+| `src/lib/extensionProxy.ts` 의 `EXPECTED_EXTENSION_VERSION` | 앱이 "낡았다" 고 판단하는 기준 |
+
+확장은 핸드셰이크(`ready` 메시지)에 자기 버전을 실어 보내고, 앱이 기준값보다 낮으면
+설정 화면에 재설치 안내를 띄웁니다. 두 값이 어긋나면 잘못된 안내가 나가므로
+`npm run pack:extension` 이 불일치를 검사해 중단시킵니다.
+
 ## 배포용 zip 만들기
 
 ```bash
-npm run pack:extension
-# → dist-extension/portfolio-proxy-extension-<version>.zip
-gh release create v1.0.0 dist-extension/*.zip --title "확장 v1.0.0"
+# 1) 두 곳의 버전을 함께 올린다
+#    extension/manifest.json        "version": "1.1.0"
+#    src/lib/extensionProxy.ts      EXPECTED_EXTENSION_VERSION = "1.1.0"
+npm run pack:extension          # 버전 불일치면 여기서 멈춘다
+# → dist-extension/portfolio-proxy-extension-1.1.0.zip
+
+# 2) 릴리스 — README 의 다운로드 링크가 releases/latest 를 가리킨다
+gh release create v1.1.0 dist-extension/*.zip --title "확장 v1.1.0"
 ```

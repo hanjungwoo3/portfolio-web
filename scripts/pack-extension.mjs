@@ -11,6 +11,18 @@ const SRC = "extension";
 const OUT_DIR = "dist-extension";
 
 const manifest = JSON.parse(readFileSync(`${SRC}/manifest.json`, "utf8"));
+
+// 버전은 두 곳에 있다 — manifest.json(확장이 보고하는 값)과 앱의 EXPECTED_EXTENSION_VERSION
+// (앱이 "낡았다" 고 판단하는 기준). 어긋나면 사용자에게 잘못된 업데이트 안내가 뜬다.
+const appSrc = readFileSync("src/lib/extensionProxy.ts", "utf8");
+const expected = appSrc.match(/EXPECTED_EXTENSION_VERSION\s*=\s*"([^"]+)"/)?.[1];
+if (expected !== manifest.version) {
+  console.error(`❌ 버전 불일치`);
+  console.error(`   extension/manifest.json        : ${manifest.version}`);
+  console.error(`   EXPECTED_EXTENSION_VERSION     : ${expected ?? "(못 찾음)"}`);
+  console.error(`   두 값을 같게 맞춘 뒤 다시 실행하세요.`);
+  process.exit(1);
+}
 const zipName = `portfolio-proxy-extension-${manifest.version}.zip`;
 const zipPath = `${OUT_DIR}/${zipName}`;
 

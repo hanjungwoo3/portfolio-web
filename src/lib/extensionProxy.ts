@@ -19,6 +19,8 @@ interface ExtResponse {
   error?: string;
 }
 
+// 확장 버전(manifest) — 감지 전에는 null. ready 여부는 이 값으로 판단한다.
+let version: string | null = null;
 let ready = false;
 const pending = new Map<string, (r: ExtResponse) => void>();
 let seq = 0;
@@ -32,7 +34,11 @@ if (typeof window !== "undefined") {
     if (!m || typeof m !== "object") return;
     const kind = m[TAG];
     if (kind === "ready") {
-      if (!ready) { ready = true; readyListeners.forEach(l => l()); }
+      const v = typeof m.version === "string" ? m.version : "0.0.0";
+      if (!ready || version !== v) {
+        ready = true; version = v;
+        readyListeners.forEach(l => l());
+      }
       return;
     }
     if (kind !== "res") return;
@@ -52,10 +58,33 @@ function subscribeReady(cb: () => void): () => void {
   return () => { readyListeners.delete(cb); };
 }
 
-// 확장 감지 상태를 구독하는 훅 — 감지되면 리렌더된다.
-// (서버 스냅샷은 false: 확장은 브라우저에만 존재)
+export function getExtensionVersion(): string | null {
+  return version;
+}
+
+// 확장 버전을 구독하는 훅 — 감지되면 리렌더된다. null = 확장 없음.
+//   (스냅샷은 문자열/ null 원시값이라 useSyncExternalStore 에 그대로 쓸 수 있다)
+export function useExtensionProxyVersion(): string | null {
+  return useSyncExternalStore(subscribeReady, getExtensionVersion, () => null);
+}
+
 export function useExtensionProxyReady(): boolean {
-  return useSyncExternalStore(subscribeReady, isExtensionProxyReady, () => false);
+  return useExtensionProxyVersion() !== null;
+}
+
+// 앱이 기대하는 확장 버전 — 확장을 고칠 때 manifest.json 과 함께 올린다.
+// 개발자 모드 설치는 자동 업데이트가 없어, 이 값보다 낮으면 설정에서 재설치를 안내한다.
+export const EXPECTED_EXTENSION_VERSION = "1.0.0";
+
+// "1.2.10" 같은 점 구분 버전 비교 — a < b 면 음수.
+export function compareVersion(a: string, b: string): number {
+  const pa = a.split(".").map(n => parseInt(n, 10) || 0);
+  const pb = b.split(".").map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+    if (d !== 0) return d;
+  }
+  return 0;
 }
 
 // base64 → 바이트. 네이버 자금동향은 EUC-KR 이라 텍스트로 옮기면 깨진다 →

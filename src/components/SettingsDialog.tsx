@@ -16,11 +16,12 @@ import {
 } from "../lib/proxyConfig";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { resetProxyStats } from "../lib/proxyStatus";
-import { useExtensionProxyReady } from "../lib/extensionProxy";
+import { useExtensionProxyVersion, EXPECTED_EXTENSION_VERSION, compareVersion } from "../lib/extensionProxy";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 const LOCAL_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/local-proxy/README.md";
 const EXT_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/extension/README.md";
+const EXT_RELEASE_URL = "https://github.com/hanjungwoo3/portfolio-web/releases/latest";
 // 전용 프록시 배포 가이드 — Deno 가 가장 빠르다(브라우저만, GitHub 1클릭 가입).
 // Cloudflare 는 기능은 같지만 가입 절차가 길어 두 번째로 둔다.
 const DENO_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/deno-proxy/README.md";
@@ -54,8 +55,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   const [statusMsg, setStatusMsg] = useState("");
   const downOnBackdropRef = useRef(false);
   const [proxies, setProxies] = useState<PersonalProxy[]>([]);
-  // 확장 감지 — 핸드셰이크가 끝나면 구독으로 알아서 리렌더된다.
-  const extReady = useExtensionProxyReady();
+  // 확장 감지 — 핸드셰이크가 끝나면 구독으로 알아서 리렌더된다. null = 확장 없음.
+  const extVersion = useExtensionProxyVersion();
+  const extReady = extVersion !== null;
+  // 개발자 모드 확장은 자동 업데이트가 없다 → 낡은 버전이면 재설치를 안내한다.
+  const extOutdated = extReady && compareVersion(extVersion, EXPECTED_EXTENSION_VERSION) < 0;
   // 프록시별 사용량 (워커 /usage) — url → 결과/상태
   const [usage, setUsage] = useState<Record<string, ProxyUsage | "unsupported" | "loading">>({});
   const [pollMs, setPollMs] = useState(10_000);
@@ -564,7 +568,9 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 : "bg-gray-50 border-gray-200 text-gray-600"}`}>
               {extReady ? (
                 <>
-                  <b>🧩 크롬 확장 사용 중</b> — 시세를 <b>이 브라우저가 직접</b> 가져오고 있습니다.
+                  <b>🧩 크롬 확장 사용 중</b>
+                  <span className="ml-1 tabular-nums opacity-70">v{extVersion}</span>
+                  {" — "}시세를 <b>이 브라우저가 직접</b> 가져오고 있습니다.
                   가정용 IP 라 토스 과호출 차단(400)에 걸리지 않고 호출 한도도 없습니다.
                   아래 프록시는 <b>Yahoo(차트·과거시세·미국지수)</b> 와 확장 실패 시에만 쓰입니다.
                 </>
@@ -578,6 +584,15 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               &nbsp;
               <a href={EXT_GUIDE_URL} target="_blank" rel="noopener noreferrer"
                  className="text-blue-600 underline">확장 가이드 ↗</a>
+              {extOutdated && (
+                <div className="mt-1 pt-1 border-t border-amber-300 text-amber-800">
+                  ⚠️ <b>새 확장 버전 v{EXPECTED_EXTENSION_VERSION}</b> 이 나왔습니다
+                  (현재 v{extVersion}). 개발자 모드 확장은 자동 업데이트가 없어
+                  <b> 새 zip 을 받아 다시 등록</b>해야 합니다.&nbsp;
+                  <a href={EXT_RELEASE_URL} target="_blank" rel="noopener noreferrer"
+                     className="text-blue-600 underline">새 버전 받기 ↗</a>
+                </div>
+              )}
             </div>
             <div className="space-y-1.5">
               {proxies.length === 0 && (
