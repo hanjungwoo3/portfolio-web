@@ -1,3 +1,4 @@
+import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchMarketDeposit, type MarketDepositData, type FundFlowKey } from "../lib/api";
 
@@ -73,6 +74,9 @@ function proportionalBounds(lines: Line[]): { lo: number; hi: number }[] {
 
 // 묶음 차트 — dual(좌우 축, 2계열) / pct(시작점 대비 %, 한 축)
 function GroupChart({ lines, dates, mode }: { lines: Line[]; dates: string[]; mode: "dual" | "pct" }) {
+  // 훅은 early return 보다 위에 — 데이터가 없는 렌더에서도 호출 순서가 같아야 한다.
+  const [hover, setHover] = useState<number | null>(null);
+  const svgRef = useRef<SVGSVGElement>(null);
   if (lines.length === 0 || lines[0].data.length < 2) return <div className="h-[104px]" />;
   const isDual = mode === "dual" && lines.length === 2;
   const W = 320, H = 118, mL = 30, mR = isDual ? 30 : 6, mT = 6, mB = 14;
@@ -133,8 +137,36 @@ function GroupChart({ lines, dates, mode }: { lines: Line[]; dates: string[]; mo
   }
 
   const xIdx = [0, Math.round((n - 1) / 2), n - 1];
+
+  // 화면 px → viewBox 좌표 → 데이터 인덱스.
+  //   width="100%" + preserveAspectRatio 로 높이가 비율대로 따라오므로 레터박스가 없다.
+  //   즉 엘리먼트 박스가 viewBox 와 1:1 이라 가로 비율만으로 역산할 수 있다.
+  const pickAt = (clientX: number) => {
+    const el = svgRef.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    if (r.width === 0) return;
+    const vx = ((clientX - r.left) / r.width) * W;
+    const i = Math.round(((vx - mL) / pw) * (n - 1));
+    setHover(Math.min(Math.max(i, 0), n - 1));
+  };
+
+  const hoverPct = (li: number) => {
+    const d = lines[li].data;
+    return d[0] ? (d[hover!] / d[0] - 1) * 100 : 0;
+  };
+  const leftPct = hover != null ? (x(hover) / W) * 100 : 0;
+  const flip = leftPct > 55;   // 오른쪽 절반이면 툴팁을 왼쪽으로 — 카드 밖으로 안 나가게
+
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="xMidYMid meet" className="block">
+    <div className="relative"
+         onMouseLeave={() => setHover(null)}
+         onTouchEnd={() => setHover(null)}>
+    <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="xMidYMid meet"
+         className="block touch-pan-y"
+         onMouseMove={e => pickAt(e.clientX)}
+         onTouchStart={e => pickAt(e.touches[0].clientX)}
+         onTouchMove={e => pickAt(e.touches[0].clientX)}>
       {leftTicks.map((t, i) => (
         <g key={`l${i}`}>
           <line x1={mL} y1={t.y} x2={W - mR} y2={t.y} stroke="#eef0f2" strokeWidth={0.8} />
@@ -164,7 +196,40 @@ function GroupChart({ lines, dates, mode }: { lines: Line[]; dates: string[]; mo
                 fontWeight="700" fill="#ffffff">{b.text}</text>
         </g>
       ))}
+      {/* 커서 — 세로 점선 + 각 선의 해당 지점 */}
+      {hover != null && (
+        <g>
+          <line x1={x(hover)} y1={mT} x2={x(hover)} y2={mT + ph}
+                stroke="#9ca3af" strokeWidth={0.8} strokeDasharray="2 2" />
+          {plot.map((d, li) => (
+            <circle key={li} cx={x(hover)} cy={yOf[li](d[hover], li)} r={2.4}
+                    fill={COLOR[lines[li].key]} stroke="#ffffff" strokeWidth={0.9} />
+          ))}
+        </g>
+      )}
     </svg>
+    {hover != null && (
+      <div className="absolute pointer-events-none z-20 top-0 bg-white border border-gray-200
+                      rounded shadow-md px-1.5 py-1 text-[10px] leading-snug whitespace-nowrap"
+           style={{ left: `${leftPct}%`, transform: flip ? "translateX(calc(-100% - 6px))" : "translateX(6px)" }}>
+        <div className="text-gray-400 mb-0.5">{dates[hover]}</div>
+        {lines.map((l, li) => {
+          const pc = hoverPct(li);
+          return (
+            <div key={l.key} className="flex items-center gap-1">
+              <span className="w-1.5 h-1.5 rounded-sm shrink-0" style={{ backgroundColor: COLOR[l.key] }} />
+              <span className="text-gray-500">{LABEL[l.key]}</span>
+              <span className="font-bold tabular-nums text-gray-800">{fmtJo(l.data[hover])}</span>
+              <span className={`tabular-nums ${pc > 0 ? "text-rose-600" : pc < 0 ? "text-blue-600" : "text-gray-400"}`}>
+                {pc > 0 ? "+" : ""}{pc.toFixed(2)}%
+              </span>
+            </div>
+          );
+        })}
+        <div className="text-[9px] text-gray-400 mt-0.5">% = 시작일 대비</div>
+      </div>
+    )}
+    </div>
   );
 }
 
