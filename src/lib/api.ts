@@ -52,17 +52,34 @@ function blocksResidentialIp(targetUrl: string): boolean {
   } catch { return false; }
 }
 
-// 이 요청에 쓸 프록시 목록.
-//  주의 — PUBLIC_PROXY_URLS 는 env 가 비면 localhost 로 채워진다(위 참조). 그래서
-//  폴백에서도 로컬을 한 번 더 걸러야 하고, 그러고도 남는 게 없으면 원래 목록을 쓴다.
+// 이 요청에 쓸 프록시 계획 — primary 를 다 써 본 뒤에야 fallback 으로 넘어간다.
+//
+//  왜 fallback 이 필요한가 — 토스는 egress IP 풀 단위로 막는다. 같은 공급자 워커를 아무리
+//  늘려도 한꺼번에 막힌다. 실측: 개인 Cloudflare 워커 2개가 동시에 400 + 빈 본문(0바이트),
+//  같은 시각 같은 요청이 Netlify 로는 200. 게다가 엔드포인트 선택적이라 c-chart(지수)는
+//  통과하고 stock-prices(종목 시세)만 막혀, 지수는 멀쩡한데 보유 그룹만 통째로 비었다.
+//  전용 프록시가 한 공급자뿐이면 넘어갈 데가 없어 그대로 실패한다.
+//  → 그 경우에만 공개 프록시 중 '다른 공급자' 를 뒤에 붙여 탈출구를 만든다.
+//
+//  공개 부담은 사실상 0 으로 유지된다 — 목록 맨 뒤라 전용 프록시가 성공하면 도달하지 않고,
+//  전용 프록시가 이미 2개 이상 공급자를 쓰면 자체 폴백으로 충분해 아예 붙이지 않는다.
+//
+//  주의 — PUBLIC_PROXY_URLS 는 env 가 비면 localhost 로 채워진다(위 참조). Yahoo 요청에서
+//  로컬을 거를 때 공개 목록도 한 번 더 걸러야 하고, 그러고도 남는 게 없으면 원래 목록을 쓴다.
 //  빈 배열을 돌려주면 루프가 한 번도 안 돌아 "All proxies failed" 로 즉시 죽는다.
-function proxyUrlsFor(targetUrl: string): string[] {
-  const urls = getProxyUrls();
-  if (!blocksResidentialIp(targetUrl)) return urls;
-  const remote = urls.filter(u => !isLocalProxyUrl(u));
-  if (remote.length > 0) return remote;
-  const publicRemote = PUBLIC_PROXY_URLS.filter(u => !isLocalProxyUrl(u));
-  return publicRemote.length > 0 ? publicRemote : urls;
+function proxyPlanFor(targetUrl: string): { primary: string[]; fallback: string[] } {
+  const dropLocal = blocksResidentialIp(targetUrl);
+  const keep = (list: string[]) => (dropLocal ? list.filter(u => !isLocalProxyUrl(u)) : list);
+  const publicPool = keep(PUBLIC_PROXY_URLS);
+
+  const personal = keep(getEnabledPersonalProxies());
+  if (personal.length === 0) {
+    // 전용 프록시가 없거나(공개만 사용) Yahoo 라 전부 걸러진 경우 → 공개가 주력
+    return { primary: publicPool.length > 0 ? publicPool : PUBLIC_PROXY_URLS, fallback: [] };
+  }
+  const providers = new Set(personal.map(proxyProvider));
+  if (providers.size > 1) return { primary: personal, fallback: [] };
+  return { primary: personal, fallback: publicPool.filter(u => !providers.has(proxyProvider(u))) };
 }
 
 function buildProxyUrl(base: string, targetUrl: string): string {
@@ -107,13 +124,14 @@ export async function fetchProxied(
 ): Promise<Response> {
   // 호출 카운트 — 이 브라우저 일자별 (논리적 fetch 1회로 집계, 재시도 무관)
   incrementProxyCall();
-  const urls = proxyUrlsFor(targetUrl);
+  const plan = proxyPlanFor(targetUrl);
   // 건강(=down 아님) 우선, down은 후순위. 그 안에서는 랜덤 (부하 분산)
-  const healthy = urls.filter(u => !isProxyDown(u))
-                      .sort(() => Math.random() - 0.5);
-  const down = urls.filter(u => isProxyDown(u))
-                   .sort(() => Math.random() - 0.5);
-  const order = [...healthy, ...down];
+  const rank = (list: string[]) => [
+    ...list.filter(u => !isProxyDown(u)).sort(() => Math.random() - 0.5),
+    ...list.filter(u => isProxyDown(u)).sort(() => Math.random() - 0.5),
+  ];
+  // fallback(공개)은 항상 전용 프록시 뒤 — 앞에서 성공하면 도달하지 않는다.
+  const order = [...rank(plan.primary), ...rank(plan.fallback)];
   let lastErr: unknown;
   let lastResp: Response | undefined;
   // 400 류(=토스 스로틀링)는 IP 풀 단위라 같은 공급자로 다시 쏘면 결과가 같다 (실측: CF 워커 3개 동시 400).

@@ -542,6 +542,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               본인만 사용 — 공개 부담 0, 본인 100k/일 무료. <b>여러 개 등록 후 각각 켜고 끌 수 있고,
               켜진 게 여러 개면 요청마다 랜덤 분산</b>됩니다.
               <br />
+              켜진 게 <b>한 공급자뿐이면</b>(예: Cloudflare 워커만) 공개 프록시가 <b>비상용으로만</b>
+              뒤에 붙습니다 — 토스는 나가는 IP 풀 단위로 막아서, 같은 공급자 워커를 늘려도 한꺼번에
+              막히거든요. 평소엔 안 쓰이고 전용 프록시가 막혔을 때만 넘어갑니다.
+              공급자를 둘 이상 켜두면 이 폴백은 붙지 않습니다.
+              <br />
               가이드 —&nbsp;
               <a href={DENO_GUIDE_URL} target="_blank" rel="noopener noreferrer"
                  className="text-blue-600 underline font-bold">
