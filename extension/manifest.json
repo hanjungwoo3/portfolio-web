@@ -23,7 +23,13 @@
     "service_worker": "background.js"
   },
   "action": {
-    "default_title": "포트폴리오 열기"
+    "default_title": "포트폴리오 열기",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "32": "icons/icon32.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
   },
   "content_scripts": [
     {
@@ -38,5 +44,11 @@
       "run_at": "document_start",
       "all_frames": true
     }
-  ]
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "32": "icons/icon32.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
 }

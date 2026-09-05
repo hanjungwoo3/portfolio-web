@@ -171,6 +171,17 @@ chrome://extensions
 Yahoo는 반대로 **가정용 IP를 `429`로 막습니다**(`Edge: Too Many Requests`).
 그래서 앱이 Yahoo 요청만 클라우드 프록시로 보냅니다(`blocksResidentialIp`). 설정할 것은 없습니다.
 
+## 아이콘
+
+`extension/icons/icon{16,32,48,128}.png` — 스크립트로 생성한다(수작업 편집 금지).
+
+```bash
+python3 scripts/gen-extension-icons.py
+```
+
+16px 툴바에서도 읽혀야 해서 형태는 최소한으로 두었다 — 둥근 사각형에 상승 막대 3개,
+마지막 막대만 한국 관행대로 빨강. 색·비율을 바꾸려면 스크립트 상단 상수를 고친다.
+
 ## 버전 관리
 
 버전이 두 곳에 있고 **반드시 같아야** 합니다.
