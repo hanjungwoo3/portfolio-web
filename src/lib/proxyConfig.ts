@@ -53,7 +53,9 @@ export function setPersonalProxies(list: PersonalProxy[]) {
 
 // 켜진 전용 프록시 URL 들 (요청 라우팅용 — 여러 개면 fetchProxied 가 랜덤 분산)
 export function getEnabledPersonalProxies(): string[] {
-  return getPersonalProxies().filter(p => p.enabled).map(p => p.url);
+  const stored = getPersonalProxies().filter(p => p.enabled).map(p => p.url);
+  // 확장은 항상 맨 앞 — 가정용 IP 이고 호출 한도가 없어 가장 먼저 쓴다.
+  return isExtensionProxyReady() ? [EXTENSION_PROXY_URL, ...stored] : stored;
 }
 
 // 대표 전용 프록시(첫 enabled) — 상태/배지/폴링 판정 호환용
@@ -73,6 +75,19 @@ export function setPersonalProxyUrl(url: string | null) {
 // 제약: https 페이지 → http://localhost 는 Chrome/Edge/Firefox 만 허용(Safari 차단),
 //       휴대폰에서 PC 의 LAN IP 로 붙는 건 mixed content 로 막혀 사실상 PC 전용.
 export const LOCAL_PROXY_URL = "http://127.0.0.1:8787";
+
+// ─── 크롬 확장을 '전용 프록시 한 개' 로 취급 ────────────────
+// 확장이 붙으면 이 표식을 켜진 전용 프록시 목록 맨 앞에 끼워 넣는다.
+//   그러면 "전용 프록시가 있는가" 를 묻는 모든 판단(빠른 폴링, 장 마감 스로틀 해제,
+//   헤더 배지, 온보딩 팝업, 공급자 다양성)이 자동으로 맞는다. 게이트마다 확장 검사를
+//   따로 넣던 방식은 한 곳을 빠뜨리기 쉬웠다 — 실제로 장 마감 스로틀을 놓쳐
+//   "5초로 설정했는데 60초로 도는" 버그가 났다.
+//   저장소(localStorage)에는 절대 들어가지 않는다 — 읽기 시점에만 합성한다.
+export const EXTENSION_PROXY_URL = "extension:local";
+
+export function isExtensionProxyUrl(u: string): boolean {
+  return u === EXTENSION_PROXY_URL;
+}
 
 export function isLocalProxyUrl(u: string): boolean {
   try {
@@ -187,6 +202,13 @@ export function getPersonalPollMs(): number {
   }
 }
 
+// 공개 인프라를 쓰지 않는 상태 — 전용 프록시 또는 크롬 확장.
+//   빠른 폴링 허용, 장 마감 스로틀 해제, 헤더/온보딩 안내 문구가 전부 이 기준을 쓴다.
+//   한 곳이라도 빠뜨리면 "5초로 설정했는데 실제는 60초" 같은 증상이 난다(실제로 겪음).
+export function hasDedicatedTransport(): boolean {
+  return !!getPersonalProxyUrl();   // 확장은 목록에 합성되어 들어온다
+}
+
 // 수동 모드 여부 — 자동 폴링 끔 (버튼/메뉴 진입 시에만 갱신)
 export function isManualPoll(): boolean {
   return getPersonalPollMs() === MANUAL_POLL_MS;
@@ -209,7 +231,7 @@ export function getEffectivePollMs(): number {
   if (ms === MANUAL_POLL_MS) return 0;
   // 전용 프록시 또는 크롬 확장이면 제한 없음 — 둘 다 공개 인프라를 쓰지 않는다.
   //   확장은 브라우저가 직접 요청하므로 워커 호출 한도라는 개념 자체가 없다.
-  if (getPersonalProxyUrl() || isExtensionProxyReady()) return ms;
+  if (hasDedicatedTransport()) return ms;
   // 공개: 30초 이상만 허용(30/60초), 더 빠른 값은 기본(60초)으로 클램프
   return ms >= PUBLIC_MIN_POLL_MS ? ms : DEFAULT_PUBLIC_POLL_MS;
 }

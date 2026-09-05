@@ -1,6 +1,6 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
-import { getEnabledPersonalProxies, isLocalProxyUrl } from "./proxyConfig";
+import { getEnabledPersonalProxies, isLocalProxyUrl, isExtensionProxyUrl } from "./proxyConfig";
 import { isExtensionProxyReady, fetchViaExtension } from "./extensionProxy";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
 import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen } from "./format";
@@ -69,8 +69,10 @@ function blocksResidentialIp(targetUrl: string): boolean {
 //  로컬을 거를 때 공개 목록도 한 번 더 걸러야 하고, 그러고도 남는 게 없으면 원래 목록을 쓴다.
 //  빈 배열을 돌려주면 루프가 한 번도 안 돌아 "All proxies failed" 로 즉시 죽는다.
 function proxyPlanFor(targetUrl: string): { primary: string[]; fallback: string[] } {
-  const dropLocal = blocksResidentialIp(targetUrl);
-  const keep = (list: string[]) => (dropLocal ? list.filter(u => !isLocalProxyUrl(u)) : list);
+  // Yahoo 는 가정용 IP 를 막으므로 로컬 프록시와 확장을 모두 뺀다(둘 다 가정용 egress).
+  const dropResidential = blocksResidentialIp(targetUrl);
+  const keep = (list: string[]) =>
+    dropResidential ? list.filter(u => !isLocalProxyUrl(u) && !isExtensionProxyUrl(u)) : list;
   const publicPool = keep(PUBLIC_PROXY_URLS);
 
   const personal = keep(getEnabledPersonalProxies());
@@ -95,6 +97,7 @@ function buildProxyUrl(base: string, targetUrl: string): string {
 //   403(워커 origin/host 차단)·429·5xx·408 만 "이 프록시 문제일 수 있다"로 보고 넘긴다.
 // 프록시 URL → egress 공급자. 같은 공급자면 나가는 IP 풀이 같아 스로틀 결과도 같다.
 function proxyProvider(base: string): string {
+  if (isExtensionProxyUrl(base)) return "extension";   // 브라우저 직접 = 자체 egress
   try {
     const h = new URL(base).hostname;
     if (h.endsWith("workers.dev")) return "cloudflare";
@@ -144,7 +147,10 @@ export async function fetchProxied(
     ...list.filter(u => isProxyDown(u)).sort(() => Math.random() - 0.5),
   ];
   // fallback(공개)은 항상 전용 프록시 뒤 — 앞에서 성공하면 도달하지 않는다.
-  const order = [...rank(plan.primary), ...rank(plan.fallback)];
+  //  확장 표식은 빼고 돈다. 실제 호출은 위 블록에서 이미 시도했고(우선순위 보장),
+  //  표식은 "전용 프록시가 있다" 는 판정을 위해 목록에 들어가 있을 뿐이다.
+  const order = [...rank(plan.primary), ...rank(plan.fallback)]
+    .filter(u => !isExtensionProxyUrl(u));
   let lastErr: unknown;
   let lastResp: Response | undefined;
   // 400 류(=토스 스로틀링)는 IP 풀 단위라 같은 공급자로 다시 쏘면 결과가 같다 (실측: CF 워커 3개 동시 400).

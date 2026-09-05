@@ -150,7 +150,9 @@ function Dashboard() {
   const BASE_REFRESH_MS = useMemo(() => getEffectivePollMs(), [reloadKey, extReady]);
   // 수동 모드 — 자동 폴링 전면 중단 (버튼/탭 진입 시에만 갱신)
   const manualPoll = BASE_REFRESH_MS === 0;
-  const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey]);
+  // extReady 의존성 — 확장은 전용 프록시 목록에 합성되어 들어오는데, 그 감지가
+  //   마운트 뒤에 켜진다. 빼먹으면 확장을 써도 헤더가 "프록시 추가하세요" 를 계속 띄운다.
+  const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey, extReady]);
   const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
   // 하단 지수 티커바 펼침 여부 — 합계 sticky 행을 그 높이만큼 위로 올리는 데 사용
   const tickerBarOpen = useTickerBarOpen();

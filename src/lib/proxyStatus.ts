@@ -103,21 +103,25 @@ export function resetProxyStats(): void {
 //  2) 양 시장(한국·미국) 모두 마감 시 60초로 throttle — 단, 공개(무료) 프록시일 때만.
 //     개인 프록시 사용자는 본인이 설정한 주기를 그대로 유지.
 import { useEffect, useState } from "react";
-import { getPersonalProxyUrl } from "./proxyConfig";
+import { hasDedicatedTransport } from "./proxyConfig";
+import { useExtensionProxyReady } from "./extensionProxy";
 import { isAnyMarketActive } from "./format";
 
 const MARKET_CLOSED_MIN_MS = 60_000;
 
 export function useAdaptiveRefreshMs(baseMs: number): number {
   const [ms, setMs] = useState(baseMs);
+  // 확장 감지는 postMessage 핸드셰이크라 마운트 뒤에 켜질 수 있다 → 의존성에 넣어 즉시 재계산.
+  const extReady = useExtensionProxyReady();
   useEffect(() => {
     let downCount = getProxyState().downHosts.length;
     const compute = () => {
       // 수동(0) — 자동 폴링 없음. throttle/adaptive 우회.
       if (baseMs <= 0) { setMs(0); return; }
-      // 공개 프록시 + 양 시장 마감 → 최소 60초 (개인 프록시는 base 유지)
+      // 공개 프록시 + 양 시장 마감 → 최소 60초.
+      //   전용 프록시나 확장이 있으면 공개 인프라를 안 쓰므로 base 를 그대로 유지한다.
       const closedThrottle =
-        !getPersonalProxyUrl() && !isAnyMarketActive() ? MARKET_CLOSED_MIN_MS : 0;
+        !hasDedicatedTransport() && !isAnyMarketActive() ? MARKET_CLOSED_MIN_MS : 0;
       const effBase = Math.max(baseMs, closedThrottle);
       setMs(effBase + downCount * effBase);
     };
@@ -126,6 +130,6 @@ export function useAdaptiveRefreshMs(baseMs: number): number {
     // 시장 개장/마감 전환 감지 — 1분마다 재평가
     const timer = setInterval(compute, 60_000);
     return () => { unsub(); clearInterval(timer); };
-  }, [baseMs]);
+  }, [baseMs, extReady]);
   return ms;
 }

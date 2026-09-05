@@ -30,10 +30,15 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
   const downOnBackdropRef = useRef(false);
 
   useEffect(() => {
-    const personal = getPersonalProxyUrl();
-    if (personal) return;  // 이미 전용 프록시 설정 → 영원히 안 띄움
+    if (getPersonalProxyUrl()) return;  // 이미 전용 프록시 설정 → 영원히 안 띄움
     if (isSnoozed()) return;
-    const t = setTimeout(() => setOpen(true), 1000);
+    const t = setTimeout(() => {
+      // 1초 뒤 재확인 — 확장은 전용 프록시 목록에 합성되어 들어오는데 그 감지가
+      // postMessage 핸드셰이크라 마운트 시점엔 아직 없을 수 있다. 여기서 다시 보지 않으면
+      // 확장 사용자에게 "프록시를 배포하세요" 팝업이 뜬다.
+      if (getPersonalProxyUrl()) return;
+      setOpen(true);
+    }, 1000);
     return () => clearTimeout(t);
   }, []);
 
