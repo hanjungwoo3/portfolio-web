@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>포트폴리오</title>
+<style>
+  /* 사이드 패널 — 높이는 브라우저 창 전체, 폭은 사용자가 끌어서 조절한다.
+     팝업(최대 800×600)과 달리 세로 제약이 없다.
+
+     zoom 0.85 — 모바일 뷰는 폰(고DPI) 기준이라 데스크톱에서 100% 로 보면 글씨가 크다.
+     iframe 을 1/0.85 배로 크게 잡고 0.85 로 줄이면 화면에는 꽉 차면서 글씨만 작아진다.
+     내부 레이아웃 폭도 1/0.85 배로 계산되므로, 패널을 약 750px 이상으로 넓히면
+     640px 기준을 넘어 데스크톱 표 화면으로 바뀐다(App.tsx matchMedia). */
+  html, body { margin: 0; height: 100%; overflow: hidden;
+               font: 12px system-ui, -apple-system, sans-serif; background: #fff; }
+  body { display: flex; flex-direction: column; }
+  #bar { display: flex; align-items: center; gap: 8px; height: 24px; padding: 0 8px;
+         flex: 0 0 auto; border-bottom: 1px solid #e5e7eb; background: #f9fafb; }
+  #st { font-weight: 700; white-space: nowrap; }
+  #st.on  { color: #059669; }
+  #st.off { color: #9ca3af; }
+  #bar button { margin-left: auto; font: inherit; padding: 1px 8px; cursor: pointer;
+                white-space: nowrap; border: 1px solid #d1d5db; border-radius: 4px; background: #fff; }
+  #bar button:hover { background: #f3f4f6; }
+  #wrap { flex: 1 1 auto; overflow: hidden; }
+  iframe { width: calc(100% / 0.85); height: calc(100% / 0.85); zoom: 0.85;
+           border: 0; display: block; }
+</style>
+<div id="bar">
+  <span id="st" class="off">● 확인 중</span>
+  <button id="tab">새 탭 ↗</button>
+</div>
+<div id="wrap">
+  <iframe id="app" src="https://hanjungwoo3.github.io/portfolio-web/"></iframe>
+</div>
+<script src="sidepanel.js"></script>

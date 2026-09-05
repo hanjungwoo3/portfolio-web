@@ -106,6 +106,12 @@ async function doFetch(msg) {
   }
 }
 
+// 툴바 아이콘 클릭 → 사이드 패널 열기.
+//   팝업은 크롬 상한이 800×600 이라 세로가 부족했다. 사이드 패널은 창 높이 전체를 쓰고
+//   폭도 사용자가 끌어서 조절할 수 있다.
+chrome.sidePanel?.setPanelBehavior?.({ openPanelOnActionClick: true })
+  .catch(e => console.error("[포트폴리오] 사이드 패널 설정 실패", e));
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg) return;
   if (msg.type === "ping") { sendResponse({ ok: true }); return; }
