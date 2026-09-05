@@ -114,7 +114,16 @@ export async function fetchViaExtension(targetUrl: string, init?: RequestInit): 
       contentType: headers["Content-Type"] ?? headers["content-type"],
     }, "*");
   });
-  if (res.error) throw new Error(`extension: ${res.error}`);
+  if (res.error) {
+    // 확장이 새로고침·제거되면 콘텐트 스크립트가 끊긴다. 계속 살아있다고 믿으면
+    // 요청마다 실패를 반복하므로 즉시 '없음' 으로 되돌린다 — 전용 프록시 판정도 같이 풀려
+    // 폴링 주기·헤더 배지가 공개 기준으로 돌아간다. 페이지를 새로고침하면 다시 붙는다.
+    if (res.error === "extension-context-invalidated") {
+      ready = false; version = null;
+      readyListeners.forEach(l => l());
+    }
+    throw new Error(`extension: ${res.error}`);
+  }
   return new Response(fromBase64(res.b64 ?? ""), {
     status: res.status ?? 502,
     headers: { "Content-Type": res.contentType ?? "application/octet-stream" },

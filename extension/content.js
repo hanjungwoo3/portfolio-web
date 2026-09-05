@@ -17,16 +17,26 @@ window.addEventListener("message", (e) => {
   }
   if (m[TAG] !== "req") return;
 
-  chrome.runtime.sendMessage(
-    { type: "fetch", url: m.url, method: m.method, body: m.body, contentType: m.contentType },
-    (res) => {
-      const err = chrome.runtime.lastError;
-      window.postMessage(
-        { [TAG]: "res", id: m.id, ...(err ? { error: err.message } : res || { error: "no-response" }) },
-        "*",
-      );
-    },
-  );
+  // 확장을 새로고침·업데이트하면 이미 열려 있던 탭의 콘텐트 스크립트는 끊긴다
+  // ("Extension context invalidated"). 그때 sendMessage 는 동기적으로 던진다 →
+  // 잡아서 즉시 에러를 돌려줘야 앱이 20초 타임아웃을 기다리지 않고 바로 프록시로 넘어간다.
+  try {
+    chrome.runtime.sendMessage(
+      { type: "fetch", url: m.url, method: m.method, body: m.body, contentType: m.contentType },
+      (res) => {
+        const err = chrome.runtime.lastError;
+        window.postMessage(
+          { [TAG]: "res", id: m.id, ...(err ? { error: err.message } : res || { error: "no-response" }) },
+          "*",
+        );
+      },
+    );
+  } catch (e) {
+    window.postMessage(
+      { [TAG]: "res", id: m.id, error: "extension-context-invalidated", detail: String(e) },
+      "*",
+    );
+  }
 });
 
 // 앱이 늦게 로드돼도, 콘텐트 스크립트가 늦게 붙어도 만나도록 양쪽에서 알린다.

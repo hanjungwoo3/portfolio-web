@@ -13,6 +13,11 @@ const ALLOWED_HOSTS = new Set([
   "api.investing.com",
   "yasun.gg",
   "scanner.tradingview.com",
+  // 야후 — 앱은 아직 여기로 안 보낸다(blocksResidentialIp 로 클라우드 프록시행).
+  //   가정용 IP 가 정말 막히는지 서비스워커 콘솔에서 직접 시험하려고 열어둔 상태.
+  //   v8/chart 는 crumb 이 필요 없지만 v7/quote·quoteSummary 는 필요하다.
+  "query1.finance.yahoo.com",
+  "query2.finance.yahoo.com",
 ]);
 
 // ─── 요청 헤더 재작성 ────────────────────────────────────────
@@ -33,6 +38,10 @@ const HEADER_GROUPS = [
     headers: { Referer: "https://finance.naver.com/", "Accept-Language": "ko-KR,ko;q=0.9" },
   },
   { domains: ["yasun.gg"], headers: { Referer: "https://yasun.gg/" } },
+  {
+    domains: ["query1.finance.yahoo.com", "query2.finance.yahoo.com"],
+    headers: { Origin: "https://finance.yahoo.com", Referer: "https://finance.yahoo.com/" },
+  },
   {
     domains: ["api.investing.com"],
     headers: {
