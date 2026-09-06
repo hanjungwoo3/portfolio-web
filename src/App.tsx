@@ -438,24 +438,41 @@ function Dashboard() {
     return m;
   }, [prices, usPrices]);
 
-  // 일별 자산 스냅샷 — 하루 1회 실측 기록. 역산(assetHistory)이 못 담는 값을 남겨,
+  // 일별 자산 스냅샷 — 그날의 실측 기록. 역산(assetHistory)이 못 담는 값을 남겨,
   //   시간이 지날수록 자산추이 곡선이 실측으로 대체되게 한다. 데모 데이터는 기록하지 않는다.
   //   합산 기준은 '내주식' 탭과 동일(filterByTab) — 그룹 미러 중복 제거·미국 보유 포함(원화).
-  const snapshotDayRef = useRef("");
+  //
+  // ★ 시세가 다 붙기 전에 남기면 안 된다.
+  //   시세 없는 종목은 평단으로 대신 세므로 그 종목의 평가손익이 0 이 된다. 프록시가 막혀
+  //   일부만 받아온 날이 하루씩 섞이면, 매매가 없어도 곡선이 원금 쪽으로 내려갔다 올라온다.
+  //   → 몇 종목을 받았는지(priced/held)를 같이 남기고, 차트는 전부 받은 날만 쓴다.
+  //   장중엔 계속 갱신되므로 '그날 마지막 조회 시점' 값이 남게 덮어쓰되(60초 간격),
+  //   커버리지가 떨어지는 값으로는 덮지 않는다(saveAssetSnapshot 가 막는다).
+  const snapshotRef = useRef({ day: "", priced: -1, at: 0 });
   useEffect(() => {
     const today = nowKstDateStr();
-    if (snapshotDayRef.current === today || demoOn) return;
-    if (holdings.length === 0 || priceMap.size === 0) return;
-    let value = 0, principal = 0;
+    if (demoOn || holdings.length === 0 || priceMap.size === 0) return;
+    let value = 0, principal = 0, held = 0, priced = 0;
     for (const h of filterByTab(holdings, MY_STOCKS_TAB_KEY)) {
       if (!(h.shares > 0)) continue;
-      const px = priceMap.get(h.ticker)?.price;
+      const p = priceMap.get(h.ticker);
+      // 원화로 셀 수 있는 시세만 실측으로 인정 — Yahoo 폴백(달러)을 그대로 더하면 1/1400 로 꺼진다.
+      const px = p && p.price > 0 && p.currency !== "USD" ? p.price : 0;
+      held++;
+      if (px > 0) priced++;
       principal += h.shares * h.avg_price;
-      value += h.shares * (px && px > 0 ? px : h.avg_price);
+      value += h.shares * (px > 0 ? px : h.avg_price);
     }
-    if (value <= 0) return;
-    snapshotDayRef.current = today;
-    void saveAssetSnapshot({ date: today, value, principal, deposit: getTotalDeposits() });
+    if (held === 0 || value <= 0) return;
+    const prev = snapshotRef.current;
+    const fresh = prev.day !== today;
+    // 같은 날이면: 커버리지가 올라갔거나(더 정확해짐) 60초 지났을 때만 다시 남긴다.
+    if (!fresh && priced < prev.priced) return;
+    if (!fresh && priced === prev.priced && Date.now() - prev.at < 60_000) return;
+    snapshotRef.current = { day: today, priced, at: Date.now() };
+    void saveAssetSnapshot({
+      date: today, value, principal, deposit: getTotalDeposits(), held, priced,
+    });
   }, [holdings, priceMap, demoOn]);
 
 

@@ -13,7 +13,7 @@ import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchTossKrCandles, fetchYahooPriceHistory, TOSS_CANDLE_MAX, type PricePoint } from "../lib/api";
 import {
-  buildAssetHistory, computeBaseline, mergeSnapshots, sliceByRange,
+  buildAssetHistory, computeBaseline, mergeSnapshots, usableSnapshots, sliceByRange,
   assetLineColor, ASSET_INDEX_COLORS, RANGE_OPTS, type RangeKey,
 } from "../lib/assetHistory";
 import { loadAssetSnapshots, type Trade } from "../lib/db";
@@ -208,6 +208,8 @@ export function AssetTrendTab({ trades, holdings }: Props) {
     () => mergeSnapshots(buildAssetHistory(usable.trades, closes, baseline), snaps ?? []),
     [usable, closes, baseline, snaps],
   );
+  // 화면에 밝히는 '실측 N일' 은 곡선에 실제로 쓰인 날만 — 시세가 덜 붙어 버려진 날은 빼고 센다
+  const snapDays = useMemo(() => usableSnapshots(snaps ?? []).length, [snaps]);
   const points = useMemo(() => sliceByRange(all, range), [all, range]);
 
   const indexOverlays = useMemo(
@@ -278,7 +280,7 @@ export function AssetTrendTab({ trades, holdings }: Props) {
         <span className="text-[11px] text-gray-500">
           {loaded < total ? `시세 ${loaded}/${total}` : `${total}종목`}
           {" · 내주식 기준"}
-          {(snaps?.length ?? 0) > 0 && ` · 실측 ${snaps!.length}일`}
+          {snapDays > 0 && ` · 실측 ${snapDays}일`}
         </span>
         <div className="ml-auto flex items-center gap-1">
           {RANGE_OPTS.map(o => (

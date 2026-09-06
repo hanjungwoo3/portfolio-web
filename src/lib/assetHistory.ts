@@ -206,14 +206,25 @@ export function sliceByRange(points: AssetPoint[], range: RangeKey): AssetPoint[
   return points.filter(p => p.date >= from);
 }
 
+// 쓸 수 있는 스냅샷 — 전 종목 시세가 붙은 날만.
+//   시세가 덜 붙은 채 기록된 날은 평가금액이 원금 쪽으로 주저앉아 있어서, 그대로 섞으면
+//   매매가 없는데도 곡선이 하루씩 오르내리는 톱니가 된다(제보된 증상). 그런 날은 역산에 맡긴다.
+//   커버리지 필드가 없는 옛 기록도 믿을 수 없으므로 제외 — 지우지는 않는다(판정만 보류).
+export function usableSnapshots<T extends { value: number; held?: number; priced?: number }>(
+  snaps: T[],
+): T[] {
+  return snaps.filter(s => s.value > 0 && !!s.held && (s.priced ?? 0) >= s.held);
+}
+
 // 스냅샷 병합 — 실측이 있는 날은 역산 대신 실측값을 쓴다.
 //   역산은 거래 로그에 없는 매매·수기 조정을 못 담으므로, 같은 날짜면 실측이 우선.
 //   누적 실현손익은 스냅샷에 없으므로 역산값을 그대로 유지한다(원가 흐름은 거래 로그가 유일한 근거).
 //   역산 축에 없는 날짜(휴장 중 기록 등)의 스냅샷은 뒤에 덧붙인다.
 export function mergeSnapshots(
   points: AssetPoint[],
-  snaps: { date: string; value: number; principal: number }[],
+  input: { date: string; value: number; principal: number; held?: number; priced?: number }[],
 ): AssetPoint[] {
+  const snaps = usableSnapshots(input);
   if (snaps.length === 0) return points;
   const byDate = new Map(points.map(p => [p.date, p]));
   const recalc = (base: AssetPoint, value: number, principal: number): AssetPoint => {
@@ -227,7 +238,6 @@ export function mergeSnapshots(
   const extra: AssetPoint[] = [];
   const lastPoint = points[points.length - 1];
   for (const s of snaps) {
-    if (!(s.value > 0)) continue;
     const hit = byDate.get(s.date);
     if (hit) { byDate.set(s.date, recalc(hit, s.value, s.principal)); continue; }
     if (lastPoint && s.date > lastPoint.date) {

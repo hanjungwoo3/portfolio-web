@@ -33,6 +33,17 @@ export interface AssetSnapshot {
   principal: number;   // 매입원금(원)
   deposit: number;     // 예수금(원)
   savedAt: number;     // 기록 시각 — 같은 날 여러 번이면 마지막 값으로 덮어씀
+  // ★ 시세 커버리지 — 이 기록을 믿어도 되는지의 유일한 근거.
+  //   시세가 덜 붙은 채 기록하면 안 붙은 종목이 '평단 = 현재가'로 잡혀 평가금액이 원금 쪽으로 주저앉는다.
+  //   그런 날이 하루씩 섞이면 매매가 없어도 곡선이 위아래로 튄다 → priced < held 인 기록은 차트에서 뺀다.
+  held?: number;       // 합산 대상 보유 종목 수
+  priced?: number;     // 그중 실제 시세(원화)를 받은 종목 수
+}
+
+// 스냅샷 신뢰도 — 전 종목 시세가 붙은 기록만 1. 필드가 없는 옛 기록은 0(판정 불가 → 안 씀).
+export function snapshotCoverage(s: { held?: number; priced?: number }): number {
+  if (!s.held || s.held <= 0) return 0;
+  return Math.min(1, (s.priced ?? 0) / s.held);
 }
 
 class PortfolioDB extends Dexie {
@@ -780,9 +791,13 @@ export async function replaceAllMemos(memos: Memo[]): Promise<void> {
 // 장중에 계속 덮어쓰이므로 '그날의 마지막 조회 시점' 값이 남는다. 종가 확정 전이라도
 // 역산 곡선보다 실측에 가깝고(예수금 포함), 다음 날이면 사실상 종가 기준이 된다.
 export async function saveAssetSnapshot(
-  s: { date: string; value: number; principal: number; deposit: number },
+  s: { date: string; value: number; principal: number; deposit: number; held: number; priced: number },
 ): Promise<void> {
   if (!s.date) return;
+  // 커버리지가 더 나쁜 값으로는 덮지 않는다 — 오전에 전 종목 붙여 남긴 기록을
+  //   밤에 시세 몇 개만 붙은 새로고침이 망치면 그날 곡선이 통째로 어긋난다.
+  const prev = await db.snapshots.get(s.date);
+  if (prev && snapshotCoverage(prev) > snapshotCoverage(s)) return;
   await db.snapshots.put({ ...s, savedAt: Date.now() });
 }
 
