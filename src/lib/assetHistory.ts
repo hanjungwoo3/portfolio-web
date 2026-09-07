@@ -15,6 +15,13 @@
 //   → 로그를 끝까지 재생한 결과와 실제 보유현황의 차이를 "처음부터 들고 있던 수량"으로 보고
 //     전 구간에 상수로 깔아 준다(computeBaseline). 마지막 점은 항상 내주식과 일치한다.
 //   취득 시점을 모르니 과거 구간에서도 계속 보유한 것으로 가정한다 — 화면에 그 사실을 밝힌다.
+//
+// ★ 예수금(현금)도 같은 방식으로 되짚는다.
+//   예수금은 '지금 얼마'만 저장돼 있고 과거 이력이 없다(deposits.ts — 그룹별 현재값).
+//   대신 매수는 현금이 나간 것이고 매도는 들어온 것이니, 지금 예수금을 정답지로 두고
+//   거꾸로 흘리면 그날의 현금이 나온다:  cash(d) = 지금예수금 + Σ(d 이후 매수) − Σ(d 이후 매도).
+//   이렇게 해야 '매수'가 현금→주식 이동으로만 잡혀 총자산 곡선이 매매 때마다 튀지 않는다.
+//   한계: 과거 입출금 이력이 없어 그때 넣은 돈은 '원래 갖고 있던 현금'으로 잡힌다 — 화면에 밝힌다.
 
 import type { Trade } from "./db";
 
@@ -29,6 +36,7 @@ export interface AssetPoint {
   netInvested: number;   // 누적 순투입 = 매수총액 − 매도총액
   held: number;          // 보유 종목 수
   priced: number;        // 그중 그날 종가를 구한 종목 수 (신뢰도)
+  cash: number;          // 그날 예수금(원) — 역산 또는 실측 스냅샷
 }
 
 // 거래 로그로 설명되지 않는 보유분 — 전 구간에 상수로 깔린다. 음수면 '기록 밖 매도'.
@@ -102,10 +110,12 @@ export function computeBaseline(
 
 // closes: ticker → (date → 종가·원). 없는 날은 직전 종가를 이어 쓴다(휴장·거래정지).
 // baseline: 거래 로그 밖 보유분(computeBaseline). 넘기지 않으면 예전처럼 로그만으로 그린다.
+// cashNow: 지금 예수금(원). 이 값을 끝점으로 두고 거래를 거꾸로 흘려 과거 현금을 되짚는다.
 export function buildAssetHistory(
   trades: Trade[],
   closes: Map<string, Map<string, number>>,
   baseline?: Map<string, BaselineLot>,
+  cashNow = 0,
 ): AssetPoint[] {
   const sorted = sortTrades(trades);
   const base = baseline ?? new Map<string, BaselineLot>();
@@ -136,6 +146,11 @@ export function buildAssetHistory(
   let ti = 0;
   const out: AssetPoint[] = [];
 
+  // 거래 전체의 순투입 합 — 현금 역산의 기준점. 기초 잔고(baseCost)는 양쪽에서 상쇄되므로 뺀다.
+  //   cash(d) = cashNow + (전체 순투입 − d 까지의 순투입) = cashNow + Σ(d 이후 매수 − d 이후 매도)
+  const netTradesAll = sorted.reduce((a, t) => a + (t.type === "buy" ? t.amount : -t.amount), 0);
+  let netTrades = 0;
+
   for (const d of dates) {
     // 이 날짜까지의 거래를 모두 반영 (같은 날 여러 건도 순서대로)
     while (ti < sorted.length && sorted[ti].date <= d) {
@@ -143,6 +158,7 @@ export function buildAssetHistory(
       const r = applyTrade(pos, t);
       realizedCum += r.realized;
       netInvested += r.net;
+      netTrades += r.net;
       universe.add(t.ticker);
     }
 
@@ -169,6 +185,8 @@ export function buildAssetHistory(
       totalPnl: unrealized + realizedCum,
       returnPct: principal > 0 ? (unrealized / principal) * 100 : 0,
       netInvested, held, priced,
+      // 음수 현금은 없다 — 과거에 판 돈을 밖으로 뺐다는 뜻이라 역산으로는 알 수 없다.
+      cash: Math.max(0, cashNow + netTradesAll - netTrades),
     });
   }
   return out;
@@ -206,6 +224,16 @@ export function sliceByRange(points: AssetPoint[], range: RangeKey): AssetPoint[
   return points.filter(p => p.date >= from);
 }
 
+// 실측 스냅샷 한 줄 — db.AssetSnapshot 중 곡선에 쓰는 필드만.
+export interface Snap {
+  date: string;
+  value: number;
+  principal: number;
+  deposit?: number;    // 그날 예수금 실측 — 없으면 역산 현금을 그대로 쓴다
+  held?: number;
+  priced?: number;
+}
+
 // 쓸 수 있는 스냅샷 — 전 종목 시세가 붙은 날만.
 //   시세가 덜 붙은 채 기록된 날은 평가금액이 원금 쪽으로 주저앉아 있어서, 그대로 섞으면
 //   매매가 없는데도 곡선이 하루씩 오르내리는 톱니가 된다(제보된 증상). 그런 날은 역산에 맡긴다.
@@ -222,28 +250,39 @@ export function usableSnapshots<T extends { value: number; held?: number; priced
 //   역산 축에 없는 날짜(휴장 중 기록 등)의 스냅샷은 뒤에 덧붙인다.
 export function mergeSnapshots(
   points: AssetPoint[],
-  input: { date: string; value: number; principal: number; held?: number; priced?: number }[],
+  input: Snap[],
 ): AssetPoint[] {
   const snaps = usableSnapshots(input);
   if (snaps.length === 0) return points;
   const byDate = new Map(points.map(p => [p.date, p]));
-  const recalc = (base: AssetPoint, value: number, principal: number): AssetPoint => {
+  // 예수금도 스냅샷에 실측이 있으면 그 값을 쓴다(없던 시절 기록은 역산 현금을 그대로 둔다).
+  const recalc = (base: AssetPoint, s: Snap): AssetPoint => {
+    const { value, principal } = s;
     const unrealized = value - principal;
     return {
       ...base, value, principal, unrealized,
       totalPnl: unrealized + base.realizedCum,
       returnPct: principal > 0 ? (unrealized / principal) * 100 : 0,
+      cash: s.deposit != null && s.deposit >= 0 ? s.deposit : base.cash,
     };
   };
   const extra: AssetPoint[] = [];
   const lastPoint = points[points.length - 1];
   for (const s of snaps) {
     const hit = byDate.get(s.date);
-    if (hit) { byDate.set(s.date, recalc(hit, s.value, s.principal)); continue; }
+    if (hit) { byDate.set(s.date, recalc(hit, s)); continue; }
     if (lastPoint && s.date > lastPoint.date) {
       // 역산 축보다 나중(예: 시세 캐시가 아직 오늘을 못 받은 경우) — 마지막 상태를 이어 붙인다
-      extra.push(recalc({ ...lastPoint, date: s.date }, s.value, s.principal));
+      extra.push(recalc({ ...lastPoint, date: s.date }, s));
     }
   }
   return [...byDate.values(), ...extra].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+}
+
+// 총자산 모드 — 평가금액·매입원금 양쪽에 그날 예수금을 더한다.
+//   한쪽에만 더하면 두 선의 간격(=평가손익)이 망가진다. 양쪽에 더하면
+//   간격은 그대로 평가손익이고, 매수는 현금→주식 이동이라 총자산이 튀지 않는다.
+//   손익·수익률은 주식 기준 그대로 둔다 — 현금까지 분모에 넣으면 MTS 수익률과 어긋난다.
+export function applyCash(points: AssetPoint[]): AssetPoint[] {
+  return points.map(p => ({ ...p, value: p.value + p.cash, principal: p.principal + p.cash }));
 }

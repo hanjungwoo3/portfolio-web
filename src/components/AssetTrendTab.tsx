@@ -8,15 +8,21 @@
 // 앱에 과거 스냅샷이 없어 과거는 거래 로그로 역산한다(assetHistory.ts).
 // 오늘부터는 App 이 매일 실측 스냅샷을 남기므로, 시간이 지날수록 실측 구간이 늘어난다.
 // 미국 종목은 야후 일봉(USD) × 그날 원달러 환율로 원화 환산해 함께 합산한다.
+//
+// 예수금은 '총자산' 토글로 켠다. 켜면 평가금액·매입원금 양쪽에 그날 현금을 더해
+//   총자산 / 총투입이 되고, 두 선의 간격(=평가손익)은 그대로다(assetHistory.applyCash).
+//   과거 현금은 이력이 없어 거래로그로 역산한다 — 매수는 현금→주식 이동일 뿐이라
+//   총자산 곡선이 매매 때마다 계단식으로 튀지 않는다.
 
 import { lazy, Suspense, useEffect, useMemo, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchTossKrCandles, fetchYahooPriceHistory, TOSS_CANDLE_MAX, type PricePoint } from "../lib/api";
 import {
   buildAssetHistory, computeBaseline, mergeSnapshots, usableSnapshots, sliceByRange,
-  assetLineColor, ASSET_INDEX_COLORS, RANGE_OPTS, type RangeKey,
+  applyCash, assetLineColor, ASSET_INDEX_COLORS, RANGE_OPTS, type RangeKey,
 } from "../lib/assetHistory";
 import { loadAssetSnapshots, type Trade } from "../lib/db";
+import { getTotalDeposits } from "../lib/deposits";
 import { signColor } from "../lib/format";
 import { filterByTab, MY_STOCKS_TAB_KEY } from "./Tabs";
 import type { Stock } from "../types";
@@ -91,6 +97,7 @@ interface Props { trades: Trade[]; holdings: Stock[] }
 
 export function AssetTrendTab({ trades, holdings }: Props) {
   const [range, setRange] = useState<RangeKey>("6m");
+  const [withCash, setWithCash] = useState(true);      // 총자산 모드 — 예수금 포함
   const [tableOpen, setTableOpen] = useState(true);   // 차트와 표를 같이 본다 — 표는 접을 수 있게만
   const [onIndexes, setOnIndexes] = useState<IndexKey[]>(["kospi"]);
   const cols = useTableCols();
@@ -204,13 +211,19 @@ export function AssetTrendTab({ trades, holdings }: Props) {
     staleTime: 60_000,
     refetchOnWindowFocus: false,
   });
+  // 지금 예수금 — 역산의 끝점(정답지). localStorage 값이라 매 렌더 다시 읽는다.
+  const cashNow = getTotalDeposits();
   const all = useMemo(
-    () => mergeSnapshots(buildAssetHistory(usable.trades, closes, baseline), snaps ?? []),
-    [usable, closes, baseline, snaps],
+    () => mergeSnapshots(buildAssetHistory(usable.trades, closes, baseline, cashNow), snaps ?? []),
+    [usable, closes, baseline, snaps, cashNow],
   );
+  // 예수금이 아예 없으면(현재도 0, 실측도 0) 토글을 감춘다 — 켜도 곡선이 같다.
+  const hasCash = useMemo(() => all.some(p => p.cash > 0), [all]);
+  const cashOn = withCash && hasCash;
+  const allView = useMemo(() => (cashOn ? applyCash(all) : all), [all, cashOn]);
   // 화면에 밝히는 '실측 N일' 은 곡선에 실제로 쓰인 날만 — 시세가 덜 붙어 버려진 날은 빼고 센다
   const snapDays = useMemo(() => usableSnapshots(snaps ?? []).length, [snaps]);
-  const points = useMemo(() => sliceByRange(all, range), [all, range]);
+  const points = useMemo(() => sliceByRange(allView, range), [allView, range]);
 
   const indexOverlays = useMemo(
     () => INDEX_OPTS.flatMap((o, i) => {
@@ -229,10 +242,10 @@ export function AssetTrendTab({ trades, holdings }: Props) {
   // 표 행 — 최신이 위. 일간 손익 = 그날 번 돈(평가손익 변화 + 그날 실현손익) = totalPnl 증감.
   //   단순 '자산 증감'을 쓰면 그날 추가매수한 돈까지 수익으로 잡혀서 안 된다.
   const rows = useMemo(() => {
-    const idx = new Map(all.map((p, i) => [p.date, i]));
+    const idx = new Map(allView.map((p, i) => [p.date, i]));
     const out = points.map(p => {
       const i = idx.get(p.date) ?? -1;
-      const prev = i > 0 ? all[i - 1] : undefined;   // 구간 밖이라도 바로 앞 거래일을 쓴다
+      const prev = i > 0 ? allView[i - 1] : undefined;   // 구간 밖이라도 바로 앞 거래일을 쓴다
       const diff = prev ? p.totalPnl - prev.totalPnl : 0;
       return {
         p, prev, diff,
@@ -240,7 +253,7 @@ export function AssetTrendTab({ trades, holdings }: Props) {
       };
     });
     return out.reverse();
-  }, [points, all]);
+  }, [points, allView]);
 
   // 열 우선 채움 — 앞 조각이 왼쪽 열, 각 열은 위에서 아래로
   const chunks = useMemo(() => {
@@ -294,11 +307,15 @@ export function AssetTrendTab({ trades, holdings }: Props) {
         </div>
       </div>
 
-      {/* 요약 — 현재 시점 */}
+      {/* 요약 — 현재 시점. 총자산 모드면 첫 칸이 총자산, 둘째 칸이 예수금 */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
         {[
-          { label: "평가금액", value: won(last.value), cls: "text-gray-900" },
-          { label: "매입원금", value: won(last.principal), cls: "text-gray-600" },
+          cashOn
+            ? { label: "총자산", value: won(last.value), cls: "text-gray-900" }
+            : { label: "평가금액", value: won(last.value), cls: "text-gray-900" },
+          cashOn
+            ? { label: "예수금", value: won(last.cash), cls: "text-gray-600" }
+            : { label: "매입원금", value: won(last.principal), cls: "text-gray-600" },
           { label: "평가손익", value: `${last.unrealized >= 0 ? "+" : ""}${won(last.unrealized)}`, cls: signColor(last.unrealized) },
           { label: "수익률", value: `${last.returnPct >= 0 ? "+" : ""}${last.returnPct.toFixed(2)}%`, cls: signColor(last.returnPct) },
         ].map(c => (
@@ -315,12 +332,24 @@ export function AssetTrendTab({ trades, holdings }: Props) {
             {/* 곡선 색은 이익/손실에 따라 바뀐다 — 범례도 같은 색을 쓴다(assetLineColor) */}
             <span className="inline-block w-3 h-0.5"
                   style={{ backgroundColor: assetLineColor(last.unrealized) }}></span>
-            <span className="text-gray-600">평가금액</span>
+            <span className="text-gray-600">{cashOn ? "총자산" : "평가금액"}</span>
           </span>
           <span className="flex items-center gap-1">
             <span className="inline-block w-3 border-t border-dashed border-gray-400"></span>
-            <span className="text-gray-600">매입원금</span>
+            <span className="text-gray-600">{cashOn ? "총투입" : "매입원금"}</span>
           </span>
+          {/* 예수금 포함 토글 — 켜면 두 선 모두에 현금을 더해 총자산/총투입이 된다 */}
+          {hasCash && (
+            <button onClick={() => setWithCash(v => !v)}
+                    title={withCash
+                      ? "예수금을 빼고 주식만 보기"
+                      : "예수금을 더해 총자산으로 보기"}
+                    className={`px-1.5 rounded border transition ${
+                      withCash ? "border-gray-300 bg-white text-gray-700 font-bold"
+                               : "border-transparent text-gray-400 hover:bg-gray-100"}`}>
+              💰 예수금 포함
+            </button>
+          )}
           {/* 지수 겹쳐보기 — 켜진 것이 곧 범례(색 점 + 이름). 각각 독립 토글 */}
           <span className="flex items-center gap-1">
             <span className="text-gray-400">지수</span>
@@ -348,7 +377,7 @@ export function AssetTrendTab({ trades, holdings }: Props) {
           </span>
         </div>
         <Suspense fallback={<div className="h-[320px]" />}>
-          <AssetTrendChart points={points} indexes={indexOverlays} />
+          <AssetTrendChart points={points} indexes={indexOverlays} cashOn={cashOn} />
         </Suspense>
       </div>
 
@@ -376,7 +405,7 @@ export function AssetTrendTab({ trades, holdings }: Props) {
                         <th className="text-left  px-2 py-1.5 font-medium whitespace-nowrap">기준일</th>
                         <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">일간 손익</th>
                         <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">누적 손익</th>
-                        <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">평가금액</th>
+                        <th className="text-right px-2 py-1.5 font-medium whitespace-nowrap">{cashOn ? "총자산" : "평가금액"}</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -413,7 +442,8 @@ export function AssetTrendTab({ trades, holdings }: Props) {
           </div>
           <div className="text-[10px] text-gray-400 px-2 py-1.5 border-t border-gray-100 leading-relaxed">
             일간 손익 = 그날 평가손익 변화 + 그날 실현손익 — 추가 매수·입금은 수익으로 치지 않습니다.
-            일간 % 는 전일 평가금액 대비. 평가금액 아래 회색 숫자는 매입원금.
+            일간 % 는 전일 {cashOn ? "총자산" : "평가금액"} 대비.
+            {cashOn ? " 총자산 아래 회색 숫자는 총투입(매입원금+예수금)." : " 평가금액 아래 회색 숫자는 매입원금."}
           </div>
         </>)}
       </div>
@@ -421,7 +451,13 @@ export function AssetTrendTab({ trades, holdings }: Props) {
       <div className="text-[10px] text-gray-400 px-1 leading-relaxed">
         마지막 값은 <b>내주식</b>의 총원금·평가액과 같습니다. 과거는 거래 기록과 그날 종가로 되짚습니다.
         원가는 평균단가법(국내 증권사 방식), 매입원금은 <b>지금 보유한 수량의 취득원가</b>입니다.
-        예수금은 포함하지 않습니다.
+        {hasCash
+          ? (cashOn
+              ? <> 예수금을 포함한 <b>총자산</b> 기준입니다(구매대기 제외). 과거 예수금은 이력이 없어
+                  지금 예수금에서 거래를 거꾸로 흘려 되짚습니다 — 과거에 <b>입금·출금</b>한 돈은
+                  그 시점부터가 아니라 <b>처음부터 있던 현금</b>으로 잡힙니다.</>
+              : <> 예수금은 빼고 주식만 그렸습니다 — 위 <b>예수금 포함</b>으로 총자산을 볼 수 있습니다.</>)
+          : <> 예수금은 포함하지 않습니다.</>}
         {baseCount > 0 && <> 거래 기록이 없는 보유 {baseCount}종목은 취득 시점을 알 수 없어
           <b> 전 구간 계속 보유</b>한 것으로 계산했습니다 — 실제로 산 날 이전 구간은 실제보다 커 보일 수 있습니다.</>}
         {usTickers.length > 0 && <> 미국 종목 {usTickers.length}개는 야후 종가 × 그날 원달러 환율로 환산했습니다.</>}

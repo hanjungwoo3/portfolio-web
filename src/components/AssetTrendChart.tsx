@@ -1,4 +1,5 @@
 // 일별 자산 추이 차트 — 평가금액(영역) + 매입원금(점선). 둘 사이 간격이 곧 평가손익.
+// 총자산 모드(cashOn)면 두 값에 이미 예수금이 더해져 들어온다 — 라벨만 총자산/총투입으로 바꾼다.
 // 축 하나만 쓴다(둘 다 원 단위) — 수익률은 툴팁 숫자로 보여주고 별도 축을 만들지 않는다.
 
 import { useEffect, useRef } from "react";
@@ -27,9 +28,14 @@ export interface IndexOverlay {
   closes: { date: string; close: number }[];  // 일별 종가(정렬 안 돼 있어도 됨)
 }
 
-interface Props { points: AssetPoint[]; height?: number; indexes?: IndexOverlay[] }
+interface Props {
+  points: AssetPoint[];
+  height?: number;
+  indexes?: IndexOverlay[];
+  cashOn?: boolean;      // 예수금 포함(총자산) 모드 — 툴팁 라벨과 예수금 줄
+}
 
-export function AssetTrendChart({ points, height = 320, indexes }: Props) {
+export function AssetTrendChart({ points, height = 320, indexes, cashOn }: Props) {
   const boxRef = useRef<HTMLDivElement>(null);
   const tipRef = useRef<HTMLDivElement>(null);
 
@@ -119,8 +125,10 @@ export function AssetTrendChart({ points, height = 320, indexes }: Props) {
       const lineC = assetLineColor(last.unrealized);   // 실제 그려진 곡선 색과 맞춤
       tip.innerHTML =
         `<div class="font-bold text-gray-700">${p.date}</div>` +
-        `<div><span class="text-gray-500">평가 </span><span style="color:${lineC}" class="font-bold">${won(p.value)}</span></div>` +
-        `<div><span class="text-gray-500">원금 </span><span class="text-gray-600">${won(p.principal)}</span></div>` +
+        `<div><span class="text-gray-500">${cashOn ? "총자산" : "평가"} </span><span style="color:${lineC}" class="font-bold">${won(p.value)}</span></div>` +
+        `<div><span class="text-gray-500">${cashOn ? "총투입" : "원금"} </span><span class="text-gray-600">${won(p.principal)}</span></div>` +
+        (cashOn
+          ? `<div><span class="text-gray-500">예수금 </span><span class="text-gray-600">${won(p.cash)}</span></div>` : "") +
         `<div><span class="text-gray-500">평가손익 </span><span style="color:${c}" class="font-bold">${p.unrealized >= 0 ? "+" : ""}${won(p.unrealized)} (${p.returnPct >= 0 ? "+" : ""}${p.returnPct.toFixed(2)}%)</span></div>` +
         (p.realizedCum !== 0
           ? `<div><span class="text-gray-500">누적실현 </span><span class="text-gray-700">${p.realizedCum >= 0 ? "+" : ""}${won(p.realizedCum)}</span></div>` : "") +
@@ -139,7 +147,7 @@ export function AssetTrendChart({ points, height = 320, indexes }: Props) {
     });
 
     return () => { chart.remove(); };   // remove() 가 구독까지 정리한다
-  }, [points, height, indexes]);
+  }, [points, height, indexes, cashOn]);
 
   if (points.length < 2) return null;
   return (
