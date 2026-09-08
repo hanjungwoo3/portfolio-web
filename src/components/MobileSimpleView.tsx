@@ -30,8 +30,9 @@ import { getIndependentGroupsMode } from "../lib/groupMode";
 import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { StockMarketTab } from "./StockMarketTab";
-import { useExtensionProxyReady } from "../lib/extensionProxy";
+import { useExtensionProxyReady, compareVersion } from "../lib/extensionProxy";
 import { isNativeApp } from "../lib/nativeProxy";
+import { getInstalledAppVersion, fetchLatestRelease, RELEASE_PAGE, type LatestRelease } from "../lib/appRelease";
 import { ValuationTableTab } from "./ValuationTableTab";
 import { normalizeAccount } from "../lib/account";
 import { attachTodayBuys } from "../lib/tradeCalc";
@@ -1974,6 +1975,15 @@ function SettingsModal({
   const nativeApp = isNativeApp();
   const fastPollAllowed = hasEnabledProxy || extReady || nativeApp;
 
+  // 앱 버전 / 최신 릴리스 — 설정을 열 때 1회. 실패하면 조용히 숨긴다(없어도 동작에 지장 없음).
+  const [appVer, setAppVer] = useState<string | null>(null);
+  const [latest, setLatest] = useState<LatestRelease | null>(null);
+  useEffect(() => {
+    void getInstalledAppVersion().then(setAppVer);
+    void fetchLatestRelease().then(setLatest);
+  }, []);
+  const appOutdated = !!appVer && !!latest && compareVersion(appVer, latest.version) < 0;
+
   const refreshUsage = (list: PersonalProxy[]) => {
     for (const p of list) {
       const url = p.url.trim().replace(/\/+$/, "");
@@ -2251,8 +2261,41 @@ function SettingsModal({
                 프록시 서버가 필요 없고, 호출 한도도 남의 IP 공유도 없습니다. 5·10초 갱신도 열립니다.
               </p>
               <p className="text-[11px] text-emerald-600">
-                아래 전용 프록시는 <b>비워 두셔도 됩니다</b> — 앱이 못 받는 일부 요청(구글 로그인이
-                필요한 야후 엔드포인트 등)만 예비로 씁니다.
+                아래 전용 프록시는 <b>비워 두셔도 됩니다</b> — 앱이 야후 crumb 까지 직접 처리하므로
+                평소에는 쓰이지 않습니다.
+              </p>
+              {/* 앱 버전 — 최신이면 확인만, 낡았으면 받는 곳까지 */}
+              <div className="pt-1 border-t border-emerald-200 text-[11px]">
+                {appVer && <span className="text-emerald-800">앱 버전 <b>v{appVer}</b></span>}
+                {appVer && latest && (
+                  appOutdated
+                    ? <span className="text-amber-700">
+                        {" "}· 새 버전 <b>v{latest.version}</b> 있음{" "}
+                        <a href={latest.apkUrl ?? latest.pageUrl} target="_blank" rel="noopener noreferrer"
+                           className="underline font-bold">APK 받기 ↗</a>
+                      </span>
+                    : <span className="text-emerald-600"> · 최신입니다</span>
+                )}
+                {appVer && !latest && <span className="text-gray-500"> · 배포된 APK 릴리스 없음</span>}
+              </div>
+            </div>
+          )}
+
+          {/* 브라우저로 보는 중이면 앱 설치 안내 — 안드로이드에서 프록시 없이 쓰는 유일한 길 */}
+          {!nativeApp && (
+            <div className="border border-gray-200 rounded p-3 bg-gray-50 space-y-1">
+              <div className="text-xs font-bold text-gray-700">📱 안드로이드 앱 (APK)</div>
+              <p className="text-[11px] text-gray-500 leading-relaxed">
+                앱으로 쓰면 프록시가 필요 없습니다 — 네이티브로 직접 받아오므로 호출 한도도,
+                남의 IP 공유도 없고 5·10초 갱신이 열립니다. 안드로이드 크롬은 확장을 지원하지 않아
+                모바일에선 이 방법뿐입니다.
+              </p>
+              <a href={latest?.apkUrl ?? RELEASE_PAGE} target="_blank" rel="noopener noreferrer"
+                 className="text-[11px] text-blue-600 underline block font-bold">
+                ⬇️ APK 내려받기{latest ? ` (v${latest.version})` : ""} ↗
+              </a>
+              <p className="text-[10px] text-gray-400">
+                플레이스토어가 아니라 직접 설치라 "출처를 알 수 없는 앱" 허용이 필요합니다. iOS 는 미지원.
               </p>
             </div>
           )}
