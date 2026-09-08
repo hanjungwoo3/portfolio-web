@@ -8,6 +8,7 @@ import type { Price } from "../types";
 import { fetchTossPrices } from "./api";
 import { loadEtfData } from "./etfIndex";
 import { dayChangePct } from "./format";
+import { buildSectorStats, type EtfSectorStat } from "./etfSectors";
 
 export interface EtfRankRow {
   code: string;
@@ -25,6 +26,9 @@ export interface EtfRanking {
   total: number;         // 색인상 ETF 총 개수
   top: EtfRankRow[];     // 상승 상위 (pct 내림차순)
   bottom: EtfRankRow[];  // 하락 하위 (pct 오름차순 — 가장 많이 빠진 게 먼저)
+  // 섹터 요약 — 상·하위 100 이 아니라 '전수'로 집계해야 의미가 있어서 조회 시점에 만들어 둔다.
+  //   (top/bottom 만 남기고 버리면 나중에 다시 계산할 수 없다 — 17콜을 또 쓸 수는 없다)
+  sectors: EtfSectorStat[];
 }
 
 // 저장 개수. 표시는 상위 50 이고 "더보기" 로 KEEP 까지 펼친다.
@@ -41,7 +45,9 @@ export function isFuturesEtf(name: string): boolean {
   return name.includes("선물");
 }
 
-const LS_KEY = "etf_ranking_v1";
+// v2 — 섹터 요약(sectors)이 추가된 형태. 옛 캐시(v1)는 섹터가 없어 그대로 못 쓴다.
+//   키를 올리면 탭 첫 진입 때 자동으로 한 번 다시 받는다(그 뒤로는 새로고침 버튼으로만).
+const LS_KEY = "etf_ranking_v2";
 
 export function loadCachedRanking(): EtfRanking | null {
   try {
@@ -50,6 +56,7 @@ export function loadCachedRanking(): EtfRanking | null {
     const r = JSON.parse(raw) as EtfRanking;
     // 형태가 안 맞는 옛 캐시는 버린다
     if (!Array.isArray(r.top) || !Array.isArray(r.bottom)) return null;
+    if (!Array.isArray(r.sectors)) return null;
     return r;
   } catch {
     return null;
@@ -102,6 +109,7 @@ export async function fetchEtfRanking(): Promise<EtfRanking> {
     top: rows.slice(0, RANK_KEEP),
     // 하락 하위 — 뒤에서 KEEP 개를 떼어 "가장 많이 빠진 것" 부터 오게 뒤집는다
     bottom: rows.slice(Math.max(0, rows.length - RANK_KEEP)).reverse(),
+    sectors: buildSectorStats(rows),   // ★ 전수(rows) 기준 — 상·하위만 보면 섹터가 왜곡된다
   };
   saveRanking(ranking);
   return ranking;
