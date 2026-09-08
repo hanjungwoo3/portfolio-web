@@ -54,6 +54,43 @@ function toBody(data: unknown): BodyInit {
   try { return JSON.stringify(data); } catch { return ""; }
 }
 
+// ─── Yahoo crumb 인증 ────────────────────────────────────────
+// v7/quote·quoteSummary 는 crumb 없이 401. v8/chart 는 필요 없다(확장에서 실측된 것과 동일,
+//   네이티브에서도 v8 는 200·v7 는 401 로 재확인).
+// 쿠키는 CapacitorCookies 가 네이티브 쿠키 저장소에 유지해 주므로 확장처럼 직접 나를 필요가 없다.
+const CRUMB_TTL_MS = 30 * 60 * 1000;
+let crumbCache: { crumb: string; ts: number } | null = null;
+
+function needsCrumb(u: URL): boolean {
+  return u.hostname.endsWith("yahoo.com") &&
+         (u.pathname.includes("/quoteSummary") ||
+          u.pathname.includes("/v7/finance/quote") ||
+          u.pathname.includes("/v6/finance/quote"));
+}
+
+async function getYahooCrumb(): Promise<string | null> {
+  if (crumbCache && Date.now() - crumbCache.ts < CRUMB_TTL_MS) return crumbCache.crumb;
+  try {
+    // 1) 세션 쿠키 발급 — 응답은 안 본다. 쿠키만 저장소에 들어가면 된다.
+    try {
+      await CapacitorHttp.get({ url: "https://fc.yahoo.com/", headers: { "User-Agent": UA } });
+    } catch { /* 쿠키만 목적이라 실패해도 진행 */ }
+    // 2) crumb 발급 — 위에서 받은 쿠키가 자동으로 실려 나간다.
+    const r = await CapacitorHttp.get({
+      url: "https://query1.finance.yahoo.com/v1/test/getcrumb",
+      headers: { "User-Agent": UA },
+      responseType: "text",
+    });
+    if (r.status !== 200) return null;
+    const c = (typeof r.data === "string" ? r.data : String(r.data ?? "")).trim();
+    if (!c || c.length > 50) return null;   // 에러 페이지를 crumb 으로 오인하지 않게
+    crumbCache = { crumb: c, ts: Date.now() };
+    return c;
+  } catch {
+    return null;
+  }
+}
+
 // 응답 헤더에서 Content-Type 찾기 — 네이티브가 돌려주는 헤더 키의 대소문자가 제각각이다.
 function pickContentType(headers: Record<string, string> | undefined): string {
   if (!headers) return "application/octet-stream";
@@ -67,8 +104,24 @@ export async function fetchViaNative(targetUrl: string, init?: RequestInit): Pro
   const given = (init?.headers ?? {}) as Record<string, string>;
   const headers: Record<string, string> = { "User-Agent": UA, ...given };
 
+  // crumb 이 필요한 Yahoo 엔드포인트면 쿼리에 붙여 보낸다(없으면 401).
+  let url = targetUrl;
+  let crumbUsed = false;
+  try {
+    const u = new URL(targetUrl);
+    if (needsCrumb(u)) {
+      const crumb = await getYahooCrumb();
+      if (crumb) {
+        const w = new URL(url);
+        w.searchParams.set("crumb", crumb);
+        url = w.toString();
+        crumbUsed = true;
+      }
+    }
+  } catch { /* URL 파싱 실패 — 원본 그대로 보낸다 */ }
+
   const res = await CapacitorHttp.request({
-    url: targetUrl,
+    url,
     method: init?.method ?? "GET",
     headers,
     data: typeof init?.body === "string" ? init.body : undefined,
@@ -77,6 +130,10 @@ export async function fetchViaNative(targetUrl: string, init?: RequestInit): Pro
     connectTimeout: TIMEOUT_MS,
     readTimeout: TIMEOUT_MS,
   });
+
+  // crumb 을 붙였는데도 401 이면 만료된 것 — 캐시를 버려 다음 호출이 새로 받게 한다.
+  //   (TTL 만 믿으면 조기 만료 시 30분 내내 401 이 반복된다)
+  if (crumbUsed && res.status === 401) crumbCache = null;
 
   const body = toBody(res.data);
   return new Response(body, {
