@@ -113,7 +113,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "117680.KS", name: "KODEX 철강",       desc: "한국 철강 ETF — 포스코/현대제철 등", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "117460.KS", name: "KODEX 에너지화학",  desc: "한국 에너지·화학 ETF — LG화학/롯데케미칼/S-Oil 등", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "466920.KS", name: "SOL 조선TOP3플러스", desc: "한국 조선 ETF — HD현대중공업/삼성중공업/한화오션", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "434730.KS", name: "HANARO 원자력iSelect", desc: "한국 원자력·전력 ETF — 두산에너빌리티/한전/SMR 밸류체인", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "433500.KS", name: "ACE 원자력TOP10", desc: "한국 원전 ETF — 두산에너빌리티/현대건설/대우건설 등 원전 밸류체인", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "266360.KS", name: "KODEX K콘텐츠",    desc: "한국 엔터·콘텐츠 ETF — 하이브/JYP/에스엠/CJ ENM", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "300950.KS", name: "KODEX 게임산업",   desc: "한국 게임 ETF — 크래프톤/엔씨소프트/넷마블 등", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "140700.KS", name: "KODEX 보험",       desc: "한국 보험 ETF — 삼성생명/삼성화재/DB손보 등", tier: "T0", sector: "dashboard", direction: "direct" },

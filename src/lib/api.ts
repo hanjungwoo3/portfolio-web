@@ -514,7 +514,7 @@ export const KR_SECTOR_ETFS: KrSectorEtf[] = [
   { ticker: "266410", name: "필수소비재", fullName: "KODEX 필수소비재" },
   { ticker: "228790", name: "화장품",   fullName: "TIGER 화장품" },
   { ticker: "466920", name: "조선",     fullName: "SOL 조선TOP3플러스" },
-  { ticker: "434730", name: "원자력",   fullName: "HANARO 원자력iSelect" },
+  { ticker: "433500", name: "원자력",   fullName: "ACE 원자력TOP10" },
   { ticker: "266360", name: "K콘텐츠",  fullName: "KODEX K콘텐츠" },
   { ticker: "300950", name: "게임",     fullName: "KODEX 게임산업" },
   { ticker: "140700", name: "보험",     fullName: "KODEX 보험" },
