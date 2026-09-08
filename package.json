@@ -16,7 +16,8 @@
     "gen-etf-weights": "node scripts/gen-etf-weights.mjs",
     "build:android": "BUILD_TARGET=native vite build && cap sync android",
     "android:open": "cap open android",
-    "android:apk": "npm run build:android && cd android && ./gradlew assembleDebug"
+    "android:apk": "npm run build:android && cd android && ./gradlew assembleDebug",
+    "pack:app": "node scripts/pack-app.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",

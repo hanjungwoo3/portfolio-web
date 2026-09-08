@@ -11,6 +11,14 @@ import { App } from "@capacitor/app";
 import { isNativeApp } from "./nativeProxy";
 
 export const RELEASE_PAGE = "https://github.com/hanjungwoo3/portfolio-web/releases";
+
+// ★ 받기 경로는 gh-pages 를 먼저 본다.
+//   GitHub 릴리스 자산 링크는 release-assets.githubusercontent.com 으로 리다이렉트되고 서명
+//   토큰이 붙는데, 안드로이드 브라우저 다운로드 매니저가 이를 못 이어받아 "다운로드 중..." 에서
+//   멈추는 일이 있다(실측 — 같은 폰에서 curl 로는 0.6초에 완료). gh-pages 는 웹 앱과 같은
+//   출처라 리다이렉트도 토큰도 없다. 실패하면 아래 GitHub API 로 폴백한다.
+//   (gh-pages 는 access-control-allow-origin: * 라 앱에서도 부를 수 있다 — 확인함)
+const HOSTED_RELEASE_URL = "https://hanjungwoo3.github.io/portfolio-web/app/release.json";
 // ★ /releases/latest 를 쓰면 안 된다 — 이 저장소는 확장(zip)과 앱(apk) 릴리스를 함께 낸다.
 //   확장 릴리스가 최신이면 앱이 "최신입니다" 라고 잘못 말한다(실제로 그랬다).
 //   → 목록을 받아 .apk 자산이 붙은 첫 릴리스를 앱 릴리스로 본다. 태그 규칙에 기대지 않는다.
@@ -41,8 +49,23 @@ interface GhRelease {
   assets?: { name?: string; browser_download_url?: string }[];
 }
 
+// gh-pages 에 올려둔 배포본 정보(pack-app.mjs 가 씀). 없으면 null → GitHub 릴리스로 폴백.
+async function fetchHostedRelease(): Promise<LatestRelease | null> {
+  try {
+    const r = await fetch(HOSTED_RELEASE_URL, { cache: "no-cache" });
+    if (!r.ok) return null;
+    const j = await r.json() as { version?: string; url?: string };
+    if (!j.version || !j.url) return null;
+    return { version: j.version, apkUrl: j.url, pageUrl: RELEASE_PAGE };
+  } catch {
+    return null;
+  }
+}
+
 // APK 가 붙은 가장 최근 릴리스. 아직 앱 릴리스를 안 냈으면 null (호출측이 "릴리스 없음" 으로 표시).
 export async function fetchLatestRelease(): Promise<LatestRelease | null> {
+  const hosted = await fetchHostedRelease();
+  if (hosted) return hosted;
   try {
     const r = await fetch(RELEASE_API, { headers: { Accept: "application/vnd.github+json" } });
     if (!r.ok) return null;
