@@ -2293,9 +2293,12 @@ function SettingsModal({
               {/* APK 자산이 실제로 있을 때만 링크를 건다.
                   없는데 릴리스 목록으로 보내면 확장(zip) 릴리스가 보여서 엉뚱한 걸 받게 된다. */}
               {latest?.apkUrl ? (<>
-                <a href={latest.apkUrl} target="_blank" rel="noopener noreferrer"
+                {/* target="_blank" 를 쓰면 크롬이 빈 탭을 열었다 닫아버려 다운로드가 시작되지 않는다.
+                    APK 를 gh-pages(같은 출처)에 두면서 download 속성이 실제로 먹으므로 그걸 쓴다.
+                    (download 는 동일 출처에서만 동작 — GitHub 릴리스로 폴백되면 그냥 이동한다) */}
+                <a href={latest.apkUrl} download
                    className="text-[11px] text-blue-600 underline block font-bold">
-                  ⬇️ APK 내려받기 (v{latest.version}) ↗
+                  ⬇️ APK 내려받기 (v{latest.version})
                 </a>
                 <p className="text-[10px] text-gray-400">
                   플레이스토어가 아니라 직접 설치라 "출처를 알 수 없는 앱" 허용이 필요합니다. iOS 는 미지원.
