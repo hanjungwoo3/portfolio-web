@@ -2290,13 +2290,23 @@ function SettingsModal({
                 남의 IP 공유도 없고 5·10초 갱신이 열립니다. 안드로이드 크롬은 확장을 지원하지 않아
                 모바일에선 이 방법뿐입니다.
               </p>
-              <a href={latest?.apkUrl ?? RELEASE_PAGE} target="_blank" rel="noopener noreferrer"
-                 className="text-[11px] text-blue-600 underline block font-bold">
-                ⬇️ APK 내려받기{latest ? ` (v${latest.version})` : ""} ↗
-              </a>
-              <p className="text-[10px] text-gray-400">
-                플레이스토어가 아니라 직접 설치라 "출처를 알 수 없는 앱" 허용이 필요합니다. iOS 는 미지원.
-              </p>
+              {/* APK 자산이 실제로 있을 때만 링크를 건다.
+                  없는데 릴리스 목록으로 보내면 확장(zip) 릴리스가 보여서 엉뚱한 걸 받게 된다. */}
+              {latest?.apkUrl ? (<>
+                <a href={latest.apkUrl} target="_blank" rel="noopener noreferrer"
+                   className="text-[11px] text-blue-600 underline block font-bold">
+                  ⬇️ APK 내려받기 (v{latest.version}) ↗
+                </a>
+                <p className="text-[10px] text-gray-400">
+                  플레이스토어가 아니라 직접 설치라 "출처를 알 수 없는 앱" 허용이 필요합니다. iOS 는 미지원.
+                </p>
+              </>) : (
+                <p className="text-[11px] text-gray-400">
+                  아직 배포된 APK 가 없습니다 — 준비되면 여기에 다운로드 링크가 표시됩니다.{" "}
+                  <a href={RELEASE_PAGE} target="_blank" rel="noopener noreferrer"
+                     className="text-gray-500 underline">릴리스 목록 ↗</a>
+                </p>
+              )}
             </div>
           )}
 
