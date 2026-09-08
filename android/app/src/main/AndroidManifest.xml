@@ -22,6 +22,14 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- 구글 로그인 복귀용 딥링크 (googleAuth.ts APP_SCHEME_REDIRECT 와 짝) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="pfportfolio" android:host="oauth" />
+            </intent-filter>
+
         </activity>
 
         <provider

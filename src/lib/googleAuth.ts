@@ -4,6 +4,22 @@
 // — Token 은 localStorage 에 1시간 캐시
 // — 만료 5분 전 자동 silent refresh 시도, 실패하면 다음 API 호출 시 null 반환
 
+import { App as CapApp } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
+import { isNativeApp } from "./nativeProxy";
+
+// ─── 안드로이드 앱 경로 ───────────────────────────────────────
+// 구글은 임베디드 웹뷰(Capacitor)에서의 OAuth 를 정책적으로 막는다(disallowed_useragent).
+// 게다가 앱의 origin 은 https://localhost 라 redirect_uri 로 등록할 수도 없다.
+//   → 시스템 브라우저(Custom Tabs)로 열고, 이미 등록된 gh-pages 주소로 돌아오게 한 뒤,
+//     그 페이지가 커스텀 스킴으로 앱에 토큰을 넘긴다(중계). Cloud Console 설정 변경이 필요 없다.
+//
+//   ⚠️ 토큰이 커스텀 스킴을 지나므로, 같은 스킴을 등록한 다른 앱이 가로챌 수 있다.
+//      개인용으로는 감수할 만하지만, 배포 범위를 넓힐 거면 Android 클라이언트 + PKCE 로 옮겨야 한다.
+const APP_STATE_VALUE = "drive_auth_app_v1";
+const APP_SCHEME_REDIRECT = "pfportfolio://oauth";      // AndroidManifest 의 intent-filter 와 짝
+const WEB_RELAY_URI = "https://hanjungwoo3.github.io/portfolio-web/";   // Console 에 등록된 값
+
 const CLIENT_ID = "329003207663-t43ejjbg1plt0l5u2kftpa41ofkq7e1o.apps.googleusercontent.com";
 const SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -187,6 +203,11 @@ loadCachedToken();
 handleAuthRedirect();
 scheduleSilentRefresh();
 
+// 앱: 브라우저에서 로그인을 마치고 커스텀 스킴으로 돌아오는 순간을 받는다.
+if (isNativeApp()) {
+  void CapApp.addListener("appUrlOpen", (e: { url: string }) => { handleAppAuthUrl(e.url); });
+}
+
 // 탭 전환 시 자동 silent refresh 제거 — Google 라이브러리가 prompt:"none" 이어도
 // 가끔 hidden iframe UI 가 잠깐 보이는 문제. 토큰 갱신은 SettingsDialog 진입 시
 // 또는 명시적 sync 액션(uploadToDrive 등) 시점에만 수행 (일관 정책).
@@ -199,16 +220,37 @@ export function signIn(): void {
     localStorage.setItem(PRE_AUTH_PATH_KEY, window.location.pathname + window.location.search);
   } catch { /* noop */ }
 
+  const native = isNativeApp();
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
-    redirect_uri: getRedirectUri(),
+    // 앱은 등록된 웹 주소로 돌아온 뒤 그 페이지가 앱으로 넘긴다(위 주석 참조).
+    redirect_uri: native ? WEB_RELAY_URI : getRedirectUri(),
     response_type: "token",
     scope: SCOPE,
-    state: STATE_VALUE,
+    state: native ? APP_STATE_VALUE : STATE_VALUE,
     prompt: "consent",
     include_granted_scopes: "true",
   });
-  window.location.href = `${AUTH_URL}?${params}`;
+  const url = `${AUTH_URL}?${params}`;
+  if (native) {
+    // 웹뷰가 아니라 시스템 브라우저로 — 웹뷰로 열면 구글이 막는다.
+    void Browser.open({ url });
+    return;
+  }
+  window.location.href = url;
+}
+
+// 앱이 커스텀 스킴으로 돌려받은 URL 에서 토큰 추출. 앱에서만 호출된다.
+export function handleAppAuthUrl(url: string): boolean {
+  const i = url.indexOf("#");
+  if (i < 0) return false;
+  const hash = new URLSearchParams(url.slice(i + 1));
+  if (hash.get("state") !== APP_STATE_VALUE) return false;
+  const token = hash.get("access_token");
+  void Browser.close().catch(() => { /* 이미 닫혔으면 무시 */ });
+  if (!token || hash.get("error")) return false;
+  saveToken(token, parseInt(hash.get("expires_in") ?? "3600", 10));
+  return true;
 }
 
 // URL fragment 에서 token 추출 — 페이지 로드 시 자동 호출
@@ -216,6 +258,14 @@ export function handleAuthRedirect(): boolean {
   if (typeof window === "undefined" || !window.location.hash) return false;
   const hash = new URLSearchParams(window.location.hash.slice(1));
   const state = hash.get("state");
+
+  // 앱에서 시작한 로그인 — 이 페이지(gh-pages)는 중계소일 뿐이다. 커스텀 스킴으로 앱에 넘긴다.
+  //   앱 안에서 이 분기를 타면 무한 반복이므로 웹에서만 중계한다.
+  if (state === APP_STATE_VALUE && !isNativeApp()) {
+    window.location.replace(`${APP_SCHEME_REDIRECT}#${window.location.hash.slice(1)}`);
+    return false;
+  }
+
   if (state !== STATE_VALUE) return false;
 
   const token = hash.get("access_token");
