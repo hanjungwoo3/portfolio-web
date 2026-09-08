@@ -31,6 +31,7 @@ import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroup
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { StockMarketTab } from "./StockMarketTab";
 import { useExtensionProxyReady } from "../lib/extensionProxy";
+import { isNativeApp } from "../lib/nativeProxy";
 import { ValuationTableTab } from "./ValuationTableTab";
 import { normalizeAccount } from "../lib/account";
 import { attachTodayBuys } from "../lib/tradeCalc";
@@ -1969,7 +1970,9 @@ function SettingsModal({
   // 5·10초 빠른 폴링 허용 조건 — 공개 인프라를 안 쓰는 경우(전용 프록시 또는 확장).
   //   확장은 브라우저가 직접 요청하므로 워커 호출 한도가 아예 없다.
   //   (확장은 크롬 안드로이드에서 안 되지만, 이 뷰는 좁은 데스크톱 창에서도 뜬다)
-  const fastPollAllowed = hasEnabledProxy || extReady;
+  // 앱은 네이티브가 직접 부르므로(CORS 없음) 공개 인프라를 아예 안 쓴다 → 빠른 폴링 허용.
+  const nativeApp = isNativeApp();
+  const fastPollAllowed = hasEnabledProxy || extReady || nativeApp;
 
   const refreshUsage = (list: PersonalProxy[]) => {
     for (const p of list) {
@@ -2239,14 +2242,30 @@ function SettingsModal({
             <p className="text-[10px] text-gray-500">{dataMsg || "보유·예수금·그룹·폴더·탭 등 .json 백업/복원 (가져오기 = 전체 덮어쓰기)"}</p>
           </div>
 
+          {/* 앱이면 프록시가 필요 없다 — 확장과 같은 자리에서 같은 방식으로 알린다 */}
+          {nativeApp && (
+            <div className="border border-emerald-300 rounded p-3 bg-emerald-50 space-y-1">
+              <div className="text-xs font-bold text-emerald-800">📱 앱이 직접 연결 중 — 프록시 불필요</div>
+              <p className="text-[11px] text-emerald-700 leading-relaxed">
+                브라우저에서 프록시가 필요한 이유는 CORS 입니다. 앱은 네이티브로 직접 받아오므로
+                프록시 서버가 필요 없고, 호출 한도도 남의 IP 공유도 없습니다. 5·10초 갱신도 열립니다.
+              </p>
+              <p className="text-[11px] text-emerald-600">
+                아래 전용 프록시는 <b>비워 두셔도 됩니다</b> — 앱이 못 받는 일부 요청(구글 로그인이
+                필요한 야후 엔드포인트 등)만 예비로 씁니다.
+              </p>
+            </div>
+          )}
+
           {/* 1) 전용 프록시 — 여러 개 가능 */}
           <div className="border border-gray-200 rounded p-3 bg-blue-50/30 space-y-1">
             <label className="text-xs font-bold text-gray-700 block">
-              🔧 내 전용 프록시 (여러 개 가능)
+              🔧 내 전용 프록시 (여러 개 가능){nativeApp && " — 예비"}
             </label>
             <p className="text-[11px] text-gray-500">
-              없으면 공개 4-way. 본인 worker URL 등록 시 본인만 사용. 여러 개 등록·각각 켜고 끄기 가능,
-              켜진 게 여러 개면 요청마다 랜덤 분산.
+              {nativeApp
+                ? "앱에서는 평소 쓰이지 않습니다. 네이티브로 못 받는 요청이 있을 때만 예비 경로로 씁니다."
+                : "없으면 공개 4-way. 본인 worker URL 등록 시 본인만 사용. 여러 개 등록·각각 켜고 끄기 가능, 켜진 게 여러 개면 요청마다 랜덤 분산."}
             </p>
             <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md"
                target="_blank" rel="noopener noreferrer"

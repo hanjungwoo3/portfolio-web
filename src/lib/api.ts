@@ -1,7 +1,10 @@
 import type { Price, Investor, Consensus } from "../types";
 import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
-import { getEnabledPersonalProxies, isLocalProxyUrl, isExtensionProxyUrl } from "./proxyConfig";
+import {
+  getEnabledPersonalProxies, isLocalProxyUrl, isExtensionProxyUrl, isNativeProxyUrl, isSyntheticProxyUrl,
+} from "./proxyConfig";
 import { isExtensionProxyReady, fetchViaExtension } from "./extensionProxy";
+import { isNativeApp, fetchViaNative } from "./nativeProxy";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
 import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen } from "./format";
 import { rememberTossCode, getTossCode } from "./toss";
@@ -102,6 +105,7 @@ function buildProxyUrl(base: string, targetUrl: string): string {
 // 프록시 URL → egress 공급자. 같은 공급자면 나가는 IP 풀이 같아 스로틀 결과도 같다.
 function proxyProvider(base: string): string {
   if (isExtensionProxyUrl(base)) return "extension";   // 브라우저 직접 = 자체 egress
+  if (isNativeProxyUrl(base)) return "native";         // 앱이 직접 = 자체 egress (폰의 통신망 IP)
   try {
     const h = new URL(base).hostname;
     if (h.endsWith("workers.dev")) return "cloudflare";
@@ -133,7 +137,17 @@ export async function fetchProxied(
   // 호출 카운트 — 이 브라우저 일자별 (논리적 fetch 1회로 집계, 재시도 무관)
   incrementProxyCall();
 
-  // 확장이 있으면 최우선 — 브라우저가 직접 보내므로 호출 한도가 없고,
+  // 네이티브 앱이면 그 무엇보다 먼저 — 네이티브 HTTP 에는 CORS 가 없어 프록시가 아예 필요 없다.
+  //   실패하면 삼키고 아래 경로로 계속한다(앱이 단일 실패점이 되지 않게).
+  //   Yahoo 는 여기서 429 가 날 수 있다 — OkHttp 는 브라우저가 아니라서. 그때도 폴백이 받는다.
+  if (isNativeApp()) {
+    try {
+      const r = await fetchViaNative(targetUrl, init);
+      if (r.ok || r.status === 490) return r;   // 490 = 토스 점검, 다른 경로로 물어도 답이 같다
+    } catch { /* 네이티브 실패 → 아래 확장·프록시로 폴백 */ }
+  }
+
+  // 확장이 있으면 그다음 — 브라우저가 직접 보내므로 호출 한도가 없고,
   //   토스(클라우드 IP 차단)와 Yahoo(비브라우저 차단)를 동시에 만족하는 유일한 경로다.
   //   Yahoo 의 crumb 은 확장이 직접 처리한다(background.js).
   //   확장이 실패하면 삼키고 기존 프록시 경로로 계속한다(확장이 단일 실패점이 되지 않게).
@@ -154,7 +168,7 @@ export async function fetchProxied(
   //  확장 표식은 빼고 돈다. 실제 호출은 위 블록에서 이미 시도했고(우선순위 보장),
   //  표식은 "전용 프록시가 있다" 는 판정을 위해 목록에 들어가 있을 뿐이다.
   const order = [...rank(plan.primary), ...rank(plan.fallback)]
-    .filter(u => !isExtensionProxyUrl(u));
+    .filter(u => !isSyntheticProxyUrl(u));
   let lastErr: unknown;
   let lastResp: Response | undefined;
   // 400 류(=토스 스로틀링)는 IP 풀 단위라 같은 공급자로 다시 쏘면 결과가 같다 (실측: CF 워커 3개 동시 400).

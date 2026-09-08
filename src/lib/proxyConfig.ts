@@ -3,6 +3,7 @@
 // → 공개 인프라 부담 0, 사용자 본인 100k/일 무료 한도 전용
 
 import { isExtensionProxyReady } from "./extensionProxy";
+import { isNativeApp } from "./nativeProxy";
 
 const KEY = "portfolio_personal_proxy_url";        // 레거시 단일 URL (마이그레이션/호환)
 const LIST_KEY = "portfolio_personal_proxies";     // 신규 — 여러 개 {url, enabled}
@@ -54,7 +55,9 @@ export function setPersonalProxies(list: PersonalProxy[]) {
 // 켜진 전용 프록시 URL 들 (요청 라우팅용 — 여러 개면 fetchProxied 가 랜덤 분산)
 export function getEnabledPersonalProxies(): string[] {
   const stored = getPersonalProxies().filter(p => p.enabled).map(p => p.url);
-  // 확장은 항상 맨 앞 — 가정용 IP 이고 호출 한도가 없어 가장 먼저 쓴다.
+  // 네이티브 앱이면 맨 앞 — CORS 가 없어 프록시를 아예 거치지 않는다(가장 빠르고 한도도 없다).
+  if (isNativeApp()) return [NATIVE_PROXY_URL, ...stored];
+  // 확장은 그다음 — 가정용 IP 이고 호출 한도가 없어 프록시보다 먼저 쓴다.
   return isExtensionProxyReady() ? [EXTENSION_PROXY_URL, ...stored] : stored;
 }
 
@@ -87,6 +90,21 @@ export const EXTENSION_PROXY_URL = "extension:local";
 
 export function isExtensionProxyUrl(u: string): boolean {
   return u === EXTENSION_PROXY_URL;
+}
+
+// ─── 안드로이드 앱도 '전용 프록시 한 개' 로 취급 ──────────────
+// 확장과 같은 이유다(위 주석 참조) — 게이트마다 "앱인가?" 를 따로 묻지 않게 목록에 끼워 넣는다.
+//   실제 요청은 fetchProxied 맨 앞에서 nativeProxy 가 처리하고, 이 표식은 판정용이다.
+//   저장소에는 절대 들어가지 않는다 — 읽기 시점에만 합성한다.
+export const NATIVE_PROXY_URL = "native:app";
+
+export function isNativeProxyUrl(u: string): boolean {
+  return u === NATIVE_PROXY_URL;
+}
+
+// 합성 표식(확장·앱) — 실제 HTTP 로 때릴 수 없는 항목. 라우팅 순회에서 걸러낸다.
+export function isSyntheticProxyUrl(u: string): boolean {
+  return isExtensionProxyUrl(u) || isNativeProxyUrl(u);
 }
 
 export function isLocalProxyUrl(u: string): boolean {

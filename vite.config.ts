@@ -8,6 +8,12 @@ import { resolve } from "node:path";
 // GitHub Pages 배포 시 base 경로 — repo 이름과 동일
 const isProd = process.env.NODE_ENV === "production";
 
+// 안드로이드 앱(Capacitor) 빌드 — `npm run build:android`
+//   웹뷰는 앱 루트에서 서빙하므로 base 가 "/portfolio-web/" 이면 자산을 못 찾는다.
+//   서비스워커(PWA)도 끈다 — 앱은 스토어/APK 로 갱신하지, SW 캐시로 갱신하지 않는다.
+//   (SW 가 남으면 옛 번들을 잡고 있어 앱 업데이트가 안 먹는 사고가 난다)
+const isNative = process.env.BUILD_TARGET === "native";
+
 // 빌드 시각 — 헤더 버전 표시 + 강제 갱신 비교용
 const BUILD_TIME = new Date().toISOString();
 
@@ -19,7 +25,7 @@ try {
 } catch { /* git 없거나 repo 아닌 환경 — 그대로 unknown */ }
 
 export default defineConfig({
-  base: isProd ? "/portfolio-web/" : "/",
+  base: isNative ? "" : isProd ? "/portfolio-web/" : "/",
   define: {
     __BUILD_TIME__: JSON.stringify(BUILD_TIME),
     __COMMIT_HASH__: JSON.stringify(COMMIT_HASH),
@@ -49,7 +55,7 @@ export default defineConfig({
         );
       },
     },
-    VitePWA({
+    ...(isNative ? [] : [VitePWA({
       // prompt: 새 SW 를 자동 적용/리로드하지 않고 대기시킴 → 커스텀 NewVersionToast 가
       //   version.json 폴링으로 감지해 "새로고침" 팝업을 띄우는 게 유일한 갱신 경로.
       //   (autoUpdate 면 SW 가 조용히 skipWaiting+리로드 해서 팝업 전에 적용돼 버림 — 모바일에서 특히)
@@ -92,6 +98,6 @@ export default defineConfig({
           },
         ],
       },
-    }),
+    })]),
   ],
 });
