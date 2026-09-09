@@ -59,9 +59,10 @@ function ChoiceRow({ href, icon, title, desc, tone, download }: {
 // 전용 프록시를 설정하면 영영 안 뜬다. 설정 안 한 사용자에게도 '매 새로고침'은 과해서
 // 닫으면 SNOOZE_DAYS 동안 쉰다 (권유는 유지하되 잔소리는 안 되게).
 const SNOOZE_KEY = "onboarding_snoozed_at";
-// Cloudflare 전용 사용자 경고는 별도 키 — 예전에 온보딩을 닫아 둔 사람도 이건 봐야 한다.
-const CF_SNOOZE_KEY = "cf_blocked_notice_snoozed_at";
 const SNOOZE_DAYS = 7;
+// ★ Cloudflare 경고에는 유예가 없다. 이건 권유가 아니라 '지금 설정이 제 일을 못 하고 있다' 는
+//   사실 통지다. 숨겨 두면 사용자는 고칠 이유를 영영 모른 채 공용 자원만 쓰게 된다.
+//   설정을 실제로 바꾸면(확장·앱·비-CF 프록시) 조건이 거짓이 되어 저절로 사라진다.
 
 type Mode = "no-proxy" | "cf-only";
 
@@ -98,10 +99,7 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
       // postMessage 핸드셰이크라 마운트 시점엔 아직 없을 수 있다. 먼저 보면
       // 확장 사용자에게 "프록시를 배포하세요" 팝업이 뜬다.
       if (hasDirectTransport()) return;                 // 확장·앱 사용자는 아무것도 안 띄움
-      if (hasCloudflareProxy()) {
-        if (!isSnoozed(CF_SNOOZE_KEY)) setMode("cf-only");
-        return;
-      }
+      if (hasCloudflareProxy()) { setMode("cf-only"); return; }   // 유예 없음 — 고칠 때까지 뜬다
       if (getPersonalProxyUrl()) return;                // 다른 전용 프록시가 있으면 정상
       if (!isSnoozed(SNOOZE_KEY)) setMode("no-proxy");
     }, 1000);
@@ -109,13 +107,14 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
   }, []);
 
   if (!mode) return null;
-  const snoozeKey = mode === "cf-only" ? CF_SNOOZE_KEY : SNOOZE_KEY;
+  const cfMode = mode === "cf-only";
 
-  // 어떤 경로로 닫든 유예 시작 — 배경 클릭·나중에·설정 열기 모두 '봤다'로 친다.
-  const close = () => { snooze(snoozeKey); setMode(null); };
+  // CF 경고는 닫아도 유예하지 않는다 — 다음 접속 때 다시 뜬다.
+  const close = () => { if (!cfMode) snooze(SNOOZE_KEY); setMode(null); };
+  const dismiss = close;
 
   const openSettingsAndClose = () => {
-    snooze(snoozeKey);
+    if (!cfMode) snooze(SNOOZE_KEY);
     setMode(null);
     onOpenSettings();
   };
@@ -125,7 +124,7 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
                      bg-black/40 p-4"
          onMouseDown={e => { downOnBackdropRef.current = e.target === e.currentTarget; }}
          onClick={e => {
-           if (e.target === e.currentTarget && downOnBackdropRef.current) close();
+           if (e.target === e.currentTarget && downOnBackdropRef.current) dismiss();
          }}>
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full
                        max-h-[90vh] overflow-y-auto">
@@ -230,7 +229,7 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
           <button onClick={close}
                   className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
                              text-gray-700 text-xs rounded">
-            나중에
+            {cfMode ? "닫기 (설정을 바꾸기 전까지 다시 안내됩니다)" : "나중에"}
           </button>
         </footer>
       </div>
