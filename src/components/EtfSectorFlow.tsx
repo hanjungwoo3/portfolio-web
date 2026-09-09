@@ -16,10 +16,14 @@ import type { EtfSectorStat } from "../lib/etfSectors";
 export function SectorCard({ s, on, onClick }: {
   s: EtfSectorStat; on: boolean; onClick: () => void;
 }) {
-  const lead = s.rows[0];
+  // 카드 아래 줄은 '오늘 가장 많이 오른 것'. 이 카드가 답하는 질문이 "오늘 어느 섹터가
+  //   가는가" 라서, 거래대금 1위(대표 상품)보다 등락률 1위가 맞다.
+  //   거래대금 1위는 팝업 목록과 툴팁에서 확인할 수 있다.
+  const lead = s.best;
+  const rep = s.rows[0];
   return (
     <button onClick={onClick}
-            title={`${s.label} ${s.count}종 · 대표 ${lead?.name ?? "—"} (거래대금 1위)`}
+            title={`${s.label} ${s.count}종\n오늘 최고 ${lead?.name ?? "—"}\n대표(거래대금 1위) ${rep?.name ?? "—"}`}
             className={`w-full mb-2 break-inside-avoid text-left px-2.5 py-2 rounded-lg border transition-colors
                         ${on ? "border-indigo-400 bg-indigo-50" : "border-gray-200 bg-white hover:bg-gray-50"}`}>
       <span className="flex items-baseline gap-1.5">
