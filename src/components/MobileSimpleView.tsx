@@ -2113,6 +2113,12 @@ function SettingsModal({
         )}
         <header className="px-4 py-3 border-b bg-gray-50 flex items-center gap-2">
           <h2 className="text-base font-bold">⚙️ 설정</h2>
+          {/* 지금 화면이 어느 빌드인지 — 앱은 배포된 웹을 원격으로 불러오므로(server.url)
+              "웹을 배포했는데 앱에 반영됐나?" 를 눈으로 확인할 방법이 필요하다. */}
+          <span className="text-[10px] text-gray-400 tabular-nums whitespace-nowrap"
+                title={`실행 중인 빌드\ncommit ${__COMMIT_HASH__}\nbuild ${__BUILD_TIME__}`}>
+            {__COMMIT_HASH__}
+          </span>
           {/* 개발이력 — GitHub commit 로그 (외부 링크: 새 탭). 헤더 우측 border 박스 */}
           <a href="https://github.com/hanjungwoo3/portfolio-web/commits/main/"
              target="_blank" rel="noopener noreferrer"
