@@ -10,6 +10,9 @@ export interface DashboardSection {
   // 모바일 2열에서 각 줄을 좌(미국)·우(한국) 짝으로 배치 — 줄이 [US...절반, KR...절반] 구성일 때.
   //   예: [SMH,PAVE,091160,117700] → 모바일 [SMH,091160, PAVE,117700] → 줄마다 미국|한국.
   mobilePair?: boolean;
+  // 카드 대신 다른 블록으로 그리는 섹션. "sectorFlow" 면 ETF 랭킹의 '섹터별 흐름' 을 넣는다.
+  //   랭킹 스냅샷이 없으면(캐시 없음·조회 실패) rows 의 고정 카드로 폴백한다.
+  render?: "sectorFlow";
 }
 
 // krClosed=true (한국 정규장 마감 → 카드 흐림) 이면 한국 관련 그룹(한국 시장·한국 섹터 ETF·반도체 TOP2+)을
@@ -26,6 +29,7 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
     },
     {
       id: "sector", short: "섹터ETF",
+      render: "sectorFlow",   // 고정 22종 대신 전수 랭킹 기반 섹터 흐름 (rows 는 폴백)
       label: "🧩 한국 섹터 ETF",                       // 한국 대표 섹터 ETF 22종 — 오늘 등락률(%) 내림차순 정렬(UsMarketTab/MobileSimpleView), 섹터 순위 차트와 동일 종목
       rows: [
         ["091160.KS", "0190C0.KS", "487240.KS", "445290.KS", "305720.KS", "300950.KS", "266360.KS"],             // 성장·AI·콘텐츠: 반도체·피지컬AI·AI전력설비·로봇·2차전지·게임·K콘텐츠

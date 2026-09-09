@@ -4,6 +4,7 @@
 // 폴링에 태우면 안 된다 → 사용자가 "새로고침" 을 누를 때만 조회하고 localStorage 에 캐시한다.
 // (탭 첫 진입 시 캐시가 없으면 1회 자동 조회)
 
+import { useEffect, useState } from "react";
 import type { Price } from "../types";
 import { fetchTossPrices } from "./api";
 import { loadEtfData } from "./etfIndex";
@@ -112,5 +113,22 @@ export async function fetchEtfRanking(): Promise<EtfRanking> {
     sectors: buildSectorStats(rows),   // ★ 전수(rows) 기준 — 상·하위만 보면 섹터가 왜곡된다
   };
   saveRanking(ranking);
+  return ranking;
+}
+
+// 지수 탭용 — 캐시를 읽고, 아예 없을 때만 1회 조회한다(17콜이라 폴링 금지).
+//   ETF랭킹 탭은 자체 상태를 갖고 있으므로 이 훅을 쓰지 않는다.
+export function useCachedSectorFlow(enabled: boolean): EtfRanking | null {
+  const [ranking, setRanking] = useState<EtfRanking | null>(() => loadCachedRanking());
+
+  useEffect(() => {
+    if (!enabled || ranking) return;
+    let alive = true;
+    void fetchEtfRanking()
+      .then(r => { if (alive) setRanking(r); })
+      .catch(() => { /* 실패하면 폴백(고정 카드)이 그려진다 */ });
+    return () => { alive = false; };
+  }, [enabled, ranking]);
+
   return ranking;
 }

@@ -90,6 +90,10 @@ import { MyTradesTab } from "./MyTradesTab";
 import { AssetTrendTab } from "./AssetTrendTab";
 import { TickArrow } from "./TickArrow";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
+import { EtfSectorFlow } from "./EtfSectorFlow";
+import { useCachedSectorFlow } from "../lib/etfRanking";
+import { EtfSectorDialog } from "./EtfSectorDialog";
+import type { EtfSectorStat } from "../lib/etfSectors";
 import { EtfReverseDialog } from "./EtfReverseDialog";
 import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
@@ -150,6 +154,10 @@ export function MobileSimpleView() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInitQuery, setSearchInitQuery] = useState("");
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
+  // 섹터별 흐름 — 고정 22종 대신 전수 랭킹 스냅샷(PC 와 동일). 없으면 고정 카드로 폴백.
+  const sectorRanking = useCachedSectorFlow(true);
+  const sectorStats = sectorRanking?.sectors ?? [];
+  const [sectorDlg, setSectorDlg] = useState<EtfSectorStat | null>(null);
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // 상단 헤더 접기/펼치기 (PC 와 동일 키)
@@ -1492,8 +1500,13 @@ export function MobileSimpleView() {
                                  text-[11px] font-bold text-gray-700 whitespace-nowrap">
                   {section.label}
                 </span>
+                {section.render === "sectorFlow" && sectorStats.length > 0 && (
+                  <EtfSectorFlow sectors={sectorStats} onPick={setSectorDlg}
+                                 fetchedAt={sectorRanking?.fetchedAt} />
+                )}
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
-                  {(section.id === "sector" || section.id === "semitop2" || section.id === "semisobu"
+                  {(section.render === "sectorFlow" && sectorStats.length > 0 ? []
+                    : section.id === "sector" || section.id === "semitop2" || section.id === "semisobu"
                     // 한국 섹터 ETF·반도체 TOP2+·소부장 — 오늘 등락률(%) 내림차순 정렬 (PC 동일)
                     ? section.rows.flat().sort((a, b) =>
                         (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity))
@@ -1724,6 +1737,16 @@ export function MobileSimpleView() {
           void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
           void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
         }} />
+
+      {/* 섹터 ETF 목록 모달 — 섹터별 흐름에서 섹터 클릭 시 */}
+      {sectorDlg && (
+        <EtfSectorDialog sector={sectorDlg}
+                         onClose={() => setSectorDlg(null)}
+                         onOpenEtfComposition={(code, name) => {
+                           setSectorDlg(null);
+                           setEtfDialog({ ticker: code, name });
+                         }} />
+      )}
 
       {/* 기능 요청 / 건의사항 — Padlet 임베드 */}
       <FeedbackDialog isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />

@@ -17,6 +17,10 @@ import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
 import { Sparkline } from "./Sparkline";
 import { MarketFlowModal } from "./MarketFlowModal";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
+import { EtfSectorFlow } from "./EtfSectorFlow";
+import { useCachedSectorFlow } from "../lib/etfRanking";
+import { EtfSectorDialog } from "./EtfSectorDialog";
+import type { EtfSectorStat } from "../lib/etfSectors";
 import { ValueupMiniCard } from "./ValueupCard";
 import { HlPerpCard } from "./HlPerpCard";
 import { TickArrow } from "./TickArrow";
@@ -257,6 +261,11 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
   const dimEnabled = getDimSleepingEnabled();
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
+  // 섹터별 흐름 — 고정 22종 대신 전수 랭킹 스냅샷으로 그린다(EtfSectorFlow).
+  //   랭킹이 없으면(캐시 없음·조회 실패) 아래 rows 의 고정 카드로 폴백한다.
+  const sectorRanking = useCachedSectorFlow(true);
+  const sectorStats = sectorRanking?.sectors ?? [];
+  const [sectorDlg, setSectorDlg] = useState<EtfSectorStat | null>(null);
   // 야간선물(yasun.gg)은 프록시를 타므로 구버전 개인 워커면 값이 빈다 → 그때만 업데이트 안내.
   //   "값이 없다"만으로 워커를 탓하면 업스트림 차단(예: investing.com Cloudflare 챌린지)까지
   //   워커 탓으로 오진한다. 반드시 실제 화이트리스트 검사 결과("outdated")로만 띄운다.
@@ -286,7 +295,12 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
               {section.label}
             </span>
             {/* 한국 섹터 ETF·반도체 TOP2+·소부장 그룹은 오늘 등락률(%) 내림차순으로 정렬 (6개씩 줄바꿈) */}
-            {(section.id === "sector" || section.id === "semitop2" || section.id === "semisobu"
+            {section.render === "sectorFlow" && sectorStats.length > 0 && (
+              <EtfSectorFlow sectors={sectorStats} onPick={setSectorDlg}
+                             fetchedAt={sectorRanking?.fetchedAt} />
+            )}
+            {(section.render === "sectorFlow" && sectorStats.length > 0 ? []
+              : section.id === "sector" || section.id === "semitop2" || section.id === "semisobu"
               ? chunk(
                   section.rows.flat().sort((a, b) =>
                     (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity)),
@@ -523,6 +537,16 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
           indexKey={marketFlowFor}
           onClose={() => setMarketFlowFor(null)}
         />
+      )}
+
+      {/* 섹터 ETF 목록 모달 — 섹터별 흐름에서 섹터 클릭 시 */}
+      {sectorDlg && (
+        <EtfSectorDialog sector={sectorDlg}
+                         onClose={() => setSectorDlg(null)}
+                         onOpenEtfComposition={(code, name) => {
+                           setSectorDlg(null);
+                           setEtfDialog({ ticker: code, name });
+                         }} />
       )}
 
       {/* ETF 구성종목 모달 — KR ETF 카드 ETF 책갈피 클릭 시 */}
