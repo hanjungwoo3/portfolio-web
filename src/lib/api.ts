@@ -1098,7 +1098,10 @@ export async function fetchKrRegularPrices(
   if (tickers.length === 0) return out;
   // 200종목 폴더처럼 코드가 많으면 URL 이 길어져 토스가 거절한다 → 시세와 같은 50개 단위로 분할.
   //  한 청크가 실패해도 나머지는 살린다 (allSettled).
-  const CHUNK = 50;
+  // 200 = 토스 상한(실측 2026-09-09: 200 → 200 OK, 201 → 400).
+  //   URL 길이 제한이 아니라 항목 수 제한이다. 50 으로 쪼개던 것을 200 으로 올려
+  //   ETF 전수 랭킹(1,168종)이 24콜 → 6콜이 됐다. 이 앱은 호출수가 병목이라 이게 크다.
+  const CHUNK = 200;
   if (tickers.length > CHUNK) {
     const chunks: string[][] = [];
     for (let i = 0; i < tickers.length; i += CHUNK) chunks.push(tickers.slice(i, i + CHUNK));
@@ -1144,7 +1147,10 @@ export async function fetchKrRegularPrices(
 // (컨센서스/전체 탭 등 200+ 종목을 한 URL 에 다 넣어 전체 400 나던 문제 수정)
 export async function fetchTossPrices(tickers: string[]): Promise<Price[]> {
   if (tickers.length === 0) return [];
-  const CHUNK = 50;
+  // 200 = 토스 상한(실측 2026-09-09: 200 → 200 OK, 201 → 400).
+  //   URL 길이 제한이 아니라 항목 수 제한이다. 50 으로 쪼개던 것을 200 으로 올려
+  //   ETF 전수 랭킹(1,168종)이 24콜 → 6콜이 됐다. 이 앱은 호출수가 병목이라 이게 크다.
+  const CHUNK = 200;
   if (tickers.length > CHUNK) {
     const chunks: string[][] = [];
     for (let i = 0; i < tickers.length; i += CHUNK) chunks.push(tickers.slice(i, i + CHUNK));

@@ -8,10 +8,11 @@ const BASE = "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/
 const URL_INDEX = `${BASE}/etf-index.json`;
 const URL_LIST  = `${BASE}/etf-list.json`;
 
-// v2: 해외 구성종목(US/NAS 토스코드) 색인 포함 — 키 변경으로 기존 캐시 무효화·즉시 재fetch
-const LS_INDEX = "etf_index_v2";
-const LS_LIST  = "etf_list_v2";
-const LS_TS    = "etf_data_ts_v2";
+// v3: 크롤러가 신형 영숫자 코드를 받으면서 색인이 825 → 1,168종으로 늘었다.
+//   키를 올려야 12시간을 기다리지 않고 새 색인을 바로 본다.
+const LS_INDEX = "etf_index_v3";
+const LS_LIST  = "etf_list_v3";
+const LS_TS    = "etf_data_ts_v3";
 const TTL_MS   = 12 * 60 * 60 * 1000;   // 12시간
 
 export interface EtfMeta { name: string }

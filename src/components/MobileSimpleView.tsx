@@ -90,10 +90,8 @@ import { MyTradesTab } from "./MyTradesTab";
 import { AssetTrendTab } from "./AssetTrendTab";
 import { TickArrow } from "./TickArrow";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
-import { EtfSectorFlow } from "./EtfSectorFlow";
-import { useCachedSectorFlow } from "../lib/etfRanking";
-import { EtfSectorDialog } from "./EtfSectorDialog";
-import type { EtfSectorStat } from "../lib/etfSectors";
+import { ThemeFlow, ThemeDialog } from "./ThemeFlow";
+import { useThemeFlow, type ThemeStat } from "../lib/themeFlow";
 import { EtfReverseDialog } from "./EtfReverseDialog";
 import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
@@ -119,7 +117,7 @@ import {
   folderAllKey, isFolderAllKey, folderNameOfAllKey, FOLDER_ALL_LABEL,
 } from "../lib/groupFolders";
 
-const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 ETF + 짝 미국 섹터 ETF)
+const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 + 짝 미국 섹터 ETF)
 const US_KEY = "__us__";  // 미국 (환율·매크로·원자재·미국지수·미국 대표 ETF)
 const SEMI_KEY = "__semi__";  // 반도체 점검 — MU·NVDA·장비주·환율
 const SECTOR_KEY = "__sector__";  // 한국 섹터 순위 — 토스 TICS depth1 ranking
@@ -155,9 +153,10 @@ export function MobileSimpleView() {
   const [searchInitQuery, setSearchInitQuery] = useState("");
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   // 섹터별 흐름 — 고정 22종 대신 전수 랭킹 스냅샷(PC 와 동일). 없으면 고정 카드로 폴백.
-  const { ranking: sectorRanking, loading: sectorLoading, refresh: refreshSectors } = useCachedSectorFlow(true);
-  const sectorStats = sectorRanking?.sectors ?? [];
-  const [sectorDlg, setSectorDlg] = useState<EtfSectorStat | null>(null);
+  const { flow: themeFlow, loading: themeLoading, refresh: refreshThemes } = useThemeFlow(true);
+  const themeStats = themeFlow?.themes ?? [];
+  const hasThemeFlow = themeStats.length > 0;
+  const [themeDlg, setThemeDlg] = useState<ThemeStat | null>(null);
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // 상단 헤더 접기/펼치기 (PC 와 동일 키)
@@ -1500,15 +1499,15 @@ export function MobileSimpleView() {
                                  text-[11px] font-bold text-gray-700 whitespace-nowrap">
                   {section.label}
                 </span>
-                {section.render === "sectorFlow" && sectorStats.length > 0 && (
-                  <EtfSectorFlow sectors={sectorStats} onPick={setSectorDlg}
-                                 fetchedAt={sectorRanking?.fetchedAt}
-                                 onRefresh={refreshSectors} refreshing={sectorLoading} />
+                {section.render === "sectorFlow" && hasThemeFlow && (
+                  <ThemeFlow themes={themeStats} onPick={setThemeDlg}
+                             fetchedAt={themeFlow?.fetchedAt} minCap={themeFlow?.minCap}
+                             onRefresh={refreshThemes} refreshing={themeLoading} />
                 )}
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
-                  {(section.render === "sectorFlow" && sectorStats.length > 0 ? []
+                  {(section.render === "sectorFlow" && hasThemeFlow ? []
                     : section.id === "sector"
-                    // 한국 섹터 ETF·반도체 TOP2+·소부장 — 오늘 등락률(%) 내림차순 정렬 (PC 동일)
+                    // 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장) — 오늘 등락률(%) 내림차순 정렬 (PC 동일)
                     ? section.rows.flat().sort((a, b) =>
                         (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity))
                     : section.mobilePair
@@ -1739,14 +1738,15 @@ export function MobileSimpleView() {
           void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
         }} />
 
-      {/* 섹터 ETF 목록 모달 — 섹터별 흐름에서 섹터 클릭 시 */}
-      {sectorDlg && (
-        <EtfSectorDialog sector={sectorDlg}
-                         onClose={() => setSectorDlg(null)}
-                         onOpenEtfComposition={(code, name) => {
-                           setSectorDlg(null);
-                           setEtfDialog({ ticker: code, name });
-                         }} />
+      {/* 테마 종목 목록 모달 — 섹터 흐름에서 테마 클릭 시 */}
+      {themeDlg && (
+        <ThemeDialog theme={themeDlg} minCap={themeFlow?.minCap}
+                     onClose={() => setThemeDlg(null)}
+                     onOpenStock={(code, name) => {
+                       setThemeDlg(null);
+                       setSearchInitQuery(name || code);
+                       setSearchOpen(true);
+                     }} />
       )}
 
       {/* 기능 요청 / 건의사항 — Padlet 임베드 */}

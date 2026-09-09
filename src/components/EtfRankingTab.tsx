@@ -1,6 +1,6 @@
 // ETF 랭킹 — 전체 ETF(색인 828종)를 등락률로 줄 세워 상위/하위를 보여준다.
 //
-// 조회는 17 프록시 콜이라 폴링하지 않는다. 캐시가 없을 때 1회 자동 조회하고,
+// 조회는 6 프록시 콜이라 폴링하지 않는다. 캐시가 없을 때 1회 자동 조회하고,
 // 그 뒤로는 "새로고침" 버튼을 누를 때만 다시 받는다. (etfRanking.ts 주석 참고)
 //
 // 맨 위 '섹터별 흐름' 은 같은 조회 결과를 이름으로 묶은 것이라 추가 호출이 없다(etfSectors.ts).
@@ -39,7 +39,7 @@ interface State {
 }
 
 // 랭킹 카드 배경 추이 그래프 — 뷰포트에 들어온 카드만 3개월 일봉을 지연 fetch.
-//   (전체 ETF 시세 스캔은 17콜 배치지만, 종목별 차트는 개별 호출이라 호출수 병목을 피하려 lazy 로딩)
+//   (전체 ETF 시세 스캔은 6콜 배치지만, 종목별 차트는 개별 호출이라 호출수 병목을 피하려 lazy 로딩)
 function RankSparkline({ code }: { code: string }) {
   const ref = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
@@ -140,7 +140,7 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
         </div>
 
         <button onClick={refresh} disabled={loading}
-                title="전체 ETF 시세를 다시 조회합니다 (프록시 약 17콜)"
+                title="전체 ETF 시세를 다시 조회합니다 (프록시 약 6콜)"
                 className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300
                            bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50">
           {loading ? "조회 중…" : "🔄 새로고침"}

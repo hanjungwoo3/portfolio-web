@@ -15,7 +15,7 @@ export interface DashboardSection {
   render?: "sectorFlow";
 }
 
-// krClosed=true (한국 정규장 마감 → 카드 흐림) 이면 한국 관련 그룹(한국 시장·한국 섹터 ETF·반도체 TOP2+)을
+// krClosed=true (한국 정규장 마감 → 카드 흐림) 이면 한국 관련 그룹(한국 시장·한국 섹터·반도체 TOP2+)을
 //   맨 아래로 내림 — 마감 후엔 움직이는 미국/야간 지표를 위로.
 export function buildDashboardSections(nightSession: boolean, krClosed = false): DashboardSection[] {
   const krNightFut = nightSession ? ["^KS200N", "^KQ150N"] : [];
@@ -28,9 +28,11 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
         : ["^KS11", "^KQ11", "^KS200N", "^KQ150N", "069500.KS", "229200.KS", "KVALUE", "VKOSPI"]],
     },
     {
-      id: "sector", short: "섹터ETF",
-      render: "sectorFlow",   // 고정 22종 대신 전수 랭킹 기반 섹터 흐름 (rows 는 폴백)
-      label: "🧩 한국 섹터 ETF",                       // 한국 대표 섹터 ETF 22종 — 오늘 등락률(%) 내림차순 정렬(UsMarketTab/MobileSimpleView), 섹터 순위 차트와 동일 종목
+      id: "sector", short: "섹터",
+      // 테마별 종목 바스켓(ThemeFlow)으로 그린다. rows 의 고정 22종 ETF 는 폴백 —
+      //   스냅샷이 없을 때(캐시 없음·조회 실패)만 쓰인다. ETF 가 아니라 종목이라 라벨에서 'ETF' 를 뺐다.
+      render: "sectorFlow",
+      label: "🧩 한국 섹터",
       rows: [
         ["091160.KS", "0190C0.KS", "487240.KS", "445290.KS", "305720.KS", "300950.KS", "266360.KS"],             // 성장·AI·콘텐츠: 반도체·피지컬AI·AI전력설비·로봇·2차전지·게임·K콘텐츠
         ["091180.KS", "466920.KS", "117700.KS", "449450.KS", "117680.KS", "117460.KS", "433500.KS"],             // 경기민감·산업: 자동차·조선·건설·방산·철강·에너지화학·원자력

@@ -325,7 +325,7 @@ export const MY_TRADES_TAB_KEY = "__my-trades__";
 export const CONSENSUS_TAB_KEY = "__consensus__";
 // ETF 역검색 — 다중 종목으로 ETF 찾기
 export const ETF_REVERSE_TAB_KEY = "__etf-reverse__";
-// ETF 랭킹 — 전체 ETF 등락률 순위 (새로고침 눌러야 조회, 17콜)
+// ETF 랭킹 — 전체 ETF 등락률 순위 (새로고침 눌러야 조회, 6콜)
 export const ETF_RANKING_TAB_KEY = "__etf-ranking__";
 // ETF 비교 — 같은 기초지수(SCHD/QQQ 등) 추종 국내 ETF 운용사·보수·배당·수익률 비교
 export const ETF_COMPARE_TAB_KEY = "__etf-compare__";

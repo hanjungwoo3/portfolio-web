@@ -1,6 +1,6 @@
 // 전체 ETF 상승률 랭킹 — etfIndex 의 ETF 목록(828종) 전 종목 시세를 받아 등락률로 줄 세운다.
 //
-// 호출 비용: 토스 배치가 50종/콜 이므로 828종 = 약 17 프록시 콜. 이 앱은 호출수가 병목이라
+// 호출 비용: 토스 배치 상한이 200종/콜 이므로 1,168종 = 6 프록시 콜. 이 앱은 호출수가 병목이라
 // 폴링에 태우면 안 된다 → 사용자가 "새로고침" 을 누를 때만 조회하고 localStorage 에 캐시한다.
 // (탭 첫 진입 시 캐시가 없으면 1회 자동 조회)
 
@@ -29,7 +29,7 @@ export interface EtfRanking {
   top: EtfRankRow[];     // 상승 상위 (pct 내림차순)
   bottom: EtfRankRow[];  // 하락 하위 (pct 오름차순 — 가장 많이 빠진 게 먼저)
   // 섹터 요약 — 상·하위 100 이 아니라 '전수'로 집계해야 의미가 있어서 조회 시점에 만들어 둔다.
-  //   (top/bottom 만 남기고 버리면 나중에 다시 계산할 수 없다 — 17콜을 또 쓸 수는 없다)
+  //   (top/bottom 만 남기고 버리면 나중에 다시 계산할 수 없다 — 6콜을 또 쓸 수는 없다)
   sectors: EtfSectorStat[];
 }
 
@@ -82,11 +82,11 @@ function dominantTradeDate(prices: Price[]): string {
   return best;
 }
 
-// 전체 ETF 시세 조회 → 등락률 정렬. 17콜 소모하므로 호출부에서 사용자 액션에만 묶을 것.
+// 전체 ETF 시세 조회 → 등락률 정렬. 6콜 소모하므로 호출부에서 사용자 액션에만 묶을 것.
 export async function fetchEtfRanking(): Promise<EtfRanking> {
   const data = await loadEtfData();
   const codes = Object.keys(data.list);
-  const prices = await fetchTossPrices(codes);   // 내부에서 50개씩 청크 분할
+  const prices = await fetchTossPrices(codes);   // 내부에서 200개씩 청크 분할(토스 상한)
 
   const rows: EtfRankRow[] = [];
   for (const p of prices) {
@@ -118,10 +118,10 @@ export async function fetchEtfRanking(): Promise<EtfRanking> {
 }
 
 // 지수 탭용 — 탭 진입 시 갱신하되, ★ 자동 조회는 전용 전송(확장·앱·개인 워커)에서만 한다.
-//   1회 17콜(825종 ÷ 50)이라 공개 프록시만 쓰는 사용자에게 매번 태우면 공용 워커 한도를
+//   1회 6콜(1,168종 ÷ 200)이라 공개 프록시만 쓰는 사용자에게 매번 태우면 공용 워커 한도를
 //   갉아먹는다 — 실제로 그렇게 내보냈다가 공용 워커가 소진되어 다른 사용자까지 막혔다.
 //   공개 사용자는 캐시를 보고, 필요할 때 새로고침 버튼으로 직접 받는다(버튼은 누구나 쓸 수 있다).
-//   전용 전송이라도 탭을 오갈 때마다 17콜은 과해서 최소 간격을 둔다.
+//   전용 전송이라도 탭을 오갈 때마다 6콜은 과해서 최소 간격을 둔다.
 //   캐시는 즉시 그려 두고 새 값이 오면 갈아끼우므로 빈 화면이 보이지 않는다.
 //   ETF랭킹 탭과 같은 localStorage 캐시라 한쪽이 받으면 다른 쪽도 새 값을 본다.
 //   ★ '진행 중인 조회' 만 공유한다(끝나면 비운다). 페이지 내내 붙들면 탭을 다시 들어와도

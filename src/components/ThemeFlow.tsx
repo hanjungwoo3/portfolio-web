@@ -1,0 +1,176 @@
+// 섹터 흐름 — 지수 탭. "오늘 어느 테마가 강세인가" 한 가지만 답한다.
+//
+// 카드 = 네이버 테마 종목 바스켓(themeFlow.ts 주석 참조). ETF 랭킹 탭의 섹터 카드와는
+//   다른 축이다 — 저쪽은 ETF 를 나누고, 여기는 종목을 나눈다.
+//
+// ★ 데이터는 '스냅샷' 이다. 419종 시세 = 약 3 프록시 콜이라 폴링에 못 태운다.
+//   지수 탭의 다른 카드가 실시간인 것과 달리 여기는 '기준 시각' 이 붙는다.
+
+import { useEffect, useRef } from "react";
+import { signColor } from "../lib/format";
+import type { ThemeStat, ThemeStock } from "../lib/themeFlow";
+
+// 거래대금 — 원 → 억/조.
+function fmtValue(won: number): string {
+  if (!(won > 0)) return "—";
+  const jo = won / 1e12;
+  if (jo >= 1) return `${jo.toFixed(2)}조`;
+  return `${Math.round(won / 1e8).toLocaleString()}억`;
+}
+
+// 시가총액 — 억원 단위로 들어온다.
+function fmtCap(eok: number): string {
+  if (!(eok > 0)) return "";
+  return eok >= 10000 ? `${(eok / 10000).toFixed(1)}조` : `${eok.toLocaleString()}억`;
+}
+
+// 시총 하한 문구 — 스냅샷에 실린 값을 그대로 쓴다. 숫자를 코드에 박으면 하한을 바꿨을 때
+//   12시간짜리 캐시가 옛 파일을 물고 있어 문구와 목록이 어긋난다(실제로 그랬다).
+function capFloor(eok: number): string {
+  if (!(eok > 0)) return "";
+  return eok >= 10000 ? `${eok / 10000}조` : `${eok / 1000}천억`;
+}
+
+// 테마 한 칸. 막대는 '오른 종목 비율' — 중앙값이 같아도 고르게 간 테마와
+//   한두 개가 끈 테마를 가른다.
+function ThemeCard({ t, onClick }: { t: ThemeStat; onClick: () => void }) {
+  return (
+    <button onClick={onClick}
+            title={`${t.label} ${t.count}종\n오늘 최고 ${t.best.name} ${t.best.pct.toFixed(2)}%`}
+            className="w-full mb-2 break-inside-avoid text-left px-2.5 py-2 rounded-lg border
+                       border-gray-200 bg-white hover:bg-gray-50 transition-colors">
+      <span className="flex items-baseline gap-1.5">
+        <span className="flex-1 min-w-0 truncate text-sm font-medium text-gray-800">{t.label}</span>
+        {/* 표본이 8종 미만인 카드는 중앙값이 한두 종목에 좌우된다 — 숫자를 눈에 띄게 해 경고 */}
+        <span className={`shrink-0 text-[10px] tabular-nums ${
+                t.count < 8 ? "text-amber-600 font-bold" : "text-gray-400"}`}>
+          {t.count}
+        </span>
+        <span className={`shrink-0 text-sm font-bold tabular-nums ${signColor(t.median)}`}>
+          {t.median > 0 ? "+" : ""}{t.median.toFixed(2)}%
+        </span>
+      </span>
+      <span className="block mt-1 h-1 rounded bg-gray-200 overflow-hidden">
+        <span className="block h-full bg-rose-400" style={{ width: `${Math.round(t.upRatio * 100)}%` }} />
+      </span>
+      <span className="mt-1 flex items-baseline gap-1 text-[11px]">
+        <span className="flex-1 min-w-0 truncate text-gray-500">{t.best.name}</span>
+        <span className={`shrink-0 tabular-nums ${signColor(t.best.pct)}`}>
+          {t.best.pct > 0 ? "+" : ""}{t.best.pct.toFixed(2)}%
+        </span>
+      </span>
+    </button>
+  );
+}
+
+export function ThemeFlow({ themes, onPick, fetchedAt, minCap, onRefresh, refreshing }: {
+  themes: ThemeStat[];
+  onPick: (t: ThemeStat) => void;
+  fetchedAt?: number;
+  minCap?: number;             // 스냅샷에 적용된 시총 하한(억원)
+  onRefresh?: () => void;
+  refreshing?: boolean;
+}) {
+  if (themes.length === 0) return null;
+  const stamp = fetchedAt
+    ? new Date(fetchedAt + 9 * 3600_000).toISOString().slice(11, 16)   // KST HH:MM
+    : null;
+  return (
+    <>
+      <div className="flex items-center gap-2 text-[11px] text-gray-500 px-0.5 -mt-0.5 mb-1 flex-wrap">
+        <span>
+          {minCap ? `시총 ${capFloor(minCap)}↑ 중 ` : ""}거래대금 상위 20종의 중앙값 등락률 순 ·{" "}
+          <span className="text-gray-400">
+            {stamp ? `기준 ${stamp} · ` : ""}누르면 종목 목록
+          </span>
+        </span>
+        {/* 이 블록만 스냅샷이라(1,835종 약 10콜) 자동 갱신하지 않는다 — 여기서 직접 받는다 */}
+        {onRefresh && (
+          <button onClick={onRefresh} disabled={refreshing}
+                  title="테마 종목 시세를 다시 조회합니다 (프록시 약 3콜)"
+                  className="px-1.5 py-0.5 rounded border border-gray-300 bg-white text-gray-600
+                             hover:bg-gray-100 disabled:opacity-50">
+            {refreshing ? "조회 중…" : "🔄 새로고침"}
+          </button>
+        )}
+      </div>
+      <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-6 gap-2">
+        {themes.map(t => <ThemeCard key={t.key} t={t} onClick={() => onPick(t)} />)}
+      </div>
+    </>
+  );
+}
+
+// 테마 종목 팝업 — 등락률 순. 추가 조회 없이 스냅샷에서 그린다.
+export function ThemeDialog({ theme, minCap, onClose, onOpenStock }: {
+  theme: ThemeStat;
+  minCap?: number;
+  onClose: () => void;
+  onOpenStock?: (code: string, name: string) => void;
+}) {
+  const rows: ThemeStock[] = [...theme.rows].sort((a, b) => b.pct - a.pct);
+  // 배경 클릭 판정 — 목록에서 드래그하다 배경에서 손을 떼도 닫히면 안 된다.
+  const downOnBackdropRef = useRef(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
+         onMouseDown={e => { if (e.target === e.currentTarget) downOnBackdropRef.current = true; }}
+         onMouseUp={e => {
+           if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
+           downOnBackdropRef.current = false;
+         }}>
+      <div className="w-full sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col
+                      rounded-t-xl sm:rounded-xl bg-white shadow-xl"
+           onMouseDown={e => e.stopPropagation()}>
+        <header className="px-4 py-3 border-b bg-gray-50 flex items-baseline gap-2">
+          <h2 className="text-base font-bold text-gray-800">{theme.label}</h2>
+          <span className="text-[11px] text-gray-500">
+            {theme.count}종 · 상위 20 중앙값{" "}
+            <span className={`font-bold tabular-nums ${signColor(theme.median)}`}>
+              {theme.median > 0 ? "+" : ""}{theme.median.toFixed(2)}%
+            </span>
+          </span>
+          <button onClick={onClose}
+                  className="ml-auto text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+        </header>
+
+        <div className="overflow-y-auto overscroll-contain">
+          {rows.map((r, i) => (
+            <button key={r.code}
+                    onClick={() => onOpenStock?.(r.code, r.name)}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-left border-b border-gray-100
+                               hover:bg-gray-50 transition-colors">
+              <span className="w-5 shrink-0 text-[11px] tabular-nums text-gray-400 text-right">{i + 1}</span>
+              <span className="flex-1 min-w-0">
+                <span className="block truncate text-sm text-gray-800">{r.name}</span>
+                <span className="block text-[11px] text-gray-400 tabular-nums">
+                  시총 {fmtCap(r.cap)} · 거래대금 {fmtValue(r.value)}
+                </span>
+              </span>
+              <span className="shrink-0 text-right">
+                <span className={`block text-sm font-bold tabular-nums ${signColor(r.pct)}`}>
+                  {r.pct > 0 ? "+" : ""}{r.pct.toFixed(2)}%
+                </span>
+                <span className="block text-[11px] text-gray-600 tabular-nums">
+                  {r.price.toLocaleString()}
+                </span>
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <p className="px-3 py-2 text-[10px] text-gray-400 border-t leading-relaxed">
+          {theme.rows.length}종 전체 · 등락률 높은 순 (조회 시점 기준).
+          {minCap ? ` 시가총액 ${minCap.toLocaleString()}억 미만은 목록에서 제외됩니다.` : ""}
+          {" "}카드의 중앙값은 이 중 거래대금 상위 20종으로 계산합니다.
+        </p>
+      </div>
+    </div>
+  );
+}
