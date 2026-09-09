@@ -1746,8 +1746,8 @@ export function MobileSimpleView() {
                      onClose={() => setThemeDlg(null)}
                      onOpenStock={(code, name) => {
                        setThemeDlg(null);
-                       setSearchInitQuery(name || code);
-                       setSearchOpen(true);
+                       setValuationName(name);
+                       setValuationTicker(code);
                      }} />
       )}
 

@@ -80,11 +80,14 @@ interface QuoteRow {
 interface UsMarketTabProps {
   // ETF 구성종목 모달의 "한번에 추가" → 전역 검색창으로 전달
   onRequestSearch?: (q: string) => void;
+  // 📊 기업가치 모달 열기 — 섹터 흐름 팝업에서 종목을 누를 때 쓴다.
+  //   모달 자체는 App 이 들고 있어서(보유 평단·메모 진입가를 붙여야 한다) 여기선 요청만 올린다.
+  onOpenValuation?: (ticker: string, name: string) => void;
   // 그룹 색인바 sticky 고정 위치(px) — App 의 헤더+탭바 아래. 미지정 시 0.
   navStickyTop?: number;
 }
 
-export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabProps = {}) {
+export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0 }: UsMarketTabProps = {}) {
   const yahooSymbols = allYahooSymbols();
   const krEtfs = allKrEtfTickers();
   const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
@@ -547,7 +550,9 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                      onClose={() => setThemeDlg(null)}
                      onOpenStock={(code, name) => {
                        setThemeDlg(null);
-                       onRequestSearch?.(name || code);
+                       // 기업가치 모달이 있으면 그쪽으로. 없으면 검색으로 폴백한다.
+                       if (onOpenValuation) onOpenValuation(code, name);
+                       else onRequestSearch?.(name || code);
                      }} />
       )}
 

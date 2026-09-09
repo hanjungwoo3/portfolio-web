@@ -828,9 +828,10 @@ function Dashboard() {
         ) : activeTab === US_MARKET_TAB_KEY ? (
           <UsMarketTab navStickyTop={(headerCollapsed ? 0 : headerH) + tabsH}
             onRequestSearch={(q) => {
-            setSearchInitQuery(q);
-            setSearchOpen(true);
-          }} />
+              setSearchInitQuery(q);
+              setSearchOpen(true);
+            }}
+            onOpenValuation={(code, n) => { setValuationName(n); setValuationTicker(code); }} />
         ) : activeTab === SECTOR_RANK_TAB_KEY ? (
           <SectorRankingTab onRequestSearch={(q) => {
             setSearchInitQuery(q);

@@ -174,7 +174,9 @@ export function ThemeDialog({ theme, minCap, onClose, onOpenStock }: {
           {rows.map((r, i) => (
             <button key={r.code}
                     onClick={() => onOpenStock?.(r.code, r.name)}
-                    title={r.fresh ? undefined : "이번 세션 미체결 — 값이 직전 거래일 것이라 계산에서 제외"}
+                    title={r.fresh
+                      ? `${r.name} 기업가치 보기`
+                      : "이번 세션 미체결 — 값이 직전 거래일 것이라 계산에서 제외"}
                     className={`w-full flex items-center gap-2 px-3 py-2 text-left border-b border-gray-100
                                hover:bg-gray-50 transition-colors ${r.fresh ? "" : "opacity-60"}`}>
               <span className="w-5 shrink-0 text-[11px] tabular-nums text-gray-400 text-right">{i + 1}</span>
@@ -202,6 +204,7 @@ export function ThemeDialog({ theme, minCap, onClose, onOpenStock }: {
         <p className="px-3 py-2 text-[10px] text-gray-400 border-t leading-relaxed">
           {theme.rows.length}종 전체 · 체결분 먼저, 등락률 높은 순 (조회 시점 기준).
           흐린 종목은 이번 세션 미체결이라 카드의 중앙값 계산에서 빠집니다.
+          종목을 누르면 기업가치가 열립니다.
           {minCap ? ` 시가총액 ${minCap.toLocaleString()}억 미만은 목록에서 제외됩니다.` : ""}
           {" "}카드의 중앙값은 이 중 거래대금 상위 20종으로 계산합니다.
         </p>
