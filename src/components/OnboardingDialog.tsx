@@ -1,63 +1,121 @@
 import { useEffect, useRef, useState } from "react";
-import { getPersonalProxyUrl } from "../lib/proxyConfig";
+import {
+  getPersonalProxyUrl, getEnabledPersonalProxies, isSyntheticProxyUrl, hasDirectTransport,
+} from "../lib/proxyConfig";
 
-// 권장은 Deno — 브라우저만으로 1~2분이고, 무엇보다 Cloudflare 와 나가는 IP 풀이 다르다.
-//   토스는 IP 풀 단위로 막기 때문에, 공개 프록시(Cloudflare 포함)가 막힐 때 개인
-//   Cloudflare 워커를 배포해봐야 같이 막힌다. 안내가 그걸 권하면 사용자가 10분을 쓰고도
-//   증상이 그대로다. Cloudflare 가이드는 보조 링크로만 남긴다.
+// 권장 순서: 확장(PC) → 앱(안드로이드) → 개인 프록시(그 외).
+//   확장·앱은 브라우저·폰에서 직접 받아오므로 프록시가 아예 필요 없다 — 공개 인프라 부담이
+//   0 이고 사용자도 설정할 게 없다. 프록시 배포는 그 둘이 안 되는 환경(iOS·기타 브라우저)에서만
+//   권한다. 예전엔 이 팝업이 프록시 배포를 앞세웠는데, 설치 한 번이면 끝나는 길을 두고
+//   더 번거로운 쪽으로 보내는 셈이었다.
+//
+//   프록시를 권할 때도 Deno 다. Cloudflare 는 배포해도 소용이 없을 수 있다 —
+//   2026-09-09 실측: 토스 wts-info-api 가 Cloudflare Workers egress 를 400 으로 거부했고
+//   공개·개인 워커(다른 계정)가 함께 막혔다. 같은 IP로 wts-cert-api 는 200 이라 호스트 한정이다.
 const DENO_GUIDE_URL =
   "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/deno-proxy/README.md";
 const CF_GUIDE_URL =
   "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md";
 const EXT_GUIDE_URL =
   "https://github.com/hanjungwoo3/portfolio-web/blob/main/extension/README.md";
+// APK 는 gh-pages 직링크를 쓴다 — GitHub 릴리스 자산 링크는 안드로이드 다운로드 매니저가
+//   못 이어받아 "다운로드 중…" 에서 멈추는 일이 있다(실측).
+const APK_URL = "https://hanjungwoo3.github.io/portfolio-web/app/portfolio-app.apk";
 
 interface Props {
   onOpenSettings: () => void;
+}
+
+// 설명과 버튼을 따로 두면 같은 말을 두 번 읽게 된다 → 설명 줄 자체를 누르게 한다.
+const ROW = "flex items-start gap-2 w-full text-left rounded-md border px-2.5 py-2 transition-colors";
+
+function ChoiceRow({ href, icon, title, desc, tone, download }: {
+  href: string; icon: string; title: string; desc: string;
+  tone: "blue" | "emerald" | "indigo";
+  // APK 는 '이동' 이 아니라 '내려받기' 여야 한다. target=_blank 로 이동시키면 서비스워커의
+  //   SPA 폴백이 그 주소를 가로채 index.html 을 내주고, 앱 화면이 대신 뜬다(실측).
+  download?: boolean;
+}) {
+  const tones = {
+    blue:    "border-blue-200 bg-blue-50/60 hover:bg-blue-100",
+    emerald: "border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100",
+    indigo:  "border-indigo-200 bg-indigo-50/60 hover:bg-indigo-100",
+  };
+  return (
+    <a href={href}
+       {...(download ? { download: "" } : { target: "_blank", rel: "noopener noreferrer" })}
+       className={`${ROW} ${tones[tone]}`}>
+      <span className="shrink-0 text-base leading-5">{icon}</span>
+      <span className="min-w-0 flex-1">
+        <span className="block text-xs font-bold text-gray-800">{title}</span>
+        <span className="block text-[11px] text-gray-600">{desc}</span>
+      </span>
+      <span className="shrink-0 text-[11px] text-gray-400">{download ? "⬇" : "↗"}</span>
+    </a>
+  );
 }
 
 // 전용 프록시 도입 권유 팝업 — 공개 인프라(합계 40만 req/일) 부담 분산이 목적.
 // 전용 프록시를 설정하면 영영 안 뜬다. 설정 안 한 사용자에게도 '매 새로고침'은 과해서
 // 닫으면 SNOOZE_DAYS 동안 쉰다 (권유는 유지하되 잔소리는 안 되게).
 const SNOOZE_KEY = "onboarding_snoozed_at";
+// Cloudflare 전용 사용자 경고는 별도 키 — 예전에 온보딩을 닫아 둔 사람도 이건 봐야 한다.
+const CF_SNOOZE_KEY = "cf_blocked_notice_snoozed_at";
 const SNOOZE_DAYS = 7;
 
-function isSnoozed(): boolean {
+type Mode = "no-proxy" | "cf-only";
+
+function isSnoozed(key: string): boolean {
   try {
-    const ts = Number(localStorage.getItem(SNOOZE_KEY) ?? "0");
+    const ts = Number(localStorage.getItem(key) ?? "0");
     return Date.now() - ts < SNOOZE_DAYS * 24 * 3600 * 1000;
   } catch { return false; }
 }
-function snooze(): void {
-  try { localStorage.setItem(SNOOZE_KEY, String(Date.now())); } catch { /* 무시 */ }
+function snooze(key: string): void {
+  try { localStorage.setItem(key, String(Date.now())); } catch { /* 무시 */ }
+}
+
+// 켜 둔 전용 프록시가 전부 Cloudflare 인가.
+//   지금 토스 wts-info-api 가 Cloudflare egress 를 막고 있어서, 이 사용자는 프록시를
+//   설정해 뒀는데도 시세가 안 나온다. 본인은 "설정했으니 됐다" 고 생각하므로 알려줘야 한다.
+function isCloudflareOnly(): boolean {
+  const mine = getEnabledPersonalProxies().filter(u => !isSyntheticProxyUrl(u));
+  if (mine.length === 0) return false;
+  return mine.every(u => {
+    try { return new URL(u).hostname.endsWith("workers.dev"); } catch { return false; }
+  });
 }
 
 // 1초 지연 후 등장 — 즉시 띄우면 부담.
 export function OnboardingDialog({ onOpenSettings }: Props) {
-  const [open, setOpen] = useState(false);
+  const [mode, setMode] = useState<Mode | null>(null);
   const downOnBackdropRef = useRef(false);
 
   useEffect(() => {
-    if (getPersonalProxyUrl()) return;  // 이미 전용 프록시 설정 → 영원히 안 띄움
-    if (isSnoozed()) return;
     const t = setTimeout(() => {
-      // 1초 뒤 재확인 — 확장은 전용 프록시 목록에 합성되어 들어오는데 그 감지가
-      // postMessage 핸드셰이크라 마운트 시점엔 아직 없을 수 있다. 여기서 다시 보지 않으면
+      // 1초 뒤에 판정 — 확장은 전용 프록시 목록에 합성되어 들어오는데 그 감지가
+      // postMessage 핸드셰이크라 마운트 시점엔 아직 없을 수 있다. 먼저 보면
       // 확장 사용자에게 "프록시를 배포하세요" 팝업이 뜬다.
-      if (getPersonalProxyUrl()) return;
-      setOpen(true);
+      if (hasDirectTransport()) return;                 // 확장·앱 사용자는 아무것도 안 띄움
+      if (isCloudflareOnly()) {
+        if (!isSnoozed(CF_SNOOZE_KEY)) setMode("cf-only");
+        return;
+      }
+      if (getPersonalProxyUrl()) return;                // 다른 전용 프록시가 있으면 정상
+      if (!isSnoozed(SNOOZE_KEY)) setMode("no-proxy");
     }, 1000);
     return () => clearTimeout(t);
   }, []);
 
-  if (!open) return null;
+  if (!mode) return null;
+  const snoozeKey = mode === "cf-only" ? CF_SNOOZE_KEY : SNOOZE_KEY;
 
   // 어떤 경로로 닫든 유예 시작 — 배경 클릭·나중에·설정 열기 모두 '봤다'로 친다.
-  const close = () => { snooze(); setOpen(false); };
+  const close = () => { snooze(snoozeKey); setMode(null); };
 
   const openSettingsAndClose = () => {
-    snooze();
-    setOpen(false);
+    snooze(snoozeKey);
+    setMode(null);
     onOpenSettings();
   };
 
@@ -70,72 +128,101 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
          }}>
       <div className="bg-white rounded-lg shadow-xl max-w-md w-full
                        max-h-[90vh] overflow-y-auto">
-        <header className="px-5 py-3 border-b bg-gradient-to-r from-blue-50 to-indigo-50">
+        <header className={`px-5 py-3 border-b bg-gradient-to-r ${
+              mode === "cf-only" ? "from-amber-50 to-rose-50" : "from-blue-50 to-indigo-50"}`}>
           <h2 className="text-base font-bold text-gray-800">
-            🎉 포트폴리오 사용을 환영합니다
+            {mode === "cf-only"
+              ? "⚠️ 지금 공용 서버에 얹혀 가고 있습니다"
+              : "🎉 포트폴리오 사용을 환영합니다"}
           </h2>
         </header>
 
+        {mode === "cf-only" ? (
         <div className="px-5 py-4 space-y-3 text-sm text-gray-700">
-          {/* 활성 공개 프록시 — .env(VITE_PROXY_URL*) 변동 시 함께 갱신.
-              현재 활성: Cloudflare / Netlify / Supabase (Vercel·Deno·Render는 한도초과로 일시 제외) */}
           <p>
-            현재 <b>공개 프록시 3개</b> (Cloudflare/Netlify/Supabase)를
-            모든 사용자가 함께 사용하고 있습니다.
+            등록해 두신 <b>Cloudflare Worker</b> 로는 <b>종목 시세를 못 받아옵니다</b>.
+            증권사가 Cloudflare 에서 나가는 요청만 거부하고 있어서, 워커 사용량이 남아 있어도
+            그 부분은 <b>공용 서버가 대신 받아주고 있습니다</b>.
+          </p>
+
+          <div className="bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-800">
+            지금은 화면이 정상으로 보일 수 있습니다. 다만 <b>공용 서버가 막히면 함께 멈춥니다</b> —
+            전용 서버를 두신 의미가 없어지는 셈입니다. 실제로 오늘 그렇게 멈춘 일이 있었습니다.
+          </div>
+
+          <p className="font-medium text-gray-800">💡 아래 중 하나면 공용 서버에 기대지 않습니다</p>
+
+          <div className="space-y-1.5">
+            <ChoiceRow href={EXT_GUIDE_URL} icon="🧩" tone="blue"
+                       title="PC 크롬·엣지 — 확장 프로그램 설치"
+                       desc="설치만 하면 끝. 중계 서버가 아예 필요 없습니다" />
+            <ChoiceRow href={APK_URL} icon="📱" tone="emerald" download
+                       title="안드로이드 — 앱(APK) 받기"
+                       desc="앱이 직접 받아옵니다. 모바일에선 이 방법뿐입니다" />
+            <ChoiceRow href={DENO_GUIDE_URL} icon="🦕" tone="indigo"
+                       title="그 외(아이폰 등) — Deno 중계 서버"
+                       desc="브라우저만으로 1~2분. 지금 정상 작동 확인됨" />
+          </div>
+
+          <button onClick={openSettingsAndClose}
+                  className="w-full px-3 py-2 bg-gray-800 hover:bg-gray-900
+                             text-white text-xs rounded font-medium">
+            ⚙️ 설정 열기 (중계 서버 교체)
+          </button>
+
+          <p className="text-[11px] text-gray-400">
+            Cloudflare 워커는 지우지 않아도 됩니다 — 다른 중계 서버를 하나 더 등록하면
+            앱이 알아서 살아있는 쪽으로 보냅니다. 증권사 정책이 바뀌면 다시 쓸 수 있습니다.
+          </p>
+        </div>
+        ) : (
+        <div className="px-5 py-4 space-y-3 text-sm text-gray-700">
+          <p>
+            시세는 공개 중계 서버를 <b>모든 사용자가 함께</b> 쓰고 있습니다.
+            한도가 차거나 증권사가 막으면 <b>다 같이 갱신이 멈춥니다</b>.
           </p>
 
           <div className="bg-amber-50 border border-amber-200 rounded p-2.5
                           text-xs text-amber-800">
-            ⚠️ 사용자가 늘어나면서 공개 인프라 한도(일 합계 약 40만 req)가
-            초과될 수 있습니다. 한도 초과 시 모두 갱신이 멈춥니다.
+            ⚠️ 실제로 오늘 공개 서버가 막혀 시세가 빈 칸으로 나온 일이 있었습니다.
           </div>
 
           <p className="font-medium text-gray-800">
-            💡 본인 전용 프록시를 하나 두시면:
+            💡 설치 한 번이면 중계 서버를 아예 안 거칩니다
           </p>
-          <ul className="text-xs space-y-1 pl-4 list-disc text-gray-600">
-            <li>본인 <b>100k req/일 전용</b> (사실상 무제한)</li>
-            <li>폴링 주기 <b>5초/10초/30초/60초</b> 선택 가능</li>
-            <li>공개 인프라 한도 영향 없음</li>
-            <li><b>시세가 빈 칸으로 나오는 문제</b>도 같이 해결됩니다</li>
-            <li><b>무료</b>, 신용카드 불필요, 코딩 지식 불필요</li>
-          </ul>
 
-          <div className="bg-emerald-50 border border-emerald-200 rounded p-2.5 text-xs text-emerald-900">
-            👍 <b>Deno Deploy 를 권합니다</b> — GitHub 로 1클릭 가입 후 코드를 붙여넣고
-            저장하면 끝. 터미널 없이 <b>브라우저만으로 1~2분</b>입니다.
-            <div className="mt-1 text-emerald-800/80">
-              Cloudflare 도 되지만 가입 절차가 길고(약 10분), 공개 프록시와 나가는 IP 를
-              공유해서 시세가 막히는 문제는 그대로일 수 있습니다.
+          <div className="space-y-1.5">
+            <ChoiceRow href={EXT_GUIDE_URL} icon="🧩" tone="blue"
+                       title="PC 크롬·엣지 — 확장 프로그램 설치"
+                       desc="설치만 하면 브라우저가 직접 받아옵니다. 설정할 것 없음" />
+            <ChoiceRow href={APK_URL} icon="📱" tone="emerald" download
+                       title="안드로이드 — 앱(APK) 받기"
+                       desc="앱이 직접 받아옵니다. 모바일에선 이 방법뿐입니다" />
+            <ChoiceRow href={DENO_GUIDE_URL} icon="🦕" tone="indigo"
+                       title="아이폰·기타 — Deno 중계 서버"
+                       desc="무료·카드 불필요·브라우저만으로 1~2분" />
+          </div>
+
+          <div className="text-[11px] text-emerald-800/80">
+            확장·앱은 호출 한도가 없고, 남과 나눠 쓰지 않아 <b>5·10초 갱신</b>도 열립니다.
+          </div>
+
+          <div className="text-xs text-gray-500 pt-1">
+            <div className="text-[11px] text-gray-400">
+              ⚠️ Cloudflare 는 권하지 않습니다 — 증권사가 Cloudflare 쪽 요청을 막고 있어
+              배포해도 증상이 그대로일 수 있습니다.
+              (<a href={CF_GUIDE_URL} target="_blank" rel="noopener noreferrer"
+                  className="underline hover:text-gray-600">그래도 보려면</a>)
             </div>
           </div>
 
-          <div className="text-xs text-gray-500">
-            🧩 <b>PC 크롬·엣지</b>를 쓰신다면 <b>확장 프로그램</b>이 더 간편합니다 —
-            설치만 하면 프록시 배포가 아예 필요 없습니다(휴대폰은 불가).&nbsp;
-            <a href={EXT_GUIDE_URL} target="_blank" rel="noopener noreferrer"
-               className="text-blue-600 underline">확장 안내 ↗</a>
-          </div>
-
-          <div className="flex gap-2 pt-1">
-            <a href={DENO_GUIDE_URL} target="_blank" rel="noopener noreferrer"
-               className="flex-1 px-3 py-2 bg-blue-600 hover:bg-blue-700
-                          text-white text-xs text-center rounded font-medium">
-              📖 Deno 배포 가이드 (1~2분)
-            </a>
-            <button onClick={openSettingsAndClose}
-                    className="flex-1 px-3 py-2 bg-indigo-600 hover:bg-indigo-700
-                               text-white text-xs rounded font-medium">
-              ⚙️ 설정 열기
-            </button>
-          </div>
-
-          <div className="text-[11px] text-gray-400 pt-0.5">
-            다른 방법:&nbsp;
-            <a href={CF_GUIDE_URL} target="_blank" rel="noopener noreferrer"
-               className="underline hover:text-gray-600">Cloudflare Worker 배포 (약 10분)</a>
-          </div>
+          <button onClick={openSettingsAndClose}
+                  className="w-full px-3 py-2 bg-indigo-600 hover:bg-indigo-700
+                             text-white text-xs rounded font-medium">
+            ⚙️ 설정 열기 (중계 서버 등록)
+          </button>
         </div>
+        )}
 
         <footer className="px-5 py-3 border-t bg-gray-50 flex justify-end">
           <button onClick={close}
