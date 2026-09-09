@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { subscribeProxyStatus, type ProxyState } from "../lib/proxyStatus";
+import { useExtensionProxyReady } from "../lib/extensionProxy";
+import { isNativeApp } from "../lib/nativeProxy";
 
 // 헤더 인라인 텍스트로 표시 (팝업 없음)
 // 메시지에 폴링 간격까지 포함 — 별도 PollingInfo 불필요
@@ -16,6 +18,10 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettin
   const [state, setState] = useState<ProxyState>(
     { health: "ok", total: 0, downHosts: [] }
   );
+  // 확장·앱은 프록시 목록을 아예 통과하지 않는다 → 공용 프록시 상태를 말할 이유가 없다.
+  //   (확장 감지는 핸드셰이크라 마운트 뒤에 켜지므로 훅으로 구독한다)
+  const extReady = useExtensionProxyReady();
+  const direct = isNativeApp() || extReady;
 
   useEffect(() => subscribeProxyStatus(setState), []);
 
@@ -27,8 +33,16 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettin
   );
 
   // 상태별 경고/안내 메시지 (정상이 아닐 때만)
+  //   ★ 직결(확장·앱)을 가장 먼저 본다. 공용 프록시 상태를 먼저 검사하면, 확장을 쓰는데도
+  //     "공용 프록시 1/3 사용량 소진 — 갱신 10초로 늦춤" 같은 무관한 경고가 이긴다(실제 제보).
   let statusMsg: { emoji: string; text: string; color: string } | null = null;
-  if (state.health === "down") {
+  if (direct) {
+    statusMsg = {
+      emoji: isNativeApp() ? "📱" : "🧩",
+      text: `${isNativeApp() ? "앱" : "확장"} 직결 · ${baseSec}초 갱신`,
+      color: "text-emerald-700",
+    };
+  } else if (state.health === "down") {
     statusMsg = {
       emoji: "❌",
       text: `공용 프록시 모두 사용량 소진 (${state.total}/${state.total}) — 갱신 중지`,
@@ -52,7 +66,9 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettin
   return (
     <span className="flex items-center gap-2 shrink-0 flex-wrap">
       {statusMsg && (
-        <span title={state.health !== "ok"
+        <span title={direct
+                ? "프록시를 거치지 않고 직접 받아옵니다 — 호출 한도·공용 프록시 상태와 무관"
+                : state.health !== "ok"
                 ? `사용량 소진/응답없음: ${state.downHosts.join(", ")} — 정상 서버로 자동 fallback`
                 : "공용 프록시 대신 본인 전용 Cloudflare Worker 사용 중"}
               className={`text-[11px] ${statusMsg.color}`}>

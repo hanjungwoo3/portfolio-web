@@ -103,7 +103,7 @@ export function resetProxyStats(): void {
 //  2) 양 시장(한국·미국) 모두 마감 시 60초로 throttle — 단, 공개(무료) 프록시일 때만.
 //     개인 프록시 사용자는 본인이 설정한 주기를 그대로 유지.
 import { useEffect, useState } from "react";
-import { hasDedicatedTransport } from "./proxyConfig";
+import { hasDedicatedTransport, hasDirectTransport } from "./proxyConfig";
 import { useExtensionProxyReady } from "./extensionProxy";
 import { isAnyMarketActive } from "./format";
 
@@ -123,7 +123,11 @@ export function useAdaptiveRefreshMs(baseMs: number): number {
       const closedThrottle =
         !hasDedicatedTransport() && !isAnyMarketActive() ? MARKET_CLOSED_MIN_MS : 0;
       const effBase = Math.max(baseMs, closedThrottle);
-      setMs(effBase + downCount * effBase);
+      // ★ 다운 페널티는 '프록시를 실제로 거치는' 경우에만.
+      //   확장·앱은 프록시 목록을 통과하지 않으므로 공용 프록시가 죽어도 느려질 이유가 없다.
+      //   (마감 스로틀에만 게이트를 걸고 여기는 빠뜨려서, 확장을 쓰는데 5초가 10초로 늦춰졌다)
+      const penalty = hasDirectTransport() ? 0 : downCount * effBase;
+      setMs(effBase + penalty);
     };
     const unsub = subscribeProxyStatus(s => { downCount = s.downHosts.length; compute(); });
     compute();

@@ -227,6 +227,13 @@ export function hasDedicatedTransport(): boolean {
   return !!getPersonalProxyUrl();   // 확장은 목록에 합성되어 들어온다
 }
 
+// 직결 전송 — 확장·앱처럼 HTTP 프록시를 아예 거치지 않는 경로.
+//   전용 '프록시'(본인 워커)와는 구분해야 한다. 워커는 그 자체가 프록시라 다운 집계 대상이지만,
+//   확장·앱은 프록시 목록을 통과하지 않으므로 공용 프록시가 몇 개 죽든 영향을 받지 않는다.
+export function hasDirectTransport(): boolean {
+  return isNativeApp() || isExtensionProxyReady();
+}
+
 // 수동 모드 여부 — 자동 폴링 끔 (버튼/메뉴 진입 시에만 갱신)
 export function isManualPoll(): boolean {
   return getPersonalPollMs() === MANUAL_POLL_MS;
