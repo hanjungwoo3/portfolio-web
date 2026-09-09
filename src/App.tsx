@@ -1239,6 +1239,7 @@ function Dashboard() {
             todayBar={(() => { const p = priceMap.get(valuationTicker); return p ? { open: p.open, high: p.high, low: p.low } : undefined; })()}
             myAvgPrice={s && s.shares > 0 ? s.avg_price : undefined}
             entryPrice={memos.get(valuationTicker)?.entryPrice}
+            onRequestSearch={(q) => { setSearchInitQuery(q); setSearchOpen(true); }}
           />
         );
       })()}

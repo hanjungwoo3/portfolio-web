@@ -44,6 +44,10 @@ interface Props {
   todayBar?: TodayBar;       // 오늘 실시간 OHLC (일봉 오늘 캔들 보강용)
   myAvgPrice?: number;       // 보유 시 평단가 (차트 가로선)
   entryPrice?: number;       // 메모의 기대가 (차트 가로선)
+  // 🔍 버튼 — 이 종목명으로 검색창을 연다(거기서 관심종목에 추가).
+  //   추가 로직을 여기 넣지 않는 이유: 어느 그룹에 넣을지·수량은 검색창이 이미 다 물어본다.
+  //   주면 버튼이 뜨고, 안 주면 안 뜬다.
+  onRequestSearch?: (query: string) => void;
 }
 
 // 오늘(당일) 실시간 시/고/저 — 부모 Price 객체에서 추출. 일봉 마지막 캔들 꼬리용.
@@ -327,7 +331,7 @@ function DisclosureSection({ ticker }: { ticker: string }) {
 }
 
 export function ValuationModal({
-  isOpen, onClose, ticker, name, curPrice, todayBar, myAvgPrice, entryPrice,
+  isOpen, onClose, ticker, name, curPrice, todayBar, myAvgPrice, entryPrice, onRequestSearch,
 }: Props) {
   useEscClose(isOpen, onClose);
   // ETF(특히 채권형)는 재무·컨센서스·대차·신용·CFD·프로그램·공시가 없음 → 그 조회를 전부 건너뛰어
@@ -422,6 +426,14 @@ export function ValuationModal({
             <span className="hidden sm:inline-flex items-baseline gap-3">
               <span className="text-base font-bold">{name}</span>
               <span className="text-sm text-gray-500">({ticker})</span>
+              {onRequestSearch && (
+                <button onClick={() => { onClose(); onRequestSearch(name); }}
+                        title={`${name} 검색 — 관심종목에 추가`}
+                        className="px-1.5 py-0.5 rounded border border-gray-300 bg-white
+                                   text-xs text-gray-600 hover:bg-gray-100">
+                  🔍 추가
+                </button>
+              )}
               {effCurPrice && (
                 <span className="text-base font-bold ml-3">
                   {effCurPrice.toLocaleString()}원
@@ -437,6 +449,14 @@ export function ValuationModal({
           <div className="sm:hidden flex items-baseline gap-2 mt-1 flex-wrap">
             <span className="text-base font-bold">{name}</span>
             <span className="text-sm text-gray-500">({ticker})</span>
+            {onRequestSearch && (
+              <button onClick={() => { onClose(); onRequestSearch(name); }}
+                      title={`${name} 검색 — 관심종목에 추가`}
+                      className="px-1.5 py-0.5 rounded border border-gray-300 bg-white
+                                 text-xs text-gray-600 hover:bg-gray-100">
+                🔍 추가
+              </button>
+            )}
             {effCurPrice && (
               <span className="text-base font-bold ml-auto">
                 {effCurPrice.toLocaleString()}원
