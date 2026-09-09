@@ -95,6 +95,21 @@ function proxyPlanFor(targetUrl: string): { primary: string[]; fallback: string[
   return { primary: personal, fallback: publicPool.filter(u => !providers.has(proxyProvider(u))) };
 }
 
+// 실측으로 "그 공급자로는 절대 안 되는" (호스트, 공급자) 조합.
+//   아래 호스트-공급자 기억(noteHostFailure)은 연속 2회 실패해야 막고 10분 뒤 풀린다.
+//   회복 가능성이 있는 일시적 차단에는 그게 맞지만, 아래처럼 몇 달째 확정적인 조합은
+//   그 2회가 매 세션·매 10분 되풀이되는 순수한 낭비다. 공용 워커 한도를 그렇게 갉아먹었다.
+//   ★ 상대가 풀어주면 여기서 지워야 회복된다 — 자동 회복이 없는 게 대가다.
+const HOST_PROVIDER_DENY: Array<{ host: RegExp; provider: string; why: string }> = [
+  // 2026-09-09 실측: 계정이 다른 CF 워커 여러 개가 모두 400(빈 본문). 같은 워커로
+  //   wts-cert-api·네이버·야후는 200 이라 egress 전체 차단이 아니라 이 호스트 한정이다.
+  { host: /^wts-info-api\.tossinvest\.com$/, provider: "cloudflare", why: "토스가 CF egress 거부" },
+];
+
+function isDeniedCombo(host: string, provider: string): boolean {
+  return HOST_PROVIDER_DENY.some(d => d.provider === provider && d.host.test(host));
+}
+
 function buildProxyUrl(base: string, targetUrl: string): string {
   return `${base}/?url=${encodeURIComponent(targetUrl)}`;
 }
@@ -177,9 +192,14 @@ export async function fetchProxied(
   const targetHost = (() => { try { return new URL(targetUrl).hostname; } catch { return ""; } })();
   const ranked = [...rank(plan.primary), ...rank(plan.fallback)]
     .filter(u => !isSyntheticProxyUrl(u));
+  // 확정 불가 조합은 아예 뺀다(뒤로 미루는 게 아니라). 단, 그래서 후보가 하나도 안 남으면
+  //   원래 목록을 쓴다 — 아무 요청도 안 보내고 조용히 실패하는 것보다 400 을 받는 게 낫다.
+  //   (개인 워커로 Cloudflare 만 쓰는 사용자가 그 경우다. 온보딩이 따로 안내한다)
+  const usable = ranked.filter(u => !isDeniedCombo(targetHost, proxyProvider(u)));
+  const pool = usable.length > 0 ? usable : ranked;
   const order = [
-    ...ranked.filter(u => !isHostBlocked(targetHost, proxyProvider(u))),
-    ...ranked.filter(u => isHostBlocked(targetHost, proxyProvider(u))),
+    ...pool.filter(u => !isHostBlocked(targetHost, proxyProvider(u))),
+    ...pool.filter(u => isHostBlocked(targetHost, proxyProvider(u))),
   ];
   let lastErr: unknown;
   let lastResp: Response | undefined;

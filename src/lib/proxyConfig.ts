@@ -129,13 +129,24 @@ export async function fetchProxyUsage(base: string): Promise<ProxyUsage | null> 
 }
 
 // 폴링 주기 — 전용 프록시 사용 시 5/10/30/60초 선택 가능. 0 = 수동(자동 갱신 끔).
-// 공개 프록시는 기본 60초, 30초까지 선택 가능 (무료 워커 호출 한도 보호 — 호출수가 병목).
-// 더 빠른 갱신(5/10초)이 필요하면 설정에서 개인 프록시 등록.
+// 공개 프록시는 5분 고정 (무료 워커 호출 한도 보호 — 호출수가 병목).
+//   ★ 2026-09-09 에 30초 → 5분으로 늘렸다. 공용 Cloudflare 워커가 무료 한도(10만 건/일)를
+//     넘겼다는 통지를 받았기 때문이다. 공용 풀은 사용자 전원이 나눠 쓰는 자원이라,
+//     한 명이 30초로 돌리면 장중에만 780회 폴링하고 그게 사람 수만큼 곱해진다.
+//     한도가 차면 그 프록시는 그날 내내 실패하므로, 늦추는 게 아예 못 쓰는 것보다 낫다.
+//   빠른 갱신이 필요하면 크롬 확장·안드로이드 앱·개인 프록시를 쓰면 된다 —
+//   셋 다 공용 풀을 거치지 않아 제한이 없다.
 // 수동(0)은 프록시 무관 항상 선택 가능 — 버튼/메뉴 진입 시에만 갱신(부하 최소).
 export const MANUAL_POLL_MS = 0;
-export const POLL_OPTIONS = [MANUAL_POLL_MS, 5_000, 10_000, 30_000, 60_000] as const;
-export const DEFAULT_PUBLIC_POLL_MS = 60_000;   // 공개 기본
-export const PUBLIC_MIN_POLL_MS = 30_000;        // 공개에서 선택 가능한 최소 주기(이보다 빠른 건 전용 전용)
+export const POLL_OPTIONS = [MANUAL_POLL_MS, 5_000, 10_000, 30_000, 60_000, 300_000] as const;
+export const DEFAULT_PUBLIC_POLL_MS = 300_000;   // 공개 기본 = 5분
+export const PUBLIC_MIN_POLL_MS = 300_000;       // 공개에서 선택 가능한 최소 주기(이보다 빠른 건 전용 전용)
+
+// 폴링 주기 라벨 — "300초" 는 읽히지 않는다. 설정 화면(PC·모바일)이 같이 쓴다.
+export function pollLabel(ms: number): string {
+  if (ms === MANUAL_POLL_MS) return "수동";
+  return ms >= 60_000 ? `${ms / 60_000}분` : `${ms / 1000}초`;
+}
 
 // ─── 개인 프록시 기능별 호환성 검증 ─────────────────────────
 // 기능마다 조건이 다름 → 별도 검사 (한 status 로 합치지 않음):
@@ -249,8 +260,8 @@ export function setPersonalPollMs(ms: number) {
 
 // 현재 effective poll 간격 (ms).
 //  - 수동(0): 프록시 무관 자동 폴링 끔
-//  - 전용 프록시: 사용자 설정 그대로(5/10/30/60초)
-//  - 공개 프록시: 기본(30초)보다 느린(≥) 선택만 허용(부하↓), 더 빠른 값은 30초로 클램프
+//  - 전용 프록시(확장·앱·개인 워커): 사용자 설정 그대로(5/10/30/60초/5분)
+//  - 공개 프록시: 5분 미만은 전부 5분으로 클램프. 수동(0)은 그대로 존중한다
 export function getEffectivePollMs(): number {
   const ms = getPersonalPollMs();
   if (ms === MANUAL_POLL_MS) return 0;

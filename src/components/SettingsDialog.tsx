@@ -7,7 +7,7 @@ import {
 import {
   getPersonalProxies, setPersonalProxies, type PersonalProxy,
   fetchProxyUsage, type ProxyUsage,
-  getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS,
+  getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS, pollLabel,
   getDimSleepingEnabled, setDimSleepingEnabled,
   checkPersonalProxyPostSupport,
   invalidatePersonalProxyStatusCache,
@@ -700,8 +700,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 </a>
               </div>
             )}
-            {/* 폴링 주기 — 공개는 30/60초·수동만. 5/10초는 전용 프록시 또는 확장일 때.
-                확장은 브라우저가 직접 요청하므로 워커 호출 한도가 아예 없다. */}
+            {/* 폴링 주기 — 공개는 5분·수동만. 그보다 빠른 건 전용 전송(확장·앱·개인 워커)일 때만.
+                확장·앱은 브라우저/폰이 직접 요청하므로 워커 호출 한도가 아예 없다. */}
             <div className="flex items-center gap-2 mt-1">
               <span className={`text-[11px] ${fastPollAllowed ? "text-gray-700" : "text-gray-400"}`}>
                 폴링 주기:
@@ -720,13 +720,13 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                                         ? "bg-blue-600 text-white border-blue-700 font-bold"
                                         : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}
                                       ${!enabled ? "opacity-40 cursor-not-allowed" : ""}`}>
-                    {ms === 0 ? "수동" : `${ms / 1000}초`}
+                    {pollLabel(ms)}
                   </button>
                 );
               })}
               {!fastPollAllowed && (
                 <span className="text-[10px] text-gray-400 ml-1">
-                  (공개: 기본 60초 · 30·60·수동 선택 · 5·10초는 전용 프록시 또는 확장)
+                  (공개는 5분 고정 — 무료 워커 한도 보호. 더 빠르게는 확장·앱·개인 프록시)
                 </span>
               )}
             </div>
