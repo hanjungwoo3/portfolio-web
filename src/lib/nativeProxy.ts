@@ -48,9 +48,41 @@ export function nativePlatform(): string | null {
 //     빈 본문이 200 으로 통과해 호출측이 조용히 실패한다(티커바·미니차트가 비던 원인).
 //   · object  → JSON 텍스트로 되돌린다 (대부분의 시세 API)
 //   · string  → 그대로 텍스트 본문
+// base64 문자열 후보인가 — 마크업/JSON 텍스트에는 <, >, {, ", 공백이 있어 base64 알파벳과 겹치지 않는다.
+const B64_LIKE = /^[A-Za-z0-9+/\s]+={0,2}$/;
+
+function b64ToBuf(b64: string): ArrayBuffer {
+  const bin = atob(b64.replace(/\s+/g, ""));
+  const buf = new ArrayBuffer(bin.length);
+  const view = new Uint8Array(buf);
+  for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
+  return buf;
+}
+
+// 디코딩 결과가 우리가 다루는 본문처럼 보이는가(HTML/JSON/텍스트). base64 오판을 막는 확인.
+function looksLikeBody(buf: ArrayBuffer): boolean {
+  const head = new Uint8Array(buf.slice(0, 4));
+  if (head.length === 0) return false;
+  const c = head[0];
+  return c === 0x3c /* < */ || c === 0x7b /* { */ || c === 0x5b /* [ */
+      || c === 0x20 || c === 0x0a || c === 0x0d || c === 0x09;   // 앞 공백/개행
+}
+
 function toBody(data: unknown): BodyInit {
   if (data == null) return "";
-  if (typeof data === "string") return data;
+  if (typeof data === "string") {
+    // ★ responseType:"arraybuffer" 를 요청하므로 비-JSON 응답은 base64 문자열로 온다.
+    //   그대로 본문에 넣으면 호출측이 base64 를 HTML 로 읽는다 — 네이버 EUC-KR 페이지
+    //   (투자자 순매수·자금동향)가 그래서 파싱에 실패했다.
+    //   바이트로 되돌려야 decodeHtmlBuf 가 EUC-KR 을 제대로 푼다.
+    if (data.length > 0 && B64_LIKE.test(data)) {
+      try {
+        const buf = b64ToBuf(data);
+        if (looksLikeBody(buf)) return buf;
+      } catch { /* base64 가 아니었다 → 아래에서 텍스트로 */ }
+    }
+    return data;
+  }
   try { return JSON.stringify(data); } catch { return ""; }
 }
 
