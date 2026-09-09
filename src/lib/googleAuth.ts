@@ -109,6 +109,7 @@ function clearToken(): void {
 
 // GIS 스크립트가 로드될 때까지 대기 후 token client 초기화 (idempotent)
 function ensureTokenClient(): Promise<GisTokenClient | null> {
+  if (isNativeApp()) return Promise.resolve(null);   // 앱은 GIS 를 안 쓴다(위 주석 참조)
   if (tokenClient) return Promise.resolve(tokenClient);
   return new Promise((resolve) => {
     const start = Date.now();
@@ -154,6 +155,12 @@ function resolveSilent(token: string | null): void {
 // silent refresh 호출 — 사용자 동의 + Google 세션 있으면 hidden iframe 으로 새 토큰 발급
 // 첫 로그인은 redirect 로 처리하므로 여기선 prompt: '' (interactive 없음) 만 사용
 function requestSilentRefresh(): Promise<string | null> {
+  // ★ 앱에서는 GIS 를 절대 태우지 않는다.
+  //   GIS 는 숨은 iframe/팝업을 전제로 만들어졌는데 안드로이드 웹뷰엔 팝업이 없다.
+  //   prompt:"none" 이어도 GIS 가 최상위 navigate 로 떨어뜨려, 설정만 열어도 앱이
+  //   accounts.google.com 으로 이동해 웹페이지가 돼 버린다(실측: gsiwebsdk=gis_attributes 로 확인).
+  //   앱은 토큰이 없으면 그냥 없는 것으로 두고, 재로그인은 Custom Tab 흐름(signIn)으로만 한다.
+  if (isNativeApp()) return Promise.resolve(null);
   if (!wasSignedIn()) return Promise.resolve(null);
   return new Promise((resolve) => {
     pendingSilentResolvers.push(resolve);
@@ -175,6 +182,7 @@ function requestSilentRefresh(): Promise<string | null> {
 }
 
 function scheduleSilentRefresh(): void {
+  if (isNativeApp()) return;   // 앱은 GIS 를 안 쓴다(위 주석 참조)
   if (refreshTimer !== null) {
     window.clearTimeout(refreshTimer);
     refreshTimer = null;
