@@ -2015,6 +2015,32 @@ export interface MarketTurnoverPoint {
   amount: number;   // 거래대금 (원)
   volume: number;   // 거래량 (주)
 }
+// 지수 10분봉 — 장중 진행률 계산용(거래량만).
+//   ★ 이 엔드포인트는 amount 가 항상 0 이다(실측). 금액은 일봉에만 있다.
+//     그래서 '어제 같은 시각 대비 거래대금' 은 만들 수 없고, 대신 거래량으로 장중 진행률을
+//     구해 일봉 금액을 보정한다(MarketTurnoverCard 주석 참조).
+//   count=200 이면 약 5거래일치 — 진행률을 며칠 평균으로 낼 수 있다.
+export interface IntradayVolumePoint { dt: string; volume: number }
+
+export async function fetchKrIndexIntradayVolume(
+  indexKey: MarketIndexKey, count = 200,
+): Promise<IntradayVolumePoint[]> {
+  const code = MARKET_INDEX_CODES[indexKey];
+  // 인터벌 표기는 "min:10" 이다 — "minute:10" 은 빈 배열이 온다(실측).
+  const target = `https://wts-info-api.tossinvest.com/api/v1/c-chart/kr-s/${code}/min:10?count=${count}`;
+  const resp = await fetchProxied(target);
+  if (!resp.ok) throw new Error(`intraday volume ${indexKey}: HTTP ${resp.status}`);
+  const data = await resp.json() as {
+    result?: { candles?: Array<{ dt?: string; volume?: number }> };
+  };
+  const out: IntradayVolumePoint[] = [];
+  for (const c of data.result?.candles ?? []) {
+    if (!c.dt || !(c.volume && c.volume > 0)) continue;
+    out.push({ dt: c.dt, volume: c.volume });
+  }
+  return out.reverse();   // 최신→과거 → 과거→최신
+}
+
 export async function fetchKrMarketTurnover(
   indexKey: MarketIndexKey, count = 250,
 ): Promise<MarketTurnoverPoint[]> {

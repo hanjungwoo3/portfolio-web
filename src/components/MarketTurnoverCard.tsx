@@ -4,9 +4,13 @@
 
 import { useCallback, useMemo, useState, lazy, Suspense, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchKrMarketTurnover, TOSS_CANDLE_MAX, type MarketTurnoverPoint, type MarketIndexKey } from "../lib/api";
+import {
+  fetchKrMarketTurnover, fetchKrIndexIntradayVolume, TOSS_CANDLE_MAX,
+  type MarketTurnoverPoint, type MarketIndexKey,
+} from "../lib/api";
 import { useCrosshairSync } from "../lib/useCrosshairSync";
-import { fmtAmount, movingAvg, MA_DAYS } from "../lib/marketTurnover";
+import { fmtAmount, movingAvg, sessionProgress, MA_DAYS } from "../lib/marketTurnover";
+import { isMarketOpen } from "../lib/format";
 
 const MarketTurnoverChart = lazy(() => import("./MarketTurnoverChart"));
 
@@ -44,6 +48,17 @@ function MarketBlock({ market, label, days, onReady }: {
     refetchOnWindowFocus: false,
   });
 
+  // 장중 진행률용 10분봉(거래량). 장중에만 부른다 — 마감 뒤엔 보정이 필요 없다.
+  const krOpen = isMarketOpen("KR");
+  const { data: intraday } = useQuery({
+    queryKey: ["marketTurnoverIntraday", market],
+    queryFn: () => fetchKrIndexIntradayVolume(market),
+    enabled: krOpen,
+    staleTime: 5 * 60 * 1000,
+    refetchInterval: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   // 20일 평균은 전체 시계열로 먼저 계산한 뒤 기간만큼 자른다 —
   // 잘라낸 뒤 계산하면 구간 첫 20봉의 평균이 짧은 창으로 잡혀 왜곡된다.
   const built = useMemo(() => {
@@ -64,8 +79,20 @@ function MarketBlock({ market, label, days, onReady }: {
   if (!built) return shell(<span>거래대금 데이터 없음</span>);
 
   const { last, lastMa } = built;
-  const vsAvg = lastMa > 0 ? (last.amount / lastMa - 1) * 100 : 0;
+  // 장중이면 '이 시각까지' 기준으로 비교한다 — 종일 평균과 그대로 나누면 개장 직후엔
+  //   항상 큰 마이너스가 뜬다(하루가 안 끝나서지 거래가 적어서가 아니다).
+  //   진행률을 못 구하면(개장 직후·과거 분봉 없음) 아예 비교를 안 보여준다.
+  const progress = krOpen ? sessionProgress(intraday ?? []) : null;
+  const cmpBase = progress != null ? lastMa * progress : lastMa;
+  const canCompare = cmpBase > 0 && (!krOpen || progress != null);
+  const vsAvg = canCompare ? (last.amount / cmpBase - 1) * 100 : 0;
   const vsColor = vsAvg >= 0 ? "text-rose-600" : "text-blue-600";
+  const vsLabel = progress != null ? "장중 보정" : "평균대비";
+  const vsTitle = progress != null
+    ? `장중 누적을 같은 시각 기준으로 비교합니다.\n`
+      + `최근 ${Math.round(progress * 100)}% 진행 시점 — 20일 평균 ${fmtAmount(lastMa)} × ${(progress * 100).toFixed(0)}% = ${fmtAmount(cmpBase)} 대비\n`
+      + `(진행률은 최근 거래일들의 같은 시각까지 거래량 비율)`
+    : `20일 평균 ${fmtAmount(lastMa)} 대비`;
 
   return (
     <div className="border border-gray-200 rounded p-2 bg-white">
@@ -73,9 +100,15 @@ function MarketBlock({ market, label, days, onReady }: {
         <a href={TOSS_INDEX_URL[market]} target="_blank" rel="noopener noreferrer"
            className="font-bold text-gray-700 hover:text-blue-600">{label}</a>
         <span className={`tabular-nums font-bold ${vsColor}`}>{fmtAmount(last.amount)}</span>
-        <span className={`text-[10px] tabular-nums ${vsColor}`}>
-          평균대비 {vsAvg >= 0 ? "+" : ""}{vsAvg.toFixed(0)}%
-        </span>
+        {canCompare ? (
+          <span className={`text-[10px] tabular-nums ${vsColor}`} title={vsTitle}>
+            {vsLabel} {vsAvg >= 0 ? "+" : ""}{vsAvg.toFixed(0)}%
+          </span>
+        ) : (
+          <span className="text-[10px] text-gray-400" title="장중 누적입니다 — 종일 평균과 바로 비교할 수 없습니다.">
+            장중 누적
+          </span>
+        )}
         <span className="text-[10px] text-gray-400 ml-auto tabular-nums">
           {MA_DAYS}일평균 {fmtAmount(lastMa)} · {last.date.slice(5)}
         </span>
