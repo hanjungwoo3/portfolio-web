@@ -116,9 +116,15 @@ export async function fetchEtfRanking(): Promise<EtfRanking> {
   return ranking;
 }
 
-// 지수 탭용 — 캐시를 읽고, 아예 없을 때만 1회 조회한다(17콜이라 폴링 금지).
-//   갱신은 사용자가 새로고침을 눌렀을 때만. ETF랭킹 탭과 같은 localStorage 캐시를 쓰므로
-//   한쪽에서 새로고침하면 다른 쪽도 다음에 열 때 새 값을 본다.
+// 지수 탭용 — 탭에 들어올 때마다 새로 받고, 그 사이에는 새로고침 버튼으로 받는다.
+//   지수 탭은 조건부 렌더라 탭을 나가면 언마운트되고 돌아오면 다시 마운트된다 → 이펙트가 곧
+//   '탭 진입' 신호다. 폴링은 여전히 안 한다(전수 조회가 약 17 프록시 콜).
+//   캐시는 즉시 그려 두고 새 값이 오면 갈아끼우므로 빈 화면이 보이지 않는다.
+//   ETF랭킹 탭과 같은 localStorage 캐시라 한쪽이 받으면 다른 쪽도 새 값을 본다.
+//   ★ '진행 중인 조회' 만 공유한다(끝나면 비운다). 페이지 내내 붙들면 탭을 다시 들어와도
+//     같은 결과가 재사용돼 갱신이 안 된다. 반대로 아무 것도 공유 안 하면 StrictMode 의
+//     이펙트 이중 실행 때문에 같은 조회가 두 번 나간다 — 그 사이만 합치는 게 맞다.
+let inFlight: Promise<EtfRanking> | null = null;
 export interface SectorFlowState {
   ranking: EtfRanking | null;
   loading: boolean;
@@ -138,15 +144,16 @@ export function useCachedSectorFlow(enabled: boolean): SectorFlowState {
       .finally(() => setLoading(false));
   }, []);
 
-  // 캐시가 아예 없을 때의 최초 1회 — 여기선 setState 를 동기로 부르지 않는다(이펙트 규칙).
+  // 탭 진입(마운트)마다 새로 받는다. 여기선 setState 를 동기로 부르지 않는다(이펙트 규칙).
   useEffect(() => {
-    if (!enabled || ranking) return;
+    if (!enabled) return;
+    inFlight ??= fetchEtfRanking().finally(() => { inFlight = null; });
     let alive = true;
-    void fetchEtfRanking()
+    void inFlight
       .then(r => { if (alive) setRanking(r); })
-      .catch(() => { /* 실패하면 폴백(고정 카드)이 그려진다 */ });
+      .catch(() => { /* 실패하면 캐시(없으면 고정 카드)가 그대로 남는다 */ });
     return () => { alive = false; };
-  }, [enabled, ranking]);
+  }, [enabled]);
 
   return { ranking, loading, refresh };
 }

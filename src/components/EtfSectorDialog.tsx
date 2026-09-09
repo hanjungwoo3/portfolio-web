@@ -2,6 +2,7 @@
 //   그 섹터의 대표 ETF(거래대금 상위)를 등락률 순으로 보여주고, 종목을 누르면 구성종목 창으로 넘긴다.
 //   데이터는 이미 받아둔 랭킹 스냅샷에서 나온다 — 추가 조회가 없다.
 
+import { useEffect, useRef } from "react";
 import { signColor } from "../lib/format";
 import { tradeValue, type EtfSectorStat } from "../lib/etfSectors";
 
@@ -22,13 +23,25 @@ interface Props {
 export function EtfSectorDialog({ sector, onClose, onOpenEtfComposition }: Props) {
   // 표시는 등락률 순 — 목록에 담긴 순서(거래대금 순)와 다르게 정렬한다.
   const rows = [...sector.rows].sort((a, b) => b.pct - a.pct);
+  // 배경 클릭 판정 — 목록에서 드래그하다 배경에서 손을 떼도 닫히면 안 된다(앱의 다른 모달과 동일).
+  const downOnBackdropRef = useRef(false);
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
-         onClick={onClose}>
+         onMouseDown={e => { if (e.target === e.currentTarget) downOnBackdropRef.current = true; }}
+         onMouseUp={e => {
+           if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
+           downOnBackdropRef.current = false;
+         }}>
       <div className="w-full sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col
                       rounded-t-xl sm:rounded-xl bg-white shadow-xl"
-           onClick={e => e.stopPropagation()}>
+           onMouseDown={e => e.stopPropagation()}>
         <header className="px-4 py-3 border-b bg-gray-50 flex items-baseline gap-2">
           <h2 className="text-base font-bold text-gray-800">{sector.label}</h2>
           <span className="text-[11px] text-gray-500">
@@ -41,7 +54,8 @@ export function EtfSectorDialog({ sector, onClose, onOpenEtfComposition }: Props
                   className="ml-auto text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </header>
 
-        <div className="overflow-y-auto">
+        {/* 종목이 많은 섹터(미국·채권 등은 100종 넘음)는 여기서 스크롤된다 */}
+        <div className="overflow-y-auto overscroll-contain">
           {rows.map((r, i) => (
             <button key={r.code}
                     onClick={() => onOpenEtfComposition?.(r.code, r.name)}
@@ -67,7 +81,7 @@ export function EtfSectorDialog({ sector, onClose, onOpenEtfComposition }: Props
         </div>
 
         <p className="px-3 py-2 text-[10px] text-gray-400 border-t leading-relaxed">
-          거래대금 상위 {sector.rows.length}종만 보여줍니다(랭킹 조회 시점 기준).
+          {sector.rows.length}종 전체 · 등락률 높은 순 (랭킹 조회 시점 기준).
           종목을 누르면 구성종목이 열립니다.
         </p>
       </div>
