@@ -75,15 +75,16 @@ function snooze(key: string): void {
   try { localStorage.setItem(key, String(Date.now())); } catch { /* 무시 */ }
 }
 
-// 켜 둔 전용 프록시가 전부 Cloudflare 인가.
-//   지금 토스 wts-info-api 가 Cloudflare egress 를 막고 있어서, 이 사용자는 프록시를
-//   설정해 뒀는데도 시세가 안 나온다. 본인은 "설정했으니 됐다" 고 생각하므로 알려줘야 한다.
-function isCloudflareOnly(): boolean {
-  const mine = getEnabledPersonalProxies().filter(u => !isSyntheticProxyUrl(u));
-  if (mine.length === 0) return false;
-  return mine.every(u => {
-    try { return new URL(u).hostname.endsWith("workers.dev"); } catch { return false; }
-  });
+// 켜 둔 전용 프록시에 Cloudflare 가 하나라도 있는가.
+//   토스 wts-info-api 가 Cloudflare egress 를 거부하므로(실측) 그 워커는 종목 시세를 못 받는다.
+//   ★ '전부 Cloudflare' 로 좁히면 CF + 죽은 다른 공급자를 함께 켜 둔 사람을 놓친다. 그 사람도
+//     결국 공용에 얹혀 가므로 똑같이 알려야 한다. 켜져 있으면 매 요청마다 헛호출도 한 번 더 난다.
+function hasCloudflareProxy(): boolean {
+  return getEnabledPersonalProxies()
+    .filter(u => !isSyntheticProxyUrl(u))
+    .some(u => {
+      try { return new URL(u).hostname.endsWith("workers.dev"); } catch { return false; }
+    });
 }
 
 // 1초 지연 후 등장 — 즉시 띄우면 부담.
@@ -97,7 +98,7 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
       // postMessage 핸드셰이크라 마운트 시점엔 아직 없을 수 있다. 먼저 보면
       // 확장 사용자에게 "프록시를 배포하세요" 팝업이 뜬다.
       if (hasDirectTransport()) return;                 // 확장·앱 사용자는 아무것도 안 띄움
-      if (isCloudflareOnly()) {
+      if (hasCloudflareProxy()) {
         if (!isSnoozed(CF_SNOOZE_KEY)) setMode("cf-only");
         return;
       }
@@ -141,8 +142,9 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
         <div className="px-5 py-4 space-y-3 text-sm text-gray-700">
           <p>
             등록해 두신 <b>Cloudflare Worker</b> 로는 <b>종목 시세를 못 받아옵니다</b>.
-            증권사가 Cloudflare 에서 나가는 요청만 거부하고 있어서, 워커 사용량이 남아 있어도
-            그 부분은 <b>공용 서버가 대신 받아주고 있습니다</b>.
+            증권사가 Cloudflare 에서 나가는 요청만 거부합니다 — 워커 사용량이 남아 있어도
+            소용이 없고, 그 부분은 <b>공용 서버가 대신 받고 있습니다</b>.
+            요청마다 Cloudflare 로 한 번 헛걸음까지 합니다.
           </p>
 
           <div className="bg-amber-50 border border-amber-200 rounded p-2.5 text-xs text-amber-800">
