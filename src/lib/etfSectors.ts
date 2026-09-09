@@ -22,23 +22,28 @@ export interface SectorDef {
 
 // 이름과 내용이 어긋나는 ETF — 구성종목을 실제로 확인하고 바로잡은 것만 넣는다.
 //   (2026-09-07 토스 구성 조회 기준. 근거 없는 추측으로 채우지 말 것)
-const OVERRIDE: Record<string, string> = {
-  "0190C0": "auto",    // RISE 피지컬AI — 현대차 24%·기아 14%·현대모비스 13% (자동차 51%)
-  "433500": "nuclear", // ACE 원자력TOP10 — 두산에너빌리티 26%, 다만 건설(현대건설 22%)과 39% 겹침
+// 값은 '대체' 가 아니라 '추가' 다 — 이름으로 걸린 섹터에 덧붙는다.
+//   다중 소속이므로 굳이 하나로 못박을 이유가 없고, 못박으면 오히려 진짜 성격을 가린다
+//   (원자력TOP10 을 원자력에만 두면 건설에서 못 찾는다 — 구성의 32%가 건설사다).
+const OVERRIDE: Record<string, string[]> = {
+  "0190C0": ["auto"],   // RISE 피지컬AI — 현대차 24%·기아 14%·현대모비스 13% (자동차 51%)
+  "433500": ["build"],  // ACE 원자력TOP10 — 현대건설 22%·대우건설 10% (건설 32%)
 };
 
 // ── 자산군 먼저 ────────────────────────────────────────────────────────────────
 const ASSET_DEFS: SectorDef[] = [
   // 채권을 맨 위에 — "단기선진하이일드" 처럼 해외 이름이 섞인 채권형이 해외주식으로 새지 않게.
-  { key: "bond",     label: "채권·금리",  kind: "asset", re: /채권|국채|국고채|통안|물가채|금리|회사채|크레딧|하이일드|CD ?금리|KOFR|머니마켓|MMF|단기자금|파킹|만기매칭|국공채|하이인컴|주식혼합|혼합자산/ },
+  { key: "bond",     label: "채권·금리",  kind: "asset", re: /채권|국채|국고채|통안|물가채|금리|회사채|크레딧|하이일드|CD ?금리|KOFR|머니마켓|MMF|단기자금|파킹|만기매칭|국공채|하이인컴|특수채|전단채|주식혼합|혼합자산/ },
   { key: "fx",       label: "통화",       kind: "asset", re: /달러|엔화|위안|유로화|환율/ },
   { key: "commod",   label: "원자재·금",  kind: "asset", re: /금현물|골드|은현물|실버|원유|구리|니켈|원자재|농산물|천연가스|팔라듐|백금/ },
   { key: "crypto",   label: "가상자산",   kind: "asset", re: /비트코인|이더리움|가상자산|디지털자산|스테이블코인/ },
   // 해외는 지역별로 쪼갠다 — 240종을 한 칸에 몰면 "오늘 뭐가 갔나" 를 못 읽는다.
-  { key: "us",       label: "미국",       kind: "asset", re: /미국|나스닥|S&P|SNP|다우|러셀|필라델피아/ },
+  //   S&P 단독은 지수 제공사 이름이라 국내 상품에도 붙는다(HK S&P코리아로우볼) → 500 을 함께 요구.
+  { key: "us",       label: "미국",       kind: "asset", re: /미국|나스닥|S&P ?500|SNP500|다우|러셀|필라델피아|버크셔/ },
   { key: "china",    label: "중국·홍콩",  kind: "asset", re: /차이나|중국|항셍|홍콩|CSI|상해|심천/ },
   { key: "japan",    label: "일본",       kind: "asset", re: /일본|닛케이|TOPIX/ },
-  { key: "overseas", label: "기타 해외",  kind: "asset", re: /글로벌|선진국|신흥국|인도|베트남|유럽|유로스톡스|유로스탁스|스탁스|브라질|멕시코|대만|아시아|월드|라틴|MSCI(?! Korea)/ },
+  //   MSCI 는 한국 지수에도 쓰인다 — 'MSCI KOREA' 는 대문자라 예전 lookahead 를 빠져나갔다(실측).
+  { key: "overseas", label: "기타 해외",  kind: "asset", re: /글로벌|선진국|신흥국|인도|베트남|유럽|유로스톡스|유로스탁스|스탁스|브라질|멕시코|대만|아시아|월드|라틴|독일|DAX|MSCI(?!\s*KOREA)/i },
 ];
 
 // ── 국내 업종·테마 ─────────────────────────────────────────────────────────────
@@ -59,21 +64,21 @@ const SECTOR_DEFS: SectorDef[] = [
   { key: "auto",     label: "자동차",      kind: "sector", re: /자동차|모빌리티|전기차|자율주행/ },
   { key: "build",    label: "건설·인프라",  kind: "sector", re: /건설|건자재|인프라|리모델링/ },
   { key: "steel",    label: "철강·소재",   kind: "sector", re: /철강|비철|소재|시멘트/ },
-  { key: "machine",  label: "기계·산업재",  kind: "sector", re: /기계|장비|중공업|산업재|공작/ },
-  { key: "chem",     label: "화학·에너지",  kind: "sector", re: /화학|정유|에너지|태양광|수소|신재생|풍력/ },
+  { key: "machine",  label: "기계·산업재",  kind: "sector", re: /기계|장비|중공업|산업재|공작|CAPEX|설비투자/i },
+  { key: "chem",     label: "화학·에너지",  kind: "sector", re: /화학|정유|에너지|태양광|수소|신재생|풍력|기후변화|탄소효율|그린뉴딜|친환경/ },
   { key: "bio",      label: "바이오·헬스케어", kind: "sector", re: /바이오|헬스|제약|의료|시밀러|의료기기/ },
-  { key: "content",  label: "IT·인터넷·콘텐츠", kind: "sector", re: /인터넷|게임|콘텐츠|미디어|엔터|플랫폼|웹툰|K-?팝|소프트웨어|클라우드|보안|\bIT\b|5G|e-?커머스|이커머스/ },
-  { key: "consume",  label: "소비재·화장품", kind: "sector", re: /화장품|뷰티|소비재|음식료|식품|유통|리테일|여행|레저/ },
+  { key: "content",  label: "IT·인터넷·콘텐츠", kind: "sector", re: /인터넷|게임|콘텐츠|미디어|엔터|플랫폼|웹툰|K-?팝|KPOP|소프트웨어|클라우드|보안|\bIT\b|5G|e-?커머스|이커머스|메타버스|뉴딜|테크|BBIG|K컬처/i },
+  { key: "consume",  label: "소비재·화장품", kind: "sector", re: /화장품|뷰티|소비재|음식료|식품|유통|리테일|여행|레저|K-?푸드|농업|골프/ },
   { key: "finance",  label: "금융",        kind: "sector", re: /은행|증권|보험|금융|카드|핀테크/ },
   { key: "reit",     label: "리츠·부동산",  kind: "sector", re: /리츠|부동산/ },
   { key: "transport", label: "운송·물류",  kind: "sector", re: /운송|물류|해운|택배/ },
-  { key: "dividend", label: "배당",        kind: "sector", re: /배당|밸류업|우선주/ },
+  { key: "dividend", label: "배당",        kind: "sector", re: /배당|밸류업|우선주|주주가치|주주환원/ },
   { key: "holding",  label: "지주",        kind: "sector", re: /지주/ },
-  { key: "group",    label: "그룹주",      kind: "sector", re: /삼성그룹|현대차그룹|LG그룹|SK그룹|그룹주|그룹플러스|\d대그룹/ },
+  { key: "group",    label: "그룹주",      kind: "sector", re: /삼성그룹|현대차그룹|LG그룹|SK그룹|포스코그룹|그룹주|그룹플러스|그룹포커스|\d대그룹/ },
   // 시장지수를 팩터보다 먼저 — "KODEX 200ESG", "200IT TR" 은 코스피200 파생이지 스타일 상품이 아니다.
   //   (업종 정의는 이보다 위에 있으므로 "TIGER 200 건설" 은 건설로 남는다)
-  { key: "market",   label: "시장지수",    kind: "sector", re: /코스피|코스닥|KOSPI|KOSDAQ|200|대형주|중소형|전체시장|KRX\d|KTOP|MSCI ?Korea|대표주|코리아TOP/ },
-  { key: "factor",   label: "팩터·전략",   kind: "sector", re: /로우볼|모멘텀|퀄리티|팩터|경기방어|동일가중|섹터가중|커버드콜|타겟|버퍼|우량|블루칩|가치주|밸류|성장주|주도|수출주|내수주|저변동|최소변동성|중형주|ESG|TRF|멀티에셋/ },
+  { key: "market",   label: "시장지수",    kind: "sector", re: /코스피|코스닥|KOSPI|KOSDAQ|200|대형주|중소형|전체시장|KRX\d|KTOP|MSCI\s?KOREA|대표주|코리아TOP/i },
+  { key: "factor",   label: "팩터·전략",   kind: "sector", re: /로우볼|모멘텀|퀄리티|팩터|경기방어|동일가중|섹터가중|커버드콜|타겟|버퍼|우량|블루칩|가치주|밸류|성장주|주도|수출주|내수주|저변동|최소변동성|중형주|ESG|TRF|멀티에셋|TDF|타겟데이트|퀀트|혁신성장|혁신기술/i },
 ];
 
 export const ALL_DEFS: SectorDef[] = [...ASSET_DEFS, ...SECTOR_DEFS];
@@ -84,13 +89,29 @@ const ETC: SectorDef = { key: "etc", label: "기타", kind: "asset", re: /(?:)/ 
 const DERIVED = /레버리지|인버스|선물|2X|3X/i;
 export function isDerivedEtf(name: string): boolean { return DERIVED.test(name); }
 
-// ETF 이름(+코드) → 섹터. 못 맞추면 "기타".
-export function classifyEtf(name: string, code?: string): SectorDef {
-  if (code && OVERRIDE[code]) {
-    const hit = ALL_DEFS.find(d => d.key === OVERRIDE[code]);
-    if (hit) return hit;
+// ETF 이름(+코드) → 걸리는 섹터 '전부'.
+//   한 상품이 여러 성격을 가지는 건 흔하다 — 원자력 ETF 가 건설이자 에너지이기도 한 식이다.
+//   하나만 고르면 그 상품을 어느 섹터에서 찾든 절반은 못 찾는다. 그래서 다중 소속을 허용한다.
+//   (그만큼 섹터별 종목 수 합계는 전체 종목 수보다 커진다 — 의도된 것)
+//   OVERRIDE 가 걸린 코드는 그 하나로 못박는다(이름과 내용이 어긋나는 상품 교정).
+export function classifyEtfAll(name: string, code?: string): SectorDef[] {
+  const keys = new Set<string>();
+  const hits: SectorDef[] = [];
+  for (const d of ALL_DEFS) {
+    if (d.re.test(name)) { hits.push(d); keys.add(d.key); }
   }
-  return ALL_DEFS.find(d => d.re.test(name)) ?? ETC;
+  // 구성종목을 실제로 확인하고 덧붙이는 소속 — 이름만으로는 안 드러나는 성격.
+  for (const key of (code ? OVERRIDE[code] ?? [] : [])) {
+    if (keys.has(key)) continue;
+    const def = ALL_DEFS.find(d => d.key === key);
+    if (def) { hits.push(def); keys.add(key); }
+  }
+  return hits.length > 0 ? hits : [ETC];
+}
+
+// 대표 섹터 하나만 필요할 때(목록 정의 순서상 첫 번째).
+export function classifyEtf(name: string, code?: string): SectorDef {
+  return classifyEtfAll(name, code)[0];
 }
 
 // 거래대금(추정) = 현재가 × 거래량. 대표 ETF 를 고르는 기준 — 실제로 사고팔 수 있는 것부터.
@@ -123,10 +144,12 @@ export function buildSectorStats(rows: EtfRankRow[]): EtfSectorStat[] {
   const bucket = new Map<string, { def: SectorDef; rows: EtfRankRow[] }>();
   for (const r of rows) {
     if (isDerivedEtf(r.name)) continue;
-    const def = classifyEtf(r.name, r.code);
-    const b = bucket.get(def.key) ?? { def, rows: [] };
-    b.rows.push(r);
-    bucket.set(def.key, b);
+    // 걸리는 섹터 모두에 넣는다 — 한 상품이 여러 곳에 보여도 된다(classifyEtfAll 주석 참조).
+    for (const def of classifyEtfAll(r.name, r.code)) {
+      const b = bucket.get(def.key) ?? { def, rows: [] };
+      b.rows.push(r);
+      bucket.set(def.key, b);
+    }
   }
   const out: EtfSectorStat[] = [];
   for (const { def, rows: rs } of bucket.values()) {
