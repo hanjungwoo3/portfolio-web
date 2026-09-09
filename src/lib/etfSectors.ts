@@ -22,15 +22,32 @@ export interface SectorDef {
 
 // 이름과 내용이 어긋나는 ETF — 구성종목을 실제로 확인하고 바로잡은 것만 넣는다.
 //   (2026-09-07 토스 구성 조회 기준. 근거 없는 추측으로 채우지 말 것)
-// 값은 '대체' 가 아니라 '추가' 다 — 이름으로 걸린 섹터에 덧붙는다.
-//   다중 소속이므로 굳이 하나로 못박을 이유가 없고, 못박으면 오히려 진짜 성격을 가린다
-//   (원자력TOP10 을 원자력에만 두면 건설에서 못 찾는다 — 구성의 32%가 건설사다).
-const OVERRIDE: Record<string, string[]> = {
-  "0190C0": ["auto"],   // RISE 피지컬AI — 현대차 24%·기아 14%·현대모비스 13% (자동차 51%)
-  "433500": ["build"],  // ACE 원자력TOP10 — 현대건설 22%·대우건설 10% (건설 32%)
+// 이름과 내용이 어긋나는 상품을 못박는다(구성종목을 실제로 확인한 것만).
+const OVERRIDE: Record<string, string> = {
+  "0190C0": "auto",     // RISE 피지컬AI — 현대차 24%·기아 14%·현대모비스 13% (자동차 51%)
 };
 
-// ── 자산군 먼저 ────────────────────────────────────────────────────────────────
+// ── 반도체는 자산군보다 먼저 ──────────────────────────────────────────────────
+// 국내 시장에서 반도체는 그 자체로 한 덩어리라, 미국·일본 반도체가 '미국'·'일본' 으로 흩어지면
+//   "반도체가 오늘 어떤가" 를 볼 수 없다. 그래서 반도체 규칙을 자산군보다 먼저 검사한다.
+//   순서: 해외 → 소부장 → 밸류체인 → 국내. 앞의 것이 더 구체적인 성격이다.
+const SEMI_DEFS: SectorDef[] = [
+  // 해외 반도체 — 지역·지수 이름이 붙은 것. 미국 필라델피아·NYSE, 차이나, 일본, 글로벌 등.
+  { key: "semiglobal", label: "반도체(해외)", kind: "sector",
+    re: /(?=.*반도체)(?=.*(미국|중국|차이나|일본|글로벌|아시아|해외|나스닥|필라델피아|NYSE))/i },
+  // 소부장·장비 — 공정·장비는 발주 사이클로 움직여 완제품과 리듬이 다르다.
+  //   ★ '반도체 문맥' 을 함께 요구한다. 그냥 /소부장/ 이면 2차전지·자동차·의료기기 소부장까지
+  //     끌려온다 — 실제로 그렇게 잘못 분류되고 있었다(실측 3종).
+  { key: "semisobu",   label: "반도체 소부장·장비", kind: "sector",
+    re: /(?=.*반도체)(?=.*(소부장|전공정|후공정|핵심공정|핵심장비))/ },
+  // 밸류체인·공급망 — 완제품 지수가 아니라 후방까지 묶은 바스켓.
+  { key: "semichain",  label: "반도체 밸류체인", kind: "sector",
+    re: /(?=.*반도체)(?=.*(밸류체인|공급망|서플라이))|파운드리/ },
+  // 국내 반도체 — 위에 안 걸린 나머지.
+  { key: "semi",       label: "반도체(국내)", kind: "sector", re: /반도체|메모리|HBM|시스템반도체/ },
+];
+
+// ── 자산군 ────────────────────────────────────────────────────────────────────
 const ASSET_DEFS: SectorDef[] = [
   // 채권을 맨 위에 — "단기선진하이일드" 처럼 해외 이름이 섞인 채권형이 해외주식으로 새지 않게.
   { key: "bond",     label: "채권·금리",  kind: "asset", re: /채권|국채|국고채|통안|물가채|금리|회사채|크레딧|하이일드|CD ?금리|KOFR|머니마켓|MMF|단기자금|파킹|만기매칭|국공채|하이인컴|특수채|전단채|주식혼합|혼합자산/ },
@@ -49,12 +66,6 @@ const ASSET_DEFS: SectorDef[] = [
 // ── 국내 업종·테마 ─────────────────────────────────────────────────────────────
 //   구체적인 테마를 위에, 넓은 업종을 아래에 둔다("AI" 같은 넓은 말이 먼저 먹지 않게).
 const SECTOR_DEFS: SectorDef[] = [
-  // 소부장을 반도체보다 먼저 본다 — 공정·장비는 완제품 반도체와 움직임이 다르다(장비 발주 사이클).
-  //   ★ '반도체 문맥' 을 함께 요구한다. 그냥 /소부장/ 으로 잡으면 2차전지·자동차·의료기기
-  //     소부장 ETF 까지 반도체로 끌려온다 — 실제로 그렇게 잘못 분류되고 있었다(실측 3종).
-  { key: "semisobu", label: "반도체 소부장·장비", kind: "sector",
-    re: /(?=.*반도체)(?=.*(소부장|전공정|후공정|핵심공정|핵심장비))/ },
-  { key: "semi",     label: "반도체",      kind: "sector", re: /반도체|메모리|HBM|파운드리|시스템반도체/ },
   { key: "nuclear",  label: "원자력·SMR",  kind: "sector", re: /원자력|원전|SMR/ },
   { key: "power",    label: "AI전력·전력설비", kind: "sector", re: /전력설비|전력기기|AI전력|전선|그리드|에너지인프라|변압기/ },
   { key: "ship",     label: "조선",        kind: "sector", re: /조선|해양플랜트/ },
@@ -81,7 +92,7 @@ const SECTOR_DEFS: SectorDef[] = [
   { key: "factor",   label: "팩터·전략",   kind: "sector", re: /로우볼|모멘텀|퀄리티|팩터|경기방어|동일가중|섹터가중|커버드콜|타겟|버퍼|우량|블루칩|가치주|밸류|성장주|주도|수출주|내수주|저변동|최소변동성|중형주|ESG|TRF|멀티에셋|TDF|타겟데이트|퀀트|혁신성장|혁신기술/i },
 ];
 
-export const ALL_DEFS: SectorDef[] = [...ASSET_DEFS, ...SECTOR_DEFS];
+export const ALL_DEFS: SectorDef[] = [...SEMI_DEFS, ...ASSET_DEFS, ...SECTOR_DEFS];
 const ETC: SectorDef = { key: "etc", label: "기타", kind: "asset", re: /(?:)/ };
 
 // 레버리지·인버스·선물은 섹터 통계에서 항상 뺀다.
@@ -89,29 +100,17 @@ const ETC: SectorDef = { key: "etc", label: "기타", kind: "asset", re: /(?:)/ 
 const DERIVED = /레버리지|인버스|선물|2X|3X/i;
 export function isDerivedEtf(name: string): boolean { return DERIVED.test(name); }
 
-// ETF 이름(+코드) → 걸리는 섹터 '전부'.
-//   한 상품이 여러 성격을 가지는 건 흔하다 — 원자력 ETF 가 건설이자 에너지이기도 한 식이다.
-//   하나만 고르면 그 상품을 어느 섹터에서 찾든 절반은 못 찾는다. 그래서 다중 소속을 허용한다.
-//   (그만큼 섹터별 종목 수 합계는 전체 종목 수보다 커진다 — 의도된 것)
-//   OVERRIDE 가 걸린 코드는 그 하나로 못박는다(이름과 내용이 어긋나는 상품 교정).
-export function classifyEtfAll(name: string, code?: string): SectorDef[] {
-  const keys = new Set<string>();
-  const hits: SectorDef[] = [];
-  for (const d of ALL_DEFS) {
-    if (d.re.test(name)) { hits.push(d); keys.add(d.key); }
-  }
-  // 구성종목을 실제로 확인하고 덧붙이는 소속 — 이름만으로는 안 드러나는 성격.
-  for (const key of (code ? OVERRIDE[code] ?? [] : [])) {
-    if (keys.has(key)) continue;
-    const def = ALL_DEFS.find(d => d.key === key);
-    if (def) { hits.push(def); keys.add(key); }
-  }
-  return hits.length > 0 ? hits : [ETC];
-}
-
-// 대표 섹터 하나만 필요할 때(목록 정의 순서상 첫 번째).
+// ETF 이름(+코드) → 섹터 하나. 못 맞추면 "기타".
+//   ★ 한 종목은 한 섹터에만 넣는다. 여러 곳에 넣어 봤더니 국내 '반도체' 에 미국·중국·일본
+//     반도체 ETF 가 17종 섞여 들어와(TIGER 미국필라델피아반도체 등) 섹터가 뭉개졌다.
+//     자산군(해외·채권·원자재)을 먼저 검사하는 지금 순서라야 국내 섹터가 국내만 담는다.
+//   정의 순서가 곧 우선순위 — 구체적인 테마를 위에, 넓은 업종을 아래에 둔다.
 export function classifyEtf(name: string, code?: string): SectorDef {
-  return classifyEtfAll(name, code)[0];
+  if (code && OVERRIDE[code]) {
+    const hit = ALL_DEFS.find(d => d.key === OVERRIDE[code]);
+    if (hit) return hit;
+  }
+  return ALL_DEFS.find(d => d.re.test(name)) ?? ETC;
 }
 
 // 거래대금(추정) = 현재가 × 거래량. 대표 ETF 를 고르는 기준 — 실제로 사고팔 수 있는 것부터.
@@ -127,10 +126,8 @@ export interface EtfSectorStat {
   median: number;       // 중앙값 등락률(%) — 평균은 한 종목의 급등에 휘둘린다
   upRatio: number;      // 오른 종목 비율(0~1) — 섹터가 고르게 갔는지
   best: EtfRankRow;     // 그날 가장 많이 오른 것
-  rows: EtfRankRow[];   // 거래대금 상위 (rows[0] = 대표 ETF)
+  rows: EtfRankRow[];   // 그 섹터 전 종목, 거래대금 내림차순 (rows[0] = 대표 ETF)
 }
-
-export const SECTOR_ROWS = 12;   // 섹터당 보관할 대표 ETF 수 (캐시 용량 고려)
 
 function median(xs: number[]): number {
   if (xs.length === 0) return 0;
@@ -144,12 +141,10 @@ export function buildSectorStats(rows: EtfRankRow[]): EtfSectorStat[] {
   const bucket = new Map<string, { def: SectorDef; rows: EtfRankRow[] }>();
   for (const r of rows) {
     if (isDerivedEtf(r.name)) continue;
-    // 걸리는 섹터 모두에 넣는다 — 한 상품이 여러 곳에 보여도 된다(classifyEtfAll 주석 참조).
-    for (const def of classifyEtfAll(r.name, r.code)) {
-      const b = bucket.get(def.key) ?? { def, rows: [] };
-      b.rows.push(r);
-      bucket.set(def.key, b);
-    }
+    const def = classifyEtf(r.name, r.code);
+    const b = bucket.get(def.key) ?? { def, rows: [] };
+    b.rows.push(r);
+    bucket.set(def.key, b);
   }
   const out: EtfSectorStat[] = [];
   for (const { def, rows: rs } of bucket.values()) {
@@ -162,7 +157,9 @@ export function buildSectorStats(rows: EtfRankRow[]): EtfSectorStat[] {
       median: median(rs.map(r => r.pct)),
       upRatio: rs.filter(r => r.pct > 0).length / rs.length,
       best: byPct[0],
-      rows: byValue.slice(0, SECTOR_ROWS),
+      // 12종만 담다가 전체로 바꿨다 — 팝업에서 스크롤로 다 볼 수 있어야 한다.
+      //   전 섹터 합쳐 1,100 행 남짓이라 localStorage 캐시에 부담이 안 된다.
+      rows: byValue,
     });
   }
   return out.sort((a, b) => b.median - a.median);
