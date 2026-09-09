@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { subscribeProxyStatus, type ProxyState } from "../lib/proxyStatus";
+import { subscribeProxyStatus, myDownCount, type ProxyState } from "../lib/proxyStatus";
 import { useExtensionProxyReady } from "../lib/extensionProxy";
 import { isNativeApp } from "../lib/nativeProxy";
 
@@ -42,10 +42,20 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettin
       text: `${isNativeApp() ? "앱" : "확장"} 직결 · ${baseSec}초 갱신`,
       color: "text-emerald-700",
     };
+  } else if (usePersonalProxy && myDownCount() === 0) {
+    // 내 전용 프록시가 멀쩡하면 공용이 소진됐든 말든 내 갱신과는 무관하다.
+    //   (예전엔 공용 상태를 먼저 봐서 "공용 소진 — 갱신 중지" 가 떴다. 사용량이 남은
+    //    개인 워커 사용자에게 잘못된 경고였고, 실제로 멈추지도 않았다)
+    statusMsg = {
+      emoji: "🔧",
+      text: `내 전용 프록시 · ${baseSec}초 갱신`,
+      color: "text-blue-700",
+    };
   } else if (state.health === "down") {
     statusMsg = {
       emoji: "❌",
-      text: `공용 프록시 모두 사용량 소진 (${state.total}/${state.total}) — 갱신 중지`,
+      // '중지' 가 아니라 느려지는 것이다 — 실제로는 간격만 늘어난다.
+      text: `공용 프록시 모두 사용량 소진 (${state.total}/${state.total}) — 갱신 ${intervalSec}초로 늦춤`,
       color: "text-rose-700",
     };
   } else if (state.health === "degraded") {

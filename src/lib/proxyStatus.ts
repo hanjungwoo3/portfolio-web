@@ -91,6 +91,18 @@ export function getProxyState(): ProxyState {
   return lastState;
 }
 
+// ★ '내가 의존하는' 프록시 중 죽은 수. 폴링을 늦출 근거는 이것뿐이다.
+//   stats 에는 공용·개인이 섞여 들어온다(폴백으로 한 번이라도 때리면 공용도 들어온다).
+//   그걸 그대로 세면, 내 워커는 멀쩡한데 공용이 소진됐다는 이유로 내 갱신이 느려진다
+//   — 실제로 개인 워커 사용자들이 "사용량 남았는데 갱신이 안 된다" 고 겪은 문제다.
+export function myDownCount(): number {
+  const mine = getEnabledPersonalProxies().filter(u => !isSyntheticProxyUrl(u));
+  // 전용 프록시가 없으면 공용이 곧 내 주력 → 전체 다운 수가 그대로 근거가 된다.
+  if (mine.length === 0) return lastState.downHosts.length;
+  // 전용 프록시가 있으면 '내 것' 이 죽었을 때만 늦춘다. 공용은 폴백일 뿐이다.
+  return mine.filter(u => isProxyDown(u)).length;
+}
+
 // 프록시 URL 변경 시 — 옛 통계 리셋 (down 상태 / 부정확한 health 영향 제거)
 export function resetProxyStats(): void {
   stats.clear();
@@ -103,7 +115,7 @@ export function resetProxyStats(): void {
 //  2) 양 시장(한국·미국) 모두 마감 시 60초로 throttle — 단, 공개(무료) 프록시일 때만.
 //     개인 프록시 사용자는 본인이 설정한 주기를 그대로 유지.
 import { useEffect, useState } from "react";
-import { hasDedicatedTransport, hasDirectTransport } from "./proxyConfig";
+import { hasDedicatedTransport, hasDirectTransport, getEnabledPersonalProxies, isSyntheticProxyUrl } from "./proxyConfig";
 import { useExtensionProxyReady } from "./extensionProxy";
 import { isAnyMarketActive } from "./format";
 
@@ -114,7 +126,7 @@ export function useAdaptiveRefreshMs(baseMs: number): number {
   // 확장 감지는 postMessage 핸드셰이크라 마운트 뒤에 켜질 수 있다 → 의존성에 넣어 즉시 재계산.
   const extReady = useExtensionProxyReady();
   useEffect(() => {
-    let downCount = getProxyState().downHosts.length;
+    let downCount = myDownCount();
     const compute = () => {
       // 수동(0) — 자동 폴링 없음. throttle/adaptive 우회.
       if (baseMs <= 0) { setMs(0); return; }
@@ -129,7 +141,7 @@ export function useAdaptiveRefreshMs(baseMs: number): number {
       const penalty = hasDirectTransport() ? 0 : downCount * effBase;
       setMs(effBase + penalty);
     };
-    const unsub = subscribeProxyStatus(s => { downCount = s.downHosts.length; compute(); });
+    const unsub = subscribeProxyStatus(() => { downCount = myDownCount(); compute(); });
     compute();
     // 시장 개장/마감 전환 감지 — 1분마다 재평가
     const timer = setInterval(compute, 60_000);
