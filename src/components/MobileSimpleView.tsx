@@ -155,7 +155,7 @@ export function MobileSimpleView() {
   const [searchInitQuery, setSearchInitQuery] = useState("");
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   // 섹터별 흐름 — 고정 22종 대신 전수 랭킹 스냅샷(PC 와 동일). 없으면 고정 카드로 폴백.
-  const sectorRanking = useCachedSectorFlow(true);
+  const { ranking: sectorRanking, loading: sectorLoading, refresh: refreshSectors } = useCachedSectorFlow(true);
   const sectorStats = sectorRanking?.sectors ?? [];
   const [sectorDlg, setSectorDlg] = useState<EtfSectorStat | null>(null);
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
@@ -1502,7 +1502,8 @@ export function MobileSimpleView() {
                 </span>
                 {section.render === "sectorFlow" && sectorStats.length > 0 && (
                   <EtfSectorFlow sectors={sectorStats} onPick={setSectorDlg}
-                                 fetchedAt={sectorRanking?.fetchedAt} />
+                                 fetchedAt={sectorRanking?.fetchedAt}
+                                 onRefresh={refreshSectors} refreshing={sectorLoading} />
                 )}
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
                   {(section.render === "sectorFlow" && sectorStats.length > 0 ? []

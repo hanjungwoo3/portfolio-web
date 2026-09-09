@@ -263,7 +263,7 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   // 섹터별 흐름 — 고정 22종 대신 전수 랭킹 스냅샷으로 그린다(EtfSectorFlow).
   //   랭킹이 없으면(캐시 없음·조회 실패) 아래 rows 의 고정 카드로 폴백한다.
-  const sectorRanking = useCachedSectorFlow(true);
+  const { ranking: sectorRanking, loading: sectorLoading, refresh: refreshSectors } = useCachedSectorFlow(true);
   const sectorStats = sectorRanking?.sectors ?? [];
   const [sectorDlg, setSectorDlg] = useState<EtfSectorStat | null>(null);
   // 야간선물(yasun.gg)은 프록시를 타므로 구버전 개인 워커면 값이 빈다 → 그때만 업데이트 안내.
@@ -297,7 +297,8 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
             {/* 한국 섹터 ETF·반도체 TOP2+·소부장 그룹은 오늘 등락률(%) 내림차순으로 정렬 (6개씩 줄바꿈) */}
             {section.render === "sectorFlow" && sectorStats.length > 0 && (
               <EtfSectorFlow sectors={sectorStats} onPick={setSectorDlg}
-                             fetchedAt={sectorRanking?.fetchedAt} />
+                             fetchedAt={sectorRanking?.fetchedAt}
+                             onRefresh={refreshSectors} refreshing={sectorLoading} />
             )}
             {(section.render === "sectorFlow" && sectorStats.length > 0 ? []
               : section.id === "sector" || section.id === "semitop2" || section.id === "semisobu"

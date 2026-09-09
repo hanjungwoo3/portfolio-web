@@ -51,11 +51,13 @@ export function SectorCard({ s, on, onClick }: {
 
 // 섹터 카드 그리드. fetchedAt 을 주면 '기준 시각' 캡션을 위에 붙인다(지수 탭용 —
 //   그 탭의 다른 카드는 실시간인데 여기만 스냅샷이라 언제 기준인지 밝혀야 한다).
-export function EtfSectorFlow({ sectors, selectedKey, onPick, fetchedAt }: {
+export function EtfSectorFlow({ sectors, selectedKey, onPick, fetchedAt, onRefresh, refreshing }: {
   sectors: EtfSectorStat[];
   selectedKey?: string | null;
   onPick: (s: EtfSectorStat) => void;
   fetchedAt?: number;
+  onRefresh?: () => void;      // 주면 캡션에 새로고침 버튼이 붙는다(지수 탭용)
+  refreshing?: boolean;
 }) {
   if (sectors.length === 0) return null;
   const stamp = fetchedAt
@@ -64,9 +66,20 @@ export function EtfSectorFlow({ sectors, selectedKey, onPick, fetchedAt }: {
   return (
     <>
     {stamp && (
-      <div className="text-[11px] text-gray-500 px-0.5 -mt-0.5 mb-1">
-        중앙값 등락률 순 · 레버리지·인버스·선물 제외 ·{" "}
-        <span className="text-gray-400">기준 {stamp} · 누르면 종목 목록</span>
+      <div className="flex items-center gap-2 text-[11px] text-gray-500 px-0.5 -mt-0.5 mb-1 flex-wrap">
+        <span>
+          중앙값 등락률 순 · 레버리지·인버스·선물 제외 ·{" "}
+          <span className="text-gray-400">기준 {stamp} · 누르면 종목 목록</span>
+        </span>
+        {/* 이 블록만 스냅샷이라(전수 조회 약 17콜) 자동 갱신하지 않는다 — 여기서 직접 받는다 */}
+        {onRefresh && (
+          <button onClick={onRefresh} disabled={refreshing}
+                  title="전체 ETF 시세를 다시 조회합니다 (프록시 약 17콜)"
+                  className="px-1.5 py-0.5 rounded border border-gray-300 bg-white text-gray-600
+                             hover:bg-gray-100 disabled:opacity-50">
+            {refreshing ? "조회 중…" : "🔄 새로고침"}
+          </button>
+        )}
       </div>
     )}
     <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-6 gap-2">

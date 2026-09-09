@@ -4,7 +4,7 @@
 // 폴링에 태우면 안 된다 → 사용자가 "새로고침" 을 누를 때만 조회하고 localStorage 에 캐시한다.
 // (탭 첫 진입 시 캐시가 없으면 1회 자동 조회)
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import type { Price } from "../types";
 import { fetchTossPrices } from "./api";
 import { loadEtfData } from "./etfIndex";
@@ -117,10 +117,28 @@ export async function fetchEtfRanking(): Promise<EtfRanking> {
 }
 
 // 지수 탭용 — 캐시를 읽고, 아예 없을 때만 1회 조회한다(17콜이라 폴링 금지).
-//   ETF랭킹 탭은 자체 상태를 갖고 있으므로 이 훅을 쓰지 않는다.
-export function useCachedSectorFlow(enabled: boolean): EtfRanking | null {
-  const [ranking, setRanking] = useState<EtfRanking | null>(() => loadCachedRanking());
+//   갱신은 사용자가 새로고침을 눌렀을 때만. ETF랭킹 탭과 같은 localStorage 캐시를 쓰므로
+//   한쪽에서 새로고침하면 다른 쪽도 다음에 열 때 새 값을 본다.
+export interface SectorFlowState {
+  ranking: EtfRanking | null;
+  loading: boolean;
+  refresh: () => void;
+}
 
+export function useCachedSectorFlow(enabled: boolean): SectorFlowState {
+  const [ranking, setRanking] = useState<EtfRanking | null>(() => loadCachedRanking());
+  const [loading, setLoading] = useState(false);
+
+  // 사용자가 누른 새로고침 — 진행 표시를 켠다.
+  const refresh = useCallback(() => {
+    setLoading(true);
+    void fetchEtfRanking()
+      .then(setRanking)
+      .catch(() => { /* 실패하면 이전 캐시를 그대로 둔다 */ })
+      .finally(() => setLoading(false));
+  }, []);
+
+  // 캐시가 아예 없을 때의 최초 1회 — 여기선 setState 를 동기로 부르지 않는다(이펙트 규칙).
   useEffect(() => {
     if (!enabled || ranking) return;
     let alive = true;
@@ -130,5 +148,5 @@ export function useCachedSectorFlow(enabled: boolean): EtfRanking | null {
     return () => { alive = false; };
   }, [enabled, ranking]);
 
-  return ranking;
+  return { ranking, loading, refresh };
 }
