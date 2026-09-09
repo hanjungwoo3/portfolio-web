@@ -38,20 +38,6 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
       ],
     },
     {
-      id: "semitop2", short: "TOP2",
-      label: "🏆 반도체 TOP2+ ETF",                    // 삼성·하이닉스 집중 반도체 TOP2/HBM 테마 ETF 비교
-      rows: [
-        ["395160.KS", "395270.KS", "0167A0.KS", "0210A0.KS", "442580.KS"],   // KODEX AI반도체TOP2플러스·HANARO Fn K-반도체·SOL AI반도체TOP2플러스·ACE K반도체TOP2+·PLUS 글로벌HBM반도체
-      ],
-    },
-    {
-      id: "semisobu", short: "소부장",
-      label: "🔬 반도체 소부장·장비 ETF",               // 전공정·소재·부품·장비(소부장) 테마 ETF
-      rows: [
-        ["475300.KS", "482030.KS", "476260.KS", "455850.KS", "471990.KS"],   // SOL 반도체전공정·KoAct 반도체&2차전지핵심소재·HANARO 반도체핵심공정주도주·SOL AI반도체소부장·KODEX AI반도체핵심장비
-      ],
-    },
-    {
       id: "macro", short: "미국지수",
       label: "📈 미국 지수",                          // 전체시장(윌셔5000·러셀3000·NYSE) + 대표(나스닥·S&P·다우)
       rows: [["^W5000", "^RUA", "^NYA", "^IXIC", "^GSPC", "^DJI"]],
@@ -105,7 +91,7 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
     },
   ];
   if (krClosed) {
-    const krIds = new Set(["kr", "sector", "semitop2", "semisobu"]);   // 한국 관련 그룹 → 맨 아래(상대 순서 유지)
+    const krIds = new Set(["kr", "sector"]);   // 한국 관련 그룹 → 맨 아래(상대 순서 유지)
     return [...sections.filter(s => !krIds.has(s.id)), ...sections.filter(s => krIds.has(s.id))];
   }
   return sections;

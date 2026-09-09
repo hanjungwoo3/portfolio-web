@@ -301,7 +301,7 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
                              onRefresh={refreshSectors} refreshing={sectorLoading} />
             )}
             {(section.render === "sectorFlow" && sectorStats.length > 0 ? []
-              : section.id === "sector" || section.id === "semitop2" || section.id === "semisobu"
+              : section.id === "sector"
               ? chunk(
                   section.rows.flat().sort((a, b) =>
                     (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity)),
