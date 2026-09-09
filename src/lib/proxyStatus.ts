@@ -91,6 +91,35 @@ export function getProxyState(): ProxyState {
   return lastState;
 }
 
+// ── (호스트, 공급자) 단위 차단 기억 ──────────────────────────────────────────
+// 왜 필요한가 — 토스 wts-info-api 는 Cloudflare egress 를 400 으로 거부하는데
+//   wts-cert-api·네이버·야후는 같은 워커로 잘 된다(실측). 공급자 전체를 죽은 것으로 치면
+//   멀쩡한 요청까지 잃고, 아무것도 안 하면 매 요청마다 400 을 한 번 맞고 폴백으로 넘어간다.
+//   → '이 호스트에서 이 공급자는 안 된다' 만 기억해 그 조합만 뒤로 미룬다.
+//   시간창을 둬서 상대가 풀어주면 저절로 회복된다. 하드코딩이 아니라 실측으로 배운다.
+const HOST_BLOCK_WINDOW_MS = 10 * 60 * 1000;
+const HOST_BLOCK_THRESHOLD = 2;            // 연속 2회 하드 실패면 차단으로 본다
+const hostBlocks = new Map<string, { fail: number; at: number }>();
+const hostKey = (host: string, provider: string) => `${host}|${provider}`;
+
+export function noteHostFailure(host: string, provider: string): void {
+  const k = hostKey(host, provider);
+  const cur = hostBlocks.get(k);
+  const fresh = cur && Date.now() - cur.at < HOST_BLOCK_WINDOW_MS ? cur.fail : 0;
+  hostBlocks.set(k, { fail: fresh + 1, at: Date.now() });
+}
+
+export function noteHostSuccess(host: string, provider: string): void {
+  hostBlocks.delete(hostKey(host, provider));
+}
+
+export function isHostBlocked(host: string, provider: string): boolean {
+  const s = hostBlocks.get(hostKey(host, provider));
+  if (!s) return false;
+  if (Date.now() - s.at >= HOST_BLOCK_WINDOW_MS) { hostBlocks.delete(hostKey(host, provider)); return false; }
+  return s.fail >= HOST_BLOCK_THRESHOLD;
+}
+
 // ★ '내가 의존하는' 프록시 중 죽은 수. 폴링을 늦출 근거는 이것뿐이다.
 //   stats 에는 공용·개인이 섞여 들어온다(폴백으로 한 번이라도 때리면 공용도 들어온다).
 //   그걸 그대로 세면, 내 워커는 멀쩡한데 공용이 소진됐다는 이유로 내 갱신이 느려진다

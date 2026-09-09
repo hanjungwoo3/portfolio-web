@@ -1,5 +1,8 @@
 import type { Price, Investor, Consensus } from "../types";
-import { reportProxySuccess, reportProxyFailure, isProxyDown } from "./proxyStatus";
+import {
+  reportProxySuccess, reportProxyFailure, isProxyDown,
+  noteHostFailure, noteHostSuccess, isHostBlocked,
+} from "./proxyStatus";
 import {
   getEnabledPersonalProxies, isLocalProxyUrl, isExtensionProxyUrl, isNativeProxyUrl, isSyntheticProxyUrl,
 } from "./proxyConfig";
@@ -167,8 +170,17 @@ export async function fetchProxied(
   // fallback(공개)은 항상 전용 프록시 뒤 — 앞에서 성공하면 도달하지 않는다.
   //  확장 표식은 빼고 돈다. 실제 호출은 위 블록에서 이미 시도했고(우선순위 보장),
   //  표식은 "전용 프록시가 있다" 는 판정을 위해 목록에 들어가 있을 뿐이다.
-  const order = [...rank(plan.primary), ...rank(plan.fallback)]
+  // (호스트, 공급자) 로 막힌 조합은 뒤로 미룬다 — 지우지는 않는다.
+  //   예: 토스 wts-info-api 는 Cloudflare 를 400 으로 거부하지만 wts-cert-api·네이버는 멀쩡하다.
+  //   매번 400 을 한 번 맞고 폴백으로 넘어가면 응답이 늦고 호출만 두 배로 나간다.
+  //   맨 뒤에 남겨 두는 이유는 상대가 풀어줬을 때 스스로 회복하기 위해서다(시간창 만료 후 재시도).
+  const targetHost = (() => { try { return new URL(targetUrl).hostname; } catch { return ""; } })();
+  const ranked = [...rank(plan.primary), ...rank(plan.fallback)]
     .filter(u => !isSyntheticProxyUrl(u));
+  const order = [
+    ...ranked.filter(u => !isHostBlocked(targetHost, proxyProvider(u))),
+    ...ranked.filter(u => isHostBlocked(targetHost, proxyProvider(u))),
+  ];
   let lastErr: unknown;
   let lastResp: Response | undefined;
   // 400 류(=토스 스로틀링)는 IP 풀 단위라 같은 공급자로 다시 쏘면 결과가 같다 (실측: CF 워커 3개 동시 400).
@@ -188,12 +200,14 @@ export async function fetchProxied(
         // 응답을 돌려받았다 = 프록시(워커)는 살아있음. 타깃 소스의 4xx/5xx 는
         // 프록시 다운으로 치지 않음 (특정 소스 에러로 "모두 다운" 오판 방지).
         reportProxySuccess(base);
-        if (resp.ok) return resp;
+        if (resp.ok) { noteHostSuccess(targetHost, provider); return resp; }
         lastResp = resp;   // 비-ok 응답 보관 — 호출측이 status 보고 판단 (예: 토스 490 점검)
         lastErr = new Error(`HTTP ${resp.status} from ${base}`);
         // 토스 점검(490)은 앱 차원의 확정 신호 — 다른 프록시로 물어봐야 답이 같다.
         if (resp.status === 490) return resp;
         if (!isProxyRetryable(resp.status)) {
+          // 이 공급자로는 이 호스트가 안 된다고 기억 — 다음부터 뒤로 미룬다(자가 복구됨).
+          noteHostFailure(targetHost, provider);
           if (hardFailed) return resp;   // 다른 공급자까지 시도했는데 또 실패 → 그대로 반환
           hardFailed = true;             // 다음 루프에서 '아직 안 써본 공급자'만 찾는다
         }
