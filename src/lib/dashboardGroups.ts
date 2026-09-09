@@ -81,8 +81,8 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
     },
     {
       id: "spot", short: "현물",
-      label: "💵 현물 (원자재)",                       // 금·은·구리·원유·천연가스 — 가격 자체가 신호
-      rows: [["GC=F", "SI=F", "HG=F", "CL=F", "NG=F"]],
+      label: "💵 현물 (원자재)",                       // 금·은·구리·원유(WTI·브렌트)·천연가스 — 가격 자체가 신호
+      rows: [["GC=F", "SI=F", "HG=F", "CL=F", "BZ=F", "NG=F"]],
     },
     {
       id: "bigtech", short: "빅테크",
