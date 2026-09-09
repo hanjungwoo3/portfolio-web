@@ -36,15 +36,16 @@ function capFloor(eok: number): string {
 function ThemeCard({ t, onClick }: { t: ThemeStat; onClick: () => void }) {
   return (
     <button onClick={onClick}
-            title={`${t.label} ${t.count}종\n오늘 최고 ${t.best.name} ${t.best.pct.toFixed(2)}%`}
+            title={`${t.label} — 편입 ${t.total}종 중 ${t.count}종 체결\n최고 ${t.best.name} ${t.best.pct.toFixed(2)}%`}
             className="w-full mb-2 break-inside-avoid text-left px-2.5 py-2 rounded-lg border
                        border-gray-200 bg-white hover:bg-gray-50 transition-colors">
       <span className="flex items-baseline gap-1.5">
         <span className="flex-1 min-w-0 truncate text-sm font-medium text-gray-800">{t.label}</span>
-        {/* 표본이 8종 미만인 카드는 중앙값이 한두 종목에 좌우된다 — 숫자를 눈에 띄게 해 경고 */}
+        {/* 표본이 8종 미만인 카드는 중앙값이 한두 종목에 좌우된다 — 숫자를 눈에 띄게 해 경고.
+            프리장엔 편입 종목 중 일부만 체결되므로 'n/전체' 로 커버리지도 같이 보인다 */}
         <span className={`shrink-0 text-[10px] tabular-nums ${
                 t.count < 8 ? "text-amber-600 font-bold" : "text-gray-400"}`}>
-          {t.count}
+          {t.count < t.total ? `${t.count}/${t.total}` : t.count}
         </span>
         <span className={`shrink-0 text-sm font-bold tabular-nums ${signColor(t.median)}`}>
           {t.median > 0 ? "+" : ""}{t.median.toFixed(2)}%
@@ -63,11 +64,15 @@ function ThemeCard({ t, onClick }: { t: ThemeStat; onClick: () => void }) {
   );
 }
 
-export function ThemeFlow({ themes, onPick, fetchedAt, minCap, onRefresh, refreshing }: {
+export function ThemeFlow({ themes, onPick, fetchedAt, minCap, tradeDate,
+                            scanned, total, onRefresh, refreshing }: {
   themes: ThemeStat[];
   onPick: (t: ThemeStat) => void;
   fetchedAt?: number;
   minCap?: number;             // 스냅샷에 적용된 시총 하한(억원)
+  tradeDate?: string;          // 데이터의 기준 거래일 (KST YYYY-MM-DD)
+  scanned?: number;            // 이번 세션에 체결된 종목 수
+  total?: number;              // 편입 종목 수
   onRefresh?: () => void;
   refreshing?: boolean;
 }) {
@@ -75,6 +80,17 @@ export function ThemeFlow({ themes, onPick, fetchedAt, minCap, onRefresh, refres
   const stamp = fetchedAt
     ? new Date(fetchedAt + 9 * 3600_000).toISOString().slice(11, 16)   // KST HH:MM
     : null;
+  // 장 시작 전(08~09시)·주말에 받으면 데이터가 직전 거래일 것이다. 조회 시각만 보여주면
+  //   오늘 흐름으로 오해한다 — 기준일이 조회한 날과 다르면 날짜를 밝힌다.
+  //   ★ 지금(Date.now)이 아니라 '받은 시점' 과 비교한다. 렌더 중 현재시각을 읽으면 안 되고
+  //     (순수하지 않다), 캐시된 스냅샷을 다음날 볼 때도 받은 날 기준이 맞다.
+  const fetchedDayKst = fetchedAt
+    ? new Date(fetchedAt + 9 * 3600_000).toISOString().slice(0, 10)
+    : null;
+  const stale = !!tradeDate && !!fetchedDayKst && tradeDate !== fetchedDayKst;
+  // 프리장(08:00~08:50 NXT)엔 편입 종목 중 일부만 체결된다 — 어제 값은 아예 뺐으므로
+  //   표본이 얼마나 얇은지 밝혀야 카드를 믿을지 판단할 수 있다.
+  const partial = !!scanned && !!total && scanned < total * 0.9;
   return (
     <>
       <div className="flex items-center gap-2 text-[11px] text-gray-500 px-0.5 -mt-0.5 mb-1 flex-wrap">
@@ -84,6 +100,18 @@ export function ThemeFlow({ themes, onPick, fetchedAt, minCap, onRefresh, refres
             {stamp ? `기준 ${stamp} · ` : ""}누르면 종목 목록
           </span>
         </span>
+        {/* 휴장·주말이면 데이터가 직전 거래일 것이다 — 오늘 흐름이 아니라고 못박는다 */}
+        {stale && (
+          <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 font-medium">
+            {tradeDate!.slice(5).replace("-", "/")} 종가 기준
+          </span>
+        )}
+        {/* 프리장처럼 일부만 체결된 상태 — 어제 값은 뺐고, 남은 표본이 얇다는 뜻 */}
+        {!stale && partial && (
+          <span className="px-1.5 py-0.5 rounded bg-sky-100 text-sky-800 font-medium">
+            체결 {scanned}/{total}종 · 미체결 제외
+          </span>
+        )}
         {/* 이 블록만 스냅샷이라(1,835종 약 10콜) 자동 갱신하지 않는다 — 여기서 직접 받는다 */}
         {onRefresh && (
           <button onClick={onRefresh} disabled={refreshing}
@@ -108,7 +136,9 @@ export function ThemeDialog({ theme, minCap, onClose, onOpenStock }: {
   onClose: () => void;
   onOpenStock?: (code: string, name: string) => void;
 }) {
-  const rows: ThemeStock[] = [...theme.rows].sort((a, b) => b.pct - a.pct);
+  // 체결된 것부터, 그 안에서 등락률 순. 미체결(값이 어제 것)은 뒤로 몰아 흐리게 보여준다.
+  const rows: ThemeStock[] = [...theme.rows].sort((a, b) =>
+    (a.fresh === b.fresh ? b.pct - a.pct : a.fresh ? -1 : 1));
   // 배경 클릭 판정 — 목록에서 드래그하다 배경에서 손을 떼도 닫히면 안 된다.
   const downOnBackdropRef = useRef(false);
 
@@ -131,7 +161,7 @@ export function ThemeDialog({ theme, minCap, onClose, onOpenStock }: {
         <header className="px-4 py-3 border-b bg-gray-50 flex items-baseline gap-2">
           <h2 className="text-base font-bold text-gray-800">{theme.label}</h2>
           <span className="text-[11px] text-gray-500">
-            {theme.count}종 · 상위 20 중앙값{" "}
+            체결 {theme.count}/{theme.total}종 · 상위 20 중앙값{" "}
             <span className={`font-bold tabular-nums ${signColor(theme.median)}`}>
               {theme.median > 0 ? "+" : ""}{theme.median.toFixed(2)}%
             </span>
@@ -144,11 +174,15 @@ export function ThemeDialog({ theme, minCap, onClose, onOpenStock }: {
           {rows.map((r, i) => (
             <button key={r.code}
                     onClick={() => onOpenStock?.(r.code, r.name)}
-                    className="w-full flex items-center gap-2 px-3 py-2 text-left border-b border-gray-100
-                               hover:bg-gray-50 transition-colors">
+                    title={r.fresh ? undefined : "이번 세션 미체결 — 값이 직전 거래일 것이라 계산에서 제외"}
+                    className={`w-full flex items-center gap-2 px-3 py-2 text-left border-b border-gray-100
+                               hover:bg-gray-50 transition-colors ${r.fresh ? "" : "opacity-60"}`}>
               <span className="w-5 shrink-0 text-[11px] tabular-nums text-gray-400 text-right">{i + 1}</span>
               <span className="flex-1 min-w-0">
-                <span className="block truncate text-sm text-gray-800">{r.name}</span>
+                <span className="block truncate text-sm text-gray-800">
+                  {r.name}
+                  {!r.fresh && <span className="ml-1 text-[10px] text-gray-400">미체결</span>}
+                </span>
                 <span className="block text-[11px] text-gray-400 tabular-nums">
                   시총 {fmtCap(r.cap)} · 거래대금 {fmtValue(r.value)}
                 </span>
@@ -166,7 +200,8 @@ export function ThemeDialog({ theme, minCap, onClose, onOpenStock }: {
         </div>
 
         <p className="px-3 py-2 text-[10px] text-gray-400 border-t leading-relaxed">
-          {theme.rows.length}종 전체 · 등락률 높은 순 (조회 시점 기준).
+          {theme.rows.length}종 전체 · 체결분 먼저, 등락률 높은 순 (조회 시점 기준).
+          흐린 종목은 이번 세션 미체결이라 카드의 중앙값 계산에서 빠집니다.
           {minCap ? ` 시가총액 ${minCap.toLocaleString()}억 미만은 목록에서 제외됩니다.` : ""}
           {" "}카드의 중앙값은 이 중 거래대금 상위 20종으로 계산합니다.
         </p>

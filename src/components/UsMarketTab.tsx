@@ -297,6 +297,8 @@ export function UsMarketTab({ onRequestSearch, navStickyTop = 0 }: UsMarketTabPr
             {section.render === "sectorFlow" && hasThemeFlow && (
               <ThemeFlow themes={themeStats} onPick={setThemeDlg}
                          fetchedAt={themeFlow?.fetchedAt} minCap={themeFlow?.minCap}
+                         tradeDate={themeFlow?.tradeDate}
+                         scanned={themeFlow?.scanned} total={themeFlow?.total}
                          onRefresh={refreshThemes} refreshing={themeLoading} />
             )}
             {(section.render === "sectorFlow" && hasThemeFlow ? []

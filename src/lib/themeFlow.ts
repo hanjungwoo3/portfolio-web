@@ -36,22 +36,30 @@ export interface ThemeStock {
   price: number;
   value: number;    // 거래대금(추정) = 현재가 × 거래량
   cap: number;      // 시가총액(억원) — 크롤 시점 기준
+  // 이번 세션에 실제로 체결됐는가. false 면 값이 직전 거래일 것이라 통계에서 빼고,
+  //   팝업에서는 흐리게 보여준다(앱의 장마감 흐림과 같은 취급).
+  fresh: boolean;
 }
 
 export interface ThemeStat {
   key: string;
   label: string;
-  count: number;      // 시세를 구한 종목 수
+  count: number;      // 이번 세션에 체결된 종목 수 (통계의 모집단)
+  total: number;      // 카드에 편입된 종목 수 — count/total 로 커버리지를 본다
   median: number;     // 거래대금 상위 LEAD 종목의 중앙값 등락률(%)
   upRatio: number;    // 그중 오른 종목 비율
-  best: ThemeStock;   // 그날 가장 많이 오른 것(상위 LEAD 안에서)
-  rows: ThemeStock[]; // 전 종목, 거래대금 내림차순
+  best: ThemeStock;   // 그 세션 가장 많이 오른 것(상위 LEAD 안에서)
+  rows: ThemeStock[]; // 전 종목, 거래대금 내림차순 (미체결 포함 — 팝업에서 흐리게)
 }
 
 export interface ThemeFlow {
   fetchedAt: number;
-  scanned: number;
+  scanned: number;     // 이번 세션에 체결된 종목 수 (통계 모집단)
   minCap: number;      // 이 스냅샷에 적용된 시총 하한(억원) — 화면 문구용
+  total: number;       // 카드에 편입된 전체 종목 수 (scanned/total = 커버리지)
+  // 데이터가 실제로 몇 일자인지(KST YYYY-MM-DD). 장 시작 전(08~09시)·주말에 받으면
+  //   오늘이 아니라 직전 거래일이 된다 — 화면에 그렇게 밝혀야 오늘 흐름으로 오해하지 않는다.
+  tradeDate: string;
   themes: ThemeStat[];
 }
 
@@ -61,7 +69,7 @@ export interface ThemeFlow {
 //   (실측 2026-09-09: 2차전지 전 종목 +2.27% vs 이 방식 +6.05%)
 const LEAD = 20;
 
-const LS_KEY = "theme_flow_v2";   // v2: minCap 추가
+const LS_KEY = "theme_flow_v5";   // v5: 세션(08시 이후) 판정·흐림 추가
 const LS_CARDS = "theme_cards_v3";   // v3: minCap(적용된 시총 하한) 추가
 const LS_CARDS_TS = "theme_cards_ts_v3";
 const CARDS_TTL_MS = 12 * 60 * 60 * 1000;
@@ -119,6 +127,29 @@ export async function fetchThemeFlow(): Promise<ThemeFlow> {
   // 카드끼리 종목이 겹치므로(삼성SDI = 2차전지 + 전기차) 합집합으로 한 번만 받는다.
   const union = [...new Set(Object.values(cards).flat())];
   const prices = await fetchTossPrices(union);
+
+  // ── 이번 '세션' 을 정한다 ────────────────────────────────────────────────
+  // 오늘 08:00 KST 이후 체결된 것만 이번 세션으로 본다. NXT 프리마켓이 08:00~08:50 이라
+  //   그 시간부터 움직인 종목이 오늘의 흐름이다. 아직 안 뛴 종목은 값이 어제 것이라 뺀다
+  //   (안 빼면 dayChangePct 의 prevClose 폴백 때문에 0% 도 아닌 '어제 등락률' 이 섞인다).
+  // 주말·휴장·08시 이전이라 아무도 해당되지 않으면 직전 거래일 전체를 세션으로 되돌린다.
+  const SESSION_OPEN_HOUR = 8;
+  const nowKst = new Date(Date.now() + 9 * 3600_000);
+  const todayKst = nowKst.toISOString().slice(0, 10);
+  const sessionStart = Date.parse(`${todayKst}T${String(SESSION_OPEN_HOUR).padStart(2, "0")}:00:00+09:00`);
+  const tradedToday = prices.some(p => p.trade_dt && Date.parse(p.trade_dt) >= sessionStart);
+
+  let tradeDate = todayKst;
+  if (!tradedToday) {
+    // 폴백 — 가장 최근 거래일을 세션으로. (최빈값이 아니라 최신값이어야 한다)
+    tradeDate = "";
+    for (const p of prices) if (p.trade_date && p.trade_date > tradeDate) tradeDate = p.trade_date;
+  }
+  const isFresh = (p: { trade_dt?: string; trade_date: string }): boolean =>
+    tradedToday
+      ? !!p.trade_dt && Date.parse(p.trade_dt) >= sessionStart
+      : p.trade_date === tradeDate;
+
   const byCode = new Map<string, ThemeStock>();
   for (const p of prices) {
     const pct = dayChangePct(p);
@@ -130,6 +161,7 @@ export async function fetchThemeFlow(): Promise<ThemeFlow> {
       price: p.price,
       value: (p.price || 0) * (p.volume || 0),
       cap: caps?.[p.ticker] ?? 0,
+      fresh: isFresh(p),
     });
   }
 
@@ -137,11 +169,15 @@ export async function fetchThemeFlow(): Promise<ThemeFlow> {
   for (const [label, codes] of Object.entries(cards)) {
     const rows = codes.map(c => byCode.get(c)).filter((x): x is ThemeStock => !!x)
       .sort((a, b) => b.value - a.value);
-    if (rows.length < 3) continue;   // 표본이 너무 적으면 중앙값이 한 종목에 좌우된다
-    const lead = rows.slice(0, LEAD);
+    // ★ 통계는 이번 세션에 체결된 것만으로 낸다. 미체결(fresh=false)은 값이 어제 것이라
+    //   중앙값을 오염시킨다. 목록(rows)에는 남겨 두고 팝업에서 흐리게 보여준다.
+    const live = rows.filter(r => r.fresh);
+    if (live.length < 3) continue;   // 표본이 너무 적으면 중앙값이 한 종목에 좌우된다
+    const lead = live.slice(0, LEAD);
     themes.push({
       key: label, label,
-      count: rows.length,
+      count: live.length,
+      total: codes.length,
       median: median(lead.map(r => r.pct)),
       upRatio: lead.filter(r => r.pct > 0).length / lead.length,
       best: [...lead].sort((a, b) => b.pct - a.pct)[0],
@@ -150,7 +186,12 @@ export async function fetchThemeFlow(): Promise<ThemeFlow> {
   }
   themes.sort((a, b) => b.median - a.median);
 
-  const flow: ThemeFlow = { fetchedAt: Date.now(), scanned: byCode.size, minCap, themes };
+  const flow: ThemeFlow = {
+    fetchedAt: Date.now(),
+    scanned: [...byCode.values()].filter(s => s.fresh).length,
+    total: union.length,
+    minCap, tradeDate, themes,
+  };
   try { localStorage.setItem(LS_KEY, JSON.stringify(flow)); } catch { /* noop */ }
   return flow;
 }
