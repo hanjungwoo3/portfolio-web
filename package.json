@@ -14,7 +14,7 @@
     "pack:extension": "node scripts/pack-extension.mjs",
     "gen-names": "node scripts/gen-stock-names.mjs",
     "gen-etf-weights": "node scripts/gen-etf-weights.mjs",
-    "build:android": "BUILD_TARGET=native vite build && cap sync android",
+    "build:android": "BUILD_TARGET=native vite build && rm -rf dist/app && cap sync android",
     "android:open": "cap open android",
     "android:apk": "npm run build:android && cd android && ./gradlew assembleDebug",
     "pack:app": "node scripts/pack-app.mjs"

@@ -10,8 +10,21 @@ const config: CapacitorConfig = {
   appId: "io.github.hanjungwoo3.portfolio",
   appName: "포트폴리오",
   webDir: "dist",
+  // ★ 원격 로드 — 배포된 웹을 그대로 불러온다. 웹만 배포하면 앱도 따라오므로
+  //   웹 코드가 바뀔 때마다 APK 를 다시 낼 필요가 없다.
+  //   네이티브 브릿지는 URL 과 무관하게 웹뷰에 주입되므로 CORS 우회(nativeProxy)는 그대로다.
+  //
+  //   대가 두 가지:
+  //     · 오프라인이면 시작하지 못한다(번들 사본은 남아 있지만 자동 폴백은 없다).
+  //     · gh-pages 가 죽으면 앱도 멈춘다.
+  //   그리고 출처가 https://localhost → https://hanjungwoo3.github.io 로 바뀌므로
+  //   그전에 앱에 쌓인 IndexedDB 데이터는 새 출처에서 안 보인다(전환 시 1회).
+  //   앱 저장소는 크롬과 별개다 — 출처가 같아도 공유되지 않는다(안드로이드 웹뷰 특성).
+  server: {
+    url: "https://hanjungwoo3.github.io/portfolio-web/",
+  },
   android: {
-    // 웹뷰는 https://localhost 로 서빙된다. http 자산을 섞을 일이 없으므로 꺼 둔다.
+    // 웹뷰는 https(gh-pages)로 로드된다. http 자산을 섞을 일이 없으므로 꺼 둔다.
     allowMixedContent: false,
   },
   plugins: {
