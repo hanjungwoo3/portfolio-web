@@ -15,8 +15,8 @@ android {
         applicationId "io.github.hanjungwoo3.portfolio"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 3
-        versionName "1.1.0"
+        versionCode 4
+        versionName "1.2.0"
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -58,6 +58,9 @@ dependencies {
     implementation "androidx.coordinatorlayout:coordinatorlayout:$androidxCoordinatorLayoutVersion"
     implementation "androidx.core:core-splashscreen:$coreSplashScreenVersion"
     implementation project(':capacitor-android')
+    // 구글 로그인 — AuthorizationClient (플레이 서비스). 브라우저 OAuth 가 안드로이드에서
+    //   막혀서(커스텀 스킴 폐기) 남은 정식 경로다. GoogleAuthPlugin.java 참조.
+    implementation 'com.google.android.gms:play-services-auth:21.4.0'
     testImplementation "junit:junit:$junitVersion"
     androidTestImplementation "androidx.test.ext:junit:$androidxJunitVersion"
     androidTestImplementation "androidx.test.espresso:espresso-core:$androidxEspressoCoreVersion"
