@@ -69,7 +69,7 @@ export interface ThemeFlow {
 //   (실측 2026-09-09: 2차전지 전 종목 +2.27% vs 이 방식 +6.05%)
 const LEAD = 20;
 
-const LS_KEY = "theme_flow_v5";   // v5: 세션(08시 이후) 판정·흐림 추가
+const LS_KEY = "theme_flow_v6";   // v6: 세션 경계를 구간별로(프리·정규·애프터)
 const LS_CARDS = "theme_cards_v3";   // v3: minCap(적용된 시총 하한) 추가
 const LS_CARDS_TS = "theme_cards_ts_v3";
 const CARDS_TTL_MS = 12 * 60 * 60 * 1000;
@@ -129,14 +129,25 @@ export async function fetchThemeFlow(): Promise<ThemeFlow> {
   const prices = await fetchTossPrices(union);
 
   // ── 이번 '세션' 을 정한다 ────────────────────────────────────────────────
-  // 오늘 08:00 KST 이후 체결된 것만 이번 세션으로 본다. NXT 프리마켓이 08:00~08:50 이라
-  //   그 시간부터 움직인 종목이 오늘의 흐름이다. 아직 안 뛴 종목은 값이 어제 것이라 뺀다
-  //   (안 빼면 dayChangePct 의 prevClose 폴백 때문에 0% 도 아닌 '어제 등락률' 이 섞인다).
-  // 주말·휴장·08시 이전이라 아무도 해당되지 않으면 직전 거래일 전체를 세션으로 되돌린다.
-  const SESSION_OPEN_HOUR = 8;
+  // 세션 안에서 체결된 종목만 중앙값에 넣는다. 안 뛴 종목은 값이 직전 세션 것이라
+  //   섞이면 흐름이 눌린다(dayChangePct 의 prevClose 폴백 때문에 0% 도 아닌 옛 등락률이 온다).
+  //   목록에서 빼지는 않는다 — 흐리게 두고 계산에서만 뺀다.
+  //
+  // 경계가 시간대마다 다르다. 한국 시장은 하루에 세 구간이 있다.
+  //   08:00~08:50  NXT 프리마켓   — 일부만 거래
+  //   09:00~15:30  정규장         — 사실상 전부 거래
+  //   15:40~20:00  NXT 애프터     — 일부만 거래
+  // 애프터에 08:00 을 기준으로 잡으면 정규장 종가(15:30)에 멈춘 종목이 전부 '체결' 로
+  //   잡혀서 흐림이 하나도 안 생긴다(실측 15:55: 체결 5/5종). 그래서 구간별로 나눈다.
+  //
+  // 거래가 다 끝난 밤(20:00 이후)에는 08:00 기준으로 되돌린다 — 그날 전 종목이 포함되어
+  //   카드가 그날 최종 등락률을 보여준다. 안 그러면 표본이 0 이 되어 카드가 사라진다.
   const nowKst = new Date(Date.now() + 9 * 3600_000);
   const todayKst = nowKst.toISOString().slice(0, 10);
-  const sessionStart = Date.parse(`${todayKst}T${String(SESSION_OPEN_HOUR).padStart(2, "0")}:00:00+09:00`);
+  const at = (hhmm: string) => Date.parse(`${todayKst}T${hhmm}:00+09:00`);
+  const minsKst = nowKst.getUTCHours() * 60 + nowKst.getUTCMinutes();
+  const AFTER_OPEN = 15 * 60 + 40, AFTER_CLOSE = 20 * 60;
+  const sessionStart = minsKst >= AFTER_OPEN && minsKst < AFTER_CLOSE ? at("15:40") : at("08:00");
   const tradedToday = prices.some(p => p.trade_dt && Date.parse(p.trade_dt) >= sessionStart);
 
   let tradeDate = todayKst;
