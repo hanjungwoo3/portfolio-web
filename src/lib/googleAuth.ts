@@ -132,6 +132,7 @@ export interface AuthDiag {
 
 function noteAuthFailure(stage: string, err?: unknown): void {
   let error: string | undefined;
+  // 아래에서 값을 뽑은 뒤 '예상된 실패' 는 걸러낸다(함수 끝 참조).
   let detail: string | undefined;
   if (err && typeof err === "object") {
     const o = err as Record<string, unknown>;
@@ -142,9 +143,15 @@ function noteAuthFailure(stage: string, err?: unknown): void {
   } else if (typeof err === "string") {
     error = err;
   }
+  // ★ 확장 없는 웹의 popup_closed 는 '예상된 실패' 다 — 고칠 방법이 없다.
+  //   GIS 는 prompt:"none" 이어도 팝업을 띄우는데 만료 타이머엔 사용자 제스처가 없어
+  //   브라우저가 즉시 닫는다. 이걸 빨간 박스로 띄우면 사용자가 고장으로 오해한다.
+  //   그 사용자에게 필요한 신호는 "로그인 안 됨" 하나면 충분하다(이미 표시된다).
+  const expected = error === "popup_closed" && !isNativeApp() && !isExtensionProxyReady();
   const diag: AuthDiag = { at: Date.now(), stage, error, detail };
-  try { localStorage.setItem(DIAG_KEY, JSON.stringify(diag)); } catch { /* noop */ }
   console.warn("[googleAuth] silent refresh 실패", diag);
+  if (expected) return;
+  try { localStorage.setItem(DIAG_KEY, JSON.stringify(diag)); } catch { /* noop */ }
 }
 
 // 성공하면 지운다 — 옛 실패 기록이 남아 오해를 부르지 않게.
@@ -485,6 +492,9 @@ export function handleAuthRedirect(): boolean {
 // 토큰 가져오기 — 캐시 유효 시 즉시 반환, 만료/없음이면 silent refresh 시도
 export async function getAccessToken(): Promise<string | null> {
   if (accessToken && Date.now() < tokenExpiresAt - 30_000) {
+    // 쓸 수 있는 토큰이 있다 = 인증이 지금 정상이다. 옛 실패 기록이 남아 있으면 지운다.
+    //   안 지우면 "실패" 박스가 계속 떠서, 저장·가져오기가 되는데도 고장난 것처럼 보인다.
+    clearAuthDiag();
     return accessToken;
   }
   // 앱이면 네이티브로 조용히 받는다 — 이미 동의돼 있으면 UI 없이 새 토큰이 나온다.
