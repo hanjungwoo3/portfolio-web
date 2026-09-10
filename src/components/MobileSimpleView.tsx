@@ -133,7 +133,7 @@ const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 // 자동 갱신 X — 새로고침 버튼만. 자기 주식/그룹/검색 등 모든 추가 기능 없음.
 
 function fmtPrice(symbol: string, price: number): string {
-  if (symbol === "^TNX" || symbol === "^VIX" || symbol === "VKOSPI") return price.toFixed(2);
+  if (symbol === "^TNX" || symbol === "^TYX" || symbol === "^VIX" || symbol === "VKOSPI") return price.toFixed(2);
   // 원엔은 한국 관행대로 100엔 기준 표기 (Yahoo 는 1엔당 원 = 8.6원 꼴)
   if (symbol === "JPYKRW=X") return (price * 100).toFixed(2);
   if (symbol.includes("KRW")) return price.toFixed(2);

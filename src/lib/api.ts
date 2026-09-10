@@ -2949,7 +2949,7 @@ const TOSS_INDEX_CODE: Record<string, string> = {
   "^US2Y":  "ROB.US2YT-RR",  // 미국 2년 금리 (Yahoo 차트 티커 없음 — 토스 값만)
   "^TNX":   "ROB.US10YT-RR", // 미국 10년 금리 (차트 = Yahoo ^TNX)
   "^FVX":   "ROB.US5YT-RR",  // 미국 5년 (대시보드 미표시, 매핑만 보존)
-  "^TYX":   "ROB.US30YT-RR", // 미국 30년 (대시보드 미표시, 매핑만 보존)
+  "^TYX":   "ROB.US30YT-RR", // 미국 30년 금리 (차트 = Yahoo ^TYX — 실측 200)
   // 원자재 선물 — 토스 overview 원자재 카테고리 (USD 값). 야후 대신 토스로 일원화.
   "GC=F":   "RFU.GCv1",   // 금
   "SI=F":   "RFU.SIv1",   // 은
