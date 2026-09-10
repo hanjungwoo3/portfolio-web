@@ -32,6 +32,7 @@ import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/group
 import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
 import { detectPortfolioJson } from "../lib/portfolioImport";
+import { getAuthDiag } from "../lib/googleAuth";
 import {
   getSyncState, getLastSyncedAt, disableSync, pauseSync,
   uploadToDrive, downloadFromDrive, tryRestoreSession,
@@ -70,6 +71,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   const [syncBusyMsg, setSyncBusyMsg] = useState("");   // 진행 중 오버레이 메시지
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(getLastSyncedAt());
   const [signedIn, setSignedIn] = useState(isSignedIn());  // 구글 로그인 여부 (UI 반응형)
+  // 자동 갱신 실패 기록 — 설정을 열 때 한 번 읽는다(성공하면 googleAuth 가 지운다).
+  const authDiag = getAuthDiag();
   const [independentMode, setIndependent] = useState(getIndependentGroupsMode());
   const [conflicts, setConflicts] = useState<TickerConflict[] | null>(null);
   const [tabVis, setTabVis] = useState(getTabVisibility());
@@ -484,6 +487,20 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               {!signedIn && (
                 <div className="text-[11px] text-amber-700">
                   🔐 로그인 안 됨 — 저장/가져오기를 누르면 Google 로그인 후 그대로 실행됩니다.
+                </div>
+              )}
+              {/* 자동 갱신 실패 진단 — 1시간마다 로그아웃되는 원인을 찾기 위한 것.
+                  성공하면 지워지므로, 값이 보인다는 것 자체가 마지막 갱신이 실패했다는 뜻이다. */}
+              {authDiag && (
+                <div className="text-[11px] text-rose-700 bg-rose-50 border border-rose-200 rounded px-1.5 py-1 leading-relaxed">
+                  ⚠️ 자동 로그인 갱신 실패 ·{" "}
+                  {new Date(authDiag.at).toLocaleString("ko-KR")}
+                  <br />
+                  <span className="font-mono text-[10px] text-rose-600">
+                    {authDiag.stage}
+                    {authDiag.error ? ` · ${authDiag.error}` : ""}
+                    {authDiag.detail ? ` · ${authDiag.detail}` : ""}
+                  </span>
                 </div>
               )}
               <div className="flex gap-2 flex-wrap">

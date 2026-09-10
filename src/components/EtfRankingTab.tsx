@@ -17,12 +17,15 @@ import {
   type EtfRanking, type EtfRankRow,
 } from "../lib/etfRanking";
 import { EtfSectorFlow } from "./EtfSectorFlow";
+import { useEtfReturns, PERIOD_LABEL, type ReturnPeriod } from "../lib/etfReturns";
 
 interface Props {
   onOpenEtfComposition?: (code: string, name: string) => void;
 }
 
 type Side = "top" | "bottom";
+// 기간 — "today" 는 실시간 시세(스냅샷)로, 나머지는 크롤러가 심어 둔 값으로 줄 세운다.
+type Period = "today" | ReturnPeriod;
 
 function fmtStamp(ms: number): string {
   // 조회 시각 — KST 기준 HH:MM (사용자 OS 시간대 무관)
@@ -78,6 +81,9 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
     return { ranking: cached, loading: cached === null, err: null };
   });
   const [side, setSide] = useState<Side>("top");
+  const [period, setPeriod] = useState<Period>("today");
+  // 기간 파일은 기간 탭을 누를 때만 받는다 — '오늘' 만 볼 사용자는 아예 안 받는다.
+  const returnData = useEtfReturns(period !== "today");
   const [expanded, setExpanded] = useState(false);
   const [hideLeverage, setHideLeverage] = useState(true);   // 레버리지 ETF 제외 (기본 ON)
   const [hideFutures, setHideFutures] = useState(true);     // 선물 ETF 제외 (기본 ON)
@@ -111,13 +117,27 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
 
   const sectors = ranking?.sectors ?? [];
   const picked = sectors.find(s => s.key === sector) ?? null;
+  // 화면에 쓸 등락률 — 오늘은 스냅샷의 pct, 기간은 크롤러 값. 없으면 undefined(정렬에서 뒤로).
+  const pctOf = (r: EtfRankRow): number | undefined =>
+    period === "today" ? r.pct : returnData?.returns[r.code]?.[period];
   // 섹터를 고르면 그 섹터의 대표 ETF(거래대금 상위)를 보여준다.
   //   전체 랭킹은 상·하위 100 만 남기므로, 가운데 있는 종목은 이 경로로만 볼 수 있다.
-  const allRows: EtfRankRow[] = picked
-    ? [...picked.rows].sort((a, b) => (side === "top" ? b.pct - a.pct : a.pct - b.pct))
-    : ranking
-      ? (side === "top" ? ranking.top : ranking.bottom)
-      : [];
+  //   ★ 기간 정렬은 상·하위 100 으로 하면 안 된다 — 그건 '오늘' 기준으로 잘린 목록이라
+  //     1개월 상위가 그 안에 없을 수 있다. 그래서 섹터에 담긴 전수를 다시 모아 쓴다.
+  const universe: EtfRankRow[] = picked
+    ? picked.rows
+    : period === "today"
+      ? (ranking ? (side === "top" ? ranking.top : ranking.bottom) : [])
+      : sectors.flatMap(sc => sc.rows);
+  const allRows: EtfRankRow[] =
+    picked || period !== "today"
+      ? [...universe]
+          .filter(r => pctOf(r) !== undefined)
+          .sort((a, b) => {
+            const x = pctOf(a)!, y = pctOf(b)!;
+            return side === "top" ? y - x : x - y;
+          })
+      : universe;
   const rows = allRows.filter(r =>
     (!hideLeverage || !isLeverageEtf(r.name)) && (!hideFutures || !isFuturesEtf(r.name)));
   const shown = expanded ? rows.slice(0, RANK_KEEP) : rows.slice(0, RANK_SHOW);
@@ -163,6 +183,23 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
                               : "border-gray-300 bg-white text-gray-600 hover:bg-gray-100"}`}>
           {hideFutures ? "✓ 선물 제외" : "선물 제외"}
         </button>
+
+        {/* 기간 — 오늘만 실시간, 나머지는 크롤 시점 기준 */}
+        <div className="flex rounded-md border border-gray-300 overflow-hidden">
+          {(["today", "w1", "m1", "m3"] as const).map(p => (
+            <button key={p}
+                    onClick={() => { setPeriod(p); setExpanded(false); }}
+                    title={p === "today"
+                      ? "오늘 등락률 (실시간 조회)"
+                      : `${PERIOD_LABEL[p]} 수익률 (매일 06:00 갱신)`}
+                    className={`px-3 py-1.5 text-sm font-medium transition-colors
+                                ${period === p
+                                  ? "bg-gray-800 text-white"
+                                  : "bg-white text-gray-600 hover:bg-gray-100"}`}>
+              {p === "today" ? "오늘" : PERIOD_LABEL[p]}
+            </button>
+          ))}
+        </div>
 
         <div className="ml-auto text-[11px] text-gray-500 leading-tight text-right">
           {ranking ? (
@@ -223,6 +260,10 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
         <div className="px-1 text-[11px] text-gray-500">
           <b className="text-gray-700">{picked.label}</b> {picked.count}종 · 거래대금 상위 {picked.rows.length}종을
           {side === "top" ? " 등락률 높은 순" : " 낮은 순"}으로 보여줍니다.
+          {period !== "today" && (
+            <> {PERIOD_LABEL[period]} 수익률은 매일 06:00 에 갱신된 값이라 오늘 움직임은 빠져 있습니다
+              {returnData?.version ? ` (${returnData.version} 기준)` : ""}.</>
+          )}
         </div>
       )}
 
@@ -256,12 +297,24 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
                 </span>
               </span>
               <span className="relative z-10 shrink-0 text-right">
-                <span className={`block text-sm font-bold tabular-nums ${signColor(r.pct)}`}>
-                  {r.pct > 0 ? "+" : ""}{r.pct.toFixed(2)}%
-                </span>
+                {(() => {
+                  // 기간 탭이면 그 기간 수익률을, 오늘이면 스냅샷 등락률을 크게 보여준다.
+                  const v = pctOf(r);
+                  return (
+                    <span className={`block text-sm font-bold tabular-nums ${signColor(v ?? 0)}`}>
+                      {v === undefined ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`}
+                    </span>
+                  );
+                })()}
                 <span className="block text-[11px] text-gray-600 tabular-nums">
                   {r.price.toLocaleString()}
                 </span>
+                {/* 기간을 보는 중엔 오늘 등락률도 작게 곁들인다 — 둘을 같이 봐야 판단이 된다 */}
+                {period !== "today" && (
+                  <span className={`block text-[11px] tabular-nums ${signColor(r.pct)}`}>
+                    오늘 {r.pct > 0 ? "+" : ""}{r.pct.toFixed(2)}%
+                  </span>
+                )}
               </span>
             </button>
           ))}

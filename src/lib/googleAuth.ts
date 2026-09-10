@@ -26,6 +26,48 @@ const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
 const STATE_VALUE = "drive_auth_v1";
 
+// ─── silent refresh 진단 ──────────────────────────────────────
+// 왜 필요한가 — GIS 의 실패 사유가 전부 삼켜지고 있어서 1시간마다 로그아웃되는 원인을
+//   짐작만 할 수 있었다(서드파티 쿠키 차단? interaction_required? 스크립트 로드 실패?).
+//   사유마다 대응이 완전히 달라서, 추측으로 고치면 헛수고다. 마지막 1건만 남긴다.
+const DIAG_KEY = "gdrive_auth_diag";
+
+export interface AuthDiag {
+  at: number;             // 실패 시각 (ms)
+  stage: string;          // 어느 단계에서 실패했나
+  error?: string;         // GIS 가 준 error 코드
+  detail?: string;        // error_description 등
+}
+
+function noteAuthFailure(stage: string, err?: unknown): void {
+  let error: string | undefined;
+  let detail: string | undefined;
+  if (err && typeof err === "object") {
+    const o = err as Record<string, unknown>;
+    error = typeof o.type === "string" ? o.type
+      : typeof o.error === "string" ? o.error : undefined;
+    detail = typeof o.error_description === "string" ? o.error_description
+      : typeof o.message === "string" ? o.message : undefined;
+  } else if (typeof err === "string") {
+    error = err;
+  }
+  const diag: AuthDiag = { at: Date.now(), stage, error, detail };
+  try { localStorage.setItem(DIAG_KEY, JSON.stringify(diag)); } catch { /* noop */ }
+  console.warn("[googleAuth] silent refresh 실패", diag);
+}
+
+// 성공하면 지운다 — 옛 실패 기록이 남아 오해를 부르지 않게.
+function clearAuthDiag(): void {
+  try { localStorage.removeItem(DIAG_KEY); } catch { /* noop */ }
+}
+
+export function getAuthDiag(): AuthDiag | null {
+  try {
+    const raw = localStorage.getItem(DIAG_KEY);
+    return raw ? JSON.parse(raw) as AuthDiag : null;
+  } catch { return null; }
+}
+
 // localStorage keys
 const TOKEN_KEY = "gdrive_token_cache";
 const WAS_SIGNED_IN_KEY = "gdrive_was_signed_in";
@@ -121,22 +163,29 @@ function ensureTokenClient(): Promise<GisTokenClient | null> {
           scope: SCOPE,
           callback: (resp) => {
             if (resp.error || !resp.access_token) {
+              noteAuthFailure("callback", resp);
               resolveSilent(null);
               return;
             }
+            clearAuthDiag();
             const exp = typeof resp.expires_in === "string"
               ? parseInt(resp.expires_in, 10)
               : (resp.expires_in ?? 3600);
             saveToken(resp.access_token, exp);
             resolveSilent(resp.access_token);
           },
-          error_callback: () => resolveSilent(null),
+          error_callback: (err) => {
+            // GIS 가 popup/iframe 을 못 띄웠거나 세션이 없을 때 여기로 온다.
+            noteAuthFailure("error_callback", err);
+            resolveSilent(null);
+          },
         });
         resolve(tokenClient);
         return;
       }
       // GIS 가 끝내 로드되지 않으면 (e.g. 네트워크 차단) 10초 후 포기
       if (Date.now() - start > 10_000) {
+        noteAuthFailure("gis-load-timeout");
         resolve(null);
         return;
       }
@@ -174,7 +223,8 @@ function requestSilentRefresh(): Promise<string | null> {
         //   필요한 경우 error_callback 으로 실패 (popup 안 뜸).
         // 빈 문자열 "" 은 "처음만 안 묻고 그 외엔 popup 가능" 이라 토큰 만료 시 팝업 노출됨.
         client.requestAccessToken({ prompt: "none" });
-      } catch {
+      } catch (e) {
+        noteAuthFailure("request-throw", e);
         resolveSilent(null);
       }
     });
