@@ -3,14 +3,17 @@ package io.github.hanjungwoo3.portfolio;
 import android.app.PendingIntent;
 import android.content.Intent;
 import androidx.activity.result.ActivityResult;
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.IntentSenderRequest;
+import androidx.activity.result.contract.ActivityResultContracts;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
-import com.getcapacitor.annotation.ActivityCallback;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import com.google.android.gms.auth.GoogleAuthUtil;
 import com.google.android.gms.auth.api.identity.AuthorizationRequest;
 import com.google.android.gms.auth.api.identity.AuthorizationResult;
 import com.google.android.gms.auth.api.identity.Identity;
@@ -69,12 +72,16 @@ public class GoogleAuthPlugin extends Plugin {
                             call.reject("no-pending-intent");
                             return;
                         }
-                        // 동의 화면을 띄우고 결과는 onConsent 로 받는다.
-                        startActivityForResult(call, new Intent(), "onConsent");
+                        // ★ 동의 화면은 PendingIntent(IntentSender) 라 일반 Intent 로 못 띄운다.
+                        //   Capacitor 의 startActivityForResult 에 빈 Intent 를 넘겼다가
+                        //   ActivityNotFoundException 으로 앱이 죽었다(실측). IntentSenderRequest 로 감싼다.
+                        pendingConsentCall = call;
+                        bridge.saveCall(call);
                         try {
-                            getActivity().startIntentSenderForResult(
-                                    pi.getIntentSender(), 9001, null, 0, 0, 0);
+                            consentLauncher.launch(new IntentSenderRequest.Builder(
+                                    pi.getIntentSender()).build());
                         } catch (Exception e) {
+                            pendingConsentCall = null;
                             call.reject("consent-launch-failed: " + e.getMessage());
                         }
                         return;
@@ -84,16 +91,48 @@ public class GoogleAuthPlugin extends Plugin {
                 .addOnFailureListener(e -> call.reject("authorize-failed: " + e.getMessage()));
     }
 
-    @ActivityCallback
-    private void onConsent(PluginCall call, ActivityResult activityResult) {
-        if (call == null) return;
-        try {
-            AuthorizationResult result = Identity.getAuthorizationClient(getActivity())
-                    .getAuthorizationResultFromIntent(activityResult.getData());
-            resolveWithToken(call, result);
-        } catch (Exception e) {
-            call.reject("consent-result-failed: " + e.getMessage());
-        }
+    // 동의 화면 결과 수신기. load() 에서 한 번만 등록한다(액티비티 생성 뒤여야 한다).
+    private ActivityResultLauncher<IntentSenderRequest> consentLauncher;
+    private PluginCall pendingConsentCall;
+
+    @Override
+    public void load() {
+        consentLauncher = getActivity().registerForActivityResult(
+                new ActivityResultContracts.StartIntentSenderForResult(),
+                activityResult -> {
+                    PluginCall call = pendingConsentCall;
+                    pendingConsentCall = null;
+                    if (call == null) return;
+                    try {
+                        AuthorizationResult result = Identity.getAuthorizationClient(getActivity())
+                                .getAuthorizationResultFromIntent(activityResult.getData());
+                        resolveWithToken(call, result);
+                    } catch (Exception e) {
+                        call.reject("consent-result-failed: " + e.getMessage());
+                    }
+                });
+    }
+
+    /**
+     * 캐시된 액세스 토큰 폐기.
+     *
+     * 왜 필요한가 — 로그아웃에서 구글 revoke 엔드포인트만 부르면 서버 쪽 권한은 사라지는데
+     *   플레이 서비스는 그 토큰을 계속 캐시에서 돌려준다. 그러면 재로그인 때 동의 창 없이
+     *   "로그인됨" 이 되고 실제 API 호출만 401 로 죽는다(실측). 캐시를 같이 비워야 한다.
+     *   네트워크를 타므로 메인 스레드에서 부르면 안 된다.
+     */
+    @PluginMethod
+    public void clearToken(PluginCall call) {
+        String token = call.getString("token");
+        if (token == null || token.isEmpty()) { call.resolve(); return; }
+        new Thread(() -> {
+            try {
+                GoogleAuthUtil.clearToken(getContext(), token);
+            } catch (Exception ignored) {
+                // 이미 무효한 토큰이면 예외가 난다 — 목적은 캐시 제거라 무시해도 된다.
+            }
+            call.resolve();
+        }).start();
     }
 
     private void resolveWithToken(PluginCall call, AuthorizationResult result) {

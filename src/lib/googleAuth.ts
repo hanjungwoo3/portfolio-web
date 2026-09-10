@@ -68,12 +68,21 @@ async function canUseNativeAuth(): Promise<boolean> {
 
 interface NativeAuthResult { accessToken?: string; expiresIn?: number; needsConsent?: boolean }
 
+interface GoogleAuthNativePlugin {
+  getAccessToken?: (o: unknown) => Promise<NativeAuthResult>;
+  clearToken?: (o: { token: string }) => Promise<void>;
+}
+
+function nativePlugin(): GoogleAuthNativePlugin | undefined {
+  return (Capacitor as unknown as {
+    Plugins?: Record<string, GoogleAuthNativePlugin>;
+  }).Plugins?.GoogleAuth;
+}
+
 // 네이티브 토큰 요청. interactive=false 면 동의가 필요할 때 UI 없이 needsConsent 로 돌아온다.
 async function nativeAuthToken(interactive: boolean): Promise<string | null> {
   try {
-    const plugin = (Capacitor as unknown as {
-      Plugins?: Record<string, { getAccessToken?: (o: unknown) => Promise<NativeAuthResult> }>;
-    }).Plugins?.GoogleAuth;
+    const plugin = nativePlugin();
     if (!plugin?.getAccessToken) { noteAuthFailure("native-plugin-missing"); return null; }
     const r = await plugin.getAccessToken({ scope: SCOPE, interactive });
     if (r.needsConsent) {
@@ -462,7 +471,17 @@ export async function getAccessToken(): Promise<string | null> {
 // 로그아웃 — token revoke + localStorage 삭제
 export async function signOut(): Promise<void> {
   const t = accessToken;
+  const native = await canUseNativeAuth();
   clearToken();
+  // ★ 앱에서는 revoke 를 부르지 않는다.
+  //   revoke 는 서버 권한만 없애고, 플레이 서비스는 그 토큰을 캐시에서 계속 돌려준다.
+  //   그러면 재로그인 때 동의 창 없이 "로그인됨" 이 되고 API 호출만 401 로 죽는다(실측).
+  //   대신 네이티브 캐시를 비운다 — 다음 authorize() 가 새 토큰을 발급한다.
+  //   (권한 자체를 끊고 싶으면 구글 계정 설정에서 앱 연결을 해제하면 된다)
+  if (native) {
+    if (t) { try { await nativePlugin()?.clearToken?.({ token: t }); } catch { /* noop */ } }
+    return;
+  }
   if (t) {
     try {
       await fetch(`${REVOKE_URL}?token=${encodeURIComponent(t)}`, {
@@ -479,6 +498,17 @@ export function wasSignedIn(): boolean {
 }
 
 // 현재 토큰 유효 여부
+// Drive 호출이 401 을 받았을 때 — 토큰이 무효(폐기·만료)라는 뜻이다.
+//   앱에서는 플레이 서비스 캐시에 무효 토큰이 남아 있을 수 있어, 비우고 새로 받아야 한다.
+//   비우지 않으면 같은 죽은 토큰을 계속 돌려받아 "로그인됐는데 호출만 실패" 가 반복된다.
+export async function recoverFromUnauthorized(): Promise<string | null> {
+  const dead = accessToken;
+  clearToken();
+  if (!(await canUseNativeAuth())) return null;
+  if (dead) { try { await nativePlugin()?.clearToken?.({ token: dead }); } catch { /* noop */ } }
+  return await nativeAuthToken(false);
+}
+
 export function isSignedIn(): boolean {
   return !!accessToken && Date.now() < tokenExpiresAt - 30_000;
 }
