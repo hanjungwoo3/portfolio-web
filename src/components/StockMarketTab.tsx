@@ -1,4 +1,5 @@
 import { FundFlowCard } from "./FundFlowCard";
+import { KrxNoticeCard } from "./KrxNoticeCard";
 import { MarketTurnoverCard } from "./MarketTurnoverCard";
 import { IntradayInvestorSection } from "./IntradayInvestorSection";
 import { NewsFeed } from "./NewsFeed";
@@ -8,6 +9,9 @@ import { NewsFeed } from "./NewsFeed";
 export function StockMarketTab() {
   return (
     <div className="space-y-3">
+      {/* 지수 규칙 변경은 수급을 통째로 흔든다(예: 반도체지수 20% 상한 조정으로
+          SK하이닉스 1.2조 매도). 맨 위에 둬서 먼저 눈에 띄게 한다. */}
+      <KrxNoticeCard />
       <FundFlowCard />
       <MarketTurnoverCard />
       <IntradayInvestorSection />
