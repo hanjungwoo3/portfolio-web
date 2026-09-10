@@ -130,7 +130,7 @@ export function MarketTurnoverCard() {
   }, []);
 
   return (
-    <div className="relative rounded-xl border border-gray-300 bg-white p-2.5 pt-4 mt-3 lg:mt-0">
+    <div className="relative rounded-xl border border-gray-300 bg-white p-2.5 pt-4 mt-3 lg:mt-0 h-full">
       <div className="absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
                       text-sm font-bold text-gray-700 whitespace-nowrap">
         📊 증시 거래대금

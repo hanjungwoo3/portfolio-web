@@ -10,13 +10,15 @@ import { NewsFeed } from "./NewsFeed";
 export function StockMarketTab() {
   return (
     <div className="space-y-3">
-      {/* 지수 공지와 거래대금을 나란히 — 공지는 목록이라 세로로 짧고 옆이 비었다.
+      {/* 지수 공지와 거래대금을 나란히 1:2 로 — 공지는 제목 목록이라 폭이 덜 필요하고,
+          거래대금은 차트 두 개라 넓어야 읽힌다.
           좁은 화면에서는 세로로 쌓인다(공지 먼저 — 지수 규칙 변경이 수급을 통째로
           흔들기 때문에 먼저 눈에 띄어야 한다. 예: 반도체지수 20% 상한 조정으로
-          SK하이닉스 1.2조 매도). items-start 라 둘의 높이가 서로를 늘리지 않는다. */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-        <KrxNoticeCard />
-        <MarketTurnoverCard />
+          SK하이닉스 1.2조 매도).
+          기본 stretch 라 두 카드의 높이가 맞춰진다 — 공지 쪽은 목록을 늘려 채운다. */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+        <div className="lg:col-span-1"><KrxNoticeCard /></div>
+        <div className="lg:col-span-2"><MarketTurnoverCard /></div>
       </div>
       <FundFlowCard />
       <IntradayInvestorSection />
