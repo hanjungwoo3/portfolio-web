@@ -6,7 +6,8 @@
 
 import { App as CapApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
-import { isNativeApp } from "./nativeProxy";
+import { isNativeApp, fetchViaNative } from "./nativeProxy";
+import { getInstalledAppVersion } from "./appRelease";
 
 // ─── 안드로이드 앱 경로 ───────────────────────────────────────
 // 구글은 임베디드 웹뷰(Capacitor)에서의 OAuth 를 정책적으로 막는다(disallowed_useragent).
@@ -21,6 +22,62 @@ const APP_SCHEME_REDIRECT = "pfportfolio://oauth";      // AndroidManifest 의 i
 const WEB_RELAY_URI = "https://hanjungwoo3.github.io/portfolio-web/";   // Console 에 등록된 값
 
 const CLIENT_ID = "329003207663-t43ejjbg1plt0l5u2kftpa41ofkq7e1o.apps.googleusercontent.com";
+
+// ─── 앱: PKCE 경로 (v1.1.0+) ──────────────────────────────────
+// 왜 바꾸나 — 위의 중계 방식은 access_token 만 받는다(implicit). refresh token 이 없어서
+//   1시간 뒤 만료되면 끝이고, 앱은 GIS silent refresh 도 못 쓴다(위 주석) → 1시간마다 로그아웃.
+//   Authorization Code + PKCE 로 바꾸면 refresh token 이 나와 조용히 갱신된다.
+//   덤으로 커스텀 스킴 가로채기 위험도 사라진다 — code 를 훔쳐도 code_verifier 없이는 못 바꾼다.
+//
+// ★ 옛 APK 를 깨뜨리지 않는 게 핵심이다.
+//   앱은 웹을 원격 로드(server.url)하므로 웹만 배포하면 옛 APK 도 이 코드를 받는다.
+//   그런데 새 리다이렉트 스킴은 AndroidManifest 에 있어서 APK 를 갈아야 생긴다.
+//   옛 APK 가 PKCE 를 타면 딥링크가 영영 안 돌아와 로그인이 먹통이 된다.
+//   → 설치된 앱 버전으로 가른다. 미만이면 예전 중계 방식 그대로.
+const PKCE_MIN_APP_VERSION = "1.1.0";
+const ANDROID_CLIENT_ID = "329003207663-tc41dhub0pu2pqvcdc0oghru2ao5idkm.apps.googleusercontent.com";
+// 구글 Android 클라이언트의 커스텀 스킴 = 클라이언트 ID 를 뒤집은 것.
+//   AndroidManifest 의 intent-filter scheme 과 정확히 같아야 한다.
+const PKCE_SCHEME = "com.googleusercontent.apps.329003207663-tc41dhub0pu2pqvcdc0oghru2ao5idkm";
+const PKCE_REDIRECT = `${PKCE_SCHEME}:/oauth2redirect`;
+const TOKEN_URL = "https://oauth2.googleapis.com/token";
+const REFRESH_KEY = "gdrive_refresh_token";
+const VERIFIER_KEY = "gdrive_pkce_verifier";
+
+// "1.2.0" 같은 버전 문자열 비교. 자릿수가 달라도(1.10 vs 1.9) 맞게 판정한다.
+function versionGte(a: string, b: string): boolean {
+  const pa = a.split(".").map(n => parseInt(n, 10) || 0);
+  const pb = b.split(".").map(n => parseInt(n, 10) || 0);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const x = pa[i] ?? 0, y = pb[i] ?? 0;
+    if (x !== y) return x > y;
+  }
+  return true;
+}
+
+// 이 앱이 PKCE 를 탈 수 있나 — 매니페스트에 새 스킴이 있는 버전인가.
+let pkceCapable: boolean | null = null;
+async function canUsePkce(): Promise<boolean> {
+  if (!isNativeApp()) return false;
+  if (pkceCapable !== null) return pkceCapable;
+  const v = await getInstalledAppVersion();
+  pkceCapable = !!v && versionGte(v, PKCE_MIN_APP_VERSION);
+  return pkceCapable;
+}
+
+// PKCE code_verifier / code_challenge (S256)
+function randomVerifier(): string {
+  const bytes = new Uint8Array(64);
+  crypto.getRandomValues(bytes);
+  return btoa(String.fromCharCode(...bytes))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+async function challengeOf(verifier: string): Promise<string> {
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));
+  return btoa(String.fromCharCode(...new Uint8Array(digest)))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
 const SCOPE = "https://www.googleapis.com/auth/drive.appdata";
 const AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const REVOKE_URL = "https://oauth2.googleapis.com/revoke";
@@ -232,7 +289,11 @@ function requestSilentRefresh(): Promise<string | null> {
 }
 
 function scheduleSilentRefresh(): void {
-  if (isNativeApp()) return;   // 앱은 GIS 를 안 쓴다(위 주석 참조)
+  // 앱은 GIS 를 안 쓰지만(위 주석), PKCE refresh token 이 있으면 그걸로 갱신한다.
+  if (isNativeApp()) {
+    void canUsePkce().then((ok) => { if (ok) schedulePkceRefresh(); });
+    return;
+  }
   if (refreshTimer !== null) {
     window.clearTimeout(refreshTimer);
     refreshTimer = null;
@@ -242,6 +303,20 @@ function scheduleSilentRefresh(): void {
   refreshTimer = window.setTimeout(() => {
     refreshTimer = null;
     void requestSilentRefresh();
+  }, delay);
+}
+
+// 앱 전용 갱신 타이머 — 만료 5분 전에 refresh token 으로 조용히 바꾼다.
+function schedulePkceRefresh(): void {
+  if (refreshTimer !== null) {
+    window.clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+  if (!accessToken) return;
+  const delay = Math.max(0, tokenExpiresAt - Date.now() - SILENT_REFRESH_LEAD_MS);
+  refreshTimer = window.setTimeout(() => {
+    refreshTimer = null;
+    void refreshWithToken();
   }, delay);
 }
 
@@ -278,6 +353,31 @@ export function signIn(): void {
     localStorage.setItem(PRE_AUTH_PATH_KEY, window.location.pathname + window.location.search);
   } catch { /* noop */ }
 
+  // 새 APK(v1.1.0+)는 PKCE 로. 옛 APK·웹은 아래 기존 경로 그대로.
+  void canUsePkce().then((ok) => { if (ok) void signInPkce(); else signInLegacy(); });
+}
+
+// PKCE 로그인 — Custom Tab 으로 authorize 를 열고, 커스텀 스킴으로 code 를 받는다.
+async function signInPkce(): Promise<void> {
+  const verifier = randomVerifier();
+  try { localStorage.setItem(VERIFIER_KEY, verifier); } catch { /* noop */ }
+  const params = new URLSearchParams({
+    client_id: ANDROID_CLIENT_ID,
+    redirect_uri: PKCE_REDIRECT,
+    response_type: "code",
+    scope: SCOPE,
+    state: APP_STATE_VALUE,
+    code_challenge: await challengeOf(verifier),
+    code_challenge_method: "S256",
+    // refresh token 을 받으려면 둘 다 필요하다. prompt 를 빼면 재로그인 때 안 준다.
+    access_type: "offline",
+    prompt: "consent",
+    include_granted_scopes: "true",
+  });
+  void Browser.open({ url: `${AUTH_URL}?${params}` });
+}
+
+function signInLegacy(): void {
   const native = isNativeApp();
   const params = new URLSearchParams({
     client_id: CLIENT_ID,
@@ -300,6 +400,21 @@ export function signIn(): void {
 
 // 앱이 커스텀 스킴으로 돌려받은 URL 에서 토큰 추출. 앱에서만 호출된다.
 export function handleAppAuthUrl(url: string): boolean {
+  // PKCE — code 는 쿼리로 온다(fragment 가 아니다).
+  if (url.startsWith(PKCE_SCHEME + ":")) {
+    void Browser.close().catch(() => { /* 이미 닫혔으면 무시 */ });
+    const q = url.indexOf("?");
+    if (q < 0) return false;
+    const params = new URLSearchParams(url.slice(q + 1));
+    if (params.get("state") !== APP_STATE_VALUE) return false;
+    const code = params.get("code");
+    if (!code) {
+      noteAuthFailure("pkce-authorize", { error: params.get("error") ?? "no-code" });
+      return false;
+    }
+    void exchangeCode(code);
+    return true;
+  }
   const i = url.indexOf("#");
   if (i < 0) return false;
   const hash = new URLSearchParams(url.slice(i + 1));
@@ -309,6 +424,75 @@ export function handleAppAuthUrl(url: string): boolean {
   if (!token || hash.get("error")) return false;
   saveToken(token, parseInt(hash.get("expires_in") ?? "3600", 10));
   return true;
+}
+
+// authorization code → 토큰. CORS 때문에 웹뷰 fetch 로는 못 하고 네이티브 HTTP 로 보낸다.
+async function exchangeCode(code: string): Promise<void> {
+  let verifier = "";
+  try { verifier = localStorage.getItem(VERIFIER_KEY) ?? ""; } catch { /* noop */ }
+  if (!verifier) { noteAuthFailure("pkce-no-verifier"); return; }
+  try {
+    const resp = await fetchViaNative(TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: ANDROID_CLIENT_ID,
+        code,
+        code_verifier: verifier,
+        grant_type: "authorization_code",
+        redirect_uri: PKCE_REDIRECT,
+      }).toString(),
+    });
+    const data = await resp.json() as {
+      access_token?: string; refresh_token?: string; expires_in?: number; error?: string;
+      error_description?: string;
+    };
+    if (!resp.ok || !data.access_token) { noteAuthFailure("pkce-exchange", data); return; }
+    // refresh token 은 최초 동의 때만 온다 — 오면 반드시 보관한다.
+    if (data.refresh_token) {
+      try { localStorage.setItem(REFRESH_KEY, data.refresh_token); } catch { /* noop */ }
+    }
+    try { localStorage.removeItem(VERIFIER_KEY); } catch { /* noop */ }
+    clearAuthDiag();
+    saveToken(data.access_token, data.expires_in ?? 3600);
+  } catch (e) {
+    noteAuthFailure("pkce-exchange-throw", e);
+  }
+}
+
+// refresh token 으로 조용히 갱신 — 앱에서 1시간마다 로그아웃되던 것을 막는 핵심.
+async function refreshWithToken(): Promise<string | null> {
+  let rt = "";
+  try { rt = localStorage.getItem(REFRESH_KEY) ?? ""; } catch { /* noop */ }
+  if (!rt) return null;
+  try {
+    const resp = await fetchViaNative(TOKEN_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: ANDROID_CLIENT_ID,
+        refresh_token: rt,
+        grant_type: "refresh_token",
+      }).toString(),
+    });
+    const data = await resp.json() as {
+      access_token?: string; expires_in?: number; error?: string; error_description?: string;
+    };
+    if (!resp.ok || !data.access_token) {
+      noteAuthFailure("pkce-refresh", data);
+      // invalid_grant = 사용자가 접근을 취소했거나 토큰이 폐기됨 → 다시 로그인해야 한다.
+      if (data.error === "invalid_grant") {
+        try { localStorage.removeItem(REFRESH_KEY); } catch { /* noop */ }
+      }
+      return null;
+    }
+    clearAuthDiag();
+    saveToken(data.access_token, data.expires_in ?? 3600);
+    return data.access_token;
+  } catch (e) {
+    noteAuthFailure("pkce-refresh-throw", e);
+    return null;
+  }
 }
 
 // URL fragment 에서 token 추출 — 페이지 로드 시 자동 호출
@@ -346,6 +530,11 @@ export function handleAuthRedirect(): boolean {
 export async function getAccessToken(): Promise<string | null> {
   if (accessToken && Date.now() < tokenExpiresAt - 30_000) {
     return accessToken;
+  }
+  // 앱에 refresh token 이 있으면 그걸로 먼저 — GIS 를 안 타므로 웹뷰 이탈 문제가 없다.
+  if (await canUsePkce()) {
+    const t = await refreshWithToken();
+    if (t) return t;
   }
   // 이전에 로그인한 적 있으면 silent refresh 시도 (사용자 클릭 불필요)
   if (wasSignedIn()) {

@@ -30,6 +30,16 @@
                 <data android:scheme="pfportfolio" android:host="oauth" />
             </intent-filter>
 
+            <!-- 구글 PKCE 복귀용 (googleAuth.ts PKCE_SCHEME 과 짝).
+                 스킴 = Android OAuth 클라이언트 ID 를 뒤집은 값. 구글 규격이라 임의로 못 바꾼다.
+                 위의 pfportfolio 는 남겨 둔다 — 옛 흐름으로 로그인한 설치본을 깨뜨리지 않기 위해. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.googleusercontent.apps.329003207663-tc41dhub0pu2pqvcdc0oghru2ao5idkm" />
+            </intent-filter>
+
         </activity>
 
         <provider
