@@ -54,6 +54,7 @@ import { MarketTickerBar } from "./components/MarketTickerBar";
 import { TICKER_BAR_H, useTickerBarOpen } from "./lib/tickerBar";
 import { RefreshIndicator } from "./components/RefreshIndicator";
 import { forceUpdate } from "./components/VersionBadge";
+import { AppUpdateToast } from "./components/AppUpdateToast";
 import { NewVersionToast } from "./components/NewVersionToast";
 import { ProxyStatusBadge } from "./components/ProxyStatusBadge";
 import { useAdaptiveRefreshMs } from "./lib/proxyStatus";
@@ -699,6 +700,7 @@ function Dashboard() {
   return (
     <div className="min-h-screen bg-gray-50">
       <NewVersionToast />
+      <AppUpdateToast />
       {tossMaint.active && (
         <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-xs
                         px-4 py-1.5 text-center">
