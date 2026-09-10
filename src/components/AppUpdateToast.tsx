@@ -11,13 +11,10 @@
 import { useEffect, useState } from "react";
 import { isNativeApp } from "../lib/nativeProxy";
 import {
-  getInstalledAppVersion, fetchLatestRelease, RELEASE_PAGE, type LatestRelease,
+  getInstalledAppVersion, fetchLatestRelease, openApkDownload, RELEASE_PAGE, type LatestRelease,
 } from "../lib/appRelease";
 // 버전 비교는 설정 화면과 같은 함수를 쓴다 — 규칙이 갈라지면 한쪽만 안 뜨는 일이 생긴다.
 import { compareVersion } from "../lib/extensionProxy";
-
-// 같은 버전을 계속 띄우지 않는다 — 버전이 또 올라가면 다시 뜬다.
-const DISMISS_KEY = "portfolio-apk-update-dismissed";
 
 export function AppUpdateToast() {
   const [latest, setLatest] = useState<LatestRelease | null>(null);
@@ -32,9 +29,6 @@ export function AppUpdateToast() {
       if (!alive) return;
       setInstalled(v);
       setLatest(rel);
-      try {
-        if (rel && localStorage.getItem(DISMISS_KEY) === rel.version) setDismissed(true);
-      } catch { /* noop */ }
     })();
     return () => { alive = false; };
   }, []);
@@ -42,10 +36,10 @@ export function AppUpdateToast() {
   if (dismissed || !installed || !latest) return null;
   if (compareVersion(installed, latest.version) >= 0) return null;
 
-  const close = () => {
-    setDismissed(true);
-    try { localStorage.setItem(DISMISS_KEY, latest.version); } catch { /* noop */ }
-  };
+  // ★ 닫아도 영구히 숨기지 않는다. 앱을 다시 켜면 또 뜬다.
+  //   옛 APK 는 구글 로그인이 아예 안 되므로(네이티브 플러그인이 없다) 한 번 닫았다고
+  //   영영 안 알리면 사용자가 고장난 채로 남는다. 지금 화면에서만 치운다.
+  const close = () => setDismissed(true);
 
   return (
     <div className="fixed inset-x-2 top-2 z-[60] mx-auto max-w-md rounded-lg border border-emerald-300
@@ -57,11 +51,10 @@ export function AppUpdateToast() {
           <div className="text-emerald-800 leading-relaxed">
             지금 v{installed} 입니다. 새 APK 를 설치하면 최신 기능이 적용됩니다.
           </div>
-          <a href={latest.apkUrl ?? latest.pageUrl}
-             {...(latest.apkUrl ? { download: "" } : { target: "_blank", rel: "noopener noreferrer" })}
-             className="inline-block mt-1.5 px-2 py-1 rounded bg-emerald-600 text-white font-bold">
+          <button onClick={() => { void openApkDownload(latest.apkUrl ?? latest.pageUrl); }}
+                  className="inline-block mt-1.5 px-2 py-1 rounded bg-emerald-600 text-white font-bold">
             ↓ 내려받기
-          </a>
+          </button>
           {!latest.apkUrl && (
             <a href={RELEASE_PAGE} target="_blank" rel="noopener noreferrer"
                className="ml-2 underline">릴리스 페이지</a>

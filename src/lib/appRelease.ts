@@ -8,6 +8,7 @@
 //   열려 있어 프록시도 필요 없다(비인증 60회/시간 — 설정 화면에서만 부르므로 넉넉하다).
 
 import { App } from "@capacitor/app";
+import { Browser } from "@capacitor/browser";
 import { isNativeApp } from "./nativeProxy";
 
 export const RELEASE_PAGE = "https://github.com/hanjungwoo3/portfolio-web/releases";
@@ -60,6 +61,23 @@ async function fetchHostedRelease(): Promise<LatestRelease | null> {
   } catch {
     return null;
   }
+}
+
+// APK 내려받기 — 플랫폼마다 방법이 다르다.
+//   앱(Capacitor 웹뷰)에는 다운로드 매니저가 없어서 <a download> 가 아무 동작도 안 한다(실측).
+//   시스템 브라우저(Custom Tab)로 열어 크롬의 다운로드 매니저에 넘긴다.
+//   웹에서는 그냥 링크가 맞다 — 같은 출처라 리다이렉트도 토큰도 없다.
+export async function openApkDownload(url: string): Promise<void> {
+  if (isNativeApp()) {
+    await Browser.open({ url });
+    return;
+  }
+  const a = document.createElement("a");
+  a.href = url;
+  a.setAttribute("download", "");
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
 }
 
 // APK 가 붙은 가장 최근 릴리스. 아직 앱 릴리스를 안 냈으면 null (호출측이 "릴리스 없음" 으로 표시).
