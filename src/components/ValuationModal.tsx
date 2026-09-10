@@ -822,14 +822,29 @@ function InvestorChartsSection({
   todayBar?: TodayBar;
   isEtf?: boolean;   // ETF면 공시·대차·신용·CFD·프로그램 조회 생략(요청 폭주 방지)
 }) {
-  // 가격 + 거래량 + 배당 + 액면분할 (Yahoo 1y, KOSPI→KOSDAQ 자동 폴백)
+  // 배당 + 액면분할 (Yahoo 1y, KOSPI→KOSDAQ 자동 폴백). 가격은 아래 토스를 쓴다.
   const { data: priceData, isLoading: pricesLoading } = useQuery({
     queryKey: ["price-history-modal-with-events", ticker],
     queryFn: () => fetchKrPriceHistoryWithEvents(ticker, "1y"),
     enabled: /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 5 * 60_000,
   });
-  const prices = priceData?.prices;
+
+  // ★ 캔들은 토스로 그린다 — 카드·팝업의 현재가가 토스(NXT 통합거래)라서다.
+  //   야후는 KRX 정규장만 담아, 시간외가 활발한 종목은 캔들·이평선·등락률이 서로 어긋났다
+  //   (실측 유일로보틱스 09-09: 야후 66,300 vs 토스 73,900, 거래량 14배 차이).
+  //   쿼리키가 PriceVolumeChart 의 이평선 소스와 같아 캐시를 공유한다 — 추가 호출 없음.
+  //   덤으로 야후 1년 → 토스 450봉(약 21개월)으로 기간도 늘어난다.
+  const { data: tossCandles } = useQuery({
+    queryKey: ["toss-candles", ticker, "day"],
+    queryFn: () => fetchTossKrCandles(ticker, "day", TOSS_CANDLE_MAX),
+    enabled: /^[\dA-Za-z]{6}$/.test(ticker),
+    staleTime: 60 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  // 토스가 비면(상장 직후·조회 실패) 야후로 폴백 — 차트가 아예 안 나오는 것보다 낫다.
+  const prices = (tossCandles && tossCandles.length > 0) ? tossCandles : priceData?.prices;
   const dividends = priceData?.dividends ?? [];
   const splits = priceData?.splits ?? [];
 
@@ -936,7 +951,9 @@ function InvestorChartsSection({
     if (base.length === 0 || !curPrice || curPrice <= 0) return base;
     const today = nowKstDateStr();
     const last = base[base.length - 1];
-    const yToday = (priceData?.prices ?? []).find(p => p.date === today);
+    // 오늘 봉 폴백은 '지금 쓰는 계열' 에서 찾는다 — 야후에서 찾으면 기준이 섞인다
+    //   (야후=KRX 정규장 / 토스=NXT 포함). 시가·고저·거래량이 캔들과 다른 세션 값이 된다.
+    const yToday = (prices ?? []).find(p => p.date === today);
     const open = todayBar?.open ?? yToday?.open ?? last.close;
     const hiSrc = todayBar?.high ?? yToday?.high;
     const loSrc = todayBar?.low ?? yToday?.low;
@@ -949,7 +966,7 @@ function InvestorChartsSection({
     return last.date === today
       ? [...base.slice(0, -1), todayCandle]
       : [...base, todayCandle];
-  }, [alignedPrices, curPrice, todayBar, priceData?.prices]);
+  }, [alignedPrices, curPrice, todayBar, prices]);
 
   // 4 차트 crosshair sync — 가격차트는 range 마스터(broadcast·receive 거부), 수급 패널은 팔로워(receive only).
   //   ETF 등 일부 패널(공매도/대차/신용/CFD)이 2일치만 있어 fitContent 로 좁은 시간범위를 전파하면
