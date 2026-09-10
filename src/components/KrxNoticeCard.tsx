@@ -34,7 +34,9 @@ interface KrxNotice { seq: string; title: string; date: string; url: string; bod
 const LS_KEY = "krx_notices_v2";
 const LS_TS = "krx_notices_ts_v2";
 const TTL_MS = 12 * 60 * 60 * 1000;
-const SHOW = 5;          // 접힌 상태에서 보여줄 건수
+// 접힌 상태에서 보여줄 건수 — 옆의 거래대금 카드(차트 2개) 높이에 맞춘 값이다.
+//   적으면 아래가 비고, 많으면 카드가 옆보다 길어진다.
+const SHOW = 7;
 
 let memo: KrxNotice[] | null = null;
 
