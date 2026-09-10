@@ -30,8 +30,9 @@ const URL_NOTICES =
 
 interface KrxNotice { seq: string; title: string; date: string; url: string; body?: string }
 
-const LS_KEY = "krx_notices_v1";
-const LS_TS = "krx_notices_ts_v1";
+// v2: 본문(body) 추가 — 키를 안 올리면 12시간 동안 본문 없는 옛 캐시를 읽는다.
+const LS_KEY = "krx_notices_v2";
+const LS_TS = "krx_notices_ts_v2";
 const TTL_MS = 12 * 60 * 60 * 1000;
 const SHOW = 5;          // 접힌 상태에서 보여줄 건수
 
@@ -43,8 +44,10 @@ async function loadNotices(): Promise<KrxNotice[]> {
     const ts = Number(localStorage.getItem(LS_TS) ?? "0");
     const raw = localStorage.getItem(LS_KEY);
     if (raw && Date.now() - ts < TTL_MS) {
-      memo = JSON.parse(raw) as KrxNotice[];
-      return memo;
+      const cached = JSON.parse(raw) as KrxNotice[];
+      // 본문이 하나도 없으면 옛 형태다 — 키를 올려도 다음에 또 필드가 늘면 같은 일이 난다.
+      //   형태로 판단해 스스로 버리게 해 두면 키 버전에만 기대지 않는다.
+      if (cached.some(n => n.body)) { memo = cached; return memo; }
     }
   } catch { /* noop */ }
   const r = await fetch(URL_NOTICES, { cache: "no-store" });
