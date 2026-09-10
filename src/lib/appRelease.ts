@@ -20,6 +20,12 @@ export const RELEASE_PAGE = "https://github.com/hanjungwoo3/portfolio-web/releas
 //   출처라 리다이렉트도 토큰도 없다. 실패하면 아래 GitHub API 로 폴백한다.
 //   (gh-pages 는 access-control-allow-origin: * 라 앱에서도 부를 수 있다 — 확인함)
 const HOSTED_RELEASE_URL = "https://hanjungwoo3.github.io/portfolio-web/app/release.json";
+// ★ APK 내려받기는 언제나 이 주소다. GitHub 릴리스 자산 링크로 보내면 안 된다 —
+//   release-assets.githubusercontent.com 으로 리다이렉트되고 서명 토큰이 붙는데,
+//   안드로이드 다운로드 매니저가 그걸 못 이어받아 "다운로드 중..." 에서 멈춘다(실측).
+//   그래서 gh-pages 로 옮겼는데, 폴백으로 GitHub 을 끼워 넣으면 그 함정이 되살아난다.
+//   파일 이름이 버전과 무관하게 고정이라 링크가 바뀌지 않는다(pack-app.mjs).
+export const APK_DOWNLOAD_URL = "https://hanjungwoo3.github.io/portfolio-web/app/portfolio-app.apk";
 // ★ /releases/latest 를 쓰면 안 된다 — 이 저장소는 확장(zip)과 앱(apk) 릴리스를 함께 낸다.
 //   확장 릴리스가 최신이면 앱이 "최신입니다" 라고 잘못 말한다(실제로 그랬다).
 //   → 목록을 받아 .apk 자산이 붙은 첫 릴리스를 앱 릴리스로 본다. 태그 규칙에 기대지 않는다.
@@ -57,7 +63,7 @@ async function fetchHostedRelease(): Promise<LatestRelease | null> {
     if (!r.ok) return null;
     const j = await r.json() as { version?: string; url?: string };
     if (!j.version || !j.url) return null;
-    return { version: j.version, apkUrl: j.url, pageUrl: RELEASE_PAGE };
+    return { version: j.version, apkUrl: j.url || APK_DOWNLOAD_URL, pageUrl: RELEASE_PAGE };
   } catch {
     return null;
   }
@@ -95,7 +101,8 @@ export async function fetchLatestRelease(): Promise<LatestRelease | null> {
       if (!apk) continue;                       // 확장(zip) 릴리스 — 앱과 무관
       const version = String(rel.tag_name ?? "").replace(/^(app-)?v/i, "").trim();
       if (!version) continue;
-      return { version, apkUrl: apk.browser_download_url ?? null, pageUrl: rel.html_url || RELEASE_PAGE };
+      // 버전만 GitHub 에서 읽고, 받는 곳은 항상 gh-pages 다(위 주석 참조).
+      return { version, apkUrl: APK_DOWNLOAD_URL, pageUrl: rel.html_url || RELEASE_PAGE };
     }
     return null;
   } catch {

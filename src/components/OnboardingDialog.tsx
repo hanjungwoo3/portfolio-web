@@ -1,3 +1,4 @@
+import { APK_DOWNLOAD_URL as APK_URL } from "../lib/appRelease";
 import { useEffect, useRef, useState } from "react";
 import {
   getPersonalProxyUrl, getEnabledPersonalProxies, isSyntheticProxyUrl, hasDirectTransport,
@@ -20,7 +21,7 @@ const EXT_GUIDE_URL =
   "https://github.com/hanjungwoo3/portfolio-web/blob/main/extension/README.md";
 // APK 는 gh-pages 직링크를 쓴다 — GitHub 릴리스 자산 링크는 안드로이드 다운로드 매니저가
 //   못 이어받아 "다운로드 중…" 에서 멈추는 일이 있다(실측).
-const APK_URL = "https://hanjungwoo3.github.io/portfolio-web/app/portfolio-app.apk";
+
 
 interface Props {
   onOpenSettings: () => void;

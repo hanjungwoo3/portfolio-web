@@ -11,7 +11,7 @@
 import { useEffect, useState } from "react";
 import { isNativeApp } from "../lib/nativeProxy";
 import {
-  getInstalledAppVersion, fetchLatestRelease, openApkDownload, RELEASE_PAGE, type LatestRelease,
+  getInstalledAppVersion, fetchLatestRelease, openApkDownload, APK_DOWNLOAD_URL, type LatestRelease,
 } from "../lib/appRelease";
 // 버전 비교는 설정 화면과 같은 함수를 쓴다 — 규칙이 갈라지면 한쪽만 안 뜨는 일이 생긴다.
 import { compareVersion } from "../lib/extensionProxy";
@@ -51,14 +51,10 @@ export function AppUpdateToast() {
           <div className="text-emerald-800 leading-relaxed">
             지금 v{installed} 입니다. 새 APK 를 설치하면 최신 기능이 적용됩니다.
           </div>
-          <button onClick={() => { void openApkDownload(latest.apkUrl ?? latest.pageUrl); }}
+          <button onClick={() => { void openApkDownload(latest.apkUrl ?? APK_DOWNLOAD_URL); }}
                   className="inline-block mt-1.5 px-2 py-1 rounded bg-emerald-600 text-white font-bold">
             ↓ 내려받기
           </button>
-          {!latest.apkUrl && (
-            <a href={RELEASE_PAGE} target="_blank" rel="noopener noreferrer"
-               className="ml-2 underline">릴리스 페이지</a>
-          )}
         </div>
         <button onClick={close} aria-label="닫기"
                 className="shrink-0 text-emerald-700 hover:text-emerald-900 text-lg leading-none">✕</button>

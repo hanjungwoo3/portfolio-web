@@ -32,7 +32,7 @@ import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { StockMarketTab } from "./StockMarketTab";
 import { useExtensionProxyReady, compareVersion } from "../lib/extensionProxy";
 import { isNativeApp } from "../lib/nativeProxy";
-import { getInstalledAppVersion, fetchLatestRelease, openApkDownload, RELEASE_PAGE, type LatestRelease } from "../lib/appRelease";
+import { getInstalledAppVersion, fetchLatestRelease, openApkDownload, APK_DOWNLOAD_URL, RELEASE_PAGE, type LatestRelease } from "../lib/appRelease";
 import { ValuationTableTab } from "./ValuationTableTab";
 import { normalizeAccount } from "../lib/account";
 import { attachTodayBuys } from "../lib/tradeCalc";
@@ -2306,7 +2306,7 @@ function SettingsModal({
                   appOutdated
                     ? <span className="text-amber-700">
                         {" "}· 새 버전 <b>v{latest.version}</b> 있음{" "}
-                        <button onClick={() => { void openApkDownload(latest.apkUrl ?? latest.pageUrl); }}
+                        <button onClick={() => { void openApkDownload(latest.apkUrl ?? APK_DOWNLOAD_URL); }}
                                 className="underline font-bold">APK 받기 ↗</button>
                       </span>
                     : <span className="text-emerald-600"> · 최신입니다</span>
