@@ -74,7 +74,7 @@ export function useExtensionProxyReady(): boolean {
 
 // 앱이 기대하는 확장 버전 — 확장을 고칠 때 manifest.json 과 함께 올린다.
 // 개발자 모드 설치는 자동 업데이트가 없어, 이 값보다 낮으면 설정에서 재설치를 안내한다.
-export const EXPECTED_EXTENSION_VERSION = "1.0.0";
+export const EXPECTED_EXTENSION_VERSION = "1.1.0";
 
 // "1.2.10" 같은 점 구분 버전 비교 — a < b 면 음수.
 export function compareVersion(a: string, b: string): number {
@@ -95,6 +95,46 @@ function fromBase64(b64: string): ArrayBuffer {
   const view = new Uint8Array(buf);
   for (let i = 0; i < bin.length; i++) view[i] = bin.charCodeAt(i);
   return buf;   // ArrayBuffer 로 돌려야 Response 의 BodyInit 에 그대로 들어간다
+}
+
+// ─── 구글 토큰 ──────────────────────────────────────────────────
+// 웹 페이지에서 GIS 로 조용히 갱신하는 길이 막혀 있다 — prompt:"none" 이어도 팝업을 띄우는데,
+//   만료 타이머에서 부르면 사용자 제스처가 없어 브라우저가 즉시 닫는다(실측 popup_closed).
+//   확장의 chrome.identity 는 팝업을 안 써서 조용히 재발급된다. 확장이 있을 때만 쓰는 길이다.
+//
+// 계정은 크롬 프로필에 로그인된 것을 쓴다. 프로필 로그인이 없으면 실패하고, 그때는
+//   호출측이 기존 GIS 경로로 폴백한다.
+async function extensionRequest<T extends ExtResponse>(payload: Record<string, unknown>): Promise<T> {
+  const id = `${Date.now()}-${seq++}`;
+  return await new Promise<T>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      pending.delete(id);
+      reject(new Error("extension timeout"));
+    }, TIMEOUT_MS);
+    pending.set(id, r => { clearTimeout(timer); resolve(r as T); });
+    window.postMessage({ [TAG]: "req", id, ...payload }, "*");
+  });
+}
+
+export async function getGoogleTokenViaExtension(
+  interactive: boolean,
+): Promise<{ token: string; expiresIn: number } | null> {
+  if (!ready) return null;
+  try {
+    const res = await extensionRequest<ExtResponse & { token?: string; expiresIn?: number }>(
+      { kind: "googleToken", interactive },
+    );
+    if (res.error || !res.token) return null;
+    return { token: res.token, expiresIn: res.expiresIn ?? 3600 };
+  } catch {
+    return null;
+  }
+}
+
+// 401 을 받았을 때 — 안 비우면 크롬이 같은 죽은 토큰을 계속 돌려준다.
+export async function clearGoogleTokenViaExtension(token: string): Promise<void> {
+  if (!ready || !token) return;
+  try { await extensionRequest({ kind: "googleTokenClear", token }); } catch { /* noop */ }
 }
 
 export async function fetchViaExtension(targetUrl: string, init?: RequestInit): Promise<Response> {

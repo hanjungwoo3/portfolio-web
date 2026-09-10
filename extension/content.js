@@ -20,9 +20,19 @@ window.addEventListener("message", (e) => {
   // 확장을 새로고침·업데이트하면 이미 열려 있던 탭의 콘텐트 스크립트는 끊긴다
   // ("Extension context invalidated"). 그때 sendMessage 는 동기적으로 던진다 →
   // 잡아서 즉시 에러를 돌려줘야 앱이 20초 타임아웃을 기다리지 않고 바로 프록시로 넘어간다.
+  // 요청 종류에 따라 배경 스크립트로 그대로 넘긴다.
+  //   fetch            시세 중계 (원래 용도)
+  //   googleToken      구글 액세스 토큰 (웹에서는 조용한 갱신이 막혀 있다 — background.js 주석)
+  //   googleTokenClear 401 받았을 때 캐시 폐기
+  const payload = m.kind === "googleToken"
+    ? { type: "googleToken", interactive: !!m.interactive }
+    : m.kind === "googleTokenClear"
+      ? { type: "googleTokenClear", token: m.token }
+      : { type: "fetch", url: m.url, method: m.method, body: m.body, contentType: m.contentType };
+
   try {
     chrome.runtime.sendMessage(
-      { type: "fetch", url: m.url, method: m.method, body: m.body, contentType: m.contentType },
+      payload,
       (res) => {
         const err = chrome.runtime.lastError;
         window.postMessage(

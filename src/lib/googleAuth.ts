@@ -8,6 +8,9 @@ import { App as CapApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { isNativeApp } from "./nativeProxy";
+import {
+  isExtensionProxyReady, getGoogleTokenViaExtension, clearGoogleTokenViaExtension,
+} from "./extensionProxy";
 import { getInstalledAppVersion } from "./appRelease";
 
 // ─── 안드로이드 앱 경로 ───────────────────────────────────────
@@ -64,6 +67,20 @@ async function canUseNativeAuth(): Promise<boolean> {
   const v = await getInstalledAppVersion();
   nativeAuthCapable = !!v && versionGte(v, NATIVE_AUTH_MIN_APP_VERSION);
   return nativeAuthCapable;
+}
+
+// ─── 웹: 확장 경로 ────────────────────────────────────────────
+// GIS 로는 조용한 갱신이 안 된다 — prompt:"none" 이어도 팝업을 띄우는데, 만료 타이머에서
+//   부르면 사용자 제스처가 없어 브라우저가 즉시 닫는다(실측 error_callback · popup_closed).
+//   확장의 chrome.identity 는 팝업을 안 써서 조용히 재발급된다.
+//   확장이 없으면 기존 GIS 경로로 폴백한다 — 그쪽은 여전히 1시간마다 클릭이 필요하다.
+async function extensionAuthToken(interactive: boolean): Promise<string | null> {
+  if (!isExtensionProxyReady()) return null;
+  const r = await getGoogleTokenViaExtension(interactive);
+  if (!r) { if (!interactive) noteAuthFailure("ext-no-token"); return null; }
+  clearAuthDiag();
+  saveToken(r.token, r.expiresIn);
+  return r.token;
 }
 
 interface NativeAuthResult { accessToken?: string; expiresIn?: number; needsConsent?: boolean }
@@ -306,6 +323,8 @@ function requestSilentRefresh(): Promise<string | null> {
 }
 
 function scheduleSilentRefresh(): void {
+  // 확장이 있으면 팝업 없이 갱신되므로 타이머가 실제로 동작한다.
+  if (!isNativeApp() && isExtensionProxyReady()) { scheduleExtensionRefresh(); return; }
   // 앱은 GIS 를 안 쓰지만(위 주석), 네이티브 인증이 되는 버전이면 그걸로 갱신한다.
   if (isNativeApp()) {
     void canUseNativeAuth().then((ok) => { if (ok) scheduleNativeRefresh(); });
@@ -320,6 +339,20 @@ function scheduleSilentRefresh(): void {
   refreshTimer = window.setTimeout(() => {
     refreshTimer = null;
     void requestSilentRefresh();
+  }, delay);
+}
+
+// 확장 갱신 타이머 — 만료 5분 전에 chrome.identity 로 조용히 새 토큰을 받는다.
+function scheduleExtensionRefresh(): void {
+  if (refreshTimer !== null) {
+    window.clearTimeout(refreshTimer);
+    refreshTimer = null;
+  }
+  if (!accessToken) return;
+  const delay = Math.max(0, tokenExpiresAt - Date.now() - SILENT_REFRESH_LEAD_MS);
+  refreshTimer = window.setTimeout(() => {
+    refreshTimer = null;
+    void extensionAuthToken(false);
   }, delay);
 }
 
@@ -460,6 +493,11 @@ export async function getAccessToken(): Promise<string | null> {
     const t = await nativeAuthToken(false);
     if (t) return t;
   }
+  // 확장이 있으면 확장으로 조용히 받는다 — 팝업이 없어 타이머에서도 성공한다.
+  if (!isNativeApp() && isExtensionProxyReady()) {
+    const t = await extensionAuthToken(false);
+    if (t) return t;
+  }
   // 이전에 로그인한 적 있으면 silent refresh 시도 (사용자 클릭 불필요)
   if (wasSignedIn()) {
     const refreshed = await requestSilentRefresh();
@@ -504,6 +542,11 @@ export function wasSignedIn(): boolean {
 export async function recoverFromUnauthorized(): Promise<string | null> {
   const dead = accessToken;
   clearToken();
+  // 확장도 토큰을 캐시한다 — 안 비우면 같은 죽은 토큰을 계속 돌려준다(네이티브와 같은 함정).
+  if (!isNativeApp() && isExtensionProxyReady()) {
+    if (dead) await clearGoogleTokenViaExtension(dead);
+    return await extensionAuthToken(false);
+  }
   if (!(await canUseNativeAuth())) return null;
   if (dead) { try { await nativePlugin()?.clearToken?.({ token: dead }); } catch { /* noop */ } }
   return await nativeAuthToken(false);

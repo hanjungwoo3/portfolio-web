@@ -181,11 +181,54 @@ chrome.action.onClicked.addListener(async () => {
   }
 });
 
+// ─── 구글 액세스 토큰 ────────────────────────────────────────────
+// 왜 확장이 해주나 — 웹 페이지에서 GIS 로 조용히 갱신하는 길이 막혔다.
+//   prompt:"none" 이어도 GIS 는 팝업을 띄우는데, 만료 타이머에서 부르면 사용자 제스처가
+//   없어 브라우저가 그 팝업을 즉시 닫는다(실측: error_callback · popup_closed).
+//   그래서 웹만으로는 1시간마다 로그아웃된다.
+//   chrome.identity 는 팝업을 안 쓴다 — 한 번 동의하면 interactive:false 로 조용히 재발급된다.
+//
+// 계정은 크롬 프로필에 로그인된 것을 쓴다(고를 수 없다). 프로필 로그인이 없으면 실패한다.
+function getGoogleToken(interactive) {
+  return new Promise((resolve) => {
+    try {
+      chrome.identity.getAuthToken({ interactive: !!interactive }, (token) => {
+        const err = chrome.runtime.lastError;
+        if (err || !token) { resolve({ error: err ? err.message : "no-token" }); return; }
+        // 구글 액세스 토큰은 1시간이다. 확장은 만료 시각을 안 주므로 그렇게 본다.
+        resolve({ token, expiresIn: 3600 });
+      });
+    } catch (e) {
+      resolve({ error: String(e) });
+    }
+  });
+}
+
+// 캐시된 토큰 폐기 — 401 을 받았을 때. 안 비우면 크롬이 같은 죽은 토큰을 계속 돌려준다.
+function clearGoogleToken(token) {
+  return new Promise((resolve) => {
+    if (!token) { resolve({ ok: true }); return; }
+    try {
+      chrome.identity.removeCachedAuthToken({ token }, () => resolve({ ok: true }));
+    } catch {
+      resolve({ ok: true });
+    }
+  });
+}
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg) return;
   if (msg.type === "ping") { sendResponse({ ok: true }); return; }
   if (msg.type === "fetch") {
     doFetch(msg).then(sendResponse);
     return true;   // 비동기 응답
+  }
+  if (msg.type === "googleToken") {
+    getGoogleToken(msg.interactive).then(sendResponse);
+    return true;
+  }
+  if (msg.type === "googleTokenClear") {
+    clearGoogleToken(msg.token).then(sendResponse);
+    return true;
   }
 });

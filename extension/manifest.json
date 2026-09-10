@@ -1,10 +1,11 @@
 {
   "manifest_version": 3,
   "name": "포트폴리오 시세 프록시",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "포트폴리오 앱을 팝업으로 띄우고, 시세 요청을 브라우저에서 직접 중계합니다. 가정용 IP 라 토스 과호출 차단(400)을 피하고 호출 한도가 없습니다.",
   "permissions": [
-    "declarativeNetRequest"
+    "declarativeNetRequest",
+    "identity"
   ],
   "host_permissions": [
     "https://hanjungwoo3.github.io/*",
@@ -53,5 +54,12 @@
     "32": "icons/icon32.png",
     "48": "icons/icon48.png",
     "128": "icons/icon128.png"
+  },
+  "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsC6fcUBNZe1z0RL8KCISnydllRMoKyZMmEwaGdtpG5OSwuGffgX3wm+bOrRYEE5mvOQivA6nYdecuQ1+AkeeVVJLKSi5aqfDawzZmYtOg+xCUX2p306zoCbaaN/cAa/DTg8n8oufC+uaHWarcSiBnUgt6WRyKQTXkzZkULJES8PDuD0iETGhQYIjiMilI6iJ5gQUgUmMhG+MhIYayb1wWjR0ulIetCmZjUrtRTtPbEQJUI95pS2L7hJfDRgWrjuRKZ5SZbjrQqcBMhAVxrISr94k5XstjUqMY13awjXGXR12JRHfIl4Jy+Rna7YweCIS5SAGKhTe8ZTFXQu4r7JQtwIDAQAB",
+  "oauth2": {
+    "client_id": "329003207663-7d7v74a88h78t62egskeftf7mp8jntj8.apps.googleusercontent.com",
+    "scopes": [
+      "https://www.googleapis.com/auth/drive.appdata"
+    ]
   }
 }
