@@ -8,6 +8,7 @@ const ALLOWED_HOSTS = new Set([
   "tossinvest.com",
   "finance.naver.com",
   "m.stock.naver.com",
+  "stock.naver.com",
   "polling.finance.naver.com",
   "navercomp.wisereport.co.kr",
   "api.investing.com",
@@ -65,8 +66,8 @@ const HEADER_GROUPS = [
     headers: { Origin: "https://tossinvest.com", Referer: "https://tossinvest.com/" },
   },
   {
-    domains: ["finance.naver.com", "m.stock.naver.com", "polling.finance.naver.com",
-              "navercomp.wisereport.co.kr"],
+    domains: ["finance.naver.com", "m.stock.naver.com", "stock.naver.com",
+              "polling.finance.naver.com", "navercomp.wisereport.co.kr"],
     headers: { Referer: "https://finance.naver.com/", "Accept-Language": "ko-KR,ko;q=0.9" },
   },
   { domains: ["yasun.gg"], headers: { Referer: "https://yasun.gg/" } },

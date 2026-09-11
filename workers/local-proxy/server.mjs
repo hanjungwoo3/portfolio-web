@@ -24,6 +24,7 @@ const ALLOWED_HOSTS = new Set([
   "tossinvest.com",
   "finance.naver.com",
   "m.stock.naver.com",
+  "stock.naver.com",
   "polling.finance.naver.com",
   "navercomp.wisereport.co.kr",
   "query1.finance.yahoo.com",
