@@ -11,6 +11,10 @@ const ALLOWED_HOSTS = new Set<string>([
   "tossinvest.com",
   "finance.naver.com",
   "m.stock.naver.com",
+  // 2026-09-11: 네이버가 증시자금동향을 finance.naver.com/sise/sise_deposit.naver 에서
+  //   stock.naver.com 으로 옮겼다(302). 새 페이지는 Next.js 라 HTML 파싱이 안 되고,
+  //   데이터는 /api/domestic/market/trendDeposit 로 온다.
+  "stock.naver.com",
   "polling.finance.naver.com",
   "navercomp.wisereport.co.kr",
   "query1.finance.yahoo.com",

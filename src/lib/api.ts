@@ -692,8 +692,8 @@ export async function fetchKrSectorEtfRanking(): Promise<KrSectorEtfRank[]> {
   return results;
 }
 
-// ─── 증시 자금동향 — 네이버 금융 sise_deposit (고객예탁금·신용잔고·주식형/혼합형/채권형 펀드, 단위 억원, 일자별) ───
-//   finance.naver.com 은 이미 프록시 화이트리스트에 있음(테마·종목과 동일 호스트). EUC-KR → decodeHtmlBuf.
+// ─── 증시 자금동향 — 네이버 (고객예탁금·신용잔고·주식형/혼합형/채권형 펀드, 단위 억원, 일자별) ───
+//   ★ stock.naver.com 은 워커·확장 화이트리스트에 추가가 필요하다(2026-09-11 이전 버전은 403).
 export type FundFlowKey = "deposit" | "credit" | "stock" | "mixed" | "bond";
 export interface FundFlowMetric {
   key: FundFlowKey;
@@ -706,40 +706,52 @@ export interface MarketDepositData {
   dates: string[];          // series 와 정렬된 일자 (과거→최신, YY.MM.DD)
   metrics: FundFlowMetric[];
 }
-// 표 컬럼 인덱스 — [날짜, 고객예탁금, 대비, 신용잔고, 대비, 주식형, 대비, 혼합형, 대비, 채권형, 대비]
-const FUND_FLOW_COLS: { key: FundFlowKey; idx: number }[] = [
-  { key: "deposit", idx: 1 }, { key: "credit", idx: 3 },
-  { key: "stock", idx: 5 }, { key: "mixed", idx: 7 }, { key: "bond", idx: 9 },
+// 네이버 JSON 응답 필드 → 우리 키.
+//   2026-09-11: 네이버가 이 페이지를 finance.naver.com/sise/sise_deposit.naver 에서
+//   stock.naver.com 으로 옮겼다(302). 새 페이지는 Next.js 라 HTML 에 표가 없고
+//   데이터가 /api/domestic/market/trendDeposit 로 온다 → HTML 파싱을 JSON 으로 바꿨다.
+//   (그전까지는 302 를 따라가 Next.js 껍데기를 파싱하려다 실패해 카드가 통째로 사라졌다)
+const FUND_FLOW_FIELDS: { key: FundFlowKey; field: string }[] = [
+  { key: "deposit", field: "customerDeposit" },
+  { key: "credit",  field: "creditLoan" },
+  { key: "stock",   field: "beneficiaryCertificateStock" },
+  { key: "mixed",   field: "beneficiaryCertificateMixing" },
+  { key: "bond",    field: "beneficiaryCertificateBond" },
 ];
+
+// "20260909" → "26.09.09" (기존 표기 유지 — 화면·툴팁이 이 형식을 쓴다)
+function bizdateToLabel(d: string): string {
+  return /^\d{8}$/.test(d) ? `${d.slice(2, 4)}.${d.slice(4, 6)}.${d.slice(6, 8)}` : d;
+}
+
 export async function fetchMarketDeposit(): Promise<MarketDepositData | null> {
-  const resp = await fetchProxied("https://finance.naver.com/sise/sise_deposit.naver");
+  const resp = await fetchProxied(
+    "https://stock.naver.com/api/domestic/market/trendDeposit?page=0&size=20");
   if (!resp.ok) return null;
-  const html = decodeHtmlBuf(await resp.arrayBuffer(), resp.headers.get("Content-Type") || "");
+  const json = await resp.json() as { content?: Array<Record<string, string>> };
+  const content = json.content ?? [];
+  if (content.length === 0) return null;
+  const num = (s?: string) => Number(String(s ?? "").replace(/,/g, ""));
   const rows: Record<FundFlowKey, number>[] = [];
   const rowDates: string[] = [];
-  for (const tr of html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) ?? []) {
-    const cells = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
-      .map(m => m[1].replace(/<[^>]+>/g, "").replace(/&nbsp;/g, "").trim())
-      .filter(c => c !== "");
-    if (cells.length >= 10 && /^\d{2}\.\d{2}\.\d{2}$/.test(cells[0])) {
-      const num = (s: string) => Number(s.replace(/,/g, ""));
-      const row = {} as Record<FundFlowKey, number>;
-      let ok = true;
-      for (const { key, idx } of FUND_FLOW_COLS) {
-        const v = num(cells[idx]);
-        if (!Number.isFinite(v)) { ok = false; break; }
-        row[key] = v;
-      }
-      if (ok) { rowDates.push(cells[0]); rows.push(row); }
+  for (const c of content) {
+    const row = {} as Record<FundFlowKey, number>;
+    let ok = true;
+    for (const { key, field } of FUND_FLOW_FIELDS) {
+      const v = num(c[field]);
+      if (!Number.isFinite(v)) { ok = false; break; }
+      row[key] = v;
     }
+    if (ok) { rowDates.push(bizdateToLabel(c.bizdate ?? "")); rows.push(row); }
   }
   if (!rows.length) return null;
+  // 응답은 최신→과거 순. 기존 코드와 같은 형태로 맞춘다.
   const latest = rows[0], prev = rows[1];
   const idx = rows.slice(0, 20).map((_, i) => i).reverse();   // 과거→최신 인덱스
   return {
     date: rowDates[0],
     dates: idx.map(i => rowDates[i]),
-    metrics: FUND_FLOW_COLS.map(({ key }) => ({
+    metrics: FUND_FLOW_FIELDS.map(({ key }) => ({
       key,
       value: latest[key],
       diff: prev ? latest[key] - prev[key] : 0,

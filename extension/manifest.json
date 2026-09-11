@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "포트폴리오 시세 프록시",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "포트폴리오 앱을 팝업으로 띄우고, 시세 요청을 브라우저에서 직접 중계합니다. 가정용 IP 라 토스 과호출 차단(400)을 피하고 호출 한도가 없습니다.",
   "permissions": [
     "declarativeNetRequest",
@@ -14,6 +14,7 @@
     "https://tossinvest.com/*",
     "https://finance.naver.com/*",
     "https://m.stock.naver.com/*",
+    "https://stock.naver.com/*",
     "https://polling.finance.naver.com/*",
     "https://navercomp.wisereport.co.kr/*",
     "https://api.investing.com/*",

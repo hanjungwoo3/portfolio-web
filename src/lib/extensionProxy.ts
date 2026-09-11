@@ -74,7 +74,7 @@ export function useExtensionProxyReady(): boolean {
 
 // 앱이 기대하는 확장 버전 — 확장을 고칠 때 manifest.json 과 함께 올린다.
 // 개발자 모드 설치는 자동 업데이트가 없어, 이 값보다 낮으면 설정에서 재설치를 안내한다.
-export const EXPECTED_EXTENSION_VERSION = "1.1.0";
+export const EXPECTED_EXTENSION_VERSION = "1.2.0";
 
 // "1.2.10" 같은 점 구분 버전 비교 — a < b 면 음수.
 export function compareVersion(a: string, b: string): number {
