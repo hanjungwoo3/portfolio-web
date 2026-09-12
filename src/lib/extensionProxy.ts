@@ -76,6 +76,14 @@ export function useExtensionProxyReady(): boolean {
 // 개발자 모드 설치는 자동 업데이트가 없어, 이 값보다 낮으면 설정에서 재설치를 안내한다.
 export const EXPECTED_EXTENSION_VERSION = "1.2.1";
 
+// ★ 확장 zip 받기 경로는 여기 하나뿐이다. GitHub `/releases/latest` 로 보내면 안 된다 —
+//   이 저장소는 확장(zip)과 앱(apk) 릴리스를 함께 내므로 앱 릴리스가 최신이면 확장
+//   사용자가 apk 만 있는 페이지로 간다. gh-pages 는 웹 앱과 같은 출처라 리다이렉트도
+//   서명 토큰도 없다(APK 가 이 경로로 옮겨간 이유와 같다 — lib/appRelease.ts 주석).
+//   파일 이름이 버전과 무관하게 고정이라 링크가 바뀌지 않는다(scripts/pack-extension.mjs).
+export const EXTENSION_DOWNLOAD_URL =
+  "https://hanjungwoo3.github.io/portfolio-web/extension/portfolio-proxy-extension.zip";
+
 // "1.2.10" 같은 점 구분 버전 비교 — a < b 면 음수.
 export function compareVersion(a: string, b: string): number {
   const pa = a.split(".").map(n => parseInt(n, 10) || 0);

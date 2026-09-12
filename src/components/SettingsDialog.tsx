@@ -16,12 +16,11 @@ import {
 } from "../lib/proxyConfig";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { resetProxyStats } from "../lib/proxyStatus";
-import { useExtensionProxyVersion, EXPECTED_EXTENSION_VERSION, compareVersion } from "../lib/extensionProxy";
+import { useExtensionProxyVersion, EXPECTED_EXTENSION_VERSION, compareVersion, EXTENSION_DOWNLOAD_URL } from "../lib/extensionProxy";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 const LOCAL_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/local-proxy/README.md";
 const EXT_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/extension/README.md";
-const EXT_RELEASE_URL = "https://github.com/hanjungwoo3/portfolio-web/releases/latest";
 // 전용 프록시 배포 가이드 — Deno 가 가장 빠르다(브라우저만, GitHub 1클릭 가입).
 // Cloudflare 는 기능은 같지만 가입 절차가 길어 두 번째로 둔다.
 const DENO_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/deno-proxy/README.md";
@@ -606,8 +605,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   ⚠️ <b>새 확장 버전 v{EXPECTED_EXTENSION_VERSION}</b> 이 나왔습니다
                   (현재 v{extVersion}). 개발자 모드 확장은 자동 업데이트가 없어
                   <b> 새 zip 을 받아 다시 등록</b>해야 합니다.&nbsp;
-                  <a href={EXT_RELEASE_URL} target="_blank" rel="noopener noreferrer"
-                     className="text-blue-600 underline">새 버전 받기 ↗</a>
+                  <a href={EXTENSION_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer"
+                     className="text-blue-600 underline">↓ 내려받기</a>
                 </div>
               )}
             </div>

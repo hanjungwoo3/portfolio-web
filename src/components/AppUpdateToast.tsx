@@ -12,7 +12,7 @@ import { useEffect, useState } from "react";
 import { isNativeApp } from "../lib/nativeProxy";
 // 버전 비교는 설정 화면과 같은 함수를 쓴다 — 규칙이 갈라지면 한쪽만 안 뜨는 일이 생긴다.
 import {
-  useExtensionProxyVersion, EXPECTED_EXTENSION_VERSION, compareVersion,
+  useExtensionProxyVersion, EXPECTED_EXTENSION_VERSION, compareVersion, EXTENSION_DOWNLOAD_URL,
 } from "../lib/extensionProxy";
 import {
   getInstalledAppVersion, fetchLatestRelease, openApkDownload, APK_DOWNLOAD_URL, type LatestRelease,
@@ -20,7 +20,7 @@ import {
 
 // 확장 새 버전 알림 — 개발자 모드 설치는 자동 업데이트가 없어서 사용자가 직접 받아야 한다.
 //   설정 안쪽에만 있으면 아무도 못 본다. APK 와 같은 취급으로 앞에 띄운다.
-const EXT_RELEASE_URL = "https://github.com/hanjungwoo3/portfolio-web/releases/latest";
+//   받기 주소는 EXTENSION_DOWNLOAD_URL 하나로 통일한다(여기서 GitHub 링크를 새로 만들지 말 것).
 
 export function ExtensionUpdateToast() {
   const extVersion = useExtensionProxyVersion();
@@ -39,9 +39,9 @@ export function ExtensionUpdateToast() {
             지금 v{extVersion} 입니다. 개발자 모드 확장은 자동 업데이트가 없어
             새 zip 을 받아 다시 등록해야 합니다.
           </div>
-          <a href={EXT_RELEASE_URL} target="_blank" rel="noopener noreferrer"
+          <a href={EXTENSION_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer"
              className="inline-block mt-1.5 px-2 py-1 rounded bg-amber-600 text-white font-bold">
-            새 버전 받기 ↗
+            ↓ 내려받기
           </a>
         </div>
         {/* 닫아도 새로고침하면 또 뜬다 — 낡은 확장은 구글 자동 갱신을 못 쓴다 */}
