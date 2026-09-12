@@ -19,19 +19,6 @@ async function fetchHtml(url: string): Promise<Document | null> {
   }
 }
 
-// wisereport 기업개요(c1010001) — 주요주주와 동일업종 PER 이 같은 페이지에 있다.
-//   둘을 따로 부르면 88KB 를 두 번 받는다. 짧은 메모로 한 번만 받게 묶는다.
-//   (fetchHtml 자체엔 캐시가 없다)
-const COMPANY_DOC_TTL_MS = 60_000;
-const companyDocCache = new Map<string, { at: number; doc: Promise<Document | null> }>();
-function fetchCompanyDoc(ticker: string): Promise<Document | null> {
-  const hit = companyDocCache.get(ticker);
-  if (hit && Date.now() - hit.at < COMPANY_DOC_TTL_MS) return hit.doc;
-  const doc = fetchHtml(`https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=${ticker}`);
-  companyDocCache.set(ticker, { at: Date.now(), doc });
-  return doc;
-}
-
 // ─────────── 지표 정의 (v2 fundamentals.py 동일) ───────────
 export interface IndicatorSpec {
   title: string;
@@ -168,6 +155,7 @@ function _cleanWs(s: string | null | undefined): string {
 export interface FundamentalData {
   name?: string;
   price?: number;
+  description?: string[];   // 기업개요 — 상세 API 의 comment1~3 (출처: 에프앤가이드)
   market_cap_text?: string;
   per?: number;
   pbr?: number;
@@ -194,58 +182,76 @@ export interface FundamentalData {
 }
 
 // ★ 2026-09-12: finance.naver.com/item/main.naver 이 SPA 로 바뀌어 이 표가 통째로 사라졌다.
-//   m.stock integration JSON 의 totalInfos 가 같은 값을 준다(키가 한글 라벨과 1:1).
-//   동일업종 PER 만 여기 없어서 wisereport 에서 따로 뽑는다(fetchIndustryPer).
-interface NaverTotalInfo { code?: string; value?: string }
-interface NaverIntegrationFund {
-  stockName?: string;
-  totalInfos?: NaverTotalInfo[];
-  consensusInfo?: { recommMean?: string; priceTargetMean?: string };
+//   새 증권의 종목 상세 API 한 방이면 다 나온다 — 2KB 에 시총·PER·PBR·EPS·BPS·52주·
+//   외인보유율·배당수익률·업종명·**동일업종 PER**·**기업개요(comment1~3)** 까지 들어 있다.
+//   값이 단위 없는 순수 숫자 문자열이라 파싱도 안전하다(integration 의 totalInfos 는 "27.13배").
+//   컨센서스(목표주가·투자의견)만 여기 없어서 integration 을 따로 본다 — 팝업에서만 쓴다.
+interface NaverDetailRaw {
+  itemname?: string;
+  nowPrice?: string;
+  marketSum?: string;        // 원 단위
+  per?: string; pbr?: string; eps?: string; bps?: string;
+  sameIndustryPer?: string;
+  week52HighPrice?: string; week52LowPrice?: string;
+  frgnHoldRate?: string;
+  dividendRate?: string;     // %
+  upJongName?: string;
+  comment1?: string; comment2?: string; comment3?: string;
 }
 
-export async function fetchNaverMain(ticker: string): Promise<FundamentalData> {
+// "원" 단위 시총 → 네이버 표기("5조 8,450억"). marketCapEok 이 다시 숫자로 되돌린다.
+function formatMarketSum(won: number): string | undefined {
+  if (!Number.isFinite(won) || won <= 0) return undefined;
+  const eok = Math.round(won / 1e8);
+  const jo = Math.floor(eok / 10_000);
+  const rest = eok % 10_000;
+  return jo > 0 ? `${jo.toLocaleString()}조 ${rest.toLocaleString()}억` : `${rest.toLocaleString()}억`;
+}
+
+export async function fetchNaverDetail(ticker: string): Promise<FundamentalData> {
   const out: FundamentalData = {};
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return out;
-  let d: NaverIntegrationFund;
+  let d: NaverDetailRaw;
+  try {
+    const resp = await fetchProxied(
+      `https://stock.naver.com/api/domestic/detail/${ticker}/detail?codeType=KRX`);
+    if (!resp.ok) return out;
+    d = await resp.json() as NaverDetailRaw;
+  } catch { return out; }
+
+  const f = (v?: string) => { const n = _toFloat(v); return n == null ? undefined : n; };
+  const n = (v?: string) => { const x = f(v); return x == null ? undefined : Math.trunc(x); };
+
+  if (d.itemname) out.name = d.itemname;
+  out.price = n(d.nowPrice);
+  out.market_cap_text = formatMarketSum(Number(d.marketSum));
+  out.per = f(d.per);
+  out.pbr = f(d.pbr);
+  out.eps = n(d.eps);
+  out.bps = n(d.bps);
+  out.industry_per = f(d.sameIndustryPer);
+  out.high_52w = n(d.week52HighPrice);
+  out.low_52w = n(d.week52LowPrice);
+  out.foreign_ownership = f(d.frgnHoldRate);
+  out.dividend_yield = f(d.dividendRate);
+  const desc = [d.comment1, d.comment2, d.comment3]
+    .map(c => (c ?? "").trim()).filter(c => c.length > 0);
+  if (desc.length > 0) out.description = desc;
+  return out;
+}
+
+// 공식 컨센서스(평균 목표주가·투자의견) — 상세 API 에 없어서 integration 에서만 얻는다.
+interface NaverIntegrationConsensus {
+  consensusInfo?: { recommMean?: string; priceTargetMean?: string };
+}
+async function fetchNaverConsensusFields(ticker: string): Promise<Partial<FundamentalData>> {
+  const out: Partial<FundamentalData> = {};
   try {
     const resp = await fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/integration`);
     if (!resp.ok) return out;
-    d = await resp.json() as NaverIntegrationFund;
-  } catch { return out; }
-
-  if (d.stockName) out.name = d.stockName;
-  const byCode = new Map((d.totalInfos ?? []).map(t => [t.code ?? "", t.value ?? ""]));
-  // ★ totalInfos 의 값에는 단위가 붙어 온다("27.13배", "2,927원", "21.44%").
-  //   공용 _toFloat 은 Number() 라 단위가 붙으면 NaN 이다(옛 HTML 은 숫자만 줬다).
-  //   여기서만 숫자 부분을 떼어 쓴다 — 공용 파서를 느슨하게 바꾸면 HTML 쪽이 오탐한다.
-  const num = (code: string): number | undefined => {
-    const raw = byCode.get(code);
-    if (!raw) return undefined;
-    const m = /-?[\d,]*\.?\d+/.exec(raw.replace(/\s/g, ""));
-    if (!m) return undefined;
-    const v = Number(m[0].replace(/,/g, ""));
-    return Number.isFinite(v) ? v : undefined;
-  };
-  const int = (code: string): number | undefined => {
-    const v = num(code);
-    return v == null ? undefined : Math.trunc(v);
-  };
-
-  // 시총은 "5조 8,451억" 같은 사람용 표기라 그대로 쓴다(기존도 텍스트였다).
-  const cap = byCode.get("marketValue");
-  if (cap) out.market_cap_text = cap;
-  out.price = int("lastClosePrice");   // 전일 종가 — 현재가는 화면이 따로 받는다
-  out.per = num("per");
-  out.pbr = num("pbr");
-  out.eps = int("eps");
-  out.bps = int("bps");
-  out.high_52w = int("highPriceOf52Weeks");
-  out.low_52w = int("lowPriceOf52Weeks");
-  out.foreign_ownership = num("foreignRate");
-  out.dividend_yield = num("dividendYieldRatio");
-
-  const ci = d.consensusInfo;
-  if (ci) {
+    const d = await resp.json() as NaverIntegrationConsensus;
+    const ci = d.consensusInfo;
+    if (!ci) return out;
     const target = _toInt(ci.priceTargetMean);
     const score = _toFloat(ci.recommMean);
     if (target != null && target > 0) out.consensus_target_official = target;
@@ -254,26 +260,18 @@ export async function fetchNaverMain(ticker: string): Promise<FundamentalData> {
       out.consensus_opinion = score >= 4.5 ? "적극매수" : score >= 3.5 ? "매수"
                             : score >= 2.5 ? "중립"     : score >= 1.5 ? "매도" : "적극매도";
     }
-  }
+  } catch { /* 컨센서스가 없어도 나머지는 보여준다 */ }
   return out;
 }
 
-// 동일업종 PER — wisereport 기업개요(c1010001)의 "업종PER".
-//   네이버 메인이 SPA 가 되면서 여기서만 얻을 수 있게 됐다. 주요주주와 같은 페이지라
-//   fetchCompanyDoc 으로 묶어 한 번만 받는다.
-export async function fetchIndustryPer(ticker: string): Promise<number | undefined> {
-  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return undefined;
-  const doc = await fetchCompanyDoc(ticker);
-  if (!doc) return undefined;
-  let per: number | undefined;
-  doc.querySelectorAll("dt").forEach(dt => {
-    if (per != null) return;
-    const label = _cleanWs(dt.textContent);
-    if (!label.startsWith("업종PER")) return;
-    const v = _toFloat(dt.querySelector("b")?.textContent);
-    if (v != null) per = v;
-  });
-  return per;
+// 팝업용 — 상세 + 컨센서스. (표는 컨센서스를 안 써서 fetchNaverDetail 만 부른다)
+export async function fetchNaverMain(ticker: string): Promise<FundamentalData> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return {};
+  const [detail, consensus] = await Promise.all([
+    fetchNaverDetail(ticker),
+    fetchNaverConsensusFields(ticker),
+  ]);
+  return { ...detail, ...consensus };
 }
 
 // ─────────── Wisereport cF1001 (재무) ───────────
@@ -360,7 +358,7 @@ export interface Shareholder {
 }
 
 export async function fetchMajorShareholders(ticker: string): Promise<Shareholder[]> {
-  const doc = await fetchCompanyDoc(ticker);
+  const doc = await fetchHtml(`https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=${ticker}`);
   if (!doc) return [];
 
   let target: HTMLTableElement | null = null;
@@ -496,15 +494,13 @@ export async function fetchFullValuation(ticker: string): Promise<FullValuation>
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) {
     return { fundamental: {}, reports: [], shareholders: [] };
   }
-  const [naver, wise, reports, shareholders, industryPer] = await Promise.all([
+  const [naver, wise, reports, shareholders] = await Promise.all([
     fetchNaverMain(ticker),
     fetchWisereport(ticker),
     fetchConsensusReports(ticker),
     fetchMajorShareholders(ticker),
-    fetchIndustryPer(ticker),
   ]);
   const fundamental: FundamentalData = { ...naver, ...wise };
-  if (industryPer != null) fundamental.industry_per = industryPer;
   const targets = reports.map(r => r.target).filter((t): t is number => typeof t === "number");
   const avgTarget = targets.length > 0
     ? Math.round(targets.reduce((a, b) => a + b, 0) / targets.length)
@@ -693,16 +689,81 @@ export async function fetchValuationRow(ticker: string): Promise<ValuationRow> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return { ticker };
   await acquireValuationSlot();
   try {
-    const [naver, wise, industryPer] = await Promise.all([
-      fetchNaverMain(ticker),
+    // 표는 컨센서스를 안 쓰므로 상세 1콜이면 된다(동일업종 PER 도 여기 들어 있다).
+    const [naver, wise] = await Promise.all([
+      fetchNaverDetail(ticker),
       fetchWisereport(ticker),
-      fetchIndustryPer(ticker),   // 네이버 메인이 SPA 가 된 뒤로 여기서만 얻는다(+1콜)
     ]);
     const merged: ValuationRow = { ...naver, ...wise, ticker };
-    if (industryPer != null) merged.industry_per = industryPer;
     merged.market_cap = marketCapEok(merged.market_cap_text) ?? undefined;
     return merged;
   } finally {
     releaseValuationSlot();
   }
+}
+
+// ─────────── Wisereport cF1002 v3 — 3년 실적 + 2년 추정 ───────────
+// 4KB 짜리 조각이라 가볍다. 여기서만 얻는 게 둘 있다:
+//   · **추정치(E)** — 컨센서스 기반 내년·내후년 실적과 그에 따른 forward PER/PBR/ROE
+//   · EV/EBITDA·순부채비율 — cF1001 시계열에는 없는 지표
+// cF1001(재무 추이 차트)은 실적만 다루므로 역할이 겹치지 않는다.
+export interface EarningsRow {
+  label: string;                  // "2025(A)" / "2026(E)"
+  estimate: boolean;              // (E) 여부
+  revenue: number | null;         // 매출액 (억원)
+  revenue_yoy: number | null;     // 매출 YoY (%)
+  op_income: number | null;       // 영업이익 (억원)
+  net_income: number | null;      // 당기순이익 (억원)
+  eps: number | null;             // EPS (원)
+  per: number | null;             // PER (배)
+  pbr: number | null;             // PBR (배)
+  roe: number | null;             // ROE (%)
+  ev_ebitda: number | null;       // EV/EBITDA (배)
+  net_debt_ratio: number | null;  // 순부채비율 (%)
+}
+
+export async function fetchEarningsEstimates(ticker: string): Promise<EarningsRow[]> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
+  const doc = await fetchHtml(
+    `https://navercomp.wisereport.co.kr/v3/company/cF1002.aspx?cmp_cd=${ticker}&finGubun=MAIN&frq=0`);
+  if (!doc) return [];
+  const tbl = doc.querySelector("table#cTB25");
+  if (!tbl) return [];
+
+  // 결측은 "N/A" 또는 "-". 괄호는 음수 표기다("(1,234)" → -1234).
+  const num = (raw: string): number | null => {
+    const t = _cleanWs(raw);
+    if (!t || t === "-" || t === "N/A") return null;
+    const v = Number(t.replace(/,/g, "").replace(/\((.+?)\)/, "-$1"));
+    return Number.isFinite(v) ? v : null;
+  };
+
+  const out: EarningsRow[] = [];
+  tbl.querySelectorAll("tbody tr").forEach(tr => {
+    const cells = Array.from(tr.querySelectorAll("td")).map(td => _cleanWs(td.textContent));
+    // 재무년월 + 10개 값 + 주재무제표 = 12칸. 모자라면 헤더 잔여행이다.
+    if (cells.length < 11) return;
+    const label = cells[0];
+    if (!/^\d{4}\(/.test(label)) return;
+    out.push({
+      label,
+      estimate: label.includes("(E)"),
+      revenue:        num(cells[1]),
+      revenue_yoy:    num(cells[2]),
+      op_income:      num(cells[3]),
+      net_income:     num(cells[4]),
+      eps:            num(cells[5]),
+      per:            num(cells[6]),
+      pbr:            num(cells[7]),
+      roe:            num(cells[8]),
+      ev_ebitda:      num(cells[9]),
+      net_debt_ratio: num(cells[10]),
+    });
+  });
+  // 적자기업 등은 (E) 행이 자리만 있고 값이 전부 비어 있다 — 빈 칸만 늘어나므로 뒤에서 잘라낸다.
+  const hasAny = (r: EarningsRow) =>
+    [r.revenue, r.op_income, r.net_income, r.eps, r.per, r.pbr, r.roe,
+     r.ev_ebitda, r.net_debt_ratio].some(v => v != null);
+  while (out.length > 0 && !hasAny(out[out.length - 1])) out.pop();
+  return out;
 }

@@ -18,12 +18,14 @@ import {
   formatIndicator, judgeIndicator,
 } from "../lib/fundamentals";
 import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/fundamentals";
+import { fetchEarningsEstimates } from "../lib/fundamentals";
+import { EarningsTrend } from "./EarningsTrend";
 import { FinancialCharts } from "./FinancialCharts";
 import { ConsensusCharts } from "./ConsensusCharts";
 import { PriceMultiSparks } from "./PriceMultiSparks";
 import { signColor, nowKstDateStr, isEtfByName } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
-import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchNaverInfo, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices, fetchTossKrCandles, TOSS_CANDLE_MAX } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices, fetchTossKrCandles, TOSS_CANDLE_MAX } from "../lib/api";
 import {
   computeMaTrend, maTrendTooltip, MA_TREND_PERIODS, MA_TREND_LABEL, MA_TREND_CLASS,
 } from "../lib/maTrend";
@@ -365,10 +367,10 @@ export function ValuationModal({
     enabled: isOpen && !isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 24 * 3600_000,  // 24시간 캐시
   });
-  // 네이버 기업개요 — App.tsx 와 동일 queryKey 라 캐시 공유
-  const { data: naverInfo } = useQuery({
-    queryKey: ["naver", ticker],
-    queryFn: () => fetchNaverInfo(ticker),
+  // 실적·추정 (Wisereport cF1002) — 3년 실적 + 2년 추정. 4KB 라 가볍다.
+  const { data: earnings } = useQuery({
+    queryKey: ["earnings-estimates", ticker],
+    queryFn: () => fetchEarningsEstimates(ticker),
     enabled: isOpen && !isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
     staleTime: 24 * 3600_000,
   });
@@ -499,15 +501,16 @@ export function ValuationModal({
               fetch 실패: {error.message}
             </div>
           )}
-          {/* 기업개요 — 네이버 main.naver 의 #summary_info 파싱 (출처: 에프앤가이드) */}
-          {naverInfo?.description && naverInfo.description.length > 0 && (
+          {/* 기업개요 — 종목 상세 API 의 comment1~3 (출처: 에프앤가이드).
+              예전엔 main.naver 의 #summary_info 였는데 그 페이지가 SPA 가 됐다. */}
+          {fund.description && fund.description.length > 0 && (
             <section className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded">
               <header className="flex items-baseline gap-2 mb-1.5">
                 <h3 className="text-sm font-bold text-gray-700">🏢 기업개요</h3>
                 <span className="text-[10px] text-gray-400">출처: 네이버 금융 / 에프앤가이드</span>
               </header>
               <ul className="space-y-1 text-[13px] text-gray-700 leading-relaxed">
-                {naverInfo.description.map((line, i) => (
+                {fund.description.map((line, i) => (
                   <li key={i} className="flex gap-1.5">
                     <span className="text-slate-400 shrink-0">·</span>
                     <span>{line}</span>
@@ -515,6 +518,12 @@ export function ValuationModal({
                 ))}
               </ul>
             </section>
+          )}
+          {/* 실적 추이 — 실적 3년 + 추정 2년 (forward PER·ROE 가 여기서만 나온다) */}
+          {earnings && earnings.length > 0 && (
+            <div className="mb-3">
+              <EarningsTrend rows={earnings} />
+            </div>
           )}
           {/* 재무 추이 — Wisereport 시계열 5개 차트 */}
           {finSeries && (
