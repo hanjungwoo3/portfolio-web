@@ -9,7 +9,7 @@ import {
 import { isExtensionProxyReady, fetchViaExtension } from "./extensionProxy";
 import { isNativeApp, fetchViaNative } from "./nativeProxy";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
-import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen } from "./format";
+import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen, nowKstDateStr } from "./format";
 import { rememberTossCode, getTossCode } from "./toss";
 
 // 앱 로드 시 1회 — 30일 이상 된 일자 키 정리
@@ -4319,4 +4319,108 @@ export async function fetchInvestorRankings(limit = 100): Promise<InvestorFlowGr
     });
   }
   return out;
+}
+
+const progNum = (v: unknown): number => {
+  const n = Number(String(v ?? "").replace(/,/g, ""));
+  return Number.isFinite(n) ? n : 0;
+};
+
+// ─── 프로그램 매매 시간별 (시장 전체) ────────────────────────────────
+//   기존 fetchKrProgramTrading 은 종목별 일봉이다. 이건 시장 전체의 10분 간격 누적이라
+//   "장중 어느 시점에 프로그램이 방향을 틀었나" 를 본다.
+//   ★ bizdate 를 휴장일로 줘도 무시하고 최근 거래일을 돌려준다(실측) — 응답의 bizdate 를 쓴다.
+export interface ProgramTimePoint {
+  time: string;         // "HHMMSS"
+  arbitrage: number;    // 차익 순매수 금액(원)
+  nonArbitrage: number; // 비차익
+  total: number;
+}
+export interface ProgramTimeData { bizdate: string; points: ProgramTimePoint[] }
+
+export async function fetchKrProgramIntraday(
+  market: "KOSPI" | "KOSDAQ", bizdate?: string,
+): Promise<ProgramTimeData> {
+  const d = bizdate ?? nowKstDateStr().replace(/-/g, "");
+  const url = "https://stock.naver.com/api/domestic/market/trendProgram/chart"
+            + `?tradeType=KRX&krxMarketType=${market}&bizdate=${d}`
+            + `&startDate=${d}&endDate=${d}&periodType=TIME`;
+  const resp = await fetchProxied(url);
+  if (!resp.ok) throw new Error(`프로그램 매매 조회 실패 (HTTP ${resp.status})`);
+  const rows = await resp.json() as Record<string, unknown>[];
+  if (!Array.isArray(rows) || rows.length === 0) return { bizdate: "", points: [] };
+  // 응답은 최신 시각이 먼저다 — 시간순으로 뒤집는다.
+  const points = rows
+    .map(r => ({
+      time: String(r.time ?? ""),
+      arbitrage: progNum(r.diffPureBuyAmt),
+      nonArbitrage: progNum(r.biDiffPureBuyAmt),
+      total: progNum(r.totalDiffPureBuyAmt),
+    }))
+    .filter(p => /^\d{6}$/.test(p.time))
+    .sort((a, b) => a.time.localeCompare(b.time));
+  return { bizdate: String(rows[0].bizdate ?? ""), points };
+}
+
+// ─── 시장·기간을 나눈 투자자 순매수 랭킹 (네이버 새 증권) ──────────────
+//   왜 두 소스인가 — 기본 화면이 쓰는 토스 rankings/by-investors 는 **전체 시장·당일**
+//   고정이다(market·period 류 파라미터를 넣어도 전부 무시하고 같은 결과를 준다 — 실측).
+//   코스피/코스닥을 나누거나 주·월 누적을 보려면 네이버 쪽밖에 없다.
+//
+//   ★ 대신 네이버에는 **개인이 없다**(investorType=INDIVIDUAL 은 400). 그래서 이 경로를
+//     쓰는 순간 개인 컬럼은 만들 수 없다. 화면이 그 사실을 밝혀야 한다.
+//   ★ 상위 N 만 주므로 시장 전체 합계와 다르다. 실측(2026-09-11 코스피 기관):
+//     전체 −12,184억인데 상위 100 합은 −18,064억이었다 — 중간 순위가 빠진 탓.
+export type FlowRankMarket = "KOSPI" | "KOSDAQ";
+// 거래소 — KRX(정규) 와 NXT(넥스트레이드) 는 값이 확연히 다르다.
+//   ★ INTEGRATED 도 200 을 주지만 **합이 안 맞는다**(실측 2026-09-11 코스피 외국인:
+//     KRX −21,218억 + NXT −1,002억 인데 INTEGRATED 는 −1,469억). 무엇을 합친 값인지
+//     설명할 수 없어 노출하지 않는다.
+export type FlowRankTrade = "KRX" | "NXT";
+// 3개월은 THREE_MONTH 다 — QUARTER·MONTH3 등 다른 표기는 전부 400(실측).
+export type FlowRankPeriod = "DAY" | "WEEK" | "MONTH" | "THREE_MONTH";
+export const FLOW_RANK_MAX = 100;
+
+/** 응답 기준 구간. from===to 면 하루치. */
+export interface FlowRankRange { from: string; to: string }
+
+export async function fetchInvestorRankingsByMarket(
+  market: FlowRankMarket, period: FlowRankPeriod,
+  trade: FlowRankTrade = "KRX", limit = FLOW_RANK_MAX,
+): Promise<{ groups: InvestorFlowGroup[]; range: FlowRankRange }> {
+  const size = Math.min(Math.max(limit, 1), FLOW_RANK_MAX);
+  const one = async (investorType: "FOREIGNER" | "ORGANIZATION") => {
+    const url = "https://stock.naver.com/api/domestic/market/trend/trendForeignOrg"
+              + `?investorType=${investorType}&tradeType=${trade}&marketType=${market}`
+              + `&startIdx=0&pageSize=${size}&periodType=${period}`;
+    const resp = await fetchProxied(url);
+    if (!resp.ok) throw new Error(`순매수 랭킹 조회 실패 (HTTP ${resp.status})`);
+    return resp.json() as Promise<{
+      sections?: { buyRankList?: Record<string, unknown>[]; sellRankList?: Record<string, unknown>[] };
+    }>;
+  };
+  const [fo, org] = await Promise.all([one("FOREIGNER"), one("ORGANIZATION")]);
+
+  const rows = (list: Record<string, unknown>[] = []): InvestorFlowRow[] => list.flatMap(r => {
+    const ticker = String(r.itemcode ?? "");
+    if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
+    return [{
+      ticker,
+      name: String(r.itemname ?? ""),
+      amount: progNum(r.accTradeAmount),
+      close: progNum(r.nowPrice),
+      pct: progNum(r.prevChangeRate),
+    }];
+  });
+  const groups: InvestorFlowGroup[] = [
+    { key: "foreigner", type: "외국인", basedAt: "",
+      buy: rows(fo.sections?.buyRankList), sell: rows(fo.sections?.sellRankList) },
+    { key: "institution", type: "기관", basedAt: "",
+      buy: rows(org.sections?.buyRankList), sell: rows(org.sections?.sellRankList) },
+  ];
+  const first = (fo.sections?.buyRankList ?? [])[0] ?? {};
+  return {
+    groups,
+    range: { from: String(first.bizdateFrom ?? ""), to: String(first.bizdateTo ?? "") },
+  };
 }

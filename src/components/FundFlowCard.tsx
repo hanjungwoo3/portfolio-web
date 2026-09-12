@@ -2,13 +2,15 @@ import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchMarketDeposit, type MarketDepositData, type FundFlowKey } from "../lib/api";
 
-// 증시 자금동향 — 네이버 금융 sise_deposit (고객예탁금·신용잔고·주식형/혼합형/채권형 펀드).
-//   성격이 다른 두 묶음으로 나눠 각각 한 차트에 겹쳐 그린다.
-//     · 투자자 직접자금 — 예탁금(대기 현금) vs 신용잔고(빚). 같이 봐야 의미가 있다.
-//     · 펀드 설정액     — 주식형/혼합형/채권형. 서로 자금이 옮겨다니는 관계.
+// 증시 자금동향 — 고객예탁금·신용잔고·주식형/채권형/혼합형 펀드.
+//   계열마다 독립 패널 하나씩, 한 줄에 다섯 개. 예전엔 성격별로 두 묶음에 겹쳐 그렸는데
+//   규모가 제각각이라(예탁금 102조 vs 신용 32조) 축을 나누거나 %로 환산해야 했고, 그때마다
+//   "이 선이 어느 축인지" 를 설명해야 했다. 하나씩 떼면 각자 제 축을 쓰므로 그 설명이 사라진다.
+//   겹쳐 보던 비교는 패널을 나란히 두는 것으로 대신한다.
 //   단위 억원, 한국식 색: 증가=빨강 / 감소=파랑 (금액 변화 표기에만 적용).
 
-const NAVER_URL = "https://finance.naver.com/sise/sise_deposit.naver";
+// ★ 2026-09-12: finance.naver.com/sise/sise_deposit.naver 는 302 로 새 주소로 넘어간다.
+const NAVER_URL = "https://stock.naver.com/market/stock/kr/deposit";
 
 const LABEL: Record<FundFlowKey, string> = {
   deposit: "고객예탁금", credit: "신용잔고",
@@ -21,17 +23,13 @@ const HINT: Record<FundFlowKey, string> = {
   mixed: "주식+채권 혼합 펀드",
   bond: "채권형 펀드 설정액",
 };
-// 계열 색 — 묶음 안에서 서로 구분되게. 신용잔고는 위험 성격이라 빨강.
+// 패널이 따로라 색이 겹쳐도 헷갈리진 않지만, 카드 전체를 훑을 때 구분되게 다섯을 다르게 둔다.
 const COLOR: Record<FundFlowKey, string> = {
   deposit: "#2563eb", credit: "#dc2626",
-  stock: "#dc2626", mixed: "#f59e0b", bond: "#2563eb",
+  stock: "#7c3aed", bond: "#0891b2", mixed: "#f59e0b",
 };
-
-// 묶음 정의 — dual: 좌우 축 분리(2개 한정) / pct: 시작점 대비 % 한 축(3개 이상)
-const GROUPS: { title: string; hint: string; keys: FundFlowKey[]; mode: "dual" | "pct" }[] = [
-  { title: "투자자 직접자금", hint: "대기 현금 vs 빚", keys: ["deposit", "credit"], mode: "dual" },
-  { title: "펀드 설정액", hint: "간접투자 — 시작일 대비 증감률", keys: ["stock", "bond", "mixed"], mode: "pct" },
-];
+// 왼쪽부터: 직접자금(대기·빚) → 펀드(주식·채권·혼합)
+const ORDER: FundFlowKey[] = ["deposit", "credit", "stock", "bond", "mixed"];
 
 const fmtJo = (eok: number) => `${(eok / 10000).toFixed(1)}조`;
 function fmtDiff(eok: number): string {
@@ -54,93 +52,39 @@ function niceBounds(min: number, max: number, ticks: number) {
   return { lo, hi, step };
 }
 
-interface Line { key: FundFlowKey; data: number[] }
-
-// 좌우 축을 '같은 비율 폭'으로 잡는다.
-//   예탁금 102조 / 신용잔고 33조처럼 절대 규모가 다르면 한 축에 못 그린다. 축을 나누되
-//   각자 제멋대로 스케일하면 기울기 비교가 무의미해진다(작은 흔들림이 큰 변동처럼 보임).
-//   → 두 축이 '자기 중앙값 대비 같은 %' 를 덮게 만들면, 같은 기울기 = 같은 비율 변화가 되어
-//     선끼리 직접 비교할 수 있고 축 라벨은 각자 조 단위 절대값으로 읽힌다.
-function proportionalBounds(lines: Line[]): { lo: number; hi: number }[] {
-  const stats = lines.map(l => {
-    const min = Math.min(...l.data), max = Math.max(...l.data);
-    const mid = (min + max) / 2 || 1;
-    return { min, max, mid, spanPct: (max - min) / Math.abs(mid) };
-  });
-  // 가장 크게 움직인 계열에 맞추고 15% 여백. 완전히 평평해도 최소 폭(0.4%)은 준다.
-  const span = Math.max(Math.max(...stats.map(s => s.spanPct)) * 1.15, 0.004);
-  return stats.map(s => ({ lo: s.mid * (1 - span / 2), hi: s.mid * (1 + span / 2) }));
-}
-
-// 묶음 차트 — dual(좌우 축, 2계열) / pct(시작점 대비 %, 한 축)
-function GroupChart({ lines, dates, mode }: { lines: Line[]; dates: string[]; mode: "dual" | "pct" }) {
-  // 훅은 early return 보다 위에 — 데이터가 없는 렌더에서도 호출 순서가 같아야 한다.
-  const [hover, setHover] = useState<number | null>(null);
+// 계열 하나짜리 미니 차트. 자기 범위에 맞춰 축을 잡으므로 축 설명이 필요 없다.
+//
+// hover 는 카드가 들고 다섯 패널이 공유한다 — 한 곳에 올리면 같은 날짜의 값이 다섯 군데서
+//   동시에 바뀐다. 예탁금이 빠질 때 신용이 같이 빠졌는지 같은 건 그렇게 봐야 읽힌다.
+//   값은 패널 헤더의 큰 숫자가 대신 보여준다. 툴팁 다섯 개가 동시에 뜨면 서로를 가린다.
+function MiniChart({ series, dates, color, hover, onHover }: {
+  series: number[]; dates: string[]; color: string;
+  hover: number | null; onHover: (i: number | null) => void;
+}) {
   const svgRef = useRef<SVGSVGElement>(null);
-  if (lines.length === 0 || lines[0].data.length < 2) return <div className="h-[104px]" />;
-  const isDual = mode === "dual" && lines.length === 2;
-  const W = 320, H = 118, mL = 30, mR = isDual ? 30 : 6, mT = 6, mB = 14;
+  if (series.length < 2) return <div className="h-[92px]" />;
+
+  const W = 300, H = 104, mL = 34, mR = 6, mT = 6, mB = 14;
   const pw = W - mL - mR, ph = H - mT - mB;
-  const n = lines[0].data.length;
+  const n = series.length;
   const x = (i: number) => mL + (i / (n - 1)) * pw;
 
-  // 계열별 y 매퍼 + 축 눈금 (yOf·plot 은 두 분기에서 반드시 채워지므로 초기값을 두지 않는다)
-  let yOf: ((v: number, li: number) => number)[];
-  let plot: number[][];
-  const leftTicks: { y: number; text: string }[] = [];
-  const rightTicks: { y: number; text: string }[] = [];
+  // 평평한 구간이 직선으로 뭉개지지 않게 최소 폭을 준다.
+  const min = Math.min(...series), max = Math.max(...series);
+  const mid = (min + max) / 2 || 1;
+  const pad = Math.max((max - min) * 0.18, Math.abs(mid) * 0.002);
+  const { lo, hi, step } = niceBounds(min - pad, max + pad, 3);
+  const y = (v: number) => mT + (1 - (v - lo) / (hi - lo)) * ph;
 
-  if (isDual) {
-    const b = proportionalBounds(lines);
-    plot = lines.map(l => l.data);
-    yOf = lines.map((_, li) => (v: number) => mT + (1 - (v - b[li].lo) / (b[li].hi - b[li].lo)) * ph);
-    // 두 축이 같은 비율 폭이라 눈금 위치(0·0.5·1)가 그대로 일치한다.
-    const at = [0, 0.5, 1];
-    const tickText = (li: number, f: number) => {
-      const v = b[li].lo + (b[li].hi - b[li].lo) * (1 - f);
-      const jo = v / 10000;
-      return jo >= 100 ? jo.toFixed(0) : jo.toFixed(1);
-    };
-    for (const f of at) {
-      leftTicks.push({ y: mT + f * ph, text: tickText(0, f) });
-      rightTicks.push({ y: mT + f * ph, text: tickText(1, f) });
-    }
-  } else {
-    // 시작일을 0% 로 두고 증감률만 그린다 — 규모가 달라도 한 축에 올라간다.
-    plot = lines.map(l => l.data.map(v => (l.data[0] ? (v / l.data[0] - 1) * 100 : 0)));
-    const all = plot.flat();
-    const { lo, hi, step } = niceBounds(Math.min(...all, 0), Math.max(...all, 0), 3);
-    const yy = (v: number) => mT + (1 - (v - lo) / (hi - lo)) * ph;
-    yOf = lines.map(() => yy);
-    for (let t = lo; t <= hi + step * 0.001; t += step) {
-      leftTicks.push({ y: yy(t), text: `${t > 0 ? "+" : ""}${t.toFixed(step < 1 ? 1 : 0)}` });
-    }
+  const ticks: { y: number; text: string }[] = [];
+  for (let t = lo; t <= hi + step * 0.001; t += step) {
+    const jo = t / 10000;
+    ticks.push({ y: y(t), text: jo >= 100 ? jo.toFixed(0) : jo.toFixed(1) });
   }
-
-  // 값 뱃지 — 예탁금·신용잔고 차트의 중간·끝 지점에 조 단위 숫자를 얹는다.
-  //   이중 축이라 어느 선이 어느 축인지 헷갈릴 수 있어, 선 색과 같은 배경의 뱃지로 직접 표기.
-  //   두 계열을 각각 점 위/아래로 갈라 배치해 서로 겹치지 않게 하고, 차트 밖으로 나가지 않게 클램프.
-  const badges: { x: number; y: number; w: number; text: string; color: string }[] = [];
-  if (isDual) {
-    const marks = [Math.round((n - 1) / 2), n - 1];
-    lines.forEach((l, li) => {
-      marks.forEach((idx, mi) => {
-        const v = plot[li][idx];
-        const text = `${(v / 10000).toFixed(1)}조`;
-        const w = text.length * 4.2 + 6;
-        // 마지막 뱃지는 오른쪽 축 라벨과 겹치지 않게 안쪽으로 당긴다.
-        const cx = mi === marks.length - 1 ? x(idx) - w / 2 : x(idx);
-        const cy = Math.min(Math.max(yOf[li](v, li) + (li === 0 ? -9 : 9), mT + 5), mT + ph - 5);
-        badges.push({ x: cx, y: cy, w, text, color: COLOR[l.key] });
-      });
-    });
-  }
-
   const xIdx = [0, Math.round((n - 1) / 2), n - 1];
 
   // 화면 px → viewBox 좌표 → 데이터 인덱스.
   //   width="100%" + preserveAspectRatio 로 높이가 비율대로 따라오므로 레터박스가 없다.
-  //   즉 엘리먼트 박스가 viewBox 와 1:1 이라 가로 비율만으로 역산할 수 있다.
   const pickAt = (clientX: number) => {
     const el = svgRef.current;
     if (!el) return;
@@ -148,132 +92,73 @@ function GroupChart({ lines, dates, mode }: { lines: Line[]; dates: string[]; mo
     if (r.width === 0) return;
     const vx = ((clientX - r.left) / r.width) * W;
     const i = Math.round(((vx - mL) / pw) * (n - 1));
-    setHover(Math.min(Math.max(i, 0), n - 1));
+    onHover(Math.min(Math.max(i, 0), n - 1));
   };
 
-  // 툴팁 % — 직전 틱(전일) 대비 증감률. 그 날 얼마나 움직였는지가 궁금한 값이라
-  //   누적(시작일 대비)보다 이쪽이 읽기 쉽다. 첫 봉은 직전이 없어 null.
-  const hoverPct = (li: number): number | null => {
-    if (hover == null || hover === 0) return null;
-    const d = lines[li].data;
-    const prev = d[hover - 1];
-    return prev ? (d[hover] / prev - 1) * 100 : null;
-  };
-  const leftPct = hover != null ? (x(hover) / W) * 100 : 0;
-  const flip = leftPct > 55;   // 오른쪽 절반이면 툴팁을 왼쪽으로 — 카드 밖으로 안 나가게
+  // 패널 폭이 제각각이라(반응형) 공유 인덱스가 범위를 벗어날 수 있다 — 클램프해서 쓴다.
+  const hi2 = hover == null ? null : Math.min(Math.max(hover, 0), n - 1);
 
   return (
-    <div className="relative"
-         onMouseLeave={() => setHover(null)}
-         onTouchEnd={() => setHover(null)}>
     <svg ref={svgRef} viewBox={`0 0 ${W} ${H}`} width="100%" preserveAspectRatio="xMidYMid meet"
          className="block touch-pan-y"
          onMouseMove={e => pickAt(e.clientX)}
          onTouchStart={e => pickAt(e.touches[0].clientX)}
          onTouchMove={e => pickAt(e.touches[0].clientX)}>
-      {leftTicks.map((t, i) => (
-        <g key={`l${i}`}>
+      {ticks.map((t, i) => (
+        <g key={i}>
           <line x1={mL} y1={t.y} x2={W - mR} y2={t.y} stroke="#eef0f2" strokeWidth={0.8} />
-          <text x={mL - 2} y={t.y + 2.4} textAnchor="end" fontSize="7"
-                fill={isDual ? COLOR[lines[0].key] : "#9ca3af"}>{t.text}</text>
+          <text x={mL - 2} y={t.y + 2.4} textAnchor="end" fontSize="7" fill="#9ca3af">{t.text}</text>
         </g>
-      ))}
-      {rightTicks.map((t, i) => (
-        <text key={`r${i}`} x={W - mR + 2} y={t.y + 2.4} textAnchor="start" fontSize="7"
-              fill={COLOR[lines[1].key]}>{t.text}</text>
       ))}
       {xIdx.map((i, k) => (
-        <text key={k} x={x(i)} y={H - 3} textAnchor={k === 0 ? "start" : k === xIdx.length - 1 ? "end" : "middle"}
+        <text key={k} x={x(i)} y={H - 3}
+              textAnchor={k === 0 ? "start" : k === xIdx.length - 1 ? "end" : "middle"}
               fontSize="7" fill="#9ca3af">{ddFmt(dates[i])}</text>
       ))}
-      {plot.map((d, li) => (
-        <path key={li} d={d.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${yOf[li](v, li).toFixed(1)}`).join(" ")}
-              fill="none" stroke={COLOR[lines[li].key]} strokeWidth={1.5}
-              strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
-      ))}
-      {/* 값 뱃지 — 선보다 뒤에 그리면 가려지므로 마지막에 */}
-      {badges.map((b, i) => (
-        <g key={`b${i}`}>
-          <rect x={b.x - b.w / 2} y={b.y - 5} width={b.w} height={10} rx={2.5}
-                fill={b.color} opacity={0.93} />
-          <text x={b.x} y={b.y + 2.6} textAnchor="middle" fontSize="6.6"
-                fontWeight="700" fill="#ffffff">{b.text}</text>
-        </g>
-      ))}
-      {/* 커서 — 세로 점선 + 각 선의 해당 지점 */}
-      {hover != null && (
+      <path d={series.map((v, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(" ")}
+            fill="none" stroke={color} strokeWidth={1.6}
+            strokeLinejoin="round" vectorEffect="non-scaling-stroke" />
+      {/* 마지막 점 — 지금 값이 어디인지 */}
+      <circle cx={x(n - 1)} cy={y(series[n - 1])} r={2.2} fill={color} opacity={hi2 == null ? 1 : 0.35} />
+      {hi2 != null && (
         <g>
-          <line x1={x(hover)} y1={mT} x2={x(hover)} y2={mT + ph}
+          <line x1={x(hi2)} y1={mT} x2={x(hi2)} y2={mT + ph}
                 stroke="#9ca3af" strokeWidth={0.8} strokeDasharray="2 2" />
-          {plot.map((d, li) => (
-            <circle key={li} cx={x(hover)} cy={yOf[li](d[hover], li)} r={2.4}
-                    fill={COLOR[lines[li].key]} stroke="#ffffff" strokeWidth={0.9} />
-          ))}
+          <circle cx={x(hi2)} cy={y(series[hi2])} r={2.6}
+                  fill={color} stroke="#ffffff" strokeWidth={1} />
         </g>
       )}
     </svg>
-    {hover != null && (
-      <div className="absolute pointer-events-none z-20 top-0 bg-white border border-gray-200
-                      rounded shadow-md px-1.5 py-1 text-[10px] leading-snug whitespace-nowrap"
-           style={{ left: `${leftPct}%`, transform: flip ? "translateX(calc(-100% - 6px))" : "translateX(6px)" }}>
-        <div className="text-gray-400 mb-0.5">{dates[hover]}</div>
-        {lines.map((l, li) => {
-          const pc = hoverPct(li);
-          return (
-            <div key={l.key} className="flex items-center gap-1">
-              <span className="w-1.5 h-1.5 rounded-sm shrink-0" style={{ backgroundColor: COLOR[l.key] }} />
-              <span className="text-gray-500">{LABEL[l.key]}</span>
-              <span className="font-bold tabular-nums text-gray-800">{fmtJo(l.data[hover])}</span>
-              {pc != null && (
-                <span className={`tabular-nums ${pc > 0 ? "text-rose-600" : pc < 0 ? "text-blue-600" : "text-gray-400"}`}>
-                  {pc > 0 ? "+" : ""}{pc.toFixed(2)}%
-                </span>
-              )}
-            </div>
-          );
-        })}
-        <div className="text-[9px] text-gray-400 mt-0.5">% = 전일 대비</div>
-      </div>
-    )}
-    </div>
   );
 }
 
-function Group({ title, hint, keys, mode, data }: {
-  title: string; hint: string; keys: FundFlowKey[]; mode: "dual" | "pct"; data: MarketDepositData;
+function Panel({ metric, dates, hover, onHover }: {
+  metric: MarketDepositData["metrics"][number]; dates: string[];
+  hover: number | null; onHover: (i: number | null) => void;
 }) {
-  const metrics = keys
-    .map(k => data.metrics.find(m => m.key === k))
-    .filter((m): m is NonNullable<typeof m> => !!m);
-  if (metrics.length === 0) return null;
-  const lines: Line[] = metrics.map(m => ({ key: m.key, data: m.series }));
+  const color = COLOR[metric.key];
+  const s = metric.series;
+  const idx = hover == null ? null : Math.min(Math.max(hover, 0), s.length - 1);
+  // 올려둔 동안에는 그 날짜의 값·전일 대비 증감으로 바꾼다.
+  const value = idx == null ? metric.value : s[idx];
+  const diff = idx == null ? metric.diff
+             : idx > 0 ? s[idx] - s[idx - 1] : 0;
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-2 min-w-0">
-      <div className="flex items-baseline gap-1.5 mb-1">
-        <span className="text-xs font-bold text-gray-700">{title}</span>
-        <span className="text-[10px] text-gray-400 truncate">{hint}</span>
-        {mode === "dual" && (
-          <span className="ml-auto text-[9px] text-gray-400 shrink-0"
-                title="좌우 축이 각자 중앙값 대비 같은 비율 폭을 덮습니다. 그래서 기울기가 같으면 증감률이 같습니다.">
-            좌·우 축 (같은 비율 폭)
-          </span>
-        )}
+      <div className="flex items-baseline gap-1.5 mb-0.5">
+        <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: color }} />
+        <span className="text-[11px] font-bold text-gray-600">{LABEL[metric.key]}</span>
+        <span className={`ml-auto text-[11px] font-bold tabular-nums shrink-0 ${diffColor(diff)}`}>
+          {fmtDiff(diff)}
+        </span>
       </div>
-      {/* 범례 겸 값 — 계열 색과 맞춤 */}
-      <div className="flex flex-wrap gap-x-3 gap-y-0.5 mb-1">
-        {metrics.map(m => (
-          <div key={m.key} className="flex items-baseline gap-1 min-w-0">
-            <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: COLOR[m.key] }} />
-            <span className="text-[11px] font-bold text-gray-600">{LABEL[m.key]}</span>
-            <span className="text-sm font-extrabold tabular-nums text-gray-900">{fmtJo(m.value)}</span>
-            <span className={`text-[11px] font-bold tabular-nums ${diffColor(m.diff)}`}>{fmtDiff(m.diff)}</span>
-          </div>
-        ))}
+      <div className="text-base font-extrabold tabular-nums text-gray-900 leading-none mb-1">
+        {fmtJo(value)}
       </div>
-      <GroupChart lines={lines} dates={data.dates} mode={mode} />
-      <div className="text-[10px] text-gray-400 leading-tight mt-0.5 truncate">
-        {metrics.map(m => HINT[m.key]).join(" · ")}
+      <MiniChart series={s} dates={dates} color={color} hover={hover} onHover={onHover} />
+      <div className="text-[10px] text-gray-400 leading-tight mt-0.5 truncate" title={HINT[metric.key]}>
+        {HINT[metric.key]}
       </div>
     </div>
   );
@@ -287,18 +172,38 @@ export function FundFlowCard() {
     refetchInterval: 30 * 60 * 1000,
     refetchOnWindowFocus: false,
   });
+  // 훅은 early return 위에 — 데이터가 없는 렌더에서도 호출 순서가 같아야 한다.
+  const [hover, setHover] = useState<number | null>(null);
   if (!data) return null;
 
+  // 응답 순서가 아니라 ORDER 대로 — 직접자금(대기·빚) 다음에 펀드 셋.
+  const metrics = ORDER
+    .map(k => data.metrics.find(m => m.key === k))
+    .filter((m): m is NonNullable<typeof m> => !!m);
+  if (metrics.length === 0) return null;
+
+  const hoverDate = hover == null ? null : data.dates[Math.min(hover, data.dates.length - 1)];
+
   return (
-    <div className="relative rounded-xl border border-gray-300 bg-white p-2.5 pt-4 mt-1.5">
+    <div className="relative rounded-xl border border-gray-300 bg-white p-2.5 pt-4 mt-1.5"
+         onMouseLeave={() => setHover(null)}
+         onTouchEnd={() => setHover(null)}>
       <a href={NAVER_URL} target="_blank" rel="noopener noreferrer"
          className="absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
                     text-sm font-bold text-gray-700 whitespace-nowrap hover:bg-gray-100 hover:text-blue-600">
         💰 증시 자금동향 <span className="text-[10px] text-gray-400">↗</span>
       </a>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-        {GROUPS.map(g => (
-          <Group key={g.title} title={g.title} hint={g.hint} keys={g.keys} mode={g.mode} data={data} />
+      {/* 기준 날짜 — 다섯 패널의 숫자가 전부 이 날짜 값이다. 자리를 비워 두면 레이아웃이 흔들린다. */}
+      <div className="absolute -top-2.5 right-3 z-10 text-[10px] tabular-nums h-4">
+        {hoverDate
+          ? <span className="px-1.5 py-0.5 rounded bg-gray-800 text-white font-bold">{hoverDate} 기준 · 증감은 전일 대비</span>
+          : <span className="px-1.5 py-0.5 rounded bg-white border border-gray-200 text-gray-400">
+              {data.dates[data.dates.length - 1]} 기준
+            </span>}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-1.5">
+        {metrics.map(m => (
+          <Panel key={m.key} metric={m} dates={data.dates} hover={hover} onHover={setHover} />
         ))}
       </div>
     </div>
