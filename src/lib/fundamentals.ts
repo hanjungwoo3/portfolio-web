@@ -19,6 +19,19 @@ async function fetchHtml(url: string): Promise<Document | null> {
   }
 }
 
+// wisereport 기업개요(c1010001) — 주요주주와 동일업종 PER 이 같은 페이지에 있다.
+//   둘을 따로 부르면 88KB 를 두 번 받는다. 짧은 메모로 한 번만 받게 묶는다.
+//   (fetchHtml 자체엔 캐시가 없다)
+const COMPANY_DOC_TTL_MS = 60_000;
+const companyDocCache = new Map<string, { at: number; doc: Promise<Document | null> }>();
+function fetchCompanyDoc(ticker: string): Promise<Document | null> {
+  const hit = companyDocCache.get(ticker);
+  if (hit && Date.now() - hit.at < COMPANY_DOC_TTL_MS) return hit.doc;
+  const doc = fetchHtml(`https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=${ticker}`);
+  companyDocCache.set(ticker, { at: Date.now(), doc });
+  return doc;
+}
+
 // ─────────── 지표 정의 (v2 fundamentals.py 동일) ───────────
 export interface IndicatorSpec {
   title: string;
@@ -180,105 +193,87 @@ export interface FundamentalData {
   debt_ratio?: number;
 }
 
+// ★ 2026-09-12: finance.naver.com/item/main.naver 이 SPA 로 바뀌어 이 표가 통째로 사라졌다.
+//   m.stock integration JSON 의 totalInfos 가 같은 값을 준다(키가 한글 라벨과 1:1).
+//   동일업종 PER 만 여기 없어서 wisereport 에서 따로 뽑는다(fetchIndustryPer).
+interface NaverTotalInfo { code?: string; value?: string }
+interface NaverIntegrationFund {
+  stockName?: string;
+  totalInfos?: NaverTotalInfo[];
+  consensusInfo?: { recommMean?: string; priceTargetMean?: string };
+}
+
 export async function fetchNaverMain(ticker: string): Promise<FundamentalData> {
-  const doc = await fetchHtml(`https://finance.naver.com/item/main.naver?code=${ticker}`);
   const out: FundamentalData = {};
-  if (!doc) return out;
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return out;
+  let d: NaverIntegrationFund;
+  try {
+    const resp = await fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/integration`);
+    if (!resp.ok) return out;
+    d = await resp.json() as NaverIntegrationFund;
+  } catch { return out; }
 
-  // 종목명
-  const titleNode = doc.querySelector("div.wrap_company h2 a");
-  if (titleNode) out.name = _cleanWs(titleNode.textContent);
-  // 현재가
-  const curNode = doc.querySelector("p.no_today span.blind");
-  if (curNode) {
-    const v = _toInt(curNode.textContent);
-    if (v != null) out.price = v;
+  if (d.stockName) out.name = d.stockName;
+  const byCode = new Map((d.totalInfos ?? []).map(t => [t.code ?? "", t.value ?? ""]));
+  // ★ totalInfos 의 값에는 단위가 붙어 온다("27.13배", "2,927원", "21.44%").
+  //   공용 _toFloat 은 Number() 라 단위가 붙으면 NaN 이다(옛 HTML 은 숫자만 줬다).
+  //   여기서만 숫자 부분을 떼어 쓴다 — 공용 파서를 느슨하게 바꾸면 HTML 쪽이 오탐한다.
+  const num = (code: string): number | undefined => {
+    const raw = byCode.get(code);
+    if (!raw) return undefined;
+    const m = /-?[\d,]*\.?\d+/.exec(raw.replace(/\s/g, ""));
+    if (!m) return undefined;
+    const v = Number(m[0].replace(/,/g, ""));
+    return Number.isFinite(v) ? v : undefined;
+  };
+  const int = (code: string): number | undefined => {
+    const v = num(code);
+    return v == null ? undefined : Math.trunc(v);
+  };
+
+  // 시총은 "5조 8,451억" 같은 사람용 표기라 그대로 쓴다(기존도 텍스트였다).
+  const cap = byCode.get("marketValue");
+  if (cap) out.market_cap_text = cap;
+  out.price = int("lastClosePrice");   // 전일 종가 — 현재가는 화면이 따로 받는다
+  out.per = num("per");
+  out.pbr = num("pbr");
+  out.eps = int("eps");
+  out.bps = int("bps");
+  out.high_52w = int("highPriceOf52Weeks");
+  out.low_52w = int("lowPriceOf52Weeks");
+  out.foreign_ownership = num("foreignRate");
+  out.dividend_yield = num("dividendYieldRatio");
+
+  const ci = d.consensusInfo;
+  if (ci) {
+    const target = _toInt(ci.priceTargetMean);
+    const score = _toFloat(ci.recommMean);
+    if (target != null && target > 0) out.consensus_target_official = target;
+    if (score != null && score > 0) {
+      out.consensus_score = score;
+      out.consensus_opinion = score >= 4.5 ? "적극매수" : score >= 3.5 ? "매수"
+                            : score >= 2.5 ? "중립"     : score >= 1.5 ? "매도" : "적극매도";
+    }
   }
-
-  // em#_xxx 매핑
-  const emMap: { id: string; key: keyof FundamentalData; isInt?: boolean; isText?: boolean }[] = [
-    { id: "_market_sum",  key: "market_cap_text", isText: true },
-    { id: "_per",         key: "per" },
-    { id: "_eps",         key: "eps", isInt: true },
-    { id: "_pbr",         key: "pbr" },
-    { id: "_dvr",         key: "dividend_yield" },
-  ];
-  for (const { id, key, isInt, isText } of emMap) {
-    const node = doc.querySelector(`em#${id}`);
-    if (!node) continue;
-    const raw = _cleanWs(node.textContent);
-    if (isText) {
-      (out as Record<string, unknown>)[key] = raw ? `${raw}억원` : undefined;
-    } else if (isInt) {
-      const v = _toInt(raw);
-      if (v != null) (out as Record<string, unknown>)[key] = v;
-    } else {
-      const v = _toFloat(raw);
-      if (v != null) (out as Record<string, unknown>)[key] = v;
-    }
-  }
-
-  // BPS — PBR 행에 함께 (PBR/BPS th 옆)
-  const trs = doc.querySelectorAll("div.aside_invest_info table tr");
-  trs.forEach(tr => {
-    const txt = tr.textContent ?? "";
-    if (txt.includes("PBR") && txt.includes("BPS")) {
-      const ems = tr.querySelectorAll("td em");
-      if (ems.length >= 2) {
-        const bps = _toInt(ems[1].textContent);
-        if (bps != null) out.bps = bps;
-      }
-    }
-    // 52주 최고/최저
-    if (txt.includes("52주")) {
-      const ems = tr.querySelectorAll("td em");
-      if (ems.length >= 2) {
-        const hi = _toInt(ems[0].textContent);
-        const lo = _toInt(ems[1].textContent);
-        if (hi != null) out.high_52w = hi;
-        if (lo != null) out.low_52w = lo;
-      }
-    }
-    // 외국인 소진율
-    if (txt.includes("외국인소진율") || txt.includes("외국인 소진율")) {
-      const em = tr.querySelector("td em");
-      const v = _toFloat(em?.textContent);
-      if (v != null) out.foreign_ownership = v;
-    }
-    // 동일업종 PER
-    if (txt.includes("동일업종 PER")) {
-      const em = tr.querySelector("td em");
-      const v = _toFloat(em?.textContent);
-      if (v != null) out.industry_per = v;
-    }
-    // 투자의견 + 컨센서스 목표주가 — <th>...목표주가 행
-    if (txt.includes("목표주가")) {
-      const td = tr.querySelector("td");
-      if (!td) return;
-      // 1) f_* 클래스 span 안에 점수(em) + 의견 텍스트
-      const opSpan = Array.from(td.querySelectorAll("span"))
-        .find(s => Array.from(s.classList).some(c => c.startsWith("f_")));
-      if (opSpan) {
-        const em = opSpan.querySelector("em");
-        const emText = _cleanWs(em?.textContent);
-        if (emText) {
-          const score = _toFloat(emText);
-          if (score != null) out.consensus_score = score;
-        }
-        const full = _cleanWs(opSpan.textContent);
-        const opinion = emText ? full.replace(emText, "").trim() : full;
-        if (opinion) out.consensus_opinion = opinion;
-      }
-      // 2) span 외부의 em = 공식 컨센서스 목표가
-      td.querySelectorAll("em").forEach(em => {
-        if (out.consensus_target_official != null) return;
-        if (em.closest("span")) return;  // f_* span 내 em 제외
-        const val = _toInt(em.textContent);
-        if (val != null) out.consensus_target_official = val;
-      });
-    }
-  });
   return out;
+}
+
+// 동일업종 PER — wisereport 기업개요(c1010001)의 "업종PER".
+//   네이버 메인이 SPA 가 되면서 여기서만 얻을 수 있게 됐다. 주요주주와 같은 페이지라
+//   fetchCompanyDoc 으로 묶어 한 번만 받는다.
+export async function fetchIndustryPer(ticker: string): Promise<number | undefined> {
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return undefined;
+  const doc = await fetchCompanyDoc(ticker);
+  if (!doc) return undefined;
+  let per: number | undefined;
+  doc.querySelectorAll("dt").forEach(dt => {
+    if (per != null) return;
+    const label = _cleanWs(dt.textContent);
+    if (!label.startsWith("업종PER")) return;
+    const v = _toFloat(dt.querySelector("b")?.textContent);
+    if (v != null) per = v;
+  });
+  return per;
 }
 
 // ─────────── Wisereport cF1001 (재무) ───────────
@@ -365,8 +360,7 @@ export interface Shareholder {
 }
 
 export async function fetchMajorShareholders(ticker: string): Promise<Shareholder[]> {
-  const url = `https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=${ticker}`;
-  const doc = await fetchHtml(url);
+  const doc = await fetchCompanyDoc(ticker);
   if (!doc) return [];
 
   let target: HTMLTableElement | null = null;
@@ -502,13 +496,15 @@ export async function fetchFullValuation(ticker: string): Promise<FullValuation>
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) {
     return { fundamental: {}, reports: [], shareholders: [] };
   }
-  const [naver, wise, reports, shareholders] = await Promise.all([
+  const [naver, wise, reports, shareholders, industryPer] = await Promise.all([
     fetchNaverMain(ticker),
     fetchWisereport(ticker),
     fetchConsensusReports(ticker),
     fetchMajorShareholders(ticker),
+    fetchIndustryPer(ticker),
   ]);
   const fundamental: FundamentalData = { ...naver, ...wise };
+  if (industryPer != null) fundamental.industry_per = industryPer;
   const targets = reports.map(r => r.target).filter((t): t is number => typeof t === "number");
   const avgTarget = targets.length > 0
     ? Math.round(targets.reduce((a, b) => a + b, 0) / targets.length)
@@ -697,11 +693,13 @@ export async function fetchValuationRow(ticker: string): Promise<ValuationRow> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return { ticker };
   await acquireValuationSlot();
   try {
-    const [naver, wise] = await Promise.all([
+    const [naver, wise, industryPer] = await Promise.all([
       fetchNaverMain(ticker),
       fetchWisereport(ticker),
+      fetchIndustryPer(ticker),   // 네이버 메인이 SPA 가 된 뒤로 여기서만 얻는다(+1콜)
     ]);
     const merged: ValuationRow = { ...naver, ...wise, ticker };
+    if (industryPer != null) merged.industry_per = industryPer;
     merged.market_cap = marketCapEok(merged.market_cap_text) ?? undefined;
     return merged;
   } finally {
