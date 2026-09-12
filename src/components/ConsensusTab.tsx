@@ -71,6 +71,8 @@ type SortKey = "upside" | "date" | "npsPct" | "npsAmount"
              | "vol" | "foreign60" | "inst60" | "pension60"
              | "riseDesc" | "riseAsc";   // 현재 등락률 높은순/낮은순 (세 탭 공통)
 type Period = "all" | "1w" | "1m";
+// 카드 안에서 접었다 펼 수 있는 섹션들 — 각각 별도 API 를 문다.
+type SecKey = "cons" | "pension" | "vol" | "news";
 const DEFAULT_SORT: Record<View, SortKey> = { consensus: "date", pension: "npsPct", screener: "vol", rise: "riseDesc" };
 
 // "YY.MM.DD" / "YY/MM/DD" → epoch ms
@@ -94,21 +96,24 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
   const [period, setPeriod] = useState<Period>("1w");
   const [volDays, setVolDays] = useState(7);   // 변동율·수급 공통 기간(거래일)
   const [flowMode, setFlowMode] = useState<"shares" | "amount">("shares");  // 수급 정렬·표시 단위
-  // 카드별 접힘 — 컨센서스 리포트/뉴스/공시는 종목당 1콜씩이라 200종목이면 수백 콜이 된다.
-  //   기본은 접어 두고, 편 카드만 부른다(useQueries 의 enabled 로 게이트).
-  const [openCons, setOpenCons] = useState<Set<string>>(() => new Set());
-  const [openNews, setOpenNews] = useState<Set<string>>(() => new Set());
-  const toggleIn = (setter: React.Dispatch<React.SetStateAction<Set<string>>>) => (t: string) =>
-    setter(prev => {
+  // 카드별·섹션별 접힘 — 각 섹션이 종목당 1~2콜이라 200종목이면 수백 콜이 그냥 나간다.
+  //   기본은 접어 두고 편 카드만 부른다(useQueries 의 enabled 로 게이트).
+  //   탭의 주인공 섹션만 예외로 항상 편다 — 그 탭의 정렬 기준이 그 데이터라
+  //   접으면 정렬이 빈 값으로 돌아가 탭 자체가 무의미해진다.
+  //   등락률 탭은 정렬 기준이 헤더의 현재가라 주인공 섹션이 없다(전부 접힘).
+  const PRIMARY: Record<View, SecKey | null> = {
+    consensus: "cons", pension: "pension", screener: "vol", rise: null,
+  };
+  const [openSec, setOpenSec] = useState<Set<string>>(() => new Set());
+  const toggleSec = (t: string, sec: SecKey) =>
+    setOpenSec(prev => {
       const next = new Set(prev);
-      if (next.has(t)) next.delete(t); else next.add(t);
+      const k = `${t}|${sec}`;
+      if (next.has(k)) next.delete(k); else next.add(k);
       return next;
     });
-  const toggleCons = toggleIn(setOpenCons);
-  const toggleNews = toggleIn(setOpenNews);
-  // 컨센서스 탭에서는 그게 주인공이고 정렬(최신순·상승여력순)도 리포트에 의존하므로 항상 편다.
-  const consAlwaysOpen = view === "consensus";
-  const isConsOpen = (t: string) => consAlwaysOpen || openCons.has(t);
+  const isPrimary = (sec: SecKey) => PRIMARY[view] === sec;
+  const isOpen = (t: string, sec: SecKey) => isPrimary(sec) || openSec.has(`${t}|${sec}`);
   // sub탭 전환 시 기본 정렬 리셋
   useEffect(() => {
     setSortKey(DEFAULT_SORT[view]);
@@ -165,7 +170,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     queries: tickers.map(t => ({
       queryKey: ["consensus-reports", t],
       queryFn: () => fetchConsensusReports(t, 15),
-      enabled: isConsOpen(t),
+      enabled: isOpen(t, "cons"),
       staleTime: 30 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -175,6 +180,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     queries: tickers.map(t => ({
       queryKey: ["major-shareholders", t],
       queryFn: () => fetchMajorShareholders(t),
+      enabled: isOpen(t, "pension"),
       staleTime: 24 * 3600_000,
       refetchOnWindowFocus: false,
     })),
@@ -184,6 +190,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     queries: tickers.map(t => ({
       queryKey: ["kr-price-history", t, "6mo"],
       queryFn: () => fetchKrPriceHistory(t, "6mo"),
+      enabled: isOpen(t, "vol"),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -192,6 +199,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     queries: tickers.map(t => ({
       queryKey: ["investor-history-long", t],
       queryFn: () => fetchInvestorHistorySafe(t, [200, 120, 60]),
+      enabled: isOpen(t, "vol"),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -201,7 +209,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     queries: tickers.map(t => ({
       queryKey: ["naver-news", t],
       queryFn: () => fetchNaverNews(t, 10),
-      enabled: openNews.has(t),
+      enabled: isOpen(t, "news"),
       staleTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -216,7 +224,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     queries: tickers.map(t => ({
       queryKey: ["disclosures-modal", t],
       queryFn: () => fetchKrDisclosures(t, 12),
-      enabled: openNews.has(t),
+      enabled: isOpen(t, "news"),
       staleTime: 30 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -227,10 +235,17 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     [tickers, discQs.map(q => `${q.status}:${q.dataUpdatedAt}`).join(",")],
   );
   // 펼친 직후의 "불러오는 중" 표시용 — 카드는 정렬된 순서로 그려서 원래 index 를 못 쓴다.
-  const newsDiscLoadingByTicker = useMemo(
-    () => new Map(tickers.map((t, i) => [t, (newsQs[i]?.isLoading ?? false) || (discQs[i]?.isLoading ?? false)])),
+  const secLoadingByTicker = useMemo(
+    () => new Map(tickers.map((t, i): [string, Record<SecKey, boolean>] => [t, {
+      cons:    reportQs[i]?.isLoading ?? false,
+      pension: shQs[i]?.isLoading ?? false,
+      vol:     (chartQs[i]?.isLoading ?? false) || (invQs[i]?.isLoading ?? false),
+      news:    (newsQs[i]?.isLoading ?? false) || (discQs[i]?.isLoading ?? false),
+    }])),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [tickers, newsQs.map(q => q.status).join(","), discQs.map(q => q.status).join(",")],
+    [tickers, reportQs.map(q => q.status).join(","), shQs.map(q => q.status).join(","),
+     chartQs.map(q => q.status).join(","), invQs.map(q => q.status).join(","),
+     newsQs.map(q => q.status).join(","), discQs.map(q => q.status).join(",")],
   );
   const anyLoading = naverQs.some(q => q.isLoading) || reportQs.some(q => q.isLoading)
                   || shQs.some(q => q.isLoading);
@@ -451,11 +466,23 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
             const gs = it.groups ?? [];
             const shown = gs.length > 3 ? gs.slice(0, 3) : gs;
             const more = gs.length - shown.length;
+            // 접기 헤더 — 주인공 섹션에는 안 붙인다(항상 펴져 있으므로 토글이 의미 없다)
+            const secLoading = secLoadingByTicker.get(it.ticker);
+            const secHead = (sec: SecKey, label: string) => isPrimary(sec) ? null : (
+              <button type="button" onClick={() => toggleSec(it.ticker, sec)}
+                      className="w-full flex items-baseline gap-1 text-[11px] text-left">
+                <span className="w-2.5 shrink-0 text-gray-400">{isOpen(it.ticker, sec) ? "▾" : "▸"}</span>
+                <span className="text-gray-500">{label}</span>
+                {isOpen(it.ticker, sec) && secLoading?.[sec] && (
+                  <span className="ml-auto text-gray-300">불러오는 중…</span>
+                )}
+              </button>
+            );
             // 연금(국민연금) 섹션 — 연기금 탭에선 맨 위, 그 외엔 맨 아래
             const pensionSection = (
               <div className={`mt-1 px-1.5 py-1 border border-gray-200 rounded ${emph(view === "pension")}`}>
-                {view !== "pension" && <div className="text-[10px] text-gray-400">주요주주</div>}
-                {it.holders.length > 0 ? (
+                {secHead("pension", "🏦 주요주주")}
+                {isOpen(it.ticker, "pension") && (it.holders.length > 0 ? (
                   <div className="space-y-0.5">
                     {it.holders.slice(0, 5).map((h, hi) => {
                       const isNps = /국민연금|연기금/.test(h.name);
@@ -469,7 +496,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                       );
                     })}
                   </div>
-                ) : <div className="text-[11px] text-gray-300">주요주주 정보 없음</div>}
+                ) : <div className="text-[11px] text-gray-300">주요주주 정보 없음</div>)}
               </div>
             );
             // 변동폭·수급 섹션
@@ -485,8 +512,9 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
               const aIns = view === "screener" && sortKey === "inst60";
               const aPen = view === "screener" && sortKey === "pension60";
               const isAmt = flowMode === "amount";
-              return (
-                <div className="mt-1 grid grid-cols-4 gap-1 text-[11px] tabular-nums">
+              const open = isOpen(it.ticker, "vol");
+              const grid = (
+                <div className={`grid grid-cols-4 gap-1 text-[11px] tabular-nums ${isPrimary("vol") ? "mt-1" : ""}`}>
                   <div className={`text-center ${box(aVol)}`}>
                     <div className={lblCls(aVol)}>변동폭({volDays === 1 ? "1일" : `${volDays}일평균`})</div>
                     <b className={`text-fuchsia-600 ${aVol ? "text-base" : ""}`}>{it.vol != null ? `${it.vol.toFixed(2)}%` : "—"}</b>
@@ -511,21 +539,20 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                   </div>
                 </div>
               );
+              if (isPrimary("vol")) return grid;
+              return (
+                <div className="mt-1 px-1.5 py-1 border border-gray-200 rounded">
+                  {secHead("vol", "📊 변동폭 · 수급")}
+                  {open && <div className="mt-1">{grid}</div>}
+                </div>
+              );
             })();
             // 컨센서스 섹션
             const aCons = view === "consensus";
-            const consOpen = isConsOpen(it.ticker);
+            const consOpen = isOpen(it.ticker, "cons");
             const consensusSection = (
               <div className={`mt-1 px-1.5 py-1 border border-gray-200 rounded ${emph(view === "consensus")}`}>
-                {/* 접기 헤더 — 컨센서스 탭에선 항상 펴져 있어 토글을 숨긴다 */}
-                {!consAlwaysOpen && (
-                  <button type="button" onClick={() => toggleCons(it.ticker)}
-                          className="w-full flex items-baseline gap-1 text-[11px] text-left">
-                    <span className="w-2.5 shrink-0 text-gray-400">{consOpen ? "▾" : "▸"}</span>
-                    <span className="text-gray-500">컨센서스</span>
-                    {consOpen && it.loading && <span className="ml-auto text-gray-300">불러오는 중…</span>}
-                  </button>
-                )}
+                {secHead("cons", "🎯 컨센서스")}
                 {consOpen && (<>
                 {/* 평균 목표주가 / 투자의견 — 컨센서스 탭은 강조, 그 외는 단순 */}
                 <div className={`flex items-baseline gap-1 ${aCons ? "text-[12px]" : "text-[11px]"}`}>
@@ -635,26 +662,20 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
 
                 {/* 뉴스(좌) + 공시(우) — 기본 접힘, 펴야 부른다 */}
                 {(() => {
-                  const open = openNews.has(it.ticker);
+                  const open = isOpen(it.ticker, "news");
                   const news = open ? (newsByTicker.get(it.ticker) ?? []) : [];
                   const disc = open ? [...(discByTicker.get(it.ticker) ?? [])].reverse() : [];   // 최신순
-                  const loading = open && (newsDiscLoadingByTicker.get(it.ticker) ?? false);
+                  const loading = open && (secLoading?.news ?? false);
                   return (
-                    <div className="mt-1">
-                      <button type="button" onClick={() => toggleNews(it.ticker)}
-                              className="w-full flex items-baseline gap-1 text-[11px] text-left
-                                         px-1.5 py-1 border border-gray-200 rounded">
-                        <span className="w-2.5 shrink-0 text-gray-400">{open ? "▾" : "▸"}</span>
-                        <span className="text-gray-500">📰 뉴스 · 📋 공시</span>
-                        {loading && <span className="ml-auto text-gray-300">불러오는 중…</span>}
-                        {open && !loading && news.length === 0 && disc.length === 0 && (
-                          <span className="ml-auto text-gray-300">항목 없음</span>
-                        )}
-                      </button>
+                    <div className="mt-1 px-1.5 py-1 border border-gray-200 rounded">
+                      {secHead("news", "📰 뉴스 · 📋 공시")}
+                      {open && !loading && news.length === 0 && disc.length === 0 && (
+                        <div className="text-[11px] text-gray-300 pl-3.5">항목 없음</div>
+                      )}
                       {open && (news.length > 0 || disc.length > 0) && (
                     <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 gap-1.5">
                       {news.length > 0 && (
-                        <div className="px-1.5 py-1 border border-gray-200 rounded">
+                        <div>
                           <div className="text-[10px] text-gray-400 mb-0.5">📰 뉴스</div>
                           <ul className="divide-y divide-gray-100">
                             {news.slice(0, 5).map(n => (
@@ -674,7 +695,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                         </div>
                       )}
                       {disc.length > 0 && (
-                        <div className="px-1.5 py-1 border border-gray-200 rounded">
+                        <div>
                           <div className="text-[10px] text-gray-400 mb-0.5">📋 공시</div>
                           <ul className="divide-y divide-gray-100">
                             {disc.slice(0, 5).map((d, i) => (

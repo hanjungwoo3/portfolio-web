@@ -904,51 +904,60 @@ export async function fetchTossCommunity(ticker: string): Promise<TossCommunityC
   } catch { return []; }
 }
 
-// ─── 네이버 종목토론실 — finance.naver.com/item/board.naver 글 목록 스크랩(UTF-8) ───
-//   커뮤니티 부분(글 목록)만 파싱 → 좌우 분할 뷰에서 토스와 나란히 표시. 제목 클릭은 read.naver 원문.
+// ─── 네이버 종목토론실 ───
+//   ★ 2026-09-12: finance.naver.com/item/board.naver 가 SPA 로 바뀌어 글 목록 HTML 이 사라졌다.
+//   새 증권의 토론 탭이 쓰는 JSON 으로 갈아탔다(SPA 청크에서 찾은 경로).
+//     /api/community/discussion/posts?itemCode=&discussionType=DOMESTIC_STOCK&...
+//   discussionType 은 "DOMESTIC_STOCK" 만 통한다 — 다른 값은 400 INVALID_PARAM_TYPE.
+//   조회수는 새 API 에 없다. 대신 댓글수를 준다(화면 라벨도 "댓글" 로 바꿨다).
 export interface NaverBoardPost {
-  id: string;       // nid
+  id: string;
   title: string;
   author: string;
   date: string;     // "2026.07.27 08:49"
-  views: number;
+  comments: number; // 댓글수 (구 API 의 조회수 자리)
   up: number;       // 공감
   down: number;     // 비공감
-  url: string;      // 원문(read) 절대 URL
+  url: string;      // 원문 절대 URL
+}
+interface NaverDiscussPostRaw {
+  id?: string;
+  title?: string;
+  contentSwReplaced?: string;
+  writer?: { nickname?: string };
+  writtenAt?: string;          // "2026-09-12T10:54:20"
+  commentCount?: number;
+  recommendCount?: number;
+  notRecommendCount?: number;
 }
 export async function fetchNaverBoard(ticker: string): Promise<NaverBoardPost[]> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
   try {
-    const resp = await fetchProxied(`https://finance.naver.com/item/board.naver?code=${ticker}`);
+    const resp = await fetchProxied(
+      "https://stock.naver.com/api/community/discussion/posts"
+      + `?itemCode=${ticker}&discussionType=DOMESTIC_STOCK`
+      + "&isHolderOnly=false&excludesItemNews=false&isItemNewsOnly=false&pageSize=30");
     if (!resp.ok) return [];
-    // board.naver 는 현재 UTF-8(meta charset=utf-8). content-type 이 euc-kr 로 와도 utf-8 우선 시도.
-    const buf = await resp.arrayBuffer();
-    let html = new TextDecoder("utf-8").decode(buf);
-    if (/[�]{2,}/.test(html.slice(0, 5000))) {
-      html = decodeHtmlBuf(buf, resp.headers.get("Content-Type") || "");  // 폴백(EUC-KR 등)
-    }
-    const posts: NaverBoardPost[] = [];
-    // 글 1행 = board_read 링크(제목) 포함 <tr>. td 순서: 날짜·제목·글쓴이·조회·공감·비공감.
-    for (const m of html.matchAll(/<tr[^>]*>((?:(?!<\/tr>)[\s\S])*?board_read\.naver[\s\S]*?)<\/tr>/g)) {
-      const row = m[1];
-      const link = row.match(/href="(\/item\/board_read\.naver\?[^"]+)"[^>]*title="([^"]+)"/);
-      if (!link) continue;
-      const tds = [...row.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
-        .map(t => t[1].replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").trim());
-      const nid = link[1].match(/nid=(\d+)/)?.[1] ?? "";
-      const numAt = (i: number) => Number((tds[i] ?? "").replace(/[^\d]/g, "")) || 0;
-      posts.push({
-        id: nid,
-        title: link[2].replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&#39;/g, "'").replace(/&lt;/g, "<").replace(/&gt;/g, ">"),
-        date: tds[0] ?? "",
-        author: tds[2] ?? "",
-        views: numAt(3),
-        up: numAt(4),
-        down: numAt(5),
-        url: `https://finance.naver.com${link[1]}`,
+    const d = await resp.json() as { posts?: NaverDiscussPostRaw[] };
+    const out: NaverBoardPost[] = [];
+    for (const p of d.posts ?? []) {
+      // 제목 없이 본문만 쓰는 글이 흔하다 — 그땐 본문 첫 줄을 제목으로 쓴다.
+      const title = (p.title ?? "").trim() || (p.contentSwReplaced ?? "").trim().split("\n")[0];
+      if (!title) continue;
+      const at = (p.writtenAt ?? "").trim();   // ISO(로컬시각, TZ 없음) → 기존 표기로
+      const date = at.length >= 16 ? `${at.slice(0, 10).replace(/-/g, ".")} ${at.slice(11, 16)}` : at;
+      out.push({
+        id: p.id ?? "",
+        title,
+        author: p.writer?.nickname ?? "",
+        date,
+        comments: p.commentCount ?? 0,
+        up: p.recommendCount ?? 0,
+        down: p.notRecommendCount ?? 0,
+        url: `https://stock.naver.com/domestic/stock/${ticker}/discussion`,
       });
     }
-    return posts;
+    return out;
   } catch { return []; }
 }
 
@@ -3500,82 +3509,84 @@ export interface NaverInfo {
   description?: string[];   // #summary_info p 들 — 사업·제품·전략 짧은 문장 (출처: 에프앤가이드)
 }
 
-export async function fetchNaverInfo(ticker: string): Promise<NaverInfo> {
-  const target = `https://finance.naver.com/item/main.naver?code=${ticker}`;
-  const empty: NaverInfo = { sector: "", consensus: null };
-  try {
-    const resp = await fetchProxied(target);
-    if (!resp.ok) return empty;
-    const buf = await resp.arrayBuffer();
-    const html = decodeHtmlBuf(buf, resp.headers.get("Content-Type") || "");
-    const doc = new DOMParser().parseFromString(html, "text/html");
+// ★ 2026-09-12: finance.naver.com/item/main.naver 가 Next.js SPA("Npay 증권")로 바뀌어
+//   HTML 에 목표주가·업종·기업개요가 아예 없어졌다(자금동향이 옮겨간 것과 같은 개편).
+//   그래서 스크래핑을 버리고 m.stock JSON 으로 갈아탔다.
+//     · 컨센서스 → integration.consensusInfo (recommMean, priceTargetMean)
+//     · 섹터     → integration.industryCode → 업종 API 의 groupInfo.name
+//   기업개요(description)는 새 API 에 대응하는 필드가 없어 당분간 안 온다(옵셔널이라 화면은 그냥 숨는다).
 
-    // 섹터 — 동일업종 링크 텍스트
-    let sector = "";
-    const links = doc.querySelectorAll("a[href*='sise_group_detail']");
-    if (links.length > 0) sector = links[0].textContent?.trim() || "";
-
-    // 컨센서스 — 목표주가 th 옆 td
-    let consensus: Consensus | null = null;
-    const ths = doc.querySelectorAll("th");
-    let targetTh: Element | null = null;
-    ths.forEach(th => {
-      if (!targetTh && th.textContent?.includes("목표주가")) targetTh = th;
-    });
-    if (targetTh) {
-      const td = (targetTh as Element).nextElementSibling;
-      if (td) {
-        // 투자의견 점수 + 텍스트 — span.f_up / f_down 안의 em
-        let score: number | undefined;
-        let opinion: string | undefined;
-        const fSpan = td.querySelector("span[class^='f_']");
-        if (fSpan) {
-          const scoreEm = fSpan.querySelector("em");
-          const scoreText = scoreEm?.textContent?.trim() ?? "";
-          const sNum = Number(scoreText);
-          if (!Number.isNaN(sNum)) score = sNum;
-          opinion = (fSpan.textContent ?? "").replace(scoreText, "").trim();
-        }
-        // 목표주가: td 안의 em 중 span 외부에 있는 것 (데스크톱 v2 동일)
-        let targetPrice: number | undefined;
-        const ems = Array.from(td.querySelectorAll("em"));
-        for (const em of ems) {
-          if (em.closest("span")) continue;  // span 안 (= score em) 제외
-          const val = (em.textContent ?? "").trim().replace(/,/g, "");
-          if (/^\d+$/.test(val)) {
-            const n = Number(val);
-            if (n > 0) {
-              targetPrice = n;
-              break;
-            }
-          }
-        }
-        consensus = { target: targetPrice, score, opinion };
+// 업종코드 → 업종명. 코드가 수십 개뿐이고 사실상 안 변해서 영구 캐시한다
+// (종목마다 부르면 200종목에 200콜이 되지만, 코드 단위로 모으면 수십 콜이 전부다).
+const INDUSTRY_NAME_CACHE_KEY = "kr_industry_name_cache";
+function loadIndustryNames(): Record<string, string> {
+  try { return JSON.parse(localStorage.getItem(INDUSTRY_NAME_CACHE_KEY) ?? "{}") as Record<string, string>; }
+  catch { return {}; }
+}
+const industryNameInflight = new Map<string, Promise<string>>();
+async function fetchIndustryName(code: string): Promise<string> {
+  if (!code) return "";
+  const cached = loadIndustryNames()[code];
+  if (cached != null) return cached;
+  const running = industryNameInflight.get(code);
+  if (running) return running;   // 같은 업종 종목이 한꺼번에 뜨면 콜이 겹친다
+  const job = (async () => {
+    try {
+      // pageSize=1 — 필요한 건 groupInfo.name 뿐인데 기본값은 20종목을 통째로 준다(27KB → 2KB).
+      const resp = await fetchProxied(`https://m.stock.naver.com/api/stocks/industry/${code}?pageSize=1`);
+      if (!resp.ok) return "";
+      const d = await resp.json() as { groupInfo?: { name?: string } };
+      const name = d.groupInfo?.name ?? "";
+      if (name) {
+        try {
+          const c = loadIndustryNames();
+          c[code] = name;
+          localStorage.setItem(INDUSTRY_NAME_CACHE_KEY, JSON.stringify(c));
+        } catch { /* 용량 초과 등 — 캐시는 최적화일 뿐 */ }
       }
-    }
+      return name;
+    } catch { return ""; }
+    finally { industryNameInflight.delete(code); }
+  })();
+  industryNameInflight.set(code, job);
+  return job;
+}
 
-    // 기업개요 — #summary_info 안의 <p> 들 (출처: 에프앤가이드)
-    let description: string[] | undefined;
-    const summaryEl = doc.querySelector("#summary_info");
-    if (summaryEl) {
-      const ps = Array.from(summaryEl.querySelectorAll("p"))
-        .map(p => (p.textContent ?? "").trim())
-        .filter(t => t.length > 0);
-      if (ps.length > 0) description = ps;
-    }
+interface NaverIntegrationRaw {
+  industryCode?: string | number;
+  consensusInfo?: { recommMean?: string; priceTargetMean?: string };
+}
 
-    return { sector, consensus, description };
+export async function fetchNaverInfo(ticker: string): Promise<NaverInfo> {
+  const empty: NaverInfo = { sector: "", consensus: null };
+  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return empty;
+  try {
+    const resp = await fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/integration`);
+    if (!resp.ok) return empty;
+    const d = await resp.json() as NaverIntegrationRaw;
+
+    let consensus: Consensus | null = null;
+    const ci = d.consensusInfo;
+    if (ci) {
+      const target = Number(String(ci.priceTargetMean ?? "").replace(/,/g, ""));
+      const score = Number(ci.recommMean);
+      consensus = {
+        target: target > 0 ? target : undefined,
+        score: Number.isFinite(score) && score > 0 ? score : undefined,
+        opinion: opinionFromScore(score),
+      };
+    }
+    const sector = await fetchIndustryName(String(d.industryCode ?? ""));
+    if (sector) saveSector(ticker, sector);
+    return { sector, consensus };
   } catch {
     return empty;
   }
 }
 
 // 카드용 경량 종목정보 — 섹터 + 컨센서스만.
-//  main.naver HTML 은 종목당 ~199KB(실측). 카드가 쓰는 건 섹터 라벨과 컨센서스뿐인데
-//  폴더 전체보기처럼 수십 종목을 한 번에 열면 이것만으로 수 MB 가 되어 초기 로드가 통째로 밀린다.
-//  · 컨센서스 → m.stock integration JSON (~9KB, 21배 작음)
-//  · 섹터     → 사실상 안 변하는 값이라 localStorage 에 영구 캐시. 캐시에 없을 때만 HTML 1회.
-//  기업개요(description)·투자의견 원문이 필요한 곳(기업가치 모달·컨센서스 탭)은 fetchNaverInfo 그대로 사용.
+//  HTML 스크래핑을 쓰던 시절엔 종목당 ~199KB 라 별도 경량 경로가 필요했다. 지금은 본체도
+//  같은 JSON(~9KB)을 타므로 그대로 위임한다. 호출처가 많아 이름만 남겨 둔다.
 const SECTOR_CACHE_KEY = "kr_sector_cache";
 function loadSectorCache(): Record<string, string> {
   try { return JSON.parse(localStorage.getItem(SECTOR_CACHE_KEY) ?? "{}") as Record<string, string>; }
@@ -3602,39 +3613,7 @@ function opinionFromScore(score: number): string | undefined {
   return "적극매도";
 }
 
-interface NaverIntegration {
-  consensusInfo?: { recommMean?: string; priceTargetMean?: string };
-}
-export async function fetchNaverInfoLight(ticker: string): Promise<NaverInfo> {
-  const empty: NaverInfo = { sector: "", consensus: null };
-  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return empty;
-  const cachedSector = loadSectorCache()[ticker];
-  // 섹터를 아직 모르면 이번 한 번만 HTML 로 받아 캐시 — 다음부터는 9KB 경로만 탄다.
-  if (cachedSector == null) {
-    const full = await fetchNaverInfo(ticker);
-    saveSector(ticker, full.sector);
-    return full;
-  }
-  try {
-    const resp = await fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/integration`);
-    if (!resp.ok) return { sector: cachedSector, consensus: null };
-    const d = await resp.json() as NaverIntegration;
-    const ci = d.consensusInfo;
-    let consensus: Consensus | null = null;
-    if (ci) {
-      const target = Number(String(ci.priceTargetMean ?? "").replace(/,/g, ""));
-      const score = Number(ci.recommMean);
-      consensus = {
-        target: target > 0 ? target : undefined,
-        score: Number.isFinite(score) && score > 0 ? score : undefined,
-        opinion: opinionFromScore(score),
-      };
-    }
-    return { sector: cachedSector, consensus };
-  } catch {
-    return { sector: cachedSector, consensus: null };
-  }
-}
+export const fetchNaverInfoLight = fetchNaverInfo;
 
 // ─── 종목 뉴스 — 네이버 모바일 증권 (m.stock.naver) ───
 export interface NaverNews {
@@ -3872,13 +3851,11 @@ export function decodeHtmlBuf(buf: ArrayBuffer, contentType: string): string {
   catch { return new TextDecoder("utf-8").decode(buf); }
 }
 
-// 네이버 금융 공통 — Response → HTML 문자열
-async function decodeNaverHtml(resp: Response): Promise<string> {
-  const buf = await resp.arrayBuffer();
-  return decodeHtmlBuf(buf, resp.headers.get("Content-Type") || "");
-}
+// ★ 2026-09-12: finance.naver.com/sise/sise_group.naver 가 SPA 로 바뀌어 HTML 에 테마가 없다.
+//   m.stock JSON 으로 갈아탔다 — 목록/상세 모두 같은 계열이고 등락률까지 준다.
 
-// 전체 테마 목록 — 첫 로드 시 스크랩, 24h 캐시
+// 전체 테마 목록 — 첫 로드 시 1회, 24h 캐시
+interface NaverThemeGroupRaw { no?: number; name?: string }
 async function loadNaverThemeList(): Promise<NaverTheme[]> {
   try {
     const ts = Number(localStorage.getItem(THEME_LIST_TS_KEY) ?? "0");
@@ -3890,26 +3867,26 @@ async function loadNaverThemeList(): Promise<NaverTheme[]> {
       }
     }
   } catch { /* noop */ }
-  // 네이버 테마 목록은 여러 페이지(보통 1~3p). 모두 fetch.
+  // pageSize 100 × 3p = 300 > 전체(266). totalCount 로 끊는다.
   const themes: NaverTheme[] = [];
   const seen = new Set<number>();
-  for (let page = 1; page <= 3; page++) {
+  for (let page = 1; page <= 5; page++) {
     try {
-      const url = `https://finance.naver.com/sise/sise_group.naver?type=theme&page=${page}`;
-      const resp = await fetchProxied(url);
+      const resp = await fetchProxied(
+        `https://m.stock.naver.com/api/stocks/theme?page=${page}&pageSize=100`);
       if (!resp.ok) break;
-      const html = await decodeNaverHtml(resp);
-      const re = /href="\/sise\/sise_group_detail\.naver\?type=theme&(?:amp;)?no=(\d+)">([^<]+)/g;
-      let m: RegExpExecArray | null;
+      const d = await resp.json() as { groups?: NaverThemeGroupRaw[]; totalCount?: number };
+      const groups = d.groups ?? [];
       let added = 0;
-      while ((m = re.exec(html)) !== null) {
-        const no = Number(m[1]);
-        if (seen.has(no)) continue;
+      for (const g of groups) {
+        const no = Number(g.no);
+        const name = (g.name ?? "").trim();
+        if (!Number.isFinite(no) || no <= 0 || !name || seen.has(no)) continue;
         seen.add(no);
-        themes.push({ no, name: m[2].trim() });
+        themes.push({ no, name });
         added++;
       }
-      if (added === 0) break;   // 더 이상 새 테마 없음 → 페이지 끝
+      if (added === 0 || themes.length >= (d.totalCount ?? 0)) break;
     } catch { break; }
   }
   if (themes.length > 0) {
@@ -3921,22 +3898,23 @@ async function loadNaverThemeList(): Promise<NaverTheme[]> {
   return themes;
 }
 
-// 특정 테마의 구성 종목 — HTML 스크랩
+// 특정 테마의 구성 종목
+interface NaverGroupStockRaw { itemCode?: string; stockName?: string; sosok?: string }
 export async function fetchNaverThemeStocks(no: number): Promise<SearchResult[]> {
-  const url = `https://finance.naver.com/sise/sise_group_detail.naver?type=theme&no=${no}`;
   try {
-    const resp = await fetchProxied(url);
+    const resp = await fetchProxied(
+      `https://m.stock.naver.com/api/stocks/theme/${no}?pageSize=100`);
     if (!resp.ok) return [];
-    const html = await decodeNaverHtml(resp);
-    const re = /href="\/item\/main\.naver\?code=([\dA-Za-z]{6})">([^<]+)/g;
+    const d = await resp.json() as { stocks?: NaverGroupStockRaw[] };
     const seen = new Set<string>();
     const out: SearchResult[] = [];
-    let m: RegExpExecArray | null;
-    while ((m = re.exec(html)) !== null) {
-      const code = m[1];
-      if (seen.has(code)) continue;
+    for (const st of d.stocks ?? []) {
+      const code = (st.itemCode ?? "").trim();
+      const name = (st.stockName ?? "").trim();
+      if (!/^[\dA-Za-z]{6}$/.test(code) || !name || seen.has(code)) continue;
       seen.add(code);
-      out.push({ ticker: code, name: m[2].trim(), market: "KOSPI" });
+      // sosok "0"=코스피, "1"=코스닥 (m.stock 공통 규칙)
+      out.push({ ticker: code, name, market: st.sosok === "1" ? "KOSDAQ" : "KOSPI" });
     }
     return out;
   } catch {
@@ -3977,38 +3955,27 @@ export async function searchNaverThemes(
 // 종목별 최근 애널리스트 리포트 목록 (네이버 리서치) — "컨센서스 이유" 표시용.
 // 같은 날 여러 리포트가 올라올 수 있어 다건 반환 (최신순).
 export interface ResearchReport { title: string; broker: string; date: string; url?: string }
+// ★ 2026-09-12: research/company_list.naver 도 SPA 가 됐다. 종목 integration JSON 의
+//   researches 배열이 같은 목록을 준다(bnm=증권사, tit=제목, wdt=YYYYMMDD).
+interface NaverResearchRaw { id?: number; bnm?: string; tit?: string; wdt?: string }
 export async function fetchRecentReports(ticker: string, limit = 8): Promise<ResearchReport[]> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
-  const target = `https://finance.naver.com/research/company_list.naver?searchType=itemCode&itemCode=${ticker}`;
   try {
-    const resp = await fetchProxied(target);
+    const resp = await fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/integration`);
     if (!resp.ok) return [];
-    const buf = await resp.arrayBuffer();
-    const html = decodeHtmlBuf(buf, resp.headers.get("Content-Type") || "");
-    const doc = new DOMParser().parseFromString(html, "text/html");
+    const d = await resp.json() as { researches?: NaverResearchRaw[] };
     const out: ResearchReport[] = [];
-    const links = Array.from(doc.querySelectorAll("a[href*='company_read']"));
-    for (const link of links) {
-      const title = (link.textContent ?? "").trim();
+    for (const r of d.researches ?? []) {
+      const title = (r.tit ?? "").trim();
       if (!title) continue;
-      let url = link.getAttribute("href") ?? "";
-      if (url && !/^https?:/.test(url)) {
-        url = url.startsWith("/") ? `https://finance.naver.com${url}`
-                                  : `https://finance.naver.com/research/${url}`;
-      }
-      const row = link.closest("tr");
-      let broker = "", date = "";
-      if (row) {
-        const tds = Array.from(row.querySelectorAll("td"));
-        const dateTd = tds.find(td => /\d{2}\.\d{2}\.\d{2}/.test(td.textContent ?? ""));
-        date = dateTd ? (dateTd.textContent ?? "").trim() : "";
-        const brokerTd = tds.find(td =>
-          td !== dateTd && !td.querySelector("a") && !td.querySelector("img")
-          && (td.textContent ?? "").trim().length > 0
-        );
-        broker = brokerTd ? (brokerTd.textContent ?? "").trim() : "";
-      }
-      out.push({ title, broker, date, url: url || undefined });
+      const w = (r.wdt ?? "").trim();   // "20260819" → "26.08.19" (기존 표기 유지)
+      const date = /^\d{8}$/.test(w) ? `${w.slice(2, 4)}.${w.slice(4, 6)}.${w.slice(6, 8)}` : w;
+      out.push({
+        title,
+        broker: (r.bnm ?? "").trim(),
+        date,
+        url: r.id ? `https://m.stock.naver.com/domestic/stock/${ticker}/research/${r.id}` : undefined,
+      });
       if (out.length >= limit) break;
     }
     return out;
@@ -4017,18 +3984,14 @@ export async function fetchRecentReports(ticker: string, limit = 8): Promise<Res
   }
 }
 
-// 6자리 코드 → 이름 단건 조회 (네이버 메인 title)
+// 6자리 코드 → 이름 단건 조회 (m.stock basic JSON — item/main.naver 는 SPA 가 돼 못 쓴다)
 export async function fetchStockName(ticker: string): Promise<string | null> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return null;
   try {
-    const resp = await fetchProxied(
-      `https://finance.naver.com/item/main.naver?code=${ticker}`);
+    const resp = await fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/basic`);
     if (!resp.ok) return null;
-    const buf = await resp.arrayBuffer();
-    const html = decodeHtmlBuf(buf, resp.headers.get("Content-Type") || "");
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const t = doc.querySelector("div.wrap_company h2 a");
-    const name = (t?.textContent ?? "").trim();
+    const d = await resp.json() as { stockName?: string };
+    const name = (d.stockName ?? "").trim();
     return name || null;
   } catch {
     return null;

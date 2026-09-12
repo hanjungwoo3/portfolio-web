@@ -1,7 +1,7 @@
 // 종목별 커뮤니티 팝업 — 토스 커뮤니티 + 네이버 종목토론실을 좌우로 나눠 한 화면에 동시 표시.
 //   둘 다 API/스크랩으로 "커뮤니티(글)만" 렌더 → 네이버 페이지 헤더/시세 chrome 없이 글 목록만.
 //   · 토스: wts-cert-api /api/v4/comments (fetchTossCommunity) — 닉네임·뱃지·보유여부·좋아요.
-//   · 네이버: finance.naver.com/item/board.naver 글 목록 스크랩(fetchNaverBoard) — 제목 클릭=원문.
+//   · 네이버: 새 증권 토론 API(fetchNaverBoard) — 제목 클릭=토론 탭. 2026-09-12 스크랩→JSON 전환.
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -125,7 +125,7 @@ function NaverPost({ p }: { p: NaverBoardPost }) {
       <div className="flex items-center gap-2 mt-1 text-[11px] text-gray-400">
         <span className="truncate max-w-[90px]">{p.author}</span>
         <span>{agoNaver(p.date)}</span>
-        <span className="ml-auto shrink-0">조회 {p.views.toLocaleString()}</span>
+        <span className="ml-auto shrink-0">댓글 {p.comments.toLocaleString()}</span>
         {p.up > 0 && <span className="text-rose-500 shrink-0">👍{p.up}</span>}
       </div>
     </a>
