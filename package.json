@@ -17,7 +17,9 @@
     "build:android": "BUILD_TARGET=native vite build && rm -rf dist/app && cap sync android",
     "android:open": "cap open android",
     "android:apk": "npm run build:android && cd android && ./gradlew assembleDebug",
-    "pack:app": "node scripts/pack-app.mjs"
+    "pack:app": "node scripts/pack-app.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",
@@ -51,6 +53,7 @@
     "typescript": "~6.0.2",
     "typescript-eslint": "^8.58.2",
     "vite": "^8.0.10",
-    "vite-plugin-pwa": "^1.2.0"
+    "vite-plugin-pwa": "^1.2.0",
+    "vitest": "^5.0.0"
   }
 }

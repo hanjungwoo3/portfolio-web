@@ -20,6 +20,7 @@ import {
 import type { FundamentalData, ConsensusReport, Shareholder } from "../lib/fundamentals";
 import { fetchEarningsEstimates } from "../lib/fundamentals";
 import { EarningsTrend } from "./EarningsTrend";
+import { DrawingChartDialog } from "./StockChart/DrawingChartDialog";
 import { FinancialCharts } from "./FinancialCharts";
 import { ConsensusCharts } from "./ConsensusCharts";
 import { PriceMultiSparks } from "./PriceMultiSparks";
@@ -55,7 +56,7 @@ interface Props {
 // 외부 링크 — 원래 모달 하단에 있었는데 스크롤해야 보여서 헤더로 올렸다.
 //   PC·모바일 두 줄이 같은 걸 써야 한쪽만 빠지는 일이 없다.
 //   토스는 모바일에서 앱 딥링크로 가른다(handleTossLinkClick). 나머지는 새 탭.
-function ExternalLinks({ ticker, name }: { ticker: string; name: string }) {
+function ExternalLinks({ ticker, name, onDraw }: { ticker: string; name: string; onDraw?: () => void }) {
   const tossUrl = `https://tossinvest.com/stocks/A${ticker}`;
   const cls = "px-1.5 py-0.5 rounded border border-gray-300 bg-white text-xs "
             + "text-gray-600 hover:bg-gray-100 whitespace-nowrap";
@@ -70,6 +71,11 @@ function ExternalLinks({ ticker, name }: { ticker: string; name: string }) {
       <a href={`https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=${ticker}`}
          target="_blank" rel="noopener noreferrer"
          title={`${name} Wisereport`} className={cls}>🔗 Wisereport</a>
+      {onDraw && (
+        <button type="button" onClick={onDraw} title={`${name} 차트에 선 그리기`} className={cls}>
+          ✏️ 그리기
+        </button>
+      )}
     </span>
   );
 }
@@ -421,6 +427,8 @@ export function ValuationModal({
   if (!isOpen) return null;
 
   const fund = data?.fundamental ?? {};
+  // 그리기 차트는 별도 팝업이다 — 기존 차트에 그리기 상태를 섞지 않는다.
+  const [drawOpen, setDrawOpen] = useState(false);
   const reports = data?.reports ?? [];
   const shareholders = data?.shareholders ?? [];
   // 컨센서스 목표가 (공식 우선, 없으면 리포트 단순평균)
@@ -458,7 +466,7 @@ export function ValuationModal({
                   🔍 추가
                 </button>
               )}
-              <ExternalLinks ticker={ticker} name={name} />
+              <ExternalLinks ticker={ticker} name={name} onDraw={() => setDrawOpen(true)} />
               {effCurPrice && (
                 <span className="text-base font-bold ml-3">
                   {effCurPrice.toLocaleString()}원
@@ -482,7 +490,7 @@ export function ValuationModal({
                 🔍 추가
               </button>
             )}
-            <ExternalLinks ticker={ticker} name={name} />
+            <ExternalLinks ticker={ticker} name={name} onDraw={() => setDrawOpen(true)} />
             {effCurPrice && (
               <span className="text-base font-bold ml-auto">
                 {effCurPrice.toLocaleString()}원
@@ -595,6 +603,8 @@ export function ValuationModal({
 
         </div>
       </div>
+      <DrawingChartDialog ticker={ticker} name={name}
+                          isOpen={drawOpen} onClose={() => setDrawOpen(false)} />
     </div>
   );
 }
