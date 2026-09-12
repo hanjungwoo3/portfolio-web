@@ -41,6 +41,7 @@ const TRADES: { key: FlowRankTrade; label: string }[] = [
 ];
 const ymd = (s: string) =>
   s.length === 8 ? `${s.slice(0, 4)}. ${+s.slice(4, 6)}. ${+s.slice(6, 8)}.` : s;
+const EMPTY: Set<string> = new Set();
 
 // 순매수 금액 — 억원 단위, 1조 이상은 "n조 n,nnn억"
 function fmtAmount(won: number): string {
@@ -67,10 +68,18 @@ interface FlowListProps {
   side: "buy" | "sell";
   selected: string | null;
   onSelect: (t: string | null) => void;
+  /** 외국인·기관이 같은 방향으로 함께 잡은 종목(쌍끌이) — 이 목록의 방향에 해당하는 것만 */
+  bothWay: Set<string>;
+  /** 쌍끌이만 보기 */
+  onlyBoth: boolean;
 }
-function FlowList({ rows, side, selected, onSelect }: FlowListProps) {
+function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth }: FlowListProps) {
   const listRef = useRef<HTMLUListElement>(null);
-  const total = rows.reduce((a, r) => a + Math.abs(r.amount), 0);
+  // ★ 순위는 거르기 전 원래 순위를 유지한다 — 걸러진 목록의 1,2,3 은 거짓이다.
+  const items = rows
+    .map((r, i) => ({ r, rank: i + 1 }))
+    .filter(x => !onlyBoth || bothWay.has(x.r.ticker));
+  const total = items.reduce((a, x) => a + Math.abs(x.r.amount), 0);
 
   // 다른 컬럼에서 고른 종목이 이 목록에선 스크롤 밖일 수 있다 → 보이는 곳까지.
   //  block:"nearest" — 이미 보이면 안 움직여서 화면이 덜 흔들린다.
@@ -89,26 +98,33 @@ function FlowList({ rows, side, selected, onSelect }: FlowListProps) {
         </span>
         <span className="ml-auto text-[10px] tabular-nums text-gray-500">{fmtAmount(total)}</span>
       </div>
-      {rows.length === 0 ? (
-        <div className="py-4 text-center text-[11px] text-gray-400">데이터 없음</div>
+      {items.length === 0 ? (
+        <div className="py-4 text-center text-[11px] text-gray-400">
+          {onlyBoth ? `동시 ${buy ? "매수" : "매도"} 종목 없음` : "데이터 없음"}
+        </div>
       ) : (
         <ul ref={listRef}
             className="space-y-0.5 max-h-[300px] overflow-y-auto pr-1
                        border border-gray-100 rounded p-1">
-          {rows.map((r, i) => (
+          {items.map(({ r, rank }) => (
             <li key={r.ticker} data-ticker={r.ticker}
                 onClick={() => onSelect(selected === r.ticker ? null : r.ticker)}
                 className={`flex items-center gap-1.5 px-1 py-1 rounded cursor-pointer transition-colors
                             ${selected === r.ticker
                               ? "bg-amber-200 ring-1 ring-amber-500"
-                              : "hover:bg-gray-50"}`}>
-              <span className="w-6 shrink-0 text-[10px] tabular-nums text-gray-400 text-right">{i + 1}</span>
+                              : bothWay.has(r.ticker)
+                                ? (buy ? "bg-rose-50/70 hover:bg-rose-100" : "bg-blue-50/70 hover:bg-blue-100")
+                                : "hover:bg-gray-50"}`}>
+              <span className="w-6 shrink-0 text-[10px] tabular-nums text-gray-400 text-right">{rank}</span>
               {r.logo && (
                 <img src={r.logo} alt="" loading="lazy"
                      className="w-4 h-4 rounded-full shrink-0 bg-gray-100" />
               )}
               <span className="flex-1 min-w-0">
-                <span className="block truncate text-xs font-medium text-gray-800">{r.name}</span>
+                <span className={`block truncate text-xs ${
+                  bothWay.has(r.ticker)
+                    ? (buy ? "font-bold text-rose-700" : "font-bold text-blue-700")
+                    : "font-medium text-gray-800"}`}>{r.name}</span>
                 <span className="block text-[10px] tabular-nums text-gray-500">
                   {r.close.toLocaleString()}원{" "}
                   <span className={signColor(r.pct)}>
@@ -128,17 +144,20 @@ function FlowList({ rows, side, selected, onSelect }: FlowListProps) {
   );
 }
 
-function FlowColumn({ group, investor, selected, onSelect }: {
+function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, onlyBoth }: {
   group: InvestorFlowGroup; investor: string;
   selected: string | null; onSelect: (t: string | null) => void;
+  bothBuy: Set<string>; bothSell: Set<string>; onlyBoth: boolean;
 }) {
   return (
     <div className="min-w-0">
       <div className="flex items-baseline gap-1.5 border-b border-gray-200 pb-1">
         <span className="text-xs font-bold text-gray-700">{investor}</span>
       </div>
-      <FlowList rows={group.buy.slice(0, ROWS)} side="buy" selected={selected} onSelect={onSelect} />
-      <FlowList rows={group.sell.slice(0, ROWS)} side="sell" selected={selected} onSelect={onSelect} />
+      <FlowList rows={group.buy.slice(0, ROWS)} side="buy" selected={selected} onSelect={onSelect}
+                bothWay={bothBuy} onlyBoth={onlyBoth} />
+      <FlowList rows={group.sell.slice(0, ROWS)} side="sell" selected={selected} onSelect={onSelect}
+                bothWay={bothSell} onlyBoth={onlyBoth} />
     </div>
   );
 }
@@ -190,6 +209,7 @@ export function InvestorFlowTab() {
     setSelected(prev => ({ ...prev, [sectionId]: ticker }));
   const [period, setPeriod] = useState<FlowRankPeriod>("DAY");
   const [trade, setTrade] = useState<FlowRankTrade>("KRX");
+  const [onlyBoth, setOnlyBoth] = useState(false);   // 쌍끌이만 보기
 
   // 코스피·코스닥을 동시에 부른다 — 토글로 갈아끼우면 둘을 나란히 비교할 수 없다.
   const { data: res, isLoading, isError, error, refetch } = useQuery({
@@ -220,6 +240,19 @@ export function InvestorFlowTab() {
   ].filter(s => s.cols.every(c => !!c.group)) : [];
   const data = sections.flatMap(s => s.cols.map(c => c.group));
 
+  // 쌍끌이 — 그 시장 안에서 외국인과 기관이 **같은 방향**으로 함께 잡은 종목.
+  //   한쪽만 사는 건 흔하지만 둘이 겹치면 수급이 한쪽으로 몰렸다는 신호라 눈에 띄어야 한다.
+  //   시장을 섞으면 안 된다 — 코스피 외국인과 코스닥 기관은 애초에 같은 종목을 볼 수 없다.
+  const bothWays = new Map<string, { buy: Set<string>; sell: Set<string> }>();
+  for (const s of sections) {
+    const [fo, org] = s.cols.map(c => c.group);
+    const inter = (a: InvestorFlowRow[], b: InvestorFlowRow[]) => {
+      const bs = new Set(b.map(r => r.ticker));
+      return new Set(a.filter(r => bs.has(r.ticker)).map(r => r.ticker));
+    };
+    bothWays.set(s.id, { buy: inter(fo.buy, org.buy), sell: inter(fo.sell, org.sell) });
+  }
+
   const rg = res?.kospi.range;
   const range = rg?.from
     ? (rg.from === rg.to ? `${ymd(rg.to)} (전일) 기준` : `${ymd(rg.from)} ~ ${ymd(rg.to)} 기준`)
@@ -236,6 +269,26 @@ export function InvestorFlowTab() {
           <span className="text-amber-600">상위 {ROWS}종목만이라 시장 전체 합계와 다릅니다</span>
           (중간 순위 종목이 빠집니다) · 개인은 이 소스에 없습니다
         </span>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px]">
+          <button type="button" onClick={() => setOnlyBoth(v => !v)}
+                  title="외국인과 기관이 같은 방향으로 함께 잡은 종목만 남깁니다"
+                  className={`px-2 py-0.5 rounded border font-bold transition ${
+                    onlyBoth ? "bg-gray-800 text-white border-gray-800"
+                             : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>
+            🔗 쌍끌이만
+          </button>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm bg-rose-50 border border-rose-200" />
+            <b className="text-rose-700">동시 매수</b>
+          </span>
+          <span className="inline-flex items-center gap-1">
+            <span className="w-3 h-3 rounded-sm bg-blue-50 border border-blue-200" />
+            <b className="text-blue-700">동시 매도</b>
+          </span>
+          <span className="text-gray-400">
+            같은 시장·같은 방향만 · 순위는 거르기 전 원래 순위입니다
+          </span>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
@@ -289,7 +342,10 @@ export function InvestorFlowTab() {
                 {s.cols.map(c => (
                   <FlowColumn key={c.investor} group={c.group} investor={c.investor}
                               selected={selected[s.id] ?? null}
-                              onSelect={tk => pick(s.id, tk)} />
+                              onSelect={tk => pick(s.id, tk)}
+                              bothBuy={bothWays.get(s.id)?.buy ?? EMPTY}
+                              bothSell={bothWays.get(s.id)?.sell ?? EMPTY}
+                              onlyBoth={onlyBoth} />
                 ))}
               </div>
             </section>
