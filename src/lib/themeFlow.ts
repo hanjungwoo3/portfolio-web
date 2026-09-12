@@ -18,6 +18,17 @@ import { hasDedicatedTransport } from "./proxyConfig";
 
 const URL_CARDS =
   "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/main/data/theme-cards.json";
+// 네이버 전체 분류(업종 79 · 테마 266)의 **구성종목만** 담은 파일. 등락률은 여기서 직접 낸다.
+//   네이버도 등락률을 주지만 계산 기준이 공개돼 있지 않고 잡주 필터가 없어서, 우리 카드와
+//   숫자가 섞이면 같은 화면에서 기준이 둘이 된다. 분류만 빌리고 계산은 하나로 통일한다.
+const URL_GROUPS =
+  "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/main/data/group-members.json";
+
+/** 카드 묶음의 출처. cards = 우리가 고른 38개, 나머지는 네이버 분류 그대로. */
+export type GroupSource = "cards" | "industry" | "theme";
+export const GROUP_SOURCE_LABEL: Record<GroupSource, string> = {
+  cards: "테마 카드", industry: "업종", theme: "네이버 테마",
+};
 
 interface ThemeCardData {
   cards: Record<string, string[]>;    // 카드명 → 종목코드[]
@@ -69,7 +80,12 @@ export interface ThemeFlow {
 //   (실측 2026-09-09: 2차전지 전 종목 +2.27% vs 이 방식 +6.05%)
 const LEAD = 20;
 
-const LS_KEY = "theme_flow_v6";   // v6: 세션 경계를 구간별로(프리·정규·애프터)
+// 출처별로 캐시를 나눈다 — 한 키를 돌려 쓰면 토글할 때마다 다른 묶음의 값이 잠깐 보인다.
+const LS_KEY_BY: Record<GroupSource, string> = {
+  cards: "theme_flow_v6",          // v6: 세션 경계를 구간별로(프리·정규·애프터)
+  industry: "theme_flow_ind_v1",
+  theme: "theme_flow_nvtheme_v1",
+};
 // v4 — 빈 결과를 캐시하던 버그 때문에 한 번 갈아엎는다(아래 주석 참고).
 const LS_CARDS = "theme_cards_v4";
 const LS_CARDS_TS = "theme_cards_ts_v4";
@@ -77,6 +93,48 @@ const CARDS_TTL_MS = 12 * 60 * 60 * 1000;
 
 let cardsMemo: ThemeCardData | null = null;
 let cardsInflight: Promise<ThemeCardData> | null = null;
+// 업종·테마는 같은 파일에서 나온다 — 한 번 받아 둘 다 쓴다.
+let groupsMemo: GroupFile | null = null;
+let groupsInflight: Promise<GroupFile> | null = null;
+
+interface GroupEntry { id: string; name: string; codes: string[] }
+interface GroupFile {
+  industries: GroupEntry[]; themes: GroupEntry[];
+  names: Record<string, string>; caps: Record<string, number>;
+  minCap: number;
+}
+
+async function loadGroupFile(): Promise<GroupFile> {
+  if (groupsMemo) return groupsMemo;
+  if (groupsInflight) return groupsInflight;
+  groupsInflight = (async () => {
+    const r = await fetch(URL_GROUPS, { cache: "no-store" });
+    if (!r.ok) throw new Error(`group-members HTTP ${r.status}`);
+    const j = await r.json() as GroupFile & { meta?: { minCap?: number } };
+    groupsMemo = {
+      industries: j.industries ?? [], themes: j.themes ?? [],
+      names: j.names ?? {}, caps: j.caps ?? {},
+      minCap: j.meta?.minCap ?? 0,
+    };
+    return groupsMemo;
+  })();
+  groupsInflight.finally(() => { groupsInflight = null; });
+  return groupsInflight;
+}
+
+/** 출처에 맞는 '카드명 → 종목코드[]' 를 돌려준다. 아래 계산은 출처를 구분하지 않는다. */
+async function loadCardsFor(source: GroupSource): Promise<ThemeCardData> {
+  if (source === "cards") return loadThemeCards();
+  const g = await loadGroupFile();
+  const list = source === "industry" ? g.industries : g.themes;
+  const cards: Record<string, string[]> = {};
+  for (const e of list) {
+    // 이름이 겹치면 뒤엣것이 덮어써 카드가 사라진다 — 번호를 붙여 살린다.
+    const key = cards[e.name] ? `${e.name} (${e.id})` : e.name;
+    cards[key] = e.codes;
+  }
+  return { cards, names: g.names, caps: g.caps, minCap: g.minCap };
+}
 
 export function loadThemeCards(): Promise<ThemeCardData> {
   if (cardsMemo) return Promise.resolve(cardsMemo);
@@ -117,9 +175,9 @@ export function loadThemeCards(): Promise<ThemeCardData> {
   return cardsInflight;
 }
 
-export function loadCachedThemeFlow(): ThemeFlow | null {
+export function loadCachedThemeFlow(source: GroupSource = "cards"): ThemeFlow | null {
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(LS_KEY_BY[source]);
     if (!raw) return null;
     const f = JSON.parse(raw) as ThemeFlow;
     return Array.isArray(f.themes) ? f : null;
@@ -133,8 +191,8 @@ function median(xs: number[]): number {
   return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2;
 }
 
-export async function fetchThemeFlow(): Promise<ThemeFlow> {
-  const { cards, names, caps, minCap } = await loadThemeCards();
+export async function fetchThemeFlow(source: GroupSource = "cards"): Promise<ThemeFlow> {
+  const { cards, names, caps, minCap } = await loadCardsFor(source);
   // 카드끼리 종목이 겹치므로(삼성SDI = 2차전지 + 전기차) 합집합으로 한 번만 받는다.
   const union = [...new Set(Object.values(cards).flat())];
   const prices = await fetchTossPrices(union);
@@ -214,14 +272,15 @@ export async function fetchThemeFlow(): Promise<ThemeFlow> {
     total: union.length,
     minCap, tradeDate, themes,
   };
-  try { localStorage.setItem(LS_KEY, JSON.stringify(flow)); } catch { /* noop */ }
+  try { localStorage.setItem(LS_KEY_BY[source], JSON.stringify(flow)); } catch { /* noop */ }
   return flow;
 }
 
 // ETF 랭킹과 같은 규칙 — 자동 조회는 전용 전송(확장·앱·개인 워커)에서만, 최소 간격 5분.
 //   공개 프록시 사용자는 캐시를 보고 새로고침 버튼으로 직접 받는다.
-let inFlight: Promise<ThemeFlow> | null = null;
-let lastAutoAt = 0;
+// 출처별로 따로 — 업종을 받는 중에 테마로 바꿨다고 그 요청을 재활용하면 안 된다.
+const inFlight: Partial<Record<GroupSource, Promise<ThemeFlow>>> = {};
+const lastAutoAt: Partial<Record<GroupSource, number>> = {};
 const AUTO_MIN_GAP_MS = 5 * 60 * 1000;
 
 export interface ThemeFlowState {
@@ -230,29 +289,33 @@ export interface ThemeFlowState {
   refresh: () => void;
 }
 
-export function useThemeFlow(enabled: boolean): ThemeFlowState {
-  const [flow, setFlow] = useState<ThemeFlow | null>(() => loadCachedThemeFlow());
+export function useThemeFlow(enabled: boolean, source: GroupSource = "cards"): ThemeFlowState {
+  const [flow, setFlow] = useState<ThemeFlow | null>(() => loadCachedThemeFlow(source));
   const [loading, setLoading] = useState(false);
+
+  // 출처를 바꾸면 그 출처의 캐시부터 보여준다 — 비워 두면 화면이 한 번 깜빡인다.
+  useEffect(() => { setFlow(loadCachedThemeFlow(source)); }, [source]);
 
   const refresh = useCallback(() => {
     setLoading(true);
-    void fetchThemeFlow()
+    void fetchThemeFlow(source)
       .then(setFlow)
       .catch(() => { /* 실패하면 이전 캐시를 그대로 둔다 */ })
       .finally(() => setLoading(false));
-  }, []);
+  }, [source]);
 
   useEffect(() => {
     if (!enabled) return;
     if (!hasDedicatedTransport()) return;
-    if (Date.now() - lastAutoAt < AUTO_MIN_GAP_MS) return;
-    lastAutoAt = Date.now();
+    const last = lastAutoAt[source] ?? 0;
+    if (Date.now() - last < AUTO_MIN_GAP_MS) return;
+    lastAutoAt[source] = Date.now();
     // StrictMode 이중 실행을 합치되, 끝나면 비운다(다시 들어오면 새로 받게).
-    inFlight ??= fetchThemeFlow().finally(() => { inFlight = null; });
+    inFlight[source] ??= fetchThemeFlow(source).finally(() => { delete inFlight[source]; });
     let alive = true;
-    void inFlight.then(f => { if (alive) setFlow(f); }).catch(() => { /* 캐시 유지 */ });
+    void inFlight[source]?.then(f => { if (alive) setFlow(f); }).catch(() => { /* 캐시 유지 */ });
     return () => { alive = false; };
-  }, [enabled]);
+  }, [enabled, source]);
 
   return { flow, loading, refresh };
 }

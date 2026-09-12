@@ -91,7 +91,7 @@ import { AssetTrendTab } from "./AssetTrendTab";
 import { TickArrow } from "./TickArrow";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { ThemeFlow, ThemeDialog } from "./ThemeFlow";
-import { useThemeFlow, type ThemeStat } from "../lib/themeFlow";
+import { useThemeFlow, type ThemeStat, type GroupSource } from "../lib/themeFlow";
 import { EtfReverseDialog } from "./EtfReverseDialog";
 import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
@@ -153,7 +153,9 @@ export function MobileSimpleView() {
   const [searchInitQuery, setSearchInitQuery] = useState("");
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   // 섹터별 흐름 — 고정 22종 대신 전수 랭킹 스냅샷(PC 와 동일). 없으면 고정 카드로 폴백.
-  const { flow: themeFlow, loading: themeLoading, refresh: refreshThemes } = useThemeFlow(true);
+  // 카드 묶음 출처 — 우리 38카드 / 네이버 업종 / 네이버 테마. 계산 기준은 셋 다 같다.
+  const [themeSource, setThemeSource] = useState<GroupSource>("cards");
+  const { flow: themeFlow, loading: themeLoading, refresh: refreshThemes } = useThemeFlow(true, themeSource);
   const themeStats = themeFlow?.themes ?? [];
   const hasThemeFlow = themeStats.length > 0;
   const [themeDlg, setThemeDlg] = useState<ThemeStat | null>(null);
@@ -1500,7 +1502,8 @@ export function MobileSimpleView() {
                              fetchedAt={themeFlow?.fetchedAt} minCap={themeFlow?.minCap}
                              tradeDate={themeFlow?.tradeDate}
                              scanned={themeFlow?.scanned} total={themeFlow?.total}
-                             onRefresh={refreshThemes} refreshing={themeLoading} />
+                             onRefresh={refreshThemes} refreshing={themeLoading}
+                             source={themeSource} onSource={setThemeSource} />
                 )}
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
                   {(section.render === "sectorFlow" && hasThemeFlow ? []

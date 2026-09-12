@@ -6,9 +6,15 @@
 // ★ 데이터는 '스냅샷' 이다. 419종 시세 = 약 3 프록시 콜이라 폴링에 못 태운다.
 //   지수 탭의 다른 카드가 실시간인 것과 달리 여기는 '기준 시각' 이 붙는다.
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { signColor } from "../lib/format";
-import type { ThemeStat, ThemeStock } from "../lib/themeFlow";
+import type { ThemeStat, ThemeStock, GroupSource } from "../lib/themeFlow";
+import { GROUP_SOURCE_LABEL } from "../lib/themeFlow";
+
+// 카드가 53(테마)·43(업종)·177(네이버 테마)개다. 전부 깔면 화면이 목록이 되므로
+//   기본은 **상·하위 15개씩 30개**만 보여주고 필요할 때 펼친다. 정렬이 중앙값 등락률
+//   내림차순이라 위는 오늘 강한 섹터, 아래는 약한 섹터가 된다 — 한쪽만 보면 반쪽이다.
+const TOP_FOLD = 15;
 
 // 거래대금 — 원 → 억/조.
 function fmtValue(won: number): string {
@@ -65,7 +71,8 @@ function ThemeCard({ t, onClick }: { t: ThemeStat; onClick: () => void }) {
 }
 
 export function ThemeFlow({ themes, onPick, fetchedAt, minCap, tradeDate,
-                            scanned, total, onRefresh, refreshing }: {
+                            scanned, total, onRefresh, refreshing,
+                            source, onSource }: {
   themes: ThemeStat[];
   onPick: (t: ThemeStat) => void;
   fetchedAt?: number;
@@ -75,7 +82,16 @@ export function ThemeFlow({ themes, onPick, fetchedAt, minCap, tradeDate,
   total?: number;              // 편입 종목 수
   onRefresh?: () => void;
   refreshing?: boolean;
+  source?: GroupSource;                    // 카드 묶음 출처 (우리 카드 / 업종 / 네이버 테마)
+  onSource?: (s: GroupSource) => void;
 }) {
+  // 업종·네이버 테마는 카드가 수십~수백 개다. 전부 깔면 화면이 목록이 되어버리니
+  //   기본은 상·하위만 보여주고 필요할 때 펼친다.
+  const [expanded, setExpanded] = useState(false);
+  const many = themes.length > TOP_FOLD * 2;
+  const shown = !many || expanded
+    ? themes
+    : [...themes.slice(0, TOP_FOLD), ...themes.slice(-TOP_FOLD)];
   if (themes.length === 0) return null;
   const stamp = fetchedAt
     ? new Date(fetchedAt + 9 * 3600_000).toISOString().slice(11, 16)   // KST HH:MM
@@ -93,6 +109,22 @@ export function ThemeFlow({ themes, onPick, fetchedAt, minCap, tradeDate,
   const partial = !!scanned && !!total && scanned < total * 0.9;
   return (
     <>
+      {/* 출처 전환 — 분류만 네이버에서 빌리고 계산(시총 하한·중앙값·세션)은 셋 다 같다 */}
+      {source && onSource && (
+        <div className="flex items-center gap-1 mb-1 flex-wrap">
+          {(Object.keys(GROUP_SOURCE_LABEL) as GroupSource[]).map(k => (
+            <button key={k} onClick={() => onSource(k)}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold border transition ${
+                      source === k ? "bg-gray-800 text-white border-gray-800"
+                                   : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}>
+              {GROUP_SOURCE_LABEL[k]}
+            </button>
+          ))}
+          <span className="text-[10px] text-gray-400 ml-1">
+            분류만 다르고 계산 기준은 같습니다
+          </span>
+        </div>
+      )}
       <div className="flex items-center gap-2 text-[11px] text-gray-500 px-0.5 -mt-0.5 mb-1 flex-wrap">
         <span>
           {minCap ? `시총 ${capFloor(minCap)}↑ 중 ` : ""}거래대금 상위 20종의 중앙값 등락률 순 ·{" "}
@@ -123,8 +155,17 @@ export function ThemeFlow({ themes, onPick, fetchedAt, minCap, tradeDate,
         )}
       </div>
       <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-6 gap-2">
-        {themes.map(t => <ThemeCard key={t.key} t={t} onClick={() => onPick(t)} />)}
+        {shown.map(t => <ThemeCard key={t.key} t={t} onClick={() => onPick(t)} />)}
       </div>
+      {many && (
+        <button onClick={() => setExpanded(v => !v)}
+                className="mt-1 w-full py-1 rounded border border-gray-300 bg-white text-[11px]
+                           text-gray-600 hover:bg-gray-50">
+          {expanded
+            ? `접기 (상·하위 ${TOP_FOLD}개씩)`
+            : `전체 ${themes.length}개 보기 (지금은 상·하위 ${TOP_FOLD}개씩 ${TOP_FOLD * 2}개)`}
+        </button>
+      )}
     </>
   );
 }
