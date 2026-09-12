@@ -70,8 +70,9 @@ export interface ThemeFlow {
 const LEAD = 20;
 
 const LS_KEY = "theme_flow_v6";   // v6: 세션 경계를 구간별로(프리·정규·애프터)
-const LS_CARDS = "theme_cards_v3";   // v3: minCap(적용된 시총 하한) 추가
-const LS_CARDS_TS = "theme_cards_ts_v3";
+// v4 — 빈 결과를 캐시하던 버그 때문에 한 번 갈아엎는다(아래 주석 참고).
+const LS_CARDS = "theme_cards_v4";
+const LS_CARDS_TS = "theme_cards_ts_v4";
 const CARDS_TTL_MS = 12 * 60 * 60 * 1000;
 
 let cardsMemo: ThemeCardData | null = null;
@@ -85,8 +86,15 @@ export function loadThemeCards(): Promise<ThemeCardData> {
       const ts = Number(localStorage.getItem(LS_CARDS_TS) ?? "0");
       const raw = localStorage.getItem(LS_CARDS);
       if (raw && Date.now() - ts < CARDS_TTL_MS) {
-        cardsMemo = JSON.parse(raw) as ThemeCardData;
-        return cardsMemo;
+        const cached = JSON.parse(raw) as ThemeCardData;
+        // ★ 빈 카드는 캐시로 인정하지 않는다.
+        //   2026-09-12: 네이버가 테마 페이지를 옮겨 크롤러가 0개를 냈는데, 그 빈 결과가
+        //   12시간 캐시에 굳어 데이터를 고친 뒤에도 "한국 섹터" 가 계속 비어 있었다.
+        //   빈 값은 정상 상태가 아니므로 캐시 적중으로 치지 말고 다시 받는다.
+        if (Object.keys(cached.cards ?? {}).length > 0) {
+          cardsMemo = cached;
+          return cardsMemo;
+        }
       }
     } catch { /* noop */ }
     const r = await fetch(URL_CARDS, { cache: "no-store" });
@@ -96,10 +104,13 @@ export function loadThemeCards(): Promise<ThemeCardData> {
       cards: json.cards ?? {}, names: json.names ?? {}, caps: json.caps ?? {},
       minCap: json.meta?.themeMinCap ?? 0,
     };
-    try {
-      localStorage.setItem(LS_CARDS, JSON.stringify(cardsMemo));
-      localStorage.setItem(LS_CARDS_TS, String(Date.now()));
-    } catch { /* 용량 초과 — 캐시 없이도 동작 */ }
+    // 빈 결과는 저장하지 않는다 — 저장하면 다음 로드가 또 빈 화면으로 시작한다.
+    if (Object.keys(cardsMemo.cards).length > 0) {
+      try {
+        localStorage.setItem(LS_CARDS, JSON.stringify(cardsMemo));
+        localStorage.setItem(LS_CARDS_TS, String(Date.now()));
+      } catch { /* 용량 초과 — 캐시 없이도 동작 */ }
+    }
     return cardsMemo;
   })();
   cardsInflight.finally(() => { cardsInflight = null; });
