@@ -551,8 +551,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       {themeDlg && (
         <ThemeDialog theme={themeDlg} minCap={themeFlow?.minCap}
                      onClose={() => setThemeDlg(null)}
+                     // 섹터 팝업은 닫지 않는다 — 기업가치를 덮어 띄우고 Esc 로 돌아오게 한다.
                      onOpenStock={(code, name) => {
-                       setThemeDlg(null);
                        // 기업가치 모달이 있으면 그쪽으로. 없으면 검색으로 폴백한다.
                        if (onOpenValuation) onOpenValuation(code, name);
                        else onRequestSearch?.(name || code);

@@ -1199,7 +1199,8 @@ function Dashboard() {
       <SimpleViewModal isOpen={simpleOpen} onClose={() => setSimpleOpen(false)}
                        title={tabs.find(t => t.key === activeTab)?.label ?? activeTab}
                        stocks={sortedVisible} priceMap={priceMap} chartMap={chartMap}
-                       targetMap={new Map(krxTickers.map(t => [t, naverMap.get(t)?.consensus?.target]))} />
+                       targetMap={new Map(krxTickers.map(t => [t, naverMap.get(t)?.consensus?.target]))}
+                       onOpenValuation={setValuationTicker} krRegMap={krRegMap} />
 
       {etfDialog && (
         <EtfCompositionDialog isOpen={true}

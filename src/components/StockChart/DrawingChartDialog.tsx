@@ -25,6 +25,7 @@ import { loadDrawings, saveDrawings } from "../../lib/stockChart/storage";
 import { distToSegment, isDegenerate, snapToBar, smaAligned } from "../../lib/stockChart/geometry";
 import { toLwTime, tickLabel, fullLabel, fmtKrw } from "../../lib/stockChart/lwAdapter";
 import { maColor } from "../../lib/indicators";
+import { useEscClose } from "../../lib/useEscClose";
 import { ChartToolbar } from "./ChartToolbar";
 import { DrawingList } from "./DrawingList";
 
@@ -449,16 +450,18 @@ export function DrawingChartDialog({ ticker, name, isOpen, onClose }: Props) {
   };
 
   // ── 키보드 ───────────────────────────────────────────────
+  // Esc 는 공용 훅에 맡긴다 — 기업가치 위에 겹쳐 뜨므로 '맨 위 모달만 닫기' 규칙을 타야
+  //   한다. 직접 window 리스너를 달면 아래 모달까지 같이 닫힌다.
+  useEscClose(isOpen, () => {
+    if (pendingA || tool) { cancelPending(); setTool(null); return; }   // 미완성 선만 취소
+    onClose();
+  });
+
   useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
       const el = e.target as HTMLElement | null;
       const typing = !!el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.isContentEditable);
-      if (e.key === "Escape") {
-        if (pendingA || tool) { cancelPending(); setTool(null); return; }
-        onClose();
-        return;
-      }
       if (typing) return;    // 입력창에서는 텍스트 편집 단축키가 우선
       const mod = e.metaKey || e.ctrlKey;
       if (mod && e.key.toLowerCase() === "z") {

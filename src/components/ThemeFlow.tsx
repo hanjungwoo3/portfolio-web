@@ -6,29 +6,20 @@
 // ★ 데이터는 '스냅샷' 이다. 419종 시세 = 약 3 프록시 콜이라 폴링에 못 태운다.
 //   지수 탭의 다른 카드가 실시간인 것과 달리 여기는 '기준 시각' 이 붙는다.
 
-import { useEffect, useRef, useState } from "react";
-import { signColor } from "../lib/format";
+import { useCallback, useRef, useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchTossKrCandles } from "../lib/api";
+import { signColor, isKrHoldingClosed } from "../lib/format";
 import type { ThemeStat, ThemeStock, GroupSource } from "../lib/themeFlow";
 import { GROUP_SOURCE_LABEL } from "../lib/themeFlow";
+import { SimplePriceCard } from "./SimplePriceCard";
+import { useEscClose } from "../lib/useEscClose";
+import { getDimSleepingEnabled } from "../lib/proxyConfig";
 
 // 카드가 53(테마)·43(업종)·177(네이버 테마)개다. 전부 깔면 화면이 목록이 되므로
 //   기본은 **상·하위 15개씩 30개**만 보여주고 필요할 때 펼친다. 정렬이 중앙값 등락률
 //   내림차순이라 위는 오늘 강한 섹터, 아래는 약한 섹터가 된다 — 한쪽만 보면 반쪽이다.
 const TOP_FOLD = 15;
-
-// 거래대금 — 원 → 억/조.
-function fmtValue(won: number): string {
-  if (!(won > 0)) return "—";
-  const jo = won / 1e12;
-  if (jo >= 1) return `${jo.toFixed(2)}조`;
-  return `${Math.round(won / 1e8).toLocaleString()}억`;
-}
-
-// 시가총액 — 억원 단위로 들어온다.
-function fmtCap(eok: number): string {
-  if (!(eok > 0)) return "";
-  return eok >= 10000 ? `${(eok / 10000).toFixed(1)}조` : `${eok.toLocaleString()}억`;
-}
 
 // 시총 하한 문구 — 스냅샷에 실린 값을 그대로 쓴다. 숫자를 코드에 박으면 하한을 바꿨을 때
 //   12시간짜리 캐시가 옛 파일을 물고 있어 문구와 목록이 어긋난다(실제로 그랬다).
@@ -171,6 +162,55 @@ export function ThemeFlow({ themes, onPick, fetchedAt, minCap, tradeDate,
 }
 
 // 테마 종목 팝업 — 등락률 순. 추가 조회 없이 스냅샷에서 그린다.
+// 스파크라인은 종목당 1콜(일봉)이라 팝업을 열자마자 전부 받으면 100콜이 넘는 카드가 있다.
+//   화면에 들어온 카드만 받는다 — 앱의 StockCard 가 표시용 쿼리를 켜는 방식과 같다.
+//   react-query 가 캐시하므로 다시 스크롤해 돌아와도 추가 호출이 없다.
+function ThemeStockCell({ r, rank, closedDim, onOpenStock }: {
+  r: ThemeStock; rank: number; closedDim: boolean;
+  onOpenStock?: (code: string, name: string) => void;
+}) {
+  const [seen, setSeen] = useState(false);
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    if (!el || seen) return;
+    const io = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) { setSeen(true); io.disconnect(); }
+    }, { rootMargin: "120px" });
+    io.observe(el);
+  }, [seen]);
+
+  const { data: candles } = useQuery({
+    queryKey: ["toss-candles", r.code, "day"],   // 기업가치 팝업과 같은 키 — 캐시를 함께 쓴다
+    queryFn: () => fetchTossKrCandles(r.code, "day", 60),
+    enabled: seen,
+    staleTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+  const chart = (candles ?? []).map(c => c.close).filter(v => v > 0);
+
+  return (
+    <div ref={ref} className="min-w-0">
+      <SimplePriceCard
+        ticker={r.code} name={r.name}
+        price={r.price} base={r.base} high={r.high} low={r.low}
+        chart={chart}
+        // 흐림은 두 가지다 — ① 장 마감(기본 카드와 같은 판정) ② 이번 세션 미체결.
+        //   ②만 보면 장이 닫힌 뒤엔 전 종목이 '체결됨' 으로 잡혀 아무것도 안 흐려진다.
+        dimmed={closedDim || !r.fresh}
+        badge={
+          <span className="text-[10px] tabular-nums text-gray-400 shrink-0">
+            #{rank}{!r.fresh && <span className="ml-0.5 text-gray-400">·미체결</span>}
+          </span>
+        }
+        actions={onOpenStock
+          ? <button onClick={() => onOpenStock(r.code, r.name)}
+                    title={`${r.name} 기업가치 보기`}
+                    className="text-[11px] leading-none opacity-70 hover:opacity-100">📊</button>
+          : null}
+      />
+    </div>
+  );
+}
+
 export function ThemeDialog({ theme, minCap, onClose, onOpenStock }: {
   theme: ThemeStat;
   minCap?: number;
@@ -180,23 +220,22 @@ export function ThemeDialog({ theme, minCap, onClose, onOpenStock }: {
   // 체결된 것부터, 그 안에서 등락률 순. 미체결(값이 어제 것)은 뒤로 몰아 흐리게 보여준다.
   const rows: ThemeStock[] = [...theme.rows].sort((a, b) =>
     (a.fresh === b.fresh ? b.pct - a.pct : a.fresh ? -1 : 1));
+  // 장 마감 흐림 — 기본 종목 카드와 같은 규칙(설정으로 끌 수 있다).
+  const closedDim = getDimSleepingEnabled() && isKrHoldingClosed();
   // 배경 클릭 판정 — 목록에서 드래그하다 배경에서 손을 떼도 닫히면 안 된다.
   const downOnBackdropRef = useRef(false);
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // 공용 훅을 쓴다 — 위에 기업가치 모달이 떠 있으면 Esc 가 그쪽만 닫는다.
+  useEscClose(true, onClose);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
+    <div className="fixed inset-0 z-40 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
          onMouseDown={e => { if (e.target === e.currentTarget) downOnBackdropRef.current = true; }}
          onMouseUp={e => {
            if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
            downOnBackdropRef.current = false;
          }}>
-      <div className="w-full sm:max-w-lg max-h-[85vh] overflow-hidden flex flex-col
+      <div className="w-full sm:max-w-5xl max-h-[85vh] overflow-hidden flex flex-col
                       rounded-t-xl sm:rounded-xl bg-white shadow-xl"
            onMouseDown={e => e.stopPropagation()}>
         <header className="px-4 py-3 border-b bg-gray-50 flex items-baseline gap-2">
@@ -211,41 +250,22 @@ export function ThemeDialog({ theme, minCap, onClose, onOpenStock }: {
                   className="ml-auto text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </header>
 
-        <div className="overflow-y-auto overscroll-contain">
-          {rows.map((r, i) => (
-            <button key={r.code}
-                    onClick={() => onOpenStock?.(r.code, r.name)}
-                    title={r.fresh
-                      ? `${r.name} 기업가치 보기`
-                      : "이번 세션 미체결 — 값이 직전 거래일 것이라 계산에서 제외"}
-                    className={`w-full flex items-center gap-2 px-3 py-2 text-left border-b border-gray-100
-                               hover:bg-gray-50 transition-colors ${r.fresh ? "" : "opacity-60"}`}>
-              <span className="w-5 shrink-0 text-[11px] tabular-nums text-gray-400 text-right">{i + 1}</span>
-              <span className="flex-1 min-w-0">
-                <span className="block truncate text-sm text-gray-800">
-                  {r.name}
-                  {!r.fresh && <span className="ml-1 text-[10px] text-gray-400">미체결</span>}
-                </span>
-                <span className="block text-[11px] text-gray-400 tabular-nums">
-                  시총 {fmtCap(r.cap)} · 거래대금 {fmtValue(r.value)}
-                </span>
-              </span>
-              <span className="shrink-0 text-right">
-                <span className={`block text-sm font-bold tabular-nums ${signColor(r.pct)}`}>
-                  {r.pct > 0 ? "+" : ""}{r.pct.toFixed(2)}%
-                </span>
-                <span className="block text-[11px] text-gray-600 tabular-nums">
-                  {r.price.toLocaleString()}
-                </span>
-              </span>
-            </button>
-          ))}
+        {/* 앱의 '심플 보기' 와 같은 현재가 박스를 쓴다 — 한 화면에서 카드 모양이 두 가지면
+            같은 숫자를 다르게 읽게 된다. 순위·시총·거래대금은 badge 로 얹는다. */}
+        <div className="overflow-y-auto overscroll-contain px-3 py-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-2 gap-y-3.5 items-stretch">
+            {rows.map((r, i) => (
+              <ThemeStockCell key={r.code} r={r} rank={i + 1}
+                              closedDim={closedDim} onOpenStock={onOpenStock} />
+            ))}
+          </div>
         </div>
 
         <p className="px-3 py-2 text-[10px] text-gray-400 border-t leading-relaxed">
-          {theme.rows.length}종 전체 · 체결분 먼저, 등락률 높은 순 (조회 시점 기준).
+          {theme.rows.length}종 전체 · 거래대금 많은 순, 체결분 먼저 (조회 시점 기준).
           흐린 종목은 이번 세션 미체결이라 카드의 중앙값 계산에서 빠집니다.
-          종목을 누르면 기업가치가 열립니다.
+          종목명을 누르면 토스, 📊 를 누르면 기업가치가 열립니다.
+          배경 차트는 최근 60거래일 종가이며, 화면에 들어온 카드만 받아옵니다.
           {minCap ? ` 시가총액 ${minCap.toLocaleString()}억 미만은 목록에서 제외됩니다.` : ""}
           {" "}카드의 중앙값은 이 중 거래대금 상위 20종으로 계산합니다.
         </p>

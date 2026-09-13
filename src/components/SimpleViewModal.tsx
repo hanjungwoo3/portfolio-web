@@ -1,11 +1,15 @@
 // 심플 보기 팝업 — 현재 탭 종목들을 "현재가 박스"(목/고/현재가/저)만 컴팩트 그리드로.
-// StockCard 가격박스와 동일한 폰트·색·배경. 메인 카드(자세히)는 그대로.
-import type { ReactElement } from "react";
+// 카드 본체는 SimplePriceCard 가 그린다 — 섹터(업종·테마) 팝업과 같은 컴포넌트다.
+// 두 곳이 각자 그리면 같은 숫자가 다르게 보이기 시작한다.
 import type { Stock, Price } from "../types";
-import { formatSigned, signColor } from "../lib/format";
-import { openTossStock } from "../lib/toss";
-import { Sparkline } from "./Sparkline";
+import { SimplePriceCard } from "./SimplePriceCard";
+import { marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, isKrHoldingClosed } from "../lib/format";
+import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEscClose } from "../lib/useEscClose";
+
+// 흐림 판정에 필요한 최소 형태만 — StockCard·MobileStockCard 가 각자 KrRegInfo 를
+//   로컬 선언해 둬서 가져올 곳이 없다. 여기서도 쓰는 필드만 구조적으로 받는다.
+interface KrRegLite { tradingEnd?: string; nextTradingStart?: string }
 
 interface Props {
   isOpen: boolean;
@@ -15,9 +19,14 @@ interface Props {
   priceMap: Map<string, Price>;
   chartMap: Map<string, number[]>;
   targetMap?: Map<string, number | undefined>;   // ticker → 컨센서스 목표가
+  onOpenValuation?: (ticker: string) => void;    // 📊 기업가치 — 카드 오른쪽 위 책갈피
+  // 흐림 판정용 — 기본 종목 카드(StockCard)와 같은 규칙을 쓰려면 거래시간 정보가 필요하다.
+  krRegMap?: Map<string, KrRegLite | undefined>;
 }
 
-export function SimpleViewModal({ isOpen, onClose, title, stocks, priceMap, chartMap, targetMap }: Props) {
+export function SimpleViewModal({
+  isOpen, onClose, title, stocks, priceMap, chartMap, targetMap, onOpenValuation, krRegMap,
+}: Props) {
   useEscClose(isOpen, onClose);
   if (!isOpen) return null;
 
@@ -33,11 +42,9 @@ export function SimpleViewModal({ isOpen, onClose, title, stocks, priceMap, char
         </header>
 
         <div className="px-3 py-3 overflow-y-auto">
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-2 gap-y-3.5 items-stretch">
             {stocks.map(stock => {
               const p = priceMap.get(stock.ticker);
-              const chart = chartMap.get(stock.ticker) ?? [];
-              const target = targetMap?.get(stock.ticker);
               if (!p) {
                 return (
                   <div key={`${stock.ticker}_${stock.account || ""}`}
@@ -47,69 +54,24 @@ export function SimpleViewModal({ isOpen, onClose, title, stocks, priceMap, char
                   </div>
                 );
               }
-              const cur = p.price;
-              const base = p.prevClose || p.base || cur;       // 오늘 변동 기준 (직전 종가)
-              const dayDiff = cur - base;
-              const dayPct = base > 0 ? (dayDiff / base) * 100 : 0;
-              const priceColor = signColor(dayDiff);
-
-              // 행: 목/고/현재가/저 — 금액 높은→낮은 순 (StockCard 동일)
-              const auxRow = (k: string, label: string, labelCls: string, val: number) => {
-                const d = val - cur;
-                const pct = cur > 0 ? (d / cur) * 100 : 0;
-                return {
-                  price: val,
-                  el: (
-                    <div key={k} className="text-xs text-gray-700">
-                      <span className={`text-[10px] ${labelCls}`}>{label} </span>
-                      {val.toLocaleString()}원
-                      <span className={`ml-1 text-[10px] ${signColor(d)}`}>
-                        ({formatSigned(d)}원, {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%)
-                      </span>
-                    </div>
-                  ) as ReactElement,
-                };
-              };
-              const rows: { price: number; el: ReactElement }[] = [];
-              if (p.high && p.high > 0) rows.push(auxRow("hi", "고", "text-gray-500", p.high));
-              if (p.low && p.low > 0) rows.push(auxRow("lo", "저", "text-gray-500", p.low));
-              if (target && target > 0) rows.push(auxRow("tg", "목", "text-amber-600 font-medium", target));
-              rows.push({
-                price: cur,
-                el: (
-                  <div key="cur" className="relative z-10">
-                    <span className={`text-base font-bold leading-tight mr-1 ${priceColor}`}>
-                      {dayDiff > 0 ? "▲" : dayDiff < 0 ? "▼" : "▬"}
-                    </span>
-                    <span className={`text-xl font-bold leading-tight ${priceColor}`}>
-                      {cur.toLocaleString()}원
-                    </span>
-                    <div className={`flex items-baseline gap-1 pl-6 font-bold ${priceColor}`}>
-                      <span className="text-lg leading-tight bg-yellow-100 rounded px-1">
-                        {dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%
-                      </span>
-                      <span className="text-xs font-normal">({formatSigned(dayDiff)}원)</span>
-                    </div>
-                  </div>
-                ),
-              });
-              rows.sort((a, b) => b.price - a.price);
-
+              // 흐림 — 기본 카드와 같은 판정(마감이면 흐리게). 설정으로 끌 수 있다.
+              const reg = krRegMap?.get(stock.ticker);
+              const sleeping = marketOfSymbol(stock.ticker) === "US"
+                ? (!isUsExtendedTradingOpen() || isQuoteStale(p.freshTime))
+                : isKrHoldingClosed(reg?.tradingEnd, reg?.nextTradingStart, p.singlePrice);
               return (
-                <div key={`${stock.ticker}_${stock.account || ""}`}
-                     className="relative overflow-hidden border border-gray-200 rounded-md
-                                bg-gray-50/60 px-2 py-1.5 space-y-0.5">
-                  {chart.length > 1 && (
-                    <Sparkline data={chart} width={300} height={90}
-                               target={target}
-                               className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" />
-                  )}
-                  <button onClick={() => openTossStock(stock.ticker)}
-                          className={`relative z-10 text-base font-medium hover:underline truncate block max-w-full text-left ${priceColor}`}>
-                    {stock.name}
-                  </button>
-                  {rows.map(r => r.el)}
-                </div>
+                <SimplePriceCard key={`${stock.ticker}_${stock.account || ""}`}
+                                 dimmed={sleeping && getDimSleepingEnabled()}
+                                 ticker={stock.ticker} name={stock.name}
+                                 price={p.price} base={p.prevClose || p.base || p.price}
+                                 high={p.high} low={p.low}
+                                 target={targetMap?.get(stock.ticker)}
+                                 chart={chartMap.get(stock.ticker) ?? []}
+                                 actions={onOpenValuation && /^[\dA-Za-z]{6}$/.test(stock.ticker)
+                                   ? <button onClick={() => onOpenValuation(stock.ticker)}
+                                             title={`${stock.name} 기업가치 보기`}
+                                             className="text-[11px] leading-none opacity-70 hover:opacity-100">📊</button>
+                                   : null} />
               );
             })}
           </div>

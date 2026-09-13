@@ -1743,8 +1743,8 @@ export function MobileSimpleView() {
       {themeDlg && (
         <ThemeDialog theme={themeDlg} minCap={themeFlow?.minCap}
                      onClose={() => setThemeDlg(null)}
+                     // 섹터 팝업은 닫지 않는다 — 기업가치를 덮어 띄우고 Esc 로 돌아오게 한다.
                      onOpenStock={(code, name) => {
-                       setThemeDlg(null);
                        setValuationName(name);
                        setValuationTicker(code);
                      }} />

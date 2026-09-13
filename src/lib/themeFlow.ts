@@ -45,6 +45,11 @@ export interface ThemeStock {
   name: string;
   pct: number;
   price: number;
+  // 팝업에서 심플보기 카드(목/고/현재가/저)를 그리려면 시세 원본이 더 필요하다.
+  //   이미 받아 둔 Price 에 있는 값이라 추가 호출은 없다.
+  base: number;      // 오늘 변동 기준 (직전 종가)
+  high?: number;
+  low?: number;
   value: number;    // 거래대금(추정) = 현재가 × 거래량
   cap: number;      // 시가총액(억원) — 크롤 시점 기준
   // 이번 세션에 실제로 체결됐는가. false 면 값이 직전 거래일 것이라 통계에서 빼고,
@@ -82,9 +87,9 @@ const LEAD = 20;
 
 // 출처별로 캐시를 나눈다 — 한 키를 돌려 쓰면 토글할 때마다 다른 묶음의 값이 잠깐 보인다.
 const LS_KEY_BY: Record<GroupSource, string> = {
-  cards: "theme_flow_v6",          // v6: 세션 경계를 구간별로(프리·정규·애프터)
-  industry: "theme_flow_ind_v1",
-  theme: "theme_flow_nvtheme_v1",
+  cards: "theme_flow_v7",          // v7: ThemeStock 에 base/high/low 추가(심플보기 카드)
+  industry: "theme_flow_ind_v2",
+  theme: "theme_flow_nvtheme_v2",
 };
 // v4 — 빈 결과를 캐시하던 버그 때문에 한 번 갈아엎는다(아래 주석 참고).
 const LS_CARDS = "theme_cards_v4";
@@ -239,6 +244,9 @@ export async function fetchThemeFlow(source: GroupSource = "cards"): Promise<The
       name: names[p.ticker] ?? p.ticker,
       pct,
       price: p.price,
+      base: p.prevClose || p.base || p.price,
+      high: p.high,
+      low: p.low,
       value: (p.price || 0) * (p.volume || 0),
       cap: caps?.[p.ticker] ?? 0,
       fresh: isFresh(p),
