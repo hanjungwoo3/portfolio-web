@@ -72,8 +72,9 @@ interface FlowListProps {
   bothWay: Set<string>;
   /** 쌍끌이만 보기 */
   onlyBoth: boolean;
+  onOpenValuation?: (ticker: string, name: string) => void;
 }
-function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth }: FlowListProps) {
+function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth, onOpenValuation }: FlowListProps) {
   const listRef = useRef<HTMLUListElement>(null);
   // ★ 순위는 거르기 전 원래 순위를 유지한다 — 걸러진 목록의 1,2,3 은 거짓이다.
   const items = rows
@@ -136,6 +137,13 @@ function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth }: FlowLis
                                 ${buy ? "text-rose-600" : "text-blue-600"}`}>
                 {fmtAmount(r.amount)}
               </span>
+              {onOpenValuation && (
+                <button type="button"
+                        onClick={e => { e.stopPropagation(); onOpenValuation(r.ticker, r.name); }}
+                        title={`${r.name} 기업가치 보기`}
+                        className="shrink-0 text-[11px] leading-none px-0.5 opacity-50
+                                   hover:opacity-100 transition-opacity">📊</button>
+              )}
             </li>
           ))}
         </ul>
@@ -144,10 +152,11 @@ function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth }: FlowLis
   );
 }
 
-function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, onlyBoth }: {
+function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, onlyBoth, onOpenValuation }: {
   group: InvestorFlowGroup; investor: string;
   selected: string | null; onSelect: (t: string | null) => void;
   bothBuy: Set<string>; bothSell: Set<string>; onlyBoth: boolean;
+  onOpenValuation?: (ticker: string, name: string) => void;
 }) {
   return (
     <div className="min-w-0">
@@ -155,9 +164,9 @@ function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, on
         <span className="text-xs font-bold text-gray-700">{investor}</span>
       </div>
       <FlowList rows={group.buy.slice(0, ROWS)} side="buy" selected={selected} onSelect={onSelect}
-                bothWay={bothBuy} onlyBoth={onlyBoth} />
+                bothWay={bothBuy} onlyBoth={onlyBoth} onOpenValuation={onOpenValuation} />
       <FlowList rows={group.sell.slice(0, ROWS)} side="sell" selected={selected} onSelect={onSelect}
-                bothWay={bothSell} onlyBoth={onlyBoth} />
+                bothWay={bothSell} onlyBoth={onlyBoth} onOpenValuation={onOpenValuation} />
     </div>
   );
 }
@@ -200,7 +209,9 @@ function SelectedBar({ cols, selected, onClear }: {
   );
 }
 
-export function InvestorFlowTab() {
+export function InvestorFlowTab({ onOpenValuation }: {
+  onOpenValuation?: (ticker: string, name: string) => void;
+} = {}) {
   // 선택은 **시장별로 독립**이다. 코스피에서 고른 종목이 코스닥 선택을 지우면 안 된다 —
   //   두 시장을 나란히 놓고 각각 들여다보는 화면이라 서로를 건드리면 흐름이 끊긴다.
   //   같은 시장 안에서는 외국인·기관 네 목록이 함께 강조된다(그게 이 화면의 핵심).
@@ -345,7 +356,7 @@ export function InvestorFlowTab() {
                               onSelect={tk => pick(s.id, tk)}
                               bothBuy={bothWays.get(s.id)?.buy ?? EMPTY}
                               bothSell={bothWays.get(s.id)?.sell ?? EMPTY}
-                              onlyBoth={onlyBoth} />
+                              onlyBoth={onlyBoth} onOpenValuation={onOpenValuation} />
                 ))}
               </div>
             </section>

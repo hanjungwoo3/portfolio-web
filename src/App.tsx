@@ -826,7 +826,7 @@ function Dashboard() {
         </div>
 
         {activeTab === MARKET_MONEY_TAB_KEY ? (
-          <StockMarketTab />
+          <StockMarketTab onOpenValuation={(code, n2) => { setValuationName(n2); setValuationTicker(code); }} />
         ) : activeTab === US_MARKET_TAB_KEY ? (
           <UsMarketTab navStickyTop={(headerCollapsed ? 0 : headerH) + tabsH}
             onRequestSearch={(q) => {
