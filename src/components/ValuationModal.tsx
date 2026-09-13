@@ -973,9 +973,13 @@ function InvestorChartsSection({
     // 오늘 봉 폴백은 '지금 쓰는 계열' 에서 찾는다 — 야후에서 찾으면 기준이 섞인다
     //   (야후=KRX 정규장 / 토스=NXT 포함). 시가·고저·거래량이 캔들과 다른 세션 값이 된다.
     const yToday = (prices ?? []).find(p => p.date === today);
-    const open = todayBar?.open ?? yToday?.open ?? last.close;
-    const hiSrc = todayBar?.high ?? yToday?.high;
-    const loSrc = todayBar?.low ?? yToday?.low;
+    // ★ 0 은 '값 없음' 이다. 프리장이 안 열린 종목은 시가·고가·저가가 0 으로 온다.
+    //   ?? 는 0 을 통과시키므로 시가 0·저가 0 짜리 캔들이 만들어져 오늘 봉이 바닥까지
+    //   뚝 떨어진 모양이 됐다(정규장 시작 전에만 보이는 버그).
+    const pos = (v?: number) => (v != null && v > 0 ? v : undefined);
+    const open = pos(todayBar?.open) ?? pos(yToday?.open) ?? last.close;
+    const hiSrc = pos(todayBar?.high) ?? pos(yToday?.high);
+    const loSrc = pos(todayBar?.low) ?? pos(yToday?.low);
     const high = Math.max(hiSrc ?? curPrice, curPrice, open);
     const low = Math.min(loSrc ?? curPrice, curPrice, open);
     const todayCandle: PricePoint = {
