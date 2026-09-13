@@ -179,7 +179,12 @@ function ThemeStockCell({ r, rank, closedDim, onOpenStock }: {
   }, [seen]);
 
   const { data: candles } = useQuery({
-    queryKey: ["toss-candles", r.code, "day"],   // 기업가치 팝업과 같은 키 — 캐시를 함께 쓴다
+    // ★ count 를 키에 넣는다. ["toss-candles", ticker, "day"] 는 **기본 450봉**을 뜻하는
+    //   관례라 기업가치 팝업·가치표·자산추이가 모두 그 키를 쓴다. 여기서 같은 키에 60봉을
+    //   넣었더니 섹터 팝업을 먼저 연 종목은 기업가치 차트가 3개월치로 잘려 나왔다.
+    //   스파크라인에 450봉을 받으면 종목당 64KB(30장이면 1.9MB)라 개수를 줄이는 게 맞고,
+    //   대신 키를 갈라 캐시를 섞지 않는다.
+    queryKey: ["toss-candles", r.code, "day", 60],
     queryFn: () => fetchTossKrCandles(r.code, "day", 60),
     enabled: seen,
     staleTime: 60 * 60 * 1000,
