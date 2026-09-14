@@ -3,7 +3,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchTossPrices, fetchYahooChart, fetchKrPriceHistory, fetchCnbcChart, isCnbcIndex, fetchYasunNightFutures, fetchTossUsStockCandles } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import type { Price } from "../types";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, isMarketOpen } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, krSessionPhase } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
 import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
 import { GroupNavBar } from "./GroupNavBar";
@@ -132,7 +132,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const krMap = new Map((krPrices ?? []).map(p => [p.ticker, p]));
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
   // 지수 대시보드 그룹 — 데스크톱·모바일 공용 정의(lib/dashboardGroups). PC 는 라벨 헤더와 함께 전부 표시.
-  const T0_SECTIONS = buildDashboardSections(isKrNightSession(), !isMarketOpen("KR"));
+  const T0_SECTIONS = buildDashboardSections(isKrNightSession(), krSessionPhase() === "CLOSED");
 
   // T0 + 모든 섹터 현물·선물 Yahoo 심볼 통합 — 동일 캐시
   const allYahooForCharts: string[] = [];

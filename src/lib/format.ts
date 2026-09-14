@@ -381,6 +381,15 @@ export function isKrPreOpen(): boolean {
 // 한국 장 세션 phase — 데스크톱 v1/v2 kr_session_phase 동일
 export type KrPhase = "REGULAR" | "EXTENDED" | "CLOSED";
 
+// 한국 거래일 구간 (KST):
+//   08:00~08:50  프리마켓        EXTENDED
+//   09:00~15:30  정규장          REGULAR
+//   15:30~16:00  종가 고정가      EXTENDED
+//   16:00~20:00  애프터장        EXTENDED
+//   그 외·주말                   CLOSED
+// ★ 15:30 이 '장 마감' 이 아니다 — 20:00 까지는 사고팔 수 있다.
+//   화면에서 '국내 시장이 열려 있는가' 를 물을 때는 isMarketOpen("KR")(정규장 09:00~15:30)이
+//   아니라 이 함수를 써야 한다. 정규장만 보면 15:30 에 국내 카드가 접히거나 아래로 밀린다.
 export function krSessionPhase(): KrPhase {
   const t = nowInTz("Asia/Seoul");
   if (t.weekday === 0 || t.weekday === 6) return "CLOSED";
