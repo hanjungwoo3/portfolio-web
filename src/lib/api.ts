@@ -4268,6 +4268,9 @@ export interface InvestorFlowRow {
   amount: number;      // 순매수/순매도 금액 (원)
   close: number;
   pct: number;         // (close - base) / base × 100
+  // 금액을 '수량 × 현재가' 로 추정했는가. 네이버는 **장중에 금액을 0 으로 준다**
+  //   (수량만 채워진다) — 그대로 쓰면 전 종목이 0억이 된다.
+  estimated?: boolean;
 }
 export interface InvestorFlowGroup {
   key: "foreigner" | "institution" | "individual";
@@ -4410,24 +4413,38 @@ export async function fetchInvestorRankingsByMarket(
   const rows = (list: Record<string, unknown>[] = []): InvestorFlowRow[] => list.flatMap(r => {
     const ticker = String(r.itemcode ?? "");
     if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
+    const close = progNum(r.nowPrice);
+    const volume = progNum(r.accTradeVolume);   // 순매수 수량 (매도 상위는 음수)
+    let amount = progNum(r.accTradeAmount);
+    let estimated = false;
+    // ★ 장중에는 금액이 0 으로 온다(실측 2026-09-14 외국인: amount 0, volume 449,429).
+    //   수량 × 현재가로 어림한다. 체결가가 제각각이라 정확한 거래대금은 아니지만,
+    //   0 억으로 보여주는 것보다 낫고 순위 비교에는 충분하다. 화면에 '추정' 을 밝힌다.
+    if (amount === 0 && volume !== 0 && close > 0) {
+      amount = volume * close;
+      estimated = true;
+    }
     return [{
       ticker,
       name: String(r.itemname ?? ""),
-      amount: progNum(r.accTradeAmount),
-      close: progNum(r.nowPrice),
+      amount, close, estimated,
       pct: progNum(r.prevChangeRate),
     }];
   });
+  // ★ 기준일이 투자자마다 다르다 — 실측: 외국인은 당일 장중, 기관은 직전 거래일 종가.
+  //   하나로 묶어 표시하면 어제 값을 오늘로 읽게 된다. 컬럼마다 자기 날짜를 들고 간다.
+  const rangeOf = (j: typeof fo): FlowRankRange => {
+    const f = (j.sections?.buyRankList ?? [])[0] ?? {};
+    return { from: String(f.bizdateFrom ?? ""), to: String(f.bizdateTo ?? "") };
+  };
+  const foRange = rangeOf(fo), orgRange = rangeOf(org);
+  const stamp = (r: FlowRankRange) => (r.from && r.from !== r.to ? `${r.from}~${r.to}` : r.to);
   const groups: InvestorFlowGroup[] = [
-    { key: "foreigner", type: "외국인", basedAt: "",
+    { key: "foreigner", type: "외국인", basedAt: stamp(foRange),
       buy: rows(fo.sections?.buyRankList), sell: rows(fo.sections?.sellRankList) },
-    { key: "institution", type: "기관", basedAt: "",
+    { key: "institution", type: "기관", basedAt: stamp(orgRange),
       buy: rows(org.sections?.buyRankList), sell: rows(org.sections?.sellRankList) },
   ];
-  const first = (fo.sections?.buyRankList ?? [])[0] ?? {};
-  return {
-    groups,
-    range: { from: String(first.bizdateFrom ?? ""), to: String(first.bizdateTo ?? "") },
-  };
+  return { groups, range: foRange };
 }
 

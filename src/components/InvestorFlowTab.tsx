@@ -134,8 +134,9 @@ function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth, onOpenVal
                 </span>
               </span>
               <span className={`shrink-0 text-[11px] font-bold tabular-nums
-                                ${buy ? "text-rose-600" : "text-blue-600"}`}>
-                {fmtAmount(r.amount)}
+                                ${buy ? "text-rose-600" : "text-blue-600"}`}
+                    title={r.estimated ? "장중 추정 — 순매수 수량 × 현재가" : undefined}>
+                {r.estimated ? "≈" : ""}{fmtAmount(r.amount)}
               </span>
               {onOpenValuation && (
                 <button type="button"
@@ -162,6 +163,15 @@ function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, on
     <div className="min-w-0">
       <div className="flex items-baseline gap-1.5 border-b border-gray-200 pb-1">
         <span className="text-xs font-bold text-gray-700">{investor}</span>
+        {/* ★ 기준일이 투자자마다 다르다(외국인=당일 장중, 기관=직전 거래일). 각자 밝힌다. */}
+        {group.basedAt && (
+          <span className="text-[10px] tabular-nums text-gray-400">{ymd(group.basedAt)}</span>
+        )}
+        {group.buy.some(r => r.estimated) && (
+          <span className="text-[10px] text-amber-600" title="장중에는 네이버가 금액을 안 줘서 순매수 수량 × 현재가로 어림합니다">
+            금액 추정
+          </span>
+        )}
       </div>
       <FlowList rows={group.buy.slice(0, ROWS)} side="buy" selected={selected} onSelect={onSelect}
                 bothWay={bothBuy} onlyBoth={onlyBoth} onOpenValuation={onOpenValuation} />
@@ -264,10 +274,9 @@ export function InvestorFlowTab({ onOpenValuation }: {
     bothWays.set(s.id, { buy: inter(fo.buy, org.buy), sell: inter(fo.sell, org.sell) });
   }
 
-  const rg = res?.kospi.range;
-  const range = rg?.from
-    ? (rg.from === rg.to ? `${ymd(rg.to)} (전일) 기준` : `${ymd(rg.from)} ~ ${ymd(rg.to)} 기준`)
-    : "";
+  // 기준일은 컬럼마다 표시한다 — 투자자별로 다르기 때문이다(외국인은 장중, 기관은 전일).
+  //   여기선 기간 종류만 알린다.
+  const range = PERIODS.find(x => x.key === period)?.label ?? "";
 
   return (
     <div className="space-y-2 pt-2">
@@ -303,7 +312,11 @@ export function InvestorFlowTab({ onOpenValuation }: {
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5">
-        {range && <span className="text-[11px] tabular-nums text-gray-500">{range}</span>}
+        {range && (
+          <span className="text-[11px] text-gray-500">
+            {range} 누적 · <span className="text-gray-400">기준일은 투자자마다 다릅니다</span>
+          </span>
+        )}
         <span className="inline-flex ml-2 rounded-md border border-gray-300 overflow-hidden">
           {TRADES.map(x => (
             <button key={x.key} onClick={() => setTrade(x.key)}
