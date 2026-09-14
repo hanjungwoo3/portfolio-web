@@ -104,6 +104,12 @@ const HOST_PROVIDER_DENY: Array<{ host: RegExp; provider: string; why: string }>
   // 2026-09-09 실측: 계정이 다른 CF 워커 여러 개가 모두 400(빈 본문). 같은 워커로
   //   wts-cert-api·네이버·야후는 200 이라 egress 전체 차단이 아니라 이 호스트 한정이다.
   { host: /^wts-info-api\.tossinvest\.com$/, provider: "cloudflare", why: "토스가 CF egress 거부" },
+  // 2026-09-14 실측: 같은 야후 URL 을 Render 로는 3/3 회 429, Cloudflare 로는 3/3 회 200.
+  //   Render 공용 IP 가 야후에 이미 스로틀링된 상태로 보인다(우리 호출량과 무관).
+  //   429 는 원래 '다른 프록시로 재시도' 대상이라 결국은 성공하지만, 논리적 호출 하나가
+  //   매번 두 번 나가고 그 사이 빈 배열이 캐시돼 **선물 배경차트가 간헐적으로 사라졌다**
+  //   (코스피·코스닥은 토스를 써서 멀쩡하고 선물만 야후라 선물에서만 드러났다).
+  { host: /^query[12]\.finance\.yahoo\.com$/, provider: "render", why: "야후가 Render egress 를 429 로 제한" },
 ];
 
 function isDeniedCombo(host: string, provider: string): boolean {
