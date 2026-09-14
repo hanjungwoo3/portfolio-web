@@ -168,7 +168,8 @@ function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, on
           <span className="text-[10px] tabular-nums text-gray-400">{ymd(group.basedAt)}</span>
         )}
         {group.buy.some(r => r.estimated) && (
-          <span className="text-[10px] text-amber-600" title="장중에는 네이버가 금액을 안 줘서 순매수 수량 × 현재가로 어림합니다">
+          <span className="text-[10px] text-amber-600"
+                title="장중에는 네이버가 금액을 안 줘서 순매수 수량 × 현재가로 어림합니다. 목록에 담을 100종목은 서버가 수량 기준으로 고릅니다.">
             금액 추정
           </span>
         )}

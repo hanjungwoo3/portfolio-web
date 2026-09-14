@@ -4439,11 +4439,17 @@ export async function fetchInvestorRankingsByMarket(
   };
   const foRange = rangeOf(fo), orgRange = rangeOf(org);
   const stamp = (r: FlowRankRange) => (r.from && r.from !== r.to ? `${r.from}~${r.to}` : r.to);
+  // ★ 장중에는 서버 순위가 **수량 기준**이다(금액을 0 으로 주니까). 우리는 금액을 추정해
+  //   보여주므로 그대로 두면 164억 → 13억 → 58억 처럼 뒤죽박죽이 된다.
+  //   화면에 보이는 값으로 다시 정렬한다. (금액이 실제로 오는 장 마감 뒤엔 서버 순서와 같다)
+  //   다만 **어느 100종목을 고를지는 여전히 서버가 수량으로 정한다** — 이 정렬은 그 안에서만이다.
+  const byAmount = (r: InvestorFlowRow[]) =>
+    [...r].sort((a, b) => Math.abs(b.amount) - Math.abs(a.amount));
   const groups: InvestorFlowGroup[] = [
     { key: "foreigner", type: "외국인", basedAt: stamp(foRange),
-      buy: rows(fo.sections?.buyRankList), sell: rows(fo.sections?.sellRankList) },
+      buy: byAmount(rows(fo.sections?.buyRankList)), sell: byAmount(rows(fo.sections?.sellRankList)) },
     { key: "institution", type: "기관", basedAt: stamp(orgRange),
-      buy: rows(org.sections?.buyRankList), sell: rows(org.sections?.sellRankList) },
+      buy: byAmount(rows(org.sections?.buyRankList)), sell: byAmount(rows(org.sections?.sellRankList)) },
   ];
   return { groups, range: foRange };
 }
