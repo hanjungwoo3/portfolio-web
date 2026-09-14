@@ -224,6 +224,9 @@ export function displayPctOf(symbol: string, q: SortQuote | undefined): number |
 //   90분: 새벽 저유동성 종목(예 PAVE 30분+ 간격)의 '드문 체결'을 오판하지 않으면서,
 //         수시간째 멈춘 VIX·주말 등 진짜 마감은 확실히 흐림.
 const QUOTE_STALE_MIN = 90;
+// 시간외(08:00~08:50, 15:30~20:00) 체결 정체 임계. KRX 시간외 단일가가 10분 주기라
+//   그보다 길게 잡아야 단일가 종목이 주기 사이에 흐려졌다 밝아졌다 깜빡이지 않는다.
+const EXTENDED_STALE_MIN = 12;
 export function isQuoteStale(freshTime?: number): boolean {
   if (freshTime == null || !Number.isFinite(freshTime)) return false;
   return Date.now() / 1000 - freshTime > QUOTE_STALE_MIN * 60;
@@ -323,18 +326,25 @@ export function krSinglePriceSession(): "PRE" | "POST" {
 // 마감: tradingEnd 지났고 단일가도 아님(다음 세션 전까지). 08:00 이전/20:00 이후/주말 안전망.
 export function isKrHoldingClosed(
   tradingEnd?: string, nextTradingStart?: string, singlePrice?: boolean,
-  // 토스 실시간 거래가능 플래그. 둘 다 막혀 있어야 '못 판다' 다.
-  suspended?: { krx?: boolean; nxt?: boolean },
+  // 마지막 체결 시각(unix sec). 15:30 이후 '실제로 거래되고 있는가' 의 유일한 신호다.
+  lastTradeSec?: number,
 ): boolean {
   if (krSessionPhase() === "CLOSED") return true;   // 안전망
   if (singlePrice) return false;                     // 시간외 단일가 진행 중 → 열림
-  // ★ tradingEnd 보다 이 플래그가 먼저다.
-  //   tradingEnd 는 정규장 기준 고정값이라 15:30 이후 세션 전환(NXT 애프터 → KRX 시간외)을
-  //   못 따라간다. 실측(2026-09-14 16:01, RF머트리얼즈·대우건설): tradingEnd 는 15:30 인데
-  //   krx/nxtTradingSuspended 는 false 이고 tradeDateTime 이 16:01 — 실제로 거래 중이었다.
-  //   그래서 정규장만 참여하는 종목이 16:00 이후 거래가 재개돼도 계속 흐린 채로 남았다.
-  const { krx, nxt } = suspended ?? {};
-  if (krx != null || nxt != null) return krx === true && nxt === true;
+  // ★ 15:30 이후에는 '체결이 멈췄는가' 로 본다.
+  //   왜 tradingEnd 가 아닌가 — 정규장 기준 고정값이라 세션 전환(NXT 애프터 → KRX 시간외)을
+  //     못 따라간다. RF머트리얼즈는 tradingEnd 가 15:30 인데 16:07 에도 계속 체결됐다.
+  //   왜 suspended 플래그가 아닌가 — 토스가 세션 종료에 이 값을 쓰지 않는다.
+  //     실측(16:07): 거래 중인 기가비스·RF머트리얼즈도, 15:59 에 멈춘 KODEX 반도체도
+  //     모두 krx/nxtTradingSuspended = false 였다. 구분이 안 된다.
+  //   남는 확실한 신호가 마지막 체결 시각이다:
+  //     기가비스 16:06:55 · RF머트리얼즈 16:06:58 (거래 중)
+  //     KODEX 반도체 15:59:34 · KODEX WTI 15:45:23 (멈춤 — 주문 예약만 가능)
+  //   임계값 12분 — KRX 시간외 단일가가 10분 주기 체결이라 그보다 길게 잡아야
+  //   단일가 종목이 주기 사이에 깜빡이지 않는다.
+  if (krSessionPhase() === "EXTENDED" && lastTradeSec != null) {
+    return Date.now() / 1000 - lastTradeSec > EXTENDED_STALE_MIN * 60;
+  }
   if (tradingEnd) {
     const end = Date.parse(tradingEnd);
     if (Number.isFinite(end) && Date.now() >= end) {
@@ -473,4 +483,11 @@ export function isHoldingSleeping(tradeDtIso?: string): boolean {
   if (!Number.isFinite(tradeMs)) return true;
   const minutesSince = (Date.now() - tradeMs) / 60_000;
   return minutesSince >= 10;
+}
+
+/** ISO 체결시각 → unix sec. 흐림 판정용 (없으면 undefined → 판정이 tradingEnd 로 폴백). */
+export function tradeSecOf(isoOrDt?: string): number | undefined {
+  if (!isoOrDt) return undefined;
+  const ms = Date.parse(isoOrDt);
+  return Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined;
 }

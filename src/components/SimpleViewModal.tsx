@@ -3,7 +3,7 @@
 // 두 곳이 각자 그리면 같은 숫자가 다르게 보이기 시작한다.
 import type { Stock, Price } from "../types";
 import { SimplePriceCard } from "./SimplePriceCard";
-import { marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, isKrHoldingClosed } from "../lib/format";
+import { marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, isKrHoldingClosed, tradeSecOf } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEscClose } from "../lib/useEscClose";
 
@@ -58,8 +58,7 @@ export function SimpleViewModal({
               const reg = krRegMap?.get(stock.ticker);
               const sleeping = marketOfSymbol(stock.ticker) === "US"
                 ? (!isUsExtendedTradingOpen() || isQuoteStale(p.freshTime))
-                : isKrHoldingClosed(reg?.tradingEnd, reg?.nextTradingStart, p.singlePrice,
-                                    { krx: p.krxSuspended, nxt: p.nxtSuspended });
+                : isKrHoldingClosed(reg?.tradingEnd, reg?.nextTradingStart, p.singlePrice, tradeSecOf(p.trade_dt));
               return (
                 <SimplePriceCard key={`${stock.ticker}_${stock.account || ""}`}
                                  dimmed={sleeping && getDimSleepingEnabled()}
