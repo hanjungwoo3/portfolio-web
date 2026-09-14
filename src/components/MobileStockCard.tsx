@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, holdingYesterdayBaseSum, marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, tradeSecOf } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, holdingYesterdayBaseSum, marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, tradeSecOf, isEtfOrEtnByName } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
@@ -143,7 +143,8 @@ export function MobileStockCard({
   const isUsHolding = marketOfSymbol(stock.ticker) === "US";
   const sleeping = isUsHolding
     ? (!isUsExtendedTradingOpen() || isQuoteStale(price.freshTime))
-    : isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price.singlePrice, tradeSecOf(price.trade_dt));
+    : isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price.singlePrice, tradeSecOf(price.trade_dt),
+                        isEtfOrEtnByName(stock.name));
   const dimmed = sleeping && getDimSleepingEnabled();
   // 시간외 포함 최종 매매 마감 임박(기본 30분 이내) — 남은 분. 아니면 null.
   const closeImminentMin = !sleeping ? krCloseImminentMin(krReg?.exchange, krReg?.tradingEnd) : null;

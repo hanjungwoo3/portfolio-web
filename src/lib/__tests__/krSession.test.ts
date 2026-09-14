@@ -1,6 +1,6 @@
 // 한국 세션 구간 — 15:30 이 '마감' 이 아니라는 게 핵심이다(20:00 까지 매매 가능).
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { krSessionPhase, isKrHoldingClosed } from "../format";
+import { krSessionPhase, isKrHoldingClosed, isEtfOrEtnByName } from "../format";
 
 // KST 기준 시각으로 고정. 2026-09-14 는 월요일.
 const atKst = (hhmm: string) => {
@@ -72,5 +72,45 @@ describe("isKrHoldingClosed — 15:30 이후엔 '체결이 멈췄는가' 로 본
   it("세션이 CLOSED 면 무조건 마감 — 밤·주말 안전망", () => {
     at("21:00");
     expect(isKrHoldingClosed(END_1530, NEXT, false, sec("20:59"))).toBe(true);
+  });
+});
+
+describe("ETF·ETN — 정규장 종료 즉시 마감 (애프터 미참여)", () => {
+  const at = (hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date(Date.UTC(2026, 8, 14, h - 9, m, 0)));
+  };
+  const sec = (hhmm: string) => {
+    const [h, m] = hhmm.split(":").map(Number);
+    return Date.UTC(2026, 8, 14, h - 9, m, 0) / 1000;
+  };
+  const END = "2026-09-14T06:30:00Z", NEXT = "2026-09-15T00:00:00Z";
+
+  it("15:31 에 바로 마감 — 6분 기다리지 않는다", () => {
+    at("15:31");
+    expect(isKrHoldingClosed(END, NEXT, false, sec("15:30"), true)).toBe(true);
+    expect(isKrHoldingClosed(END, NEXT, false, sec("15:30"), false)).toBe(false);   // 주식은 아직 열림
+  });
+  it("정규장 중에는 ETF 도 열림", () => {
+    at("14:00");
+    expect(isKrHoldingClosed(END, NEXT, false, sec("13:59"), true)).toBe(false);
+  });
+  it("프리마켓은 이 규칙에서 뺀다 — 정체 판정에 맡긴다", () => {
+    at("08:30");
+    expect(isKrHoldingClosed(END, NEXT, false, sec("08:29"), true)).toBe(false);
+  });
+
+  it.each([
+    ["KODEX 반도체", true],
+    ["TIGER 200", true],
+    ["K-방산", true],
+    ["삼성 블룸버그 인버스2X WTI원유선물 ETN B", true],
+    ["QV 레버리지 WTI원유 ETN", true],
+    ["삼성전자", false],
+    ["RF머트리얼즈", false],
+    ["대우건설", false],
+  ])("ETF·ETN 판별: %s → %s", (name, want) => {
+    expect(isEtfOrEtnByName(name as string)).toBe(want);
   });
 });

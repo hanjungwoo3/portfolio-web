@@ -333,6 +333,9 @@ export function isKrHoldingClosed(
   tradingEnd?: string, nextTradingStart?: string, singlePrice?: boolean,
   // 마지막 체결 시각(unix sec). 15:30 이후 '실제로 거래되고 있는가' 의 유일한 신호다.
   lastTradeSec?: number,
+  // ETF·ETN 인가. 이들은 애프터마켓에 아예 참여하지 않는다(확인됨) — 정규장이 끝나면
+  //   바로 주문 예약만 된다. 체결 정체를 기다리지 않고 즉시 마감으로 본다.
+  noAfterHours?: boolean,
 ): boolean {
   if (krSessionPhase() === "CLOSED") return true;   // 안전망
   if (singlePrice) return false;                     // 시간외 단일가 진행 중 → 열림
@@ -347,6 +350,9 @@ export function isKrHoldingClosed(
   //     KODEX 반도체 15:59:34 · KODEX WTI 15:45:23 (멈춤 — 주문 예약만 가능)
   //   임계값 12분 — KRX 시간외 단일가가 10분 주기 체결이라 그보다 길게 잡아야
   //   단일가 종목이 주기 사이에 깜빡이지 않는다.
+  // ETF·ETN — 정규장 종료(15:30) 즉시 마감. 프리마켓(08:00~08:50)은 이 규칙에서 뺀다
+  //   (애프터 미참여가 확인된 것이고 프리는 따로 확인하지 않았다 — 그쪽은 정체 판정에 맡긴다).
+  if (noAfterHours && isKrAfterHoursWindow()) return true;
   if (krSessionPhase() === "EXTENDED" && lastTradeSec != null) {
     return Date.now() / 1000 - lastTradeSec > EXTENDED_STALE_MIN * 60;
   }
@@ -414,6 +420,14 @@ export type KrPhase = "REGULAR" | "EXTENDED" | "CLOSED";
 // ★ 15:30 이 '장 마감' 이 아니다 — 20:00 까지는 사고팔 수 있다.
 //   화면에서 '국내 시장이 열려 있는가' 를 물을 때는 isMarketOpen("KR")(정규장 09:00~15:30)이
 //   아니라 이 함수를 써야 한다. 정규장만 보면 15:30 에 국내 카드가 접히거나 아래로 밀린다.
+/** 정규장 종료 후 시간외 구간(평일 15:30~20:00 KST). 프리마켓은 포함하지 않는다. */
+export function isKrAfterHoursWindow(): boolean {
+  const t = nowInTz("Asia/Seoul");
+  if (t.weekday === 0 || t.weekday === 6) return false;
+  const m = t.hour * 60 + t.minute;
+  return 15 * 60 + 30 <= m && m < 20 * 60;
+}
+
 export function krSessionPhase(): KrPhase {
   const t = nowInTz("Asia/Seoul");
   if (t.weekday === 0 || t.weekday === 6) return "CLOSED";
@@ -460,6 +474,13 @@ const ETF_BRAND_RE = new RegExp(
     .map(b => b.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})(?=\\s|$)`,
   "i",
 );
+/** ETF + ETN. ETN 은 브랜드가 제각각이라(삼성·신한·QV…) 이름의 "ETN" 토큰으로 잡는다
+ *  — 한국거래소 규정상 ETN 은 상품명에 ETN 을 반드시 넣는다. */
+export function isEtfOrEtnByName(name: string | undefined | null): boolean {
+  if (!name) return false;
+  return isEtfByName(name) || /\bETN\b/i.test(name);
+}
+
 export function isEtfByName(name: string | undefined | null): boolean {
   if (!name) return false;
   const trimmed = name.trim();
