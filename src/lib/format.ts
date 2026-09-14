@@ -323,9 +323,18 @@ export function krSinglePriceSession(): "PRE" | "POST" {
 // 마감: tradingEnd 지났고 단일가도 아님(다음 세션 전까지). 08:00 이전/20:00 이후/주말 안전망.
 export function isKrHoldingClosed(
   tradingEnd?: string, nextTradingStart?: string, singlePrice?: boolean,
+  // 토스 실시간 거래가능 플래그. 둘 다 막혀 있어야 '못 판다' 다.
+  suspended?: { krx?: boolean; nxt?: boolean },
 ): boolean {
   if (krSessionPhase() === "CLOSED") return true;   // 안전망
   if (singlePrice) return false;                     // 시간외 단일가 진행 중 → 열림
+  // ★ tradingEnd 보다 이 플래그가 먼저다.
+  //   tradingEnd 는 정규장 기준 고정값이라 15:30 이후 세션 전환(NXT 애프터 → KRX 시간외)을
+  //   못 따라간다. 실측(2026-09-14 16:01, RF머트리얼즈·대우건설): tradingEnd 는 15:30 인데
+  //   krx/nxtTradingSuspended 는 false 이고 tradeDateTime 이 16:01 — 실제로 거래 중이었다.
+  //   그래서 정규장만 참여하는 종목이 16:00 이후 거래가 재개돼도 계속 흐린 채로 남았다.
+  const { krx, nxt } = suspended ?? {};
+  if (krx != null || nxt != null) return krx === true && nxt === true;
   if (tradingEnd) {
     const end = Date.parse(tradingEnd);
     if (Number.isFinite(end) && Date.now() >= end) {

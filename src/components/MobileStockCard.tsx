@@ -143,7 +143,8 @@ export function MobileStockCard({
   const isUsHolding = marketOfSymbol(stock.ticker) === "US";
   const sleeping = isUsHolding
     ? (!isUsExtendedTradingOpen() || isQuoteStale(price.freshTime))
-    : isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price.singlePrice);
+    : isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price.singlePrice,
+                        { krx: price.krxSuspended, nxt: price.nxtSuspended });
   const dimmed = sleeping && getDimSleepingEnabled();
   // 시간외 포함 최종 매매 마감 임박(기본 30분 이내) — 남은 분. 아니면 null.
   const closeImminentMin = !sleeping ? krCloseImminentMin(krReg?.exchange, krReg?.tradingEnd) : null;

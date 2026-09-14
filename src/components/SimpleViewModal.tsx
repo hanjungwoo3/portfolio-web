@@ -58,7 +58,8 @@ export function SimpleViewModal({
               const reg = krRegMap?.get(stock.ticker);
               const sleeping = marketOfSymbol(stock.ticker) === "US"
                 ? (!isUsExtendedTradingOpen() || isQuoteStale(p.freshTime))
-                : isKrHoldingClosed(reg?.tradingEnd, reg?.nextTradingStart, p.singlePrice);
+                : isKrHoldingClosed(reg?.tradingEnd, reg?.nextTradingStart, p.singlePrice,
+                                    { krx: p.krxSuspended, nxt: p.nxtSuspended });
               return (
                 <SimplePriceCard key={`${stock.ticker}_${stock.account || ""}`}
                                  dimmed={sleeping && getDimSleepingEnabled()}
