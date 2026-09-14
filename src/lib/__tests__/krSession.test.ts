@@ -52,13 +52,14 @@ describe("isKrHoldingClosed — 15:30 이후엔 '체결이 멈췄는가' 로 본
     at("16:07");
     expect(isKrHoldingClosed(END_1530, NEXT, false, sec("16:06"))).toBe(false);
   });
-  it("체결이 12분 넘게 멈췄으면 마감 — KODEX WTI(15:45 멈춤)", () => {
+  it("체결이 6분 넘게 멈췄으면 마감 — ETF 는 16:00 에 일제히 멈춘다", () => {
     at("16:07");
-    expect(isKrHoldingClosed(END_1530, NEXT, false, sec("15:45"))).toBe(true);
+    expect(isKrHoldingClosed(END_1530, NEXT, false, sec("15:59"))).toBe(true);   // KODEX 반도체
+    expect(isKrHoldingClosed(END_1530, NEXT, false, sec("15:45"))).toBe(true);   // KODEX WTI
   });
-  it("10분 주기 단일가는 깜빡이지 않는다 — 11분 전 체결도 열림", () => {
+  it("6분 이내면 아직 열림 — 잠깐 뜸한 것과 멈춘 것을 가른다", () => {
     at("16:07");
-    expect(isKrHoldingClosed(END_1530, NEXT, false, sec("15:56"))).toBe(false);
+    expect(isKrHoldingClosed(END_1530, NEXT, false, sec("16:02"))).toBe(false);
   });
   it("정규장 중에는 정체를 보지 않는다", () => {
     at("14:00");

@@ -224,9 +224,14 @@ export function displayPctOf(symbol: string, q: SortQuote | undefined): number |
 //   90분: 새벽 저유동성 종목(예 PAVE 30분+ 간격)의 '드문 체결'을 오판하지 않으면서,
 //         수시간째 멈춘 VIX·주말 등 진짜 마감은 확실히 흐림.
 const QUOTE_STALE_MIN = 90;
-// 시간외(08:00~08:50, 15:30~20:00) 체결 정체 임계. KRX 시간외 단일가가 10분 주기라
-//   그보다 길게 잡아야 단일가 종목이 주기 사이에 흐려졌다 밝아졌다 깜빡이지 않는다.
-const EXTENDED_STALE_MIN = 12;
+// 시간외(08:00~08:50, 15:30~20:00) 체결 정체 임계.
+//   처음엔 'KRX 시간외 단일가 10분 주기' 를 우려해 12분으로 잡았는데, 실측해 보니
+//   시간외도 **초 단위 연속 체결**이었다(2026-09-14 16:10: 대우건설 16:10:29,
+//   RF머트리얼즈 16:10:37, SK하이닉스 16:10:39). 단일가 주기가 아니다.
+//   반면 ETF 는 16:00 에 일제히 멈춘다(KODEX200 15:59:58, TIGER200 15:58:37,
+//   레버리지 15:59:32, 인버스 15:56:48, 반도체 15:59:34) — 증권사에서도 주문 예약만 된다.
+//   그래서 6분이면 충분하다. 거래 뜸한 종목이 잘못 흐려지면 이 값을 올린다.
+const EXTENDED_STALE_MIN = 6;
 export function isQuoteStale(freshTime?: number): boolean {
   if (freshTime == null || !Number.isFinite(freshTime)) return false;
   return Date.now() / 1000 - freshTime > QUOTE_STALE_MIN * 60;
