@@ -96,7 +96,15 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
     const krIds = new Set(["kr", "sector"]);   // 한국 관련 그룹 → 맨 아래(상대 순서 유지)
     return [...sections.filter(s => !krIds.has(s.id)), ...sections.filter(s => krIds.has(s.id))];
   }
-  return sections;
+  // 한국장 시간대 — 현물(금·구리·원유)을 한국 시장과 한국 섹터 사이로 끌어올린다.
+  //   장중엔 원자재가 국내 섹터(철강·화학·정유·조선)의 선행 신호라 그 둘을 붙여 놓고 봐야
+  //   읽힌다. 장이 닫히면 미국 시간대라 원래 자리(야간 선물 다음)로 돌아간다.
+  const spot = sections.find(s => s.id === "spot");
+  if (!spot) return sections;
+  const rest = sections.filter(s => s.id !== "spot");
+  const at = rest.findIndex(s => s.id === "sector");
+  if (at < 0) return sections;
+  return [...rest.slice(0, at), spot, ...rest.slice(at)];
 }
 
 // 색인 칩 네비게이션용 항목 — 이모지(라벨 첫 토큰) + 짧은 라벨 + 앵커 id
