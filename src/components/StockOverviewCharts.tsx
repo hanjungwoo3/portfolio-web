@@ -16,7 +16,7 @@ interface LineSeries {
   fmt: (n: number) => string;       // 값·축 라벨 포맷
 }
 
-function MiniMultiLine({ dates, series, height = 170 }:
+function MiniMultiLine({ dates, series, height = 150 }:
                        { dates: string[]; series: LineSeries[]; height?: number }) {
   const [hover, setHover] = useState<number | null>(null);
   const W = 640, H = height, padT = 10, padB = 18, padL = 46, padR = 52;
@@ -138,9 +138,14 @@ function parseMarketCapWon(text?: string): number | null {
   return Number.isFinite(n) && n > 0 ? n * 1e8 : null;
 }
 
-interface Props { ticker: string; marketCapText?: string; price?: number; }
+interface Props { ticker: string; marketCapText?: string; price?: number;
+  /** 제목·그리드 없이 카드 두 장만 — 실적 추이와 한 줄에 묶을 때 */
+  bare?: boolean;
+  /** bare 로 쓸 때 각 카드에 붙일 클래스(칸 너비 지정용) */
+  cellClass?: string;
+}
 
-export function StockOverviewCharts({ ticker, marketCapText, price }: Props) {
+export function StockOverviewCharts({ ticker, marketCapText, price, bare, cellClass }: Props) {
   const enabled = /^[\dA-Za-z]{6}$/.test(ticker);
   const priceQ = useQuery({
     queryKey: ["price-history-modal-with-events", ticker],
@@ -193,12 +198,11 @@ export function StockOverviewCharts({ ticker, marketCapText, price }: Props) {
 
   const loading = priceQ.isLoading || invQ.isLoading;
 
-  return (
-    <section className="mt-4">
-      <h3 className="text-sm font-bold text-gray-800 mb-2">📈 외국인·상대수익률 추이</h3>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+  // bare — 제목·자체 그리드 없이 카드 두 장만 내보낸다. 실적 추이와 한 줄에 묶을 때 쓴다.
+  //   섹션을 통째로 옮기지 않고 칸만 빌려주는 방식이라, 단독으로 쓰던 자리도 그대로 남는다.
+  const cards = (<>
         {/* ① 외국인 지분율 + 시총 */}
-        <div className="border border-gray-200 rounded-lg p-2">
+        <div className={`border border-gray-200 rounded-lg p-2 ${cellClass ?? ""}`}>
           <div className="text-xs font-semibold text-gray-600 mb-1">외국인 지분율 · 시가총액</div>
           {loading ? (
             <div className="text-center text-xs text-gray-400 py-12">불러오는 중…</div>
@@ -212,7 +216,7 @@ export function StockOverviewCharts({ ticker, marketCapText, price }: Props) {
           )}
         </div>
         {/* ② 상대수익률 */}
-        <div className="border border-gray-200 rounded-lg p-2">
+        <div className={`border border-gray-200 rounded-lg p-2 ${cellClass ?? ""}`}>
           <div className="text-xs font-semibold text-gray-600 mb-1">상대수익률 (시작일 100 기준)</div>
           {loading || kospiQ.isLoading ? (
             <div className="text-center text-xs text-gray-400 py-12">불러오는 중…</div>
@@ -225,7 +229,13 @@ export function StockOverviewCharts({ ticker, marketCapText, price }: Props) {
             ]} />
           )}
         </div>
-      </div>
+  </>);
+
+  if (bare) return cards;
+  return (
+    <section className="mt-4">
+      <h3 className="text-sm font-bold text-gray-800 mb-2">📈 외국인·상대수익률 추이</h3>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">{cards}</div>
     </section>
   );
 }

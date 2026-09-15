@@ -527,10 +527,17 @@ export function ValuationModal({
               </ul>
             </section>
           )}
-          {/* 실적 추이 — 실적 3년 + 추정 2년 (forward PER·ROE 가 여기서만 나온다) */}
+          {/* 실적 추이 — 실적 3년 + 추정 2년 (forward PER·ROE 가 여기서만 나온다).
+              외국인 지분율·상대수익률을 같은 줄에 붙여 네 칸으로 만든다(세로 절약). */}
           {earnings && earnings.length > 0 && (
             <div className="mb-3">
-              <EarningsTrend rows={earnings} />
+              <EarningsTrend rows={earnings}
+                             extraCols={!isEtf
+                               ? <StockOverviewCharts bare cellClass="xl:col-span-2"
+                                                      ticker={ticker}
+                                                      marketCapText={fund.market_cap_text}
+                                                      price={effCurPrice} />
+                               : undefined} />
             </div>
           )}
           {/* 재무 추이 — Wisereport 시계열 5개 차트 */}
@@ -587,8 +594,9 @@ export function ValuationModal({
                                   curPrice={effCurPrice}
                                   todayBar={todayBar} isEtf={isEtf} />
 
-          {/* 외국인 지분율·시총 + 상대수익률 (네이버 기업분석 스타일 오버뷰) */}
-          {!isEtf && (
+          {/* 외국인 지분율·상대수익률은 위 '실적 추이' 줄에 합쳤다.
+              실적 데이터가 없는 종목(추정치 미제공)은 거기가 통째로 안 그려지므로 여기서 따로 낸다. */}
+          {!isEtf && (!earnings || earnings.length === 0) && (
             <StockOverviewCharts ticker={ticker}
                                  marketCapText={fund.market_cap_text}
                                  price={effCurPrice} />
