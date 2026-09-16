@@ -9,14 +9,17 @@
 //    8가지 값을 다 시도해도 400 이다. 개인 컬럼은 포기한 결정이다.
 //  ⚠️ 상위 N 종목만 준다 — 시장 전체 순매수 합계와 다르다(중간 순위가 빠진다).
 //    실측(2026-09-11 코스피 기관): 전체 −12,184억 vs 상위 100 합 −18,064억.
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
-  fetchInvestorRankingsByMarket, FLOW_RANK_MAX,
+  fetchInvestorRankingsByMarket, FLOW_RANK_MAX, fetchInvestorHistorySafe,
   type InvestorFlowGroup, type InvestorFlowRow, type FlowRankMarket, type FlowRankPeriod,
   type FlowRankTrade,
 } from "../lib/api";
+import type { Investor } from "../types";
 import { signColor } from "../lib/format";
+import { Tooltip } from "./Tooltip";
+import { InvestorMatrixPanel } from "./InvestorMatrixPanel";
 
 // 한 방향에 보여줄 종목 수. 엔드포인트는 size 만큼 무제한으로 주지만(size=3000 이면 2.2MB)
 // 1분 폴링에 얹을 무게가 아니라 100 으로 받고 100 을 그대로 쓴다(=버리는 데이터 없음).
@@ -62,6 +65,51 @@ function findTicker(g: InvestorFlowGroup, ticker: string): Found | null {
   return null;
 }
 
+// 종목 행 hover — 200일 수급 패널(미니 차트 + 투자자별 매수/매도). 카드의 그것과 같은 화면이다.
+//  ⚠️ 종목당 ~270KB 라 목록 위를 스치기만 해도 받으면 안 된다 → 250ms 머문 행만 요청한다.
+//  queryKey 는 App.tsx 의 카드 tooltip 과 같다 — 같은 종목을 두 화면에서 봐도 한 번만 받는다.
+const HOVER_DELAY_MS = 250;
+
+function InvestorHoverRow({ ticker, name, highlightKey, children }: {
+  ticker: string; name: string; highlightKey: keyof Investor; children: ReactNode;
+}) {
+  const [primed, setPrimed] = useState(false);
+  const timer = useRef<number | null>(null);
+  useEffect(() => () => { if (timer.current) window.clearTimeout(timer.current); }, []);
+  const enter = () => {
+    if (primed || timer.current) return;
+    timer.current = window.setTimeout(() => { timer.current = null; setPrimed(true); }, HOVER_DELAY_MS);
+  };
+  const leave = () => {
+    if (timer.current) { window.clearTimeout(timer.current); timer.current = null; }
+  };
+
+  const { data, isFetching } = useQuery({
+    queryKey: ["investor-history-long", ticker],
+    queryFn: () => fetchInvestorHistorySafe(ticker, [200, 120, 60]),
+    enabled: primed,
+    staleTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const content = !primed ? null
+    : data && data.length > 0
+      ? <InvestorMatrixPanel history={data} highlightKey={highlightKey}
+                             title={`${name} · ${ticker} — 투자자별 수급`} />
+      : <span className="text-gray-500">
+          {isFetching ? "수급 불러오는 중…" : "수급 데이터가 없습니다"}
+        </span>;
+
+  return (
+    <Tooltip content={content} className="w-full">
+      <span onMouseEnter={enter} onMouseLeave={leave}
+            className="flex items-center gap-1.5 w-full min-w-0 px-1 py-1">
+        {children}
+      </span>
+    </Tooltip>
+  );
+}
+
 // 한 방향 목록 — 선택 종목은 배경 강조 + 스크롤 밖이면 끌어온다.
 interface FlowListProps {
   rows: InvestorFlowRow[];
@@ -72,9 +120,11 @@ interface FlowListProps {
   bothWay: Set<string>;
   /** 쌍끌이만 보기 */
   onlyBoth: boolean;
+  /** hover 패널에서 노랑으로 강조할 투자자 컬럼 — 이 목록이 누구의 순위인지 */
+  highlightKey: keyof Investor;
   onOpenValuation?: (ticker: string, name: string) => void;
 }
-function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth, onOpenValuation }: FlowListProps) {
+function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth, highlightKey, onOpenValuation }: FlowListProps) {
   const listRef = useRef<HTMLUListElement>(null);
   // ★ 순위는 거르기 전 원래 순위를 유지한다 — 걸러진 목록의 1,2,3 은 거짓이다.
   const items = rows
@@ -110,41 +160,43 @@ function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth, onOpenVal
           {items.map(({ r, rank }) => (
             <li key={r.ticker} data-ticker={r.ticker}
                 onClick={() => onSelect(selected === r.ticker ? null : r.ticker)}
-                className={`flex items-center gap-1.5 px-1 py-1 rounded cursor-pointer transition-colors
+                className={`flex rounded cursor-pointer transition-colors
                             ${selected === r.ticker
                               ? "bg-amber-200 ring-1 ring-amber-500"
                               : bothWay.has(r.ticker)
                                 ? (buy ? "bg-rose-50/70 hover:bg-rose-100" : "bg-blue-50/70 hover:bg-blue-100")
                                 : "hover:bg-gray-50"}`}>
-              <span className="w-6 shrink-0 text-[10px] tabular-nums text-gray-400 text-right">{rank}</span>
-              {r.logo && (
-                <img src={r.logo} alt="" loading="lazy"
-                     className="w-4 h-4 rounded-full shrink-0 bg-gray-100" />
-              )}
-              <span className="flex-1 min-w-0">
-                <span className={`block truncate text-xs ${
-                  bothWay.has(r.ticker)
-                    ? (buy ? "font-bold text-rose-700" : "font-bold text-blue-700")
-                    : "font-medium text-gray-800"}`}>{r.name}</span>
-                <span className="block text-[10px] tabular-nums text-gray-500">
-                  {r.close.toLocaleString()}원{" "}
-                  <span className={signColor(r.pct)}>
-                    {r.pct > 0 ? "+" : ""}{r.pct.toFixed(2)}%
+              <InvestorHoverRow ticker={r.ticker} name={r.name} highlightKey={highlightKey}>
+                <span className="w-6 shrink-0 text-[10px] tabular-nums text-gray-400 text-right">{rank}</span>
+                {r.logo && (
+                  <img src={r.logo} alt="" loading="lazy"
+                       className="w-4 h-4 rounded-full shrink-0 bg-gray-100" />
+                )}
+                <span className="flex-1 min-w-0">
+                  <span className={`block truncate text-xs ${
+                    bothWay.has(r.ticker)
+                      ? (buy ? "font-bold text-rose-700" : "font-bold text-blue-700")
+                      : "font-medium text-gray-800"}`}>{r.name}</span>
+                  <span className="block text-[10px] tabular-nums text-gray-500">
+                    {r.close.toLocaleString()}원{" "}
+                    <span className={signColor(r.pct)}>
+                      {r.pct > 0 ? "+" : ""}{r.pct.toFixed(2)}%
+                    </span>
                   </span>
                 </span>
-              </span>
-              <span className={`shrink-0 text-[11px] font-bold tabular-nums
-                                ${buy ? "text-rose-600" : "text-blue-600"}`}
-                    title={r.estimated ? "장중 추정 — 순매수 수량 × 현재가" : undefined}>
-                {r.estimated ? "≈" : ""}{fmtAmount(r.amount)}
-              </span>
-              {onOpenValuation && (
-                <button type="button"
-                        onClick={e => { e.stopPropagation(); onOpenValuation(r.ticker, r.name); }}
-                        title={`${r.name} 기업가치 보기`}
-                        className="shrink-0 text-[11px] leading-none px-0.5 opacity-50
-                                   hover:opacity-100 transition-opacity">📊</button>
-              )}
+                <span className={`shrink-0 text-[11px] font-bold tabular-nums
+                                  ${buy ? "text-rose-600" : "text-blue-600"}`}
+                      title={r.estimated ? "장중 추정 — 순매수 수량 × 현재가" : undefined}>
+                  {r.estimated ? "≈" : ""}{fmtAmount(r.amount)}
+                </span>
+                {onOpenValuation && (
+                  <button type="button"
+                          onClick={e => { e.stopPropagation(); onOpenValuation(r.ticker, r.name); }}
+                          title={`${r.name} 기업가치 보기`}
+                          className="shrink-0 text-[11px] leading-none px-0.5 opacity-50
+                                     hover:opacity-100 transition-opacity">📊</button>
+                )}
+              </InvestorHoverRow>
             </li>
           ))}
         </ul>
@@ -159,6 +211,8 @@ function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, on
   bothBuy: Set<string>; bothSell: Set<string>; onlyBoth: boolean;
   onOpenValuation?: (ticker: string, name: string) => void;
 }) {
+  // 이 컬럼의 투자자를 hover 패널 표에서도 강조한다 (외국인 순위 → 외국인 컬럼 노랑).
+  const highlightKey: keyof Investor = investor === "외국인" ? "외국인" : "기관";
   return (
     <div className="min-w-0">
       <div className="flex items-baseline gap-1.5 border-b border-gray-200 pb-1">
@@ -175,9 +229,11 @@ function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, on
         )}
       </div>
       <FlowList rows={group.buy.slice(0, ROWS)} side="buy" selected={selected} onSelect={onSelect}
-                bothWay={bothBuy} onlyBoth={onlyBoth} onOpenValuation={onOpenValuation} />
+                bothWay={bothBuy} onlyBoth={onlyBoth} highlightKey={highlightKey}
+                onOpenValuation={onOpenValuation} />
       <FlowList rows={group.sell.slice(0, ROWS)} side="sell" selected={selected} onSelect={onSelect}
-                bothWay={bothSell} onlyBoth={onlyBoth} onOpenValuation={onOpenValuation} />
+                bothWay={bothSell} onlyBoth={onlyBoth} highlightKey={highlightKey}
+                onOpenValuation={onOpenValuation} />
     </div>
   );
 }
