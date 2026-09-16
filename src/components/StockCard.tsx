@@ -637,7 +637,8 @@ export function StockCard({
   //   화면 자체는 InvestorMatrixPanel 이 그린다 (매매동향 탭의 종목 hover 와 공용).
   const allInvestorsTable = (highlightKey?: keyof Investor) => {
     if (!longHistory || longHistory.length === 0) return null;
-    return <InvestorMatrixPanel history={longHistory} highlightKey={highlightKey} />;
+    return <InvestorMatrixPanel history={longHistory} highlightKey={highlightKey}
+                                ticker={stock.ticker} />;
   };
 
   return (

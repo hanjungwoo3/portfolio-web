@@ -53,6 +53,8 @@ export interface Investor {
   기타금융: number;
   기타법인: number;
   외국인비율: number;    // 보유율 %
+  // 그 날 종가 — 토스가 수량만 주므로 금액(억원) 표시는 이걸로 환산한다(수량 × 종가).
+  종가?: number;
 }
 
 export interface Consensus {

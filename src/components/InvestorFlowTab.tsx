@@ -70,8 +70,14 @@ function findTicker(g: InvestorFlowGroup, ticker: string): Found | null {
 //  queryKey 는 App.tsx 의 카드 tooltip 과 같다 — 같은 종목을 두 화면에서 봐도 한 번만 받는다.
 const HOVER_DELAY_MS = 250;
 
-function InvestorHoverRow({ ticker, name, highlightKey, children }: {
-  ticker: string; name: string; highlightKey: keyof Investor; children: ReactNode;
+function InvestorHoverRow({ ticker, name, highlightKey, trade, todayDate, volume, children }: {
+  ticker: string; name: string; highlightKey: keyof Investor;
+  trade: FlowRankTrade;
+  /** 이 순위가 '하루치' 일 때 그 날짜(YYYY-MM-DD). 누적(주·월)이면 null — 오늘 분해에 못 쓴다 */
+  todayDate: string | null;
+  /** 이 거래소에서의 순매수 수량(주) */
+  volume?: number;
+  children: ReactNode;
 }) {
   const [primed, setPrimed] = useState(false);
   const timer = useRef<number | null>(null);
@@ -92,10 +98,19 @@ function InvestorHoverRow({ ticker, name, highlightKey, children }: {
     refetchOnWindowFocus: false,
   });
 
+  // 네이버 일별(KRX)은 장중엔 전 거래일까지다 → 오늘치 KRX(또는 NXT)는 이 순위가 들고 있는 수량으로 메운다.
+  const exchangeToday = todayDate && typeof volume === "number"
+    ? { date: todayDate, trade, key: highlightKey, volume } : undefined;
+
   const content = !primed ? null
     : data && data.length > 0
       ? <InvestorMatrixPanel history={data} highlightKey={highlightKey}
-                             title={`${name} · ${ticker} — 투자자별 수급`} />
+                             ticker={ticker} exchangeToday={exchangeToday} unit="amount"
+                             title={`${name} · ${ticker} — 투자자별 수급`}
+                             note={<>토스 · <b className="text-gray-700">KRX+NXT 합산</b> ·
+                                   금액은 <b className="text-gray-700">수량 × 그날 종가</b> 환산
+                                   — 위 순위는 <b className="text-gray-700">{trade}</b> 만 세므로
+                                   부호가 다를 수 있습니다</>} />
       : <span className="text-gray-500">
           {isFetching ? "수급 불러오는 중…" : "수급 데이터가 없습니다"}
         </span>;
@@ -122,9 +137,13 @@ interface FlowListProps {
   onlyBoth: boolean;
   /** hover 패널에서 노랑으로 강조할 투자자 컬럼 — 이 목록이 누구의 순위인지 */
   highlightKey: keyof Investor;
+  /** 이 순위가 센 거래소 — hover 패널(KRX+NXT 합산)과 범위가 달라 단서로 밝힌다 */
+  trade: FlowRankTrade;
+  /** 하루치 순위일 때 그 날짜(YYYY-MM-DD) — hover 패널의 오늘 KRX/NXT 분해에 쓴다 */
+  todayDate: string | null;
   onOpenValuation?: (ticker: string, name: string) => void;
 }
-function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth, highlightKey, onOpenValuation }: FlowListProps) {
+function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth, highlightKey, trade, todayDate, onOpenValuation }: FlowListProps) {
   const listRef = useRef<HTMLUListElement>(null);
   // ★ 순위는 거르기 전 원래 순위를 유지한다 — 걸러진 목록의 1,2,3 은 거짓이다.
   const items = rows
@@ -166,7 +185,8 @@ function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth, highlight
                               : bothWay.has(r.ticker)
                                 ? (buy ? "bg-rose-50/70 hover:bg-rose-100" : "bg-blue-50/70 hover:bg-blue-100")
                                 : "hover:bg-gray-50"}`}>
-              <InvestorHoverRow ticker={r.ticker} name={r.name} highlightKey={highlightKey}>
+              <InvestorHoverRow ticker={r.ticker} name={r.name} highlightKey={highlightKey} trade={trade}
+                                todayDate={todayDate} volume={r.volume}>
                 <span className="w-6 shrink-0 text-[10px] tabular-nums text-gray-400 text-right">{rank}</span>
                 {r.logo && (
                   <img src={r.logo} alt="" loading="lazy"
@@ -205,14 +225,19 @@ function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth, highlight
   );
 }
 
-function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, onlyBoth, onOpenValuation }: {
+function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, onlyBoth, trade, onOpenValuation }: {
   group: InvestorFlowGroup; investor: string;
   selected: string | null; onSelect: (t: string | null) => void;
   bothBuy: Set<string>; bothSell: Set<string>; onlyBoth: boolean;
+  trade: FlowRankTrade;
   onOpenValuation?: (ticker: string, name: string) => void;
 }) {
   // 이 컬럼의 투자자를 hover 패널 표에서도 강조한다 (외국인 순위 → 외국인 컬럼 노랑).
   const highlightKey: keyof Investor = investor === "외국인" ? "외국인" : "기관";
+  // 하루치(basedAt 이 단일 날짜)일 때만 오늘 KRX/NXT 분해에 쓸 수 있다 — 주·월 누적은 "from~to" 다.
+  const todayDate = /^\d{8}$/.test(group.basedAt)
+    ? `${group.basedAt.slice(0, 4)}-${group.basedAt.slice(4, 6)}-${group.basedAt.slice(6, 8)}`
+    : null;
   return (
     <div className="min-w-0">
       <div className="flex items-baseline gap-1.5 border-b border-gray-200 pb-1">
@@ -229,10 +254,10 @@ function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, on
         )}
       </div>
       <FlowList rows={group.buy.slice(0, ROWS)} side="buy" selected={selected} onSelect={onSelect}
-                bothWay={bothBuy} onlyBoth={onlyBoth} highlightKey={highlightKey}
+                bothWay={bothBuy} onlyBoth={onlyBoth} highlightKey={highlightKey} trade={trade} todayDate={todayDate}
                 onOpenValuation={onOpenValuation} />
       <FlowList rows={group.sell.slice(0, ROWS)} side="sell" selected={selected} onSelect={onSelect}
-                bothWay={bothSell} onlyBoth={onlyBoth} highlightKey={highlightKey}
+                bothWay={bothSell} onlyBoth={onlyBoth} highlightKey={highlightKey} trade={trade} todayDate={todayDate}
                 onOpenValuation={onOpenValuation} />
     </div>
   );
@@ -341,6 +366,9 @@ export function InvestorFlowTab({ onOpenValuation }: {
         <div className="font-bold text-gray-900 mb-0.5">👥 외국인 · 기관 매매 동향</div>
         투자자별 순매수·순매도 금액 순위입니다. 종목을 클릭하면 다른 투자자 목록에서도 같이 표시됩니다.
         <br />
+        종목에 마우스를 올리면 그 종목의 <b>투자자별 수급</b>(토스 · KRX+NXT 합산, 금액 환산)이 열립니다 —
+        <span className="text-amber-600"> 이 순위는 위 토글로 고른 거래소만 세므로 부호가 다를 수 있습니다</span>.
+        <br />
         <span className="text-[11px] text-gray-500">
           네이버 · 방향별 상위 {ROWS}종목 ·{" "}
           <span className="text-amber-600">상위 {ROWS}종목만이라 시장 전체 합계와 다릅니다</span>
@@ -426,7 +454,7 @@ export function InvestorFlowTab({ onOpenValuation }: {
                               onSelect={tk => pick(s.id, tk)}
                               bothBuy={bothWays.get(s.id)?.buy ?? EMPTY}
                               bothSell={bothWays.get(s.id)?.sell ?? EMPTY}
-                              onlyBoth={onlyBoth} onOpenValuation={onOpenValuation} />
+                              onlyBoth={onlyBoth} trade={trade} onOpenValuation={onOpenValuation} />
                 ))}
               </div>
             </section>

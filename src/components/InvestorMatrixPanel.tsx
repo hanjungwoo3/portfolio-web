@@ -3,6 +3,9 @@
 //   같은 걸 띄우게 되면서 밖으로 뺐다 — 한쪽만 고치면 두 화면이 갈라진다.
 //   데이터는 동일하게 fetchInvestorHistorySafe(ticker, [200,120,60]) 의 결과(최신→과거).
 
+import type { ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { fetchKrxInvestorDaily } from "../lib/api";
 import type { Investor } from "../types";
 
 // 호버 툴팁용 미니 수급 차트 — 일별 막대 (중앙 0 대칭) + 누적 라인 오버레이.
@@ -17,7 +20,7 @@ function compactShares(n: number): string {
   return `${sign}${abs.toLocaleString()}`;
 }
 function MiniFlowChart({
-  label, daily, cumulative,
+  label, daily, cumulative, format = (n: number) => `${compactShares(n)}주`,
   barUpColor = "#fecaca", barDnColor = "#bfdbfe",
   lineColor,
   width = 230, height = 100,
@@ -25,6 +28,8 @@ function MiniFlowChart({
   label: string;
   daily: number[];
   cumulative: number[];
+  /** 누적 합계 표기 — 수량이면 "…주", 금액이면 "…억" */
+  format?: (n: number) => string;
   barUpColor?: string;
   barDnColor?: string;
   lineColor: string;
@@ -54,7 +59,7 @@ function MiniFlowChart({
       <div className="flex items-baseline gap-1.5 text-[10px] mb-0.5">
         <span className="font-bold" style={{ color: lineColor }}>{label}</span>
         <span className="tabular-nums font-bold" style={{ color: lineColor }}>
-          {compactShares(last)}주
+          {format(last)}
         </span>
         <span className="text-gray-400 ml-auto text-[9px]">일별 + 누적</span>
       </div>
@@ -81,15 +86,43 @@ function MiniFlowChart({
   );
 }
 
+// 원 단위 → 조/억/만. 목록(랭킹)이 억원으로 말하므로 같은 말로 맞춘다.
+function compactWon(won: number): string {
+  if (won === 0) return "0";
+  const abs = Math.abs(won);
+  const sign = won > 0 ? "+" : "-";
+  if (abs >= 1e12) return `${sign}${(abs / 1e12).toFixed(2)}조`;
+  if (abs >= 1e10) return `${sign}${Math.round(abs / 1e8).toLocaleString()}억`;
+  if (abs >= 1e8)  return `${sign}${(abs / 1e8).toFixed(1)}억`;
+  if (abs >= 1e4)  return `${sign}${Math.round(abs / 1e4).toLocaleString()}만`;
+  return `${sign}${Math.round(abs).toLocaleString()}`;
+}
+
 // 전체 투자자 매트릭스 — 누적(기간) + 일별(최근 1주일)을 한 표로.
 // 컬럼: 일자/기간 | 개인 외국인 기관 금융투자 연기금 투신 사모 보험 은행 기타금융 기타법인 | 외인비율(%)
 // 누적 행: 외인비율 = today 와 N일 전의 차이 (%p). 일별 행: 그 날의 실제 외국인비율 (%).
 // highlightKey 있으면 해당 컬럼을 노랑으로 강조 (어느 행/투자자에서 호버했는지 표시).
-export function InvestorMatrixPanel({ history, highlightKey, title }: {
+export function InvestorMatrixPanel({ history, highlightKey, title, note, ticker, exchangeToday, unit = "shares" }: {
   history: Investor[] | null | undefined;
   highlightKey?: keyof Investor;
   title?: string;
+  /** 제목 아래 작은 단서 — 이 수치가 무엇을 센 것인지(거래소 범위 등) */
+  note?: ReactNode;
+  /** 주면 거래소별(KRX/NXT) 분해 표를 같이 그린다 — KRX 일별을 따로 받는다 */
+  ticker?: string;
+  /** 랭킹이 이미 들고 있는 **오늘치**(그 거래소 기준). 네이버 일별은 장중엔 전일까지라 이걸로 메운다 */
+  exchangeToday?: { date: string; trade: "KRX" | "NXT"; key: keyof Investor; volume: number };
+  /** 표시 단위 — "shares"(수량, 기본) / "amount"(금액). 토스는 수량만 주므로 금액은 수량 × 그날 종가. */
+  unit?: "shares" | "amount";
 }) {
+  // KRX 전용 일별 — 토스(KRX+NXT 합산)에서 빼면 NXT 가 나온다. 개인/외국인/기관 3분류만 온다.
+  const { data: krxDaily } = useQuery({
+    queryKey: ["investor-krx-daily", ticker],
+    queryFn: () => fetchKrxInvestorDaily(ticker as string, 60),
+    enabled: !!ticker,
+    staleTime: 60 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
   if (!history || history.length === 0) return null;
   const periods: { lbl: string; n: number }[] = [
     { lbl: "5일",             n: 5   },
@@ -120,6 +153,12 @@ export function InvestorMatrixPanel({ history, highlightKey, title }: {
     if (abs >= 10_000)      return `${sign}${(abs / 10_000).toFixed(1)}만`;
     return `${sign}${abs.toLocaleString()}`;
   };
+  // 단위 변환 — 토스는 수량만 준다. 금액은 **그 날 종가 × 수량** 이다(체결 평균가가 아니라 근사).
+  //   목록(랭킹)이 억원으로 말하는 화면에서는 같은 단위로 맞춰야 비교가 된다.
+  const amt = unit === "amount";
+  const conv = (shares: number, d: { 종가?: number }): number => amt ? shares * (d.종가 ?? 0) : shares;
+  const fmtUnit = (v: number): string => (amt ? compactWon(v) : compact(v));
+
   const today = history[0]?.외국인비율 ?? 0;
   const recentDays = history.slice(0, Math.min(7, history.length));
   const totalCols = investors.length + 2;  // 일자 + 투자자 + 외인비율
@@ -128,25 +167,155 @@ export function InvestorMatrixPanel({ history, highlightKey, title }: {
     // 카드 tooltip 은 위 내용에 이어 붙는다(구분선) / 단독 패널(title) 은 제목이 그 역할을 한다.
     <div className={title ? "" : "mt-1.5 pt-1.5 border-t border-gray-200"}>
       {title && (
-        <div className="font-bold text-gray-900 mb-1.5 pb-1 border-b border-gray-200">{title}</div>
+        <div className="mb-1.5 pb-1 border-b border-gray-200">
+          <div className="font-bold text-gray-900">{title}</div>
+          {note && <div className="text-[10px] text-gray-500 mt-0.5">{note}</div>}
+        </div>
       )}
       {/* 미니 수급 차트 — 외국인 / 기관 / 연기금 (전체 history 기준, 시간순) */}
       {(() => {
         const chronological = [...history].reverse();
-        const foreignDaily = chronological.map(d => d.외국인 ?? 0);
-        const instDaily    = chronological.map(d => d.기관 ?? 0);
-        const pensionDaily = chronological.map(d => d.연기금 ?? 0);
+        const foreignDaily = chronological.map(d => conv(d.외국인 ?? 0, d));
+        const instDaily    = chronological.map(d => conv(d.기관 ?? 0, d));
+        const pensionDaily = chronological.map(d => conv(d.연기금 ?? 0, d));
+        const fmtSum = (n: number) => (amt ? compactWon(n) : `${compactShares(n)}주`);
         const cum = (xs: number[]): number[] => {
           let s = 0; return xs.map(v => (s += v));
         };
         return (
           <div className="grid grid-cols-3 gap-1.5 mb-2">
             <MiniFlowChart label="외국인" daily={foreignDaily} cumulative={cum(foreignDaily)}
-                           lineColor="#6d28d9" />
+                           format={fmtSum} lineColor="#6d28d9" />
             <MiniFlowChart label="기관계" daily={instDaily}    cumulative={cum(instDaily)}
-                           lineColor="#047857" />
+                           format={fmtSum} lineColor="#047857" />
             <MiniFlowChart label="연기금" daily={pensionDaily} cumulative={cum(pensionDaily)}
-                           lineColor="#c2410c" />
+                           format={fmtSum} lineColor="#c2410c" />
+          </div>
+        );
+      })()}
+      {/* 거래소별 (KRX / NXT) — 위 표(토스)는 KRX+NXT **합산**이라 거래소별 랭킹과 부호가 갈린다.
+          그 분해를 직접 보여준다. KRX = 네이버 일별, NXT = 합산 − KRX (파생).
+          장중엔 네이버 일별이 전 거래일까지라 오늘치는 랭킹이 준 수량(exchangeToday)으로 메운다. */}
+      {ticker && (() => {
+        const SPLIT: { label: string; key: keyof Investor }[] = [
+          { label: "외국인", key: "외국인" },
+          { label: "기관",   key: "기관" },
+          { label: "개인",   key: "개인" },
+        ];
+        const krxMap = new Map((krxDaily ?? []).map(d => [d.date, d as unknown as Record<string, number>]));
+        // 한 날짜·한 투자자의 KRX / NXT. KRX 를 모르면 분해 불가(null).
+        const splitOf = (d: Investor, k: keyof Investor): { krx: number; nxt: number } | null => {
+          const tot = (d[k] as number) ?? 0;
+          const rec = krxMap.get(d.date ?? "");
+          let krx: number | null = rec ? (rec[k as string] ?? null) : null;
+          if (krx == null && exchangeToday && exchangeToday.date === d.date && exchangeToday.key === k) {
+            krx = exchangeToday.trade === "KRX" ? exchangeToday.volume : tot - exchangeToday.volume;
+          }
+          if (krx == null) return null;
+          return { krx: conv(krx, d), nxt: conv(tot - krx, d) };
+        };
+        type Cell = { krx: number; nxt: number } | null;
+        const rows: { lbl: string; days?: string; cells: Cell[] }[] = [];
+        for (const n of [5, 20, 60]) {
+          const slice = history.slice(0, Math.min(n, history.length));
+          let got = 0;
+          const cells: Cell[] = SPLIT.map((inv, i) => {
+            let krx = 0, nxt = 0, cnt = 0;
+            for (const d of slice) {
+              const sp = splitOf(d, inv.key);
+              if (sp) { krx += sp.krx; nxt += sp.nxt; cnt += 1; }
+            }
+            if (i === 0) got = cnt;
+            return cnt ? { krx, nxt } : null;
+          });
+          if (cells.some(Boolean)) rows.push({ lbl: `${n}일`, days: got < n ? `(${got})` : undefined, cells });
+        }
+        const dailyRows = history.slice(0, Math.min(7, history.length))
+          .map(d => ({ lbl: d.date ?? "", cells: SPLIT.map(inv => splitOf(d, inv.key)) }))
+          .filter(r => r.cells.some(Boolean));
+        if (rows.length === 0 && dailyRows.length === 0) return null;
+        // ⚠️ <tr> 안에는 <td> 만 온다 — 배열로 돌려준다(span 으로 싸면 브라우저가 표 밖으로 밀어낸다).
+        const cell = (c: Cell, which: "krx" | "nxt", last: boolean, border: boolean, key: string) => {
+          const v = c ? c[which] : null;
+          const color = v == null ? "text-gray-300"
+                      : v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-400";
+          return (
+            <td key={key}
+                className={`px-1.5 py-0.5 text-right tabular-nums ${color}
+                            ${which === "nxt" ? "bg-violet-50/60" : ""}
+                            ${border ? "border-r border-gray-300" : ""}
+                            ${!last ? "border-b border-gray-300" : ""}`}>
+              {v == null ? "—" : fmtUnit(v)}
+            </td>
+          );
+        };
+        return (
+          <div className="mb-2">
+            <div className="font-bold text-gray-900 mb-1">
+              거래소별{" "}
+              <span className="font-normal text-[10px] text-gray-500">
+                KRX = 네이버 일별 · <b className="text-violet-700">NXT</b> = 합산 − KRX (파생) ·{" "}
+                {amt ? "금액(수량 × 그날 종가 환산)" : "수량(주)"}
+              </span>
+            </div>
+            <table className="w-full text-[10px] border border-gray-300 rounded overflow-hidden whitespace-nowrap">
+              <thead className="bg-gray-100">
+                <tr>
+                  <th rowSpan={2} className="border-b border-r border-gray-300 px-1.5 py-0.5 text-left font-medium text-gray-700">
+                    일자 / 기간
+                  </th>
+                  {SPLIT.map(inv => (
+                    <th key={inv.key as string} colSpan={2}
+                        className={`border-b border-r border-gray-300 px-1.5 py-0.5 text-center font-medium
+                                    ${highlightKey === inv.key ? "bg-amber-100 text-gray-900" : "text-gray-700"}`}>
+                      {inv.label}
+                    </th>
+                  ))}
+                </tr>
+                <tr>
+                  {SPLIT.map(inv => [
+                    <th key={`${inv.key as string}-k`}
+                        className="border-b border-gray-300 px-1.5 py-0.5 text-right font-medium text-gray-500">KRX</th>,
+                    <th key={`${inv.key as string}-n`}
+                        className="border-b border-r border-gray-300 px-1.5 py-0.5 text-right font-medium text-violet-700 bg-violet-50/60">NXT</th>,
+                  ])}
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map(r => (
+                  <tr key={r.lbl}>
+                    <td className="px-1.5 py-0.5 border-b border-r border-gray-300 text-left text-gray-800">
+                      {r.lbl}{r.days && <span className="text-[9px] text-gray-400 ml-0.5">{r.days}</span>}
+                    </td>
+                    {r.cells.flatMap((c, i) => [
+                      cell(c, "krx", false, false, `${i}-k`),
+                      cell(c, "nxt", false, true,  `${i}-n`),
+                    ])}
+                  </tr>
+                ))}
+                <tr>
+                  <td colSpan={1 + SPLIT.length * 2}
+                      className="px-1.5 py-0.5 border-b border-gray-300 text-left text-gray-600 bg-gray-50">
+                    ▼ 일별 상세
+                  </td>
+                </tr>
+                {dailyRows.map((r, ri) => {
+                  const last = ri === dailyRows.length - 1;
+                  return (
+                    <tr key={r.lbl}>
+                      <td className={`px-1.5 py-0.5 border-r border-gray-300 text-left text-gray-700
+                                      ${!last ? "border-b" : ""}`}>
+                        {r.lbl}
+                      </td>
+                      {r.cells.flatMap((c, i) => [
+                        cell(c, "krx", last, false, `${i}-k`),
+                        cell(c, "nxt", last, true,  `${i}-n`),
+                      ])}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         );
       })()}
@@ -193,7 +362,7 @@ export function InvestorMatrixPanel({ history, highlightKey, title }: {
                   )}
                 </td>
                 {investors.map(inv => {
-                  const sum = slice.reduce((a, d) => a + ((d[inv.key] as number) ?? 0), 0);
+                  const sum = slice.reduce((a, d) => a + conv((d[inv.key] as number) ?? 0, d), 0);
                   const color = sum > 0 ? "text-rose-600"
                               : sum < 0 ? "text-blue-600"
                               : "text-gray-400";
@@ -203,7 +372,7 @@ export function InvestorMatrixPanel({ history, highlightKey, title }: {
                         className={`px-1.5 py-0.5 border-b border-r border-gray-300 text-right tabular-nums font-medium
                                     ${color}
                                     ${hl ? "bg-amber-50" : ""}`}>
-                      {sum === 0 ? "—" : compact(sum)}
+                      {sum === 0 ? "—" : fmtUnit(sum)}
                     </td>
                   );
                 })}
@@ -236,7 +405,7 @@ export function InvestorMatrixPanel({ history, highlightKey, title }: {
                   {dayLabel}
                 </td>
                 {investors.map(inv => {
-                  const v = (d[inv.key] as number) ?? 0;
+                  const v = conv((d[inv.key] as number) ?? 0, d);
                   const color = v > 0 ? "text-rose-600"
                               : v < 0 ? "text-blue-600"
                               : "text-gray-400";
@@ -247,7 +416,7 @@ export function InvestorMatrixPanel({ history, highlightKey, title }: {
                                     ${color}
                                     ${hl ? "bg-amber-50" : ""}
                                     ${!last ? "border-b" : ""}`}>
-                      {v === 0 ? "—" : compact(v)}
+                      {v === 0 ? "—" : fmtUnit(v)}
                     </td>
                   );
                 })}

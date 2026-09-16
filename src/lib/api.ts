@@ -1344,6 +1344,7 @@ interface TossInvestorItem {
   netOtherFinancialInstitutionsBuyVolume: number;
   netOtherCorporationBuyVolume: number;
   foreignerRatio?: number;
+  close?: number;
 }
 interface TossInvestorResponse { result: { body: TossInvestorItem[] }; }
 
@@ -1368,6 +1369,7 @@ function mapInvestorItem(item: TossInvestorItem): Investor {
     기타금융: Number(item.netOtherFinancialInstitutionsBuyVolume || 0),
     기타법인: Number(item.netOtherCorporationBuyVolume || 0),
     외국인비율: Number(item.foreignerRatio || 0),
+    종가: Number(item.close || 0) || undefined,
   };
 }
 
@@ -2272,6 +2274,36 @@ interface StockTrendRow {
   bizdate: string; closePrice: string;
   individualPureBuyQuant: string; foreignerPureBuyQuant: string; organPureBuyQuant: string;
 }
+// KRX 전용 일별 투자자 순매수 수량 (네이버 m.stock) — 개인/외국인/기관 3분류만 준다.
+//  ★ 토스 trading-trend 는 **KRX+NXT 합산**이고 이건 **KRX 만**이다(2026-09-16 실측, 8종목
+//    모두 `m.stock(KRX) + 네이버 NXT 랭킹 ≈ 토스`, 오차 0.1% 미만). 둘을 빼서 NXT 를 얻는다.
+//  ⚠️ 장중엔 이 값이 **전 거래일까지만** 온다 — 오늘치는 랭킹의 수량으로 메운다.
+//  ⚠️ tradeType·marketType 파라미터는 무시된다(넣어도 같은 KRX 값 — 실측).
+export interface KrxInvestorDay {
+  date: string; 개인: number; 외국인: number; 기관: number;
+  종가?: number;
+}
+export async function fetchKrxInvestorDaily(ticker: string, size = 60): Promise<KrxInvestorDay[]> {
+  const num = (s: string) => Number(String(s).replace(/[+,]/g, "")) || 0;
+  const pageSize = Math.min(60, Math.max(size, 1));   // 60 초과는 400
+  const resp = await fetchProxied(
+    `https://m.stock.naver.com/api/stock/${ticker}/trend?pageSize=${pageSize}&page=1`);
+  if (!resp.ok) return [];
+  const j = await resp.json();
+  if (!Array.isArray(j)) return [];
+  return (j as StockTrendRow[]).flatMap(r => {
+    const bd = String(r.bizdate ?? "");
+    if (bd.length !== 8) return [];
+    return [{
+      date: `${bd.slice(0, 4)}-${bd.slice(4, 6)}-${bd.slice(6, 8)}`,
+      개인:   num(r.individualPureBuyQuant),
+      외국인: num(r.foreignerPureBuyQuant),
+      기관:   num(r.organPureBuyQuant),
+      종가:   num(r.closePrice) || undefined,
+    }];
+  });
+}
+
 export async function fetchLeverageDailyFlow(codes: string[], days = 22): Promise<DailyFlow> {
   const num = (s: string) => Number(String(s).replace(/[+,]/g, "")) || 0;   // "+9,173,980" → 9173980
   const pageSize = Math.min(60, Math.max(days + 5, 15));
@@ -4266,6 +4298,10 @@ export interface InvestorFlowRow {
   name: string;
   logo?: string;
   amount: number;      // 순매수/순매도 금액 (원)
+  // 순매수 수량(주) — **이 요청의 tradeType(KRX 또는 NXT) 기준**. 토스 수급(KRX+NXT 합산)에서
+  //   빼면 반대쪽 거래소 몫이 나온다 → 종목 hover 패널의 오늘 KRX/NXT 분해에 쓴다.
+  //   네이버 경로에만 있다(토스 랭킹은 금액만 준다) → optional.
+  volume?: number;
   close: number;
   pct: number;         // (close - base) / base × 100
   // 금액을 '수량 × 현재가' 로 추정했는가. 네이버는 **장중에 금액을 0 으로 준다**
@@ -4427,7 +4463,7 @@ export async function fetchInvestorRankingsByMarket(
     return [{
       ticker,
       name: String(r.itemname ?? ""),
-      amount, close, estimated,
+      amount, close, estimated, volume,
       pct: progNum(r.prevChangeRate),
     }];
   });
