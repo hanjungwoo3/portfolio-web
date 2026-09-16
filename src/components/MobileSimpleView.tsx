@@ -92,6 +92,9 @@ import { TickArrow } from "./TickArrow";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { ThemeFlow, ThemeDialog } from "./ThemeFlow";
 import { useThemeFlow, type ThemeStat, type GroupSource } from "../lib/themeFlow";
+import { UsSectorFlow, UsSectorDialog } from "./UsSectorFlow";
+import { useUsSectorFlow, type UsGroupSource, type UsSectorStat } from "../lib/usSectorFlow";
+import type { UsScanUniverse } from "../lib/api";
 import { EtfReverseDialog } from "./EtfReverseDialog";
 import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
@@ -159,6 +162,12 @@ export function MobileSimpleView() {
   const themeStats = themeFlow?.themes ?? [];
   const hasThemeFlow = themeStats.length > 0;
   const [themeDlg, setThemeDlg] = useState<ThemeStat | null>(null);
+  // 미국 섹터 — PC(UsMarketTab)와 같은 블록. 한쪽만 넣으면 기기마다 화면이 갈린다.
+  const [usSectorSource, setUsSectorSource] = useState<UsGroupSource>("sector");
+  const [usUniverse, setUsUniverse] = useState<UsScanUniverse>("sp500");
+  const { flow: usFlow, loading: usFlowLoading, error: usFlowError, refresh: refreshUsFlow } =
+    useUsSectorFlow(true, usUniverse, usSectorSource);
+  const [usSectorDlg, setUsSectorDlg] = useState<UsSectorStat | null>(null);
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // 상단 헤더 접기/펼치기 (PC 와 동일 키)
@@ -1505,6 +1514,13 @@ export function MobileSimpleView() {
                              onRefresh={refreshThemes} refreshing={themeLoading}
                              source={themeSource} onSource={setThemeSource} />
                 )}
+                {section.render === "usSectorFlow" && (
+                  <UsSectorFlow flow={usFlow} onPick={setUsSectorDlg}
+                                onRefresh={refreshUsFlow} refreshing={usFlowLoading}
+                                error={usFlowError}
+                                source={usSectorSource} onSource={setUsSectorSource}
+                            universe={usUniverse} onUniverse={setUsUniverse} />
+                )}
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
                   {(section.render === "sectorFlow" && hasThemeFlow ? []
                     : section.id === "sector"
@@ -1738,6 +1754,12 @@ export function MobileSimpleView() {
           void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
           void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
         }} />
+
+      {/* 미국 섹터 종목 목록 모달 — PC(UsMarketTab)와 같은 모달 */}
+      {usSectorDlg && (
+        <UsSectorDialog stat={usSectorDlg} basis={usFlow?.basis ?? "closed"} trimmed={usFlow?.trimmed}
+                        onClose={() => setUsSectorDlg(null)} />
+      )}
 
       {/* 테마 종목 목록 모달 — 섹터 흐름에서 테마 클릭 시 */}
       {themeDlg && (

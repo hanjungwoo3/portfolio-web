@@ -12,7 +12,8 @@ export interface DashboardSection {
   mobilePair?: boolean;
   // 카드 대신 다른 블록으로 그리는 섹션. "sectorFlow" 면 ETF 랭킹의 '섹터별 흐름' 을 넣는다.
   //   랭킹 스냅샷이 없으면(캐시 없음·조회 실패) rows 의 고정 카드로 폴백한다.
-  render?: "sectorFlow";
+  //   "usSectorFlow" 는 그 미국판(TradingView scanner 1콜) — 폴백 카드가 없어 rows 는 비어 있다.
+  render?: "sectorFlow" | "usSectorFlow";
 }
 
 // krClosed=true (한국 정규장 마감 → 카드 흐림) 이면 한국 관련 그룹(한국 시장·한국 섹터·반도체 TOP2+)을
@@ -43,6 +44,15 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
       id: "macro", short: "미국지수",
       label: "📈 미국 지수",                          // 전체시장(윌셔5000·러셀3000·NYSE) + 대표(나스닥·S&P·다우)
       rows: [["^W5000", "^RUA", "^NYA", "^IXIC", "^GSPC", "^DJI"]],
+    },
+    {
+      // 미국 섹터 — 한국 섹터의 미국판. S&P 500 종목을 TradingView 분류(섹터 20 / 산업 100)로 묶는다.
+      //   폴백 카드를 두지 않는다: 섹터 ETF 를 대신 깔면 '종목 흐름' 과 'ETF 시세' 가 같은 자리에서
+      //   번갈아 보여 같은 칸의 뜻이 바뀐다(한국 쪽에서 이미 혼란이었다).
+      id: "ussector", short: "미국섹터",
+      render: "usSectorFlow",
+      label: "🗽 미국 섹터",
+      rows: [],
     },
     {
       id: "fx", short: "환율금리",

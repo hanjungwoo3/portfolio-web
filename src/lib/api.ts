@@ -4149,6 +4149,83 @@ export async function fetchKrHeatmap(source: HeatmapSource, limit = 500): Promis
     .filter(x => x.code && (x.marketCap > 0 || x.volume > 0));
 }
 
+// ─── 미국 섹터/산업 스캔 (TradingView scanner, america) ───────────────────
+//   히트맵과 같은 무인증 POST 다. 한국 섹터(themeFlow)가 분류 파일 + 시세 3콜을 쓰는 것과 달리
+//   여기는 **분류(sector·industry)까지 한 콜에 온다** — S&P 500 503종 = 86KB, 1콜.
+//   ⚠️ scanner.tradingview.com 은 워커 화이트리스트 필요(히트맵과 같은 호스트라 이미 등록돼 있다).
+export interface UsScanRow {
+  ticker: string;       // NVDA
+  name: string;         // NVIDIA Corporation
+  logoid: string;
+  exchange: string;     // NASDAQ / NYSE — TradingView 링크용
+  changePct: number;    // 정규장 등락률 %
+  premarketPct: number;
+  postmarketPct: number;
+  close: number;        // USD
+  valueTraded: number;  // 거래대금(USD)
+  marketCap: number;    // 시가총액(USD)
+  sector: string;       // 20개 대분류 (Electronic Technology 등)
+  industry: string;     // 100개 소분류 (Semiconductors 등)
+}
+// 스캔 범위. 넓힐수록 산업당 표본이 늘어(=중앙값이 안정) 대신 응답이 커진다 — 실측(2026-09-16):
+//   sp500   503종 86KB   · 산업 100개(8종↑ 43)
+//   cap1b  5,338종 1.1MB · 산업 128개(8종↑ 110)
+//   cap300m 7,023종 1.4MB · 산업 128개(8종↑ 117)  ← 한국 카드의 시총 5,000억 하한과 같은 눈높이
+//   all    19,943종 3.9MB · 산업 131개(8종↑ 127)
+export type UsScanUniverse = "sp500" | "cap1b" | "cap300m" | "all";
+interface UniverseMeta { symbolset?: string; minCap?: number; range: number }
+const US_UNIVERSE: Record<UsScanUniverse, UniverseMeta> = {
+  sp500:   { symbolset: "SYML:SP;SPX", range: 600 },
+  cap1b:   { minCap: 1_000_000_000,  range: 6000 },
+  cap300m: { minCap: 300_000_000,    range: 8000 },
+  all:     { range: 20000 },
+};
+
+export async function fetchUsSectorScan(universe: UsScanUniverse = "sp500"): Promise<UsScanRow[]> {
+  const meta = US_UNIVERSE[universe];
+  const body = {
+    ...(meta.symbolset ? { symbols: { symbolset: [meta.symbolset] } } : {}),
+    ...(meta.minCap
+      ? { filter: [{ left: "market_cap_basic", operation: "egreater", right: meta.minCap }] }
+      : {}),
+    columns: ["name", "description", "logoid", "exchange", "change", "premarket_change",
+      "postmarket_change", "close", "Value.Traded", "market_cap_basic", "sector", "industry"],
+    sort: { sortBy: "market_cap_basic", sortOrder: "desc" },
+    range: [0, meta.range],
+  };
+  const resp = await fetchProxied("https://scanner.tradingview.com/america/scan", {
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),
+  });
+  const text = await resp.text();
+  let j: { error?: string; data?: { s: string; d: unknown[] }[] };
+  try { j = JSON.parse(text); } catch { throw new Error("미국 섹터 응답 파싱 실패"); }
+  if (typeof j.error === "string") {
+    if (/host not allowed/i.test(j.error)) throw new ProxyHostError(j.error);
+    throw new Error(j.error);
+  }
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  const str = (v: unknown) => (typeof v === "string" ? v : "");
+  return (Array.isArray(j.data) ? j.data : []).flatMap(r => {
+    const d = r.d;
+    const ticker = str(d[0]);
+    if (!ticker) return [];
+    return [{
+      ticker,
+      name: str(d[1]) || ticker,
+      logoid: str(d[2]),
+      exchange: str(d[3]),
+      changePct: num(d[4]),
+      premarketPct: num(d[5]),
+      postmarketPct: num(d[6]),
+      close: num(d[7]),
+      valueTraded: num(d[8]),
+      marketCap: num(d[9]),
+      sector: str(d[10]) || "기타",
+      industry: str(d[11]) || "기타",
+    }];
+  });
+}
+
 // ─── 코리아 밸류업 지수 (네이버 KVALUE) ─── 지수탭 카드용. Yahoo 미제공 → 네이버 m.stock 무인증.
 //   TradingView symbolset 미지원이라 히트맵이 아닌 '지수 카드 + 구성종목' 형태로 표시.
 export interface ValueupIndex {
