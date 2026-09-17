@@ -21,10 +21,13 @@ export interface SimplePriceCardProps {
   dimmed?: boolean;             // 이번 세션 미체결 — 값이 직전 세션 것이다
   badge?: ReactElement | null;   // 순위 같은 화면별 부가 정보 (종목명 책갈피 안)
   actions?: ReactElement | null; // 오른쪽 위 책갈피 (기업가치 등)
+  // 카드 **안쪽 오른쪽 아래** 한 줄 — 의견·시그널처럼 '읽는' 부가 정보.
+  //   누르는 것(actions)과 자리를 갈라 둔다. 길면 잘리므로 호출자가 truncate 를 건다.
+  footer?: ReactElement | null;
 }
 
 export function SimplePriceCard({
-  ticker, name, price, base, high, low, target, chart, dimmed, badge, actions,
+  ticker, name, price, base, high, low, target, chart, dimmed, badge, actions, footer,
 }: SimplePriceCardProps) {
   const cur = price;
   const b = base || cur;
@@ -97,14 +100,20 @@ export function SimplePriceCard({
           {actions}
         </span>
       )}
-      <div className="relative h-full min-h-[104px] flex flex-col justify-center
+      <div className={`relative h-full min-h-[104px] flex flex-col justify-center
                       overflow-hidden border border-gray-200 rounded-md
-                      bg-gray-50/60 px-2 pt-3 pb-1.5 space-y-0.5">
+                      bg-gray-50/60 px-2 pt-3 space-y-0.5 ${footer ? "pb-4" : "pb-1.5"}`}>
         {chart && chart.length > 1 && (
           <Sparkline data={chart} width={300} height={90} target={target}
                      className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" />
         )}
         {rows.map(r => r.el)}
+        {footer && (
+          <span className="absolute bottom-1 left-2 right-2 z-10 flex items-baseline
+                           justify-end gap-1 text-[10px] leading-tight">
+            {footer}
+          </span>
+        )}
       </div>
     </div>
   );

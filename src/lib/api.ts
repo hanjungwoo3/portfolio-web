@@ -330,6 +330,13 @@ export async function fetchTossUsPrices(codes: string[]): Promise<Map<string, To
 export async function fetchTossUsStockCandles(symbol: string, count = 120): Promise<number[]> {
   const code = TOSS_US_STOCK_CODE[symbol] ?? getTossCode(symbol);
   if (!code) return [];
+  return fetchTossUsCandlesByCode(code, count);
+}
+
+// 토스 내부코드를 이미 아는 경우(TICS 구성종목 등) — 심볼→코드 변환을 건너뛴다.
+//   getTossCode 는 '이미 본 종목' 만 아는 캐시라, 처음 보는 미국 종목은 그 경로로 못 찾는다.
+export async function fetchTossUsCandlesByCode(code: string, count = 120): Promise<number[]> {
+  if (!code) return [];
   const target = `https://wts-info-api.tossinvest.com/api/v1/c-chart/us-s/${code}/day:1?count=${count}&useAdjustedRate=true`;
   try {
     const resp = await fetchProxied(target);
@@ -4165,6 +4172,138 @@ export async function fetchKrHeatmap(source: HeatmapSource, limit = 500): Promis
     .filter(x => x.code && (x.marketCap > 0 || x.volume > 0));
 }
 
+// ─── 장 운영 상태 (토스 dashboard overview trading-info) ──────────────────
+//   국내·해외의 **현재 구간**을 토스가 직접 알려준다 — 우리가 시계를 들고 추정할 필요가 없다.
+//   국내: 장 열림 08:30 · 정규장 09:00~15:30 · 시간외 15:30~16:00 · 애프터 16:00~20:00
+//   해외(KST): 데이마켓 09:00~17:00(오버나잇) · 프리 17:00~22:30 · 정규 22:30~05:00 · 애프터 05:00~09:00
+//   ⚠️ 직접 계산하면 서머타임과 **휴장일**을 우리가 관리해야 한다. 여기엔 isHoliday 가 같이 온다.
+//   (실측 2026-09-17 23:43 KST: us marketOpen=true, currentMarketTradingHour="정규장")
+export interface MarketSession {
+  open: boolean;
+  phase: string;        // "정규장" / "프리마켓" / "애프터마켓" / "데이마켓" / "장 닫힘"
+  isHoliday: boolean;
+}
+export async function fetchTossMarketSessions(): Promise<{ kr?: MarketSession; us?: MarketSession }> {
+  const resp = await fetchProxied("https://wts-info-api.tossinvest.com/api/v1/dashboard/wts/overview/trading-info");
+  if (!resp.ok) throw new Error(`trading-info HTTP ${resp.status}`);
+  const j = await resp.json() as {
+    result?: { data?: Array<{ key?: string; marketOpen?: boolean | null; currentMarketTradingHour?: string | null; isHoliday?: boolean }> };
+  };
+  const out: { kr?: MarketSession; us?: MarketSession } = {};
+  for (const m of j.result?.data ?? []) {
+    if (m.key !== "kr" && m.key !== "us") continue;
+    out[m.key] = {
+      open: m.marketOpen === true,
+      phase: m.currentMarketTradingHour ?? "",
+      isHoliday: m.isHoliday === true,
+    };
+  }
+  return out;
+}
+
+// ─── 토스 TICS 카테고리 랭킹 (한·미 같은 분류) ─────────────────────────────
+//   POST /api/v2/dashboard/wts/overview/tics/ranking
+//     body: { nation: "KR"|"US", duration: "1d"|"1w"|"1m"|"3m"|"1y",
+//             sortBy: "FLUCTUATION_RATE"|"TRADING_AMOUNT" }   ※ MARKET_CAP 은 400 이다(실측)
+//   ★ 이 소스의 값어치는 **한·미가 같은 한글 분류를 쓴다**는 것이다(공통 53개 — 실측).
+//     "미국에서 오른 섹터가 한국엔 뭐가 있나" 를 이름만으로 맞출 수 있다.
+//   ⚠️ fluctuationRate 의 계산식은 공개돼 있지 않다. 실측(양자컴퓨터, 구성 10종 전부):
+//     토스 +6.580% vs 단순평균 +4.995% · 중앙값 +6.237% · 시총가중 +6.375% — 무엇과도 안 맞는다.
+//     그래서 우리 섹터 카드(거래대금 상위 20종 중앙값)와 **섞으면 안 된다**. 화면에 '토스 기준' 을 밝힌다.
+export type TicsNation = "KR" | "US";
+export type TicsDuration = "1d" | "1w" | "1m" | "3m" | "1y";
+export type TicsSort = "FLUCTUATION_RATE" | "TRADING_AMOUNT";
+export interface TicsCategory {
+  ticsId: number;
+  name: string;          // 한글 분류명 (한·미 공통 어휘)
+  rank: number;
+  imageUrl?: string;
+  pct: number;           // 등락률 % (토스 기준)
+  tradingAmountKrw: number;
+  marketCapKrw: number;
+  stockCount: number;
+  leaderName?: string;   // 주도 종목
+  leaderSignal?: string; // 토스가 붙인 한 줄 시그널 ("양자 시뮬레이션 가속" 등)
+}
+export async function fetchTossTicsRanking(
+  nation: TicsNation, duration: TicsDuration = "1d", sortBy: TicsSort = "FLUCTUATION_RATE",
+): Promise<{ basedAt: string; items: TicsCategory[] }> {
+  const resp = await fetchProxied(
+    "https://wts-info-api.tossinvest.com/api/v2/dashboard/wts/overview/tics/ranking",
+    { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nation, duration, sortBy }) });
+  if (!resp.ok) throw new Error(`tics ranking HTTP ${resp.status}`);
+  const j = await resp.json() as {
+    result?: { basedAt?: string; tics?: Array<{
+      rank?: number; ticsId?: number; name?: string; imageUrl?: string;
+      fluctuationRate?: number; tradingAmountKrw?: number; totalMarketCapKrw?: number;
+      stockCount?: number; leadingStock?: { name?: string; signal?: string };
+    }> };
+  };
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  const items = (j.result?.tics ?? []).flatMap(t => {
+    if (!t.name || typeof t.ticsId !== "number") return [];
+    return [{
+      ticsId: t.ticsId, name: t.name, rank: num(t.rank), imageUrl: t.imageUrl,
+      pct: num(t.fluctuationRate) * 100,
+      tradingAmountKrw: num(t.tradingAmountKrw),
+      marketCapKrw: num(t.totalMarketCapKrw),
+      stockCount: num(t.stockCount),
+      leaderName: t.leadingStock?.name,
+      leaderSignal: t.leadingStock?.signal,
+    }];
+  });
+  return { basedAt: j.result?.basedAt ?? "", items };
+}
+
+// 카테고리 구성종목. POST .../tics/{ticsId}/stocks  body: { nation }
+//   ⚠️ size 파라미터는 무시된다 — **한 페이지 10종 고정**이고 page 로만 넘긴다(실측).
+export interface TicsStock {
+  code: string;          // 토스 productCode
+  name: string;          // 한글 종목명
+  logo?: string;
+  price: number;         // 현지 통화 종가/현재가
+  base: number;          // 현지 통화 기준가(직전 종가) — 카드의 등락 표시용
+  priceKrw: number;      // 원화 환산 (국내는 null 이라 0)
+  baseKrw: number;
+  pct: number;           // 등락률 %
+  marketCapKrw: number;
+  tradingValueKrw: number;
+  opinion?: string;      // 애널리스트 의견 (BUY 등)
+  signal?: string;
+}
+// 구성종목 정렬 — **등락률(FLUCTUATION_RATE)은 400 이다**(실측). 서버가 주는 건 이 둘뿐이다.
+export type TicsStockSort = "MARKET_CAP" | "TRADING_VALUE";
+export async function fetchTossTicsStocks(
+  ticsId: number, nation: TicsNation, page = 1, sortBy: TicsStockSort = "MARKET_CAP",
+): Promise<{ total: number; page: number; stocks: TicsStock[] }> {
+  const resp = await fetchProxied(
+    `https://wts-info-api.tossinvest.com/api/v2/dashboard/wts/overview/tics/${ticsId}/stocks`,
+    { method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ nation, page, sortBy }) });
+  if (!resp.ok) throw new Error(`tics stocks HTTP ${resp.status}`);
+  const j = await resp.json() as {
+    result?: { totalCount?: number; page?: number; stocks?: Array<{
+      code?: string; name?: string; logoImageUrl?: string; changeRate?: number;
+      price?: { close?: number; base?: number; closeKrw?: number; baseKrw?: number };
+      marketCapKrw?: number; tradingValueKrw?: number; analystOpinion?: string; signal?: string;
+    }> };
+  };
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : 0);
+  const stocks = (j.result?.stocks ?? []).flatMap(x => {
+    if (!x.code || !x.name) return [];
+    return [{
+      code: x.code, name: x.name, logo: x.logoImageUrl,
+      price: num(x.price?.close), base: num(x.price?.base),
+      priceKrw: num(x.price?.closeKrw), baseKrw: num(x.price?.baseKrw),
+      pct: num(x.changeRate) * 100,
+      marketCapKrw: num(x.marketCapKrw), tradingValueKrw: num(x.tradingValueKrw),
+      opinion: x.analystOpinion, signal: x.signal,
+    }];
+  });
+  return { total: num(j.result?.totalCount), page: num(j.result?.page) || page, stocks };
+}
+
 // ─── 미국 섹터/산업 스캔 (TradingView scanner, america) ───────────────────
 //   히트맵과 같은 무인증 POST 다. 한국 섹터(themeFlow)가 분류 파일 + 시세 3콜을 쓰는 것과 달리
 //   여기는 **분류(sector·industry)까지 한 콜에 온다** — S&P 500 503종 = 86KB, 1콜.
@@ -4197,17 +4336,24 @@ const US_UNIVERSE: Record<UsScanUniverse, UniverseMeta> = {
   all:     { range: 20000 },
 };
 
-export async function fetchUsSectorScan(universe: UsScanUniverse = "sp500"): Promise<UsScanRow[]> {
+// tickers 를 주면 범위(universe) 대신 **그 종목들만** 조회한다 — 테마 바스켓용.
+//   심볼셋과 달리 거래소 접두어가 필요 없다(name in_range 필터, 실측 236/236 적중).
+export async function fetchUsSectorScan(
+  universe: UsScanUniverse = "sp500", tickers?: string[],
+): Promise<UsScanRow[]> {
   const meta = US_UNIVERSE[universe];
+  const byTicker = tickers && tickers.length > 0;
   const body = {
-    ...(meta.symbolset ? { symbols: { symbolset: [meta.symbolset] } } : {}),
-    ...(meta.minCap
+    ...(byTicker || meta.symbolset === undefined ? {} : { symbols: { symbolset: [meta.symbolset] } }),
+    ...(byTicker
+      ? { filter: [{ left: "name", operation: "in_range", right: tickers }] }
+      : meta.minCap
       ? { filter: [{ left: "market_cap_basic", operation: "egreater", right: meta.minCap }] }
       : {}),
     columns: ["name", "description", "logoid", "exchange", "change", "premarket_change",
       "postmarket_change", "close", "Value.Traded", "market_cap_basic", "sector", "industry"],
     sort: { sortBy: "market_cap_basic", sortOrder: "desc" },
-    range: [0, meta.range],
+    range: [0, byTicker ? tickers.length : meta.range],
   };
   const resp = await fetchProxied("https://scanner.tradingview.com/america/scan", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body),

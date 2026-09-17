@@ -159,6 +159,8 @@ export function tossStockUrl(ticker: string): string | null {
   const code = loadTossCodes()[ticker];
   if (code) return `https://www.tossinvest.com/stocks/${code}`;
   if (/^[\dA-Za-z]{6}$/.test(ticker)) return `https://tossinvest.com/stocks/A${ticker}`;
+  // 이미 토스 내부코드를 들고 있는 화면(TICS 구성종목 등) — 그대로 연다.
+  if (/^(US|NAS|NYS|AMX|A)[\dA-Za-z]{6,}$/.test(ticker)) return `https://www.tossinvest.com/stocks/${ticker}`;
   return null;
 }
 

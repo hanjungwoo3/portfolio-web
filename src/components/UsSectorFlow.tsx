@@ -92,8 +92,9 @@ export function UsSectorFlow({ flow, onPick, onRefresh, refreshing, error,
           </button>
         ))}
         <span className="text-gray-300 mx-0.5">|</span>
-        {/* 스캔 범위 — 넓힐수록 산업당 표본이 늘어 중앙값이 안정되고, 대신 응답이 무거워진다 */}
-        {(Object.keys(US_UNIVERSE_LABEL) as UsScanUniverse[]).map(u => (
+        {/* 스캔 범위 — 넓힐수록 산업당 표본이 늘어 중앙값이 안정되고, 대신 응답이 무거워진다.
+            테마 모드에선 바스켓 종목만 보므로 범위 자체가 없다 → 감춘다. */}
+        {source !== "theme" && (Object.keys(US_UNIVERSE_LABEL) as UsScanUniverse[]).map(u => (
           <button key={u} onClick={() => onUniverse(u)} title={US_UNIVERSE_DESC[u]}
                   className={`px-2 py-0.5 rounded text-[11px] font-bold border transition ${
                     universe === u ? "bg-indigo-600 text-white border-indigo-600"
@@ -102,13 +103,16 @@ export function UsSectorFlow({ flow, onPick, onRefresh, refreshing, error,
           </button>
         ))}
         <span className="text-[10px] text-gray-400 ml-1">
-          분류만 다르고 계산 기준은 한국 섹터와 같습니다
+          {source === "theme"
+            ? "한국 카드와 같은 이름 · 테마당 주요 종목만"
+            : "분류만 다르고 계산 기준은 한국 섹터와 같습니다"}
         </span>
       </div>
 
       <div className="flex items-center gap-2 text-[11px] text-gray-500 px-0.5 -mt-0.5 mb-1 flex-wrap">
         <span>
-          {US_UNIVERSE_LABEL[universe]} · 거래대금 상위 20종의 중앙값 등락률 순 ·{" "}
+          {source === "theme" ? "테마 바스켓" : US_UNIVERSE_LABEL[universe]}
+          {" · 거래대금 상위 20종의 중앙값 등락률 순 · "}
           <span className="text-gray-400">
             {stamp ? `기준 ${stamp} · ` : ""}누르면 종목 목록
           </span>
@@ -124,7 +128,9 @@ export function UsSectorFlow({ flow, onPick, onRefresh, refreshing, error,
         )}
         {onRefresh && (
           <button onClick={onRefresh} disabled={refreshing}
-                  title={`${US_UNIVERSE_DESC[universe]} — 다시 조회합니다 (프록시 1콜)`}
+                  title={source === "theme"
+                    ? "테마 바스켓 종목을 다시 조회합니다 (프록시 1콜)"
+                    : `${US_UNIVERSE_DESC[universe]} — 다시 조회합니다 (프록시 1콜)`}
                   className="px-1.5 py-0.5 rounded border border-gray-300 bg-white text-gray-600
                              hover:bg-gray-100 disabled:opacity-50">
             {refreshing ? "조회 중…" : "🔄 새로고침"}
@@ -229,7 +235,9 @@ export function UsSectorDialog({ stat, basis, trimmed, onClose }: {
         </div>
 
         <p className="px-3 py-2 text-[10px] text-gray-400 border-t leading-relaxed">
-          {stat.rows.length}종 전체 · 등락률 순. 분류(섹터·산업)는 TradingView 기준이며 이름만 우리말로 옮겼습니다.
+          {stat.rows.length}종 전체 · 등락률 순. {stat.enName === stat.label
+            ? "이 테마의 종목은 한국 카드와 맞추려고 직접 고른 주요 종목입니다(망라가 아닙니다)."
+            : "분류(섹터·산업)는 TradingView 기준이며 이름만 우리말로 옮겼습니다."}
           카드의 중앙값은 이 중 <b>거래대금 상위 20종</b>으로 계산합니다 — 한국 섹터 카드와 같은 공식입니다.
           종목을 누르면 TradingView 가 열립니다. 숫자는 각각 현재가 · 시가총액 · 거래대금입니다.
         </p>

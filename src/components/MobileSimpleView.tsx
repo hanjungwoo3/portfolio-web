@@ -90,11 +90,7 @@ import { MyTradesTab } from "./MyTradesTab";
 import { AssetTrendTab } from "./AssetTrendTab";
 import { TickArrow } from "./TickArrow";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
-import { ThemeFlow, ThemeDialog } from "./ThemeFlow";
-import { useThemeFlow, type ThemeStat, type GroupSource } from "../lib/themeFlow";
-import { UsSectorFlow, UsSectorDialog } from "./UsSectorFlow";
-import { useUsSectorFlow, type UsGroupSource, type UsSectorStat } from "../lib/usSectorFlow";
-import type { UsScanUniverse } from "../lib/api";
+import { TicsSectorBoard } from "./TicsSectorBoard";
 import { EtfReverseDialog } from "./EtfReverseDialog";
 import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
@@ -155,19 +151,6 @@ export function MobileSimpleView() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInitQuery, setSearchInitQuery] = useState("");
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
-  // 섹터별 흐름 — 고정 22종 대신 전수 랭킹 스냅샷(PC 와 동일). 없으면 고정 카드로 폴백.
-  // 카드 묶음 출처 — 우리 38카드 / 네이버 업종 / 네이버 테마. 계산 기준은 셋 다 같다.
-  const [themeSource, setThemeSource] = useState<GroupSource>("cards");
-  const { flow: themeFlow, loading: themeLoading, refresh: refreshThemes } = useThemeFlow(true, themeSource);
-  const themeStats = themeFlow?.themes ?? [];
-  const hasThemeFlow = themeStats.length > 0;
-  const [themeDlg, setThemeDlg] = useState<ThemeStat | null>(null);
-  // 미국 섹터 — PC(UsMarketTab)와 같은 블록. 한쪽만 넣으면 기기마다 화면이 갈린다.
-  const [usSectorSource, setUsSectorSource] = useState<UsGroupSource>("sector");
-  const [usUniverse, setUsUniverse] = useState<UsScanUniverse>("sp500");
-  const { flow: usFlow, loading: usFlowLoading, error: usFlowError, refresh: refreshUsFlow } =
-    useUsSectorFlow(true, usUniverse, usSectorSource);
-  const [usSectorDlg, setUsSectorDlg] = useState<UsSectorStat | null>(null);
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // 상단 헤더 접기/펼치기 (PC 와 동일 키)
@@ -1506,23 +1489,12 @@ export function MobileSimpleView() {
                                  text-[11px] font-bold text-gray-700 whitespace-nowrap">
                   {section.label}
                 </span>
-                {section.render === "sectorFlow" && hasThemeFlow && (
-                  <ThemeFlow themes={themeStats} onPick={setThemeDlg}
-                             fetchedAt={themeFlow?.fetchedAt} minCap={themeFlow?.minCap}
-                             tradeDate={themeFlow?.tradeDate}
-                             scanned={themeFlow?.scanned} total={themeFlow?.total}
-                             onRefresh={refreshThemes} refreshing={themeLoading}
-                             source={themeSource} onSource={setThemeSource} />
-                )}
-                {section.render === "usSectorFlow" && (
-                  <UsSectorFlow flow={usFlow} onPick={setUsSectorDlg}
-                                onRefresh={refreshUsFlow} refreshing={usFlowLoading}
-                                error={usFlowError}
-                                source={usSectorSource} onSource={setUsSectorSource}
-                            universe={usUniverse} onUniverse={setUsUniverse} />
+                {/* 한국 섹터 — 토스 TICS(미국 블록과 같은 한글 분류). PC 와 같은 컴포넌트. */}
+                {section.render === "sectorFlow" && (
+                  <TicsSectorBoard onOpenValuation={(code, name) => { setValuationName(name); setValuationTicker(code); }} />
                 )}
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
-                  {(section.render === "sectorFlow" && hasThemeFlow ? []
+                  {(section.render ? []
                     : section.id === "sector"
                     // 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장) — 오늘 등락률(%) 내림차순 정렬 (PC 동일)
                     ? section.rows.flat().sort((a, b) =>
@@ -1755,22 +1727,6 @@ export function MobileSimpleView() {
           void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
         }} />
 
-      {/* 미국 섹터 종목 목록 모달 — PC(UsMarketTab)와 같은 모달 */}
-      {usSectorDlg && (
-        <UsSectorDialog stat={usSectorDlg} basis={usFlow?.basis ?? "closed"} trimmed={usFlow?.trimmed}
-                        onClose={() => setUsSectorDlg(null)} />
-      )}
-
-      {/* 테마 종목 목록 모달 — 섹터 흐름에서 테마 클릭 시 */}
-      {themeDlg && (
-        <ThemeDialog theme={themeDlg} minCap={themeFlow?.minCap}
-                     onClose={() => setThemeDlg(null)}
-                     // 섹터 팝업은 닫지 않는다 — 기업가치를 덮어 띄우고 Esc 로 돌아오게 한다.
-                     onOpenStock={(code, name) => {
-                       setValuationName(name);
-                       setValuationTicker(code);
-                     }} />
-      )}
 
       {/* 기능 요청 / 건의사항 — Padlet 임베드 */}
       <FeedbackDialog isOpen={feedbackOpen} onClose={() => setFeedbackOpen(false)} />

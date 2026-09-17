@@ -11,13 +11,17 @@
 //   (중앙값·오른 비율 — 한국 카드와 같은 공식이라 두 화면의 숫자를 같은 눈으로 읽을 수 있다).
 
 import { useCallback, useEffect, useState } from "react";
-import { fetchUsSectorScan, type UsScanRow, type UsScanUniverse } from "./api";
+import { fetchUsSectorScan, fetchTossMarketSessions, type UsScanRow, type UsScanUniverse } from "./api";
 import { usSectorKrLabel } from "./usSectorLabels";
+import { US_THEME_BASKETS, US_THEME_TICKERS } from "./usThemeBaskets";
 
-/** 카드 묶음 기준. sector = 20개 대분류, industry = 100개 소분류. */
-export type UsGroupSource = "sector" | "industry";
+/** 카드 묶음 기준.
+ *  theme    = 한국 카드와 같은 이름의 테마 바스켓(주요 종목만, 우리가 고른다)
+ *  sector   = TradingView 대분류 20개 / industry = 소분류 100개 (분류를 빌린다)
+ *  ★ theme 은 '주도 테마' 를 보려고 만든 것이다 — 분류로는 양자컴퓨팅·HBM·CPO 가 안 보인다. */
+export type UsGroupSource = "theme" | "sector" | "industry";
 export const US_GROUP_LABEL: Record<UsGroupSource, string> = {
-  sector: "섹터(20)", industry: "산업(100)",
+  theme: "한국 테마", sector: "섹터(20)", industry: "산업(100)",
 };
 
 /** 스캔 범위 — 넓힐수록 산업당 표본이 늘고(중앙값 안정) 응답이 커진다. api.ts 의 US_UNIVERSE 주석 참고. */
@@ -78,7 +82,8 @@ const LEAD = 20;
 const MIN_SAMPLE = 3;
 
 // 범위·묶음별로 캐시를 나눈다 — 한 키를 돌려 쓰면 토글할 때마다 다른 묶음의 값이 잠깐 보인다.
-const lsKey = (universe: UsScanUniverse, source: UsGroupSource) => `us_flow_v2_${universe}_${source}`;
+const lsKey = (universe: UsScanUniverse, source: UsGroupSource) =>
+  source === "theme" ? "us_flow_v2_theme" : `us_flow_v2_${universe}_${source}`;
 // localStorage 는 보통 5MB 다. 전체(19,943종) 스냅샷을 통째로 넣으면 보유 데이터까지 밀어낸다 —
 //   1MB 를 넘으면 묶음당 상위 30종만 남겨 저장한다(화면에 '일부' 라고 밝힌다).
 const LS_MAX_BYTES = 1_000_000;
@@ -96,7 +101,8 @@ function nowEt(): { mins: number; weekday: number } {
   return { mins: hour * 60 + Number(parts.minute), weekday: wdMap[parts.weekday as string] ?? 1 };
 }
 
-/** 지금이 프리장/정규장/애프터/장외 중 어디인가 (ET 기준, 휴일은 판정하지 않는다). */
+/** 지금이 프리장/정규장/애프터/장외 중 어디인가 (ET 시계 기준).
+ *  ⚠️ 휴장일을 모른다 — 토스 trading-info 가 실패할 때만 쓰는 폴백이다. */
 export function usSessionNow(): UsBasis {
   const { mins, weekday } = nowEt();
   if (weekday === 0 || weekday === 6) return "closed";
@@ -104,6 +110,27 @@ export function usSessionNow(): UsBasis {
   if (mins >= 9 * 60 + 30 && mins < 16 * 60) return "regular";
   if (mins >= 16 * 60 && mins < 20 * 60) return "post";
   return "closed";
+}
+
+// 토스가 알려주는 현재 구간을 우선 쓴다 — 서머타임·휴장일을 우리가 관리하지 않아도 된다.
+//   짧은 메모(60초)로 감싼다: 섹터 카드가 받을 때마다 이걸 또 부르면 콜이 두 배가 된다.
+//   '데이마켓'(KST 09:00~17:00 오버나잇)은 closed 로 본다 — TradingView 는 그 구간 값을 주지 않는다.
+const TOSS_PHASE_TO_BASIS: Record<string, UsBasis> = {
+  "정규장": "regular", "프리마켓": "pre", "애프터마켓": "post",
+};
+let sessionMemo: { at: number; basis: UsBasis } | null = null;
+async function usBasisNow(): Promise<UsBasis> {
+  if (sessionMemo && Date.now() - sessionMemo.at < 60_000) return sessionMemo.basis;
+  try {
+    const s = await fetchTossMarketSessions();
+    const us = s.us;
+    if (us) {
+      const basis: UsBasis = us.isHoliday ? "closed" : (TOSS_PHASE_TO_BASIS[us.phase] ?? "closed");
+      sessionMemo = { at: Date.now(), basis };
+      return basis;
+    }
+  } catch { /* 폴백으로 내려간다 */ }
+  return usSessionNow();
 }
 
 function median(xs: number[]): number {
@@ -132,8 +159,11 @@ export function loadCachedUsSectorFlow(universe: UsScanUniverse, source: UsGroup
 export async function fetchUsSectorFlow(
   universe: UsScanUniverse, source: UsGroupSource,
 ): Promise<UsSectorFlow> {
-  const rows = await fetchUsSectorScan(universe);
-  const basis = usSessionNow();
+  // 테마는 바스켓 종목만 조회한다(236종, 1콜). 범위 토글은 이 모드에서 의미가 없다.
+  const rows = source === "theme"
+    ? await fetchUsSectorScan(universe, US_THEME_TICKERS)
+    : await fetchUsSectorScan(universe);
+  const basis = await usBasisNow();
 
   // 프리/애프터인데 실제로 값이 들어온 종목이 거의 없으면(새벽 프리장 초반) 정규장 기준으로 되돌린다.
   //   0% 로 채워진 종목이 중앙값을 0 으로 눌러 카드가 전부 회색이 되는 것을 막는다.
@@ -141,17 +171,28 @@ export async function fetchUsSectorFlow(
   const liveExtended = extendedKey ? rows.filter(r => r[extendedKey] !== 0).length : 0;
   const effBasis: UsBasis = extendedKey && liveExtended < rows.length * 0.1 ? "closed" : basis;
 
+  const toStock = (r: UsScanRow): UsSectorStock => ({
+    ticker: r.ticker, name: r.name, logoid: r.logoid, exchange: r.exchange,
+    pct: pctOf(r, effBasis), regularPct: r.changePct,
+    close: r.close, value: r.valueTraded, cap: r.marketCap,
+  });
+
   const groups = new Map<string, UsSectorStock[]>();
-  for (const r of rows) {
-    const key = source === "sector" ? r.sector : r.industry;
-    if (!key) continue;
-    const stock: UsSectorStock = {
-      ticker: r.ticker, name: r.name, logoid: r.logoid, exchange: r.exchange,
-      pct: pctOf(r, effBasis), regularPct: r.changePct,
-      close: r.close, value: r.valueTraded, cap: r.marketCap,
-    };
-    const arr = groups.get(key);
-    if (arr) arr.push(stock); else groups.set(key, [stock]);
+  if (source === "theme") {
+    // 바스켓 정의 순서대로 묶는다. 한 종목이 여러 테마에 들어갈 수 있다(LLY = 제약·바이오 + 비만치료제)
+    //   — 한국 카드도 같다(삼성SDI = 2차전지 + 전기차).
+    const byTicker = new Map(rows.map(r => [r.ticker, r]));
+    for (const b of US_THEME_BASKETS) {
+      const list = b.tickers.map(t => byTicker.get(t)).filter((r): r is UsScanRow => !!r).map(toStock);
+      if (list.length > 0) groups.set(b.label, list);
+    }
+  } else {
+    for (const r of rows) {
+      const key = source === "sector" ? r.sector : r.industry;
+      if (!key) continue;
+      const arr = groups.get(key);
+      if (arr) arr.push(toStock(r)); else groups.set(key, [toStock(r)]);
+    }
   }
 
   const themes: UsSectorStat[] = [];
@@ -160,7 +201,9 @@ export async function fetchUsSectorFlow(
     const sorted = [...list].sort((a, b) => b.value - a.value);
     const lead = sorted.slice(0, LEAD);
     themes.push({
-      key: label, label: usSectorKrLabel(label), enName: label,
+      key: label,
+      label: source === "theme" ? label : usSectorKrLabel(label),
+      enName: label,
       count: sorted.length, total: sorted.length,
       median: median(lead.map(r => r.pct)),
       upRatio: lead.filter(r => r.pct > 0).length / lead.length,

@@ -17,11 +17,7 @@ import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
 import { Sparkline } from "./Sparkline";
 import { MarketFlowModal } from "./MarketFlowModal";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
-import { ThemeFlow, ThemeDialog } from "./ThemeFlow";
-import { useThemeFlow, type ThemeStat, type GroupSource } from "../lib/themeFlow";
-import { UsSectorFlow, UsSectorDialog } from "./UsSectorFlow";
-import { useUsSectorFlow, type UsGroupSource, type UsSectorStat } from "../lib/usSectorFlow";
-import type { UsScanUniverse } from "../lib/api";
+import { TicsSectorBoard } from "./TicsSectorBoard";
 import { ValueupMiniCard } from "./ValueupCard";
 import { HlPerpCard } from "./HlPerpCard";
 import { TickArrow } from "./TickArrow";
@@ -265,20 +261,6 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const dimEnabled = getDimSleepingEnabled();
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
-  // 섹터 흐름 — 고정 22종 대신 테마 종목 바스켓 스냅샷으로 그린다(ThemeFlow).
-  //   스냅샷이 없으면(캐시 없음·조회 실패) 아래 rows 의 고정 카드로 폴백한다.
-  // 카드 묶음 출처 — 우리 38카드 / 네이버 업종 / 네이버 테마. 계산 기준은 셋 다 같다.
-  const [themeSource, setThemeSource] = useState<GroupSource>("cards");
-  const { flow: themeFlow, loading: themeLoading, refresh: refreshThemes } = useThemeFlow(true, themeSource);
-  const themeStats = themeFlow?.themes ?? [];
-  const hasThemeFlow = themeStats.length > 0;
-  // 미국 섹터 — S&P 500 을 TradingView 분류로 묶는다. 한국 섹터와 같은 공식·다른 소스(1콜).
-  const [usSectorSource, setUsSectorSource] = useState<UsGroupSource>("sector");
-  const [usUniverse, setUsUniverse] = useState<UsScanUniverse>("sp500");
-  const { flow: usFlow, loading: usFlowLoading, error: usFlowError, refresh: refreshUsFlow } =
-    useUsSectorFlow(true, usUniverse, usSectorSource);
-  const [usSectorDlg, setUsSectorDlg] = useState<UsSectorStat | null>(null);
-  const [themeDlg, setThemeDlg] = useState<ThemeStat | null>(null);
   // 야간선물(yasun.gg)은 프록시를 타므로 구버전 개인 워커면 값이 빈다 → 그때만 업데이트 안내.
   //   "값이 없다"만으로 워커를 탓하면 업스트림 차단(예: investing.com Cloudflare 챌린지)까지
   //   워커 탓으로 오진한다. 반드시 실제 화이트리스트 검사 결과("outdated")로만 띄운다.
@@ -308,22 +290,11 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               {section.label}
             </span>
             {/* 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장)는 오늘 등락률(%) 내림차순 정렬 (6개씩 줄바꿈) */}
-            {section.render === "sectorFlow" && hasThemeFlow && (
-              <ThemeFlow themes={themeStats} onPick={setThemeDlg}
-                         fetchedAt={themeFlow?.fetchedAt} minCap={themeFlow?.minCap}
-                         tradeDate={themeFlow?.tradeDate}
-                         scanned={themeFlow?.scanned} total={themeFlow?.total}
-                         onRefresh={refreshThemes} refreshing={themeLoading}
-                         source={themeSource} onSource={setThemeSource} />
+            {/* 한국 섹터 — 토스 TICS 분류. 미국 블록과 **같은 한글 분류**라 이름으로 맞출 수 있다. */}
+            {section.render === "sectorFlow" && (
+              <TicsSectorBoard onOpenValuation={onOpenValuation} />
             )}
-            {section.render === "usSectorFlow" && (
-              <UsSectorFlow flow={usFlow} onPick={setUsSectorDlg}
-                            onRefresh={refreshUsFlow} refreshing={usFlowLoading}
-                            error={usFlowError}
-                            source={usSectorSource} onSource={setUsSectorSource}
-                            universe={usUniverse} onUniverse={setUsUniverse} />
-            )}
-            {(section.render === "sectorFlow" && hasThemeFlow ? []
+            {(section.render ? []
               : section.id === "sector"
               ? chunk(
                   section.rows.flat().sort((a, b) =>
@@ -561,24 +532,6 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
           indexKey={marketFlowFor}
           onClose={() => setMarketFlowFor(null)}
         />
-      )}
-
-      {/* 테마 종목 목록 모달 — 섹터 흐름에서 테마 클릭 시 */}
-      {themeDlg && (
-        <ThemeDialog theme={themeDlg} minCap={themeFlow?.minCap}
-                     onClose={() => setThemeDlg(null)}
-                     // 섹터 팝업은 닫지 않는다 — 기업가치를 덮어 띄우고 Esc 로 돌아오게 한다.
-                     onOpenStock={(code, name) => {
-                       // 기업가치 모달이 있으면 그쪽으로. 없으면 검색으로 폴백한다.
-                       if (onOpenValuation) onOpenValuation(code, name);
-                       else onRequestSearch?.(name || code);
-                     }} />
-      )}
-
-      {/* 미국 섹터 종목 목록 모달 — 스냅샷에 다 들어 있어 추가 조회가 없다 */}
-      {usSectorDlg && (
-        <UsSectorDialog stat={usSectorDlg} basis={usFlow?.basis ?? "closed"} trimmed={usFlow?.trimmed}
-                        onClose={() => setUsSectorDlg(null)} />
       )}
 
       {/* ETF 구성종목 모달 — KR ETF 카드 ETF 책갈피 클릭 시 */}
