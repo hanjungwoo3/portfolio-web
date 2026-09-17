@@ -2132,13 +2132,27 @@ export async function fetchKrMarketTurnover(
   return out.reverse();   // 최신→과거 → 과거→최신
 }
 
-// ─── 당일 시간별 투자자 순매수 (네이버 investorDealTrendTime) ────────────────
-//   HTS "시간별동향" 과 동일 — 당일 누적 순매수 시계열 (개인/외국인/기관+세부).
-//   sosok: 01 코스피(억원) · 02 코스닥(억원) · 03 선물(계약). 로그인 불필요.
-//   페이지당 ~10행(~14분), page=1 최신→과거. 09:00 도달 또는 빈 페이지까지 수집.
-//   값은 이미 "당일 누적" 순매수 → 그대로 라인차트(누적) 사용.
+// ─── 당일 시간별 투자자 순매수 (네이버 stock.naver 시장 매매동향) ────────────
+//   ★ 2026-09-17 소스 교체: finance.naver/sise/investorDealTrendTime.naver 가 **410 Gone** 이다
+//     (일별 investorDealTrendDay 도 같이 410). PC 금융 페이지가 걷힌 것이라 파서를 고쳐도 소용없다.
+//     살아 있는 건 SPA 용 JSON — stock.naver.com/api/domestic/market/trend/{time,daily} 다.
+//     같은 계열을 이미 매매동향 랭킹(trendForeignOrg)에서 쓰고 있다.
+//   응답: content[] = { bizdate, time:"HHMMSS", netAmounts[{investorGubun, diffValue, ...}] }
+//     · diffValue = 순매수 **금액(원)**. 선물(FUT)만 **계약 수**다.
+//     · 값은 '그 시각까지의 당일 누적' 이다(구 화면과 같다) → 그대로 라인차트.
+//   페이징: startIdx = 0 부터의 **페이지 번호**(오프셋이 아니다), pageSize ≤ 200.
+//     하루 435행(09:01~19:52, ~1.5분 간격) → 200×3 페이지면 전부 커버된다.
 export type IntradayMarket = "kospi" | "kosdaq" | "futures";
-const INTRADAY_SOSOK: Record<IntradayMarket, string> = { kospi: "01", kosdaq: "02", futures: "03" };
+const TREND_MARKET: Record<IntradayMarket, string> = {
+  kospi: "KOSPI", kosdaq: "KOSDAQ", futures: "FUT",
+};
+// 투자자 구분 코드(KRX 표준). 화면 컬럼은 구 네이버 화면과 같은 정의를 유지한다 —
+//   투신 = 투신+사모(구 화면이 '투신(사모포함)'), 외국인 = 외국인+기타외국인(외국인계).
+const GUBUN = {
+  financialInvestment: "1000", insurance: "2000", trust: "3000", privateEquity: "3100",
+  bank: "4000", otherFinancial: "5000", pensionFund: "6000", stateLocal: "7000",
+  otherCorp: "7100", individuals: "8000", foreigners: "9000", otherForeigners: "9001",
+} as const;
 export interface IntradayFlowPoint {
   time: string;   // "HH:MM"
   individuals: number; foreigners: number; institutions: number;
@@ -2147,62 +2161,67 @@ export interface IntradayFlowPoint {
 }
 export interface IntradayFlow { unit: "억원" | "계약"; points: IntradayFlowPoint[]; }
 
-// 컬럼 순서(네이버): 개인·외국인·기관계·금융투자·보험·투신(사모포함)·은행·기타금융·연기금·기타법인.
-// (기관계 = 금융투자+보험+투신+은행+기타금융+연기금 으로 검증됨)
-function parseIntradayInvestor(html: string): IntradayFlowPoint[] {
-  const txt = html.replace(/<[^>]+>/g, " ").replace(/[ \t ]+/g, " ");
-  const re = /(\d{2}:\d{2})((?:\s+-?[\d,]+){10})(?!\d)/g;
-  const num = (s: string) => Number(s.replace(/,/g, "")) || 0;
-  const out: IntradayFlowPoint[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(txt))) {
-    const v = m[2].trim().split(/\s+/).map(num);
-    if (v.length < 10) continue;
-    out.push({
-      time: m[1],
-      individuals: v[0], foreigners: v[1], institutions: v[2],
-      financialInvestment: v[3], insurance: v[4], trust: v[5],
-      bank: v[6], otherFinancial: v[7], pensionFund: v[8], otherCorp: v[9],
-    });
+interface TrendRow { bizdate?: string; time?: string; netAmounts?: Array<{ investorGubun?: string; diffValue?: string }> }
+interface TrendResp { content?: TrendRow[]; last?: boolean }
+
+// 한 행의 투자자별 값 → 우리 컬럼. 금액은 원 → 억원, 선물은 계약 그대로.
+function mapTrendRow(row: TrendRow, futures: boolean) {
+  const raw = new Map<string, number>();
+  for (const n of row.netAmounts ?? []) {
+    if (n.investorGubun) raw.set(n.investorGubun, Number(n.diffValue ?? 0) || 0);
   }
-  return out;
+  const v = (code: string) => raw.get(code) ?? 0;
+  const scale = (won: number) => (futures ? won : Math.round(won / 1e8));   // 원 → 억원
+  const trust = v(GUBUN.trust) + v(GUBUN.privateEquity);
+  const institutions = v(GUBUN.financialInvestment) + v(GUBUN.insurance) + trust
+    + v(GUBUN.bank) + v(GUBUN.otherFinancial) + v(GUBUN.pensionFund) + v(GUBUN.stateLocal);
+  return {
+    individuals: scale(v(GUBUN.individuals)),
+    foreigners: scale(v(GUBUN.foreigners) + v(GUBUN.otherForeigners)),
+    institutions: scale(institutions),
+    financialInvestment: scale(v(GUBUN.financialInvestment)),
+    insurance: scale(v(GUBUN.insurance)),
+    trust: scale(trust),
+    bank: scale(v(GUBUN.bank)),
+    otherFinancial: scale(v(GUBUN.otherFinancial)),
+    pensionFund: scale(v(GUBUN.pensionFund)),
+    otherCorp: scale(v(GUBUN.otherCorp)),
+  };
 }
 
-// bizdate(YYYYMMDD) 생략 시 오늘(KST). 과거 날짜도 조회 가능(네이버가 당일 시계열 보관).
+// bizdate(YYYYMMDD) 생략 시 오늘(KST). 과거 날짜도 조회 가능.
 export async function fetchKrIntradayInvestorFlow(market: IntradayMarket, bizdate?: string): Promise<IntradayFlow> {
-  const sosok = INTRADAY_SOSOK[market];
+  const mkt = TREND_MARKET[market];
+  const futures = market === "futures";
   const bd = bizdate ?? new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
+  const MAX_PAGES = 4;   // 200×4 = 800행 — 하루(435행)보다 넉넉하다
   const byTime = new Map<string, IntradayFlowPoint>();
-  const MAX_PAGES = 42;   // ~14분/페이지 → 개장(09:00)~시간외(18:00) 전체 커버
-  const BATCH = 7;        // 병렬 배치 (프록시 라운드로빈 분산)
-  let reachedOpen = false;
-  for (let start = 1; start <= MAX_PAGES && !reachedOpen; start += BATCH) {
-    const pages = Array.from({ length: Math.min(BATCH, MAX_PAGES - start + 1) }, (_, i) => start + i);
-    const results = await Promise.all(pages.map(async p => {
-      try {
-        const resp = await fetchProxied(
-          `https://finance.naver.com/sise/investorDealTrendTime.naver?bizdate=${bd}&sosok=${sosok}&page=${p}`);
-        if (!resp.ok) return [] as IntradayFlowPoint[];
-        return parseIntradayInvestor(decodeHtmlBuf(await resp.arrayBuffer(), resp.headers.get("Content-Type") || ""));
-      } catch { return [] as IntradayFlowPoint[]; }
-    }));
-    let anyRows = false;
-    for (const pts of results) {
-      if (pts.length > 0) anyRows = true;
-      for (const pt of pts) {
-        if (!byTime.has(pt.time)) byTime.set(pt.time, pt);
-        if (pt.time <= "09:00") reachedOpen = true;   // 정규 개장 도달 → 더 과거 없음
-      }
+  for (let page = 0; page < MAX_PAGES; page++) {
+    let data: TrendResp;
+    try {
+      const resp = await fetchProxied(
+        `https://stock.naver.com/api/domestic/market/trend/time`
+        + `?tradeType=KRX&marketType=${mkt}&bizdate=${bd}&startIdx=${page}&pageSize=200`);
+      if (!resp.ok) break;
+      data = await resp.json() as TrendResp;
+    } catch { break; }
+    const rows = data.content ?? [];
+    if (rows.length === 0) break;
+    for (const r of rows) {
+      const t = String(r.time ?? "");
+      if (t.length < 4) continue;
+      const time = `${t.slice(0, 2)}:${t.slice(2, 4)}`;
+      if (!byTime.has(time)) byTime.set(time, { time, ...mapTrendRow(r, futures) });
     }
-    if (!anyRows) break;   // 빈 배치 = 데이터 끝
+    if (data.last) break;
   }
   const points = [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time));
-  return { unit: market === "futures" ? "계약" : "억원", points };
+  return { unit: futures ? "계약" : "억원", points };
 }
 
-// ─── 일별 투자자 순매수 (네이버 investorDealTrendDay, 기간별) ────────────────
-//   HTS "일별동향" 과 동일. sosok 01/02/03 (선물=계약). 페이지당 10거래일, page=1 최신→과거.
-//   값 = 일별 순매수(비누적). 화면에서 기간 합계·누적을 계산.
+// ─── 일별 투자자 순매수 (네이버 stock.naver 시장 매매동향, 기간별) ───────────
+//   시간별과 같은 소스·같은 응답 형태다(위 주석 참고). time 이 빈 문자열이고 bizdate 가 날짜다.
+//   값 = 그 날의 순매수(비누적) — 화면에서 기간 합계·누적을 계산한다.
 export interface DailyFlowPoint {
   date: string;   // "YYYY-MM-DD"
   individuals: number; foreigners: number; institutions: number;
@@ -2211,43 +2230,34 @@ export interface DailyFlowPoint {
 }
 export interface DailyFlow { unit: "억원" | "계약"; points: DailyFlowPoint[]; }
 
-function parseDailyInvestor(html: string): DailyFlowPoint[] {
-  const txt = html.replace(/<[^>]+>/g, " ").replace(/[ \t ]+/g, " ");
-  const re = /(\d{2})\.(\d{2})\.(\d{2})((?:\s+-?[\d,]+){10})(?!\d)/g;
-  const num = (s: string) => Number(s.replace(/,/g, "")) || 0;
-  const out: DailyFlowPoint[] = [];
-  let m: RegExpExecArray | null;
-  while ((m = re.exec(txt))) {
-    const v = m[4].trim().split(/\s+/).map(num);
-    if (v.length < 10) continue;
-    out.push({
-      date: `20${m[1]}-${m[2]}-${m[3]}`,   // 26.07.14 → 2026-07-14
-      individuals: v[0], foreigners: v[1], institutions: v[2],
-      financialInvestment: v[3], insurance: v[4], trust: v[5],
-      bank: v[6], otherFinancial: v[7], pensionFund: v[8], otherCorp: v[9],
-    });
-  }
-  return out;
-}
-
-// days = 조회할 거래일 수(대략). 10거래일/페이지 → ceil(days/10) 페이지 + 여유 1.
 export async function fetchKrDailyInvestorFlow(market: IntradayMarket, days = 22): Promise<DailyFlow> {
-  const sosok = INTRADAY_SOSOK[market];
+  const mkt = TREND_MARKET[market];
+  const futures = market === "futures";
   const bizdate = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
-  const maxPages = Math.min(30, Math.ceil(days / 10) + 1);   // 상한 30페이지(~300거래일)
   const byDate = new Map<string, DailyFlowPoint>();
-  const pages = Array.from({ length: maxPages }, (_, i) => i + 1);
-  const results = await Promise.all(pages.map(async p => {
+  const MAX_PAGES = 4;                              // 200×4 = 800거래일 상한
+  const pageSize = Math.min(200, Math.max(days, 10));
+  for (let page = 0; page < MAX_PAGES && byDate.size < days; page++) {
+    let data: TrendResp;
     try {
       const resp = await fetchProxied(
-        `https://finance.naver.com/sise/investorDealTrendDay.naver?bizdate=${bizdate}&sosok=${sosok}&page=${p}`);
-      if (!resp.ok) return [] as DailyFlowPoint[];
-      return parseDailyInvestor(decodeHtmlBuf(await resp.arrayBuffer(), resp.headers.get("Content-Type") || ""));
-    } catch { return [] as DailyFlowPoint[]; }
-  }));
-  for (const pts of results) for (const pt of pts) if (!byDate.has(pt.date)) byDate.set(pt.date, pt);
+        `https://stock.naver.com/api/domestic/market/trend/daily`
+        + `?tradeType=KRX&marketType=${mkt}&bizdate=${bizdate}&startIdx=${page}&pageSize=${pageSize}`);
+      if (!resp.ok) break;
+      data = await resp.json() as TrendResp;
+    } catch { break; }
+    const rows = data.content ?? [];
+    if (rows.length === 0) break;
+    for (const r of rows) {
+      const bd = String(r.bizdate ?? "");
+      if (bd.length !== 8) continue;
+      const date = `${bd.slice(0, 4)}-${bd.slice(4, 6)}-${bd.slice(6, 8)}`;
+      if (!byDate.has(date)) byDate.set(date, { date, ...mapTrendRow(r, futures) });
+    }
+    if (data.last) break;
+  }
   const points = [...byDate.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-days);
-  return { unit: market === "futures" ? "계약" : "억원", points };
+  return { unit: futures ? "계약" : "억원", points };
 }
 
 // ─── 단일종목 레버리지 수급 (증권사별 레버리지 ETF/ETN 바스켓 합산) ────────────

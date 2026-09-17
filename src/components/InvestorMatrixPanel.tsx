@@ -204,17 +204,29 @@ export function InvestorMatrixPanel({ history, highlightKey, title, note, ticker
         ];
         const krxMap = new Map((krxDaily ?? []).map(d => [d.date, d as unknown as Record<string, number>]));
         // 한 날짜·한 투자자의 KRX / NXT. KRX 를 모르면 분해 불가(null).
-        const splitOf = (d: Investor, k: keyof Investor): { krx: number; nxt: number } | null => {
+        //
+        // ★ 장중(오늘)에는 NXT 를 내지 않는다(nxt = null).
+        //   확정된 날은 KRX(네이버 일별)와 합산(토스)이 같은 확정치라 빼면 NXT 가 정확히 나온다
+        //   — 실측 2026-09-16 한화엔진: 파생 -103,479 vs 확정 -101,458 (2%).
+        //   그런데 장중에는 두 값의 성질이 다르다. 합산은 토스 **실시간**(11:03 갱신)인데
+        //   오늘 KRX 는 네이버 랭킹의 **장중 추정**이고 갱신도 뒤처진다. 그 시차가 전부 뺄셈의
+        //   결과로 흘러들어가 NXT 를 부풀린다 — 실측 2026-09-17 11:03 한화엔진:
+        //   합산 +322,964 − KRX +83,488 = NXT +239,476 (KRX 의 2.9배. 그럴 리 없다).
+        //   NXT 실측(네이버 NXT 랭킹)은 **전 거래일까지만** 온다(같은 시각 기준일 = 09-16).
+        //   그래서 오늘은 KRX 만 보여주고 NXT 는 비운다. 틀린 숫자보다 빈칸이 낫다.
+        const splitOf = (d: Investor, k: keyof Investor): { krx: number; nxt: number | null } | null => {
           const tot = (d[k] as number) ?? 0;
           const rec = krxMap.get(d.date ?? "");
-          let krx: number | null = rec ? (rec[k as string] ?? null) : null;
-          if (krx == null && exchangeToday && exchangeToday.date === d.date && exchangeToday.key === k) {
-            krx = exchangeToday.trade === "KRX" ? exchangeToday.volume : tot - exchangeToday.volume;
+          const confirmed = rec ? (rec[k as string] ?? null) : null;
+          if (confirmed != null) return { krx: conv(confirmed, d), nxt: conv(tot - confirmed, d) };
+          if (exchangeToday && exchangeToday.date === d.date && exchangeToday.key === k) {
+            // 장중 — 랭킹이 준 그 거래소 값만 채우고 반대쪽은 비운다.
+            const krx = exchangeToday.trade === "KRX" ? exchangeToday.volume : tot - exchangeToday.volume;
+            return { krx: conv(krx, d), nxt: null };
           }
-          if (krx == null) return null;
-          return { krx: conv(krx, d), nxt: conv(tot - krx, d) };
+          return null;
         };
-        type Cell = { krx: number; nxt: number } | null;
+        type Cell = { krx: number; nxt: number | null } | null;
         const rows: { lbl: string; days?: string; cells: Cell[] }[] = [];
         for (const n of [5, 20, 60]) {
           const slice = history.slice(0, Math.min(n, history.length));
@@ -223,7 +235,8 @@ export function InvestorMatrixPanel({ history, highlightKey, title, note, ticker
             let krx = 0, nxt = 0, cnt = 0;
             for (const d of slice) {
               const sp = splitOf(d, inv.key);
-              if (sp) { krx += sp.krx; nxt += sp.nxt; cnt += 1; }
+              // 장중(오늘)처럼 NXT 가 없는 날은 누적에서 뺀다 — 두 컬럼의 기간이 어긋나면 비교가 안 된다.
+              if (sp && sp.nxt != null) { krx += sp.krx; nxt += sp.nxt; cnt += 1; }
             }
             if (i === 0) got = cnt;
             return cnt ? { krx, nxt } : null;
@@ -237,10 +250,12 @@ export function InvestorMatrixPanel({ history, highlightKey, title, note, ticker
         // ⚠️ <tr> 안에는 <td> 만 온다 — 배열로 돌려준다(span 으로 싸면 브라우저가 표 밖으로 밀어낸다).
         const cell = (c: Cell, which: "krx" | "nxt", last: boolean, border: boolean, key: string) => {
           const v = c ? c[which] : null;
+          const intraday = which === "nxt" && !!c && c.nxt == null;   // 장중이라 아직 못 내는 칸
           const color = v == null ? "text-gray-300"
                       : v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-400";
           return (
             <td key={key}
+                title={intraday ? "장중에는 NXT 실측이 없습니다 — 마감 후 채워집니다" : undefined}
                 className={`px-1.5 py-0.5 text-right tabular-nums ${color}
                             ${which === "nxt" ? "bg-violet-50/60" : ""}
                             ${border ? "border-r border-gray-300" : ""}
@@ -255,7 +270,8 @@ export function InvestorMatrixPanel({ history, highlightKey, title, note, ticker
               거래소별{" "}
               <span className="font-normal text-[10px] text-gray-500">
                 KRX = 네이버 일별 · <b className="text-violet-700">NXT</b> = 합산 − KRX (파생) ·{" "}
-                {amt ? "금액(수량 × 그날 종가 환산)" : "수량(주)"}
+                {amt ? "금액(수량 × 그날 종가 환산)" : "수량(주)"} ·{" "}
+                <span className="text-amber-600">오늘 NXT 는 마감 후에 채워집니다</span>
               </span>
             </div>
             <table className="w-full text-[10px] border border-gray-300 rounded overflow-hidden whitespace-nowrap">

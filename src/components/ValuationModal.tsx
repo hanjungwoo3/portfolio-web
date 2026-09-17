@@ -24,7 +24,8 @@ import { DrawingChartDialog } from "./StockChart/DrawingChartDialog";
 import { FinancialCharts } from "./FinancialCharts";
 import { ConsensusCharts } from "./ConsensusCharts";
 import { PriceMultiSparks } from "./PriceMultiSparks";
-import { signColor, nowKstDateStr, isEtfByName } from "../lib/format";
+import { Sparkline } from "./Sparkline";
+import { signColor, nowKstDateStr, isEtfByName, formatSigned } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
 import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices, fetchTossKrCandles, TOSS_CANDLE_MAX } from "../lib/api";
 import {
@@ -422,6 +423,42 @@ export function ValuationModal({
     refetchOnWindowFocus: false,
   });
   const effCurPrice = curPrice ?? livePrices?.[0]?.price;
+
+  // 헤더 등락 — 아래 차트가 받는 일봉과 **같은 쿼리키**라 추가 호출이 없다(캐시 공유).
+  //   현재가만 있고 기준(전일 종가)이 없으면 "얼마인지" 는 알아도 "오르는 중인지" 를 모른다.
+  const { data: headCandles } = useQuery({
+    queryKey: ["toss-candles", ticker, "day"],
+    queryFn: () => fetchTossKrCandles(ticker, "day", TOSS_CANDLE_MAX),
+    enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
+    staleTime: 60 * 60_000,
+    gcTime: 60 * 60_000,
+    refetchOnWindowFocus: false,
+  });
+  // 비교 기준(직전 거래일 종가).
+  //   ① 라이브 시세를 직접 받았으면 그 prevClose 가 가장 정확하다(비거래일 보정까지 되어 있다).
+  //   ② 부모가 현재가만 넘긴 경우엔 일봉에서 찾는다 — 마지막 봉이 '오늘' 이거나 현재가와 같으면
+  //      그건 이번 세션 봉이므로 하나 앞이 기준이다. (주말엔 금요일 봉이 현재가와 같아진다)
+  const prevClose: number | undefined = (() => {
+    const live = livePrices?.[0];
+    if (live?.prevClose) return live.prevClose;
+    const cs = headCandles ?? [];
+    if (cs.length < 2 || !effCurPrice) return undefined;
+    const last = cs[cs.length - 1];
+    const isCurrentSession = last.date === nowKstDateStr() || last.close === effCurPrice;
+    return isCurrentSession ? cs[cs.length - 2].close : last.close;
+  })();
+  const priceDiff = effCurPrice && prevClose ? effCurPrice - prevClose : undefined;
+  const pricePct = priceDiff != null && prevClose ? (priceDiff / prevClose) * 100 : undefined;
+  // 헤더 스파크라인 — 최근 60거래일 종가(약 3개월). 아래 캔들차트와 같은 데이터에서 뽑는다.
+  //   마지막 봉이 이번 세션이면 라이브 현재가로 덮어써 숫자(현재가)와 선의 끝이 어긋나지 않게 한다.
+  const headSpark: number[] = (() => {
+    const cs = headCandles ?? [];
+    if (cs.length < 2) return [];
+    const closes = cs.slice(-60).map(c => c.close).filter(v => v > 0);
+    if (closes.length >= 2 && effCurPrice) closes[closes.length - 1] = effCurPrice;
+    return closes;
+  })();
+
   const downOnBackdropRef = useRef(false);
 
   if (!isOpen) return null;
@@ -468,8 +505,19 @@ export function ValuationModal({
               )}
               <ExternalLinks ticker={ticker} name={name} onDraw={() => setDrawOpen(true)} />
               {effCurPrice && (
-                <span className="text-base font-bold ml-3">
-                  {effCurPrice.toLocaleString()}원
+                <span className="ml-3 inline-flex items-baseline gap-1.5">
+                  {headSpark.length >= 2 && (
+                    <Sparkline data={headSpark} width={72} height={20}
+                               className="self-center shrink-0" />
+                  )}
+                  <span className="text-base font-bold">{effCurPrice.toLocaleString()}원</span>
+                  {priceDiff != null && pricePct != null && (
+                    <span className={`text-sm font-bold tabular-nums ${signColor(priceDiff)}`}
+                          title={`직전 거래일 종가 ${prevClose!.toLocaleString()}원 대비`}>
+                      {priceDiff > 0 ? "▲" : priceDiff < 0 ? "▼" : ""}
+                      {formatSigned(priceDiff)} ({pricePct > 0 ? "+" : ""}{pricePct.toFixed(2)}%)
+                    </span>
+                  )}
                 </span>
               )}
             </span>
@@ -492,8 +540,18 @@ export function ValuationModal({
             )}
             <ExternalLinks ticker={ticker} name={name} onDraw={() => setDrawOpen(true)} />
             {effCurPrice && (
-              <span className="text-base font-bold ml-auto">
-                {effCurPrice.toLocaleString()}원
+              <span className="ml-auto inline-flex items-baseline gap-1.5">
+                {headSpark.length >= 2 && (
+                  <Sparkline data={headSpark} width={56} height={18}
+                             className="self-center shrink-0" />
+                )}
+                <span className="text-base font-bold">{effCurPrice.toLocaleString()}원</span>
+                {priceDiff != null && pricePct != null && (
+                  <span className={`text-sm font-bold tabular-nums ${signColor(priceDiff)}`}>
+                    {priceDiff > 0 ? "▲" : priceDiff < 0 ? "▼" : ""}
+                    {formatSigned(priceDiff)} ({pricePct > 0 ? "+" : ""}{pricePct.toFixed(2)}%)
+                  </span>
+                )}
               </span>
             )}
           </div>
