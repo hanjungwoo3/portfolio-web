@@ -367,7 +367,8 @@ export async function fetchTossKrCandles(
   if (!resp.ok) throw new Error(`toss candles ${interval} ${ticker}: HTTP ${resp.status}`);
   const data = await resp.json() as {
     result?: { candles?: Array<{
-      dt?: string; open?: number; high?: number; low?: number; close?: number; volume?: number;
+      dt?: string; base?: number;
+      open?: number; high?: number; low?: number; close?: number; volume?: number;
     }> };
   };
   const out: PricePoint[] = [];
@@ -377,7 +378,7 @@ export async function fetchTossKrCandles(
     if (!date || !(c.close && c.close > 0)) continue;
     out.push({
       date, close: c.close, volume: c.volume ?? 0,
-      open: c.open, high: c.high, low: c.low,
+      open: c.open, high: c.high, low: c.low, base: c.base,
     });
   }
   return out.reverse();   // 최신→과거 → 과거→최신
@@ -1407,6 +1408,11 @@ export interface PricePoint {
   open?: number;
   high?: number;
   low?: number;
+  // 그 봉의 '기준가' — 등락률 계산의 분모. 토스 일봉만 준다(야후 폴백엔 없다).
+  //   ★ 전일 봉의 close 와 다를 수 있다. 토스는 KRX+NXT 통합이라 전일 시간외 체결이
+  //     다음날 기준가에 반영된다(실측 2026-09-17 기가비스: 전일 종가 104,000 vs 기준가 105,800).
+  //     그래서 "전일 close 대비" 로 계산하면 카드(-4.54%)와 다른 값(-2.88%)이 나온다.
+  base?: number;
 }
 
 interface YahooChartResp {

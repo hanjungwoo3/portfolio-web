@@ -158,9 +158,20 @@ function NaverPane({ ticker, refreshTs }: { ticker: string; refreshTs: number })
   );
 }
 
+/** 토스·네이버 두 패널만 — 다이얼로그(💬 버튼)와 기업가치 모달이 같은 화면을 쓴다.
+ *  높이는 호출자가 정한다(다이얼로그는 남는 공간 전부, 모달 안에서는 고정 높이). */
+export function CommunityPanes({ ticker, className = "" }: { ticker: string; className?: string }) {
+  const refreshTs = useLastRefresh();   // 전역 갱신 신호 — 이 값 바뀔 때 두 패널 함께 refetch
+  return (
+    <div className={`grid grid-cols-1 sm:grid-cols-2 gap-2 ${className}`}>
+      <TossPane ticker={ticker} refreshTs={refreshTs} />
+      <NaverPane ticker={ticker} refreshTs={refreshTs} />
+    </div>
+  );
+}
+
 export function CommunityDialog({ isOpen, onClose, ticker, name }: Props) {
   useEscClose(isOpen, onClose);
-  const refreshTs = useLastRefresh();   // 전역 갱신 신호 — 이 값 바뀔 때 두 패널 함께 refetch
   if (!isOpen) return null;
 
   // 카드 내부에서 렌더되므로 stacking context 에 갇히지 않도록 body 로 portal (다른 다이얼로그와 동일).
@@ -178,10 +189,7 @@ export function CommunityDialog({ isOpen, onClose, ticker, name }: Props) {
           </button>
         </div>
         {/* 좌우 분할 (모바일은 세로 스택) */}
-        <div className="flex-1 min-h-0 p-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
-          <TossPane ticker={ticker} refreshTs={refreshTs} />
-          <NaverPane ticker={ticker} refreshTs={refreshTs} />
-        </div>
+        <CommunityPanes ticker={ticker} className="flex-1 min-h-0 p-2" />
       </div>
     </div>,
     document.body,

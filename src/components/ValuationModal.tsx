@@ -25,6 +25,7 @@ import { FinancialCharts } from "./FinancialCharts";
 import { ConsensusCharts } from "./ConsensusCharts";
 import { PriceMultiSparks } from "./PriceMultiSparks";
 import { Sparkline } from "./Sparkline";
+import { CommunityPanes } from "./CommunityDialog";
 import { signColor, nowKstDateStr, isEtfByName, formatSigned } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
 import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices, fetchTossKrCandles, TOSS_CANDLE_MAX } from "../lib/api";
@@ -439,11 +440,18 @@ export function ValuationModal({
   //   ② 부모가 현재가만 넘긴 경우엔 일봉에서 찾는다 — 마지막 봉이 '오늘' 이거나 현재가와 같으면
   //      그건 이번 세션 봉이므로 하나 앞이 기준이다. (주말엔 금요일 봉이 현재가와 같아진다)
   const prevClose: number | undefined = (() => {
-    const live = livePrices?.[0];
-    if (live?.prevClose) return live.prevClose;
     const cs = headCandles ?? [];
-    if (cs.length < 2 || !effCurPrice) return undefined;
+    const live = livePrices?.[0];
+    if (cs.length === 0 || !effCurPrice) return live?.prevClose || undefined;
     const last = cs[cs.length - 1];
+    // ★ 그 봉의 base(기준가)를 쓴다. '전일 봉의 close' 가 아니다 —
+    //   토스는 KRX+NXT 통합이라 전일 시간외 체결이 다음날 기준가에 반영되어 둘이 갈린다
+    //   (실측 2026-09-17 기가비스: 전일 종가 104,000 vs 오늘 기준가 105,800 → -2.88% vs -4.54%).
+    //   카드가 쓰는 Price.base 와 같은 값이라 두 화면의 등락률이 일치한다.
+    if (last.base && last.base > 0) return last.base;
+    // base 가 없는 폴백(야후 일봉) — 이번 세션 봉이면 하나 앞의 종가가 기준이다.
+    if (live?.prevClose) return live.prevClose;
+    if (cs.length < 2) return undefined;
     const isCurrentSession = last.date === nowKstDateStr() || last.close === effCurPrice;
     return isCurrentSession ? cs[cs.length - 2].close : last.close;
   })();
@@ -660,6 +668,9 @@ export function ValuationModal({
                                  price={effCurPrice} />
           )}
 
+          {/* 대화 — 종목 카드의 💬 버튼과 같은 화면(토스·네이버). 뉴스 바로 위에 둔다. */}
+          <CommunitySection ticker={ticker} />
+
           {/* 뉴스(좌) + 공시(우) */}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
             <NewsSection ticker={ticker} />
@@ -671,6 +682,30 @@ export function ValuationModal({
       </div>
       <DrawingChartDialog ticker={ticker} name={name}
                           isOpen={drawOpen} onClose={() => setDrawOpen(false)} />
+    </div>
+  );
+}
+
+// ─── 대화(커뮤니티) ───────────────────────────────────────
+//   모달을 열자마자 받지 않는다. 기업가치는 이미 일봉·수급·뉴스·공시를 받고 있어서
+//   여기서 2콜(토스·네이버)을 더 얹으면 열 때마다 프록시 요청이 늘어난다.
+//   화면에 들어왔을 때만 마운트한다 — 섹터 팝업의 스파크라인과 같은 방식.
+function CommunitySection({ ticker }: { ticker: string }) {
+  const [seen, setSeen] = useState(false);
+  const ref = useCallback((el: HTMLDivElement | null) => {
+    if (!el || seen) return;
+    const io = new IntersectionObserver(entries => {
+      if (entries.some(e => e.isIntersecting)) { setSeen(true); io.disconnect(); }
+    }, { rootMargin: "160px" });
+    io.observe(el);
+  }, [seen]);
+
+  return (
+    <div ref={ref} className="mt-4">
+      <h3 className="font-bold text-gray-700 mb-1">💬 대화</h3>
+      {seen
+        ? <CommunityPanes ticker={ticker} className="h-[320px]" />
+        : <div className="h-[320px] rounded-md border border-dashed border-gray-200" />}
     </div>
   );
 }
