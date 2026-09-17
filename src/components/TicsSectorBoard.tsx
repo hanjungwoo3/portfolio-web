@@ -16,7 +16,12 @@ import {
   fetchTossTicsRanking, fetchTossMarketSessions,
   type TicsCategory, type TicsDuration, type TicsNation, type TicsSort,
 } from "../lib/api";
-import { TicsCard, DURATIONS, SORTS, TOP_FOLD } from "./TicsFlow";
+import { TicsCard, DURATIONS, SORTS } from "./TicsFlow";
+
+// 접힌 상태에서 보여줄 장 수. **3열 기준 5줄**(10 + 5)이 기본이다.
+//   예전엔 상·하위 15개씩 = 30장이라 3열에서 10줄, 2열로 떨어지면 15줄이 되어 한 판에 안 들어왔다.
+//   등락률 정렬이라 위쪽이 더 중요해 상위를 두 배로 둔다(급락 쪽도 한 줄은 보이게).
+const FOLD_TOP = 10, FOLD_BOTTOM = 5;
 import { TicsStockDialog } from "./TicsStockDialog";
 
 // 그 시장의 **데이터 기준일**. 토스 랭킹 응답에는 거래일이 없다(basedAt = 조회 시각) —
@@ -65,10 +70,10 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
   }, [selected]);
 
   const filtered = bothOnly ? items.filter(c => common.has(c.name)) : items;
-  const many = filtered.length > TOP_FOLD * 2;
+  const many = filtered.length > FOLD_TOP + FOLD_BOTTOM;
   const shown = !many || expanded
     ? filtered
-    : [...filtered.slice(0, TOP_FOLD), ...filtered.slice(-TOP_FOLD)];
+    : [...filtered.slice(0, FOLD_TOP), ...filtered.slice(-FOLD_BOTTOM)];
   const maxAmount = items.reduce((m, c) => Math.max(m, c.tradingAmountKrw), 0);
 
   return (
@@ -177,6 +182,12 @@ export function TicsSectorBoard({ onOpenValuation }: {
       <div className="flex items-center gap-2 text-[11px] text-gray-500 px-0.5 mb-1.5 flex-wrap">
         <span>
           공통 분류 {common.size}개 · 막대는 거래대금 비중 ·{" "}
+          <span className="text-amber-600" title={"토스가 그날 추려 주는 '트렌딩 분류' 목록입니다.\n"
+                + "전체 분류는 300개(대분류 39 + 소분류 261)인데 랭킹은 97개만 옵니다 —\n"
+                + "size·limit·page·depth 어떤 파라미터로도 더 받을 수 없습니다(실측).\n"
+                + "예: 삼성전자·SK하이닉스가 든 '종합반도체'(5종)는 오늘 목록에 없습니다."}>
+            토스 트렌딩 목록
+          </span>{" "}·{" "}
           <span className="text-gray-400">
             {stamp ? `조회 ${stamp} · ` : ""}카드를 누르면 반대쪽 같은 분류로 이동(다시 누르면 해제) · 📋 는 종목 목록
           </span>
@@ -212,7 +223,9 @@ export function TicsSectorBoard({ onOpenValuation }: {
       <button onClick={() => setExpanded(v => !v)}
               className="mt-1 w-full py-1 rounded border border-gray-300 bg-white text-[11px]
                          text-gray-600 hover:bg-gray-50">
-        {expanded ? `접기 (각 상·하위 ${TOP_FOLD}개씩)` : `전체 보기 (지금은 각 상·하위 ${TOP_FOLD}개씩)`}
+        {expanded
+          ? `접기 (각 상위 ${FOLD_TOP} · 하위 ${FOLD_BOTTOM})`
+          : `전체 보기 (지금은 각 상위 ${FOLD_TOP} · 하위 ${FOLD_BOTTOM})`}
       </button>
 
       {dlg && (
