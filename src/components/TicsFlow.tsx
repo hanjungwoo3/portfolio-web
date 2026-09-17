@@ -38,8 +38,10 @@ export function fmtEok(won: number): string {
   return `${Math.round(eok).toLocaleString()}억`;
 }
 
-export function TicsCard({ c, maxAmount, onClick, onOpen, selected }: {
+export function TicsCard({ c, maxAmount, onClick, onOpen, selected, pulledRank }: {
   c: TicsCategory; maxAmount: number;
+  /** 접힌 구간에서 끌어온 카드의 원래 순위 — 정렬이 어긋나 보이는 이유를 카드가 스스로 말한다 */
+  pulledRank?: number;
   /** 카드 본체 클릭 — 선택/해제 */
   onClick: () => void;
   /** 우하단 버튼 — 종목 목록. 본체 클릭과 동작을 가른다(누를 때마다 팝업이 뜨면 비교를 못 한다) */
@@ -63,13 +65,21 @@ export function TicsCard({ c, maxAmount, onClick, onOpen, selected }: {
                        : "border-gray-200 bg-white hover:bg-gray-50"}`}>
       <div className="flex items-baseline gap-1.5">
         <span className="flex-1 min-w-0 truncate text-sm font-medium text-gray-800">{c.name}</span>
+        {pulledRank != null && (
+          <span className="shrink-0 px-1 rounded bg-amber-200/70 text-[9px] font-bold text-amber-800"
+                title={`이 시장에서는 ${pulledRank}위 — 접힌 구간에 있어 여기로 끌어왔습니다(정렬 위치가 아닙니다)`}>
+            {pulledRank}위
+          </span>
+        )}
         <span className="shrink-0 text-[10px] tabular-nums text-gray-400">{c.stockCount}</span>
         <span className={`shrink-0 text-sm font-bold tabular-nums ${signColor(c.pct)}`}>
           {c.pct > 0 ? "+" : ""}{c.pct.toFixed(2)}%
         </span>
       </div>
-      {/* 거래대금 비중 — 오른 비율이 아니다(토스가 안 준다). 돈이 얼마나 몰렸는지를 본다. */}
-      <div className="mt-1 h-1 rounded bg-gray-200 overflow-hidden">
+      {/* 거래대금 비중 — 오른 비율이 아니다(토스가 안 준다). 돈이 얼마나 몰렸는지를 본다.
+          ★ 라벨 없는 막대는 "이게 뭐냐" 를 부른다(실제로 두 번 물어봤다) → 막대에 직접 설명을 건다. */}
+      <div className="mt-1 h-1 rounded bg-gray-200 overflow-hidden"
+           title={`거래대금 비중 ${Math.round(ratio * 100)}% — 이 시장 거래대금 1위 분류 대비`}>
         <div className="h-full bg-indigo-400" style={{ width: `${Math.round(ratio * 100)}%` }} />
       </div>
       <div className="mt-1 flex items-baseline gap-1 text-[11px]">

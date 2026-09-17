@@ -20,11 +20,12 @@ import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEscClose } from "../lib/useEscClose";
 import { SimplePriceCard } from "./SimplePriceCard";
 
-const PAGE_SIZE = 10;   // 토스 고정
+const PAGE_SIZE = 10;   // 토스 고정 (size 파라미터는 무시된다 — 실측)
 // ★ 등락률 정렬은 **서버가 거부한다**(sortBy=FLUCTUATION_RATE → 400, 실측). 시총·거래대금만 받는다.
-//   그래서 등락률로 보려면 페이지를 다 받아 우리가 정렬해야 한다 — 종목이 많으면 콜이 그만큼 늘어난다.
-//   5페이지(50종)까지만 그렇게 하고, 그보다 크면 안내하고 서버 정렬로 둔다.
-const PCT_MAX_PAGES = 5;
+//   그래서 등락률은 페이지를 받아 우리가 정렬한다.
+// 세 정렬 모두 **스크롤 한 판**으로 보여준다 — 정렬마다 조작이 다르면(하나는 스크롤, 둘은 페이징)
+//   같은 팝업인데 손이 헷갈린다. 대신 한 번에 받는 양을 끊고 '더 보기' 로 늘린다(1페이지 = 1콜).
+const PAGE_STEP = 5;   // 한 번에 5페이지(50종)씩
 const SORTS: { key: "MARKET_CAP" | "TRADING_VALUE" | "PCT"; label: string }[] = [
   { key: "PCT", label: "등락률" },          // 기본 — 이 팝업의 목적
   { key: "MARKET_CAP", label: "시총" },
@@ -133,7 +134,7 @@ export function TicsStockDialog({ cat, nation, onClose, onOpenValuation }: {
   onClose: () => void;
   onOpenValuation?: (ticker: string, name: string) => void;
 }) {
-  const [page, setPage] = useState(1);
+  const [pages, setPages] = useState(PAGE_STEP);
   // 기본은 등락률 — 이 팝업을 여는 이유가 "이 분류에서 뭐가 갔나" 라서다.
   //   토스가 이 정렬을 지원하지 않아 앞 PCT_MAX_PAGES 페이지를 받아 우리가 정렬한다(아래 주석).
   const [sort, setSort] = useState<"MARKET_CAP" | "TRADING_VALUE" | "PCT">("PCT");
@@ -151,24 +152,26 @@ export function TicsStockDialog({ cat, nation, onClose, onOpenValuation }: {
   const serverSort = sort === "PCT" ? "MARKET_CAP" : sort;
   const total = cat.stockCount;
   const lastPage = Math.max(1, Math.ceil(total / PAGE_SIZE));
-  // 등락률 모드 — 서버가 못 하니 앞 N페이지를 받아 우리가 정렬한다(페이지 나눔 없음).
-  const pctPages = Math.min(lastPage, PCT_MAX_PAGES);
+  const loaded = Math.min(pages, lastPage);   // 지금까지 받아 둘 페이지 수
 
-  const { data, isLoading } = useQuery({
-    queryKey: ["tics-stocks", cat.ticsId, nation, sort === "PCT" ? `pct${pctPages}` : `${serverSort}:${page}`],
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["tics-stocks", cat.ticsId, nation, sort, loaded],
     queryFn: async () => {
-      if (sort !== "PCT") return fetchTossTicsStocks(cat.ticsId, nation, page, serverSort);
-      const pages = await Promise.all(
-        Array.from({ length: pctPages }, (_, i) =>
-          fetchTossTicsStocks(cat.ticsId, nation, i + 1, "MARKET_CAP")),
+      const res = await Promise.all(
+        Array.from({ length: loaded }, (_, i) =>
+          fetchTossTicsStocks(cat.ticsId, nation, i + 1, serverSort)),
       );
-      const stocks = pages.flatMap(p => p.stocks).sort((a, b) => b.pct - a.pct);
-      return { total: pages[0]?.total ?? total, page: 1, stocks };
+      const stocks = res.flatMap(r => r.stocks);
+      // 서버 정렬(시총·거래대금)은 페이지 순서가 곧 정렬이라 그대로 이어 붙이면 된다.
+      //   등락률만 우리가 다시 세운다.
+      if (sort === "PCT") stocks.sort((a, b) => b.pct - a.pct);
+      return { total: res[0]?.total ?? total, stocks };
     },
     staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
-  const truncated = sort === "PCT" && lastPage > PCT_MAX_PAGES;
+  const shownCount = data?.stocks.length ?? 0;
+  const hasMore = loaded < lastPage;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
@@ -186,9 +189,9 @@ export function TicsStockDialog({ cat, nation, onClose, onOpenValuation }: {
           </span>
           <span className="ml-auto flex items-center gap-1">
             {SORTS.map(x => (
-              <button key={x.key} onClick={() => { setSort(x.key); setPage(1); }}
+              <button key={x.key} onClick={() => { setSort(x.key); setPages(PAGE_STEP); }}
                       title={x.key === "PCT"
-                        ? `등락률 순 — 토스가 이 정렬을 지원하지 않아 앞 ${PCT_MAX_PAGES}페이지(${PCT_MAX_PAGES * PAGE_SIZE}종)를 받아 정렬합니다`
+                        ? "등락률 순 — 토스가 이 정렬을 지원하지 않아 받아 온 종목을 우리가 정렬합니다"
                         : `${x.label} 순 (토스 정렬)`}
                       className={`px-1.5 py-0.5 rounded text-[10px] font-bold border transition ${
                         sort === x.key ? "bg-gray-800 text-white border-gray-800"
@@ -207,8 +210,7 @@ export function TicsStockDialog({ cat, nation, onClose, onOpenValuation }: {
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-2 gap-y-3.5 items-stretch">
               {(data?.stocks ?? []).map((s, i) => (
-                <TicsStockCell key={s.code} s={s}
-                               rank={sort === "PCT" ? i + 1 : (page - 1) * PAGE_SIZE + i + 1}
+                <TicsStockCell key={s.code} s={s} rank={i + 1}
                                dimmed={dimmed} onOpenValuation={onOpenValuation} />
               ))}
             </div>
@@ -216,27 +218,20 @@ export function TicsStockDialog({ cat, nation, onClose, onOpenValuation }: {
         </div>
 
         <div className="px-3 py-2 border-t flex items-center gap-2 text-[11px]">
-          {sort === "PCT" ? (
-            <span className="text-gray-500">
-              등락률 순 {data?.stocks.length ?? 0}종
-              {truncated && (
-                <span className="ml-1 text-amber-600">
-                  (전체 {total}종 중 시총 상위 {PCT_MAX_PAGES * PAGE_SIZE}종만 — 토스가 등락률 정렬을 지원하지 않습니다)
-                </span>
-              )}
-            </span>
-          ) : (
-            <>
-              <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page <= 1}
-                      className="px-2 py-0.5 rounded border border-gray-300 disabled:opacity-40">이전</button>
-              <span className="tabular-nums text-gray-500">{page} / {lastPage}</span>
-              <button onClick={() => setPage(p => Math.min(lastPage, p + 1))} disabled={page >= lastPage}
-                      className="px-2 py-0.5 rounded border border-gray-300 disabled:opacity-40">다음</button>
-            </>
+          <span className="text-gray-500 tabular-nums">
+            {shownCount}종 / 전체 {total}종
+          </span>
+          {hasMore && (
+            <button onClick={() => setPages(p => p + PAGE_STEP)} disabled={isFetching}
+                    title={`${PAGE_STEP}페이지(${PAGE_STEP * PAGE_SIZE}종) 더 받습니다 — 1페이지당 1콜`}
+                    className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-600
+                               hover:bg-gray-100 disabled:opacity-40">
+              {isFetching ? "불러오는 중…" : "더 보기"}
+            </button>
           )}
           <span className="ml-auto text-[10px] text-gray-400 text-right leading-relaxed">
             종목명을 누르면 토스{onOpenValuation ? ", 📊 를 누르면 기업가치" : ""} ·
-            배경 차트는 최근 60거래일 종가 · 한 페이지 10종(토스 고정)
+            배경 차트는 최근 60거래일 종가
           </span>
         </div>
       </div>

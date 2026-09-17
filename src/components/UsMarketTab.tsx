@@ -292,7 +292,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             {/* 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장)는 오늘 등락률(%) 내림차순 정렬 (6개씩 줄바꿈) */}
             {/* 한국 섹터 — 토스 TICS 분류. 미국 블록과 **같은 한글 분류**라 이름으로 맞출 수 있다. */}
             {section.render === "sectorFlow" && (
-              <TicsSectorBoard onOpenValuation={onOpenValuation} />
+              <TicsSectorBoard onOpenValuation={onOpenValuation}
+                                krClosed={krSessionPhase() === "CLOSED"} />
             )}
             {(section.render ? []
               : section.id === "sector"

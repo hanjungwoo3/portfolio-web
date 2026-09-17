@@ -10,7 +10,7 @@
 // ⚠️ 등락률은 토스 기준이다(계산식 비공개 — 실측 양자컴퓨터: 토스 +6.58% vs 중앙값 +6.24%).
 //   막대는 '오른 종목 비율' 이 아니라 **그 시장 1위 대비 거래대금 비중**이다.
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
   fetchTossTicsRanking, fetchTossMarketSessions,
@@ -18,10 +18,11 @@ import {
 } from "../lib/api";
 import { TicsCard, DURATIONS, SORTS } from "./TicsFlow";
 
-// 접힌 상태에서 보여줄 장 수. **3열 기준 5줄**(10 + 5)이 기본이다.
-//   예전엔 상·하위 15개씩 = 30장이라 3열에서 10줄, 2열로 떨어지면 15줄이 되어 한 판에 안 들어왔다.
-//   등락률 정렬이라 위쪽이 더 중요해 상위를 두 배로 둔다(급락 쪽도 한 줄은 보이게).
-const FOLD_TOP = 10, FOLD_BOTTOM = 5;
+// 접힌 상태에서 보여줄 장 수 — 상위 12 + 하위 6 = 18장(3열 기준 6줄).
+//   등락률 정렬이라 위쪽이 더 중요해 상위를 두 배로 둔다(급락 쪽도 두 줄은 보이게).
+//   숨겨진 구간은 카드 사이에 경계 줄로 밝힌다 — 안 그리면 상위 끝과 하위 처음이 붙어
+//   "3.77% 다음이 0.60%" 로 보여 정렬이 깨진 것처럼 읽힌다.
+const FOLD_TOP = 12, FOLD_BOTTOM = 6;
 import { TicsStockDialog } from "./TicsStockDialog";
 
 // 그 시장의 **데이터 기준일**. 토스 랭킹 응답에는 거래일이 없다(basedAt = 조회 시각) —
@@ -46,7 +47,7 @@ function basisDateLabel(nation: TicsNation, closed: boolean, holiday: boolean): 
   return closed ? `${md} 종가` : `${md} 장중`;
 }
 
-function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expanded, session }: {
+function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expanded, onExpand, session }: {
   nation: TicsNation;
   items: TicsCategory[];
   selected: string | null;
@@ -56,6 +57,7 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
   bothOnly: boolean;
   common: Set<string>;
   expanded: boolean;
+  onExpand: () => void;
   /** 토스가 알려주는 그 시장의 현재 구간 — 기준일 문구와 배지에 쓴다 */
   session?: { open: boolean; phase: string; isHoliday: boolean };
 }) {
@@ -71,9 +73,30 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
 
   const filtered = bothOnly ? items.filter(c => common.has(c.name)) : items;
   const many = filtered.length > FOLD_TOP + FOLD_BOTTOM;
-  const shown = !many || expanded
-    ? filtered
-    : [...filtered.slice(0, FOLD_TOP), ...filtered.slice(-FOLD_BOTTOM)];
+  // ★ 고른 분류는 접혀 있어도 반드시 끼워 넣는다.
+  //   접힘이 상위 10 + 하위 5 라 중간 순위(예: 41위)는 DOM 에 아예 없다 → 반대쪽에서 골라도
+  //   스크롤할 대상이 없어 아무 일도 안 일어난다. 그게 이 화면의 핵심 조작을 죽인다.
+  //   끼워 넣는 자리는 상위 덩어리 끝 — 접힌 구간에서 끌어온 것이라 원래 순위 자리는 없다.
+  const folded = many && !expanded;
+  let shown = folded
+    ? [...filtered.slice(0, FOLD_TOP), ...filtered.slice(-FOLD_BOTTOM)]
+    : filtered;
+  const pulled = folded && selected && !shown.some(c => c.name === selected)
+    ? filtered.find(c => c.name === selected)
+    : undefined;
+  const pulledRank = pulled ? filtered.findIndex(c => c.name === pulled.name) + 1 : 0;
+  if (pulled) {
+    shown = [...filtered.slice(0, FOLD_TOP), pulled, ...filtered.slice(-FOLD_BOTTOM)];
+  }
+  // 접힘으로 가려진 구간 — 경계를 안 그리면 상위 10 다음에 하위 5 가 바로 붙어
+  //   "3.77% 다음이 0.60%" 로 보여 정렬이 깨진 것처럼 읽힌다(실제로 그렇게 물어봤다).
+  const hiddenFrom = FOLD_TOP + 1;
+  const hiddenTo = filtered.length - FOLD_BOTTOM;
+  const hiddenCount = folded ? Math.max(0, hiddenTo - FOLD_TOP) : 0;
+
+  // 반대쪽에서 고른 분류가 이 시장엔 아예 없을 수도 있다(한쪽만 있는 분류) → 그렇다고 말해 준다.
+  const missing = !!selected && !items.some(c => c.name === selected);
+  const hiddenByFilter = !!selected && !missing && !filtered.some(c => c.name === selected);
   const maxAmount = items.reduce((m, c) => Math.max(m, c.tradingAmountKrw), 0);
 
   return (
@@ -83,6 +106,12 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
           {nation === "KR" ? "🇰🇷 한국" : "🇺🇸 미국"}
         </span>
         <span className="text-[10px] text-gray-400">{filtered.length}개 분류</span>
+        {missing && (
+          <span className="text-[10px] text-gray-500">· <b className="text-gray-700">{selected}</b> 없음</span>
+        )}
+        {hiddenByFilter && (
+          <span className="text-[10px] text-gray-500">· <b className="text-gray-700">{selected}</b> 공통만에서 제외</span>
+        )}
         {/* ★ 기준일 — 이게 없으면 새벽·주말에 본 숫자가 언제 것인지 알 수 없다 */}
         <span className={`ml-auto px-1.5 py-0.5 rounded text-[10px] font-medium ${
                 session?.open ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"}`}>
@@ -90,15 +119,28 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
           {session?.phase && <span className="ml-1 opacity-70">· {session.phase}</span>}
         </span>
       </div>
-      <div ref={boxRef} className="max-h-[560px] overflow-y-auto pr-1">
+      {/* 접힘(상위 12 + 하위 6 + 경계 줄 + 끌어온 카드 1)이 **스크롤 없이** 들어가는 높이.
+          3열 기준 최대 7줄 + 경계 줄이라 720px 면 충분하다. 펼치면(97개) 그때만 스크롤된다. */}
+      <div ref={boxRef} className="max-h-[720px] overflow-y-auto pr-1">
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 items-stretch">
-          {shown.map(c => (
-            <div key={c.ticsId} data-tics={c.name} className="min-w-0 h-full">
+          {shown.map((c, i) => (
+            <Fragment key={c.ticsId}>
+              {/* 상위 덩어리와 하위 덩어리 사이 — 여기서 순위가 건너뛴다는 걸 밝힌다 */}
+              {folded && hiddenCount > 0 && i === shown.length - FOLD_BOTTOM && (
+                <button onClick={onExpand}
+                        className="col-span-full my-0.5 py-1 rounded border border-dashed border-gray-300
+                                   bg-gray-50 text-[10px] text-gray-500 hover:bg-gray-100">
+                  ⋯ {hiddenFrom}~{hiddenTo}위 {hiddenCount}개 숨김 — 누르면 전체 보기
+                </button>
+              )}
+            <div data-tics={c.name} className="min-w-0 h-full">
               <TicsCard c={c} maxAmount={maxAmount}
                         selected={selected === c.name}
+                        pulledRank={pulled && c.name === pulled.name ? pulledRank : undefined}
                         onClick={() => onPick(c.name)}
                         onOpen={() => onOpen(c)} />
             </div>
+            </Fragment>
           ))}
         </div>
       </div>
@@ -106,8 +148,11 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
   );
 }
 
-export function TicsSectorBoard({ onOpenValuation }: {
+export function TicsSectorBoard({ onOpenValuation, krClosed = false }: {
   onOpenValuation?: (ticker: string, name: string) => void;
+  /** 한국 정규장이 닫혔는가 — 좌우 순서를 정한다. 섹션 위치(낮=한국 시장 아래 / 밤=미국 지수 아래)와
+   *  **같은 신호**를 써야 화면이 따로 놀지 않는다. */
+  krClosed?: boolean;
 }) {
   const [duration, setDuration] = useState<TicsDuration>("1d");
   const [sortBy, setSortBy] = useState<TicsSort>("FLUCTUATION_RATE");
@@ -208,15 +253,23 @@ export function TicsSectorBoard({ onOpenValuation }: {
       ) : isLoading && !data ? (
         <div className="py-6 text-center text-[11px] text-gray-400">불러오는 중…</div>
       ) : (
+        /* 낮(한국장)은 한국이 왼쪽, 밤은 미국이 왼쪽 — 지금 움직이는 시장이 먼저 읽히는 자리에 온다. */
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 lg:gap-4">
-          <Panel nation="KR" items={krItems} selected={selected}
-                 onPick={n => setSelected(p => (p === n ? null : n))}
-                 onOpen={cat => setDlg({ cat, nation: "KR" })}
-                 bothOnly={bothOnly} common={common} expanded={expanded} session={sessions?.kr} />
-          <Panel nation="US" items={usItems} selected={selected}
-                 onPick={n => setSelected(p => (p === n ? null : n))}
-                 onOpen={cat => setDlg({ cat, nation: "US" })}
-                 bothOnly={bothOnly} common={common} expanded={expanded} session={sessions?.us} />
+          {(krClosed ? (["US", "KR"] as const) : (["KR", "US"] as const)).map((nat, i) => (
+            // 두 시장 사이 세로선 — 좌우가 한 판이라 경계가 없으면 카드가 이어진 목록처럼 읽힌다.
+            //   세로로 쌓이는 좁은 화면(lg 미만)에서는 선이 뜻을 잃으므로 lg 부터만 그린다.
+            <div key={nat}
+                 className={i === 1 ? "lg:pl-4 lg:border-l lg:border-gray-300" : ""}>
+            <Panel nation={nat}
+                   items={nat === "KR" ? krItems : usItems}
+                   selected={selected}
+                   onPick={n => setSelected(p => (p === n ? null : n))}
+                   onOpen={cat => setDlg({ cat, nation: nat })}
+                   bothOnly={bothOnly} common={common} expanded={expanded}
+                   onExpand={() => setExpanded(true)}
+                   session={nat === "KR" ? sessions?.kr : sessions?.us} />
+            </div>
+          ))}
         </div>
       )}
 

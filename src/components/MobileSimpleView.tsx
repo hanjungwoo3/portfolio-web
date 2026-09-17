@@ -1491,7 +1491,8 @@ export function MobileSimpleView() {
                 </span>
                 {/* 한국 섹터 — 토스 TICS(미국 블록과 같은 한글 분류). PC 와 같은 컴포넌트. */}
                 {section.render === "sectorFlow" && (
-                  <TicsSectorBoard onOpenValuation={(code, name) => { setValuationName(name); setValuationTicker(code); }} />
+                  <TicsSectorBoard krClosed={krSessionPhase() === "CLOSED"}
+                            onOpenValuation={(code, name) => { setValuationName(name); setValuationTicker(code); }} />
                 )}
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
                   {(section.render ? []
