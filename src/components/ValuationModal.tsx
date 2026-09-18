@@ -26,6 +26,7 @@ import { ConsensusCharts } from "./ConsensusCharts";
 import { PriceMultiSparks } from "./PriceMultiSparks";
 import { Sparkline } from "./Sparkline";
 import { CommunityPanes } from "./CommunityDialog";
+import { InvestorPriceProfile } from "./InvestorPriceProfile";
 import { signColor, nowKstDateStr, isEtfByName, formatSigned } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
 import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices, fetchTossKrCandles, TOSS_CANDLE_MAX } from "../lib/api";
@@ -598,11 +599,17 @@ export function ValuationModal({
           {earnings && earnings.length > 0 && (
             <div className="mb-3">
               <EarningsTrend rows={earnings}
-                             extraCols={!isEtf
-                               ? <StockOverviewCharts bare cellClass="xl:col-span-2"
-                                                      ticker={ticker}
-                                                      marketCapText={fund.market_cap_text}
-                                                      price={effCurPrice} />
+                             secondRow={!isEtf
+                               ? <>
+                                   <PriceProfileCell ticker={ticker} curPrice={effCurPrice} />
+                                   {/* 오른쪽 절반 — 두 차트를 세로로 쌓는다 */}
+                                   <div className="min-w-0 space-y-3">
+                                     <StockOverviewCharts bare
+                                                          ticker={ticker}
+                                                          marketCapText={fund.market_cap_text}
+                                                          price={effCurPrice} />
+                                   </div>
+                                 </>
                                : undefined} />
             </div>
           )}
@@ -706,6 +713,27 @@ function CommunitySection({ ticker }: { ticker: string }) {
       {seen
         ? <CommunityPanes ticker={ticker} className="h-[320px]" />
         : <div className="h-[320px] rounded-md border border-dashed border-gray-200" />}
+    </div>
+  );
+}
+
+// ─── 가격대별 순매수 (실적 추이 아랫줄 첫 칸) ─────────────
+//   투자자 섹션과 **같은 쿼리키**라 추가 조회가 없다. 날짜 축(아래 표)과 달리 가격 축으로 본다.
+function PriceProfileCell({ ticker, curPrice }: { ticker: string; curPrice?: number }) {
+  const { data: history } = useQuery({
+    queryKey: ["investor-history-modal", ticker],
+    queryFn: () => fetchInvestorHistorySafe(ticker, [200, 120, 60]),
+    enabled: /^[\dA-Za-z]{6}$/.test(ticker),
+    staleTime: 5 * 60_000,
+  });
+  if (!history || history.length < 5) return null;
+  return (
+    <div className="border border-gray-200 rounded-lg p-2 min-w-0">
+      <div className="text-[11px] font-bold text-gray-700">
+        🧱 가격대별 순매수
+        <span className="ml-1 font-normal text-[10px] text-gray-400">어느 가격대에서 사고 팔았나</span>
+      </div>
+      <InvestorPriceProfile history={history} curPrice={curPrice} />
     </div>
   );
 }

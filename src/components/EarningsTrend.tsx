@@ -34,7 +34,10 @@ const signCls = (v: number | null) =>
 //   폭을 240 으로 맞추면 배율이 1 이라 글자가 지정한 크기 그대로 나온다.
 // 두 차트를 같은 높이로 두고, 합쳐서 오른쪽 표(헤더+10행 ≈ 190px)와 맞춘다.
 //   폭 240 = 실제 렌더 폭이라 배율 1 → 96px 씩 두 장 = 192px.
-const W = 240, H = 96;
+// viewBox 는 **글자 크기와 차트 높이를 동시에** 정한다 — w-full 이라 렌더 배율 = 컨테이너폭 / W.
+//   폭 440 이면 520px 칸에서 배율 1.18 → fontSize 8.5 가 약 10px 로 렌더된다(옆 카드 글자와 비슷).
+//   높이 88 이면 렌더 높이 ≈ 104px → 두 장을 쌓아 오른쪽 표(10행)와 키가 맞는다.
+const W = 440, H = 88;
 const PAD_T = 8, PAD_B = 22, PAD_L = 34, PAD_R = 26;
 
 function TrendChart({ rows }: { rows: EarningsRow[] }) {
@@ -145,7 +148,7 @@ function TrendChart({ rows }: { rows: EarningsRow[] }) {
 //   축이 달라 한 차트에 못 겹치고, 표에 숫자로만 있으면 추정 구간에서 뚝 떨어지는 모양이
 //   안 보인다. 그 낙차가 forward 밸류에이션의 핵심이라 선으로 그린다.
 //   PER 과 PBR 은 자릿수가 달라(7.75 vs 0.83) 각자 축을 쓴다.
-const VW = 240, VH = 96;          // 위 차트와 같은 높이 (표와 맞추기 위해 50%씩)
+const VW = 440, VH = 88;          // 위 차트와 같은 좌표계 — 달라지면 두 차트의 글자 크기가 어긋난다
 const V_T = 8, V_B = 22, V_L = 28, V_R = 24;
 
 function ValuationChart({ rows }: { rows: EarningsRow[] }) {
@@ -222,10 +225,10 @@ const METRICS: { label: string; get: (r: EarningsRow) => string; cls?: (r: Earni
     cls: r => signCls(r.net_debt_ratio == null ? null : -r.net_debt_ratio) },
 ];
 
-export function EarningsTrend({ rows, extraCols }: {
+export function EarningsTrend({ rows, secondRow }: {
   rows: EarningsRow[];
-  /** 같은 줄에 붙일 추가 칸(외국인 지분율·상대수익률). 없으면 2칸 그대로. */
-  extraCols?: ReactNode;
+  /** 아랫줄에 3칸으로 깔 내용(가격대별 순매수 · 외국인 지분율 · 상대수익률). */
+  secondRow?: ReactNode;
 }) {
   if (rows.length === 0) return null;
 
@@ -237,15 +240,17 @@ export function EarningsTrend({ rows, extraCols }: {
         <span className="ml-auto text-[10px] text-gray-400">출처: 네이버 금융 / 에프앤가이드</span>
       </header>
 
-      {/* 10칸 중 차트 2 · 표 4 · 나머지 각 2 — 표가 6열이라 제일 넓어야 읽힌다 */}
-      <div className={`grid grid-cols-1 gap-3 items-start ${
-        extraCols ? "lg:grid-cols-2 xl:grid-cols-10" : "lg:grid-cols-2"}`}>
-        <div className={`min-w-0 space-y-1 ${extraCols ? "xl:col-span-2" : ""}`}>
+      {/* 두 줄 모두 50/50.
+          윗줄: 실적 추이 차트(매출·이익·ROE + PER·PBR) | 실적 표
+          아랫줄: 가격대별 순매수 | 외국인 지분율·시가총액 + 상대수익률(세로로 쌓음)
+          예전엔 넷을 한 줄에 늘어놔 차트마다 폭이 좁고 표 아래가 통째로 비었다. */}
+      <div className="grid grid-cols-1 gap-3 items-start lg:grid-cols-2">
+        <div className="min-w-0 space-y-1">
           <TrendChart rows={rows} />
           <ValuationChart rows={rows} />
         </div>
 
-        <div className={`min-w-0 overflow-x-auto ${extraCols ? "xl:col-span-4" : ""}`}>
+        <div className="min-w-0 overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
               <tr className="border-b border-gray-200">
@@ -275,8 +280,13 @@ export function EarningsTrend({ rows, extraCols }: {
             </tbody>
           </table>
         </div>
-        {extraCols}
       </div>
+
+      {secondRow && (
+        <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+          {secondRow}
+        </div>
+      )}
 
       <p className="mt-1 text-[10px] text-gray-400 leading-snug">
         (E) 의 PER·PBR 은 추정 이익을 지금 주가로 나눈 값(forward)이라 확정 실적 기준보다 낮게

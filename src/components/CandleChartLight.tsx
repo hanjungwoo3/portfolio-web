@@ -396,6 +396,7 @@ export function CandleChartLight({
       if (!layer) return;
       layer.innerHTML = "";
 
+
       const renderBelow = (date: string, color: string, text: string, slot = 0) => {
         const p = priceMap.get(date);
         if (!p) return;
