@@ -718,8 +718,10 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
             )}
             {/* 폴링 주기 — 공개는 5분·수동만. 그보다 빠른 건 전용 전송(확장·앱·개인 워커)일 때만.
                 확장·앱은 브라우저/폰이 직접 요청하므로 워커 호출 한도가 아예 없다. */}
-            <div className="flex items-center gap-2 mt-1">
-              <span className={`text-[11px] ${fastPollAllowed ? "text-gray-700" : "text-gray-400"}`}>
+            {/* 폭이 좁으면 버튼이 눌려 글자가 세로로 쪼개졌다("수\n동", "5\n초") →
+                버튼은 줄바꿈 금지·축소 금지로 두고, 대신 줄 자체가 넘어가게 한다. */}
+            <div className="flex items-center gap-1 mt-1 flex-wrap">
+              <span className={`shrink-0 text-[11px] ${fastPollAllowed ? "text-gray-700" : "text-gray-400"}`}>
                 폴링 주기:
               </span>
               {POLL_OPTIONS.map(ms => {
@@ -731,7 +733,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   <button key={ms}
                           onClick={() => handlePollChange(ms)}
                           disabled={!enabled}
-                          className={`px-2 py-0.5 text-[11px] rounded border transition
+                          className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-[11px] rounded border transition
                                       ${active
                                         ? "bg-blue-600 text-white border-blue-700 font-bold"
                                         : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}
@@ -741,8 +743,9 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 );
               })}
               {!fastPollAllowed && (
-                <span className="text-[10px] text-gray-400 ml-1">
-                  (공개는 5분 고정 — 무료 워커 한도 보호. 더 빠르게는 확장·앱·개인 프록시)
+                // 긴 안내문은 버튼을 밀어내지 않도록 제 줄을 차지한다
+                <span className="basis-full text-[10px] text-gray-400 leading-snug">
+                  공개는 5분 고정 — 무료 워커 한도 보호. 더 빠르게는 확장·앱·개인 프록시.
                 </span>
               )}
             </div>
