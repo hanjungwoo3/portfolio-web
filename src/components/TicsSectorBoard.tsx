@@ -18,11 +18,10 @@ import {
 } from "../lib/api";
 import { TicsCard, DURATIONS, SORTS } from "./TicsFlow";
 
-// 접힌 상태에서 보여줄 장 수 — 상위 12 + 하위 6 = 18장(3열 기준 6줄).
-//   등락률 정렬이라 위쪽이 더 중요해 상위를 두 배로 둔다(급락 쪽도 두 줄은 보이게).
-//   숨겨진 구간은 카드 사이에 경계 줄로 밝힌다 — 안 그리면 상위 끝과 하위 처음이 붙어
-//   "3.77% 다음이 0.60%" 로 보여 정렬이 깨진 것처럼 읽힌다.
-const FOLD_TOP = 12, FOLD_BOTTOM = 6;
+// 접힌 상태에서 보여줄 장 수 — **상위 9장만**(3열 기준 3줄). 하위는 접힘에서 뺀다.
+//   이 화면은 "어디가 가고 있나" 를 보는 곳이라 급락 쪽은 전체 보기에서 확인하면 된다.
+//   FOLD_BOTTOM 을 0 으로 둘 수 있게 slice(-0) 을 쓰지 않는다 — slice(-0) 은 전체를 준다(함정).
+const FOLD_TOP = 9, FOLD_BOTTOM = 0;
 import { TicsStockDialog } from "./TicsStockDialog";
 
 // 그 시장의 **데이터 기준일**. 토스 랭킹 응답에는 거래일이 없다(basedAt = 조회 시각) —
@@ -78,20 +77,19 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
   //   스크롤할 대상이 없어 아무 일도 안 일어난다. 그게 이 화면의 핵심 조작을 죽인다.
   //   끼워 넣는 자리는 상위 덩어리 끝 — 접힌 구간에서 끌어온 것이라 원래 순위 자리는 없다.
   const folded = many && !expanded;
-  let shown = folded
-    ? [...filtered.slice(0, FOLD_TOP), ...filtered.slice(-FOLD_BOTTOM)]
-    : filtered;
+  const foldBottom = FOLD_BOTTOM > 0 ? filtered.slice(-FOLD_BOTTOM) : [];
+  let shown = folded ? [...filtered.slice(0, FOLD_TOP), ...foldBottom] : filtered;
   const pulled = folded && selected && !shown.some(c => c.name === selected)
     ? filtered.find(c => c.name === selected)
     : undefined;
   const pulledRank = pulled ? filtered.findIndex(c => c.name === pulled.name) + 1 : 0;
   if (pulled) {
-    shown = [...filtered.slice(0, FOLD_TOP), pulled, ...filtered.slice(-FOLD_BOTTOM)];
+    shown = [...filtered.slice(0, FOLD_TOP), pulled, ...foldBottom];
   }
   // 접힘으로 가려진 구간 — 경계를 안 그리면 상위 10 다음에 하위 5 가 바로 붙어
   //   "3.77% 다음이 0.60%" 로 보여 정렬이 깨진 것처럼 읽힌다(실제로 그렇게 물어봤다).
   const hiddenFrom = FOLD_TOP + 1;
-  const hiddenTo = filtered.length - FOLD_BOTTOM;
+  const hiddenTo = filtered.length - FOLD_BOTTOM;   // 하위를 안 보이면 끝까지가 숨김 구간이다
   const hiddenCount = folded ? Math.max(0, hiddenTo - FOLD_TOP) : 0;
 
   // 반대쪽에서 고른 분류가 이 시장엔 아예 없을 수도 있다(한쪽만 있는 분류) → 그렇다고 말해 준다.
@@ -126,7 +124,7 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
           {shown.map((c, i) => (
             <Fragment key={c.ticsId}>
               {/* 상위 덩어리와 하위 덩어리 사이 — 여기서 순위가 건너뛴다는 걸 밝힌다 */}
-              {folded && hiddenCount > 0 && i === shown.length - FOLD_BOTTOM && (
+              {folded && hiddenCount > 0 && i === shown.length - FOLD_BOTTOM && FOLD_BOTTOM > 0 && (
                 <button onClick={onExpand}
                         className="col-span-full my-0.5 py-1 rounded border border-dashed border-gray-300
                                    bg-gray-50 text-[10px] text-gray-500 hover:bg-gray-100">
@@ -142,6 +140,14 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
             </div>
             </Fragment>
           ))}
+          {/* 하위 덩어리를 안 보여줄 때는 경계 줄이 목록 끝에 온다 */}
+          {folded && hiddenCount > 0 && FOLD_BOTTOM === 0 && (
+            <button onClick={onExpand}
+                    className="col-span-full my-0.5 py-1 rounded border border-dashed border-gray-300
+                               bg-gray-50 text-[10px] text-gray-500 hover:bg-gray-100">
+              ⋯ {hiddenFrom}~{hiddenTo}위 {hiddenCount}개 숨김 — 누르면 전체 보기
+            </button>
+          )}
         </div>
       </div>
     </div>
@@ -277,8 +283,8 @@ export function TicsSectorBoard({ onOpenValuation, krClosed = false }: {
               className="mt-1 w-full py-1 rounded border border-gray-300 bg-white text-[11px]
                          text-gray-600 hover:bg-gray-50">
         {expanded
-          ? `접기 (각 상위 ${FOLD_TOP} · 하위 ${FOLD_BOTTOM})`
-          : `전체 보기 (지금은 각 상위 ${FOLD_TOP} · 하위 ${FOLD_BOTTOM})`}
+          ? `접기 (각 상위 ${FOLD_TOP}${FOLD_BOTTOM ? ` · 하위 ${FOLD_BOTTOM}` : ""})`
+          : `전체 보기 (지금은 각 상위 ${FOLD_TOP}${FOLD_BOTTOM ? ` · 하위 ${FOLD_BOTTOM}` : ""})`}
       </button>
 
       {dlg && (

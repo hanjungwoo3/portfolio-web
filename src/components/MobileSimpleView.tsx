@@ -90,7 +90,6 @@ import { MyTradesTab } from "./MyTradesTab";
 import { AssetTrendTab } from "./AssetTrendTab";
 import { TickArrow } from "./TickArrow";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
-import { TicsSectorBoard } from "./TicsSectorBoard";
 import { EtfReverseDialog } from "./EtfReverseDialog";
 import { MobileTodayPnLLayer, MobileTodayRealizedCard } from "./TodayPnLTable";
 import { SearchDialog } from "./SearchDialog";
@@ -1473,7 +1472,10 @@ export function MobileSimpleView() {
           </div>;
         }
         // 지수 — PC(UsMarketTab)와 동일한 공용 그룹 정의를 그룹 헤더 + 2열 카드로 렌더 (단일 통합 뷰)
-        const sections = buildDashboardSections(isKrNightSession(), krSessionPhase() === "CLOSED");
+        // 한·미 섹터 판은 **모바일에서 제외**한다 — 좌우 두 판 × 3열 구조라 폭이 안 나온다.
+        //   블록만 빼면 라벨뿐인 빈 카드가 남으므로 섹션째 걸러낸다(PC 는 그대로).
+        const sections = buildDashboardSections(isKrNightSession(), krSessionPhase() === "CLOSED")
+          .filter(sec => sec.render !== "sectorFlow");
         const idxStickyTop = (headerCollapsed ? 0 : 44) + navH;   // 헤더(44) + 메인 탭바 아래
         const idxScrollMargin = idxStickyTop + 38;                // + 색인바 높이 만큼 더 내려 착지
         return (
@@ -1489,11 +1491,6 @@ export function MobileSimpleView() {
                                  text-[11px] font-bold text-gray-700 whitespace-nowrap">
                   {section.label}
                 </span>
-                {/* 한국 섹터 — 토스 TICS(미국 블록과 같은 한글 분류). PC 와 같은 컴포넌트. */}
-                {section.render === "sectorFlow" && (
-                  <TicsSectorBoard krClosed={krSessionPhase() === "CLOSED"}
-                            onOpenValuation={(code, name) => { setValuationName(name); setValuationTicker(code); }} />
-                )}
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
                   {(section.render ? []
                     : section.id === "sector"
