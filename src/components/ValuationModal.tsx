@@ -1105,8 +1105,10 @@ function InvestorChartsSection({
       {/* 0-a. 가격 축 한 줄 — 가격대별 순매수 | 외국인 지분율·시가총액 + 상대수익률.
               아래가 시간 축(년·월·주봉 → 일봉 주가)이라, 같은 종목을 가격 축 → 시간 축
               순서로 잇달아 보게 둔다. 데이터는 이 섹션이 이미 받은 200일치(data)를 쓴다. */}
+      {/* 60 : 40 — 막대 12칸이 들어가는 왼쪽이 넓어야 가격대가 읽힌다.
+          ⚠️ JSX 주석은 `&& (` 바로 안에 못 온다. 그 자리는 '식 하나' 라 주석 + 엘리먼트 둘이 되면
+             문법 오류다(실제로 이 자리에서 냈다) → 조건문 위로 뺀다. */}
       {data.length >= 5 && (
-        {/* 60 : 40 — 막대 12칸이 들어가는 왼쪽이 넓어야 가격대가 읽힌다 */}
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-start">
           <section className="min-w-0 lg:col-span-3 border border-gray-200 rounded-lg p-2">
             <div className="text-[11px] font-bold text-gray-700">
