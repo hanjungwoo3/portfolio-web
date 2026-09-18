@@ -598,13 +598,7 @@ export function ValuationModal({
               외국인 지분율·상대수익률을 같은 줄에 붙여 네 칸으로 만든다(세로 절약). */}
           {earnings && earnings.length > 0 && (
             <div className="mb-3">
-              <EarningsTrend rows={earnings}
-                             secondRow={!isEtf
-                               ? <StockOverviewCharts bare
-                                                      ticker={ticker}
-                                                      marketCapText={fund.market_cap_text}
-                                                      price={effCurPrice} />
-                               : undefined} />
+              <EarningsTrend rows={earnings} />
             </div>
           )}
           {/* 재무 추이 — Wisereport 시계열 5개 차트 */}
@@ -1108,17 +1102,26 @@ function InvestorChartsSection({
 
   return (
     <div className="space-y-2 mt-2">
-      {/* 0-a. 가격대별 순매수 — 가격 축. 아래 '기간별 추이'(년·월·주봉)와 주가 차트가
-              시간 축이라, 같은 종목을 두 축으로 잇달아 보게 둔다.
-              데이터(data)는 이 섹션이 이미 받은 200일치라 추가 조회가 없다. */}
+      {/* 0-a. 가격 축 한 줄 — 가격대별 순매수 | 외국인 지분율·시가총액 + 상대수익률.
+              아래가 시간 축(년·월·주봉 → 일봉 주가)이라, 같은 종목을 가격 축 → 시간 축
+              순서로 잇달아 보게 둔다. 데이터는 이 섹션이 이미 받은 200일치(data)를 쓴다. */}
       {data.length >= 5 && (
-        <section className="border border-gray-200 rounded-lg p-2">
-          <div className="text-[11px] font-bold text-gray-700">
-            🧱 가격대별 순매수
-            <span className="ml-1 font-normal text-[10px] text-gray-400">어느 가격대에서 사고 팔았나</span>
-          </div>
-          <InvestorPriceProfile history={data} curPrice={curPrice} />
-        </section>
+        {/* 60 : 40 — 막대 12칸이 들어가는 왼쪽이 넓어야 가격대가 읽힌다 */}
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-start">
+          <section className="min-w-0 lg:col-span-3 border border-gray-200 rounded-lg p-2">
+            <div className="text-[11px] font-bold text-gray-700">
+              🧱 가격대별 순매수
+              <span className="ml-1 font-normal text-[10px] text-gray-400">어느 가격대에서 사고 팔았나</span>
+            </div>
+            <InvestorPriceProfile history={data} curPrice={curPrice} />
+          </section>
+          {/* ETF 는 외국인 지분율·상대수익률을 내지 않는다(원래 규칙) */}
+          {!isEtf && (
+            <div className="min-w-0 lg:col-span-2 space-y-3">
+              <StockOverviewCharts bare ticker={ticker} price={curPrice} />
+            </div>
+          )}
+        </div>
       )}
       {/* 0. 기간별 추이 멀티 sparkline — 1주~MAX (상장 짧으면 자동 숨김) */}
       <PriceMultiSparks ticker={ticker} />

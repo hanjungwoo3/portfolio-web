@@ -10,7 +10,6 @@
 // 배치 — 차트(좌) + 표(우) 를 반반. 세로로 쌓으면 모달에서 차지하는 높이가 다른 섹션의
 //   두 배가 된다. 표는 연도를 '열'로 돌려 폭을 좁혔다(11열 → 6열) — 그래야 절반 폭에 든다.
 
-import type { ReactNode } from "react";
 import type { EarningsRow } from "../lib/fundamentals";
 
 function fmtEok(v: number | null): string {
@@ -225,11 +224,7 @@ const METRICS: { label: string; get: (r: EarningsRow) => string; cls?: (r: Earni
     cls: r => signCls(r.net_debt_ratio == null ? null : -r.net_debt_ratio) },
 ];
 
-export function EarningsTrend({ rows, secondRow }: {
-  rows: EarningsRow[];
-  /** 아랫줄에 3칸으로 깔 내용(가격대별 순매수 · 외국인 지분율 · 상대수익률). */
-  secondRow?: ReactNode;
-}) {
+export function EarningsTrend({ rows }: { rows: EarningsRow[] }) {
   if (rows.length === 0) return null;
 
   return (
@@ -240,10 +235,8 @@ export function EarningsTrend({ rows, secondRow }: {
         <span className="ml-auto text-[10px] text-gray-400">출처: 네이버 금융 / 에프앤가이드</span>
       </header>
 
-      {/* 두 줄 모두 50/50.
-          윗줄: 실적 추이 차트(매출·이익·ROE + PER·PBR) | 실적 표
-          아랫줄: 가격대별 순매수 | 외국인 지분율·시가총액 + 상대수익률(세로로 쌓음)
-          예전엔 넷을 한 줄에 늘어놔 차트마다 폭이 좁고 표 아래가 통째로 비었다. */}
+      {/* 50/50 — 실적 추이 차트(매출·이익·ROE + PER·PBR) | 실적 표.
+          수급·지분율 차트는 위쪽 '가격 축' 줄로 옮겼다(실적 이야기 중간에 수급이 끼지 않게). */}
       <div className="grid grid-cols-1 gap-3 items-start lg:grid-cols-2">
         <div className="min-w-0 space-y-1">
           <TrendChart rows={rows} />
@@ -282,11 +275,6 @@ export function EarningsTrend({ rows, secondRow }: {
         </div>
       </div>
 
-      {secondRow && (
-        <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
-          {secondRow}
-        </div>
-      )}
 
       <p className="mt-1 text-[10px] text-gray-400 leading-snug">
         (E) 의 PER·PBR 은 추정 이익을 지금 주가로 나눈 값(forward)이라 확정 실적 기준보다 낮게
