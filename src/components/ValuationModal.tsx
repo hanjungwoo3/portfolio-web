@@ -600,16 +600,10 @@ export function ValuationModal({
             <div className="mb-3">
               <EarningsTrend rows={earnings}
                              secondRow={!isEtf
-                               ? <>
-                                   <PriceProfileCell ticker={ticker} curPrice={effCurPrice} />
-                                   {/* 오른쪽 절반 — 두 차트를 세로로 쌓는다 */}
-                                   <div className="min-w-0 space-y-3">
-                                     <StockOverviewCharts bare
-                                                          ticker={ticker}
-                                                          marketCapText={fund.market_cap_text}
-                                                          price={effCurPrice} />
-                                   </div>
-                                 </>
+                               ? <StockOverviewCharts bare
+                                                      ticker={ticker}
+                                                      marketCapText={fund.market_cap_text}
+                                                      price={effCurPrice} />
                                : undefined} />
             </div>
           )}
@@ -713,27 +707,6 @@ function CommunitySection({ ticker }: { ticker: string }) {
       {seen
         ? <CommunityPanes ticker={ticker} className="h-[320px]" />
         : <div className="h-[320px] rounded-md border border-dashed border-gray-200" />}
-    </div>
-  );
-}
-
-// ─── 가격대별 순매수 (실적 추이 아랫줄 첫 칸) ─────────────
-//   투자자 섹션과 **같은 쿼리키**라 추가 조회가 없다. 날짜 축(아래 표)과 달리 가격 축으로 본다.
-function PriceProfileCell({ ticker, curPrice }: { ticker: string; curPrice?: number }) {
-  const { data: history } = useQuery({
-    queryKey: ["investor-history-modal", ticker],
-    queryFn: () => fetchInvestorHistorySafe(ticker, [200, 120, 60]),
-    enabled: /^[\dA-Za-z]{6}$/.test(ticker),
-    staleTime: 5 * 60_000,
-  });
-  if (!history || history.length < 5) return null;
-  return (
-    <div className="border border-gray-200 rounded-lg p-2 min-w-0">
-      <div className="text-[11px] font-bold text-gray-700">
-        🧱 가격대별 순매수
-        <span className="ml-1 font-normal text-[10px] text-gray-400">어느 가격대에서 사고 팔았나</span>
-      </div>
-      <InvestorPriceProfile history={history} curPrice={curPrice} />
     </div>
   );
 }
@@ -1135,6 +1108,18 @@ function InvestorChartsSection({
 
   return (
     <div className="space-y-2 mt-2">
+      {/* 0-a. 가격대별 순매수 — 가격 축. 아래 '기간별 추이'(년·월·주봉)와 주가 차트가
+              시간 축이라, 같은 종목을 두 축으로 잇달아 보게 둔다.
+              데이터(data)는 이 섹션이 이미 받은 200일치라 추가 조회가 없다. */}
+      {data.length >= 5 && (
+        <section className="border border-gray-200 rounded-lg p-2">
+          <div className="text-[11px] font-bold text-gray-700">
+            🧱 가격대별 순매수
+            <span className="ml-1 font-normal text-[10px] text-gray-400">어느 가격대에서 사고 팔았나</span>
+          </div>
+          <InvestorPriceProfile history={data} curPrice={curPrice} />
+        </section>
+      )}
       {/* 0. 기간별 추이 멀티 sparkline — 1주~MAX (상장 짧으면 자동 숨김) */}
       <PriceMultiSparks ticker={ticker} />
       {/* 1. 주가 — 전체 폭 (외국인비율 % + 목표가/평단가 가로선) */}
