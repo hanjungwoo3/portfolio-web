@@ -13,7 +13,7 @@
 //   2) **순매수(net)** 라 같은 날의 대량 매수·매도가 상쇄된다.
 //   3) 토스 상한이 **200일** 이라 그 이전 매집은 안 보인다.
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Investor } from "../types";
 import { signColor } from "../lib/format";
 import { buildPriceProfile, type ProfileWho } from "../lib/investorProfile";
@@ -51,17 +51,55 @@ export function InvestorPriceProfile({ history, curPrice }: {
   const [who, setWho] = useState<Who>("inst_ex_fin");
   const [days, setDays] = useState(120);
   const [won, setWon] = useState(false);   // 수량(주) / 금액(원)
+  // ★ 구간은 **달력이 단일 진실**이다. 기간 버튼은 그 구간을 채워 넣는 단축키일 뿐이라,
+  //   60일을 누르면 달력에 60거래일 전~마지막 거래일이 그대로 뜬다(무엇을 보고 있는지 보인다).
+  const [from, setFrom] = useState("");
+  const [to, setTo] = useState("");
 
+  const withPrice = useMemo(
+    () => history.filter(d => (d.종가 ?? 0) > 0 && !!d.date),
+    [history],
+  );
+  // 데이터가 있는 범위 — 달력의 min/max (없는 날짜를 고르면 빈 화면이 된다).
+  const bound = useMemo(() => {
+    const ds = withPrice.map(d => d.date as string).sort();
+    return { min: ds[0] ?? "", max: ds[ds.length - 1] ?? "" };
+  }, [withPrice]);
+
+  // 최근 n거래일이 실제로 어느 날짜~어느 날짜인가. 달력에 넣을 값이다.
+  const rangeOfPeriod = useCallback((n: number) => {
+    const ds = withPrice.slice(0, n).map(d => d.date as string).sort();
+    return ds.length ? { from: ds[0], to: ds[ds.length - 1] } : null;
+  }, [withPrice]);
+
+  // 첫 렌더 — 기본 기간(120일)을 달력에 채운다. 빈 칸으로 두면 뭘 보는 중인지 알 수 없다.
+  useEffect(() => {
+    if (from || to) return;
+    const r = rangeOfPeriod(days);
+    if (r) { setFrom(r.from); setTo(r.to); }
+  }, [rangeOfPeriod, days, from, to]);
+
+  // 지금 구간이 어느 버튼과 정확히 같은가 — 그 버튼만 켠다(손으로 고치면 아무것도 안 켜진다).
+  const activePeriod = PERIODS.find(p => {
+    const r = rangeOfPeriod(p);
+    return !!r && r.from === from && r.to === to;
+  });
+
+  const rows = useMemo(() => {
+    if (!from && !to) return withPrice.slice(0, days);
+    return withPrice.filter(d => {
+      const t = d.date as string;
+      return (!from || t >= from) && (!to || t <= to);
+    });
+  }, [withPrice, days, from, to]);
+
+  // 구간을 직접 고르면 그 안의 전부를 쓴다(days 로 다시 자르지 않는다).
   const model = useMemo(
-    () => buildPriceProfile(history, who, days, won),
-    [history, who, days, won],
+    () => buildPriceProfile(rows, who, rows.length || 1, won),
+    [rows, who, won],
   );
 
-  if (!model) return null;
-  const { bins, max, days: used, avgBuy, avgSell, net } = model;
   const whoMeta = WHO.find(w => w.key === who);
-  // 산 값이 판 값보다 비싸면 '비싸게 사서 싸게 판' 것이다 — 이 화면이 답하려는 질문.
-  const gap = avgBuy != null && avgSell != null ? avgBuy - avgSell : null;
 
   return (
     <div className="mt-3">
@@ -76,10 +114,16 @@ export function InvestorPriceProfile({ history, curPrice }: {
         ))}
         <span className="text-gray-300 mx-0.5">|</span>
         {PERIODS.map(p => (
-          <button key={p} onClick={() => setDays(p)}
+          <button key={p}
+                  onClick={() => {
+                    setDays(p);
+                    const r = rangeOfPeriod(p);
+                    if (r) { setFrom(r.from); setTo(r.to); }
+                  }}
+                  title={`최근 ${p}거래일 — 누르면 달력에 그 구간이 채워진다`}
                   className={`px-1.5 py-0.5 rounded text-[11px] font-bold border transition ${
-                    days === p ? "bg-indigo-600 text-white border-indigo-600"
-                               : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}>
+                    activePeriod === p ? "bg-indigo-600 text-white border-indigo-600"
+                                       : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}>
             {p}일
           </button>
         ))}
@@ -91,6 +135,27 @@ export function InvestorPriceProfile({ history, curPrice }: {
         </button>
       </div>
 
+      {/* 구간 직접 지정 — 버튼(60/120/200일)과 같이 쓴다. 날짜를 넣으면 그쪽이 이긴다. */}
+      <div className="flex items-center gap-1 flex-wrap mb-1.5 text-[11px]">
+        <input type="date" value={from} min={bound.min} max={to || bound.max}
+               onChange={e => setFrom(e.target.value)}
+               className={`px-1 py-0.5 rounded border text-[11px] tabular-nums ${
+                 activePeriod ? "border-gray-300 text-gray-700" : "border-indigo-400 text-gray-800"}`} />
+        <span className="text-gray-400">~</span>
+        <input type="date" value={to} min={from || bound.min} max={bound.max}
+               onChange={e => setTo(e.target.value)}
+               className={`px-1 py-0.5 rounded border text-[11px] tabular-nums ${
+                 activePeriod ? "border-gray-300 text-gray-700" : "border-indigo-400 text-gray-800"}`} />
+        <span className="text-gray-400">
+          {activePeriod ? `최근 ${activePeriod}거래일` : "직접 지정한 구간"}
+        </span>
+      </div>
+
+      {model ? (() => {
+        const { bins, max, days: used, avgBuy, avgSell, net } = model;
+        // 산 값이 판 값보다 비싸면 '비싸게 사서 싸게 판' 것이다 — 이 화면이 답하려는 질문.
+        const gap = avgBuy != null && avgSell != null ? avgBuy - avgSell : null;
+        return (<>
       {/* 요약 — 평균 매수단가 vs 평균 매도단가. 이 두 숫자가 질문의 답이다. */}
       <div className="flex items-center gap-x-3 gap-y-1 flex-wrap text-[11px] mb-1.5">
         <span className="text-gray-500">{used}일 · {whoMeta?.label}</span>
@@ -145,6 +210,13 @@ export function InvestorPriceProfile({ history, curPrice }: {
           );
         })}
       </div>
+        </>);
+      })() : (
+        <div className="py-6 text-center text-[11px] text-gray-400 border border-gray-200 rounded">
+          이 구간에 쓸 수 있는 데이터가 5일 미만입니다
+          <span className="block mt-0.5">날짜를 넓히거나 위 기간 버튼을 눌러 보세요</span>
+        </div>
+      )}
 
       <p className="mt-1 text-[10px] text-gray-400 leading-relaxed">
         일별 순매수를 <b>그 날 종가</b>의 가격대에 쌓은 것입니다 — 체결가가 아니라 근사이고,
