@@ -336,19 +336,27 @@ export async function fetchTossUsStockCandles(symbol: string, count = 120): Prom
 // 토스 내부코드를 이미 아는 경우(TICS 구성종목 등) — 심볼→코드 변환을 건너뛴다.
 //   getTossCode 는 '이미 본 종목' 만 아는 캐시라, 처음 보는 미국 종목은 그 경로로 못 찾는다.
 export async function fetchTossUsCandlesByCode(code: string, count = 120): Promise<number[]> {
+  return (await fetchTossUsCandleRows(code, count)).map(r => r.close);
+}
+
+// 날짜까지 필요한 화면용(종목별 기준일 판정). 같은 엔드포인트라 캐시만 다르다.
+//   ⚠️ 토스 구성종목 API 는 시각 필드를 안 준다 — 어느 날짜의 가격인지는 이 일봉으로만 알 수 있다.
+export async function fetchTossUsCandleRows(
+  code: string, count = 120,
+): Promise<Array<{ date: string; close: number }>> {
   if (!code) return [];
   const target = `https://wts-info-api.tossinvest.com/api/v1/c-chart/us-s/${code}/day:1?count=${count}&useAdjustedRate=true`;
   try {
     const resp = await fetchProxied(target);
     if (!resp.ok) return [];
     const data = await resp.json() as {
-      result?: { candles?: Array<{ close?: number }> };
+      result?: { candles?: Array<{ dt?: string; close?: number }> };
     };
-    const candles = data.result?.candles ?? [];
-    const closes = candles
-      .map(c => c.close)
-      .filter((v): v is number => typeof v === "number" && v > 0);
-    return closes.reverse();   // 최신→과거 → 과거→최신
+    const rows = (data.result?.candles ?? []).flatMap(c => {
+      const date = c.dt?.slice(0, 10);
+      return date && typeof c.close === "number" && c.close > 0 ? [{ date, close: c.close }] : [];
+    });
+    return rows.reverse();   // 최신→과거 → 과거→최신
   } catch { return []; }
 }
 

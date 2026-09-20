@@ -39,10 +39,17 @@ function basisDateLabel(nation: TicsNation, closed: boolean, holiday: boolean): 
   const weekend = p.weekday === "Sat" || p.weekday === "Sun";
   if (weekend || holiday) return "직전 거래일 종가";
   const mins = Number(p.hour === "24" ? "0" : p.hour) * 60 + Number(p.minute);
-  // 국내는 개장(09:00) 전이면 아직 어제 종가다. 미국은 프리마켓부터 당일로 친다.
   const d = new Date(`${p.year}-${p.month}-${p.day}T00:00:00Z`);
-  if (nation === "KR" && mins < 8 * 60 + 30) d.setUTCDate(d.getUTCDate() - 1);
+  // 국내는 개장(08:30) 전이면 아직 직전 거래일 종가다.
+  //   ★ 하루만 빼면 월요일 아침에 일요일 날짜가 나온다(실측 2026-09-21 08:02 → "9/20 종가").
+  //     주말을 건너뛰어 금요일까지 물러난다.
+  const preOpen = nation === "KR" && mins < 8 * 60 + 30;
+  if (preOpen) {
+    d.setUTCDate(d.getUTCDate() - 1);
+    while (d.getUTCDay() === 0 || d.getUTCDay() === 6) d.setUTCDate(d.getUTCDate() - 1);
+  }
   const md = `${d.getUTCMonth() + 1}/${d.getUTCDate()}`;
+  if (preOpen) return `${md} 종가 · 장전`;
   return closed ? `${md} 종가` : `${md} 장중`;
 }
 

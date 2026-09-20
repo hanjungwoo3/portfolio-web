@@ -9,10 +9,11 @@
 // ⚠️ 구성종목은 **한 페이지 10종 고정**이다(size 파라미터 무시 — 실측). page 로만 넘긴다.
 //   스파크라인은 종목당 1콜이라 화면에 들어온 카드만 받는다(섹터 팝업과 같은 방식).
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import {
-  fetchTossTicsStocks, fetchTossKrCandles, fetchTossUsCandlesByCode, fetchTossMarketSessions,
+  fetchTossTicsStocks, fetchTossKrCandles, fetchTossUsCandleRows, fetchTossMarketSessions,
+  fetchTossPrices, fetchTossUsPrices,
   type TicsCategory, type TicsNation, type TicsStock,
 } from "../lib/api";
 import { signColor } from "../lib/format";
@@ -47,10 +48,23 @@ export function krTickerOf(code: string): string | null {
 }
 
 // 국내/해외 구분은 코드 모양으로 안다(A + 6자리면 국내) — nation 을 따로 받을 필요가 없다.
-function TicsStockCell({ s, rank, dimmed, onOpenValuation }: {
+// 카드에 그릴 값 — 종목 카드와 **같은 시세 소스**(fetchTossPrices / fetchTossUsPrices)를 쓴다.
+//   ★ TICS 구성종목 API 는 시간외·프리마켓을 반영하지 않는다(실측 2026-09-21 08:26 SK가스:
+//     TICS close=base=240,500 → 0.00% 인데 실제는 247,500 +2.91%). 카드(랭킹)는 반영하므로
+//     그대로 쓰면 "카드 +2.41% 인데 종목은 0.00%" 가 된다.
+export interface LiveQuote { price: number; base: number; asOf: string; volume: number }
+
+function TicsStockCell({ s, rank, quote, dimmed, newestDate, staleProp, onAsOf, onOpenValuation }: {
   s: TicsStock; rank: number;
+  /** 배치로 받아 온 실시간 시세. 없으면 TICS 값으로 그린다(그때만 옛 값일 수 있다) */
+  quote?: LiveQuote;
   /** 그 시장이 닫혀 있는가 — 값이 직전 세션 것이라 흐리게 (기본 종목 카드와 같은 규칙) */
   dimmed?: boolean;
+  /** 이 팝업에서 확인된 가장 최신 거래일 — 배지 설명용 */
+  newestDate?: string;
+  /** 이 종목만 갱신이 늦은가(다이얼로그가 판정) — 흐리게 + 목록 맨 뒤로 */
+  staleProp?: boolean;
+  onAsOf?: (code: string, date: string) => void;
   onOpenValuation?: (ticker: string, name: string) => void;
 }) {
   const [seen, setSeen] = useState(false);
@@ -73,19 +87,31 @@ function TicsStockCell({ s, rank, dimmed, onOpenValuation }: {
     refetchOnWindowFocus: false,
   });
   const us = useQuery({
-    queryKey: ["toss-us-candles", s.code, 60],
-    queryFn: () => fetchTossUsCandlesByCode(s.code, 60),
+    queryKey: ["toss-us-candle-rows", s.code, 60],
+    queryFn: () => fetchTossUsCandleRows(s.code, 60),
     enabled: seen && !krTicker,
     staleTime: 60 * 60_000,
     refetchOnWindowFocus: false,
   });
-  const chart = krTicker
-    ? (kr.data ?? []).map(c => c.close).filter(v => v > 0)
+  const rows: Array<{ date: string; close: number }> = krTicker
+    ? (kr.data ?? []).map(c => ({ date: c.date, close: c.close }))
     : (us.data ?? []);
+  const chart = rows.map(r => r.close).filter(v => v > 0);
+
+  // ★ 이 종목 값이 '언제 것' 인가 — TICS 응답에는 시각이 없어 일봉 마지막 날짜로 판단한다.
+  //   같은 팝업 안에서도 갱신 시점이 갈린다(실측 2026-09-21 08:02 윤활유: 한국쉘석유만 당일
+  //   시간외가 들어오고 나머지 둘은 9/18 종가 그대로였다). 그걸 안 보여주면 카드 등락률과
+  //   종목 등락률의 부호가 달라 보이는 이유를 알 수 없다.
+  const asOf = quote?.asOf || (rows.length ? rows[rows.length - 1].date : "");
+  useEffect(() => { if (asOf) onAsOf?.(s.code, asOf); }, [asOf, s.code, onAsOf]);
+  // 옛 값 판정은 팝업 전체를 봐야 한다 → 다이얼로그가 계산해 내려준다.
+  const stale = !!staleProp;
 
   // 카드는 원화로 그린다(한국 카드와 같은 모양). 해외는 토스 환산 원화가 같이 온다.
-  const price = krTicker ? s.price : (s.priceKrw || s.price);
-  const base = krTicker ? s.base : (s.baseKrw || s.base);
+  const fallbackPrice = krTicker ? s.price : (s.priceKrw || s.price);
+  const fallbackBase = krTicker ? s.base : (s.baseKrw || s.base);
+  const price = quote?.price || fallbackPrice;
+  const base = quote?.base || fallbackBase;
 
   return (
     <div ref={ref} className="min-w-0">
@@ -93,7 +119,7 @@ function TicsStockCell({ s, rank, dimmed, onOpenValuation }: {
         ticker={krTicker ?? s.code} name={s.name}
         price={price} base={base}
         chart={chart}
-        dimmed={dimmed}
+        dimmed={dimmed || stale}
         badge={
           <span className="text-[10px] tabular-nums text-gray-400 shrink-0">
             #{rank}
@@ -102,8 +128,16 @@ function TicsStockCell({ s, rank, dimmed, onOpenValuation }: {
           </span>
         }
         // 카드 안쪽 우하단 — 읽는 정보(의견·시그널). 시그널이 길면 잘리고 의견은 남긴다.
-        footer={(s.opinion || s.signal) ? (
+        footer={(s.opinion || s.signal || asOf) ? (
           <>
+            {asOf && (
+              <span className={`shrink-0 tabular-nums ${stale ? "text-amber-600 font-bold" : "text-gray-400"}`}
+                    title={stale
+                      ? `${asOf} 기준 — 이 팝업의 최신(${newestDate})보다 옛 값이다`
+                      : `${asOf} 기준`}>
+                {asOf.slice(5).replace("-", "/")}
+              </span>
+            )}
             {s.signal && (
               <span className="flex-1 min-w-0 truncate text-amber-700" title={s.signal}>{s.signal}</span>
             )}
@@ -135,6 +169,11 @@ export function TicsStockDialog({ cat, nation, onClose, onOpenValuation }: {
   onOpenValuation?: (ticker: string, name: string) => void;
 }) {
   const [pages, setPages] = useState(PAGE_STEP);
+  // 셀이 알려준 종목별 기준일 — 그중 최신이 '이 팝업의 기준일' 이고, 그보다 옛 종목은 흐려진다.
+  const [asOfMap, setAsOfMap] = useState<Record<string, string>>({});
+  const noteAsOf = useCallback((code: string, date: string) => {
+    setAsOfMap(m => (m[code] === date ? m : { ...m, [code]: date }));
+  }, []);
   // 기본은 등락률 — 이 팝업을 여는 이유가 "이 분류에서 뭐가 갔나" 라서다.
   //   토스가 이 정렬을 지원하지 않아 앞 PCT_MAX_PAGES 페이지를 받아 우리가 정렬한다(아래 주석).
   const [sort, setSort] = useState<"MARKET_CAP" | "TRADING_VALUE" | "PCT">("PCT");
@@ -162,14 +201,77 @@ export function TicsStockDialog({ cat, nation, onClose, onOpenValuation }: {
           fetchTossTicsStocks(cat.ticsId, nation, i + 1, serverSort)),
       );
       const stocks = res.flatMap(r => r.stocks);
-      // 서버 정렬(시총·거래대금)은 페이지 순서가 곧 정렬이라 그대로 이어 붙이면 된다.
-      //   등락률만 우리가 다시 세운다.
-      if (sort === "PCT") stocks.sort((a, b) => b.pct - a.pct);
+      // 서버 정렬(시총·거래대금)은 페이지 순서가 곧 정렬이라 그대로 이어 붙인다.
+      //   ★ 등락률 정렬은 여기서 하지 않는다 — 이 시점엔 실시간 시세가 없어 TICS 의 옛 값으로
+      //     줄을 세우게 된다(실측: SK가스 표시 +2.70% 인데 TICS pct 0 → 맨 아래로 갔다).
+      //     화면에 그리는 값으로 아래에서 다시 세운다.
       return { total: res[0]?.total ?? total, stocks };
     },
     staleTime: 60_000,
     placeholderData: keepPreviousData,
   });
+  // ★ 시세는 종목 카드와 같은 배치 소스로 따로 받는다(페이지당 KR 1콜 + US 1콜).
+  //   TICS 구성종목의 가격은 시간외·프리마켓을 반영하지 않아 카드 등락률과 어긋난다.
+  const codes = (data?.stocks ?? []).map(x => x.code);
+  const krTickers = codes.map(krTickerOf).filter((v): v is string => !!v);
+  const usCodes = codes.filter(c => !krTickerOf(c));
+  const krQ = useQuery({
+    queryKey: ["tics-quotes-kr", krTickers.join(",")],
+    queryFn: () => fetchTossPrices(krTickers),
+    enabled: krTickers.length > 0,
+    staleTime: 30_000,
+  });
+  const usQ = useQuery({
+    queryKey: ["tics-quotes-us", usCodes.join(",")],
+    queryFn: () => fetchTossUsPrices(usCodes),
+    enabled: usCodes.length > 0,
+    staleTime: 30_000,
+  });
+  const quotes = useMemo(() => {
+    const m = new Map<string, LiveQuote>();
+    for (const p of krQ.data ?? []) {
+      // Price.base 는 비거래일엔 현재가와 같아진다 → 그땐 직전 거래일 종가(prevClose)를 쓴다.
+      const b = p.base && p.base !== p.price ? p.base : (p.prevClose || p.base);
+      m.set(`A${p.ticker}`, { price: p.price, base: b, asOf: p.trade_date, volume: p.volume ?? 0 });
+    }
+    for (const [code, u] of usQ.data ?? new Map()) {
+      m.set(code, {
+        price: u.closeKrw || u.close,
+        base: u.baseKrw || u.base,
+        asOf: (u.tradeDateTime || "").slice(0, 10),
+        volume: 1,   // 해외 응답엔 거래량이 없다 — 날짜로만 판정한다
+      });
+    }
+    return m;
+  }, [krQ.data, usQ.data]);
+
+  // 이 팝업의 '최신 거래일' — 시세의 거래일과 셀이 알려준 일봉 날짜를 모두 본다.
+  const newestDate = useMemo(() => {
+    let m = Object.values(asOfMap).reduce((a, b) => (b > a ? b : a), "");
+    for (const q of quotes.values()) if (q.asOf > m) m = q.asOf;
+    return m;
+  }, [asOfMap, quotes]);
+
+  // 화면에 그릴 순서 — 실시간 시세가 있으면 그 등락률로, 없으면 TICS 값으로 줄을 세운다.
+  const view = useMemo(() => {
+    const list = (data?.stocks ?? []).map(st => {
+      const q = quotes.get(st.code);
+      const pct = q && q.base > 0 ? (q.price / q.base - 1) * 100 : st.pct;
+      const asOf = q?.asOf || asOfMap[st.code] || "";
+      // 갱신이 늦은 종목 = ① 오늘 한 주도 체결이 없거나(거래량 0) ② 날짜 자체가 옛날.
+      //   ★ 날짜만 보면 안 된다 — 시세의 tradeDateTime 은 체결 여부와 무관하게 오늘로 찍힌다.
+      //     장 시작 전엔 대부분 종목이 거래량 0 이라 close=base → "+0.00% (0원)" 인데,
+      //     날짜 기준으로는 '최신' 이라 선명하게 남아 +와 − 사이에 끼어 있었다(실측).
+      const noTrade = !!q && q.volume === 0;
+      const stale = noTrade || (!!asOf && !!newestDate && asOf < newestDate);
+      return { st, pct, stale };
+    });
+    // ★ 흐림은 **맨 뒤로**. 0% 로 잡혀 +와 − 사이에 끼면 목록을 훑을 때 걸린다
+    //   (한국 섹터 팝업이 미체결을 뒤로 미는 것과 같은 규칙).
+    list.sort((a, b) => (a.stale === b.stale ? b.pct - a.pct : a.stale ? 1 : -1));
+    return list;
+  }, [data, quotes, sort, asOfMap, newestDate]);
+
   const shownCount = data?.stocks.length ?? 0;
   const hasMore = loaded < lastPage;
 
@@ -209,9 +311,11 @@ export function TicsStockDialog({ cat, nation, onClose, onOpenValuation }: {
             <div className="py-10 text-center text-sm text-gray-400">불러오는 중…</div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-2 gap-y-3.5 items-stretch">
-              {(data?.stocks ?? []).map((s, i) => (
-                <TicsStockCell key={s.code} s={s} rank={i + 1}
-                               dimmed={dimmed} onOpenValuation={onOpenValuation} />
+              {view.map(({ st: s, stale }, i) => (
+                <TicsStockCell key={s.code} s={s} rank={i + 1} quote={quotes.get(s.code)}
+                               dimmed={dimmed} newestDate={newestDate} staleProp={stale}
+                               onAsOf={noteAsOf}
+                               onOpenValuation={onOpenValuation} />
               ))}
             </div>
           )}
@@ -231,7 +335,7 @@ export function TicsStockDialog({ cat, nation, onClose, onOpenValuation }: {
           )}
           <span className="ml-auto text-[10px] text-gray-400 text-right leading-relaxed">
             종목명을 누르면 토스{onOpenValuation ? ", 📊 를 누르면 기업가치" : ""} ·
-            배경 차트는 최근 60거래일 종가
+            배경 차트는 최근 60거래일 종가 · 우하단 날짜는 그 종목 값의 기준일(노랑이면 갱신이 늦은 것)
           </span>
         </div>
       </div>
