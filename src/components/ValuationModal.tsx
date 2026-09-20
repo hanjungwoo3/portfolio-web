@@ -653,6 +653,7 @@ export function ValuationModal({
                                   myAvgPrice={myAvgPrice}
                                   entryPrice={entryPrice}
                                   curPrice={effCurPrice}
+                                  marketCapText={fund.market_cap_text}
                                   todayBar={todayBar} isEtf={isEtf} />
 
           {/* 외국인 지분율·상대수익률은 위 '실적 추이' 줄에 합쳤다.
@@ -708,6 +709,9 @@ function CommunitySection({ ticker }: { ticker: string }) {
 // ─── 투자자별 순매수 60일 표 ──────────────────────────────
 interface InvestorHistoryProps {
   ticker: string;
+  // 시가총액 문자열 — 외국인 지분율 차트가 '주식수 = 시총 ÷ 현재가' 로 역산해 시총 선을 그린다.
+  //   빠지면 빨간 선이 통째로 사라진다(범례만 남는다). 실제로 한 번 그렇게 됐다.
+  marketCapText?: string;
   targetPrice?: number;
   myAvgPrice?: number;
   entryPrice?: number;
@@ -777,7 +781,7 @@ function computePeriodSummary(
 }
 
 function InvestorHistorySection({
-  ticker, targetPrice, myAvgPrice, entryPrice, curPrice, todayBar, isEtf = false,
+  ticker, targetPrice, myAvgPrice, entryPrice, curPrice, marketCapText, todayBar, isEtf = false,
 }: InvestorHistoryProps) {
   const { data: history, isLoading } = useQuery({
     queryKey: ["investor-history-modal", ticker],
@@ -816,7 +820,7 @@ function InvestorHistorySection({
                                targetPrice={targetPrice}
                                myAvgPrice={myAvgPrice}
                                entryPrice={entryPrice}
-                               curPrice={curPrice}
+                               curPrice={curPrice} marketCapText={marketCapText}
                                todayBar={todayBar} isEtf={isEtf} />
       )}
 
@@ -928,13 +932,14 @@ function InvestorHistorySection({
 // ─── 수급 차트 모음 — 주가+거래량 (full) + 외국인/기관/연기금 (3분할) ───
 // 4개 차트 모두 lightweight-charts 기반, 한 hook 으로 crosshair 동기화.
 function InvestorChartsSection({
-  ticker, history, targetPrice, myAvgPrice, entryPrice, curPrice, todayBar, isEtf = false,
+  ticker, history, targetPrice, myAvgPrice, entryPrice, curPrice, marketCapText, todayBar, isEtf = false,
 }: {
   ticker: string; history: Investor[];
   targetPrice?: number; myAvgPrice?: number;
   entryPrice?: number;
   curPrice?: number;
   todayBar?: TodayBar;
+  marketCapText?: string;   // 시총 선 역산용 (없으면 빨간 선이 안 그려진다)
   isEtf?: boolean;   // ETF면 공시·대차·신용·CFD·프로그램 조회 생략(요청 폭주 방지)
 }) {
   // 배당 + 액면분할 (Yahoo 1y, KOSPI→KOSDAQ 자동 폴백). 가격은 아래 토스를 쓴다.
@@ -1120,7 +1125,8 @@ function InvestorChartsSection({
           {/* ETF 는 외국인 지분율·상대수익률을 내지 않는다(원래 규칙) */}
           {!isEtf && (
             <div className="min-w-0 lg:col-span-2 space-y-3">
-              <StockOverviewCharts bare ticker={ticker} price={curPrice} />
+              <StockOverviewCharts bare ticker={ticker}
+                                   marketCapText={marketCapText} price={curPrice} />
             </div>
           )}
         </div>
