@@ -113,11 +113,15 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
   };
 
   if (krClosed) {
-    // 밤 — 한국 시장만 맨 아래로 내리고, 섹터는 미국 지수 아래에 붙인다.
+    // 밤 — 한국 시장을 맨 아래로 내리고, 섹터는 미국 지수 아래에 붙인다.
+    //   ★ ETF 등락 TOP 은 **한국 ETF** 라 한국 시장을 따라 같이 내려간다.
+    //     한 자리에 고정하면 밤 22시에도 맨 위에 붙어 있어, 정작 움직이는 미국 지수를
+    //     그 아래로 밀어낸다(낮에 본 순서 그대로 밤에도 얹혀 있는 꼴).
     const kr = sections.find(s => s.id === "kr");
-    const rest = sections.filter(s => s.id !== "kr");
+    const etfTop = sections.find(s => s.id === "etftop");
+    const rest = sections.filter(s => s.id !== "kr" && s.id !== "etftop");
     const ordered = move(rest, "sector", "macro");
-    return kr ? [...ordered, kr] : ordered;
+    return [...ordered, ...(kr ? [kr] : []), ...(etfTop ? [etfTop] : [])];
   }
   // 한국장 시간대 — 섹터는 한국 시장 바로 아래(기본 순서). 현물(금·구리·원유)은 그 다음에 둔다.
   //   장중엔 원자재가 국내 섹터(철강·화학·정유·조선)의 선행 신호라 둘을 붙여 놓고 봐야 읽힌다.
