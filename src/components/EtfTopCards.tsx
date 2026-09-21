@@ -16,6 +16,8 @@ import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchKrPriceHistory, fetchEtfCompositions, fetchTossCodeInfo, fetchUsHoldingPrices } from "../lib/api";
 import { usSessionLabel } from "../lib/usSectorFlow";
 import { dayChangePct } from "../lib/format";
+import { requestTab, isTabVisible } from "../lib/tabNav";
+import { ETF_RANKING_TAB_KEY } from "./Tabs";
 import { Sparkline } from "./Sparkline";
 import { fetchEtfRanking, loadCachedRanking, isLeverageEtf, isFuturesEtf } from "../lib/etfRanking";
 import type { EtfRanking, EtfRankRow } from "../lib/etfRanking";
@@ -252,6 +254,16 @@ export function EtfTopCards({ onOpenEtf }: {
           레버리지·선물 제외 · 상승·하락 각 {TOP_N}
           {rank?.scanned ? ` · ${rank.scanned.toLocaleString()}종 중` : ""}
         </span>
+        {/* 여기는 맨 위 9개만 보여준다 — 전체 순위는 ETF랭킹 탭에 있다.
+            탭이 설정에서 꺼져 있으면 링크를 그리지 않는다(없는 탭으로 보내면 첫 탭으로 튄다). */}
+        {isTabVisible("etfRanking") && (
+          <button onClick={() => requestTab(ETF_RANKING_TAB_KEY)}
+                  title="ETF랭킹 탭에서 전체 순위 보기"
+                  className="px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50
+                             text-amber-700 font-bold hover:bg-amber-100">
+            🏅 전체 순위 →
+          </button>
+        )}
         {stamp && <span className="text-gray-400">기준 {stamp}</span>}
         <button onClick={refresh} disabled={loading}
                 title="전 종목 시세를 다시 조회합니다 (프록시 약 6콜)"

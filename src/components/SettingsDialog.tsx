@@ -33,7 +33,7 @@ import { GroupConflictDialog } from "./GroupConflictDialog";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import { getAuthDiag } from "../lib/googleAuth";
 import {
-  getSyncState, getLastSyncedAt, disableSync, pauseSync,
+  getSyncState, getLastSyncedAt, disableSync, pauseSync, resumeSync, reconcileOnEnable,
   uploadToDrive, downloadFromDrive, tryRestoreSession,
   setPendingSyncAction, peekPendingSyncAction, clearPendingSyncAction,
   type PendingSyncAction,
@@ -64,7 +64,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   const [usage, setUsage] = useState<Record<string, ProxyUsage | "unsupported" | "loading">>({});
   const [pollMs, setPollMs] = useState(10_000);
   // syncState 값은 더 이상 직접 안 읽음(저장/불러오기 항상 노출) — setter 로 만료 시 상태만 갱신
-  const [, setSyncState] = useState(getSyncState());
+  const [syncStateNow, setSyncState] = useState(getSyncState());
+  const [autoBusy, setAutoBusy] = useState(false);
   const [proxyStatus, setProxyStatus] = useState<PersonalProxyStatus | "checking">("checking");
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncBusyMsg, setSyncBusyMsg] = useState("");   // 진행 중 오버레이 메시지
@@ -199,8 +200,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     setSyncBusyMsg("Drive 에 저장 중...");
     try {
       await uploadToDrive();
-      pauseSync();
-      setSyncState("off");
+      // 자동 동기화가 켜져 있으면 끄지 않는다 — 예전엔 수동 저장 한 번에 자동이 꺼졌다.
+      if (getSyncState() !== "on") { pauseSync(); setSyncState("off"); }
       setSignedIn(true);
       setLastSyncedAt(getLastSyncedAt());
       setStatusMsg("✅ Drive 에 저장됨");
@@ -220,8 +221,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
       const ok = await downloadFromDrive();
       if (ok) {
         onChanged();
-        pauseSync();
-        setSyncState("off");
+        if (getSyncState() !== "on") { pauseSync(); setSyncState("off"); }
         setSignedIn(true);
         setLastSyncedAt(getLastSyncedAt());
         window.alert("✅ Drive 에서 불러왔습니다.");
@@ -477,6 +477,40 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               내 드라이브에 저장하고 다른 기기에서 불러와 공유합니다.
             </div>
             {/* 로그인 안 돼 있어도 저장/불러오기 항상 노출 — 누르면 로그인 후 자동 실행 */}
+            {/* ── 자동 동기화 스위치 ──────────────────────────────
+                켜면 이 기기의 변경은 알아서 올라가고, 다른 기기에서 바꾼 건 창을 다시 볼 때
+                자동으로 내려온다. 양쪽이 다 바뀐 경우에만 배너로 물어본다(조용히 덮지 않는다). */}
+            <label className={`flex items-start gap-2 rounded border px-2 py-1.5 cursor-pointer
+                               ${syncStateNow === "on" ? "border-emerald-300 bg-emerald-50"
+                                                       : "border-gray-200 bg-white"}
+                               ${autoBusy ? "opacity-50 pointer-events-none" : ""}`}>
+              <input type="checkbox" className="mt-0.5" checked={syncStateNow === "on"} disabled={autoBusy}
+                     onChange={async e => {
+                       if (!e.target.checked) { pauseSync(); setSyncState("off"); return; }
+                       setAutoBusy(true);
+                       try {
+                         // 켜기 전에 양쪽을 맞춰 기준을 세운다 — 이게 없으면 첫 검사에서
+                         //   "이 기기가 바뀐 건지" 를 판별할 수 없어 매번 충돌로 뜬다.
+                         resumeSync();
+                         const r = await reconcileOnEnable();
+                         setSyncState("on");
+                         setLastSyncedAt(getLastSyncedAt());
+                         if (r === "skip") setStatusMsg("🔐 로그인이 필요합니다 — ↑ 저장하기로 로그인하세요");
+                         else if (r === "conflict") setStatusMsg("⚠️ 이 기기와 Drive 가 다릅니다 — 배너에서 골라주세요");
+                         else setStatusMsg("✅ 자동 동기화 켜짐");
+                       } catch (err) {
+                         pauseSync(); setSyncState("off");
+                         alert(`❌ 자동 동기화를 켜지 못했습니다\n\n${(err as Error).message}`);
+                       } finally { setAutoBusy(false); }
+                     }} />
+              <span className="text-[11px] leading-snug">
+                <b className="text-gray-700">자동 동기화</b>
+                <span className="text-gray-500">
+                  {" "}— 변경하면 알아서 올리고, 다른 기기에서 바꾼 건 창을 다시 볼 때 받아옵니다.
+                  양쪽이 모두 바뀐 경우에만 물어봅니다.
+                </span>
+              </span>
+            </label>
             <div className="space-y-1.5">
               {signedIn && lastSyncedAt && (
                 <div className="text-[11px] text-gray-500">

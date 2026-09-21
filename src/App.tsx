@@ -65,6 +65,9 @@ import { SortSelector, makeSortHandlers } from "./components/SortSelector";
 import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
 import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { GOTO_HEATMAP_EVENT } from "./lib/heatmapNav";
+import { GOTO_TAB_EVENT } from "./lib/tabNav";
+import { startAutoSync, SYNC_PULLED_EVENT } from "./lib/syncManager";
+import { SyncConflictBar } from "./components/SyncConflictBar";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
 import { useExtensionProxyReady } from "./lib/extensionProxy";
@@ -232,6 +235,25 @@ function Dashboard() {
     const h = () => setActiveTab(HEATMAP_TAB_KEY);
     window.addEventListener(GOTO_HEATMAP_EVENT, h);
     return () => window.removeEventListener(GOTO_HEATMAP_EVENT, h);
+  }, []);
+
+  // 자동 동기화 엔진 — 모드가 꺼져 있으면 내부에서 아무것도 하지 않는다(매 검사마다 재확인).
+  //   자동으로 받아와 DB 가 바뀌면 화면을 다시 읽는다.
+  useEffect(() => {
+    startAutoSync();
+    const h = () => setReloadKey(k => k + 1);
+    window.addEventListener(SYNC_PULLED_EVENT, h);
+    return () => window.removeEventListener(SYNC_PULLED_EVENT, h);
+  }, []);
+
+  // 카드 → 임의 탭 딥링크 (예: 지수 탭의 ETF 등락 제목 → ETF랭킹 탭).
+  useEffect(() => {
+    const h = (e: Event) => {
+      const key = (e as CustomEvent<string>).detail;
+      if (key) setActiveTab(key);
+    };
+    window.addEventListener(GOTO_TAB_EVENT, h);
+    return () => window.removeEventListener(GOTO_TAB_EVENT, h);
   }, []);
 
   const visible = useMemo(
@@ -1129,6 +1151,9 @@ function Dashboard() {
 
       {/* 하단 고정 지수 티커바 (S&P500·선물·러셀·다우·필반·VIX) — 폴링 주기마다 자동 갱신 */}
       <MarketTickerBar refreshMs={REFRESH_MS} />
+
+      {/* 자동 동기화 충돌 — 양쪽 다 바뀌었을 때만 뜬다 */}
+      <SyncConflictBar onChanged={() => setReloadKey(k => k + 1)} />
 
       {onboardReady && (
         <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />

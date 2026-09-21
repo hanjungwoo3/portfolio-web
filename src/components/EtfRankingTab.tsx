@@ -229,6 +229,12 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
         </div>
       )}
 
+      {/* ── 좌: 섹터별 흐름 / 우: 그 섹터의 종목.
+          위아래로 쌓으면 섹터를 누른 뒤 아래로 스크롤해야 종목이 보여서, 어느 섹터를 눌렀는지
+          보면서 고를 수가 없다. 나란히 놓으면 섹터를 옮겨 가며 종목이 바뀌는 걸 그대로 본다.
+          좁은 화면(xl 미만)에서는 예전처럼 위아래로 떨어진다. */}
+      <div className="grid grid-cols-1 xl:grid-cols-[3fr_2fr] gap-3 items-start">
+      <div className="min-w-0 space-y-2">
       {/* 섹터별 흐름 — 같은 조회 결과를 이름으로 묶은 것(추가 호출 없음) */}
       {sectors.length > 0 && (
         <div className="rounded-xl border border-gray-300 bg-white p-2.5">
@@ -255,7 +261,9 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
           )}
         </div>
       )}
+      </div>
 
+      <div className="min-w-0 space-y-2">
       {picked && (
         <div className="px-1 text-[11px] text-gray-500">
           <b className="text-gray-700">{picked.label}</b> {picked.count}종 · 거래대금 상위 {picked.rows.length}종을
@@ -277,7 +285,7 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
         //   grid-flow-col 은 행 수를 고정해야 해서 반응형(칸 수 가변)과 안 맞음 →
         //   CSS 다단(columns)은 칸 수만 주면 개수에 맞춰 알아서 세로로 분배(column-major).
         //   gap-2 는 다단에서 column-gap 만 먹으므로 세로 간격은 각 카드의 mb-2 로 준다.
-        <div className="columns-1 sm:columns-2 lg:columns-4 xl:columns-6 gap-2">
+        <div className="columns-1 sm:columns-2 lg:columns-3 gap-2">
           {shown.map((r, i) => (
             <button key={r.code}
                     onClick={() => onOpenEtfComposition?.(r.code, r.name)}
@@ -328,6 +336,8 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
           {expanded ? "접기" : `더보기 (${Math.min(rows.length, RANK_KEEP)}위까지)`}
         </button>
       )}
+      </div>
+      </div>
 
       <p className="text-[11px] text-gray-500 leading-relaxed">
         전체 ETF {ranking?.total.toLocaleString() ?? "—"}종의 시세를 한 번에 받아 등락률로 정렬합니다.

@@ -86,6 +86,9 @@ import { HeatmapTab } from "./HeatmapTab";
 import { ValueupMiniCard } from "./ValueupCard";
 import { HlPerpCard } from "./HlPerpCard";
 import { GOTO_HEATMAP_EVENT, requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
+import { GOTO_TAB_EVENT } from "../lib/tabNav";
+import { startAutoSync, SYNC_PULLED_EVENT } from "../lib/syncManager";
+import { SyncConflictBar } from "./SyncConflictBar";
 import { MyTradesTab } from "./MyTradesTab";
 import { AssetTrendTab } from "./AssetTrendTab";
 import { TickArrow } from "./TickArrow";
@@ -101,7 +104,7 @@ import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } f
 import { Sparkline } from "./Sparkline";
 import { ValuationModal } from "./ValuationModal";
 import {
-  getSyncState, getLastSyncedAt, enableSync, disableSync,
+  getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync, reconcileOnEnable,
   uploadToDrive, downloadFromDrive,
   tryRestoreSession, peekPendingSyncAction,
 } from "../lib/syncManager";
@@ -243,6 +246,27 @@ export function MobileSimpleView() {
     const h = () => setActiveTab(HEATMAP_KEY);
     window.addEventListener(GOTO_HEATMAP_EVENT, h);
     return () => window.removeEventListener(GOTO_HEATMAP_EVENT, h);
+  }, []);
+
+  // 자동 동기화 엔진 — PC 와 같은 규칙. 받아오면 쿼리를 무효화해 화면을 다시 읽는다.
+  useEffect(() => {
+    startAutoSync();
+    const h = () => {
+      void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+      void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
+    };
+    window.addEventListener(SYNC_PULLED_EVENT, h);
+    return () => window.removeEventListener(SYNC_PULLED_EVENT, h);
+  }, [queryClient]);
+
+  // 카드 → 임의 탭 딥링크 (PC 와 같은 규칙).
+  useEffect(() => {
+    const h = (e: Event) => {
+      const key = (e as CustomEvent<string>).detail;
+      if (key) setActiveTab(key);
+    };
+    window.addEventListener(GOTO_TAB_EVENT, h);
+    return () => window.removeEventListener(GOTO_TAB_EVENT, h);
   }, []);
 
   // PC 동일 자동 갱신 — 전용 프록시·확장 시 5/10/30/60초 / 공개 기본 60초(30초 선택 가능) + 다운/마감 시 자동 증가
@@ -1780,6 +1804,12 @@ export function MobileSimpleView() {
           }} />
       )}
 
+      {/* 자동 동기화 충돌 — 양쪽 다 바뀌었을 때만 뜬다 */}
+      <SyncConflictBar onChanged={() => {
+        void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+        void queryClient.invalidateQueries({ queryKey: ["m-group-prices"] });
+      }} />
+
       {/* 메모 편집 */}
       <MemoDialog
         isOpen={!!memoTicker}
@@ -2175,7 +2205,39 @@ function SettingsModal({
             )}
             {(syncStateLocal === "on" || syncStateLocal === "off") && (
               <div className="space-y-1.5">
-                {/* 자동 동기화 제거됨 — 수동 업/다운로드만 */}
+                {/* ── 자동 동기화 스위치 (PC 설정과 같은 동작) ──────────────
+                    켜면 변경은 알아서 올라가고, 다른 기기 변경은 앱을 다시 볼 때 내려온다.
+                    양쪽이 다 바뀐 경우에만 배너로 물어본다. */}
+                <label className={`flex items-start gap-2 rounded border px-2 py-1.5
+                                   ${syncStateLocal === "on" ? "border-emerald-300 bg-emerald-50"
+                                                             : "border-gray-200 bg-white"}
+                                   ${syncBusyLocal ? "opacity-50 pointer-events-none" : ""}`}>
+                  <input type="checkbox" className="mt-0.5" checked={syncStateLocal === "on"}
+                         disabled={syncBusyLocal}
+                         onChange={async e => {
+                           if (!e.target.checked) { pauseSync(); setSyncStateLocal("off"); return; }
+                           setSyncBusyLocal(true);
+                           setSyncBusyMsgLocal("Drive 와 맞추는 중...");
+                           try {
+                             resumeSync();
+                             const r = await reconcileOnEnable();
+                             setSyncStateLocal("on");
+                             setLastSyncedAtLocal(getLastSyncedAt());
+                             setDataMsg(r === "skip" ? "🔐 로그인이 필요합니다"
+                                      : r === "conflict" ? "⚠️ 이 기기와 Drive 가 다릅니다 — 배너에서 골라주세요"
+                                      : "✅ 자동 동기화 켜짐");
+                           } catch (err) {
+                             pauseSync(); setSyncStateLocal("off");
+                             setDataMsg(`⚠️ ${(err as Error).message}`);
+                           } finally { setSyncBusyLocal(false); setSyncBusyMsgLocal(""); }
+                         }} />
+                  <span className="text-[11px] leading-snug">
+                    <b className="text-gray-700">자동 동기화</b>
+                    <span className="text-gray-500">
+                      {" "}— 변경하면 알아서 올리고, 다른 기기에서 바꾼 건 앱을 다시 볼 때 받아옵니다.
+                    </span>
+                  </span>
+                </label>
                 {lastSyncedAtLocal && (
                   <div className="text-[11px] text-gray-500">
                     마지막 동기화: {new Date(lastSyncedAtLocal).toLocaleString("ko-KR", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" })}

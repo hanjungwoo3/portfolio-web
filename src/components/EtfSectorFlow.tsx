@@ -87,7 +87,8 @@ export function EtfSectorFlow({ sectors, selectedKey, onPick, fetchedAt, onRefre
         )}
       </div>
     )}
-    <div className="columns-2 sm:columns-3 lg:columns-4 xl:columns-6 gap-2">
+    {/* 이제 화면 왼쪽 3/5 칸에 들어간다 — 6단이면 카드가 이름을 못 담는다. 4단까지만. */}
+    <div className="columns-2 sm:columns-3 xl:columns-4 gap-2">
       {sectors.map(s => (
         <SectorCard key={s.key} s={s} on={s.key === selectedKey} onClick={() => onPick(s)} />
       ))}
