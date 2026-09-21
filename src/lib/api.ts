@@ -1125,6 +1125,11 @@ export async function fetchTossCodeInfo(code: string): Promise<{ symbol: string;
     const j = await r.json() as { result?: { symbol?: string; market?: { code?: string } } };
     const symbol = j.result?.symbol;
     if (!symbol) return null;
+    // ★ 코드↔심볼을 기억시킨다. 이게 없으면 다음 단계에서 getTossCode(심볼) 가 실패해
+    //   fetchUsHoldingPrices 가 야후 폴백으로 빠지고 **달러 값에 '원' 이 붙는다**.
+    //   실측 2026-09-21 ETF 구성종목(TIGER 미국우주테크): 보이저 테크놀로지스가 35.87원 으로
+    //   찍혔다(실제 49,678원). 토스는 closeKrw 를 정상으로 주는데 우리가 그 경로를 놓친 것이다.
+    rememberTossCode(symbol, code);
     const mk = j.result?.market?.code ?? "";   // NSQ=NASDAQ, NYS=NYSE, AMS=AMEX
     return { symbol, isUs: mk === "NSQ" || mk === "NYS" || mk === "AMS" || mk === "NYSE" };
   } catch {

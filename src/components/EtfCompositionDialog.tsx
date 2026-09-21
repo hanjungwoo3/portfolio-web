@@ -729,6 +729,10 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
     staleTime: 60 * 60_000,
   });
   const chartData = isForeignCode ? (usHist ?? []).map(p => p.close) : chart;
+  // 마감 책갈피에 붙일 **그 마감이 언제인지**. 이미 받아 둔 US 일봉의 마지막 봉 날짜를 쓴다.
+  //   토스 usRegClose 는 "직전(또는 오늘) 정규장 종가" 이고, 야후 일봉의 마지막 봉이 정확히 그 세션이다.
+  //   (오버나잇·프리마켓엔 오늘 봉이 아직 없어 직전 거래일이 마지막 봉 = 그 정규장)
+  const regDate = isForeignCode ? (usHist?.[usHist.length - 1]?.date ?? null) : null;
   const addTicker = fSymbol ?? tNum;                                // +추가/검색용
   // 해외는 심볼 해석되면 정상(추가가능), KR 은 영숫자 6자리면 정상
   const isStandard = isForeignCode ? !!fSymbol : krCode;
@@ -819,7 +823,9 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                                  ${regPct > 0 ? "bg-rose-100/20 border-rose-300/20"
                                    : regPct < 0 ? "bg-blue-100/20 border-blue-300/20"
                                    : "bg-white/20 border-gray-300/20"}`}>
-                  <span className="text-gray-500">마감 </span>
+                  <span className="text-gray-500">
+                    마감{regDate ? ` ${+regDate.slice(5, 7)}/${+regDate.slice(8, 10)}` : ""}{" "}
+                  </span>
                   <span className={`tabular-nums font-bold ${signColor(regPct)}`}>{Math.round(price.usRegClose!).toLocaleString()}</span>
                   <span className={`tabular-nums ml-1 font-bold ${signColor(regPct)}`}>
                     ({regPct >= 0 ? "+" : ""}{regPct.toFixed(2)}%)
@@ -1070,6 +1076,13 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
   const otherRatio = (items ?? []).filter(it => isOtherCategory(it.name))
                                   .reduce((s, it) => s + it.ratio, 0);
   const visibleRatio = visibleItems.reduce((s, it) => s + it.ratio, 0);
+  // 해외(미국) 구성종목이 섞인 ETF 인가 — 섞였으면 아래 시차 안내를 띄운다.
+  //   ETF 등락률과 구성종목 부호가 갈리는 건 버그가 아니라 **기준 시각이 다르기 때문**이다.
+  //   실측(TIGER 미국우주테크/로켓랩): 9/18 ETF +4.75% vs 종목 −4.79%, 9/21 ETF −3.46% vs 종목 +1.07%.
+  const hasForeignItems = visibleItems.some(it => {
+    const t = (it.stockCode ?? "").replace(/^A/, "");
+    return !/^[\dA-Za-z]{6}$/.test(t) && /^[A-Z]{2,4}\d/.test(it.stockCode ?? "");
+  });
   const totalRatio = visibleRatio + otherRatio;
   const cashRatio = Math.max(0, 100 - totalRatio);
 
@@ -1101,6 +1114,14 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
           </span>
         )}
       </header>
+      {hasForeignItems && (
+        <div className="mb-2 px-2 py-1 rounded border border-amber-200 bg-amber-50
+                        text-[11px] leading-snug text-amber-800">
+          🕒 <b>기준 시각이 다릅니다</b> — 국내 상장 해외 ETF 의 등락률은 <b>직전 미국 정규장</b>을 반영하고,
+          아래 구성종목은 <b>지금 미국 시장</b>(프리·정규·애프터) 값입니다. 하루 시차가 있어 부호가 반대일 수 있습니다.
+          <span className="text-amber-700">각 종목의 <b>마감</b> 책갈피에 그 마감이 언제인지 날짜를 붙였습니다.</span>
+        </div>
+      )}
       {isLoading ? (
         <div className="text-center text-xs text-gray-400 py-8">불러오는 중...</div>
       ) : !items || items.length === 0 ? (

@@ -109,6 +109,7 @@ import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 import type { Stock } from "../types";
 import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
 import { splitByMarket, splitHeldAndMarket, type MarketSection } from "../lib/marketSplit";
+import { EtfTopCards } from "./EtfTopCards";
 import {
   getGroupFolders, setGroupFolders, type GroupFolder,
   folderAllKey, isFolderAllKey, folderNameOfAllKey, FOLDER_ALL_LABEL,
@@ -1489,6 +1490,9 @@ export function MobileSimpleView() {
                                  text-[11px] font-bold text-gray-700 whitespace-nowrap">
                   {section.label}
                 </span>
+                {section.render === "etfTop" && (
+                  <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
+                )}
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
                   {(section.render ? []
                     : section.id === "sector"

@@ -12,7 +12,7 @@ export interface DashboardSection {
   mobilePair?: boolean;
   // 카드 대신 다른 블록으로 그리는 섹션. "sectorFlow" 면 ETF 랭킹의 '섹터별 흐름' 을 넣는다.
   //   랭킹 스냅샷이 없으면(캐시 없음·조회 실패) rows 의 고정 카드로 폴백한다.
-  render?: "sectorFlow";
+  render?: "sectorFlow" | "etfTop";
 }
 
 // krClosed=true (한국 정규장 마감 → 카드 흐림) 이면 한국 관련 그룹(한국 시장·한국 섹터·반도체 TOP2+)을
@@ -26,6 +26,14 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
       rows: [nightSession
         ? ["^KS11", "^KQ11", "069500.KS", "229200.KS", "KVALUE", "VKOSPI"]
         : ["^KS11", "^KQ11", "^KS200N", "^KQ150N", "069500.KS", "229200.KS", "KVALUE", "VKOSPI"]],
+    },
+    {
+      // ETF 등락 TOP10(상승·하락) — 한국 시장 바로 아래. 레버리지·선물을 빼야 '오늘 실제로 오른 곳' 이 보인다.
+      //   폴백 카드가 없어 rows 는 비어 있다(블록 자체가 그린다).
+      id: "etftop", short: "ETF TOP",
+      render: "etfTop",
+      label: "🏅 ETF 등락 TOP10",
+      rows: [],
     },
     {
       id: "sector", short: "섹터",
