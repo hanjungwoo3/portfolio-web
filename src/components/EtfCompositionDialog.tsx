@@ -6,6 +6,7 @@ import { Sparkline } from "./Sparkline";
 import { Tooltip } from "./Tooltip";
 import { formatSigned, signColor, isEtfByName, etfActiveType, dayChangePct, dayChangeDiff, isKrHoldingClosed, tradeSecOf } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
+import { usSessionLabel, etTodayStr } from "../lib/usSectorFlow";
 import { openExternal } from "../lib/toss";
 import { EtfCompareChartDialog } from "./EtfCompareChartDialog";
 import type { Price } from "../types";
@@ -666,6 +667,11 @@ interface StockCardProps {
   boxRight?: ReactNode;      // 가격 박스 내부 오른쪽 영역(예: 포함 종목 분해)
   highlightReturn?: "m1" | "m3" | "m6";  // 해당 기간 수익률 강조(정렬 기준)
   highlightDay?: boolean;    // 일간% 강조(정렬=현재)
+  // 해외(미국) 구성종목 — 부모가 한 번에 받아 내려주면 카드는 자기 조회를 건너뛴다.
+  //   (종목마다 따로 부르면 10종에 코드조회 10 + 시세 10 = 20콜이다)
+  usPrice?: Price;
+  usSymbol?: string;
+  noteRow?: ReactNode;       // 가격 박스 안, 일간% 아래 한 줄 (예: 구성종목 프리장 가중)
 }
 // 6개월 종가 → 수익률 계산 export (EtfReverseTab 등 재사용)
 export { computeReturns };
@@ -697,7 +703,7 @@ function RatioTag({ ratio, color }: { ratio: number; color: string }) {
     </div>
   );
 }
-export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups = [], dimEnabled = false, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, showReturns, returns: returnsProp, actionLeft, boxRight, highlightReturn, highlightDay }: StockCardProps) {
+export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups = [], dimEnabled = false, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, showReturns, returns: returnsProp, actionLeft, boxRight, highlightReturn, highlightDay, usPrice, usSymbol, noteRow }: StockCardProps) {
   const priceSize = bigFont ? "text-2xl" : "text-base";
   const pctSize = bigFont ? "text-lg" : "text-sm";
   const rawCode = item.stockCode;
@@ -708,19 +714,19 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   const { data: fInfo } = useQuery({
     queryKey: ["toss-code-info", rawCode],
     queryFn: () => fetchTossCodeInfo(rawCode),
-    enabled: isForeignCode,
+    enabled: isForeignCode && !usSymbol,
     staleTime: 24 * 60 * 60_000,
   });
-  const fSymbol = isForeignCode ? (fInfo?.symbol ?? null) : null;   // 예: SNDK, MU
+  const fSymbol = isForeignCode ? (usSymbol ?? fInfo?.symbol ?? null) : null;   // 예: SNDK, MU
   const { data: usPriceList } = useQuery({
     queryKey: ["stockcard-us-price", fSymbol],
     queryFn: () => fetchUsHoldingPrices([fSymbol!]),
-    enabled: !!fSymbol,
+    enabled: !!fSymbol && !usPrice,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
   // 해외면 US 가격으로, 아니면 부모가 넘긴 KR 가격으로
-  const price = isForeignCode ? (usPriceList?.[0] ?? undefined) : priceProp;
+  const price = isForeignCode ? (usPrice ?? usPriceList?.[0] ?? undefined) : priceProp;
   // 해외 추세 — 부모는 KR 히스토리만 주므로 US 티커로 자체 조회
   const { data: usHist } = useQuery({
     queryKey: ["us-history", fSymbol],
@@ -732,7 +738,24 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   // 마감 책갈피에 붙일 **그 마감이 언제인지**. 이미 받아 둔 US 일봉의 마지막 봉 날짜를 쓴다.
   //   토스 usRegClose 는 "직전(또는 오늘) 정규장 종가" 이고, 야후 일봉의 마지막 봉이 정확히 그 세션이다.
   //   (오버나잇·프리마켓엔 오늘 봉이 아직 없어 직전 거래일이 마지막 봉 = 그 정규장)
-  const regDate = isForeignCode ? (usHist?.[usHist.length - 1]?.date ?? null) : null;
+  //   ⚠️ **정규장이 진행 중이면 마지막 봉은 오늘의 미완성 봉**이고, 그때 토스 usRegClose 는
+  //   '어제 종가' 다(closeIsLive → regClose = base). 그래서 한 칸 물러난 봉을 써야 날짜·%가 맞는다.
+  const regIdx = (() => {
+    if (!isForeignCode || !usHist || usHist.length === 0) return -1;
+    const last = usHist.length - 1;
+    return usHist[last].date === etTodayStr() && usSessionLabel() === "정규장" ? last - 1 : last;
+  })();
+  const regDate = regIdx >= 0 ? (usHist?.[regIdx]?.date ?? null) : null;
+  // ★ 정규장 등락률. 토스는 **오버나잇·프리장엔 이 값을 안 준다**(전전일 종가가 없어 계산 불가) →
+  //   예전엔 `?? 0` 이라 "마감 (+0.00%)" 이라는 거짓말을 찍었다. 야후 일봉 두 봉으로 직접 낸다.
+  //   (% 는 통화 무관이라 USD 일봉으로 내도 원화 표시와 어긋나지 않는다)
+  const regPctResolved: number | null = !isForeignCode ? null
+    : price?.usRegPct != null ? price.usRegPct
+    : (usHist && regIdx >= 1 && usHist[regIdx - 1].close > 0
+        ? ((usHist[regIdx].close - usHist[regIdx - 1].close) / usHist[regIdx - 1].close) * 100
+        : null);
+  // 메인 숫자가 '지금 어느 장' 값인지 — 마감과 다른 값을 나란히 놓을 때 이 라벨이 없으면 둘을 못 읽는다.
+  const usSess = isForeignCode ? usSessionLabel() : null;
   const addTicker = fSymbol ?? tNum;                                // +추가/검색용
   // 해외는 심볼 해석되면 정상(추가가능), KR 은 영숫자 6자리면 정상
   const isStandard = isForeignCode ? !!fSymbol : krCode;
@@ -817,7 +840,7 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
           ) : isForeignCode && price && (price.usRegClose ?? 0) > 0 ? (
             // 해외(미국) — 정규장 마감가 + 전일 종가 대비 등락률 (지수창과 동일). 애프터장에도 마감 기준 고정.
             (() => {
-              const regPct = price.usRegPct ?? 0;
+              const regPct = regPctResolved ?? 0;
               return (
                 <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0 border rounded text-[10px] leading-tight whitespace-nowrap
                                  ${regPct > 0 ? "bg-rose-100/20 border-rose-300/20"
@@ -827,9 +850,11 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                     마감{regDate ? ` ${+regDate.slice(5, 7)}/${+regDate.slice(8, 10)}` : ""}{" "}
                   </span>
                   <span className={`tabular-nums font-bold ${signColor(regPct)}`}>{Math.round(price.usRegClose!).toLocaleString()}</span>
-                  <span className={`tabular-nums ml-1 font-bold ${signColor(regPct)}`}>
-                    ({regPct >= 0 ? "+" : ""}{regPct.toFixed(2)}%)
-                  </span>
+                  {regPctResolved != null && (
+                    <span className={`tabular-nums ml-1 font-bold ${signColor(regPct)}`}>
+                      ({regPct >= 0 ? "+" : ""}{regPct.toFixed(2)}%)
+                    </span>
+                  )}
                 </div>
               );
             })()
@@ -870,6 +895,14 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                 <span className={`${priceSize} font-bold leading-tight tabular-nums ${priceColorCls}`}>
                   {price ? `${price.price.toLocaleString()}원` : "—"}
                 </span>
+                {/* 해외 종목 — 이 숫자가 '지금 어느 장' 값인지. 왼쪽 위 '마감' 책갈피와 짝이다.
+                    (마감 9/19 12,345 (+1.07%)  ←→  12,500원 [프리장] +1.24%) */}
+                {usSess && (
+                  <span className="text-[9px] font-bold leading-none px-1 py-0.5 rounded
+                                   border border-gray-300 bg-white/70 text-gray-600 whitespace-nowrap">
+                    {usSess}
+                  </span>
+                )}
               </div>
               <div className={`flex items-baseline gap-1 pl-5 font-bold ${signColor(dayDiff)}`}>
                 <span className={`${pctSize} leading-tight rounded px-1 tabular-nums
@@ -880,6 +913,7 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                   ({formatSigned(dayDiff)}원)
                 </span>
               </div>
+              {noteRow && <div className="pl-5 mt-0.5">{noteRow}</div>}
               {/* 1·3·6개월 수익률 — 정렬 기준 기간은 박스+배경 강조 */}
               {showReturns && returns && (
                 <div className="flex items-center gap-1.5 pl-5 mt-1 text-[11px] font-bold tabular-nums">
@@ -1057,6 +1091,34 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
   const chartMap = new Map(chartQs.map((q, i) =>
     [cardTickers[i], (q.data ?? []).map(p => p.close)]));
 
+  // ── 해외(미국) 구성종목 시세를 **한 번에**. 카드마다 따로 부르면 10종에 20콜이다.
+  //    ETF 자기 카드의 '구성 [프리장] 가중' 도 이 값으로 낸다 — 같은 숫자를 두 번 받지 않는다.
+  const foreignCodes = (items ?? [])
+    .map(it => it.stockCode ?? "")
+    .filter(c => !/^[\dA-Za-z]{6}$/.test(c.replace(/^A/, "")) && /^[A-Z]{2,4}\d/.test(c));
+  const foreignKey = foreignCodes.join(",");
+  const { data: foreign } = useQuery({
+    queryKey: ["etf-foreign-quotes", foreignKey],
+    queryFn: async () => {
+      const codes = foreignKey.split(",").filter(Boolean);
+      const infos = await Promise.all(codes.map(c => fetchTossCodeInfo(c).catch(() => null)));
+      const symByCode = new Map<string, string>();
+      infos.forEach((info, i) => { if (info?.symbol) symByCode.set(codes[i], info.symbol); });
+      const syms = [...new Set(symByCode.values())];
+      const prices = syms.length ? await fetchUsHoldingPrices(syms) : [];
+      const bySym = new Map(prices.map(p => [p.ticker, p]));
+      const byCode = new Map<string, Price>();
+      for (const [code, sym] of symByCode) {
+        const p = bySym.get(sym);
+        if (p) byCode.set(code, p);
+      }
+      return { symByCode, byCode };
+    },
+    enabled: foreignCodes.length > 0,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
   const { data: holdings } = useQuery({
     queryKey: ["holdings-for-etf-modal"],
     queryFn: loadHoldings,
@@ -1079,6 +1141,21 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
   // 해외(미국) 구성종목이 섞인 ETF 인가 — 섞였으면 아래 시차 안내를 띄운다.
   //   ETF 등락률과 구성종목 부호가 갈리는 건 버그가 아니라 **기준 시각이 다르기 때문**이다.
   //   실측(TIGER 미국우주테크/로켓랩): 9/18 ETF +4.75% vs 종목 −4.79%, 9/21 ETF −3.46% vs 종목 +1.07%.
+  // 구성종목의 **지금 미국 시장** 등락률을 비중 가중으로 합친 값.
+  //   ETF 자기 등락률(= 직전 미국 정규장 반영)과 나란히 놓으면 "장마감으로 이런데, 프리장에선 이렇다" 가 된다.
+  //   커버리지(모인 비중)도 같이 들고 나온다 — top10 만 보이는 ETF 라 100% 가 아니다.
+  const usNowAgg = (() => {
+    if (!foreign) return null;
+    let w = 0, acc = 0;
+    for (const it of visibleItems) {
+      const p = foreign.byCode.get(it.stockCode ?? "");
+      if (!p) continue;
+      const pct = dayChangePct(p);
+      if (pct == null || !Number.isFinite(pct)) continue;
+      w += it.ratio; acc += it.ratio * pct;
+    }
+    return w > 0 ? { pct: acc / w, cover: w } : null;
+  })();
   const hasForeignItems = visibleItems.some(it => {
     const t = (it.stockCode ?? "").replace(/^A/, "");
     return !/^[\dA-Za-z]{6}$/.test(t) && /^[A-Z]{2,4}\d/.test(it.stockCode ?? "");
@@ -1135,7 +1212,22 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
                          price={priceMap.get(selfTicker)} chart={chartMap.get(selfTicker)}
                          krReg={krRegMap?.get(selfTicker)} groups={holdingGroups.get(selfTicker) ?? []}
                          dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
-                         boxMinH="min-h-[128px]" bigFont showReturns />
+                         boxMinH="min-h-[128px]" bigFont showReturns
+                         noteRow={usNowAgg && (
+                           <span className="inline-flex items-baseline gap-1 text-[11px] whitespace-nowrap">
+                             <span className="text-gray-400">구성</span>
+                             <span className="px-1 py-0.5 rounded border border-gray-300 bg-white/70
+                                              text-[9px] font-bold leading-none text-gray-600">
+                               {usSessionLabel()}
+                             </span>
+                             <span className={`font-bold tabular-nums ${signColor(usNowAgg.pct)}`}>
+                               {usNowAgg.pct >= 0 ? "+" : ""}{usNowAgg.pct.toFixed(2)}%
+                             </span>
+                             <span className="text-gray-400 tabular-nums">
+                               (비중 {usNowAgg.cover.toFixed(0)}%)
+                             </span>
+                           </span>
+                         )} />
             </div>
           )}
           <PieSlot items={visibleItems} otherRatio={otherRatio} cashRatio={cashRatio}
@@ -1148,6 +1240,8 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
             const extraDim = isCommon ? "opacity-30" : hoverDim ? "opacity-15" : "";
             return (
               <StockCard key={`${it.stockCode || "x"}-${i}`} i={i} item={it}
+                         usPrice={foreign?.byCode.get(it.stockCode ?? "")}
+                         usSymbol={foreign?.symByCode.get(it.stockCode ?? "")}
                          price={priceMap.get(tNum)} chart={chartMap.get(tNum)}
                          krReg={krRegMap?.get(tNum)} groups={holdingGroups.get(tNum) ?? []}
                          dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}

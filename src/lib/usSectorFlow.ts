@@ -13,6 +13,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { fetchUsSectorScan, fetchTossMarketSessions, type UsScanRow, type UsScanUniverse } from "./api";
 import { usSectorKrLabel } from "./usSectorLabels";
+import { isUsExtendedTradingOpen } from "./format";
 import { US_THEME_BASKETS, US_THEME_TICKERS } from "./usThemeBaskets";
 
 /** 카드 묶음 기준.
@@ -110,6 +111,23 @@ export function usSessionNow(): UsBasis {
   if (mins >= 9 * 60 + 30 && mins < 16 * 60) return "regular";
   if (mins >= 16 * 60 && mins < 20 * 60) return "post";
   return "closed";
+}
+
+/** ET 기준 오늘 날짜(YYYY-MM-DD). 야후 일봉의 마지막 봉이 '오늘의 미완성 봉' 인지 가릴 때 쓴다. */
+export function etTodayStr(): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/New_York", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(new Date());                                 // en-CA = YYYY-MM-DD
+}
+
+/** 지금 미국이 어느 장인지 한글 한 마디 — 해외 종목 숫자가 **언제 값인지** 밝히는 배지용.
+ *  usSessionNow 는 오버나잇(20:00~04:00 ET)을 모르고 closed 로 주므로 24h 거래창으로 한 번 더 가른다. */
+export function usSessionLabel(): string {
+  const s = usSessionNow();
+  if (s === "pre") return "프리장";
+  if (s === "regular") return "정규장";
+  if (s === "post") return "애프터";
+  return isUsExtendedTradingOpen() ? "오버나잇" : "휴장";
 }
 
 // 토스가 알려주는 현재 구간을 우선 쓴다 — 서머타임·휴장일을 우리가 관리하지 않아도 된다.
