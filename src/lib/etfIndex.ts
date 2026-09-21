@@ -62,8 +62,15 @@ export function loadEtfData(): Promise<EtfData> {
         if (idxRaw && lstRaw) {
           const idx = JSON.parse(idxRaw) as { meta: EtfData["meta"]; stocks: EtfData["stocks"] };
           const lst = JSON.parse(lstRaw) as { etfs: EtfData["list"] };
-          memo = { stocks: idx.stocks, list: lst.etfs, meta: idx.meta };
-          return memo;
+          // ★ 빈 값은 캐시 적중으로 치지 않는다.
+          //   한 번이라도 빈 결과가 저장되면 12시간 동안 'ETF 0종' 이 굳는다 — 원본이 멀쩡해도
+          //   화면이 계속 비어 있어서 원인을 찾기 어렵다(실측 2026-09-21: 원본 1,130종 정상인데
+          //   랭킹 탭이 0종. localStorage 를 지우자마자 복구됐다).
+          //   같은 사고가 테마 카드에서도 있었고 거기선 이미 같은 가드를 쓴다(themeFlow.ts).
+          if (Object.keys(lst.etfs ?? {}).length > 0 && Object.keys(idx.stocks ?? {}).length > 0) {
+            memo = { stocks: idx.stocks, list: lst.etfs, meta: idx.meta };
+            return memo;
+          }
         }
       }
     } catch { /* noop */ }
@@ -73,10 +80,14 @@ export function loadEtfData(): Promise<EtfData> {
       fetchJson<{ etfs: EtfData["list"] }>(URL_LIST),
     ]);
     memo = { stocks: idxJson.stocks, list: lstJson.etfs, meta: idxJson.meta };
+    // 빈 결과는 저장하지 않는다 — 저장하면 다음 로드가 또 빈 화면으로 시작한다.
+    const usable = Object.keys(memo.list ?? {}).length > 0 && Object.keys(memo.stocks ?? {}).length > 0;
     try {
-      localStorage.setItem(LS_INDEX, JSON.stringify({ meta: idxJson.meta, stocks: idxJson.stocks }));
-      localStorage.setItem(LS_LIST, JSON.stringify({ etfs: lstJson.etfs }));
-      localStorage.setItem(LS_TS, String(Date.now()));
+      if (usable) {
+        localStorage.setItem(LS_INDEX, JSON.stringify({ meta: idxJson.meta, stocks: idxJson.stocks }));
+        localStorage.setItem(LS_LIST, JSON.stringify({ etfs: lstJson.etfs }));
+        localStorage.setItem(LS_TS, String(Date.now()));
+      }
     } catch { /* noop */ }
     return memo;
   })();
