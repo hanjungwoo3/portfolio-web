@@ -35,6 +35,8 @@ export interface Price {
   usRegPct?: number;   // 정규장 마감가의 전일 종가 대비 등락률(%) — 지수창과 동일
   priceUsd?: number;   // 달러 보조표기(현재가 달러) — 미국 보유(토스 원화 환산분의 달러값)
   currency?: "KRW" | "USD"; // 미국 보유 통화 — 토스 원화경로=KRW, Yahoo 폴백=USD
+  priceJpy?: number;   // 엔화 보조표기(현재가 엔) — 일본 ETF 구성종목(야후 JPX, 원화 환산분의 엔값)
+  jpSymbol?: string;   // 찾아낸 JPX 심볼(6857.T) — 이름 매칭이 틀렸는지 눈으로 확인하라고 카드에 찍는다
   freshTime?: number;  // 마지막 실측 체결 unix초 — 미국 보유 정체(흐림) 판정용
 }
 

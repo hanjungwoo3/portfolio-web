@@ -7,6 +7,7 @@ import { Tooltip } from "./Tooltip";
 import { formatSigned, signColor, isEtfByName, etfActiveType, dayChangePct, dayChangeDiff, isKrHoldingClosed, tradeSecOf } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { usSessionLabel, etTodayStr } from "../lib/usSectorFlow";
+import { fetchJpHoldingPrices, looksLikeForeignName } from "../lib/jpStocks";
 import { openExternal } from "../lib/toss";
 import { EtfCompareChartDialog } from "./EtfCompareChartDialog";
 import type { Price } from "../types";
@@ -726,7 +727,10 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
     staleTime: 30_000,
   });
   // 해외면 US 가격으로, 아니면 부모가 넘긴 KR 가격으로
-  const price = isForeignCode ? (usPrice ?? usPriceList?.[0] ?? undefined) : priceProp;
+  // ★ 일본 구성종목은 stockCode 가 없어 isForeignCode 가 false 다. 그래서 usPrice 를
+  //   분기 밖에서 먼저 쓴다 — 안 그러면 부모가 내려준 엔화 시세가 그냥 버려진다.
+  const price = usPrice ?? (isForeignCode ? (usPriceList?.[0] ?? undefined) : priceProp);
+  const jpSym = price?.jpSymbol ?? null;
   // 해외 추세 — 부모는 KR 히스토리만 주므로 US 티커로 자체 조회
   const { data: usHist } = useQuery({
     queryKey: ["us-history", fSymbol],
@@ -755,7 +759,7 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
         ? ((usHist[regIdx].close - usHist[regIdx - 1].close) / usHist[regIdx - 1].close) * 100
         : null);
   // 메인 숫자가 '지금 어느 장' 값인지 — 마감과 다른 값을 나란히 놓을 때 이 라벨이 없으면 둘을 못 읽는다.
-  const usSess = isForeignCode ? usSessionLabel() : null;
+  const usSess = isForeignCode ? usSessionLabel() : jpSym;
   const addTicker = fSymbol ?? tNum;                                // +추가/검색용
   // 해외는 심볼 해석되면 정상(추가가능), KR 은 영숫자 6자리면 정상
   const isStandard = isForeignCode ? !!fSymbol : krCode;
@@ -789,20 +793,28 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
     : colorDiff > 0 ? "bg-rose-50 border-rose-300"
     : colorDiff < 0 ? "bg-blue-50/70 border-blue-300"
     : "bg-white border-gray-300";
-  const dimCls = extraDim || (!isStandard ? "opacity-60" : closedDim ? "opacity-60" : "");
+  // 일본 종목은 isStandard 가 false 다(토스 코드가 없어 +추가·토스링크 불가). 하지만 시세가
+  //   있으면 흐리게 할 이유가 없다 — '값이 없다' 는 신호를 '값이 있는데' 보내면 안 된다.
+  const dimCls = extraDim || ((!isStandard && !jpSym) ? "opacity-60" : closedDim ? "opacity-60" : "");
   return (
     <div className={`group transition-opacity duration-150 ${dimCls} ${className ?? ""}`}>
       <div className="flex items-end justify-between gap-1 mx-1">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
+          {/* 종목명 탭 = 외부 링크. 토스에 있는 종목은 토스로, 일본 종목은 토스가 취급하지 않으므로
+              야후 파이낸스로 보낸다(심볼은 우리가 이름으로 찾아낸 6857.T 같은 JPX 코드). */}
           <button onClick={isStandard
                     ? () => openExternal(`https://www.tossinvest.com/stocks/${item.stockCode}`)
+                    : jpSym
+                    ? () => openExternal(`https://finance.yahoo.com/quote/${encodeURIComponent(jpSym)}`)
                     : undefined}
-                  disabled={!isStandard}
+                  disabled={!isStandard && !jpSym}
                   className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                               border-t border-l border-r font-bold text-xs leading-none
                               ${tabBg} ${priceColorCls}
-                              ${isStandard ? "cursor-pointer hover:brightness-95 transition" : ""}`}
-                  title={isStandard ? undefined : `${item.name} — 선물·기타 (추가 불가)`}>
+                              ${isStandard || jpSym ? "cursor-pointer hover:brightness-95 transition" : ""}`}
+                  title={isStandard ? undefined
+                       : jpSym ? `${item.name} (${jpSym}) — 야후 파이낸스에서 보기`
+                       : `${item.name} — 선물·기타 (추가 불가)`}>
             {!hideRatio && <span className="text-[10px] text-gray-500 mr-1">{i + 1}</span>}
             {item.name}
           </button>
@@ -858,6 +870,20 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                 </div>
               );
             })()
+          ) : jpSym && price?.trade_date ? (
+            // 일본 — 연휴가 길어 한국 ETF 와 며칠씩 어긋난다. **언제 마감값인지**를 반드시 적는다.
+            (() => {
+              const d = price.trade_date;
+              const pct = dayChangePct(price) ?? 0;
+              return (
+                <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0 border rounded text-[10px] leading-tight whitespace-nowrap
+                                 ${pct > 0 ? "bg-rose-100/20 border-rose-300/20"
+                                   : pct < 0 ? "bg-blue-100/20 border-blue-300/20"
+                                   : "bg-white/20 border-gray-300/20"}`}>
+                  <span className="text-gray-500">{`마감 ${+d.slice(5, 7)}/${+d.slice(8, 10)}`}</span>
+                </div>
+              );
+            })()
           ) : null}
           {/* 우상단 책갈피 — rightTag 우선, 없으면 비중 태그(hideRatio 면 생략) */}
           {rightTag ? (
@@ -910,7 +936,9 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                   {dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%
                 </span>
                 <span className="text-[10px] font-normal text-gray-700 tabular-nums">
-                  ({formatSigned(dayDiff)}원)
+                  {jpSym && price?.priceJpy
+                    ? `(¥${Math.round(price.priceJpy).toLocaleString()})`
+                    : `(${formatSigned(dayDiff)}원)`}
                 </span>
               </div>
               {noteRow && <div className="pl-5 mt-0.5">{noteRow}</div>}
@@ -1119,6 +1147,21 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
     staleTime: 30_000,
   });
 
+  // ── 일본 구성종목 — 토스가 stockCode 를 null 로 주는 종목들.
+  //    코드가 없으니 **이름이 키**다. 이름 → JPX 심볼은 한 번 풀면 localStorage 에 영구 보관된다.
+  const jpNames = (items ?? [])
+    .filter(it => !(it.stockCode ?? "").trim() && looksLikeForeignName(it.name))
+    .map(it => it.name);
+  const jpKey = jpNames.join("|");
+  const { data: jpPrices } = useQuery({
+    queryKey: ["etf-jp-quotes", jpKey],
+    queryFn: () => fetchJpHoldingPrices(jpKey.split("|").filter(Boolean)),
+    enabled: jpNames.length > 0,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+  const jpMap = new Map((jpPrices ?? []).map(p => [p.ticker, p]));
+
   const { data: holdings } = useQuery({
     queryKey: ["holdings-for-etf-modal"],
     queryFn: loadHoldings,
@@ -1156,6 +1199,11 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
     }
     return w > 0 ? { pct: acc / w, cover: w } : null;
   })();
+  // 일본 구성(코드 없는 라틴 이름) — 안내 문구를 미국과 따로 쓴다. 원인이 다르다:
+  //   미국은 '직전 정규장 반영'(하루 시차), 일본은 한국과 같은 시간대인데 **연휴**로 어긋난다.
+  const hasJpItems = visibleItems.some(it =>
+    !(it.stockCode ?? "").trim() && looksLikeForeignName(it.name));
+  const jpAsOf = [...jpMap.values()].map(p => p.trade_date).filter(Boolean).sort().pop() ?? null;
   const hasForeignItems = visibleItems.some(it => {
     const t = (it.stockCode ?? "").replace(/^A/, "");
     return !/^[\dA-Za-z]{6}$/.test(t) && /^[A-Z]{2,4}\d/.test(it.stockCode ?? "");
@@ -1191,6 +1239,16 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
           </span>
         )}
       </header>
+      {hasJpItems && (
+        <div className="mb-2 px-2 py-1 rounded border border-amber-200 bg-amber-50
+                        text-[11px] leading-snug text-amber-800">
+          🇯🇵 <b>기준일이 다를 수 있습니다</b> — 아래 구성종목은 일본 증시
+          {jpAsOf && <> <b>{`${+jpAsOf.slice(5, 7)}/${+jpAsOf.slice(8, 10)}`}</b> 마감</>} 기준입니다.
+          일본은 연휴가 길어(예: 9/21~23 경로의날·국민휴일·추분) 한국 ETF 와 며칠씩 어긋납니다.
+          <span className="text-amber-700"> 토스가 일본 종목 코드를 주지 않아 야후(JPX)에서 이름으로 찾아온 값이라,
+            카드의 심볼이 맞는지 한 번 봐 주세요.</span>
+        </div>
+      )}
       {hasForeignItems && (
         <div className="mb-2 px-2 py-1 rounded border border-amber-200 bg-amber-50
                         text-[11px] leading-snug text-amber-800">
@@ -1240,7 +1298,7 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
             const extraDim = isCommon ? "opacity-30" : hoverDim ? "opacity-15" : "";
             return (
               <StockCard key={`${it.stockCode || "x"}-${i}`} i={i} item={it}
-                         usPrice={foreign?.byCode.get(it.stockCode ?? "")}
+                         usPrice={foreign?.byCode.get(it.stockCode ?? "") ?? jpMap.get(it.name)}
                          usSymbol={foreign?.symByCode.get(it.stockCode ?? "")}
                          price={priceMap.get(tNum)} chart={chartMap.get(tNum)}
                          krReg={krRegMap?.get(tNum)} groups={holdingGroups.get(tNum) ?? []}
