@@ -16,8 +16,13 @@
 import { fetchProxied } from "./api";
 import type { Price } from "../types";
 
-const CACHE_KEY = "jp_symbol_by_name";
+// ★ 키에 버전을 붙인다. 해석 규칙을 고쳐도 옛 실패가 캐시에 박혀 있으면 영영 안 풀린다
+//   (실제로 'GLOBAL X JP SEMICON ETF' 가 그랬다). 규칙을 바꾸면 이 숫자를 올린다.
+const CACHE_KEY = "jp_symbol_by_name_v2";
 const MISS = "-";                                  // 못 찾음 표식(재검색 방지)
+// 성공은 영구 보관(회사↔상장코드는 안 변한다). **실패만 7일 뒤 다시 시도**한다 —
+//   신규 상장이거나 야후 색인이 늦었을 수 있고, 우리 해석 규칙이 좋아졌을 수도 있다.
+const MISS_TTL_MS = 7 * 24 * 60 * 60 * 1000;
 
 type SymMap = Record<string, string>;
 
@@ -34,7 +39,8 @@ function coreName(s: string): string {
   return (s || "")
     .toUpperCase()
     .replace(/[.,]/g, " ")
-    .replace(/\b(CO|CORP|CORPORATION|LTD|LIMITED|INC|HOLDINGS|HLDGS|GROUP|PLC|KK)\b/g, " ")
+    .replace(/\b(CO|CORP|CORPORATION|LTD|LIMITED|INC|HOLDINGS|HLDGS|GROUP|PLC|KK|ETF)\b/g, " ")
+    .replace(/\bJP\b/g, "JAPAN")          // 'GLOBAL X JP SEMICON' — 줄임말이면 야후가 0건을 준다
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -49,11 +55,29 @@ interface YahooSearchResp {
   quotes?: { symbol?: string; exchange?: string; shortname?: string; longname?: string }[];
 }
 
+/** 후보 심볼의 **정식 이름**. 검색 결과의 shortname 은 잘려 나온다
+ *  (일본 상장 ETF 는 전부 "GLOBAL X JAPAN CO LTD …" 로 뭉개져 이름 비교가 불가능하다).
+ *  chart meta.longName 은 온전해서, 애매할 때 이걸로 확인한다. */
+async function longNameOf(sym: string): Promise<string | null> {
+  try {
+    const resp = await fetchProxied(
+      `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=1d&interval=1d`);
+    if (!resp.ok) return null;
+    const d = await resp.json() as { chart?: { result?: { meta?: { longName?: string; shortName?: string } }[] } };
+    const m = d.chart?.result?.[0]?.meta;
+    return m?.longName ?? m?.shortName ?? null;
+  } catch { return null; }
+}
+
 /** 이름 하나 → JPX 심볼. 캐시 우선, 없으면 야후 검색 1콜. */
 async function resolveOne(name: string, map: SymMap): Promise<string | null> {
   const key = coreName(name);
   const hit = map[key];
-  if (hit) return hit === MISS ? null : hit;
+  if (hit && !hit.startsWith(MISS)) return hit;
+  if (hit) {                                       // "-<저장시각>" — TTL 안이면 재검색 안 함
+    const at = Number(hit.slice(MISS.length)) || 0;
+    if (Date.now() - at < MISS_TTL_MS) return null;
+  }
 
   const q = encodeURIComponent(key);
   try {
@@ -62,12 +86,27 @@ async function resolveOne(name: string, map: SymMap): Promise<string | null> {
     if (!resp.ok) return null;                     // 실패는 캐시하지 않는다(다음에 다시 시도)
     const data = await resp.json() as YahooSearchResp;
     const jpx = (data.quotes ?? []).filter(x => x.exchange === "JPX" && x.symbol);
-    // 이름이 검색어로 시작하는 것을 우선 — DEVICE 같은 파생 상호를 걸러낸다.
+    if (jpx.length === 0) { map[key] = MISS + Date.now(); saveMap(map); return null; }
+    // ① 검색 결과 이름이 검색어로 시작하면 그대로 — DEVICE 같은 파생 상호를 걸러낸다.
     const exact = jpx.find(x => coreName(x.shortname || x.longname || "").startsWith(key));
-    const pick = exact ?? jpx[0];
-    map[key] = pick?.symbol ?? MISS;
+    let symbol = exact?.symbol ?? null;
+    // ② 아니면 후보들의 정식 이름을 받아 확인한다(잘린 shortname 때문에 여기로 온다).
+    //    검색어로 시작하는 것 중 **가장 짧은** 이름을 고른다 — 덧붙은 말("… Top 10")은
+    //    같은 회사의 다른 상품이다. 실측: GLOBAL X JP SEMICON ETF
+    //      2644.T "Global X Japan Semiconductor ETF"        ← 정답
+    //      282A.T "Global X Japan Semiconductor Top 10 ETF" ← 다른 상품
+    if (!symbol) {
+      const cands = jpx.slice(0, 3);
+      const named = await Promise.all(cands.map(async c => ({
+        symbol: c.symbol!, core: coreName((await longNameOf(c.symbol!)) ?? ""),
+      })));
+      const ok = named.filter(x => x.core && x.core.startsWith(key))
+                      .sort((a, b) => a.core.length - b.core.length);
+      symbol = ok[0]?.symbol ?? null;
+    }
+    map[key] = symbol ?? (MISS + Date.now());
     saveMap(map);
-    return pick?.symbol ?? null;
+    return symbol;
   } catch {
     return null;
   }
@@ -104,19 +143,27 @@ async function fetchJpyKrw(): Promise<number> {
   } catch { return 0; }
 }
 
+export interface JpQuotes {
+  prices: Price[];                      // ticker = 구성종목 이름
+  charts: Record<string, number[]>;     // 이름 → 3개월 종가(엔) — 카드 배경 스파크라인용
+}
+
 /**
  * 일본 구성종목 시세 — 원화 환산 + 엔 병기.
  * @returns Price[] (ticker = 구성종목 **이름**. 코드가 없으니 이름이 곧 키다)
  */
-export async function fetchJpHoldingPrices(names: string[]): Promise<Price[]> {
-  if (names.length === 0) return [];
+export async function fetchJpHoldingPrices(names: string[]): Promise<JpQuotes> {
+  if (names.length === 0) return { prices: [], charts: {} };
   const [syms, rate] = await Promise.all([resolveJpSymbols(names), fetchJpyKrw()]);
-  if (syms.size === 0) return [];
+  if (syms.size === 0) return { prices: [], charts: {} };
   const out: Price[] = [];
+  const charts: Record<string, number[]> = {};
   await Promise.all([...syms].map(async ([name, sym]) => {
     try {
       const resp = await fetchProxied(
-        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=5d&interval=1d`);
+        // 3개월로 받는다 — 카드 배경 스파크라인까지 **같은 한 콜**로 해결한다.
+        //   (5d 로 받으면 시세는 되는데 선이 안 그려져 카드가 비어 보인다)
+        `https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(sym)}?range=3mo&interval=1d`);
       if (!resp.ok) return;
       const d = await resp.json() as YahooChartMeta;
       const res = d.chart?.result?.[0];
@@ -139,6 +186,7 @@ export async function fetchJpHoldingPrices(names: string[]): Promise<Price[]> {
       const jpy = live > 0 ? live : last.close;
       const prevJpy = (live > 0 && live !== last.close) ? last.close : (prev?.close ?? 0);
       if (jpy <= 0 || prevJpy <= 0) return;
+      charts[name] = bars.map(b => b.close);
       // 환율을 못 받으면 원화로 속이지 않는다 — 엔 값을 그대로 넣고 currency 로 알린다.
       const k = rate > 0 ? rate : 1;
       // 원화는 **정수로 반올림**한다 — 환산이라 소수가 남는데(275,790.25원) 다른 원화 카드는
@@ -155,5 +203,5 @@ export async function fetchJpHoldingPrices(names: string[]): Promise<Price[]> {
       });
     } catch { /* 한 종목 실패가 나머지를 막지 않는다 */ }
   }));
-  return out;
+  return { prices: out, charts };
 }

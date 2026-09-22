@@ -672,6 +672,7 @@ interface StockCardProps {
   //   (종목마다 따로 부르면 10종에 코드조회 10 + 시세 10 = 20콜이다)
   usPrice?: Price;
   usSymbol?: string;
+  usChart?: number[];        // 부모가 이미 받아 둔 해외 일봉 종가 — 배경 스파크라인용(추가 호출 없음)
   noteRow?: ReactNode;       // 가격 박스 안, 일간% 아래 한 줄 (예: 구성종목 프리장 가중)
 }
 // 6개월 종가 → 수익률 계산 export (EtfReverseTab 등 재사용)
@@ -704,7 +705,7 @@ function RatioTag({ ratio, color }: { ratio: number; color: string }) {
     </div>
   );
 }
-export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups = [], dimEnabled = false, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, showReturns, returns: returnsProp, actionLeft, boxRight, highlightReturn, highlightDay, usPrice, usSymbol, noteRow }: StockCardProps) {
+export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups = [], dimEnabled = false, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, showReturns, returns: returnsProp, actionLeft, boxRight, highlightReturn, highlightDay, usPrice, usSymbol, usChart, noteRow }: StockCardProps) {
   const priceSize = bigFont ? "text-2xl" : "text-base";
   const pctSize = bigFont ? "text-lg" : "text-sm";
   const rawCode = item.stockCode;
@@ -738,7 +739,10 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
     enabled: !!fSymbol,
     staleTime: 60 * 60_000,
   });
-  const chartData = isForeignCode ? (usHist ?? []).map(p => p.close) : chart;
+  // 일본 종목은 코드가 없어 isForeignCode 가 false 다 → 부모 chart 는 늘 비어 있다.
+  //   usChart(부모가 시세와 함께 받아 둔 일봉)를 먼저 본다.
+  const chartData = usChart?.length ? usChart
+    : isForeignCode ? (usHist ?? []).map(p => p.close) : chart;
   // 마감 책갈피에 붙일 **그 마감이 언제인지**. 이미 받아 둔 US 일봉의 마지막 봉 날짜를 쓴다.
   //   토스 usRegClose 는 "직전(또는 오늘) 정규장 종가" 이고, 야후 일봉의 마지막 봉이 정확히 그 세션이다.
   //   (오버나잇·프리마켓엔 오늘 봉이 아직 없어 직전 거래일이 마지막 봉 = 그 정규장)
@@ -1160,7 +1164,7 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
-  const jpMap = new Map((jpPrices ?? []).map(p => [p.ticker, p]));
+  const jpMap = new Map((jpPrices?.prices ?? []).map(p => [p.ticker, p]));
 
   const { data: holdings } = useQuery({
     queryKey: ["holdings-for-etf-modal"],
@@ -1299,6 +1303,7 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
             return (
               <StockCard key={`${it.stockCode || "x"}-${i}`} i={i} item={it}
                          usPrice={foreign?.byCode.get(it.stockCode ?? "") ?? jpMap.get(it.name)}
+                         usChart={jpPrices?.charts[it.name]}
                          usSymbol={foreign?.symByCode.get(it.stockCode ?? "")}
                          price={priceMap.get(tNum)} chart={chartMap.get(tNum)}
                          krReg={krRegMap?.get(tNum)} groups={holdingGroups.get(tNum) ?? []}
