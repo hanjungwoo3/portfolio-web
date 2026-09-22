@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, fetchYahooPriceHistory, fetchEtfKeyIndicator, type KrRegularPrice } from "../lib/api";
+import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, fetchYahooPriceHistory, fetchEtfKeyIndicator, fetchWarning, type KrRegularPrice } from "../lib/api";
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
 import { Tooltip } from "./Tooltip";
@@ -10,6 +10,7 @@ import { usSessionLabel, etTodayStr } from "../lib/usSectorFlow";
 import { fetchJpHoldingPrices, looksLikeForeignName } from "../lib/jpStocks";
 import { openExternal } from "../lib/toss";
 import { EtfCompareChartDialog } from "./EtfCompareChartDialog";
+import { MarketAlertDialog } from "./MarketAlertDialog";
 import type { Price } from "../types";
 
 // 현재가·일간% (+선택적 추세 스파크라인) 미니 카드 — 검색 드롭다운·비교표 공용
@@ -673,6 +674,7 @@ interface StockCardProps {
   usPrice?: Price;
   usSymbol?: string;
   usChart?: number[];        // 부모가 이미 받아 둔 해외 일봉 종가 — 배경 스파크라인용(추가 호출 없음)
+  warning?: string;          // 거래소 시장조치(투자경고/투자주의/거래정지…) — 종목 카드와 같은 소스
   noteRow?: ReactNode;       // 가격 박스 안, 일간% 아래 한 줄 (예: 구성종목 프리장 가중)
 }
 // 6개월 종가 → 수익률 계산 export (EtfReverseTab 등 재사용)
@@ -705,9 +707,23 @@ function RatioTag({ ratio, color }: { ratio: number; color: string }) {
     </div>
   );
 }
-export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups = [], dimEnabled = false, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, showReturns, returns: returnsProp, actionLeft, boxRight, highlightReturn, highlightDay, usPrice, usSymbol, usChart, noteRow }: StockCardProps) {
+// 시장조치 뱃지 색 — 종목 카드(StockCard.tsx WARN_BG)와 같은 체계로 맞춘다.
+//   같은 경고가 화면마다 다른 색이면 위험도를 눈으로 읽을 수 없다.
+const WARN_BG: Record<string, string> = {
+  투자위험:     "bg-red-700",
+  관리종목:     "bg-red-700",
+  거래정지:     "bg-gray-500",
+  투자경고:     "bg-orange-600",
+  공매도과열:   "bg-orange-600",
+  단기과열:     "bg-orange-600",
+  투자주의환기: "bg-orange-600",
+  투자주의:     "bg-amber-500",
+};
+
+export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups = [], dimEnabled = false, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, showReturns, returns: returnsProp, actionLeft, boxRight, highlightReturn, highlightDay, usPrice, usSymbol, usChart, noteRow, warning }: StockCardProps) {
   const priceSize = bigFont ? "text-2xl" : "text-base";
   const pctSize = bigFont ? "text-lg" : "text-sm";
+  const [alertOpen, setAlertOpen] = useState(false);   // 시장조치 공시 모달
   const rawCode = item.stockCode;
   const tNum = rawCode.replace(/^A/, "");
   const krCode = /^[\dA-Za-z]{6}$/.test(tNum);   // 한국 코드(영숫자 6자리, 신형 ETF 포함)
@@ -802,6 +818,10 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   const dimCls = extraDim || ((!isStandard && !jpSym) ? "opacity-60" : closedDim ? "opacity-60" : "");
   return (
     <div className={`group transition-opacity duration-150 ${dimCls} ${className ?? ""}`}>
+      {alertOpen && (
+        <MarketAlertDialog ticker={tNum} name={item.name} warning={warning ?? ""}
+                           onClose={() => setAlertOpen(false)} />
+      )}
       <div className="flex items-end justify-between gap-1 mx-1">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
           {/* 종목명 탭 = 외부 링크. 토스에 있는 종목은 토스로, 일본 종목은 토스가 취급하지 않으므로
@@ -822,6 +842,16 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
             {!hideRatio && <span className="text-[10px] text-gray-500 mr-1">{i + 1}</span>}
             {item.name}
           </button>
+          {/* 시장조치 뱃지 — 누르면 거래소 공시 모달(종목 카드와 동일 동작) */}
+          {warning && krCode && (
+            <button onClick={() => setAlertOpen(true)}
+                    title={`${item.name} — ${warning} 지정. 눌러서 시장조치 공시 보기`}
+                    className={`inline-flex items-center px-1.5 py-0.5 rounded-t-md
+                                text-white text-[10px] font-bold leading-none
+                                cursor-pointer active:opacity-80 ${WARN_BG[warning] ?? "bg-gray-500"}`}>
+              {warning}
+            </button>
+          )}
         </div>
         <div className="flex items-end gap-0.5">
           {actionLeft}
@@ -1169,6 +1199,18 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
   });
   const jpMap = new Map((jpPrices?.prices ?? []).map(p => [p.ticker, p]));
 
+  // ── 거래소 시장조치(투자경고·투자주의·거래정지…) — 종목 카드와 **같은 쿼리키**라
+  //    이미 보유 중인 종목은 캐시가 그대로 맞아 추가 호출이 안 나간다.
+  const warnQs = useQueries({
+    queries: stockTickers.map(t => ({
+      queryKey: ["warning", t],
+      queryFn: () => fetchWarning(t),
+      staleTime: 10 * 60_000,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const warnMap = new Map(warnQs.map((q, i) => [stockTickers[i], q.data ?? ""]));
+
   const { data: holdings } = useQuery({
     queryKey: ["holdings-for-etf-modal"],
     queryFn: loadHoldings,
@@ -1307,6 +1349,7 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
               <StockCard key={`${it.stockCode || "x"}-${i}`} i={i} item={it}
                          usPrice={foreign?.byCode.get(it.stockCode ?? "") ?? jpMap.get(it.name)}
                          usChart={jpPrices?.charts[it.name]}
+                         warning={warnMap.get(tNum)}
                          usSymbol={foreign?.symByCode.get(it.stockCode ?? "")}
                          price={priceMap.get(tNum)} chart={chartMap.get(tNum)}
                          krReg={krRegMap?.get(tNum)} groups={holdingGroups.get(tNum) ?? []}
