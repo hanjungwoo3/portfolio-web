@@ -598,6 +598,18 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
                 ({selected.size} / {visibleStocks.length})
               </span>
             </label>
+          </div>
+        )}
+
+        {/* ── 여기부터 **통째로 하나의 스크롤 영역** (그룹 칩 + 검색 결과).
+            검색창·전체선택은 위에 고정 — 아래로 내려가 종목을 고르는 중에도 계속 써야 한다.
+            예전엔 검색결과에만 overflow 가 있어서, 그룹이 30개 넘어가면 칩이 세로를 다 먹고
+            결과 영역이 flex-1 로 0 까지 눌려 아무리 스크롤해도 목록을 볼 수 없었다.
+            칩만 따로 스크롤시키면 스크롤 통이 둘이라 더 헷갈린다 → 칩부터 통으로 내린다. */}
+        <div className="flex-1 overflow-y-auto">
+        {allStocks.length > 0 && (
+          <div className={`px-5 pt-2 pb-2.5 border-b
+                          ${groupWarn ? "bg-rose-100" : "bg-blue-50/30"}`}>
             <div className="flex flex-wrap items-center gap-1.5">
               <span className="text-sm font-medium text-gray-700">
                 그룹 적용:
@@ -646,7 +658,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
         )}
 
         {/* 검색 결과 (행마다 수량/매수가/매수일) — 테마 섹션 + 종목 섹션 */}
-        <div className="overflow-y-auto p-3 space-y-2 flex-1">
+        <div className="p-3 space-y-2">
           {allStocks.length === 0 ? (
             <div className="text-center text-gray-400 py-8 text-sm">
               검색 결과가 여기에 표시됩니다.
@@ -743,6 +755,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
             </>
           )}
         </div>
+        </div>{/* ← 헤더 아래 통 스크롤 끝. 아래 일괄적용 바는 항상 보이게 밖에 둔다 */}
 
         {/* 하단 일괄적용 — 마킹된 그룹들에만 추가 */}
         {allStocks.length > 0 && (
