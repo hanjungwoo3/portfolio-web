@@ -853,7 +853,10 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                 ({krReg.regularPct >= 0 ? "+" : ""}{krReg.regularPct.toFixed(2)}%)
               </span>
             </div>
-          ) : isForeignCode && price && (price.usRegClose ?? 0) > 0 ? (
+          ) : isForeignCode && usSess !== "정규장" && price && (price.usRegClose ?? 0) > 0 ? (
+            // ★ 정규장 중엔 안 띄운다 — 그때 usRegClose 는 '전일 종가' 이고, 큰 숫자의 등락률이
+            //   이미 그 전일 종가 대비다. 같은 기준을 두 번 적는 셈이라 읽는 사람만 헷갈린다.
+            //   프리·오버나잇·애프터·휴장에만 의미가 있다(그땐 큰 숫자가 정규장 움직임이 아니다).
             // 해외(미국) — 정규장 마감가 + 전일 종가 대비 등락률 (지수창과 동일). 애프터장에도 마감 기준 고정.
             (() => {
               const regPct = regPctResolved ?? 0;
