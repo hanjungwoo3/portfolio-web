@@ -19,6 +19,27 @@ export interface TabVisibility {
   assetTrend: boolean;
 }
 
+// 설정 화면의 '상단 탭 표시' 체크박스 목록 — **PC·모바일이 같은 배열을 쓴다.**
+//   예전엔 양쪽이 각자 목록을 들고 있어서 PC 엔 증시·ETF랭킹·자산추이만, 모바일엔 반도체·가치표만
+//   있었다. 기기별 저장이라 "한쪽에서 끈 탭을 다른 쪽에서 되살릴 수 없는" 조합이 생겼다.
+//   여기 한 줄만 늘리면 양쪽에 동시에 나온다.
+export const TAB_VIS_ITEMS: { key: keyof TabVisibility; label: string; sep?: boolean }[] = [
+  { key: "stockMarket", label: "💰 증시" },
+  { key: "usMarket",    label: "📈 지수" },
+  { key: "sectorRank",  label: "🧩 섹터" },
+  { key: "semiCheck",   label: "반도체" },          // 아이콘(Cpu)은 렌더 쪽에서 붙인다
+  { key: "consensus",   label: "🎯 컨센서스" },
+  { key: "etfReverse",  label: "🍱 ETF검색" },
+  { key: "etfRanking",  label: "🏅 ETF랭킹" },
+  { key: "etfCompare",  label: "⚖️ ETF미국" },
+  { key: "heatmap",     label: "🗺️ 히트맵" },
+  { key: "valuation",   label: "🧮 가치표" },
+  // 내주식·내거래·자산추이 — 묶음에서 빠진 개별 탭이라 구분선 뒤에 한 묶음
+  { key: "myStocks",    label: "📦 내주식", sep: true },
+  { key: "myTrades",    label: "🧾 내거래" },
+  { key: "assetTrend",  label: "📈 자산추이" },
+];
+
 const BASE_KEYS = {
   stockMarket: "portfolio_tab_stock_market",
   usMarket:   "portfolio_tab_us_market",

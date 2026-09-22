@@ -115,13 +115,17 @@ function IndicatorRow({ ikey, val, data }: {
   );
 }
 
-function Section({ title, sub, ikeys, data }: {
-  title: string; sub: string; ikeys: string[]; data: FundamentalData;
+function Section({ title, sub, ikeys, data, loading }: {
+  title: string; sub: string; ikeys: string[]; data: FundamentalData; loading?: boolean;
 }) {
   return (
     <section className="bg-gray-50 rounded p-3 border border-gray-200">
       <header className="mb-2">
-        <h3 className="font-bold text-gray-700">{title}</h3>
+        <h3 className="font-bold text-gray-700">
+          {title}
+          {/* 값이 전부 '—' 인 동안 그게 '없음' 인지 '아직' 인지 구분이 안 됐다 */}
+          {loading && <span className="ml-1.5 text-[10px] font-normal text-gray-400">불러오는 중…</span>}
+        </h3>
         <p className="text-xs text-gray-400">{sub}</p>
       </header>
       <div>
@@ -135,9 +139,9 @@ function Section({ title, sub, ikeys, data }: {
   );
 }
 
-function ConsensusSection({ reports, shareholders, curPrice, fundamental }: {
+function ConsensusSection({ reports, shareholders, curPrice, fundamental, loading }: {
   reports: ConsensusReport[]; shareholders: Shareholder[]; curPrice?: number;
-  fundamental: FundamentalData;
+  fundamental: FundamentalData; loading?: boolean;
 }) {
   const targets = reports.map(r => r.target).filter((t): t is number => typeof t === "number");
   const simpleAvg = targets.length > 0
@@ -176,7 +180,9 @@ function ConsensusSection({ reports, shareholders, curPrice, fundamental }: {
           </span>
         </div>
       ) : (
-        <div className="text-xs text-gray-400 mb-1">컨센서스 데이터 없음</div>
+        <div className="text-xs text-gray-400 mb-1">
+          {loading ? "불러오는 중…" : "컨센서스 데이터 없음"}
+        </div>
       )}
 
       {/* 2줄: 투자의견 + 점수 */}
@@ -197,11 +203,11 @@ function ConsensusSection({ reports, shareholders, curPrice, fundamental }: {
       )}
 
       <div className="text-xs text-gray-400 mb-1.5">
-        최근 리포트 ({reports.length}건)
+        최근 리포트 {loading && reports.length === 0 ? "" : `(${reports.length}건)`}
       </div>
 
       {reports.length === 0 ? (
-        <div className="text-xs text-gray-400 py-2">최근 리포트 없음</div>
+        <div className="text-xs text-gray-400 py-2">{loading ? "불러오는 중…" : "최근 리포트 없음"}</div>
       ) : (
         <div className="space-y-1.5">
           {reports.map((r, i) => {
@@ -244,7 +250,7 @@ function ConsensusSection({ reports, shareholders, curPrice, fundamental }: {
   );
 }
 
-function ShareholderSection({ shareholders }: { shareholders: Shareholder[] }) {
+function ShareholderSection({ shareholders, loading }: { shareholders: Shareholder[]; loading?: boolean }) {
   return (
     <section className="bg-gray-50 rounded p-3 border border-gray-200">
       <header className="mb-2">
@@ -252,7 +258,8 @@ function ShareholderSection({ shareholders }: { shareholders: Shareholder[] }) {
         <p className="text-xs text-gray-400">5% 이상 보유 대주주 / 국민연금 등</p>
       </header>
       {shareholders.length === 0 ? (
-        <div className="text-xs text-gray-400 py-2">주주 정보 없음</div>
+        // 아직 받는 중인데 '없음' 이라고 단언하면 안 된다 — 스크래핑 4건이라 몇 초 걸린다.
+        <div className="text-xs text-gray-400 py-2">{loading ? "불러오는 중…" : "주주 정보 없음"}</div>
       ) : (
         <div className="space-y-1 text-xs">
           {shareholders.slice(0, 10).map((s, i) => (
@@ -620,30 +627,31 @@ export function ValuationModal({
             <div className="space-y-3">
               <Section title={INDICATOR_SECTIONS[0].title}
                        sub={INDICATOR_SECTIONS[0].sub}
-                       ikeys={INDICATOR_SECTIONS[0].keys} data={fund} />
+                       ikeys={INDICATOR_SECTIONS[0].keys} data={fund} loading={isLoading} />
               <Section title={INDICATOR_SECTIONS[1].title}
                        sub={INDICATOR_SECTIONS[1].sub}
-                       ikeys={INDICATOR_SECTIONS[1].keys} data={fund} />
+                       ikeys={INDICATOR_SECTIONS[1].keys} data={fund} loading={isLoading} />
             </div>
             {/* Col 2: 주주환원 / 재무건전성 / 가격 통계 */}
             <div className="space-y-3">
               <Section title={INDICATOR_SECTIONS[2].title}
                        sub={INDICATOR_SECTIONS[2].sub}
-                       ikeys={INDICATOR_SECTIONS[2].keys} data={fund} />
+                       ikeys={INDICATOR_SECTIONS[2].keys} data={fund} loading={isLoading} />
               <Section title={INDICATOR_SECTIONS[3].title}
                        sub={INDICATOR_SECTIONS[3].sub}
-                       ikeys={INDICATOR_SECTIONS[3].keys} data={fund} />
+                       ikeys={INDICATOR_SECTIONS[3].keys} data={fund} loading={isLoading} />
               <Section title={INDICATOR_SECTIONS[4].title}
                        sub={INDICATOR_SECTIONS[4].sub}
-                       ikeys={INDICATOR_SECTIONS[4].keys} data={fund} />
+                       ikeys={INDICATOR_SECTIONS[4].keys} data={fund} loading={isLoading} />
             </div>
             {/* Col 3: 컨센서스 + 주주 */}
             <div className="space-y-3">
               <ConsensusSection reports={reports}
                                  shareholders={shareholders}
                                  curPrice={effCurPrice}
-                                 fundamental={fund} />
-              <ShareholderSection shareholders={shareholders} />
+                                 fundamental={fund}
+                                 loading={isLoading} />
+              <ShareholderSection shareholders={shareholders} loading={isLoading} />
             </div>
           </div>
 

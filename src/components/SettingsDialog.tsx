@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Settings } from "lucide-react";
+import { Settings, Cpu } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, applyImportedSettings, replaceAllMemos, replaceAllTrades,
@@ -26,7 +26,7 @@ const EXT_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/ex
 const DENO_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/deno-proxy/README.md";
 const CF_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md";
 import { getIndependentGroupsMode, setIndependentGroupsMode } from "../lib/groupMode";
-import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
+import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit, TAB_VIS_ITEMS, type TabVisibility } from "../lib/tabVisibility";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
 import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
@@ -101,12 +101,13 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     persistFolders(next);
   };
 
-  const toggleTab = (key: "stockMarket" | "usMarket" | "semiCheck" | "sectorRank" | "myStocks" | "myTrades" | "assetTrend" | "consensus" | "etfReverse" | "etfRanking", v: boolean) => {
+  const toggleTab = (key: keyof TabVisibility, v: boolean) => {
     const next = { ...tabVis, [key]: v };
     setTabVis(next);
     setTabVisibility({ [key]: v });
-    const labelMap = { stockMarket: "증시", usMarket: "지수", semiCheck: "반도체", sectorRank: "섹터", myStocks: "내주식", myTrades: "내거래", assetTrend: "자산추이", consensus: "컨센서스", etfReverse: "ETF검색", etfRanking: "ETF랭킹" };
-    setStatusMsg(`✅ ${labelMap[key]} 탭: ${v ? "표시" : "숨김"}`);
+    // 라벨도 공용 목록에서 — 손으로 적은 지도는 키가 늘 때마다 조용히 빠진다(undefined 표시).
+    const label = TAB_VIS_ITEMS.find(x => x.key === key)?.label ?? String(key);
+    setStatusMsg(`✅ ${label} 탭: ${v ? "표시" : "숨김"}`);
     onChanged();
   };
 
@@ -861,61 +862,20 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 상단 탭 표시
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={tabVis.stockMarket}
-                         onChange={e => toggleTab("stockMarket", e.target.checked)}
-                         className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">💰 증시</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={tabVis.usMarket}
-                         onChange={e => toggleTab("usMarket", e.target.checked)}
-                         className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">📈 지수</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={tabVis.sectorRank}
-                         onChange={e => toggleTab("sectorRank", e.target.checked)}
-                         className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">🧩 섹터</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={tabVis.consensus}
-                         onChange={e => toggleTab("consensus", e.target.checked)}
-                         className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">🎯 컨센서스</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={tabVis.etfReverse}
-                         onChange={e => toggleTab("etfReverse", e.target.checked)}
-                         className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">🍱 ETF검색</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={tabVis.etfRanking}
-                         onChange={e => toggleTab("etfRanking", e.target.checked)}
-                         className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">🏅 ETF랭킹</span>
-                </label>
-                {/* 내주식 / 내거래 — 묶음에서 빠진 개별 탭이라 구분선 뒤(오른쪽)에 한 묶음으로 배치 */}
-                <label className="flex items-center gap-1.5 cursor-pointer select-none pl-3 ml-1 border-l border-gray-200">
-                  <input type="checkbox" checked={tabVis.myStocks}
-                         onChange={e => toggleTab("myStocks", e.target.checked)}
-                         className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">📦 내주식 (개별 탭)</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={tabVis.myTrades}
-                         onChange={e => toggleTab("myTrades", e.target.checked)}
-                         className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">🧾 내거래 (개별 탭)</span>
-                </label>
-                <label className="flex items-center gap-1.5 cursor-pointer select-none">
-                  <input type="checkbox" checked={tabVis.assetTrend}
-                         onChange={e => toggleTab("assetTrend", e.target.checked)}
-                         className="w-4 h-4 accent-blue-600" />
-                  <span className="text-[11px] text-gray-700">📈 자산추이 (개별 탭)</span>
-                </label>
+                {/* 목록은 lib/tabVisibility 의 TAB_VIS_ITEMS 하나 — 모바일 설정과 같은 배열이다 */}
+                {TAB_VIS_ITEMS.map(({ key, label, sep }) => (
+                  <label key={key}
+                         className={`flex items-center gap-1.5 cursor-pointer select-none
+                                     ${sep ? "pl-3 ml-1 border-l border-gray-200" : ""}`}>
+                    <input type="checkbox" checked={tabVis[key]}
+                           onChange={e => toggleTab(key, e.target.checked)}
+                           className="w-4 h-4 accent-blue-600" />
+                    <span className="text-[11px] text-gray-700 inline-flex items-center gap-1">
+                      {key === "semiCheck" && <Cpu size={12} strokeWidth={2.2} className="text-slate-600" />}
+                      {label}
+                    </span>
+                  </label>
+                ))}
               </div>
               <div className="text-[10px] text-gray-500 mt-1">
                 꺼두면 해당 탭이 상단 메뉴에서 사라집니다. 데이터는 보존됩니다.

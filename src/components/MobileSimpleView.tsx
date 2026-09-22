@@ -18,12 +18,7 @@ import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, krSessionPhase } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
-import {
-  getPersonalProxies, setPersonalProxies, type PersonalProxy,
-  fetchProxyUsage, type ProxyUsage,
-  getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS, pollLabel,
-  getDimSleepingEnabled, setDimSleepingEnabled,
-} from "../lib/proxyConfig";
+import { getPersonalProxies, setPersonalProxies, type PersonalProxy, fetchProxyUsage, type ProxyUsage, getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS, pollLabel, getDimSleepingEnabled, setDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
@@ -110,16 +105,17 @@ import {
 } from "../lib/syncManager";
 import { isSignedIn, getAccessToken, wasSignedIn } from "../lib/googleAuth";
 import type { Stock } from "../types";
-import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit } from "../lib/tabVisibility";
+import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit, TAB_VIS_ITEMS } from "../lib/tabVisibility";
 import { splitByMarket, splitHeldAndMarket, type MarketSection } from "../lib/marketSplit";
 import { EtfTopCards } from "./EtfTopCards";
+import { TicsSectorBoard } from "./TicsSectorBoard";
+import { ProxyStatusBadge } from "./ProxyStatusBadge";
 import {
   getGroupFolders, setGroupFolders, type GroupFolder,
   folderAllKey, isFolderAllKey, folderNameOfAllKey, FOLDER_ALL_LABEL,
 } from "../lib/groupFolders";
 
 const KR_KEY = "__kr__";  // 한국 (KOSPI/KOSDAQ + 한국 섹터 + 짝 미국 섹터 ETF)
-const US_KEY = "__us__";  // 미국 (환율·매크로·원자재·미국지수·미국 대표 ETF)
 const SEMI_KEY = "__semi__";  // 반도체 점검 — MU·NVDA·장비주·환율
 const SECTOR_KEY = "__sector__";  // 한국 섹터 순위 — 토스 TICS depth1 ranking
 const MY_KEY = "__my-stocks__";  // 내주식(가상 합산) — 모든 그룹의 동일 ticker 를 shares 합/가중평균 평단
@@ -225,7 +221,7 @@ export function MobileSimpleView() {
     if (typeof localStorage === "undefined") return KR_KEY;
     return localStorage.getItem(TAB_KEY) ?? KR_KEY;
   });
-  const isSystemTab = activeTab === MONEY_KEY || activeTab === KR_KEY || activeTab === US_KEY
+  const isSystemTab = activeTab === MONEY_KEY || activeTab === KR_KEY
     || activeTab === SEMI_KEY || activeTab === SECTOR_KEY || activeTab === CONSENSUS_KEY
     || activeTab === ETF_KEY || activeTab === ETF_RANK_KEY || activeTab === ETF_COMPARE_KEY
     || activeTab === HEATMAP_KEY || activeTab === VALUATION_KEY
@@ -421,7 +417,7 @@ export function MobileSimpleView() {
   //  시각 순서: 지수 → (섹터·반도체·컨센서스·ETF 묶음) → (내주식·내거래 묶음) → 사용자그룹 → 폴더
   //  (groupTabs 원순서는 내거래가 컨센서스/ETF 앞이라 ETF에서 스와이프 시 내거래를 건너뛰던 문제 수정)
   const navKeys = useMemo(() => {
-    const SYS = [MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY];
+    const SYS = [MONEY_KEY, KR_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY];
     const has = (k: string) => groupTabs.some(t => t.key === k);
     const keys: string[] = [];
     for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음(섹터…히트맵)
@@ -431,8 +427,10 @@ export function MobileSimpleView() {
     for (const t of groupTabs) if (!SYS.includes(t.key) && !folderedGroups.has(t.key) && !isFolderAllKey(t.key)) keys.push(t.key);  // 사용자그룹(전체보기 가상탭 제외 — 아래 폴더 루프에서 넣음)
     for (const f of folders) {
       const ms = f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko"));
-      if (ms.length >= 2) keys.push(folderAllKey(f.name));   // 전체보기가 폴더의 첫 자리
       keys.push(...ms);
+      // 전체보기는 폴더의 **끝자리** (PC Tabs 와 동일) — 앞에 있으면 스와이프로 지나가다
+      //   매번 폴더 전체를 불러오게 된다. 종목 많은 폴더에서 특히 비싸다.
+      if (ms.length >= 2) keys.push(folderAllKey(f.name));
     }
     return keys;
   }, [groupTabs, folderedGroups, folders, presentGroups]);
@@ -918,6 +916,11 @@ export function MobileSimpleView() {
         <RefreshIndicator dataUpdatedAt={lastAt}
                           refetchIntervalMs={REFRESH_MS}
                           onRefresh={() => void queryClient.invalidateQueries()} />
+        {/* 프록시 상태 — PC 헤더와 같은 배지. 지금까지는 설정을 열어야만 프록시가
+            죽었는지 알 수 있었다(데이터가 안 오는데 이유를 화면이 말해주지 않았다). */}
+        <ProxyStatusBadge baseRefreshMs={BASE_REFRESH_MS}
+                          usePersonalProxy={!!getPersonalProxyUrl()}
+                          onOpenSettings={() => setSettingsOpen(true)} />
         <button onClick={handleRefresh}
                 disabled={isFetching}
                 title="최신 버전 적용 (캐시 초기화 + 새로고침)"
@@ -1078,14 +1081,14 @@ export function MobileSimpleView() {
         })()}
         {groupTabs.map(t => {
           // 시스템·내자산 탭은 위 드롭다운/별도 버튼으로만 표시 (개별 탭 숨김)
-          if ([MONEY_KEY, KR_KEY, US_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY].includes(t.key)) return null;
+          if ([MONEY_KEY, KR_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY].includes(t.key)) return null;
           // 폴더에 담긴 그룹은 개별 탭에서 숨김 (아래 📁 드롭다운으로)
           if (folderedGroups.has(t.key)) return null;
           // 폴더 전체보기 가상 탭도 숨김 (폴더 sub 링크바 칩으로만)
           if (isFolderAllKey(t.key)) return null;
           const active = t.key === activeTab;
           // 시스템 탭(한국/미국)은 길게 누르기 무시
-          const editable = t.key !== US_KEY && t.key !== KR_KEY && t.key !== CONSENSUS_KEY;
+          const editable = t.key !== KR_KEY && t.key !== CONSENSUS_KEY;
           const startLongPress = () => {
             if (!editable) return;
             longPressTimer.current = window.setTimeout(() => {
@@ -1144,9 +1147,12 @@ export function MobileSimpleView() {
             );
           }
           // 폴더명 링크 — 클릭 시 폴더로 진입(현재 멤버 또는 첫 멤버). 멤버 전환은 아래 sub 링크바에서.
-          // 폴더 진입 기본은 '전체보기' — 이미 폴더 안 그룹에 있으면 그 그룹 유지.
+          // ★ 폴더 진입 기본은 '첫 그룹' (PC Tabs 와 동일). 이미 폴더 안 그룹이나 전체보기에
+          //   있으면 그대로 유지. 기본을 전체보기로 두면 종목 많은 폴더에서 폴더를 누를 때마다
+          //   전 종목을 불러온다 — 전체보기는 칩바 맨 끝에서 명시적으로 눌러야 켜진다.
           const allKey = folderAllKey(folder.name);
-          const current = members.includes(activeTab) ? activeTab : allKey;
+          const current = (members.includes(activeTab) || activeTab === allKey)
+            ? activeTab : members[0];
           const folderActive = members.includes(activeTab) || activeTab === allKey;
           return (
             <button key={`folder_${folder.name}`}
@@ -1174,21 +1180,6 @@ export function MobileSimpleView() {
           <div ref={folderBarRef} data-noswipe style={{ top: (headerCollapsed ? 0 : 44) + navH }}
                className="sticky z-30 bg-white/95 backdrop-blur border-b border-gray-200
                           px-2 py-1.5 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
-            {/* 전체보기 — 폴더 안 모든 그룹의 종목을 한 번에. 실제 그룹이 아니라 이름변경·삭제 없음 */}
-            {(() => {
-              const allKey = folderAllKey(activeFolder.name);
-              const on = activeTab === allKey;
-              const cnt = countByKey.get(allKey) ?? 0;
-              return (
-                <button onClick={() => setActiveTab(allKey)}
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] transition inline-flex items-center gap-1
-                                    ${on ? "bg-blue-600 text-white font-bold"
-                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                  <span>{FOLDER_ALL_LABEL}</span>
-                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
-                </button>
-              );
-            })()}
             {members.map(g => {
               const on = g === activeTab;
               const cnt = countByKey.get(g) ?? 0;
@@ -1215,6 +1206,23 @@ export function MobileSimpleView() {
                 </button>
               );
             })}
+            {/* 전체보기 — 폴더 안 모든 그룹의 종목을 한 번에. 실제 그룹이 아니라 이름변경·삭제 없음.
+                맨 끝에 두는 이유(PC Tabs 와 동일): 종목이 많은 폴더에서 이게 앞에 있으면
+                무심코 눌러 매번 전부 불러오게 된다. */}
+            {(() => {
+              const allKey = folderAllKey(activeFolder.name);
+              const on = activeTab === allKey;
+              const cnt = countByKey.get(allKey) ?? 0;
+              return (
+                <button onClick={() => setActiveTab(allKey)}
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] transition inline-flex items-center gap-1
+                                    ${on ? "bg-blue-600 text-white font-bold"
+                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  <span>{FOLDER_ALL_LABEL}</span>
+                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
+                </button>
+              );
+            })()}
           </div>
         );
       })()}
@@ -1495,10 +1503,9 @@ export function MobileSimpleView() {
           </div>;
         }
         // 지수 — PC(UsMarketTab)와 동일한 공용 그룹 정의를 그룹 헤더 + 2열 카드로 렌더 (단일 통합 뷰)
-        // 한·미 섹터 판은 **모바일에서 제외**한다 — 좌우 두 판 × 3열 구조라 폭이 안 나온다.
-        //   블록만 빼면 라벨뿐인 빈 카드가 남으므로 섹션째 걸러낸다(PC 는 그대로).
-        const sections = buildDashboardSections(isKrNightSession(), krSessionPhase() === "CLOSED")
-          .filter(sec => sec.render !== "sectorFlow");
+        //   한·미 섹터 판도 그대로 넣는다 — TicsSectorBoard 는 lg 미만에서 좌우 2판이
+        //   **위아래 1판씩으로 알아서 접힌다**(grid-cols-1 lg:grid-cols-2). 폭 걱정은 없다.
+        const sections = buildDashboardSections(isKrNightSession(), krSessionPhase() === "CLOSED");
         const idxStickyTop = (headerCollapsed ? 0 : 44) + navH;   // 헤더(44) + 메인 탭바 아래
         const idxScrollMargin = idxStickyTop + 38;                // + 색인바 높이 만큼 더 내려 착지
         return (
@@ -1516,6 +1523,10 @@ export function MobileSimpleView() {
                 </span>
                 {section.render === "etfTop" && (
                   <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
+                )}
+                {section.render === "sectorFlow" && (
+                  <TicsSectorBoard onOpenValuation={setValuationTicker}
+                                   krClosed={krSessionPhase() === "CLOSED"} />
                 )}
                 <div className="grid grid-cols-2 gap-x-2 gap-y-4">
                   {(section.render ? []
@@ -2552,18 +2563,14 @@ function SettingsModal({
                 상단 탭 표시
               </div>
               <div className="flex flex-wrap gap-x-4 gap-y-1.5">
-                {([
-                  { key: "usMarket" as const, label: "📈 지수", icon: null as ReactNode | null, cls: "" },
-                  { key: "sectorRank" as const, label: "🧩 섹터", icon: null, cls: "" },
-                  { key: "semiCheck" as const, label: "반도체",
-                    icon: <Cpu size={12} strokeWidth={2.2} className="text-slate-600" />, cls: "" },
-                  { key: "consensus" as const, label: "🎯 컨센서스", icon: null, cls: "" },
-                  { key: "etfReverse" as const, label: "🍱 ETF검색", icon: null, cls: "" },
-                  { key: "valuation" as const, label: "🧮 가치표", icon: null, cls: "" },
-                  // 내주식 / 내거래 — 묶음에서 빠진 개별 탭이라 구분선 뒤(오른쪽)에 한 묶음
-                  { key: "myStocks" as const, label: "📦 내주식", icon: null, cls: "pl-3 ml-1 border-l border-gray-200" },
-                  { key: "myTrades" as const, label: "🧾 내거래", icon: null, cls: "" },
-                ]).map(({ key, label, icon, cls }) => (
+                {/* 목록은 lib/tabVisibility 의 TAB_VIS_ITEMS 하나 — PC 설정과 같은 배열이다 */}
+                {TAB_VIS_ITEMS.map(({ key, label, sep }) => ({
+                  key, label,
+                  icon: key === "semiCheck"
+                    ? <Cpu size={12} strokeWidth={2.2} className="text-slate-600" />
+                    : null as ReactNode | null,
+                  cls: sep ? "pl-3 ml-1 border-l border-gray-200" : "",
+                })).map(({ key, label, icon, cls }) => (
                   <label key={key} className={`flex items-center gap-1.5 cursor-pointer select-none ${cls}`}>
                     <input type="checkbox" defaultChecked={getTabVisibility()[key]}
                            onChange={e => {
