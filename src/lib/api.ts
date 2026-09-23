@@ -402,8 +402,37 @@ export async function fetchTossKrCandles(
 // 사용자 보유 US 종목 가격 — 토스 우선(원화·24h, 내부코드 필요) + Yahoo 폴백.
 //  보유 priceMap 에 병합할 수 있게 Price[] 로 반환 (KR 종목과 동일 형식).
 //  토스코드는 검색/인기 랭킹에서 받아 localStorage 에 기억(rememberTossCode)해 둔 것 사용.
+// 토스 내부코드를 아직 모르는 미국 티커 — **검색으로 한 번 찾아 기억한다.**
+//   검색/랭킹을 거쳐 들어온 종목은 rememberTossCode 로 코드가 남지만, 예전에 추가했거나
+//   파일로 불러온 보유 종목은 코드가 없다. 그러면 야후 폴백으로 빠져 **값이 달러로 오고
+//   토스 링크도 안 열린다**(BWET 실측 — 토스에 AMX0240222002 로 멀쩡히 있는 종목이었다).
+//   한 번 찾으면 localStorage 에 남아 다음부터는 콜이 없다. 못 찾은 것도 기억해 매번
+//   검색이 나가지 않게 한다(상장폐지·비취급 종목).
+const UNRESOLVED_KEY = "toss_code_unresolved";
+function loadUnresolved(): Record<string, number> {
+  try { return JSON.parse(localStorage.getItem(UNRESOLVED_KEY) || "{}") as Record<string, number>; }
+  catch { return {}; }
+}
+const UNRESOLVED_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+
+async function resolveTossCodes(tickers: string[]): Promise<void> {
+  const miss = loadUnresolved();
+  const now = Date.now();
+  for (const t of tickers) {
+    if (getTossCode(t)) continue;
+    if (miss[t] && now - miss[t] < UNRESOLVED_TTL_MS) continue;
+    // searchTossAutoComplete 가 결과를 훑으며 rememberTossCode 를 호출한다 — 부수효과가 목적.
+    try { await searchTossAutoComplete(t, 10); } catch { /* 실패는 다음에 다시 */ }
+    if (!getTossCode(t)) {
+      miss[t] = now;
+      try { localStorage.setItem(UNRESOLVED_KEY, JSON.stringify(miss)); } catch { /* noop */ }
+    }
+  }
+}
+
 export async function fetchUsHoldingPrices(tickers: string[]): Promise<Price[]> {
   if (tickers.length === 0) return [];
+  await resolveTossCodes(tickers);
   const coded: { ticker: string; code: string }[] = [];
   const uncoded: string[] = [];
   for (const t of tickers) {
