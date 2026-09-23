@@ -17,6 +17,7 @@ import {
   type EtfRanking, type EtfRankRow,
 } from "../lib/etfRanking";
 import { EtfSectorFlow } from "./EtfSectorFlow";
+import { UsRankingPanel } from "./UsRankingPanel";
 import { useEtfReturns, PERIOD_LABEL, type ReturnPeriod } from "../lib/etfReturns";
 
 interface Props {
@@ -82,6 +83,8 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
   });
   const [side, setSide] = useState<Side>("top");
   const [period, setPeriod] = useState<Period>("today");
+  // 시장 전환 — 한국은 크롤러가 심어 둔 기간 수익률, 미국은 TradingView 스캐너 1콜.
+  const [market, setMarket] = useState<"kr" | "us">("kr");
   // 기간 파일은 기간 탭을 누를 때만 받는다 — '오늘' 만 볼 사용자는 아예 안 받는다.
   const returnData = useEtfReturns(period !== "today");
   const [expanded, setExpanded] = useState(false);
@@ -142,15 +145,39 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
     (!hideLeverage || !isLeverageEtf(r.name)) && (!hideFutures || !isFuturesEtf(r.name)));
   const shown = expanded ? rows.slice(0, RANK_KEEP) : rows.slice(0, RANK_SHOW);
 
+  const marketToggle = (
+    <div className="flex rounded-md border border-gray-300 overflow-hidden w-max">
+      {([["kr", "🇰🇷 한국"], ["us", "🇺🇸 미국"]] as const).map(([m, label]) => (
+        <button key={m} onClick={() => setMarket(m)}
+                className={`px-3 py-1.5 text-sm font-bold transition-colors
+                            ${market === m ? "bg-gray-800 text-white"
+                                           : "bg-white text-gray-600 hover:bg-gray-100"}`}>
+          {label}
+        </button>
+      ))}
+    </div>
+  );
+
+  // 미국은 데이터 출처·필터가 완전히 달라 별도 패널로 통째 교체한다.
+  if (market === "us") {
+    return (
+      <div className="space-y-3">
+        {marketToggle}
+        <UsRankingPanel />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-3">
+      {marketToggle}
       {/* 헤더 — 상승/하락 토글 + 새로고침 + 기준 정보 */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-2.5">
         <div className="flex rounded-md border border-gray-300 overflow-hidden">
           {(["top", "bottom"] as const).map(s => (
             <button key={s}
                     onClick={() => { setSide(s); setExpanded(false); }}
-                    className={`px-3 py-1.5 text-sm font-medium transition-colors
+                    className={`px-2.5 py-1.5 text-sm font-medium transition-colors
                                 ${side === s
                                   ? (s === "top" ? "bg-rose-600 text-white" : "bg-blue-600 text-white")
                                   : "bg-white text-gray-600 hover:bg-gray-100"}`}>
@@ -186,7 +213,7 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
 
         {/* 기간 — 오늘만 실시간, 나머지는 크롤 시점 기준 */}
         <div className="flex rounded-md border border-gray-300 overflow-hidden">
-          {(["today", "w1", "m1", "m3"] as const).map(p => (
+          {(["today", "w1", "m1", "m3", "m6", "y1"] as const).map(p => (
             <button key={p}
                     onClick={() => { setPeriod(p); setExpanded(false); }}
                     title={p === "today"
@@ -229,12 +256,8 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
         </div>
       )}
 
-      {/* ── 좌: 섹터별 흐름 / 우: 그 섹터의 종목.
-          위아래로 쌓으면 섹터를 누른 뒤 아래로 스크롤해야 종목이 보여서, 어느 섹터를 눌렀는지
-          보면서 고를 수가 없다. 나란히 놓으면 섹터를 옮겨 가며 종목이 바뀌는 걸 그대로 본다.
-          좁은 화면(xl 미만)에서는 예전처럼 위아래로 떨어진다. */}
-      <div className="grid grid-cols-1 xl:grid-cols-[3fr_2fr] gap-3 items-start">
-      <div className="min-w-0 space-y-2">
+      {/* 섹터별 흐름(그룹)은 **위**, 종목 목록은 **아래**.
+          좌우로 갈랐더니 양쪽 다 좁아져 섹터 카드 이름도 종목 이름도 잘렸다 → 되돌린다. */}
       {/* 섹터별 흐름 — 같은 조회 결과를 이름으로 묶은 것(추가 호출 없음) */}
       {sectors.length > 0 && (
         <div className="rounded-xl border border-gray-300 bg-white p-2.5">
@@ -261,9 +284,7 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
           )}
         </div>
       )}
-      </div>
 
-      <div className="min-w-0 space-y-2">
       {picked && (
         <div className="px-1 text-[11px] text-gray-500">
           <b className="text-gray-700">{picked.label}</b> {picked.count}종 · 거래대금 상위 {picked.rows.length}종을
@@ -285,7 +306,7 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
         //   grid-flow-col 은 행 수를 고정해야 해서 반응형(칸 수 가변)과 안 맞음 →
         //   CSS 다단(columns)은 칸 수만 주면 개수에 맞춰 알아서 세로로 분배(column-major).
         //   gap-2 는 다단에서 column-gap 만 먹으므로 세로 간격은 각 카드의 mb-2 로 준다.
-        <div className="columns-1 sm:columns-2 lg:columns-3 gap-2">
+        <div className="columns-1 sm:columns-2 lg:columns-4 xl:columns-6 gap-2">
           {shown.map((r, i) => (
             <button key={r.code}
                     onClick={() => onOpenEtfComposition?.(r.code, r.name)}
@@ -336,8 +357,6 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
           {expanded ? "접기" : `더보기 (${Math.min(rows.length, RANK_KEEP)}위까지)`}
         </button>
       )}
-      </div>
-      </div>
 
       <p className="text-[11px] text-gray-500 leading-relaxed">
         전체 ETF {ranking?.total.toLocaleString() ?? "—"}종의 시세를 한 번에 받아 등락률로 정렬합니다.

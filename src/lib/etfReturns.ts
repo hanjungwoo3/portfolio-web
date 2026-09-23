@@ -1,11 +1,11 @@
-// ETF 기간 수익률 (1주·1개월·3개월) — 크롤러가 하루 1회 계산해 둔 값을 읽는다.
+// ETF 기간 수익률 (1주·1개월·3개월·6개월·1년) — 크롤러가 하루 1회 계산해 둔 값을 읽는다.
 //
 // 왜 여기서 계산하지 않나 — 기간 수익률은 과거 일봉이 필요해서 ETF 당 1콜이다(1,100콜 이상).
 //   '오늘' 등락률은 배치로 6콜이면 되지만 기간은 그럴 방법이 없다. 그래서 크롤러가 미리
 //   계산해 심어 두고(portfolio-etf-index/data/etf-returns.json) 프론트는 0콜로 읽는다.
 //
 // ★ 값은 마지막 크롤(매일 06:00 KST) 시점 기준이다. 오늘 장중 움직임은 안 들어 있다 —
-//   1주·1개월·3개월 수익률에서 하루 차이는 거의 무의미하지만, 화면에 그렇게 밝힌다.
+//   기간 수익률에서 하루 차이는 거의 무의미하지만, 화면에 그렇게 밝힌다.
 
 import { useEffect, useState } from "react";
 
@@ -13,16 +13,17 @@ const URL_RETURNS =
   "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/main/data/etf-returns.json";
 
 // 크롤러의 RETURN_PERIODS 와 키가 같아야 한다.
-export type ReturnPeriod = "w1" | "m1" | "m3";
-export interface EtfReturn { w1?: number; m1?: number; m3?: number }
+export type ReturnPeriod = "w1" | "m1" | "m3" | "m6" | "y1";
+export interface EtfReturn { w1?: number; m1?: number; m3?: number; m6?: number; y1?: number }
 export type EtfReturnMap = Record<string, EtfReturn>;
 
 export const PERIOD_LABEL: Record<ReturnPeriod, string> = {
-  w1: "1주", m1: "1개월", m3: "3개월",
+  w1: "1주", m1: "1개월", m3: "3개월", m6: "6개월", y1: "1년",
 };
 
-const LS_KEY = "etf_returns_v1";
-const LS_TS = "etf_returns_ts_v1";
+// ★ 키 버전을 올린다. 6개월·1년이 없던 옛 캐시가 12시간 남아 있으면 새 버튼이 전부 '—' 다.
+const LS_KEY = "etf_returns_v2";
+const LS_TS = "etf_returns_ts_v2";
 const TTL_MS = 12 * 60 * 60 * 1000;
 
 export interface EtfReturnData { returns: EtfReturnMap; version: string }
