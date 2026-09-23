@@ -40,7 +40,7 @@ import { getTradesForTicker } from "../lib/db";
 import { aggregateTradeMarkers } from "../lib/tradeMarkers";
 import { loadBurstLevel, saveBurstLevel, burstThresholdWon, BURST_LEVELS, type BurstLevel } from "../lib/valueBurst";
 import { useTossMaintenance, getTossMaintenance } from "../lib/tossMaintenance";
-import { EtfIndicatorBlock, EtfFeeTip } from "./EtfCompositionDialog";
+import { EtfIndicatorBlock, EtfFeeTip, EtfCompositionDialog } from "./EtfCompositionDialog";
 
 interface Props {
   isOpen: boolean;
@@ -499,6 +499,7 @@ export function ValuationModal({
   const fund = data?.fundamental ?? {};
   // 그리기 차트는 별도 팝업이다 — 기존 차트에 그리기 상태를 섞지 않는다.
   const [drawOpen, setDrawOpen] = useState(false);
+  const [compOpen, setCompOpen] = useState(false);   // ETF 구성 팝업
   const reports = data?.reports ?? [];
   const shareholders = data?.shareholders ?? [];
   // 컨센서스 목표가 (공식 우선, 없으면 리포트 단순평균)
@@ -528,6 +529,16 @@ export function ValuationModal({
             <span className="hidden sm:inline-flex items-baseline gap-3">
               <span className="text-base font-bold">{name}</span>
               <span className="text-sm text-gray-500">({ticker})</span>
+              {/* ETF 구성 보기 — 종목코드 옆. 이 팝업의 ETF 지표와 짝이라 같은 줄에 둔다.
+                  (구성 팝업에서 여기로 오는 📊 링크와 반대 방향 — 둘 사이를 오갈 수 있다) */}
+              {isEtf && (
+                <button onClick={() => setCompOpen(true)}
+                        title={`${name} 구성종목 보기 — 비중·시세·수수료`}
+                        className="px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50
+                                   text-[11px] font-bold text-amber-700 hover:bg-amber-100">
+                  🧺 ETF 구성
+                </button>
+              )}
               {onRequestSearch && (
                 <button onClick={() => { onClose(); onRequestSearch(name); }}
                         title={`${name} 검색 — 관심종목에 추가`}
@@ -563,6 +574,16 @@ export function ValuationModal({
           <div className="sm:hidden flex items-baseline gap-2 mt-1 flex-wrap">
             <span className="text-base font-bold">{name}</span>
             <span className="text-sm text-gray-500">({ticker})</span>
+            {/* ETF 구성 보기 — 종목코드 옆. 이 팝업의 ETF 지표와 짝이라 같은 줄에 둔다.
+                (구성 팝업에서 여기로 오는 📊 링크와 반대 방향 — 둘 사이를 오갈 수 있다) */}
+            {isEtf && (
+              <button onClick={() => setCompOpen(true)}
+                      title={`${name} 구성종목 보기 — 비중·시세·수수료`}
+                      className="px-1.5 py-0.5 rounded border border-amber-300 bg-amber-50
+                               text-[11px] font-bold text-amber-700 hover:bg-amber-100">
+                🧺 ETF 구성
+              </button>
+            )}
             {onRequestSearch && (
               <button onClick={() => { onClose(); onRequestSearch(name); }}
                       title={`${name} 검색 — 관심종목에 추가`}
@@ -741,6 +762,9 @@ export function ValuationModal({
       </div>
       <DrawingChartDialog ticker={ticker} name={name}
                           isOpen={drawOpen} onClose={() => setDrawOpen(false)} />
+      {/* ETF 구성 — 이 팝업 위에 겹쳐 띄운다. ESC 는 위에 있는 이것부터 닫힌다(useEscClose 스택) */}
+      <EtfCompositionDialog isOpen={compOpen} ticker={ticker} etfName={name}
+                            onClose={() => setCompOpen(false)} />
     </div>
   );
 }
