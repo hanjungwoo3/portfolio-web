@@ -1,9 +1,9 @@
-// 지수 탭 '한국 시장' 아래 — ETF 상승·하락 각 TOP 9 (레버리지·선물 제외).
+// 지수 탭 '한국 시장' 아래 — ETF 상승·하락 각 TOP 6 (레버리지·선물 제외).
 // 배치: **왼쪽 상승(+) / 오른쪽 하락(−)**. 위아래로 쌓으면 아래쪽(하락)이 접혀 안 보인다 —
 //   오른 것과 빠진 것은 같은 눈높이에서 나란히 봐야 "오늘 돈이 어디서 어디로 갔나" 가 읽힌다.
 //   좁은 화면(lg 미만)에서만 위아래로 떨어진다.
 //
-// ETF 랭킹 탭의 같은 필터를 그대로 쓰되, 지수 탭에서는 **맨 위 9개만** 본다.
+// ETF 랭킹 탭의 같은 필터를 그대로 쓰되, 지수 탭에서는 **맨 위 6개만** 본다.
 //   레버리지·선물을 빼는 이유: 그것들은 기초자산의 2배·파생이라 등락률 상위를 늘 독점한다.
 //   빼고 나야 "오늘 실제로 어디가 올랐나" 가 보인다.
 //
@@ -128,7 +128,7 @@ function useUsBasketPct(codes: string[], enabled: boolean): Map<string, { pct: n
   return out;
 }
 
-const TOP_N = 9;    // 반쪽마다 한 줄 3개 × 3줄 — 딱 떨어져야 마지막 줄이 비지 않는다
+const TOP_N = 6;    // 반쪽마다 한 줄 3개 × **2줄** — 딱 떨어져야 마지막 줄이 비지 않는다
 const AUTO_MIN_GAP_MS = 5 * 60 * 1000;
 let lastAutoAt = 0;
 let inflight: Promise<EtfRanking> | null = null;
@@ -156,29 +156,32 @@ function Grid({ rows, label, onOpenEtf, basket }: {
           ★ 세로 정렬 — 1,2,3 이 **한 열을 내려가며** 차고 4,5,6 이 다음 열로 넘어간다.
           (grid-flow-col + grid-rows-N. auto-cols-fr 가 없으면 열 폭이 내용대로 들쭉날쭉해진다)
           반쪽 폭에 3열 — 대신 폰트를 한 단계씩 줄여 이름이 두 줄 안에 들어오게 했다. */}
-      <div className="grid grid-flow-col grid-rows-5 sm:grid-rows-3 auto-cols-fr gap-1.5 items-stretch">
-        {rows.map((r, i) => (
+      {/* auto-rows-fr — 줄마다 높이가 제각각이면 카드가 들쭉날쭉해진다(이름이 1줄인 카드,
+          '구성 프리장' 줄이 있는 카드가 섞인다). 모든 줄을 같은 높이로 못박는다. */}
+      <div className="grid grid-flow-col grid-rows-3 sm:grid-rows-2 auto-cols-fr auto-rows-fr
+                      gap-1.5 items-stretch">
+        {rows.map(r => (
           <button key={r.code}
                   onClick={() => onOpenEtf?.(r.code, r.name)}
-                  className="relative overflow-hidden flex items-center gap-1 px-1.5 py-1.5 text-left rounded-lg
+                  className="relative overflow-hidden flex items-center gap-1.5 px-2 py-1.5 text-left rounded-lg
                              border border-gray-200 bg-white hover:bg-gray-50 w-full h-full">
             <RankSparkline code={r.code} />
-            <span className="relative z-10 w-4 shrink-0 text-[9px] tabular-nums text-gray-400 text-right">
-              {i + 1}
-            </span>
+            {/* 순위 번호는 안 찍는다 — 위에서 아래로, 왼쪽에서 오른쪽으로 읽으면 그게 순위다.
+                좁은 카드에서 그 한 칸이 종목명 폭을 먹어 이름이 세 줄로 쪼개졌다. */}
             <span className="relative z-10 flex-1 min-w-0">
-              <span className="line-clamp-2 min-h-[2.4em] text-[11px] font-medium text-gray-800 leading-tight">
+              <span className="line-clamp-2 min-h-[2.4em] text-[13px] font-medium text-gray-800 leading-tight">
                 {r.name}
               </span>
-              <span className="block text-[9px] text-gray-500 tabular-nums">
+              <span className="block text-[11px] text-gray-500 tabular-nums">
                 거래량 {formatVolume(r.volume)}
               </span>
-              {/* 해외 구성 ETF — 이 줄의 등락률은 직전 미국 정규장이고, 아래는 지금 미국 시장이다. */}
+              {/* 해외 구성 ETF — 이 줄의 등락률은 직전 미국 정규장이고, 아래는 지금 미국 시장이다.
+                  ★ 값이 없어도 자리는 남긴다 — 있고 없고로 카드 높이가 달라지면 줄이 어긋난다. */}
               {(() => {
                 const b = basket?.get(r.code);
-                if (!b) return null;
+                if (!b) return <span className="block h-[14px]" />;
                 return (
-                  <span className="block text-[9px] tabular-nums whitespace-nowrap"
+                  <span className="block h-[14px] text-[11px] tabular-nums whitespace-nowrap leading-[14px]"
                         title={`구성종목 비중 ${b.cover.toFixed(0)}% 가중 · 지금 미국 ${usSessionLabel()}`}>
                     <span className="text-gray-400">구성 {usSessionLabel()} </span>
                     <span className={`font-bold ${signColor(b.pct)}`}>
@@ -189,10 +192,10 @@ function Grid({ rows, label, onOpenEtf, basket }: {
               })()}
             </span>
             <span className="relative z-10 shrink-0 text-right">
-              <span className={`block text-xs font-bold tabular-nums ${signColor(r.pct)}`}>
+              <span className={`block text-base font-bold tabular-nums ${signColor(r.pct)}`}>
                 {r.pct > 0 ? "+" : ""}{r.pct.toFixed(2)}%
               </span>
-              <span className="block text-[9px] text-gray-600 tabular-nums">
+              <span className="block text-[11px] text-gray-600 tabular-nums">
                 {r.price.toLocaleString()}
               </span>
             </span>

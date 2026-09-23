@@ -18,10 +18,10 @@ import {
 } from "../lib/api";
 import { TicsCard, DURATIONS, SORTS } from "./TicsFlow";
 
-// 접힌 상태에서 보여줄 장 수 — **상위 9장만**(3열 기준 3줄). 하위는 접힘에서 뺀다.
+// 접힌 상태에서 보여줄 장 수 — **상위 6장만**(3열 기준 2줄). 하위는 접힘에서 뺀다.
 //   이 화면은 "어디가 가고 있나" 를 보는 곳이라 급락 쪽은 전체 보기에서 확인하면 된다.
 //   FOLD_BOTTOM 을 0 으로 둘 수 있게 slice(-0) 을 쓰지 않는다 — slice(-0) 은 전체를 준다(함정).
-const FOLD_TOP = 9, FOLD_BOTTOM = 0;
+const FOLD_TOP = 6, FOLD_BOTTOM = 0;
 import { TicsStockDialog } from "./TicsStockDialog";
 
 // 그 시장의 **데이터 기준일**. 토스 랭킹 응답에는 거래일이 없다(basedAt = 조회 시각) —
@@ -147,14 +147,8 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
             </div>
             </Fragment>
           ))}
-          {/* 하위 덩어리를 안 보여줄 때는 경계 줄이 목록 끝에 온다 */}
-          {folded && hiddenCount > 0 && FOLD_BOTTOM === 0 && (
-            <button onClick={onExpand}
-                    className="col-span-full my-0.5 py-1 rounded border border-dashed border-gray-300
-                               bg-gray-50 text-[10px] text-gray-500 hover:bg-gray-100">
-              ⋯ {hiddenFrom}~{hiddenTo}위 {hiddenCount}개 숨김 — 누르면 전체 보기
-            </button>
-          )}
+          {/* 숨김 안내는 두지 않는다. 바로 아래 공용 '전체 보기 (지금은 각 상위 N)' 가
+              같은 사실을 이미 말하고 있어서, 패널마다 또 적으면 같은 말이 세 번이다. */}
         </div>
       </div>
     </div>
