@@ -6,7 +6,7 @@ import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, 
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
-import { openTossStock } from "../lib/toss";
+import { openTossStock, tossStockUrl } from "../lib/toss";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { Sparkline } from "./Sparkline";
 import { AuxIndicators } from "./AuxIndicators";
@@ -415,6 +415,21 @@ function highlightStyles(value: number): { bg: string; color: string } {
   return { bg: "", color: "text-gray-500" };
 }
 
+// 토스 내부코드를 못 받은 미국 종목은 야후 폴백이라 값이 **달러**로 온다(currency="USD").
+//   그런데 카드가 '원' 을 하드코딩하고 있어 $720 이 '720원' 으로 찍혔다(BWET 실측).
+//   금액을 찍는 자리는 전부 이 함수를 거친다.
+function money(v: number, currency?: string): string {
+  return currency === "USD"
+    ? `$${v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : `${v.toLocaleString()}원`;
+}
+function moneySigned(v: number, currency?: string): string {
+  const sign = v > 0 ? "+" : v < 0 ? "-" : "";
+  return currency === "USD"
+    ? `${sign}$${Math.abs(v).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : formatSigned(v) + "원";
+}
+
 const WARN_BG: Record<string, string> = {
   투자위험:     "bg-red-700",
   관리종목:     "bg-red-700",
@@ -673,14 +688,17 @@ export function StockCard({
               {price.prevClose > 0 && (
                 <>
                   <div className="text-gray-600">직전 거래일 종가: <b className="text-gray-900">{price.prevClose.toLocaleString()}원</b></div>
-                  <div className="text-gray-600">현재가: <b className="text-gray-900">{price.price.toLocaleString()}원</b></div>
+                  <div className="text-gray-600">현재가: <b className="text-gray-900">{money(price.price, price.currency)}</b></div>
                   <div className="text-gray-600">변동: <b className={colorDiff > 0 ? "text-rose-600" : colorDiff < 0 ? "text-blue-600" : "text-gray-900"}>
                     {formatSigned(colorDiff)}원 ({colorPct >= 0 ? "+" : ""}{colorPct.toFixed(2)}%)
                   </b></div>
                   <div className="mt-1 text-gray-600">→ 금액색 <ColorName name={priceColorName} /></div>
                 </>
               )}
-              <div className="mt-2 text-emerald-700 text-[10px]">🔗 클릭 = 토스에서 보기</div>
+              {/* 토스에 없는 종목(내부코드 미확보 미국 티커)은 야후로 간다 — 문구도 실제 행선지로 */}
+              <div className="mt-2 text-emerald-700 text-[10px]">
+                🔗 클릭 = {tossStockUrl(stock.ticker) ? "토스에서 보기" : "야후 파이낸스에서 보기"}
+              </div>
             </>
           }>
             <button
@@ -1108,9 +1126,10 @@ export function StockCard({
                   <span className={`text-xl font-bold leading-tight ${priceColorCls} ${
                     memoEntryReached ? "bg-violet-100 rounded px-1" : ""
                   }`}>
-                    {price.price.toLocaleString()}원
+                    {money(price.price, price.currency)}
                   </span>
-                  {/* 달러 보조표기 — 미국 보유(토스 원화 환산분의 달러값). 지수창과 동일 패턴. */}
+                  {/* 달러 보조표기 — 미국 보유(토스 원화 환산분의 달러값). 지수창과 동일 패턴.
+                      currency="USD" 면 위 숫자가 이미 달러라 겹쳐 찍지 않는다. */}
                   {price.currency === "KRW" && price.priceUsd != null && (
                     <span className="text-xs font-normal text-gray-500">
                       ${price.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
@@ -1136,7 +1155,7 @@ export function StockCard({
                   <span className="text-lg leading-tight bg-yellow-100 rounded px-1">
                     {dispPct >= 0 ? "+" : ""}{dispPct.toFixed(2)}%
                   </span>
-                  <span className="text-xs font-normal">({formatSigned(dispDiff)}원)</span>
+                  <span className="text-xs font-normal">({moneySigned(dispDiff, price.currency)})</span>
                 </div>
               </div>
             );

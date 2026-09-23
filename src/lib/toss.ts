@@ -165,7 +165,13 @@ export function tossStockUrl(ticker: string): string | null {
 }
 
 // 종목 클릭 → 토스 stocks 페이지. KR/US 자동 (US는 기억된 내부코드 사용).
+//   토스에 없는 종목(내부코드를 아직 못 받은 미국 티커 등)은 **야후로 보낸다**.
+//   예전엔 url 이 null 이면 조용히 아무 일도 안 일어났다 — 누르는 사람은 고장인 줄 안다.
 export function openTossStock(ticker: string): void {
   const url = tossStockUrl(ticker);
-  if (url) openExternal(url);
+  if (url) { openExternal(url); return; }
+  // 영문 티커(BWET 등) → 야후 파이낸스. 그것도 아니면 할 수 있는 게 없다.
+  if (/^[A-Za-z][A-Za-z.\-]{0,9}$/.test(ticker)) {
+    openExternal(`https://finance.yahoo.com/quote/${encodeURIComponent(ticker)}`);
+  }
 }
