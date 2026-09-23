@@ -358,7 +358,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                        target="_blank" rel="noopener noreferrer"
                        onClick={e => handleTossLinkClick(e, quoteUrl(p.symbol))}
                        title={`${p.name} 자세히 보기`}
-                       className={`text-base font-bold ${nameColor} hover:underline min-w-0 truncate`}>
+                       className={`text-sm font-bold ${nameColor} hover:underline min-w-0 truncate`}>
                       {p.name}
                     </a>
                     {/* 매매동향 모달 버튼 — KOSPI/KOSDAQ 만 */}
@@ -370,16 +370,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                         📊
                       </button>
                     )}
-                    {/* 구성종목 히트맵 링크 — 코덱스200·코스닥150 만 */}
-                    {CARD_HEATMAP_LINK[p.symbol] && (
-                    <button
-                      onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
-                      title={`${p.name} 구성종목 히트맵(거래량) 보기`}
-                      className="ml-auto shrink-0 inline-flex items-center px-1 rounded text-[9px] font-bold leading-none
-                                 border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition">
-                      🗺️히트맵
-                    </button>
-                    )}
+                    {/* 히트맵 버튼은 카드 오른쪽 아래 책갈피로 내렸다(아래 참조) —
+                        이름 줄에 있으면 ml-auto 로 밀려 긴 종목명을 잘라먹었다. */}
                   </div>
                   <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}
@@ -414,6 +406,19 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   </div>
                   )}
                   </div>
+                  {/* 구성종목 히트맵 — 코덱스200·코스닥150 만. '정규장 마감' 책갈피와 같은 모양으로
+                      카드 **바깥 오른쪽 아래**에 붙인다(카드 안은 overflow-hidden 이라 잘린다). */}
+                  {CARD_HEATMAP_LINK[p.symbol] && (
+                    <button
+                      onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
+                      title={`${p.name} 구성종목 히트맵(거래량) 보기`}
+                      className="absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded
+                                 text-[9px] leading-tight whitespace-nowrap font-bold
+                                 text-emerald-700 bg-emerald-50 border border-emerald-300/70
+                                 hover:bg-emerald-100 transition">
+                      🗺️ 히트맵
+                    </button>
+                  )}
                   {sleeping && !isRate && fmtAgo(q?.regularMarketTime) && (
                     <div className="absolute -bottom-1 left-1 z-20 px-1.5 py-0 rounded
                                     text-[9px] leading-tight whitespace-nowrap

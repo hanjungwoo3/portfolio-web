@@ -42,6 +42,16 @@ export function ValueupMiniCard() {
 
   return (
     <div className="relative h-full">
+      {/* 히트맵 — 다른 지수 카드와 같은 자리·같은 모양('정규장 마감' 책갈피와 짝).
+          카드 안은 overflow-hidden 이라 바깥 래퍼에 건다. */}
+      <button onClick={() => requestHeatmap("kr_valueup", { sizeMode: "volume" })}
+              title="구성종목 100 히트맵(거래량) 보기"
+              className="absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded
+                         text-[9px] leading-tight whitespace-nowrap font-bold
+                         text-emerald-700 bg-emerald-50 border border-emerald-300/70
+                         hover:bg-emerald-100 transition">
+        🗺️ 히트맵
+      </button>
       <div className={`relative overflow-hidden h-full flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}`}>
         {idx && idx.sparkline.length > 1 && (
           <Sparkline data={idx.sparkline} width={400} height={80}
@@ -51,14 +61,9 @@ export function ValueupMiniCard() {
         <div className={`relative z-10 flex items-baseline gap-1.5 ${dimCls}`}>
           <a href={INDEX_URL} target="_blank" rel="noopener noreferrer"
              title="코리아 밸류업 지수 자세히 보기"
-             className="text-base font-bold text-gray-900 hover:underline min-w-0 truncate">
+             className="text-sm font-bold text-gray-900 hover:underline min-w-0 truncate">
             코리아 밸류업
           </a>
-          <button onClick={() => requestHeatmap("kr_valueup", { sizeMode: "volume" })} title="구성종목 100 히트맵(거래량) 보기"
-                  className="ml-auto shrink-0 inline-flex items-center px-1 rounded text-[9px] font-bold leading-none
-                             border border-emerald-300 text-emerald-700 bg-emerald-50 hover:bg-emerald-100 transition">
-            🗺️히트맵
-          </button>
         </div>
         <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>KRX 코리아 밸류업 지수</div>
         <div className={`relative z-10 flex items-end mt-auto ${dimCls}`}>

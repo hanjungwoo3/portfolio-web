@@ -53,7 +53,7 @@ export function HlPerpCard({ coin, name }: Props) {
         <div className="relative z-10 flex items-baseline gap-1.5">
           <a href={url} target="_blank" rel="noopener noreferrer"
              title="하이퍼리퀴드 무기한선물 (24시간)"
-             className="text-base font-bold text-gray-900 hover:underline min-w-0 truncate">
+             className="text-sm font-bold text-gray-900 hover:underline min-w-0 truncate">
             {name}
           </a>
           <span className="ml-auto shrink-0 inline-flex items-center px-1 rounded text-[9px] font-bold leading-none
