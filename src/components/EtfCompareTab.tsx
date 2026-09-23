@@ -7,6 +7,7 @@ import { fetchEtfKeyIndicator, fetchTossPrices, fetchKrPriceHistory } from "../l
 import type { PricePoint } from "../lib/api";
 import { ETF_COMPARE_GROUPS } from "../lib/etfCompareGroups";
 import { Sparkline } from "./Sparkline";
+import { EtfFeeTip } from "./EtfCompositionDialog";
 import { fmtAgo } from "../lib/format";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 
@@ -305,15 +306,7 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
             <li><b className="text-gray-700">추적오차</b> — 기초지수 대비 이탈 정도. 패시브는 낮을수록 추종 정확</li>
           </ul>
         </div>
-        <div className="border border-amber-200 rounded-md bg-amber-50/60 p-2.5">
-          <div className="font-bold text-gray-600 mb-1">💡 총보수는 이렇게 적용돼요</div>
-          <ul className="list-disc pl-4 space-y-1">
-            <li>매일 순자산(NAV)에서 <b>연 보수 ÷ 365</b>씩 자동 차감 — 별도 청구·출금 없음</li>
-            <li>ETF 가격에 이미 반영 → <b>보유한 일수만큼만 부담</b> (예: 0.05%면 1개월 보유 ≈ 0.004%)</li>
-            <li>매수·매도가에 이미 녹아 있어 따로 떼거나 계산하지 않음</li>
-            <li>증권사 매매수수료·세금, ETF 내부 매매비용은 <b>총보수와 별개</b></li>
-          </ul>
-        </div>
+        <EtfFeeTip totalFee={0.05} />
       </div>
     </div>
   );

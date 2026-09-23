@@ -244,20 +244,7 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
                       <EtfIndicatorBlock ticker={secondEtf.ticker} name={secondEtf.name} />
                     )}
                   </div>
-                  {/* 총보수 적용 방식 설명 */}
-                  <div className="mt-3 border border-amber-200 rounded-md bg-white/60 p-2
-                                  text-[11px] text-gray-500 leading-relaxed">
-                    <div className="font-bold text-gray-600 mb-0.5">💡 총보수는 이렇게 적용돼요</div>
-                    <ul className="list-disc pl-4 space-y-0.5">
-                      <li>매일 순자산(NAV)에서 <b>연 보수 ÷ 365</b>씩 자동 차감 — 별도 청구·출금 없음</li>
-                      <li>ETF 가격에 이미 반영 → <b>보유한 일수만큼만 부담</b>
-                        {ownEtfKey?.totalFee != null && (
-                          <> (예: {ownEtfKey.totalFee}%면 1개월 보유 ≈ {(ownEtfKey.totalFee * 30 / 365).toFixed(3)}%)</>
-                        )}</li>
-                      <li>매수·매도가에 이미 녹아 있어 따로 떼거나 계산하지 않음</li>
-                      <li>증권사 매매수수료·세금, ETF 내부 매매비용은 <b>총보수와 별개</b></li>
-                    </ul>
-                  </div>
+                  <EtfFeeTip totalFee={ownEtfKey?.totalFee} className="mt-3" />
                 </div>
               </>
             )}
@@ -1032,6 +1019,26 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   );
 }
 
+// 총보수가 어떻게 빠져나가는지 — 세 화면(구성 팝업·ETF비교 탭·기업가치 팝업)이 같은 설명을 쓴다.
+//   각자 복사해 두면 문구가 갈라진다. totalFee 를 주면 1개월 환산 예시를 그 ETF 값으로 보여준다.
+export function EtfFeeTip({ totalFee, className = "" }: { totalFee?: number; className?: string }) {
+  return (
+    <div className={`border border-amber-200 rounded-md bg-white/60 p-2
+                     text-[11px] text-gray-500 leading-relaxed ${className}`}>
+      <div className="font-bold text-gray-600 mb-0.5">💡 총보수는 이렇게 적용돼요</div>
+      <ul className="list-disc pl-4 space-y-0.5">
+        <li>매일 순자산(NAV)에서 <b>연 보수 ÷ 365</b>씩 자동 차감 — 별도 청구·출금 없음</li>
+        <li>ETF 가격에 이미 반영 → <b>보유한 일수만큼만 부담</b>
+          {totalFee != null && (
+            <> (예: {totalFee}%면 1개월 보유 ≈ {(totalFee * 30 / 365).toFixed(3)}%)</>
+          )}</li>
+        <li>매수·매도가에 이미 녹아 있어 따로 떼거나 계산하지 않음</li>
+        <li>증권사 매매수수료·세금, ETF 내부 매매비용은 <b>총보수와 별개</b></li>
+      </ul>
+    </div>
+  );
+}
+
 // ─── EtfIndicatorBlock — ETF 핵심 지표(총보수·분배율·괴리율·운용사·NAV·시총·기간수익률) 한 ETF분 ──
 export function EtfIndicatorBlock({ ticker, name }: { ticker: string; name: string }) {
   const { data } = useQuery({
@@ -1049,6 +1056,26 @@ export function EtfIndicatorBlock({ ticker, name }: { ticker: string; name: stri
   {
     const dy = data?.dividendYieldTtm ?? data?.dividendYield;
     if (dy != null) rows.push(["분배율", `${dy}%`, "최근 1년 분배금 ÷ 주가 (ETF 배당수익률)"]);
+    if (data?.dividendPerShareTtm != null) {
+      rows.push(["주당 분배금", `${data.dividendPerShareTtm.toLocaleString()}원`,
+                 "최근 1년(TTM) 1주당 실제로 지급된 분배금 합계"]);
+    }
+    // 분배 주기 — 올해 지급한 '달' 목록으로 추정한다. 횟수만 보면 신규 상장 ETF 가
+    //   '연 1회' 로 잘못 읽힌다 → 상장이 올해면 주기를 단정하지 않고 실적만 적는다.
+    const months = (data?.dividendMonthThisYear ?? "").split(",").filter(Boolean);
+    const n = data?.dividendCountThisYear ?? months.length;
+    if (n > 0) {
+      const listedThisYear = data?.listedDate?.slice(0, 4) === String(new Date().getFullYear());
+      const cycle = listedThisYear ? null
+        : n >= 10 ? "월 분배" : n >= 4 ? "분기 분배" : n >= 2 ? "반기 분배" : "연 1회";
+      rows.push([
+        "분배 주기",
+        cycle ? `${cycle} (올해 ${n}회)` : `올해 ${n}회 (상장 첫해)`,
+        `올해 분배한 달: ${months.join("·")}월. 국내 ETF 는 보통 그 달 마지막 영업일이 분배 기준일이고, `
+        + `지급은 그 뒤 2영업일 안에 들어옵니다 — 기준일에 보유하고 있어야 받습니다. `
+        + `정확한 날짜는 운용사 공지를 확인하세요.`,
+      ]);
+    }
   }
   if (data?.nav) rows.push(["NAV", data.nav, "1좌당 순자산가치 (ETF의 이론 적정가)"]);
   if (data?.deviationRate != null) rows.push(["괴리율", `${data.deviationSign ?? ""}${data.deviationRate}%`, "시장가 − NAV 차이 (+면 비싸게, −면 싸게 거래)"]);
@@ -1068,6 +1095,25 @@ export function EtfIndicatorBlock({ ticker, name }: { ticker: string; name: stri
         )}
         <span className="truncate">{name} <span className="text-gray-400 font-normal text-xs">({ticker})</span></span>
       </div>
+      {/* 추종 지수 + 상품 설명 — etfAnalysis 가 etfBaseIndex·etfSummary 를 **필드로** 준다.
+          (문장에서 정규식으로 캐낼 필요가 없다) 전문은 접어 둔다 — 카드 위가 좁다. */}
+      {(data?.baseIndex || data?.summary || data?.description) && (
+        <div className="mb-1.5 border border-amber-200 rounded-md bg-white/60 px-2 py-1.5">
+          <div className="text-[11px] leading-snug text-gray-700">
+            {data?.baseIndex
+              ? <>📌 추종 지수 <b className="text-gray-900">{data.baseIndex}</b></>
+              : <>📌 상품 설명</>}
+          </div>
+          <p className="mt-1 text-[11px] leading-relaxed text-gray-600 whitespace-pre-line">
+            {data?.summary || data?.description}
+          </p>
+          {data?.listedDate?.length === 8 && (
+            <p className="mt-1 text-[10px] text-gray-400 tabular-nums">
+              상장일 {data.listedDate.slice(0, 4)}.{data.listedDate.slice(4, 6)}.{data.listedDate.slice(6, 8)}
+            </p>
+          )}
+        </div>
+      )}
       {!data ? (
         <div className="text-xs text-gray-400 py-3">불러오는 중…</div>
       ) : rows.length === 0 ? (

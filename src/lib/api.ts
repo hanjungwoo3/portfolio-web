@@ -492,6 +492,14 @@ export interface EtfKeyIndicator {
   returnRate1m?: number;
   returnRate3m?: number;
   returnRate1y?: number;
+  description?: string;     // 투자설명(integration) — 최상위 필드라 추가 호출 없음
+  // ── 아래는 etfAnalysis 에서. 이미 추적오차 때문에 부르고 있어 **추가 호출이 없다**.
+  baseIndex?: string;       // 추종(비교) 지수 — 정규식으로 문장에서 캐낼 필요 없이 필드로 온다
+  summary?: string;         // 상품 설명 — integration.description 보다 자세하다(커버드콜 구조 등)
+  listedDate?: string;      // 상장일 "20260728"
+  dividendPerShareTtm?: number;   // 주당 분배금(최근 1년 합)
+  dividendCountThisYear?: number; // 올해 분배 횟수
+  dividendMonthThisYear?: string; // 올해 분배한 달 "1,2,3,…" — 주기 추정용
 }
 export async function fetchEtfKeyIndicator(ticker: string): Promise<EtfKeyIndicator | null> {
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return null;
@@ -502,14 +510,28 @@ export async function fetchEtfKeyIndicator(ticker: string): Promise<EtfKeyIndica
       fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/etfAnalysis`).catch(() => null),
     ]);
     if (!rInt.ok) return null;
-    const d = await rInt.json() as { etfKeyIndicator?: EtfKeyIndicator };
+    const d = await rInt.json() as { etfKeyIndicator?: EtfKeyIndicator; description?: string };
     const ki = d.etfKeyIndicator ?? null;
     if (!ki) return null;
+    if (d.description) ki.description = d.description;
     if (rAna?.ok) {
       try {
-        const a = await rAna.json() as { chaseErrorRate?: number };
+        const a = await rAna.json() as {
+          chaseErrorRate?: number; etfBaseIndex?: string; etfSummary?: string; listedDate?: string;
+          dividend?: {
+            dividendPerShareTtm?: number;
+            dividendCountThisYear?: number;
+            dividendMonthThisYear?: string;
+          };
+        };
         if (a.chaseErrorRate != null) ki.chaseErrorRate = a.chaseErrorRate;
-      } catch { /* etfAnalysis 파싱 실패 — 추적오차만 생략 */ }
+        if (a.etfBaseIndex) ki.baseIndex = a.etfBaseIndex;
+        if (a.etfSummary) ki.summary = a.etfSummary;
+        if (a.listedDate) ki.listedDate = a.listedDate;
+        ki.dividendPerShareTtm = a.dividend?.dividendPerShareTtm;
+        ki.dividendCountThisYear = a.dividend?.dividendCountThisYear;
+        ki.dividendMonthThisYear = a.dividend?.dividendMonthThisYear;
+      } catch { /* etfAnalysis 파싱 실패 — 이 블록 전부 생략 */ }
     }
     return ki;
   } catch {

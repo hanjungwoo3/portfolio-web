@@ -29,7 +29,7 @@ import { CommunityPanes } from "./CommunityDialog";
 import { InvestorPriceProfile } from "./InvestorPriceProfile";
 import { signColor, nowKstDateStr, isEtfByName, formatSigned } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
-import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices, fetchTossKrCandles, TOSS_CANDLE_MAX } from "../lib/api";
+import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices, fetchTossKrCandles, TOSS_CANDLE_MAX, fetchEtfKeyIndicator } from "../lib/api";
 import {
   computeMaTrend, maTrendTooltip, MA_TREND_PERIODS, MA_TREND_LABEL, MA_TREND_CLASS,
 } from "../lib/maTrend";
@@ -40,6 +40,7 @@ import { getTradesForTicker } from "../lib/db";
 import { aggregateTradeMarkers } from "../lib/tradeMarkers";
 import { loadBurstLevel, saveBurstLevel, burstThresholdWon, BURST_LEVELS, type BurstLevel } from "../lib/valueBurst";
 import { useTossMaintenance, getTossMaintenance } from "../lib/tossMaintenance";
+import { EtfIndicatorBlock, EtfFeeTip } from "./EtfCompositionDialog";
 
 interface Props {
   isOpen: boolean;
@@ -118,6 +119,15 @@ function IndicatorRow({ ikey, val, data }: {
 function Section({ title, sub, ikeys, data, loading }: {
   title: string; sub: string; ikeys: string[]; data: FundamentalData; loading?: boolean;
 }) {
+  // 값이 있는 줄만 남긴다 — ETF 는 PER·ROE·부채비율 같은 게 아예 없어서, 그대로 두면
+  //   '—' 만 30줄 늘어선 화면이 된다. 한 줄도 안 남으면 섹션째 감춘다.
+  //   (아직 받는 중이면 감추지 않는다 — '없다' 와 '아직' 은 다르다)
+  const has = (k: string) => {
+    const v = (data as Record<string, unknown>)[k];
+    return v != null && v !== "";
+  };
+  const shown = ikeys.filter(has);
+  if (shown.length === 0 && !loading) return null;
   return (
     <section className="bg-gray-50 rounded p-3 border border-gray-200">
       <header className="mb-2">
@@ -129,7 +139,7 @@ function Section({ title, sub, ikeys, data, loading }: {
         <p className="text-xs text-gray-400">{sub}</p>
       </header>
       <div>
-        {ikeys.map(k => (
+        {shown.map(k => (
           <IndicatorRow key={k} ikey={k}
                         val={(data as Record<string, unknown>)[k]}
                         data={data} />
@@ -377,6 +387,13 @@ export function ValuationModal({
   // ETF(특히 채권형)는 재무·컨센서스·대차·신용·CFD·프로그램·공시가 없음 → 그 조회를 전부 건너뛰어
   //   기업가치 열 때 프록시 요청 폭주(호출수 병목)를 방지. (일봉·수급·뉴스만 조회)
   const isEtf = isEtfByName(name);
+  // 총보수 예시용 — EtfIndicatorBlock 과 **같은 쿼리키**라 한 번만 받는다.
+  const { data: etfKey } = useQuery({
+    queryKey: ["etf-key-indicator", ticker],
+    queryFn: () => fetchEtfKeyIndicator(ticker),
+    enabled: isOpen && isEtf && /^[\dA-Za-z]{6}$/.test(ticker),
+    staleTime: 6 * 60 * 60_000,
+  });
   const { data, isLoading, error } = useQuery({
     queryKey: ["valuation", ticker],
     queryFn: () => fetchFullValuation(ticker),
@@ -621,6 +638,28 @@ export function ValuationModal({
               <ConsensusCharts revenue={estRevenue} operatingIncome={estOpIncome} eps={estEps} />
             </div>
           )}
+          {/* ETF 전용 — 가치평가·수익성·재무 같은 건 ETF 에 아예 없다. 3 컬럼 그리드를
+              그대로 쓰면 왼쪽 2칸이 통째로 빈 채 오른쪽 끝에만 블록이 붙는다(실측).
+              ETF 에게 의미 있는 지표만 **2단(지표 | 설명)** 으로 따로 깐다.
+              구성 팝업의 '수수료정보' 와 같은 컴포넌트·같은 쿼리키라 추가 호출이 없다. */}
+          {isEtf ? (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
+              {/* 왼쪽 — ETF 지표 + 총보수 설명을 한 덩어리로 */}
+              <div className="space-y-2 bg-amber-50/60 border border-amber-200 rounded-lg p-3">
+                <EtfIndicatorBlock ticker={ticker} name={name} />
+                <EtfFeeTip totalFee={etfKey?.totalFee} />
+              </div>
+              {/* 오른쪽 — 원래 아래에 있던 투자자별 순매수를 끌어올려 빈 칸을 채운다 */}
+              <InvestorHistorySection ticker={ticker}
+                                      targetPrice={targetPrice}
+                                      myAvgPrice={myAvgPrice}
+                                      entryPrice={entryPrice}
+                                      curPrice={effCurPrice}
+                                      marketCapText={fund.market_cap_text}
+                                      todayBar={todayBar} isEtf={isEtf} part="top" />
+            </div>
+          ) : (
+          <>
           {/* 3 컬럼 레이아웃 */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             {/* Col 1: 가치평가 / 수익성 */}
@@ -644,25 +683,39 @@ export function ValuationModal({
                        sub={INDICATOR_SECTIONS[4].sub}
                        ikeys={INDICATOR_SECTIONS[4].keys} data={fund} loading={isLoading} />
             </div>
-            {/* Col 3: 컨센서스 + 주주 */}
-            <div className="space-y-3">
-              <ConsensusSection reports={reports}
-                                 shareholders={shareholders}
-                                 curPrice={effCurPrice}
-                                 fundamental={fund}
-                                 loading={isLoading} />
-              <ShareholderSection shareholders={shareholders} loading={isLoading} />
-            </div>
+            {/* Col 3: 컨센서스 + 주주 — ETF 는 통째로 뺀다.
+                증권사 목표주가도 5% 대주주도 **구조적으로 없는** 것이지 '데이터가 없는' 게 아니다.
+                (일반 종목은 그대로 둔다 — 그땐 '커버하는 증권사가 없다' 는 정보가 된다) */}
+            {!isEtf && (
+              <div className="space-y-3">
+                <ConsensusSection reports={reports}
+                                   shareholders={shareholders}
+                                   curPrice={effCurPrice}
+                                   fundamental={fund}
+                                   loading={isLoading} />
+                <ShareholderSection shareholders={shareholders} loading={isLoading} />
+              </div>
+            )}
           </div>
+          </>
+          )}
+
+          {/* 대화 — 종목 카드의 💬 버튼과 같은 화면(토스·네이버).
+              투자자별 순매수 **위**에 둔다: 수급 표·차트가 길어서, 아래로 밀어 두면
+              사람들이 지금 뭘 말하는지를 보려고 한참 스크롤해야 한다. */}
+          <CommunitySection ticker={ticker} />
 
           {/* 투자자별 순매수 (최근 60일) */}
+          {/* ETF 는 '가격대별 순매수' 한 줄만 위 오른쪽으로 올렸다 — 여기선 나머지를 그린다.
+              (쿼리키가 같아 두 번 그려도 조회는 한 번이다) */}
           <InvestorHistorySection ticker={ticker}
                                   targetPrice={targetPrice}
                                   myAvgPrice={myAvgPrice}
                                   entryPrice={entryPrice}
                                   curPrice={effCurPrice}
                                   marketCapText={fund.market_cap_text}
-                                  todayBar={todayBar} isEtf={isEtf} />
+                                  todayBar={todayBar} isEtf={isEtf}
+                                  part={isEtf ? "rest" : "all"} />
 
           {/* 외국인 지분율·상대수익률은 위 '실적 추이' 줄에 합쳤다.
               실적 데이터가 없는 종목(추정치 미제공)은 거기가 통째로 안 그려지므로 여기서 따로 낸다. */}
@@ -671,9 +724,6 @@ export function ValuationModal({
                                  marketCapText={fund.market_cap_text}
                                  price={effCurPrice} />
           )}
-
-          {/* 대화 — 종목 카드의 💬 버튼과 같은 화면(토스·네이버). 뉴스 바로 위에 둔다. */}
-          <CommunitySection ticker={ticker} />
 
           {/* 뉴스(좌) + 공시(우) */}
           <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
@@ -790,7 +840,8 @@ function computePeriodSummary(
 
 function InvestorHistorySection({
   ticker, targetPrice, myAvgPrice, entryPrice, curPrice, marketCapText, todayBar, isEtf = false,
-}: InvestorHistoryProps) {
+  part = "all",
+}: InvestorHistoryProps & { part?: "all" | "top" | "rest" }) {
   const { data: history, isLoading } = useQuery({
     queryKey: ["investor-history-modal", ticker],
     queryFn: () => fetchInvestorHistorySafe(ticker, [200, 120, 60]),
@@ -808,13 +859,17 @@ function InvestorHistorySection({
     : [];
 
   return (
-    <section className="mt-5">
-      <h3 className="text-sm font-bold text-gray-800 mb-1.5">
-        📊 투자자별 순매수 (최근 {history?.length ?? 0}일)
-        <span className="ml-2 text-[11px] font-normal text-gray-400">
-          단위: 주 · 양수 매수 / 음수 매도 · 외인비율은 기간 시작 대비 변화
-        </span>
-      </h3>
+    <section className={part === "top" ? "" : "mt-5"}>
+      {/* ETF 화면에서 위로 올린 조각('가격대별 순매수' 한 줄)에는 제목을 달지 않는다 —
+          아래 본 섹션에도 같은 제목이 있어 '투자자별 순매수'가 두 번 찍힌다. */}
+      {part !== "top" && (
+        <h3 className="text-sm font-bold text-gray-800 mb-1.5">
+          📊 투자자별 순매수 (최근 {history?.length ?? 0}일)
+          <span className="ml-2 text-[11px] font-normal text-gray-400">
+            단위: 주 · 양수 매수 / 음수 매도 · 외인비율은 기간 시작 대비 변화
+          </span>
+        </h3>
+      )}
       {isLoading && (
         <div className="text-xs text-gray-400 py-2">불러오는 중...</div>
       )}
@@ -829,10 +884,10 @@ function InvestorHistorySection({
                                myAvgPrice={myAvgPrice}
                                entryPrice={entryPrice}
                                curPrice={curPrice} marketCapText={marketCapText}
-                               todayBar={todayBar} isEtf={isEtf} />
+                               todayBar={todayBar} isEtf={isEtf} part={part} />
       )}
 
-      {history && history.length > 0 && (
+      {part !== "top" && history && history.length > 0 && (
         <div className="hidden lg:block border border-gray-200 rounded mt-3 overflow-x-auto">
           {/* 컬럼 폭 통일 (table-layout: fixed) — colgroup 양쪽 테이블 동일하게 적용 */}
           {(() => {
@@ -941,6 +996,7 @@ function InvestorHistorySection({
 // 4개 차트 모두 lightweight-charts 기반, 한 hook 으로 crosshair 동기화.
 function InvestorChartsSection({
   ticker, history, targetPrice, myAvgPrice, entryPrice, curPrice, marketCapText, todayBar, isEtf = false,
+  part = "all",
 }: {
   ticker: string; history: Investor[];
   targetPrice?: number; myAvgPrice?: number;
@@ -949,6 +1005,9 @@ function InvestorChartsSection({
   todayBar?: TodayBar;
   marketCapText?: string;   // 시총 선 역산용 (없으면 빨간 선이 안 그려진다)
   isEtf?: boolean;   // ETF면 공시·대차·신용·CFD·프로그램 조회 생략(요청 폭주 방지)
+  // ETF 화면에서 '가격대별 순매수' 줄만 위로 올리고 나머지(기간별 추이·차트)는 아래에 둔다.
+  //   "top" = 그 한 줄만 / "rest" = 그 줄만 빼고 전부 / "all" = 예전 그대로(일반 종목).
+  part?: "all" | "top" | "rest";
 }) {
   // 배당 + 액면분할 (Yahoo 1y, KOSPI→KOSDAQ 자동 폴백). 가격은 아래 토스를 쓴다.
   const { data: priceData, isLoading: pricesLoading } = useQuery({
@@ -1115,6 +1174,8 @@ function InvestorChartsSection({
 
   return (
     <div className="space-y-2 mt-2">
+      {part !== "rest" && (
+      <>
       {/* 0-a. 가격 축 한 줄 — 가격대별 순매수 | 외국인 지분율·시가총액 + 상대수익률.
               아래가 시간 축(년·월·주봉 → 일봉 주가)이라, 같은 종목을 가격 축 → 시간 축
               순서로 잇달아 보게 둔다. 데이터는 이 섹션이 이미 받은 200일치(data)를 쓴다. */}
@@ -1123,7 +1184,10 @@ function InvestorChartsSection({
              문법 오류다(실제로 이 자리에서 냈다) → 조건문 위로 뺀다. */}
       {data.length >= 5 && (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 items-start">
-          <section className="min-w-0 lg:col-span-3 border border-gray-200 rounded-lg p-2">
+          {/* ETF 는 오른쪽 40%(외국인 지분율·상대수익률)를 안 그린다 → 그 칸이 통째로 빈다.
+              옆이 없으면 5칸을 다 쓴다. */}
+          <section className={`min-w-0 border border-gray-200 rounded-lg p-2
+                               ${isEtf ? "lg:col-span-5" : "lg:col-span-3"}`}>
             <div className="text-[11px] font-bold text-gray-700">
               🧱 가격대별 순매수
               <span className="ml-1 font-normal text-[10px] text-gray-400">어느 가격대에서 사고 팔았나</span>
@@ -1139,6 +1203,9 @@ function InvestorChartsSection({
           )}
         </div>
       )}
+      </>
+      )}
+      {part === "top" ? null : <>
       {/* 0. 기간별 추이 멀티 sparkline — 1주~MAX (상장 짧으면 자동 숨김) */}
       <PriceMultiSparks ticker={ticker} />
       {/* 1. 주가 — 전체 폭 (외국인비율 % + 목표가/평단가 가로선) */}
@@ -1220,6 +1287,7 @@ function InvestorChartsSection({
           🚧 토스 점검 중 — 투자자 수급(외국인/기관/연기금)·공매도는 복구 후 표시됩니다. 가격 차트만 우선 표시.
         </div>
       )}
+      </>}
     </div>
   );
 }
