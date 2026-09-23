@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useRef } from "react";
+import { useEscClose } from "../lib/useEscClose";
 
 interface Props {
   isOpen: boolean;
@@ -13,12 +14,8 @@ const PADLET_OPEN_URL = "https://padlet.com/hanjungwoo/padlet-1ic66ugihbh8segk";
 export function FeedbackDialog({ isOpen, onClose }: Props) {
   const downOnBackdropRef = useRef(false);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
+  // ESC — 공용 훅(열린 순서 스택). 자체 리스너를 달면 겹쳐 뜬 모달이 한 번에 다 닫힌다.
+  useEscClose(isOpen, onClose);
 
   if (!isOpen) return null;
 

@@ -4,7 +4,8 @@
 //   scrollable tbody: 일별 상세 (60일치)
 //   금액 단위: 원 → 화면 표시는 억원 (1억 = 100,000,000)
 
-import { useEffect, useMemo, useState, lazy, Suspense } from "react";
+import { useMemo, useState, lazy, Suspense } from "react";
+import { useEscClose } from "../lib/useEscClose";
 import { useQuery } from "@tanstack/react-query";
 import { fetchKrMarketFlow, fetchYahooPriceHistory, fetchCnbcPriceHistory } from "../lib/api";
 import type { MarketIndexKey, MarketFlowPoint } from "../lib/api";
@@ -177,13 +178,8 @@ export function MarketFlowModal({
     return Math.max(1, ...all.map(Math.abs));
   }, [cumIndividuals, cumForeign, cumInst, cumPension]);
 
-  // ESC 닫기
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
+  // ESC — 공용 훅(열린 순서 스택). 자체 리스너를 달면 겹쳐 뜬 모달이 한 번에 다 닫힌다.
+  useEscClose(isOpen, onClose);
 
   if (!isOpen) return null;
 

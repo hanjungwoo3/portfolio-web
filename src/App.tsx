@@ -66,6 +66,7 @@ import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
 import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
 import { GOTO_HEATMAP_EVENT } from "./lib/heatmapNav";
 import { GOTO_TAB_EVENT } from "./lib/tabNav";
+import { OPEN_VALUATION_EVENT, type ValuationRequest } from "./lib/valuationNav";
 import { startAutoSync, SYNC_PULLED_EVENT } from "./lib/syncManager";
 import { SyncConflictBar } from "./components/SyncConflictBar";
 import { ValuationModal } from "./components/ValuationModal";
@@ -244,6 +245,18 @@ function Dashboard() {
     const h = () => setReloadKey(k => k + 1);
     window.addEventListener(SYNC_PULLED_EVENT, h);
     return () => window.removeEventListener(SYNC_PULLED_EVENT, h);
+  }, []);
+
+  // 깊은 화면(ETF 구성 팝업 등) → 기업가치 팝업 딥링크.
+  useEffect(() => {
+    const h = (e: Event) => {
+      const d = (e as CustomEvent<ValuationRequest>).detail;
+      if (!d?.ticker) return;
+      setValuationName(d.name);
+      setValuationTicker(d.ticker);
+    };
+    window.addEventListener(OPEN_VALUATION_EVENT, h);
+    return () => window.removeEventListener(OPEN_VALUATION_EVENT, h);
   }, []);
 
   // 카드 → 임의 탭 딥링크 (예: 지수 탭의 ETF 등락 제목 → ETF랭킹 탭).

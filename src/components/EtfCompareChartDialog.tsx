@@ -3,6 +3,7 @@
 //   분봉 타임스탬프는 +9h(KST) 보정 → lightweight-charts UTC 축에 한국 벽시계로 표시
 //   (KR·US 모두 자기 장 시간대에 맞게 찍힘).
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useEscClose } from "../lib/useEscClose";
 import { createPortal } from "react-dom";
 import { useQueries } from "@tanstack/react-query";
 import {
@@ -160,13 +161,8 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
   }, [stocks]);
   const colorOf = (ticker: string) => colorMap[ticker] ?? "#64748b";
 
-  // Esc 닫기
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
+  // ESC — 공용 훅(열린 순서 스택). 자체 리스너를 달면 겹쳐 뜬 모달이 한 번에 다 닫힌다.
+  useEscClose(isOpen, onClose);
 
   // 데이터 — 모드별 fetch (mode 바뀌면 queryKey 달라져 재조회)
   //   분봉: 최근 5거래일 1분봉(요일·시간대 패턴 보기) · 주봉: 2년 일봉 → 주 단위 리샘플

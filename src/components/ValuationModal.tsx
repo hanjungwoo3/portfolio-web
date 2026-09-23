@@ -649,14 +649,18 @@ export function ValuationModal({
                 <EtfIndicatorBlock ticker={ticker} name={name} />
                 <EtfFeeTip totalFee={etfKey?.totalFee} />
               </div>
-              {/* 오른쪽 — 원래 아래에 있던 투자자별 순매수를 끌어올려 빈 칸을 채운다 */}
-              <InvestorHistorySection ticker={ticker}
-                                      targetPrice={targetPrice}
-                                      myAvgPrice={myAvgPrice}
-                                      entryPrice={entryPrice}
-                                      curPrice={effCurPrice}
-                                      marketCapText={fund.market_cap_text}
-                                      todayBar={todayBar} isEtf={isEtf} part="top" />
+              {/* 오른쪽 — 원래 아래에 있던 가격대별 순매수 + 뉴스를 끌어올려 빈 칸을 채운다.
+                  ETF 는 공시(DART)가 없어 아래 '뉴스|공시' 2단이 반쪽만 남는다 → 통째로 올린다. */}
+              <div className="min-w-0 space-y-3">
+                <InvestorHistorySection ticker={ticker}
+                                        targetPrice={targetPrice}
+                                        myAvgPrice={myAvgPrice}
+                                        entryPrice={entryPrice}
+                                        curPrice={effCurPrice}
+                                        marketCapText={fund.market_cap_text}
+                                        todayBar={todayBar} isEtf={isEtf} part="top" />
+                <NewsSection ticker={ticker} />
+              </div>
             </div>
           ) : (
           <>
@@ -725,12 +729,13 @@ export function ValuationModal({
                                  price={effCurPrice} />
           )}
 
-          {/* 뉴스(좌) + 공시(우) */}
-          <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
-            <NewsSection ticker={ticker} />
-            {/* ETF는 공시(DART)가 없음 → 렌더·조회 생략(요청 폭주 방지) */}
-            {!isEtf && <DisclosureSection ticker={ticker} />}
-          </div>
+          {/* 뉴스(좌) + 공시(우) — ETF 는 위 오른쪽 칸으로 올렸다(공시가 없어 반쪽만 남으므로) */}
+          {!isEtf && (
+            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
+              <NewsSection ticker={ticker} />
+              <DisclosureSection ticker={ticker} />
+            </div>
+          )}
 
         </div>
       </div>

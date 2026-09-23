@@ -7,10 +7,12 @@ import { Tooltip } from "./Tooltip";
 import { formatSigned, signColor, isEtfByName, etfActiveType, dayChangePct, dayChangeDiff, isKrHoldingClosed, tradeSecOf } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { usSessionLabel, etTodayStr } from "../lib/usSectorFlow";
-import { fetchJpHoldingPrices, looksLikeForeignName } from "../lib/jpStocks";
+import { fetchForeignHoldingPrices, looksLikeForeignName } from "../lib/foreignStocks";
 import { openExternal } from "../lib/toss";
 import { EtfCompareChartDialog } from "./EtfCompareChartDialog";
 import { MarketAlertDialog } from "./MarketAlertDialog";
+import { requestValuation } from "../lib/valuationNav";
+import { useEscClose } from "../lib/useEscClose";
 import type { Price } from "../types";
 
 // 현재가·일간% (+선택적 추세 스파크라인) 미니 카드 — 검색 드롭다운·비교표 공용
@@ -70,12 +72,10 @@ export function EtfCompositionDialog({ isOpen, onClose, ticker, etfName, onReque
   // 그래프 비교 팝업 (분봉/주봉 등락률)
   const [graphOpen, setGraphOpen] = useState(false);
 
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [isOpen, onClose]);
+  // ESC — 공용 훅을 쓴다. 자체 리스너를 달면 **겹쳐 뜬 모달이 한 번에 다 닫힌다**
+  //   (이 팝업 위에 기업가치를 열고 ESC 를 누르면 둘 다 닫혔다).
+  //   useEscClose 는 열린 순서를 스택으로 들고 맨 위 것만 반응시킨다.
+  useEscClose(isOpen, onClose);
 
   // 모달 닫힐 때 비교 state 도 초기화
   useEffect(() => {
@@ -696,6 +696,15 @@ function RatioTag({ ratio, color }: { ratio: number; color: string }) {
 }
 // 시장조치 뱃지 색 — 종목 카드(StockCard.tsx WARN_BG)와 같은 체계로 맞춘다.
 //   같은 경고가 화면마다 다른 색이면 위험도를 눈으로 읽을 수 없다.
+// 현지통화 보조표기 — 런던은 펜스(GBp)라 기호도 값도 다르다.
+const CUR_SIGN: Record<string, string> = { JPY: "¥", EUR: "€", GBP: "£", USD: "$", CHF: "CHF ", SEK: "kr ", DKK: "kr ", NOK: "kr " };
+function nativeText(v: number, cur?: string): string {
+  if (cur === "GBp") return `${Math.round(v).toLocaleString()}p`;   // 펜스 — 그대로 쓴다
+  const sign = CUR_SIGN[cur ?? ""] ?? "";
+  const dec = v < 1000 ? 2 : 0;                                     // 유럽은 한 자릿수 유로가 흔하다
+  return `${sign}${v.toLocaleString(undefined, { maximumFractionDigits: dec })}`;
+}
+
 const WARN_BG: Record<string, string> = {
   투자위험:     "bg-red-700",
   관리종목:     "bg-red-700",
@@ -734,7 +743,7 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   // ★ 일본 구성종목은 stockCode 가 없어 isForeignCode 가 false 다. 그래서 usPrice 를
   //   분기 밖에서 먼저 쓴다 — 안 그러면 부모가 내려준 엔화 시세가 그냥 버려진다.
   const price = usPrice ?? (isForeignCode ? (usPriceList?.[0] ?? undefined) : priceProp);
-  const jpSym = price?.jpSymbol ?? null;
+  const fxSym = price?.fxSymbol ?? null;   // 미국 외 해외(6857.T / BA.L …)
   // 해외 추세 — 부모는 KR 히스토리만 주므로 US 티커로 자체 조회
   const { data: usHist } = useQuery({
     queryKey: ["us-history", fSymbol],
@@ -766,7 +775,7 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
         ? ((usHist[regIdx].close - usHist[regIdx - 1].close) / usHist[regIdx - 1].close) * 100
         : null);
   // 메인 숫자가 '지금 어느 장' 값인지 — 마감과 다른 값을 나란히 놓을 때 이 라벨이 없으면 둘을 못 읽는다.
-  const usSess = isForeignCode ? usSessionLabel() : jpSym;
+  const usSess = isForeignCode ? usSessionLabel() : fxSym;
   const addTicker = fSymbol ?? tNum;                                // +추가/검색용
   // 해외는 심볼 해석되면 정상(추가가능), KR 은 영숫자 6자리면 정상
   const isStandard = isForeignCode ? !!fSymbol : krCode;
@@ -802,7 +811,7 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
     : "bg-white border-gray-300";
   // 일본 종목은 isStandard 가 false 다(토스 코드가 없어 +추가·토스링크 불가). 하지만 시세가
   //   있으면 흐리게 할 이유가 없다 — '값이 없다' 는 신호를 '값이 있는데' 보내면 안 된다.
-  const dimCls = extraDim || ((!isStandard && !jpSym) ? "opacity-60" : closedDim ? "opacity-60" : "");
+  const dimCls = extraDim || ((!isStandard && !fxSym) ? "opacity-60" : closedDim ? "opacity-60" : "");
   return (
     <div className={`group transition-opacity duration-150 ${dimCls} ${className ?? ""}`}>
       {alertOpen && (
@@ -815,16 +824,16 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
               야후 파이낸스로 보낸다(심볼은 우리가 이름으로 찾아낸 6857.T 같은 JPX 코드). */}
           <button onClick={isStandard
                     ? () => openExternal(`https://www.tossinvest.com/stocks/${item.stockCode}`)
-                    : jpSym
-                    ? () => openExternal(`https://finance.yahoo.com/quote/${encodeURIComponent(jpSym)}`)
+                    : fxSym
+                    ? () => openExternal(`https://finance.yahoo.com/quote/${encodeURIComponent(fxSym)}`)
                     : undefined}
-                  disabled={!isStandard && !jpSym}
+                  disabled={!isStandard && !fxSym}
                   className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                               border-t border-l border-r font-bold text-xs leading-none
                               ${tabBg} ${priceColorCls}
-                              ${isStandard || jpSym ? "cursor-pointer hover:brightness-95 transition" : ""}`}
+                              ${isStandard || fxSym ? "cursor-pointer hover:brightness-95 transition" : ""}`}
                   title={isStandard ? undefined
-                       : jpSym ? `${item.name} (${jpSym}) — 야후 파이낸스에서 보기`
+                       : fxSym ? `${item.name} (${fxSym}) — 야후 파이낸스에서 보기`
                        : `${item.name} — 선물·기타 (추가 불가)`}>
             {!hideRatio && <span className="text-[10px] text-gray-500 mr-1">{i + 1}</span>}
             {item.name}
@@ -842,6 +851,16 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
         </div>
         <div className="flex items-end gap-0.5">
           {actionLeft}
+          {/* 기업가치 — 한국 종목·ETF 만(해외는 재무 소스가 없다). ETF 자기 카드에도 붙는다. */}
+          {krCode && (
+            <button onClick={e => { e.preventDefault(); e.stopPropagation(); requestValuation(tNum, item.name); }}
+                    title={`${item.name} 기업가치 상세 — 지표·수급·대화·뉴스`}
+                    className="px-1.5 py-0.5 rounded-t-md text-[10px] font-bold leading-none
+                               bg-violet-50 text-violet-700 border-t border-l border-r border-violet-300
+                               hover:bg-violet-100">
+              📊
+            </button>
+          )}
           {onRequestSearch && isStandard && (
             <button onClick={e => { e.preventDefault(); e.stopPropagation(); onRequestSearch(addTicker); }}
                     title={`${item.name} (${addTicker}) 추가하기`}
@@ -894,7 +913,7 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                 </div>
               );
             })()
-          ) : jpSym && price?.trade_date ? (
+          ) : fxSym && price?.trade_date ? (
             // 일본 — 연휴가 길어 한국 ETF 와 며칠씩 어긋난다. **언제 마감값인지**를 반드시 적는다.
             (() => {
               const d = price.trade_date;
@@ -960,8 +979,8 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                   {dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%
                 </span>
                 <span className="text-[10px] font-normal text-gray-700 tabular-nums">
-                  {jpSym && price?.priceJpy
-                    ? `(¥${Math.round(price.priceJpy).toLocaleString()})`
+                  {fxSym && price?.priceNative != null
+                    ? `(${nativeText(price.priceNative, price.nativeCurrency)})`
                     : `(${formatSigned(dayDiff)}원)`}
                 </span>
               </div>
@@ -1017,6 +1036,68 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
       </div>
     </div>
   );
+}
+
+// 운용사 상품 설명은 **줄바꿈 없는 한 덩어리**로 온다. 게다가 뒤쪽 절반은 어느 ETF 나 똑같은
+//   법적 고지(원금 손실 가능·판매사 책임 없음·투자설명서 확인)다. 그대로 뿌리면 벽처럼 보여
+//   정작 중요한 앞부분(무엇에 투자하는지)을 아무도 안 읽는다.
+//   → 문장 단위로 끊어 두 문장씩 문단을 만들고, 법적 고지는 접어 둔다.
+//   ※ 문장 분리에 lookbehind(?<=)를 쓰지 않는다 — 구형 Safari 는 정규식 리터럴 파싱 단계에서
+//     터져 화면 전체가 죽는다. '다. ' 로 split 하고 다시 붙이는 쪽이 안전하다.
+const LEGAL_RE = /(투자원금|원본에 손실|손실은 투자자|책임을 지지|집합투자업자|금융감독원|투자설명서|판매회사|자세한 내용은)/;
+
+// 본문에 운용사 홈페이지 주소가 섞여 있다(때로 <…> 로 감싸서). 글자로 두면 아무도 못 누른다.
+//   ⚠️ /g 정규식은 lastIndex 를 들고 다녀 test() 를 반복 호출하면 결과가 번갈아 틀린다
+//     → 판별용은 /g 없는 별도 상수를 쓴다.
+const URL_SPLIT_RE = /(https?:\/\/[^\s<>()]+)/g;
+const URL_TEST_RE = /^https?:\/\//;
+
+function Linkify({ text }: { text: string }) {
+  return (
+    <>
+      {text.split(URL_SPLIT_RE).map((part, i) =>
+        URL_TEST_RE.test(part) ? (
+          <a key={i} href={part} target="_blank" rel="noopener noreferrer"
+             onClick={e => { e.preventDefault(); openExternal(part); }}
+             className="text-blue-600 underline decoration-dotted break-all hover:text-blue-800">
+            {part.replace(/^https?:\/\//, "")}
+          </a>
+        ) : part)}
+    </>
+  );
+}
+
+function splitSummary(raw: string): { body: string[]; legal: string } {
+  // ⚠️ 운용사마다 서식이 제각각이다. 특히 번호 항목이 **마침표에 붙어서** 온다:
+  //   "…목적으로 합니다.2. 기초지수는…" / "…등을 포함3. 이 투자신탁은…" / "…투자합니다.※ CPU 산업:"
+  //   그대로 두면 문장이 안 끊겨 한 줄짜리 벽이 된다. 붙은 자리에 공백을 넣어 준다.
+  //   (lookahead(?=)는 어디서나 되지만 lookbehind(?<=)는 구형 Safari 가 파싱에서 터진다 — 쓰지 않는다)
+  const text = raw
+    .replace(/<(https?:\/\/[^>]+)>/g, "$1")               // <http://…> 감싼 꺾쇠 제거
+    .replace(/\s+/g, " ")
+    .replace(/다\.(?=\S)/g, "다. ")                        // 합니다.2. → 합니다. 2.
+    .replace(/([^\d\s])(\d+\.)\s*(?=[가-힣])/g, "$1 $2 ")  // 포함3. 이 → 포함 3. 이
+    .replace(/※/g, " ※")
+    .replace(/\s+/g, " ")
+    .trim();
+  const sentences = text.split(/다\.\s+/)
+    .map((x, i, a) => (i < a.length - 1 ? `${x}다.` : x))
+    // 한 문장 안에 번호 항목·※ 가 이어 붙은 경우까지 쪼갠다("…등을 포함 3. 이 투자신탁은…")
+    .flatMap(x => x.split(/(?=\s\d+\.\s)|(?=\s※\s)/))
+    .filter(x => x.trim().length > 0);
+  const cut = sentences.findIndex(x => LEGAL_RE.test(x));
+  const head = cut < 0 ? sentences : sentences.slice(0, cut);
+  const tail = cut < 0 ? [] : sentences.slice(cut);
+  // 번호 항목(1. 2. 3.)·※ 는 **그 자체로 한 문단**이다. 그 외에는 두 문장씩 묶는다.
+  const paras: string[] = [];
+  let cur: string[] = [];
+  for (const sen of head) {
+    const isItem = /^(\d+\.|※)/.test(sen.trim());
+    if ((isItem && cur.length > 0) || cur.length >= 2) { paras.push(cur.join(" ")); cur = []; }
+    cur.push(sen.trim());
+  }
+  if (cur.length > 0) paras.push(cur.join(" "));
+  return { body: paras, legal: tail.join(" ").trim() };
 }
 
 // 총보수가 어떻게 빠져나가는지 — 세 화면(구성 팝업·ETF비교 탭·기업가치 팝업)이 같은 설명을 쓴다.
@@ -1104,9 +1185,27 @@ export function EtfIndicatorBlock({ ticker, name }: { ticker: string; name: stri
               ? <>📌 추종 지수 <b className="text-gray-900">{data.baseIndex}</b></>
               : <>📌 상품 설명</>}
           </div>
-          <p className="mt-1 text-[11px] leading-relaxed text-gray-600 whitespace-pre-line">
-            {data?.summary || data?.description}
-          </p>
+          {(() => {
+            const { body, legal } = splitSummary(data?.summary || data?.description || "");
+            return (
+              <>
+                {body.map((para, i) => (
+                  <p key={i} className="mt-1.5 text-[11px] leading-relaxed text-gray-600
+                                        break-keep text-pretty">
+                    <Linkify text={para} />
+                  </p>
+                ))}
+                {legal && (
+                  <div className="mt-2 pt-1.5 border-t border-amber-200/70">
+                    <div className="text-[10px] font-bold text-gray-400">⚖️ 투자 위험·법적 고지</div>
+                    <p className="mt-0.5 text-[10px] leading-relaxed text-gray-400 break-keep">
+                      <Linkify text={legal} />
+                    </p>
+                  </div>
+                )}
+              </>
+            );
+          })()}
           {data?.listedDate?.length === 8 && (
             <p className="mt-1 text-[10px] text-gray-400 tabular-nums">
               상장일 {data.listedDate.slice(0, 4)}.{data.listedDate.slice(4, 6)}.{data.listedDate.slice(6, 8)}
@@ -1232,18 +1331,18 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
 
   // ── 일본 구성종목 — 토스가 stockCode 를 null 로 주는 종목들.
   //    코드가 없으니 **이름이 키**다. 이름 → JPX 심볼은 한 번 풀면 localStorage 에 영구 보관된다.
-  const jpNames = (items ?? [])
+  const fxNames = (items ?? [])
     .filter(it => !(it.stockCode ?? "").trim() && looksLikeForeignName(it.name))
     .map(it => it.name);
-  const jpKey = jpNames.join("|");
-  const { data: jpPrices } = useQuery({
-    queryKey: ["etf-jp-quotes", jpKey],
-    queryFn: () => fetchJpHoldingPrices(jpKey.split("|").filter(Boolean)),
-    enabled: jpNames.length > 0,
+  const fxKey = fxNames.join("|");
+  const { data: fxPrices } = useQuery({
+    queryKey: ["etf-foreign-nonus-quotes", fxKey],
+    queryFn: () => fetchForeignHoldingPrices(fxKey.split("|").filter(Boolean)),
+    enabled: fxNames.length > 0,
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
-  const jpMap = new Map((jpPrices?.prices ?? []).map(p => [p.ticker, p]));
+  const fxMap = new Map((fxPrices?.prices ?? []).map(p => [p.ticker, p]));
 
   // ── 거래소 시장조치(투자경고·투자주의·거래정지…) — 종목 카드와 **같은 쿼리키**라
   //    이미 보유 중인 종목은 캐시가 그대로 맞아 추가 호출이 안 나간다.
@@ -1296,9 +1395,9 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
   })();
   // 일본 구성(코드 없는 라틴 이름) — 안내 문구를 미국과 따로 쓴다. 원인이 다르다:
   //   미국은 '직전 정규장 반영'(하루 시차), 일본은 한국과 같은 시간대인데 **연휴**로 어긋난다.
-  const hasJpItems = visibleItems.some(it =>
+  const hasFxItems = visibleItems.some(it =>
     !(it.stockCode ?? "").trim() && looksLikeForeignName(it.name));
-  const jpAsOf = [...jpMap.values()].map(p => p.trade_date).filter(Boolean).sort().pop() ?? null;
+  const fxAsOf = [...fxMap.values()].map(p => p.trade_date).filter(Boolean).sort().pop() ?? null;
   const hasForeignItems = visibleItems.some(it => {
     const t = (it.stockCode ?? "").replace(/^A/, "");
     return !/^[\dA-Za-z]{6}$/.test(t) && /^[A-Z]{2,4}\d/.test(it.stockCode ?? "");
@@ -1334,16 +1433,30 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
           </span>
         )}
       </header>
-      {hasJpItems && (
-        <div className="mb-2 px-2 py-1 rounded border border-amber-200 bg-amber-50
-                        text-[11px] leading-snug text-amber-800">
-          🇯🇵 <b>기준일이 다를 수 있습니다</b> — 아래 구성종목은 일본 증시
-          {jpAsOf && <> <b>{`${+jpAsOf.slice(5, 7)}/${+jpAsOf.slice(8, 10)}`}</b> 마감</>} 기준입니다.
-          일본은 연휴가 길어(예: 9/21~23 경로의날·국민휴일·추분) 한국 ETF 와 며칠씩 어긋납니다.
-          <span className="text-amber-700"> 토스가 일본 종목 코드를 주지 않아 야후(JPX)에서 이름으로 찾아온 값이라,
-            카드의 심볼이 맞는지 한 번 봐 주세요.</span>
-        </div>
-      )}
+      {hasFxItems && (() => {
+        // 어느 나라 장인지 — 찾아낸 심볼의 접미사로 센다. 한 ETF 안에 여러 나라가 섞인다
+        //   (PLUS 글로벌방산 = 미국 + 영국·프랑스·이탈리아·독일·스웨덴).
+        const SUFFIX_MARKET: Record<string, string> = {
+          T: "일본", L: "영국", PA: "프랑스", MI: "이탈리아", DE: "독일", ST: "스웨덴",
+          AS: "네덜란드", BR: "벨기에", LS: "포르투갈", VI: "오스트리아",
+          CO: "덴마크", HE: "핀란드", OL: "노르웨이", SW: "스위스", MC: "스페인",
+          HK: "홍콩", TW: "대만", AX: "호주", TO: "캐나다",
+        };
+        const markets = [...new Set([...fxMap.values()]
+          .map(p => SUFFIX_MARKET[(p.fxSymbol ?? "").split(".")[1] ?? ""])
+          .filter(Boolean))];
+        return (
+          <div className="mb-2 px-2 py-1 rounded border border-amber-200 bg-amber-50
+                          text-[11px] leading-snug text-amber-800">
+            🌐 <b>기준일이 다를 수 있습니다</b> — 아래{markets.length ? ` ${markets.join("·")} ` : " 해외 "}
+            구성종목은 현지 증시
+            {fxAsOf && <> <b>{`${+fxAsOf.slice(5, 7)}/${+fxAsOf.slice(8, 10)}`}</b> 마감</>} 기준입니다.
+            현지 휴장일(예: 일본 9/21~23 연휴)에는 한국 ETF 와 며칠씩 어긋납니다.
+            <span className="text-amber-700"> 토스가 미국 외 해외 종목 코드를 주지 않아 야후에서
+              이름으로 찾아온 값이라, 카드의 심볼이 맞는지 한 번 봐 주세요.</span>
+          </div>
+        );
+      })()}
       {hasForeignItems && (
         <div className="mb-2 px-2 py-1 rounded border border-amber-200 bg-amber-50
                         text-[11px] leading-snug text-amber-800">
@@ -1393,8 +1506,8 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
             const extraDim = isCommon ? "opacity-30" : hoverDim ? "opacity-15" : "";
             return (
               <StockCard key={`${it.stockCode || "x"}-${i}`} i={i} item={it}
-                         usPrice={foreign?.byCode.get(it.stockCode ?? "") ?? jpMap.get(it.name)}
-                         usChart={jpPrices?.charts[it.name]}
+                         usPrice={foreign?.byCode.get(it.stockCode ?? "") ?? fxMap.get(it.name)}
+                         usChart={fxPrices?.charts[it.name]}
                          warning={warnMap.get(tNum)}
                          usSymbol={foreign?.symByCode.get(it.stockCode ?? "")}
                          price={priceMap.get(tNum)} chart={chartMap.get(tNum)}

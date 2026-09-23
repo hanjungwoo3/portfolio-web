@@ -9,6 +9,7 @@
 //   원문으로 보내는 편이 정직하다. 데이터는 크롤러가 하루 1회 받아 둔다(프론트 0콜).
 
 import { useEffect, useRef, useState } from "react";
+import { useEscClose } from "../lib/useEscClose";
 import { openGoogleAi, aiNowStamp } from "../lib/googleAi";
 
 // AI 해설 지시 — 공지 원문을 그대로 붙여 보낸다. 지수 규칙 문서는 용어가 빽빽해서
@@ -126,11 +127,8 @@ export function KrxNoticeCard() {
 function NoticeDialog({ notice, onClose }: { notice: KrxNotice; onClose: () => void }) {
   // 배경 클릭 판정 — 본문에서 드래그하다 배경에서 손을 떼도 닫히면 안 된다(앱의 다른 모달과 동일).
   const downOnBackdropRef = useRef(false);
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
+  // ESC — 공용 훅(열린 순서 스택). 자체 리스너를 달면 겹쳐 뜬 모달이 한 번에 다 닫힌다.
+  useEscClose(true, onClose);   // 조건부 렌더 — 떠 있으면 늘 열린 상태
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 p-0 sm:p-4"
