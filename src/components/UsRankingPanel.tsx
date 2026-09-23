@@ -121,14 +121,14 @@ export function UsRankingPanel() {
       )}
 
       {rows.length > 0 && (
-        // 세로 우선 배치 — 한국 목록과 같은 규칙(1위부터 아래로, 다음 칸은 오른쪽).
-        <div className="columns-1 sm:columns-2 lg:columns-3 gap-2">
+        // 가로 우선 배치 — 한국 목록·섹터 카드와 같은 규칙(1위부터 오른쪽으로).
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 items-stretch">
           {rows.map((r, i) => (
             <a key={r.ticker}
                href={`https://finance.yahoo.com/quote/${encodeURIComponent(r.ticker)}`}
                target="_blank" rel="noopener noreferrer"
                className="flex items-center gap-2 px-2.5 py-2 rounded-lg border border-gray-200
-                          bg-white hover:bg-gray-50 w-full mb-2 break-inside-avoid">
+                          bg-white hover:bg-gray-50 w-full h-full">
               <span className="w-7 shrink-0 text-[11px] tabular-nums text-gray-400 text-right">{i + 1}</span>
               <span className="flex-1 min-w-0">
                 <span className="flex items-center gap-1">
