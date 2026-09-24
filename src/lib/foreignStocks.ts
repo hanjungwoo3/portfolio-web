@@ -24,9 +24,12 @@ import type { Price } from "../types";
 
 // ★ 키에 버전을 붙인다. 해석 규칙을 고쳐도 옛 실패가 캐시에 박혀 있으면 영영 안 풀린다
 //   (실제로 'GLOBAL X JP SEMICON ETF' 가 그랬다). 규칙을 바꾸면 이 숫자를 올린다.
-// v2: 해석 규칙을 고칠 때마다 올린다. 잘못 붙은 심볼이 영구 캐시라 그냥 두면 안 풀린다
-//   (v1 은 Sunny Optical 을 런던 0Z4I.L 로, 중국 A주를 '못 찾음' 으로 굳혀 놨다).
-const CACHE_KEY = "fx_symbol_by_name_v2";
+// ★ 해석 규칙을 **한 줄이라도** 고치면 이 숫자를 올린다. 안 그러면 옛 규칙이 남긴 결과가
+//   그대로 쓰인다 — 성공은 영구, 실패도 7일이라 고쳐도 화면이 안 바뀐다.
+//   v1 → v2: Sunny Optical 이 런던(0Z4I.L)에, 중국 A주가 '못 찾음' 으로 굳어 있었다.
+//   v2 → v3: 짧은 상호 규칙(cand === key)을 v2 로 올린 **뒤에** 고쳐서, 그 사이에
+//            XPENG(5자)이 v2 키에 '못 찾음' 으로 박혔다. 순서가 어긋나면 이렇게 된다.
+const CACHE_KEY = "fx_symbol_by_name_v3";
 const MISS = "-";                                  // 못 찾음 표식(재검색 방지)
 // 성공은 영구 보관(회사↔상장코드는 안 변한다). **실패만 7일 뒤 다시 시도**한다 —
 //   신규 상장이거나 야후 색인이 늦었을 수 있고, 우리 해석 규칙이 좋아졌을 수도 있다.
@@ -241,9 +244,15 @@ export async function fetchForeignHoldingPrices(names: string[]): Promise<Foreig
       const last = bars[bars.length - 1];
       const prev = bars[bars.length - 2];
       const live = res?.meta?.regularMarketPrice ?? 0;
-      // 장중이면 meta 가 마지막 봉보다 최신일 수 있다 — 더 최신 쪽을 현재가로 본다.
+      // 현재가는 meta(더 최신일 수 있다), 기준가는 **언제나 마지막에서 두 번째 봉**.
+      //   ⚠️ 예전엔 `live !== last.close` 로 'meta 가 봉보다 최신인가' 를 갈랐는데,
+      //   야후가 봉 종가를 float32 로 줘서 같은 값도 어긋난다(78.2 vs 78.19999694824219).
+      //   그래서 마지막 봉을 '전일' 로 오인해 **등락률이 전부 +0.00%** 로 찍혔다(실측).
+      //   두 경우 다 '마지막 봉 직전' 이 기준가라 나눌 필요가 없다:
+      //     · 장중  — 현재가(live) vs 어제 종가
+      //     · 마감  — 오늘 종가(live=마지막 봉) vs 어제 종가
       const px = live > 0 ? live : last.close;
-      const prevPx = (live > 0 && live !== last.close) ? last.close : (prev?.close ?? 0);
+      const prevPx = prev?.close ?? 0;
       if (px <= 0 || prevPx <= 0) return;
       charts[name] = bars.map(b => b.close);
       raw.push({ name, sym, cur: res?.meta?.currency ?? "", px, prev: prevPx, date: last.date });
