@@ -697,7 +697,11 @@ function RatioTag({ ratio, color }: { ratio: number; color: string }) {
 // 시장조치 뱃지 색 — 종목 카드(StockCard.tsx WARN_BG)와 같은 체계로 맞춘다.
 //   같은 경고가 화면마다 다른 색이면 위험도를 눈으로 읽을 수 없다.
 // 현지통화 보조표기 — 런던은 펜스(GBp)라 기호도 값도 다르다.
-const CUR_SIGN: Record<string, string> = { JPY: "¥", EUR: "€", GBP: "£", USD: "$", CHF: "CHF ", SEK: "kr ", DKK: "kr ", NOK: "kr " };
+const CUR_SIGN: Record<string, string> = {
+  // ⚠️ 위안(CNY)에 그냥 '¥' 를 쓰면 엔(JPY)과 구분이 안 된다 — 값이 10배 넘게 차이 난다.
+  JPY: "¥", EUR: "€", GBP: "£", USD: "$", HKD: "HK$", CNY: "CN¥", TWD: "NT$",
+  CHF: "CHF ", SEK: "kr ", DKK: "kr ", NOK: "kr ", AUD: "A$", CAD: "C$",
+};
 function nativeText(v: number, cur?: string): string {
   if (cur === "GBp") return `${Math.round(v).toLocaleString()}p`;   // 펜스 — 그대로 쓴다
   const sign = CUR_SIGN[cur ?? ""] ?? "";
@@ -979,7 +983,11 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                   {dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%
                 </span>
                 <span className="text-[10px] font-normal text-gray-700 tabular-nums">
-                  {fxSym && price?.priceNative != null
+                  {/* 큰 숫자는 원화 환산값. 괄호 안은 **현지 통화 현재가** — 환산 전 원값을 같이
+                      보여줘야 우리가 곱한 숫자인지 소스 값인지 구분이 된다.
+                      ⚠️ 여기에 price.price(원화)를 넣고 현지 기호만 붙이면 'CN¥58,013' 같은
+                      엉뚱한 표기가 된다(실측). 반드시 priceNative 를 쓴다. */}
+                  {price?.nativeCurrency && price.priceNative != null
                     ? `(${nativeText(price.priceNative, price.nativeCurrency)})`
                     : `(${formatSigned(dayDiff)}원)`}
                 </span>

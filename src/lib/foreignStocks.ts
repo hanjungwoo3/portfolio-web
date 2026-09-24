@@ -24,7 +24,9 @@ import type { Price } from "../types";
 
 // ★ 키에 버전을 붙인다. 해석 규칙을 고쳐도 옛 실패가 캐시에 박혀 있으면 영영 안 풀린다
 //   (실제로 'GLOBAL X JP SEMICON ETF' 가 그랬다). 규칙을 바꾸면 이 숫자를 올린다.
-const CACHE_KEY = "fx_symbol_by_name_v1";
+// v2: 해석 규칙을 고칠 때마다 올린다. 잘못 붙은 심볼이 영구 캐시라 그냥 두면 안 풀린다
+//   (v1 은 Sunny Optical 을 런던 0Z4I.L 로, 중국 A주를 '못 찾음' 으로 굳혀 놨다).
+const CACHE_KEY = "fx_symbol_by_name_v2";
 const MISS = "-";                                  // 못 찾음 표식(재검색 방지)
 // 성공은 영구 보관(회사↔상장코드는 안 변한다). **실패만 7일 뒤 다시 시도**한다 —
 //   신규 상장이거나 야후 색인이 늦었을 수 있고, 우리 해석 규칙이 좋아졌을 수도 있다.
@@ -46,7 +48,11 @@ function coreName(s: string): string {
     .toUpperCase()
     .replace(/[.,]/g, " ")
     .replace(/[/]/g, " ")
-    .replace(/-[A-Z]\b/g, " ")             // 'SAAB AB-B' 의 주식 종류(-B) — 검색엔 방해만 된다
+    // 주식 종류 표기는 검색엔 방해만 된다. 표기가 제각각이라 셋 다 지운다:
+    //   'SAAB AB-B' / 'IFLYTEK CO LTD - A' / 'XPENG INC - CLASS A SHARES' / 'UBTECH …-H'
+    .replace(/\bCLASS\s+[A-Z]\b(\s+SHARES?)?/g, " ")
+    .replace(/\s*-\s*[A-Z]\b/g, " ")
+    .replace(/\s*-\s*$/g, " ")
     // 법인 형태는 나라마다 다르다: 한·미·일(CORP/LTD/INC) · 영(PLC) · 프(SA) · 이(SPA)
     //   · 독(AG/SE) · 스웨덴(AB) · 네덜란드(NV) · 노르웨이(ASA) · 핀란드(OYJ)
     .replace(/\b(CO|CORP|CORPORATION|LTD|LIMITED|INC|HOLDINGS|HLDGS|GROUP|PLC|KK|ETF|SA|SPA|AG|SE|AB|NV|ASA|OYJ)\b/g, " ")
@@ -89,7 +95,8 @@ const PRIMARY_EXCHANGES = new Set([
   "LSE", "PAR", "MIL", "GER", "AMS", "BRU", "LIS", "VIE",  // 서유럽
   "STO", "CPH", "HEL", "OSL",                              // 북유럽
   "SWX", "EBS", "MCE",                                     // 스위스·스페인
-  "HKG", "TAI", "ASX", "TOR",                              // 아시아·오세아니아·캐나다
+  "HKG", "SHH", "SHZ",                                     // 홍콩 · 상하이/선전 A주
+  "TAI", "ASX", "TOR",                                     // 대만·호주·캐나다
 ]);
 
 /** 이름 하나 → 상장 심볼. 캐시 우선, 없으면 야후 검색 1콜. */
@@ -113,8 +120,17 @@ async function resolveOne(name: string, map: SymMap): Promise<string | null> {
     if (all.length === 0) return null;
     const jpx = all.filter(x => x.symbol && PRIMARY_EXCHANGES.has(x.exchange ?? ""));
     if (jpx.length === 0) { map[key] = MISS + Date.now(); saveMap(map); return null; }
-    // ① 검색 결과 이름이 검색어로 시작하면 그대로 — DEVICE 같은 파생 상호를 걸러낸다.
-    const exact = jpx.find(x => coreName(x.shortname || x.longname || "").startsWith(key));
+    // ① 이름이 맞으면 그대로. **양방향 접두**로 본다 — 야후가 더 짧게 줄 때가 있어서
+    //   한 방향만 보면 엉뚱한 쪽이 걸린다: 'SUNNY OPTICAL TECH' 를 찾을 때 홍콩 본상장은
+    //   'SUNNY OPTICAL'(짧아서 탈락) 이고 런던 'SUNNY OPTICAL TECHNOLOGY GROUP' 만 통과해
+    //   거래가 드문 런던 호가로 붙었다(실측).
+    //   짧은 이름은 접두 일치가 우연히 맞을 수 있다(예: 'SK' 가 온갖 이름의 앞부분).
+    //   그래서 6자 미만이면 **정확히 같을 때만** 인정한다 — 이 단서가 없으면 XPENG(5자) 같은
+    //   짧은 상호가 통째로 탈락한다(실측: 카드가 '—' 로 남았다).
+    const nameMatch = (cand: string) =>
+      cand === key || (cand.length >= 6 && key.length >= 6
+                       && (cand.startsWith(key) || key.startsWith(cand)));
+    const exact = jpx.find(x => nameMatch(coreName(x.shortname || x.longname || "")));
     let symbol = exact?.symbol ?? null;
     // ② 아니면 후보들의 정식 이름을 받아 확인한다(잘린 shortname 때문에 여기로 온다).
     //    검색어로 시작하는 것 중 **가장 짧은** 이름을 고른다 — 덧붙은 말("… Top 10")은
@@ -126,7 +142,7 @@ async function resolveOne(name: string, map: SymMap): Promise<string | null> {
       const named = await Promise.all(cands.map(async c => ({
         symbol: c.symbol!, core: coreName((await longNameOf(c.symbol!)) ?? ""),
       })));
-      const ok = named.filter(x => x.core && x.core.startsWith(key))
+      const ok = named.filter(x => nameMatch(x.core))
                       .sort((a, b) => a.core.length - b.core.length);
       symbol = ok[0]?.symbol ?? null;
     }
@@ -165,7 +181,8 @@ function fxPair(cur: string): { pair: string; div: number } {
   return { pair: `${cur}KRW=X`, div: 1 };
 }
 
-/** 통화 → 1단위당 원. 통화 종류만큼만 부른다(유럽 ETF 면 보통 EUR·GBP 둘). */
+/** 통화 → 1단위당 원. 통화 종류만큼만 부른다(중국 ETF 면 보통 HKD·CNY 둘).
+ *  야후 {통화}KRW=X 는 USD 경유 교차검증과 일치한다(실측 2026-09: CNY 203.844 ↔ 1368.32/6.7102). */
 async function fetchKrwRates(currencies: string[]): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   await Promise.all([...new Set(currencies)].map(async cur => {
@@ -236,7 +253,7 @@ export async function fetchForeignHoldingPrices(names: string[]): Promise<Foreig
   const rates = await fetchKrwRates(raw.map(r => r.cur).filter(Boolean));
   for (const r of raw) {
     const k = rates.get(r.cur) ?? 0;
-    // 환율을 못 받으면 원화로 속이지 않는다 — 현지 값을 그대로 넣고 currency 로 알린다.
+    // 환율을 못 받으면 원화로 속이지 않는다 — 현지 값을 그대로 넣고 nativeCurrency 로 알린다.
     const mul = k > 0 ? k : 1;
     // 원화는 **정수로 반올림**한다 — 환산이라 소수가 남는데(275,790.25원) 다른 원화 카드는
     //   전부 정수라 눈에 거슬린다. 등락률은 price/base 로 내므로 둘 다 반올림해야 어긋나지 않는다.
