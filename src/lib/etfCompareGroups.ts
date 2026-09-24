@@ -1,6 +1,13 @@
 // ETF 비교 카테고리 — 같은 기초지수를 추종하는 국내 ETF들을 묶어 운용사·보수·배당·수익률 비교.
 //   순수 지수추종만 (커버드콜·레버리지·인버스·채권혼합·액티브 제외). (H)=환헤지형.
 //   새 카테고리(S&P500·미국배당100 등)는 여기 배열에만 추가하면 됨.
+//
+// ⚠️ 아래 '반도체' 3개 그룹은 성격이 다르다. S&P500·나스닥100 처럼 **같은 지수**를 여러 운용사가
+//   따라가는 게 아니라, 운용사마다 지수를 따로 만들어 쓴다(iSelect·Solactive·FnGuide…).
+//   그래서 보수를 견줘 싼 걸 고르는 용도가 아니라 **무엇을 담았나를 견주는** 용도다 —
+//   구성종목이 실제로 크게 다르다(실측: KODEX 미국CPU반도체TOP10 은 KODEX 미국AI반도체TOP3플러스와
+//   84% 겹치지만, RISE 글로벌AI낸드메모리반도체와는 Marvell 한 종목만 겹친다).
+//   각 그룹 desc 에 그 사실을 적어 둔다.
 
 export interface EtfCompareItem {
   code: string;   // 6자리 종목코드
@@ -62,6 +69,47 @@ export const ETF_COMPARE_GROUPS: EtfCompareGroup[] = [
       { code: "448300", name: "TIGER 미국나스닥100(H)" },
       { code: "449190", name: "KODEX 미국나스닥100(H)" },
       { code: "453080", name: "KIWOOM 미국나스닥100(H)" },
+    ],
+  },
+  {
+    id: "ussemi",
+    label: "미국반도체",
+    benchmark: "필라델피아 반도체(SOX) · MVIS · NYSE 반도체",
+    desc: "미국 반도체 전반 — 여기까지는 널리 쓰이는 지수라 운용사 간 구성이 비슷하다",
+    items: [
+      { code: "381180", name: "TIGER 미국필라델피아반도체나스닥" },
+      { code: "497570", name: "TIGER 미국필라델피아AI반도체나스닥" },
+      { code: "390390", name: "KODEX 미국반도체" },
+      { code: "469060", name: "RISE 미국반도체NYSE" },
+      { code: "469050", name: "RISE 미국반도체NYSE(H)" },
+    ],
+  },
+  {
+    id: "aimem",
+    label: "AI메모리·낸드·HBM",
+    benchmark: "운용사별 자체 지수 (공통 지수 없음)",
+    desc: "메모리·낸드·HBM 집중 — 지수가 제각각이라 보수보다 구성종목을 봐야 한다",
+    items: [
+      { code: "0238F0", name: "KODEX 미국AI메모리TOP2플러스" },
+      { code: "0181B0", name: "HANARO 미국AI메모리반도체TOP4+" },
+      { code: "0233N0", name: "RISE 글로벌AI낸드메모리반도체" },
+      { code: "442580", name: "PLUS 글로벌HBM반도체" },
+    ],
+  },
+  {
+    id: "aichip",
+    label: "AI반도체·CPU",
+    benchmark: "운용사별 자체 지수 (공통 지수 없음)",
+    desc: "CPU·GPU·팹리스 등 연산칩 중심 — 같은 '반도체' 라도 메모리형과 겹치는 종목이 거의 없다",
+    items: [
+      { code: "0151S0", name: "KODEX 미국AI반도체TOP3플러스" },
+      { code: "0225V0", name: "KODEX 미국CPU반도체TOP10" },
+      { code: "0224D0", name: "KIWOOM 미국CPU반도체TOP4+" },
+      { code: "446770", name: "ACE 글로벌반도체TOP4 Plus" },
+      { code: "494340", name: "ACE 글로벌AI맞춤형반도체" },
+      { code: "491830", name: "TIGER 미국AI반도체팹리스" },
+      { code: "479620", name: "SOL 미국AI반도체칩메이커" },
+      { code: "473490", name: "KIWOOM 글로벌AI반도체" },
     ],
   },
 ];
