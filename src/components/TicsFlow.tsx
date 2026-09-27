@@ -106,7 +106,9 @@ export function TicsFlow({ nation, onOpenValuation }: {
   onOpenValuation?: (ticker: string, name: string) => void;
 }) {
   const [duration, setDuration] = useState<TicsDuration>("1d");
-  const [sortBy, setSortBy] = useState<TicsSort>("FLUCTUATION_RATE");
+  // 기본은 거래대금 — 등락률 순은 표본 적은 분류가 위로 튄다(한두 종목이 중앙값을 끌어올린다).
+  //   세 화면(한·미 섹터 판·테마 카드·비교 탭)이 같은 기본값을 쓴다.
+  const [sortBy, setSortBy] = useState<TicsSort>("TRADING_AMOUNT");
   const [expanded, setExpanded] = useState(false);
   const [dlg, setDlg] = useState<TicsCategory | null>(null);
 

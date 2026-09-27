@@ -102,9 +102,21 @@ const PRIMARY_EXCHANGES = new Set([
   "TAI", "ASX", "TOR",                                     // 대만·호주·캐나다
 ]);
 
+// 야후가 **옛 이름으로는 못 찾는** 종목들. ETF 구성 데이터는 블룸버그 레거시 상호를 쓰는데
+//   회사가 사명을 바꾸면 야후 색인(현재 이름)과 어긋나 영영 안 잡힌다.
+//   키는 coreName() 을 통과한 형태여야 한다.
+//   ※ 여기 적는 건 최후수단이다. 늘리기 전에 검색이 왜 실패하는지부터 본다
+//     (주식 종류 표기·줄임말·거래소 목록 누락이 대부분이었다).
+const NAME_OVERRIDE: Record<string, string> = {
+  // 2018년 역합병으로 Lingyi iTech(领益智造)가 됐다. 티커는 그대로, 야후는 'LY ITECH' 로만 색인.
+  "JPMF GUANGDONG": "002600.SZ",
+};
+
 /** 이름 하나 → 상장 심볼. 캐시 우선, 없으면 야후 검색 1콜. */
 async function resolveOne(name: string, map: SymMap): Promise<string | null> {
   const key = coreName(name);
+  const forced = NAME_OVERRIDE[key];
+  if (forced) return forced;
   const hit = map[key];
   if (hit && !hit.startsWith(MISS)) return hit;
   if (hit) {                                       // "-<저장시각>" — TTL 안이면 재검색 안 함
@@ -157,12 +169,25 @@ async function resolveOne(name: string, map: SymMap): Promise<string | null> {
   }
 }
 
-/** 이름 목록 → { 이름: 심볼 }. 캐시에 있는 건 콜이 안 나간다. */
+const sleep = (ms: number) => new Promise(r => setTimeout(r, ms));
+
+/** 이름 목록 → { 이름: 심볼 }. 캐시에 있는 건 콜이 안 나간다.
+ *  ⚠️ 야후 검색은 **연속 호출에 빈 응답**을 준다(스로틀). 10종을 한 번에 훑으면 몇 개가
+ *  조용히 빠져 카드가 '—' 로 남는다(실측). 캐시에 없는 것만 **간격을 두고** 부르고,
+ *  빈 응답이면 한 번 더 시도한다. 어차피 이름당 평생 한 번이라 느려도 된다. */
 export async function resolveForeignSymbols(names: string[]): Promise<Map<string, string>> {
   const map = loadMap();
   const out = new Map<string, string>();
+  let networkCalls = 0;
   for (const n of names) {
-    const sym = await resolveOne(n, map);          // 순차 — 검색은 첫 1회뿐이라 느려도 된다
+    const cached = !!map[coreName(n)];
+    if (!cached && networkCalls > 0) await sleep(300);
+    let sym = await resolveOne(n, map);
+    if (!cached) networkCalls++;
+    if (!sym && !map[coreName(n)]) {               // 빈 응답 — 캐시에도 안 남았으면 재시도
+      await sleep(800);
+      sym = await resolveOne(n, map);
+    }
     if (sym) out.set(n, sym);
   }
   return out;

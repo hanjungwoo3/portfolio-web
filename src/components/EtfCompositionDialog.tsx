@@ -838,6 +838,8 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                               ${isStandard || fxSym ? "cursor-pointer hover:brightness-95 transition" : ""}`}
                   title={isStandard ? undefined
                        : fxSym ? `${item.name} (${fxSym}) — 야후 파이낸스에서 보기`
+                       : looksLikeForeignName(item.name)
+                       ? `${item.name} — 해외 종목. 심볼을 못 찾았습니다(잠시 후 다시 시도합니다)`
                        : `${item.name} — 선물·기타 (추가 불가)`}>
             {!hideRatio && <span className="text-[10px] text-gray-500 mr-1">{i + 1}</span>}
             {item.name}

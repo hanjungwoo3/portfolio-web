@@ -162,7 +162,9 @@ export function TicsSectorBoard({ onOpenValuation, krClosed = false }: {
   krClosed?: boolean;
 }) {
   const [duration, setDuration] = useState<TicsDuration>("1d");
-  const [sortBy, setSortBy] = useState<TicsSort>("FLUCTUATION_RATE");
+  // 기본을 거래대금으로 — 등락률 순은 표본 적은 분류가 위로 튀어(한두 종목이 중앙값을 끌어올린다)
+  //   "지금 돈이 어디로 가나" 를 보려는 화면과 어긋난다.
+  const [sortBy, setSortBy] = useState<TicsSort>("TRADING_AMOUNT");
   const [selected, setSelected] = useState<string | null>(null);
   const [bothOnly, setBothOnly] = useState(false);
   const [expanded, setExpanded] = useState(false);
