@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchYahooChart, fetchCnbcChart, isCnbcIndex, fetchYasunNightFutures, fetchTossUsStockCandles } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, krSessionPhase } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, krSessionPhase, isFxFuturesWeekendClosed } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
 import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
 import { GroupNavBar } from "./GroupNavBar";
@@ -253,7 +253,15 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               const stale = isQuoteStale(q?.freshTime);
               // 국채 yield(2Y/10Y 등)는 출처(토스·Yahoo)가 섞여도 표현 통일 — 흐림 제외.
               const isRate = isUsRateSymbol(p.symbol);
-              const dimNow = dimEnabled && !isRate && (stale || (!inSession && (sleeping || isClosed)));
+              // 국채 yield 는 출처(토스·Yahoo)가 섞여 freshTime·marketState 가 들쭉날쭉하다.
+              //   그 둘로 흐리면 2Y 만 흐리고 10Y 는 밝은 꼴이 난다 → **시각창(sleeping)만** 본다.
+              //   sleeping 은 marketOfSymbol 기반이라 출처와 무관하게 셋이 같이 움직인다.
+              // 24h 시장(외환·선물·달러인덱스)의 주말 휴장 — isMarketOpen("OTHER") 이 늘 true 라
+              //   sleeping/isClosed 로는 안 잡힌다. 암호화폐는 진짜 24/7 이라 제외된다.
+              const weekendClosed = is24h && isFxFuturesWeekendClosed(p.symbol);
+              const dimNow = dimEnabled && (isRate
+                ? sleeping
+                : (stale || weekendClosed || (!inSession && (sleeping || isClosed))));
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               const effBase = q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)

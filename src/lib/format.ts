@@ -195,6 +195,22 @@ export function isMarketOpen(market: Market): boolean {
 }
 
 // 심볼 기준 sleeping
+// 24h 로 분류한 시장(OTHER)도 **주말엔 멈춘다**. isMarketOpen("OTHER") 은 tz 가 없어
+//   늘 true 를 돌려주므로, 외환·선물이 금요일 마감 뒤에도 밝게 남아 '멈춘 값' 인 줄 모른다(실측).
+//   외환·선물 주간: 일 17:00 ET 개장 ~ 금 17:00 ET 마감. 암호화폐만 진짜 24/7 이다.
+export function isCryptoSymbol(symbol: string): boolean {
+  return /-USD$/.test(symbol) || symbol.startsWith("BTC");
+}
+export function isFxFuturesWeekendClosed(symbol: string): boolean {
+  if (isCryptoSymbol(symbol)) return false;
+  const t = nowInTz("America/New_York");
+  const hhmm = t.hour * 60 + t.minute;
+  if (t.weekday === 6) return true;                       // 토요일 종일
+  if (t.weekday === 5 && hhmm >= 17 * 60) return true;    // 금 17:00 ET 이후
+  if (t.weekday === 0 && hhmm < 17 * 60) return true;     // 일 17:00 ET 이전
+  return false;
+}
+
 export function isSymbolSleeping(symbol: string): boolean {
   return !isMarketOpen(marketOfSymbol(symbol));
 }

@@ -160,11 +160,18 @@ function Grid({ rows, label, onOpenEtf, basket }: {
           '구성 프리장' 줄이 있는 카드가 섞인다). 모든 줄을 같은 높이로 못박는다. */}
       <div className="grid grid-flow-col grid-rows-3 sm:grid-rows-2 auto-cols-fr auto-rows-fr
                       gap-1.5 items-stretch">
-        {rows.map(r => (
+        {rows.map(r => {
+          // 미체결 흐림 — 구성종목 팝업과 **같은 기준**(거래량 0 = 그 스냅샷에 체결이 없다).
+          //   장 시작 전·거래 없는 ETF 가 등락률만 들고 상위에 올라오면 실제로 살 수 없는
+          //   가격을 보게 된다. 날짜가 아니라 거래량으로 본다 — 조회 시각은 체결과 무관하게 찍힌다.
+          const noTrade = !(r.volume > 0);
+          return (
           <button key={r.code}
                   onClick={() => onOpenEtf?.(r.code, r.name)}
-                  className="relative overflow-hidden flex items-center gap-1.5 px-2 py-1.5 text-left rounded-lg
-                             border border-gray-200 bg-white hover:bg-gray-50 w-full h-full">
+                  title={noTrade ? `${r.name} — 이 스냅샷에 체결이 없습니다(거래량 0)` : undefined}
+                  className={`relative overflow-hidden flex items-center gap-1.5 px-2 py-1.5 text-left rounded-lg
+                             border border-gray-200 bg-white hover:bg-gray-50 w-full h-full
+                             ${noTrade ? "opacity-50" : ""}`}>
             <RankSparkline code={r.code} />
             {/* 순위 번호는 안 찍는다 — 위에서 아래로, 왼쪽에서 오른쪽으로 읽으면 그게 순위다.
                 좁은 카드에서 그 한 칸이 종목명 폭을 먹어 이름이 세 줄로 쪼개졌다. */}
@@ -200,7 +207,8 @@ function Grid({ rows, label, onOpenEtf, basket }: {
               </span>
             </span>
           </button>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
