@@ -106,6 +106,9 @@ export function marketOfSymbol(symbol: string): Market {
       || symbol === "^TYX" || symbol === "^IRX" || symbol === "^US2Y") return "US";
   // 한국 야간선물 (yasun.gg) — 18:00~05:00 KST 거래 시간만 활성, 그 외 흐림.
   if (symbol === "^KS200N" || symbol === "^KQ150N") return "KR_NIGHT";
+  // 한국 국고채 금리(토스 KR1BENCH*) — 미국이 아니라 **한국 장** 시간에 움직인다.
+  //   이게 없으면 ^ 로 시작한다는 이유로 US_INDEX 가 돼 미국장 기준으로 흐려진다.
+  if (symbol === "^KR2Y" || symbol === "^KR10Y" || symbol === "^KR30Y") return "KR";
   // ^ 로 시작 = 미국 정규장 지수 (^GSPC, ^IXIC, ^DJI, ^SOX 등 — 정규장만)
   if (symbol.startsWith("^")) return "US_INDEX";
   return "US";

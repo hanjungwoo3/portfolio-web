@@ -37,8 +37,17 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "CL=F":  "https://www.tossinvest.com/indices/RFU.CLv1",
   "NG=F":  "https://www.tossinvest.com/indices/RFU.NGv1",
   "HG=F":  "https://www.tossinvest.com/indices/RFU.HGv1",
-  // 비트코인 — 토스 원화 인덱스
+  // 암호화폐 — 토스 원화 인덱스
   "BTC-USD": "https://www.tossinvest.com/indices/VWAP.KRW-BTC",
+  "ETH-USD": "https://www.tossinvest.com/indices/VWAP.KRW-ETH",
+  "XRP-USD": "https://www.tossinvest.com/indices/VWAP.KRW-XRP",
+  "SOL-USD": "https://www.tossinvest.com/indices/VWAP.KRW-SOL",
+  // 밀(소맥) 선물
+  "ZW=F":   "https://www.tossinvest.com/indices/RFU.Wv1",
+  // 한국 국고채 금리
+  "^KR2Y":  "https://www.tossinvest.com/indices/KR1BENCH0002",
+  "^KR10Y": "https://www.tossinvest.com/indices/KR1BENCH0010",
+  "^KR30Y": "https://www.tossinvest.com/indices/KR1BENCH0030",
   // V-KOSPI — CNBC (토스/야후 미제공)
   "VKOSPI": "https://www.cnbc.com/quotes/.KSVKOSPI",
   // 미국 빅테크 개별주 (토스 종목 페이지)

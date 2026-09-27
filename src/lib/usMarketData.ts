@@ -54,7 +54,16 @@ export const US_PAIRS: Pair[] = [
   //   유럽·중동·아시아 도입 원유의 기준이라 국내 정유주는 WTI 보다 이쪽에 더 붙는다.
   { symbol: "BZ=F",     name: "브렌트유",     desc: "국제 유가(북해) — 국내 정유·항공 원가의 기준", tier: "T0", sector: "dashboard", direction: "neutral" },
   { symbol: "NG=F",     name: "천연가스",     desc: "헨리허브 — LNG·발전·난방·화학", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "ZW=F",     name: "밀",          desc: "시카고 소맥 선물 — 사료·식품 원가. 토스 원자재에 같이 온다", tier: "T0", sector: "dashboard", direction: "neutral" },
+  // 암호화폐 — 토스가 **원화(VWAP.KRW-*)** 로 준다. 심볼은 야후식(-USD)이지만 값은 원이다.
   { symbol: "BTC-USD",  name: "비트코인",    desc: "위험자산 — 한국 IT/플랫폼 상관", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "ETH-USD",  name: "이더리움",    desc: "알트 대장 — 스테이블·디파이 기반. BTC 보다 위험선호에 민감", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "XRP-USD",  name: "리플",        desc: "국내 거래 비중이 큰 코인 — 개인 위험선호의 온도계", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "SOL-USD",  name: "솔라나",      desc: "고성능 체인 — 알트 랠리의 선행 지표로 자주 쓰인다", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 한국 국고채 금리 — 토스 채권 카테고리(KR1BENCH*). 미 국채와 나란히 봐야 금리차가 읽힌다.
+  { symbol: "^KR2Y",    name: "한국 2Y",     desc: "국고채 2년 — 기준금리 기대. 미 2Y 와의 차이가 환율 압력", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "^KR10Y",   name: "한국 10Y",    desc: "국고채 10년 — 성장·물가 기대. 은행·보험 수익성", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "^KR30Y",   name: "한국 30Y",    desc: "국고채 30년 — 초장기 수요(보험·연기금)", tier: "T0", sector: "dashboard", direction: "inverse" },
   // 행 3 — 미국 지수 + 야간 선물 + 닛케이 + 반도체 (필반·필반선물)
   // 미국 전체 시장 지수 — 대표 3대(나스닥·S&P·다우)보다 넓은 커버리지
   { symbol: "^W5000",   name: "윌셔5000",    desc: "Wilshire 5000 — 미국 상장 사실상 전체(~3,400종목). 가장 정통한 미국 전체 시장 지수", tier: "T0", sector: "dashboard", direction: "direct" },

@@ -3102,8 +3102,16 @@ const TOSS_INDEX_CODE: Record<string, string> = {
   "CL=F":   "RFU.CLv1",   // WTI 원유
   "NG=F":   "RFU.NGv1",   // 천연가스
   "HG=F":   "RFU.HGv1",   // 구리
-  // 비트코인 — 토스는 원화(VWAP.KRW-BTC) 기준. BTC-USD 심볼이지만 원화로 표시.
+  "ZW=F":   "RFU.Wv1",    // 밀(소맥)
+  // 암호화폐 — 토스는 **원화**(VWAP.KRW-*) 기준. *-USD 심볼이지만 값은 원화다.
   "BTC-USD": "VWAP.KRW-BTC",
+  "ETH-USD": "VWAP.KRW-ETH",
+  "XRP-USD": "VWAP.KRW-XRP",
+  "SOL-USD": "VWAP.KRW-SOL",
+  // 한국 국고채 금리 — 토스 채권 카테고리. 야후에 대응 심볼이 없어 우리가 ^KR*Y 로 이름 붙였다.
+  "^KR2Y":  "KR1BENCH0002",
+  "^KR10Y": "KR1BENCH0010",
+  "^KR30Y": "KR1BENCH0030",
 };
 
 // Yahoo 심볼 → 토스 미국 종목 코드 (현재가만 토스, 없으면 Yahoo fallback).

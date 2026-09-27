@@ -57,7 +57,9 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
       label: "📊 환율/달러/금리/투심",                 // 1줄=환율·달러·미국채금리, 2줄=외국인 투심
       rows: [
         ["KRW=X", "JPYKRW=X", "DX-Y.NYB", "^US2Y", "^TNX", "^TYX"],   // 원달러·원엔 환율·달러 강도 + 미 국채 2Y·10Y·30Y
-        ["EWY", "^VIX", "KORU"],                  // 외국인 투심(EWY)·공포(VIX)·한국 3배(KORU)
+        // 한국 국고채는 **줄 끝**에 둔다 — 윗줄 4·5·6번이 미 국채 2Y·10Y·30Y 라
+        //   같은 칸에 놓이면 세로로 한·미 같은 만기가 짝이 된다(금리차를 바로 읽는다).
+        ["EWY", "^VIX", "KORU", "^KR2Y", "^KR10Y", "^KR30Y"],
       ],
     },
     {
@@ -81,8 +83,12 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
     },
     {
       id: "spot", short: "현물",
-      label: "💵 현물 (원자재)",                       // 금·은·구리·원유(WTI·브렌트)·천연가스 — 가격 자체가 신호
-      rows: [["GC=F", "SI=F", "HG=F", "CL=F", "BZ=F", "NG=F"]],
+      label: "💵 현물 (원자재·코인)",                   // 금·은·구리·원유·가스·밀 + 암호화폐 — 가격 자체가 신호
+      rows: [
+        ["GC=F", "SI=F", "HG=F", "CL=F", "BZ=F", "NG=F"],
+        // 밀 + 암호화폐. 토스 overview 가 원자재·가상자산을 **같은 응답**에 실어 보내서 추가 호출이 없다.
+        ["ZW=F", "BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD"],
+      ],
     },
     {
       id: "bigtech", short: "빅테크",
