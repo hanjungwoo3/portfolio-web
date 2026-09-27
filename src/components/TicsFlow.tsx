@@ -1,4 +1,7 @@
-// 섹터 흐름(토스 TICS) — 지수 탭의 한국/미국 섹터 블록.
+// 섹터 흐름(토스 TICS) 공용 조각 — 카드(TicsCard)·기간/정렬 목록·금액 포맷.
+//   화면을 그리는 건 TicsSectorBoard(지수 탭 '한·미 섹터') 하나다. 여기는 그 재료만 둔다.
+//   ※ 예전엔 이 파일에 한 나라짜리 TicsFlow 화면과 TicsCompareTab 비교 탭이 같이 있었는데,
+//     한·미를 한 판에 합치면서 둘 다 안 쓰게 됐다(참조 0곳) → 2026-09 제거.
 //
 // 한국 섹터 카드(ThemeFlow)와 **같은 모양**이다. 다른 건 출처 하나뿐이다:
 //   · ThemeFlow: 크롤러 분류 + 토스 시세 3콜, 등락률은 우리가 계산(거래대금 상위 20종 중앙값)
@@ -11,14 +14,8 @@
 // ⚠️ 막대는 한국 카드의 '오른 종목 비율' 이 아니다 — 토스가 그 값을 안 준다. 여기서는
 //   **거래대금 비중**(그 기간 1위 분류 대비)이다. 무엇을 그린 막대인지 툴팁에 적는다.
 
-import { useState } from "react";
-import { useQuery, keepPreviousData } from "@tanstack/react-query";
-import {
-  fetchTossTicsRanking,
-  type TicsCategory, type TicsDuration, type TicsNation, type TicsSort,
-} from "../lib/api";
+import type { TicsCategory, TicsDuration, TicsSort } from "../lib/api";
 import { signColor } from "../lib/format";
-import { TicsStockDialog } from "./TicsStockDialog";
 
 export const TOP_FOLD = 15;   // 한국 카드와 같은 접기 기준
 
@@ -98,103 +95,5 @@ export function TicsCard({ c, maxAmount, onClick, onOpen, selected, pulledRank }
         )}
       </div>
     </div>
-  );
-}
-
-export function TicsFlow({ nation, onOpenValuation }: {
-  nation: TicsNation;
-  onOpenValuation?: (ticker: string, name: string) => void;
-}) {
-  const [duration, setDuration] = useState<TicsDuration>("1d");
-  // 기본은 거래대금 — 등락률 순은 표본 적은 분류가 위로 튄다(한두 종목이 중앙값을 끌어올린다).
-  //   세 화면(한·미 섹터 판·테마 카드·비교 탭)이 같은 기본값을 쓴다.
-  const [sortBy, setSortBy] = useState<TicsSort>("TRADING_AMOUNT");
-  const [expanded, setExpanded] = useState(false);
-  const [dlg, setDlg] = useState<TicsCategory | null>(null);
-
-  const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["tics-flow", nation, duration, sortBy],
-    queryFn: () => fetchTossTicsRanking(nation, duration, sortBy),
-    staleTime: 60_000,
-    refetchInterval: 5 * 60_000,
-    placeholderData: keepPreviousData,
-  });
-
-  const items = data?.items ?? [];
-  const maxAmount = items.reduce((m, c) => Math.max(m, c.tradingAmountKrw), 0);
-  const many = items.length > TOP_FOLD * 2;
-  const shown = !many || expanded
-    ? items
-    : [...items.slice(0, TOP_FOLD), ...items.slice(-TOP_FOLD)];
-  const stamp = data?.basedAt
-    ? new Date(new Date(data.basedAt).getTime() + 9 * 3600_000).toISOString().slice(11, 16)
-    : null;
-
-  return (
-    <>
-      <div className="flex items-center gap-1 mb-1 flex-wrap">
-        {SORTS.map(x => (
-          <button key={x.key} onClick={() => setSortBy(x.key)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-bold border transition ${
-                    sortBy === x.key ? "bg-gray-800 text-white border-gray-800"
-                                     : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}>
-            {x.label}
-          </button>
-        ))}
-        <span className="text-gray-300 mx-0.5">|</span>
-        {DURATIONS.map(x => (
-          <button key={x.key} onClick={() => setDuration(x.key)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-bold border transition ${
-                    duration === x.key ? "bg-indigo-600 text-white border-indigo-600"
-                                       : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}>
-            {x.label}
-          </button>
-        ))}
-      </div>
-
-      <div className="flex items-center gap-2 text-[11px] text-gray-500 px-0.5 -mt-0.5 mb-1 flex-wrap">
-        <span>
-          토스 분류 {items.length}개 · 막대는 거래대금 비중 ·{" "}
-          <span className="text-gray-400">{stamp ? `기준 ${stamp} · ` : ""}누르면 종목 목록</span>
-        </span>
-        <span className="px-1.5 py-0.5 rounded bg-gray-100 text-gray-600 font-medium">토스 기준</span>
-        <button onClick={() => void refetch()} disabled={isFetching}
-                title="분류 랭킹을 다시 조회합니다 (프록시 1콜)"
-                className="px-1.5 py-0.5 rounded border border-gray-300 bg-white text-gray-600
-                           hover:bg-gray-100 disabled:opacity-50">
-          {isFetching ? "조회 중…" : "🔄 새로고침"}
-        </button>
-      </div>
-
-      {isError ? (
-        <div className="py-6 text-center text-[11px] text-rose-700">
-          데이터를 가져오지 못했습니다 — {(error as Error)?.message}
-        </div>
-      ) : isLoading && !data ? (
-        <div className="py-6 text-center text-[11px] text-gray-400">불러오는 중…</div>
-      ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 items-stretch">
-          {shown.map(c => (
-            <TicsCard key={c.ticsId} c={c} maxAmount={maxAmount}
-                      onClick={() => setDlg(c)} onOpen={() => setDlg(c)} />
-          ))}
-        </div>
-      )}
-
-      {many && (
-        <button onClick={() => setExpanded(v => !v)}
-                className="mt-1 w-full py-1 rounded border border-gray-300 bg-white text-[11px]
-                           text-gray-600 hover:bg-gray-50">
-          {expanded
-            ? `접기 (상·하위 ${TOP_FOLD}개씩)`
-            : `전체 ${items.length}개 보기 (지금은 상·하위 ${TOP_FOLD}개씩 ${TOP_FOLD * 2}개)`}
-        </button>
-      )}
-
-      {dlg && (
-        <TicsStockDialog cat={dlg} nation={nation} onClose={() => setDlg(null)}
-                         onOpenValuation={onOpenValuation} />
-      )}
-    </>
   );
 }
