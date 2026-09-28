@@ -402,6 +402,36 @@ if (isNativeApp()) {
 // 가끔 hidden iframe UI 가 잠깐 보이는 문제. 토큰 갱신은 SettingsDialog 진입 시
 // 또는 명시적 sync 액션(uploadToDrive 등) 시점에만 수행 (일관 정책).
 
+/** 확장에 **한 번만** 동의를 받아 둔다(사용자 클릭에서 호출).
+ *  이미 웹으로 로그인해 둔 사용자는 signIn() 을 다시 안 거치므로, 설정에서 이 버튼으로 받는다.
+ *  성공하면 그 뒤 토큰 갱신이 전부 확장(chrome.identity)으로 가 **팝업이 사라진다.** */
+export type ExtAuthResult = "ok" | "no-extension" | "denied" | "error";
+export async function grantExtensionAuth(): Promise<ExtAuthResult> {
+  if (isNativeApp() || !isExtensionProxyReady()) return "no-extension";
+  try {
+    const r = await getGoogleTokenViaExtension(true);
+    if (!r) return "denied";     // 사용자가 거절했거나 확장이 googleToken 을 모른다(구버전)
+    clearAuthDiag();
+    saveToken(r.token, r.expiresIn);
+    return "ok";
+  } catch {
+    return "error";              // 확장 응답 없음(타임아웃) — 대개 구버전이다
+  }
+}
+
+/** 확장이 붙어 있는가(동의 여부와 무관). */
+export function canUseExtensionAuth(): boolean {
+  return !isNativeApp() && isExtensionProxyReady();
+}
+
+/** 확장 **동의가 이미 끝났는가** — interactive:false 로 조용히 찔러 본다.
+ *  토큰이 나오면 동의가 있는 것이고, 그럼 설정의 '확장으로 인증' 버튼을 띄울 이유가 없다.
+ *  (팝업이 없는 경로라 이 확인 자체는 조용하다) */
+export async function hasExtensionAuth(): Promise<boolean> {
+  if (!canUseExtensionAuth()) return false;
+  return !!(await extensionAuthToken(false));
+}
+
 // 로그인 — 전체 페이지가 google 로 redirect (사용자 클릭 후)
 // Promise 안 반환 — redirect 후 다시 돌아올 때 token 처리됨
 export function signIn(): void {
@@ -418,9 +448,20 @@ export function signIn(): void {
         // 플러그인이 없거나 실패하면 옛 경로로 떨어뜨린다 — 로그인이 먹통이 되면 안 된다.
         if (!t) signInLegacy();
       });
-    } else {
-      signInLegacy();
+      return;
     }
+    // ★ 크롬 확장이 붙어 있으면 **확장으로 먼저 동의를 받는다.**
+    //   확장은 웹과 **다른 client_id**(manifest.oauth2)를 쓴다 — 웹에서 로그인해도 확장 쪽
+    //   동의는 따로 받아야 한다. 그 동의가 없으면 chrome.identity.getAuthToken 이
+    //   interactive:false 에서 늘 빈손이라, 조용한 갱신이 되는데도 GIS 팝업으로 떨어졌다(실측).
+    //   여기서 한 번 받아 두면 그 뒤로는 타이머에서도 팝업 없이 재발급된다.
+    if (!isNativeApp() && isExtensionProxyReady()) {
+      void extensionAuthToken(true).then((t) => {
+        if (!t) signInLegacy();   // 확장이 거절·실패하면 기존 웹 경로로
+      });
+      return;
+    }
+    signInLegacy();
   });
 }
 

@@ -31,7 +31,7 @@ import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/group
 import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
 import { detectPortfolioJson } from "../lib/portfolioImport";
-import { getAuthDiag } from "../lib/googleAuth";
+import { getAuthDiag, grantExtensionAuth, canUseExtensionAuth, hasExtensionAuth } from "../lib/googleAuth";
 import {
   getSyncState, getLastSyncedAt, disableSync, pauseSync, resumeSync, reconcileOnEnable,
   uploadToDrive, downloadFromDrive, tryRestoreSession,
@@ -66,6 +66,10 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   // syncState 값은 더 이상 직접 안 읽음(저장/불러오기 항상 노출) — setter 로 만료 시 상태만 갱신
   const [syncStateNow, setSyncState] = useState(getSyncState());
   const [autoBusy, setAutoBusy] = useState(false);
+  const [extBusy, setExtBusy] = useState(false);
+  const [extMsg, setExtMsg] = useState("");
+  // 확장 동의 여부 — null=확인 중. 동의가 끝났으면 버튼을 아예 안 그린다.
+  const [extGranted, setExtGranted] = useState<boolean | null>(null);
   const [proxyStatus, setProxyStatus] = useState<PersonalProxyStatus | "checking">("checking");
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncBusyMsg, setSyncBusyMsg] = useState("");   // 진행 중 오버레이 메시지
@@ -195,6 +199,15 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     }
     return false;
   }, []);
+
+  // 설정을 열 때 확장 동의 여부를 조용히 확인한다(팝업 없는 경로).
+  useEffect(() => {
+    if (!isOpen) return;
+    if (!canUseExtensionAuth()) { setExtGranted(null); return; }
+    let alive = true;
+    void hasExtensionAuth().then(ok => { if (alive) setExtGranted(ok); });
+    return () => { alive = false; };
+  }, [isOpen]);
 
   const doUpload = useCallback(async () => {
     setSyncBusy(true);
@@ -521,6 +534,40 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               {!signedIn && (
                 <div className="text-[11px] text-amber-700">
                   🔐 로그인 안 됨 — 저장/가져오기를 누르면 Google 로그인 후 그대로 실행됩니다.
+                </div>
+              )}
+              {/* 확장 인증 — 확장은 웹과 **다른 client_id** 라 동의를 따로 받아야 한다.
+                  받아 두면 토큰 갱신이 chrome.identity 로 가 **로그인 팝업이 안 뜬다**
+                  (웹 GIS 는 prompt:"none" 이어도 팝업을 띄우고, 타이머에서 부르면 브라우저가
+                   즉시 닫아 깜빡임만 남는다). 이미 웹으로 로그인해 둔 사용자는 signIn() 을
+                  다시 안 거치므로 여기서 한 번 눌러 받는다. */}
+              {canUseExtensionAuth() && extGranted === false && (
+                <div className="flex items-center gap-2 flex-wrap">
+                  <button disabled={extBusy}
+                          onClick={async () => {
+                            setExtBusy(true); setExtMsg("");
+                            try {
+                              const r = await grantExtensionAuth();
+                              // ★ 결과는 **버튼 옆**에 띄운다. statusMsg 는 다이얼로그 맨 위라
+                              //   동기화 섹션까지 스크롤해 누르면 안 보여 '반응 없음' 으로 보였다.
+                              const msg = r === "ok"
+                                ? "✅ 완료 — 이제 갱신에 팝업이 안 뜹니다"
+                                : r === "no-extension" ? "확장이 감지되지 않았습니다"
+                                : r === "denied" ? "⚠️ 거절됐거나 확장이 구버전입니다(업데이트 필요)"
+                                : "⚠️ 확장이 응답하지 않습니다 — 구버전이면 업데이트하세요";
+                              setExtMsg(msg);
+                              setStatusMsg(msg);
+                              if (r === "ok") setExtGranted(true);   // 버튼은 사라진다
+                            } finally { setExtBusy(false); }
+                          }}
+                          className="px-2 py-1 rounded border border-indigo-300 bg-indigo-50
+                                     text-[11px] font-bold text-indigo-700 hover:bg-indigo-100
+                                     disabled:opacity-50">
+                    {extBusy ? "인증 중…" : "🧩 확장으로 인증 (팝업 없애기)"}
+                  </button>
+                  <span className={`text-[10px] ${extMsg ? "text-gray-700 font-bold" : "text-gray-500"}`}>
+                    {extMsg || "한 번만 누르면 됩니다 — 그 뒤 갱신은 확장이 조용히 처리합니다."}
+                  </span>
                 </div>
               )}
               {/* 자동 갱신 실패 진단 — 1시간마다 로그아웃되는 원인을 찾기 위한 것.
