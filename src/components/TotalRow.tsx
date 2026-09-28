@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Stock, Price } from "../types";
-import { formatSigned, signColor, holdingYesterdayBaseSum } from "../lib/format";
+import { formatSigned, signColor, holdingYesterdayBaseSum, holdingMarketBaseSum } from "../lib/format";
 import {
   getDeposit, getTotalDeposits, setDeposit, getPendingBuy, getTotalPendingBuys,
   getDepositsOf, getPendingBuysOf,
@@ -36,6 +36,7 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
   let totalInvested = 0;
   let totalCurrent = 0;
   let totalYesterday = 0;
+  let totalMarketBase = 0;   // 오늘 산 분도 '어제부터 보유' 로 본 기준 — 시장 변동분용
   let activeCount = 0;
 
   // 오늘 매수분은 어제 보유가 없으니 yesterday 기준=매수단가 (합산은 보유분별 분리). holdingYesterdayBaseSum 참조.
@@ -47,6 +48,7 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
     totalInvested += s.shares * s.avg_price;
     totalCurrent += cur * s.shares;
     totalYesterday += holdingYesterdayBaseSum(s, p);
+    totalMarketBase += holdingMarketBaseSum(s, p);
     activeCount++;
   }
 
@@ -64,6 +66,11 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
   const pnlPct = totalInvested > 0 ? (pnl / totalInvested) * 100 : 0;
   const dayDiff = totalCurrent - totalYesterday;
   const dayPct = totalYesterday > 0 ? (dayDiff / totalYesterday) * 100 : 0;
+  // 시장 변동분 — 오늘 산 분도 전일 종가부터 들고 있었다고 본 값.
+  //   장중에 사야 두 값이 갈린다. 같으면 한 줄만 보여준다(대부분의 날).
+  const mktDiff = totalCurrent - totalMarketBase;
+  const mktPct = totalMarketBase > 0 ? (mktDiff / totalMarketBase) * 100 : 0;
+  const showMarket = Math.round(mktDiff) !== Math.round(dayDiff);
   const grandTotal = totalCurrent + deposit + pending;   // 구매대기도 현금성 → 총자산 포함
   const showTotal = deposit > 0 || pending > 0;   // 예수금·구매대기 있을 때만 총자산 헤드라인 표시
 
@@ -114,10 +121,30 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
       <div className={`text-right font-bold ${showTotal ? "" : "text-xl"} ${totalColor}`}>
         {totalCurrent.toLocaleString()}원
       </div>
-      <div className="text-gray-500 text-xs pl-2">오늘</div>
+      {/* 오늘 — 두 기준이 갈릴 때(장중 매수)만 둘 다 보여준다.
+          · 오늘  = 오늘 산 분은 **내 체결가** 기준 → "내가 오늘 번 돈"
+          · 시장  = 오늘 산 분도 **전일 종가** 기준 → "시장이 오늘 움직인 폭"
+          어느 하나가 맞는 게 아니라 묻는 질문이 다르다. 예전엔 앞엣것만 있어서,
+          거래로그가 없는(동기화 안 된) 브라우저와 숫자가 달라 보이는 원인이기도 했다. */}
+      <div className="text-gray-500 text-xs pl-2" title={showMarket
+        ? "오늘 = 오늘 산 분은 내 체결가 기준 (내가 오늘 번 돈)"
+        : undefined}>오늘</div>
       <div className={`text-right font-bold ${signColor(dayDiff)}`}>
         {formatSigned(dayDiff)} ({dayPct >= 0 ? "+" : ""}{dayPct.toFixed(2)}%)
       </div>
+      {showMarket && (
+        <>
+          <div className="text-gray-500 text-[11px]" />
+          <div />
+          <div className="text-gray-400 text-[11px] pl-2"
+               title="시장 = 오늘 산 분도 전일 종가부터 들고 있었다고 본 값 (시장이 오늘 움직인 폭)">
+            시장
+          </div>
+          <div className={`text-right text-[11px] font-bold ${signColor(mktDiff)} opacity-80`}>
+            {formatSigned(mktDiff)} ({mktPct >= 0 ? "+" : ""}{mktPct.toFixed(2)}%)
+          </div>
+        </>
+      )}
 
       {/* Row 3: 예수금 (편집 가능) */}
       <div className="text-gray-500 text-xs">예수금</div>

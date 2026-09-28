@@ -72,6 +72,19 @@ export function holdingYesterdayBaseSum(
   return baseUnit * stock.shares;
 }
 
+// 보유분의 '전일 종가 기준' 평가합 — **오늘 산 분도 어제부터 들고 있었다고** 보는 값.
+//   holdingYesterdayBaseSum 과 짝이다. 둘의 차이가 '오늘 산 것을 어떻게 볼 것인가' 다:
+//     · holdingYesterdayBaseSum : 오늘분은 **내 체결가** 기준 → "내가 오늘 번 돈"
+//     · 이 함수                  : 오늘분도 **전일 종가** 기준 → "시장이 오늘 움직인 폭"
+//   장중에 사면 두 값이 갈린다. 어느 하나가 맞는 게 아니라 묻는 질문이 다르다.
+export function holdingMarketBaseSum(
+  stock: { shares: number },
+  price: { price: number; base: number },
+): number {
+  const baseUnit = price.base > 0 ? price.base : price.price;
+  return baseUnit * stock.shares;
+}
+
 // KST 시(0~23)
 export function nowKstHour(): number {
   return nowKst().getUTCHours();

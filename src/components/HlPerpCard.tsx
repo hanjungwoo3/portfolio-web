@@ -68,7 +68,10 @@ export function HlPerpCard({ coin, name }: Props) {
               {p ? `$${p.price.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` : "—"}
             </span>
           </span>
-          <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
+          {/* 가격 폰트 — 일반 지수 카드와 맞춘다: 모바일 text-base / PC(sm↑) text-xl.
+              이 카드만 PC·모바일이 **같은 컴포넌트**라 한쪽 크기를 박아 두면 모바일에서
+              이 두 장(하이닉스·삼성전자 24h)만 혼자 커 보인다(실측). */}
+          <span className={`flex-1 text-right text-base sm:text-xl font-bold tabular-nums ${sign}`}>
             <TickArrow value={p?.price} className="mr-1 text-sm" />
             {p && Math.abs(pct) >= 0.005 ? fmtPct(pct) : ""}
           </span>

@@ -202,7 +202,7 @@ export type ConflictResult =
 
 export async function checkConflict(): Promise<ConflictResult> {
   if (getSyncState() !== "on") return { kind: "skip" };
-  const token = await getAccessToken();
+  const token = await getAccessToken({ allowPopupRefresh: false });
   if (!token) return { kind: "skip" };
   try {
     const meta = await getFileMeta();
@@ -266,7 +266,7 @@ export async function autoPush(): Promise<"pushed" | "none" | "conflict" | "skip
   const local = await exportAll();
   const h = normalize(local);
   if (h === getLastSyncedHash()) return "none";          // ← 여기서 대부분 끝난다(0콜)
-  const token = await getAccessToken();
+  const token = await getAccessToken({ allowPopupRefresh: false });
   if (!token) return "skip";
   const meta = await getFileMeta();
   const lastTs = getLastSyncedTs();
@@ -282,7 +282,7 @@ export async function autoPush(): Promise<"pushed" | "none" | "conflict" | "skip
 /** Drive 가 앞서 있고 내 변경이 없으면 조용히 받아 적용한다. */
 export async function autoPull(): Promise<"applied" | "none" | "conflict" | "skip"> {
   if (getSyncState() !== "on") return "skip";
-  const token = await getAccessToken();
+  const token = await getAccessToken({ allowPopupRefresh: false });
   if (!token) return "skip";
   const meta = await getFileMeta();
   if (!meta) return "none";                              // Drive 에 아직 파일 없음
@@ -323,6 +323,7 @@ export async function resolveConflict(side: "local" | "remote"): Promise<void> {
  *  Drive 에 파일이 없으면 올리고, 내용이 같으면 지문만 세우고, 다르면 묻는다.
  *  (이게 없으면 첫 검사에서 "이 기기가 바뀐 건지" 를 판별할 수 없어 매번 충돌로 뜬다) */
 export async function reconcileOnEnable(): Promise<"pushed" | "insync" | "conflict" | "skip"> {
+  // 사용자가 스위치를 켠 직후라 제스처가 살아 있다 → 팝업 갱신 허용.
   const token = await getAccessToken();
   if (!token) return "skip";
   const local = await exportAll();
@@ -378,6 +379,7 @@ export function stopAutoSync(): void {
 export async function tryRestoreSession(): Promise<boolean> {
   if (getSyncState() !== "on") return false;
   if (!wasSignedIn()) return false;
+  // 설정 화면을 열 때 부른다(사용자 제스처) → 팝업 갱신 허용. 이게 토큰을 되살리는 지점이다.
   const t = await getAccessToken();
   return !!t;
 }
