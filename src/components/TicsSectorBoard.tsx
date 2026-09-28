@@ -18,8 +18,9 @@ import {
 } from "../lib/api";
 import { TicsCard, DURATIONS, SORTS } from "./TicsFlow";
 
-// 접힌 상태에서 보여줄 장 수 — **상위 6장만**(3열 기준 2줄). 하위는 접힘에서 뺀다.
-//   이 화면은 "어디가 가고 있나" 를 보는 곳이라 급락 쪽은 전체 보기에서 확인하면 된다.
+// 접힌 상태에서 보여줄 장 수 — **상위 6장**(3열 기준 2줄).
+//   상·하위를 쪼개 보여주던 걸 그만뒀다. 정렬 버튼을 한 번 더 누르면 방향이 뒤집혀서
+//   '빠지는 쪽' 은 그걸로 보면 된다 — 화면을 셋으로 쪼개는 것보다 읽기 쉽다.
 //   FOLD_BOTTOM 을 0 으로 둘 수 있게 slice(-0) 을 쓰지 않는다 — slice(-0) 은 전체를 준다(함정).
 const FOLD_TOP = 6, FOLD_BOTTOM = 0;
 import { TicsStockDialog } from "./TicsStockDialog";
@@ -53,7 +54,7 @@ function basisDateLabel(nation: TicsNation, closed: boolean, holiday: boolean): 
   return closed ? `${md} 종가` : `${md} 장중`;
 }
 
-function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expanded, onExpand, session }: {
+function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expanded, session }: {
   nation: TicsNation;
   items: TicsCategory[];
   selected: string | null;
@@ -63,7 +64,6 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
   bothOnly: boolean;
   common: Set<string>;
   expanded: boolean;
-  onExpand: () => void;
   /** 토스가 알려주는 그 시장의 현재 구간 — 기준일 문구와 배지에 쓴다 */
   session?: { open: boolean; phase: string; isHoliday: boolean };
 }) {
@@ -131,12 +131,13 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
           {shown.map((c, i) => (
             <Fragment key={c.ticsId}>
               {/* 상위 덩어리와 하위 덩어리 사이 — 여기서 순위가 건너뛴다는 걸 밝힌다 */}
+              {/* 상위 덩어리와 하위 덩어리 사이 — 순위가 건너뛴다는 걸 밝힌다.
+                  버튼이 아니라 글자다. 펼치기는 두 패널 공용 '전체 보기' 하나가 맡는다. */}
               {folded && hiddenCount > 0 && i === shown.length - FOLD_BOTTOM && FOLD_BOTTOM > 0 && (
-                <button onClick={onExpand}
-                        className="col-span-full my-0.5 py-1 rounded border border-dashed border-gray-300
-                                   bg-gray-50 text-[10px] text-gray-500 hover:bg-gray-100">
-                  ⋯ {hiddenFrom}~{hiddenTo}위 {hiddenCount}개 숨김 — 누르면 전체 보기
-                </button>
+                <div className="col-span-full my-0.5 border-t border-dashed border-gray-300 pt-1
+                                text-center text-[10px] text-gray-400">
+                  ⋯ {hiddenFrom}~{hiddenTo}위 {hiddenCount}개 건너뜀 · 아래는 하위 {FOLD_BOTTOM}
+                </div>
               )}
             <div data-tics={c.name} className="min-w-0 h-full">
               <TicsCard c={c} maxAmount={maxAmount}
@@ -165,6 +166,9 @@ export function TicsSectorBoard({ onOpenValuation, krClosed = false }: {
   // 기본을 거래대금으로 — 등락률 순은 표본 적은 분류가 위로 튀어(한두 종목이 중앙값을 끌어올린다)
   //   "지금 돈이 어디로 가나" 를 보려는 화면과 어긋난다.
   const [sortBy, setSortBy] = useState<TicsSort>("TRADING_AMOUNT");
+  // 정렬 방향 — 같은 버튼을 다시 누르면 뒤집힌다. 기본은 거래대금 **많은 순**.
+  //   등락률 ▼ 상승 / ▲ 하락, 거래대금 ▼ 많은 순 / ▲ 적은 순.
+  const [desc, setDesc] = useState(true);
   const [selected, setSelected] = useState<string | null>(null);
   const [bothOnly, setBothOnly] = useState(false);
   const [expanded, setExpanded] = useState(false);
@@ -178,13 +182,20 @@ export function TicsSectorBoard({ onOpenValuation, krClosed = false }: {
     refetchInterval: 5 * 60_000,
   });
 
-  // 한·미를 한 번에 받는다(각 1콜) — 기간·정렬이 공통이라 캐시도 한 키로 묶인다.
+  // 한·미를 한 번에 받는다(각 1콜) — 기간이 공통이라 캐시도 한 키로 묶인다.
+  //
+  // ★ 조회는 **언제나 거래대금 기준**이고, 등락률 정렬은 받아온 목록을 화면에서 다시 세운다.
+  //   토스는 정렬 기준에 따라 **돌려주는 분류 자체가 다르다**(실측 2026-09-28):
+  //     FLUCTUATION_RATE → 등락률 상위 97개  = 음수 0개 (하락 분류가 아예 안 온다)
+  //     TRADING_AMOUNT   → 거래대금 상위 99개 = 음수 22개, 최저 소프트웨어 −6.10%
+  //   등락률로 조회하면 "어디가 빠지나" 를 볼 방법이 없다. 거래대금으로 받아 두면
+  //   오르는 쪽·빠지는 쪽이 같이 와서 어느 정렬로 보든 양 끝이 다 보인다.
   const { data, isLoading, isError, error, refetch, isFetching } = useQuery({
-    queryKey: ["tics-board", duration, sortBy],
+    queryKey: ["tics-board", duration],
     queryFn: async () => {
       const [kr, us] = await Promise.all([
-        fetchTossTicsRanking("KR", duration, sortBy),
-        fetchTossTicsRanking("US", duration, sortBy),
+        fetchTossTicsRanking("KR", duration, "TRADING_AMOUNT"),
+        fetchTossTicsRanking("US", duration, "TRADING_AMOUNT"),
       ]);
       return { kr, us };
     },
@@ -193,8 +204,15 @@ export function TicsSectorBoard({ onOpenValuation, krClosed = false }: {
     placeholderData: keepPreviousData,
   });
 
-  const krItems = data?.kr.items ?? [];
-  const usItems = data?.us.items ?? [];
+  // 조회는 거래대금 고정이라 정렬은 여기서 한다(위 주석 참고).
+  //   등락률 정렬이면 내림차순 — 상위는 많이 오른 쪽, 하위는 많이 빠진 쪽이 된다.
+  const order = (a: TicsCategory, b: TicsCategory) => {
+    const d = sortBy === "FLUCTUATION_RATE" ? b.pct - a.pct
+                                            : b.tradingAmountKrw - a.tradingAmountKrw;
+    return desc ? d : -d;
+  };
+  const krItems = [...(data?.kr.items ?? [])].sort(order);
+  const usItems = [...(data?.us.items ?? [])].sort(order);
   const common = new Set(
     usItems.filter(u => krItems.some(k => k.name === u.name)).map(u => u.name),
   );
@@ -206,14 +224,23 @@ export function TicsSectorBoard({ onOpenValuation, krClosed = false }: {
     <>
       {/* 컨트롤 — 기간·정렬은 양쪽 공통이다 */}
       <div className="flex items-center gap-1 mb-1 flex-wrap">
-        {SORTS.map(x => (
-          <button key={x.key} onClick={() => setSortBy(x.key)}
-                  className={`px-2 py-0.5 rounded text-[11px] font-bold border transition ${
-                    sortBy === x.key ? "bg-gray-800 text-white border-gray-800"
-                                     : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}>
-            {x.label}
-          </button>
-        ))}
+        {SORTS.map(x => {
+          const on = sortBy === x.key;
+          // 눌린 버튼을 또 누르면 방향만 뒤집는다. 다른 버튼으로 옮기면 내림차순부터.
+          const dir = x.key === "FLUCTUATION_RATE"
+            ? (desc ? "상승" : "하락")
+            : (desc ? "많은 순" : "적은 순");
+          return (
+            <button key={x.key}
+                    onClick={() => { if (on) setDesc(v => !v); else { setSortBy(x.key); setDesc(true); } }}
+                    title={on ? "한 번 더 누르면 반대로 정렬합니다" : `${x.label} 순으로 정렬`}
+                    className={`px-2 py-0.5 rounded text-[11px] font-bold border transition ${
+                      on ? "bg-gray-800 text-white border-gray-800"
+                         : "bg-white text-gray-500 border-gray-300 hover:bg-gray-50"}`}>
+              {x.label}{on && <span className="ml-1 font-normal">{desc ? "▼" : "▲"} {dir}</span>}
+            </button>
+          );
+        })}
         <span className="text-gray-300 mx-0.5">|</span>
         {DURATIONS.map(x => (
           <button key={x.key} onClick={() => setDuration(x.key)}
@@ -275,7 +302,6 @@ export function TicsSectorBoard({ onOpenValuation, krClosed = false }: {
                    onPick={n => setSelected(p => (p === n ? null : n))}
                    onOpen={cat => setDlg({ cat, nation: nat })}
                    bothOnly={bothOnly} common={common} expanded={expanded}
-                   onExpand={() => setExpanded(true)}
                    session={nat === "KR" ? sessions?.kr : sessions?.us} />
             </div>
           ))}
