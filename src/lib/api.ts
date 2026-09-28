@@ -2187,6 +2187,23 @@ export async function fetchKrIndexIntradayVolume(
   return out.reverse();   // 최신→과거 → 과거→최신
 }
 
+// 한국 국고채 금리 일봉 — 카드 배경 스파크라인용.
+//   ★ 토스 overview 는 국고채(KR1BENCH*)에 **miniChart.candles 를 빈 배열로** 준다(실측) —
+//     미 국채·원자재·코인은 주는데 여기만 없다. 그래서 다른 경로가 필요하다.
+//   ★ 종목 일봉과 같은 `c-chart/kr-s` 엔드포인트가 국고채 코드도 받는다(실측 60봉 OK).
+//     지수 코드(KGG01P)와 마찬가지로 'A' 프리픽스는 붙이지 않는다. 미 국채 코드는 400.
+export async function fetchKrBondYieldSeries(code: string, count = 60): Promise<number[]> {
+  const n = Math.min(Math.max(count, 1), TOSS_CANDLE_MAX);
+  const target = `https://wts-info-api.tossinvest.com/api/v1/c-chart/kr-s/${code}/day:1?count=${n}`;
+  const resp = await fetchProxied(target);
+  if (!resp.ok) throw new Error(`kr bond series ${code}: HTTP ${resp.status}`);
+  const data = await resp.json() as { result?: { candles?: Array<{ close?: number }> } };
+  const out = (data.result?.candles ?? [])
+    .map(c => c.close ?? 0)
+    .filter(v => v > 0);
+  return out.reverse();   // 최신→과거 → 과거→최신
+}
+
 export async function fetchKrMarketTurnover(
   indexKey: MarketIndexKey, count = 250,
 ): Promise<MarketTurnoverPoint[]> {
@@ -3147,6 +3164,10 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "DIA":  "US19980120001",
   "IWM":  "US20000526007",
   "VTI":  "US20010531001",
+  // ⚠️ 토스 '링크'(toss.ts TOSS_SYMBOL_URL)만 넣고 여기 '시세 코드' 를 빠뜨리면 그 종목만
+  //   야후 폴백으로 빠진다 → 원화 병기가 없고 24h 시세가 아니라 마감 상태로 와서 **혼자 흐려진다**
+  //   (SCHD 실측: 옆의 VTI 는 멀쩡한데 이것만 흐렸다). 둘은 항상 같이 넣는다.
+  "SCHD": "US20111020005",
   "SMH":  "US20191211007",
   "PAVE": "US20170308001",
   "LIT":  "US20100723002",

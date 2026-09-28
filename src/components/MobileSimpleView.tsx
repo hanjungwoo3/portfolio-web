@@ -6,11 +6,7 @@ import {
 } from "../lib/sortHoldings";
 import { getHeldFirst, setHeldFirst } from "../lib/heldFirst";
 import { SortSelector, makeSortHandlers } from "./SortSelector";
-import {
-  fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfoLight, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures,
-  fetchKrRegularPrices, verifyKrMarkets,
-  fetchYahooChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices, fetchTossUsStockCandles,
-} from "../lib/api";
+import { fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfoLight, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures, fetchKrRegularPrices, verifyKrMarkets, fetchYahooChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
 import {
   US_PAIRS,
 } from "../lib/usMarketData";
@@ -865,6 +861,22 @@ export function MobileSimpleView() {
   const tossStockChartMap = new Map(
     TOSS_CHART_SYMBOLS.map((sym, i) => [sym, tossStockChartQs[i]?.data ?? []])
   );
+  // 한국 국고채 스파크라인 — 토스 overview 가 이 셋만 miniChart 를 빈 배열로 준다.
+  //   종목 일봉과 같은 c-chart/kr-s 가 국고채 코드도 받아서 그걸로 받는다(3콜, 1시간 캐시).
+  const KR_BOND_CODE: Record<string, string> = {
+    "^KR2Y": "KR1BENCH0002", "^KR10Y": "KR1BENCH0010", "^KR30Y": "KR1BENCH0030",
+  };
+  const krBondSyms = Object.keys(KR_BOND_CODE);
+  const krBondQs = useQueries({
+    queries: krBondSyms.map(sym => ({
+      queryKey: ["kr-bond-series", sym],
+      queryFn: () => fetchKrBondYieldSeries(KR_BOND_CODE[sym], 60),
+      staleTime: 60 * 60 * 1000,
+      refetchOnWindowFocus: false,
+    })),
+  });
+  const krBondChartMap = new Map(krBondSyms.map((s2, i) => [s2, krBondQs[i]?.data ?? []]));
+
   // 일부 심볼 sparkline 은 Yahoo 가 historical 안 줌 → 가까운 현물 차트로 폴백
   const SPARKLINE_FALLBACK: Record<string, string> = {
     "SOX=F": "^SOX",
@@ -889,6 +901,9 @@ export function MobileSimpleView() {
       // Yahoo 가 차트 안 주는 심볼(^US2Y) — 토스 overview mini-chart 시계열로 폴백
       const tossSpark = usMap?.get(p.symbol)?.sparkline;
       if (tossSpark && tossSpark.length > 1) return [p.symbol, tossSpark];
+      // 한국 국고채 — overview miniChart 가 비어 있어 c-chart 일봉으로 따로 받는다
+      const krBond = krBondChartMap.get(p.symbol);
+      if (krBond && krBond.length > 1) return [p.symbol, krBond];
       return [p.symbol, own];
     })
   );

@@ -102,7 +102,9 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
       id: "usetf", short: "ETF",
       label: "📦 미국 대표 ETF",
       rows: [
-        ["SPY", "QQQ", "DIA", "IWM", "VTI"],
+        // 6칸 그리드에 딱 맞는 6종. SCHD 는 배당성장 대표 — 국내 '미국배당다우존스' ETF 들이
+        //   전부 이 지수를 따라가서(ETF미국 탭 참조) 원본을 같이 봐야 비교가 된다.
+        ["SPY", "QQQ", "DIA", "IWM", "VTI", "SCHD"],
       ],
     },
   ];

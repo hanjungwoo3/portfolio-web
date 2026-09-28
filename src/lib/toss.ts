@@ -64,6 +64,7 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "DIA": "https://www.tossinvest.com/stocks/US19980120001",
   "IWM": "https://www.tossinvest.com/stocks/US20000526007",
   "VTI": "https://www.tossinvest.com/stocks/US20010531001",
+  "SCHD":"https://www.tossinvest.com/stocks/US20111020005",
   // 미국 반도체 개별주 (토스 종목 페이지)
   "MU":   "https://www.tossinvest.com/stocks/US19890516001",
   "NVDA": "https://www.tossinvest.com/stocks/US19990122001",
