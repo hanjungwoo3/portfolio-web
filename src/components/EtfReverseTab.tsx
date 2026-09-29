@@ -14,7 +14,9 @@ import {
 } from "../lib/api";
 import { signColor, dayChangePct } from "../lib/format";
 import { getTossCode } from "../lib/toss";
-import { StockCard, computeReturns } from "./EtfCompositionDialog";
+import { useEtfReturns, type ReturnPeriod } from "../lib/etfReturns";
+import { StockCard } from "./EtfCompositionDialog";
+import { EtfStatsBox } from "./EtfStatsBox";
 import { EtfCompareChartDialog } from "./EtfCompareChartDialog";
 
 const TREND_CAP = 36;   // 추세·수익률 조회 상위 개수(전부 조회는 부담 — 정렬 상위만)
@@ -80,8 +82,11 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
     [resultPriceList],
   );
 
-  // 결과 정렬 — 비중 / 현재등락 / 1·3·6개월 수익률
-  const [resultSort, setResultSort] = useState<"ratio" | "day" | "m1" | "m3" | "m6">("ratio");
+  // 결과 정렬 — 비중 / 현재등락 / 거래량 / 기간 수익률(1주일·1·3·6개월·1년)
+  //   기간 수익률은 크롤러 파일(0콜)이라 **검색된 전부**를 줄 세울 수 있다.
+  //   예전엔 상위 36종만 일봉을 받아 그 안에서만 정렬해서, 37위 밖의 1개월 1위는 영영 안 보였다.
+  const [resultSort, setResultSort] = useState<"ratio" | "day" | "vol" | ReturnPeriod>("ratio");
+  const returnData = useEtfReturns(true);
   // ETF 이름 필터 — 포함(이 단어 들어간 것만) / 제외(이 단어 들어간 것 빼기)
   const [nameInc, setNameInc] = useState("");
   const [nameExc, setNameExc] = useState("");
@@ -90,9 +95,8 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
   const [compareSeed, setCompareSeed] = useState<{ ticker: string; name: string }[]>([]);
   const openCompare = (seed: { ticker: string; name: string }[]) => { setCompareSeed(seed); setCompareOpen(true); };
 
-  // 추세·수익률 — 상위 TREND_CAP 개만 6개월 히스토리 조회.
-  //   비중/수익률 정렬 → 비중 기본순 상위(수익률 정렬은 이 집합 내에서만, 순환 방지).
-  //   현재(등락) 정렬 → 등락 상위(그래야 표시 상단 카드에 추세·수익률이 보임).
+  // 배경 추세 그래프 — 상위 TREND_CAP 개만 6개월 히스토리 조회(카드당 1콜이라 전부는 못 받는다).
+  //   수익률은 여기서 계산하지 않는다 — 크롤러 파일(EtfStatsBox)이 전 종목을 0콜로 준다.
   const trendCodes = useMemo(() => {
     const base = results ?? [];
     let ordered = base;
@@ -114,8 +118,6 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
     })),
   });
   const trendHist = new Map(trendQs.map((q, i) => [trendCodes[i], q.data ?? []]));
-  const trendReturns = new Map(trendCodes.map(c => [c, computeReturns(trendHist.get(c) ?? [])]));
-  const trendStamp = trendQs.map(q => q.dataUpdatedAt).join(",");
 
   const sortedResults = useMemo(() => {
     if (!results) return results;
@@ -125,12 +127,11 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
         const p = resultPriceMap.get(code);
         return p ? (dayChangePct(p) ?? -Infinity) : -Infinity;
       }
-      return trendReturns.get(code)?.[resultSort] ?? -Infinity;   // 수익률 미조회분은 하위로
+      if (resultSort === "vol") return resultPriceMap.get(code)?.volume ?? -Infinity;
+      return returnData?.returns[code]?.[resultSort] ?? -Infinity;   // 값 없는 종목은 하위로
     };
     return [...results].sort((a, b) => metric(b.etfCode) - metric(a.etfCode));
-    // trendReturns 는 매 렌더 새 Map — trendStamp 로 갱신 트리거(deps 직접 포함 시 무한루프)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results, resultSort, resultPriceList, trendStamp]);
+  }, [results, resultSort, resultPriceMap, returnData]);
 
   // ETF 이름 포함/제외 필터 적용 (공백/쉼표로 여러 단어 — 각각 OR)
   const displayResults = useMemo(() => {
@@ -533,7 +534,8 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
             </button>
             <span className="inline-flex items-center gap-0.5">
               <span className="text-gray-400 mr-1">정렬</span>
-              {([["ratio", "비중"], ["day", "현재"], ["m1", "1개월"], ["m3", "3개월"], ["m6", "6개월"]] as const).map(([k, label]) => (
+              {([["ratio", "비중"], ["day", "현재"], ["vol", "거래량"],
+                 ["w1", "1주일"], ["m1", "1개월"], ["m3", "3개월"], ["m6", "6개월"], ["y1", "1년"]] as const).map(([k, label]) => (
                 <button key={k} onClick={() => setResultSort(k)}
                         className={`px-1.5 py-0.5 rounded text-[11px] font-bold border transition
                                     ${resultSort === k
@@ -555,20 +557,15 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
                     .sort((a, b) => r.perTicker[b] - r.perTicker[a])
                     .map(t => ({ name: nameOf(t), ratio: r.perTicker[t] }))
                 : null;
-              const hist = trendHist.get(r.etfCode) ?? [];
-              const withTrend = hist.length > 1;
-              const closes = hist.map(p => p.close);
-              const rets = trendReturns.get(r.etfCode) ?? null;
+              const closes = (trendHist.get(r.etfCode) ?? []).map(p => p.close);
               return (
                 <div key={r.etfCode} className="group min-w-0">
                   {/* ETF 리치 카드 — 이름(코드) + 구성(+옆) + 매칭비중(우) + 그래프(좌)·포함종목(우, 카드 내부) */}
                   <StockCard i={0} item={{ stockCode: r.etfCode, name: `${r.etfName} (${r.etfCode})`, ratio: 0 }} hideRatio
                              price={resultPriceMap.get(r.etfCode)} chart={closes}
                              onRequestSearch={onRequestAdd}
-                             showReturns={withTrend} returns={rets}
-                             highlightReturn={resultSort === "m1" || resultSort === "m3" || resultSort === "m6" ? resultSort : undefined}
                              highlightDay={resultSort === "day"}
-                             boxMinH="min-h-[52px]"
+                             boxMinH="min-h-[92px]"
                              actionLeft={onOpenEtfComposition ? (
                                <button onClick={e => { e.preventDefault(); e.stopPropagation(); onOpenEtfComposition(r.etfCode, r.etfName); }}
                                        title={`${r.etfName} 구성종목 보기`}
@@ -586,20 +583,27 @@ export function EtfReverseTab({ holdings, onOpenEtfComposition, onRequestAdd }: 
                                </div>
                              }
                              boxRight={
-                               (breakdownItems || (included.size > 1 && mode === "any")) ? (
-                                 <div className="rounded-md border border-gray-200 bg-white/85 backdrop-blur-[1px]
-                                                 px-1.5 py-1 flex flex-col items-end gap-0.5
-                                                 text-[10px] text-gray-600 tabular-nums">
-                                   {included.size > 1 && mode === "any" && (
-                                     <span className="text-gray-400">{r.hitCount}/{included.size}</span>
-                                   )}
-                                   {breakdownItems && breakdownItems.map((b, i) => (
-                                     <div key={b.name + i} className="truncate max-w-full text-right">
-                                       {b.name} <span className="text-rose-600 font-medium">{b.ratio.toFixed(1)}%</span>
-                                     </div>
-                                   ))}
-                                 </div>
-                               ) : undefined
+                               <div className="flex items-stretch gap-1 h-full">
+                                 {(breakdownItems || (included.size > 1 && mode === "any")) && (
+                                   <div className="rounded-md border border-gray-200 bg-white/85 backdrop-blur-[1px]
+                                                   px-1.5 py-1 flex flex-col items-end justify-center gap-0.5
+                                                   text-[10px] text-gray-600 tabular-nums min-w-0">
+                                     {included.size > 1 && mode === "any" && (
+                                       <span className="text-gray-400">{r.hitCount}/{included.size}</span>
+                                     )}
+                                     {breakdownItems && breakdownItems.map((b, i) => (
+                                       <div key={b.name + i} className="truncate max-w-full text-right">
+                                         {b.name} <span className="text-rose-600 font-medium">{b.ratio.toFixed(1)}%</span>
+                                       </div>
+                                     ))}
+                                   </div>
+                                 )}
+                                 {/* ETF 공통 지표 — 거래량 + 1주일·1·3·6개월·1년 */}
+                                 <EtfStatsBox code={r.etfCode}
+                                              volume={resultPriceMap.get(r.etfCode)?.volume}
+                                              highlight={resultSort === "ratio" || resultSort === "day" || resultSort === "vol"
+                                                ? undefined : resultSort} />
+                               </div>
                              } />
                 </div>
               );

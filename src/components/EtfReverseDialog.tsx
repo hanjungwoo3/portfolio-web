@@ -7,7 +7,8 @@ import { getEtfsContainingStock, type EtfHolding } from "../lib/etfIndex";
 import { fetchTossPrices, fetchKrPriceHistory } from "../lib/api";
 import { dayChangePct } from "../lib/format";
 import { useEscClose } from "../lib/useEscClose";
-import { StockCard, computeReturns } from "./EtfCompositionDialog";
+import { StockCard } from "./EtfCompositionDialog";
+import { EtfStatsBox } from "./EtfStatsBox";
 
 interface Props {
   ticker: string;
@@ -56,7 +57,7 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
       })
     : null;
 
-  // 각 ETF 추세·1·3·6개월 수익률 (6개월 히스토리)
+  // 각 ETF 배경 추세(6개월 히스토리). 기간 수익률은 EtfStatsBox 가 크롤러 파일에서 0콜로 읽는다.
   const histQs = useQueries({
     queries: etfCodes.map(code => ({
       queryKey: ["price-history", code, "6mo"],
@@ -113,9 +114,9 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
                     <StockCard key={h.etfCode} i={0}
                                item={{ stockCode: h.etfCode, name: `${h.etfName} (${h.etfCode})`, ratio: 0 }} hideRatio
                                price={priceMap.get(h.etfCode)} chart={hist.map(p => p.close)}
-                               showReturns={hist.length > 1} returns={computeReturns(hist)}
                                onRequestSearch={onRequestAdd}
-                               boxMinH="min-h-[52px]"
+                               boxMinH="min-h-[92px]"
+                               boxRight={<EtfStatsBox code={h.etfCode} volume={priceMap.get(h.etfCode)?.volume} />}
                                actionLeft={onOpenEtfComposition ? (
                                  <button onClick={e => { e.preventDefault(); e.stopPropagation(); onOpenEtfComposition(h.etfCode, h.etfName); }}
                                          title={`${h.etfName} 구성종목 보기`}

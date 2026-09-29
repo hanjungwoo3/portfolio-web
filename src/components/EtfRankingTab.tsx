@@ -9,9 +9,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { signColor, formatVolume } from "../lib/format";
+
+import { signColor } from "../lib/format";
 import { fetchKrPriceHistory } from "../lib/api";
-import { Sparkline } from "./Sparkline";
+import type { Price } from "../types";
+import { StockCard } from "./EtfCompositionDialog";
+import { EtfStatsBox } from "./EtfStatsBox";
 import {
   fetchEtfRanking, loadCachedRanking, isLeverageEtf, isFuturesEtf, RANK_SHOW, RANK_KEEP,
   type EtfRanking, type EtfRankRow,
@@ -42,9 +45,19 @@ interface State {
   err: string | null;
 }
 
-// 랭킹 카드 배경 추이 그래프 — 뷰포트에 들어온 카드만 3개월 일봉을 지연 fetch.
-//   (전체 ETF 시세 스캔은 6콜 배치지만, 종목별 차트는 개별 호출이라 호출수 병목을 피하려 lazy 로딩)
-function RankSparkline({ code }: { code: string }) {
+// 랭킹 카드 — ETF 검색·구성 팝업과 **같은 리치 카드**(EtfCompositionDialog 의 StockCard).
+//   화면마다 다른 카드를 쓰면 같은 ETF 가 탭마다 다르게 보인다.
+//
+// 배경 추세(3개월 일봉)는 뷰포트에 들어온 카드만 지연 조회한다 — 전체 시세는 6콜 배치지만
+//   종목별 차트는 개별 호출이라, 50장을 한꺼번에 부르면 호출수 병목에 그대로 걸린다.
+function RankCard({ row, rank, period, periodPct, onOpenEtfComposition, tradeDate }: {
+  row: EtfRankRow;
+  rank: number;
+  period: Period;
+  periodPct?: number;      // 줄 세운 기준 값 — 기간 탭일 때만(오늘이면 큰 숫자가 곧 기준이다)
+  tradeDate: string;
+  onOpenEtfComposition?: (code: string, name: string) => void;
+}) {
   const ref = useRef<HTMLDivElement>(null);
   const [inView, setInView] = useState(false);
   useEffect(() => {
@@ -57,19 +70,50 @@ function RankSparkline({ code }: { code: string }) {
     return () => io.disconnect();
   }, []);
   const { data } = useQuery({
-    queryKey: ["etf-rank-spark", code],
-    queryFn: () => fetchKrPriceHistory(code, "3mo"),
+    queryKey: ["etf-rank-spark", row.code],
+    queryFn: () => fetchKrPriceHistory(row.code, "3mo"),
     enabled: inView,
     staleTime: 60 * 60_000,
     refetchOnWindowFocus: false,
   });
-  const arr = (data ?? []).map(p => p.close);
+  // 랭킹 스냅샷은 Price 전체가 아니라 필요한 값만 담고 있다 — 카드가 쓰는 모양으로 맞춰 준다.
+  const price: Price = {
+    ticker: row.code, price: row.price, base: row.base, prevClose: row.base,
+    open: 0, volume: row.volume, trade_date: tradeDate,
+  };
   return (
-    <div ref={ref} className="absolute inset-0 pointer-events-none">
-      {arr.length > 1 && (
-        <Sparkline data={arr} width={400} height={80}
-                   className="absolute inset-0 w-full h-full opacity-40" />
-      )}
+    <div ref={ref}>
+      <StockCard i={0} item={{ stockCode: row.code, name: `${row.name} (${row.code})`, ratio: 0 }} hideRatio
+                 price={price} chart={(data ?? []).map(p => p.close)}
+                 highlightDay={period === "today"}
+                 boxMinH="min-h-[92px]"
+                 actionLeft={onOpenEtfComposition ? (
+                   <button onClick={e => { e.preventDefault(); e.stopPropagation(); onOpenEtfComposition(row.code, row.name); }}
+                           title={`${row.name} 구성종목 보기`}
+                           className="px-1.5 py-0.5 rounded-t-md text-[10px] font-bold leading-none
+                                      bg-amber-50 text-amber-700 border-t border-l border-r border-amber-300
+                                      hover:bg-amber-100">
+                     🍱
+                   </button>
+                 ) : undefined}
+                 rightTag={
+                   <div className="border border-gray-300 rounded px-1 py-0 leading-tight tabular-nums
+                                   text-[11px] font-bold bg-white whitespace-nowrap text-gray-600">
+                     {rank}위
+                   </div>
+                 }
+                 centerTag={period !== "today" && periodPct !== undefined ? (
+                   // 큰 숫자는 '오늘' 이다. 기간 탭으로 줄 세웠을 땐 그 기준값을 따로 적어 줘야
+                   //   왜 이 순서인지 읽힌다(1년 정렬인데 오늘 −0.3% 인 카드가 1위일 수 있다).
+                   <div className={`border border-gray-300 rounded px-1.5 py-0 leading-tight tabular-nums
+                                    text-[11px] font-bold bg-white whitespace-nowrap ${signColor(periodPct)}`}>
+                     {PERIOD_LABEL[period]} {periodPct > 0 ? "+" : ""}{periodPct.toFixed(2)}%
+                   </div>
+                 ) : undefined}
+                 boxRight={
+                   <EtfStatsBox code={row.code} volume={row.volume}
+                                highlight={period === "today" ? undefined : period} />
+                 } />
     </div>
   );
 }
@@ -302,48 +346,12 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
 
       {shown.length > 0 && (
         // 가로 우선 배치 — 1위부터 오른쪽으로 채우고 다음 줄로 넘어간다(섹터 카드와 같은 규칙).
-        //   예전엔 CSS 다단(columns)으로 세로 우선이었는데, 1·2·3위가 세로로 흩어져
-        //   "위가 상위" 라는 보통의 읽기 순서와 어긋났다.
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 xl:grid-cols-6 gap-2 items-stretch">
+        //   리치 카드라 예전(6단)보다 단을 줄였다 — 6단에서는 이름도 지표도 다 잘렸다.
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-2 gap-y-5 pt-3 items-stretch">
           {shown.map((r, i) => (
-            <button key={r.code}
-                    onClick={() => onOpenEtfComposition?.(r.code, r.name)}
-                    className="relative overflow-hidden flex items-center gap-2 px-2.5 py-2 text-left rounded-lg
-                               border border-gray-200 bg-white hover:bg-gray-50
-                               w-full h-full">
-              <RankSparkline code={r.code} />
-              <span className="relative z-10 w-7 shrink-0 text-[11px] tabular-nums text-gray-400 text-right">
-                {i + 1}
-              </span>
-              <span className="relative z-10 flex-1 min-w-0">
-                <span className="line-clamp-2 min-h-[2.5em] text-sm font-medium text-gray-800 leading-tight">
-                  {r.name}
-                </span>
-                <span className="block text-[11px] text-gray-500 tabular-nums">
-                  거래량 {formatVolume(r.volume)}
-                </span>
-              </span>
-              <span className="relative z-10 shrink-0 text-right">
-                {(() => {
-                  // 기간 탭이면 그 기간 수익률을, 오늘이면 스냅샷 등락률을 크게 보여준다.
-                  const v = pctOf(r);
-                  return (
-                    <span className={`block text-sm font-bold tabular-nums ${signColor(v ?? 0)}`}>
-                      {v === undefined ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(2)}%`}
-                    </span>
-                  );
-                })()}
-                <span className="block text-[11px] text-gray-600 tabular-nums">
-                  {r.price.toLocaleString()}
-                </span>
-                {/* 기간을 보는 중엔 오늘 등락률도 작게 곁들인다 — 둘을 같이 봐야 판단이 된다 */}
-                {period !== "today" && (
-                  <span className={`block text-[11px] tabular-nums ${signColor(r.pct)}`}>
-                    오늘 {r.pct > 0 ? "+" : ""}{r.pct.toFixed(2)}%
-                  </span>
-                )}
-              </span>
-            </button>
+            <RankCard key={r.code} row={r} rank={i + 1} period={period} periodPct={pctOf(r)}
+                      tradeDate={ranking?.tradeDate ?? ""}
+                      onOpenEtfComposition={onOpenEtfComposition} />
           ))}
         </div>
       )}

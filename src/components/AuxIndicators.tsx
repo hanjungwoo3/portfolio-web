@@ -7,7 +7,7 @@
 import { useEffect, useState, type ReactElement } from "react";
 import { useQuery } from "@tanstack/react-query";
 import type { Investor } from "../types";
-import { signColor } from "../lib/format";
+import { signColor, formatVolume } from "../lib/format";
 import { fetchKrPriceHistory, fetchYahooPriceHistory, fetchEtfKeyIndicator } from "../lib/api";
 
 // 1년 종가 → 마지막 종가 기준 기간 전 대비 수익률(%). ETF 카드용 (1주일·1·3·6개월·1년).
@@ -55,10 +55,11 @@ interface Props {
   defaultOpen?: boolean;     // true 면 항상 펼친 상태로 시작 (관심종목 등 우측 패널 빈 경우)
   etfTicker?: string;        // ETF 면 ticker 전달 — 외국인/기관/연기금 대신 1·3·6·12개월 수익률 표시
   usTicker?: string;         // 미국 개별주 면 심볼 전달 — 기간수익률 표시(총보수 없음). ETF 는 etfTicker 사용
+  volume?: number;           // 오늘 거래량 — ETF·미국 카드에 한 줄 (ETF 카드 공통 지표와 같은 구성)
 }
 
 export function AuxIndicators({
-  chart, investorHistory, isTradingDay, textSize = "xs", defaultOpen, etfTicker, usTicker,
+  chart, investorHistory, isTradingDay, textSize = "xs", defaultOpen, etfTicker, usTicker, volume,
 }: Props) {
   const [expanded, setExpanded] = useState(defaultOpen ?? !isTradingDay);
   const sizeCls = textSize === "10" ? "text-[10px]" : "text-[11px]";
@@ -137,6 +138,15 @@ export function AuxIndicators({
 
   // ETF/미국 — 기간수익률(1·3·6·12개월). ETF 는 맨 위 총보수도(미국은 총보수 없음).
   if (showReturns) {
+    // 거래량 — ETF 검색·랭킹 카드(EtfStatsBox)와 같은 자리, 같은 표기.
+    if (volume != null && volume > 0) {
+      lines.unshift(
+        <div key="vol-today" className={`${sizeCls} leading-tight flex items-baseline justify-between gap-3`}>
+          <span className="text-gray-500">거래량 </span>
+          <span className="text-gray-700 font-medium">{formatVolume(volume)}</span>
+        </div>
+      );
+    }
     if (etfKey?.totalFee != null) {
       lines.unshift(
         <div key="fee" className={`${sizeCls} leading-tight flex items-baseline justify-between gap-3`}>

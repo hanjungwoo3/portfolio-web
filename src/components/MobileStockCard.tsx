@@ -811,7 +811,8 @@ export function MobileStockCard({
                        isTradingDay={!!price.high} textSize="10"
                        defaultOpen={!hasPosition}
                        etfTicker={isEtfByName(stock.name) ? stock.ticker : undefined}
-                       usTicker={isUsHolding && !isEtfByName(stock.name) ? stock.ticker : undefined} />
+                       usTicker={isUsHolding && !isEtfByName(stock.name) ? stock.ticker : undefined}
+                       volume={price.volume} />
 
         {/* ─── 투자자 매매동향 레이어 (👥 클릭 시) ─── */}
         {showFlow && investor && (

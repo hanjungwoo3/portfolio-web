@@ -11,6 +11,7 @@ import { fetchForeignHoldingPrices, looksLikeForeignName } from "../lib/foreignS
 import { openExternal } from "../lib/toss";
 import { EtfCompareChartDialog } from "./EtfCompareChartDialog";
 import { MarketAlertDialog } from "./MarketAlertDialog";
+import { EtfStatsBox } from "./EtfStatsBox";
 import { requestValuation } from "../lib/valuationNav";
 import { useEscClose } from "../lib/useEscClose";
 import type { Price } from "../types";
@@ -518,7 +519,8 @@ function EtfDiffTable({ tickerA, nameA, tickerB, nameB, onRequestSearch }: DiffT
                    price={priceMap.get(etfTicker)} chart={chartMap.get(etfTicker)}
                    krReg={krRegMap?.get(etfTicker)} groups={holdingGroups.get(etfTicker) ?? []}
                    dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
-                   boxMinH="min-h-[128px]" bigFont showReturns />
+                   boxMinH="min-h-[128px]" bigFont
+                   boxRight={<EtfStatsBox code={etfTicker} volume={priceMap.get(etfTicker)?.volume} />} />
       </div>
       <div className="flex-1 min-w-0">
         <PieSlot items={pie.vis} otherRatio={pie.other} cashRatio={pie.cash}
@@ -650,11 +652,8 @@ interface StockCardProps {
   className?: string;        // 루트에 추가(예: 그리드 self-end 정렬)
   boxMinH?: string;          // 가격 박스 최소 높이 클래스(기본 min-h-[80px]) — ETF 자체 카드 등 크게
   bigFont?: boolean;         // 가격·% 폰트 크게 — ETF 자체 카드용
-  showReturns?: boolean;     // 1·3·6개월 수익률 표시 (ETF 자체 카드용, KR 한정)
-  returns?: { m1: number | null; m3: number | null; m6: number | null } | null;  // 외부 계산 주입(자체조회 대체)
   actionLeft?: ReactNode;    // 상단 + 버튼 왼쪽 추가 액션(예: ETF 구성 보기)
   boxRight?: ReactNode;      // 가격 박스 내부 오른쪽 영역(예: 포함 종목 분해)
-  highlightReturn?: "m1" | "m3" | "m6";  // 해당 기간 수익률 강조(정렬 기준)
   highlightDay?: boolean;    // 일간% 강조(정렬=현재)
   // 해외(미국) 구성종목 — 부모가 한 번에 받아 내려주면 카드는 자기 조회를 건너뛴다.
   //   (종목마다 따로 부르면 10종에 코드조회 10 + 시세 10 = 20콜이다)
@@ -664,10 +663,8 @@ interface StockCardProps {
   warning?: string;          // 거래소 시장조치(투자경고/투자주의/거래정지…) — 종목 카드와 같은 소스
   noteRow?: ReactNode;       // 가격 박스 안, 일간% 아래 한 줄 (예: 구성종목 프리장 가중)
 }
-// 6개월 종가 → 수익률 계산 export (EtfReverseTab 등 재사용)
-export { computeReturns };
-
-// 6개월 히스토리 → 1/3/6개월 수익률(%) — 마지막 종가 기준 N개월 전 종가 대비
+// 6개월 히스토리 → 1/3/6개월 수익률(%) — 마지막 종가 기준 N개월 전 종가 대비.
+//   ETF 비교 검색 드롭다운 전용. 카드의 기간 수익률은 EtfStatsBox(크롤러 파일, 0콜)를 쓴다.
 function computeReturns(h: { date: string; close: number }[]): { m1: number | null; m3: number | null; m6: number | null } | null {
   if (h.length < 2) return null;
   const last = h[h.length - 1].close;
@@ -684,6 +681,7 @@ function computeReturns(h: { date: string; close: number }[]): { m1: number | nu
   };
   return { m1: at(1), m3: at(3), m6: at(6) };
 }
+
 // 비중 책갈피 — 색상 지정(비교표 A/B 등)
 function RatioTag({ ratio, color }: { ratio: number; color: string }) {
   return (
@@ -720,7 +718,7 @@ const WARN_BG: Record<string, string> = {
   투자주의:     "bg-amber-500",
 };
 
-export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups = [], dimEnabled = false, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, showReturns, returns: returnsProp, actionLeft, boxRight, highlightReturn, highlightDay, usPrice, usSymbol, usChart, noteRow, warning }: StockCardProps) {
+export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups = [], dimEnabled = false, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, actionLeft, boxRight, highlightDay, usPrice, usSymbol, usChart, noteRow, warning }: StockCardProps) {
   const priceSize = bigFont ? "text-2xl" : "text-base";
   const pctSize = bigFont ? "text-lg" : "text-sm";
   const [alertOpen, setAlertOpen] = useState(false);   // 시장조치 공시 모달
@@ -783,14 +781,6 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   const addTicker = fSymbol ?? tNum;                                // +추가/검색용
   // 해외는 심볼 해석되면 정상(추가가능), KR 은 영숫자 6자리면 정상
   const isStandard = isForeignCode ? !!fSymbol : krCode;
-  // 1·3·6개월 수익률(ETF 자체 카드) — KR 한정. returns prop 주입되면 자체조회 생략.
-  const { data: selfReturns } = useQuery({
-    queryKey: ["stockcard-returns", tNum],
-    queryFn: async () => computeReturns(await fetchKrPriceHistory(tNum, "6mo")),
-    enabled: !!showReturns && krCode && returnsProp === undefined,
-    staleTime: 60 * 60_000,
-  });
-  const returns = returnsProp ?? selfReturns;
   const dayDiff = dayChangeDiff(price);
   const dayPct = dayChangePct(price) ?? 0;
   const colorDiff = price ? price.price - (price.prevClose || price.price) : 0;
@@ -995,20 +985,6 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                 </span>
               </div>
               {noteRow && <div className="pl-5 mt-0.5">{noteRow}</div>}
-              {/* 1·3·6개월 수익률 — 정렬 기준 기간은 박스+배경 강조 */}
-              {showReturns && returns && (
-                <div className="flex items-center gap-1.5 pl-5 mt-1 text-[11px] font-bold tabular-nums">
-                  {([["1개월", returns.m1, "m1"], ["3개월", returns.m3, "m3"], ["6개월", returns.m6, "m6"]] as const).map(([lbl, v, key]) =>
-                    v == null ? null : (
-                      <span key={lbl}
-                            className={`${signColor(v)} ${highlightReturn === key
-                              ? "bg-white border border-gray-300 rounded px-1 py-0 shadow-sm" : ""}`}>
-                        <span className="text-gray-400 font-normal mr-0.5">{lbl}</span>
-                        {v >= 0 ? "+" : ""}{v.toFixed(1)}%
-                      </span>
-                    ))}
-                </div>
-              )}
               {isHeld && (
                 <div className="flex flex-wrap items-center gap-1 pl-6 mt-1">
                   {shownGroups.map(g => (
@@ -1039,7 +1015,8 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
             </div>
           </div>
           {boxRight && (
-            <div className="shrink-0 self-stretch flex items-center max-w-[48%]">{boxRight}</div>
+            // ETF 공통 지표 박스(거래량·기간수익률)가 들어오면서 48% 로는 글자가 잘렸다.
+            <div className="shrink-0 self-stretch flex items-center max-w-[60%]">{boxRight}</div>
           )}
           </div>
         </div>
@@ -1272,6 +1249,13 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
     .filter(t => /^[\dA-Za-z]{6}$/.test(t));
   // ETF 자기 카드용 — 가격/차트/마감 조회엔 ETF 자신도 포함(공통 종목 계산엔 미포함)
   const selfTicker = /^[\dA-Za-z]{6}$/.test(ticker) ? ticker : null;
+  // 총보수 — 아래 EtfIndicatorBlock 과 **같은 쿼리 키**라 추가 호출 없이 캐시를 나눠 쓴다.
+  const { data: selfKey } = useQuery({
+    queryKey: ["etf-key-indicator", ticker],
+    queryFn: () => fetchEtfKeyIndicator(ticker),
+    enabled: !!selfTicker,
+    staleTime: 6 * 60 * 60_000,
+  });
   const cardTickers = selfTicker ? [selfTicker, ...stockTickers] : stockTickers;
 
   // 부모(비교 컨테이너) 로 ticker 목록 전달 — 공통 종목 계산용
@@ -1488,7 +1472,9 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
                          price={priceMap.get(selfTicker)} chart={chartMap.get(selfTicker)}
                          krReg={krRegMap?.get(selfTicker)} groups={holdingGroups.get(selfTicker) ?? []}
                          dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
-                         boxMinH="min-h-[128px]" bigFont showReturns
+                         boxMinH="min-h-[128px]" bigFont
+                         boxRight={<EtfStatsBox code={selfTicker} fee={selfKey?.totalFee ?? null}
+                                                volume={priceMap.get(selfTicker)?.volume} />}
                          noteRow={usNowAgg && (
                            <span className="inline-flex items-baseline gap-1 text-[11px] whitespace-nowrap">
                              <span className="text-gray-400">구성</span>
