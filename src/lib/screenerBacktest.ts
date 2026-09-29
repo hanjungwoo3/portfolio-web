@@ -6,6 +6,12 @@
 // ★ 핵심은 **같은 날 시장 평균 대비 초과수익**이다. 절대 수익률만 보면 상승장에서는 아무 조건이나
 //   좋아 보인다. 신호가 난 날짜의 전 종목 평균을 빼야 "이 조건이 고른 것" 의 값어치가 남는다.
 //
+// ★ 매매 규칙 — **신호 다음 거래일 종가 매수 → N거래일 뒤 종가 매도**.
+//   신호 난 날 종가로 사는 계산은 반칙이다. RSI·볼린저·200일선이 전부 **그날 종가로** 계산되므로,
+//   종가가 확정돼야 신호를 아는데 그 확정된 종가로 산다는 건 미래를 알고 사는 것이다(look-ahead).
+//   실제로는 다음 날에나 살 수 있으니 진입을 한 봉 미룬다. 시장 평균도 같은 규칙으로 계산해
+//   비교가 어긋나지 않게 한다.
+//
 // 대상: 코스피200 (스캐너 1콜 + 종목당 일봉 1콜 ≈ 200콜). 일회성이라 사용자가 눌러야 실행한다.
 //
 // ⚠️ 한계 세 가지 — 화면에도 그대로 적는다.
@@ -23,11 +29,14 @@ export interface BarSet { code: string; close: number[]; volume: number[]; date:
 let barsCache: BarSet[] | null = null;
 export function hasBacktestBars(): boolean { return barsCache !== null && barsCache.length > 0; }
 
-export const FWD_DAYS = [5, 20] as const;
+export const FWD_DAYS = [5, 10, 20] as const;
 export type FwdDay = typeof FWD_DAYS[number];
 
-export interface Stat { n: number; mean: number; median: number; winRate: number }
-export interface HorizonResult { signal: Stat; market: Stat; excess: Stat }
+export interface Stat { n: number; mean: number; median: number; winRate: number; std: number }
+// 보유 기간 중 최대낙폭 — 진입가 대비 기간 내 최저 종가. "들고 있는 동안 얼마나 빠졌나".
+//   평균만 보면 못 견딜 구간을 놓친다. 눌림목은 더 빠질 수 있는 자리를 사는 전략이라 이게 중요하다.
+export interface DrawStat { mean: number; worst: number }
+export interface HorizonResult { signal: Stat; market: Stat; excess: Stat; dd: DrawStat }
 export interface BacktestResult {
   ranAt: number;
   universe: number;      // 일봉을 받은 종목 수
@@ -38,14 +47,17 @@ export interface BacktestResult {
 }
 
 function stat(v: number[]): Stat {
-  if (v.length === 0) return { n: 0, mean: 0, median: 0, winRate: 0 };
+  if (v.length === 0) return { n: 0, mean: 0, median: 0, winRate: 0, std: 0 };
   const s = [...v].sort((a, b) => a - b);
   const mid = s.length >> 1;
+  const mean = v.reduce((a, b) => a + b, 0) / v.length;
+  const varr = v.reduce((a, x) => a + (x - mean) ** 2, 0) / v.length;
   return {
     n: v.length,
-    mean: v.reduce((a, b) => a + b, 0) / v.length,
+    mean,
     median: s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2,
     winRate: (v.filter(x => x > 0).length / v.length) * 100,
+    std: Math.sqrt(varr),
   };
 }
 
@@ -98,6 +110,8 @@ export function runBacktest(criteria: ScreenCriteria, bars = barsCache): Backtes
   // 날짜별로 모아 둔다 — 초과수익은 '같은 날 전 종목 평균' 을 빼야 나온다.
   const marketByDate = new Map<string, Record<number, number[]>>();
   const signalByDate = new Map<string, Record<number, number[]>>();
+  const ddByH: Record<number, number[]> = {};
+  for (const h of FWD_DAYS) ddByH[h] = [];
   let signals = 0;
 
   const bucket = (m: Map<string, Record<number, number[]>>, d: string) => {
@@ -108,11 +122,14 @@ export function runBacktest(criteria: ScreenCriteria, bars = barsCache): Backtes
 
   for (const b of bars) {
     const { close: cl, volume: vol, date: dt } = b;
-    if (cl.length < WARMUP + maxFwd + 10) continue;
+    if (cl.length < WARMUP + maxFwd + 11) continue;
     const R = rsiSeries(cl), S = smaSeries(cl, WARMUP), B = bbLowerSeries(cl);
-    for (let i = WARMUP; i < cl.length - maxFwd; i++) {
+    // i = 신호일. 매수는 i+1(다음 거래일) 종가, 매도는 i+1+h 종가.
+    for (let i = WARMUP; i < cl.length - maxFwd - 1; i++) {
+      const buy = cl[i + 1];
+      if (!(buy > 0)) continue;
       const mkt = bucket(marketByDate, dt[i]);
-      for (const h of FWD_DAYS) mkt[h].push((cl[i + h] / cl[i] - 1) * 100);
+      for (const h of FWD_DAYS) mkt[h].push((cl[i + 1 + h] / buy - 1) * 100);
       const r = R[i], s = S[i], bb = B[i];
       if (r == null || s == null || bb == null || bb <= 0 || s <= 0) continue;
       if (!(r < criteria.rsiMax)) continue;
@@ -125,7 +142,13 @@ export function runBacktest(criteria: ScreenCriteria, bars = barsCache): Backtes
       }
       if (!(cl[i] * vol[i] >= criteria.minValueTradedEok * 1e8)) continue;
       const sg = bucket(signalByDate, dt[i]);
-      for (const h of FWD_DAYS) sg[h].push((cl[i + h] / cl[i] - 1) * 100);
+      for (const h of FWD_DAYS) {
+        sg[h].push((cl[i + 1 + h] / buy - 1) * 100);
+        // 보유 기간 중 최저 종가 — 매수일(i+1) 다음날부터 매도일(i+1+h)까지
+        let low = cl[i + 2];
+        for (let k = i + 3; k <= i + 1 + h; k++) low = Math.min(low, cl[k]);
+        ddByH[h].push((low / buy - 1) * 100);
+      }
       signals++;
     }
   }
@@ -139,7 +162,13 @@ export function runBacktest(criteria: ScreenCriteria, bars = barsCache): Backtes
       for (const v of sg[h]) { sigAll.push(v); excess.push(v - base); }
     }
     for (const mk of marketByDate.values()) mktAll.push(...mk[h]);
-    byHorizon[h] = { signal: stat(sigAll), market: stat(mktAll), excess: stat(excess) };
+    const dd = ddByH[h];
+    byHorizon[h] = {
+      signal: stat(sigAll), market: stat(mktAll), excess: stat(excess),
+      dd: dd.length
+        ? { mean: dd.reduce((a, x) => a + x, 0) / dd.length, worst: Math.min(...dd) }
+        : { mean: 0, worst: 0 },
+    };
   }
   return {
     ranAt: Date.now(), universe: bars.length, tradingDays: marketByDate.size,

@@ -18,6 +18,7 @@ export function BacktestPanel({ criteria }: { criteria: ScreenCriteria }) {
   const [prog, setProg] = useState<{ done: number; total: number } | null>(null);
   const [res, setRes] = useState<BacktestResult | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [glossary, setGlossary] = useState(true);   // 용어 설명 — 처음엔 펴 둔다
 
   const run = async () => {
     setBusy(true); setErr(null);
@@ -86,51 +87,95 @@ export function BacktestPanel({ criteria }: { criteria: ScreenCriteria }) {
                 <b className="text-gray-800"> 신호 {res.signals.toLocaleString()}건</b>
                 ({res.signalDays}일에 걸쳐 발생)
               </div>
+              {/* 무엇을 어떻게 계산한 건지 — 이게 없으면 숫자를 오해한다. */}
+              <div className="rounded-lg border border-amber-200 bg-amber-50 px-2 py-1.5
+                              text-[11px] text-amber-900 leading-relaxed">
+                <b>이렇게 계산했습니다</b>
+                <div className="mt-0.5 text-amber-800">
+                  ① 조건에 걸린 <b>다음 날 종가</b>에 사서 <b>N거래일 뒤 종가</b>에 팝니다.
+                  (걸린 날 종가로 사는 계산은 반칙입니다 — 그 종가가 나와야 조건이 성립하는데,
+                  그 값으로 산다는 건 미래를 알고 사는 셈이니까요.)
+                  <br />
+                  ② 그날 걸린 종목을 <b>전부 똑같은 금액씩</b> 샀다고 봅니다.
+                  6개가 걸렸으면 6개 다입니다. 하나만 고르면 결과는 아래 <b>σ</b> 만큼 널뜁니다.
+                  <br />
+                  ③ 손절·익절은 없습니다. 정해진 날짜에 무조건 팝니다.
+                </div>
+              </div>
               {res.signals === 0 ? (
                 <div className="py-4 text-center text-[12px] text-gray-500">
                   이 조건은 과거 2년 동안 <b className="text-rose-600">한 번도</b> 걸리지 않았습니다.
                   문턱을 풀어 보세요.
                 </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-[11px] tabular-nums">
-                    <thead>
-                      <tr className="text-gray-400 border-b border-gray-200">
-                        <th className="text-left font-normal py-1 pr-2">기간</th>
-                        <th className="text-right font-normal px-2">평균</th>
-                        <th className="text-right font-normal px-2">중앙값</th>
-                        <th className="text-right font-normal px-2">승률</th>
-                        <th className="text-right font-normal pl-2">건수</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {FWD_DAYS.map(h => {
-                        const r = res.byHorizon[h];
-                        if (!r) return null;
-                        const rows: [string, typeof r.signal, string][] = [
-                          [`+${h}일 · 신호 종목`, r.signal, "text-gray-800 font-bold"],
-                          ["　　　시장 전체", r.market, "text-gray-500"],
-                          ["　　　초과수익", r.excess, "font-bold"],
-                        ];
-                        return rows.map(([label, s, cls], i) => (
-                          <tr key={`${h}-${i}`}
-                              className={i === 2 ? "border-b-2 border-gray-200" : ""}>
-                            <td className={`py-0.5 pr-2 ${i === 0 ? "text-gray-700 font-bold" : "text-gray-400"}`}>
-                              {label}
-                            </td>
-                            <td className={`text-right px-2 ${i === 2 ? signColor(s.mean) : ""} ${cls}`}>
-                              {pct(s.mean)}{i === 2 && "p"}
-                            </td>
-                            <td className={`text-right px-2 ${i === 2 ? signColor(s.median) : ""} ${cls}`}>
-                              {pct(s.median)}{i === 2 && "p"}
-                            </td>
-                            <td className={`text-right px-2 ${cls}`}>{s.winRate.toFixed(1)}%</td>
-                            <td className="text-right pl-2 text-gray-400">{s.n.toLocaleString()}</td>
-                          </tr>
-                        ));
-                      })}
-                    </tbody>
-                  </table>
+                // 한 표에 다 넣으면 폭이 넓어져 라벨과 숫자가 화면 양 끝으로 벌어진다.
+                //   기간별로 상자를 나누고 그 안에서만 정렬한다.
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+                  {FWD_DAYS.map(h => {
+                    const r = res.byHorizon[h];
+                    if (!r) return null;
+                    const rows: [string, typeof r.signal, boolean][] = [
+                      ["신호 종목", r.signal, false],
+                      ["시장 전체", r.market, false],
+                      ["초과수익", r.excess, true],
+                    ];
+                    return (
+                      <div key={h} className="rounded-lg border border-gray-200 overflow-hidden">
+                        <div className="px-2 py-1 bg-gray-50 border-b border-gray-200
+                                        text-[11px] font-bold text-gray-700">
+                          신호 뒤 +{h}일
+                        </div>
+                        <table className="w-full text-[11px] tabular-nums">
+                          <thead>
+                            <tr className="text-gray-400">
+                              <th className="text-left font-normal py-0.5 pl-2"></th>
+                              <th className="text-right font-normal py-0.5 px-1">평균</th>
+                              <th className="text-right font-normal py-0.5 px-1">중앙값</th>
+                              <th className="text-right font-normal py-0.5 px-1">승률</th>
+                              <th className="text-right font-normal py-0.5 pr-2"
+                                  title="수익률의 표준편차 — 클수록 결과가 들쭉날쭉">σ</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {rows.map(([label, st, isExcess]) => (
+                              <tr key={label}
+                                  className={isExcess ? "bg-indigo-50/70 border-t border-indigo-200" : ""}>
+                                <td className={`py-0.5 pl-2 whitespace-nowrap
+                                                ${isExcess ? "text-indigo-700 font-bold" : "text-gray-500"}`}>
+                                  {label}
+                                </td>
+                                <td className={`text-right px-1 font-bold
+                                                ${isExcess ? signColor(st.mean) : "text-gray-700"}`}>
+                                  {pct(st.mean)}{isExcess && "p"}
+                                </td>
+                                <td className={`text-right px-1 font-bold
+                                                ${isExcess ? signColor(st.median) : "text-gray-700"}`}>
+                                  {pct(st.median)}{isExcess && "p"}
+                                </td>
+                                <td className={`text-right px-1 font-bold
+                                                ${isExcess ? (st.winRate >= 50 ? "text-rose-600" : "text-blue-600")
+                                                           : "text-gray-700"}`}>
+                                  {st.winRate.toFixed(1)}%
+                                </td>
+                                <td className="text-right pr-2 text-gray-400">±{st.std.toFixed(1)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                        {/* 보유 중 최대낙폭 — 눌림목은 '더 빠질 수 있는 자리' 를 사는 전략이라
+                            평균 수익률만큼이나 "들고 있는 동안 얼마나 빠졌나" 가 중요하다. */}
+                        <div className="flex items-baseline gap-2 px-2 py-1 border-t border-gray-200
+                                        bg-gray-50/60 text-[10px] tabular-nums">
+                          <span className="text-gray-500" title="진입가 대비 보유 기간 내 최저 종가">
+                            보유 중 최대낙폭
+                          </span>
+                          <span className="text-blue-600 font-bold">평균 {r.dd.mean.toFixed(1)}%</span>
+                          <span className="text-blue-700 font-bold">최악 {r.dd.worst.toFixed(1)}%</span>
+                          <span className="ml-auto text-gray-400">{r.signal.n.toLocaleString()}건</span>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
               {res.signals > 0 && (
@@ -140,6 +185,48 @@ export function BacktestPanel({ criteria }: { criteria: ScreenCriteria }) {
                   조건이 좋은 게 아니라 <b>그냥 상승장</b>이었다는 뜻입니다.
                   초과수익의 <b>승률</b>은 "그날 시장 평균보다 나았던 비율" 입니다 — 50% 를 못 넘으면
                   이 조건으로 고른 것이 평균만도 못했다는 뜻입니다.
+                </div>
+              )}
+
+              {res.signals > 0 && (
+                <div className="rounded-lg border border-gray-200">
+                  <button onClick={() => setGlossary(g => !g)}
+                          className="w-full flex items-center gap-2 px-2 py-1 text-left">
+                    <span className="text-[11px] font-bold text-gray-700">❓ 이 숫자들이 무슨 뜻인가</span>
+                    <span className="ml-auto text-gray-400 text-[11px]">{glossary ? "▾" : "▸"}</span>
+                  </button>
+                  {glossary && (
+                    <dl className="px-2 pb-2 space-y-1.5 text-[11px] leading-relaxed border-t border-gray-100 pt-1.5">
+                      {([
+                        ["신호 종목",
+                         "조건에 걸린 종목들을 다음 날 사서 N일 뒤 판 결과입니다."],
+                        ["시장 전체",
+                         "같은 날 같은 방식으로 코스피200 **전 종목**을 샀다면 어땠을지. 비교용 기준선입니다."],
+                        ["초과수익",
+                         "신호 종목에서 **그날 시장 평균**을 뺀 값. 상승장 덕을 걷어낸 '진짜 실력' 입니다. 단위 %p — 0 근처면 시장이랑 똑같았다는 뜻입니다."],
+                        ["평균",
+                         "다 더해서 나눈 값. 크게 오른 몇 개가 끌어올립니다. 중앙값과 많이 벌어지면 '대박 몇 개' 가 만든 숫자입니다."],
+                        ["중앙값",
+                         "딱 가운데 값. '보통 이 정도였다' 는 평균보다 이쪽이 정확합니다."],
+                        ["승률",
+                         "이익이 난 비율. 단, **초과수익 줄의 승률**은 '시장보다 잘한 비율' 입니다 — 50% 아래면 시장 평균만도 못했다는 뜻입니다."],
+                        ["σ (시그마)",
+                         "결과가 얼마나 널뛰는지. 평균 +2% 에 σ ±8% 면 −6% ~ +10% 사이가 흔하다는 뜻입니다. 클수록 운에 가깝습니다."],
+                        ["보유 중 최대낙폭",
+                         "들고 있는 동안 **가장 많이 빠진 폭**. '평균' 은 보통 이 정도는 물린다, '최악' 은 제일 나빴을 때입니다. 손절선을 이 숫자에 맞춰 잡으세요."],
+                        ["건수",
+                         "몇 번이나 이런 일이 있었는지. 적으면 우연일 수 있습니다."],
+                      ] as [string, string][]).map(([term, desc]) => (
+                        <div key={term} className="flex gap-2">
+                          <dt className="shrink-0 w-24 text-gray-700 font-bold">{term}</dt>
+                          <dd className="flex-1 text-gray-600">
+                            {desc.split("**").map((part, i) =>
+                              i % 2 ? <b key={i} className="text-gray-800">{part}</b> : part)}
+                          </dd>
+                        </div>
+                      ))}
+                    </dl>
+                  )}
                 </div>
               )}
             </>
