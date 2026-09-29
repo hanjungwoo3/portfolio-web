@@ -3,6 +3,7 @@ import type { Stock, Memo } from "../types";
 import { getDeposits, getDeposit, setDeposit, replaceAllDeposits, getPendingBuys, setPendingBuy, movePendingItems, replaceAllPendingBuys, type PendingBuyItem } from "./deposits";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "./groupFolders";
 import type { TabVisibility } from "./tabVisibility";
+import { notifyTradesChanged } from "./tradeEvents";
 import {
   getDimSleepingEnabled, setDimSleepingEnabled,
   getPersonalProxyUrl, setPersonalProxyUrl,
@@ -134,16 +135,22 @@ export async function getTradesForTicker(ticker: string): Promise<Trade[]> {
   return rows.sort((a, b) =>
     b.date.localeCompare(a.date) || ((b.createdAt ?? 0) - (a.createdAt ?? 0)));
 }
+// ★ 거래를 바꾸면 반드시 알린다 — 오늘 손익(attachTodayBuys)이 거래 로그에서 나오기 때문이다.
+//   화면 쪽 콜백에 맡기면 새 화면이 생길 때마다 빠뜨린다(실측: 기업가치 팝업의 거래 로그가
+//   자기 목록만 갱신해, 지운 매수가 오늘 손익에 계속 남았다).
 export async function addTrade(t: Omit<Trade, "id" | "createdAt"> & { id?: string }): Promise<string> {
   const id = t.id ?? `${t.ticker}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   await db.trades.put({ ...t, id, createdAt: Date.now() });
+  notifyTradesChanged();
   return id;
 }
 export async function updateTrade(t: Trade): Promise<void> {
   await db.trades.put(t);
+  notifyTradesChanged();
 }
 export async function deleteTrade(id: string): Promise<void> {
   await db.trades.delete(id);
+  notifyTradesChanged();
 }
 export async function loadAllTrades(): Promise<Trade[]> {
   return db.trades.toArray();
@@ -153,6 +160,7 @@ export async function replaceAllTrades(trades: Trade[]): Promise<void> {
     await db.trades.clear();
     if (trades.length > 0) await db.trades.bulkAdd(trades);
   });
+  notifyTradesChanged();
 }
 
 export async function loadHoldings(): Promise<Stock[]> {

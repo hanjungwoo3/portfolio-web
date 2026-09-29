@@ -79,6 +79,7 @@ import { HlPerpCard } from "./HlPerpCard";
 import { GOTO_HEATMAP_EVENT, requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
 import { GOTO_TAB_EVENT } from "../lib/tabNav";
 import { OPEN_VALUATION_EVENT, type ValuationRequest } from "../lib/valuationNav";
+import { TRADES_CHANGED_EVENT } from "../lib/tradeEvents";
 import { startAutoSync, SYNC_PULLED_EVENT } from "../lib/syncManager";
 import { SyncConflictBar } from "./SyncConflictBar";
 import { MyTradesTab } from "./MyTradesTab";
@@ -250,6 +251,16 @@ export function MobileSimpleView() {
     };
     window.addEventListener(SYNC_PULLED_EVENT, h);
     return () => window.removeEventListener(SYNC_PULLED_EVENT, h);
+  }, [queryClient]);
+
+  // 거래 기록이 바뀌면 오늘 손익을 다시 계산한다 (PC 와 같은 규칙).
+  useEffect(() => {
+    const h = () => {
+      void queryClient.invalidateQueries({ queryKey: ["m-trades"] });
+      void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
+    };
+    window.addEventListener(TRADES_CHANGED_EVENT, h);
+    return () => window.removeEventListener(TRADES_CHANGED_EVENT, h);
   }, [queryClient]);
 
   // 깊은 화면 → 기업가치 팝업 딥링크 (PC 와 같은 규칙).
