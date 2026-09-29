@@ -327,9 +327,10 @@ export const SECTOR_RANK_TAB_KEY = "__sector-rank__";
 export const MY_STOCKS_TAB_KEY = "__my-stocks__";
 // 내거래 — 모든 종목의 거래 기록(trades) 모아보기. 내주식과 한 묶음.
 export const MY_TRADES_TAB_KEY = "__my-trades__";
-// 종목찾기 — 컨센서스·연기금·변동폭·등락률·눌림목 sub탭 통합.
-//   ⚠️ 키는 "__consensus__" 그대로 둔다 — 바꾸면 사용자가 저장해 둔 탭 표시 설정·마지막 탭이 날아간다.
+// 컨센서스 — 증권사 목표주가·연기금·변동폭·등락률 sub탭 (관심종목을 줄 세우는 화면들)
 export const CONSENSUS_TAB_KEY = "__consensus__";
+// 눌림목 — RSI·볼린저·200일선·흑자·유동성 조건으로 코스피·코스닥 전 종목 스크리닝 (+ 백테스트)
+export const SCREENER_TAB_KEY = "__screener__";
 // ETF 역검색 — 다중 종목으로 ETF 찾기
 export const ETF_REVERSE_TAB_KEY = "__etf-reverse__";
 // ETF 랭킹 — 전체 ETF 등락률 순위 (새로고침 눌러야 조회, 6콜)
@@ -347,14 +348,14 @@ const RESERVED = new Set<string>([
   "관심ETF", MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY,
   SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY,
   ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
-  VALUATION_TAB_KEY,
+  SCREENER_TAB_KEY, VALUATION_TAB_KEY,
 ]);
 
 // 묶기 대상 시스템 탭 — 드롭다운 하나로 합침. (증시·지수는 자주 써서 별도 고정 탭)
 export const SYSTEM_TAB_KEYS = new Set<string>([
   MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
   CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
-  VALUATION_TAB_KEY,
+  SCREENER_TAB_KEY, VALUATION_TAB_KEY,
 ]);
 
 // 내자산 묶음 — 내주식 + 내거래를 별도 드롭다운 하나로 (지수 묶음과 동일 방식).
@@ -382,10 +383,9 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 증시 — 지수 왼쪽. 증시 자금동향 + 실시간 지수·투자자 차트.
   if (visibility?.stockMarket ?? true) tabs.push({ key: MARKET_MONEY_TAB_KEY, label: "증시", emoji: "💰", count: 0 });
   if (showUs) tabs.push({ key: US_MARKET_TAB_KEY, label: "지수", emoji: "📈", count: 0 });
-  // 종목찾기 — 시스템 묶음의 첫 자리(섹터 위). 눌림목·컨센서스·연기금·변동폭·등락률 sub탭.
-  //   설정 ON 이면 항상 노출(종목 없으면 빈 안내 표시).
-  if (showConsensus) {
-    tabs.push({ key: CONSENSUS_TAB_KEY, label: "종목찾기(눌림목)", emoji: "🔎", count: 0 });
+  // 눌림목 — 시스템 묶음의 첫 자리(섹터 위). 전 종목 스크리닝이라 관심종목과 무관하게 항상 노출.
+  if (visibility?.screener ?? true) {
+    tabs.push({ key: SCREENER_TAB_KEY, label: "종목찾기(눌림목)", emoji: "🔎", count: 0 });
   }
   // 섹터 (KODEX ETF 기반 4기간 ranking + 토스 핫 테마). 반도체는 지수 대시보드 그룹으로 통합됨.
   if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터별등락", emoji: "🧩", count: 0 });
@@ -400,6 +400,10 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 자산추이 — 내자산 묶음(내주식·내거래)의 세 번째. 거래 기록이 있어야 역산이 되므로 그때만.
   if ((visibility?.assetTrend ?? true) && tradeCount > 0) {
     tabs.push({ key: ASSET_TREND_TAB_KEY, label: "자산추이", emoji: "📈", count: 0 });
+  }
+  // 컨센서스 — 목표주가·연기금·변동폭·등락률. 설정 ON 이면 항상 노출(종목 없으면 빈 안내).
+  if (showConsensus) {
+    tabs.push({ key: CONSENSUS_TAB_KEY, label: "컨센서스(목표주가)", emoji: "🎯", count: 0 });
   }
   // ETF 역검색 — 다중 종목 교집합/합집합
   if (visibility?.etfReverse ?? true) {

@@ -15,6 +15,7 @@ export interface TabVisibility {
   etfRanking: boolean;
   etfCompare: boolean;
   heatmap: boolean;
+  screener: boolean;
   valuation: boolean;
   assetTrend: boolean;
 }
@@ -28,7 +29,8 @@ export const TAB_VIS_ITEMS: { key: keyof TabVisibility; label: string; sep?: boo
   { key: "usMarket",    label: "📈 지수" },
   { key: "sectorRank",  label: "🧩 섹터별등락" },
   { key: "semiCheck",   label: "반도체" },          // 아이콘(Cpu)은 렌더 쪽에서 붙인다
-  { key: "consensus",   label: "🔎 종목찾기(눌림목)" },
+  { key: "screener",    label: "🔎 종목찾기(눌림목)" },
+  { key: "consensus",   label: "🎯 컨센서스(목표주가)" },
   { key: "etfReverse",  label: "🍱 ETF검색" },
   { key: "etfRanking",  label: "🏅 ETF랭킹" },
   { key: "etfCompare",  label: "⚖️ ETF미국" },
@@ -52,6 +54,7 @@ const BASE_KEYS = {
   etfRanking: "portfolio_tab_etf_ranking",
   etfCompare: "portfolio_tab_etf_compare",
   heatmap:    "portfolio_tab_heatmap",
+  screener:   "portfolio_tab_screener",
   valuation:  "portfolio_tab_valuation",
   assetTrend: "portfolio_tab_asset_trend",
 } as const;
@@ -93,6 +96,7 @@ export function getTabVisibility(): TabVisibility {
     etfRanking: read(BASE_KEYS.etfRanking),
     etfCompare: read(BASE_KEYS.etfCompare),
     heatmap:    read(BASE_KEYS.heatmap),
+    screener:   read(BASE_KEYS.screener),
     valuation:  read(BASE_KEYS.valuation),
     assetTrend: read(BASE_KEYS.assetTrend),
   };
@@ -110,6 +114,7 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.etfRanking !== undefined) write(BASE_KEYS.etfRanking, patch.etfRanking);
   if (patch.etfCompare !== undefined) write(BASE_KEYS.etfCompare, patch.etfCompare);
   if (patch.heatmap    !== undefined) write(BASE_KEYS.heatmap,    patch.heatmap);
+  if (patch.screener   !== undefined) write(BASE_KEYS.screener,   patch.screener);
   if (patch.valuation  !== undefined) write(BASE_KEYS.valuation,  patch.valuation);
   if (patch.assetTrend !== undefined) write(BASE_KEYS.assetTrend, patch.assetTrend);
 }

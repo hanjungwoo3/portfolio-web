@@ -69,9 +69,10 @@ import { WhatIfRow } from "./WhatIfRow";
 import { SemiCheckTab } from "./SemiCheckTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { filterByTab, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, VALUATION_TAB_KEY as VALUATION_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
+import { filterByTab, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, VALUATION_TAB_KEY as VALUATION_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
 import { EtfReverseTab } from "./EtfReverseTab";
 import { EtfRankingTab } from "./EtfRankingTab";
+import { ScreenerTab } from "./ScreenerTab";
 import { EtfCompareTab } from "./EtfCompareTab";
 import { HeatmapTab } from "./HeatmapTab";
 import { ValueupMiniCard } from "./ValueupCard";
@@ -222,7 +223,7 @@ export function MobileSimpleView() {
   const isSystemTab = activeTab === MONEY_KEY || activeTab === KR_KEY
     || activeTab === SEMI_KEY || activeTab === SECTOR_KEY || activeTab === CONSENSUS_KEY
     || activeTab === ETF_KEY || activeTab === ETF_RANK_KEY || activeTab === ETF_COMPARE_KEY
-    || activeTab === HEATMAP_KEY || activeTab === VALUATION_KEY
+    || activeTab === HEATMAP_KEY || activeTab === SCREENER_KEY || activeTab === VALUATION_KEY
     || activeTab === MY_TRADES_KEY
     || activeTab === ASSET_TREND_KEY;
   const touchStart = useRef<{ x: number; y: number } | null>(null);
@@ -351,9 +352,9 @@ export function MobileSimpleView() {
       // 지수·매크로·반도체를 하나로 통합 (PC UsMarketTab 과 동일한 단일 그룹 뷰)
       tabs.push({ key: KR_KEY, label: "📈지수", count: 0 });
     }
-    // 종목찾기 — 시스템 묶음 첫 자리(섹터 위, PC buildTabs 와 같은 순서).
-    if (vis.consensus) {
-      tabs.push({ key: CONSENSUS_KEY, label: "🔎종목찾기(눌림목)", count: 0 });
+    // 눌림목 — 시스템 묶음 첫 자리(섹터 위, PC buildTabs 와 같은 순서).
+    if (vis.screener) {
+      tabs.push({ key: SCREENER_KEY, label: "🔎종목찾기(눌림목)", count: 0 });
     }
     if (vis.sectorRank) {
       tabs.push({ key: SECTOR_KEY, label: "🧩섹터별등락", count: 0 });
@@ -373,6 +374,9 @@ export function MobileSimpleView() {
     // 자산추이 — 거래 기록으로 역산하므로 기록이 있을 때만 (데스크톱 buildTabs 와 동일 조건)
     if (vis.assetTrend && tradeCount > 0) {
       tabs.push({ key: ASSET_TREND_KEY, label: "📈자산추이", count: 0 });
+    }
+    if (vis.consensus) {
+      tabs.push({ key: CONSENSUS_KEY, label: "🎯컨센서스(목표주가)", count: 0 });
     }
     if (vis.etfReverse) {
       tabs.push({ key: ETF_KEY, label: "🍱ETF", count: 0 });
@@ -435,7 +439,7 @@ export function MobileSimpleView() {
   //  시각 순서: 지수 → (섹터·반도체·컨센서스·ETF 묶음) → (내주식·내거래 묶음) → 사용자그룹 → 폴더
   //  (groupTabs 원순서는 내거래가 컨센서스/ETF 앞이라 ETF에서 스와이프 시 내거래를 건너뛰던 문제 수정)
   const navKeys = useMemo(() => {
-    const SYS = [MONEY_KEY, KR_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY];
+    const SYS = [MONEY_KEY, KR_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, SCREENER_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY];
     const has = (k: string) => groupTabs.some(t => t.key === k);
     const keys: string[] = [];
     for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음(섹터…히트맵)
@@ -1014,7 +1018,7 @@ export function MobileSimpleView() {
         )}
         {/* 시스템 탭 묶음 — 섹터/컨센서스/ETF/히트맵 (지수는 아래 3번째 별도 탭으로 분리, PC 동일) */}
         {(() => {
-          const SYS = new Set([SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY]);
+          const SYS = new Set([SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, SCREENER_KEY, VALUATION_KEY]);
           const sys = groupTabs.filter(t => SYS.has(t.key));
           if (sys.length === 0) return null;
           // 묶을 항목이 1개뿐이면 드롭다운 대신 일반 탭으로 바로 노출
@@ -1124,7 +1128,7 @@ export function MobileSimpleView() {
         })()}
         {groupTabs.map(t => {
           // 시스템·내자산 탭은 위 드롭다운/별도 버튼으로만 표시 (개별 탭 숨김)
-          if ([MONEY_KEY, KR_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY].includes(t.key)) return null;
+          if ([MONEY_KEY, KR_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, SCREENER_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY].includes(t.key)) return null;
           // 폴더에 담긴 그룹은 개별 탭에서 숨김 (아래 📁 드롭다운으로)
           if (folderedGroups.has(t.key)) return null;
           // 폴더 전체보기 가상 탭도 숨김 (폴더 sub 링크바 칩으로만)
@@ -1535,6 +1539,11 @@ export function MobileSimpleView() {
         if (activeTab === ETF_COMPARE_KEY) {
           return <div className="px-2 py-2 pb-32">
             <EtfCompareTab onOpenValuation={(code, n) => { setValuationName(n); setValuationTicker(code); }} />
+          </div>;
+        }
+        if (activeTab === SCREENER_KEY) {
+          return <div className="px-2 py-2 pb-32">
+            <ScreenerTab onOpenValuation={setValuationTicker} />
           </div>;
         }
         if (activeTab === HEATMAP_KEY) {

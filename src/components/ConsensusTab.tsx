@@ -12,7 +12,6 @@ import { signColor, formatSigned, isKrHoldingClosed } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useIncrementalRender } from "../lib/useIncrementalRender";
 import { Tooltip } from "./Tooltip";
-import { ScreenerTab } from "./ScreenerTab";
 import type { Investor } from "../types";
 
 // 뉴스 시각 "YYYYMMDDHHmm" → "MM/DD HH:mm"
@@ -67,16 +66,14 @@ interface Props {
   onEdit?: (ticker: string) => void;          // ✏️ 보유 수정 (그룹 추가/제외)
 }
 
-// dip(눌림목)만 성격이 다르다 — 나머지는 **관심종목**을 줄 세우는 화면이고,
-//   dip 은 **시장 전체**를 조건으로 거른다. 그래서 본문을 공유하지 않고 통째로 갈아 끼운다.
-type View = "consensus" | "pension" | "screener" | "rise" | "dip";
+type View = "consensus" | "pension" | "screener" | "rise";
 type SortKey = "upside" | "date" | "npsPct" | "npsAmount"
              | "vol" | "foreign60" | "inst60" | "pension60"
              | "riseDesc" | "riseAsc";   // 현재 등락률 높은순/낮은순 (세 탭 공통)
 type Period = "all" | "1w" | "1m";
 // 카드 안에서 접었다 펼 수 있는 섹션들 — 각각 별도 API 를 문다.
 type SecKey = "cons" | "pension" | "vol" | "news";
-const DEFAULT_SORT: Record<View, SortKey> = { consensus: "date", pension: "npsPct", screener: "vol", rise: "riseDesc", dip: "date" };
+const DEFAULT_SORT: Record<View, SortKey> = { consensus: "date", pension: "npsPct", screener: "vol", rise: "riseDesc" };
 
 // "YY.MM.DD" / "YY/MM/DD" → epoch ms
 function parseRepDate(d?: string): number {
@@ -94,8 +91,7 @@ function isActionableReport(r: ConsensusReport): boolean {
 }
 
 export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: Props) {
-  // 기본은 눌림목 — 탭 이름(종목찾기)의 주인공이고, 나머지 넷은 이미 아는 종목을 줄 세우는 화면이다.
-  const [view, setView] = useState<View>("dip");   // 책갈피 sub탭
+  const [view, setView] = useState<View>("consensus");   // 책갈피 sub탭
   const [sortKey, setSortKey] = useState<SortKey>("date");
   const [period, setPeriod] = useState<Period>("1w");
   const [volDays, setVolDays] = useState(7);   // 변동율·수급 공통 기간(거래일)
@@ -106,7 +102,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
   //   접으면 정렬이 빈 값으로 돌아가 탭 자체가 무의미해진다.
   //   등락률 탭은 정렬 기준이 헤더의 현재가라 주인공 섹션이 없다(전부 접힘).
   const PRIMARY: Record<View, SecKey | null> = {
-    consensus: "cons", pension: "pension", screener: "vol", rise: null, dip: null,
+    consensus: "cons", pension: "pension", screener: "vol", rise: null,
   };
   const [openSec, setOpenSec] = useState<Set<string>>(() => new Set());
   const toggleSec = (t: string, sec: SecKey) =>
@@ -145,7 +141,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
         throw e;
       }
     },
-    enabled: krxTickers.length > 0 && view !== "dip",
+    enabled: krxTickers.length > 0,
     staleTime: 60_000,
     refetchOnWindowFocus: false,
     placeholderData: keepPreviousData,   // 갱신 중 이전 가격 유지(깜빡임 방지)
@@ -165,9 +161,6 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
     queries: tickers.map(t => ({
       queryKey: ["naver", t],
       queryFn: () => fetchNaverInfo(t),
-      // 눌림목 화면에선 관심종목 컨센서스가 아예 안 쓰인다 — 종목당 1콜이라
-      //   50종목이면 탭을 열기만 해도 50콜이 그냥 나간다.
-      enabled: view !== "dip",
       staleTime: 5 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -420,27 +413,12 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
       : `최근 ${volDays}일 일별 저가/고가 평균 기준 변동폭(%)`;
   })();
 
-  // 눌림목이 맨 왼쪽 — 나머지 넷은 '내 종목' 을 줄 세우는 화면이고 이것만 새 종목을 찾아 준다.
-  //   탭 이름(종목찾기)의 주인공이라 첫 자리에 둔다.
   const subTabs = (<>
-    {subTab("dip", "🔎 눌림목")}
     {subTab("consensus", "🎯 컨센서스")}
     {subTab("pension", "🏦 연기금")}
     {subTab("screener", "📊 변동폭")}
     {subTab("rise", "📈 등락률")}
   </>);
-
-  // 눌림목 — 관심종목이 아니라 **시장 전체**를 조건으로 거르는 화면이라 아래 본문(종목 카드 목록)을
-  //   공유하지 않는다. 책갈피만 같이 쓰고 내용은 통째로 갈아 끼운다.
-  //   (정렬 컨트롤·"N종목"·기준 설명도 여기선 의미가 없어 빼둔다 — 조건은 스크리너가 직접 들고 있다)
-  if (view === "dip") {
-    return (
-      <div className="space-y-2">
-        <div className="flex items-end gap-1 border-b border-gray-300 px-1">{subTabs}</div>
-        <ScreenerTab onOpenValuation={onOpenValuation} />
-      </div>
-    );
-  }
 
   return (
     <div className="space-y-2">

@@ -11,10 +11,11 @@ import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { useIncrementalRender } from "./lib/useIncrementalRender";
-import { Tabs, buildTabs, filterByTab, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, VALUATION_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, VALUATION_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
 import { EtfRankingTab } from "./components/EtfRankingTab";
+import { ScreenerTab } from "./components/ScreenerTab";
 import { EtfCompareTab } from "./components/EtfCompareTab";
 import { HeatmapTab } from "./components/HeatmapTab";
 import { ValuationTableTab } from "./components/ValuationTableTab";
@@ -899,6 +900,8 @@ function Dashboard() {
           <EtfRankingTab onOpenEtfComposition={(code, n) => setEtfDialog({ ticker: code, name: n })} />
         ) : activeTab === ETF_COMPARE_TAB_KEY ? (
           <EtfCompareTab onOpenValuation={(code, n) => { setValuationName(n); setValuationTicker(code); }} />
+        ) : activeTab === SCREENER_TAB_KEY ? (
+          <ScreenerTab onOpenValuation={setValuationTicker} />
         ) : activeTab === HEATMAP_TAB_KEY ? (
           <HeatmapTab />
         ) : activeTab === ASSET_TREND_TAB_KEY ? (
