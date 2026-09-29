@@ -1,4 +1,4 @@
-// 가치표 탭 — 관심종목(내가 추가한 국내 종목) 전체의 기업가치 지표를 한 표로.
+// 성적표 탭 — 관심종목(내가 추가한 국내 종목) 전체의 기업가치 지표를 한 표로.
 //   컬럼은 기업가치 팝업의 '가치평가 + 수익성' 지표와 동일. 각 열 클릭으로 정렬.
 //   데이터: 종목당 네이버 메인 1콜 + 와이즈리포트 1콜 (fetchValuationRow, 동시 3개 제한).
 //   지표는 분기 단위로만 바뀌므로 6시간 캐시 — 탭을 다시 열어도 다시 받지 않는다.
@@ -337,7 +337,7 @@ export function ValuationTableTab({ items, onOpenValuation }: ValuationTableTabP
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2 px-1">
-        <span className="text-sm font-bold text-gray-800">🧮 관심종목 가치표</span>
+        <span className="text-sm font-bold text-gray-800">📊 관심종목 성적표</span>
         <span className="text-[11px] text-gray-500">
           {loaded < tickers.length ? `불러오는 중 ${loaded}/${tickers.length}` : `${tickers.length}종목`}
           {" · 열 제목을 누르면 정렬"}

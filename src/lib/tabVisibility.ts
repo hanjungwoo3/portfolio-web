@@ -33,7 +33,7 @@ export const TAB_VIS_ITEMS: { key: keyof TabVisibility; label: string; sep?: boo
   { key: "etfRanking",  label: "🏅 ETF랭킹" },
   { key: "etfCompare",  label: "⚖️ ETF미국" },
   { key: "heatmap",     label: "🗺️ 히트맵" },
-  { key: "valuation",   label: "🧮 가치표" },
+  { key: "valuation",   label: "📊 성적표" },
   // 내주식·내거래·자산추이 — 묶음에서 빠진 개별 탭이라 구분선 뒤에 한 묶음
   { key: "myStocks",    label: "📦 내주식", sep: true },
   { key: "myTrades",    label: "🧾 내거래" },

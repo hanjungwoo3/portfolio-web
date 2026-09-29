@@ -387,7 +387,7 @@ export function MobileSimpleView() {
       tabs.push({ key: HEATMAP_KEY, label: "🗺️히트맵", count: 0 });
     }
     if (vis.valuation) {
-      tabs.push({ key: VALUATION_KEY, label: "🧮가치표", count: 0 });
+      tabs.push({ key: VALUATION_KEY, label: "📊성적표", count: 0 });
     }
     // "보유" 도 일반 사용자 그룹과 동일하게 취급 — 별도 분기 없음
     const userGroups = Array.from(counts.keys())

@@ -14,6 +14,7 @@ import {
 import { signColor } from "../lib/format";
 import { loadKrNameDict, getRuntimeNames, fetchMissingKrNames } from "../lib/krStockNames";
 import { StockCard } from "./StockCard";
+import { BacktestPanel } from "./BacktestPanel";
 import type { Consensus, Investor, Price } from "../types";
 import {
   fetchScreenerUniverse, loadCachedScreen, funnel, passCount, CONDS,
@@ -343,6 +344,9 @@ export function ScreenerTab({ onRequestAdd, onOpenValuation }: Props) {
           </div>
         )}
       </div>
+
+      {/* 이 조건이 과거에 먹혔는지 — 접어 둔다(일봉 200콜). 결과보다 위에 둬서 눈에 걸리게. */}
+      <BacktestPanel criteria={c} />
 
       {!snap && loading && (
         <div className="py-16 text-center text-gray-500 text-sm">

@@ -236,7 +236,9 @@ interface SectorRankingTabProps {
   onRequestSearch?: (query: string) => void;  // ETF 모달 "+추가" → SearchDialog 오픈
 }
 export function SectorRankingTab({ onRequestSearch }: SectorRankingTabProps = {}) {
-  const [sortMode, setSortMode] = useState<SortMode>("obv");
+  // 기본은 등락률 — 탭 이름(섹터별등락)과 첫 화면이 맞아야 한다.
+  //   자금 유출입(OBV)·거래대금은 버튼으로 바로 바꿀 수 있다.
+  const [sortMode, setSortMode] = useState<SortMode>("pct");
   const [hoverTicker, setHoverTicker] = useState<string | null>(null);
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
 
