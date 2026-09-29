@@ -1,6 +1,10 @@
 // 증시탭 — 투자자 순매수. 코스피·선물·코스닥 3개를 한 줄에, 공통 투자자 토글로 제어.
 //   [당일] 시간별 누적(네이버 intraday) / [일별] 기간별 누적(네이버 daily) 토글.
 //   일별은 기간 선택 + 기간 합계(헤더)를 표시. 데이터: 네이버 investorDealTrend*(로그인 불필요).
+//
+// ★ 당일(시간별)에는 **날짜 선택이 없다**. 네이버가 bizdate 를 무시하고 늘 오늘 값을 주기 때문에
+//   (api.ts fetchKrIntradayInvestorFlow 주석) 날짜를 옮기면 배경 지수만 바뀌고 수급은 오늘 것이
+//   그 날짜인 척 그려졌다. 과거는 [일별] 로 본다.
 
 import { useState, useMemo, useCallback, lazy, Suspense, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
@@ -49,11 +53,6 @@ function pick(p: Record<IntradayKey, number>): Record<IntradayKey, number> {
 function todayKST(): string {
   return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 }
-function shiftDate(d: string, delta: number): string {
-  const dt = new Date(`${d}T00:00:00Z`);
-  dt.setUTCDate(dt.getUTCDate() + delta);
-  return dt.toISOString().slice(0, 10);
-}
 function hmToTime(hm: string): UTCTimestamp {
   const [h, m] = hm.split(":").map(Number);
   return (Date.UTC(2000, 0, 1, h, m) / 1000) as UTCTimestamp;
@@ -74,20 +73,22 @@ function kstFromEpoch(sec: number): { date: string; t: UTCTimestamp } {
   };
 }
 
-function MarketBlock({ market, label, enabled, mode, days, bizdate, on, onReady, onToggle, refFirstT, refLastT }: {
+function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle, refFirstT, refLastT }: {
   market: IntradayMarket; label: string; enabled: Record<string, boolean>;
-  mode: "intraday" | "daily"; days: number; bizdate: string; on: boolean; onReady: SyncRegistrar;
+  mode: "intraday" | "daily"; days: number; on: boolean; onReady: SyncRegistrar;
   onToggle: (k: IntradayKey) => void;
   refFirstT?: UTCTimestamp; refLastT?: UTCTimestamp;   // 기준 시간범위(코스피·코스닥)
 }) {
-  // 당일·장중일 때만 60초 폴링 — 안 걸면 첫 로드 값에 그대로 굳어(지수선이 실제와 어긋남) 있게 된다.
-  //   과거 날짜 조회·장 마감 후·섹션 접힘 상태에서는 폴링 없음(프록시 호출수 절약).
-  const live = on && bizdate === nowKstDateStr() && isMarketOpen("KR");
+  // 시간별은 당일치뿐이라 조회일 = 오늘 고정(배경 지수도 같은 날로 맞춘다).
+  const bizdate = nowKstDateStr();
+  // 장중일 때만 60초 폴링 — 안 걸면 첫 로드 값에 그대로 굳어(지수선이 실제와 어긋남) 있게 된다.
+  //   장 마감 후·섹션 접힘 상태에서는 폴링 없음(프록시 호출수 절약).
+  const live = on && isMarketOpen("KR");
   const livePoll = live ? 60_000 : (false as const);
 
   const intra = useQuery({
-    queryKey: ["market-flow-intraday", market, bizdate],
-    queryFn: () => fetchKrIntradayInvestorFlow(market, bizdate.replace(/-/g, "")),
+    queryKey: ["market-flow-intraday", market],
+    queryFn: () => fetchKrIntradayInvestorFlow(market),
     enabled: on && mode === "intraday",
     refetchInterval: mode === "intraday" ? livePoll : false,
     staleTime: 60_000, refetchOnWindowFocus: false,
@@ -357,8 +358,6 @@ export function IntradayInvestorSection() {
 
   const [mode, setMode] = useState<"intraday" | "daily">("intraday");
   const [days, setDays] = useState<number>(22);   // 일별 기간 (기본 1개월)
-  const [intraDate, setIntraDate] = useState<string>(todayKST());   // 당일 뷰 조회일
-  const today = todayKST();
 
   const [enabled, setEnabled] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
@@ -393,13 +392,13 @@ export function IntradayInvestorSection() {
   //   이 범위를 각 차트에 내려 선물이 우측을 공백으로 맞추게 함(코스피·코스닥이 시간축 기준).
   //   MarketBlock 과 동일 queryKey → react-query 가 요청을 중복 없이 공유(추가 네트워크 없음).
   const refKospiIntra = useQuery({
-    queryKey: ["market-flow-intraday", "kospi", intraDate],
-    queryFn: () => fetchKrIntradayInvestorFlow("kospi", intraDate.replace(/-/g, "")),
+    queryKey: ["market-flow-intraday", "kospi"],
+    queryFn: () => fetchKrIntradayInvestorFlow("kospi"),
     enabled: open && mode === "intraday", staleTime: 60_000, refetchOnWindowFocus: false,
   });
   const refKosdaqIntra = useQuery({
-    queryKey: ["market-flow-intraday", "kosdaq", intraDate],
-    queryFn: () => fetchKrIntradayInvestorFlow("kosdaq", intraDate.replace(/-/g, "")),
+    queryKey: ["market-flow-intraday", "kosdaq"],
+    queryFn: () => fetchKrIntradayInvestorFlow("kosdaq"),
     enabled: open && mode === "intraday", staleTime: 60_000, refetchOnWindowFocus: false,
   });
   const refKospiDaily = useQuery({
@@ -462,23 +461,21 @@ export function IntradayInvestorSection() {
               </div>
             )}
             {mode === "intraday" && (
-              <div className="flex items-center gap-1 text-xs">
-                <button onClick={() => setIntraDate(d => shiftDate(d, -1))}
-                        title="이전 날" className="px-1.5 py-1 rounded border border-gray-300 hover:bg-gray-50 leading-none">‹</button>
-                <input type="date" value={intraDate} max={today}
-                       onChange={e => e.target.value && setIntraDate(e.target.value)}
-                       className="border border-gray-300 rounded px-1.5 py-0.5 text-xs" />
-                <button onClick={() => setIntraDate(d => (d < today ? shiftDate(d, 1) : d))}
-                        disabled={intraDate >= today} title="다음 날"
-                        className="px-1.5 py-1 rounded border border-gray-300 hover:bg-gray-50 leading-none disabled:opacity-40">›</button>
-                {intraDate !== today && (
-                  <button onClick={() => setIntraDate(today)}
-                          className="px-2 py-1 rounded border border-gray-300 hover:bg-gray-50 font-medium">오늘</button>
-                )}
+              // 날짜 선택을 두지 않는다 — 소스가 당일치만 준다(파일 상단 주석). 대신 오늘 날짜를
+              //   적어 두고, 과거를 찾는 사람이 헤매지 않게 [일별] 로 바로 보낸다.
+              <div className="flex items-center gap-1.5 text-xs">
+                <span className="px-2 py-1 rounded border border-gray-300 bg-gray-50 font-medium tabular-nums">
+                  {todayKST()}
+                </span>
+                <button onClick={() => setMode("daily")}
+                        title="시간별 수급은 네이버가 당일치만 제공합니다. 과거는 일별로 보세요."
+                        className="text-[10px] text-gray-500 underline decoration-dotted hover:text-gray-800">
+                  과거는 일별로 →
+                </button>
               </div>
             )}
             <span className="text-[10px] text-gray-400">
-              {mode === "intraday" ? "시간별 누적(날짜 선택)" : "기간 누적 (합계 상단 표시)"} · 전 종목 억원(선물=계약 환산)
+              {mode === "intraday" ? "시간별 누적 (당일만 제공)" : "기간 누적 (합계 상단 표시)"} · 전 종목 억원(선물=계약 환산)
             </span>
             <FuturesExpiryBadge />
           </div>
@@ -521,7 +518,7 @@ export function IntradayInvestorSection() {
                   // min-w-0 — grid 자식 기본 min-width:auto 로 선물(칩 많음) 셀이 안 줄고 나머지를 압축하는 것 방지.
                   <div key={m.key} className="min-w-0">
                     <MarketBlock market={m.key} label={m.label} enabled={enabled}
-                      mode={mode} days={days} bizdate={intraDate} on={open} onReady={registerSync} onToggle={toggleInvestor}
+                      mode={mode} days={days} on={open} onReady={registerSync} onToggle={toggleInvestor}
                       refFirstT={refRange?.from} refLastT={refRange?.to} />
                   </div>
                 ))}

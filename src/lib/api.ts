@@ -2283,11 +2283,15 @@ function mapTrendRow(row: TrendRow, futures: boolean) {
   };
 }
 
-// bizdate(YYYYMMDD) 생략 시 오늘(KST). 과거 날짜도 조회 가능.
-export async function fetchKrIntradayInvestorFlow(market: IntradayMarket, bizdate?: string): Promise<IntradayFlow> {
+// ⚠️ **당일치만 나온다.** 네이버 trend/time 은 bizdate 를 받기는 하지만 **무시**하고 늘 오늘 값을
+//   돌려준다(실측: 20260921·20260925·20260929 모두 20260929 행). 과거 날짜를 넣으면 조용히
+//   오늘 수급이 그 날짜인 척 그려진다 → 그래서 날짜 인자를 아예 받지 않는다.
+//   시간별 과거 수급은 무료 소스가 없다(옛 investorDealTrendTime 은 410, KRX 는 로그인 필수).
+//   과거를 보려면 fetchKrDailyInvestorFlow(일별)를 쓴다.
+export async function fetchKrIntradayInvestorFlow(market: IntradayMarket): Promise<IntradayFlow> {
   const mkt = TREND_MARKET[market];
   const futures = market === "futures";
-  const bd = bizdate ?? new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
+  const bd = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
   const MAX_PAGES = 4;   // 200×4 = 800행 — 하루(435행)보다 넉넉하다
   const byTime = new Map<string, IntradayFlowPoint>();
   for (let page = 0; page < MAX_PAGES; page++) {
