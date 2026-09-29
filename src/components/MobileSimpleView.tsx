@@ -1045,7 +1045,7 @@ export function MobileSimpleView() {
                 {/* 목록 맨 위 선택 불가 제목 — 없으면 현재 탭(첫 항목)이 커서 바로 아래에 겹쳐
                     누르려던 게 이미 선택된 항목이라 아무 일도 안 일어난다. */}
                 {!on && <option value="" disabled hidden className="text-gray-800">{curTab?.label}</option>}
-                <optgroup label="투자도구">
+                <optgroup label="투자도구(분석)">
                   {sys.map(t => (
                     <option key={t.key} value={t.key} className="text-gray-800">
                       {t.label}{t.count > 0 ? ` (${t.count})` : ""}

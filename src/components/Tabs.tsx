@@ -121,7 +121,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                     border-b border-gray-200 mb-3 px-1 pt-1">
       {leading && <span className="shrink-0">{leading}</span>}
       {/* 섹터~ETF 드롭다운 → 내자산 묶음(내주식·내거래) → 지수 순서 */}
-      {renderGroupDropdown(sysTabs, "📊", "투자도구")}
+      {renderGroupDropdown(sysTabs, "📊", "투자도구(분석)")}
       {renderGroupDropdown(myTabs, "📦", "내자산")}
       {/* 증시 — 지수 왼쪽 별도 탭 */}
       {marketMoneyTab && (
