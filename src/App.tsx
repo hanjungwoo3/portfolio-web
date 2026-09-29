@@ -887,7 +887,6 @@ function Dashboard() {
         ) : activeTab === CONSENSUS_TAB_KEY ? (
           <ConsensusTab items={consensusItems} onOpenValuation={setValuationTicker}
                         onSelectGroup={setActiveTab}
-                        onRequestAdd={q => { setSearchInitQuery(q); setSearchOpen(true); }}
                         onEdit={(ticker) => {
                           const s = holdings.find(h => h.ticker === ticker);
                           if (s) setEditing(s);

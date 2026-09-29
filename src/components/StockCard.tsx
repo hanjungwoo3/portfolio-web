@@ -54,6 +54,10 @@ interface Props {
   onOpenMemo?: (ticker: string) => void;             // 메모 아이콘 클릭
   onOpenEtf?: (ticker: string, name: string) => void;  // ETF 책갈피 클릭 (정방향)
   onOpenEtfReverse?: (ticker: string, name: string) => void;  // 포함 ETF 책갈피 (역방향)
+  // 가운데 통계 박스(원금·보유합계·전체수익·오늘 + 보조지표)를 통째로 뺀다.
+  //   보유 수량이 없는 화면(눌림목 스크리너)에선 그 안이 전부 비어 폭만 잡아먹는다.
+  //   ★ 이 화면 전용 옵션이다 — 기본값 false 라 다른 카드는 그대로다.
+  hideStats?: boolean;
 }
 
 // 신호 — 최근 5거래일 동향 + 연기금 5/20/60일 매수일 비율 (또는 외인비율 20일 fallback)
@@ -452,6 +456,7 @@ const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 export function StockCard({
   stock, price, krReg, investor, investorHistory, consensus, sector, market, warning, loading, chart, priceHistory, longHistory, onNeedLongHistory, onVisible,
   memo, otherGroups, heldGroups, onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse,
+  hideStats,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
   const [intradayOpen, setIntradayOpen] = useState(false);
@@ -661,7 +666,7 @@ export function StockCard({
 
   return (
     <div ref={visibilityRef}
-         className={`group ${dimmed ? "opacity-60" : ""}`}
+         className={`group ${dimmed ? "opacity-60" : ""} ${hideStats ? "h-full flex flex-col" : ""}`}
          onMouseEnter={onNeedLongHistory}>
       {/* 책갈피 — 종목명 + 섹터 + 위험 (좌) / 신호 + hover 버튼 (우) — 모두 책갈피 통일 */}
       <div className="flex items-end justify-between gap-1 mx-2">
@@ -919,7 +924,7 @@ export function StockCard({
       {/* 카드 본체 — 가격박스 / 통계박스 / 투자자 그리드 */}
       <article className={`rounded-lg border shadow-sm flex flex-row gap-2
                             items-stretch px-3 py-2
-                            ${cardBg} ${cardBorder}
+                            ${cardBg} ${cardBorder} ${hideStats ? "flex-1" : ""}
                             transition-opacity`}>
         {/* 가격 박스 — 고/현재가/저 (3/10). 비거래일엔 sparkline 워터마크.
             Tooltip 으로 감싸서 overflow-hidden 자식이라도 툴팁 영역은 잘리지 않음 */}
@@ -1016,7 +1021,7 @@ export function StockCard({
               )}
             </div>
           </>
-        } className="basis-[30%] min-w-0">
+        } className={`${hideStats ? "basis-[45%]" : "basis-[30%]"} min-w-0`}>
         <div className="relative w-full h-full">
         {/* 책갈피 — 마감 종목: 마감가 / 거래중 종목: 마감 예정 시간(토스 tradingEnd).
             마감가는 15% 이상 차이면 잘못된 데이터로 판단해 숨김. */}
@@ -1291,6 +1296,7 @@ export function StockCard({
         </Tooltip>
 
         {/* 통계 박스 — 피크/투자원금/보유합계/전체수익/어제대비 (3/10) */}
+        {!hideStats && (
         <div className="relative border border-gray-200 rounded-md bg-gray-50/60
                         px-2 py-1 basis-[40%] min-w-0 space-y-0.5
                         flex flex-col justify-start">
@@ -1414,11 +1420,12 @@ export function StockCard({
                        volume={price.volume} />
 
         </div>
+        )}
 
       {/* ───────── 투자자 그리드 (4/10) ───────── */}
-      <div className="basis-[30%] min-w-0 bg-white border border-gray-200 rounded-md
+      <div className={`${hideStats ? "basis-[55%]" : "basis-[30%]"} min-w-0 bg-white border border-gray-200 rounded-md
                        px-1.5 py-1 grid grid-cols-2 gap-x-2 gap-y-0
-                       text-[11px]">
+                       text-[11px]`}>
         {FLOW_FIELDS.map(({ label, key }) => {
           const raw = investor ? investor[key] : null;
           const isRatio = key === "외국인비율";

@@ -385,7 +385,7 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 종목찾기 — 시스템 묶음의 첫 자리(섹터 위). 눌림목·컨센서스·연기금·변동폭·등락률 sub탭.
   //   설정 ON 이면 항상 노출(종목 없으면 빈 안내 표시).
   if (showConsensus) {
-    tabs.push({ key: CONSENSUS_TAB_KEY, label: "종목찾기", emoji: "🔎", count: 0 });
+    tabs.push({ key: CONSENSUS_TAB_KEY, label: "종목찾기(눌림목)", emoji: "🔎", count: 0 });
   }
   // 섹터 (KODEX ETF 기반 4기간 ranking + 토스 핫 테마). 반도체는 지수 대시보드 그룹으로 통합됨.
   if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터별등락", emoji: "🧩", count: 0 });
@@ -419,7 +419,7 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   }
   // 성적표 — 관심종목 기업가치 지표 표
   if (visibility?.valuation ?? true) {
-    tabs.push({ key: VALUATION_TAB_KEY, label: "성적표", emoji: "📊", count: 0 });
+    tabs.push({ key: VALUATION_TAB_KEY, label: "성적표(종목별)", emoji: "📊", count: 0 });
   }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())

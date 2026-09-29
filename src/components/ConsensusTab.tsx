@@ -65,7 +65,6 @@ interface Props {
   onOpenValuation?: (ticker: string) => void;
   onSelectGroup?: (group: string) => void;   // 그룹 칩 클릭 → 해당 그룹 탭 이동
   onEdit?: (ticker: string) => void;          // ✏️ 보유 수정 (그룹 추가/제외)
-  onRequestAdd?: (query: string) => void;     // 눌림목 sub탭 — 걸린 종목을 포트폴리오에 추가
 }
 
 // dip(눌림목)만 성격이 다르다 — 나머지는 **관심종목**을 줄 세우는 화면이고,
@@ -94,7 +93,7 @@ function isActionableReport(r: ConsensusReport): boolean {
   return r.target != null && r.target > 0 && BUY_OPINION_RE.test(r.opinion ?? "");
 }
 
-export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit, onRequestAdd }: Props) {
+export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: Props) {
   // 기본은 눌림목 — 탭 이름(종목찾기)의 주인공이고, 나머지 넷은 이미 아는 종목을 줄 세우는 화면이다.
   const [view, setView] = useState<View>("dip");   // 책갈피 sub탭
   const [sortKey, setSortKey] = useState<SortKey>("date");
@@ -438,7 +437,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit, on
     return (
       <div className="space-y-2">
         <div className="flex items-end gap-1 border-b border-gray-300 px-1">{subTabs}</div>
-        <ScreenerTab onRequestAdd={onRequestAdd} onOpenValuation={onOpenValuation} />
+        <ScreenerTab onOpenValuation={onOpenValuation} />
       </div>
     );
   }

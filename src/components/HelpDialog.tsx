@@ -70,7 +70,7 @@ const PC_STEPS: Step[] = [
     ),
   },
   {
-    title: "3. 🔎 종목찾기 탭",
+    title: "3. 🔎 종목찾기(눌림목) 탭",
     caption: (
       <>
         🔎 종목찾기 탭은 책갈피 다섯 개로 나뉘어요 —
@@ -158,7 +158,7 @@ const MOBILE_STEPS: Step[] = [
     ),
   },
   {
-    title: "3. 🔎 종목찾기 탭",
+    title: "3. 🔎 종목찾기(눌림목) 탭",
     caption: (
       <>
         🔎 종목찾기 탭은 책갈피 다섯 개로 나뉘어요 —

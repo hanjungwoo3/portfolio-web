@@ -353,7 +353,7 @@ export function MobileSimpleView() {
     }
     // 종목찾기 — 시스템 묶음 첫 자리(섹터 위, PC buildTabs 와 같은 순서).
     if (vis.consensus) {
-      tabs.push({ key: CONSENSUS_KEY, label: "🔎종목찾기", count: 0 });
+      tabs.push({ key: CONSENSUS_KEY, label: "🔎종목찾기(눌림목)", count: 0 });
     }
     if (vis.sectorRank) {
       tabs.push({ key: SECTOR_KEY, label: "🧩섹터별등락", count: 0 });
@@ -387,7 +387,7 @@ export function MobileSimpleView() {
       tabs.push({ key: HEATMAP_KEY, label: "🗺️히트맵", count: 0 });
     }
     if (vis.valuation) {
-      tabs.push({ key: VALUATION_KEY, label: "📊성적표", count: 0 });
+      tabs.push({ key: VALUATION_KEY, label: "📊성적표(종목별)", count: 0 });
     }
     // "보유" 도 일반 사용자 그룹과 동일하게 취급 — 별도 분기 없음
     const userGroups = Array.from(counts.keys())
@@ -1506,8 +1506,7 @@ export function MobileSimpleView() {
             <ConsensusTab items={consensusItems}
                           onOpenValuation={setValuationTicker}
                           onSelectGroup={setActiveTab}
-                          onRequestAdd={q => { setSearchInitQuery(q); setSearchOpen(true); }}
-                          onEdit={(ticker) => {
+                            onEdit={(ticker) => {
                             const s = holdings.find(h => h.ticker === ticker);
                             if (s) setEditing(s);
                           }} />

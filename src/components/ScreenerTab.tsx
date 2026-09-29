@@ -22,7 +22,7 @@ import {
 } from "../lib/stockScreener";
 
 interface Props {
-  onRequestAdd?: (query: string) => void;
+  // 포트폴리오 추가 버튼은 두지 않는다 — 카드의 📊(기업가치) 안에서 추가할 수 있다.
   onOpenValuation?: (ticker: string) => void;
 }
 
@@ -63,10 +63,9 @@ function NumField({ label, value, onChange, step = 1, unit, title }: {
 //
 // 종목당 4콜(일봉·수급·컨센서스·시장조치)이라 **뷰포트에 들어온 카드만** 부른다.
 //   가격·정규장 정보는 부모가 페이지 단위로 한 번에 받아 내려준다(배치 2콜).
-function ResultCard({ row, name, price, krReg, criteria, onRequestAdd, onOpenValuation }: {
+function ResultCard({ row, name, price, krReg, criteria, onOpenValuation }: {
   row: ScreenRow; name: string; price?: Price; krReg?: KrRegularPrice;
   criteria: ScreenCriteria;
-  onRequestAdd?: (q: string) => void;
   onOpenValuation?: (ticker: string) => void;
 }) {
   const ref = useRef<HTMLDivElement>(null);
@@ -116,10 +115,10 @@ function ResultCard({ row, name, price, krReg, criteria, onRequestAdd, onOpenVal
   };
 
   return (
-    <div ref={ref}>
+    <div ref={ref} className="h-full flex flex-col">
       {/* 왜 이 종목이 걸렸는지 — 조건별 실측값. 카드보다 **위**에 둔다(이게 이 화면의 본문이다).
           못 넘은 조건은 흐리게 — 한 조건 모자란 종목에서 어디가 빠졌는지 바로 보인다. */}
-      <div className="mb-1 mx-1 flex flex-wrap items-center gap-x-3 gap-y-0.5
+      <div className="shrink-0 mb-1 mx-1 flex flex-wrap items-center gap-x-3 gap-y-0.5
                       rounded-md border border-indigo-300 bg-indigo-50 px-2 py-1
                       text-[11px] tabular-nums shadow-sm">
         {/* 색은 앱 공통 규칙(빨강=+ / 파랑=−). RSI 는 부호가 없으니 50 을 기준으로 —
@@ -139,13 +138,6 @@ function ResultCard({ row, name, price, krReg, criteria, onRequestAdd, onOpenVal
             <span className={`font-bold ${sign == null ? "text-gray-800" : signColor(sign)}`}>{v}</span>
           </span>
         ))}
-        {onRequestAdd && (
-          <button onClick={() => onRequestAdd(t)} title={`${name} (${t}) 추가하기`}
-                  className="ml-auto px-1.5 py-0.5 rounded text-[10px] font-bold leading-none
-                             bg-white text-indigo-700 border border-indigo-300 hover:bg-indigo-100">
-            + 추가
-          </button>
-        )}
       </div>
       <StockCard
         stock={{ ticker: t, name, shares: 0, avg_price: 0, market: row.market === "코스피" ? "KOSPI" : "KOSDAQ" }}
@@ -158,6 +150,7 @@ function ResultCard({ row, name, price, krReg, criteria, onRequestAdd, onOpenVal
         sector={info?.sector}
         market={row.market === "코스피" ? "KOSPI" : "KOSDAQ"}
         warning={warning}
+        hideStats
         longHistory={longQ.data ?? null}
         onNeedLongHistory={() => setPrimed(true)}
         onOpenValuation={onOpenValuation}
@@ -166,7 +159,7 @@ function ResultCard({ row, name, price, krReg, criteria, onRequestAdd, onOpenVal
   );
 }
 
-export function ScreenerTab({ onRequestAdd, onOpenValuation }: Props) {
+export function ScreenerTab({ onOpenValuation }: Props) {
   const [snap, setSnap] = useState<ScreenSnapshot | null>(() => loadCachedScreen());
   const [loading, setLoading] = useState(snap === null);
   const [err, setErr] = useState<string | null>(null);
@@ -369,11 +362,11 @@ export function ScreenerTab({ onRequestAdd, onOpenValuation }: Props) {
             조건 {CONDS.length}개 <b className="text-gray-800">전부</b> 만족 —
             <b className="text-gray-800"> {shown.length}</b>종
           </div>
-          <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-stretch">
             {shown.map(r => (
               <ResultCard key={r.code} row={r} name={krName(r)} criteria={c}
                           price={priceMap.get(r.code)} krReg={regQ.data?.get(r.code)}
-                          onRequestAdd={onRequestAdd} onOpenValuation={onOpenValuation} />
+                          onOpenValuation={onOpenValuation} />
             ))}
           </div>
           {sortedHit.length > shown.length && (
@@ -403,11 +396,11 @@ export function ScreenerTab({ onRequestAdd, onOpenValuation }: Props) {
                 ⚠️ 아래는 <b>조건 하나가 빠진</b> 종목입니다 — 통과가 아닙니다.
                 카드 오른쪽 지표에서 <span className="text-gray-300">흐린 줄</span>이 못 넘은 조건입니다.
               </div>
-              <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 opacity-80">
+              <div className="grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-3 items-stretch opacity-80">
                 {shownNear.map(r => (
                   <ResultCard key={r.code} row={r} name={krName(r)} criteria={c}
                               price={priceMap.get(r.code)} krReg={regQ.data?.get(r.code)}
-                              onRequestAdd={onRequestAdd} onOpenValuation={onOpenValuation} />
+                              onOpenValuation={onOpenValuation} />
                 ))}
               </div>
             </>
