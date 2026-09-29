@@ -321,7 +321,8 @@ export const SECTOR_RANK_TAB_KEY = "__sector-rank__";
 export const MY_STOCKS_TAB_KEY = "__my-stocks__";
 // 내거래 — 모든 종목의 거래 기록(trades) 모아보기. 내주식과 한 묶음.
 export const MY_TRADES_TAB_KEY = "__my-trades__";
-// 분석 탭 — 컨센서스/연기금/변동성 sub탭 통합
+// 종목찾기 — 컨센서스·연기금·변동폭·등락률·눌림목 sub탭 통합.
+//   ⚠️ 키는 "__consensus__" 그대로 둔다 — 바꾸면 사용자가 저장해 둔 탭 표시 설정·마지막 탭이 날아간다.
 export const CONSENSUS_TAB_KEY = "__consensus__";
 // ETF 역검색 — 다중 종목으로 ETF 찾기
 export const ETF_REVERSE_TAB_KEY = "__etf-reverse__";
@@ -375,8 +376,13 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 증시 — 지수 왼쪽. 증시 자금동향 + 실시간 지수·투자자 차트.
   if (visibility?.stockMarket ?? true) tabs.push({ key: MARKET_MONEY_TAB_KEY, label: "증시", emoji: "💰", count: 0 });
   if (showUs) tabs.push({ key: US_MARKET_TAB_KEY, label: "지수", emoji: "📈", count: 0 });
+  // 종목찾기 — 시스템 묶음의 첫 자리(섹터 위). 눌림목·컨센서스·연기금·변동폭·등락률 sub탭.
+  //   설정 ON 이면 항상 노출(종목 없으면 빈 안내 표시).
+  if (showConsensus) {
+    tabs.push({ key: CONSENSUS_TAB_KEY, label: "종목찾기", emoji: "🔎", count: 0 });
+  }
   // 섹터 (KODEX ETF 기반 4기간 ranking + 토스 핫 테마). 반도체는 지수 대시보드 그룹으로 통합됨.
-  if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터", emoji: "🧩", count: 0 });
+  if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터별등락", emoji: "🧩", count: 0 });
   // 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
   if (showMy && uniqHeld.size > 0) {
     tabs.push({ key: MY_STOCKS_TAB_KEY, label: "내주식", emoji: "📦", count: uniqHeld.size });
@@ -388,10 +394,6 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 자산추이 — 내자산 묶음(내주식·내거래)의 세 번째. 거래 기록이 있어야 역산이 되므로 그때만.
   if ((visibility?.assetTrend ?? true) && tradeCount > 0) {
     tabs.push({ key: ASSET_TREND_TAB_KEY, label: "자산추이", emoji: "📈", count: 0 });
-  }
-  // 컨센서스 — 내주식 옆. 설정 ON 이면 항상 노출(종목 없으면 빈 안내 표시).
-  if (showConsensus) {
-    tabs.push({ key: CONSENSUS_TAB_KEY, label: "컨센서스", emoji: "🎯", count: 0 });
   }
   // ETF 역검색 — 다중 종목 교집합/합집합
   if (visibility?.etfReverse ?? true) {

@@ -26,9 +26,9 @@ export interface TabVisibility {
 export const TAB_VIS_ITEMS: { key: keyof TabVisibility; label: string; sep?: boolean }[] = [
   { key: "stockMarket", label: "💰 증시" },
   { key: "usMarket",    label: "📈 지수" },
-  { key: "sectorRank",  label: "🧩 섹터" },
+  { key: "sectorRank",  label: "🧩 섹터별등락" },
   { key: "semiCheck",   label: "반도체" },          // 아이콘(Cpu)은 렌더 쪽에서 붙인다
-  { key: "consensus",   label: "🎯 컨센서스" },
+  { key: "consensus",   label: "🔎 종목찾기" },
   { key: "etfReverse",  label: "🍱 ETF검색" },
   { key: "etfRanking",  label: "🏅 ETF랭킹" },
   { key: "etfCompare",  label: "⚖️ ETF미국" },

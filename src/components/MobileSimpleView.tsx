@@ -351,8 +351,12 @@ export function MobileSimpleView() {
       // 지수·매크로·반도체를 하나로 통합 (PC UsMarketTab 과 동일한 단일 그룹 뷰)
       tabs.push({ key: KR_KEY, label: "📈지수", count: 0 });
     }
+    // 종목찾기 — 시스템 묶음 첫 자리(섹터 위, PC buildTabs 와 같은 순서).
+    if (vis.consensus) {
+      tabs.push({ key: CONSENSUS_KEY, label: "🔎종목찾기", count: 0 });
+    }
     if (vis.sectorRank) {
-      tabs.push({ key: SECTOR_KEY, label: "🧩섹터", count: 0 });
+      tabs.push({ key: SECTOR_KEY, label: "🧩섹터별등락", count: 0 });
     }
     // 합산 그룹 — 보유 수량 있는 unique ticker 수
     const uniqHeld = new Set<string>();
@@ -369,10 +373,6 @@ export function MobileSimpleView() {
     // 자산추이 — 거래 기록으로 역산하므로 기록이 있을 때만 (데스크톱 buildTabs 와 동일 조건)
     if (vis.assetTrend && tradeCount > 0) {
       tabs.push({ key: ASSET_TREND_KEY, label: "📈자산추이", count: 0 });
-    }
-    // 컨센서스 — 설정 ON 이면 항상 노출(종목 없으면 빈 안내 표시)
-    if (vis.consensus) {
-      tabs.push({ key: CONSENSUS_KEY, label: "🎯컨센서스", count: 0 });
     }
     if (vis.etfReverse) {
       tabs.push({ key: ETF_KEY, label: "🍱ETF", count: 0 });
@@ -1500,6 +1500,7 @@ export function MobileSimpleView() {
             <ConsensusTab items={consensusItems}
                           onOpenValuation={setValuationTicker}
                           onSelectGroup={setActiveTab}
+                          onRequestAdd={q => { setSearchInitQuery(q); setSearchOpen(true); }}
                           onEdit={(ticker) => {
                             const s = holdings.find(h => h.ticker === ticker);
                             if (s) setEditing(s);
