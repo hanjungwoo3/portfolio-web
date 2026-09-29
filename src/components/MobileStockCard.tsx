@@ -141,13 +141,16 @@ export function MobileStockCard({
   // 흐림(마감) 판정 — 토스 거래가능 플래그(KRX·NXT 둘 다 suspended = 마감) 기반.
   //   미국 보유는 한국 세션이 아니라 미국 24h(Blue Ocean) 세션 기준 (StockCard 와 동일).
   const isUsHolding = marketOfSymbol(stock.ticker) === "US";
+  // ETF·ETN 은 애프터마켓(16:00~20:00)에 참여하지 않는다 — 흐림 판정·마감 시각 양쪽에 쓰는 한 값.
+  const noAfterHours = isEtfOrEtnByName(stock.name);
   const sleeping = isUsHolding
     ? (!isUsExtendedTradingOpen() || isQuoteStale(price.freshTime))
     : isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price.singlePrice, tradeSecOf(price.trade_dt),
-                        isEtfOrEtnByName(stock.name));
+                        noAfterHours);
   const dimmed = sleeping && getDimSleepingEnabled();
-  // 시간외 포함 최종 매매 마감 임박(기본 30분 이내) — 남은 분. 아니면 null.
-  const closeImminentMin = !sleeping ? krCloseImminentMin(krReg?.exchange, krReg?.tradingEnd) : null;
+  // 애프터마켓 포함 최종 매매 마감 임박(기본 30분 이내) — 남은 분. 아니면 null.
+  //   주식 20:00 / ETF·ETN 16:00. 거래소(exchange)가 아니라 ETF·ETN 여부로 갈린다(format.ts 주석).
+  const closeImminentMin = !sleeping ? krCloseImminentMin(noAfterHours, krReg?.tradingEnd) : null;
   // 마지막 거래 시각 (잠자는 카드 갱신 책갈피용)
   const tradeSec = price.trade_dt ? Math.floor(Date.parse(price.trade_dt) / 1000) : undefined;
   const agoLabel = sleeping ? fmtAgo(tradeSec) : "";
@@ -493,7 +496,7 @@ export function MobileStockCard({
                         border rounded text-[10px] leading-tight whitespace-nowrap
                         bg-amber-100 border-amber-400 animate-pulse">
           <span className="text-amber-700 font-bold tabular-nums">마감 {closeImminentMin}분전</span>
-          <span className="text-gray-500 tabular-nums"> · {krFinalCloseHHMM(krReg?.exchange)}</span>
+          <span className="text-gray-500 tabular-nums"> · {krFinalCloseHHMM(noAfterHours)}</span>
         </div>
       )}
       {/* 보유주수 + 거래량 — 한 줄, 가격 블록 위로 빠져나오는 박스 */}

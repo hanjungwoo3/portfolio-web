@@ -380,8 +380,7 @@ export function isKrHoldingClosed(
   //   남는 확실한 신호가 마지막 체결 시각이다:
   //     기가비스 16:06:55 · RF머트리얼즈 16:06:58 (거래 중)
   //     KODEX 반도체 15:59:34 · KODEX WTI 15:45:23 (멈춤 — 주문 예약만 가능)
-  //   임계값 12분 — KRX 시간외 단일가가 10분 주기 체결이라 그보다 길게 잡아야
-  //   단일가 종목이 주기 사이에 깜빡이지 않는다.
+  //   임계값은 EXTENDED_STALE_MIN 분.
   // ETF·ETN — 정규장 종료(15:30) 즉시 마감. 프리마켓(08:00~08:50)은 이 규칙에서 뺀다
   //   (애프터 미참여가 확인된 것이고 프리는 따로 확인하지 않았다 — 그쪽은 정체 판정에 맡긴다).
   if (noAfterHours && isKrAfterHoursWindow()) return true;
@@ -399,12 +398,20 @@ export function isKrHoldingClosed(
   return false;
 }
 
-// 종목별 "실제 매매 마감 시각"(시간외 포함) — 토스 exchange 필드 기반.
-//   integrated = NXT+KRX 통합거래 → NXT 접속매매 20:00 까지 매매 가능
-//   krx        = KRX 전용         → 시간외 단일가 18:00 까지 매매 가능
-// 정규장 마감(15:30)이 아니라 "더 이상 사거나 팔 수 없는" 최종 시각 기준.
-export function krFinalCloseHHMM(exchange?: string): string {
-  return exchange === "integrated" ? "20:00" : "18:00";
+// 종목별 "실제 매매 마감 시각"(시간외 포함). 정규장 마감(15:30)이 아니라
+//   "더 이상 사거나 팔 수 없는" 최종 시각 기준.
+//   토스 trading-info 국내 스케줄: 장열림 08:30–09:00 · 정규장 09:00–15:30 ·
+//   시간외거래 15:30–16:00 · **애프터마켓 16:00–20:00** → 주식의 최종 마감은 20:00.
+//   ETF·ETN 만 애프터마켓에 참여하지 않아 16:00 에 끝난다.
+//
+// ⚠️ 예전엔 토스 stock-prices 의 exchange 필드로 갈랐다(integrated=20:00 / krx=18:00). **틀렸다.**
+//   실측 2026-09-29 18:11 KST — exchange=krx 인 카카오·대한항공·RF머트리얼즈·와이씨가 전부
+//   18:11:0x 에 체결 중이었다(tradeDateTime). krx 는 '18시 마감' 이 아니라 호가 소스 구분이고,
+//   그 종목들의 tradingEnd 도 15:30 으로 고정이라 애프터마켓을 애초에 못 담는다.
+//   같은 시각 KODEX 200 만 15:59:57 에 멈춰 있었다 → 갈림길은 거래소가 아니라 ETF·ETN 여부다.
+//   (18:00 은 KRX 시간외 단일가 종료 시각이라 이제 국내 스케줄 어디에도 없다)
+export function krFinalCloseHHMM(noAfterHours?: boolean): string {
+  return noAfterHours ? "16:00" : "20:00";
 }
 
 // 최종 매매 마감까지 남은 분(KST). withinMin 이내일 때만 숫자, 아니면 null → "임박" 강조용.
@@ -412,7 +419,7 @@ export function krFinalCloseHHMM(exchange?: string): string {
 //     휴장일엔 tradingEnd 가 직전 거래일이라 날짜 불일치 → null.
 //   - 주말도 null.
 export function krCloseImminentMin(
-  exchange?: string, tradingEnd?: string, withinMin = 30,
+  noAfterHours?: boolean, tradingEnd?: string, withinMin = 30,
 ): number | null {
   if (!tradingEnd) return null;
   const endMs = Date.parse(tradingEnd);
@@ -424,7 +431,7 @@ export function krCloseImminentMin(
     timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
   }).format(new Date(endMs));
   if (endDate !== dateStrInTz("Asia/Seoul")) return null;
-  const closeMin = exchange === "integrated" ? 20 * 60 : 18 * 60;
+  const closeMin = noAfterHours ? 16 * 60 : 20 * 60;   // krFinalCloseHHMM 과 같은 규칙
   const remain = closeMin - (t.hour * 60 + t.minute);
   if (remain <= 0 || remain > withinMin) return null;
   return remain;

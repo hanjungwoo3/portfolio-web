@@ -524,13 +524,16 @@ export function StockCard({
   // 미국 보유 종목은 한국 세션이 아니라 미국 세션 기준으로 흐림 (지수창 dimNow 로직의 최소 형태).
   //   24h(Blue Ocean) 창이 열려있으면 밝게, 닫히거나(주말) 체결 정체(90분)면 흐림.
   const isUsHolding = marketOfSymbol(stock.ticker) === "US";
+  // ETF·ETN 은 애프터마켓(16:00~20:00)에 참여하지 않는다 — 흐림 판정·마감 시각 양쪽에 쓰는 한 값.
+  const noAfterHours = isEtfOrEtnByName(stock.name);
   const sleeping = isUsHolding
     ? (!isUsExtendedTradingOpen() || isQuoteStale(price.freshTime))
     : isKrHoldingClosed(krReg?.tradingEnd, krReg?.nextTradingStart, price.singlePrice, tradeSecOf(price.trade_dt),
-                        isEtfOrEtnByName(stock.name));
+                        noAfterHours);
   const dimmed = sleeping && getDimSleepingEnabled();
-  // 시간외 포함 최종 매매 마감 임박(기본 30분 이내) — 남은 분. 아니면 null.
-  const closeImminentMin = !sleeping ? krCloseImminentMin(krReg?.exchange, krReg?.tradingEnd) : null;
+  // 애프터마켓 포함 최종 매매 마감 임박(기본 30분 이내) — 남은 분. 아니면 null.
+  //   주식 20:00 / ETF·ETN 16:00. 거래소(exchange)가 아니라 ETF·ETN 여부로 갈린다(format.ts 주석).
+  const closeImminentMin = !sleeping ? krCloseImminentMin(noAfterHours, krReg?.tradingEnd) : null;
   // 마지막 거래 시각 (잠자는 카드 갱신 책갈피용)
   const tradeSec = price.trade_dt ? Math.floor(Date.parse(price.trade_dt) / 1000) : undefined;
   const agoLabel = sleeping ? fmtAgo(tradeSec) : "";
@@ -1324,7 +1327,7 @@ export function StockCard({
           );
         })()}
 
-        {/* 마감 임박 — 시간외 포함 최종 매매 마감(NXT 20:00 / KRX 18:00)까지 30분 이내 강조.
+        {/* 마감 임박 — 애프터마켓 포함 최종 매매 마감(주식 20:00 / ETF·ETN 16:00)까지 30분 이내 강조.
             통계 박스 우상단. 다른그룹 칩(우상단)이 있으면 충돌 피해 좌상단으로. */}
         {closeImminentMin != null && (
           <div className={`absolute -top-2 z-20 px-1.5 py-0
@@ -1332,7 +1335,7 @@ export function StockCard({
                            bg-amber-100 border-amber-400 animate-pulse
                            ${otherGroups && otherGroups.length > 0 ? "left-1" : "right-1"}`}>
             <span className="text-amber-700 font-bold tabular-nums">마감 {closeImminentMin}분전</span>
-            <span className="text-gray-500 tabular-nums"> · {krFinalCloseHHMM(krReg?.exchange)}</span>
+            <span className="text-gray-500 tabular-nums"> · {krFinalCloseHHMM(noAfterHours)}</span>
           </div>
         )}
 
