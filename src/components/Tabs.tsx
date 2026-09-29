@@ -57,8 +57,12 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
   // 내자산 묶기 — 내주식 + 내거래 드롭다운 하나로
   const myTabs = tabs.filter(t => MY_GROUP_KEYS.has(t.key));
 
-  // 묶음 드롭다운 렌더 (지수/내자산 공통)
-  const renderGroupDropdown = (groupTabs: typeof tabs, fallbackEmoji: string) => {
+  // 묶음 드롭다운 렌더 (시스템/내자산 공통)
+  //
+  // menuTitle = 목록 맨 위에 붙는 **선택 불가 제목**(optgroup). 이게 없으면 열었을 때
+  //   현재 탭(= 첫 항목)이 커서 바로 아래에 겹쳐서, 누르려던 게 이미 선택된 항목이라
+  //   아무 일도 안 일어난다. 제목 한 줄을 끼워 목록을 한 칸 내린다.
+  const renderGroupDropdown = (groupTabs: typeof tabs, fallbackEmoji: string, menuTitle: string) => {
     if (groupTabs.length === 0) return null;
     // 묶을 항목이 1개뿐이면 드롭다운 대신 일반 탭 버튼으로 바로 노출
     if (groupTabs.length === 1) {
@@ -99,11 +103,13 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                 className={`text-sm font-medium bg-transparent border-0 focus:outline-none cursor-pointer
                             ${on ? "text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
           {!on && <option value="" disabled hidden>{curTab?.label}</option>}
-          {groupTabs.map(t => (
-            <option key={t.key} value={t.key}>
-              {t.label}{t.count > 0 ? ` (${t.count})` : ""}
-            </option>
-          ))}
+          <optgroup label={menuTitle}>
+            {groupTabs.map(t => (
+              <option key={t.key} value={t.key}>
+                {t.label}{t.count > 0 ? ` (${t.count})` : ""}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </div>
     );
@@ -115,8 +121,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                     border-b border-gray-200 mb-3 px-1 pt-1">
       {leading && <span className="shrink-0">{leading}</span>}
       {/* 섹터~ETF 드롭다운 → 내자산 묶음(내주식·내거래) → 지수 순서 */}
-      {renderGroupDropdown(sysTabs, "📊")}
-      {renderGroupDropdown(myTabs, "📦")}
+      {renderGroupDropdown(sysTabs, "📊", "투자도구")}
+      {renderGroupDropdown(myTabs, "📦", "내자산")}
       {/* 증시 — 지수 왼쪽 별도 탭 */}
       {marketMoneyTab && (
         <button onClick={() => onChange(marketMoneyTab.key)}
