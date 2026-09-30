@@ -158,8 +158,8 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
 
 export function TicsSectorBoard({ onOpenValuation, krClosed = false }: {
   onOpenValuation?: (ticker: string, name: string) => void;
-  /** 한국 정규장이 닫혔는가 — 좌우 순서를 정한다. 섹션 위치(낮=한국 시장 아래 / 밤=미국 지수 아래)와
-   *  **같은 신호**를 써야 화면이 따로 놀지 않는다. */
+  /** true 면 🇺🇸 미국을 왼쪽에 — 호출하는 쪽이 **페이지**로 정한다(지수(야간)=미국 왼쪽, 주간=한국 왼쪽).
+   *  시계로 바꾸면 같은 페이지인데 시간 따라 좌우가 뒤집혀 헷갈린다. */
   krClosed?: boolean;
 }) {
   const [duration, setDuration] = useState<TicsDuration>("1d");

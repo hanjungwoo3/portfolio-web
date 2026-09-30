@@ -119,8 +119,8 @@ interface MiniProps {
 function MiniTable({
   title, rows, total, colorClass, headerBg, open, onToggle,
 }: MiniProps) {
-  // 220px — 240 이면 합계 바 한 줄(합계·카드3·오늘매도·샀더라면)이 화면 폭을 수십 px 넘어
-  //   '샀더라면' 만 다음 줄로 밀렸다. 바가 두 줄이 되면 화면 아래를 그만큼 더 가린다.
+  // 220px — 합계 바가 한 줄(합계·카드3·오늘매도)에 들어가게 빠듯하게 잡는다.
+  //   바가 두 줄이 되면 화면 아래를 그만큼 더 가린다.
   return (
     <div className="bg-white border border-gray-300 rounded-lg shadow-md
                     overflow-hidden w-[220px] flex flex-col">

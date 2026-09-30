@@ -13,8 +13,13 @@ export interface Pair {
   direction: "direct" | "inverse" | "neutral";
   // 토스 미국 종목 코드 — 24시간 ECN Overnight 가격 추적용 (Yahoo postMarketPrice 보다 최신)
   tossUsCode?: string;
+  // 한국 **개별주**('6자리.KS') — ETF 가 아니다. 카드의 'ETF' 책갈피(구성종목 모달)를 달지 않는다.
+  //   코스닥 종목도 '.KS' 로 둔다 — 시세(토스)·차트(토스 일봉) 모두 코드만 보고, 야후를 안 쓴다.
+  krStock?: boolean;
 }
 
+// ⚠️ 이 맵은 **어디서도 참조하지 않는다**(2026-09-30 확인). 실제 시세 코드는
+//   api.ts 의 TOSS_US_STOCK_CODE 다 — 새 미국 종목은 거기에 넣어야 한다(SCHD 흐림 사고 참고).
 // Yahoo 심볼 → 토스 미국 종목 코드 매핑 (24시간 가격용)
 export const TOSS_US_CODE: Record<string, string> = {
   "MU":   "US19890516001",
@@ -86,6 +91,37 @@ export const US_PAIRS: Pair[] = [
   { symbol: "AMAT",     name: "어플라이드머티리얼즈", desc: "반도체 식각·증착 장비 회사 — AI 메모리 생산 설비 투자 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "LRCX",     name: "램리서치",     desc: "Lam Research — 식각·증착 장비. HBM 핵심 공정", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ASML",     name: "ASML",        desc: "EUV 노광 독점 — 첨단 반도체 공정 필수", tier: "T0", sector: "dashboard", direction: "direct" },
+  // AI 인프라 주도주 — 각 테마에서 수익률·거래대금 1위(2026-09-30 실측). AI 데이터센터 투자 흐름의 가늠자.
+  { symbol: "BE",       name: "블룸에너지",   desc: "Bloom Energy — 데이터센터 현장 발전(연료전지). 전력 테마 주도주(1년 +300%, 거래대금 테마 1위)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "LITE",     name: "루멘텀",       desc: "Lumentum — 광트랜시버·레이저. 광통신 테마 주도주(1년 +490%, 거래대금 테마 1위)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "NBIS",     name: "네비우스",     desc: "Nebius — GPU 클라우드(네오클라우드). AI 데이터센터 주도주(1년 +117%, 코어위브 -29%)", tier: "T0", sector: "dashboard", direction: "direct" },
+  // AI 순환매 대장주 — 간밤 미국 수익률이 한국 해당 단계의 다음 날 수익률과 가장 붙는 종목.
+  { symbol: "ONTO",     name: "온투",         desc: "Onto Innovation — 후공정·첨단패키징 검사계측. 한국 후공정 소부장(한미반도체·ISC·테크윙) 다음 날 상관 +0.32", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "PWR",      name: "콴타서비스",   desc: "Quanta Services — 미국 송전망 공사 1위. 한국 전력기기(HD현대일렉트릭·LS일렉트릭·효성중공업) 다음 날 상관 +0.35", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "CCJ",      name: "카메코",       desc: "Cameco — 우라늄 채굴·연료. 한국 원자력(두산에너빌리티·한전기술) 다음 날 상관 +0.34", tier: "T0", sector: "dashboard", direction: "direct" },
+  // AI 순환매 — 한국 단계별 종목(개별주). 지수 카드와 **같은 카드**로 그리려고 등록한다.
+  //   시세는 토스 배치(.KS 한 콜에 합류), 차트는 토스 일봉(fetchDashboardChart) — 추가 호출 거의 없음.
+  { symbol: "005930.KS", name: "삼성전자", desc: "메모리·파운드리·스마트폰", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "000660.KS", name: "SK하이닉스", desc: "HBM·D램·낸드", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "240810.KS", name: "원익IPS", desc: "증착(CVD·ALD) 장비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "036930.KS", name: "주성엔지니어링", desc: "ALD·증착 장비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "319660.KS", name: "피에스케이", desc: "드라이 스트립·세정 장비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "084370.KS", name: "유진테크", desc: "LPCVD·ALD 장비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "042700.KS", name: "한미반도체", desc: "HBM TC 본더", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "095340.KS", name: "ISC", desc: "반도체 테스트 소켓", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "089030.KS", name: "테크윙", desc: "테스트 핸들러", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "067310.KS", name: "하나마이크론", desc: "패키징·테스트(OSAT)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "267260.KS", name: "HD현대일렉트릭", desc: "변압기·전력기기", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "010120.KS", name: "LS일렉트릭", desc: "전력기기·배전반", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "298040.KS", name: "효성중공업", desc: "초고압 변압기", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "034020.KS", name: "두산에너빌리티", desc: "원전 주기기·SMR", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "052690.KS", name: "한전기술", desc: "원전 설계", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "051600.KS", name: "한전KPS", desc: "원전 정비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "009830.KS", name: "한화솔루션", desc: "태양광(큐셀)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "112610.KS", name: "씨에스윈드", desc: "풍력 타워", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "336260.KS", name: "두산퓨얼셀", desc: "연료전지", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "UCTT",     name: "울트라클린",   desc: "Ultra Clean — 반도체 장비 부품·가스 서브시스템. 한국 부품(원익QnC·하나머티리얼즈·티씨케이) 다음 날 상관 +0.31", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "ENTG",     name: "엔테그리스",   desc: "Entegris — 웨이퍼 소모품·특수화학 소재. 한국 소재(솔브레인·동진쎄미켐·한솔케미칼) 다음 날 상관 +0.26", tier: "T0", sector: "dashboard", direction: "direct" },
   // AI 반도체·인프라 대표주 (NVDA 는 위 메모리/AI 줄)
   { symbol: "AMD",      name: "AMD",         desc: "AMD — CPU·GPU. NVDA 의 AI 가속기 경쟁자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "AVGO",     name: "브로드컴",     desc: "Broadcom — AI 네트워킹·커스텀 실리콘(ASIC). NVDA 다음 AI 핵심", tier: "T0", sector: "dashboard", direction: "direct" },

@@ -6,19 +6,19 @@ import {
 } from "../lib/sortHoldings";
 import { getHeldFirst, setHeldFirst } from "../lib/heldFirst";
 import { SortSelector, makeSortHandlers } from "./SortSelector";
-import { fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfoLight, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures, fetchKrRegularPrices, verifyKrMarkets, fetchYahooChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
+import { fetchYahooBatch, fetchTossPrices, fetchNaverPrices, fetchNaverInfoLight, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures, fetchKrRegularPrices, verifyKrMarkets, fetchDashboardChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
 import {
   US_PAIRS,
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, krSessionPhase, isFxFuturesWeekendClosed } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { getPersonalProxies, setPersonalProxies, type PersonalProxy, fetchProxyUsage, type ProxyUsage, getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS, pollLabel, getDimSleepingEnabled, setDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
-import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
+import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardTagCard, DASHBOARD_PAGES, type DashboardPage } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { StockMarketTab } from "./StockMarketTab";
 import { useExtensionProxyReady, compareVersion } from "../lib/extensionProxy";
@@ -65,20 +65,20 @@ import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
 import { MobileStockCard } from "./MobileStockCard";
 import { MemoDialog } from "./MemoDialog";
 import { TotalRow } from "./TotalRow";
-import { WhatIfRow } from "./WhatIfRow";
 import { SemiCheckTab } from "./SemiCheckTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { filterByTab, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, VALUATION_TAB_KEY as VALUATION_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
+import { filterByTab, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, VALUATION_TAB_KEY as VALUATION_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
 import { EtfReverseTab } from "./EtfReverseTab";
 import { EtfRankingTab } from "./EtfRankingTab";
 import { ScreenerTab } from "./ScreenerTab";
+import { RotationTab } from "./RotationTab";
 import { EtfCompareTab } from "./EtfCompareTab";
 import { HeatmapTab } from "./HeatmapTab";
 import { ValueupMiniCard } from "./ValueupCard";
 import { HlPerpCard } from "./HlPerpCard";
 import { GOTO_HEATMAP_EVENT, requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
-import { GOTO_TAB_EVENT } from "../lib/tabNav";
+import { GOTO_TAB_EVENT, requestTab, isTabVisible } from "../lib/tabNav";
 import { OPEN_VALUATION_EVENT, type ValuationRequest } from "../lib/valuationNav";
 import { TRADES_CHANGED_EVENT } from "../lib/tradeEvents";
 import { startAutoSync, SYNC_PULLED_EVENT } from "../lib/syncManager";
@@ -120,9 +120,25 @@ const SECTOR_KEY = "__sector__";  // 한국 섹터 순위 — 토스 TICS depth1
 const MY_KEY = "__my-stocks__";  // 내주식(가상 합산) — 모든 그룹의 동일 ticker 를 shares 합/가중평균 평단
 const MY_TRADES_KEY = "__my-trades__";  // 내거래 — 모든 종목 거래 기록 모아보기 (내주식과 한 묶음)
 const ASSET_TREND_KEY = "__asset-trend__";  // 자산추이 — 일별 총자산·원금 대비 수익 (내자산 묶음 세 번째)
+
+// 시스템 탭 목록 — **이 한 벌**로 드롭다운·스와이프·개별탭 숨김·isSystemTab 을 모두 만든다.
+//   예전엔 같은 목록이 다섯 군데 따로 적혀 있어, 새 탭(종목찾기·AI순환매)을 넣을 때마다 몇 곳이
+//   빠졌다 → 드롭다운과 탭 줄에 **두 번** 뜨고, 스와이프가 그 탭을 **건너뛰었다**.
+//   새 시스템 탭은 여기에만 넣으면 된다. (탭 자체를 만드는 곳 — groupTabs 의 push — 은 별도)
+const SYS_DROPDOWN_KEYS = new Set<string>([    // '투자도구' 드롭다운에 묶이는 탭
+  SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY,
+  HEATMAP_KEY, SCREENER_KEY, VALUATION_KEY,
+]);
+const MY_GROUP_KEYS_M = new Set<string>([MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY]);   // '내자산' 드롭다운
+// '지수' 드롭다운 — 주간(옛 지수 키 KR_KEY 를 그대로 써서 저장된 마지막 탭이 이어진다)·야간·반도체
+const INDEX_KEYS_M = new Set<string>([KR_KEY, IDX_NIGHT_KEY, IDX_SEMI_KEY]);
+const indexPageOfM = (k: string): DashboardPage => k === IDX_NIGHT_KEY ? "night" : k === IDX_SEMI_KEY ? "semi" : "day";
+const SYS_ALL_KEYS = new Set<string>([MONEY_KEY, ...INDEX_KEYS_M, ...SYS_DROPDOWN_KEYS, ...MY_GROUP_KEYS_M]);
+// 일부 심볼 sparkline 은 Yahoo 가 historical 안 줌 → 가까운 현물 차트로 폴백 (차트 목록 계산에도 쓴다)
+const SPARKLINE_FALLBACK_M: Record<string, string> = { "SOX=F": "^SOX" };
 const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 
-// 지수 카드 순서·그룹은 PC 와 공용 정의 사용 (lib/dashboardGroups buildDashboardSections).
+// 지수 카드 순서·그룹은 PC 와 공용 정의 사용 (lib/dashboardGroups buildDashboardPage).
 
 // 모바일 전용 단순 뷰 (v2 데스크톱 미국증시 표 형식 그대로 이식)
 // 자동 갱신 X — 새로고침 버튼만. 자기 주식/그룹/검색 등 모든 추가 기능 없음.
@@ -227,15 +243,12 @@ export function MobileSimpleView() {
   // 구글 로그인/충돌 체크는 설정 다이얼로그 열 때만 수행 (아래 settings useEffect 내부).
   // 검색/편집/메모 등 일반 이동에선 Drive API 호출 안 함.
   const [activeTab, setActiveTab] = useState<string>(() => {
-    if (typeof localStorage === "undefined") return KR_KEY;
-    return localStorage.getItem(TAB_KEY) ?? KR_KEY;
+    const byTime = defaultDashboardPage() === "night" ? IDX_NIGHT_KEY : KR_KEY;   // 처음이면 시간으로
+    if (typeof localStorage === "undefined") return byTime;
+    return localStorage.getItem(TAB_KEY) ?? byTime;
   });
-  const isSystemTab = activeTab === MONEY_KEY || activeTab === KR_KEY
-    || activeTab === SEMI_KEY || activeTab === SECTOR_KEY || activeTab === CONSENSUS_KEY
-    || activeTab === ETF_KEY || activeTab === ETF_RANK_KEY || activeTab === ETF_COMPARE_KEY
-    || activeTab === HEATMAP_KEY || activeTab === SCREENER_KEY || activeTab === VALUATION_KEY
-    || activeTab === MY_TRADES_KEY
-    || activeTab === ASSET_TREND_KEY;
+  // 내주식(MY_KEY)만 뺀다 — 시스템 탭이지만 종목 카드 목록을 그리는 탭이라 그 경로를 탄다.
+  const isSystemTab = SYS_ALL_KEYS.has(activeTab) && activeTab !== MY_KEY;
   const touchStart = useRef<{ x: number; y: number } | null>(null);
   // 스와이프 시작이 가로 스크롤 영역(data-noswipe) 안이면 그 시작 scrollLeft 기억 — 실제 스크롤됐는지 판정용
   const swipeScroll = useRef<{ el: HTMLElement; left: number } | null>(null);
@@ -359,8 +372,9 @@ export function MobileSimpleView() {
       tabs.push({ key: MONEY_KEY, label: "💰증시", count: 0 });
     }
     if (vis.usMarket) {
-      // 지수·매크로·반도체를 하나로 통합 (PC UsMarketTab 과 동일한 단일 그룹 뷰)
-      tabs.push({ key: KR_KEY, label: "📈지수", count: 0 });
+      // 지수 — 주간·야간·반도체 세 탭('지수' 드롭다운). 라벨은 PC 와 같은 한 벌(DASHBOARD_PAGES).
+      const keyOf: Record<DashboardPage, string> = { day: KR_KEY, night: IDX_NIGHT_KEY, semi: IDX_SEMI_KEY };
+      for (const p of DASHBOARD_PAGES) tabs.push({ key: keyOf[p.key], label: `${p.emoji}${p.tab}`, count: 0 });
     }
     // 눌림목 — 시스템 묶음 첫 자리(섹터 위, PC buildTabs 와 같은 순서).
     if (vis.screener) {
@@ -449,14 +463,14 @@ export function MobileSimpleView() {
   //  시각 순서: 지수 → (섹터·반도체·컨센서스·ETF 묶음) → (내주식·내거래 묶음) → 사용자그룹 → 폴더
   //  (groupTabs 원순서는 내거래가 컨센서스/ETF 앞이라 ETF에서 스와이프 시 내거래를 건너뛰던 문제 수정)
   const navKeys = useMemo(() => {
-    const SYS = [MONEY_KEY, KR_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, SCREENER_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY];
     const has = (k: string) => groupTabs.some(t => t.key === k);
     const keys: string[] = [];
-    for (const k of [SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, VALUATION_KEY]) if (has(k)) keys.push(k);  // 시스템 묶음(섹터…히트맵)
-    for (const k of [MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY]) if (has(k)) keys.push(k);   // 내자산 묶음(내주식·내거래·자산추이)
+    // 드롭다운 안의 순서 = groupTabs 순서(드롭다운도 같은 순서로 그린다) — 하드코딩하면 어긋난다.
+    for (const t of groupTabs) if (SYS_DROPDOWN_KEYS.has(t.key)) keys.push(t.key);   // 투자도구 묶음
+    for (const t of groupTabs) if (MY_GROUP_KEYS_M.has(t.key)) keys.push(t.key);     // 내자산 묶음
     if (has(MONEY_KEY)) keys.push(MONEY_KEY);                            // 증시(별도 탭)
-    if (has(KR_KEY)) keys.push(KR_KEY);                                  // 지수(별도 탭)
-    for (const t of groupTabs) if (!SYS.includes(t.key) && !folderedGroups.has(t.key) && !isFolderAllKey(t.key)) keys.push(t.key);  // 사용자그룹(전체보기 가상탭 제외 — 아래 폴더 루프에서 넣음)
+    for (const t of groupTabs) if (INDEX_KEYS_M.has(t.key)) keys.push(t.key);   // 지수 묶음(주간·야간·반도체)
+    for (const t of groupTabs) if (!SYS_ALL_KEYS.has(t.key) && !folderedGroups.has(t.key) && !isFolderAllKey(t.key)) keys.push(t.key);  // 사용자그룹(전체보기 가상탭 제외 — 아래 폴더 루프에서 넣음)
     for (const f of folders) {
       const ms = f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko"));
       keys.push(...ms);
@@ -864,11 +878,28 @@ export function MobileSimpleView() {
   // ─── Tier 0 (대시보드 4개) ───
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
 
-  // T0 60일 추이 — 일봉, 1시간 캐시 (PC 와 동일 쿼리키 — 캐시 공유)
+  // T0 3개월 추이 — 일봉, 1시간 캐시 (PC 와 동일 쿼리키·**동일 함수** — 캐시 공유)
+  //   지수 탭일 때, **지금 페이지의 카드만** 받는다(예전엔 탭과 무관하게 tier0 전체를 받았다).
+  const onIndexTab = INDEX_KEYS_M.has(activeTab);
+  const t0ChartSyms = useMemo(() => {
+    if (!onIndexTab) return [] as string[];
+    const known = new Set(tier0.map(p => p.symbol));
+    const set = new Set<string>();
+    for (const sec of buildDashboardPage(indexPageOfM(activeTab))) {
+      if (sec.render) continue;
+      for (const sym of sec.rows.flat()) {
+        if (!known.has(sym)) continue;
+        set.add(sym);
+        if (SPARKLINE_FALLBACK_M[sym]) set.add(SPARKLINE_FALLBACK_M[sym]);
+      }
+    }
+    return [...set];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onIndexTab, activeTab]);
   const t0ChartQs = useQueries({
-    queries: tier0.map(p => ({
-      queryKey: ["yahoo-chart", p.symbol, "3mo"],
-      queryFn: () => fetchYahooChart(p.symbol, "3mo"),
+    queries: t0ChartSyms.map(sym => ({
+      queryKey: ["yahoo-chart", sym, "3mo"],
+      queryFn: () => fetchDashboardChart(sym),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -902,11 +933,8 @@ export function MobileSimpleView() {
   });
   const krBondChartMap = new Map(krBondSyms.map((s2, i) => [s2, krBondQs[i]?.data ?? []]));
 
-  // 일부 심볼 sparkline 은 Yahoo 가 historical 안 줌 → 가까운 현물 차트로 폴백
-  const SPARKLINE_FALLBACK: Record<string, string> = {
-    "SOX=F": "^SOX",
-  };
-  const t0ChartByIndex = new Map<string, number[]>(tier0.map((p, i) => [p.symbol, t0ChartQs[i]?.data ?? []]));
+  const SPARKLINE_FALLBACK = SPARKLINE_FALLBACK_M;
+  const t0ChartByIndex = new Map<string, number[]>(t0ChartSyms.map((sym, i) => [sym, t0ChartQs[i]?.data ?? []]));
   const t0ChartMap = new Map(
     tier0.map(p => {
       // 야간선물 — yasun 캔들 close 시계열
@@ -1028,8 +1056,7 @@ export function MobileSimpleView() {
         )}
         {/* 시스템 탭 묶음 — 섹터/컨센서스/ETF/히트맵 (지수는 아래 3번째 별도 탭으로 분리, PC 동일) */}
         {(() => {
-          const SYS = new Set([SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, SCREENER_KEY, VALUATION_KEY]);
-          const sys = groupTabs.filter(t => SYS.has(t.key));
+          const sys = groupTabs.filter(t => SYS_DROPDOWN_KEYS.has(t.key));
           if (sys.length === 0) return null;
           // 묶을 항목이 1개뿐이면 드롭다운 대신 일반 탭으로 바로 노출
           if (sys.length === 1) {
@@ -1072,8 +1099,7 @@ export function MobileSimpleView() {
         })()}
         {/* 내자산 묶음 — 내주식 + 내거래 드롭다운 하나로 (지수 묶음과 동일) */}
         {(() => {
-          const MY = new Set([MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY]);
-          const my = groupTabs.filter(t => MY.has(t.key));
+          const my = groupTabs.filter(t => MY_GROUP_KEYS_M.has(t.key));
           if (my.length === 0) return null;
           // 묶을 항목이 1개뿐이면 드롭다운 대신 일반 탭으로 바로 노출
           if (my.length === 1) {
@@ -1123,22 +1149,33 @@ export function MobileSimpleView() {
             </button>
           );
         })()}
-        {/* 지수 — 섹터묶음·내자산묶음 뒤 별도 탭 */}
+        {/* 지수 — 주간·야간·반도체 드롭다운 (투자도구·내자산과 같은 모양) */}
         {(() => {
-          const t = groupTabs.find(x => x.key === KR_KEY);
-          if (!t) return null;
-          const active = activeTab === KR_KEY;
+          const idx = groupTabs.filter(t => INDEX_KEYS_M.has(t.key));
+          if (idx.length === 0) return null;
+          const on = idx.some(t => t.key === activeTab);
+          const current = on ? activeTab : idx[0].key;
+          const curTab = idx.find(t => t.key === current);
           return (
-            <button onClick={() => setActiveTab(KR_KEY)}
-                    className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition inline-flex items-center
-                                ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-              {t.label}
-            </button>
+            <span className={`shrink-0 inline-flex items-center rounded-md text-[11px] pl-1.5
+                              ${on ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+              <select value={on ? current : ""}
+                      onChange={e => { if (e.target.value) setActiveTab(e.target.value); }}
+                      className={`bg-transparent text-[11px] py-1 pl-1 pr-1 rounded-md focus:outline-none
+                                  ${on ? "text-white" : "text-gray-700"}`}>
+                {!on && <option value="" disabled hidden className="text-gray-800">{curTab?.label}</option>}
+                <optgroup label="지수">
+                  {idx.map(t => (
+                    <option key={t.key} value={t.key} className="text-gray-800">{t.label}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </span>
           );
         })()}
         {groupTabs.map(t => {
           // 시스템·내자산 탭은 위 드롭다운/별도 버튼으로만 표시 (개별 탭 숨김)
-          if ([MONEY_KEY, KR_KEY, SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY, HEATMAP_KEY, SCREENER_KEY, VALUATION_KEY, MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY].includes(t.key)) return null;
+          if (SYS_ALL_KEYS.has(t.key)) return null;
           // 폴더에 담긴 그룹은 개별 탭에서 숨김 (아래 📁 드롭다운으로)
           if (folderedGroups.has(t.key)) return null;
           // 폴더 전체보기 가상 탭도 숨김 (폴더 sub 링크바 칩으로만)
@@ -1422,7 +1459,7 @@ export function MobileSimpleView() {
           </div>
           {/* 합계 — 화면 하단 fixed.
               합계 클릭 시 위로 오늘 수익/손해 레이어가 펼쳐짐, 다시 클릭 또는 바깥 탭 시 닫힘.
-              관심종목만 있어 보유 0개면 TotalRow 가 null → 토글 불가하므로 WhatIfRow 단독 노출. */}
+              관심종목만 있어 보유 0개면 TotalRow 가 null → 토글 불가. */}
           {groupHoldings.length > 0 && totalsHidden && (
             <button type="button" onClick={() => setTotalsHidden(false)}
                     style={{ bottom: (tickerBarOpen ? TICKER_BAR_H : 0) + 8 }}
@@ -1435,7 +1472,7 @@ export function MobileSimpleView() {
           {groupHoldings.length > 0 && !totalsHidden && (() => {
             const hasHoldings = groupHoldings.some(s => s.shares > 0);
             if (!hasHoldings) {
-              // 보유 0 — TotalRow(예수금/총자산) 항상, 샀더라면(WhatIfRow)은 클릭 시 (보유 있을 때와 동일)
+              // 보유 0 — TotalRow(예수금/총자산) 항상, 누르면 오늘 매도 실현 카드(보유 있을 때와 동일)
               return (
                 <>
                   {todayPnLOpen && (
@@ -1448,7 +1485,6 @@ export function MobileSimpleView() {
                     {todayPnLOpen && (
                       <div className="pointer-events-auto cursor-pointer flex flex-col items-center gap-2"
                            onClick={() => setTodayPnLOpen(false)}>
-                        <WhatIfRow holdings={groupHoldings} prices={groupPriceMap} />
                         <MobileTodayRealizedCard trades={allTrades} account={activeTab}
                                                  aggregated={activeTab === MY_KEY}
                                                  scopeAccounts={folderScope}
@@ -1492,7 +1528,6 @@ export function MobileSimpleView() {
                   {todayPnLOpen && (
                     <div className="pointer-events-auto cursor-pointer flex flex-col items-center gap-2"
                          onClick={() => setTodayPnLOpen(false)}>
-                      <WhatIfRow holdings={groupHoldings} prices={groupPriceMap} />
                       <MobileTodayRealizedCard trades={allTrades} account={activeTab}
                                                aggregated={activeTab === MY_KEY}
                                                scopeAccounts={folderScope}
@@ -1592,14 +1627,17 @@ export function MobileSimpleView() {
         // 지수 — PC(UsMarketTab)와 동일한 공용 그룹 정의를 그룹 헤더 + 2열 카드로 렌더 (단일 통합 뷰)
         //   한·미 섹터 판도 그대로 넣는다 — TicsSectorBoard 는 lg 미만에서 좌우 2판이
         //   **위아래 1판씩으로 알아서 접힌다**(grid-cols-1 lg:grid-cols-2). 폭 걱정은 없다.
-        const sections = buildDashboardSections(isKrNightSession(), krSessionPhase() === "CLOSED");
+        const sections = buildDashboardPage(indexPageOfM(activeTab));
         const idxStickyTop = (headerCollapsed ? 0 : 44) + navH;   // 헤더(44) + 메인 탭바 아래
         const idxScrollMargin = idxStickyTop + 38;                // + 색인바 높이 만큼 더 내려 착지
         return (
           <div className="px-3 py-2 space-y-3">
             <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
                          stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />
-            {sections.map(section => (
+            {sections.map(section => {
+              // keepRows — 줄마다 첫 카드를 새 줄 1열에서 시작(col-start-1)해 PC 처럼 줄이 유지된다
+              const rowHeads = new Set(section.keepRows ? section.rows.map(r => r[0]) : []);
+              return (
               <div key={section.label} id={`midx-${section.id}`}
                    style={{ scrollMarginTop: idxScrollMargin }}
                    className="relative space-y-1.5 rounded-xl border border-gray-300 bg-white p-2 pt-3.5 mt-1.5">
@@ -1607,15 +1645,25 @@ export function MobileSimpleView() {
                 <span className="absolute -top-2.5 left-2.5 z-10 px-1.5 py-0.5 rounded-md border border-gray-300 bg-gray-50
                                  text-[11px] font-bold text-gray-700 whitespace-nowrap">
                   {section.label}
+                  {section.link && isTabVisible(section.link.vis) && (
+                    <button onClick={() => requestTab(section.link!.tab)}
+                            className="ml-1 text-[10px] font-bold text-indigo-600 hover:underline">
+                      자세히 →
+                    </button>
+                  )}
                 </span>
                 {section.render === "etfTop" && (
                   <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
                 )}
+                {section.note && <div className="text-[10px] text-gray-500 leading-snug">{section.note}</div>}
+                {section.render === "rotation" && (
+                  <RotationTab embedded extrasOnly onOpenValuation={t => setValuationTicker(t)} />
+                )}
                 {section.render === "sectorFlow" && (
                   <TicsSectorBoard onOpenValuation={setValuationTicker}
-                                   krClosed={krSessionPhase() === "CLOSED"} />
+                                   krClosed={indexPageOfM(activeTab) === "night"} />
                 )}
-                <div className="grid grid-cols-2 gap-x-2 gap-y-4">
+                <div className={`grid grid-cols-2 gap-y-4 gap-x-2`}>
                   {(section.render ? []
                     : section.id === "sector"
                     // 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장) — 오늘 등락률(%) 내림차순 정렬 (PC 동일)
@@ -1633,8 +1681,23 @@ export function MobileSimpleView() {
                         }
                         return out;
                       })()
+                    : section.rowLabels
+                    // 줄 이름이 있으면 줄마다 책갈피 머리('__row__:i')를 앞에 끼운다 — 모바일은 한 그리드라
+                    //   줄을 상자로 감쌀 수 없어서, 머리가 새 줄에서 시작하며 위에 구분선을 긋는다.
+                    ? section.rows.flatMap((row, ri) => [`__row__:${ri}`, ...row])
                     : section.rows.flat()
                   ).map(symbol => {
+              if (symbol.startsWith("__row__:")) {
+                const ri = Number(symbol.slice(8));
+                const lbl = section.rowLabels?.[ri] ?? "";
+                return (
+                  <div key={symbol} className={`col-span-2 ${ri > 0 ? "border-t border-gray-200 pt-2" : ""} -mb-2`}>
+                    <span className={`inline-block px-1.5 py-0.5 rounded-md border text-[11px] font-bold ${dashboardTagTone(lbl)}`}>
+                      {lbl}
+                    </span>
+                  </div>
+                );
+              }
               // 코리아 밸류업 — 네이버 KVALUE 전용 카드(Yahoo 미제공). 다른 지수 카드와 동일 크기 셀.
               if (symbol === "KVALUE") return <ValueupMiniCard key="KVALUE" />;
               if (symbol === "SKHY-PERP") return <HlPerpCard key="SKHY-PERP" coin="SKHY" name="SK하이닉스 24h" />;
@@ -1726,10 +1789,10 @@ export function MobileSimpleView() {
               // 마감 책갈피는 노란 배경(살짝 투명) + 흐림 제외 → dim 은 콘텐츠 자식에만
               const dimCls = dimNow ? "opacity-60" : "";
               return (
-                <div key={p.symbol} className="relative h-full">
+                <div key={p.symbol} className={`relative h-full ${rowHeads.has(p.symbol) ? "col-start-1" : ""}`}>
                   {/* ETF 책갈피 — KR ETF (예: 069500.KS) 만. 왼쪽 위. 클릭 시 구성종목 모달 */}
                   {(() => {
-                    const etfTk = krEtfTicker(p.symbol);
+                    const etfTk = p.krStock ? null : krEtfTicker(p.symbol);   // 한국 개별주는 ETF 가 아니다
                     if (!etfTk) return null;
                     return (
                       <button onClick={() => setEtfDialog({ ticker: etfTk, name: p.name })}
@@ -1763,7 +1826,8 @@ export function MobileSimpleView() {
                     </div>
                   )}
                   <div className={`relative overflow-hidden h-full flex flex-col gap-0.5
-                                  rounded-lg border px-3 py-1.5 ${bg}`}>
+                                  rounded-lg border px-3 py-1.5
+                                  ${section.lead && section.rows.some(r => r[0] === p.symbol) ? dashboardTagCard(section.rowLabels?.[section.rows.findIndex(r => r[0] === p.symbol)]) : bg}`}>
                   <Sparkline data={chartArr}
                              width={300} height={70}
                              color={sparkColor}
@@ -1813,6 +1877,34 @@ export function MobileSimpleView() {
                     </span>
                   </div>
                   </div>
+                  {/* lead — 첫 카드(간밤 미국 대장주)가 '원인'. 카드 사이 틈 가운데에 큰 ➜ (원 없이). 틈은 다른 그룹과 같게 둬 카드 크기를 맞춘다.
+                      강조는 테두리가 아니라 **카드 배경색**(그 줄 단계 색) — 오르내림은 글자·차트 색이 알려 준다. */}
+                  {section.lead && section.rows.some(r => r[0] === p.symbol) && (
+                    <div className="absolute top-1/2 left-full ml-1 -translate-x-1/2 -translate-y-1/2 z-30
+                                    text-4xl font-black text-gray-400 opacity-20 leading-none pointer-events-none">➜</div>
+                  )}
+                  {/* 역할 책갈피 — 이 그룹에서 이 종목이 무엇인지(예: 전공정·원자력). 오른쪽 아래가 비어
+                      있어 그 자리에 둔다(🗺️ 히트맵은 코덱스200·코스닥150 전용이라 겹치지 않는다). */}
+                  {/* 기업가치 — 한국 종목 카드(순환매 줄)만. 히트맵 책갈피와 같은 모양으로 카드 바깥 오른쪽 아래.
+                      종목명은 그대로 토스 링크다. */}
+                  {p.krStock && (
+                    <button
+                      onClick={() => { setValuationName(p.name); setValuationTicker(p.symbol.slice(0, 6)); }}
+                      title={`${p.name} 기업가치 보기`}
+                      className="absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded
+                                 text-[9px] leading-tight whitespace-nowrap font-bold
+                                 text-indigo-700 bg-indigo-50 border border-indigo-300/70
+                                 hover:bg-indigo-100 transition">
+                      📊
+                    </button>
+                  )}
+                  {section.tags?.[p.symbol] && (
+                    <div className={`absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded border
+                                     text-[9px] leading-tight whitespace-nowrap font-bold
+                                     ${dashboardTagTone(section.tags[p.symbol])}`}>
+                      {section.tags[p.symbol]}
+                    </div>
+                  )}
                   {/* 구성종목 히트맵 — 코덱스200·코스닥150 만. '정규장 마감' 책갈피와 같은 모양으로
                       카드 **바깥 오른쪽 아래**에 붙인다(카드 안은 overflow-hidden 이라 잘린다). */}
                   {CARD_HEATMAP_LINK[p.symbol] && (
@@ -1838,7 +1930,7 @@ export function MobileSimpleView() {
                   })}
                 </div>
               </div>
-            ))}
+            ); })}
             <div className="text-[10px] text-gray-400 text-center mt-1 mb-2">
               {Math.round(REFRESH_MS / 1000)}초마다 자동 갱신
             </div>

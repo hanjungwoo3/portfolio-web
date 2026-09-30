@@ -3156,6 +3156,17 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "AMAT": "US19721012001",
   "LRCX": "US19840504001",
   "ASML": "US19950315001",
+  // AI 인프라 주도주 — 전력·광통신·AI 클라우드 (토스 검색으로 확인, 2026-09-30)
+  "BE":   "US20180724003",   // 블룸 에너지 (NYSE) — 데이터센터 현장 발전(연료전지)
+  "LITE": "US20150805002",   // 루멘텀 홀딩스 (NASDAQ) — 광트랜시버·레이저
+  "NBIS": "US20110524001",   // 네비우스 (NASDAQ) — GPU 클라우드(네오클라우드)
+  // AI 순환매 대장주 — 한국 각 단계의 다음 날 수익률과 가장 붙는 미국 종목(2026-09-30 실측)
+  "ONTO": "US20191028002",   // 온투 이노베이션 — 후공정 검사·계측 (한국 후공정 소부장 +0.32)
+  "PWR":  "US19980212001",   // 콴타 서비스 — 송전망 공사 1위 (한국 전력기기 +0.35)
+  "CCJ":  "US19960314001",   // 카메코 — 우라늄 (한국 원자력 +0.34)
+  // 소부장 — 부품·소재 대표 (2026-09-30 실측, 한국 해당 바스켓 다음 날 상관)
+  "UCTT": "US20040325001",   // 울트라 클린 — 장비 부품·서브시스템 (한국 부품 +0.31, 분야 매칭 1위)
+  "ENTG": "US20000711002",   // 엔테그리스 — 웨이퍼 소모품·특수소재 (한국 소재 +0.26)
   "AMD":  "US20150102001",
   "AVGO": "US20090806002",
   "ORCL": "US19860312001",
@@ -3504,6 +3515,17 @@ async function fetchCnbcBars(symbol: string): Promise<CnbcBar[]> {
 }
 
 // 차트(스파크라인)용 종가 시계열
+// 지수 카드 3개월 스파크라인 — PC·모바일 공용. 둘이 **같은 쿼리키**(["yahoo-chart", sym, "3mo"])를 쓰므로
+//   받는 함수도 하나여야 캐시가 어긋나지 않는다(예전엔 PC 는 CNBC 지수를 CNBC 로, 모바일은 같은 키를
+//   야후로 채워 먼저 부른 쪽이 이겼다).
+//   한국 6자리(.KS)는 토스 일봉 — 야후는 코스닥이 .KQ 라 '240810.KS' 로는 빈 차트가 온다.
+export async function fetchDashboardChart(sym: string): Promise<number[]> {
+  const kr = /^([\dA-Za-z]{6})\.KS$/.exec(sym);
+  if (kr) return (await fetchKrPriceHistory(kr[1], "3mo")).map(p => p.close);
+  if (isCnbcIndex(sym)) return fetchCnbcChart(sym);
+  return fetchYahooChart(sym, "3mo");
+}
+
 export async function fetchCnbcChart(symbol: string): Promise<number[]> {
   const bars = await fetchCnbcBars(symbol);
   return bars.map(b => cnbcNum(b.close)).filter((v): v is number => v !== null);

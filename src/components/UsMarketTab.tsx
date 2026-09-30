@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { fetchYahooBatch, fetchYahooChart, fetchCnbcChart, isCnbcIndex, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
+import { fetchYahooBatch, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, krSessionPhase, isFxFuturesWeekendClosed } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
-import { buildDashboardSections, dashboardGroupNav } from "../lib/dashboardGroups";
+import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardTagCard, type DashboardPage } from "../lib/dashboardGroups";
+import { RotationTab } from "./RotationTab";
+import { requestTab, isTabVisible } from "../lib/tabNav";
 import { GroupNavBar } from "./GroupNavBar";
 import { US_PAIRS, allYahooSymbols } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
@@ -64,11 +66,12 @@ interface UsMarketTabProps {
   // 📊 기업가치 모달 열기 — 섹터 흐름 팝업에서 종목을 누를 때 쓴다.
   //   모달 자체는 App 이 들고 있어서(보유 평단·메모 진입가를 붙여야 한다) 여기선 요청만 올린다.
   onOpenValuation?: (ticker: string, name: string) => void;
+  page?: DashboardPage;   // 주간·야간·반도체 — 메뉴의 지수 탭 셋 중 어느 것인지
   // 그룹 색인바 sticky 고정 위치(px) — App 의 헤더+탭바 아래. 미지정 시 0.
   navStickyTop?: number;
 }
 
-export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0 }: UsMarketTabProps = {}) {
+export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0, page = "day" }: UsMarketTabProps = {}) {
   const yahooSymbols = allYahooSymbols();
   const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
 
@@ -103,19 +106,33 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   useEffect(() => { if (usUpdatedAt > 0) reportRefresh(usUpdatedAt); }, [usUpdatedAt]);
 
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
-  // 지수 대시보드 그룹 — 데스크톱·모바일 공용 정의(lib/dashboardGroups). PC 는 라벨 헤더와 함께 전부 표시.
-  const T0_SECTIONS = buildDashboardSections(isKrNightSession(), krSessionPhase() === "CLOSED");
+  // 지수 대시보드 그룹 — 데스크톱·모바일 공용 정의(lib/dashboardGroups).
+  //   주간·야간·반도체 중 어느 페이지인지는 메뉴 탭이 정한다(page).
+  const T0_SECTIONS = buildDashboardPage(page);
 
-  // T0 + 모든 섹터 현물·선물 Yahoo 심볼 통합 — 동일 캐시
-  const allYahooForCharts: string[] = [];
-  for (const p of US_PAIRS) {
-    allYahooForCharts.push(p.symbol);
-    if (p.future) allYahooForCharts.push(p.future);
+  // T0 카드 sparkline — 일부 심볼 (SOX=F) 은 Yahoo 가 historical 안 줌 → 가장 가까운 현물 차트로 폴백
+  const SPARKLINE_FALLBACK: Record<string, string> = {
+    "SOX=F": "^SOX",   // 필반 선물 → 필반 현물
+  };
+  // 스파크라인 — **지금 페이지에 있는 카드만** 받는다(예전엔 US_PAIRS 전체를 페이지와 무관하게 받았다).
+  //   페이지가 셋으로 나뉘어 한 번에 보이는 건 일부다. 대체 차트(SOX=F → ^SOX)와 선물도 같이.
+  const pairBySym = new Map(US_PAIRS.map(p => [p.symbol, p]));
+  const chartSet = new Set<string>();
+  for (const sec of T0_SECTIONS) {
+    if (sec.render) continue;
+    for (const sym of sec.rows.flat()) {
+      const p = pairBySym.get(sym);
+      if (!p) continue;
+      chartSet.add(sym);
+      if (p.future) chartSet.add(p.future);
+      if (SPARKLINE_FALLBACK[sym]) chartSet.add(SPARKLINE_FALLBACK[sym]);
+    }
   }
+  const allYahooForCharts = [...chartSet];
   const yahooChartQs = useQueries({
     queries: allYahooForCharts.map(sym => ({
       queryKey: ["yahoo-chart", sym, "3mo"],
-      queryFn: () => isCnbcIndex(sym) ? fetchCnbcChart(sym) : fetchYahooChart(sym, "3mo"),
+      queryFn: () => fetchDashboardChart(sym),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -154,10 +171,6 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   });
   const krBondChartMap = new Map(krBondSyms.map((s, i) => [s, krBondQs[i]?.data ?? []]));
 
-  // T0 카드 sparkline — 일부 심볼 (SOX=F) 은 Yahoo 가 historical 안 줌 → 가장 가까운 현물 차트로 폴백
-  const SPARKLINE_FALLBACK: Record<string, string> = {
-    "SOX=F": "^SOX",   // 필반 선물 → 필반 현물
-  };
   const t0ChartMap = new Map(
     tier0.map(p => {
       // 야선 — yasun 캔들 close 시계열
@@ -214,15 +227,25 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             <span className="absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
                              text-sm font-bold text-gray-700 whitespace-nowrap">
               {section.label}
+              {section.link && isTabVisible(section.link.vis) && (
+                <button onClick={() => requestTab(section.link!.tab)}
+                        className="ml-1.5 text-[11px] font-bold text-indigo-600 hover:underline">
+                  자세히 →
+                </button>
+              )}
             </span>
             {/* 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장)는 오늘 등락률(%) 내림차순 정렬 (6개씩 줄바꿈) */}
             {/* 한국 섹터 — 토스 TICS 분류. 미국 블록과 **같은 한글 분류**라 이름으로 맞출 수 있다. */}
             {section.render === "etfTop" && (
                   <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
                 )}
+                {section.note && <div className="text-[11px] text-gray-500 leading-snug">{section.note}</div>}
+                {section.render === "rotation" && (
+              <RotationTab embedded extrasOnly onOpenValuation={(t, n) => onOpenValuation?.(t, n ?? "")} />
+            )}
                 {section.render === "sectorFlow" && (
               <TicsSectorBoard onOpenValuation={onOpenValuation}
-                                krClosed={krSessionPhase() === "CLOSED"} />
+                                krClosed={page === "night"} />
             )}
             {(section.render ? []
               : section.id === "sector"
@@ -233,7 +256,17 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               : section.rows
             ).map((group, gi) => (
               // 6열 그리드 — 컨테이너(space-y-4)를 lg 75% 폭으로 줄여 카드 크기는 8열 때와 동일하게 유지
-              <div key={gi} className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-6 gap-x-2 gap-y-4">
+              <div key={gi} className={section.rowLabels ? "relative -mr-[9px] rounded-lg border border-gray-200 bg-gray-50/50 pl-9 pr-2 pb-2 pt-4 mt-2" : ""}>
+                {/* 줄 책갈피 — 이 줄이 어느 단계인지(반도체·전공정…). 위에 얹으면 카드 위 가격 띠와 겹쳐
+                    안 보여서, 상자 **왼쪽에 세로 띠**로 따로 뺐다(글자는 위→아래로 세워 쓴다). */}
+                {section.rowLabels?.[gi] && (
+                  <span className={`absolute left-0 inset-y-0 w-7 flex items-center justify-center border-0 border-r rounded-l-lg
+                                    text-xs font-bold tracking-widest [writing-mode:vertical-rl] [text-orientation:upright]
+                                    ${dashboardTagTone(section.rowLabels[gi])}`}>
+                    {section.rowLabels[gi]}
+                  </span>
+                )}
+              <div className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_1.75rem_repeat(5,minmax(0,1fr))]" : "lg:grid-cols-6"}`}>
                 {group.map(symbol => {
               // 코리아 밸류업 — 네이버 KVALUE 전용 카드(Yahoo 미제공). 다른 지수 카드와 동일 크기 셀.
               if (symbol === "KVALUE") return <ValueupMiniCard key="KVALUE" />;
@@ -335,10 +368,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               // 마감 책갈피는 노란 배경 + 흐림 제외 → dim 은 콘텐츠 자식에만 적용
               const dimCls = dimNow ? "opacity-60" : "";
               return (
-                <div key={p.symbol} className="relative h-full">
+                <div key={p.symbol} className={`relative h-full ${section.lead && group[1] === p.symbol ? "lg:col-start-3" : ""}`}>
                   {/* ETF 책갈피 — KR ETF (예: 069500.KS) 만. 왼쪽 위. 클릭 시 구성종목 모달 */}
                   {(() => {
-                    const etfTk = krEtfTicker(p.symbol);
+                    const etfTk = p.krStock ? null : krEtfTicker(p.symbol);   // 한국 개별주는 ETF 가 아니다
                     if (!etfTk) return null;
                     return (
                       <button onClick={() => setEtfDialog({ ticker: etfTk, name: p.name })}
@@ -372,7 +405,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     </div>
                   )}
                   <div className={`relative overflow-hidden h-full flex flex-col gap-0.5
-                                  rounded-lg border px-3 py-1.5 ${bg}`}>
+                                  rounded-lg border px-3 py-1.5
+                                  ${section.lead && section.rows.some(r => r[0] === p.symbol) ? dashboardTagCard(section.rowLabels?.[section.rows.findIndex(r => r[0] === p.symbol)]) : bg}`}>
                   <Sparkline data={chartArr}
                              width={400} height={80}
                              color={sparkColor}
@@ -435,6 +469,34 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   </div>
                   )}
                   </div>
+                  {/* lead — 첫 카드(간밤 미국 대장주)가 '원인'. 카드 사이 틈 가운데에 큰 ➜ (원 없이). 틈은 다른 그룹과 같게 둬 카드 크기를 맞춘다.
+                      강조는 테두리가 아니라 **카드 배경색**(그 줄 단계 색) — 오르내림은 글자·차트 색이 알려 준다. */}
+                  {section.lead && section.rows.some(r => r[0] === p.symbol) && (
+                    <div className="absolute top-1/2 left-full ml-1 lg:ml-[22px] -translate-x-1/2 -translate-y-1/2 z-30
+                                    text-4xl font-black text-gray-400 opacity-20 leading-none pointer-events-none">➜</div>
+                  )}
+                  {/* 역할 책갈피 — 이 그룹에서 이 종목이 무엇인지(예: 전공정·원자력). 오른쪽 아래가 비어
+                      있어 그 자리에 둔다(🗺️ 히트맵은 코덱스200·코스닥150 전용이라 겹치지 않는다). */}
+                  {/* 기업가치 — 한국 종목 카드(순환매 줄)만. 히트맵 책갈피와 같은 모양으로 카드 바깥 오른쪽 아래.
+                      종목명은 그대로 토스 링크다. */}
+                  {p.krStock && (
+                    <button
+                      onClick={() => onOpenValuation?.(p.symbol.slice(0, 6), p.name)}
+                      title={`${p.name} 기업가치 보기`}
+                      className="absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded
+                                 text-[9px] leading-tight whitespace-nowrap font-bold
+                                 text-indigo-700 bg-indigo-50 border border-indigo-300/70
+                                 hover:bg-indigo-100 transition">
+                      📊
+                    </button>
+                  )}
+                  {section.tags?.[p.symbol] && (
+                    <div className={`absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded border
+                                     text-[9px] leading-tight whitespace-nowrap font-bold
+                                     ${dashboardTagTone(section.tags[p.symbol])}`}>
+                      {section.tags[p.symbol]}
+                    </div>
+                  )}
                   {/* 구성종목 히트맵 — 코덱스200·코스닥150 만. '정규장 마감' 책갈피와 같은 모양으로
                       카드 **바깥 오른쪽 아래**에 붙인다(카드 안은 overflow-hidden 이라 잘린다). */}
                   {CARD_HEATMAP_LINK[p.symbol] && (
@@ -458,6 +520,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 </div>
               );
                 })}
+              </div>
               </div>
             ))}
           </div>

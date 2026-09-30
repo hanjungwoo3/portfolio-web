@@ -11,11 +11,12 @@ import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { useIncrementalRender } from "./lib/useIncrementalRender";
-import { Tabs, buildTabs, filterByTab, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, VALUATION_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, VALUATION_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
 import { EtfRankingTab } from "./components/EtfRankingTab";
 import { ScreenerTab } from "./components/ScreenerTab";
+import { defaultDashboardPage, INDEX_GROUP_KEYS, indexPageOf } from "./lib/dashboardGroups";
 import { EtfCompareTab } from "./components/EtfCompareTab";
 import { HeatmapTab } from "./components/HeatmapTab";
 import { ValuationTableTab } from "./components/ValuationTableTab";
@@ -32,7 +33,6 @@ import type { Trade } from "./lib/db";
 import { holdingYesterdayBaseSum, signColor, formatSigned, nowKstDateStr } from "./lib/format";
 import { splitByMarket, splitHeldAndMarket, type MarketSection } from "./lib/marketSplit";
 import { GroupNavBar, type GroupNavItem } from "./components/GroupNavBar";
-import { WhatIfRow } from "./components/WhatIfRow";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { peekPendingSyncAction } from "./lib/syncManager";
 import { FeedbackDialog } from "./components/FeedbackDialog";
@@ -109,7 +109,9 @@ function Dashboard() {
   const [memos, setMemos] = useState<Map<string, Memo>>(new Map());
   const [tradeCount, setTradeCount] = useState(0);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);   // 오늘 매도(실현) 집계용 — 무영속, 로드시 갱신
-  const [activeTab, setActiveTab] = useState<string>(US_MARKET_TAB_KEY);   // 기본 페이지 = 지수
+  // 기본 페이지 = 지수 — 시간으로 주간/야간(한국 07~18시 = 주간)
+  const [activeTab, setActiveTab] = useState<string>(
+    () => defaultDashboardPage() === "night" ? INDEX_NIGHT_TAB_KEY : US_MARKET_TAB_KEY);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInitQuery, setSearchInitQuery] = useState("");
@@ -161,6 +163,16 @@ function Dashboard() {
   const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
   // 하단 지수 티커바 펼침 여부 — 합계 sticky 행을 그 높이만큼 위로 올리는 데 사용
   const tickerBarOpen = useTickerBarOpen();
+  // 하단 합계 바 접기 — 합계·손익 카드·오늘 매도·샀더라면을 **한 번에**. 바가 카드들을 가린다.
+  //   접으면 바가 **왼쪽으로 밀려 들어가고** 가장자리에 '합계 ▶' 손잡이만 남는다.
+  //   모바일과 따로 기억한다(기기별로 원하는 게 다르다).
+  const [totalsHidden, setTotalsHiddenState] = useState<boolean>(() => {
+    try { return localStorage.getItem("pc_totals_hidden") === "1"; } catch { return false; }
+  });
+  const setTotalsHidden = (v: boolean) => {
+    setTotalsHiddenState(v);
+    try { localStorage.setItem("pc_totals_hidden", v ? "1" : "0"); } catch { /* 이번 세션만 */ }
+  };
   // 토스 점검 중 — 네이버 fallback(60초), 워커 미지원 시 5분 백오프
   const tossMaint = useTossMaintenance();
   const REFRESH_MS = tossMaint.active
@@ -869,8 +881,8 @@ function Dashboard() {
 
         {activeTab === MARKET_MONEY_TAB_KEY ? (
           <StockMarketTab onOpenValuation={(code, n2) => { setValuationName(n2); setValuationTicker(code); }} />
-        ) : activeTab === US_MARKET_TAB_KEY ? (
-          <UsMarketTab navStickyTop={(headerCollapsed ? 0 : headerH) + tabsH}
+        ) : INDEX_GROUP_KEYS.has(activeTab) ? (
+          <UsMarketTab page={indexPageOf(activeTab)} navStickyTop={(headerCollapsed ? 0 : headerH) + tabsH}
             onRequestSearch={(q) => {
               setSearchInitQuery(q);
               setSearchOpen(true);
@@ -1154,23 +1166,47 @@ function Dashboard() {
             {/* 점진 렌더 sentinel — 여기가 보이면 다음 20개를 그린다 */}
             {incHasMore && <div ref={incSentinelRef} className="h-1" />}
             {/* 하단 티커바 위에 붙도록 bottom 오프셋 — 티커바 접으면 0 */}
+            {/* 합계 바 — 접으면 **왼쪽으로 밀려 들어간다**(슬라이드). 바 오른쪽 끝에 붙은
+                '합계 ▶' 손잡이가 같이 딸려 와 화면 왼쪽 가장자리에 걸린다.
+                overflow-x-clip — 펼친 상태에선 손잡이가 화면 오른쪽 밖에 있다. hidden 을 쓰면
+                세로도 잘려 위로 삐져나온 ✕·'내꺼먼저' 배지가 사라진다. clip 은 가로만 자른다. */}
             <div style={{ bottom: tickerBarOpen ? TICKER_BAR_H : 0 }}
-                 className="sticky z-40 mt-3 w-full flex flex-wrap items-start gap-2">
-              <TotalRow holdings={visible} prices={priceMap}
-                        account={activeTab}
-                        aggregated={activeTab === MY_STOCKS_TAB_KEY}
-                        scopeAccounts={folderScope}
-                        heldFirst={heldFirst} onToggleHeldFirst={toggleHeldFirst}
-                        onDepositChange={() => setReloadKey(k => k + 1)} />
-              <TodayPnLTable holdings={visible} prices={priceMap} />
-              <TodayRealizedCard trades={allTrades} account={activeTab}
-                                 aggregated={activeTab === MY_STOCKS_TAB_KEY}
-                                 scopeAccounts={folderScope}
-                                 holdings={visible} prices={priceMap} nameMap={nameMap} />
-              {/* 샀더라면 — 줄 맨 오른쪽 위. 한 줄 폭이 화면을 넘으면 이것만 다음 줄로 밀린다
-                  (flex-wrap) — 그래서 앞 카드들 폭을 빠듯하게 잡아 둔다(TodayPnLTable 220px). */}
-              <div className="ml-auto">
-                <WhatIfRow holdings={visible} prices={priceMap} />
+                 className="sticky z-40 mt-3 w-full overflow-x-clip pointer-events-none">
+              <div className={`relative w-full flex flex-wrap items-start gap-2
+                               transition-transform duration-300 ease-out
+                               ${totalsHidden ? "-translate-x-full" : "translate-x-0 pointer-events-auto"}`}>
+                {/* 한 번에 다 접기 — 왼쪽 위(오른쪽 위엔 '내꺼먼저' 배지와 샀더라면이 있다).
+                    ◀ — 바가 왼쪽으로 밀려 들어가는 방향 그대로. 펼치는 손잡이 '합계 ▶' 와 짝이다. */}
+                <button type="button" onClick={() => setTotalsHidden(true)}
+                        title="합계 바 왼쪽으로 접기"
+                        tabIndex={totalsHidden ? -1 : 0}
+                        // left-0 — 바깥 컨테이너가 overflow-x-clip 이라 -left-2 로 빼면 반쯤 잘린다.
+                        className="absolute -top-2 left-0 z-10 w-5 h-5 rounded-full bg-white
+                                   border border-gray-300 shadow text-[10px] leading-none text-gray-500
+                                   hover:text-gray-800">
+                  ◀
+                </button>
+                {/* 손잡이 — 바의 오른쪽 끝 바로 바깥. 접히면 바와 함께 왼쪽으로 와서 가장자리에 걸린다. */}
+                <button type="button" onClick={() => setTotalsHidden(false)}
+                        title="합계 다시 보기"
+                        tabIndex={totalsHidden ? 0 : -1}
+                        className={`absolute left-full bottom-1 ml-1 px-2.5 py-1 rounded-r-full
+                                    bg-white/95 border border-l-0 border-gray-300 shadow
+                                    text-xs font-bold text-gray-700 whitespace-nowrap hover:bg-gray-50
+                                    ${totalsHidden ? "pointer-events-auto" : "pointer-events-none"}`}>
+                  합계 ▶
+                </button>
+                <TotalRow holdings={visible} prices={priceMap}
+                          account={activeTab}
+                          aggregated={activeTab === MY_STOCKS_TAB_KEY}
+                          scopeAccounts={folderScope}
+                          heldFirst={heldFirst} onToggleHeldFirst={toggleHeldFirst}
+                          onDepositChange={() => setReloadKey(k => k + 1)} />
+                <TodayPnLTable holdings={visible} prices={priceMap} />
+                <TodayRealizedCard trades={allTrades} account={activeTab}
+                                   aggregated={activeTab === MY_STOCKS_TAB_KEY}
+                                   scopeAccounts={folderScope}
+                                   holdings={visible} prices={priceMap} nameMap={nameMap} />
               </div>
             </div>
           </>
