@@ -49,8 +49,11 @@ export function buildDashboardSections(nightSession: boolean, krClosed = false):
     },
     {
       id: "macro", short: "미국지수",
-      label: "📈 미국 지수",                          // 전체시장(윌셔5000·러셀3000·NYSE) + 대표(나스닥·S&P·다우)
-      rows: [["^W5000", "^RUA", "^NYA", "^IXIC", "^GSPC", "^DJI"]],
+      label: "📈 미국 지수",                          // 전체시장(러셀3000·NYSE) + 대표(나스닥·S&P·다우)
+      // 윌셔5000(^W5000)은 뺐다 — 야후가 장중 갱신을 안 해 정규장에도 어제 값에서 멈춰
+      //   종일 흐렸다(실측 2026-09-29 10:59 ET: 1,410분 전 값). 러셀3000과 일간수익률 상관
+      //   0.9999·1년 수익률 +14.7% vs +14.6% 라 빼도 잃는 정보가 없다.
+      rows: [["^RUA", "^NYA", "^IXIC", "^GSPC", "^DJI"]],
     },
     {
       id: "fx", short: "환율금리",
