@@ -249,7 +249,10 @@ export function MobileSimpleView() {
   });
   // 내주식(MY_KEY)만 뺀다 — 시스템 탭이지만 종목 카드 목록을 그리는 탭이라 그 경로를 탄다.
   const isSystemTab = SYS_ALL_KEYS.has(activeTab) && activeTab !== MY_KEY;
-  const touchStart = useRef<{ x: number; y: number } | null>(null);
+  const touchStart = useRef<{ x: number; y: number; sy: number; t: number } | null>(null);
+  // 당겨서 놓기 — 옆으로 끄는 동안 가장자리에 '다음/이전 페이지' 표시가 자라고, 끝까지 당긴 채 놓으면 이동
+  const [pull, setPull] = useState<{ dir: -1 | 1; p: number; label: string } | null>(null);
+  const PULL_PX = 90;   // 이만큼 당기면 '놓으면 이동' 
   // 스와이프 시작이 가로 스크롤 영역(data-noswipe) 안이면 그 시작 scrollLeft 기억 — 실제 스크롤됐는지 판정용
   const swipeScroll = useRef<{ el: HTMLElement; left: number } | null>(null);
 
@@ -851,28 +854,52 @@ export function MobileSimpleView() {
   const handleRefresh = () => void forceUpdate();
 
   // 좌우 스와이프로 그룹 탭 이동 (가로 dx > 세로 dy 일 때만 인정)
-  //  가로 스크롤 영역(data-noswipe, 예: 내거래 차트)에서 시작했고 실제로 스크롤됐으면 그룹 전환 X —
-  //  차트는 자유롭게 좌우 스크롤하되, 끝까지 닿아 더 안 밀릴 때의 스와이프는 그룹 전환 허용.
+  //  가로 스크롤 영역에서 시작한 제스처는 **그룹 전환 안 함** — 표·차트를 밀다가 페이지가 넘어가 버렸다.
+  //  (예전엔 끝까지 닿으면 허용했는데, 순환매 히트맵처럼 처음부터 오른쪽 끝에 있는 표는 첫 밀기에 넘어갔다)
+  //  data-noswipe 를 안 단 표도 잡도록 조상 중 **실제로 가로로 넘치는 overflow-x 요소**를 자동으로 찾는다.
   const handleTouchStart = (e: React.TouchEvent) => {
-    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-    const ns = (e.target as HTMLElement).closest("[data-noswipe]") as HTMLElement | null;
-    swipeScroll.current = ns ? { el: ns, left: ns.scrollLeft } : null;
+    touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, sy: window.scrollY, t: Date.now() };
+    let el = e.target as HTMLElement | null;
+    let found: HTMLElement | null = null;
+    while (el && el !== e.currentTarget) {
+      if (el.hasAttribute("data-noswipe")) { found = el; break; }
+      if (el.scrollWidth > el.clientWidth + 1) {
+        const ox = getComputedStyle(el).overflowX;
+        if (ox === "auto" || ox === "scroll") { found = el; break; }
+      }
+      el = el.parentElement;
+    }
+    swipeScroll.current = found ? { el: found, left: found.scrollLeft } : null;
+  };
+  // 이 제스처가 '옆으로 넘기기' 인가 — 이동 중(당기기 표시)·놓을 때 같은 규칙.
+  //   위아래 스크롤하다 비스듬히 간 손짓, 가로 스크롤 표·차트 위, 내거래(갠트) 에선 아니다.
+  const pullTarget = (dx: number, dy: number) => {
+    if (!touchStart.current || activeTab === MY_TRADES_KEY || swipeScroll.current) return null;
+    if (Math.abs(dy) > Math.abs(dx) / 2 || Math.abs(dy) > 60) return null;
+    if (Math.abs(window.scrollY - touchStart.current.sy) > 8) return null;
+    const idx = navKeys.indexOf(activeTab);
+    if (idx === -1) return null;
+    const to = dx < 0 ? navKeys[idx + 1] : navKeys[idx - 1];
+    return to ? { dir: (dx < 0 ? 1 : -1) as 1 | -1, to } : null;
+  };
+  const handleTouchMove = (e: React.TouchEvent) => {
+    if (!touchStart.current) return;
+    const dx = e.touches[0].clientX - touchStart.current.x;
+    const dy = e.touches[0].clientY - touchStart.current.y;
+    const tg = Math.abs(dx) >= 20 ? pullTarget(dx, dy) : null;
+    if (!tg) { if (pull) setPull(null); return; }
+    const label = groupTabs.find(t => t.key === tg.to)?.label ?? "";
+    setPull({ dir: tg.dir, p: Math.min(1, (Math.abs(dx) - 20) / (PULL_PX - 20)), label });
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!touchStart.current) return;
     const dx = e.changedTouches[0].clientX - touchStart.current.x;
     const dy = e.changedTouches[0].clientY - touchStart.current.y;
+    const tg = Math.abs(dx) >= PULL_PX ? pullTarget(dx, dy) : null;
     touchStart.current = null;
-    const scroller = swipeScroll.current; swipeScroll.current = null;
-    // 내거래 — 가로 갠트 스크롤 위주라 스와이프로 그룹 전환 안 함(탭바 탭으로 이동)
-    if (activeTab === MY_TRADES_KEY) return;
-    if (Math.abs(dx) < 60 || Math.abs(dx) < Math.abs(dy)) return;
-    // 차트가 실제로 가로 스크롤된 제스처면 그룹 전환 안 함
-    if (scroller && scroller.el.scrollLeft !== scroller.left) return;
-    const idx = navKeys.indexOf(activeTab);
-    if (idx === -1) return;
-    if (dx < 0 && idx < navKeys.length - 1) setActiveTab(navKeys[idx + 1]);
-    if (dx > 0 && idx > 0) setActiveTab(navKeys[idx - 1]);
+    swipeScroll.current = null;
+    setPull(null);
+    if (tg) setActiveTab(tg.to);
   };
 
   // ─── Tier 0 (대시보드 4개) ───
@@ -970,7 +997,23 @@ export function MobileSimpleView() {
   return (
     <div className="min-h-screen bg-gray-50"
          onTouchStart={handleTouchStart}
-         onTouchEnd={handleTouchEnd}>
+         onTouchMove={handleTouchMove}
+         onTouchEnd={handleTouchEnd}
+         onTouchCancel={() => { touchStart.current = null; swipeScroll.current = null; setPull(null); }}>
+      {/* 당겨서 놓기 표시 — 끄는 쪽 반대편 가장자리에서 자라 나온다. 다 차면 진해지며 '놓으면 이동' */}
+      {pull && (
+        <div className={`fixed top-1/2 z-[900] -translate-y-1/2 pointer-events-none flex items-center gap-1
+                         px-3 py-2 rounded-full shadow-lg text-[12px] font-bold whitespace-nowrap transition-colors
+                         ${pull.p >= 1 ? "bg-blue-600 text-white" : "bg-white/95 text-gray-600 border border-gray-200"}`}
+             style={{
+               [pull.dir === 1 ? "right" : "left"]: -120 + pull.p * 132,
+               opacity: 0.4 + pull.p * 0.6,
+             }}>
+          {pull.dir === -1 && <span>◀</span>}
+          <span>{pull.p >= 1 ? "놓으면 " : ""}{pull.label}</span>
+          {pull.dir === 1 && <span>▶</span>}
+        </div>
+      )}
       <NewVersionToast />
       <AppUpdateToast />
       <ExtensionUpdateToast />

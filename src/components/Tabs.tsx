@@ -1,5 +1,6 @@
 import { Settings } from "lucide-react";
-import type { ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import type { Stock } from "../types";
 import { normalizeAccount } from "../lib/account";
 import { getIndependentGroupsMode } from "../lib/groupMode";
@@ -92,27 +93,21 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
     const activeOne = groupTabs.find(t => t.key === activeKey);
     const current = activeOne ? activeKey : groupTabs[0].key;
     const curTab = groupTabs.find(t => t.key === current);
-    const on = !!activeOne;
     return (
-      <div className={`shrink-0 inline-flex items-center gap-1 pl-2 pr-1 py-1 rounded-t-md border-b-2 -mb-px
-                       ${on ? "border-blue-500 bg-blue-50" : "border-transparent hover:bg-gray-100"}`}>
-        {curTab?.icon
-          ? <span className="inline-flex align-middle">{curTab.icon}</span>
-          : <span className="text-sm">{curTab?.emoji ?? fallbackEmoji}</span>}
-        <select value={on ? current : ""}
-                onChange={e => { if (e.target.value) onChange(e.target.value); }}
-                className={`text-sm font-medium bg-transparent border-0 focus:outline-none cursor-pointer
-                            ${on ? "text-blue-700" : "text-gray-500 hover:text-gray-700"}`}>
-          {!on && <option value="" disabled hidden>{curTab?.label}</option>}
-          <optgroup label={menuTitle}>
-            {groupTabs.map(t => (
-              <option key={t.key} value={t.key}>
-                {t.label}{t.count > 0 ? ` (${t.count})` : ""}
-              </option>
-            ))}
-          </optgroup>
-        </select>
-      </div>
+      <HoverMenu key={menuTitle} title={menuTitle} on={!!activeOne}
+                 trigger={<>
+                   {curTab?.icon
+                     ? <span className="inline-flex align-middle">{curTab.icon}</span>
+                     : <span className="text-sm">{curTab?.emoji ?? fallbackEmoji}</span>}
+                   <span>{curTab?.label}</span>
+                 </>}
+                 items={groupTabs.map(t => ({
+                   key: t.key, active: t.key === activeKey,
+                   label: <>{t.icon ? <span className="inline-flex align-middle">{t.icon}</span> : <span>{t.emoji ?? fallbackEmoji}</span>}
+                            <span>{t.label}</span>
+                            {t.count > 0 && <span className="text-xs text-gray-400">{t.count}</span>}</>,
+                 }))}
+                 onPick={onChange} />
     );
   };
 
@@ -576,4 +571,64 @@ function aggregateHoldings(holdings: Stock[]): Stock[] {
     todayShares: v.todayShares,
     todayCost: v.todayCost,
   }));
+}
+
+// 상단 묶음 탭(투자도구·내자산·지수) — **마우스를 올리면 펼쳐지는** 메뉴.
+//   기본 <select> 는 호버로 못 연다. 탭 줄(nav)이 overflow-x-auto 라 absolute 메뉴는 잘리므로
+//   body 에 포털로 띄우고 탭 위치(getBoundingClientRect)에 fixed 로 붙인다.
+//   터치 기기는 호버가 없으니 누르면 열고/닫는다.
+function HoverMenu({ title, on, trigger, items, onPick }: {
+  title: string;
+  on: boolean;
+  trigger: ReactNode;
+  items: { key: string; label: ReactNode; active: boolean }[];
+  onPick: (key: string) => void;
+}) {
+  const btnRef = useRef<HTMLButtonElement>(null);
+  const [pos, setPos] = useState<{ left: number; top: number } | null>(null);
+  const closeTimer = useRef<number | null>(null);
+  const cancelClose = () => { if (closeTimer.current) { clearTimeout(closeTimer.current); closeTimer.current = null; } };
+  const open = () => {
+    cancelClose();
+    const r = btnRef.current?.getBoundingClientRect();
+    if (r) setPos({ left: r.left, top: r.bottom });
+  };
+  // 탭 → 메뉴로 마우스를 옮기는 사이 틈에서 닫히지 않게 조금 늦게 닫는다
+  const closeSoon = () => { cancelClose(); closeTimer.current = window.setTimeout(() => setPos(null), 150); };
+  useEffect(() => {
+    if (!pos) return;
+    const close = () => setPos(null);
+    window.addEventListener("scroll", close, true);
+    window.addEventListener("resize", close);
+    return () => { window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); };
+  }, [pos]);
+  useEffect(() => cancelClose, []);
+  return (
+    <>
+      <button ref={btnRef}
+              onMouseEnter={open} onMouseLeave={closeSoon}
+              onClick={() => (pos ? setPos(null) : open())}
+              className={`shrink-0 inline-flex items-center gap-1 pl-2 pr-1.5 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px
+                          ${on ? "border-blue-500 bg-blue-50 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
+        {trigger}
+        <span className={`text-[10px] ${on ? "text-blue-400" : "text-gray-400"}`}>▾</span>
+      </button>
+      {pos && createPortal(
+        <div onMouseEnter={cancelClose} onMouseLeave={closeSoon}
+             className="fixed z-[1000] min-w-[10rem] rounded-lg border border-gray-200 bg-white shadow-lg py-1"
+             style={{ left: pos.left, top: pos.top }}>
+          <div className="px-3 pt-1 pb-1 text-[11px] font-bold text-gray-400">{title}</div>
+          {items.map(it => (
+            <button key={it.key}
+                    onClick={() => { onPick(it.key); setPos(null); }}
+                    className={`w-full flex items-center gap-1.5 px-3 py-1.5 text-sm text-left whitespace-nowrap
+                                ${it.active ? "bg-blue-50 text-blue-700 font-bold" : "text-gray-700 hover:bg-gray-100"}`}>
+              {it.label}
+            </button>
+          ))}
+        </div>,
+        document.body,
+      )}
+    </>
+  );
 }
