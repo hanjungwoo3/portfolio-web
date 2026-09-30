@@ -1,4 +1,4 @@
-// AI 순환매 — 한국 AI 생태계 6단계(반도체·전공정·후공정·전력기기·원자력·친환경)의 흐름.
+// AI 순환매 — 한국 AI 생태계 6단계(반도체·전공정·후공정·전력기기·원자력·친환경) + 방산의 흐름, 비교용 AI 밖(금융·조선·화장품).
 //
 // 무엇을 보여주나
 //   ① 지금 어느 단계가 강한가(1주·4주·13주)
@@ -18,7 +18,7 @@
 
 import { fetchTossKrCandles, fetchYahooPriceHistory } from "./api";
 
-export type Family = "chip" | "energy";
+export type Family = "chip" | "energy" | "defense";
 export interface Stage {
   key: string;
   label: string;
@@ -56,7 +56,25 @@ export const STAGES: Stage[] = [
     members: [{ code: "377990", name: "TIGER Fn신재생에너지" }, { code: "385510", name: "KODEX 신재생에너지액티브" },
               { code: "381570", name: "HANARO Fn친환경에너지" }],
     us: { symbol: "BE", name: "블룸에너지" }, us2: { symbol: "FSLR", name: "퍼스트솔라" } },
+  // 방산 — AI 는 아니지만 미국이 끌고 오는 힘이 AI 단계만큼 있다(미국 방산 ETF 전날 ↔ 한국 다음 날 0.34,
+  //   2026-10-01 실측). 반도체와 주간 상관 0.08 — AI 가 쉴 때 따로 가는 곳.
+  { key: "defense", label: "방산", family: "defense",
+    members: [{ code: "449450", name: "PLUS K방산" }, { code: "0080G0", name: "KODEX 방산TOP10" },
+              { code: "463250", name: "TIGER K방산&우주" }],
+    us: { symbol: "ITA", name: "미국 방산 ETF" }, us2: { symbol: "RTX", name: "레이시온" } },
 ];
+
+// AI 밖 — 미국이 끌고 오진 않지만(다음 날 상관 0.13~0.30) AI 와 거의 따로 간다(반도체와 주간 -0.07~0.14,
+//   증권만 0.49). 'AI 가 쉴 때 돈이 어디로 가나' 를 보려고 **통계(강세 묶음·일별 히트맵)에만** 넣는다.
+//   대장주·다음 후보·과거 성적 계산엔 안 쓴다. 증권+은행 = 금융(주간 0.63), 조선은 방산과 0.69 지만 미국 짝이 없어 여기.
+export interface OutsideGroup { key: string; label: string; members: { code: string; name: string }[] }
+export const OUTSIDE: OutsideGroup[] = [
+  { key: "finance", label: "금융", members: [{ code: "091170", name: "KODEX 은행" }, { code: "102970", name: "KODEX 증권" }] },
+  { key: "ship", label: "조선", members: [{ code: "466920", name: "SOL 조선TOP3플러스" }, { code: "494670", name: "TIGER 조선TOP10" }] },
+  { key: "beauty", label: "화장품", members: [{ code: "228790", name: "TIGER 화장품" }, { code: "479850", name: "HANARO K-뷰티" }] },
+];
+/** 주별·일별 수익률을 계산하는 전체 묶음 — 순환매 단계 + AI 밖. */
+export const ALL_GROUPS: { key: string; label: string; members: { code: string; name: string }[] }[] = [...STAGES, ...OUTSIDE];
 
 export const LAG_WEEKS = 4;   // 소외 판정 창(주). 뒤 절반에서 1·2·4주가 같은 방향이었다 — 전체로는 약하다(파일 상단)
 
@@ -70,7 +88,7 @@ export interface RotationData {
   daily: Record<string, number[]>;        // 단계 → 일별 수익률(%) (days[i] 하루치, 동일가중)
 }
 
-const LS_KEY = "ai_rotation_v4";   // v4: 한국 쪽을 섹터 ETF 로 — 옛 캐시는 종목 기준이라 새로 받는다
+const LS_KEY = "ai_rotation_v5";   // v5: 방산 단계 + AI 밖(금융·조선·화장품), 신규 상장 ETF 가 기간을 자르지 않게
 const DAILY_KEEP = 120;
 const TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -106,7 +124,7 @@ export function loadCachedRotation(): RotationData | null {
 }
 
 export async function fetchRotation(): Promise<RotationData> {
-  const codes = STAGES.flatMap(s => s.members.map(m => m.code));
+  const codes = [...new Set(ALL_GROUPS.flatMap(s => s.members.map(m => m.code)))];
   // 한국 일봉 — 동시 6개씩
   const kr: Record<string, { date: string; close: number }[]> = {};
   const queue = [...codes];
@@ -119,41 +137,52 @@ export async function fetchRotation(): Promise<RotationData> {
     }
   }));
 
-  // ── 주별: 종목별 주말 종가 → 단계 동일가중 주간 수익률
+  // ── 주별: 종목별 주말 종가 → 묶음 동일가중 주간 수익률
+  //   그 주에 값이 있는 종목만 평균낸다 — 예전엔 **모든 종목에 값이 있는 주만** 써서, 최근 상장 ETF 하나가
+  //   전체 기간을 잘랐다(0117V0 상장 231일 → 모든 단계가 ~46주로). 묶음마다 1개 이상 있는 주만 남긴다.
   const weekClose: Record<string, Map<string, number>> = {};
   for (const c of codes) {
     const m = new Map<string, number>();
     for (const p of kr[c] ?? []) m.set(isoWeek(p.date), p.close);   // 날짜 오름차순 → 주의 마지막 종가가 남는다
     weekClose[c] = m;
   }
-  const weekSets = codes.map(c => new Set(weekClose[c].keys())).filter(s => s.size > 0);
-  const weeks = weekSets.length ? [...weekSets[0]].filter(w => weekSets.every(s => s.has(w))).sort() : [];
+  const wkRet = (code: string, a: string, b: string) => {
+    const x = weekClose[code]?.get(a), y = weekClose[code]?.get(b);
+    return x && y ? (y / x - 1) * 100 : null;
+  };
+  const allWeeks = [...new Set(codes.flatMap(c => [...weekClose[c].keys()]))].sort();
+  const weeks: string[] = [];
+  for (const w of allWeeks) {
+    const prev = weeks[weeks.length - 1];
+    if (prev === undefined) {   // 첫 주 — 모든 묶음에 종가가 하나라도 있어야 기준으로 삼는다
+      if (ALL_GROUPS.every(g => g.members.some(m => weekClose[m.code]?.has(w)))) weeks.push(w);
+      continue;
+    }
+    if (ALL_GROUPS.every(g => g.members.some(m => wkRet(m.code, prev, w) != null))) weeks.push(w);
+  }
   const weekly: Record<string, number[]> = {};
-  for (const st of STAGES) {
-    weekly[st.key] = [];
+  for (const g of ALL_GROUPS) {
+    weekly[g.key] = [];
     for (let i = 1; i < weeks.length; i++) {
-      const rs = st.members.map(m => {
-        const a = weekClose[m.code].get(weeks[i - 1]), b = weekClose[m.code].get(weeks[i]);
-        return a && b ? (b / a - 1) * 100 : 0;
-      });
-      weekly[st.key].push(mean(rs));
+      const rs = g.members.map(m => wkRet(m.code, weeks[i - 1], weeks[i])).filter((v): v is number => v != null);
+      weekly[g.key].push(mean(rs));
     }
   }
   const lastWeekPartial = weeks.length > 0 && weeks[weeks.length - 1] === isoWeek(new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10));
 
-  // ── 일별: 단계 동일가중 일간 수익률 (미국 대장주 상관용)
+  // ── 일별: 묶음 동일가중 일간 수익률 (미국 대장주 상관·일별 히트맵용)
   const dayRet = (c: string) => {
     const s = kr[c] ?? [];
     const m = new Map<string, number>();
     for (let i = 1; i < s.length; i++) if (s[i - 1].close > 0) m.set(s[i].date, s[i].close / s[i - 1].close - 1);
     return m;
   };
-  // 단계별 일별 등락(%) — 모든 종목에 값이 있는 날만, 최근 DAILY_KEEP 일
+  // 묶음별 일별 등락(%) — 묶음마다 1개 이상 값이 있는 날만(있는 종목끼리 평균), 최근 DAILY_KEEP 일
   const rets = new Map(codes.map(c => [c, dayRet(c)] as const));
-  const dsets = codes.map(c => rets.get(c)!).filter(m => m.size > 0);
-  const days = dsets.length ? [...dsets[0].keys()].filter(d => dsets.every(m => m.has(d))).sort().slice(-DAILY_KEEP) : [];
+  const allDays = [...new Set(codes.flatMap(c => [...rets.get(c)!.keys()]))].sort();
+  const days = allDays.filter(d => ALL_GROUPS.every(g => g.members.some(m => rets.get(m.code)?.has(d)))).slice(-DAILY_KEEP);
   const daily: Record<string, number[]> = {};
-  for (const st of STAGES) daily[st.key] = days.map(d => mean(st.members.map(m => rets.get(m.code)?.get(d) ?? 0)) * 100);
+  for (const g of ALL_GROUPS) daily[g.key] = days.map(d => mean(g.members.map(m => rets.get(m.code)?.get(d)).filter((v): v is number => v != null)) * 100);
 
   const usCorr: Record<string, number | null> = {};
   await Promise.all(STAGES.map(async st => {

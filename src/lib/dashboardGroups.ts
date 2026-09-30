@@ -52,12 +52,14 @@ const TAG_TONE: Record<string, string> = {
   전력기기: "text-amber-700 bg-amber-50 border-amber-300/70",
   원자력:   "text-orange-700 bg-orange-50 border-orange-300/70",
   친환경:   "text-emerald-700 bg-emerald-50 border-emerald-300/70",
+  방산:     "text-teal-700 bg-teal-50 border-teal-300/70",
 };
 // 순환매 줄 첫 카드(미국 대장주) 배경 — 그 줄 단계 색의 옅은 판. 책갈피와 같은 계열.
 const TAG_CARD: Record<string, string> = {
   반도체: "bg-indigo-50 border-indigo-300", 전공정: "bg-violet-50 border-violet-300",
   후공정: "bg-sky-50 border-sky-300", 전력기기: "bg-amber-50 border-amber-300",
   원자력: "bg-orange-50 border-orange-300", 친환경: "bg-emerald-50 border-emerald-300",
+  방산: "bg-teal-50 border-teal-300",
 };
 export function dashboardTagCard(tag: string | undefined): string {
   return (tag && TAG_CARD[tag]) || "bg-amber-50 border-amber-300";
@@ -190,7 +192,7 @@ function sectionMap(): Record<string, DashboardSection> {
       label: "🔄 AI 순환매 — 간밤 🇺🇸 → 오늘 🇰🇷",
       note: "간밤 🇺🇸 미국 대장주(굵은 카드)가 움직이면 → 오늘 🇰🇷 같은 분야 한국 종목도 같은 방향으로 가는 경향이 있어요. 예측은 아닙니다.",
       lead: 2,
-      rowLabels: ["반도체", "전공정", "후공정", "전력기기", "원자력", "친환경"],
+      rowLabels: ["반도체", "전공정", "후공정", "전력기기", "원자력", "친환경", "방산"],
       // 줄 = [미국 대장주 2개, 한국 섹터 ETF…] — lib/rotation STAGES 와 같아야 한다(테스트가 대조).
       rows: [
         ["SNDK", "MU", "396500.KS", "091160.KS", "091230.KS"],
@@ -199,6 +201,7 @@ function sectionMap(): Record<string, DashboardSection> {
         ["PWR", "GEV", "487240.KS", "491820.KS", "0117V0.KS"],
         ["CCJ", "OKLO", "433500.KS", "0098F0.KS", "0091P0.KS"],
         ["BE", "FSLR", "377990.KS", "385510.KS", "381570.KS"],
+        ["ITA", "RTX", "449450.KS", "0080G0.KS", "463250.KS"],   // 방산 — AI 밖이지만 미국이 끌고 온다
       ],
     },
     {

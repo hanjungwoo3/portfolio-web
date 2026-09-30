@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { signColor, dayChangePct } from "../lib/format";
 import { fetchUsHoldingPrices, fetchTossPrices } from "../lib/api";
 import {
-  STAGES, LAG_WEEKS, fetchRotation, loadCachedRotation, sumLast, laggardAt,
+  STAGES, OUTSIDE, ALL_GROUPS, LAG_WEEKS, fetchRotation, loadCachedRotation, sumLast, laggardAt,
   trackRecord, leaders, leadLag, type RotationData,
 } from "../lib/rotation";
 
@@ -29,9 +29,15 @@ const STAGE_COLOR: Record<string, { bg: string; text: string; chip: string; hex:
   back:    { bg: "bg-sky-500",     text: "text-sky-700",     chip: "bg-sky-50 border-sky-300", hex: "#0ea5e9" },
   power:   { bg: "bg-amber-500",   text: "text-amber-700",   chip: "bg-amber-50 border-amber-300", hex: "#f59e0b" },
   nuclear: { bg: "bg-orange-600",  text: "text-orange-700",  chip: "bg-orange-50 border-orange-300", hex: "#ea580c" },
+  defense: { bg: "bg-teal-600",    text: "text-teal-700",    chip: "bg-teal-50 border-teal-300", hex: "#0d9488" },
+  // AI 밖(비교용) — 무채색 계열로 AI 단계와 한눈에 갈리게
+  finance: { bg: "bg-stone-500",   text: "text-stone-700",   chip: "bg-stone-50 border-stone-300", hex: "#78716c" },
+  ship:    { bg: "bg-slate-500",   text: "text-slate-700",   chip: "bg-slate-50 border-slate-300", hex: "#64748b" },
+  beauty:  { bg: "bg-pink-500",    text: "text-pink-700",    chip: "bg-pink-50 border-pink-300", hex: "#ec4899" },
   green:   { bg: "bg-emerald-500", text: "text-emerald-700", chip: "bg-emerald-50 border-emerald-300", hex: "#10b981" },
 };
-const labelOf = (k: string) => STAGES.find(s => s.key === k)?.label ?? k;
+const labelOf = (k: string) => ALL_GROUPS.find(s => s.key === k)?.label ?? k;
+const isOutside = (k: string) => OUTSIDE.some(o => o.key === k);
 const pct = (v: number, d = 1) => `${v >= 0 ? "+" : ""}${v.toFixed(d)}%`;
 
 function fmtStamp(ms: number): string {
@@ -93,8 +99,9 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
   const stat = useMemo(() => {
     if (!data || T < LAG_WEEKS + 1) return null;
     const w = (k: string, n: number) => sumLast(data.weekly[k], n);
-    const rows = STAGES.map(s => ({ key: s.key, w1: w(s.key, 1), w4: w(s.key, 4), w13: w(s.key, 13) }));
-    // 강세 = 1주가 6단계 평균보다 높고 플러스. 1등 하나만 고르면 비슷하게 오른 단계가 묻힌다.
+    // AI 밖(금융·조선·화장품)도 같이 줄 세운다 — AI 가 쉴 때 그쪽이 오르는지가 보이게. 다음 후보·성적은 순환매 단계만.
+    const rows = ALL_GROUPS.map(s => ({ key: s.key, w1: w(s.key, 1), w4: w(s.key, 4), w13: w(s.key, 13) }));
+    // 강세 = 1주가 전체 평균보다 높고 플러스. 1등 하나만 고르면 비슷하게 오른 단계가 묻힌다.
     const avg1 = rows.reduce((a, r) => a + r.w1, 0) / rows.length;
     const sorted = [...rows].sort((a, b) => b.w1 - a.w1);
     const strong = sorted.filter(r => r.w1 > avg1 && r.w1 > 0);
@@ -118,7 +125,7 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
       <div className={`flex flex-wrap items-center gap-2 ${embedded ? "" : "rounded-xl border border-gray-300 bg-white p-2.5"}`}>
         {!embedded && <span className="text-sm font-bold text-gray-800">🔄 AI 순환매</span>}
         <span className="text-[11px] text-gray-500">
-          한국 AI 생태계 6단계 — 반도체 · 전공정 · 후공정 · 전력기기 · 원자력 · 친환경
+          AI 6단계(반도체 · 전공정 · 후공정 · 전력기기 · 원자력 · 친환경) + 방산 · 비교용 AI 밖(금융 · 조선 · 화장품)
         </span>
         <button onClick={refresh} disabled={loading}
                 title="단계별 종목 일봉을 다시 받습니다 (약 26콜)"
@@ -201,7 +208,7 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
           {/* ① 지금 어디가 강한가 — 강세끼리 한 상자에 묶는다.
               1등 하나에만 '받는 중' 을 달면, 거의 같은 폭으로 오른 2·3등이 약한 것처럼 보인다
               (친환경 +4.4% · 전공정 +4.3% · 후공정 +3.4% 인데 친환경에만 붙었던 것 실측).
-              강세 = 1주 수익률이 6단계 평균보다 높고 플러스. */}
+              강세 = 1주 수익률이 전체(순환매 단계 + AI 밖) 평균보다 높고 플러스. */}
           <div className="rounded-xl border border-gray-300 bg-white p-2.5 space-y-2">
             <div className="text-[12px] font-bold text-gray-700">지금 어디가 강한가</div>
             {([
@@ -218,6 +225,9 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
                     const c = STAGE_COLOR[r.key];
                     return (
                       <div key={r.key} className={`relative rounded-lg border px-2 py-1.5 ${c.chip}`}>
+                        {isOutside(r.key) && (
+                          <div className="absolute -top-2 left-1 px-1 py-0 rounded text-[9px] border bg-white text-gray-500 border-gray-300">AI 밖</div>
+                        )}
                         {r.key === stat.next && (
                           <div className="absolute -top-2 right-1 px-1.5 py-0 rounded text-[9px] font-bold border
                                           bg-white text-gray-700 border-gray-400">⏳ 다음 후보</div>
@@ -260,7 +270,7 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
             {stat.tr && (
               <div className="rounded-lg border border-gray-200 bg-gray-50 px-2 py-1.5 text-[11px] leading-relaxed">
                 <div className="text-gray-600">
-                  <b className="text-gray-800">이 규칙의 과거 성적</b> — 매주 "직전 {LAG_WEEKS}주 꼴찌" 를 골랐다면, 그 주에 6단계 평균보다:
+                  <b className="text-gray-800">이 규칙의 과거 성적</b> — 매주 "직전 {LAG_WEEKS}주 꼴찌" 를 골랐다면, 그 주에 순환매 단계 평균보다:
                 </div>
                 <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5 tabular-nums">
                   <span>전체 {stat.tr.n}주 <b className={signColor(stat.tr.meanEx)}>{pct(stat.tr.meanEx, 2)}p</b>
@@ -303,7 +313,7 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
               const weeks = [...byWeek.entries()].sort(([x], [y]) => x.localeCompare(y)).slice(-12);
               const idxs = weeks.flatMap(([, slots]) => slots.filter((x): x is number => x != null));
               // 명도 척도 — 모든 단계 공통. 튀는 하루가 나머지를 다 옅게 만들지 않도록 95% 분위수에서 가장 진하게.
-              const abs = STAGES.flatMap(st => idxs.map(i => Math.abs(data.daily[st.key][i]))).sort((x, y) => x - y);
+              const abs = ALL_GROUPS.flatMap(st => idxs.map(i => Math.abs(data.daily[st.key][i] ?? 0))).sort((x, y) => x - y);
               const cap = Math.max(1, abs[Math.floor(abs.length * 0.95)] ?? 1);
               const cell = (v: number) => {
                 const t = Math.min(1, Math.abs(v) / cap);                     // 0..1
@@ -352,8 +362,14 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
                         </tr>
                       </thead>
                       <tbody>
-                        {STAGES.map(st => (
-                          <tr key={st.key}>
+                        {ALL_GROUPS.map(st => (
+                          <Fragment key={st.key}>
+                          {st.key === OUTSIDE[0].key && (
+                            // AI 밖 — 구분 줄. 여기부터는 비교용(미국이 끌고 오지 않는 업종)
+                            <tr><th className="sticky left-0 z-10 bg-white pt-1.5 text-left text-[9px] font-bold text-gray-400 whitespace-nowrap">AI 밖</th>
+                                <td colSpan={weeks.length * 6} className="pt-1.5"><div className="border-t border-dashed border-gray-300" /></td></tr>
+                          )}
+                          <tr>
                             <th className={`sticky left-0 z-10 bg-white pr-1.5 text-left font-bold whitespace-nowrap ${STAGE_COLOR[st.key].text}`}>
                               {st.label}
                             </th>
@@ -374,6 +390,7 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
                               </Fragment>
                             ))}
                           </tr>
+                          </Fragment>
                         ))}
                       </tbody>
                     </table>
