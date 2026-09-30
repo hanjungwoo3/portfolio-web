@@ -1167,6 +1167,8 @@ function Dashboard() {
                                  aggregated={activeTab === MY_STOCKS_TAB_KEY}
                                  scopeAccounts={folderScope}
                                  holdings={visible} prices={priceMap} nameMap={nameMap} />
+              {/* 샀더라면 — 줄 맨 오른쪽 위. 한 줄 폭이 화면을 넘으면 이것만 다음 줄로 밀린다
+                  (flex-wrap) — 그래서 앞 카드들 폭을 빠듯하게 잡아 둔다(TodayPnLTable 220px). */}
               <div className="ml-auto">
                 <WhatIfRow holdings={visible} prices={priceMap} />
               </div>
