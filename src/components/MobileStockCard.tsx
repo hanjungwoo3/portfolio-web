@@ -12,6 +12,7 @@ import { Sparkline } from "./Sparkline";
 import { Tooltip, ColorName } from "./Tooltip";
 import { MarketAlertDialog } from "./MarketAlertDialog";
 import { AuxIndicators } from "./AuxIndicators";
+import type { LastSell } from "../lib/tradeCalc";
 
 // 투자자별 매매동향 — PC StockCard 와 동일 정의 (모바일 레이어 표시용)
 const FLOW_FIELDS: { label: string; key: keyof Investor }[] = [
@@ -56,6 +57,7 @@ interface Props {
   warning?: string;
   chart?: number[];           // 비거래일 sparkline 용 일봉 종가 시계열
   investorHistory?: Investor[] | null;   // 60일 수급 (AuxIndicators 외국인/기관/연기금)
+  lastSell?: LastSell | null;            // 마지막 매도 (PC 카드와 동일 — lastSellOf 로 부모가 계산)
   onVisible?: () => void;                // 카드가 화면에 처음 들어왔을 때 1회 (표시용 쿼리 게이팅)
   consensus?: Consensus | null; // 네이버 컨센서스 (목표가 + 점수)
   memo?: Memo;
@@ -98,7 +100,7 @@ const WARN_TIPS: Record<string, string> = {
 
 export function MobileStockCard({
   stock, price, krReg, sector, market, warning, chart, investorHistory, consensus, memo, otherGroups, heldGroups,
-  onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse, onVisible,
+  onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse, onVisible, lastSell,
 }: Props) {
   // 뷰포트 진입 감지 — PC(StockCard) 와 동일. 화면 밖 카드의 표시용 쿼리를 켜지 않기 위함.
   const ioRef = useRef<IntersectionObserver | null>(null);
@@ -841,13 +843,33 @@ export function MobileStockCard({
           );
         })()}
 
+        {/* 최종매도 — PC 카드와 같은 계산·같은 배경 분리. */}
+        {lastSell && (() => {
+          const gap = price.price > 0 ? (price.price / lastSell.unit - 1) * 100 : 0;
+          const md = `${+lastSell.date.slice(5, 7)}/${+lastSell.date.slice(8, 10)}`;
+          return (
+            <div className="text-[10px] rounded bg-slate-100 border border-slate-200 px-1 py-0.5 mt-0.5">
+              <span className="text-[9px] text-slate-500">최종매도 </span>
+              <span className="font-bold text-slate-800">
+                {Math.round(lastSell.unit).toLocaleString()}원
+              </span>
+              <span className="ml-1 text-[9px] text-slate-500 tabular-nums">
+                {md} · {lastSell.qty.toLocaleString()}주
+              </span>
+              <span className={`ml-1 text-[9px] font-bold ${signColor(gap)}`}>
+                (현재 {gap >= 0 ? "+" : ""}{gap.toFixed(2)}%)
+              </span>
+            </div>
+          );
+        })()}
+
         {/* ─── 보조 지표 — 우측 하단 네모 블럭 ──── */}
         <AuxIndicators chart={chart} investorHistory={investorHistory}
                        isTradingDay={!!price.high} textSize="10"
                        defaultOpen={!hasPosition}
                        etfTicker={isEtfByName(stock.name) ? stock.ticker : undefined}
                        usTicker={isUsHolding && !isEtfByName(stock.name) ? stock.ticker : undefined}
-                       volume={price.volume} />
+                       krTicker={!isUsHolding && !isEtfByName(stock.name) ? stock.ticker : undefined} />
 
         {/* ─── 투자자 매매동향 레이어 (👥 클릭 시) ─── */}
         {showFlow && investor && (

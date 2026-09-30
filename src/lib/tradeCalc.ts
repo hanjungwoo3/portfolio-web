@@ -110,3 +110,36 @@ export function realizedChip(n: number): { bg: string; label: string } {
   if (n < 0) return { bg: "bg-blue-500", label: "손절" };
   return { bg: "bg-gray-400", label: "본전" };
 }
+
+// 마지막 매도 — "이 종목 마지막에 얼마에 팔았더라" 를 카드에 띄우기 위한 값.
+//   PC·모바일 카드가 같은 한 벌을 쓴다(각자 계산하면 반드시 엇갈린다).
+//
+//   그룹 매칭: 같은 그룹(account)의 매도가 있으면 그걸 쓰고, 없으면 종목의 아무 매도나 쓴다.
+//   동기화 OFF(기본)에선 거래가 한 그룹에만 기록되므로, 그룹으로만 찾으면 미러된 다른 그룹
+//   카드에서 아무것도 안 보인다.
+export interface LastSell {
+  date: string;    // YYYY-MM-DD
+  unit: number;    // 매도 단가(원) = amount / qty
+  qty: number;
+  amount: number;  // 매도 총액(원)
+}
+export function lastSellOf(
+  trades: Trade[], ticker: string, account?: string,
+): LastSell | null {
+  const mine = trades.filter(t => t.type === "sell" && t.ticker === ticker && t.qty > 0);
+  if (mine.length === 0) return null;
+  const acc = normalizeAccount(account);
+  const sameGroup = mine.filter(t => normalizeAccount(t.account) === acc);
+  const pool = sameGroup.length > 0 ? sameGroup : mine;
+  // 최신 우선 — 날짜 같으면 기록 생성 시각으로 가른다.
+  const latest = pool.reduce((a, b) => {
+    if (a.date !== b.date) return a.date > b.date ? a : b;
+    return (a.createdAt ?? 0) >= (b.createdAt ?? 0) ? a : b;
+  });
+  return {
+    date: latest.date,
+    unit: latest.amount / latest.qty,
+    qty: latest.qty,
+    amount: latest.amount,
+  };
+}
