@@ -1356,16 +1356,50 @@ export function StockCard({
           </div>
         )}
 
-        {/* 현재 (보유만) — shares × current_price = 현재 평가금액 */}
-        {hasPosition && (
-          <div className="text-xs">
-            <span className="text-[10px] text-gray-500">현재 </span>
-            <span className={`font-bold ${signColor(pnl)}`}>
-              {Math.round(price.price * stock.shares).toLocaleString()}원
-            </span>
-            <span className="text-[10px] text-gray-400"> ({Math.round(price.price).toLocaleString()}원)</span>
-          </div>
-        )}
+        {/* 평가금액 줄들 — **금액 내림차순**으로 정렬한다(왼쪽 가격 박스와 같은 규칙).
+            현재 + 내가 정한 값들(기대=살 값 · 내목=팔 값 · 손절=자를 값).
+            라벨 색은 가격 박스의 같은 이름 줄과 맞췄고, 괄호는 **원금 대비** 손익이다.
+            원금은 기준값이라 정렬에 넣지 않고 맨 위에 고정한다. */}
+        {hasPosition && (() => {
+          const cost = stock.avg_price * stock.shares;
+          const rows: { total: number; el: React.ReactElement }[] = [];
+          rows.push({
+            total: price.price * stock.shares,
+            el: (
+              <div key="cur" className="text-xs">
+                <span className="text-[10px] text-gray-500">현재 </span>
+                <span className={`font-bold ${signColor(pnl)}`}>
+                  {Math.round(price.price * stock.shares).toLocaleString()}원
+                </span>
+                <span className="text-[10px] text-gray-400"> ({Math.round(price.price).toLocaleString()}원)</span>
+              </div>
+            ),
+          });
+          for (const [label, unit, labelCls, valCls] of ([
+            ["기대", memo?.entryPrice, "text-violet-600", "text-violet-700"],
+            ["내목", memo?.targetPrice, "text-emerald-600", "text-emerald-700"],
+            ["손절", memo?.stopPrice, "text-rose-600", "text-rose-700"],
+          ] as [string, number | undefined, string, string][])) {
+            if (unit == null || !(unit > 0)) continue;
+            const total = unit * stock.shares;
+            const diff = total - cost;
+            const pct = cost > 0 ? (diff / cost) * 100 : 0;
+            rows.push({
+              total,
+              el: (
+                <div key={label} className="text-xs">
+                  <span className={`text-[10px] font-bold ${labelCls}`}>{label} </span>
+                  <span className={`font-bold ${valCls}`}>{Math.round(total).toLocaleString()}원</span>
+                  <span className={`ml-1 text-[10px] ${signColor(diff)}`}>
+                    ({formatSigned(Math.round(diff))}원, {pct >= 0 ? "+" : ""}{pct.toFixed(2)}%)
+                  </span>
+                </div>
+              ),
+            });
+          }
+          rows.sort((a, b) => b.total - a.total);
+          return <>{rows.map(r => r.el)}</>;
+        })()}
 
         {/* 전체 — 금액만 크게 / % 는 원래 / 손절 시 % 배경 강조 */}
         {hasPosition && (

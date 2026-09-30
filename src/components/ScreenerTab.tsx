@@ -291,8 +291,10 @@ export function ScreenerTab({ onOpenValuation }: Props) {
       )}
 
       {/* 조건 + 퍼널 — 조건을 바꾸면 남는 수가 즉시 움직인다(재조회 없음) */}
-      <div className="rounded-xl border border-gray-300 bg-white p-2.5 space-y-2">
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+      {/* 조건(좌) · 퍼널(우) — 한 줄로 늘어놓으면 막대가 화면 끝까지 뻗어 읽기 어렵다. */}
+      <div className="rounded-xl border border-gray-300 bg-white p-2.5">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-4 gap-y-2">
+        <div className="flex flex-wrap items-start content-start gap-x-4 gap-y-1.5">
           <NumField label="RSI <" value={c.rsiMax} onChange={v => set({ rsiMax: v })}
                     title="14일 RSI. 낮을수록 과매도" />
           <NumField label="볼린저 하단 +" value={c.bbGapMax} unit="% 이내" step={0.5}
@@ -316,14 +318,14 @@ export function ScreenerTab({ onOpenValuation }: Props) {
         </div>
         {/* 퍼널 */}
         {rows.length > 0 && (
-          <div className="space-y-0.5 pt-1 border-t border-gray-100">
+          <div className="space-y-0.5 pt-2 border-t border-gray-100 lg:pt-0 lg:border-t-0 lg:border-l lg:pl-3">
             <div className="flex items-baseline justify-between text-[11px] text-gray-400">
               <span>조건을 위에서부터 하나씩 더할 때 남는 종목</span>
               <span className="tabular-nums">전체 {rows.length.toLocaleString()}종</span>
             </div>
             {steps.map((s, i) => (
               <div key={s.label} className="flex items-center gap-2 text-[11px]">
-                <span className="w-44 shrink-0 text-gray-600 truncate">{`${i + 1}. ${s.label}`}</span>
+                <span className="w-40 shrink-0 text-gray-600 truncate">{`${i + 1}. ${s.label}`}</span>
                 <span className="flex-1 h-2 bg-gray-100 rounded overflow-hidden">
                   <span className={`block h-full rounded ${s.left === 0 ? "bg-rose-300" : "bg-indigo-400"}`}
                         style={{ width: `${Math.max(s.left / maxLeft * 100, s.left > 0 ? 1 : 0)}%` }} />
@@ -336,6 +338,7 @@ export function ScreenerTab({ onOpenValuation }: Props) {
             ))}
           </div>
         )}
+        </div>
       </div>
 
       {/* 이 조건이 과거에 먹혔는지 — 접어 둔다(일봉 200콜). 결과보다 위에 둬서 눈에 걸리게. */}
