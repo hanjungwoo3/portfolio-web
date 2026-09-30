@@ -11,7 +11,7 @@ import { fetchForeignHoldingPrices, looksLikeForeignName } from "../lib/foreignS
 import { openExternal } from "../lib/toss";
 import { EtfCompareChartDialog } from "./EtfCompareChartDialog";
 import { MarketAlertDialog } from "./MarketAlertDialog";
-import { EtfStatsBox } from "./EtfStatsBox";
+import { EtfReturnsTag } from "./EtfStatsBox";
 import { requestValuation } from "../lib/valuationNav";
 import { useEscClose } from "../lib/useEscClose";
 import type { Price } from "../types";
@@ -520,7 +520,7 @@ function EtfDiffTable({ tickerA, nameA, tickerB, nameB, onRequestSearch }: DiffT
                    krReg={krRegMap?.get(etfTicker)} groups={holdingGroups.get(etfTicker) ?? []}
                    dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
                    boxMinH="min-h-[128px]" bigFont
-                   boxRight={<EtfStatsBox code={etfTicker} volume={priceMap.get(etfTicker)?.volume} />} />
+                   boxCorner={<EtfReturnsTag code={etfTicker} volume={priceMap.get(etfTicker)?.volume} />} />
       </div>
       <div className="flex-1 min-w-0">
         <PieSlot items={pie.vis} otherRatio={pie.other} cashRatio={pie.cash}
@@ -654,6 +654,9 @@ interface StockCardProps {
   bigFont?: boolean;         // 가격·% 폰트 크게 — ETF 자체 카드용
   actionLeft?: ReactNode;    // 상단 + 버튼 왼쪽 추가 액션(예: ETF 구성 보기)
   boxRight?: ReactNode;      // 가격 박스 내부 오른쪽 영역(예: 포함 종목 분해)
+  // 가격 박스 **오른쪽 아래 모서리**에 얹는 작은 블록(예: 접이식 기간 수익률).
+  //   보유 카드의 보조지표 박스와 같은 자리다. 통짜 boxRight 와 달리 가격 폭을 안 뺏는다.
+  boxCorner?: ReactNode;
   highlightDay?: boolean;    // 일간% 강조(정렬=현재)
   // 해외(미국) 구성종목 — 부모가 한 번에 받아 내려주면 카드는 자기 조회를 건너뛴다.
   //   (종목마다 따로 부르면 10종에 코드조회 10 + 시세 10 = 20콜이다)
@@ -664,7 +667,7 @@ interface StockCardProps {
   noteRow?: ReactNode;       // 가격 박스 안, 일간% 아래 한 줄 (예: 구성종목 프리장 가중)
 }
 // 6개월 히스토리 → 1/3/6개월 수익률(%) — 마지막 종가 기준 N개월 전 종가 대비.
-//   ETF 비교 검색 드롭다운 전용. 카드의 기간 수익률은 EtfStatsBox(크롤러 파일, 0콜)를 쓴다.
+//   ETF 비교 검색 드롭다운 전용. ETF 검색·랭킹 카드의 기간 수익률은 EtfStatsBox(크롤러 파일, 0콜)를 쓴다.
 function computeReturns(h: { date: string; close: number }[]): { m1: number | null; m3: number | null; m6: number | null } | null {
   if (h.length < 2) return null;
   const last = h[h.length - 1].close;
@@ -718,7 +721,7 @@ const WARN_BG: Record<string, string> = {
   투자주의:     "bg-amber-500",
 };
 
-export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups = [], dimEnabled = false, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, actionLeft, boxRight, highlightDay, usPrice, usSymbol, usChart, noteRow, warning }: StockCardProps) {
+export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups = [], dimEnabled = false, onRequestSearch, extraDim, hideRatio, leftTag, rightTag, centerTag, className, boxMinH = "min-h-[80px]", bigFont, actionLeft, boxRight, boxCorner, highlightDay, usPrice, usSymbol, usChart, noteRow, warning }: StockCardProps) {
   const priceSize = bigFont ? "text-2xl" : "text-base";
   const pctSize = bigFont ? "text-lg" : "text-sm";
   const [alertOpen, setAlertOpen] = useState(false);   // 시장조치 공시 모달
@@ -822,17 +825,19 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                     ? () => openExternal(`https://finance.yahoo.com/quote/${encodeURIComponent(fxSym)}`)
                     : undefined}
                   disabled={!isStandard && !fxSym}
-                  className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+                  className={`inline-flex items-center px-2 py-0.5 rounded-t-md min-w-0 max-w-full
                               border-t border-l border-r font-bold text-xs leading-none
                               ${tabBg} ${priceColorCls}
                               ${isStandard || fxSym ? "cursor-pointer hover:brightness-95 transition" : ""}`}
-                  title={isStandard ? undefined
+                  title={isStandard ? item.name
                        : fxSym ? `${item.name} (${fxSym}) — 야후 파이낸스에서 보기`
                        : looksLikeForeignName(item.name)
                        ? `${item.name} — 해외 종목. 심볼을 못 찾았습니다(잠시 후 다시 시도합니다)`
                        : `${item.name} — 선물·기타 (추가 불가)`}>
-            {!hideRatio && <span className="text-[10px] text-gray-500 mr-1">{i + 1}</span>}
-            {item.name}
+            {!hideRatio && <span className="text-[10px] text-gray-500 mr-1 shrink-0">{i + 1}</span>}
+            {/* 이름이 길면 줄바꿈 대신 … — 책갈피가 두 줄이 되면 카드 위가 어긋난다.
+                전체 이름은 title(호버)로 본다. */}
+            <span className="truncate">{item.name}</span>
           </button>
           {/* 시장조치 뱃지 — 누르면 거래소 공시 모달(종목 카드와 동일 동작) */}
           {warning && krCode && (
@@ -954,6 +959,7 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
               <Sparkline data={chartData} width={300} height={120}
                          className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" />
             )}
+            {boxCorner && <div className="absolute bottom-1 right-1 z-20">{boxCorner}</div>}
             <div className="relative z-10">
               <div className="flex items-baseline gap-2">
                 <span className={`${priceSize} font-bold leading-tight invisible`}>▲</span>
@@ -1107,7 +1113,7 @@ export function EtfFeeTip({ totalFee, className = "" }: { totalFee?: number; cla
   );
 }
 
-// ─── EtfIndicatorBlock — ETF 핵심 지표(총보수·분배율·괴리율·운용사·NAV·시총·기간수익률) 한 ETF분 ──
+// ─── EtfIndicatorBlock — ETF 핵심 지표(운용사·시총·순자산·총보수·분배율·NAV·괴리율·추적오차) ──
 export function EtfIndicatorBlock({ ticker, name }: { ticker: string; name: string }) {
   const { data } = useQuery({
     queryKey: ["etf-key-indicator", ticker],
@@ -1249,13 +1255,6 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
     .filter(t => /^[\dA-Za-z]{6}$/.test(t));
   // ETF 자기 카드용 — 가격/차트/마감 조회엔 ETF 자신도 포함(공통 종목 계산엔 미포함)
   const selfTicker = /^[\dA-Za-z]{6}$/.test(ticker) ? ticker : null;
-  // 총보수 — 아래 EtfIndicatorBlock 과 **같은 쿼리 키**라 추가 호출 없이 캐시를 나눠 쓴다.
-  const { data: selfKey } = useQuery({
-    queryKey: ["etf-key-indicator", ticker],
-    queryFn: () => fetchEtfKeyIndicator(ticker),
-    enabled: !!selfTicker,
-    staleTime: 6 * 60 * 60_000,
-  });
   const cardTickers = selfTicker ? [selfTicker, ...stockTickers] : stockTickers;
 
   // 부모(비교 컨테이너) 로 ticker 목록 전달 — 공통 종목 계산용
@@ -1473,8 +1472,7 @@ function EtfPanel({ ticker, etfName, onRequestSearch, dimTickers, onTickersChang
                          krReg={krRegMap?.get(selfTicker)} groups={holdingGroups.get(selfTicker) ?? []}
                          dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}
                          boxMinH="min-h-[128px]" bigFont
-                         boxRight={<EtfStatsBox code={selfTicker} fee={selfKey?.totalFee ?? null}
-                                                volume={priceMap.get(selfTicker)?.volume} />}
+                         boxCorner={<EtfReturnsTag code={selfTicker} volume={priceMap.get(selfTicker)?.volume} />}
                          noteRow={usNowAgg && (
                            <span className="inline-flex items-baseline gap-1 text-[11px] whitespace-nowrap">
                              <span className="text-gray-400">구성</span>

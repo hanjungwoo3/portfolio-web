@@ -716,14 +716,15 @@ export function StockCard({
             <button
               type="button"
               onClick={() => openTossStock(stock.ticker)}
-              className={`inline-flex items-center px-2 py-0.5 rounded-t-md
+              className={`inline-flex items-center px-2 py-0.5 rounded-t-md min-w-0 max-w-full
                           border-t border-l border-r ${cardBorder}
                           font-bold text-sm leading-none cursor-pointer
                           hover:brightness-95 transition
                           ${cardBg}
                           ${priceColorCls}`}>
-              {sleeping && <span className="text-[10px] mr-1 opacity-70">z<sup>z</sup><sup>z</sup></span>}
-              {stock.name}
+              {sleeping && <span className="text-[10px] mr-1 opacity-70 shrink-0">z<sup>z</sup><sup>z</sup></span>}
+              {/* 긴 이름은 줄바꿈 대신 … — 책갈피가 두 줄이 되면 카드 위가 어긋난다(전체는 호버 툴팁). */}
+              <span className="truncate">{stock.name}</span>
             </button>
           </Tooltip>
           {/* 메모 태그 칩 — 태그 있을 때만, 클릭 시 메모 다이얼로그 열기 */}

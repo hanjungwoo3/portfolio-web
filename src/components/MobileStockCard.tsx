@@ -315,11 +315,12 @@ export function MobileStockCard({
             <button onClick={() => openTossStock(stock.ticker)}
                     className={`inline-flex items-center px-2 py-0.5 rounded-t-md
                                 border-t border-l border-r ${cardBorder}
-                                font-bold text-base leading-none w-fit whitespace-nowrap
+                                font-bold text-base leading-none w-fit min-w-0 max-w-full
                                 ${cardBg}
                                 ${priceColorCls}`}>
-              {sleeping && <span className="text-[10px] mr-0.5 opacity-70">zZ</span>}
-              {stock.name}
+              {sleeping && <span className="text-[10px] mr-0.5 opacity-70 shrink-0">zZ</span>}
+              {/* 긴 이름은 … (whitespace-nowrap 만 있으면 화면 밖으로 삐져나간다) */}
+              <span className="truncate">{stock.name}</span>
             </button>
           </Tooltip>
           {memo?.tag && onOpenMemo && (
