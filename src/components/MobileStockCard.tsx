@@ -855,19 +855,23 @@ export function MobileStockCard({
                 if (!t) return null;
                 const gap = t.unit > 0 ? (price.price / t.unit - 1) * 100 : 0;
                 const md = `${+t.date.slice(5, 7)}/${+t.date.slice(8, 10)}`;
+                // 모바일은 두 줄 — 한 줄에 다 넣으면 폭이 모자라 '(현' / '재 +5.87%)' 로 쪼개진다.
+                //   1줄: 라벨 + 단가  /  2줄: 날짜 · 수량 (현재 ±%)
                 return (
-                  <div key={label} className="text-[10px]">
-                    <span className="text-[9px] text-slate-500">{label} </span>
-                    <span className="font-bold text-slate-800">
-                      {Math.round(t.unit).toLocaleString()}원
-                    </span>
-                    <span className="ml-1 text-[9px] text-slate-500 tabular-nums">
+                  <div key={label} className="text-[10px] leading-tight">
+                    <div className="whitespace-nowrap">
+                      <span className="text-[9px] text-slate-500">{label} </span>
+                      <span className="font-bold text-slate-800">
+                        {Math.round(t.unit).toLocaleString()}원
+                      </span>
+                    </div>
+                    <div className="text-[9px] text-slate-500 tabular-nums whitespace-nowrap">
                       {md} · {t.qty.toLocaleString()}주
-                    </span>
-                    <span className={`ml-1 text-[9px] font-bold ${signColor(gap)}`}
-                          title="그때 값 대비 지금 현재가">
-                      (현재 {gap >= 0 ? "+" : ""}{gap.toFixed(2)}%)
-                    </span>
+                      <span className={`ml-1 font-bold ${signColor(gap)}`}
+                            title="그때 값 대비 지금 현재가">
+                        (현재 {gap >= 0 ? "+" : ""}{gap.toFixed(2)}%)
+                      </span>
+                    </div>
                   </div>
                 );
               })}
@@ -880,7 +884,8 @@ export function MobileStockCard({
                        defaultOpen={!hasPosition}
                        etfTicker={isEtfByName(stock.name) ? stock.ticker : undefined}
                        usTicker={isUsHolding && !isEtfByName(stock.name) ? stock.ticker : undefined}
-                       krTicker={!isUsHolding && !isEtfByName(stock.name) ? stock.ticker : undefined} />
+                       krTicker={!isUsHolding && !isEtfByName(stock.name) ? stock.ticker : undefined}
+                       hideFlow />
 
         {/* ─── 투자자 매매동향 레이어 (👥 클릭 시) ─── */}
         {showFlow && investor && (

@@ -203,6 +203,16 @@ export function MobileSimpleView() {
   const [valuationName, setValuationName] = useState<string | null>(null);   // 비보유(ETF비교 등) 이름 폴백
   const [savedMsg, setSavedMsg] = useState("");
   const [todayPnLOpen, setTodayPnLOpen] = useState(false);
+  // 하단 합계 카드 닫기 — 화면 아래를 늘 가려서 마지막 카드들이 안 보였다.
+  //   닫으면 오른쪽 아래 작은 '합계 ▲' 알약만 남고, 누르면 다시 편다. 기기에 기억한다.
+  const [totalsHidden, setTotalsHiddenState] = useState<boolean>(() => {
+    try { return localStorage.getItem("m_totals_hidden") === "1"; } catch { return false; }
+  });
+  const setTotalsHidden = (v: boolean) => {
+    setTotalsHiddenState(v);
+    if (v) setTodayPnLOpen(false);
+    try { localStorage.setItem("m_totals_hidden", v ? "1" : "0"); } catch { /* 저장 불가 — 이번 세션만 */ }
+  };
   // 그룹 탭 길게 누르기 → 액션 시트 (이름 변경 / 삭제)
   const [tabMenu, setTabMenu] = useState<{ key: string; label: string } | null>(null);
   const longPressTimer = useRef<number | null>(null);
@@ -1413,7 +1423,16 @@ export function MobileSimpleView() {
           {/* 합계 — 화면 하단 fixed.
               합계 클릭 시 위로 오늘 수익/손해 레이어가 펼쳐짐, 다시 클릭 또는 바깥 탭 시 닫힘.
               관심종목만 있어 보유 0개면 TotalRow 가 null → 토글 불가하므로 WhatIfRow 단독 노출. */}
-          {groupHoldings.length > 0 && (() => {
+          {groupHoldings.length > 0 && totalsHidden && (
+            <button type="button" onClick={() => setTotalsHidden(false)}
+                    style={{ bottom: (tickerBarOpen ? TICKER_BAR_H : 0) + 8 }}
+                    title="합계 다시 보기"
+                    className="fixed right-3 z-40 px-2.5 py-1 rounded-full bg-white/95
+                               border border-gray-300 shadow text-[11px] font-bold text-gray-700">
+              합계 ▲
+            </button>
+          )}
+          {groupHoldings.length > 0 && !totalsHidden && (() => {
             const hasHoldings = groupHoldings.some(s => s.shares > 0);
             if (!hasHoldings) {
               // 보유 0 — TotalRow(예수금/총자산) 항상, 샀더라면(WhatIfRow)은 클릭 시 (보유 있을 때와 동일)
@@ -1436,9 +1455,16 @@ export function MobileSimpleView() {
                                                  holdings={groupHoldings} prices={groupPriceMap} nameMap={nameMap} />
                       </div>
                     )}
-                    <div className="pointer-events-auto cursor-pointer"
+                    <div className="relative pointer-events-auto cursor-pointer"
                          onClick={() => setTodayPnLOpen(o => !o)}
                          title={todayPnLOpen ? "닫기" : "샀더라면 보기"}>
+                      <button type="button"
+                              onClick={e => { e.stopPropagation(); setTotalsHidden(true); }}
+                              title="합계 닫기"
+                              className="absolute -top-2 -left-2 z-10 w-5 h-5 rounded-full bg-white
+                                         border border-gray-300 shadow text-[11px] leading-none text-gray-500">
+                        ✕
+                      </button>
                       <TotalRow holdings={groupHoldings} prices={groupPriceMap}
                                 account={activeTab}
                                 aggregated={activeTab === MY_KEY}
@@ -1474,9 +1500,16 @@ export function MobileSimpleView() {
                       <MobileTodayPnLLayer holdings={groupHoldings} prices={groupPriceMap} />
                     </div>
                   )}
-                  <div className="pointer-events-auto cursor-pointer"
+                  <div className="relative pointer-events-auto cursor-pointer"
                        onClick={() => setTodayPnLOpen(o => !o)}
                        title={todayPnLOpen ? "닫기" : "오늘 수익/손해 보기"}>
+                    <button type="button"
+                            onClick={e => { e.stopPropagation(); setTotalsHidden(true); }}
+                            title="합계 닫기"
+                            className="absolute -top-2 -left-2 z-10 w-5 h-5 rounded-full bg-white
+                                       border border-gray-300 shadow text-[11px] leading-none text-gray-500">
+                      ✕
+                    </button>
                     <TotalRow holdings={groupHoldings} prices={groupPriceMap}
                               account={activeTab}
                               aggregated={activeTab === MY_KEY}

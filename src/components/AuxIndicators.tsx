@@ -59,10 +59,13 @@ interface Props {
   //   ETF·미국과 달리 **펼쳤을 때만** 1년 일봉을 받는다 — 종목당 1콜이라 접힌 카드까지
   //   받으면 그룹 전체보기에서 수십 콜이 그냥 나간다.
   krTicker?: string;
+  // 오른쪽 칸(변동성·수급)을 뺀다 — 모바일은 카드가 좁아 두 칸이면 라벨이 글자 단위로 쪼개진다.
+  //   수급은 모바일 카드의 👥 레이어에 따로 있다.
+  hideFlow?: boolean;
 }
 
 export function AuxIndicators({
-  chart, investorHistory, isTradingDay, textSize = "xs", defaultOpen, etfTicker, usTicker, krTicker,
+  chart, investorHistory, isTradingDay, textSize = "xs", defaultOpen, etfTicker, usTicker, krTicker, hideFlow,
 }: Props) {
   const [expanded, setExpanded] = useState(defaultOpen ?? !isTradingDay);
   const sizeCls = textSize === "10" ? "text-[10px]" : "text-[11px]";
@@ -214,7 +217,10 @@ export function AuxIndicators({
     }
   }
 
-  if (retLines.length === 0 && flowLines.length === 0) return null;
+  if (hideFlow) flowLines.length = 0;
+  // 아무 줄도 없어도 **기간수익률을 받을 수 있는 종목이면** 버튼은 남긴다.
+  //   한국 일반주는 펼쳐야 수익률을 받는데(retEnabled), 버튼까지 숨기면 영영 못 편다.
+  if (retLines.length === 0 && flowLines.length === 0 && !showReturns) return null;
 
   // 우측 하단 별도 네모 블럭
   return (
@@ -226,6 +232,9 @@ export function AuxIndicators({
                         shadow-sm cursor-pointer hover:bg-gray-50">
           {/* 두 칸 — 기간수익률(좌) | 변동성·수급(우). 한쪽만 있으면 그 칸만. */}
           <div className="flex items-start gap-2 tabular-nums">
+            {retLines.length === 0 && flowLines.length === 0 && (
+              <div className={`${sizeCls} text-gray-400`}>불러오는 중…</div>
+            )}
             {retLines.length > 0 && <div className="space-y-0">{retLines}</div>}
             {retLines.length > 0 && flowLines.length > 0 && (
               <div className="self-stretch w-px bg-gray-200" />
@@ -236,7 +245,7 @@ export function AuxIndicators({
       ) : (
         <button type="button"
                 onClick={() => setExpanded(true)}
-                title={`추가지표 (${retLines.length + flowLines.length}개) 펼치기`}
+                title={retLines.length + flowLines.length > 0 ? `추가지표 (${retLines.length + flowLines.length}개) 펼치기` : "기간 수익률 펼치기"}
                 className="border border-gray-300 rounded bg-white/95 px-1.5 py-0.5
                            text-[8px] text-gray-500 hover:text-gray-700 shadow-sm
                            cursor-pointer leading-none">
