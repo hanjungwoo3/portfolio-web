@@ -4,7 +4,7 @@
 //   그걸 예측으로 읽는다. 실제로는 불안정한 신호라(앞 절반 마이너스·뒤 절반 플러스) 그 사실이
 //   같은 자리에서 보여야 한다. 숫자는 매번 다시 계산하니 데이터가 쌓이면 판정도 바뀐다.
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { signColor, dayChangePct } from "../lib/format";
 import { fetchUsHoldingPrices, fetchTossPrices } from "../lib/api";
@@ -44,7 +44,7 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
   const [loading, setLoading] = useState(data === null);
   const [err, setErr] = useState<string | null>(null);
   const [statsOpen, setStatsOpen] = useState(true);
-  const [hoverWeek, setHoverWeek] = useState<number | null>(null);   // 주별 1등 띠에서 가리킨 칸
+  const [hoverDay, setHoverDay] = useState<number | null>(null);     // 일별 히트맵에서 가리킨 거래일 인덱스   // 주별 1등 띠에서 가리킨 칸
   const [moreOpen, setMoreOpen] = useState(true);    // 기본 펼침 — 부가 정보(지금 강한 곳·다음 후보·흐름·통계)
   // 일별 등락 가로 스크롤 — 처음엔 오른쪽 끝(최근)이 보이게
   const dailyScrollRef = useRef<HTMLDivElement>(null);
@@ -279,43 +279,76 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
             )}
           </div>
 
-          {/* ③ 일별 등락 히트맵 — 표: 행 = 6단계, 열 = 날짜(최근 60거래일, 매일). 칸 색 = 등락(빨강 오름·파랑 내림),
-              **진할수록 크게** 움직인 날. 칸 안에 등락률 숫자. 칸 폭을 고정하고 가로 스크롤(처음엔 최근 쪽). */}
+          {/* ③ 일별 등락 히트맵 — 표: 행 = 6단계, 열 = 날짜. **한 주(월~금)씩 끊어** 주 사이에 틈을 두고
+              요일을 머리에 적는다(휴장일은 빈칸) — 요일별로 비교가 된다. 칸 색 = 등락(빨강 오름·파랑 내림),
+              진할수록 크게 움직인 날. 칸 폭 고정 + 가로 스크롤(처음엔 최근 쪽). */}
           <div className="rounded-xl border border-gray-300 bg-white p-2.5">
-            <div className="mb-1.5 text-[12px] font-bold text-gray-700">일별 등락 — 최근 60거래일</div>
+            <div className="mb-1.5 text-[12px] font-bold text-gray-700">일별 등락 — 최근 12주 (요일별)</div>
             {(() => {
-              const n = Math.min(60, data.days.length);
-              const d0 = data.days.length - n;
-              if (n === 0) return <div className="text-[11px] text-gray-400">일별 데이터가 없습니다.</div>;
+              if (data.days.length === 0) return <div className="text-[11px] text-gray-400">일별 데이터가 없습니다.</div>;
+              // 주(월요일 날짜) → 월~금 5칸. 거래일 인덱스를 칸에 담고, 휴장일은 null.
+              const monday = (d: string) => {
+                const t = new Date(`${d}T00:00:00Z`);
+                t.setUTCDate(t.getUTCDate() - ((t.getUTCDay() + 6) % 7));
+                return t.toISOString().slice(0, 10);
+              };
+              const byWeek = new Map<string, (number | null)[]>();
+              data.days.forEach((d, i) => {
+                const wd = (new Date(`${d}T00:00:00Z`).getUTCDay() + 6) % 7;   // 월=0 … 금=4
+                if (wd > 4) return;
+                const m = monday(d);
+                if (!byWeek.has(m)) byWeek.set(m, [null, null, null, null, null]);
+                byWeek.get(m)![wd] = i;
+              });
+              const weeks = [...byWeek.entries()].sort(([x], [y]) => x.localeCompare(y)).slice(-12);
+              const idxs = weeks.flatMap(([, slots]) => slots.filter((x): x is number => x != null));
               // 명도 척도 — 모든 단계 공통. 튀는 하루가 나머지를 다 옅게 만들지 않도록 95% 분위수에서 가장 진하게.
-              const abs = STAGES.flatMap(st => data.daily[st.key].slice(d0).map(Math.abs)).sort((x, y) => x - y);
+              const abs = STAGES.flatMap(st => idxs.map(i => Math.abs(data.daily[st.key][i]))).sort((x, y) => x - y);
               const cap = Math.max(1, abs[Math.floor(abs.length * 0.95)] ?? 1);
               const cell = (v: number) => {
                 const t = Math.min(1, Math.abs(v) / cap);                     // 0..1
                 const [r, g, b] = v >= 0 ? [225, 29, 72] : [37, 99, 235];     // rose-600 / blue-600
                 return { background: `rgba(${r},${g},${b},${0.08 + t * 0.82})`, color: t > 0.55 ? "#fff" : v >= 0 ? "#be123c" : "#1d4ed8" };
               };
-              const COL = 36;   // 하루 칸 폭(px) — '+1.2' 가 들어가는 폭
+              const COL = 36;                            // 하루 칸 폭(px) — '+1.2' 가 들어가는 폭
+              const DOW = ["월", "화", "수", "목", "금"];
+              const md = (d: string) => `${Number(d.slice(5, 7))}/${Number(d.slice(8, 10))}`;
+              // 주 사이 칸막이 — 틈 가운데 세로선(머리·몸통 모든 줄에 이어져 한 줄로 보인다)
+              const gap = (
+                <td className="relative w-3 p-0">
+                  <div className="absolute left-1/2 -top-px -bottom-px w-px -translate-x-1/2 bg-gray-400" />
+                </td>
+              );
               return (
                 <>
-                  <div ref={dailyScrollRef} className="overflow-x-auto" onMouseLeave={() => setHoverWeek(null)}>
+                  <div ref={dailyScrollRef} className="overflow-x-auto" onMouseLeave={() => setHoverDay(null)}>
                     <table className="border-separate border-spacing-px text-[10px] tabular-nums">
                       <thead>
                         <tr>
                           <th className="sticky left-0 z-10 bg-white" />
-                          {Array.from({ length: n }, (_, i) => {
-                            const d = data.days[d0 + i];
-                            const prev = i > 0 ? data.days[d0 + i - 1] : null;
-                            const newMonth = prev == null || prev.slice(5, 7) !== d.slice(5, 7);
-                            const dd = Number(d.slice(8, 10));
-                            return (
-                              <th key={i} style={{ minWidth: COL }}
-                                  className={`font-normal pb-0.5 whitespace-nowrap
-                                              ${hoverWeek === i ? "font-bold text-gray-900" : newMonth ? "font-bold text-gray-600" : "text-gray-400"}`}>
-                                {newMonth ? `${Number(d.slice(5, 7))}/${dd}` : dd}
+                          {weeks.map(([m], wi) => (
+                            <Fragment key={m}>
+                              {wi > 0 && gap}
+                              <th colSpan={5} className="font-bold text-gray-500 text-left pl-0.5 whitespace-nowrap border-b border-gray-200">
+                                {md(m)} 주
                               </th>
-                            );
-                          })}
+                            </Fragment>
+                          ))}
+                        </tr>
+                        <tr>
+                          <th className="sticky left-0 z-10 bg-white" />
+                          {weeks.map(([m, slots], wi) => (
+                            <Fragment key={m}>
+                              {wi > 0 && gap}
+                              {slots.map((ix, k) => (
+                                <th key={k} style={{ minWidth: COL }}
+                                    className={`font-normal pb-0.5 whitespace-nowrap
+                                                ${ix != null && hoverDay === ix ? "font-bold text-gray-900" : "text-gray-400"}`}>
+                                  {DOW[k]}{ix != null && <span className="ml-0.5 text-[9px]">{Number(data.days[ix].slice(8, 10))}</span>}
+                                </th>
+                              ))}
+                            </Fragment>
+                          ))}
                         </tr>
                       </thead>
                       <tbody>
@@ -324,23 +357,29 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
                             <th className={`sticky left-0 z-10 bg-white pr-1.5 text-left font-bold whitespace-nowrap ${STAGE_COLOR[st.key].text}`}>
                               {st.label}
                             </th>
-                            {Array.from({ length: n }, (_, i) => {
-                              const v = data.daily[st.key][d0 + i];
-                              return (
-                                <td key={i} style={cell(v)} onMouseEnter={() => setHoverWeek(i)}
-                                    title={`${data.days[d0 + i]} ${st.label} ${pct(v, 2)}`}
-                                    className={`h-6 text-center rounded-[3px] ${hoverWeek === i ? "outline outline-1 outline-gray-700" : ""}`}>
-                                  {v >= 0 ? "+" : ""}{v.toFixed(1)}
-                                </td>
-                              );
-                            })}
+                            {weeks.map(([m, slots], wi) => (
+                              <Fragment key={m}>
+                                {wi > 0 && gap}
+                                {slots.map((ix, k) => {
+                                  if (ix == null) return <td key={k} className="h-6 rounded-[3px] bg-gray-50" title="휴장" />;
+                                  const v = data.daily[st.key][ix];
+                                  return (
+                                    <td key={k} style={cell(v)} onMouseEnter={() => setHoverDay(ix)}
+                                        title={`${data.days[ix]} (${DOW[k]}) ${st.label} ${pct(v, 2)}`}
+                                        className={`h-6 text-center rounded-[3px] ${hoverDay === ix ? "outline outline-1 outline-gray-700" : ""}`}>
+                                      {v >= 0 ? "+" : ""}{v.toFixed(1)}
+                                    </td>
+                                  );
+                                })}
+                              </Fragment>
+                            ))}
                           </tr>
                         ))}
                       </tbody>
                     </table>
                   </div>
                   <div className="mt-1 text-center text-[10px] text-gray-400">
-                    빨강 = 오른 날 · 파랑 = 내린 날 · 진할수록 크게 움직임 · 옆으로 밀면 이전 날짜
+                    빨강 = 오른 날 · 파랑 = 내린 날 · 진할수록 크게 움직임 · 회색 빈칸 = 휴장 · 옆으로 밀면 이전 주
                   </div>
                 </>
               );
