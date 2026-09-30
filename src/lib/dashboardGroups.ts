@@ -22,7 +22,7 @@ export interface DashboardSection {
   keepRows?: boolean;
   // 줄마다 첫 카드가 '원인'(간밤 미국 대장주)이고 나머지가 '결과'(오늘 한국 종목). 첫 카드를 굵은
   //   테두리로 구분하고 오른쪽에 → 를 붙여 "이게 → 이것들" 이 한눈에 읽히게 한다.
-  lead?: boolean;
+  lead?: number;      // 줄마다 앞 N 칸이 미국 대장주(원인) — 단계색 배경 + 뒤에 ➜
   // 줄 이름(rows 와 같은 길이) — PC 는 줄 왼쪽, 모바일은 줄 위에 둔다. 줄마다 옅은 상자로 나눈다.
   rowLabels?: string[];
   // 블록 맨 위 설명 한 줄 — 이 블록을 어떻게 읽는지.
@@ -62,6 +62,15 @@ const TAG_CARD: Record<string, string> = {
 export function dashboardTagCard(tag: string | undefined): string {
   return (tag && TAG_CARD[tag]) || "bg-amber-50 border-amber-300";
 }
+/** 순환매 같은 lead 그룹에서 이 심볼이 미국 대장주 칸이면 그 줄 번호, 아니면 -1. */
+export function leadRowOf(s: DashboardSection, sym: string): number {
+  if (!s.lead) return -1;
+  return s.rows.findIndex(r => r.slice(0, s.lead).includes(sym));
+}
+/** 줄의 마지막 대장주 칸인가 — ➜ 는 여기 뒤(한국 쪽 앞)에 하나만 그린다. */
+export function isLastLead(s: DashboardSection, sym: string): boolean {
+  return !!s.lead && s.rows.some(r => r[s.lead! - 1] === sym);
+}
 export function dashboardTagTone(tag: string): string {
   return TAG_TONE[tag] ?? "text-slate-700 bg-slate-50 border-slate-300/70";   // 광통신·AI 클라우드 등
 }
@@ -72,13 +81,17 @@ function sectionMap(): Record<string, DashboardSection> {
     {
       id: "kr", short: "주간",
       // '한국 시장' 이었는데 미국 지수 선물까지 들어가 — 나라 대신 시간(한국 낮)으로 이름을 붙였다.
-      label: "🌞 주간 시장",                           // 한국 지수 + 주간 선물 + 한국 공포 + 미국 선물
-      rows: [
-        ["^KS11", "^KQ11", "^KS200N", "^KQ150N", "069500.KS", "229200.KS"],
-        // 둘째 줄 빈 네 칸에 미국 지수 선물 — 한국 낮 = 미국 밤이라 이 시간에 움직이는 미국은 선물뿐이다.
-        //   따로 '미국 선물' 그룹을 두는 것보다 한국 시장 바로 옆에서 같이 보는 게 읽기 쉽다.
-        ["KVALUE", "VKOSPI", "NQ=F", "ES=F", "RTY=F", "SOX=F"],
-      ],
+      label: "🌞 주간 시장",                           // 한국 지수 + 한국 공포 — 한 줄
+      rows: [["^KS11", "^KQ11", "069500.KS", "229200.KS", "KVALUE", "VKOSPI"]],
+    },
+    {
+      // 주간 선물 한데 모음 — 야간 페이지 '선물' 그룹과 같은 모양.
+      //   첫 줄 = 미국 지수 선물(한국 낮 = 미국 밤이라 이 시간에 움직이는 미국은 선물뿐),
+      //   둘째 줄 = 한국 주간선물. 야간 시간엔 이 둘이 '야간선물' 이 돼 buildDashboardPage 가 뺀다
+      //   (야간 페이지 '선물' 에 있고, 거긴 반대로 낮에 뺀다).
+      id: "dayfut", short: "선물",
+      label: "⏳ 선물 (미국 지수 · 한국 주간)",
+      rows: [["NQ=F", "ES=F", "RTY=F", "SOX=F"], ["^KS200N", "^KQ150N"]],
     },
     {
       // ETF 등락 TOP10(상승·하락) — 한국 시장 바로 아래. 레버리지·선물을 빼야 '오늘 실제로 오른 곳' 이 보인다.
@@ -102,11 +115,12 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     {
       id: "macro", short: "미국지수",
-      label: "📈 미국 지수",                          // 전체시장(러셀3000·NYSE) + 대표(나스닥·S&P·다우)
+      label: "📈 미국 지수",                          // NYSE 종합(기술주 뺀 나머지 시장) + 대표(나스닥·S&P·다우)
       // 윌셔5000(^W5000)은 뺐다 — 야후가 장중 갱신을 안 해 정규장에도 어제 값에서 멈춰
-      //   종일 흐렸다(실측 2026-09-29 10:59 ET: 1,410분 전 값). 러셀3000과 일간수익률 상관
-      //   0.9999·1년 수익률 +14.7% vs +14.6% 라 빼도 잃는 정보가 없다.
-      rows: [["^RUA", "^NYA", "^IXIC", "^GSPC", "^DJI"]],
+      //   종일 흐렸다(실측 2026-09-29 10:59 ET: 1,410분 전 값). 러셀3000과 상관 0.9999.
+      // 러셀3000(^RUA)도 뺐다 — 시총가중이라 S&P 500 과 일간 상관 0.997·1년 +14.8% vs +15.4%
+      //   (실측 2026-09-30). NYSE 종합은 남긴다 — S&P 와 0.821·나스닥 0.660, 251일 중 49일 부호가 갈린다.
+      rows: [["^NYA", "^IXIC", "^GSPC", "^DJI"]],
     },
     {
       // 환율·금리·투심 — 주간·야간 **같은 한 벌**. 원달러(역외)·달러인덱스·미 국채·VIX·EWY 모두
@@ -116,7 +130,7 @@ function sectionMap(): Record<string, DashboardSection> {
       label: "📊 환율·금리·투심",
       rows: [
         ["KRW=X", "JPYKRW=X", "DX-Y.NYB", "^US2Y", "^TNX", "^TYX"],
-        ["EWY", "KORU", "^VIX"],
+        ["EWY", "KORU", "^VIX", "^MOVE"],   // MOVE = 채권판 VIX(야후 값·차트)
       ],
     },
     {
@@ -175,15 +189,16 @@ function sectionMap(): Record<string, DashboardSection> {
       id: "rotflow", short: "순환매",
       label: "🔄 AI 순환매 — 간밤 🇺🇸 → 오늘 🇰🇷",
       note: "간밤 🇺🇸 미국 대장주(굵은 카드)가 움직이면 → 오늘 🇰🇷 같은 분야 한국 종목도 같은 방향으로 가는 경향이 있어요. 예측은 아닙니다.",
-      lead: true,
+      lead: 2,
       rowLabels: ["반도체", "전공정", "후공정", "전력기기", "원자력", "친환경"],
+      // 줄 = [미국 대장주 2개, 한국 섹터 ETF…] — lib/rotation STAGES 와 같아야 한다(테스트가 대조).
       rows: [
-        ["MU", "005930.KS", "000660.KS"],
-        ["AMAT", "240810.KS", "036930.KS", "319660.KS", "084370.KS"],
-        ["ONTO", "042700.KS", "095340.KS", "089030.KS", "067310.KS"],
-        ["PWR", "267260.KS", "010120.KS", "298040.KS"],
-        ["CCJ", "034020.KS", "052690.KS", "051600.KS"],
-        ["BE", "009830.KS", "112610.KS", "336260.KS"],
+        ["SNDK", "MU", "396500.KS", "091160.KS", "091230.KS"],
+        ["LRCX", "AMAT", "475300.KS", "471990.KS", "471760.KS"],
+        ["KLAC", "ONTO", "475310.KS", "455850.KS"],
+        ["PWR", "GEV", "487240.KS", "491820.KS", "0117V0.KS"],
+        ["CCJ", "OKLO", "433500.KS", "0098F0.KS", "0091P0.KS"],
+        ["BE", "FSLR", "377990.KS", "385510.KS", "381570.KS"],
       ],
     },
     {
@@ -197,17 +212,24 @@ function sectionMap(): Record<string, DashboardSection> {
     {
       // 밤에 보는 한국 — 코스피200·코스닥150 야간선물 + 하이닉스·삼성 24h + 하이닉스 ADR + 외국인 투심.
       //   미국장 동안 "내일 한국" 을 가늠하는 것들을 한 줄에 모은다.
-      id: "krnight", short: "밤의한국",
-      label: "🌙 밤에 보는 한국 (야간선물·24h)",
-      rows: [["^KS200N", "^KQ150N", "SKHY-PERP", "SMSN-PERP", "SKHY", "EWY"]],
+      // 야간 선물 한데 모음 — 미국 지수 선물(거의 24h, 주간 페이지 '주간 시장' 에도 있다) +
+      //   한국 야간선물 + 삼성·하이닉스 24h 무기한선물. (id 는 옛 이름 krnight 그대로)
+      // EWY 는 뺐다 — 같은 페이지 맨 위 '환율·금리·투심' 에 이미 있다.
+      // SK하이닉스 ADR(SKHY)도 뺐다 — 반도체 탭 '반도체' 그룹 첫 줄에 있다.
+      id: "krnight", short: "선물",
+      label: "⏳ 선물 (미국 지수 · 한국 야간)",
+      rows: [
+        ["NQ=F", "ES=F", "RTY=F", "SOX=F"],
+        ["^KS200N", "^KQ150N", "SKHY-PERP", "SMSN-PERP"],
+      ],
     },
     {
       id: "spot", short: "현물",
-      label: "💵 현물 (원자재·코인)",                   // 금·은·구리·원유·가스·밀 + 암호화폐 — 가격 자체가 신호
+      label: "💵 현물 (원자재)",                        // 가격 자체가 신호
+      // 줄 = 금속·곡물 / 에너지. 암호화폐(BTC·ETH·XRP·SOL)는 뺐다.
       rows: [
-        ["GC=F", "SI=F", "HG=F", "CL=F", "BZ=F", "NG=F"],
-        // 밀 + 암호화폐. 토스 overview 가 원자재·가상자산을 **같은 응답**에 실어 보내서 추가 호출이 없다.
-        ["ZW=F", "BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD"],
+        ["GC=F", "SI=F", "HG=F", "ZW=F"],
+        ["CL=F", "BZ=F", "NG=F"],
       ],
     },
     {
@@ -241,19 +263,34 @@ export const DASHBOARD_PAGES: { key: DashboardPage; emoji: string; tab: string; 
 
 // 페이지별 구성 — **그 시간에 필요한 걸 다**. 중복 허용(한 페이지만 봐도 되게).
 export const PAGE_IDS: Record<DashboardPage, string[]> = {
-  // 주간·야간 모두 **맨 아래는 같은 한 세트** — 한·미 섹터 → 현물(원자재·코인) → 환율·금리·투심.
-  //   셋 다 밤낮으로 보는 것이라 어느 페이지에서든 같은 자리에서 찾게 한다.
-  day:   ["kr", "etftop", "sector", "spot", "krfx"],
-  // 미국 지수 → 밤의 한국 → 빅테크·ETF → 공통 세트.
+  // 주간·야간 모두 **맨 아래는 같은 한 세트** — 한·미 섹터 → 환율·금리·투심 → 선물 → 현물(원자재).
+  //   밤낮으로 보는 것들이라 어느 페이지에서든 같은 자리에서 찾게 한다.
+  day:   ["kr", "etftop", "sector", "krfx", "dayfut", "spot"],
+  // 미국 지수 → 빅테크·ETF → 공통 세트(섹터·환율·선물·현물).
   //   반도체·소부장·AI 인프라·AI 단계별은 **반도체 페이지에 따로 있어** 여기선 뺀다(야간이 너무 길어졌다).
-  night: ["macro", "krnight", "bigtech", "usetf", "sector", "spot", "krfx"],
-  // AI 단계별 미국 대장주(aiflow) 한 줄 → 바로 아래 순환매 블록이 같은 대장주를 한국 종목과 이어 보여준다.
-  semi:  ["semi", "semieq", "aiinfra", "aiflow", "rotflow", "rotation"],
+  night: ["macro", "bigtech", "usetf", "sector", "krfx", "krnight", "spot"],
+  // AI 단계별 미국 대장주(aiflow)는 뺐다 — 바로 아래 순환매 블록 줄마다 첫 카드가 같은 대장주다.
+  // 소부장(semieq)은 뺐다 — 순환매 블록이 전공정·소재·부품·후공정 줄로 같은 미국 장비주를 한국 종목과 이어 보여준다.
+  semi:  ["semi", "aiinfra", "rotflow", "rotation"],
 };
 
-export function buildDashboardPage(page: DashboardPage): DashboardSection[] {
+// 한국 선물 가상심볼 — 같은 카드가 시간 따라 주간선물(09:00~15:45)·야간선물(18:00~05:00)이 된다.
+const KR_FUT = new Set(["^KS200N", "^KQ150N"]);
+
+/** `krNight` = 지금 한국 야간 세션인가(18:00~09:00 KST). 기본은 현재 시각 — 테스트는 직접 넘긴다. */
+export function buildDashboardPage(page: DashboardPage, krNight = isKrNightNow()): DashboardSection[] {
   const m = sectionMap();
-  return PAGE_IDS[page].map(id => m[id]).filter((s): s is DashboardSection => !!s);
+  const secs = PAGE_IDS[page].map(id => m[id]).filter((s): s is DashboardSection => !!s);
+  // 주간 페이지엔 **주간선물만**(밤엔 뺀다), 야간 페이지엔 **야간선물만**(낮엔 뺀다).
+  const dropIn = page === "day" && krNight ? "dayfut" : page === "night" && !krNight ? "krnight" : null;
+  if (!dropIn) return secs;
+  return secs.map(s => s.id !== dropIn ? s : { ...s, rows: s.rows.map(r => r.filter(sym => !KR_FUT.has(sym))) });
+}
+// format.ts 의 isKrNightSession 과 같은 규칙 — lib 끼리 순환 import 를 피하려 여기서 계산한다.
+function isKrNightNow(): boolean {
+  const kst = new Date(Date.now() + 9 * 3600_000);
+  const hm = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+  return hm >= 18 * 60 || hm < 9 * 60;
 }
 
 // PC 지수 탭 키 — Tabs.tsx 의 US_MARKET_TAB_KEY · INDEX_NIGHT_TAB_KEY · INDEX_SEMI_TAB_KEY 와 **같은 문자열**.

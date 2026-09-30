@@ -24,34 +24,38 @@ export interface Stage {
   label: string;
   family: Family;
   members: { code: string; name: string }[];
-  us: { symbol: string; name: string };   // 간밤에 이 단계를 끌고 오는 미국 대장주
+  us: { symbol: string; name: string };   // 간밤에 이 단계를 끌고 오는 미국 대장주(상관 1위 — 통계는 이것만 쓴다)
+  us2: { symbol: string; name: string };  // 2위 — 카드에만 같이 보여 준다
 }
 
 // 단계 정의 — 한 벌. 미국 대장주는 '미국 직전 거래일 ↔ 한국 다음 날' 상관 1위(2026-09-30 실측).
 export const STAGES: Stage[] = [
+  // 한국 쪽은 **섹터 ETF** — 종목 3~4개 묶음보다 미국 대장주 전날 ↔ 한국 다음 날 상관이 7단계 모두 높았다
+  //   (분산돼 개별 종목 소음이 준다, 2026-10-01 실측 ~300거래일). 미국은 상관 1·2위.
+  //   소재·부품은 뺐다 — ETF 로 보면 전공정(주간 0.91)·후공정(0.96)과 한 몸이고, 미국 1·2위도 전공정과 같았다.
   { key: "semi", label: "반도체", family: "chip",
-    members: [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }],
-    us: { symbol: "MU", name: "마이크론" } },
+    members: [{ code: "396500", name: "TIGER 반도체TOP10" }, { code: "091160", name: "KODEX 반도체" },
+              { code: "091230", name: "TIGER 반도체" }],
+    us: { symbol: "SNDK", name: "샌디스크" }, us2: { symbol: "MU", name: "마이크론" } },
   { key: "front", label: "전공정", family: "chip",
-    members: [{ code: "240810", name: "원익IPS" }, { code: "036930", name: "주성엔지니어링" },
-              { code: "319660", name: "피에스케이" }, { code: "084370", name: "유진테크" }],
-    us: { symbol: "AMAT", name: "어플라이드" } },
+    members: [{ code: "475300", name: "SOL 반도체전공정" }, { code: "471990", name: "KODEX AI반도체핵심장비" },
+              { code: "471760", name: "TIGER AI반도체핵심공정" }],
+    us: { symbol: "LRCX", name: "램리서치" }, us2: { symbol: "AMAT", name: "어플라이드" } },
   { key: "back", label: "후공정", family: "chip",
-    members: [{ code: "042700", name: "한미반도체" }, { code: "095340", name: "ISC" },
-              { code: "089030", name: "테크윙" }, { code: "067310", name: "하나마이크론" }],
-    us: { symbol: "ONTO", name: "온투" } },
+    members: [{ code: "475310", name: "SOL 반도체후공정" }, { code: "455850", name: "SOL AI반도체소부장" }],
+    us: { symbol: "KLAC", name: "KLA" }, us2: { symbol: "ONTO", name: "온투" } },
   { key: "power", label: "전력기기", family: "energy",
-    members: [{ code: "267260", name: "HD현대일렉트릭" }, { code: "010120", name: "LS일렉트릭" },
-              { code: "298040", name: "효성중공업" }],
-    us: { symbol: "PWR", name: "콴타서비스" } },
+    members: [{ code: "487240", name: "KODEX AI전력핵심설비" }, { code: "491820", name: "HANARO 전력설비투자" },
+              { code: "0117V0", name: "TIGER 코리아AI전력기기TOP3플러스" }],
+    us: { symbol: "PWR", name: "콴타서비스" }, us2: { symbol: "GEV", name: "GE버노바" } },
   { key: "nuclear", label: "원자력", family: "energy",
-    members: [{ code: "034020", name: "두산에너빌리티" }, { code: "052690", name: "한전기술" },
-              { code: "051600", name: "한전KPS" }],
-    us: { symbol: "CCJ", name: "카메코" } },
+    members: [{ code: "433500", name: "ACE 원자력TOP10" }, { code: "0098F0", name: "KODEX 원자력SMR" },
+              { code: "0091P0", name: "TIGER 코리아원자력" }],
+    us: { symbol: "CCJ", name: "카메코" }, us2: { symbol: "OKLO", name: "오클로" } },
   { key: "green", label: "친환경", family: "energy",
-    members: [{ code: "009830", name: "한화솔루션" }, { code: "112610", name: "씨에스윈드" },
-              { code: "336260", name: "두산퓨얼셀" }],
-    us: { symbol: "BE", name: "블룸에너지" } },
+    members: [{ code: "377990", name: "TIGER Fn신재생에너지" }, { code: "385510", name: "KODEX 신재생에너지액티브" },
+              { code: "381570", name: "HANARO Fn친환경에너지" }],
+    us: { symbol: "BE", name: "블룸에너지" }, us2: { symbol: "FSLR", name: "퍼스트솔라" } },
 ];
 
 export const LAG_WEEKS = 4;   // 소외 판정 창(주). 뒤 절반에서 1·2·4주가 같은 방향이었다 — 전체로는 약하다(파일 상단)
@@ -66,7 +70,7 @@ export interface RotationData {
   daily: Record<string, number[]>;        // 단계 → 일별 수익률(%) (days[i] 하루치, 동일가중)
 }
 
-const LS_KEY = "ai_rotation_v2";   // v2: 일별(days/daily) 추가 — 옛 캐시엔 없어 새로 받는다
+const LS_KEY = "ai_rotation_v4";   // v4: 한국 쪽을 섹터 ETF 로 — 옛 캐시는 종목 기준이라 새로 받는다
 const DAILY_KEEP = 120;
 const TTL_MS = 6 * 60 * 60 * 1000;
 
