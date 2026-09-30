@@ -6,7 +6,7 @@ import { useState } from "react";
 import { signColor } from "../lib/format";
 import {
   loadBacktestBars, runBacktest, hasBacktestBars, FWD_DAYS,
-  type BacktestResult,
+  type BacktestResult, type WindowResult,
 } from "../lib/screenerBacktest";
 import type { ScreenCriteria } from "../lib/stockScreener";
 
@@ -178,6 +178,10 @@ export function BacktestPanel({ criteria }: { criteria: ScreenCriteria }) {
                   })}
                 </div>
               )}
+
+              {/* 기간을 반으로 나눠 따로 — 같은 데이터로 문턱을 고르고 평가하면 반드시 좋게 나온다.
+                  앞에서 좋고 **뒤에서도** 좋아야 조건에 뭔가 있는 것이다. */}
+              {res.signals > 0 && <SplitCheck res={res} />}
               {res.signals > 0 && (
                 <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-[11px]
                                 text-gray-600 leading-relaxed">
@@ -239,6 +243,80 @@ export function BacktestPanel({ criteria }: { criteria: ScreenCriteria }) {
           </p>
         </div>
       )}
+    </div>
+  );
+}
+
+// 날짜 'YYYY-MM-DD' → 'YY/MM/DD'
+const ymd = (d: string) => d ? `${d.slice(2, 4)}/${d.slice(5, 7)}/${d.slice(8, 10)}` : "—";
+const MIN_N = 30;   // 이보다 적으면 판정하지 않는다 — 몇 건짜리 평균은 우연이다
+
+function SplitCheck({ res }: { res: BacktestResult }) {
+  const A = res.first, B = res.second;
+  const a20 = A.byHorizon[20]?.excess, b20 = B.byHorizon[20]?.excess;
+  let verdict: { text: string; cls: string };
+  if (!a20 || !b20 || a20.n < MIN_N || b20.n < MIN_N) {
+    verdict = { text: `표본이 적어 판단하기 어렵습니다 (앞 ${A.signals}건 · 뒤 ${B.signals}건 — 각 ${MIN_N}건 이상 필요)`,
+                cls: "bg-gray-50 border-gray-200 text-gray-600" };
+  } else if (a20.mean > 0 && b20.mean > 0) {
+    verdict = { text: "두 구간 모두 시장보다 나았습니다 — 우연만은 아닐 수 있습니다. 그래도 한 번의 상승장일 수 있으니 과신은 금물.",
+                cls: "bg-emerald-50 border-emerald-300 text-emerald-800" };
+  } else if (a20.mean > 0) {
+    verdict = { text: "⚠️ 앞에서만 좋고 뒤에선 무너졌습니다 — 과거에 맞춘 조건일 가능성이 큽니다.",
+                cls: "bg-rose-50 border-rose-300 text-rose-800" };
+  } else if (b20.mean > 0) {
+    verdict = { text: "⚠️ 앞에선 못하고 뒤에서만 좋았습니다 — 안정적이지 않습니다.",
+                cls: "bg-amber-50 border-amber-300 text-amber-800" };
+  } else {
+    verdict = { text: "두 구간 모두 시장보다 못했습니다 — 이 조건으로 고른 것에는 우위가 없습니다.",
+                cls: "bg-blue-50 border-blue-300 text-blue-800" };
+  }
+  const cell = (w: WindowResult, h: number) => {
+    const e = w.byHorizon[h]?.excess;
+    if (!e || e.n === 0) return <span className="text-gray-300">—</span>;
+    return (
+      <>
+        <b className={signColor(e.mean)}>{e.mean >= 0 ? "+" : ""}{e.mean.toFixed(2)}%p</b>
+        <span className={`ml-1 ${e.winRate >= 50 ? "text-rose-600" : "text-blue-600"}`}>
+          · 이김 {e.winRate.toFixed(0)}%
+        </span>
+      </>
+    );
+  };
+  return (
+    <div className="rounded-lg border border-gray-200 overflow-hidden">
+      <div className="px-2 py-1 bg-gray-50 border-b border-gray-200 text-[11px] font-bold text-gray-700">
+        🔬 기간을 반으로 나눠 검증
+        <span className="ml-1 font-normal text-gray-500">
+          — 앞에서 좋고 <b>뒤에서도</b> 좋아야 조건에 뭔가 있는 겁니다
+        </span>
+      </div>
+      <table className="text-[11px] tabular-nums">
+        <thead>
+          <tr className="text-gray-400">
+            <th className="text-left font-normal py-0.5 pl-2 pr-3">초과수익</th>
+            <th className="text-left font-normal py-0.5 pr-4">앞 절반 <span className="text-gray-300">{ymd(A.from)}~{ymd(A.to)}</span></th>
+            <th className="text-left font-normal py-0.5 pr-2">뒤 절반 <span className="text-gray-300">{ymd(B.from)}~{ymd(B.to)}</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          {FWD_DAYS.map(h => (
+            <tr key={h} className={h === 20 ? "bg-indigo-50/60" : ""}>
+              <td className={`py-0.5 pl-2 pr-3 ${h === 20 ? "font-bold text-indigo-700" : "text-gray-500"}`}>+{h}일</td>
+              <td className="py-0.5 pr-4">{cell(A, h)}</td>
+              <td className="py-0.5 pr-2">{cell(B, h)}</td>
+            </tr>
+          ))}
+          <tr className="text-gray-400">
+            <td className="py-0.5 pl-2 pr-3">신호</td>
+            <td className="py-0.5 pr-4">{A.signals.toLocaleString()}건</td>
+            <td className="py-0.5 pr-2">{B.signals.toLocaleString()}건</td>
+          </tr>
+        </tbody>
+      </table>
+      <div className={`px-2 py-1.5 border-t text-[11px] leading-relaxed ${verdict.cls}`}>
+        <b>판정</b> (+20일 기준) — {verdict.text}
+      </div>
     </div>
   );
 }

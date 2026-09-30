@@ -37,15 +37,6 @@ export interface Stat { n: number; mean: number; median: number; winRate: number
 //   평균만 보면 못 견딜 구간을 놓친다. 눌림목은 더 빠질 수 있는 자리를 사는 전략이라 이게 중요하다.
 export interface DrawStat { mean: number; worst: number }
 export interface HorizonResult { signal: Stat; market: Stat; excess: Stat; dd: DrawStat }
-export interface BacktestResult {
-  ranAt: number;
-  universe: number;      // 일봉을 받은 종목 수
-  tradingDays: number;   // 평가 구간 거래일 수
-  signals: number;       // 조건 발동 건수(종목·날짜 조합)
-  signalDays: number;    // 신호가 하루라도 난 날짜 수
-  byHorizon: Record<number, HorizonResult>;
-}
-
 function stat(v: number[]): Stat {
   if (v.length === 0) return { n: 0, mean: 0, median: 0, winRate: 0, std: 0 };
   const s = [...v].sort((a, b) => a - b);
@@ -104,19 +95,41 @@ function bbLowerSeries(cl: number[], n = 20, k = 2): (number | null)[] {
 const WARMUP = 200;   // SMA200 이 채워지는 지점
 const YEAR_BARS = 252;
 
+// 한 구간의 결과. 전체·앞 절반·뒤 절반이 같은 모양이다.
+export interface WindowResult {
+  from: string;          // 구간 첫 신호일(평가 대상 날짜)
+  to: string;            // 구간 마지막 신호일
+  tradingDays: number;   // 구간 거래일 수
+  signals: number;       // 조건 발동 건수(종목·날짜 조합)
+  signalDays: number;    // 신호가 하루라도 난 날짜 수
+  byHorizon: Record<number, HorizonResult>;
+}
+// 전체 구간 필드는 최상위에 그대로 둔다(패널이 그대로 읽는다). 여기에 앞/뒤 절반을 더한다.
+//
+// ★ 왜 반으로 나누나 — 같은 데이터로 문턱을 고르고 같은 데이터로 평가하면 **반드시** 좋은
+//   숫자가 나온다(조합을 여러 개 훑으면 우연히 맞는 게 있다 = 과최적화). 앞에서 좋고 뒤에서도
+//   좋아야 조건에 뭔가 있는 것이다. 실측(2026-09-30): 앞 절반 최고 조합(RSI<35·200일선+10%)이
+//   +1.65%p 였는데 뒤 절반에선 -9.15%p·시장 이김 20.8% 로 뒤집혔다.
+export interface BacktestResult extends WindowResult {
+  ranAt: number;
+  universe: number;      // 일봉을 받은 종목 수
+  split: string;         // 이 날짜부터 뒤 절반
+  first: WindowResult;
+  second: WindowResult;
+}
+
 export function runBacktest(criteria: ScreenCriteria, bars = barsCache): BacktestResult | null {
   if (!bars || bars.length === 0) return null;
   const maxFwd = Math.max(...FWD_DAYS);
-  // 날짜별로 모아 둔다 — 초과수익은 '같은 날 전 종목 평균' 을 빼야 나온다.
-  const marketByDate = new Map<string, Record<number, number[]>>();
-  const signalByDate = new Map<string, Record<number, number[]>>();
-  const ddByH: Record<number, number[]> = {};
-  for (const h of FWD_DAYS) ddByH[h] = [];
-  let signals = 0;
-
-  const bucket = (m: Map<string, Record<number, number[]>>, d: string) => {
+  // 날짜별로 모아 둔다 — 초과수익은 '같은 날 전 종목 평균' 을 빼야 나오고,
+  //   구간을 나눌 때도 날짜로 자르면 되니 한 번만 훑고 세 번 집계한다.
+  type ByH = Record<number, number[]>;
+  const marketByDate = new Map<string, ByH>();
+  const signalByDate = new Map<string, ByH>();
+  const ddByDate = new Map<string, ByH>();
+  const bucket = (m: Map<string, ByH>, d: string): ByH => {
     let b = m.get(d);
-    if (!b) { b = {} as Record<number, number[]>; for (const h of FWD_DAYS) b[h] = []; m.set(d, b); }
+    if (!b) { b = {}; for (const h of FWD_DAYS) b[h] = []; m.set(d, b); }
     return b;
   };
 
@@ -142,37 +155,55 @@ export function runBacktest(criteria: ScreenCriteria, bars = barsCache): Backtes
       }
       if (!(cl[i] * vol[i] >= criteria.minValueTradedEok * 1e8)) continue;
       const sg = bucket(signalByDate, dt[i]);
+      const dd = bucket(ddByDate, dt[i]);
       for (const h of FWD_DAYS) {
         sg[h].push((cl[i + 1 + h] / buy - 1) * 100);
         // 보유 기간 중 최저 종가 — 매수일(i+1) 다음날부터 매도일(i+1+h)까지
         let low = cl[i + 2];
         for (let k = i + 3; k <= i + 1 + h; k++) low = Math.min(low, cl[k]);
-        ddByH[h].push((low / buy - 1) * 100);
+        dd[h].push((low / buy - 1) * 100);
       }
-      signals++;
     }
   }
 
-  const byHorizon: Record<number, HorizonResult> = {};
-  for (const h of FWD_DAYS) {
-    const sigAll: number[] = [], mktAll: number[] = [], excess: number[] = [];
-    for (const [d, sg] of signalByDate) {
-      const mk = marketByDate.get(d)?.[h] ?? [];
-      const base = mk.length ? mk.reduce((a, x) => a + x, 0) / mk.length : 0;
-      for (const v of sg[h]) { sigAll.push(v); excess.push(v - base); }
+  const allDates = [...marketByDate.keys()].sort();
+  if (allDates.length === 0) return null;
+  const split = allDates[Math.floor(allDates.length / 2)];
+
+  const summarize = (inWin: (d: string) => boolean): WindowResult => {
+    const dates = allDates.filter(inWin);
+    const sigDates = [...signalByDate.keys()].filter(inWin);
+    let signals = 0;
+    for (const d of sigDates) signals += signalByDate.get(d)![FWD_DAYS[0]].length;
+    const byHorizon: Record<number, HorizonResult> = {};
+    for (const h of FWD_DAYS) {
+      const sigAll: number[] = [], mktAll: number[] = [], excess: number[] = [], dds: number[] = [];
+      for (const d of sigDates) {
+        const mk = marketByDate.get(d)?.[h] ?? [];
+        const base = mk.length ? mk.reduce((a, x) => a + x, 0) / mk.length : 0;
+        for (const v of signalByDate.get(d)![h]) { sigAll.push(v); excess.push(v - base); }
+        dds.push(...(ddByDate.get(d)?.[h] ?? []));
+      }
+      for (const d of dates) mktAll.push(...marketByDate.get(d)![h]);
+      byHorizon[h] = {
+        signal: stat(sigAll), market: stat(mktAll), excess: stat(excess),
+        dd: dds.length
+          ? { mean: dds.reduce((a, x) => a + x, 0) / dds.length, worst: Math.min(...dds) }
+          : { mean: 0, worst: 0 },
+      };
     }
-    for (const mk of marketByDate.values()) mktAll.push(...mk[h]);
-    const dd = ddByH[h];
-    byHorizon[h] = {
-      signal: stat(sigAll), market: stat(mktAll), excess: stat(excess),
-      dd: dd.length
-        ? { mean: dd.reduce((a, x) => a + x, 0) / dd.length, worst: Math.min(...dd) }
-        : { mean: 0, worst: 0 },
+    return {
+      from: dates[0] ?? "", to: dates[dates.length - 1] ?? "",
+      tradingDays: dates.length, signals, signalDays: sigDates.length, byHorizon,
     };
-  }
+  };
+
+  const full = summarize(() => true);
   return {
-    ranAt: Date.now(), universe: bars.length, tradingDays: marketByDate.size,
-    signals, signalDays: signalByDate.size, byHorizon,
+    ...full,
+    ranAt: Date.now(), universe: bars.length, split,
+    first: summarize(d => d < split),
+    second: summarize(d => d >= split),
   };
 }
 
