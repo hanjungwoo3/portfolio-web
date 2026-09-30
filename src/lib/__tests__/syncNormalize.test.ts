@@ -6,6 +6,7 @@
 
 import { describe, it, expect } from "vitest";
 import { normalize } from "../syncManager";
+import { memoHasContent } from "../db";
 import type { ExportPayload } from "../db";
 import type { Memo } from "../../types";
 
@@ -40,5 +41,33 @@ describe("normalize — 메모 필드 누락 감지", () => {
   it("updatedAt 만 다르면 지문은 같다 (저장 시점은 noise)", () => {
     const later: Memo = { ...base, updatedAt: "2026-06-01T00:00:00.000Z" };
     expect(normalize(payload(later))).toBe(normalize(payload(base)));
+  });
+});
+
+// 저장·불러오기 양쪽이 쓰는 '빈 메모' 판정. 여기 필드가 빠지면 그 값만 넣은 메모가
+//   저장 시 지워지거나 불러올 때 버려진다 — 실제로 entryPrice 가 그랬다.
+describe("memoHasContent — 값 하나만 있어도 내용으로 친다", () => {
+  const cases: [string, Partial<Memo>][] = [
+    ["text", { text: "메모" }],
+    ["targetPrice", { targetPrice: 100 }],
+    ["stopPrice", { stopPrice: 50 }],
+    ["entryPrice", { entryPrice: 70 }],
+    ["tag", { tag: "태그" }],
+    ["color", { color: "red" }],
+  ];
+  it.each(cases)("%s 만 있어도 내용 있음", (_label, m) => {
+    expect(memoHasContent({ ticker: "005930", ...m })).toBe(true);
+  });
+
+  it("아무것도 없으면 빈 메모", () => {
+    expect(memoHasContent({ ticker: "005930" })).toBe(false);
+  });
+
+  it("priceBasis 만 있으면 빈 메모 (기준 메타데이터라 내용이 아니다)", () => {
+    expect(memoHasContent({ ticker: "005930", priceBasis: "current" })).toBe(false);
+  });
+
+  it("공백뿐인 text·tag 는 내용이 아니다", () => {
+    expect(memoHasContent({ ticker: "005930", text: "   ", tag: "  " })).toBe(false);
   });
 });

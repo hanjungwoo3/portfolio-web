@@ -733,20 +733,29 @@ export async function loadMemos(): Promise<Map<string, Memo>> {
   return new Map(all.map(m => [m.ticker, m]));
 }
 
+// 메모에 내용이 있는가 — **빈 메모 판정의 단일 정의**.
+//   저장(upsertMemo)과 불러오기(replaceAllMemos)가 각자 조건을 들고 있다가 어긋났다:
+//   불러오기 쪽에만 entryPrice(기대가)가 빠져 있어서, 기대가만 넣은 메모가 "빈 메모" 로
+//   판정돼 **불러올 때 통째로 버려졌다**(JSON 불러오기·Drive 다운로드 둘 다).
+//   ⚠️ Memo 에 필드를 추가하면 여기에만 넣으면 된다. priceBasis 는 '기준 메타데이터' 라
+//   단독으론 내용으로 치지 않는다. 빠짐을 막는 테스트가 __tests__/syncNormalize.test.ts 에 있다.
+export function memoHasContent(m: Partial<Memo>): boolean {
+  return !!(
+    (typeof m.text === "string" && m.text.trim().length > 0) ||
+    (typeof m.targetPrice === "number" && Number.isFinite(m.targetPrice)) ||
+    (typeof m.stopPrice === "number" && Number.isFinite(m.stopPrice)) ||
+    (typeof m.entryPrice === "number" && Number.isFinite(m.entryPrice)) ||
+    (typeof m.tag === "string" && m.tag.trim().length > 0) ||
+    m.color
+  );
+}
+
 // upsert — 모든 콘텐츠 필드가 빈 값이면 자동 삭제 (빈 레코드 잔존 방지)
-// priceBasis 는 "기준 메타데이터" 라 단독으론 빈 메모 판정에서 제외
 // updatedAt 은 함수 내부에서 자동 설정
 export async function upsertMemo(
   memo: Omit<Memo, "updatedAt">,
 ): Promise<"saved" | "deleted"> {
-  const isEmpty =
-    !memo.text?.trim() &&
-    (memo.targetPrice == null || !Number.isFinite(memo.targetPrice)) &&
-    (memo.stopPrice == null || !Number.isFinite(memo.stopPrice)) &&
-    (memo.entryPrice == null || !Number.isFinite(memo.entryPrice)) &&
-    !memo.tag?.trim() &&
-    !memo.color;
-  if (isEmpty) {
+  if (!memoHasContent(memo)) {
     await deleteMemo(memo.ticker);
     return "deleted";
   }
@@ -779,17 +788,10 @@ export async function replaceAllMemos(memos: Memo[]): Promise<void> {
   await db.transaction("rw", db.memos, async () => {
     await db.memos.clear();
     if (memos.length === 0) return;
-    // 유효성 필터링 — ticker 가 비어있거나 콘텐츠 없는 row 제거 (호환성 가드)
+    // 유효성 필터링 — ticker 가 비어있거나 콘텐츠 없는 row 제거 (호환성 가드).
+    //   판정은 memoHasContent 한 곳에서만 한다 — 저장 쪽과 조건이 어긋나면 값이 사라진다.
     const valid = memos.filter(m =>
-      typeof m.ticker === "string" && m.ticker.length > 0 &&
-      (
-        (typeof m.text === "string" && m.text.trim().length > 0) ||
-        (typeof m.targetPrice === "number" && Number.isFinite(m.targetPrice)) ||
-        (typeof m.stopPrice === "number" && Number.isFinite(m.stopPrice)) ||
-        (typeof m.tag === "string" && m.tag.trim().length > 0) ||
-        m.color
-      )
-    );
+      typeof m.ticker === "string" && m.ticker.length > 0 && memoHasContent(m));
     if (valid.length > 0) await db.memos.bulkAdd(valid);
   });
 }
