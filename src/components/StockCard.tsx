@@ -10,7 +10,7 @@ import { openTossStock, tossStockUrl } from "../lib/toss";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { Sparkline } from "./Sparkline";
 import { AuxIndicators } from "./AuxIndicators";
-import type { LastSell } from "../lib/tradeCalc";
+import type { LastTrade } from "../lib/tradeCalc";
 import { Tooltip, ColorName } from "./Tooltip";
 import { MarketAlertDialog } from "./MarketAlertDialog";
 import { IntradayPatternDialog } from "./IntradayPatternDialog";
@@ -59,8 +59,9 @@ interface Props {
   //   보유 수량이 없는 화면(눌림목 스크리너)에선 그 안이 전부 비어 폭만 잡아먹는다.
   //   ★ 이 화면 전용 옵션이다 — 기본값 false 라 다른 카드는 그대로다.
   hideStats?: boolean;
-  // 이 종목의 마지막 매도 — "얼마에 팔았더라". 부모가 거래로그에서 뽑아 내려준다(lastSellOf).
-  lastSell?: LastSell | null;
+  // 이 종목의 마지막 매수·매도 — 부모가 거래로그에서 뽑아 내려준다(lastTradeOf).
+  lastBuy?: LastTrade | null;
+  lastSell?: LastTrade | null;
 }
 
 // 신호 — 최근 5거래일 동향 + 연기금 5/20/60일 매수일 비율 (또는 외인비율 20일 fallback)
@@ -459,7 +460,7 @@ const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 export function StockCard({
   stock, price, krReg, investor, investorHistory, consensus, sector, market, warning, loading, chart, priceHistory, longHistory, onNeedLongHistory, onVisible,
   memo, otherGroups, heldGroups, onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse,
-  hideStats, lastSell,
+  hideStats, lastBuy, lastSell,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
   const [intradayOpen, setIntradayOpen] = useState(false);
@@ -1447,27 +1448,34 @@ export function StockCard({
           );
         })()}
 
-        {/* 최종매도 — "마지막에 얼마에 팔았더라". 평가금액 줄들과 성격이 달라(과거 체결)
-            배경색으로 떼어 놓는다. 괄호는 **지금 현재가 대비** — 잘 팔았는지 바로 보인다. */}
-        {lastSell && (() => {
-          const gap = price.price > 0 ? (price.price / lastSell.unit - 1) * 100 : 0;
-          const md = `${+lastSell.date.slice(5, 7)}/${+lastSell.date.slice(8, 10)}`;
-          return (
-            <div className="text-xs rounded bg-slate-100 border border-slate-200 px-1 py-0.5 mt-0.5">
-              <span className="text-[10px] text-slate-500">최종매도 </span>
-              <span className="font-bold text-slate-800">
-                {Math.round(lastSell.unit).toLocaleString()}원
-              </span>
-              <span className="ml-1 text-[10px] text-slate-500 tabular-nums">
-                {md} · {lastSell.qty.toLocaleString()}주
-              </span>
-              <span className={`ml-1 text-[10px] font-bold ${signColor(gap)}`}
-                    title="그때 판 값 대비 지금 현재가">
-                (현재 {gap >= 0 ? "+" : ""}{gap.toFixed(2)}%)
-              </span>
-            </div>
-          );
-        })()}
+        {/* 최종 거래 — "마지막에 얼마에 샀더라 / 팔았더라". 평가금액 줄들과 성격이 달라
+            (지금 값이 아니라 **과거 체결**) 배경색으로 떼어 놓고 금액 정렬에도 넣지 않는다.
+            괄호는 **그때 값 대비 지금 현재가** — 잘 샀는지/잘 팔았는지 바로 보인다. */}
+        {(lastBuy || lastSell) && (
+          <div className="rounded bg-slate-100 border border-slate-200 px-1 py-0.5 mt-0.5 space-y-0.5">
+            {([["최종매수", lastBuy], ["최종매도", lastSell]] as [string, LastTrade | null | undefined][])
+              .map(([label, t]) => {
+                if (!t) return null;
+                const gap = t.unit > 0 ? (price.price / t.unit - 1) * 100 : 0;
+                const md = `${+t.date.slice(5, 7)}/${+t.date.slice(8, 10)}`;
+                return (
+                  <div key={label} className="text-xs">
+                    <span className="text-[10px] text-slate-500">{label} </span>
+                    <span className="font-bold text-slate-800">
+                      {Math.round(t.unit).toLocaleString()}원
+                    </span>
+                    <span className="ml-1 text-[10px] text-slate-500 tabular-nums">
+                      {md} · {t.qty.toLocaleString()}주
+                    </span>
+                    <span className={`ml-1 text-[10px] font-bold ${signColor(gap)}`}
+                          title="그때 값 대비 지금 현재가">
+                      (현재 {gap >= 0 ? "+" : ""}{gap.toFixed(2)}%)
+                    </span>
+                  </div>
+                );
+              })}
+          </div>
+        )}
 
         {/* ─── 보조 지표 (3개월 / 변동성 / 외인비율 추세) ─────
             거래일엔 접혀있고 비거래일엔 펼쳐있음. 클릭으로 토글 */}

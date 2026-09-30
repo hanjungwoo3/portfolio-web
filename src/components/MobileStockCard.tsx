@@ -12,7 +12,7 @@ import { Sparkline } from "./Sparkline";
 import { Tooltip, ColorName } from "./Tooltip";
 import { MarketAlertDialog } from "./MarketAlertDialog";
 import { AuxIndicators } from "./AuxIndicators";
-import type { LastSell } from "../lib/tradeCalc";
+import type { LastTrade } from "../lib/tradeCalc";
 
 // 투자자별 매매동향 — PC StockCard 와 동일 정의 (모바일 레이어 표시용)
 const FLOW_FIELDS: { label: string; key: keyof Investor }[] = [
@@ -57,7 +57,8 @@ interface Props {
   warning?: string;
   chart?: number[];           // 비거래일 sparkline 용 일봉 종가 시계열
   investorHistory?: Investor[] | null;   // 60일 수급 (AuxIndicators 외국인/기관/연기금)
-  lastSell?: LastSell | null;            // 마지막 매도 (PC 카드와 동일 — lastSellOf 로 부모가 계산)
+  lastBuy?: LastTrade | null;            // 마지막 매수 (PC 카드와 동일 — lastTradeOf)
+  lastSell?: LastTrade | null;           // 마지막 매도
   onVisible?: () => void;                // 카드가 화면에 처음 들어왔을 때 1회 (표시용 쿼리 게이팅)
   consensus?: Consensus | null; // 네이버 컨센서스 (목표가 + 점수)
   memo?: Memo;
@@ -100,7 +101,7 @@ const WARN_TIPS: Record<string, string> = {
 
 export function MobileStockCard({
   stock, price, krReg, sector, market, warning, chart, investorHistory, consensus, memo, otherGroups, heldGroups,
-  onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse, onVisible, lastSell,
+  onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse, onVisible, lastBuy, lastSell,
 }: Props) {
   // 뷰포트 진입 감지 — PC(StockCard) 와 동일. 화면 밖 카드의 표시용 쿼리를 켜지 않기 위함.
   const ioRef = useRef<IntersectionObserver | null>(null);
@@ -843,25 +844,34 @@ export function MobileStockCard({
           );
         })()}
 
-        {/* 최종매도 — PC 카드와 같은 계산·같은 배경 분리. */}
-        {lastSell && (() => {
-          const gap = price.price > 0 ? (price.price / lastSell.unit - 1) * 100 : 0;
-          const md = `${+lastSell.date.slice(5, 7)}/${+lastSell.date.slice(8, 10)}`;
-          return (
-            <div className="text-[10px] rounded bg-slate-100 border border-slate-200 px-1 py-0.5 mt-0.5">
-              <span className="text-[9px] text-slate-500">최종매도 </span>
-              <span className="font-bold text-slate-800">
-                {Math.round(lastSell.unit).toLocaleString()}원
-              </span>
-              <span className="ml-1 text-[9px] text-slate-500 tabular-nums">
-                {md} · {lastSell.qty.toLocaleString()}주
-              </span>
-              <span className={`ml-1 text-[9px] font-bold ${signColor(gap)}`}>
-                (현재 {gap >= 0 ? "+" : ""}{gap.toFixed(2)}%)
-              </span>
-            </div>
-          );
-        })()}
+        {/* 최종 거래 — "마지막에 얼마에 샀더라 / 팔았더라". 평가금액 줄들과 성격이 달라
+            (지금 값이 아니라 **과거 체결**) 배경색으로 떼어 놓고 금액 정렬에도 넣지 않는다.
+            괄호는 **그때 값 대비 지금 현재가** — 잘 샀는지/잘 팔았는지 바로 보인다. */}
+        {(lastBuy || lastSell) && (
+          <div className="rounded bg-slate-100 border border-slate-200 px-1 py-0.5 mt-0.5 space-y-0.5">
+            {([["최종매수", lastBuy], ["최종매도", lastSell]] as [string, LastTrade | null | undefined][])
+              .map(([label, t]) => {
+                if (!t) return null;
+                const gap = t.unit > 0 ? (price.price / t.unit - 1) * 100 : 0;
+                const md = `${+t.date.slice(5, 7)}/${+t.date.slice(8, 10)}`;
+                return (
+                  <div key={label} className="text-[10px]">
+                    <span className="text-[9px] text-slate-500">{label} </span>
+                    <span className="font-bold text-slate-800">
+                      {Math.round(t.unit).toLocaleString()}원
+                    </span>
+                    <span className="ml-1 text-[9px] text-slate-500 tabular-nums">
+                      {md} · {t.qty.toLocaleString()}주
+                    </span>
+                    <span className={`ml-1 text-[9px] font-bold ${signColor(gap)}`}
+                          title="그때 값 대비 지금 현재가">
+                      (현재 {gap >= 0 ? "+" : ""}{gap.toFixed(2)}%)
+                    </span>
+                  </div>
+                );
+              })}
+          </div>
+        )}
 
         {/* ─── 보조 지표 — 우측 하단 네모 블럭 ──── */}
         <AuxIndicators chart={chart} investorHistory={investorHistory}

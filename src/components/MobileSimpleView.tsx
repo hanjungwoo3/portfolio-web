@@ -26,7 +26,7 @@ import { isNativeApp } from "../lib/nativeProxy";
 import { getInstalledAppVersion, fetchLatestRelease, openApkDownload, APK_DOWNLOAD_URL, RELEASE_PAGE, type LatestRelease } from "../lib/appRelease";
 import { ValuationTableTab } from "./ValuationTableTab";
 import { normalizeAccount } from "../lib/account";
-import { attachTodayBuys, lastSellOf } from "../lib/tradeCalc";
+import { attachTodayBuys, lastTradeOf } from "../lib/tradeCalc";
 import type { MarketIndexKey } from "../lib/api";
 import { MarketFlowModal } from "./MarketFlowModal";
 
@@ -1300,7 +1300,8 @@ export function MobileSimpleView() {
               const renderCard = (s: Stock) => (
               <MobileStockCard key={s.ticker + (s.account ?? "")}
                                stock={s}
-                               lastSell={lastSellOf(allTrades, s.ticker, s.account)}
+                               lastBuy={lastTradeOf(allTrades, s.ticker, "buy", s.account)}
+                               lastSell={lastTradeOf(allTrades, s.ticker, "sell", s.account)}
                                price={groupPriceMap.get(s.ticker)}
                                krReg={krRegMap?.get(s.ticker)}
                                sector={naverInfos.data?.get(s.ticker)?.sector}

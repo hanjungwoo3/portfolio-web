@@ -111,22 +111,22 @@ export function realizedChip(n: number): { bg: string; label: string } {
   return { bg: "bg-gray-400", label: "본전" };
 }
 
-// 마지막 매도 — "이 종목 마지막에 얼마에 팔았더라" 를 카드에 띄우기 위한 값.
+// 마지막 거래 — "이 종목 마지막에 얼마에 샀더라 / 팔았더라" 를 카드에 띄우기 위한 값.
 //   PC·모바일 카드가 같은 한 벌을 쓴다(각자 계산하면 반드시 엇갈린다).
 //
-//   그룹 매칭: 같은 그룹(account)의 매도가 있으면 그걸 쓰고, 없으면 종목의 아무 매도나 쓴다.
+//   그룹 매칭: 같은 그룹(account)의 거래가 있으면 그걸 쓰고, 없으면 종목의 아무 거래나 쓴다.
 //   동기화 OFF(기본)에선 거래가 한 그룹에만 기록되므로, 그룹으로만 찾으면 미러된 다른 그룹
 //   카드에서 아무것도 안 보인다.
-export interface LastSell {
+export interface LastTrade {
   date: string;    // YYYY-MM-DD
-  unit: number;    // 매도 단가(원) = amount / qty
+  unit: number;    // 단가(원) = amount / qty
   qty: number;
-  amount: number;  // 매도 총액(원)
+  amount: number;  // 총액(원)
 }
-export function lastSellOf(
-  trades: Trade[], ticker: string, account?: string,
-): LastSell | null {
-  const mine = trades.filter(t => t.type === "sell" && t.ticker === ticker && t.qty > 0);
+export function lastTradeOf(
+  trades: Trade[], ticker: string, type: "buy" | "sell", account?: string,
+): LastTrade | null {
+  const mine = trades.filter(t => t.type === type && t.ticker === ticker && t.qty > 0);
   if (mine.length === 0) return null;
   const acc = normalizeAccount(account);
   const sameGroup = mine.filter(t => normalizeAccount(t.account) === acc);

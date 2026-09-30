@@ -6,7 +6,7 @@ import {
   fetchInvestorHistorySafe, fetchNaverPrices, fetchKrStockName, fetchUsHoldingPrices,
 } from "./lib/api";
 import { loadHoldings, loadMemos, loadAllTrades, removeHolding, renameGroup, deleteGroup, cleanupReservedAccounts, migrateEmptyAccountToHolding, pruneOrphanDeposits, repairBrokenNames, purgeDerivedHoldingFields, saveAssetSnapshot } from "./lib/db";
-import { attachTodayBuys, lastSellOf} from "./lib/tradeCalc";
+import { attachTodayBuys, lastTradeOf } from "./lib/tradeCalc";
 import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
@@ -1024,7 +1024,8 @@ function Dashboard() {
                   onNeedLongHistory={() => primeLongHistory(stock.ticker)}
                   onVisible={() => activateTicker(stock.ticker)}
                   memo={memos.get(stock.ticker)}
-                  lastSell={lastSellOf(allTrades, stock.ticker, stock.account)}
+                  lastBuy={lastTradeOf(allTrades, stock.ticker, "buy", stock.account)}
+                  lastSell={lastTradeOf(allTrades, stock.ticker, "sell", stock.account)}
                   otherGroups={isAggregated
                     ? (tickerGroupsMap.get(stock.ticker) ?? [])
                     : (tickerGroupsMap.get(stock.ticker) ?? [])
