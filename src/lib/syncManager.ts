@@ -101,7 +101,7 @@ export function clearPendingSyncAction(): void {
 
 // 내용 정규화 — exported_at 같은 noise 제외, 정렬로 결정적 직렬화
 // 주의: 새 동기화 필드 추가 시 반드시 여기에 포함시켜야 함 (안 그러면 변경이 silent skip 됨)
-function normalize(p: ExportPayload): string {
+export function normalize(p: ExportPayload): string {
   const holdings = [...(p.holdings ?? [])]
     .map(s => ({
       ticker: s.ticker, name: s.name,
@@ -115,12 +115,18 @@ function normalize(p: ExportPayload): string {
   const peaks: Record<string, number> = {};
   for (const k of peakKeys) peaks[k] = p.peaks[k];
   // memos — updatedAt 은 noise (저장 시점 차이) 라 정규화에서 제외, 콘텐츠만 비교
+  //
+  // ⚠️ **Memo 에 필드를 추가하면 여기에도 반드시 넣어야 한다.** 빠뜨리면 그 필드만 바꿨을 때
+  //   지문이 그대로라 autoPush 가 "변경 없음" 으로 건너뛰고, 나중에 autoPull 이 그 필드가 없는
+  //   Drive 버전으로 로컬을 덮어써서 **값이 사라진다.** entryPrice(기대가)가 실제로 그랬다.
+  //   빠짐을 막는 테스트가 src/lib/__tests__/syncNormalize.test.ts 에 있다.
   const memos = [...(p.memos ?? [])]
     .map(m => ({
       ticker: m.ticker,
       text: m.text ?? "",
       targetPrice: m.targetPrice ?? null,
       stopPrice: m.stopPrice ?? null,
+      entryPrice: m.entryPrice ?? null,
       priceBasis: m.priceBasis ?? "",
       tag: m.tag ?? "",
       color: m.color ?? "",
