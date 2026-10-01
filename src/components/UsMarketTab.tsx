@@ -217,8 +217,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       <GroupNavBar items={navItems} idPrefix="usidx-"
                    stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin} />
       {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
-      {/* lg 이상 6열 그리드 + 75% 폭 — 8열 대비 카드 크기 동일하게 유지하면서 전체 폭만 축소 */}
-      <div className="space-y-4 lg:max-w-[75%]">
+      {/* 다른 탭과 같은 전체 폭 — 예전엔 lg 에서 75% 로 줄여 PC 에서만 좁아 보였다 */}
+      <div className="space-y-4">
         {T0_SECTIONS.map((section) => (
           <div key={section.label} id={`usidx-${section.id}`}
                style={{ scrollMarginTop: idxScrollMargin }}
@@ -255,7 +255,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   6)
               : section.rows
             ).map((group, gi) => (
-              // 6열 그리드 — 컨테이너(space-y-4)를 lg 75% 폭으로 줄여 카드 크기는 8열 때와 동일하게 유지
+              // 6열 그리드 — 화면은 전체 폭이지만 카드 줄만 lg 75% 로 묶어 카드 크기는 예전 그대로(왼쪽 정렬)
               <div key={gi} className={section.rowLabels ? "relative -mr-[9px] rounded-lg border border-gray-200 bg-gray-50/50 pl-9 pr-2 pb-2 pt-4 mt-2" : ""}>
                 {/* 줄 책갈피 — 이 줄이 어느 단계인지(반도체·전공정…). 위에 얹으면 카드 위 가격 띠와 겹쳐
                     안 보여서, 상자 **왼쪽에 세로 띠**로 따로 뺐다(글자는 위→아래로 세워 쓴다). */}
@@ -266,7 +266,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     {section.rowLabels[gi]}
                   </span>
                 )}
-              <div className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}>
+              <div className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}>
                 {group.map(symbol => {
               // 코리아 밸류업 — 네이버 KVALUE 전용 카드(Yahoo 미제공). 다른 지수 카드와 동일 크기 셀.
               if (symbol === "KVALUE") return <ValueupMiniCard key="KVALUE" />;

@@ -18,11 +18,11 @@ import {
 } from "../lib/api";
 import { TicsCard, DURATIONS, SORTS } from "./TicsFlow";
 
-// 접힌 상태에서 보여줄 장 수 — **상위 6장**(3열 기준 2줄).
+// 접힌 상태에서 보여줄 장 수 — **상위 8장**(4열 기준 2줄, ETF TOP 과 같은 모양).
 //   상·하위를 쪼개 보여주던 걸 그만뒀다. 정렬 버튼을 한 번 더 누르면 방향이 뒤집혀서
 //   '빠지는 쪽' 은 그걸로 보면 된다 — 화면을 셋으로 쪼개는 것보다 읽기 쉽다.
 //   FOLD_BOTTOM 을 0 으로 둘 수 있게 slice(-0) 을 쓰지 않는다 — slice(-0) 은 전체를 준다(함정).
-const FOLD_TOP = 6, FOLD_BOTTOM = 0;
+const FOLD_TOP = 8, FOLD_BOTTOM = 0;
 import { TicsStockDialog } from "./TicsStockDialog";
 
 // 그 시장의 **데이터 기준일**. 토스 랭킹 응답에는 거래일이 없다(basedAt = 조회 시각) —
@@ -127,7 +127,7 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
       {/* 접힘(상위 12 + 하위 6 + 경계 줄 + 끌어온 카드 1)이 **스크롤 없이** 들어가는 높이.
           3열 기준 최대 7줄 + 경계 줄이라 720px 면 충분하다. 펼치면(97개) 그때만 스크롤된다. */}
       <div ref={boxRef} className="max-h-[720px] overflow-y-auto pr-1">
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 items-stretch">
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 items-stretch">
           {shown.map((c, i) => (
             <Fragment key={c.ticsId}>
               {/* 상위 덩어리와 하위 덩어리 사이 — 여기서 순위가 건너뛴다는 걸 밝힌다 */}

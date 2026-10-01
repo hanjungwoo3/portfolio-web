@@ -1,4 +1,4 @@
-// 지수 탭 '한국 시장' 아래 — ETF 상승·하락 각 TOP 6 (레버리지·선물 제외).
+// 지수 탭 '한국 시장' 아래 — ETF 상승·하락 각 TOP 8 (레버리지·선물 제외).
 // 배치: **왼쪽 상승(+) / 오른쪽 하락(−)**. 위아래로 쌓으면 아래쪽(하락)이 접혀 안 보인다 —
 //   오른 것과 빠진 것은 같은 눈높이에서 나란히 봐야 "오늘 돈이 어디서 어디로 갔나" 가 읽힌다.
 //   좁은 화면(lg 미만)에서만 위아래로 떨어진다.
@@ -128,7 +128,7 @@ function useUsBasketPct(codes: string[], enabled: boolean): Map<string, { pct: n
   return out;
 }
 
-const TOP_N = 6;    // 반쪽마다 한 줄 3개 × **2줄** — 딱 떨어져야 마지막 줄이 비지 않는다
+const TOP_N = 8;    // 반쪽마다 한 줄 4개 × **2줄**(모바일 2개 × 4줄) — 딱 떨어져야 마지막 줄이 비지 않는다
 const AUTO_MIN_GAP_MS = 5 * 60 * 1000;
 let lastAutoAt = 0;
 let inflight: Promise<EtfRanking> | null = null;
@@ -153,12 +153,11 @@ function Grid({ rows, label, onOpenEtf, basket }: {
         {up ? "▲" : "▼"} {label} TOP{rows.length}
       </div>
       {/* 랭킹 탭과 같은 행 형태(배경 스파크라인 + 순위·이름·거래량 / 등락률·현재가).
-          ★ 세로 정렬 — 1,2,3 이 **한 열을 내려가며** 차고 4,5,6 이 다음 열로 넘어간다.
-          (grid-flow-col + grid-rows-N. auto-cols-fr 가 없으면 열 폭이 내용대로 들쭉날쭉해진다)
-          반쪽 폭에 3열 — 대신 폰트를 한 단계씩 줄여 이름이 두 줄 안에 들어오게 했다. */}
+          ★ 가로 정렬 — 1,2,3,4 가 첫 줄, 5~8 이 둘째 줄(세로가 2줄뿐이라 세로 정렬은 읽기 어색했다).
+          반쪽 폭에 4열 — 대신 폰트를 한 단계씩 줄여 이름이 두 줄 안에 들어오게 했다. */}
       {/* auto-rows-fr — 줄마다 높이가 제각각이면 카드가 들쭉날쭉해진다(이름이 1줄인 카드,
           '구성 프리장' 줄이 있는 카드가 섞인다). 모든 줄을 같은 높이로 못박는다. */}
-      <div className="grid grid-flow-col grid-rows-3 sm:grid-rows-2 auto-cols-fr auto-rows-fr
+      <div className="grid grid-cols-2 sm:grid-cols-4 auto-rows-fr
                       gap-1.5 items-stretch">
         {rows.map(r => {
           // 미체결 흐림 — 구성종목 팝업과 **같은 기준**(거래량 0 = 그 스냅샷에 체결이 없다).
