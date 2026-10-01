@@ -252,7 +252,7 @@ export function MobileSimpleView() {
   const touchStart = useRef<{ x: number; y: number; sy: number; t: number } | null>(null);
   // 당겨서 놓기 — 옆으로 끄는 동안 가장자리에 '다음/이전 페이지' 표시가 자라고, 끝까지 당긴 채 놓으면 이동
   const [pull, setPull] = useState<{ dir: -1 | 1; p: number; label: string } | null>(null);
-  const PULL_PX = 90;   // 이만큼 당기면 '놓으면 이동' 
+  const PULL_PX = 80;   // 이만큼 당기면 '놓으면 이동' 
   // 파란 '놓으면 이동' 알약이 **화면에 뜬 상태**인가 — 이게 true 일 때 놓아야만 이동한다(보이는 것 = 동작).
   const pullReady = useRef(false);
   const pullTimer = useRef<number | null>(null);
@@ -891,12 +891,12 @@ export function MobileSimpleView() {
     if (!touchStart.current) return;
     const dx = e.touches[0].clientX - touchStart.current.x;
     const dy = e.touches[0].clientY - touchStart.current.y;
-    const tg = Math.abs(dx) >= 20 ? pullTarget(dx, dy) : null;
+    const tg = Math.abs(dx) >= 10 ? pullTarget(dx, dy) : null;   // 옆으로 조금만 끌어도 바로 표시
     if (!tg) { clearPullTimer(); pullReady.current = false; if (pull) setPull(null); return; }
     const label = groupTabs.find(t => t.key === tg.to)?.label ?? "";
     const far = Math.abs(dx) >= PULL_PX;
-    // 빠르게 휙 민 손짓은 제외 — 손 댄 지 0.3초가 지나야 '준비' 가 된다. 멈춰 있어도 넘어가게 남은 시간 뒤 타이머로 켠다.
-    const wait = 300 - (Date.now() - touchStart.current.t);
+    // 스치듯 휙 민 손짓은 제외 — 손 댄 지 0.12초가 지나야 '준비'(0.3초는 느렸다). 멈춰 있어도 남은 시간 뒤 타이머로 켠다.
+    const wait = 120 - (Date.now() - touchStart.current.t);
     if (!far) { clearPullTimer(); pullReady.current = false; }
     else if (wait <= 0) { clearPullTimer(); pullReady.current = true; }
     else if (!pullTimer.current) {
@@ -907,7 +907,7 @@ export function MobileSimpleView() {
         setPull(pv => (pv ? { ...pv, p: 1 } : pv));
       }, wait);
     }
-    setPull({ dir: tg.dir, p: pullReady.current ? 1 : Math.min(0.95, (Math.abs(dx) - 20) / (PULL_PX - 20)), label });
+    setPull({ dir: tg.dir, p: pullReady.current ? 1 : Math.min(0.95, (Math.abs(dx) - 10) / (PULL_PX - 10)), label });
   };
   const endPull = () => {
     clearPullTimer();
@@ -1024,18 +1024,20 @@ export function MobileSimpleView() {
          onTouchMove={handleTouchMove}
          onTouchEnd={handleTouchEnd}
          onTouchCancel={() => { pullReady.current = false; endPull(); }}>
-      {/* 당겨서 놓기 표시 — 끄는 쪽 반대편 가장자리에서 자라 나온다. 다 차면 진해지며 '놓으면 이동' */}
+      {/* 당겨서 놓기 표시 — 옆으로 끌기 시작하면 **바로** 가장자리에 뜬다. 아래 막대가 차오르고,
+          다 차면 파랗게 '놓으면 이동'. 이동은 손을 놓을 때만. */}
       {pull && (
-        <div className={`fixed top-1/2 z-[900] -translate-y-1/2 pointer-events-none flex items-center gap-1
-                         px-3 py-2 rounded-full shadow-lg text-[12px] font-bold whitespace-nowrap transition-colors
-                         ${pull.p >= 1 ? "bg-blue-600 text-white" : "bg-white/95 text-gray-600 border border-gray-200"}`}
-             style={{
-               [pull.dir === 1 ? "right" : "left"]: -120 + pull.p * 132,
-               opacity: 0.4 + pull.p * 0.6,
-             }}>
+        <div className={`fixed top-1/2 z-[900] -translate-y-1/2 pointer-events-none overflow-hidden
+                         flex items-center gap-1 px-3 py-2 rounded-full shadow-lg text-[12px] font-bold whitespace-nowrap
+                         ${pull.p >= 1 ? "bg-blue-600 text-white" : "bg-white text-gray-700 border border-gray-200"}`}
+             style={{ [pull.dir === 1 ? "right" : "left"]: 12 }}>
           {pull.dir === -1 && <span>◀</span>}
           <span>{pull.p >= 1 ? "놓으면 " : ""}{pull.label}</span>
           {pull.dir === 1 && <span>▶</span>}
+          {pull.p < 1 && (
+            <span className={`absolute bottom-0 h-0.5 bg-blue-500 ${pull.dir === 1 ? "right-0" : "left-0"}`}
+                  style={{ width: `${pull.p * 100}%` }} />
+          )}
         </div>
       )}
       <NewVersionToast />
