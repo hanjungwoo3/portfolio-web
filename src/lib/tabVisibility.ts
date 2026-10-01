@@ -16,6 +16,8 @@ export interface TabVisibility {
   etfCompare: boolean;
   heatmap: boolean;
   screener: boolean;
+  closeBet: boolean;
+  accum: boolean;
   valuation: boolean;
   assetTrend: boolean;
 }
@@ -30,6 +32,8 @@ export const TAB_VIS_ITEMS: { key: keyof TabVisibility; label: string; sep?: boo
   { key: "sectorRank",  label: "🧩 섹터별등락" },
   { key: "semiCheck",   label: "반도체" },          // 아이콘(Cpu)은 렌더 쪽에서 붙인다
   { key: "screener",    label: "🔎 종목찾기(눌림목)" },
+  { key: "closeBet",    label: "🌙 종가배팅" },
+  { key: "accum",       label: "🧲 수급 매집" },
   { key: "consensus",   label: "🎯 컨센서스(목표주가)" },
   { key: "etfReverse",  label: "🍱 ETF검색" },
   { key: "etfRanking",  label: "🏅 ETF랭킹" },
@@ -55,6 +59,8 @@ const BASE_KEYS = {
   etfCompare: "portfolio_tab_etf_compare",
   heatmap:    "portfolio_tab_heatmap",
   screener:   "portfolio_tab_screener",
+  closeBet:   "portfolio_tab_close_bet",
+  accum:      "portfolio_tab_accum",
   valuation:  "portfolio_tab_valuation",
   assetTrend: "portfolio_tab_asset_trend",
 } as const;
@@ -97,6 +103,8 @@ export function getTabVisibility(): TabVisibility {
     etfCompare: read(BASE_KEYS.etfCompare),
     heatmap:    read(BASE_KEYS.heatmap),
     screener:   read(BASE_KEYS.screener),
+    closeBet:   read(BASE_KEYS.closeBet),
+    accum:      read(BASE_KEYS.accum),
     valuation:  read(BASE_KEYS.valuation),
     assetTrend: read(BASE_KEYS.assetTrend),
   };
@@ -115,6 +123,8 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.etfCompare !== undefined) write(BASE_KEYS.etfCompare, patch.etfCompare);
   if (patch.heatmap    !== undefined) write(BASE_KEYS.heatmap,    patch.heatmap);
   if (patch.screener   !== undefined) write(BASE_KEYS.screener,   patch.screener);
+  if (patch.closeBet   !== undefined) write(BASE_KEYS.closeBet,   patch.closeBet);
+  if (patch.accum      !== undefined) write(BASE_KEYS.accum,      patch.accum);
   if (patch.valuation  !== undefined) write(BASE_KEYS.valuation,  patch.valuation);
   if (patch.assetTrend !== undefined) write(BASE_KEYS.assetTrend, patch.assetTrend);
 }
