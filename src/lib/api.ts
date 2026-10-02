@@ -3159,6 +3159,7 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   // AI 인프라 주도주 — 전력·광통신·AI 클라우드 (토스 검색으로 확인, 2026-09-30)
   "BE":   "US20180724003",   // 블룸 에너지 (NYSE) — 데이터센터 현장 발전(연료전지)
   "RTX":  "US20200403004",   // RTX(레이시온) (NYSE)
+  "CIEN": "US20131223002",   // 시에나 (NYSE) — 광통신 장비
   "KLAC": "US19801008001",   // KLA (NASDAQ) — 검사·계측
   "GEV":  "NYS0240402001",   // GE 버노바 (NYSE)
   "OKLO": "US20210701009",   // 오클로 (NYSE) — SMR

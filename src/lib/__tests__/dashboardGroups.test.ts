@@ -73,11 +73,11 @@ describe("지수 탭 페이지 구성", () => {
     expect(ids("semi")).toEqual(["semi", "aiinfra", "rotflow", "rotation"]);
   });
 
-  it("순환매 = 큰 블록 하나에 단계별 줄 7개(AI 6 + 방산) — 줄마다 책갈피 이름, 앞 두 칸 미국 대장주, 나머지 한국 섹터 ETF", () => {
+  it("순환매 = 큰 블록 하나에 단계별 줄 9개(AI 8 + 방산) — 줄마다 책갈피 이름, 앞 두 칸 미국 대장주, 나머지 한국 섹터 ETF", () => {
     const g = buildDashboardPage("semi").find(s => s.id === "rotflow")!;
     expect(g.note).toBeTruthy();                                  // 미국→한국 영향이라는 설명 한 줄
-    expect(g.rows).toHaveLength(7);
-    expect(g.rowLabels).toEqual(["반도체", "전공정", "후공정", "전력기기", "원자력", "친환경", "방산"]);
+    expect(g.rows).toHaveLength(9);
+    expect(g.rowLabels).toEqual(["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "방산"]);
     expect(g.lead).toBe(2);
     expect(g.tags).toBeUndefined();                               // 카드 책갈피는 뺐다 — 줄 책갈피가 대신한다
     for (const row of g.rows) {
@@ -94,7 +94,11 @@ describe("지수 탭 페이지 구성", () => {
     expect(g.rowLabels).toEqual(STAGES.map(st => st.label));
     g.rows.forEach((row, i) => {
       expect(row.slice(0, 2)).toEqual([STAGES[i].us.symbol, STAGES[i].us2.symbol]);
-      expect(row.slice(2)).toEqual(STAGES[i].members.map(m => `${m.code}.KS`));
+      const ex = new Set(g.extras ?? []);
+      expect(row.slice(2).filter(x => !ex.has(x))).toEqual(STAGES[i].members.map(m => `${m.code}.KS`));
+      // 참고 카드는 줄 맨 뒤에만 — 한국 쪽 사이에 끼면 PC 오른쪽 자리 배치가 깨진다
+      const firstEx = row.findIndex(x => ex.has(x));
+      if (firstEx >= 0) expect(row.slice(firstEx).every(x => ex.has(x))).toBe(true);
     });
   });
 

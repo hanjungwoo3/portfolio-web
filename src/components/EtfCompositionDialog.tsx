@@ -377,6 +377,7 @@ interface DiffTableProps {
 }
 
 const isOtherCat = (name: string) => name === "그 외" || name === "기타";
+const NAME_KEY = "N:";   // 코드 없는 해외 종목의 비교 키 접두어 — 카드에는 코드 대신 이름으로 시세를 붙인다
 // 구성 배열 → { key: {name, ratio} } 맵. KR=6자리코드, 해외(미국)=토스 내부코드 그대로 key.
 //   선물·그외 등은 제외. 같은 미국 종목은 토스코드가 ETF 간 동일해 비교 매칭됨.
 function compMap(items: { stockCode: string; name: string; ratio: number }[]) {
@@ -386,7 +387,12 @@ function compMap(items: { stockCode: string; name: string; ratio: number }[]) {
     const t = it.stockCode.replace(/^A/, "");
     const krCode = /^[\dA-Za-z]{6}$/.test(t);
     const isForeign = !krCode && /^[A-Z]{2,4}\d/.test(it.stockCode);
-    if (!krCode && !isForeign) continue;
+    // 일본 등 토스가 stockCode 를 안 주는 해외 종목 — 이름이 키(같은 종목은 ETF 끼리 이름도 같다).
+    //   예전엔 여기서 버려져 일본 ETF 둘을 비교하면 양쪽 다 '0종목' 이었다.
+    if (!krCode && !isForeign) {
+      if (!it.stockCode.trim() && looksLikeForeignName(it.name)) m.set(`${NAME_KEY}${it.name}`, { name: it.name, ratio: it.ratio });
+      continue;
+    }
     m.set(krCode ? t : it.stockCode, { name: it.name, ratio: it.ratio });
   }
   return m;
@@ -425,6 +431,20 @@ function EtfDiffTable({ tickerA, nameA, tickerB, nameB, onRequestSearch }: DiffT
     const overlapB = both.reduce((s, x) => s + x.rb, 0);
     return { onlyA, onlyB, both, maxRatio, sumA, sumB, overlapA, overlapB };
   }, [qa.data, qb.data]);
+
+  // 코드 없는 해외 종목(일본 등) 시세 — 단일 ETF 화면과 같은 경로·같은 쿼리키(이름 → JPX 심볼)
+  const fxNames = useMemo(() => [...diff.onlyA, ...diff.onlyB, ...diff.both]
+    .filter(x => x.ticker.startsWith(NAME_KEY)).map(x => x.name), [diff]);
+  const fxKey = fxNames.join("|");
+  const { data: fxPrices } = useQuery({
+    queryKey: ["etf-foreign-nonus-quotes", fxKey],
+    queryFn: () => fetchForeignHoldingPrices(fxKey.split("|").filter(Boolean)),
+    enabled: fxNames.length > 0, refetchInterval: 60_000, staleTime: 30_000,
+  });
+  const fxMap = useMemo(() => new Map((fxPrices?.prices ?? []).map(p => [p.ticker, p])), [fxPrices]);
+  const fxCard = (t: string, name: string) => t.startsWith(NAME_KEY)
+    ? { stockCode: "", usPrice: fxMap.get(name), usChart: fxPrices?.charts[name] }
+    : { stockCode: t, usPrice: undefined, usChart: undefined };
 
   // KR 가격/차트/마감 조회용 ticker — KR 6자리만(미국 토스코드 섞이면 KR 배치 호출이 깨짐).
   //   미국 종목 가격은 StockCard 가 자체 조회.
@@ -537,7 +557,8 @@ function EtfDiffTable({ tickerA, nameA, tickerB, nameB, onRequestSearch }: DiffT
         <div className="grid grid-cols-2 gap-x-2 gap-y-5 pt-3 px-1">
           {list.map((x, i) => (
             <StockCard key={x.ticker} i={i}
-                       item={{ stockCode: x.ticker, name: x.name, ratio: x.ratio }}
+                       item={{ stockCode: fxCard(x.ticker, x.name).stockCode, name: x.name, ratio: x.ratio }}
+                       usPrice={fxCard(x.ticker, x.name).usPrice} usChart={fxCard(x.ticker, x.name).usChart}
                        price={priceMap.get(x.ticker)} chart={chartMap.get(x.ticker)}
                        krReg={krRegMap?.get(x.ticker)} groups={holdingGroups.get(x.ticker) ?? []}
                        dimEnabled={dimEnabled} onRequestSearch={onRequestSearch} />
@@ -599,7 +620,8 @@ function EtfDiffTable({ tickerA, nameA, tickerB, nameB, onRequestSearch }: DiffT
                   return (
                     <div key={x.ticker}>
                       {/* 종목 리치 카드 — A 비중(좌)·B 비중(우), 차이는 많은 쪽에 부착 */}
-                      <StockCard i={i} item={{ stockCode: x.ticker, name: x.name, ratio: 0 }} hideRatio
+                      <StockCard i={i} item={{ stockCode: fxCard(x.ticker, x.name).stockCode, name: x.name, ratio: 0 }} hideRatio
+                                 usPrice={fxCard(x.ticker, x.name).usPrice} usChart={fxCard(x.ticker, x.name).usChart}
                                  price={priceMap.get(x.ticker)} chart={chartMap.get(x.ticker)}
                                  krReg={krRegMap?.get(x.ticker)} groups={holdingGroups.get(x.ticker) ?? []}
                                  dimEnabled={dimEnabled} onRequestSearch={onRequestSearch}

@@ -27,6 +27,8 @@ const STAGE_COLOR: Record<string, { bg: string; text: string; chip: string; hex:
   semi:    { bg: "bg-indigo-500",  text: "text-indigo-700",  chip: "bg-indigo-50 border-indigo-300", hex: "#6366f1" },
   front:   { bg: "bg-violet-500",  text: "text-violet-700",  chip: "bg-violet-50 border-violet-300", hex: "#8b5cf6" },
   back:    { bg: "bg-sky-500",     text: "text-sky-700",     chip: "bg-sky-50 border-sky-300", hex: "#0ea5e9" },
+  cpu:     { bg: "bg-fuchsia-500", text: "text-fuchsia-700", chip: "bg-fuchsia-50 border-fuchsia-300", hex: "#d946ef" },
+  optic:   { bg: "bg-lime-600",    text: "text-lime-700",    chip: "bg-lime-50 border-lime-300", hex: "#65a30d" },
   power:   { bg: "bg-amber-500",   text: "text-amber-700",   chip: "bg-amber-50 border-amber-300", hex: "#f59e0b" },
   nuclear: { bg: "bg-orange-600",  text: "text-orange-700",  chip: "bg-orange-50 border-orange-300", hex: "#ea580c" },
   defense: { bg: "bg-teal-600",    text: "text-teal-700",    chip: "bg-teal-50 border-teal-300", hex: "#0d9488" },
@@ -125,7 +127,7 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
       <div className={`flex flex-wrap items-center gap-2 ${embedded ? "" : "rounded-xl border border-gray-300 bg-white p-2.5"}`}>
         {!embedded && <span className="text-sm font-bold text-gray-800">🔄 AI 순환매</span>}
         <span className="text-[11px] text-gray-500">
-          AI 6단계(반도체 · 전공정 · 후공정 · 전력기기 · 원자력 · 친환경) + 방산 · 비교용 AI 밖(금융 · 조선 · 화장품)
+          AI 8단계(반도체 · 전공정 · 후공정 · CPU·기판 · 광통신 · 전력기기 · 원자력 · 친환경) + 방산 · 비교용 AI 밖(금융 · 조선 · 화장품)
         </span>
         <button onClick={refresh} disabled={loading}
                 title="단계별 종목 일봉을 다시 받습니다 (약 26콜)"

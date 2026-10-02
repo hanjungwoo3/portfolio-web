@@ -23,6 +23,8 @@ export interface DashboardSection {
   // 줄마다 첫 카드가 '원인'(간밤 미국 대장주)이고 나머지가 '결과'(오늘 한국 종목). 첫 카드를 굵은
   //   테두리로 구분하고 오른쪽에 → 를 붙여 "이게 → 이것들" 이 한눈에 읽히게 한다.
   lead?: number;      // 줄마다 앞 N 칸이 미국 대장주(원인) — 단계색 배경 + 뒤에 ➜
+  extras?: string[];  // 줄 끝에 붙는 '참고' 카드(국내 상장 해외 테마 ETF) — 한국 블록 뒤 따로 상자
+  extraTag?: Record<string, string>;   // 참고 카드의 나라 이름표(없으면 "🇺🇸 미국")
   // 줄 이름(rows 와 같은 길이) — PC 는 줄 왼쪽, 모바일은 줄 위에 둔다. 줄마다 옅은 상자로 나눈다.
   rowLabels?: string[];
   // 블록 맨 위 설명 한 줄 — 이 블록을 어떻게 읽는지.
@@ -48,6 +50,8 @@ const TAG_TONE: Record<string, string> = {
   소재:     "text-indigo-700 bg-indigo-50 border-indigo-300/70",
   전공정:   "text-violet-700 bg-violet-50 border-violet-300/70",
   후공정:   "text-sky-700 bg-sky-50 border-sky-300/70",
+  "CPU·기판": "text-fuchsia-700 bg-fuchsia-50 border-fuchsia-300/70",
+  광통신:   "text-lime-700 bg-lime-50 border-lime-300/70",
   전력:     "text-amber-700 bg-amber-50 border-amber-300/70",
   전력기기: "text-amber-700 bg-amber-50 border-amber-300/70",
   원자력:   "text-orange-700 bg-orange-50 border-orange-300/70",
@@ -57,7 +61,7 @@ const TAG_TONE: Record<string, string> = {
 // 순환매 줄 첫 카드(미국 대장주) 배경 — 그 줄 단계 색의 옅은 판. 책갈피와 같은 계열.
 const TAG_CARD: Record<string, string> = {
   반도체: "bg-indigo-50 border-indigo-300", 전공정: "bg-violet-50 border-violet-300",
-  후공정: "bg-sky-50 border-sky-300", 전력기기: "bg-amber-50 border-amber-300",
+  후공정: "bg-sky-50 border-sky-300", "CPU·기판": "bg-fuchsia-50 border-fuchsia-300", 광통신: "bg-lime-50 border-lime-300", 전력기기: "bg-amber-50 border-amber-300",
   원자력: "bg-orange-50 border-orange-300", 친환경: "bg-emerald-50 border-emerald-300",
   방산: "bg-teal-50 border-teal-300",
 };
@@ -192,17 +196,24 @@ function sectionMap(): Record<string, DashboardSection> {
       label: "🔄 AI 순환매 — 간밤 🇺🇸 → 오늘 🇰🇷",
       note: "간밤 🇺🇸 미국 대장주(굵은 카드)가 움직이면 → 오늘 🇰🇷 같은 분야 한국 종목도 같은 방향으로 가는 경향이 있어요. 예측은 아닙니다.",
       lead: 2,
-      rowLabels: ["반도체", "전공정", "후공정", "전력기기", "원자력", "친환경", "방산"],
-      // 줄 = [미국 대장주 2개, 한국 섹터 ETF…] — lib/rotation STAGES 와 같아야 한다(테스트가 대조).
+      rowLabels: ["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "방산"],
+      // 줄 = [미국 대장주 2개, 한국 섹터 ETF(모자라면 주도주)…, (국내 상장 해외 테마 ETF)].
+      //   앞 두 칸 + 한국 쪽은 lib/rotation STAGES 와 같아야 한다(테스트가 대조). 맨 뒤 extras 는 참고용 —
+      //   해외 ETF 라 통계엔 안 넣는다(미국 것은 하루 시차로 간밤 미국을 따라간다). 전공정·후공정은 일본 소부장 ETF.
       rows: [
-        ["SNDK", "MU", "396500.KS", "091160.KS", "091230.KS"],
-        ["LRCX", "AMAT", "475300.KS", "471990.KS", "471760.KS"],
-        ["KLAC", "ONTO", "475310.KS", "455850.KS"],
-        ["PWR", "GEV", "487240.KS", "491820.KS", "0117V0.KS"],
-        ["CCJ", "OKLO", "433500.KS", "0098F0.KS", "0091P0.KS"],
-        ["BE", "FSLR", "377990.KS", "385510.KS", "381570.KS"],
-        ["ITA", "RTX", "449450.KS", "0080G0.KS", "463250.KS"],   // 방산 — AI 밖이지만 미국이 끌고 온다
+        ["SNDK", "MU", "396500.KS", "091160.KS", "091230.KS", "000660.KS", "381180.KS", "390390.KS"],
+        ["LRCX", "AMAT", "475300.KS", "471990.KS", "476260.KS", "0239Y0.KS", "464920.KS", "465660.KS"],
+        ["KLAC", "ONTO", "475310.KS", "455850.KS", "042700.KS", "095340.KS", "469160.KS"],
+        ["AMD", "INTC", "471760.KS", "367760.KS", "0005G0.KS", "007660.KS", "0225V0.KS"],
+        ["LITE", "CIEN", "0219B0.KS", "327260.KS", "010170.KS", "138080.KS", "0173Y0.KS", "0215T0.KS"],
+        ["PWR", "GEV", "487240.KS", "491820.KS", "0117V0.KS", "0209Z0.KS", "487230.KS", "491010.KS"],
+        ["CCJ", "OKLO", "433500.KS", "0098F0.KS", "0091P0.KS", "0092B0.KS", "0051G0.KS", "0132H0.KS"],
+        ["BE", "FSLR", "377990.KS", "385510.KS", "381570.KS", "457990.KS", "419420.KS"],
+        ["ITA", "RTX", "449450.KS", "0080G0.KS", "463250.KS", "490480.KS", "494840.KS", "0167Z0.KS"],   // 방산 — AI 밖이지만 미국이 끌고 온다
       ],
+      // 소부장(전공정·후공정)은 맞는 미국 ETF 가 없어 일본 반도체 소부장 ETF — 일본장은 한국과 같은 시간이라 하루 시차가 없다
+      extraTag: { "464920.KS": "🇯🇵 일본", "465660.KS": "🇯🇵 일본", "469160.KS": "🇯🇵 일본" },
+      extras: ["0173Y0.KS", "0215T0.KS", "464920.KS", "465660.KS", "469160.KS", "381180.KS", "390390.KS", "0225V0.KS", "487230.KS", "491010.KS", "0051G0.KS", "0132H0.KS", "419420.KS", "494840.KS", "0167Z0.KS"],
     },
     {
       // AI 순환매 부가 정보 — 지금 강한 곳 · 다음 후보 · 흐름 · 통계(RotationTab, 접힘).

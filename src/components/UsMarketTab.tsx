@@ -266,8 +266,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     {section.rowLabels[gi]}
                   </span>
                 )}
-              <div className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}>
-                {group.map(symbol => {
+              {(() => {
+                const cards = group.map(symbol => {
               // 코리아 밸류업 — 네이버 KVALUE 전용 카드(Yahoo 미제공). 다른 지수 카드와 동일 크기 셀.
               if (symbol === "KVALUE") return <ValueupMiniCard key="KVALUE" />;
               if (symbol === "SKHY-PERP") return <HlPerpCard key="SKHY-PERP" coin="SKHY" name="SK하이닉스 24h" />;
@@ -368,7 +368,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               // 마감 책갈피는 노란 배경 + 흐림 제외 → dim 은 콘텐츠 자식에만 적용
               const dimCls = dimNow ? "opacity-60" : "";
               return (
-                <div key={p.symbol} className={`relative h-full ${section.lead && group[section.lead] === p.symbol ? "lg:col-start-4" : ""}`}>
+                <div key={p.symbol} className={`relative h-full`}>
                   {/* ETF 책갈피 — KR ETF (예: 069500.KS) 만. 왼쪽 위. 클릭 시 구성종목 모달 */}
                   {(() => {
                     const etfTk = p.krStock ? null : krEtfTicker(p.symbol);   // 한국 개별주는 ETF 가 아니다
@@ -519,8 +519,37 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   )}
                 </div>
               );
-                })}
-              </div>
+                });
+                if (!section.extras) return (
+                  <div className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}>
+                    {cards}
+                  </div>
+                );
+                // 순환매 줄 — 블록 셋: [미국 대장주] ➜ [한국] [국내 상장 미국 ETF(참고, 따로 상자)].
+                //   블록 폭을 카드 수에 비례(flex-grow)하게 주고 나머지는 빈칸으로 채워, 줄마다 카드 크기가 같다(한 줄 8장 기준).
+                const n = section.lead ?? 0;
+                const exAt = group.findIndex(x => section.extras!.includes(x));
+                const krEnd = exAt < 0 ? group.length : exAt;
+                const lead = cards.slice(0, n), kr = cards.slice(n, krEnd), ex = exAt < 0 ? [] : cards.slice(exAt);
+                // 한국 쪽 최대 장 수(모든 줄 기준) — 한국 틀을 이 칸 수로 고정해 참고 상자가 줄마다 같은 자리에서 시작한다
+                const krMax = Math.max(...section.rows.map(r => r.slice(n).filter(x => !section.extras!.includes(x)).length));
+                const col = (k: number) => ({ flex: `${k} 1 0`, gridTemplateColumns: `repeat(${k}, minmax(0, 1fr))` });
+                return (
+                  <div className="flex items-stretch gap-2">
+                    <div className="grid gap-x-2" style={col(lead.length)}>{lead}</div>
+                    <div className="w-7 shrink-0" />
+                    {/* 한국 쪽은 늘 krMax 칸짜리 보이지 않는 틀 — 카드가 적으면 왼쪽부터 채우고 나머지는 빈칸 */}
+                    <div className="grid gap-x-2" style={col(krMax)}>{kr}</div>
+                    {ex.length > 0 && (
+                      <div className="relative grid gap-x-2 rounded-lg border border-sky-200 bg-sky-50/60 px-1.5 pb-1.5 pt-6 -mt-3.5" style={col(ex.length)}
+                           title={`${section.extraTag?.[group[exAt]] ?? "🇺🇸 미국"} ETF — 참고용(통계엔 안 들어간다)`}>
+                        {ex}
+                      </div>
+                    )}
+                    {8 - n - krMax - ex.length > 0 && <div style={{ flex: `${8 - n - krMax - ex.length} 1 0` }} />}
+                  </div>
+                );
+              })()}
               </div>
             ))}
           </div>

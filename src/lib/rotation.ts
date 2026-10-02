@@ -26,41 +26,60 @@ export interface Stage {
   members: { code: string; name: string }[];
   us: { symbol: string; name: string };   // 간밤에 이 단계를 끌고 오는 미국 대장주(상관 1위 — 통계는 이것만 쓴다)
   us2: { symbol: string; name: string };  // 2위 — 카드에만 같이 보여 준다
+  // 통계 이력 보충용 종목 — 카드엔 안 나온다. members(ETF)가 최근 상장이라 이력이 짧을 때,
+  //   **members 값이 하나도 없는 주·날에만** 이 종목들 평균을 대신 쓴다(있으면 ETF 만 쓴다).
+  history?: { code: string; name: string }[];
 }
 
 // 단계 정의 — 한 벌. 미국 대장주는 '미국 직전 거래일 ↔ 한국 다음 날' 상관 1위(2026-09-30 실측).
+// 한국 쪽 = 섹터 ETF 우선, ETF 가 모자란 단계(반도체·후공정·CPU·기판·광통신)는 **주도주**로 4칸을 채운다.
 export const STAGES: Stage[] = [
   // 한국 쪽은 **섹터 ETF** — 종목 3~4개 묶음보다 미국 대장주 전날 ↔ 한국 다음 날 상관이 7단계 모두 높았다
   //   (분산돼 개별 종목 소음이 준다, 2026-10-01 실측 ~300거래일). 미국은 상관 1·2위.
   //   소재·부품은 뺐다 — ETF 로 보면 전공정(주간 0.91)·후공정(0.96)과 한 몸이고, 미국 1·2위도 전공정과 같았다.
   { key: "semi", label: "반도체", family: "chip",
     members: [{ code: "396500", name: "TIGER 반도체TOP10" }, { code: "091160", name: "KODEX 반도체" },
-              { code: "091230", name: "TIGER 반도체" }],
+              { code: "091230", name: "TIGER 반도체" }, { code: "000660", name: "SK하이닉스" }],
     us: { symbol: "SNDK", name: "샌디스크" }, us2: { symbol: "MU", name: "마이크론" } },
   { key: "front", label: "전공정", family: "chip",
     members: [{ code: "475300", name: "SOL 반도체전공정" }, { code: "471990", name: "KODEX AI반도체핵심장비" },
-              { code: "471760", name: "TIGER AI반도체핵심공정" }],
+              { code: "476260", name: "HANARO 반도체핵심공정주도주" }, { code: "0239Y0", name: "PLUS 코리아HBM반도체" }],
     us: { symbol: "LRCX", name: "램리서치" }, us2: { symbol: "AMAT", name: "어플라이드" } },
   { key: "back", label: "후공정", family: "chip",
-    members: [{ code: "475310", name: "SOL 반도체후공정" }, { code: "455850", name: "SOL AI반도체소부장" }],
+    members: [{ code: "475310", name: "SOL 반도체후공정" }, { code: "455850", name: "SOL AI반도체소부장" },
+              { code: "042700", name: "한미반도체" }, { code: "095340", name: "ISC" }],
     us: { symbol: "KLAC", name: "KLA" }, us2: { symbol: "ONTO", name: "온투" } },
+  // CPU·기판 — 미국 CPU(AMD·인텔) ➜ 국내 기판 비중이 큰 ETF. (카드엔 국내 상장 미국CPU ETF 도 참고로)
+  //   TIGER AI반도체핵심공정 = 삼성전기 23·이수페타시스 18·LG이노텍 13·대덕전자 10%(기판 합 68%),
+  //   RISE 네트워크인프라 = 삼성전기 20·LG이노텍 10·이수페타시스 9%. 한국 기판주의 AMD 다음 날 상관이
+  //   최근 60일 0.25 → ~0.5 로 커졌다(1년 기준으론 램리서치가 더 셌다, 2026-10-01).
+  { key: "cpu", label: "CPU·기판", family: "chip",
+    members: [{ code: "471760", name: "TIGER AI반도체핵심공정" }, { code: "367760", name: "RISE 네트워크인프라" },
+              { code: "0005G0", name: "IBK K-AI반도체코어테크" }, { code: "007660", name: "이수페타시스" }],
+    us: { symbol: "AMD", name: "AMD" }, us2: { symbol: "INTC", name: "인텔" } },
+  // 광통신 — AI 데이터센터 광 트랜시버·부품. 미국 루멘텀(최근 6개월 한국 광통신 다음 날 상관 0.48)·시에나(1년 0.34, 6개월 0.45).
+  //   한국 = KoAct 광통신&위성네트워크액티브(광통신주 묶음과 상관 0.92) + 주도주 셋(국내 광통신 ETF 가 하나뿐이라).
+  { key: "optic", label: "광통신", family: "chip",
+    members: [{ code: "0219B0", name: "KoAct 광통신&위성네트워크액티브" }, { code: "327260", name: "RF머트리얼즈" },
+              { code: "010170", name: "대한광통신" }, { code: "138080", name: "오이솔루션" }],
+    us: { symbol: "LITE", name: "루멘텀" }, us2: { symbol: "CIEN", name: "시에나" } },
   { key: "power", label: "전력기기", family: "energy",
     members: [{ code: "487240", name: "KODEX AI전력핵심설비" }, { code: "491820", name: "HANARO 전력설비투자" },
-              { code: "0117V0", name: "TIGER 코리아AI전력기기TOP3플러스" }],
+              { code: "0117V0", name: "TIGER 코리아AI전력기기TOP3플러스" }, { code: "0209Z0", name: "ACE 코리아AI전력TOP10" }],
     us: { symbol: "PWR", name: "콴타서비스" }, us2: { symbol: "GEV", name: "GE버노바" } },
   { key: "nuclear", label: "원자력", family: "energy",
     members: [{ code: "433500", name: "ACE 원자력TOP10" }, { code: "0098F0", name: "KODEX 원자력SMR" },
-              { code: "0091P0", name: "TIGER 코리아원자력" }],
+              { code: "0091P0", name: "TIGER 코리아원자력" }, { code: "0092B0", name: "SOL 한국원자력SMR" }],
     us: { symbol: "CCJ", name: "카메코" }, us2: { symbol: "OKLO", name: "오클로" } },
   { key: "green", label: "친환경", family: "energy",
     members: [{ code: "377990", name: "TIGER Fn신재생에너지" }, { code: "385510", name: "KODEX 신재생에너지액티브" },
-              { code: "381570", name: "HANARO Fn친환경에너지" }],
+              { code: "381570", name: "HANARO Fn친환경에너지" }, { code: "457990", name: "PLUS 태양광&ESS" }],
     us: { symbol: "BE", name: "블룸에너지" }, us2: { symbol: "FSLR", name: "퍼스트솔라" } },
   // 방산 — AI 는 아니지만 미국이 끌고 오는 힘이 AI 단계만큼 있다(미국 방산 ETF 전날 ↔ 한국 다음 날 0.34,
   //   2026-10-01 실측). 반도체와 주간 상관 0.08 — AI 가 쉴 때 따로 가는 곳.
   { key: "defense", label: "방산", family: "defense",
     members: [{ code: "449450", name: "PLUS K방산" }, { code: "0080G0", name: "KODEX 방산TOP10" },
-              { code: "463250", name: "TIGER K방산&우주" }],
+              { code: "463250", name: "TIGER K방산&우주" }, { code: "490480", name: "SOL K방산" }],
     us: { symbol: "ITA", name: "미국 방산 ETF" }, us2: { symbol: "RTX", name: "레이시온" } },
 ];
 
@@ -74,7 +93,14 @@ export const OUTSIDE: OutsideGroup[] = [
   { key: "beauty", label: "화장품", members: [{ code: "228790", name: "TIGER 화장품" }, { code: "479850", name: "HANARO K-뷰티" }] },
 ];
 /** 주별·일별 수익률을 계산하는 전체 묶음 — 순환매 단계 + AI 밖. */
-export const ALL_GROUPS: { key: string; label: string; members: { code: string; name: string }[] }[] = [...STAGES, ...OUTSIDE];
+type Mem = { code: string; name: string };
+export const ALL_GROUPS: { key: string; label: string; members: Mem[]; history?: Mem[] }[] = [...STAGES, ...OUTSIDE];
+// 묶음 값 — members 값이 있으면 그것만, 없으면 history 값(이력 보충)
+function groupVals<T>(g: { members: Mem[]; history?: Mem[] }, f: (code: string) => T | null | undefined): T[] {
+  const m = g.members.map(x => f(x.code)).filter((v): v is T => v != null);
+  if (m.length || !g.history) return m;
+  return g.history.map(x => f(x.code)).filter((v): v is T => v != null);
+}
 
 export const LAG_WEEKS = 4;   // 소외 판정 창(주). 뒤 절반에서 1·2·4주가 같은 방향이었다 — 전체로는 약하다(파일 상단)
 
@@ -88,7 +114,7 @@ export interface RotationData {
   daily: Record<string, number[]>;        // 단계 → 일별 수익률(%) (days[i] 하루치, 동일가중)
 }
 
-const LS_KEY = "ai_rotation_v5";   // v5: 방산 단계 + AI 밖(금융·조선·화장품), 신규 상장 ETF 가 기간을 자르지 않게
+const LS_KEY = "ai_rotation_v10";   // v10: ETF 모자란 단계에 주도주
 const DAILY_KEEP = 120;
 const TTL_MS = 6 * 60 * 60 * 1000;
 
@@ -124,7 +150,7 @@ export function loadCachedRotation(): RotationData | null {
 }
 
 export async function fetchRotation(): Promise<RotationData> {
-  const codes = [...new Set(ALL_GROUPS.flatMap(s => s.members.map(m => m.code)))];
+  const codes = [...new Set(ALL_GROUPS.flatMap(s => [...s.members, ...(s.history ?? [])].map(m => m.code)))];
   // 한국 일봉 — 동시 6개씩
   const kr: Record<string, { date: string; close: number }[]> = {};
   const queue = [...codes];
@@ -155,16 +181,16 @@ export async function fetchRotation(): Promise<RotationData> {
   for (const w of allWeeks) {
     const prev = weeks[weeks.length - 1];
     if (prev === undefined) {   // 첫 주 — 모든 묶음에 종가가 하나라도 있어야 기준으로 삼는다
-      if (ALL_GROUPS.every(g => g.members.some(m => weekClose[m.code]?.has(w)))) weeks.push(w);
+      if (ALL_GROUPS.every(g => groupVals(g, c => (weekClose[c]?.has(w) ? 1 : null)).length > 0)) weeks.push(w);
       continue;
     }
-    if (ALL_GROUPS.every(g => g.members.some(m => wkRet(m.code, prev, w) != null))) weeks.push(w);
+    if (ALL_GROUPS.every(g => groupVals(g, c => wkRet(c, prev, w)).length > 0)) weeks.push(w);
   }
   const weekly: Record<string, number[]> = {};
   for (const g of ALL_GROUPS) {
     weekly[g.key] = [];
     for (let i = 1; i < weeks.length; i++) {
-      const rs = g.members.map(m => wkRet(m.code, weeks[i - 1], weeks[i])).filter((v): v is number => v != null);
+      const rs = groupVals(g, c => wkRet(c, weeks[i - 1], weeks[i]));
       weekly[g.key].push(mean(rs));
     }
   }
@@ -180,9 +206,9 @@ export async function fetchRotation(): Promise<RotationData> {
   // 묶음별 일별 등락(%) — 묶음마다 1개 이상 값이 있는 날만(있는 종목끼리 평균), 최근 DAILY_KEEP 일
   const rets = new Map(codes.map(c => [c, dayRet(c)] as const));
   const allDays = [...new Set(codes.flatMap(c => [...rets.get(c)!.keys()]))].sort();
-  const days = allDays.filter(d => ALL_GROUPS.every(g => g.members.some(m => rets.get(m.code)?.has(d)))).slice(-DAILY_KEEP);
+  const days = allDays.filter(d => ALL_GROUPS.every(g => groupVals(g, c => rets.get(c)?.get(d)).length > 0)).slice(-DAILY_KEEP);
   const daily: Record<string, number[]> = {};
-  for (const g of ALL_GROUPS) daily[g.key] = days.map(d => mean(g.members.map(m => rets.get(m.code)?.get(d)).filter((v): v is number => v != null)) * 100);
+  for (const g of ALL_GROUPS) daily[g.key] = days.map(d => mean(groupVals(g, c => rets.get(c)?.get(d))) * 100);
 
   const usCorr: Record<string, number | null> = {};
   await Promise.all(STAGES.map(async st => {
