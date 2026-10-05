@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { buildDashboardPage, defaultDashboardPage, PAGE_IDS, DASHBOARD_PAGES, INDEX_GROUP_KEYS, indexPageOf, type DashboardPage } from "../dashboardGroups";
-import { US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_SEMI_TAB_KEY } from "../../components/Tabs";
+import { US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY } from "../../components/Tabs";
 import { US_PAIRS } from "../usMarketData";
 import { STAGES } from "../rotation";
 
 // 지수 탭 — 나라가 아니라 **지금 움직이는 시장** 으로 나눈 세 페이지.
 //   ⚠️ 기대값을 코드에 맞춰 베끼지 말 것. 각 테스트 이름의 **의도**가 먼저다.
-const PAGES: DashboardPage[] = ["day", "night", "semi"];
+const PAGES: DashboardPage[] = ["day", "night", "semi", "leaders"];
 const ids = (p: DashboardPage) => buildDashboardPage(p).map(s => s.id);
 
 describe("지수 탭 페이지 구성", () => {
@@ -117,7 +117,25 @@ describe("지수 탭 페이지 구성", () => {
     for (const id of ["semi", "jpsemi"]) expect(page.find(s => s.id === id)!.rows.flat().filter(x => rot.has(x))).toEqual([]);
   });
 
-  it("지수 탭 셋(DASHBOARD_PAGES)과 페이지 정의(PAGE_IDS)가 같은 세 페이지다", () => {
+  it("대장주 페이지 = 섹터 줄마다 [섹터 ETF] ➜ [대장주] + 맨 아래 공통 세트, 반도체 페이지와 종목이 겹치지 않는다", () => {
+    const page = buildDashboardPage("leaders", false);
+    expect(page.map(s => s.id).slice(-3)).toEqual(["krfx", "dayfut", "spot"]);
+    const semiSyms = new Set(buildDashboardPage("semi", false).filter(s => !["krfx", "dayfut", "spot"].includes(s.id)).flatMap(s => s.rows.flat()));
+    const krStock = new Set(US_PAIRS.filter(p => p.krStock).map(p => p.symbol));
+    for (const sec of page.filter(s => s.id.startsWith("ld"))) {
+      expect(sec.rowLabels).toHaveLength(sec.rows.length);
+      sec.rows.forEach((row, i) => {
+        const n = sec.leadByRow?.[i] ?? sec.lead!;
+        expect(row.length).toBeLessThanOrEqual(8);
+        expect(row.slice(0, n).every(x => !krStock.has(x))).toBe(true);   // 앞 칸 = ETF
+        expect(row.slice(n).every(x => krStock.has(x))).toBe(true);       // 뒤 = 대장주(개별주)
+        expect(row.slice(n).length).toBeLessThanOrEqual(4);               // 4칸 — 넘으면 줄마다 카드 비율이 어긋난다
+        expect(row.filter(x => semiSyms.has(x))).toEqual([]);
+      });
+    }
+  });
+
+  it("지수 탭 셋(DASHBOARD_PAGES)과 페이지 정의(PAGE_IDS)가 같은 페이지들이다", () => {
     expect(DASHBOARD_PAGES.map(p => p.key).sort()).toEqual([...PAGES].sort());
   });
 
@@ -137,7 +155,8 @@ describe("지수 탭 페이지 구성", () => {
 
 describe("지수 탭 키 ↔ 페이지", () => {
   it("lib 의 키 문자열이 Tabs.tsx 상수와 같다 (어긋나면 탭을 눌러도 엉뚱한 페이지가 뜬다)", () => {
-    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_SEMI_TAB_KEY].sort());
+    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY].sort());
+    expect(indexPageOf(INDEX_LEADERS_TAB_KEY)).toBe("leaders");
     expect(indexPageOf(US_MARKET_TAB_KEY)).toBe("day");
     expect(indexPageOf(INDEX_NIGHT_TAB_KEY)).toBe("night");
     expect(indexPageOf(INDEX_SEMI_TAB_KEY)).toBe("semi");

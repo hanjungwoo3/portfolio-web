@@ -15,7 +15,7 @@ interface Props {
 // 탭 키 → 빠른 시작 단계 인덱스 (지수0·섹터1·종목찾기2·ETF검색3). App/Mobile 헤더에서 사용.
 export const HELP_STEP_BY_TAB: Record<string, number> = {
   "__us-market__": 0, "__kr__": 0, "__us__": 0, "__semi__": 0,  // 지수 계열
-  "__idx-night__": 0, "__idx-semi__": 0,                         // 지수(야간)·지수(반도체)
+  "__idx-night__": 0, "__idx-semi__": 0, "__idx-leaders__": 0,                         // 지수(야간)·지수(반도체)
   "__sector-rank__": 1, "__sector__": 1,                        // 섹터
   "__consensus__": 2,                                           // 종목찾기
   "__etf-reverse__": 3, "__etf__": 3,                           // ETF검색

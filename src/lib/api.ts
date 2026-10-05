@@ -3690,11 +3690,14 @@ export async function fetchYahooBatch(
       sparkline: t.sparkline ?? y.sparkline,   // 토스 mini-chart 시계열 (^US2Y sparkline 폴백)
     });
   };
-  // 한국(.KS) — 야후가 **다른 날** 값을 주면(코스닥 종목을 .KS 로 물으면 옛 상장 기록이 온다 — 로보티즈 '807일 전 마감'·
+  // 한국(.KS) — 야후가 **옛날** 값을 주면(코스닥 종목을 .KS 로 물으면 옛 상장 기록이 온다 — 로보티즈 '807일 전 마감'·
   //   책갈피 22,400원 사고) 야후의 마감가·마감 시각을 버리고 토스만 쓴다. 같은 날이면 예전처럼 마감 책갈피용으로 유지.
   for (const [sym, t] of ksMap) {
     const y = merged.get(sym);
-    if (y && t.tradeDate && y.tradeDate !== t.tradeDate) {
+    // '다른 날' = **일주일 넘게** 차이(옛 상장 기록). 개장 전엔 야후가 하루 전 값인 게 정상이라 그걸 버리면
+    //   마감 등락률이 사라진다(08:30 ETF·무체결 종목 % 공란 — 2026-10-06 실측).
+    const daysApart = (a?: string, b?: string) => a && b ? Math.abs(Date.parse(a) - Date.parse(b)) / 86_400_000 : 0;
+    if (y && t.tradeDate && (!y.tradeDate || daysApart(y.tradeDate, t.tradeDate) > 7)) {
       merged.set(sym, { ...y, regularPrice: undefined, regularPct: undefined, postPrice: undefined, regularMarketTime: t.regularMarketTime });
     }
     applyToss(sym, t);

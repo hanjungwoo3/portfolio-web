@@ -312,7 +312,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               //   실제 체결이 들어오면 열림, 단일가 진행 중이면 열림, ETF·ETN 은 15:30 이후 바로 마감.
               //   (정규장 09:00~15:30 만 보던 때는 08시 NXT 프리장에 시세가 움직이는데도 흐렸다)
               const sleeping = /^[\dA-Za-z]{6}\.KS$/.test(p.symbol)
-                ? isKrHoldingClosed(undefined, undefined, q?.singlePrice, q?.freshTime, !p.krStock)
+                ? isKrHoldingClosed(undefined, undefined, q?.singlePrice, q?.freshTime ?? 0, !p.krStock)   // 체결 시각 없으면(개장 전 ETF) 시간외엔 마감
                 : isSymbolSleeping(p.symbol);
               // 메인 가격/변동률 — 한국 입장(미국장 마감 후 아침에 확인):
               // · REGULAR: regularPct (어제 종가 대비)
@@ -570,7 +570,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 const col = (k: number) => ({ flex: `${k} 1 0`, gridTemplateColumns: `repeat(${k}, minmax(0, 1fr))` });
                 return (
                   <div className="flex items-stretch gap-2">
-                    <div className="grid gap-x-2" style={col(lead.length)}>{lead}</div>
+                    {/* 앞 칸이 없는 줄(대장주 페이지 '미용의료' — 맞는 ETF 없음)도 한 칸 비워 다른 줄과 자리를 맞춘다 */}
+                    {lead.length > 0
+                      ? <div className="grid gap-x-2" style={col(lead.length)}>{lead}</div>
+                      : <div style={{ flex: "1 1 0" }} />}
                     <div className="w-7 shrink-0" />
                     {/* 한국 쪽은 늘 krMax 칸짜리 보이지 않는 틀 — 카드가 적으면 왼쪽부터 채우고 나머지는 빈칸 */}
                     <div className="grid gap-x-2" style={col(krMax)}>{kr}</div>
@@ -582,7 +585,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                         {ex}
                       </div>
                     )}
-                    {8 - n - krMax - ex.length > 0 && <div style={{ flex: `${8 - n - krMax - ex.length} 1 0` }} />}
+                    {8 - Math.max(n, 1) - krMax - ex.length > 0 && <div style={{ flex: `${8 - Math.max(n, 1) - krMax - ex.length} 1 0` }} />}
                   </div>
                 );
               })()}

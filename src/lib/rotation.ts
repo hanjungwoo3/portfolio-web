@@ -42,8 +42,9 @@ export const STAGES: Stage[] = [
   { key: "semi", label: "반도체", family: "chip",
     members: [{ code: "396500", name: "TIGER 반도체TOP10" }, { code: "091160", name: "KODEX 반도체" },
               { code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }],
-    // 3위 웨스턴디지털 — 이 줄 한국 묶음 다음 날 상관 0.37(샌디스크·마이크론 0.39 와 거의 같다, 2026-10-05)
-    us: { symbol: "SNDK", name: "샌디스크" }, us2: { symbol: "MU", name: "마이크론" }, us3: { symbol: "WDC", name: "웨스턴디지털" } },
+    // 3번째 SK하이닉스 ADR — 웨스턴디지털(HDD, 반도체 아님)에서 교체. 같은 3개월 다음 날 상관은 WDC 0.37·ADR 0.31 로
+    //   WDC 가 조금 높았지만, 반도체 줄엔 반도체 회사를 둔다(사용자 결정 2026-10-06). ADR 은 상장 3개월이라 다시 볼 것.
+    us: { symbol: "SNDK", name: "샌디스크" }, us2: { symbol: "MU", name: "마이크론" }, us3: { symbol: "SKHY", name: "SK하이닉스(ADR)" } },
   { key: "front", label: "전공정", family: "chip",
     members: [{ code: "475300", name: "SOL 반도체전공정" }, { code: "471990", name: "KODEX AI반도체핵심장비" },
               { code: "476260", name: "HANARO 반도체핵심공정주도주" }, { code: "0239Y0", name: "PLUS 코리아HBM반도체" }],
@@ -131,7 +132,7 @@ export interface RotationData {
   daily: Record<string, number[]>;        // 단계 → 일별 수익률(%) (days[i] 하루치, 동일가중)
 }
 
-const LS_KEY = "ai_rotation_v15";   // v15: 로봇 단계 추가
+const LS_KEY = "ai_rotation_v16";   // v16: 반도체 3번째 WDC → SK하이닉스 ADR
 const DAILY_KEEP = 120;
 const TTL_MS = 6 * 60 * 60 * 1000;
 
