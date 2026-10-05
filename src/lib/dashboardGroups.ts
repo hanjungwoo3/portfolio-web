@@ -49,6 +49,7 @@ export interface DashboardSection {
 //   줄 안에서 색만 봐도 어디까지가 칩이고 어디부터가 에너지인지 읽힌다.
 // 단계마다 색 하나 — RotationTab 의 STAGE_COLOR(순환매 '지금 어디가 강한가' 칸)와 **같은 색**이어야
 //   줄 책갈피와 아래 통계 칸이 한눈에 짝지어진다. 한쪽을 바꾸면 다른 쪽도 바꿀 것.
+const DEFAULT_TONE = "text-slate-700 bg-slate-50 border-slate-300/70";
 const TAG_TONE: Record<string, string> = {
   반도체:   "text-indigo-700 bg-indigo-50 border-indigo-300/70",
   부품:     "text-indigo-700 bg-indigo-50 border-indigo-300/70",
@@ -87,7 +88,12 @@ export function isLastLead(s: DashboardSection, sym: string): boolean {
   return !!s.lead && s.rows.some((r, i) => r[rowLead(s, i) - 1] === sym);
 }
 export function dashboardTagTone(tag: string): string {
-  return TAG_TONE[tag] ?? "text-slate-700 bg-slate-50 border-slate-300/70";   // 광통신·AI 클라우드 등
+  return TAG_TONE[tag] ?? DEFAULT_TONE;   // 광통신·AI 클라우드 등
+}
+// 줄 책갈피 색 — 단계 색은 **순환매 줄**(단계 = 색)에만. 상자로 나눈 그룹(pairRows: 빅테크·ETF·일본 반도체)은
+//   분류 이름이 우연히 단계 이름과 같아도(소재·반도체) 색이 튀지 않게 전부 같은 회색으로.
+export function dashboardRowLabelTone(section: Pick<DashboardSection, "pairRows">, label: string): string {
+  return section.pairRows ? DEFAULT_TONE : dashboardTagTone(label);
 }
 
 // 섹션 정의 — id → 섹션. 페이지(PAGE_IDS)가 이 중 무엇을 어떤 순서로 쓸지 고른다.
@@ -162,10 +168,33 @@ function sectionMap(): Record<string, DashboardSection> {
       // 줄 상자를 좌우로 붙여 한 줄에(카드가 2~4장이라 한 줄씩이면 오른쪽이 텅 빈다)
       pairRows: true,
       //   [지수·선물 2 | 칩·파운드리 6] 한 줄(8장). 한국 24h·메모리 상자는 뺐다(24h 는 선물 그룹, 메모리는 순환매 반도체 줄에 있다).
-      rowLabels: ["지수·선물", "칩·파운드리"],
+      //   종류별 상자 [지수 2 | AI 칩 3 | 설계 1 | 파운드리 1] 한 줄(7장). 퀄컴(모바일 AP)·케이던스(설계 SW)는 뺐다 —
+      //   한국 다음 날 상관 0.06~0.11 로 최하위. 대신 MPS(AI 서버 전원, 0.22~0.23). 앰코(0.25)는 순환매 후공정 대장주로.
+      boxLines: [4],
+      rowLabels: ["지수", "AI 칩", "설계", "파운드리"],
       rows: [
         ["^SOX", "SOX=F"],                                // 필라델피아 반도체 지수 · 선물
-        ["NVDA", "AVGO", "QCOM", "ARM", "TSM", "CDNS"],   // AI 칩 설계 · CPU 설계(ARM) · 파운드리(TSMC) · 설계 SW(케이던스) — 한국 연동은 약하지만 AI 반도체 흐름용
+        ["NVDA", "AVGO", "MPWR"],                         // 엔비디아 · 브로드컴(AI ASIC) · MPS(AI 서버 전원)
+        ["ARM"],                                          // ARM(CPU 설계 — 삼성 다음 날 0.22)
+        ["TSM"],                                          // TSMC ADR
+      ],
+    },
+    {
+      id: "jpsemi", short: "일본",
+      label: "🇯🇵 일본 반도체",                       // 한국장과 같은 시간에 열리는 일본 — 미국은 밤, 이건 장중 비교용
+      // 종류별 상자 한 줄 [지수 1 | 장비 3 | 메모리 1 | 소재 1 | 기판 1] = 7장.
+      //   고쿠사이는 뺐다 — 장비 중 한국 상관 최저(하이닉스 0.59·전공정 0.50)에 도쿄일렉트론과 0.75 로 겹친다.
+      //   닛케이는 남긴다 — 한국 상관 최고(하이닉스 0.68·코스피 0.77), 도쿄일렉·어드반과 0.78~0.80 = 일본 반도체 체온계.
+      //   한국 반도체와 당일 상관(1년 일봉) 0.5~0.69 — 키옥시아↔하이닉스 0.69, 디스코↔한국 장비주 0.54~0.58, 도쿄오카↔하이닉스 0.64.
+      pairRows: true,
+      boxLines: [5],
+      rowLabels: ["지수", "장비", "메모리", "소재", "기판"],
+      rows: [
+        ["^N225"],                                      // 닛케이225
+        ["8035.T", "6146.T", "6857.T"],                 // 도쿄일렉트론(전공정) · 디스코(절단·연마) · 어드반테스트(테스터)
+        ["285A.T"],                                     // 키옥시아(NAND)
+        ["4186.T"],                                     // 도쿄오카(포토레지스트)
+        ["4062.T"],                                     // 이비덴(AI 패키지 기판)
       ],
     },
     {
@@ -217,7 +246,7 @@ function sectionMap(): Record<string, DashboardSection> {
       note: "간밤 🇺🇸 미국 대장주(굵은 카드)가 움직이면 → 오늘 🇰🇷 같은 분야 한국 종목도 같은 방향으로 가는 경향이 있어요. 예측은 아닙니다.",
       lead: 2,
       // 반도체(웨스턴디지털)·전공정(ASML)·CPU·기판(마벨)·광통신(코히런트)만 3번째 대장주 — 3번째도 연동이 강한 줄만(데이터 우선)
-      leadByRow: [3, 3, 2, 3, 3, 2, 2, 2, 2],
+      leadByRow: [3, 3, 3, 3, 3, 2, 2, 2, 2],
       rowLabels: ["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "방산"],
       // 줄 = [미국 대장주 2개, 한국 섹터 ETF(모자라면 주도주)…, (국내 상장 해외 테마 ETF)].
       //   앞 두 칸 + 한국 쪽은 lib/rotation STAGES 와 같아야 한다(테스트가 대조). 맨 뒤 extras 는 참고용 —
@@ -225,7 +254,7 @@ function sectionMap(): Record<string, DashboardSection> {
       rows: [
         ["SNDK", "MU", "WDC", "396500.KS", "091160.KS", "005930.KS", "000660.KS", "381180.KS"],
         ["LRCX", "AMAT", "ASML", "475300.KS", "471990.KS", "476260.KS", "0239Y0.KS", "464920.KS"],
-        ["KLAC", "ONTO", "475310.KS", "455850.KS", "042700.KS", "095340.KS", "469160.KS", "465660.KS"],
+        ["KLAC", "ONTO", "AMKR", "475310.KS", "455850.KS", "042700.KS", "095340.KS", "465660.KS"],   // 3번째 앰코 → 일본 ETF 하나(ACE, 거래대금 절반) 뺐다
         ["AMD", "INTC", "MRVL", "471760.KS", "367760.KS", "009150.KS", "007660.KS", "0225V0.KS"],
         ["LITE", "CIEN", "COHR", "0219B0.KS", "327260.KS", "010170.KS", "138080.KS", "0173Y0.KS"],
         ["PWR", "GEV", "487240.KS", "267260.KS", "0117V0.KS", "0209Z0.KS", "487230.KS", "491010.KS"],
@@ -234,8 +263,8 @@ function sectionMap(): Record<string, DashboardSection> {
         ["ITA", "RTX", "449450.KS", "0080G0.KS", "463250.KS", "012450.KS", "494840.KS", "0167Z0.KS"],   // 방산 — AI 밖이지만 미국이 끌고 온다
       ],
       // 소부장(전공정·후공정)은 맞는 미국 ETF 가 없어 일본 반도체 소부장 ETF — 일본장은 한국과 같은 시간이라 하루 시차가 없다
-      extraTag: { "464920.KS": "🇯🇵 일본", "465660.KS": "🇯🇵 일본", "469160.KS": "🇯🇵 일본" },
-      extras: ["0173Y0.KS", "464920.KS", "465660.KS", "419650.KS", "469160.KS", "381180.KS", "0225V0.KS", "487230.KS", "491010.KS", "0051G0.KS", "0132H0.KS", "419420.KS", "494840.KS", "0167Z0.KS"],
+      extraTag: { "464920.KS": "🇯🇵 일본", "465660.KS": "🇯🇵 일본" },
+      extras: ["0173Y0.KS", "464920.KS", "465660.KS", "419650.KS", "381180.KS", "0225V0.KS", "487230.KS", "491010.KS", "0051G0.KS", "0132H0.KS", "419420.KS", "494840.KS", "0167Z0.KS"],
     },
     {
       // AI 순환매 부가 정보 — 지금 강한 곳 · 다음 후보 · 흐름 · 통계(RotationTab, 접힘).
@@ -323,7 +352,8 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 소부장(semieq)은 뺐다 — 순환매 블록이 전공정·소재·부품·후공정 줄로 같은 미국 장비주를 한국 종목과 이어 보여준다.
   // AI 인프라 주도주(aiinfra)는 뺐다 — 블룸에너지·루멘텀이 순환매 친환경·광통신 줄에 대장주로 있다.
   // 순환매 부가정보(rotation — 강세 묶음·다음 후보·과거 성적·일별 등락)는 뺐다. 카드 블록(rotflow)만 남긴다.
-  semi:  ["semi", "rotflow"],
+  // 반도체도 맨 아래에 공통 세트(환율·금리·투심 → 선물 → 현물). 선물은 시간 따라 주간/야간 그룹으로 바뀐다(buildDashboardPage).
+  semi:  ["semi", "jpsemi", "rotflow", "krfx", "dayfut", "spot"],
 };
 
 // 한국 선물 가상심볼 — 같은 카드가 시간 따라 주간선물(09:00~15:45)·야간선물(18:00~05:00)이 된다.
@@ -332,7 +362,9 @@ const KR_FUT = new Set(["^KS200N", "^KQ150N"]);
 /** `krNight` = 지금 한국 야간 세션인가(18:00~09:00 KST). 기본은 현재 시각 — 테스트는 직접 넘긴다. */
 export function buildDashboardPage(page: DashboardPage, krNight = isKrNightNow()): DashboardSection[] {
   const m = sectionMap();
-  const secs = PAGE_IDS[page].map(id => m[id]).filter((s): s is DashboardSection => !!s);
+  // 반도체 페이지의 선물 자리 — 한국 밤엔 야간 그룹('밤의 한국' 선물)으로 바꿔 끼운다(이름이 시간과 맞게).
+  const ids = page === "semi" && krNight ? PAGE_IDS.semi.map(id => id === "dayfut" ? "krnight" : id) : PAGE_IDS[page];
+  const secs = ids.map(id => m[id]).filter((s): s is DashboardSection => !!s);
   // 주간 페이지엔 **주간선물만**(밤엔 뺀다), 야간 페이지엔 **야간선물만**(낮엔 뺀다).
   const dropIn = page === "day" && krNight ? "dayfut" : page === "night" && !krNight ? "krnight" : null;
   if (!dropIn) return secs;

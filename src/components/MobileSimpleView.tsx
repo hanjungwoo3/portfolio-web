@@ -18,7 +18,7 @@ import { getPersonalProxies, setPersonalProxies, type PersonalProxy, fetchProxyU
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
-import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, type DashboardPage } from "../lib/dashboardGroups";
+import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, type DashboardPage } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { StockMarketTab } from "./StockMarketTab";
 import { useExtensionProxyReady, compareVersion } from "../lib/extensionProxy";
@@ -1781,7 +1781,7 @@ export function MobileSimpleView() {
                 const lbl = section.rowLabels?.[ri] ?? "";
                 return (
                   <div key={symbol} className={`col-span-2 ${ri > 0 ? "border-t border-gray-200 pt-2" : ""} -mb-2`}>
-                    <span className={`inline-block px-1.5 py-0.5 rounded-md border text-[11px] font-bold ${dashboardTagTone(lbl)}`}>
+                    <span className={`inline-block px-1.5 py-0.5 rounded-md border text-[11px] font-bold ${dashboardRowLabelTone(section, lbl)}`}>
                       {lbl}
                     </span>
                   </div>

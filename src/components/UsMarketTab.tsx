@@ -4,7 +4,7 @@ import { fetchYahooBatch, fetchDashboardChart, fetchYasunNightFutures, fetchToss
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
-import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, type DashboardPage } from "../lib/dashboardGroups";
+import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, type DashboardPage } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
 import { requestTab, isTabVisible } from "../lib/tabNav";
 import { GroupNavBar } from "./GroupNavBar";
@@ -258,11 +258,17 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   const sizes = section.boxLines ?? Array.from({ length: Math.ceil(arr.length / per) }, () => per);
                   let at = 0;
                   return sizes.map(n => { const idx = Array.from({ length: n }, (_, j) => at + j).filter(i => i < arr.length); at += n; return idx; });
-                })().map((idx, k) => {
+                })().map((idx, k, lines) => {
                   // 상자 폭 = 카드 n장 + 카드 사이 틈 + 상자 안쪽 여백(왼쪽 책갈피 36 + 오른쪽 8 + 테두리 2).
                   //   카드 한 장 = 전체 폭 8칸 카드((100% - 7×8px)/8)와 같게 맞춘다 — 상자가 몇 개든 카드 크기가 다른 그룹과 같다.
-                  //   좁은 창에선 넘치지 않게 줄어들 수 있게(flex-shrink 1).
-                  const boxW = (n: number) => `calc(${n} * (100% - 56px) / 8 + ${(n - 1) * 8}px + 46px)`;
+                  //   단, 상자 여백 때문에 한 줄에 다 안 들어가는 줄이 있으면 **그룹 전체** 카드 폭을 그 줄에 맞춰 줄인다
+                  //   (줄마다 따로 눌리면 상자가 하나뿐인 줄만 카드가 커 보인다). 줄 하나(C장·B상자) 필요 폭 = C·w + 8C + 46B − 8.
+                  const fits = lines.map(l => {
+                    const c = l.reduce((s, i) => s + section.rows[i].length, 0);
+                    return `(100% - ${8 * c + 46 * l.length - 8}px) / ${c}`;
+                  });
+                  const card = `min((100% - 56px) / 8, ${fits.join(", ")})`;
+                  const boxW = (n: number) => `calc(${n} * ${card} + ${(n - 1) * 8}px + 46px)`;
                   return (
                     <div key={k} className="flex gap-2">
                       {idx.map(i => <div key={i} className="min-w-0" style={{ flex: `0 1 ${boxW(section.rows[i].length)}` }}>{arr[i]}</div>)}
@@ -285,7 +291,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 {section.rowLabels?.[gi] && (
                   <span className={`absolute left-0 inset-y-0 w-7 flex items-center justify-center border-0 border-r rounded-l-lg
                                     text-xs font-bold tracking-widest [writing-mode:vertical-rl] [text-orientation:upright]
-                                    ${dashboardTagTone(section.rowLabels[gi])}`}>
+                                    ${dashboardRowLabelTone(section, section.rowLabels[gi])}`}>
                     {section.rowLabels[gi]}
                   </span>
                 )}

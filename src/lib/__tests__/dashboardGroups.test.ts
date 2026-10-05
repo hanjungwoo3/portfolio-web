@@ -11,7 +11,7 @@ const ids = (p: DashboardPage) => buildDashboardPage(p).map(s => s.id);
 
 describe("지수 탭 페이지 구성", () => {
   it("페이지 목록의 그룹 id 가 전부 실제 그룹이다 (오타면 그 그룹이 소리 없이 사라진다)", () => {
-    for (const p of PAGES) expect(ids(p)).toEqual(PAGE_IDS[p]);
+    for (const p of PAGES) expect(buildDashboardPage(p, false).map(s => s.id)).toEqual(PAGE_IDS[p]);
   });
 
   it("한 페이지 안에서 같은 그룹이 두 번 나오지 않는다", () => {
@@ -65,12 +65,17 @@ describe("지수 탭 페이지 구성", () => {
     expect(ids("night").slice(-4)).toEqual(["sector", "krfx", "krnight", "spot"]);
   });
 
-  it("야간엔 반도체 페이지 그룹이 없다 (따로 페이지가 있으니 겹쳐 두지 않는다)", () => {
-    for (const g of ids("semi")) expect(ids("night")).not.toContain(g);
+  it("야간엔 반도체 전용 그룹이 없다 (따로 페이지가 있으니 겹쳐 두지 않는다 — 공통 세트만 같이 쓴다)", () => {
+    for (const g of ["semi", "jpsemi", "rotflow"]) expect(ids("night")).not.toContain(g);
   });
 
-  it("반도체 페이지 = 반도체 · 순환매(큰 블록)", () => {
-    expect(ids("semi")).toEqual(["semi", "rotflow"]);
+  it("반도체 페이지 = 반도체 · 일본 반도체 · 순환매 + 맨 아래 공통 세트(환율 → 선물 → 현물)", () => {
+    expect(ids("semi").slice(0, 3)).toEqual(["semi", "jpsemi", "rotflow"]);
+    // 선물 그룹은 시간 따라 이름이 맞는 쪽 — 한국 낮 = 주간 선물, 한국 밤 = 야간 선물(한국 야간선물 카드 포함)
+    expect(buildDashboardPage("semi", false).map(s => s.id).slice(3)).toEqual(["krfx", "dayfut", "spot"]);
+    const night = buildDashboardPage("semi", true);
+    expect(night.map(s => s.id).slice(3)).toEqual(["krfx", "krnight", "spot"]);
+    expect(night.find(s => s.id === "krnight")!.rows.flat()).toContain("^KS200N");
   });
 
   it("순환매 = 큰 블록 하나에 단계별 줄 9개(AI 8 + 방산) — 줄마다 책갈피 이름, 앞 2~3칸 미국 대장주, 나머지 한국 쪽", () => {
@@ -109,7 +114,7 @@ describe("지수 탭 페이지 구성", () => {
   it("반도체 그룹엔 순환매 블록에 있는 종목이 없다 (같은 카드가 한 화면에 두 번 나오지 않게)", () => {
     const page = buildDashboardPage("semi");
     const rot = new Set(page.find(s => s.id === "rotflow")!.rows.flat());
-    expect(page.find(s => s.id === "semi")!.rows.flat().filter(x => rot.has(x))).toEqual([]);
+    for (const id of ["semi", "jpsemi"]) expect(page.find(s => s.id === id)!.rows.flat().filter(x => rot.has(x))).toEqual([]);
   });
 
   it("지수 탭 셋(DASHBOARD_PAGES)과 페이지 정의(PAGE_IDS)가 같은 세 페이지다", () => {

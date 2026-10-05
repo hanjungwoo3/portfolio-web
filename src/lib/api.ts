@@ -3172,6 +3172,8 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "COHR": "US19871002001",   // 코히런트 (NYSE) — 광통신
   "CIEN": "US20131223002",   // 시에나 (NYSE) — 광통신 장비
   "KLAC": "US19801008001",   // KLA (NASDAQ) — 검사·계측
+  "AMKR": "US19980501001",   // 앰코 (NASDAQ) — 후공정·첨단 패키징
+  "MPWR": "US20041119001",   // MPS (NASDAQ) — AI 서버 전원 칩
   "GEV":  "NYS0240402001",   // GE 버노바 (NYSE)
   "OKLO": "US20210701009",   // 오클로 (NYSE) — SMR
   "FSLR": "US20061117001",   // 퍼스트 솔라 (NASDAQ)

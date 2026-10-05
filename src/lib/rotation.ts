@@ -52,7 +52,8 @@ export const STAGES: Stage[] = [
   { key: "back", label: "후공정", family: "chip",
     members: [{ code: "475310", name: "SOL 반도체후공정" }, { code: "455850", name: "SOL AI반도체소부장" },
               { code: "042700", name: "한미반도체" }, { code: "095340", name: "ISC" }],
-    us: { symbol: "KLAC", name: "KLA" }, us2: { symbol: "ONTO", name: "온투" } },
+    // 3위 앰코 — 미국 최대 후공정·패키징. 이 줄 한국 다음 날 상관 KLA 와 비슷(후공정 ETF 0.18·ISC 0.16, 2026-10-05)
+    us: { symbol: "KLAC", name: "KLA" }, us2: { symbol: "ONTO", name: "온투" }, us3: { symbol: "AMKR", name: "앰코" } },
   // CPU·기판 — 미국 CPU(AMD·인텔) ➜ 국내 기판 비중이 큰 ETF. (카드엔 국내 상장 미국CPU ETF 도 참고로)
   //   TIGER AI반도체핵심공정 = 삼성전기 23·이수페타시스 18·LG이노텍 13·대덕전자 10%(기판 합 68%),
   //   RISE 네트워크인프라 = 삼성전기 20·LG이노텍 10·이수페타시스 9%. 한국 기판주의 AMD 다음 날 상관이
@@ -124,7 +125,7 @@ export interface RotationData {
   daily: Record<string, number[]>;        // 단계 → 일별 수익률(%) (days[i] 하루치, 동일가중)
 }
 
-const LS_KEY = "ai_rotation_v13";   // v13: 친환경 KODEX 신재생(중복) → 한화솔루션
+const LS_KEY = "ai_rotation_v14";   // v14: 후공정 3번째 대장주 앰코
 const DAILY_KEEP = 120;
 const TTL_MS = 6 * 60 * 60 * 1000;
 

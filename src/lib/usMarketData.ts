@@ -123,6 +123,8 @@ export const US_PAIRS: Pair[] = [
   { symbol: "385510.KS", name: "KODEX 신재생에너지액티브", desc: "신재생 액티브 — 섹터 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "381570.KS", name: "HANARO Fn친환경에너지", desc: "친환경 에너지 — 섹터 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "KLAC", name: "KLA", desc: "KLA — 검사·계측 장비 1위. 한국 후공정 다음 날 상관 1위", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "AMKR", name: "앰코", desc: "Amkor — 미국 최대 후공정(OSAT)·첨단 패키징(CoWoS 외주). 한국 후공정·하이닉스 다음 날 상관 상위", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "MPWR", name: "MPS", desc: "Monolithic Power — AI 서버·GPU 전원 칩(엔비디아 공급). 하이닉스·삼성 다음 날 상관 0.22~0.23", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "GEV", name: "GE버노바", desc: "GE Vernova — 가스터빈·전력망 설비", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "OKLO", name: "오클로", desc: "Oklo — 소형모듈원전(SMR) 개발", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "FSLR", name: "퍼스트솔라", desc: "First Solar — 미국 최대 태양광 모듈", tier: "T0", sector: "dashboard", direction: "direct" },
@@ -211,6 +213,14 @@ export const US_PAIRS: Pair[] = [
   { symbol: "INTC",     name: "인텔",         desc: "Intel — CPU·파운드리. 미국 반도체 심리 게이지", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "QCOM",     name: "퀄컴",         desc: "Qualcomm — 모바일 AP(스냅드래곤)·모뎀 팹리스. 스마트폰 수요·온디바이스 AI 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "TSM",      name: "TSMC(ADR)",   desc: "TSMC ADR(뉴욕 상장) — 세계 최대 파운드리(NVDA·AMD·애플 칩 위탁생산). 반도체 전방수요·삼성 파운드리 경쟁 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 일본 반도체 — 한국과 같은 시간에 열리는 도쿄 본주(야후). 한국 반도체와 당일 상관 0.5~0.69.
+  { symbol: "^N225",    name: "닛케이",       desc: "닛케이225 — 도쿄일렉트론·어드반테스트 등 반도체 비중 큼", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "8035.T",   name: "도쿄일렉트론", desc: "Tokyo Electron — 세계 3위 전공정 장비(증착·식각·코터). 한국 전공정 장비 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "6857.T",   name: "어드반테스트", desc: "Advantest — 반도체 테스터 1위(HBM·AI칩 테스트). 한국 후공정·테스트 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "285A.T",   name: "키옥시아",     desc: "Kioxia 도쿄 본주(엔) — NAND 메모리. 삼성·하이닉스 메모리와 같은 사이클", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "6146.T",   name: "디스코",       desc: "DISCO — 웨이퍼 절단·연마 장비 1위(HBM 적층 필수). 한국 장비주(HPSP·전공정)와 가장 붙어 다님", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "4186.T",   name: "도쿄오카",     desc: "Tokyo Ohka(TOK) — 포토레지스트 소재. 일본 소재주 중 하이닉스와 동행 최고", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "4062.T",   name: "이비덴",       desc: "Ibiden — AI·서버 CPU 패키지 기판(엔비디아·인텔). 한국 기판주 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "KXIAY",    name: "키오시아(ADR)", desc: "Kioxia ADR(미국 OTC) — NAND 플래시 대표(구 도시바 메모리). 삼성·하이닉스 NAND 경쟁 가늠자. 토스 미지원 → 달러 표시", tier: "T0", sector: "dashboard", direction: "direct" },
   // 행 3.5 — 미국 빅테크 개별주 (Mag7 + 스페이스X, NVDA 는 반도체 줄에 있음). 가격·링크 모두 토스.
   { symbol: "AAPL",     name: "애플",         desc: "Apple — 아이폰·서비스. 미국 시총 1위급 소비 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
