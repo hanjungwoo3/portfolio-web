@@ -1773,9 +1773,32 @@ export function MobileSimpleView() {
                     : section.rowLabels
                     // 줄 이름이 있으면 줄마다 책갈피 머리('__row__:i')를 앞에 끼운다 — 모바일은 한 그리드라
                     //   줄을 상자로 감쌀 수 없어서, 머리가 새 줄에서 시작하며 위에 구분선을 긋는다.
-                    ? section.rows.flatMap((row, ri) => [`__row__:${ri}`, ...row])
+                    //   카드 1장짜리 줄이 연달아 오면(설계·파운드리 등) 두 줄을 한 줄에 — 머리도 좌우 둘('__pair__:i' = i·i+1 줄).
+                    ? (() => {
+                        const out: string[] = [];
+                        for (let ri = 0; ri < section.rows.length; ri++) {
+                          const row = section.rows[ri], next = section.rows[ri + 1];
+                          if (row.length === 1 && next?.length === 1) { out.push(`__pair__:${ri}`, row[0], next[0]); ri++; continue; }
+                          out.push(`__row__:${ri}`, ...row);
+                        }
+                        return out;
+                      })()
                     : section.rows.flat()
                   ).map(symbol => {
+              if (symbol.startsWith("__pair__:")) {
+                const ri = Number(symbol.slice(9));
+                return (
+                  <div key={symbol} className={`col-span-2 grid grid-cols-2 gap-x-2 ${ri > 0 ? "border-t border-gray-200 pt-2" : ""} -mb-2`}>
+                    {[ri, ri + 1].map(i => (
+                      <span key={i}>
+                        <span className={`inline-block px-1.5 py-0.5 rounded-md border text-[11px] font-bold ${dashboardRowLabelTone(section, section.rowLabels?.[i] ?? "")}`}>
+                          {section.rowLabels?.[i]}
+                        </span>
+                      </span>
+                    ))}
+                  </div>
+                );
+              }
               if (symbol.startsWith("__row__:")) {
                 const ri = Number(symbol.slice(8));
                 const lbl = section.rowLabels?.[ri] ?? "";
