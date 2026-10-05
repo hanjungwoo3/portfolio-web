@@ -441,7 +441,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                              color={sparkColor}
                              className={`absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none ${dimCls}`} />
-                  <div className={`relative z-10 flex items-baseline gap-1.5 ${dimCls}`}>
+                  <div className={`relative z-10 flex items-baseline gap-1.5 h-5 overflow-hidden ${dimCls}`}>
                     {sleeping && !inSession && (
                       <span className="text-[11px] text-gray-400">zZ</span>
                     )}
@@ -481,11 +481,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   ) : (
                   <div className={`relative z-10 flex items-end mt-auto ${dimCls}`}>
                     <span className={`flex-1 text-left tabular-nums ${sign}`}>
-                      {q?.currency === "KRW" && q?.priceUsd != null && (
-                        <span className="block text-[10px] font-normal leading-tight text-gray-900">
-                          ${q.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                        </span>
-                      )}
+                      {/* 달러 보조 줄 — 없는 카드도 같은 높이를 비워 둔다(미국 종목 카드만 한 줄 더 높아 그룹마다 카드 높이가 달랐다) */}
+                      <span className={`block text-[10px] font-normal leading-tight text-gray-900 ${q?.currency === "KRW" && q?.priceUsd != null ? "" : "invisible"}`}>
+                        {q?.currency === "KRW" && q?.priceUsd != null ? `$${q.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "$"}
+                      </span>
                       <span className="text-sm">{effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}</span>
                     </span>
                     <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
@@ -571,8 +570,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     {/* 한국 쪽은 늘 krMax 칸짜리 보이지 않는 틀 — 카드가 적으면 왼쪽부터 채우고 나머지는 빈칸 */}
                     <div className="grid gap-x-2" style={col(krMax)}>{kr}</div>
                     {ex.length > 0 && (
-                      <div className="relative grid gap-x-2 rounded-lg border border-sky-200 bg-sky-50/60 px-1.5 pb-1.5 pt-6 -mt-3.5" style={col(ex.length)}
+                      <div className="relative grid gap-x-2 rounded-lg border border-sky-200 bg-sky-50/60 px-1.5 pb-1.5 pt-3 -mt-[13px] -mb-[7px]" style={col(ex.length)}
                            title={`${section.extraTag?.[group[exAt]] ?? "🇺🇸 미국"} ETF — 참고용(통계엔 안 들어간다)`}>
+                        {/* 상자 여백(위 12+1·아래 6+1)은 음수 마진으로 **바깥으로** 뺀다 — 상자가 줄 높이를 키우면 같은 줄 카드가
+                            전부 늘어나(items-stretch) 순환매 카드만 다른 그룹보다 키가 컸다 */}
                         {ex}
                       </div>
                     )}

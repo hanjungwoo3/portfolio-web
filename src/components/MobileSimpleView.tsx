@@ -1922,7 +1922,7 @@ export function MobileSimpleView() {
                              color={sparkColor}
                              className={`absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none ${dimCls}`} />
-                  <div className={`relative flex items-baseline gap-1.5 ${dimCls}`}>
+                  <div className={`relative flex items-baseline gap-1.5 h-5 overflow-hidden ${dimCls}`}>
                     {sleeping && !inSession && (
                       <span className="text-[11px] text-gray-400">zZ</span>
                     )}
@@ -1950,11 +1950,10 @@ export function MobileSimpleView() {
                   </div>
                   <div className={`relative flex items-end mt-auto ${dimCls}`}>
                     <span className={`flex-1 text-left tabular-nums ${sign}`}>
-                      {q?.currency === "KRW" && q?.priceUsd != null && (
-                        <span className="block text-[9px] font-normal leading-tight text-gray-900">
-                          ${q.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                        </span>
-                      )}
+                      {/* 달러 보조 줄 — 없는 카드도 같은 높이를 비워 둔다(미국 종목 카드만 한 줄 더 높아 그룹마다 카드 높이가 달랐다) */}
+                      <span className={`block text-[9px] font-normal leading-tight text-gray-900 ${q?.currency === "KRW" && q?.priceUsd != null ? "" : "invisible"}`}>
+                        {q?.currency === "KRW" && q?.priceUsd != null ? `$${q.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "$"}
+                      </span>
                       <span className="text-sm">{effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}</span>
                     </span>
                     <span className={`flex-1 text-right text-base font-bold tabular-nums ${sign}`}>
