@@ -345,6 +345,12 @@ function scheduleSilentRefresh(): void {
   const delay = Math.max(0, tokenExpiresAt - Date.now() - SILENT_REFRESH_LEAD_MS);
   refreshTimer = window.setTimeout(() => {
     refreshTimer = null;
+    // ★ 확장 여부는 **타이머가 울리는 순간** 다시 본다. 이 함수는 페이지 로드 직후(모듈 import 시점)
+    //   불리는데, 그때는 확장 핸드셰이크(ready)가 아직 안 끝나 '확장 없음' 으로 판정돼 GIS 타이머가
+    //   걸렸다 → 확장을 쓰는데도 만료 5분 전마다 구글 로그인 팝업이 떴다 사라졌다(2026-10-05 제보).
+    //   확장이 있으면 팝업 없이 chrome.identity 로 받는다. 실패해도 팝업으로 넘어가지 않는다
+    //   (확장 동의가 안 돼 있으면 설정의 '확장으로 동의' 를 한 번 누르면 된다).
+    if (isExtensionProxyReady()) { void extensionAuthToken(false); return; }
     void requestSilentRefresh();
   }, delay);
 }
