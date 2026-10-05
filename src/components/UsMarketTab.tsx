@@ -570,7 +570,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 const col = (k: number) => ({ flex: `${k} 1 0`, gridTemplateColumns: `repeat(${k}, minmax(0, 1fr))` });
                 return (
                   <div className="flex items-stretch gap-2">
-                    {/* 앞 칸이 없는 줄(대장주 페이지 '미용의료' — 맞는 ETF 없음)도 한 칸 비워 다른 줄과 자리를 맞춘다 */}
+                    {/* 앞 칸이 없는 줄(맞는 ETF 가 없는 섹터)도 한 칸 비워 다른 줄과 자리를 맞춘다 */}
                     {lead.length > 0
                       ? <div className="grid gap-x-2" style={col(lead.length)}>{lead}</div>
                       : <div style={{ flex: "1 1 0" }} />}

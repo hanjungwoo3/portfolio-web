@@ -117,7 +117,7 @@ describe("지수 탭 페이지 구성", () => {
     for (const id of ["semi", "jpsemi"]) expect(page.find(s => s.id === id)!.rows.flat().filter(x => rot.has(x))).toEqual([]);
   });
 
-  it("대장주 페이지 = 섹터 줄마다 [섹터 ETF] ➜ [대장주] + 맨 아래 공통 세트, 반도체 페이지와 종목이 겹치지 않는다", () => {
+  it("대장주 페이지 = 섹터 줄마다 [섹터 ETF] ➜ [대장주](한 줄 8칸 이내) + 맨 아래 공통 세트, 반도체 페이지와 종목이 겹치지 않는다", () => {
     const page = buildDashboardPage("leaders", false);
     expect(page.map(s => s.id).slice(-3)).toEqual(["krfx", "dayfut", "spot"]);
     const semiSyms = new Set(buildDashboardPage("semi", false).filter(s => !["krfx", "dayfut", "spot"].includes(s.id)).flatMap(s => s.rows.flat()));
@@ -129,7 +129,7 @@ describe("지수 탭 페이지 구성", () => {
         expect(row.length).toBeLessThanOrEqual(8);
         expect(row.slice(0, n).every(x => !krStock.has(x))).toBe(true);   // 앞 칸 = ETF
         expect(row.slice(n).every(x => krStock.has(x))).toBe(true);       // 뒤 = 대장주(개별주)
-        expect(row.slice(n).length).toBeLessThanOrEqual(4);               // 4칸 — 넘으면 줄마다 카드 비율이 어긋난다
+        expect(row.length).toBeLessThanOrEqual(8);                        // ETF + 대장주 합쳐 한 줄 8칸
         expect(row.filter(x => semiSyms.has(x))).toEqual([]);
       });
     }
