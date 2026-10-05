@@ -110,6 +110,7 @@ import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit, TAB
 import { splitByMarket, splitHeldAndMarket, type MarketSection } from "../lib/marketSplit";
 import { EtfTopCards } from "./EtfTopCards";
 import { TicsSectorBoard } from "./TicsSectorBoard";
+import { RealRateNote } from "./RealRateNote";
 import { ProxyStatusBadge } from "./ProxyStatusBadge";
 import {
   getGroupFolders, setGroupFolders, type GroupFolder,
@@ -1743,6 +1744,7 @@ export function MobileSimpleView() {
                   <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
                 )}
                 {section.note && <div className="text-[10px] text-gray-500 leading-snug">{section.note}</div>}
+                {section.id === "krfx" && <RealRateNote usMap={usMap} small />}
                 {section.render === "rotation" && (
                   <RotationTab embedded extrasOnly onOpenValuation={t => setValuationTicker(t)} />
                 )}

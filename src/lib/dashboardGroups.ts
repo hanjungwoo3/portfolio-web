@@ -148,9 +148,10 @@ function sectionMap(): Record<string, DashboardSection> {
       id: "krfx", short: "환율금리",
       label: "📊 환율·금리·투심",
       rows: [
-        ["KRW=X", "JPYKRW=X", "DX-Y.NYB", "^US2Y", "^TNX", "^TYX"],
-        // KORU(한국 3배)는 선물 그룹으로 옮겼다. MOVE 옆에 미국 10Y 실질금리(TIPS, DFII10 과 같은 지표).
-        ["EWY", "^VIX", "^MOVE", "^TIPS10"],   // MOVE = 채권판 VIX(야후) · 실질금리(CNBC)
+        // 첫 줄 = 환율·달러 + 투심(EWY·VIX·MOVE), 둘째 줄 = 미 국채(2·10·30Y) + 10Y 실질금리(TIPS = DFII10).
+        //   KORU(한국 3배)는 선물 그룹으로 옮겼다.
+        ["KRW=X", "JPYKRW=X", "DX-Y.NYB", "EWY", "^VIX", "^MOVE"],   // MOVE = 채권판 VIX(야후)
+        ["^US2Y", "^TNX", "^TYX", "^TIPS10"],                      // 명목 2·10·30Y 옆에 실질 10Y(CNBC) — 둘을 나란히 봐야 물가 탓인지 구분된다
       ],
     },
     {
