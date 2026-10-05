@@ -116,7 +116,7 @@ export function marketOfSymbol(symbol: string): Market {
   // VIX / 미국 국채금리 — Yahoo 가 확장시간(04:00-20:00 ET)까지 갱신 → US 분류
   //   ^VIX = 변동성지수, ^TNX/^FVX/^TYX/^IRX = 미 국채 만기별 yield
   if (symbol === "^VIX" || symbol === "^TNX" || symbol === "^FVX"
-      || symbol === "^TYX" || symbol === "^IRX" || symbol === "^US2Y") return "US";
+      || symbol === "^TYX" || symbol === "^IRX" || symbol === "^US2Y" || symbol === "^TIPS10") return "US";
   // 한국 야간선물 (yasun.gg) — 18:00~05:00 KST 거래 시간만 활성, 그 외 흐림.
   if (symbol === "^KS200N" || symbol === "^KQ150N") return "KR_NIGHT";
   // 한국 국고채 금리(토스 KR1BENCH*) — 미국이 아니라 **한국 장** 시간에 움직인다.
@@ -131,7 +131,7 @@ export function marketOfSymbol(symbol: string): Market {
 // 문제를 막기 위해 24h 지표처럼 취급(흐림·마감 책갈피 제외). 2Y/10Y 표현 통일용.
 export function isUsRateSymbol(symbol: string): boolean {
   return symbol === "^US2Y" || symbol === "^TNX" || symbol === "^FVX"
-      || symbol === "^TYX" || symbol === "^IRX";
+      || symbol === "^TYX" || symbol === "^IRX" || symbol === "^TIPS10";
 }
 
 // 특정 IANA timezone 의 현재 시각 (Intl 사용 — DST 자동 처리)

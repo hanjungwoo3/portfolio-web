@@ -110,7 +110,7 @@ function sectionMap(): Record<string, DashboardSection> {
       //   (0.23 vs 0.29, 2년 실측 2026-10-05).
       // 한 줄(PC 전체 폭 8칸) — 미국 지수 선물 셋 + 삼성·하이닉스 24h + 한국 주간선물 둘(맨 뒤 — 밤엔 빠지는 카드라 끝에 둬야 자리가 안 흔들린다)
       wide: true,
-      rows: [["NQ=F", "ES=F", "SOX=F", "SKHY-PERP", "SMSN-PERP", "^KS200N", "^KQ150N"]],
+      rows: [["NQ=F", "ES=F", "SOX=F", "SKHY-PERP", "SMSN-PERP", "KORU", "^KS200N", "^KQ150N"]],
     },
     {
       // ETF 등락 TOP10(상승·하락) — 한국 시장 바로 아래. 레버리지·선물을 빼야 '오늘 실제로 오른 곳' 이 보인다.
@@ -149,7 +149,8 @@ function sectionMap(): Record<string, DashboardSection> {
       label: "📊 환율·금리·투심",
       rows: [
         ["KRW=X", "JPYKRW=X", "DX-Y.NYB", "^US2Y", "^TNX", "^TYX"],
-        ["EWY", "KORU", "^VIX", "^MOVE"],   // MOVE = 채권판 VIX(야후 값·차트)
+        // KORU(한국 3배)는 선물 그룹으로 옮겼다. MOVE 옆에 미국 10Y 실질금리(TIPS, DFII10 과 같은 지표).
+        ["EWY", "^VIX", "^MOVE", "^TIPS10"],   // MOVE = 채권판 VIX(야후) · 실질금리(CNBC)
       ],
     },
     {
@@ -254,7 +255,7 @@ function sectionMap(): Record<string, DashboardSection> {
       label: "⏳ 선물 (미국 지수 · 한국 야간)",
       // 한 줄 — 밤엔 7장이라 PC 에선 전체 폭 8칸(wide)으로 한 줄에 다 들어간다(낮엔 야간선물 둘이 빠져 5장)
       wide: true,
-      rows: [["NQ=F", "ES=F", "SOX=F", "SKHY-PERP", "SMSN-PERP", "^KS200N", "^KQ150N"]],
+      rows: [["NQ=F", "ES=F", "SOX=F", "SKHY-PERP", "SMSN-PERP", "KORU", "^KS200N", "^KQ150N"]],
     },
     {
       id: "spot", short: "현물",

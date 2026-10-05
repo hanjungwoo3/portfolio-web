@@ -3451,6 +3451,8 @@ export async function fetchTickerUsStockExtras(symbols: string[]): Promise<Map<s
 // CNBC 는 두 엔드포인트 모두 ACAO: * 라 프록시 없이 브라우저가 직접 호출한다(프록시 호출수 절약).
 const CNBC_SYMBOL: Record<string, string> = {
   "VKOSPI": ".KSVKOSPI",   // 코스피200 변동성지수 (한국 공포지수)
+  // 미국 10년 실질금리(TIPS) — FRED DFII10 과 같은 지표의 시장 호가. FRED 는 하루 늦고 키 없는 경로가 불안정해 CNBC 실시간으로
+  "^TIPS10": "US10YTIP",
 };
 export function isCnbcIndex(symbol: string): boolean {
   return symbol in CNBC_SYMBOL;
