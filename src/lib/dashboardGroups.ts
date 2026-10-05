@@ -26,7 +26,9 @@ export interface DashboardSection {
   leadByRow?: number[];  // 줄마다 대장주 수가 다를 때(없으면 lead) — 3개인 줄은 오른쪽 해외 ETF 를 하나 줄여 8장을 맞춘다
   extras?: string[];  // 줄 끝에 붙는 '참고' 카드(국내 상장 해외 테마 ETF) — 한국 블록 뒤 따로 상자
   extraTag?: Record<string, string>;
-  pairRows?: boolean; // PC 에서 줄 상자를 두 개씩 좌우로(반쪽 폭 4칸 — 카드 크기는 다른 줄과 같다)
+  pairRows?: boolean; // PC 에서 줄 상자를 두 개씩 좌우로 붙여서(카드 크기는 다른 줄과 같다)
+  boxesPerLine?: number;  // pairRows 일 때 한 줄에 놓을 상자 수(기본 2)
+  boxLines?: number[];    // 줄마다 상자 수가 다를 때(예: [2, 3]) — boxesPerLine 보다 우선
   wide?: boolean;     // PC 에서 75%·6칸 대신 전체 폭·8칸(카드 크기는 같다) — 한 줄에 7~8장이 들어가야 할 때   // 참고 카드의 나라 이름표(없으면 "🇺🇸 미국")
   // 줄 이름(rows 와 같은 길이) — PC 는 줄 왼쪽, 모바일은 줄 위에 둔다. 줄마다 옅은 상자로 나눈다.
   rowLabels?: string[];
@@ -265,19 +267,36 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     {
       id: "bigtech", short: "빅테크",
-      label: "🍎 미국 빅테크",                  // 1줄=플랫폼 4대, 2줄=메타·머스크(테슬라·스페이스X)·오라클
+      label: "🍎 미국 빅테크",
+      // 업종별 상자 — 첫 줄 [AI 칩 2 | 플랫폼 4 | AI 클라우드 2], 둘째 줄 [머스크 2 | 클라우드·SW 4 | 기기 2] — 줄마다 8장.
+      //   왼쪽 상자가 둘 다 2장이라 두 번째 상자 시작선이 맞는다(AI 칩 바로 아래 머스크).
+      //   엔비디아·브로드컴은 반도체 탭에도 있지만 야간 페이지엔 반도체 그룹이 없어 여기도 둔다.
+      pairRows: true,
+      boxLines: [3, 3],
+      rowLabels: ["AI 칩", "플랫폼", "AI 클라우드", "머스크", "클라우드·SW", "기기"],
       rows: [
-        ["AAPL", "MSFT", "GOOGL", "AMZN"],   // 플랫폼 대장 — 애플·MS·구글·아마존
-        ["META", "TSLA", "SPCX", "ORCL"],    // 메타 + 머스크(테슬라·스페이스X) + 오라클
+        ["NVDA", "AVGO"],                    // AI 칩 — 엔비디아·브로드컴
+        ["GOOGL", "META", "AMZN", "NFLX"],   // 검색·광고·커머스·콘텐츠 — 구글·메타·아마존·넷플릭스
+        ["CRWV", "NBIS"],                    // AI 클라우드(GPU 임대 '네오클라우드') — 코어위브·네비우스. 한국 연동은 약하다(0.2 안팎) — 미국 AI 투자 흐름용
+        ["TSLA", "SPCX"],                    // 머스크 — 테슬라·스페이스X
+        ["MSFT", "ORCL", "PLTR", "CRM"],     // 클라우드·기업용 AI 소프트웨어 — MS·오라클·팔란티어·세일즈포스
+        ["AAPL", "DELL"],                    // 기기 — 애플 · 델(AI 서버·PC)
       ],
     },
     {
       id: "usetf", short: "ETF",
       label: "📦 미국 대표 ETF",
+      // 지수 추종(SPY·QQQ·DIA·VTI·IWM)은 뺐다 — 바로 위 '미국 지수' 와 상관 0.99~1.00 으로 같은 카드였다.
+      //   대신 화면에 없던 정보: 채권(금리·안전자산) · 반도체 · 개인 레버리지 심리 · 배당.
+      //   SCHD 는 국내 '미국배당다우존스' ETF 들의 원본 지수라 같이 봐야 비교가 된다(ETF미국 탭).
+      pairRows: true,
+      boxesPerLine: 4,
+      rowLabels: ["채권", "반도체", "레버리지", "배당"],
       rows: [
-        // 6칸 그리드에 딱 맞는 6종. SCHD 는 배당성장 대표 — 국내 '미국배당다우존스' ETF 들이
-        //   전부 이 지수를 따라가서(ETF미국 탭 참조) 원본을 같이 봐야 비교가 된다.
-        ["SPY", "QQQ", "DIA", "IWM", "VTI", "SCHD"],
+        ["TLT"],                             // 미국 장기국채 20년+ — 금리 하락·안전자산 수요
+        ["SOXX"],                            // 미국 반도체 ETF — 야간 페이지에서 반도체 전체를 한 장으로
+        ["TQQQ", "SOXL"],                    // 나스닥·반도체 3배 — 서학개미가 가장 많이 사는 ETF(개인 심리)
+        ["SCHD", "JEPQ"],                    // 배당 — 배당성장(SCHD) · 나스닥 커버드콜(JEPQ)
       ],
     },
   ];

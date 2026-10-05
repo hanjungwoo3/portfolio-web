@@ -250,13 +250,20 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             {(arr => !section.pairRows ? arr : (
               // 짝 줄 — 상자 둘을 좌우로 **붙여서**. 상자 폭은 카드 수에 비례(flex-grow), 남는 자리는 오른쪽 빈칸(한 줄 8장 기준)
               <div className="space-y-0">
-                {Array.from({ length: Math.ceil(arr.length / 2) }, (_, k) => {
-                  const idx = [2 * k, 2 * k + 1].filter(i => i < arr.length);
-                  const used = idx.reduce((t, i) => t + section.rows[i].length, 0);
+                {(() => {
+                  // 줄마다 상자 묶음 — boxLines([2,3]) 가 있으면 그대로, 없으면 boxesPerLine(기본 2)씩
+                  const per = section.boxesPerLine ?? 2;
+                  const sizes = section.boxLines ?? Array.from({ length: Math.ceil(arr.length / per) }, () => per);
+                  let at = 0;
+                  return sizes.map(n => { const idx = Array.from({ length: n }, (_, j) => at + j).filter(i => i < arr.length); at += n; return idx; });
+                })().map((idx, k) => {
+                  // 상자 폭 = 카드 n장 + 카드 사이 틈 + 상자 안쪽 여백(왼쪽 책갈피 36 + 오른쪽 8 + 테두리 2).
+                  //   카드 한 장 = 전체 폭 8칸 카드((100% - 7×8px)/8)와 같게 맞춘다 — 상자가 몇 개든 카드 크기가 다른 그룹과 같다.
+                  //   좁은 창에선 넘치지 않게 줄어들 수 있게(flex-shrink 1).
+                  const boxW = (n: number) => `calc(${n} * (100% - 56px) / 8 + ${(n - 1) * 8}px + 46px)`;
                   return (
                     <div key={k} className="flex gap-2">
-                      {idx.map(i => <div key={i} className="min-w-0" style={{ flex: `${section.rows[i].length} 1 0` }}>{arr[i]}</div>)}
-                      {8 - used > 0 && <div className="hidden lg:block" style={{ flex: `${8 - used} 1 0` }} />}
+                      {idx.map(i => <div key={i} className="min-w-0" style={{ flex: `0 1 ${boxW(section.rows[i].length)}` }}>{arr[i]}</div>)}
                     </div>
                   );
                 })}
