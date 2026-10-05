@@ -42,7 +42,8 @@ export const STAGES: Stage[] = [
   { key: "semi", label: "반도체", family: "chip",
     members: [{ code: "396500", name: "TIGER 반도체TOP10" }, { code: "091160", name: "KODEX 반도체" },
               { code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }],
-    us: { symbol: "SNDK", name: "샌디스크" }, us2: { symbol: "MU", name: "마이크론" } },
+    // 3위 웨스턴디지털 — 이 줄 한국 묶음 다음 날 상관 0.37(샌디스크·마이크론 0.39 와 거의 같다, 2026-10-05)
+    us: { symbol: "SNDK", name: "샌디스크" }, us2: { symbol: "MU", name: "마이크론" }, us3: { symbol: "WDC", name: "웨스턴디지털" } },
   { key: "front", label: "전공정", family: "chip",
     members: [{ code: "475300", name: "SOL 반도체전공정" }, { code: "471990", name: "KODEX AI반도체핵심장비" },
               { code: "476260", name: "HANARO 반도체핵심공정주도주" }, { code: "0239Y0", name: "PLUS 코리아HBM반도체" }],
@@ -59,7 +60,8 @@ export const STAGES: Stage[] = [
   { key: "cpu", label: "CPU·기판", family: "chip",
     members: [{ code: "471760", name: "TIGER AI반도체핵심공정" }, { code: "367760", name: "RISE 네트워크인프라" },
               { code: "009150", name: "삼성전기" }, { code: "007660", name: "이수페타시스" }],
-    us: { symbol: "AMD", name: "AMD" }, us2: { symbol: "INTC", name: "인텔" } },
+    // 3위 마벨 — 맞춤형 AI 칩·고속 네트워크 칩. 이 줄 최근 6개월 1위(0.40), 2년 0.27(2026-10-05). ARM 은 0.26/0.27 로 약했다.
+    us: { symbol: "AMD", name: "AMD" }, us2: { symbol: "INTC", name: "인텔" }, us3: { symbol: "MRVL", name: "마벨" } },
   // 광통신 — AI 데이터센터 광 트랜시버·부품. 미국 루멘텀(최근 6개월 한국 광통신 다음 날 상관 0.48)·시에나(1년 0.34, 6개월 0.45).
   //   한국 = KoAct 광통신&위성네트워크액티브(광통신주 묶음과 상관 0.92) + 주도주 셋(국내 광통신 ETF 가 하나뿐이라).
   { key: "optic", label: "광통신", family: "chip",

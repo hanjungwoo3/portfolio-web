@@ -69,8 +69,8 @@ describe("지수 탭 페이지 구성", () => {
     for (const g of ids("semi")) expect(ids("night")).not.toContain(g);
   });
 
-  it("반도체 페이지 = 반도체 · 순환매(큰 블록) · 순환매 부가정보", () => {
-    expect(ids("semi")).toEqual(["semi", "rotflow", "rotation"]);
+  it("반도체 페이지 = 반도체 · 순환매(큰 블록)", () => {
+    expect(ids("semi")).toEqual(["semi", "rotflow"]);
   });
 
   it("순환매 = 큰 블록 하나에 단계별 줄 9개(AI 8 + 방산) — 줄마다 책갈피 이름, 앞 2~3칸 미국 대장주, 나머지 한국 쪽", () => {
