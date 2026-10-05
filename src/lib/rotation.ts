@@ -33,14 +33,15 @@ export interface Stage {
 }
 
 // 단계 정의 — 한 벌. 미국 대장주는 '미국 직전 거래일 ↔ 한국 다음 날' 상관 1위(2026-09-30 실측).
-// 한국 쪽 = 섹터 ETF 우선, ETF 가 모자란 단계(반도체·후공정·CPU·기판·광통신)는 **주도주**로 4칸을 채운다.
+// 한국 쪽 = 섹터 ETF + 주도주. ETF 가 모자란 단계는 주도주로 4칸을 채우고, ETF 끼리 상관 0.98 이상으로 겹치거나
+//   거래가 너무 적은 ETF 는 빼고 그 자리에 대장주를 넣었다(2026-10-05 점검 — 같은 정보 두 번 대신 ETF 대 대장주 비교).
 export const STAGES: Stage[] = [
   // 한국 쪽은 **섹터 ETF** — 종목 3~4개 묶음보다 미국 대장주 전날 ↔ 한국 다음 날 상관이 7단계 모두 높았다
   //   (분산돼 개별 종목 소음이 준다, 2026-10-01 실측 ~300거래일). 미국은 상관 1·2위.
   //   소재·부품은 뺐다 — ETF 로 보면 전공정(주간 0.91)·후공정(0.96)과 한 몸이고, 미국 1·2위도 전공정과 같았다.
   { key: "semi", label: "반도체", family: "chip",
     members: [{ code: "396500", name: "TIGER 반도체TOP10" }, { code: "091160", name: "KODEX 반도체" },
-              { code: "091230", name: "TIGER 반도체" }, { code: "000660", name: "SK하이닉스" }],
+              { code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }],
     us: { symbol: "SNDK", name: "샌디스크" }, us2: { symbol: "MU", name: "마이크론" } },
   { key: "front", label: "전공정", family: "chip",
     members: [{ code: "475300", name: "SOL 반도체전공정" }, { code: "471990", name: "KODEX AI반도체핵심장비" },
@@ -57,7 +58,7 @@ export const STAGES: Stage[] = [
   //   최근 60일 0.25 → ~0.5 로 커졌다(1년 기준으론 램리서치가 더 셌다, 2026-10-01).
   { key: "cpu", label: "CPU·기판", family: "chip",
     members: [{ code: "471760", name: "TIGER AI반도체핵심공정" }, { code: "367760", name: "RISE 네트워크인프라" },
-              { code: "0005G0", name: "IBK K-AI반도체코어테크" }, { code: "007660", name: "이수페타시스" }],
+              { code: "009150", name: "삼성전기" }, { code: "007660", name: "이수페타시스" }],
     us: { symbol: "AMD", name: "AMD" }, us2: { symbol: "INTC", name: "인텔" } },
   // 광통신 — AI 데이터센터 광 트랜시버·부품. 미국 루멘텀(최근 6개월 한국 광통신 다음 날 상관 0.48)·시에나(1년 0.34, 6개월 0.45).
   //   한국 = KoAct 광통신&위성네트워크액티브(광통신주 묶음과 상관 0.92) + 주도주 셋(국내 광통신 ETF 가 하나뿐이라).
@@ -67,22 +68,22 @@ export const STAGES: Stage[] = [
     // 3위 코히런트 — 최근 6개월 2위(0.46). 1년 기준으론 3~5위가 0.32~0.33 으로 비슷하다.
     us: { symbol: "LITE", name: "루멘텀" }, us2: { symbol: "CIEN", name: "시에나" }, us3: { symbol: "COHR", name: "코히런트" } },
   { key: "power", label: "전력기기", family: "energy",
-    members: [{ code: "487240", name: "KODEX AI전력핵심설비" }, { code: "491820", name: "HANARO 전력설비투자" },
+    members: [{ code: "487240", name: "KODEX AI전력핵심설비" }, { code: "267260", name: "HD현대일렉트릭" },
               { code: "0117V0", name: "TIGER 코리아AI전력기기TOP3플러스" }, { code: "0209Z0", name: "ACE 코리아AI전력TOP10" }],
     us: { symbol: "PWR", name: "콴타서비스" }, us2: { symbol: "GEV", name: "GE버노바" } },
   { key: "nuclear", label: "원자력", family: "energy",
     members: [{ code: "433500", name: "ACE 원자력TOP10" }, { code: "0098F0", name: "KODEX 원자력SMR" },
-              { code: "0091P0", name: "TIGER 코리아원자력" }, { code: "0092B0", name: "SOL 한국원자력SMR" }],
+              { code: "0091P0", name: "TIGER 코리아원자력" }, { code: "034020", name: "두산에너빌리티" }],
     us: { symbol: "CCJ", name: "카메코" }, us2: { symbol: "OKLO", name: "오클로" } },
   { key: "green", label: "친환경", family: "energy",
-    members: [{ code: "377990", name: "TIGER Fn신재생에너지" }, { code: "385510", name: "KODEX 신재생에너지액티브" },
-              { code: "381570", name: "HANARO Fn친환경에너지" }, { code: "457990", name: "PLUS 태양광&ESS" }],
+    members: [{ code: "377990", name: "TIGER Fn신재생에너지" }, { code: "009830", name: "한화솔루션" },
+              { code: "112610", name: "씨에스윈드" }, { code: "457990", name: "PLUS 태양광&ESS" }],
     us: { symbol: "BE", name: "블룸에너지" }, us2: { symbol: "FSLR", name: "퍼스트솔라" } },
   // 방산 — AI 는 아니지만 미국이 끌고 오는 힘이 AI 단계만큼 있다(미국 방산 ETF 전날 ↔ 한국 다음 날 0.34,
   //   2026-10-01 실측). 반도체와 주간 상관 0.08 — AI 가 쉴 때 따로 가는 곳.
   { key: "defense", label: "방산", family: "defense",
     members: [{ code: "449450", name: "PLUS K방산" }, { code: "0080G0", name: "KODEX 방산TOP10" },
-              { code: "463250", name: "TIGER K방산&우주" }, { code: "490480", name: "SOL K방산" }],
+              { code: "463250", name: "TIGER K방산&우주" }, { code: "012450", name: "한화에어로스페이스" }],
     us: { symbol: "ITA", name: "미국 방산 ETF" }, us2: { symbol: "RTX", name: "레이시온" } },
 ];
 
@@ -121,7 +122,7 @@ export interface RotationData {
   daily: Record<string, number[]>;        // 단계 → 일별 수익률(%) (days[i] 하루치, 동일가중)
 }
 
-const LS_KEY = "ai_rotation_v11";   // v11: AI 밖 — 화장품 ETF 추가, 필수소비재 신설
+const LS_KEY = "ai_rotation_v13";   // v13: 친환경 KODEX 신재생(중복) → 한화솔루션
 const DAILY_KEEP = 120;
 const TTL_MS = 6 * 60 * 60 * 1000;
 
