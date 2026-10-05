@@ -1,4 +1,4 @@
-// AI 순환매 — 한국 AI 생태계 6단계(반도체·전공정·후공정·전력기기·원자력·친환경) + 방산의 흐름, 비교용 AI 밖(금융·조선·화장품).
+// AI 순환매 — 한국 AI 생태계 6단계(반도체·전공정·후공정·전력기기·원자력·친환경) + 방산의 흐름, 비교용 AI 밖(금융·조선·화장품·필수소비재).
 //
 // 무엇을 보여주나
 //   ① 지금 어느 단계가 강한가(1주·4주·13주)
@@ -26,6 +26,7 @@ export interface Stage {
   members: { code: string; name: string }[];
   us: { symbol: string; name: string };   // 간밤에 이 단계를 끌고 오는 미국 대장주(상관 1위 — 통계는 이것만 쓴다)
   us2: { symbol: string; name: string };  // 2위 — 카드에만 같이 보여 준다
+  us3?: { symbol: string; name: string }; // 3위 — 3번째도 강한 단계만(전공정 KLA·광통신 코히런트). 카드에만
   // 통계 이력 보충용 종목 — 카드엔 안 나온다. members(ETF)가 최근 상장이라 이력이 짧을 때,
   //   **members 값이 하나도 없는 주·날에만** 이 종목들 평균을 대신 쓴다(있으면 ETF 만 쓴다).
   history?: { code: string; name: string }[];
@@ -44,7 +45,8 @@ export const STAGES: Stage[] = [
   { key: "front", label: "전공정", family: "chip",
     members: [{ code: "475300", name: "SOL 반도체전공정" }, { code: "471990", name: "KODEX AI반도체핵심장비" },
               { code: "476260", name: "HANARO 반도체핵심공정주도주" }, { code: "0239Y0", name: "PLUS 코리아HBM반도체" }],
-    us: { symbol: "LRCX", name: "램리서치" }, us2: { symbol: "AMAT", name: "어플라이드" } },
+    // 3번째 ASML — 데이터상 3위는 KLA(1년 0.43)지만 후공정 줄 대장주라 겹쳐서 다음 순위 ASML(0.39)을 쓴다(2026-10-05).
+    us: { symbol: "LRCX", name: "램리서치" }, us2: { symbol: "AMAT", name: "어플라이드" }, us3: { symbol: "ASML", name: "ASML" } },
   { key: "back", label: "후공정", family: "chip",
     members: [{ code: "475310", name: "SOL 반도체후공정" }, { code: "455850", name: "SOL AI반도체소부장" },
               { code: "042700", name: "한미반도체" }, { code: "095340", name: "ISC" }],
@@ -62,7 +64,8 @@ export const STAGES: Stage[] = [
   { key: "optic", label: "광통신", family: "chip",
     members: [{ code: "0219B0", name: "KoAct 광통신&위성네트워크액티브" }, { code: "327260", name: "RF머트리얼즈" },
               { code: "010170", name: "대한광통신" }, { code: "138080", name: "오이솔루션" }],
-    us: { symbol: "LITE", name: "루멘텀" }, us2: { symbol: "CIEN", name: "시에나" } },
+    // 3위 코히런트 — 최근 6개월 2위(0.46). 1년 기준으론 3~5위가 0.32~0.33 으로 비슷하다.
+    us: { symbol: "LITE", name: "루멘텀" }, us2: { symbol: "CIEN", name: "시에나" }, us3: { symbol: "COHR", name: "코히런트" } },
   { key: "power", label: "전력기기", family: "energy",
     members: [{ code: "487240", name: "KODEX AI전력핵심설비" }, { code: "491820", name: "HANARO 전력설비투자" },
               { code: "0117V0", name: "TIGER 코리아AI전력기기TOP3플러스" }, { code: "0209Z0", name: "ACE 코리아AI전력TOP10" }],
@@ -90,7 +93,11 @@ export interface OutsideGroup { key: string; label: string; members: { code: str
 export const OUTSIDE: OutsideGroup[] = [
   { key: "finance", label: "금융", members: [{ code: "091170", name: "KODEX 은행" }, { code: "102970", name: "KODEX 증권" }] },
   { key: "ship", label: "조선", members: [{ code: "466920", name: "SOL 조선TOP3플러스" }, { code: "494670", name: "TIGER 조선TOP10" }] },
-  { key: "beauty", label: "화장품", members: [{ code: "228790", name: "TIGER 화장품" }, { code: "479850", name: "HANARO K-뷰티" }] },
+  { key: "beauty", label: "화장품", members: [{ code: "228790", name: "TIGER 화장품" }, { code: "479850", name: "HANARO K-뷰티" },
+                                              { code: "0008T0", name: "SOL 화장품TOP3플러스" }] },
+  // 필수소비재(음식료) — 반도체와 일간 상관 0.16~0.19 로 가장 따로 간다. 미국 짝(P&G·코카콜라·XLP)은 0.14~0.16 으로 약하다
+  //   (2년 실측 2026-10-05). 경기방어로 돈이 옮겨 가는지 보는 용도.
+  { key: "staples", label: "필수소비재", members: [{ code: "266410", name: "KODEX 필수소비재" }, { code: "438900", name: "HANARO Fn K-푸드" }] },
 ];
 /** 주별·일별 수익률을 계산하는 전체 묶음 — 순환매 단계 + AI 밖. */
 type Mem = { code: string; name: string };
@@ -114,7 +121,7 @@ export interface RotationData {
   daily: Record<string, number[]>;        // 단계 → 일별 수익률(%) (days[i] 하루치, 동일가중)
 }
 
-const LS_KEY = "ai_rotation_v10";   // v10: ETF 모자란 단계에 주도주
+const LS_KEY = "ai_rotation_v11";   // v11: AI 밖 — 화장품 ETF 추가, 필수소비재 신설
 const DAILY_KEEP = 120;
 const TTL_MS = 6 * 60 * 60 * 1000;
 

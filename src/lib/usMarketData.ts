@@ -160,6 +160,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "457990.KS", name: "PLUS 태양광&ESS", desc: "태양광·ESS — 섹터 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "490480.KS", name: "SOL K방산", desc: "국내 방산 — 섹터 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "007660.KS", name: "이수페타시스", desc: "AI 서버·네트워크용 고다층 기판(MLB)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "COHR", name: "코히런트", desc: "Coherent — 광 트랜시버·레이저. 한국 광통신 최근 6개월 다음 날 상관 2위", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "357780.KS", name: "솔브레인", desc: "식각액·반도체 공정 소재", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "005290.KS", name: "동진쎄미켐", desc: "포토레지스트·공정 소재", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "064760.KS", name: "티씨케이", desc: "SiC 링 — 식각 장비 소모 부품", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },

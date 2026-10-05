@@ -69,37 +69,47 @@ describe("지수 탭 페이지 구성", () => {
     for (const g of ids("semi")) expect(ids("night")).not.toContain(g);
   });
 
-  it("반도체 페이지 = 반도체 · AI 인프라 · 순환매(큰 블록) · 순환매 부가정보", () => {
-    expect(ids("semi")).toEqual(["semi", "aiinfra", "rotflow", "rotation"]);
+  it("반도체 페이지 = 반도체 · 순환매(큰 블록) · 순환매 부가정보", () => {
+    expect(ids("semi")).toEqual(["semi", "rotflow", "rotation"]);
   });
 
-  it("순환매 = 큰 블록 하나에 단계별 줄 9개(AI 8 + 방산) — 줄마다 책갈피 이름, 앞 두 칸 미국 대장주, 나머지 한국 섹터 ETF", () => {
+  it("순환매 = 큰 블록 하나에 단계별 줄 9개(AI 8 + 방산) — 줄마다 책갈피 이름, 앞 2~3칸 미국 대장주, 나머지 한국 쪽", () => {
     const g = buildDashboardPage("semi").find(s => s.id === "rotflow")!;
     expect(g.note).toBeTruthy();                                  // 미국→한국 영향이라는 설명 한 줄
     expect(g.rows).toHaveLength(9);
     expect(g.rowLabels).toEqual(["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "방산"]);
     expect(g.lead).toBe(2);
     expect(g.tags).toBeUndefined();                               // 카드 책갈피는 뺐다 — 줄 책갈피가 대신한다
-    for (const row of g.rows) {
-      const [us1, us2, ...kr] = row;
-      expect(us1).not.toMatch(/\.KS$/);
-      expect(us2).not.toMatch(/\.KS$/);
+    g.rows.forEach((row, i) => {
+      const n = g.leadByRow?.[i] ?? g.lead!;
+      expect(n === 2 || n === 3).toBe(true);
+      const leads = row.slice(0, n), kr = row.slice(n);
+      expect(leads.every(s => !/\.KS$/.test(s))).toBe(true);
       expect(kr.length).toBeGreaterThan(0);
       expect(kr.every(s => /^[\dA-Za-z]{6}\.KS$/.test(s))).toBe(true);
-    }
+    });
   });
 
   it("순환매 카드 줄과 순환매 통계(lib/rotation STAGES)가 같은 단계·같은 대장주·같은 종목이다 (어긋나면 카드와 통계가 딴소리)", () => {
     const g = buildDashboardPage("semi").find(s => s.id === "rotflow")!;
     expect(g.rowLabels).toEqual(STAGES.map(st => st.label));
     g.rows.forEach((row, i) => {
-      expect(row.slice(0, 2)).toEqual([STAGES[i].us.symbol, STAGES[i].us2.symbol]);
+      const n = g.leadByRow?.[i] ?? g.lead!;
+      const leads = [STAGES[i].us.symbol, STAGES[i].us2.symbol, ...(STAGES[i].us3 ? [STAGES[i].us3.symbol] : [])];
+      expect(row.slice(0, n)).toEqual(leads);
       const ex = new Set(g.extras ?? []);
-      expect(row.slice(2).filter(x => !ex.has(x))).toEqual(STAGES[i].members.map(m => `${m.code}.KS`));
+      expect(row.slice(n).filter(x => !ex.has(x))).toEqual(STAGES[i].members.map(m => `${m.code}.KS`));
+      expect(row.length).toBeLessThanOrEqual(8);   // 대장주 3개인 줄은 해외 ETF 를 하나 줄여 8장 이내
       // 참고 카드는 줄 맨 뒤에만 — 한국 쪽 사이에 끼면 PC 오른쪽 자리 배치가 깨진다
       const firstEx = row.findIndex(x => ex.has(x));
       if (firstEx >= 0) expect(row.slice(firstEx).every(x => ex.has(x))).toBe(true);
     });
+  });
+
+  it("반도체 그룹엔 순환매 블록에 있는 종목이 없다 (같은 카드가 한 화면에 두 번 나오지 않게)", () => {
+    const page = buildDashboardPage("semi");
+    const rot = new Set(page.find(s => s.id === "rotflow")!.rows.flat());
+    expect(page.find(s => s.id === "semi")!.rows.flat().filter(x => rot.has(x))).toEqual([]);
   });
 
   it("지수 탭 셋(DASHBOARD_PAGES)과 페이지 정의(PAGE_IDS)가 같은 세 페이지다", () => {

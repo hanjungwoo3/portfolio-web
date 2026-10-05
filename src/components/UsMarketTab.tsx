@@ -4,7 +4,7 @@ import { fetchYahooBatch, fetchDashboardChart, fetchYasunNightFutures, fetchToss
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
-import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardTagCard, leadRowOf, isLastLead, type DashboardPage } from "../lib/dashboardGroups";
+import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, type DashboardPage } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
 import { requestTab, isTabVisible } from "../lib/tabNav";
 import { GroupNavBar } from "./GroupNavBar";
@@ -247,7 +247,21 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               <TicsSectorBoard onOpenValuation={onOpenValuation}
                                 krClosed={page === "night"} />
             )}
-            {(section.render ? []
+            {(arr => !section.pairRows ? arr : (
+              // 짝 줄 — 상자 둘을 좌우로 **붙여서**. 상자 폭은 카드 수에 비례(flex-grow), 남는 자리는 오른쪽 빈칸(한 줄 8장 기준)
+              <div className="space-y-0">
+                {Array.from({ length: Math.ceil(arr.length / 2) }, (_, k) => {
+                  const idx = [2 * k, 2 * k + 1].filter(i => i < arr.length);
+                  const used = idx.reduce((t, i) => t + section.rows[i].length, 0);
+                  return (
+                    <div key={k} className="flex gap-2">
+                      {idx.map(i => <div key={i} className="min-w-0" style={{ flex: `${section.rows[i].length} 1 0` }}>{arr[i]}</div>)}
+                      {8 - used > 0 && <div className="hidden lg:block" style={{ flex: `${8 - used} 1 0` }} />}
+                    </div>
+                  );
+                })}
+              </div>
+            ))((section.render ? []
               : section.id === "sector"
               ? chunk(
                   section.rows.flat().sort((a, b) =>
@@ -256,7 +270,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               : section.rows
             ).map((group, gi) => (
               // 6열 그리드 — 화면은 전체 폭이지만 카드 줄만 lg 75% 로 묶어 카드 크기는 예전 그대로(왼쪽 정렬)
-              <div key={gi} className={section.rowLabels ? "relative -mr-[9px] rounded-lg border border-gray-200 bg-gray-50/50 pl-9 pr-2 pb-2 pt-4 mt-2" : ""}>
+              <div key={gi} className={section.rowLabels ? `relative ${section.pairRows ? "" : "-mr-[9px]"} rounded-lg border border-gray-200 bg-gray-50/50 pl-9 pr-2 pb-2 pt-4 mt-2` : ""}>
                 {/* 줄 책갈피 — 이 줄이 어느 단계인지(반도체·전공정…). 위에 얹으면 카드 위 가격 띠와 겹쳐
                     안 보여서, 상자 **왼쪽에 세로 띠**로 따로 뺐다(글자는 위→아래로 세워 쓴다). */}
                 {section.rowLabels?.[gi] && (
@@ -521,18 +535,19 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               );
                 });
                 if (!section.extras) return (
-                  <div className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 ${section.wide ? "lg:grid-cols-8" : `lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}`}>
+                  <div style={section.pairRows ? { gridTemplateColumns: `repeat(${group.length}, minmax(0, 1fr))` } : undefined}
+                       className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 ${section.pairRows ? "" : section.wide ? "lg:grid-cols-8" : `lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}`}>
                     {cards}
                   </div>
                 );
                 // 순환매 줄 — 블록 셋: [미국 대장주] ➜ [한국] [국내 상장 미국 ETF(참고, 따로 상자)].
                 //   블록 폭을 카드 수에 비례(flex-grow)하게 주고 나머지는 빈칸으로 채워, 줄마다 카드 크기가 같다(한 줄 8장 기준).
-                const n = section.lead ?? 0;
+                const n = rowLead(section, gi);
                 const exAt = group.findIndex(x => section.extras!.includes(x));
                 const krEnd = exAt < 0 ? group.length : exAt;
                 const lead = cards.slice(0, n), kr = cards.slice(n, krEnd), ex = exAt < 0 ? [] : cards.slice(exAt);
                 // 한국 쪽 최대 장 수(모든 줄 기준) — 한국 틀을 이 칸 수로 고정해 참고 상자가 줄마다 같은 자리에서 시작한다
-                const krMax = Math.max(...section.rows.map(r => r.slice(n).filter(x => !section.extras!.includes(x)).length));
+                const krMax = Math.max(...section.rows.map((r, ri) => r.slice(rowLead(section, ri)).filter(x => !section.extras!.includes(x)).length));
                 const col = (k: number) => ({ flex: `${k} 1 0`, gridTemplateColumns: `repeat(${k}, minmax(0, 1fr))` });
                 return (
                   <div className="flex items-stretch gap-2">
@@ -551,7 +566,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 );
               })()}
               </div>
-            ))}
+            )))}
           </div>
         ))}
       </div>

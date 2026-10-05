@@ -35,6 +35,7 @@ const STAGE_COLOR: Record<string, { bg: string; text: string; chip: string; hex:
   // AI 밖(비교용) — 무채색 계열로 AI 단계와 한눈에 갈리게
   finance: { bg: "bg-stone-500",   text: "text-stone-700",   chip: "bg-stone-50 border-stone-300", hex: "#78716c" },
   ship:    { bg: "bg-slate-500",   text: "text-slate-700",   chip: "bg-slate-50 border-slate-300", hex: "#64748b" },
+  staples: { bg: "bg-yellow-600",  text: "text-yellow-800",  chip: "bg-yellow-50 border-yellow-300", hex: "#ca8a04" },
   beauty:  { bg: "bg-pink-500",    text: "text-pink-700",    chip: "bg-pink-50 border-pink-300", hex: "#ec4899" },
   green:   { bg: "bg-emerald-500", text: "text-emerald-700", chip: "bg-emerald-50 border-emerald-300", hex: "#10b981" },
 };
@@ -127,7 +128,7 @@ export function RotationTab({ onOpenValuation, embedded, extrasOnly }: Props) {
       <div className={`flex flex-wrap items-center gap-2 ${embedded ? "" : "rounded-xl border border-gray-300 bg-white p-2.5"}`}>
         {!embedded && <span className="text-sm font-bold text-gray-800">🔄 AI 순환매</span>}
         <span className="text-[11px] text-gray-500">
-          AI 8단계(반도체 · 전공정 · 후공정 · CPU·기판 · 광통신 · 전력기기 · 원자력 · 친환경) + 방산 · 비교용 AI 밖(금융 · 조선 · 화장품)
+          AI 8단계(반도체 · 전공정 · 후공정 · CPU·기판 · 광통신 · 전력기기 · 원자력 · 친환경) + 방산 · 비교용 AI 밖(금융 · 조선 · 화장품 · 필수소비재)
         </span>
         <button onClick={refresh} disabled={loading}
                 title="단계별 종목 일봉을 다시 받습니다 (약 26콜)"

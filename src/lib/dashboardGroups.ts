@@ -23,8 +23,10 @@ export interface DashboardSection {
   // 줄마다 첫 카드가 '원인'(간밤 미국 대장주)이고 나머지가 '결과'(오늘 한국 종목). 첫 카드를 굵은
   //   테두리로 구분하고 오른쪽에 → 를 붙여 "이게 → 이것들" 이 한눈에 읽히게 한다.
   lead?: number;      // 줄마다 앞 N 칸이 미국 대장주(원인) — 단계색 배경 + 뒤에 ➜
+  leadByRow?: number[];  // 줄마다 대장주 수가 다를 때(없으면 lead) — 3개인 줄은 오른쪽 해외 ETF 를 하나 줄여 8장을 맞춘다
   extras?: string[];  // 줄 끝에 붙는 '참고' 카드(국내 상장 해외 테마 ETF) — 한국 블록 뒤 따로 상자
   extraTag?: Record<string, string>;
+  pairRows?: boolean; // PC 에서 줄 상자를 두 개씩 좌우로(반쪽 폭 4칸 — 카드 크기는 다른 줄과 같다)
   wide?: boolean;     // PC 에서 75%·6칸 대신 전체 폭·8칸(카드 크기는 같다) — 한 줄에 7~8장이 들어가야 할 때   // 참고 카드의 나라 이름표(없으면 "🇺🇸 미국")
   // 줄 이름(rows 와 같은 길이) — PC 는 줄 왼쪽, 모바일은 줄 위에 둔다. 줄마다 옅은 상자로 나눈다.
   rowLabels?: string[];
@@ -69,14 +71,18 @@ const TAG_CARD: Record<string, string> = {
 export function dashboardTagCard(tag: string | undefined): string {
   return (tag && TAG_CARD[tag]) || "bg-amber-50 border-amber-300";
 }
+/** 그 줄의 미국 대장주 칸 수. */
+export function rowLead(s: DashboardSection, i: number): number {
+  return s.leadByRow?.[i] ?? s.lead ?? 0;
+}
 /** 순환매 같은 lead 그룹에서 이 심볼이 미국 대장주 칸이면 그 줄 번호, 아니면 -1. */
 export function leadRowOf(s: DashboardSection, sym: string): number {
   if (!s.lead) return -1;
-  return s.rows.findIndex(r => r.slice(0, s.lead).includes(sym));
+  return s.rows.findIndex((r, i) => r.slice(0, rowLead(s, i)).includes(sym));
 }
 /** 줄의 마지막 대장주 칸인가 — ➜ 는 여기 뒤(한국 쪽 앞)에 하나만 그린다. */
 export function isLastLead(s: DashboardSection, sym: string): boolean {
-  return !!s.lead && s.rows.some(r => r[s.lead! - 1] === sym);
+  return !!s.lead && s.rows.some((r, i) => r[rowLead(s, i) - 1] === sym);
 }
 export function dashboardTagTone(tag: string): string {
   return TAG_TONE[tag] ?? "text-slate-700 bg-slate-50 border-slate-300/70";   // 광통신·AI 클라우드 등
@@ -145,10 +151,17 @@ function sectionMap(): Record<string, DashboardSection> {
     {
       id: "semi", short: "반도체",
       label: "🔧 반도체",                             // 필반 지수 + 미국 반도체 대표주 (삼성·하이닉스 가늠자)
+      // 분류별 줄 — 줄마다 왼쪽 세로 책갈피. **아래 순환매 블록에 있는 종목은 뺐다**(마이크론·샌디스크·AMD·인텔·
+      //   장비 4종·ASML). 순환매에 없는 것만 남겨 한 화면에 같은 카드가 두 번 나오지 않게 한다(테스트가 지킨다).
+      // 줄 상자 넷을 2×2 로(좌우 짝) — 줄마다 카드가 2~4장이라 한 줄씩이면 오른쪽이 텅 빈다
+      pairRows: true,
+      //   순서 = [지수·선물 | 메모리] / [한국 24h | 칩·파운드리] — 왼쪽 상자가 둘 다 3장이라 오른쪽 상자 시작선이 맞는다
+      rowLabels: ["지수·선물", "메모리", "한국 24h", "칩·파운드리"],
       rows: [
-        ["SKHY", "SKHY-PERP", "SMSN-PERP", "KXIAY"],      // SK하이닉스 ADR·SK하이닉스 24h·삼성전자 24h 무기한선물·키오시아(NAND) — 핵심 첫줄
-        ["^SOX", "TSM", "MU", "DRAM", "SNDK", "STX"],     // 지수·파운드리(필반·TSMC) + 메모리·스토리지(마이크론·DRAM ETF·샌디스크·씨게이트)
-        ["NVDA", "AMD", "AVGO", "INTC", "QCOM"],          // AI·로직: 엔비디아·AMD·브로드컴·인텔·퀄컴
+        ["^SOX", "SOX=F", "DRAM"],                        // 필라델피아 반도체 지수·선물 · DRAM ETF
+        ["STX", "KXIAY"],                                 // 메모리·스토리지: 씨게이트·키오시아 (마이크론·샌디스크는 순환매 반도체 줄)
+        ["SKHY", "SKHY-PERP", "SMSN-PERP"],               // SK하이닉스 ADR · 하이닉스·삼성 24h 무기한선물 — 밤에 보는 한국 반도체
+        ["NVDA", "AVGO", "QCOM", "TSM"],                  // AI 칩 설계 · 파운드리(엔비디아·브로드컴·퀄컴·TSMC) — ASML 은 순환매 전공정 줄
       ],
     },
     {
@@ -199,16 +212,18 @@ function sectionMap(): Record<string, DashboardSection> {
       label: "🔄 AI 순환매 — 간밤 🇺🇸 → 오늘 🇰🇷",
       note: "간밤 🇺🇸 미국 대장주(굵은 카드)가 움직이면 → 오늘 🇰🇷 같은 분야 한국 종목도 같은 방향으로 가는 경향이 있어요. 예측은 아닙니다.",
       lead: 2,
+      // 전공정(ASML)·광통신(코히런트)만 3번째 대장주 — 3번째도 연동이 강한 줄만(데이터 우선)
+      leadByRow: [2, 3, 2, 2, 3, 2, 2, 2, 2],
       rowLabels: ["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "방산"],
       // 줄 = [미국 대장주 2개, 한국 섹터 ETF(모자라면 주도주)…, (국내 상장 해외 테마 ETF)].
       //   앞 두 칸 + 한국 쪽은 lib/rotation STAGES 와 같아야 한다(테스트가 대조). 맨 뒤 extras 는 참고용 —
       //   해외 ETF 라 통계엔 안 넣는다(미국 것은 하루 시차로 간밤 미국을 따라간다). 전공정·후공정은 일본 소부장 ETF.
       rows: [
         ["SNDK", "MU", "396500.KS", "091160.KS", "091230.KS", "000660.KS", "381180.KS", "390390.KS"],
-        ["LRCX", "AMAT", "475300.KS", "471990.KS", "476260.KS", "0239Y0.KS", "464920.KS", "465660.KS"],
+        ["LRCX", "AMAT", "ASML", "475300.KS", "471990.KS", "476260.KS", "0239Y0.KS", "464920.KS"],
         ["KLAC", "ONTO", "475310.KS", "455850.KS", "042700.KS", "095340.KS", "469160.KS"],
         ["AMD", "INTC", "471760.KS", "367760.KS", "0005G0.KS", "007660.KS", "0225V0.KS"],
-        ["LITE", "CIEN", "0219B0.KS", "327260.KS", "010170.KS", "138080.KS", "0173Y0.KS", "0215T0.KS"],
+        ["LITE", "CIEN", "COHR", "0219B0.KS", "327260.KS", "010170.KS", "138080.KS", "0173Y0.KS"],
         ["PWR", "GEV", "487240.KS", "491820.KS", "0117V0.KS", "0209Z0.KS", "487230.KS", "491010.KS"],
         ["CCJ", "OKLO", "433500.KS", "0098F0.KS", "0091P0.KS", "0092B0.KS", "0051G0.KS", "0132H0.KS"],
         ["BE", "FSLR", "377990.KS", "385510.KS", "381570.KS", "457990.KS", "419420.KS"],
@@ -216,7 +231,7 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
       // 소부장(전공정·후공정)은 맞는 미국 ETF 가 없어 일본 반도체 소부장 ETF — 일본장은 한국과 같은 시간이라 하루 시차가 없다
       extraTag: { "464920.KS": "🇯🇵 일본", "465660.KS": "🇯🇵 일본", "469160.KS": "🇯🇵 일본" },
-      extras: ["0173Y0.KS", "0215T0.KS", "464920.KS", "465660.KS", "469160.KS", "381180.KS", "390390.KS", "0225V0.KS", "487230.KS", "491010.KS", "0051G0.KS", "0132H0.KS", "419420.KS", "494840.KS", "0167Z0.KS"],
+      extras: ["0173Y0.KS", "464920.KS", "469160.KS", "381180.KS", "390390.KS", "0225V0.KS", "487230.KS", "491010.KS", "0051G0.KS", "0132H0.KS", "419420.KS", "494840.KS", "0167Z0.KS"],
     },
     {
       // AI 순환매 부가 정보 — 지금 강한 곳 · 다음 후보 · 흐름 · 통계(RotationTab, 접힘).
@@ -285,7 +300,8 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   night: ["macro", "bigtech", "usetf", "sector", "krfx", "krnight", "spot"],
   // AI 단계별 미국 대장주(aiflow)는 뺐다 — 바로 아래 순환매 블록 줄마다 첫 카드가 같은 대장주다.
   // 소부장(semieq)은 뺐다 — 순환매 블록이 전공정·소재·부품·후공정 줄로 같은 미국 장비주를 한국 종목과 이어 보여준다.
-  semi:  ["semi", "aiinfra", "rotflow", "rotation"],
+  // AI 인프라 주도주(aiinfra)는 뺐다 — 블룸에너지·루멘텀이 순환매 친환경·광통신 줄에 대장주로 있다.
+  semi:  ["semi", "rotflow", "rotation"],
 };
 
 // 한국 선물 가상심볼 — 같은 카드가 시간 따라 주간선물(09:00~15:45)·야간선물(18:00~05:00)이 된다.
