@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
 import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, type DashboardPage } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
@@ -308,7 +308,12 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 ? { ...rawP, name: krFuturesName(rawP.symbol), desc: krFuturesDesc() }
                 : rawP;
               const q = usMap?.get(p.symbol);
-              const sleeping = isSymbolSleeping(p.symbol);
+              // 한국 종목·ETF(.KS) — **보유 종목 카드와 같은 규칙**(isKrHoldingClosed): 프리(08:00~)·애프터(~20:00)에
+              //   실제 체결이 들어오면 열림, 단일가 진행 중이면 열림, ETF·ETN 은 15:30 이후 바로 마감.
+              //   (정규장 09:00~15:30 만 보던 때는 08시 NXT 프리장에 시세가 움직이는데도 흐렸다)
+              const sleeping = /^[\dA-Za-z]{6}\.KS$/.test(p.symbol)
+                ? isKrHoldingClosed(undefined, undefined, q?.singlePrice, q?.freshTime, !p.krStock)
+                : isSymbolSleeping(p.symbol);
               // 메인 가격/변동률 — 한국 입장(미국장 마감 후 아침에 확인):
               // · REGULAR: regularPct (어제 종가 대비)
               // · 시간외(PRE/POST/POSTPOST/PREPRE/CLOSED): postPrice + 어제 종가(prevClose) 대비

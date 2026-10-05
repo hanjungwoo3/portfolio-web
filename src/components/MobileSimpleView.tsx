@@ -12,7 +12,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
+import { isSymbolSleeping, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { getPersonalProxies, setPersonalProxies, type PersonalProxy, fetchProxyUsage, type ProxyUsage, getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS, pollLabel, getDimSleepingEnabled, setDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
@@ -1821,7 +1821,12 @@ export function MobileSimpleView() {
                 ? { ...rawP, name: krFuturesName(rawP.symbol), desc: krFuturesDesc() }
                 : rawP;
               const q = usMap?.get(p.symbol);
-              const sleeping = isSymbolSleeping(p.symbol);
+              // 한국 종목·ETF(.KS) — **보유 종목 카드와 같은 규칙**(isKrHoldingClosed): 프리(08:00~)·애프터(~20:00)에
+              //   실제 체결이 들어오면 열림, 단일가 진행 중이면 열림, ETF·ETN 은 15:30 이후 바로 마감.
+              //   (정규장 09:00~15:30 만 보던 때는 08시 NXT 프리장에 시세가 움직이는데도 흐렸다)
+              const sleeping = /^[\dA-Za-z]{6}\.KS$/.test(p.symbol)
+                ? isKrHoldingClosed(undefined, undefined, q?.singlePrice, q?.freshTime, !p.krStock)
+                : isSymbolSleeping(p.symbol);
               // 메인 가격/변동률 (PC UsMarketTab 동일 로직) — 한국 입장 누적 변동률:
               // REGULAR → regularPct, 시간외 → postPrice + 어제 종가 대비 합산
               const offHoursStates = ["PRE", "POST", "POSTPOST", "PREPRE", "CLOSED"];

@@ -2630,6 +2630,7 @@ export interface UsIndex {
   price: number;
   prev: number;            // "어제대비" 표시용 (비거래일엔 price 와 동일 = 0)
   prevClose: number;       // 직전 거래일 종가 — 색상용 (비거래일 보정 영향 없음)
+  singlePrice?: boolean;   // 한국(.KS) — 토스 시간외 단일가 진행 중(보유 종목 카드 흐림 규칙과 같은 신호)
   diff: number;
   pct: number;
   currency?: string;
@@ -3641,6 +3642,7 @@ export async function fetchYahooBatch(
                 diff, pct, currency: "KRW",
                 tradeDate: tp.trade_date, freshTime: isoToUnixSec(tp.trade_dt),
                 regularMarketTime: isoToUnixSec(tp.trade_dt),
+                singlePrice: tp.singlePrice,
                 marketState: "",
               });
             }
@@ -3683,6 +3685,7 @@ export async function fetchYahooBatch(
       regularPriceUsd: t.regularPriceUsd ?? y.regularPriceUsd,
       tradeDate: t.tradeDate || y.tradeDate,
       freshTime: t.freshTime ?? y.freshTime,   // 토스가 메인값 → 토스 체결시각이 실제 갱신 기준
+      singlePrice: t.singlePrice,
       marketState: "",             // 빈값 → 카드가 토스 현재가를 메인으로 표시
       sparkline: t.sparkline ?? y.sparkline,   // 토스 mini-chart 시계열 (^US2Y sparkline 폴백)
     });
