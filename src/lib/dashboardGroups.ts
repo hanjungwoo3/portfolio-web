@@ -24,7 +24,8 @@ export interface DashboardSection {
   //   테두리로 구분하고 오른쪽에 → 를 붙여 "이게 → 이것들" 이 한눈에 읽히게 한다.
   lead?: number;      // 줄마다 앞 N 칸이 미국 대장주(원인) — 단계색 배경 + 뒤에 ➜
   extras?: string[];  // 줄 끝에 붙는 '참고' 카드(국내 상장 해외 테마 ETF) — 한국 블록 뒤 따로 상자
-  extraTag?: Record<string, string>;   // 참고 카드의 나라 이름표(없으면 "🇺🇸 미국")
+  extraTag?: Record<string, string>;
+  wide?: boolean;     // PC 에서 75%·6칸 대신 전체 폭·8칸(카드 크기는 같다) — 한 줄에 7~8장이 들어가야 할 때   // 참고 카드의 나라 이름표(없으면 "🇺🇸 미국")
   // 줄 이름(rows 와 같은 길이) — PC 는 줄 왼쪽, 모바일은 줄 위에 둔다. 줄마다 옅은 상자로 나눈다.
   rowLabels?: string[];
   // 블록 맨 위 설명 한 줄 — 이 블록을 어떻게 읽는지.
@@ -97,7 +98,9 @@ function sectionMap(): Record<string, DashboardSection> {
       //   (야간 페이지 '선물' 에 있고, 거긴 반대로 낮에 뺀다).
       id: "dayfut", short: "선물",
       label: "⏳ 선물 (미국 지수 · 한국 주간)",
-      rows: [["NQ=F", "ES=F", "RTY=F", "SOX=F"], ["^KS200N", "^KQ150N"]],
+      // 러셀2000 선물(RTY=F)은 뺐다 — S&P 선물과 0.86 으로 같이 가고, 코스닥 다음 날 상관도 나스닥 선물보다 낮다
+      //   (0.23 vs 0.29, 2년 실측 2026-10-05).
+      rows: [["NQ=F", "ES=F", "SOX=F", "^KS200N", "^KQ150N"]],   // 한 줄 — 미국 지수 선물 셋 + 한국 주간선물 둘
     },
     {
       // ETF 등락 TOP10(상승·하락) — 한국 시장 바로 아래. 레버리지·선물을 빼야 '오늘 실제로 오른 곳' 이 보인다.
@@ -232,19 +235,16 @@ function sectionMap(): Record<string, DashboardSection> {
       // SK하이닉스 ADR(SKHY)도 뺐다 — 반도체 탭 '반도체' 그룹 첫 줄에 있다.
       id: "krnight", short: "선물",
       label: "⏳ 선물 (미국 지수 · 한국 야간)",
-      rows: [
-        ["NQ=F", "ES=F", "RTY=F", "SOX=F"],
-        ["^KS200N", "^KQ150N", "SKHY-PERP", "SMSN-PERP"],
-      ],
+      // 한 줄 — 밤엔 7장이라 PC 에선 전체 폭 8칸(wide)으로 한 줄에 다 들어간다(낮엔 야간선물 둘이 빠져 5장)
+      wide: true,
+      rows: [["NQ=F", "ES=F", "SOX=F", "^KS200N", "^KQ150N", "SKHY-PERP", "SMSN-PERP"]],
     },
     {
       id: "spot", short: "현물",
       label: "💵 현물 (원자재)",                        // 가격 자체가 신호
-      // 줄 = 금속·곡물 / 에너지. 암호화폐(BTC·ETH·XRP·SOL)는 뺐다.
-      rows: [
-        ["GC=F", "SI=F", "HG=F", "ZW=F"],
-        ["CL=F", "BZ=F", "NG=F"],
-      ],
+      // 한 줄(PC 전체 폭 8칸) — 금속·곡물 → 에너지 순. 암호화폐(BTC·ETH·XRP·SOL)는 뺐다.
+      wide: true,
+      rows: [["GC=F", "SI=F", "HG=F", "ZW=F", "CL=F", "BZ=F", "NG=F"]],
     },
     {
       id: "bigtech", short: "빅테크",

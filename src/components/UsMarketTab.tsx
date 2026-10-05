@@ -521,7 +521,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               );
                 });
                 if (!section.extras) return (
-                  <div className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}>
+                  <div className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 ${section.wide ? "lg:grid-cols-8" : `lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}`}>
                     {cards}
                   </div>
                 );

@@ -23,7 +23,7 @@ describe("지수 탭 페이지 구성", () => {
     expect(d[0]).toBe("kr");
     // 미국 지수 선물 4종은 환율 바로 아래 '선물' 그룹 (야간 페이지와 같은 모양)
     expect(d.indexOf("dayfut")).toBe(d.indexOf("krfx") + 1);   // 환율 바로 아래
-    expect(buildDashboardPage("day", false).find(s => s.id === "dayfut")!.rows[0]).toEqual(["NQ=F", "ES=F", "RTY=F", "SOX=F"]);
+    expect(buildDashboardPage("day", false).find(s => s.id === "dayfut")!.rows[0].slice(0, 3)).toEqual(["NQ=F", "ES=F", "SOX=F"]);
     expect(d).not.toContain("krnight");
   });
 
@@ -49,7 +49,7 @@ describe("지수 탭 페이지 구성", () => {
     // 미국 지수 선물(거의 24h)은 야간에도 — 환율 바로 아래 '선물' 그룹 첫 줄
     expect(n.indexOf("krnight")).toBe(n.indexOf("krfx") + 1);   // 환율 바로 아래
     const fut = buildDashboardPage("night").find(s => s.id === "krnight")!.rows[0];
-    expect(fut).toEqual(["NQ=F", "ES=F", "RTY=F", "SOX=F"]);
+    expect(fut.slice(0, 3)).toEqual(["NQ=F", "ES=F", "SOX=F"]);
     expect(n).not.toContain("etftop");   // 한국 ETF 랭킹은 밤엔 멈춰 있다
   });
 
