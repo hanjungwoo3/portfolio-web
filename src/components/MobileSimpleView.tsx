@@ -18,7 +18,7 @@ import { getPersonalProxies, setPersonalProxies, type PersonalProxy, fetchProxyU
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
-import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, type DashboardPage } from "../lib/dashboardGroups";
+import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { StockMarketTab } from "./StockMarketTab";
 import { useExtensionProxyReady, compareVersion } from "../lib/extensionProxy";
@@ -158,6 +158,7 @@ function fmtPrice(symbol: string, price: number): string {
 export function MobileSimpleView() {
   const queryClient = useQueryClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [leaderSort, setLeaderSort] = useState<LeaderSort>(loadLeaderSort);   // 대장주 줄 정렬(등락률순 기본, PC 와 같은 키)
   // 로그인 redirect 복귀 — 저장/불러오기 대기 동작이 있으면 설정 자동 오픈 → 자동 재개
   useEffect(() => {
     if (!peekPendingSyncAction()) return;
@@ -1739,6 +1740,17 @@ export function MobileSimpleView() {
                       자세히 →
                     </button>
                   )}
+                  {/* 정렬 버튼은 페이지에 하나 — 첫 정렬 그룹 제목에만(누르면 페이지 전체가 바뀐다) */}
+{section.sortable && section.id === sections.find(x => x.sortable)?.id && (
+                    <span className="ml-1.5 inline-flex rounded border border-gray-300 overflow-hidden align-middle text-[10px] font-bold">
+                      {(["pct", "value"] as const).map(v => (
+                        <button key={v} onClick={() => { setLeaderSort(v); saveLeaderSort(v); }}
+                                className={`px-1 py-0 ${leaderSort === v ? "bg-indigo-600 text-white" : "bg-white text-gray-500"}`}>
+                          {v === "pct" ? "등락률순" : "거래대금순"}
+                        </button>
+                      ))}
+                    </span>
+                  )}
                 </span>
                 {section.render === "etfTop" && (
                   <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
@@ -1776,8 +1788,9 @@ export function MobileSimpleView() {
                     //   카드 1장짜리 줄이 연달아 오면(설계·파운드리 등) 두 줄을 한 줄에 — 머리도 좌우 둘('__pair__:i' = i·i+1 줄).
                     ? (() => {
                         const out: string[] = [];
-                        for (let ri = 0; ri < section.rows.length; ri++) {
-                          const row = section.rows[ri], next = section.rows[ri + 1];
+                        const rows = sortedRows(section, leaderSort, sym => displayPctOf(sym, usMap.get(sym)));
+                        for (let ri = 0; ri < rows.length; ri++) {
+                          const row = rows[ri], next = rows[ri + 1];
                           if (row.length === 1 && next?.length === 1) { out.push(`__pair__:${ri}`, row[0], next[0]); ri++; continue; }
                           out.push(`__row__:${ri}`, ...row);
                         }

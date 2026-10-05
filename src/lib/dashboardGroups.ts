@@ -43,6 +43,28 @@ export interface DashboardSection {
   // 제목 책갈피 옆 '자세히 →' — 이 그룹을 깊게 보는 페이지로 보낸다. vis 로 탭이 켜져 있을 때만 그린다
   //   (꺼진 탭으로 보내면 App 가드가 첫 탭으로 튕긴다 — tabNav.ts 주석).
   link?: { tab: string; vis: keyof TabVisibility };
+  // 줄 안 대장주(앞 ETF 칸 뒤)를 오늘 등락률순으로 정렬할 수 있다 — 제목 옆 [등락률순|거래대금순] 전환.
+  //   **줄 순서는 고정**(자리로 찾는 습관), ETF 칸도 고정(섹터 기준선). 거래대금순 = rows 에 적힌 순서.
+  sortable?: boolean;
+}
+
+export type LeaderSort = "pct" | "value";
+export const LEADER_SORT_KEY = "leaders_sort";   // 기본 등락률순 — 사용자 결정(2026-10-06)
+export function loadLeaderSort(): LeaderSort {
+  try { return localStorage.getItem(LEADER_SORT_KEY) === "value" ? "value" : "pct"; } catch { return "pct"; }
+}
+export function saveLeaderSort(v: LeaderSort): void {
+  try { localStorage.setItem(LEADER_SORT_KEY, v); } catch { /* 이번 세션만 */ }
+}
+/** sortable 그룹이면 줄마다 앞 ETF 칸은 두고 나머지를 등락률 내림차순(값 없음은 뒤). 아니면 그대로. */
+export function sortedRows(s: DashboardSection, sort: LeaderSort, pctOf: (sym: string) => number | null | undefined): string[][] {
+  if (!s.sortable || sort !== "pct") return s.rows;
+  return s.rows.map((r, i) => {
+    const n = rowLead(s, i);
+    const rest = r.slice(n).map((sym, k) => ({ sym, k, v: pctOf(sym) }));
+    rest.sort((a, b) => (b.v ?? -Infinity) - (a.v ?? -Infinity) || a.k - b.k);
+    return [...r.slice(0, n), ...rest.map(x => x.sym)];
+  });
 }
 
 // 책갈피 색 — 같은 계열은 같은 색. 칩(반도체·장비) / 에너지 / 인프라(광통신·클라우드).
@@ -145,6 +167,7 @@ function sectionMap(): Record<string, DashboardSection> {
     //   ETF 거래대금이 10억 미만인 섹터(철강·에너지화학·필수소비재·게임·엔터)도 섹터 기준선으로 둔다.
     {
       id: "ldind", short: "산업재", label: "🏭 산업재",
+      sortable: true,
       lead: 1, extras: [],
       rowLabels: ["2차전지", "자동차", "조선", "건설", "철강·소재", "에너지화학"],
       rows: [
@@ -158,6 +181,7 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     {
       id: "ldfin", short: "금융", label: "🏦 금융",
+      sortable: true,
       lead: 1, extras: [],
       rowLabels: ["은행", "증권", "보험"],
       rows: [
@@ -168,6 +192,7 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     {
       id: "ldlife", short: "소비·헬스", label: "💊 소비·헬스",
+      sortable: true,
       // 제약·바이오는 ETF 2개(액티브 190억 · KODEX 47억). 미용의료(리쥬란·톡신·슈링크·레이저) 앞 칸 = TIGER 의료기기 — 미용 전용 ETF 가 없어 가장 가까운 것(파마리서치 13%·클래시스 5% 등).
       //   거래는 적지만(일 0.7억) 이 줄 4종목 묶음과 같은 날 상관 0.83(K-뷰티 0.75·화장품 0.72). 4종목은 화장품·바이오
       //   어느 쪽보다 자기들끼리 더 붙어 다녀(0.52~0.68 vs 0.39~0.55) 흩지 않고 한 줄로 둔다.
@@ -182,6 +207,7 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     {
       id: "ldcont", short: "콘텐츠", label: "🎮 콘텐츠·인터넷",
+      sortable: true,
       lead: 1, extras: [],
       rowLabels: ["인터넷·SW", "게임", "엔터"],
       rows: [

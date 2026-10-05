@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { buildDashboardPage, defaultDashboardPage, PAGE_IDS, DASHBOARD_PAGES, INDEX_GROUP_KEYS, indexPageOf, type DashboardPage } from "../dashboardGroups";
+import { buildDashboardPage, defaultDashboardPage, sortedRows, PAGE_IDS, DASHBOARD_PAGES, INDEX_GROUP_KEYS, indexPageOf, type DashboardPage } from "../dashboardGroups";
 import { US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY } from "../../components/Tabs";
 import { US_PAIRS } from "../usMarketData";
 import { STAGES } from "../rotation";
@@ -150,6 +150,19 @@ describe("지수 탭 페이지 구성", () => {
       }
     }
     expect(missing).toEqual([]);
+  });
+});
+
+describe("대장주 줄 정렬", () => {
+  const sec = { id: "t", label: "", short: "", sortable: true, lead: 1, leadByRow: [1, 2],
+    rows: [["ETF", "A", "B", "C"], ["E1", "E2", "X", "Y"]] };
+  const pct: Record<string, number> = { ETF: -9, A: 1, B: 3, C: -2, E1: 9, E2: -9, X: 0.5 };
+  it("등락률순 = 앞 ETF 칸은 그대로, 나머지만 높은 순(값 없음은 뒤) — 줄 순서도 그대로", () => {
+    expect(sortedRows(sec, "pct", s => pct[s])).toEqual([["ETF", "B", "A", "C"], ["E1", "E2", "X", "Y"]]);
+  });
+  it("거래대금순 = 적힌 순서 그대로, sortable 아닌 그룹은 늘 그대로", () => {
+    expect(sortedRows(sec, "value", s => pct[s])).toBe(sec.rows);
+    expect(sortedRows({ ...sec, sortable: false }, "pct", s => pct[s])).toBe(sec.rows);
   });
 });
 

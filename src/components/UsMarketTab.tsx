@@ -4,7 +4,7 @@ import { fetchYahooBatch, fetchDashboardChart, fetchYasunNightFutures, fetchToss
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
-import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, type DashboardPage } from "../lib/dashboardGroups";
+import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
 import { requestTab, isTabVisible } from "../lib/tabNav";
 import { GroupNavBar } from "./GroupNavBar";
@@ -200,6 +200,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
 
   const dimEnabled = getDimSleepingEnabled();
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
+  const [leaderSort, setLeaderSort] = useState<LeaderSort>(loadLeaderSort);   // 대장주 줄 정렬(등락률순 기본)
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   // 야간선물(yasun.gg)은 프록시를 타므로 구버전 개인 워커면 값이 빈다 → 그때만 업데이트 안내.
   //   "값이 없다"만으로 워커를 탓하면 업스트림 차단(예: investing.com Cloudflare 챌린지)까지
@@ -233,6 +234,17 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                         className="ml-1.5 text-[11px] font-bold text-indigo-600 hover:underline">
                   자세히 →
                 </button>
+              )}
+              {/* 정렬 버튼은 페이지에 하나 — 첫 정렬 그룹 제목에만(누르면 페이지 전체가 바뀐다) */}
+{section.sortable && section.id === T0_SECTIONS.find(x => x.sortable)?.id && (
+                <span className="ml-2 inline-flex rounded border border-gray-300 overflow-hidden align-middle text-[11px] font-bold">
+                  {(["pct", "value"] as const).map(v => (
+                    <button key={v} onClick={() => { setLeaderSort(v); saveLeaderSort(v); }}
+                            className={`px-1.5 py-0 ${leaderSort === v ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}>
+                      {v === "pct" ? "등락률순" : "거래대금순"}
+                    </button>
+                  ))}
+                </span>
               )}
             </span>
             {/* 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장)는 오늘 등락률(%) 내림차순 정렬 (6개씩 줄바꿈) */}
@@ -282,7 +294,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   section.rows.flat().sort((a, b) =>
                     (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity)),
                   6)
-              : section.rows
+              : sortedRows(section, leaderSort, sym => displayPctOf(sym, usMap.get(sym)))
             ).map((group, gi) => (
               // 6열 그리드 — 화면은 전체 폭이지만 카드 줄만 lg 75% 로 묶어 카드 크기는 예전 그대로(왼쪽 정렬)
               <div key={gi} className={section.rowLabels ? `relative ${section.pairRows ? "" : "-mr-[9px]"} rounded-lg border border-gray-200 bg-gray-50/50 pl-9 pr-2 pb-2 pt-4 mt-2` : ""}>
