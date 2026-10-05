@@ -63,13 +63,14 @@ const TAG_TONE: Record<string, string> = {
   원자력:   "text-orange-700 bg-orange-50 border-orange-300/70",
   친환경:   "text-emerald-700 bg-emerald-50 border-emerald-300/70",
   방산:     "text-teal-700 bg-teal-50 border-teal-300/70",
+  로봇:     "text-rose-700 bg-rose-50 border-rose-300/70",
 };
 // 순환매 줄 첫 카드(미국 대장주) 배경 — 그 줄 단계 색의 옅은 판. 책갈피와 같은 계열.
 const TAG_CARD: Record<string, string> = {
   반도체: "bg-indigo-50 border-indigo-300", 전공정: "bg-violet-50 border-violet-300",
   후공정: "bg-sky-50 border-sky-300", "CPU·기판": "bg-fuchsia-50 border-fuchsia-300", 광통신: "bg-lime-50 border-lime-300", 전력기기: "bg-amber-50 border-amber-300",
   원자력: "bg-orange-50 border-orange-300", 친환경: "bg-emerald-50 border-emerald-300",
-  방산: "bg-teal-50 border-teal-300",
+  방산: "bg-teal-50 border-teal-300", 로봇: "bg-rose-50 border-rose-300",
 };
 export function dashboardTagCard(tag: string | undefined): string {
   return (tag && TAG_CARD[tag]) || "bg-amber-50 border-amber-300";
@@ -246,8 +247,8 @@ function sectionMap(): Record<string, DashboardSection> {
       note: "간밤 🇺🇸 미국 대장주(굵은 카드)가 움직이면 → 오늘 🇰🇷 같은 분야 한국 종목도 같은 방향으로 가는 경향이 있어요. 예측은 아닙니다.",
       lead: 2,
       // 반도체(웨스턴디지털)·전공정(ASML)·CPU·기판(마벨)·광통신(코히런트)만 3번째 대장주 — 3번째도 연동이 강한 줄만(데이터 우선)
-      leadByRow: [3, 3, 3, 3, 3, 2, 2, 2, 2],
-      rowLabels: ["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "방산"],
+      leadByRow: [3, 3, 3, 3, 3, 2, 2, 2, 2, 2],
+      rowLabels: ["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "방산", "로봇"],
       // 줄 = [미국 대장주 2개, 한국 섹터 ETF(모자라면 주도주)…, (국내 상장 해외 테마 ETF)].
       //   앞 두 칸 + 한국 쪽은 lib/rotation STAGES 와 같아야 한다(테스트가 대조). 맨 뒤 extras 는 참고용 —
       //   해외 ETF 라 통계엔 안 넣는다(미국 것은 하루 시차로 간밤 미국을 따라간다). 전공정·후공정은 일본 소부장 ETF.
@@ -261,10 +262,11 @@ function sectionMap(): Record<string, DashboardSection> {
         ["CCJ", "OKLO", "433500.KS", "0098F0.KS", "0091P0.KS", "034020.KS", "0051G0.KS", "0132H0.KS"],
         ["BE", "FSLR", "377990.KS", "009830.KS", "112610.KS", "457990.KS", "419420.KS", "419650.KS"],
         ["ITA", "RTX", "449450.KS", "0080G0.KS", "463250.KS", "012450.KS", "494840.KS", "0167Z0.KS"],   // 방산 — AI 밖이지만 미국이 끌고 온다
+        ["BOTZ", "TER", "0148J0.KS", "445290.KS", "108490.KS", "277810.KS", "0038A0.KS"],   // 로봇 — 미국 로봇 ETF 가 끈다(개별주는 약함)
       ],
       // 소부장(전공정·후공정)은 맞는 미국 ETF 가 없어 일본 반도체 소부장 ETF — 일본장은 한국과 같은 시간이라 하루 시차가 없다
       extraTag: { "464920.KS": "🇯🇵 일본", "465660.KS": "🇯🇵 일본" },
-      extras: ["0173Y0.KS", "464920.KS", "465660.KS", "419650.KS", "381180.KS", "0225V0.KS", "487230.KS", "491010.KS", "0051G0.KS", "0132H0.KS", "419420.KS", "494840.KS", "0167Z0.KS"],
+      extras: ["0173Y0.KS", "464920.KS", "465660.KS", "419650.KS", "381180.KS", "0225V0.KS", "487230.KS", "491010.KS", "0051G0.KS", "0132H0.KS", "419420.KS", "494840.KS", "0167Z0.KS", "0038A0.KS"],
     },
     {
       // AI 순환매 부가 정보 — 지금 강한 곳 · 다음 후보 · 흐름 · 통계(RotationTab, 접힘).

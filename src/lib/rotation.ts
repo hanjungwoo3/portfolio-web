@@ -18,7 +18,7 @@
 
 import { fetchTossKrCandles, fetchYahooPriceHistory } from "./api";
 
-export type Family = "chip" | "energy" | "defense";
+export type Family = "chip" | "energy" | "defense" | "robot";
 export interface Stage {
   key: string;
   label: string;
@@ -88,6 +88,12 @@ export const STAGES: Stage[] = [
     members: [{ code: "449450", name: "PLUS K방산" }, { code: "0080G0", name: "KODEX 방산TOP10" },
               { code: "463250", name: "TIGER K방산&우주" }, { code: "012450", name: "한화에어로스페이스" }],
     us: { symbol: "ITA", name: "미국 방산 ETF" }, us2: { symbol: "RTX", name: "레이시온" } },
+  // 로봇 — 미국 로봇 ETF(BOTZ) 전날 ↔ 한국 로봇 묶음 다음 날 0.33(1년)·0.39(3개월), 기존 단계 수준(2026-10-05).
+  //   개별주는 약하다: 테라다인 0.17·록웰 0.15·테슬라(옵티머스) 0.08. 엔비디아(0.20)는 위 반도체 그룹에 있어 테라다인.
+  { key: "robot", label: "로봇", family: "robot",
+    members: [{ code: "0148J0", name: "TIGER 코리아휴머노이드로봇산업" }, { code: "445290", name: "KODEX 로봇액티브" },
+              { code: "108490", name: "로보티즈" }, { code: "277810", name: "레인보우로보틱스" }],   // 한국 쪽 4칸(다른 줄과 같게) — 두산로보틱스는 거래대금 최하위라 뺐다
+    us: { symbol: "BOTZ", name: "미국 로봇 ETF" }, us2: { symbol: "TER", name: "테라다인" } },
 ];
 
 // AI 밖 — 미국이 끌고 오진 않지만(다음 날 상관 0.13~0.30) AI 와 거의 따로 간다(반도체와 주간 -0.07~0.14,
@@ -125,7 +131,7 @@ export interface RotationData {
   daily: Record<string, number[]>;        // 단계 → 일별 수익률(%) (days[i] 하루치, 동일가중)
 }
 
-const LS_KEY = "ai_rotation_v14";   // v14: 후공정 3번째 대장주 앰코
+const LS_KEY = "ai_rotation_v15";   // v15: 로봇 단계 추가
 const DAILY_KEEP = 120;
 const TTL_MS = 6 * 60 * 60 * 1000;
 

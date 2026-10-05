@@ -78,11 +78,11 @@ describe("지수 탭 페이지 구성", () => {
     expect(night.find(s => s.id === "krnight")!.rows.flat()).toContain("^KS200N");
   });
 
-  it("순환매 = 큰 블록 하나에 단계별 줄 9개(AI 8 + 방산) — 줄마다 책갈피 이름, 앞 2~3칸 미국 대장주, 나머지 한국 쪽", () => {
+  it("순환매 = 큰 블록 하나에 단계별 줄 10개(AI 8 + 방산 + 로봇) — 줄마다 책갈피 이름, 앞 2~3칸 미국 대장주, 나머지 한국 쪽", () => {
     const g = buildDashboardPage("semi").find(s => s.id === "rotflow")!;
     expect(g.note).toBeTruthy();                                  // 미국→한국 영향이라는 설명 한 줄
-    expect(g.rows).toHaveLength(9);
-    expect(g.rowLabels).toEqual(["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "방산"]);
+    expect(g.rows).toHaveLength(10);
+    expect(g.rowLabels).toEqual(["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "방산", "로봇"]);
     expect(g.lead).toBe(2);
     expect(g.tags).toBeUndefined();                               // 카드 책갈피는 뺐다 — 줄 책갈피가 대신한다
     g.rows.forEach((row, i) => {

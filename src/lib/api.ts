@@ -3172,6 +3172,7 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "COHR": "US19871002001",   // 코히런트 (NYSE) — 광통신
   "CIEN": "US20131223002",   // 시에나 (NYSE) — 광통신 장비
   "KLAC": "US19801008001",   // KLA (NASDAQ) — 검사·계측
+  "TER":  "US20181127001",   // 테라다인 (NASDAQ) — 협동로봇(UR)·반도체 테스트
   "AMKR": "US19980501001",   // 앰코 (NASDAQ) — 후공정·첨단 패키징
   "MPWR": "US20041119001",   // MPS (NASDAQ) — AI 서버 전원 칩
   "GEV":  "NYS0240402001",   // GE 버노바 (NYSE)
@@ -3639,6 +3640,7 @@ export async function fetchYahooBatch(
                 price: tp.price, prev: tp.base, prevClose: tp.prevClose,
                 diff, pct, currency: "KRW",
                 tradeDate: tp.trade_date, freshTime: isoToUnixSec(tp.trade_dt),
+                regularMarketTime: isoToUnixSec(tp.trade_dt),
                 marketState: "",
               });
             }
@@ -3685,7 +3687,15 @@ export async function fetchYahooBatch(
       sparkline: t.sparkline ?? y.sparkline,   // 토스 mini-chart 시계열 (^US2Y sparkline 폴백)
     });
   };
-  for (const [sym, t] of ksMap) applyToss(sym, t);
+  // 한국(.KS) — 야후가 **다른 날** 값을 주면(코스닥 종목을 .KS 로 물으면 옛 상장 기록이 온다 — 로보티즈 '807일 전 마감'·
+  //   책갈피 22,400원 사고) 야후의 마감가·마감 시각을 버리고 토스만 쓴다. 같은 날이면 예전처럼 마감 책갈피용으로 유지.
+  for (const [sym, t] of ksMap) {
+    const y = merged.get(sym);
+    if (y && t.tradeDate && y.tradeDate !== t.tradeDate) {
+      merged.set(sym, { ...y, regularPrice: undefined, regularPct: undefined, postPrice: undefined, regularMarketTime: t.regularMarketTime });
+    }
+    applyToss(sym, t);
+  }
   for (const [sym, t] of overviewMap) applyToss(sym, t);   // 지수/환율/금리/원자재/BTC (overview 1콜)
   for (const [sym, t] of usMap) applyToss(sym, t);
   for (const r of investResults) { if (r) applyToss(r.symbol, r); }
