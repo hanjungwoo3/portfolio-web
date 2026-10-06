@@ -154,6 +154,7 @@ function _cleanWs(s: string | null | undefined): string {
 // ─────────── Naver 메인 페이지 ───────────
 export interface FundamentalData {
   name?: string;
+  market?: "KOSPI" | "KOSDAQ";   // 네이버 상세 sosok
   price?: number;
   description?: string[];   // 기업개요 — 상세 API 의 comment1~3 (출처: 에프앤가이드)
   market_cap_text?: string;
@@ -188,6 +189,7 @@ export interface FundamentalData {
 //   컨센서스(목표주가·투자의견)만 여기 없어서 integration 을 따로 본다 — 팝업에서만 쓴다.
 interface NaverDetailRaw {
   itemname?: string;
+  sosok?: string;            // "0" 코스피 / "1" 코스닥
   nowPrice?: string;
   marketSum?: string;        // 원 단위
   per?: string; pbr?: string; eps?: string; bps?: string;
@@ -223,6 +225,8 @@ export async function fetchNaverDetail(ticker: string): Promise<FundamentalData>
   const n = (v?: string) => { const x = f(v); return x == null ? undefined : Math.trunc(x); };
 
   if (d.itemname) out.name = d.itemname;
+  if (d.sosok === "0") out.market = "KOSPI";
+  else if (d.sosok === "1") out.market = "KOSDAQ";
   out.price = n(d.nowPrice);
   out.market_cap_text = formatMarketSum(Number(d.marketSum));
   out.per = f(d.per);

@@ -31,6 +31,7 @@ export const TAB_VIS_ITEMS: { key: keyof TabVisibility; label: string; sep?: boo
   { key: "usMarket",    label: "📈 지수" },
   { key: "sectorRank",  label: "🧩 섹터별등락" },
   { key: "semiCheck",   label: "반도체" },          // 아이콘(Cpu)은 렌더 쪽에서 붙인다
+  { key: "valuation",   label: "📊 종목찾기(섹터별)" },
   { key: "screener",    label: "🔎 종목찾기(눌림목)" },
   { key: "closeBet",    label: "🌙 종가배팅" },
   { key: "accum",       label: "🧲 수급 매집" },
@@ -39,7 +40,6 @@ export const TAB_VIS_ITEMS: { key: keyof TabVisibility; label: string; sep?: boo
   { key: "etfRanking",  label: "🏅 ETF랭킹" },
   { key: "etfCompare",  label: "⚖️ ETF미국" },
   { key: "heatmap",     label: "🗺️ 히트맵" },
-  { key: "valuation",   label: "📊 성적표(종목별)" },
   // 내주식·내거래·자산추이 — 묶음에서 빠진 개별 탭이라 구분선 뒤에 한 묶음
   { key: "myStocks",    label: "📦 내주식", sep: true },
   { key: "myTrades",    label: "🧾 내거래" },

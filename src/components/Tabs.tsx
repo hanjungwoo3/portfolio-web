@@ -120,7 +120,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
       {leading && <span className="shrink-0">{leading}</span>}
       {/* 섹터~ETF 드롭다운 → 내자산 묶음(내주식·내거래) → 지수 순서 */}
       {/* 투자도구 탭을 누르면 종목찾기(눌림목)로 바로 — 다른 도구는 마우스를 올려 메뉴에서 */}
-      {renderGroupDropdown(sysTabs, "📊", "투자도구(분석)", SCREENER_TAB_KEY)}
+      {renderGroupDropdown(sysTabs, "📊", "투자도구(분석)", VALUATION_TAB_KEY)}   {/* 맨 위 = 종목찾기(섹터별) — 버튼 이름과 누르면 가는 곳이 같게 */}
       {renderGroupDropdown(myTabs, "📦", "내자산")}
       {/* 증시 — 지수 왼쪽 별도 탭 */}
       {marketMoneyTab && (
@@ -391,6 +391,10 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
     const keyOf: Record<DashboardPage, string> = { day: US_MARKET_TAB_KEY, night: INDEX_NIGHT_TAB_KEY, semi: INDEX_SEMI_TAB_KEY, leaders: INDEX_LEADERS_TAB_KEY };
     for (const p of DASHBOARD_PAGES) tabs.push({ key: keyOf[p.key], label: p.tab, emoji: p.emoji, count: 0 });
   }
+  // 종목찾기(섹터별) — 섹터를 골라 그 안의 종목을 한 표로(옛 '성적표'). 종목찾기 묶음 맨 위.
+  if (visibility?.valuation ?? true) {
+    tabs.push({ key: VALUATION_TAB_KEY, label: "종목찾기(섹터별)", emoji: "📊", count: 0 });
+  }
   // 눌림목 — 시스템 묶음의 첫 자리(섹터 위). 전 종목 스크리닝이라 관심종목과 무관하게 항상 노출.
   if (visibility?.screener ?? true) {
     tabs.push({ key: SCREENER_TAB_KEY, label: "종목찾기(눌림목)", emoji: "🔎", count: 0 });
@@ -434,10 +438,6 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 히트맵 — KOSPI/KOSDAQ 트리맵
   if (visibility?.heatmap ?? true) {
     tabs.push({ key: HEATMAP_TAB_KEY, label: "히트맵", emoji: "🗺️", count: 0 });
-  }
-  // 성적표 — 관심종목 기업가치 지표 표
-  if (visibility?.valuation ?? true) {
-    tabs.push({ key: VALUATION_TAB_KEY, label: "성적표(종목별)", emoji: "📊", count: 0 });
   }
   // 모든 사용자 그룹 — "보유" 포함, account="" 와 "관심ETF" 만 제외, 알파벳 순
   const userGroups = Array.from(counts.keys())

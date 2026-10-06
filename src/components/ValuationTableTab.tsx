@@ -10,7 +10,7 @@ import { sectorPresets } from "../lib/sectorPresets";
 import { Sparkline } from "./Sparkline";
 import {
   computeValueBurst, dateToNum, toEok, burstThresholdWon,
-  loadBurstLevel, saveBurstLevel, BURST_BARS, BURST_LEVELS,
+  loadBurstLevel, BURST_BARS,
   type BurstStat, type BurstLevel,
 } from "../lib/valueBurst";
 import {
@@ -32,9 +32,7 @@ const CANDLE_MONTH_STALE_MS = 12 * 60 * 60 * 1000;
 const MONTH_CANDLE_COUNT = 300;
 
 // 최근 순매수 기간 — 기업가치 팝업의 "5일/20일/60일" 과 동일
-const FLOW_DAYS = [5, 20, 60] as const;
-type FlowDays = typeof FLOW_DAYS[number];
-const FLOW_LABEL: Record<FlowDays, string> = { 5: "5일", 20: "20일(1개월)", 60: "60일(3개월)" };
+type FlowDays = 5 | 20 | 60;   // 수급 열(표에선 숨김) 기간
 
 // 거래대금 급증일 기준(BURST_BARS/BURST_LEVELS)은 valueBurst.ts 에서 공유 —
 // 여기서 고른 기준이 기업가치 차트의 거래량 강조에도 그대로 적용된다.
@@ -53,7 +51,7 @@ function fmtShares(v: number): string {
 }
 
 type ColKey =
-  | "name" | "spark" | "price" | "chg" | "ret_1m" | "ret_3m" | "ret_1y"
+  | "name" | "market" | "spark" | "price" | "chg" | "ret_1m" | "ret_3m" | "ret_1y"
   | "from_52h" | "pos_52" | "from_ath" | "fwd_per" | "op_next" | "op_growth" | "target_up" | "opinion"
   | "trend_d" | "trend_m"
   | "market_cap" | "per" | "pbr" | "eps" | "bps" | "industry_per"
@@ -83,6 +81,7 @@ const TREND_HINT = (unit: string, extra: string) =>
 
 const COLS: Col[] = [
   { key: "name",             label: "종목명",       hint: "클릭하면 토스 종목 페이지" },
+  { key: "market",           label: "시장",         hint: "코스피(유가증권시장) / 코스닥. 정렬하면 코스피 먼저." },
   // ── 얼마나 올랐나 · 지금 어디쯤인가 (토스 일봉 450·월봉 300, 현재가는 토스 실시간)
   { key: "spark",     label: "추세(6개월)", hint: "최근 약 120거래일 종가 추이. 정렬은 6개월 수익률 기준." },
   { key: "price",     label: "현재가",   unit: "원", hint: "토스 현재가(시간외 포함)." },
@@ -103,7 +102,7 @@ const COLS: Col[] = [
   { key: "market_cap",       label: "시가총액",     unit: "억원", hint: "발행주식수 × 주가. 회사 규모." },
   { key: "per",              label: "PER",          unit: "배", digits: 2, goodHigh: false, hint: "주가 ÷ EPS. 낮을수록 저평가(시장 평균 약 15배)." },
   { key: "fwd_per",          label: "선행PER",      unit: "배", digits: 2, goodHigh: false, hint: "내년 추정(E) 실적 기준 PER(와이즈리포트 컨센서스). 현재 PER 보다 낮으면 이익이 늘 거란 뜻." },
-  { key: "industry_per",     label: "동일업종 PER", unit: "배", digits: 2, hint: "같은 업종 평균 PER. 종목 PER 이 이보다 낮으면 업종 대비 저평가." },
+  // 동일업종 PER 열은 뺐다 — 네이버 상세 API 가 sameIndustryPer 를 null 로 준다(2026-10-06 확인, 전 종목 '—').
   { key: "pbr",              label: "PBR",          unit: "배", digits: 2, goodHigh: false, hint: "주가 ÷ BPS. 1 미만이면 청산가치보다 싸게 거래." },
   { key: "eps",              label: "EPS",          unit: "원", hint: "1주당 순이익." },
   { key: "bps",              label: "BPS",          unit: "원", hint: "1주당 순자산(청산가치 기준)." },
@@ -128,6 +127,33 @@ const COLS: Col[] = [
   { key: "burst_turnover", label: "시총대비",   unit: "%", digits: 1, burst: true, hint: "최대대금 ÷ 시가총액. 소형주가 크게 나오면 손바뀜이 격했다는 뜻 — 테마주 판별에 유용." },
   { key: "burst_last",     label: "최근터진날", burst: true, date: true, hint: "가장 최근에 조건을 충족한 날." },
 ];
+
+// 표에 보이는 열 — **초보가 바로 읽히는 값만**(사용자 결정 2026-10-06). 나머지 열 정의(수급·급증·이평 배열·
+//   EPS/BPS/ROE 등)는 다시 쓸 수 있게 남겨 두되 표에는 안 나온다. 이름·설명도 쉬운 말로 덮어쓴다.
+const SIMPLE: { key: ColKey; label?: string; hint?: string }[] = [
+  { key: "name" },
+  { key: "market" },
+  { key: "spark",            label: "6개월 추세", hint: "최근 6개월 주가 흐름. 정렬은 6개월 수익률." },
+  { key: "price" },
+  { key: "chg",              label: "오늘", hint: "어제 종가보다 오늘 몇 % 올랐나(내렸나)." },
+  { key: "ret_1m",           label: "1개월", hint: "한 달 전보다 몇 % 올랐나." },
+  { key: "ret_3m",           label: "3개월", hint: "석 달 전보다 몇 % 올랐나." },
+  { key: "ret_1y",           label: "1년", hint: "1년 전보다 몇 % 올랐나." },
+  { key: "from_52h",         label: "1년 고점 대비", hint: "지난 1년 중 가장 비쌌던 가격보다 지금 몇 % 아래인가. 0 이면 지금이 1년 중 최고가." },
+  { key: "market_cap",       hint: "회사 전체의 몸값(주가 × 주식 수). 클수록 큰 회사." },
+  { key: "per",              hint: "주가가 1년 이익의 몇 배인가. 낮을수록 이익에 비해 싸다(보통 10~15배)." },
+  { key: "pbr",              hint: "주가가 회사 순자산의 몇 배인가. 1 보다 낮으면 가진 재산보다 싸게 거래되는 셈." },
+  { key: "revenue",          hint: "1년 동안 판 금액(최근 연간)." },
+  { key: "operating_income", hint: "본업으로 번 돈(최근 연간)." },
+  { key: "operating_margin", hint: "100원 팔아 본업으로 몇 원 남기나." },
+  { key: "op_next",          label: "내년 영업이익(예상)", hint: "증권사들이 예상하는 내년 영업이익. 올해보다 크면 이익이 늘 거란 뜻." },
+  { key: "target_up",        label: "목표주가까지", hint: "증권사 평균 목표주가가 지금 주가보다 몇 % 위인가. 클수록 더 오를 여지를 본다는 뜻." },
+  { key: "opinion",          hint: "증권사 평균 의견(적극매수·매수·중립…)." },
+];
+const VIEW_COLS: Col[] = SIMPLE.map(v => {
+  const c = COLS.find(x => x.key === v.key)!;
+  return { ...c, label: v.label ?? c.label, hint: v.hint ?? c.hint };
+});
 
 interface Row extends ValuationRow {
   ticker: string;
@@ -161,6 +187,7 @@ interface Row extends ValuationRow {
 
 function numOf(r: Row, key: ColKey): number | null {
   if (key === "name") return null;
+  if (key === "market") return r.market === "KOSPI" ? 0 : r.market === "KOSDAQ" ? 1 : null;
   const v = r[key];
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
@@ -256,8 +283,6 @@ function estimateStats(rows: EarningsRow[] | undefined) {
   return { fwd_per: e.per, op_next: e.op_income, op_growth: growth };
 }
 
-const PRESET_KEY = "valuation_preset";   // 마지막에 고른 섹터
-function loadPreset(): string { try { return localStorage.getItem(PRESET_KEY) ?? "semi"; } catch { return "semi"; } }
 
 interface ValuationTableTabProps {
   items?: ConsensusItem[];   // 예전 '관심종목' 묶음용 — 지금은 안 쓴다(호출부 호환용)
@@ -268,9 +293,12 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   // 섹터 선택(반도체·반도체 소부장·대장주 페이지 섹터들) — 섹터 안에서 비교한다.
   //   '관심종목'(내가 추가한 종목 전체) 묶음은 뺐다(사용자 결정 2026-10-06). 예전에 고른 값이면 첫 섹터로.
   const presets = useMemo(() => sectorPresets(), []);
-  const [presetKey, setPresetKey] = useState(loadPreset);
+  // 열 때마다 반도체부터(마지막 섹터를 기억하던 건 뺐다 — 사용자 결정 2026-10-06)
+  const [presetKey, setPresetKey] = useState("semi");
   const preset = presets.find(p => p.key === presetKey) ?? presets[0];
-  const pickPreset = (k: string) => { setPresetKey(k); try { localStorage.setItem(PRESET_KEY, k); } catch { /* noop */ } };
+  const pickPreset = (k: string) => setPresetKey(k);
+  // 시장 필터 — 전체 / 코스피 / 코스닥 (시장은 네이버 상세로 알아낸다 — 아직 모르는 종목은 '전체' 에만)
+  const [mkt, setMkt] = useState<"all" | "KOSPI" | "KOSDAQ">("all");
   const items: ConsensusItem[] = useMemo(
     () => preset.tickers.map(t => ({ ticker: t, name: preset.names[t] ?? "" })),
     [preset],
@@ -281,9 +309,8 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   );
   const [sortKey, setSortKey] = useState<ColKey>("market_cap");
   const [asc, setAsc] = useState(false);
-  const [flowDays, setFlowDays] = useState<FlowDays>(20);
-  const [burstLevel, setBurstLevel] = useState<BurstLevel>(loadBurstLevel);
-  const pickBurstLevel = (v: BurstLevel) => { setBurstLevel(v); saveBurstLevel(v); };
+  const flowDays: FlowDays = 20;
+  const burstLevel: BurstLevel = loadBurstLevel();
 
   const qs = useQueries({
     queries: tickers.map(t => ({
@@ -301,6 +328,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
     queries: tickers.map(t => ({
       queryKey: ["investor-history-long", t],
       queryFn: () => fetchInvestorHistorySafe(t, [200, 120, 60]),
+      enabled: false,   // 수급 열은 표에서 뺐다(초보용 정리) — 호출 안 함
       staleTime: INVESTOR_STALE_MS,
       refetchOnWindowFocus: false,
     })),
@@ -311,6 +339,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
     queries: tickers.map(t => ({
       queryKey: ["kr-price-history", t, "3mo"],
       queryFn: () => fetchKrPriceHistory(t, "3mo"),
+      enabled: false,   // 거래대금 급증 열은 표에서 뺐다
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -333,6 +362,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
     queries: tickers.map(t => ({
       queryKey: ["toss-candles", t, "month"],
       queryFn: () => fetchTossKrCandles(t, "month", MONTH_CANDLE_COUNT),
+      enabled: false,   // 월추세·전고점 열은 표에서 뺐다
       staleTime: CANDLE_MONTH_STALE_MS,
       gcTime: CANDLE_MONTH_STALE_MS,
       refetchOnWindowFocus: false,
@@ -393,7 +423,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
       opinionText: ex?.cons.consensus_opinion,
       ticker: t,
       label: meta?.name || d?.name || t,
-      market: meta?.market,
+      market: meta?.market ?? d?.market,   // 섹터 목록엔 시장 구분이 없어 네이버 상세(sosok)로
       loading: !!q?.isLoading,
       flow_foreign: sumLast(inv, "외국인", flowDays),
       flow_inst:    sumLast(inv, "기관", flowDays),
@@ -414,7 +444,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   const loaded = qs.filter(q => q.isSuccess).length;
 
   // 종목 수십 개 규모라 매 렌더 정렬해도 부담 없다(메모 키를 만드는 비용이 오히려 큼).
-  const sorted = [...rows].sort((a, b) => {
+  const sorted = rows.filter(r => mkt === "all" || r.market === mkt).sort((a, b) => {
     if (sortKey === "name") {
       return asc ? a.label.localeCompare(b.label, "ko") : b.label.localeCompare(a.label, "ko");
     }
@@ -447,7 +477,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
           const on = preset.key === p.key;
           return (
             <button key={p.key} onClick={() => pickPreset(p.key)}
-                    className={`px-2 py-0.5 rounded-full text-[11px] transition
+                    className={`px-2.5 py-0.5 rounded-full text-[12px] transition
                                 ${on ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
               {p.label}
             </button>
@@ -456,57 +486,37 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
       </div>
       <div className="flex items-center gap-2 px-1">
         <span className="text-sm font-bold text-gray-800">📊 {preset.label} 섹터 비교</span>
-        <span className="text-[11px] text-gray-500">
-          {loaded < tickers.length ? `불러오는 중 ${loaded}/${tickers.length}` : `${tickers.length}종목`}
-          {" · 열 제목을 누르면 정렬"}
-        </span>
-        {/* 수급 기간 — 외국인·기관계·연기금·개인 열에 적용 */}
-        <div className="ml-auto flex items-center gap-1">
-          <span className="text-[10px] text-gray-500">수급 기간</span>
-          {FLOW_DAYS.map(d => (
-            <button key={d} onClick={() => setFlowDays(d)}
-                    title={`최근 ${FLOW_LABEL[d]} 누적 순매수로 보기`}
-                    className={`px-1.5 py-0.5 rounded text-[11px] transition
-                                ${flowDays === d
-                                  ? "bg-gray-900 text-white font-bold"
-                                  : "text-gray-500 hover:bg-gray-100"}`}>
-              {d}일
+        <span className="inline-flex rounded border border-gray-300 overflow-hidden text-[12px] font-bold">
+          {([["all", "전체"], ["KOSPI", "코스피"], ["KOSDAQ", "코스닥"]] as const).map(([k, l]) => (
+            <button key={k} onClick={() => setMkt(k)}
+                    className={`px-2 py-0.5 ${mkt === k ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>
+              {l}
             </button>
           ))}
-        </div>
-      </div>
-      {/* 거래대금 급증 기준 — 터진일수/최대대금/시총대비/최근터진날 열에 적용 */}
-      <div className="flex items-center gap-1 px-1">
-        <span className="text-[10px] text-gray-500">
-          거래대금 기준 (최근 {BURST_BARS}거래일 · 양봉만)
         </span>
-        {BURST_LEVELS.map(v => (
-          <button key={v} onClick={() => pickBurstLevel(v)}
-                  title={`양봉이면서 거래대금 ${v.toLocaleString()}억 이상인 날을 셉니다.\n기업가치 차트의 거래량 강조에도 같은 기준이 적용됩니다.`}
-                  className={`px-1.5 py-0.5 rounded text-[11px] transition
-                              ${burstLevel === v
-                                ? "bg-rose-600 text-white font-bold"
-                                : "text-gray-500 hover:bg-gray-100"}`}>
-            {v.toLocaleString()}억
-          </button>
-        ))}
+        <span className="text-[11px] text-gray-500">
+          {loaded < tickers.length ? `불러오는 중 ${loaded}/${tickers.length}` : `${sorted.length}종목`}
+          {" · 열 제목을 누르면 정렬"}
+        </span>
+
       </div>
+
 
       {/* 표 자체를 스크롤 영역으로 — 그래야 헤더 행이 위에 고정된 채로 세로 스크롤된다.
           (페이지 스크롤에 맡기면 가로 스크롤 컨테이너 안이라 헤더가 같이 밀려 올라간다) */}
       <div className="overflow-auto border border-gray-200 rounded bg-white
                       max-h-[calc(100vh-150px)] overscroll-contain">
-        <table className="min-w-full text-[11px] border-collapse">
+        <table className="min-w-full text-[13px] border-collapse">   {/* 11px 은 너무 작다는 피드백(2026-10-06) */}
           <thead className="sticky top-0 z-20 bg-gray-50 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
             <tr>
-              {COLS.map(col => {
+              {VIEW_COLS.map(col => {
                 const active = col.key === sortKey;
                 return (
                   <th key={col.key}
                       onClick={() => clickCol(col.key)}
                       title={`${col.hint}\n(클릭: 정렬)`}
                       className={`px-2 py-1.5 whitespace-nowrap cursor-pointer select-none border-b border-gray-200
-                                  ${col.key === "name" ? "text-left sticky left-0 bg-gray-50 z-30" : "text-right"}
+                                  text-[12px] ${col.key === "name" ? "text-left sticky left-0 bg-gray-50 z-30" : "text-right"}
                                   ${active ? "text-blue-700 font-bold" : "text-gray-600 hover:text-gray-900"}`}>
                     {col.label}
                     {col.flow
@@ -521,7 +531,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
           <tbody>
             {sorted.map(r => (
               <tr key={r.ticker} className="odd:bg-white even:bg-gray-50/60 hover:bg-blue-50/50">
-                {COLS.map(col => {
+                {VIEW_COLS.map(col => {
                   if (col.key === "name") {
                     return (
                       <td key={col.key}
@@ -533,14 +543,22 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                         </button>
                         <button onClick={() => openTossStock(r.ticker)}
                                 title="토스 종목 페이지"
-                                className="ml-1 text-[10px] text-gray-400 hover:text-blue-600">
+                                className="ml-1 text-[11px] text-gray-400 hover:text-blue-600">
                           {r.ticker}
                         </button>
-                        {r.market && (
-                          <span className="ml-1 text-[9px] text-gray-400">
-                            {r.market === "KOSDAQ" ? "코스닥" : "코스피"}
-                          </span>
-                        )}
+
+                      </td>
+                    );
+                  }
+                  if (col.key === "market") {
+                    return (
+                      <td key={col.key} className="px-2 py-1 text-center whitespace-nowrap">
+                        {r.market
+                          ? <span className={`px-1.5 rounded text-[11px] font-bold border
+                                              ${r.market === "KOSDAQ" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-blue-700 bg-blue-50 border-blue-200"}`}>
+                              {r.market === "KOSDAQ" ? "코스닥" : "코스피"}
+                            </span>
+                          : <span className="text-gray-300">{r.loading ? "…" : "—"}</span>}
                       </td>
                     );
                   }
@@ -548,7 +566,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                     return (
                       <td key={col.key} className="px-1 py-0.5">
                         {r.sparkData && r.sparkData.length > 1
-                          ? <Sparkline data={r.sparkData} width={90} height={22} strokeWidth={1.2} />
+                          ? <Sparkline data={r.sparkData} width={100} height={26} strokeWidth={1.3} />
                           : <span className="text-gray-300">{r.trendLoading ? "…" : "—"}</span>}
                       </td>
                     );
@@ -592,15 +610,10 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
         </table>
       </div>
 
-      <div className="text-[10px] text-gray-400 px-1 leading-relaxed">
-        출처: 네이버 금융(시총·PER·PBR·EPS·BPS·동일업종 PER, 일별 투자자 순매수, 평균 목표주가·투자의견) · 와이즈리포트(매출액·영업이익·이익률·ROE 최근 연간, 추정 영업이익·선행 PER) · 토스(현재가, 일·월봉 — 수익률·52주·전고점·추세).
-        수급은 선택 기간 누적 <span className="text-rose-600">순매수(+)</span>/<span className="text-blue-600">순매도(−)</span> 주식수입니다.
-        값이 <span className="text-gray-500">—</span> 인 항목은 해당 종목에 공시 데이터가 없는 경우입니다(ETF·리츠 등).
+      <div className="text-[11px] text-gray-400 px-1 leading-relaxed">
+        열 제목에 마우스를 올리면 뜻이 나옵니다. 값이 <span className="text-gray-500">—</span> 이면 공시·전망 자료가 없는 종목입니다.
         <br />
-        일·월추세는 토스 일봉/월봉 종가의 단순이동평균 {P20}·{P60}·{P120} 배열입니다 —
-        <span className="text-rose-600"> 정배열</span>(단기가 위) /
-        <span className="text-blue-600"> 역배열</span>(단기가 아래) / <span className="text-gray-500">혼조</span>.
-        월추세의 MA{P120}은 10년치라 상장 10년 미만 종목·신형 ETF 는 산출되지 않습니다.
+        출처: 토스(현재가·주가 흐름) · 네이버 금융(시가총액·PER·PBR·목표주가·투자의견) · 와이즈리포트(매출·영업이익·내년 예상).
       </div>
     </div>
   );

@@ -389,6 +389,9 @@ export function MobileSimpleView() {
       for (const p of DASHBOARD_PAGES) tabs.push({ key: keyOf[p.key], label: `${p.emoji}${p.tab}`, count: 0 });
     }
     // 눌림목 — 시스템 묶음 첫 자리(섹터 위, PC buildTabs 와 같은 순서).
+    if (vis.valuation) {   // 종목찾기(섹터별) — 종목찾기 묶음 맨 위
+      tabs.push({ key: VALUATION_KEY, label: "📊종목찾기(섹터별)", count: 0 });
+    }
     if (vis.screener) {
       tabs.push({ key: SCREENER_KEY, label: "🔎종목찾기(눌림목)", count: 0 });
     }
@@ -431,9 +434,6 @@ export function MobileSimpleView() {
     }
     if (vis.heatmap) {
       tabs.push({ key: HEATMAP_KEY, label: "🗺️히트맵", count: 0 });
-    }
-    if (vis.valuation) {
-      tabs.push({ key: VALUATION_KEY, label: "📊성적표(종목별)", count: 0 });
     }
     // "보유" 도 일반 사용자 그룹과 동일하게 취급 — 별도 분기 없음
     const userGroups = Array.from(counts.keys())
