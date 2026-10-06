@@ -52,7 +52,7 @@ function fmtShares(v: number): string {
 
 type ColKey =
   | "name" | "market" | "spark" | "price" | "chg" | "ret_1m" | "ret_3m" | "ret_1y"
-  | "from_52h" | "pos_52" | "from_ath" | "fwd_per" | "op_next" | "op_growth" | "target_up" | "opinion"
+  | "from_52h" | "pos_52" | "from_ath" | "fwd_per" | "op_next" | "op_growth" | "target" | "target_up" | "opinion"
   | "trend_d" | "trend_m"
   | "market_cap" | "per" | "pbr" | "eps" | "bps" | "industry_per"
   | "revenue" | "operating_income" | "operating_margin" | "net_margin" | "roe"
@@ -113,6 +113,7 @@ const COLS: Col[] = [
   // ── 전망 (와이즈리포트 추정치 · 네이버 공식 컨센서스)
   { key: "op_next",          label: "내년 영업이익(E)", unit: "억원", hint: "컨센서스 추정 영업이익(가장 가까운 추정 연도)." },
   { key: "op_growth",        label: "이익성장(E)", unit: "%", digits: 1, pct: true, hint: "추정 영업이익 ÷ 최근 실적 영업이익 − 1. 적자→흑자 전환은 —." },
+  { key: "target",           label: "목표주가",   unit: "원", hint: "증권사 평균 목표주가." },
   { key: "target_up",        label: "목표가괴리", unit: "%", digits: 1, pct: true, hint: "증권사 평균 목표주가 ÷ 현재가 − 1. 클수록 증권사가 더 오를 여지를 본다." },
   { key: "opinion",          label: "투자의견", hint: "증권사 평균 의견(5 적극매수 ~ 1 적극매도). 정렬은 점수 기준." },
   { key: "roe",              label: "ROE",          unit: "%", digits: 2, goodHigh: true, hint: "자기자본수익률. 15% 이상이면 우수." },
@@ -130,29 +131,30 @@ const COLS: Col[] = [
 
 // 표에 보이는 열 — **초보가 바로 읽히는 값만**(사용자 결정 2026-10-06). 나머지 열 정의(수급·급증·이평 배열·
 //   EPS/BPS/ROE 등)는 다시 쓸 수 있게 남겨 두되 표에는 안 나온다. 이름·설명도 쉬운 말로 덮어쓴다.
-const SIMPLE: { key: ColKey; label?: string; hint?: string }[] = [
+const SIMPLE: { key: ColKey; label?: string; hint?: string; unit?: string }[] = [
   { key: "name" },
   { key: "market" },
   { key: "spark",            label: "6개월 추세", hint: "최근 6개월 주가 흐름. 정렬은 6개월 수익률." },
   { key: "price" },
+  { key: "target",           label: "평균 목표주가", hint: "증권사들이 제시한 목표주가의 평균. 현재가와 바로 비교하게 옆에 둔다." },
+  { key: "target_up",        label: "목표주가까지", hint: "평균 목표주가가 지금 주가보다 몇 % 위인가. 클수록 더 오를 여지를 본다는 뜻." },
   { key: "chg",              label: "오늘", hint: "어제 종가보다 오늘 몇 % 올랐나(내렸나)." },
   { key: "ret_1m",           label: "1개월", hint: "한 달 전보다 몇 % 올랐나." },
   { key: "ret_3m",           label: "3개월", hint: "석 달 전보다 몇 % 올랐나." },
   { key: "ret_1y",           label: "1년", hint: "1년 전보다 몇 % 올랐나." },
   { key: "from_52h",         label: "1년 고점 대비", hint: "지난 1년 중 가장 비쌌던 가격보다 지금 몇 % 아래인가. 0 이면 지금이 1년 중 최고가." },
   { key: "market_cap",       hint: "회사 전체의 몸값(주가 × 주식 수). 클수록 큰 회사." },
-  { key: "per",              hint: "주가가 1년 이익의 몇 배인가. 낮을수록 이익에 비해 싸다(보통 10~15배)." },
-  { key: "pbr",              hint: "주가가 회사 순자산의 몇 배인가. 1 보다 낮으면 가진 재산보다 싸게 거래되는 셈." },
   { key: "revenue",          hint: "1년 동안 판 금액(최근 연간)." },
   { key: "operating_income", hint: "본업으로 번 돈(최근 연간)." },
   { key: "operating_margin", hint: "100원 팔아 본업으로 몇 원 남기나." },
-  { key: "op_next",          label: "내년 영업이익(예상)", hint: "증권사들이 예상하는 내년 영업이익. 올해보다 크면 이익이 늘 거란 뜻." },
-  { key: "target_up",        label: "목표주가까지", hint: "증권사 평균 목표주가가 지금 주가보다 몇 % 위인가. 클수록 더 오를 여지를 본다는 뜻." },
-  { key: "opinion",          hint: "증권사 평균 의견(적극매수·매수·중립…)." },
+  { key: "op_next",          label: "내년 영업이익", unit: "예상·억원", hint: "증권사들이 예상하는 내년 영업이익. 올해보다 크면 이익이 늘 거란 뜻." },
+  { key: "per",              hint: "주가가 1년 이익의 몇 배인가. 낮을수록 이익에 비해 싸다(보통 10~15배)." },
+  { key: "pbr",              hint: "주가가 회사 순자산의 몇 배인가. 1 보다 낮으면 가진 재산보다 싸게 거래되는 셈." },
+  // 투자의견(대부분 '매수'라 변별력이 없다) 대신 평균 목표주가 금액 — 사용자 결정 2026-10-06
 ];
 const VIEW_COLS: Col[] = SIMPLE.map(v => {
   const c = COLS.find(x => x.key === v.key)!;
-  return { ...c, label: v.label ?? c.label, hint: v.hint ?? c.hint };
+  return { ...c, label: v.label ?? c.label, hint: v.hint ?? c.hint, unit: v.unit ?? c.unit };
 });
 
 interface Row extends ValuationRow {
@@ -164,7 +166,7 @@ interface Row extends ValuationRow {
   ret_1m?: number | null; ret_3m?: number | null; ret_1y?: number | null;
   from_52h?: number | null; pos_52?: number | null; from_ath?: number | null;
   fwd_per?: number | null; op_next?: number | null; op_growth?: number | null;
-  target_up?: number | null; opinion?: number | null; opinionText?: string;
+  target?: number | null; target_up?: number | null; opinion?: number | null; opinionText?: string;
   label: string;                 // 표시용 종목명 (보유 목록 기준, 없으면 네이버 이름)
   market?: "KOSPI" | "KOSDAQ";
   loading: boolean;
@@ -418,6 +420,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
       ...estimateStats(ex?.est),
       price: now,
       chg: lp && lp.prevClose > 0 ? (lp.price / lp.prevClose - 1) * 100 : null,
+      target: target ?? null,
       target_up: target && now ? (target / now - 1) * 100 : null,
       opinion: ex?.cons.consensus_score ?? null,
       opinionText: ex?.cons.consensus_opinion,
@@ -518,11 +521,12 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                       className={`px-2 py-1.5 whitespace-nowrap cursor-pointer select-none border-b border-gray-200
                                   text-[12px] ${col.key === "name" ? "text-left sticky left-0 bg-gray-50 z-30" : "text-right"}
                                   ${active ? "text-blue-700 font-bold" : "text-gray-600 hover:text-gray-900"}`}>
-                    {col.label}
-                    {col.flow
-                      ? <span className="text-[10px] text-gray-400">{` ${flowDays}일`}</span>
-                      : col.unit && <span className="text-[10px] text-gray-400">{` (${col.unit})`}</span>}
-                    {active && <span className="ml-0.5">{asc ? "▲" : "▼"}</span>}
+                    {/* 열 제목은 전부 두 줄 — 윗줄 이름, 아랫줄 (단위) + 정렬 화살표. 폭을 아끼고 줄 높이를 맞춘다. */}
+                    <span className="block">{col.label}</span>
+                    <span className="block text-[10px] text-gray-400">
+                      {col.flow ? `${flowDays}일` : col.unit ? `(${col.unit})` : "\u00a0"}
+                      {active && <span className="ml-0.5 text-blue-700">{asc ? "▲" : "▼"}</span>}
+                    </span>
                   </th>
                 );
               })}
@@ -613,7 +617,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
       <div className="text-[11px] text-gray-400 px-1 leading-relaxed">
         열 제목에 마우스를 올리면 뜻이 나옵니다. 값이 <span className="text-gray-500">—</span> 이면 공시·전망 자료가 없는 종목입니다.
         <br />
-        출처: 토스(현재가·주가 흐름) · 네이버 금융(시가총액·PER·PBR·목표주가·투자의견) · 와이즈리포트(매출·영업이익·내년 예상).
+        출처: 토스(현재가·주가 흐름) · 네이버 금융(시가총액·PER·PBR·평균 목표주가) · 와이즈리포트(매출·영업이익·내년 예상).
       </div>
     </div>
   );
