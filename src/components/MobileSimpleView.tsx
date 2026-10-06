@@ -193,7 +193,8 @@ export function MobileSimpleView() {
   }, []);
   // 폴더 sub바 높이 — 시장분리 점프바를 폴더바 아래에 겹치지 않게 고정시키기 위함 (없으면 0)
   const [folderBarH, setFolderBarH] = useState(0);
-  const folderBarRef = useCallback((el: HTMLDivElement | null) => setFolderBarH(el ? el.offsetHeight : 0), []);
+  const folderBarEl = useRef<HTMLDivElement | null>(null);
+  const folderBarRef = useCallback((el: HTMLDivElement | null) => { folderBarEl.current = el; setFolderBarH(el ? el.offsetHeight : 0); }, []);
   // 폴더 sub바 칩 — 그룹 이름변경/삭제 (tabMenu 와 동일 로직, 인라인 아이콘용)
   const renameGroupInline = async (g: string) => {
     const next = window.prompt(`"${g}" → 새 이름:`, g);
@@ -479,6 +480,21 @@ export function MobileSimpleView() {
   // 화면에 보이는 탭바와 '동일 순서'로 스와이프 이동 키 구성.
   //  시각 순서: 지수 → (섹터·반도체·컨센서스·ETF 묶음) → (내주식·내거래 묶음) → 사용자그룹 → 폴더
   //  (groupTabs 원순서는 내거래가 컨센서스/ETF 앞이라 ETF에서 스와이프 시 내거래를 건너뛰던 문제 수정)
+  // 탭이 바뀌면(스와이프·드롭다운) 상단 탭 바·폴더 칩 바에서 **켜진 탭을 가로 가운데로** — 스와이프로 넘기면
+  //   페이지만 바뀌고 탭 바는 그대로라 켜진 탭이 화면 밖에 있곤 했다. 켜진 칸 = bg-blue-600(탭·드롭다운·칩 공통).
+  //   scrollIntoView 는 세로 스크롤까지 건드려서 쓰지 않고 바 자체의 scrollLeft 만 옮긴다.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => {
+      for (const bar of [navRef.current, folderBarEl.current]) {
+        if (!bar) continue;
+        const on = [...bar.querySelectorAll<HTMLElement>(".bg-blue-600")].find(el => el.parentElement === bar);
+        if (!on) continue;
+        const left = on.offsetLeft - (bar.clientWidth - on.offsetWidth) / 2;
+        bar.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+      }
+    });
+    return () => cancelAnimationFrame(id);
+  }, [activeTab]);
   const navKeys = useMemo(() => {
     const has = (k: string) => groupTabs.some(t => t.key === k);
     const keys: string[] = [];
