@@ -78,16 +78,16 @@ describe("지수 탭 페이지 구성", () => {
     expect(night.find(s => s.id === "krnight")!.rows.flat()).toContain("^KS200N");
   });
 
-  it("순환매 = 큰 블록 하나에 단계별 줄 10개(AI 8 + 방산 + 로봇) — 줄마다 책갈피 이름, 앞 2~3칸 미국 대장주, 나머지 한국 쪽", () => {
+  it("순환매 = 큰 블록 하나에 단계별 줄 11개(AI 8 + 2차전지 + 방산 + 로봇) — 줄마다 책갈피 이름, 앞 2~3칸 미국 대장주, 나머지 한국 쪽", () => {
     const g = buildDashboardPage("semi").find(s => s.id === "rotflow")!;
     expect(g.note).toBeTruthy();                                  // 미국→한국 영향이라는 설명 한 줄
-    expect(g.rows).toHaveLength(10);
-    expect(g.rowLabels).toEqual(["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "방산", "로봇"]);
+    expect(g.rows).toHaveLength(11);
+    expect(g.rowLabels).toEqual(["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "2차전지", "방산", "로봇"]);
     expect(g.lead).toBe(2);
     expect(g.tags).toBeUndefined();                               // 카드 책갈피는 뺐다 — 줄 책갈피가 대신한다
     g.rows.forEach((row, i) => {
       const n = g.leadByRow?.[i] ?? g.lead!;
-      expect(n === 2 || n === 3).toBe(true);
+      expect(n >= 1 && n <= 3).toBe(true);   // 2차전지는 미국 쪽 연동이 LIT 하나뿐이라 1칸
       const leads = row.slice(0, n), kr = row.slice(n);
       expect(leads.every(s => !/\.KS$/.test(s))).toBe(true);
       expect(kr.length).toBeGreaterThan(0);
@@ -100,7 +100,7 @@ describe("지수 탭 페이지 구성", () => {
     expect(g.rowLabels).toEqual(STAGES.map(st => st.label));
     g.rows.forEach((row, i) => {
       const n = g.leadByRow?.[i] ?? g.lead!;
-      const leads = [STAGES[i].us.symbol, STAGES[i].us2.symbol, ...(STAGES[i].us3 ? [STAGES[i].us3.symbol] : [])];
+      const leads = [STAGES[i].us.symbol, ...(STAGES[i].us2 ? [STAGES[i].us2.symbol] : []), ...(STAGES[i].us3 ? [STAGES[i].us3.symbol] : [])];
       expect(row.slice(0, n)).toEqual(leads);
       const ex = new Set(g.extras ?? []);
       expect(row.slice(n).filter(x => !ex.has(x))).toEqual(STAGES[i].members.map(m => `${m.code}.KS`));
@@ -117,10 +117,9 @@ describe("지수 탭 페이지 구성", () => {
     for (const id of ["semi", "jpsemi"]) expect(page.find(s => s.id === id)!.rows.flat().filter(x => rot.has(x))).toEqual([]);
   });
 
-  it("대장주 페이지 = 섹터 줄마다 [섹터 ETF] ➜ [대장주](한 줄 8칸 이내) + 맨 아래 공통 세트, 반도체 페이지와 종목이 겹치지 않는다", () => {
+  it("대장주 페이지 = 섹터 줄마다 [섹터 ETF] ➜ [대장주](한 줄 8칸 이내) + 맨 아래 공통 세트(반도체·2차전지 등 모든 섹터 — 반도체 페이지와 겹쳐도 된다)", () => {
     const page = buildDashboardPage("leaders", false);
     expect(page.map(s => s.id).slice(-3)).toEqual(["krfx", "dayfut", "spot"]);
-    const semiSyms = new Set(buildDashboardPage("semi", false).filter(s => !["krfx", "dayfut", "spot"].includes(s.id)).flatMap(s => s.rows.flat()));
     const krStock = new Set(US_PAIRS.filter(p => p.krStock).map(p => p.symbol));
     for (const sec of page.filter(s => s.id.startsWith("ld"))) {
       expect(sec.rowLabels).toHaveLength(sec.rows.length);
@@ -130,7 +129,6 @@ describe("지수 탭 페이지 구성", () => {
         expect(row.slice(0, n).every(x => !krStock.has(x))).toBe(true);   // 앞 칸 = ETF
         expect(row.slice(n).every(x => krStock.has(x))).toBe(true);       // 뒤 = 대장주(개별주)
         expect(row.length).toBeLessThanOrEqual(8);                        // ETF + 대장주 합쳐 한 줄 8칸
-        expect(row.filter(x => semiSyms.has(x))).toEqual([]);
       });
     }
   });

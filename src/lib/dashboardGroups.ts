@@ -85,6 +85,7 @@ const TAG_TONE: Record<string, string> = {
   원자력:   "text-orange-700 bg-orange-50 border-orange-300/70",
   친환경:   "text-emerald-700 bg-emerald-50 border-emerald-300/70",
   방산:     "text-teal-700 bg-teal-50 border-teal-300/70",
+  "2차전지": "text-cyan-700 bg-cyan-50 border-cyan-300/70",
   로봇:     "text-rose-700 bg-rose-50 border-rose-300/70",
 };
 // 순환매 줄 첫 카드(미국 대장주) 배경 — 그 줄 단계 색의 옅은 판. 책갈피와 같은 계열.
@@ -92,7 +93,7 @@ const TAG_CARD: Record<string, string> = {
   반도체: "bg-indigo-50 border-indigo-300", 전공정: "bg-violet-50 border-violet-300",
   후공정: "bg-sky-50 border-sky-300", "CPU·기판": "bg-fuchsia-50 border-fuchsia-300", 광통신: "bg-lime-50 border-lime-300", 전력기기: "bg-amber-50 border-amber-300",
   원자력: "bg-orange-50 border-orange-300", 친환경: "bg-emerald-50 border-emerald-300",
-  방산: "bg-teal-50 border-teal-300", 로봇: "bg-rose-50 border-rose-300",
+  방산: "bg-teal-50 border-teal-300", "2차전지": "bg-cyan-50 border-cyan-300", 로봇: "bg-rose-50 border-rose-300",
 };
 export function dashboardTagCard(tag: string | undefined): string {
   return (tag && TAG_CARD[tag]) || "bg-amber-50 border-amber-300";
@@ -166,15 +167,38 @@ function sectionMap(): Record<string, DashboardSection> {
     //   한 줄 8칸을 다 채운다(ETF 1 + 대장주 7, 바이오는 ETF 2 + 6) — 후보가 모자란 섹터(조선·건설·증권·인터넷)만 빈칸.
     //   ETF 거래대금이 10억 미만인 섹터(철강·에너지화학·필수소비재·게임·엔터)도 섹터 기준선으로 둔다.
     {
+      id: "ldtech", short: "반도체", label: "💾 반도체·2차전지",
+      sortable: true,
+      lead: 1, extras: [],
+      rowLabels: ["반도체", "반도체 소부장", "2차전지"],
+      rows: [
+        ["091160.KS", "000660.KS", "005930.KS", "009150.KS", "011070.KS", "353200.KS", "222800.KS", "007660.KS"],
+        ["455850.KS", "036930.KS", "042700.KS", "240810.KS", "403870.KS", "095610.KS", "067310.KS", "319660.KS"],
+        ["305720.KS", "006400.KS", "373220.KS", "086520.KS", "003670.KS", "066970.KS", "247540.KS", "348370.KS"],
+      ],
+    },
+    {
+      id: "ldpower", short: "전력·에너지", label: "⚡ 전력·에너지",
+      sortable: true,
+      lead: 1, extras: [],
+      rowLabels: ["전력기기", "원자력", "친환경"],
+      rows: [
+        ["487240.KS", "010120.KS", "298040.KS", "267260.KS", "001440.KS", "062040.KS", "006260.KS", "103590.KS"],
+        ["433500.KS", "034020.KS", "015760.KS", "032820.KS", "052690.KS", "083650.KS", "006910.KS", "051600.KS"],
+        ["377990.KS", "475150.KS", "009830.KS", "010060.KS", "322000.KS", "112610.KS", "389260.KS", "018000.KS"],
+      ],
+    },
+    {
       id: "ldind", short: "산업재", label: "🏭 산업재",
       sortable: true,
       lead: 1, extras: [],
-      rowLabels: ["2차전지", "자동차", "조선", "건설", "철강·소재", "에너지화학"],
+      rowLabels: ["자동차", "조선", "건설", "방산", "로봇", "철강·소재", "에너지화학"],
       rows: [
-        ["305720.KS", "006400.KS", "373220.KS", "086520.KS", "003670.KS", "066970.KS", "247540.KS", "348370.KS"],
         ["091180.KS", "005380.KS", "012330.KS", "000270.KS", "307950.KS", "204320.KS", "018880.KS", "011210.KS"],
         ["466920.KS", "329180.KS", "042660.KS", "010140.KS", "009540.KS", "082740.KS", "443060.KS"],
         ["117700.KS", "047040.KS", "028050.KS", "006360.KS", "000720.KS", "375500.KS", "294870.KS"],
+        ["449450.KS", "012450.KS", "079550.KS", "064350.KS", "047810.KS", "272210.KS", "099320.KS"],
+        ["0148J0.KS", "108490.KS", "058610.KS", "277810.KS", "454910.KS", "090360.KS", "466100.KS", "388720.KS"],
         ["117680.KS", "005490.KS", "010130.KS", "004020.KS", "103140.KS", "001430.KS", "000670.KS", "460860.KS"],
         ["117460.KS", "096770.KS", "010950.KS", "051910.KS", "011790.KS", "011780.KS", "011170.KS", "298020.KS"],
       ],
@@ -326,8 +350,8 @@ function sectionMap(): Record<string, DashboardSection> {
       note: "간밤 🇺🇸 미국 대장주(굵은 카드)가 움직이면 → 오늘 🇰🇷 같은 분야 한국 종목도 같은 방향으로 가는 경향이 있어요. 예측은 아닙니다.",
       lead: 2,
       // 반도체(하이닉스 ADR)·전공정(ASML)·CPU·기판(마벨)·광통신(코히런트)만 3번째 대장주 — 3번째도 연동이 강한 줄만(데이터 우선)
-      leadByRow: [3, 3, 3, 3, 3, 2, 2, 2, 2, 2],
-      rowLabels: ["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "방산", "로봇"],
+      leadByRow: [3, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2],
+      rowLabels: ["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "2차전지", "방산", "로봇"],
       // 줄 = [미국 대장주 2개, 한국 섹터 ETF(모자라면 주도주)…, (국내 상장 해외 테마 ETF)].
       //   앞 두 칸 + 한국 쪽은 lib/rotation STAGES 와 같아야 한다(테스트가 대조). 맨 뒤 extras 는 참고용 —
       //   해외 ETF 라 통계엔 안 넣는다(미국 것은 하루 시차로 간밤 미국을 따라간다). 전공정·후공정은 일본 소부장 ETF.
@@ -340,12 +364,13 @@ function sectionMap(): Record<string, DashboardSection> {
         ["PWR", "GEV", "487240.KS", "267260.KS", "0117V0.KS", "0209Z0.KS", "487230.KS", "491010.KS"],
         ["CCJ", "OKLO", "433500.KS", "0098F0.KS", "0091P0.KS", "034020.KS", "0051G0.KS", "0132H0.KS"],
         ["BE", "FSLR", "377990.KS", "009830.KS", "112610.KS", "457990.KS", "419420.KS", "419650.KS"],
+        ["LIT", "305720.KS", "006400.KS", "373220.KS", "086520.KS", "394670.KS", "371460.KS"],   // 2차전지 — 미국은 LIT 하나만 끈다
         ["ITA", "RTX", "449450.KS", "0080G0.KS", "463250.KS", "012450.KS", "494840.KS", "0167Z0.KS"],   // 방산 — AI 밖이지만 미국이 끌고 온다
         ["BOTZ", "TER", "0148J0.KS", "445290.KS", "108490.KS", "277810.KS", "0038A0.KS"],   // 로봇 — 미국 로봇 ETF 가 끈다(개별주는 약함)
       ],
       // 소부장(전공정·후공정)은 맞는 미국 ETF 가 없어 일본 반도체 소부장 ETF — 일본장은 한국과 같은 시간이라 하루 시차가 없다
       extraTag: { "464920.KS": "🇯🇵 일본", "465660.KS": "🇯🇵 일본" },
-      extras: ["0173Y0.KS", "464920.KS", "465660.KS", "419650.KS", "381180.KS", "0225V0.KS", "487230.KS", "491010.KS", "0051G0.KS", "0132H0.KS", "419420.KS", "494840.KS", "0167Z0.KS", "0038A0.KS"],
+      extras: ["0173Y0.KS", "464920.KS", "465660.KS", "419650.KS", "381180.KS", "0225V0.KS", "487230.KS", "491010.KS", "0051G0.KS", "0132H0.KS", "419420.KS", "494840.KS", "0167Z0.KS", "0038A0.KS", "394670.KS", "371460.KS"],
     },
     {
       // AI 순환매 부가 정보 — 지금 강한 곳 · 다음 후보 · 흐름 · 통계(RotationTab, 접힘).
@@ -436,8 +461,9 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 순환매 부가정보(rotation — 강세 묶음·다음 후보·과거 성적·일별 등락)는 뺐다. 카드 블록(rotflow)만 남긴다.
   // 반도체도 맨 아래에 공통 세트(환율·금리·투심 → 선물 → 현물). 선물은 시간 따라 주간/야간 그룹으로 바뀐다(buildDashboardPage).
   semi:  ["semi", "jpsemi", "rotflow", "krfx", "dayfut", "spot"],
-  // 반도체 페이지에 없는 섹터 — 섹터 ETF ➜ 대장주. 맨 아래 공통 세트는 반도체 페이지와 같다.
-  leaders: ["ldind", "ldfin", "ldlife", "ldcont", "krfx", "dayfut", "spot"],
+  // 섹터 ETF ➜ 대장주, 모든 섹터. 맨 아래 공통 세트는 반도체 페이지와 같다.
+  // 반도체·2차전지·전력도 넣는다(반도체 페이지와 겹쳐도 — 섹터 전체를 한 페이지에서 보게, 사용자 결정 2026-10-06).
+  leaders: ["ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "krfx", "dayfut", "spot"],
 };
 
 // 한국 선물 가상심볼 — 같은 카드가 시간 따라 주간선물(09:00~15:45)·야간선물(18:00~05:00)이 된다.

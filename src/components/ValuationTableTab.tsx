@@ -51,7 +51,7 @@ function fmtShares(v: number): string {
 }
 
 type ColKey =
-  | "name" | "market" | "spark" | "price" | "chg" | "ret_1m" | "ret_3m" | "ret_1y"
+  | "name" | "market" | "sub" | "spark" | "price" | "chg" | "ret_1m" | "ret_3m" | "ret_1y"
   | "from_52h" | "pos_52" | "from_ath" | "fwd_per" | "op_next" | "op_growth" | "target" | "target_up" | "opinion"
   | "trend_d" | "trend_m"
   | "market_cap" | "per" | "pbr" | "eps" | "bps" | "industry_per"
@@ -82,6 +82,7 @@ const TREND_HINT = (unit: string, extra: string) =>
 const COLS: Col[] = [
   { key: "name",             label: "종목명",       hint: "클릭하면 토스 종목 페이지" },
   { key: "market",           label: "시장",         hint: "코스피(유가증권시장) / 코스닥. 정렬하면 코스피 먼저." },
+  { key: "sub",              label: "분류",         hint: "섹터 안 세부 분류(반도체 소부장: 장비·부품·소재·후공정 서비스)." },
   // ── 얼마나 올랐나 · 지금 어디쯤인가 (토스 일봉 450·월봉 300, 현재가는 토스 실시간)
   { key: "spark",     label: "추세(6개월)", hint: "최근 약 120거래일 종가 추이. 정렬은 6개월 수익률 기준." },
   { key: "price",     label: "현재가",   unit: "원", hint: "토스 현재가(시간외 포함)." },
@@ -134,6 +135,7 @@ const COLS: Col[] = [
 const SIMPLE: { key: ColKey; label?: string; hint?: string; unit?: string }[] = [
   { key: "name" },
   { key: "market" },
+  { key: "sub" },
   { key: "spark",            label: "6개월 추세", hint: "최근 6개월 주가 흐름. 정렬은 6개월 수익률." },
   { key: "price" },
   { key: "target",           label: "평균 목표주가", hint: "증권사들이 제시한 목표주가의 평균. 현재가와 바로 비교하게 옆에 둔다." },
@@ -152,6 +154,13 @@ const SIMPLE: { key: ColKey; label?: string; hint?: string; unit?: string }[] = 
   { key: "pbr",              hint: "주가가 회사 순자산의 몇 배인가. 1 보다 낮으면 가진 재산보다 싸게 거래되는 셈." },
   // 투자의견(대부분 '매수'라 변별력이 없다) 대신 평균 목표주가 금액 — 사용자 결정 2026-10-06
 ];
+// 세부 분류 배지 색 — 분류마다 다르게(장비 보라 · 부품 주황 · 소재 자주 · 후공정 하늘)
+const SUB_TONE: Record<string, string> = {
+  "장비":   "text-violet-700 bg-violet-50 border-violet-200",
+  "부품":   "text-orange-700 bg-orange-50 border-orange-200",
+  "소재":   "text-fuchsia-700 bg-fuchsia-50 border-fuchsia-200",   // 초록은 코스닥 배지와 겹쳐 피한다
+  "후공정": "text-sky-700 bg-sky-50 border-sky-200",
+};
 const VIEW_COLS: Col[] = SIMPLE.map(v => {
   const c = COLS.find(x => x.key === v.key)!;
   return { ...c, label: v.label ?? c.label, hint: v.hint ?? c.hint, unit: v.unit ?? c.unit };
@@ -159,6 +168,7 @@ const VIEW_COLS: Col[] = SIMPLE.map(v => {
 
 interface Row extends ValuationRow {
   ticker: string;
+  sub?: string; subRank?: number;
   spark?: number | null;          // 정렬값 = 6개월 수익률
   sparkData?: number[];
   price?: number;
@@ -190,6 +200,7 @@ interface Row extends ValuationRow {
 function numOf(r: Row, key: ColKey): number | null {
   if (key === "name") return null;
   if (key === "market") return r.market === "KOSPI" ? 0 : r.market === "KOSDAQ" ? 1 : null;
+  if (key === "sub") return r.subRank ?? null;
   const v = r[key];
   return typeof v === "number" && Number.isFinite(v) ? v : null;
 }
@@ -298,9 +309,11 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   // 열 때마다 반도체부터(마지막 섹터를 기억하던 건 뺐다 — 사용자 결정 2026-10-06)
   const [presetKey, setPresetKey] = useState("semi");
   const preset = presets.find(p => p.key === presetKey) ?? presets[0];
-  const pickPreset = (k: string) => setPresetKey(k);
+  const pickPreset = (k: string) => { setPresetKey(k); setSub("all"); };
   // 시장 필터 — 전체 / 코스피 / 코스닥 (시장은 네이버 상세로 알아낸다 — 아직 모르는 종목은 '전체' 에만)
   const [mkt, setMkt] = useState<"all" | "KOSPI" | "KOSDAQ">("all");
+  const [sub, setSub] = useState<string>("all");   // 세부 분류 필터(분류가 있는 섹터만)
+  const viewCols = preset.subs ? VIEW_COLS : VIEW_COLS.filter(c => c.key !== "sub");
   const items: ConsensusItem[] = useMemo(
     () => preset.tickers.map(t => ({ ticker: t, name: preset.names[t] ?? "" })),
     [preset],
@@ -419,6 +432,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
       ...priceStats(dayCandleQs[i]?.data, monthCandleQs[i]?.data, lp?.price),
       ...estimateStats(ex?.est),
       price: now,
+      sub: preset.subs?.[t], subRank: preset.subs?.[t] ? preset.subOrder?.indexOf(preset.subs[t]) : undefined,
       chg: lp && lp.prevClose > 0 ? (lp.price / lp.prevClose - 1) * 100 : null,
       target: target ?? null,
       target_up: target && now ? (target / now - 1) * 100 : null,
@@ -447,7 +461,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   const loaded = qs.filter(q => q.isSuccess).length;
 
   // 종목 수십 개 규모라 매 렌더 정렬해도 부담 없다(메모 키를 만드는 비용이 오히려 큼).
-  const sorted = rows.filter(r => mkt === "all" || r.market === mkt).sort((a, b) => {
+  const sorted = rows.filter(r => (mkt === "all" || r.market === mkt) && (sub === "all" || r.sub === sub)).sort((a, b) => {
     if (sortKey === "name") {
       return asc ? a.label.localeCompare(b.label, "ko") : b.label.localeCompare(a.label, "ko");
     }
@@ -497,6 +511,16 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
             </button>
           ))}
         </span>
+        {preset.subOrder && (
+          <span className="inline-flex rounded border border-gray-300 overflow-hidden text-[12px] font-bold">
+            {["all", ...preset.subOrder].map(k => (
+              <button key={k} onClick={() => setSub(k)}
+                      className={`px-2 py-0.5 ${sub === k ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>
+                {k === "all" ? "전체 분류" : k}
+              </button>
+            ))}
+          </span>
+        )}
         <span className="text-[11px] text-gray-500">
           {loaded < tickers.length ? `불러오는 중 ${loaded}/${tickers.length}` : `${sorted.length}종목`}
           {" · 열 제목을 누르면 정렬"}
@@ -512,7 +536,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
         <table className="min-w-full text-[13px] border-collapse">   {/* 11px 은 너무 작다는 피드백(2026-10-06) */}
           <thead className="sticky top-0 z-20 bg-gray-50 shadow-[0_1px_0_rgba(0,0,0,0.08)]">
             <tr>
-              {VIEW_COLS.map(col => {
+              {viewCols.map(col => {
                 const active = col.key === sortKey;
                 return (
                   <th key={col.key}
@@ -535,7 +559,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
           <tbody>
             {sorted.map(r => (
               <tr key={r.ticker} className="odd:bg-white even:bg-gray-50/60 hover:bg-blue-50/50">
-                {VIEW_COLS.map(col => {
+                {viewCols.map(col => {
                   if (col.key === "name") {
                     return (
                       <td key={col.key}
@@ -551,6 +575,14 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                           {r.ticker}
                         </button>
 
+                      </td>
+                    );
+                  }
+                  if (col.key === "sub") {
+                    return (
+                      <td key={col.key} className="px-2 py-1 text-center whitespace-nowrap">
+                        {r.sub ? <span className={`px-1.5 rounded text-[11px] font-bold border ${SUB_TONE[r.sub] ?? "text-gray-700 bg-gray-50 border-gray-200"}`}>{r.sub}</span>
+                               : <span className="text-gray-300">—</span>}
                       </td>
                     );
                   }

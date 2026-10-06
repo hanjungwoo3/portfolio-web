@@ -18,14 +18,14 @@
 
 import { fetchTossKrCandles, fetchYahooPriceHistory } from "./api";
 
-export type Family = "chip" | "energy" | "defense" | "robot";
+export type Family = "chip" | "energy" | "defense" | "robot" | "battery";
 export interface Stage {
   key: string;
   label: string;
   family: Family;
   members: { code: string; name: string }[];
   us: { symbol: string; name: string };   // 간밤에 이 단계를 끌고 오는 미국 대장주(상관 1위 — 통계는 이것만 쓴다)
-  us2: { symbol: string; name: string };  // 2위 — 카드에만 같이 보여 준다
+  us2?: { symbol: string; name: string }; // 2위 — 카드에만 같이 보여 준다(2위도 연동이 있는 단계만 — 2차전지는 없음)
   us3?: { symbol: string; name: string }; // 3위 — 3번째도 강한 단계만(전공정 KLA·광통신 코히런트). 카드에만
   // 통계 이력 보충용 종목 — 카드엔 안 나온다. members(ETF)가 최근 상장이라 이력이 짧을 때,
   //   **members 값이 하나도 없는 주·날에만** 이 종목들 평균을 대신 쓴다(있으면 ETF 만 쓴다).
@@ -83,6 +83,13 @@ export const STAGES: Stage[] = [
     members: [{ code: "377990", name: "TIGER Fn신재생에너지" }, { code: "009830", name: "한화솔루션" },
               { code: "112610", name: "씨에스윈드" }, { code: "457990", name: "PLUS 태양광&ESS" }],
     us: { symbol: "BE", name: "블룸에너지" }, us2: { symbol: "FSLR", name: "퍼스트솔라" } },
+  // 2차전지 — 미국 쪽에 끄는 건 **LIT(글로벌 리튬·배터리 ETF) 하나**: 한국 2차전지 묶음 다음 날 0.24(1년)·0.45(3개월).
+  //   개별주는 전부 0 근처(테슬라 0.02·앨버말 0.05·SQM·퀀텀스케이프·리비안 −0.05~0.01, 2026-10-06) → 대장주 1칸.
+  //   ⚠️ LIT 안에 LG엔솔·삼성SDI 등 아시아 배터리주가 들어 있어 상관 일부는 '겹침' 몫이다(미국 장중 가격이라 신호로는 유효).
+  { key: "battery", label: "2차전지", family: "battery",
+    members: [{ code: "305720", name: "KODEX 2차전지산업" }, { code: "006400", name: "삼성SDI" },
+              { code: "373220", name: "LG에너지솔루션" }, { code: "086520", name: "에코프로" }],
+    us: { symbol: "LIT", name: "리튬·배터리 ETF" } },
   // 방산 — AI 는 아니지만 미국이 끌고 오는 힘이 AI 단계만큼 있다(미국 방산 ETF 전날 ↔ 한국 다음 날 0.34,
   //   2026-10-01 실측). 반도체와 주간 상관 0.08 — AI 가 쉴 때 따로 가는 곳.
   { key: "defense", label: "방산", family: "defense",
@@ -132,7 +139,7 @@ export interface RotationData {
   daily: Record<string, number[]>;        // 단계 → 일별 수익률(%) (days[i] 하루치, 동일가중)
 }
 
-const LS_KEY = "ai_rotation_v16";   // v16: 반도체 3번째 WDC → SK하이닉스 ADR
+const LS_KEY = "ai_rotation_v17";   // v17: 2차전지 단계(LIT) 추가
 const DAILY_KEEP = 120;
 const TTL_MS = 6 * 60 * 60 * 1000;
 
