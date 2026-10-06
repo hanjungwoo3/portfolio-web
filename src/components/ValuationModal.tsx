@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { useCrosshairSync } from "../lib/useCrosshairSync";
 import { useEscClose } from "../lib/useEscClose";
 import { maColor, parseMaPeriods, MA_DEFAULT_PERIODS, MA_MAX_LINES, MA_MAX_PERIOD } from "../lib/indicators";
@@ -60,7 +61,7 @@ interface Props {
 // 외부 링크 — 원래 모달 하단에 있었는데 스크롤해야 보여서 헤더로 올렸다.
 //   PC·모바일 두 줄이 같은 걸 써야 한쪽만 빠지는 일이 없다.
 //   토스는 모바일에서 앱 딥링크로 가른다(handleTossLinkClick). 나머지는 새 탭.
-function ExternalLinks({ ticker, name, onDraw }: { ticker: string; name: string; onDraw?: () => void }) {
+function ExternalLinks({ ticker, name, onDraw, aiQuery }: { ticker: string; name: string; onDraw?: () => void; aiQuery?: () => string }) {
   const tossUrl = `https://tossinvest.com/stocks/A${ticker}`;
   const cls = "px-1.5 py-0.5 rounded border border-gray-300 bg-white text-xs "
             + "text-gray-600 hover:bg-gray-100 whitespace-nowrap";
@@ -78,6 +79,14 @@ function ExternalLinks({ ticker, name, onDraw }: { ticker: string; name: string;
       {onDraw && (
         <button type="button" onClick={onDraw} title={`${name} 차트에 선 그리기`} className={cls}>
           ✏️ 그리기
+        </button>
+      )}
+      {/* 🔍AI — 종목 카드와 같은 구글 AI 모드 분석(팝업). 현재가·시총·PER·목표주가를 같이 넘긴다. */}
+      {aiQuery && (
+        <button type="button" onClick={() => openGoogleAi(aiQuery())}
+                title={`${name} — 구글 AI 에 현재상태 분석 요청(팝업)`}
+                className="px-1.5 py-0.5 rounded border border-blue-300 bg-blue-50 text-xs font-bold text-blue-700 hover:bg-blue-100 whitespace-nowrap">
+          🔍 AI 검색
         </button>
       )}
     </span>
@@ -401,6 +410,19 @@ export function ValuationModal({
     staleTime: 24 * 3600_000,  // 24시간 캐시
   });
   // 실적·추정 (Wisereport cF1002) — 3년 실적 + 2년 추정. 4KB 라 가볍다.
+  // 🔍AI 검색 질문 — 종목 카드와 같은 분석 프롬프트 + 팝업에 이미 받은 값(현재가·시총·PER·PBR·목표주가)
+  const buildAiQuery = (): string => {
+    const f = data?.fundamental ?? {};
+    const ctx: string[] = [`${name}(${ticker})`];
+    const px = curPrice ?? f.price;
+    if (px) ctx.push(`현재가 ${Math.round(px).toLocaleString()}원`);
+    if (f.market_cap_text) ctx.push(`시가총액 ${f.market_cap_text}`);
+    if (f.per != null) ctx.push(`PER ${f.per}배`);
+    if (f.pbr != null) ctx.push(`PBR ${f.pbr}배`);
+    const target = f.consensus_target_official ?? data?.avgTarget;
+    if (target) ctx.push(`평균 목표주가 ${Math.round(target).toLocaleString()}원${f.consensus_opinion ? `(${f.consensus_opinion})` : ""}`);
+    return `${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${ctx.join(", ")}`;
+  };
   const { data: earnings } = useQuery({
     queryKey: ["earnings-estimates", ticker],
     queryFn: () => fetchEarningsEstimates(ticker),
@@ -547,7 +569,7 @@ export function ValuationModal({
                   🔍 추가
                 </button>
               )}
-              <ExternalLinks ticker={ticker} name={name} onDraw={() => setDrawOpen(true)} />
+              <ExternalLinks ticker={ticker} name={name} onDraw={() => setDrawOpen(true)} aiQuery={buildAiQuery} />
               {effCurPrice && (
                 <span className="ml-3 inline-flex items-baseline gap-1.5">
                   {headSpark.length >= 2 && (
@@ -592,7 +614,7 @@ export function ValuationModal({
                 🔍 추가
               </button>
             )}
-            <ExternalLinks ticker={ticker} name={name} onDraw={() => setDrawOpen(true)} />
+            <ExternalLinks ticker={ticker} name={name} onDraw={() => setDrawOpen(true)} aiQuery={buildAiQuery} />
             {effCurPrice && (
               <span className="ml-auto inline-flex items-baseline gap-1.5">
                 {headSpark.length >= 2 && (

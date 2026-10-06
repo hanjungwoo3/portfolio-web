@@ -954,7 +954,7 @@ function Dashboard() {
         ) : activeTab === ASSET_TREND_TAB_KEY ? (
           <AssetTrendTab trades={allTrades} holdings={holdings} />
         ) : activeTab === VALUATION_TAB_KEY ? (
-          <ValuationTableTab items={consensusItems} onOpenValuation={setValuationTicker} />
+          <ValuationTableTab items={consensusItems} onOpenValuation={(code, n) => { setValuationName(n ?? null); setValuationTicker(code); }} />
         ) : visible.length === 0 ? (
           holdings.length === 0 ? (
             <div className="text-center py-16 text-gray-500">

@@ -82,7 +82,7 @@ const TREND_HINT = (unit: string, extra: string) =>
 const COLS: Col[] = [
   { key: "name",             label: "종목명",       hint: "클릭하면 토스 종목 페이지" },
   { key: "market",           label: "시장",         hint: "코스피(유가증권시장) / 코스닥. 정렬하면 코스피 먼저." },
-  { key: "sub",              label: "분류",         hint: "섹터 안 세부 분류(반도체 소부장: 장비·부품·소재·후공정 서비스)." },
+  { key: "sub",              label: "분류",         hint: "섹터 안 세부 분류(반도체: 메모리·기판·파운드리·팹리스 / 반도체 소부장: 장비·부품·소재·후공정 서비스)." },
   // ── 얼마나 올랐나 · 지금 어디쯤인가 (토스 일봉 450·월봉 300, 현재가는 토스 실시간)
   { key: "spark",     label: "추세(6개월)", hint: "최근 약 120거래일 종가 추이. 정렬은 6개월 수익률 기준." },
   { key: "price",     label: "현재가",   unit: "원", hint: "토스 현재가(시간외 포함)." },
@@ -160,7 +160,17 @@ const SUB_TONE: Record<string, string> = {
   "부품":   "text-orange-700 bg-orange-50 border-orange-200",
   "소재":   "text-fuchsia-700 bg-fuchsia-50 border-fuchsia-200",   // 초록은 코스닥 배지와 겹쳐 피한다
   "후공정": "text-sky-700 bg-sky-50 border-sky-200",
+  // 반도체
+  "메모리":   "text-indigo-700 bg-indigo-50 border-indigo-200",
+  "기판":     "text-amber-700 bg-amber-50 border-amber-200",
+  "파운드리": "text-cyan-700 bg-cyan-50 border-cyan-200",
+  "팹리스":   "text-pink-700 bg-pink-50 border-pink-200",
 };
+// 그 밖의 섹터 분류 — 섹터 안 순서대로 색을 돌려 쓴다(분류 이름이 섹터마다 달라서).
+const SUB_PALETTE = [
+  "text-violet-700 bg-violet-50 border-violet-200", "text-orange-700 bg-orange-50 border-orange-200",
+  "text-fuchsia-700 bg-fuchsia-50 border-fuchsia-200", "text-sky-700 bg-sky-50 border-sky-200",
+];
 const VIEW_COLS: Col[] = SIMPLE.map(v => {
   const c = COLS.find(x => x.key === v.key)!;
   return { ...c, label: v.label ?? c.label, hint: v.hint ?? c.hint, unit: v.unit ?? c.unit };
@@ -299,7 +309,7 @@ function estimateStats(rows: EarningsRow[] | undefined) {
 
 interface ValuationTableTabProps {
   items?: ConsensusItem[];   // 예전 '관심종목' 묶음용 — 지금은 안 쓴다(호출부 호환용)
-  onOpenValuation?: (ticker: string) => void;
+  onOpenValuation?: (ticker: string, name?: string) => void;   // 이름도 넘긴다 — 보유 종목이 아니면 팝업 제목이 코드로만 나왔다
 }
 
 export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
@@ -564,7 +574,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                     return (
                       <td key={col.key}
                           className="px-2 py-1 whitespace-nowrap sticky left-0 bg-inherit border-r border-gray-100">
-                        <button onClick={() => onOpenValuation?.(r.ticker)}
+                        <button onClick={() => onOpenValuation?.(r.ticker, r.label)}
                                 title={`${r.label} 기업가치 자세히 보기`}
                                 className="font-bold text-gray-900 hover:text-blue-600">
                           {r.label}
@@ -581,7 +591,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                   if (col.key === "sub") {
                     return (
                       <td key={col.key} className="px-2 py-1 text-center whitespace-nowrap">
-                        {r.sub ? <span className={`px-1.5 rounded text-[11px] font-bold border ${SUB_TONE[r.sub] ?? "text-gray-700 bg-gray-50 border-gray-200"}`}>{r.sub}</span>
+                        {r.sub ? <span className={`px-1.5 rounded text-[11px] font-bold border ${SUB_TONE[r.sub] ?? SUB_PALETTE[(r.subRank ?? 0) % SUB_PALETTE.length]}`}>{r.sub}</span>
                                : <span className="text-gray-300">—</span>}
                       </td>
                     );

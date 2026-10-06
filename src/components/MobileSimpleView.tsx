@@ -1726,7 +1726,7 @@ export function MobileSimpleView() {
         }
         if (activeTab === VALUATION_KEY) {
           return <div className="px-1 py-2 pb-32">
-            <ValuationTableTab items={consensusItems} onOpenValuation={setValuationTicker} />
+            <ValuationTableTab items={consensusItems} onOpenValuation={(code, n) => { setValuationName(n ?? null); setValuationTicker(code); }} />
           </div>;
         }
         // 지수 — PC(UsMarketTab)와 동일한 공용 그룹 정의를 그룹 헤더 + 2열 카드로 렌더 (단일 통합 뷰)
