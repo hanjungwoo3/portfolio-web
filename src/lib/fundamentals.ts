@@ -244,7 +244,7 @@ export async function fetchNaverDetail(ticker: string): Promise<FundamentalData>
 interface NaverIntegrationConsensus {
   consensusInfo?: { recommMean?: string; priceTargetMean?: string };
 }
-async function fetchNaverConsensusFields(ticker: string): Promise<Partial<FundamentalData>> {
+export async function fetchNaverConsensusFields(ticker: string): Promise<Partial<FundamentalData>> {
   const out: Partial<FundamentalData> = {};
   try {
     const resp = await fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/integration`);
@@ -694,6 +694,9 @@ export async function fetchValuationRow(ticker: string): Promise<ValuationRow> {
       fetchNaverDetail(ticker),
       fetchWisereport(ticker),
     ]);
+    // 네이버 상세가 통째로 비면(한꺼번에 수십 종목 조회할 때 일시 실패) **던진다** — 빈 결과가 6시간
+    //   캐시에 굳으면 시총·PER·이름이 그 동안 비어 있다(2026-10-06 대덕전자·심텍 등 실측). 던지면 재시도된다.
+    if (!naver.name && naver.price == null) throw new Error(`네이버 상세 비어 있음: ${ticker}`);
     const merged: ValuationRow = { ...naver, ...wise, ticker };
     merged.market_cap = marketCapEok(merged.market_cap_text) ?? undefined;
     return merged;
