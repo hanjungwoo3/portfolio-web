@@ -78,7 +78,10 @@ function RankCard({ row, rank, period, periodPct, onOpenEtfComposition, tradeDat
   });
   // 랭킹 스냅샷은 Price 전체가 아니라 필요한 값만 담고 있다 — 카드가 쓰는 모양으로 맞춰 준다.
   const price: Price = {
-    ticker: row.code, price: row.price, base: row.base, prevClose: row.base,
+    // 기준가는 순위 계산에 쓴 등락률(pct)에서 되살린다 — row.base 는 자정~개장 전엔 '비거래일 보정'으로
+    //   현재가와 같아져(base=close) 카드가 +0.00% 로 나왔다(2026-10-07 00:33 실측). 순위는 pct 라 맞았다.
+    ticker: row.code, price: row.price,
+    ...(() => { const b = row.pct && row.price > 0 ? row.price / (1 + row.pct / 100) : row.base; return { base: b, prevClose: b }; })(),
     open: 0, volume: row.volume, trade_date: tradeDate,
   };
   return (
