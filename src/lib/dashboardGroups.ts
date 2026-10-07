@@ -438,30 +438,29 @@ function sectionMap(): Record<string, DashboardSection> {
   return Object.fromEntries(sections.map(s => [s.id, s]));
 }
 
-export type DashboardPage = "day" | "night" | "leaders";
+export type DashboardPage = "day" | "night";
 // 지수 탭 셋 — 메뉴의 '📈 지수' 드롭다운에 들어간다. PC·모바일이 이 라벨 한 벌을 쓴다.
 export const DASHBOARD_PAGES: { key: DashboardPage; emoji: string; tab: string; hint: string }[] = [
-  { key: "day",   emoji: "🌞", tab: "지수(주간)",   hint: "한국장 + 미국 야간선물" },
+  { key: "day",   emoji: "🌞", tab: "지수(주간)",   hint: "한국장 · 섹터 대장주 + 미국 야간선물" },
   { key: "night", emoji: "🌙", tab: "지수(야간)",   hint: "미국장 · 반도체 · 순환매 + 한국 야간선물·24h" },
-  { key: "leaders", emoji: "👑", tab: "지수(대장주)", hint: "섹터 ETF ➜ 대장주 — 산업재·금융·소비·헬스·콘텐츠" },
 ];
 
 // 페이지별 구성 — **그 시간에 필요한 걸 다**. 중복 허용(한 페이지만 봐도 되게).
 export const PAGE_IDS: Record<DashboardPage, string[]> = {
-  // 주간·야간 모두 **맨 아래는 같은 한 세트** — 한·미 섹터 → 환율·금리·투심 → 선물 → 현물(원자재).
-  //   밤낮으로 보는 것들이라 어느 페이지에서든 같은 자리에서 찾게 한다.
-  day:   ["kr", "etftop", "sector", "krfx", "dayfut", "spot"],
-  // 미국 지수 → 반도체(반도체·일본·순환매) → 빅테크·ETF → 공통 세트(섹터·환율·선물·현물).
+  // 주간·야간 모두 **지수 바로 아래는 같은 한 세트** — 환율·금리·투심 → 선물 → 현물(원자재).
+  //   밤낮으로 보는 것들이라 어느 페이지에서든 같은 자리(지수 아래)에서 찾게 한다(사용자 결정 2026-10-08, 예전엔 맨 아래).
+  // 주간 시장 → 공통 세트 → 섹터 ETF ➜ 대장주(모든 섹터) → ETF TOP → 한·미 섹터.
+  //   옛 '지수(대장주)' 페이지를 여기로 합쳤다(2026-10-08).
+  //   반도체·2차전지·전력도 넣는다(야간의 반도체 묶음과 겹쳐도 — 섹터 전체를 한 페이지에서 보게, 2026-10-06).
+  day:   ["kr", "krfx", "dayfut", "spot", "ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "etftop", "sector"],
+  // 미국 지수 → 공통 세트 → 반도체(반도체·일본·순환매) → 빅테크·ETF → 한·미 섹터.
   //   옛 '지수(반도체)' 페이지를 여기로 합쳤다 — 반도체는 빅테크 위(사용자 결정 2026-10-07).
-  night: ["macro", "semi", "jpsemi", "rotflow", "bigtech", "usetf", "sector", "krfx", "krnight", "spot"],
+  night: ["macro", "krfx", "krnight", "spot", "semi", "jpsemi", "rotflow", "bigtech", "usetf", "sector"],
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)
   // AI 단계별 미국 대장주(aiflow)는 뺐다 — 바로 아래 순환매 블록 줄마다 첫 카드가 같은 대장주다.
   // 소부장(semieq)은 뺐다 — 순환매 블록이 전공정·소재·부품·후공정 줄로 같은 미국 장비주를 한국 종목과 이어 보여준다.
   // AI 인프라 주도주(aiinfra)는 뺐다 — 블룸에너지·루멘텀이 순환매 친환경·광통신 줄에 대장주로 있다.
   // 순환매 부가정보(rotation — 강세 묶음·다음 후보·과거 성적·일별 등락)는 뺐다. 카드 블록(rotflow)만 남긴다.
-  // 섹터 ETF ➜ 대장주, 모든 섹터. 맨 아래 공통 세트(환율·금리·투심 → 선물 → 현물).
-  // 반도체·2차전지·전력도 넣는다(야간의 반도체 묶음과 겹쳐도 — 섹터 전체를 한 페이지에서 보게, 사용자 결정 2026-10-06).
-  leaders: ["ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "krfx", "dayfut", "spot"],
 };
 
 // 한국 선물 가상심볼 — 같은 카드가 시간 따라 주간선물(09:00~15:45)·야간선물(18:00~05:00)이 된다.
@@ -470,9 +469,7 @@ const KR_FUT = new Set(["^KS200N", "^KQ150N"]);
 /** `krNight` = 지금 한국 야간 세션인가(18:00~09:00 KST). 기본은 현재 시각 — 테스트는 직접 넘긴다. */
 export function buildDashboardPage(page: DashboardPage, krNight = isKrNightNow()): DashboardSection[] {
   const m = sectionMap();
-  // 대장주 페이지의 선물 자리 — 한국 밤엔 야간 그룹('밤의 한국' 선물)으로 바꿔 끼운다(이름이 시간과 맞게).
-  const ids = page === "leaders" && krNight ? PAGE_IDS[page].map(id => id === "dayfut" ? "krnight" : id) : PAGE_IDS[page];
-  const secs = ids.map(id => m[id]).filter((s): s is DashboardSection => !!s);
+  const secs = PAGE_IDS[page].map(id => m[id]).filter((s): s is DashboardSection => !!s);
   // 주간 페이지엔 **주간선물만**(밤엔 뺀다), 야간 페이지엔 **야간선물만**(낮엔 뺀다).
   const dropIn = page === "day" && krNight ? "dayfut" : page === "night" && !krNight ? "krnight" : null;
   if (!dropIn) return secs;
@@ -485,11 +482,12 @@ function isKrNightNow(): boolean {
   return hm >= 18 * 60 || hm < 9 * 60;
 }
 
-// PC 지수 탭 키 — Tabs.tsx 의 US_MARKET_TAB_KEY · INDEX_NIGHT_TAB_KEY · INDEX_LEADERS_TAB_KEY 와 **같은 문자열**.
+// PC 지수 탭 키 — Tabs.tsx 의 US_MARKET_TAB_KEY · INDEX_NIGHT_TAB_KEY 와 **같은 문자열**.
 //   (lib 이 컴포넌트를 import 하지 않게 문자열로 둔다 — 어긋나지 않게 테스트가 대조한다)
-export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-leaders__"]);
+//   폐지된 탭(반도체 → 야간, 대장주 → 주간)은 합쳐진 페이지로 보낸다.
+export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__"]);
 export function indexPageOf(key: string): DashboardPage {
-  return key === "__idx-night__" || key === "__idx-semi__" ? "night" : key === "__idx-leaders__" ? "leaders" : "day";
+  return key === "__idx-night__" || key === "__idx-semi__" ? "night" : "day";
 }
 
 // 처음 열 때 페이지 — 시간으로. 한국 07~18시는 주간, 그 외는 야간.

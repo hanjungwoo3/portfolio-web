@@ -137,8 +137,8 @@ const SYS_DROPDOWN_KEYS = new Set<string>([    // '투자도구' 드롭다운에
 ]);
 const MY_GROUP_KEYS_M = new Set<string>([MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY]);   // '내자산' 드롭다운
 // '지수' 드롭다운 — 주간(옛 지수 키 KR_KEY 를 그대로 써서 저장된 마지막 탭이 이어진다)·야간·반도체
-const INDEX_KEYS_M = new Set<string>([KR_KEY, IDX_NIGHT_KEY, IDX_LEADERS_KEY]);
-const indexPageOfM = (k: string): DashboardPage => k === IDX_NIGHT_KEY ? "night" : k === IDX_LEADERS_KEY ? "leaders" : "day";
+const INDEX_KEYS_M = new Set<string>([KR_KEY, IDX_NIGHT_KEY]);
+const indexPageOfM = (k: string): DashboardPage => k === IDX_NIGHT_KEY ? "night" : "day";
 const SYS_ALL_KEYS = new Set<string>([MONEY_KEY, ...INDEX_KEYS_M, ...SYS_DROPDOWN_KEYS, ...MY_GROUP_KEYS_M]);
 // 일부 심볼 sparkline 은 Yahoo 가 historical 안 줌 → 가까운 현물 차트로 폴백 (차트 목록 계산에도 쓴다)
 const SPARKLINE_FALLBACK_M: Record<string, string> = { "SOX=F": "^SOX" };
@@ -255,8 +255,10 @@ export function MobileSimpleView() {
     const byTime = defaultDashboardPage() === "night" ? IDX_NIGHT_KEY : KR_KEY;   // 처음이면 시간으로
     if (typeof localStorage === "undefined") return byTime;
     const saved = localStorage.getItem(TAB_KEY);
-    // 옛 '지수(반도체)' 탭은 야간에 합쳤다(2026-10-07) — 저장돼 있으면 야간으로
-    return saved === IDX_SEMI_KEY ? IDX_NIGHT_KEY : saved ?? byTime;
+    // 옛 '지수(반도체)' 는 야간에(2026-10-07), '지수(대장주)' 는 주간에(2026-10-08) 합쳤다 — 저장돼 있으면 합친 쪽으로
+    if (saved === IDX_SEMI_KEY) return IDX_NIGHT_KEY;
+    if (saved === IDX_LEADERS_KEY) return KR_KEY;
+    return saved ?? byTime;
   });
   // 내주식(MY_KEY)만 뺀다 — 시스템 탭이지만 종목 카드 목록을 그리는 탭이라 그 경로를 탄다.
   const isSystemTab = SYS_ALL_KEYS.has(activeTab) && activeTab !== MY_KEY;
@@ -391,8 +393,8 @@ export function MobileSimpleView() {
       tabs.push({ key: MONEY_KEY, label: "💰증시", count: 0 });
     }
     if (vis.usMarket) {
-      // 지수 — 주간·야간·대장주 세 탭('지수' 드롭다운). 라벨은 PC 와 같은 한 벌(DASHBOARD_PAGES).
-      const keyOf: Record<DashboardPage, string> = { day: KR_KEY, night: IDX_NIGHT_KEY, leaders: IDX_LEADERS_KEY };
+      // 지수 — 주간·야간 두 탭('지수' 드롭다운). 라벨은 PC 와 같은 한 벌(DASHBOARD_PAGES).
+      const keyOf: Record<DashboardPage, string> = { day: KR_KEY, night: IDX_NIGHT_KEY };
       for (const p of DASHBOARD_PAGES) tabs.push({ key: keyOf[p.key], label: `${p.emoji}${p.tab}`, count: 0 });
     }
     // 눌림목 — 시스템 묶음 첫 자리(섹터 위, PC buildTabs 와 같은 순서).

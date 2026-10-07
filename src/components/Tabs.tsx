@@ -314,10 +314,10 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
 // 증시 — 증시 자금동향(예탁금·신용·펀드) + 코스피/코스닥/코스피200 실시간 차트. 지수 왼쪽 별도 탭.
 export const MARKET_MONEY_TAB_KEY = "__market-money__";
 export const US_MARKET_TAB_KEY = "__us-market__";   // 지수(주간) — 옛 '지수' 키를 그대로 써서 저장된 탭·설정이 이어진다
-// 지수(야간)·지수(대장주) — 메뉴의 '📈 지수' 드롭다운에 주간과 같이 묶인다
+// 지수(야간) — 메뉴의 '📈 지수' 드롭다운에 주간과 같이 묶인다
 export const INDEX_NIGHT_TAB_KEY = "__idx-night__";
 export const INDEX_SEMI_TAB_KEY = "__idx-semi__";   // 폐지 — 야간에 합침(2026-10-07). 옛 저장값 이동용으로만 남긴다
-export const INDEX_LEADERS_TAB_KEY = "__idx-leaders__";   // 지수(대장주) — 섹터 ETF ➜ 대장주
+export const INDEX_LEADERS_TAB_KEY = "__idx-leaders__";   // 폐지 — 주간에 합침(2026-10-08). 옛 저장값 이동용으로만 남긴다
 // 묶음·페이지 매핑(INDEX_GROUP_KEYS·indexPageOf)은 lib/dashboardGroups — 컴포넌트 파일에서 Set·함수를
 //   export 하면 HMR(fast refresh)이 이 파일을 통째로 다시 그린다.
 export const SEMI_CHECK_TAB_KEY = "__semi-check__";
@@ -386,9 +386,9 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   const tabs: TabSpec[] = [];
   // 증시 — 지수 왼쪽. 증시 자금동향 + 실시간 지수·투자자 차트.
   if (visibility?.stockMarket ?? true) tabs.push({ key: MARKET_MONEY_TAB_KEY, label: "증시", emoji: "💰", count: 0 });
-  // 지수 — 주간·야간·대장주 세 탭(메뉴의 '📈 지수' 드롭다운). 라벨은 lib 한 벌(DASHBOARD_PAGES).
+  // 지수 — 주간·야간 두 탭(메뉴의 '📈 지수' 드롭다운). 라벨은 lib 한 벌(DASHBOARD_PAGES).
   if (showUs) {
-    const keyOf: Record<DashboardPage, string> = { day: US_MARKET_TAB_KEY, night: INDEX_NIGHT_TAB_KEY, leaders: INDEX_LEADERS_TAB_KEY };
+    const keyOf: Record<DashboardPage, string> = { day: US_MARKET_TAB_KEY, night: INDEX_NIGHT_TAB_KEY };
     for (const p of DASHBOARD_PAGES) tabs.push({ key: keyOf[p.key], label: p.tab, emoji: p.emoji, count: 0 });
   }
   // 종목찾기(섹터별) — 섹터를 골라 그 안의 종목을 한 표로(옛 '성적표'). 종목찾기 묶음 맨 위.

@@ -66,7 +66,7 @@ export function sectorPresets(): SectorPreset[] {
   const krStock = new Set(US_PAIRS.filter(p => p.krStock).map(p => p.symbol));
   const byCode = new Map(US_PAIRS.map(p => [p.symbol, p.name]));
   const fromLeaders: SectorPreset[] = [];
-  for (const sec of buildDashboardPage("leaders", false).filter(s => s.id.startsWith("ld"))) {
+  for (const sec of buildDashboardPage("day", false).filter(s => s.id.startsWith("ld"))) {
     sec.rows.forEach((row, i) => {
       const label = sec.rowLabels?.[i] ?? sec.short;
       const tickers = row.filter(s => krStock.has(s)).map(s => s.slice(0, 6));
