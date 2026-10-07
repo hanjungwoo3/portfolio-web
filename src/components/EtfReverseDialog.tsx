@@ -77,7 +77,7 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
            if (downRef.current && e.target === e.currentTarget) onClose();
            downRef.current = false;
          }}>
-      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg
+      <div className="bg-white rounded-lg shadow-xl w-full max-w-lg md:max-w-3xl lg:max-w-5xl
                       max-h-[85vh] flex flex-col"
            onMouseDown={e => e.stopPropagation()}>
         <header className="px-4 py-3 border-b bg-gray-50 flex items-center gap-2">
@@ -107,7 +107,7 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
               <div className="text-[11px] text-gray-500 mb-2 px-1">
                 총 <b className="text-gray-800">{list.length}</b>개 ETF · 수익률 내림차순
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                 {(sortedList ?? list).map(h => {
                   const hist = histMap.get(h.etfCode) ?? [];
                   return (

@@ -257,11 +257,12 @@ export function MobileSimpleView() {
   const touchStart = useRef<{ x: number; y: number; sy: number; t: number } | null>(null);
   // 당겨서 놓기 — 옆으로 끄는 동안 가장자리에 '다음/이전 페이지' 표시가 자라고, 끝까지 당긴 채 놓으면 이동
   const [pull, setPull] = useState<{ dir: -1 | 1; p: number; label: string } | null>(null);
-  const PULL_PX = 80;   // 이만큼 당기면 '놓으면 이동' 
+  const PULL_PX = 50;   // 이만큼 당기면 '놓으면 이동' (80은 둔했다)
+  const PULL_SHOW_PX = 4;   // 옆으로 이만큼만 끌어도 표시가 뜬다
   // 파란 '놓으면 이동' 알약이 **화면에 뜬 상태**인가 — 이게 true 일 때 놓아야만 이동한다(보이는 것 = 동작).
   const pullReady = useRef(false);
-  const pullTimer = useRef<number | null>(null);
-  const clearPullTimer = () => { if (pullTimer.current) { clearTimeout(pullTimer.current); pullTimer.current = null; } };
+  // 마지막 touchmove 위치 — 놓을 때 이걸로 판정(touchend 좌표는 브라우저가 보정해 표시와 어긋날 수 있다)
+  const lastTouch = useRef<{ x: number; y: number } | null>(null);
   // 스와이프 시작이 가로 스크롤 영역(data-noswipe) 안이면 그 시작 scrollLeft 기억 — 실제 스크롤됐는지 판정용
   const swipeScroll = useRef<{ el: HTMLElement; left: number } | null>(null);
 
@@ -889,7 +890,8 @@ export function MobileSimpleView() {
   //  data-noswipe 를 안 단 표도 잡도록 조상 중 **실제로 가로로 넘치는 overflow-x 요소**를 자동으로 찾는다.
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStart.current = { x: e.touches[0].clientX, y: e.touches[0].clientY, sy: window.scrollY, t: Date.now() };
-    pullReady.current = false; clearPullTimer();
+    pullReady.current = false;
+    lastTouch.current = null;
     let el = e.target as HTMLElement | null;
     let found: HTMLElement | null = null;
     while (el && el !== e.currentTarget) {
@@ -917,34 +919,24 @@ export function MobileSimpleView() {
     if (!touchStart.current) return;
     const dx = e.touches[0].clientX - touchStart.current.x;
     const dy = e.touches[0].clientY - touchStart.current.y;
-    const tg = Math.abs(dx) >= 10 ? pullTarget(dx, dy) : null;   // 옆으로 조금만 끌어도 바로 표시
-    if (!tg) { clearPullTimer(); pullReady.current = false; if (pull) setPull(null); return; }
+    lastTouch.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
+    const tg = Math.abs(dx) >= PULL_SHOW_PX ? pullTarget(dx, dy) : null;   // 옆으로 조금만 끌어도 바로 표시
+    if (!tg) { pullReady.current = false; if (pull) setPull(null); return; }
     const label = groupTabs.find(t => t.key === tg.to)?.label ?? "";
-    const far = Math.abs(dx) >= PULL_PX;
-    // 스치듯 휙 민 손짓은 제외 — 손 댄 지 0.12초가 지나야 '준비'(0.3초는 느렸다). 멈춰 있어도 남은 시간 뒤 타이머로 켠다.
-    const wait = 120 - (Date.now() - touchStart.current.t);
-    if (!far) { clearPullTimer(); pullReady.current = false; }
-    else if (wait <= 0) { clearPullTimer(); pullReady.current = true; }
-    else if (!pullTimer.current) {
-      pullTimer.current = window.setTimeout(() => {
-        pullTimer.current = null;
-        if (!touchStart.current) return;
-        pullReady.current = true;
-        setPull(pv => (pv ? { ...pv, p: 1 } : pv));
-      }, wait);
-    }
-    setPull({ dir: tg.dir, p: pullReady.current ? 1 : Math.min(0.95, (Math.abs(dx) - 10) / (PULL_PX - 10)), label });
+    // 거리만 채우면 즉시 '준비' — 예전 0.12초 대기는 늦게 뜨는 것처럼 보였다.
+    pullReady.current = Math.abs(dx) >= PULL_PX;
+    setPull({ dir: tg.dir, p: pullReady.current ? 1 : Math.min(0.95, (Math.abs(dx) - PULL_SHOW_PX) / (PULL_PX - PULL_SHOW_PX)), label });
   };
   const endPull = () => {
-    clearPullTimer();
     touchStart.current = null;
     swipeScroll.current = null;
     setPull(null);
   };
   const handleTouchEnd = (e: React.TouchEvent) => {
     if (!touchStart.current) return;
-    const dx = e.changedTouches[0].clientX - touchStart.current.x;
-    const dy = e.changedTouches[0].clientY - touchStart.current.y;
+    const end = lastTouch.current ?? { x: e.changedTouches[0].clientX, y: e.changedTouches[0].clientY };
+    const dx = end.x - touchStart.current.x;
+    const dy = end.y - touchStart.current.y;
     // 파란 '놓으면 이동' 알약이 떠 있을 때 놓은 경우에만 이동
     const tg = pullReady.current && Math.abs(dx) >= PULL_PX ? pullTarget(dx, dy) : null;
     pullReady.current = false;
