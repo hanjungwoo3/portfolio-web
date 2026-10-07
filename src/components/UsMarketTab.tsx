@@ -4,6 +4,8 @@ import { fetchYahooBatch, fetchDashboardChart, fetchYasunNightFutures, fetchToss
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
+import { useChartRange, pickCardChart } from "../lib/chartRange";
+import { ChartRangeToggle } from "./ChartRangeToggle";
 import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
 import { requestTab, isTabVisible } from "../lib/tabNav";
@@ -201,6 +203,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const dimEnabled = getDimSleepingEnabled();
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
   const [leaderSort, setLeaderSort] = useState<LeaderSort>(loadLeaderSort);   // 대장주 줄 정렬(등락률순 기본)
+  const chartRange = useChartRange();   // 카드 배경 차트 3개월 | 24시간 — 앱 전체 설정
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   // 야간선물(yasun.gg)은 프록시를 타므로 구버전 개인 워커면 값이 빈다 → 그때만 업데이트 안내.
   //   "값이 없다"만으로 워커를 탓하면 업스트림 차단(예: investing.com Cloudflare 챌린지)까지
@@ -245,6 +248,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     </button>
                   ))}
                 </span>
+              )}
+              {/* 배경 차트 기간 — 페이지에 하나, 첫 그룹 제목에 */}
+              {section.id === T0_SECTIONS[0]?.id && (
+                <ChartRangeToggle className="ml-2" />
               )}
             </span>
             {/* 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장)는 오늘 등락률(%) 내림차순 정렬 (6개씩 줄바꿈) */}
@@ -383,7 +390,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               const isInverse = p.direction === "inverse";
               const effUp = isInverse ? (mainPct != null && mainPct < 0) : (mainPct != null && mainPct > 0);
               const effDn = isInverse ? (mainPct != null && mainPct > 0) : (mainPct != null && mainPct < 0);
-              const chartArr = t0ChartMap.get(p.symbol) ?? [];
+              const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], nightClosesMap.get(p.symbol) ?? usMap?.get(p.symbol)?.sparkline);
               const sparkColor = dimNow ? "#94a3b8"
                 : (isInverse && chartArr.length > 1)
                   ? (chartArr[chartArr.length - 1] > chartArr[0] ? "#2563eb" : "#dc2626")

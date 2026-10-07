@@ -333,6 +333,23 @@ export async function fetchTossUsStockCandles(symbol: string, count = 120): Prom
   return fetchTossUsCandlesByCode(code, count);
 }
 
+// 종목 당일 10분봉 종가 — 카드 배경 '24시간' 차트용. 국내 kr-s(NXT 포함 통합 08~20시), 미국 us-s(오버나이트 포함).
+//   응답은 최신→과거, 여러 날이 섞여 오므로 **가장 최근 날짜(현지 날짜)** 봉만 남긴다.
+//   빈 결과는 던진다 — 일시적 0건이 staleTime 동안 굳지 않게(빈 캐시 금지).
+export async function fetchTossIntraday(ticker: string): Promise<number[]> {
+  const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
+  const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));
+  if (!code) return [];   // 코드 모름 — 3개월로 그린다
+  const target = `https://wts-info-api.tossinvest.com/api/v1/c-chart/${isKr ? "kr-s" : "us-s"}/${code}/min:10?count=150`;
+  const resp = await fetchProxied(target);
+  if (!resp.ok) throw new Error(`toss intraday ${ticker}: HTTP ${resp.status}`);
+  const data = await resp.json() as { result?: { candles?: Array<{ dt?: string; close?: number }> } };
+  const rows = (data.result?.candles ?? []).filter(c => c.dt && typeof c.close === "number" && c.close > 0);
+  if (rows.length === 0) throw new Error(`toss intraday ${ticker}: empty`);
+  const day = rows[0].dt!.slice(0, 10);   // dt 는 현지 오프셋 포함 ISO → 앞 10자리가 현지 날짜
+  return rows.filter(c => c.dt!.slice(0, 10) === day).map(c => c.close!).reverse();
+}
+
 // 토스 내부코드를 이미 아는 경우(TICS 구성종목 등) — 심볼→코드 변환을 건너뛴다.
 //   getTossCode 는 '이미 본 종목' 만 아는 캐시라, 처음 보는 미국 종목은 그 경로로 못 찾는다.
 export async function fetchTossUsCandlesByCode(code: string, count = 120): Promise<number[]> {

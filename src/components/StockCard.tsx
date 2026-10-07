@@ -9,6 +9,7 @@ import { memoTagClass } from "../lib/memoColor";
 import { openTossStock, tossStockUrl } from "../lib/toss";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { Sparkline } from "./Sparkline";
+import { useChartRange, pickCardChart } from "../lib/chartRange";
 import { AuxIndicators } from "./AuxIndicators";
 import type { LastTrade } from "../lib/tradeCalc";
 import { Tooltip, ColorName } from "./Tooltip";
@@ -38,6 +39,7 @@ interface Props {
   warning?: string;
   loading?: boolean;
   chart?: number[];   // 비거래일 sparkline 용 일봉 종가 시계열 (3개월)
+  dayChart?: number[];   // 당일 10분봉 종가 — 그래프 설정이 24시간이면 배경에 이걸 그린다
   priceHistory?: PricePoint[];  // OHLC 포함 — 가격 박스 hover tooltip 의 1개월 캔들차트용
   otherGroups?: string[];  // 같은 ticker 가 속한 다른 그룹 이름들 (현재 그룹 제외)
   heldGroups?: Set<string>;  // 그 중 보유수량>0 인 그룹들 (붉은색 표시용)
@@ -458,7 +460,7 @@ interface TickState { lastPrice?: number; dir: TickDir; arrow: string }
 const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
-  stock, price, krReg, investor, investorHistory, consensus, sector, market, warning, loading, chart, priceHistory, longHistory, onNeedLongHistory, onVisible,
+  stock, price, krReg, investor, investorHistory, consensus, sector, market, warning, loading, chart, dayChart, priceHistory, longHistory, onNeedLongHistory, onVisible,
   memo, otherGroups, heldGroups, onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse,
   hideStats, lastBuy, lastSell,
 }: Props) {
@@ -518,6 +520,8 @@ export function StockCard({
       return prev;  // 변동 없음 — 화살표 그대로 유지
     });
   }, [price?.price]);
+
+  const chartRange = useChartRange();   // 배경 그래프 기간(앱 전체 설정) — 훅이라 아래 조기 return 앞에
 
   if (loading || !price) {
     return (
@@ -588,6 +592,9 @@ export function StockCard({
 
   // 전체수익 (보유 종목만 — shares > 0)
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
+  // 배경 그래프 — 앱 전체 설정(3개월 | 24시간). 24시간 시계열이 없으면 3개월.
+  const bgChart = pickCardChart(chartRange, chart ?? [], dayChart);
+  const bgIsDay = bgChart === dayChart;
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
   const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
 
@@ -1097,12 +1104,13 @@ export function StockCard({
         <div className="relative overflow-hidden border border-gray-200 rounded-md
                         bg-gray-50/60 px-2 py-1 space-y-0.5 w-full h-full
                         flex flex-col justify-center">
-          {/* 비거래일 — 3개월 추이 차트가 박스 배경. 색은 차트 자체 추세 */}
-          {chart && chart.length > 1 && (
-            <Sparkline data={chart} width={300} height={80}
-                       target={consensus?.target}
-                       avgPrice={hasPosition ? stock.avg_price : undefined}
-                       entry={memo?.entryPrice}
+          {/* 배경 그래프 — 3개월 추이 또는 24시간(당일 10분봉, 앱 전체 설정). 색은 차트 자체 추세.
+              24시간엔 목표가·평단 선을 뺀다 — 하루 폭이 좁아 선이 축을 넓히면 그래프가 납작해진다. */}
+          {bgChart.length > 1 && (
+            <Sparkline data={bgChart} width={300} height={80}
+                       target={bgIsDay ? undefined : consensus?.target}
+                       avgPrice={!bgIsDay && hasPosition ? stock.avg_price : undefined}
+                       entry={bgIsDay ? undefined : memo?.entryPrice}
                        className="absolute inset-0 w-full h-full opacity-20
                                   pointer-events-none" />
           )}

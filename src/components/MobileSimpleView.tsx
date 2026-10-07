@@ -18,6 +18,9 @@ import { getPersonalProxies, setPersonalProxies, type PersonalProxy, fetchProxyU
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
+import { useChartRange, pickCardChart } from "../lib/chartRange";
+import { ChartRangeToggle } from "./ChartRangeToggle";
+import { useIntradayCharts } from "../lib/useIntradayCharts";
 import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { StockMarketTab } from "./StockMarketTab";
@@ -159,6 +162,7 @@ export function MobileSimpleView() {
   const queryClient = useQueryClient();
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [leaderSort, setLeaderSort] = useState<LeaderSort>(loadLeaderSort);   // 대장주 줄 정렬(등락률순 기본, PC 와 같은 키)
+  const chartRange = useChartRange();   // 카드 배경 차트 3개월 | 24시간 — 앱 전체 설정
   // 로그인 redirect 복귀 — 저장/불러오기 대기 동작이 있으면 설정 자동 오픈 → 자동 재개
   useEffect(() => {
     if (!peekPendingSyncAction()) return;
@@ -749,6 +753,8 @@ export function MobileSimpleView() {
     )
   );
   usGroupChartQs.forEach((q, i) => groupChartMap.set(usGroupTickers[i], (q.data ?? []).map(p => p.close)));
+  // 배경 그래프 '24시간' — PC 와 같은 훅·쿼리키. 화면에 들어온 종목만, 설정이 24시간일 때만.
+  const groupIntradayMap = useIntradayCharts([...groupTickers, ...usGroupTickers].filter(t => activeTickers.has(t)), !isSystemTab);
 
   // 정렬 옵션 — 7가지 + asc/desc 토글 (PC 와 동일 localStorage 공유)
   const [sortKey, setSortKey] = useState<SortKey>(loadSortKey);
@@ -1414,6 +1420,9 @@ export function MobileSimpleView() {
           {/* 정렬 옵션 + 보기 모드 */}
           {groupHoldings.length > 0 && (
             <div className="flex items-center justify-end gap-2 px-2 pt-2">
+              <span className="inline-flex items-center gap-1 text-[11px] text-gray-500">
+                그래프 <ChartRangeToggle small />
+              </span>
               <SortSelector sortKey={sortKey} sortDir={sortDir}
                             onChangeKey={sortHandlers.onChangeKey}
                             onToggleDir={sortHandlers.onToggleDir} />
@@ -1442,6 +1451,7 @@ export function MobileSimpleView() {
                                market={krMarketMap.get(s.ticker)}
                                warning={warningMap.get(s.ticker) || undefined}
                                chart={groupChartMap.get(s.ticker)}
+                               dayChart={groupIntradayMap.get(s.ticker)}
                                investorHistory={investorHistoryMap.get(s.ticker)}
                                onVisible={() => activateTicker(s.ticker)}
                                consensus={naverInfos.data?.get(s.ticker)?.consensus}
@@ -1759,6 +1769,10 @@ export function MobileSimpleView() {
                       ))}
                     </span>
                   )}
+                  {/* 배경 차트 기간 — 페이지에 하나, 첫 그룹 제목에 */}
+                  {section.id === sections[0]?.id && (
+                    <ChartRangeToggle small className="ml-1.5" />
+                  )}
                 </span>
                 {section.render === "etfTop" && (
                   <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
@@ -1901,7 +1915,7 @@ export function MobileSimpleView() {
               const isInverse = p.direction === "inverse";
               const effUp = isInverse ? (mainPct != null && mainPct < 0) : (mainPct != null && mainPct > 0);
               const effDn = isInverse ? (mainPct != null && mainPct > 0) : (mainPct != null && mainPct < 0);
-              const chartArr = t0ChartMap.get(p.symbol) ?? [];
+              const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], nightClosesMap.get(p.symbol) ?? usMap?.get(p.symbol)?.sparkline);
               const sparkColor = dimNow ? "#94a3b8"
                 : (isInverse && chartArr.length > 1)
                   ? (chartArr[chartArr.length - 1] > chartArr[0] ? "#2563eb" : "#dc2626")

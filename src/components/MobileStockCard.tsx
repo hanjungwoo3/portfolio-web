@@ -9,6 +9,7 @@ import { pickTodayInvestor } from "../lib/api";
 import { openTossStock } from "../lib/toss";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { Sparkline } from "./Sparkline";
+import { useChartRange, pickCardChart } from "../lib/chartRange";
 import { Tooltip, ColorName } from "./Tooltip";
 import { MarketAlertDialog } from "./MarketAlertDialog";
 import { AuxIndicators } from "./AuxIndicators";
@@ -56,6 +57,7 @@ interface Props {
   market?: "KOSPI" | "KOSDAQ" | string;
   warning?: string;
   chart?: number[];           // 비거래일 sparkline 용 일봉 종가 시계열
+  dayChart?: number[];        // 당일 10분봉 종가 — 그래프 설정이 24시간이면 배경에 이걸 그린다
   investorHistory?: Investor[] | null;   // 60일 수급 (AuxIndicators 외국인/기관/연기금)
   lastBuy?: LastTrade | null;            // 마지막 매수 (PC 카드와 동일 — lastTradeOf)
   lastSell?: LastTrade | null;           // 마지막 매도
@@ -100,7 +102,7 @@ const WARN_TIPS: Record<string, string> = {
 
 
 export function MobileStockCard({
-  stock, price, krReg, sector, market, warning, chart, investorHistory, consensus, memo, otherGroups, heldGroups,
+  stock, price, krReg, sector, market, warning, chart, dayChart, investorHistory, consensus, memo, otherGroups, heldGroups,
   onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse, onVisible, lastBuy, lastSell,
 }: Props) {
   // 뷰포트 진입 감지 — PC(StockCard) 와 동일. 화면 밖 카드의 표시용 쿼리를 켜지 않기 위함.
@@ -131,6 +133,7 @@ export function MobileStockCard({
   // 포함 ETF 카운트 — 이 종목이 들어있는 ETF 개수
   const etfCount = useEtfCount(stock.ticker);
   const investor = investorHistory ? pickTodayInvestor(investorHistory) : null;
+  const chartRange = useChartRange();   // 배경 그래프 기간(앱 전체 설정) — 훅이라 아래 조기 return 앞에
 
   if (!price) {
     return (
@@ -191,6 +194,8 @@ export function MobileStockCard({
     memo?.stopPrice != null && Number.isFinite(memo.stopPrice) &&
     price.price <= memo.stopPrice;
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
+  const bgChart = pickCardChart(chartRange, chart ?? [], dayChart);
+  const bgIsDay = bgChart === dayChart;
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
   const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
 
@@ -526,12 +531,12 @@ export function MobileStockCard({
       <div className="relative overflow-hidden border border-gray-200
                       rounded bg-gray-50/60 px-2 py-1.5 w-full h-full
                       flex flex-col justify-center space-y-0.5">
-        {/* 3개월 추이 차트 — 장 중엔 살짝 (opacity 25), 비거래일엔 진하게 (50) */}
-        {chart && chart.length > 1 && (
-          <Sparkline data={chart} width={300} height={70}
-                     target={consensus?.target}
-                     avgPrice={hasPosition ? stock.avg_price : undefined}
-                     entry={memo?.entryPrice}
+        {/* 배경 그래프 — 3개월 추이 또는 24시간(당일 10분봉, 앱 전체 설정). 24시간엔 목표가·평단 선 생략(PC 동일) */}
+        {bgChart.length > 1 && (
+          <Sparkline data={bgChart} width={300} height={70}
+                     target={bgIsDay ? undefined : consensus?.target}
+                     avgPrice={!bgIsDay && hasPosition ? stock.avg_price : undefined}
+                     entry={bgIsDay ? undefined : memo?.entryPrice}
                      className="absolute inset-0 w-full h-full opacity-20
                                 pointer-events-none" />
         )}

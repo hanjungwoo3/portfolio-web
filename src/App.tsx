@@ -41,6 +41,8 @@ import { FeedbackDialog } from "./components/FeedbackDialog";
 import { DonateDialog } from "./components/DonateDialog";
 import { EtfCompositionDialog } from "./components/EtfCompositionDialog";
 import { EtfReverseDialog } from "./components/EtfReverseDialog";
+import { useIntradayCharts } from "./lib/useIntradayCharts";
+import { ChartRangeToggle } from "./components/ChartRangeToggle";
 import { OnboardingDialog } from "./components/OnboardingDialog";
 import { enterDemo, exitDemo, isDemoActive, DEMO_GROUP } from "./lib/demoMode";
 import { AssetTrendTab } from "./components/AssetTrendTab";
@@ -499,6 +501,9 @@ function Dashboard() {
       refetchOnWindowFocus: false,
     })),
   });
+
+  // 배경 그래프 '24시간' — 화면에 들어온 종목만(활성), 설정이 24시간일 때만 받는다.
+  const intradayMap = useIntradayCharts([...krxTickers, ...usTickers].filter(t => activeTickers.has(t)));
 
   const priceMap = useMemo(() => {
     const m = new Map((prices ?? []).map(p => [p.ticker, p]));
@@ -1041,6 +1046,9 @@ function Dashboard() {
                                  bg-white text-gray-600 border-gray-300 hover:bg-gray-50">
                 {codesCopied ? "✓ 복사됨" : "📋 코드 복사"}
               </button>
+              <span className="inline-flex items-center gap-1 text-xs text-gray-500">
+                그래프 <ChartRangeToggle />
+              </span>
               <SortSelector sortKey={sortKey} sortDir={sortDir}
                             onChangeKey={sortHandlers.onChangeKey}
                             onToggleDir={sortHandlers.onToggleDir} />
@@ -1066,6 +1074,7 @@ function Dashboard() {
                   market={krMarketMap.get(stock.ticker)}
                   consensus={naverMap.get(stock.ticker)?.consensus ?? null}
                   chart={chartMap.get(stock.ticker)}
+                  dayChart={intradayMap.get(stock.ticker)}
                   priceHistory={priceHistoryMap.get(stock.ticker)}
                   longHistory={longHistoryMap.get(stock.ticker)}
                   onNeedLongHistory={() => primeLongHistory(stock.ticker)}
