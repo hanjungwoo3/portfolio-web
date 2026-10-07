@@ -6,7 +6,7 @@ import { STAGES } from "../rotation";
 
 // 지수 탭 — 나라가 아니라 **지금 움직이는 시장** 으로 나눈 세 페이지.
 //   ⚠️ 기대값을 코드에 맞춰 베끼지 말 것. 각 테스트 이름의 **의도**가 먼저다.
-const PAGES: DashboardPage[] = ["day", "night", "semi", "leaders"];
+const PAGES: DashboardPage[] = ["day", "night", "leaders"];
 const ids = (p: DashboardPage) => buildDashboardPage(p).map(s => s.id);
 
 describe("지수 탭 페이지 구성", () => {
@@ -65,21 +65,13 @@ describe("지수 탭 페이지 구성", () => {
     expect(ids("night").slice(-4)).toEqual(["sector", "krfx", "krnight", "spot"]);
   });
 
-  it("야간엔 반도체 전용 그룹이 없다 (따로 페이지가 있으니 겹쳐 두지 않는다 — 공통 세트만 같이 쓴다)", () => {
-    for (const g of ["semi", "jpsemi", "rotflow"]) expect(ids("night")).not.toContain(g);
-  });
-
-  it("반도체 페이지 = 반도체 · 일본 반도체 · 순환매 + 맨 아래 공통 세트(환율 → 선물 → 현물)", () => {
-    expect(ids("semi").slice(0, 3)).toEqual(["semi", "jpsemi", "rotflow"]);
-    // 선물 그룹은 시간 따라 이름이 맞는 쪽 — 한국 낮 = 주간 선물, 한국 밤 = 야간 선물(한국 야간선물 카드 포함)
-    expect(buildDashboardPage("semi", false).map(s => s.id).slice(3)).toEqual(["krfx", "dayfut", "spot"]);
-    const night = buildDashboardPage("semi", true);
-    expect(night.map(s => s.id).slice(3)).toEqual(["krfx", "krnight", "spot"]);
-    expect(night.find(s => s.id === "krnight")!.rows.flat()).toContain("^KS200N");
+  it("야간 = 옛 반도체 페이지를 합쳤다 — 미국 지수 바로 아래, 빅테크 위에 반도체 · 일본 반도체 · 순환매 (사용자 결정 2026-10-07)", () => {
+    const n = ids("night");
+    expect(n.slice(0, 5)).toEqual(["macro", "semi", "jpsemi", "rotflow", "bigtech"]);
   });
 
   it("순환매 = 큰 블록 하나에 단계별 줄 11개(AI 8 + 2차전지 + 방산 + 로봇) — 줄마다 책갈피 이름, 앞 2~3칸 미국 대장주, 나머지 한국 쪽", () => {
-    const g = buildDashboardPage("semi").find(s => s.id === "rotflow")!;
+    const g = buildDashboardPage("night").find(s => s.id === "rotflow")!;
     expect(g.note).toBeTruthy();                                  // 미국→한국 영향이라는 설명 한 줄
     expect(g.rows).toHaveLength(11);
     expect(g.rowLabels).toEqual(["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "2차전지", "방산", "로봇"]);
@@ -96,7 +88,7 @@ describe("지수 탭 페이지 구성", () => {
   });
 
   it("순환매 카드 줄과 순환매 통계(lib/rotation STAGES)가 같은 단계·같은 대장주·같은 종목이다 (어긋나면 카드와 통계가 딴소리)", () => {
-    const g = buildDashboardPage("semi").find(s => s.id === "rotflow")!;
+    const g = buildDashboardPage("night").find(s => s.id === "rotflow")!;
     expect(g.rowLabels).toEqual(STAGES.map(st => st.label));
     g.rows.forEach((row, i) => {
       const n = g.leadByRow?.[i] ?? g.lead!;
@@ -112,12 +104,12 @@ describe("지수 탭 페이지 구성", () => {
   });
 
   it("반도체 그룹엔 순환매 블록에 있는 종목이 없다 (같은 카드가 한 화면에 두 번 나오지 않게)", () => {
-    const page = buildDashboardPage("semi");
+    const page = buildDashboardPage("night");
     const rot = new Set(page.find(s => s.id === "rotflow")!.rows.flat());
     for (const id of ["semi", "jpsemi"]) expect(page.find(s => s.id === id)!.rows.flat().filter(x => rot.has(x))).toEqual([]);
   });
 
-  it("대장주 페이지 = 섹터 줄마다 [섹터 ETF] ➜ [대장주](한 줄 8칸 이내) + 맨 아래 공통 세트(반도체·2차전지 등 모든 섹터 — 반도체 페이지와 겹쳐도 된다)", () => {
+  it("대장주 페이지 = 섹터 줄마다 [섹터 ETF] ➜ [대장주](한 줄 8칸 이내) + 맨 아래 공통 세트(반도체·2차전지 등 모든 섹터 — 야간의 반도체 묶음과 겹쳐도 된다)", () => {
     const page = buildDashboardPage("leaders", false);
     expect(page.map(s => s.id).slice(-3)).toEqual(["krfx", "dayfut", "spot"]);
     const krStock = new Set(US_PAIRS.filter(p => p.krStock).map(p => p.symbol));
@@ -166,11 +158,11 @@ describe("대장주 줄 정렬", () => {
 
 describe("지수 탭 키 ↔ 페이지", () => {
   it("lib 의 키 문자열이 Tabs.tsx 상수와 같다 (어긋나면 탭을 눌러도 엉뚱한 페이지가 뜬다)", () => {
-    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY].sort());
+    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_LEADERS_TAB_KEY].sort());
     expect(indexPageOf(INDEX_LEADERS_TAB_KEY)).toBe("leaders");
     expect(indexPageOf(US_MARKET_TAB_KEY)).toBe("day");
     expect(indexPageOf(INDEX_NIGHT_TAB_KEY)).toBe("night");
-    expect(indexPageOf(INDEX_SEMI_TAB_KEY)).toBe("semi");
+    expect(indexPageOf(INDEX_SEMI_TAB_KEY)).toBe("night");   // 폐지된 반도체 탭 — 야간으로
   });
 });
 

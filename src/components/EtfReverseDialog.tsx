@@ -18,8 +18,17 @@ interface Props {
   onRequestAdd?: (query: string) => void;                              // ETF 자체를 포트폴리오에 추가
 }
 
+const SORT_KEY = "etf_reverse_sort";   // 수익률순(기본) | 비중순
+
 export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, onRequestAdd }: Props) {
   const [list, setList] = useState<EtfHolding[] | null>(null);
+  const [sortBy, setSortBy] = useState<"pct" | "ratio">(() => {
+    try { return localStorage.getItem(SORT_KEY) === "ratio" ? "ratio" : "pct"; } catch { return "pct"; }
+  });
+  const changeSort = (v: "pct" | "ratio") => {
+    setSortBy(v);
+    try { localStorage.setItem(SORT_KEY, v); } catch { /* 이번 세션만 */ }
+  };
   const [err, setErr] = useState<string | null>(null);
 
   useEscClose(true, onClose);
@@ -47,10 +56,11 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
   });
   const priceMap = new Map((priceList ?? []).map(p => [p.ticker, p]));
 
-  // 표시 순서 — 현재(당일) 수익률 내림차순. 가격 로딩 전이거나 값 없으면 맨 뒤(-Infinity).
-  // 정렬 기준은 카드에 보이는 등락률(dayChangePct)과 동일하게 맞춤.
+  // 표시 순서 — 수익률(당일) 또는 비중 내림차순. 고른 값은 기억한다.
+  //   수익률: 카드에 보이는 등락률(dayChangePct)과 같은 기준, 가격 로딩 전·값 없으면 맨 뒤(-Infinity).
   const sortedList = list
     ? [...list].sort((a, b) => {
+        if (sortBy === "ratio") return b.ratio - a.ratio;
         const pa = dayChangePct(priceMap.get(a.etfCode)) ?? -Infinity;
         const pb = dayChangePct(priceMap.get(b.etfCode)) ?? -Infinity;
         return pb - pa;
@@ -105,7 +115,15 @@ export function EtfReverseDialog({ ticker, name, onClose, onOpenEtfComposition, 
           ) : (
             <>
               <div className="text-[11px] text-gray-500 mb-2 px-1">
-                총 <b className="text-gray-800">{list.length}</b>개 ETF · 수익률 내림차순
+                총 <b className="text-gray-800">{list.length}</b>개 ETF
+                <span className="ml-2 inline-flex rounded border border-gray-300 overflow-hidden align-middle font-bold">
+                  {(["pct", "ratio"] as const).map(v => (
+                    <button key={v} onClick={() => changeSort(v)}
+                            className={`px-1.5 py-0 ${sortBy === v ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}>
+                      {v === "pct" ? "수익률순" : "비중순"}
+                    </button>
+                  ))}
+                </span>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
                 {(sortedList ?? list).map(h => {

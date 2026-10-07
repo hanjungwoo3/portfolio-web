@@ -1333,6 +1333,19 @@ function Dashboard() {
                        targetMap={new Map(krxTickers.map(t => [t, naverMap.get(t)?.consensus?.target]))}
                        onOpenValuation={setValuationTicker} krRegMap={krRegMap} />
 
+      {etfReverseDialog && (
+        <EtfReverseDialog ticker={etfReverseDialog.ticker} name={etfReverseDialog.name}
+                          onClose={() => setEtfReverseDialog(null)}
+                          onOpenEtfComposition={(code, n) => {
+                            // 목록은 닫지 않는다 — 구성 창을 닫으면 보던 목록으로 돌아온다(구성 창이 아래에 그려져 위로 뜬다)
+                            setEtfDialog({ ticker: code, name: n });
+                          }}
+                          onRequestAdd={q => {
+                            setEtfReverseDialog(null);
+                            setSearchInitQuery(q); setSearchOpen(true);
+                          }} />
+      )}
+
       {etfDialog && (
         <EtfCompositionDialog isOpen={true}
                               ticker={etfDialog.ticker} etfName={etfDialog.name}
@@ -1342,19 +1355,6 @@ function Dashboard() {
                                 setSearchInitQuery(q);
                                 setSearchOpen(true);
                               }} />
-      )}
-
-      {etfReverseDialog && (
-        <EtfReverseDialog ticker={etfReverseDialog.ticker} name={etfReverseDialog.name}
-                          onClose={() => setEtfReverseDialog(null)}
-                          onOpenEtfComposition={(code, n) => {
-                            setEtfReverseDialog(null);
-                            setEtfDialog({ ticker: code, name: n });
-                          }}
-                          onRequestAdd={q => {
-                            setEtfReverseDialog(null);
-                            setSearchInitQuery(q); setSearchOpen(true);
-                          }} />
       )}
 
       {valuationTicker && (() => {
