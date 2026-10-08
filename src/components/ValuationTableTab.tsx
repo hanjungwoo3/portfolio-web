@@ -7,6 +7,8 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchValuationRow, fetchEarningsEstimates, fetchNaverConsensusFields, type ValuationRow, type EarningsRow } from "../lib/fundamentals";
 import { fetchInvestorHistorySafe, fetchKrPriceHistory, fetchTossKrCandles, fetchTossPrices, type PricePoint } from "../lib/api";
 import { sectorPresets } from "../lib/sectorPresets";
+import { computeFlowProfile } from "../lib/flowProfile";
+import { detectBreakout, BREAKOUT_BASE, BREAKOUT_RECENT, BREAKOUT_MAX_WIDTH, BREAKOUT_VOL_X, type Breakout } from "../lib/breakout";
 import { Sparkline } from "./Sparkline";
 import {
   computeValueBurst, dateToNum, toEok, burstThresholdWon,
@@ -51,7 +53,7 @@ function fmtShares(v: number): string {
 }
 
 type ColKey =
-  | "name" | "market" | "sub" | "spark" | "price" | "chg" | "ret_1m" | "ret_3m" | "vs_sector" | "ret_1y"
+  | "name" | "market" | "sub" | "spark" | "price" | "chg" | "ret_1m" | "ret_3m" | "vs_sector" | "ret_1y" | "breakout" | "frg_avg" | "frg_vs"
   | "from_52h" | "pos_52" | "from_ath" | "fwd_per" | "op_next" | "op_growth" | "target" | "target_up" | "opinion"
   | "trend_d" | "trend_m"
   | "market_cap" | "per" | "pbr" | "eps" | "bps" | "industry_per"
@@ -90,6 +92,9 @@ const COLS: Col[] = [
   { key: "ret_1m",    label: "1개월",    unit: "%", digits: 1, pct: true, hint: "약 21거래일 전 종가 대비." },
   { key: "ret_3m",    label: "3개월",    unit: "%", digits: 1, pct: true, hint: "약 63거래일 전 종가 대비." },
   { key: "vs_sector", label: "섹터 대비", unit: "%p", digits: 1, pct: true, hint: "3개월 수익률 − 섹터(분류를 고르면 그 분류) 중앙값. 음수 = 섹터보다 덜 올랐다." },
+  { key: "breakout",  label: "횡보 돌파", hint: `약 ${BREAKOUT_BASE}거래일 좁은 박스(폭 ${BREAKOUT_MAX_WIDTH}% 이내) 뒤 최근 ${BREAKOUT_RECENT}거래일 안에 거래량 ${BREAKOUT_VOL_X}배 이상 싣고 박스 상단을 뚫은 날. 정렬은 최근 돌파 먼저.` },
+  { key: "frg_avg",   label: "외인 평균단가", unit: "원", hint: "최근 약 200거래일, 외국인이 순매수한 날의 종가를 수량으로 가중 평균(토스 일별 수급 × 종가 근사). 기업가치 팝업의 수급단가와 같은 값." },
+  { key: "frg_vs",    label: "외인 단가 대비", unit: "%", digits: 1, pct: true, hint: "현재가 ÷ 외국인 평균 매수단가 − 1. 음수 = 외국인이 산 값보다 싸다(외국인 평가손)." },
   { key: "ret_1y",    label: "1년",      unit: "%", digits: 1, pct: true, hint: "약 250거래일 전 종가 대비." },
   { key: "from_52h",  label: "52주고점比", unit: "%", digits: 1, pct: true, hint: "52주(약 250거래일) 최고가 대비 현재 위치. 0 이면 신고가." },
   { key: "pos_52",    label: "52주위치", unit: "%", hint: "52주 최저(0)~최고(100) 사이 어디인가. 80 이상 = 고점권, 20 이하 = 저점권." },
@@ -177,6 +182,8 @@ const VIEW_COLS: Col[] = SIMPLE.map(v => {
   const c = COLS.find(x => x.key === v.key)!;
   return { ...c, label: v.label ?? c.label, hint: v.hint ?? c.hint, unit: v.unit ?? c.unit };
 });
+const BREAKOUT_COL: Col = COLS.find(c => c.key === "breakout")!;
+const FRG_COLS: Col[] = COLS.filter(c => c.key === "frg_avg" || c.key === "frg_vs");
 
 interface Row extends ValuationRow {
   ticker: string;
@@ -187,6 +194,10 @@ interface Row extends ValuationRow {
   chg?: number | null;
   ret_1m?: number | null; ret_3m?: number | null; ret_1y?: number | null;
   vs_sector?: number | null;      // 3개월 수익률 − 비교 묶음 중앙값(%p)
+  breakout?: number | null;       // 정렬값 = 돌파일이 마지막 봉에서 몇 봉 전(0 = 마지막 봉). 표시는 brk
+  brk?: Breakout | null;
+  frg_avg?: number | null;        // 외국인 평균 매수단가(원) — lib/flowProfile
+  frg_vs?: number | null;         // 현재가 ÷ 외인 단가 − 1 (%)
   from_52h?: number | null; pos_52?: number | null; from_ath?: number | null;
   fwd_per?: number | null; op_next?: number | null; op_growth?: number | null;
   target?: number | null; target_up?: number | null; opinion?: number | null; opinionText?: string;
@@ -328,8 +339,17 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   // 시장 필터 — 전체 / 코스피 / 코스닥 (시장은 네이버 상세로 알아낸다 — 아직 모르는 종목은 '전체' 에만)
   const [mkt, setMkt] = useState<"all" | "KOSPI" | "KOSDAQ">("all");
   const [sub, setSub] = useState<string>("all");   // 세부 분류 필터(분류가 있는 섹터만)
-  const [laggard, setLaggard] = useState(false);   // 🔎 덜 오른 종목만
-  const viewCols = preset.subs ? VIEW_COLS : VIEW_COLS.filter(c => c.key !== "sub");
+  // 찾기 모드 — 🔎 덜 오른 종목 / 🚀 횡보 돌파 / 🟣 외인 단가 아래 (하나만 켜진다)
+  type Finder = "laggard" | "breakout" | "foreign";
+  const [finder, setFinder] = useState<"none" | Finder>("none");
+  const pickFinder = (f: Finder) => {
+    const on = finder !== f;
+    setFinder(on ? f : "none");
+    if (on) { setSortKey(f === "laggard" ? "vs_sector" : f === "breakout" ? "breakout" : "frg_vs"); setAsc(true); }   // 덜 오른 순 / 최근 돌파 먼저 / 외인 단가보다 많이 싼 순
+  };
+  // '횡보 돌파' 열은 돌파 모드에서만 — 평소 표는 초보용 쉬운 열 그대로
+  const viewCols = (preset.subs ? VIEW_COLS : VIEW_COLS.filter(c => c.key !== "sub"))
+    .flatMap(c => c.key !== "price" ? [c] : finder === "breakout" ? [c, BREAKOUT_COL] : finder === "foreign" ? [c, ...FRG_COLS] : [c]);
   const items: ConsensusItem[] = useMemo(
     () => preset.tickers.map(t => ({ ticker: t, name: preset.names[t] ?? "" })),
     [preset],
@@ -359,7 +379,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
     queries: tickers.map(t => ({
       queryKey: ["investor-history-long", t],
       queryFn: () => fetchInvestorHistorySafe(t, [200, 120, 60]),
-      enabled: false,   // 수급 열은 표에서 뺐다(초보용 정리) — 호출 안 함
+      enabled: finder === "foreign",   // 평소엔 안 부른다(초보용 정리) — '외인 단가 아래' 를 켰을 때만 종목당 1콜
       staleTime: INVESTOR_STALE_MS,
       refetchOnWindowFocus: false,
     })),
@@ -443,6 +463,8 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
     const now = lp?.price ?? d?.price;
     const ex = extraQs[i]?.data;
     const target = ex?.cons.consensus_target_official;
+    const brk = detectBreakout(dayCandleQs[i]?.data);   // 이미 받는 토스 일봉 450 — 추가 호출 없음
+    const frgAvg = inv ? computeFlowProfile(inv, "외국인")?.avgBuy ?? null : null;
     return {
       ...(d ?? { ticker: t }),
       ...priceStats(dayCandleQs[i]?.data, monthCandleQs[i]?.data, lp?.price),
@@ -467,6 +489,9 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
       burst_max: maxEok,
       burst_turnover: maxEok != null && mcap != null && mcap > 0 ? (maxEok / mcap) * 100 : null,
       burst_last: dateToNum(burst.lastDate),
+      brk, breakout: brk?.daysAgo ?? null,
+      frg_avg: frgAvg,
+      frg_vs: frgAvg && now ? (now / frgAvg - 1) * 100 : null,
       trendD, trendM,
       trend_d: trendD?.score ?? null,
       trend_m: trendM?.score ?? null,
@@ -489,7 +514,13 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   const isLaggard = (r: Row) => r.vs_sector != null && r.vs_sector <= LAGGARD_GAP && r.op_growth != null && r.op_growth > 0;
 
   // 종목 수십 개 규모라 매 렌더 정렬해도 부담 없다(메모 키를 만드는 비용이 오히려 큼).
-  const sorted = rows.filter(r => (mkt === "all" || r.market === mkt) && (sub === "all" || r.sub === sub) && (!laggard || isLaggard(r))).sort((a, b) => {
+  // 외인 단가 아래 — 수급을 받는 동안은 다 보여 주고(빈 표로 깜빡이지 않게), 받은 뒤 걸러낸다.
+  const finderOk = (r: Row, i: number) =>
+    finder === "laggard" ? isLaggard(r)
+    : finder === "breakout" ? !!r.brk
+    : finder === "foreign" ? (invQs[i]?.isLoading || (r.frg_vs != null && r.frg_vs < 0))
+    : true;
+  const sorted = rows.filter((r, i) => (mkt === "all" || r.market === mkt) && (sub === "all" || r.sub === sub) && finderOk(r, i)).sort((a, b) => {
     if (sortKey === "name") {
       return asc ? a.label.localeCompare(b.label, "ko") : b.label.localeCompare(a.label, "ko");
     }
@@ -549,15 +580,23 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
             ))}
           </span>
         )}
-        <button onClick={() => {
-                  const on = !laggard;
-                  setLaggard(on);
-                  if (on) { setSortKey("vs_sector"); setAsc(true); }   // 덜 오른 순
-                }}
+        <button onClick={() => pickFinder("laggard")}
                 title={`섹터 3개월 중앙값보다 ${-LAGGARD_GAP}%p 이상 덜 올랐고, 내년 영업이익이 늘 것으로 예상되는 종목만`}
                 className={`px-2 py-0.5 rounded border text-[12px] font-bold
-                            ${laggard ? "bg-amber-500 text-white border-amber-500" : "bg-white text-amber-700 border-amber-300 hover:bg-amber-50"}`}>
+                            ${finder === "laggard" ? "bg-amber-500 text-white border-amber-500" : "bg-white text-amber-700 border-amber-300 hover:bg-amber-50"}`}>
           🔎 덜 오른 종목
+        </button>
+        <button onClick={() => pickFinder("breakout")}
+                title={`약 ${BREAKOUT_BASE}거래일(3개월) 폭 ${BREAKOUT_MAX_WIDTH}% 이내로 횡보하다, 최근 ${BREAKOUT_RECENT}거래일 안에 거래량 ${BREAKOUT_VOL_X}배 이상 싣고 박스 상단을 뚫고 아직 그 위에 있는 종목`}
+                className={`px-2 py-0.5 rounded border text-[12px] font-bold
+                            ${finder === "breakout" ? "bg-rose-500 text-white border-rose-500" : "bg-white text-rose-700 border-rose-300 hover:bg-rose-50"}`}>
+          🚀 횡보 돌파
+        </button>
+        <button onClick={() => pickFinder("foreign")}
+                title="현재가가 외국인 평균 매수단가(최근 약 200거래일, 순매수한 날 종가의 수량 가중 평균)보다 낮은 종목 — 외국인이 산 값보다 싼 순. 켤 때 종목마다 수급을 받는다."
+                className={`px-2 py-0.5 rounded border text-[12px] font-bold
+                            ${finder === "foreign" ? "bg-violet-600 text-white border-violet-600" : "bg-white text-violet-700 border-violet-300 hover:bg-violet-50"}`}>
+          🟣 외인 단가 아래
         </button>
         {sectorMed != null && (
           <span className="text-[11px] text-gray-500" title="비교 묶음(분류를 고르면 그 분류) 종목들의 3개월 수익률 가운데 값">
@@ -647,6 +686,21 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                       <td key={col.key} className="px-1 py-0.5">
                         {r.sparkData && r.sparkData.length > 1
                           ? <Sparkline data={r.sparkData} width={100} height={26} strokeWidth={1.3} />
+                          : <span className="text-gray-300">{r.trendLoading ? "…" : "—"}</span>}
+                      </td>
+                    );
+                  }
+                  if (col.key === "breakout") {
+                    const b = r.brk;
+                    return (
+                      <td key={col.key} className="px-2 py-1 text-right whitespace-nowrap"
+                          title={b ? `${b.date} 돌파 · 박스 상단 ${Math.round(b.boxTop).toLocaleString("ko-KR")}원 (폭 ${b.boxWidth.toFixed(0)}%)\n돌파일 거래량 = 박스 평균의 ${b.volX.toFixed(1)}배 · 지금 상단보다 ${b.aboveTop.toFixed(1)}% 위` : undefined}>
+                        {b
+                          ? <span className="text-rose-600 font-bold">
+                              {/* '오늘' 이라 쓰면 장 전엔 어제 봉이 오늘로 읽힌다 — 돌파일 날짜로 */}
+                              {b.date.slice(5).replace("-", "/")}
+                              <span className="ml-1 font-normal text-gray-600">거래량×{b.volX.toFixed(1)} · 상단+{b.aboveTop.toFixed(1)}%</span>
+                            </span>
                           : <span className="text-gray-300">{r.trendLoading ? "…" : "—"}</span>}
                       </td>
                     );

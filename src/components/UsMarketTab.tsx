@@ -405,7 +405,6 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 effUp ? "text-rose-600"
                 : effDn ? "text-blue-600"
                 : "text-gray-900";
-              const nameColor = isFuture ? "text-amber-700" : "text-gray-900";
               const isKospi  = p.symbol === "^KS11";
               const isKosdaq = p.symbol === "^KQ11";
               const hasFlow  = isKospi || isKosdaq;
@@ -418,6 +417,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               const regSign = regPct == null ? "text-gray-700"
                 : (isInverse ? regPct < 0 : regPct > 0) ? "text-rose-600"
                 : (isInverse ? regPct > 0 : regPct < 0) ? "text-blue-600" : "text-gray-700";
+              // 종목명 = 정규장 등락 색(사용자 결정 2026-10-09) — 애프터·프리장에 큰 숫자가 반대로 가도 정규장 방향이 이름에 남는다. 선물은 주황 그대로.
+              const nameColor = isFuture ? "text-amber-700" : regPct == null ? "text-gray-900" : regSign;
               // 마감 책갈피는 노란 배경 + 흐림 제외 → dim 은 콘텐츠 자식에만 적용
               const dimCls = dimNow ? "opacity-60" : "";
               return (

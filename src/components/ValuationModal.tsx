@@ -30,6 +30,8 @@ import { CommunityPanes } from "./CommunityDialog";
 import { InvestorPriceProfile } from "./InvestorPriceProfile";
 import { signColor, nowKstDateStr, isEtfByName, formatSigned } from "../lib/format";
 import { handleTossLinkClick } from "../lib/toss";
+import { FlowCostTable } from "./FlowCostTable";
+import { computeFlowProfile, FLOW_GROUPS, FLOW_GROUP_COLOR } from "../lib/flowProfile";
 import { fetchInvestorHistorySafe, fetchKrPriceHistoryWithEvents, fetchKrDisclosures, fetchKrShortSelling, fetchKrLendingTrading, fetchKrCreditLoan, fetchKrProgramTrading, fetchKrCfd, fetchTossEstimate, fetchNaverNews, fetchTossPrices, fetchNaverPrices, fetchTossKrCandles, TOSS_CANDLE_MAX, fetchEtfKeyIndicator } from "../lib/api";
 import {
   computeMaTrend, maTrendTooltip, MA_TREND_PERIODS, MA_TREND_LABEL, MA_TREND_CLASS,
@@ -1271,6 +1273,8 @@ function InvestorChartsSection({
           {pricesLoading ? "주가 로딩 중..." : "주가 데이터 없음 (Yahoo 미수록)"}
         </div>
       )}
+      {/* 수급별 평균 매수단가 — 차트에 겹치지 않고 표로 */}
+      {hasInvestor && <FlowCostTable investors={data} curPrice={curPrice} />}
       {/* 투자 유형별 — ① 순매수 행(외국인/기관계/연기금/프로그램) ② 잔고·압력 행(공매도/대차/신용/CFD) */}
       {hasInvestor ? (
         <Suspense fallback={<div className="h-[220px]" />}>
@@ -1378,6 +1382,7 @@ const BB_TOGGLE_KEY = "price_chart_bb";
 // loadOnOff 는 기본 OFF 라 별도 로더를 쓴다.
 const TRADES_TOGGLE_KEY = "price_chart_trades";
 const BURST_TOGGLE_KEY = "price_chart_burst";   // 거래대금 급증일 거래량 막대 강조 (기본 OFF)
+const FLOW_TOGGLE_KEY = "price_chart_flow_cost";   // 수급별 평균 매수단가 가로선 (기본 ON)
 function loadTradesToggle(): boolean {
   try { return localStorage.getItem(TRADES_TOGGLE_KEY) !== "off"; }
   catch { return true; }
@@ -1428,6 +1433,13 @@ function PriceVolumeChart({
   const [showBurst, setShowBurst] = useState<boolean>(() => loadOnOff(BURST_TOGGLE_KEY));
   const toggleBurst = () => { const v = !showBurst; setShowBurst(v); saveOnOff(BURST_TOGGLE_KEY, v); };
   const [burstLevel, setBurstLevel] = useState<BurstLevel>(loadBurstLevel);
+  // 수급별 평균 매수단가 가로선 — 외국인·기관(금투 제외)·연기금. 기본 ON, 끄면 기억.
+  const [showFlow, setShowFlow] = useState<boolean>(() => { try { return localStorage.getItem(FLOW_TOGGLE_KEY) !== "off"; } catch { return true; } });
+  const toggleFlow = () => { const v = !showFlow; setShowFlow(v); saveOnOff(FLOW_TOGGLE_KEY, v); };
+  const flowLines = useMemo(() => !showFlow ? undefined : FLOW_GROUPS.flatMap(g => {
+    const p = computeFlowProfile(investors, g);
+    return p?.avgBuy ? [{ price: p.avgBuy, color: FLOW_GROUP_COLOR[g], label: g === "외국인" ? "외인" : g }] : [];
+  }), [showFlow, investors]);
   const cycleBurstLevel = () => {
     const next = BURST_LEVELS[(BURST_LEVELS.indexOf(burstLevel) + 1) % BURST_LEVELS.length];
     setBurstLevel(next); saveBurstLevel(next);
@@ -1628,6 +1640,16 @@ function PriceVolumeChart({
               {burstLevel.toLocaleString()}억
             </button>
           )}
+          {/* 수급별 평균 매수단가 가로선 토글 */}
+          <button onClick={toggleFlow}
+                  title={showFlow ? "수급별 평균 매수단가 선 숨기기" : "외국인·기관(금투 제외)·연기금 평균 매수단가를 가로선으로 (아래 표와 같은 값)"}
+                  className={`px-1.5 py-0.5 rounded text-[10px] font-medium border ${
+                    showFlow
+                      ? "bg-emerald-100 text-emerald-700 border-emerald-300"
+                      : "text-gray-400 border-gray-200 hover:bg-gray-100"
+                  }`}>
+            💰 수급단가 {showFlow ? "ON" : "OFF"}
+          </button>
           {/* 캔들 모드 토글 — OFF=라인, ON=캔들 */}
           <button onClick={() => setModePersist(mode === "candle" ? "line" : "candle")}
                   title={mode === "candle" ? "라인 차트로" : "캔들 차트로"}
@@ -1650,6 +1672,7 @@ function PriceVolumeChart({
                           targetPrice={targetPrice} myAvgPrice={myAvgPrice} entryPrice={entryPrice}
                           dividends={dividends} splits={splits}
                           disclosures={showDisc ? disclosures : []}
+                          flowLines={flowLines}
                           tradeMarkers={tradeMarkers}
                           burstThreshold={showBurst ? burstThresholdWon(burstLevel) : undefined}
                           ticker={ticker}

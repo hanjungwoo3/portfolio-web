@@ -1934,7 +1934,6 @@ export function MobileSimpleView() {
                 effUp ? "text-rose-600"
                 : effDn ? "text-blue-600"
                 : "text-gray-900";
-              const nameColor = isFuture ? "text-amber-700" : "text-gray-900";
               // 정규장 종료(sleeping) 후 항상 마감가 책갈피. 시간외 거래값 있으면 그 값, 없으면 현재가를 마감가로 통일.
               const showCloseTag = sleeping && effPrice != null;
               const closeVal = q?.regularPrice ?? effPrice;
@@ -1942,6 +1941,8 @@ export function MobileSimpleView() {
               const regSign = regPct == null ? "text-gray-700"
                 : (isInverse ? regPct < 0 : regPct > 0) ? "text-rose-600"
                 : (isInverse ? regPct > 0 : regPct < 0) ? "text-blue-600" : "text-gray-700";
+              // 종목명 = 정규장 등락 색(사용자 결정 2026-10-09) — 애프터·프리장에 큰 숫자가 반대로 가도 정규장 방향이 이름에 남는다. 선물은 주황 그대로.
+              const nameColor = isFuture ? "text-amber-700" : regPct == null ? "text-gray-900" : regSign;
               // 마감 책갈피는 노란 배경(살짝 투명) + 흐림 제외 → dim 은 콘텐츠 자식에만
               const dimCls = dimNow ? "opacity-60" : "";
               return (

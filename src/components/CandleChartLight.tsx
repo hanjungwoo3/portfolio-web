@@ -58,6 +58,8 @@ interface Props {
   targetPrice?: number;
   myAvgPrice?: number;
   entryPrice?: number;
+  // 수급별 평균 매수단가 가로선(외국인·기관·연기금) — 호출자가 useMemo 로 안정화할 것 (effect dep)
+  flowLines?: { price: number; color: string; label: string }[];
   dividends?: DividendEvent[];
   splits?: SplitEvent[];
   disclosures?: DartDisclosure[];
@@ -112,7 +114,7 @@ function pickImportantKeyword(titles: string[]): string | null {
 }
 
 export function CandleChartLight({
-  prices, maPrices, investors, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures,
+  prices, maPrices, investors, targetPrice, myAvgPrice, entryPrice, flowLines, dividends, splits, disclosures,
   tradeMarkers, burstThreshold, ticker, mode,
   maPeriods = EMPTY_PERIODS, showBB = false, onReady,
 }: Props) {
@@ -316,6 +318,7 @@ export function CandleChartLight({
         if (targetPrice && targetPrice > 0) candidates.push(targetPrice);
         if (myAvgPrice && myAvgPrice > 0) candidates.push(myAvgPrice);
         if (entryPrice && entryPrice > 0) candidates.push(entryPrice);
+        for (const l of flowLines ?? []) candidates.push(l.price);
         return {
           priceRange: {
             minValue: Math.min(...candidates),
@@ -345,6 +348,14 @@ export function CandleChartLight({
       priceSeries.createPriceLine({
         price: entryPrice, color: ENTRY_COLOR, lineStyle: LineStyle.Dashed, lineWidth: 1,
         axisLabelVisible: true,
+      });
+    }
+    // 수급별 평균 매수단가 — 점선(목표·평단의 파선과 구분). 세 값이 가까워 축 라벨끼리 겹치므로
+    //   축 라벨은 끄고, 금액은 오른쪽 이름표에 같이 적는다(이름표는 겹치지 않게 밀어 배치).
+    for (const l of flowLines ?? []) {
+      priceSeries.createPriceLine({
+        price: l.price, color: l.color, lineStyle: LineStyle.Dotted, lineWidth: 2,
+        axisLabelVisible: false,
       });
     }
 
@@ -560,22 +571,34 @@ export function CandleChartLight({
       }
 
       // 목표 / 내평단 / 기대 — 각 라인 가격(우측 축 금액)의 '바로 아래 오른쪽'에 컬러 칩.
-      const renderChip = (price: number | undefined, color: string, text: string) => {
+      // 수급 단가 — 축 라벨이 없어 선 높이에 맞춰 칩을 두고 금액을 같이 적는다.
+      //   값이 가까우면 칩끼리 겹친다 → 위에서부터 차례로, 앞 칩과 CHIP_GAP 이상 떨어지게 아래로 민다.
+      const CHIP_GAP = 14;
+      const chips: { top: number; color: string; text: string }[] = [];
+      const addChip = (price: number | undefined, color: string, text: string, onLine = false) => {
         if (!price || price <= 0) return;
         const y = priceSeries.priceToCoordinate(price);
         if (y == null) return;
+        chips.push({ top: onLine ? y - 7 : y + 8, color, text });
+      };
+      addChip(targetPrice, TARGET_COLOR, "목표");
+      addChip(myAvgPrice, AVG_COLOR, "내평단");
+      addChip(entryPrice, ENTRY_COLOR, "기대");
+      for (const l of flowLines ?? []) addChip(l.price, l.color, `${l.label} ${Math.round(l.price).toLocaleString()}`, true);
+      chips.sort((a, b) => a.top - b.top);
+      let prev = -Infinity;
+      for (const c of chips) {
+        const top = Math.max(c.top, prev + CHIP_GAP);
+        prev = top;
         const chip = document.createElement("div");
         chip.style.cssText =
-          `position:absolute;top:${y + 8}px;right:1px;` +
-          `background:#ffffff;border:1px solid ${color};color:${color};` +
+          `position:absolute;top:${top}px;right:1px;` +
+          `background:#ffffff;border:1px solid ${c.color};color:${c.color};` +
           `border-radius:3px;padding:0 3px;font-size:9px;font-weight:700;` +
           `white-space:nowrap;line-height:1.5;pointer-events:none;z-index:5;`;
-        chip.textContent = text;
+        chip.textContent = c.text;
         layer.appendChild(chip);
-      };
-      renderChip(targetPrice, TARGET_COLOR, "목표");
-      renderChip(myAvgPrice, AVG_COLOR, "내평단");
-      renderChip(entryPrice, ENTRY_COLOR, "기대");
+      }
     };
     const initMarkerTimer = window.setTimeout(renderEventMarkers, 0);
 
@@ -731,7 +754,7 @@ export function CandleChartLight({
       catch { /* chart already removed */ }
       chart.remove();
     };
-  }, [prices, maPrices, investors, mode, maPeriods, showBB, targetPrice, myAvgPrice, entryPrice, dividends, splits, disclosures, tradeMarkers, burstThreshold, ticker, onReady]);
+  }, [prices, maPrices, investors, mode, maPeriods, showBB, targetPrice, myAvgPrice, entryPrice, flowLines, dividends, splits, disclosures, tradeMarkers, burstThreshold, ticker, onReady]);
 
   // 팝업 dismiss — 외부 클릭 / Esc
   useEffect(() => {
