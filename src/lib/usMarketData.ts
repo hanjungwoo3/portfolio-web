@@ -49,19 +49,21 @@ export const US_PAIRS: Pair[] = [
   { symbol: "EWY",      name: "EWY",         desc: "MSCI Korea — 외국인 투심", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "KORU",     name: "KORU(3x한국)", desc: "Direxion Daily South Korea Bull 3X — MSCI 한국 3배 레버리지(EWY×3). 한국 증시 선행·외국인 투심 증폭 게이지", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^VIX",     name: "VIX",         desc: "공포지수 — 20↑ 경계, 30↑ 공포", tier: "T0", sector: "dashboard", direction: "inverse" },
-  { symbol: "^TIPS10",  name: "미국 10Y 실질", desc: "10년 물가연동국채(TIPS) 실질금리 = FRED DFII10 — 오르면 성장주·금에 부담. CNBC", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "^TIPS10",  name: "미국 10Y 실질", desc: "2%↑ 부담, 2.5%↑ 위험 — 10년 물가연동국채(TIPS) 실질금리. 성장주·금에 부담, 급등 속도가 더 중요. CNBC", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "^MOVE",    name: "MOVE",        desc: "채권 공포지수 — 미 국채 변동성. 100↑ 경계, 120↑ 불안", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "VKOSPI",   name: "V-KOSPI",     desc: "코스피200 변동성지수 — 한국 공포지수 (20↑ 경계, 30↑ 공포). CNBC", tier: "T0", sector: "dashboard", direction: "inverse" },
   // 행 2 — 원자재 + 위험자산
-  { symbol: "GC=F",     name: "금",          desc: "Gold — 안전자산 / risk-off 지표", tier: "T0", sector: "dashboard", direction: "neutral" },
-  { symbol: "SI=F",     name: "은",          desc: "Silver — 산업금속 + 안전자산 양성격", tier: "T0", sector: "dashboard", direction: "neutral" },
+  //   색은 '한국 주가에 유리한가' 기준(사용자 결정 2026-10-08): 원자재 수입국이라 유가·가스·곡물 상승은 원가·물가 부담,
+  //   금·은 상승은 안전자산 선호 → inverse(내리면 빨강). 구리만 경기 선행이라 direct.
+  { symbol: "GC=F",     name: "금",          desc: "Gold — 안전자산 / risk-off 지표", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "SI=F",     name: "은",          desc: "Silver — 산업금속 + 안전자산 양성격", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "HG=F",     name: "구리",        desc: "Dr. Copper — 글로벌 경기 선행지표", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "CL=F",     name: "WTI 원유",    desc: "국제 유가(미국 서부텍사스산) — 정유·에너지·인플레", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "CL=F",     name: "WTI 원유",    desc: "국제 유가(미국 서부텍사스산) — 정유·에너지·인플레", tier: "T0", sector: "dashboard", direction: "inverse" },
   // 브렌트는 토스 원자재 목록에 없다(실측: GC/SI/CL/NG/HG/W 6종뿐) → 토스 코드 없이 야후로만 받는다.
   //   유럽·중동·아시아 도입 원유의 기준이라 국내 정유주는 WTI 보다 이쪽에 더 붙는다.
-  { symbol: "BZ=F",     name: "브렌트유",     desc: "국제 유가(북해) — 국내 정유·항공 원가의 기준", tier: "T0", sector: "dashboard", direction: "neutral" },
-  { symbol: "NG=F",     name: "천연가스",     desc: "헨리허브 — LNG·발전·난방·화학", tier: "T0", sector: "dashboard", direction: "neutral" },
-  { symbol: "ZW=F",     name: "밀",          desc: "시카고 소맥 선물 — 사료·식품 원가. 토스 원자재에 같이 온다", tier: "T0", sector: "dashboard", direction: "neutral" },
+  { symbol: "BZ=F",     name: "브렌트유",     desc: "국제 유가(북해) — 국내 정유·항공 원가의 기준", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "NG=F",     name: "천연가스",     desc: "헨리허브 — LNG·발전·난방·화학", tier: "T0", sector: "dashboard", direction: "inverse" },
+  { symbol: "ZW=F",     name: "밀",          desc: "시카고 소맥 선물 — 사료·식품 원가. 토스 원자재에 같이 온다", tier: "T0", sector: "dashboard", direction: "inverse" },
   // 암호화폐 — 토스가 **원화(VWAP.KRW-*)** 로 준다. 심볼은 야후식(-USD)이지만 값은 원이다.
   { symbol: "BTC-USD",  name: "비트코인",    desc: "위험자산 — 한국 IT/플랫폼 상관", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ETH-USD",  name: "이더리움",    desc: "알트 대장 — 스테이블·디파이 기반. BTC 보다 위험선호에 민감", tier: "T0", sector: "dashboard", direction: "direct" },
