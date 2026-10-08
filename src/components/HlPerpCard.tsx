@@ -51,9 +51,10 @@ export function HlPerpCard({ coin, name }: Props) {
                      className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />
         )}
         <div className="relative z-10 flex items-baseline gap-1.5">
+          {/* 무기한 선물 — 종목명은 지수 카드의 선물과 같은 주황 */}
           <a href={url} target="_blank" rel="noopener noreferrer"
              title="하이퍼리퀴드 무기한선물 (24시간)"
-             className="text-sm font-bold text-gray-900 hover:underline min-w-0 truncate">
+             className="text-sm font-bold text-amber-700 hover:underline min-w-0 truncate">
             {name}
           </a>
           <span className="ml-auto shrink-0 inline-flex items-center px-1 rounded text-[9px] font-bold leading-none
