@@ -19,6 +19,7 @@ export interface TabVisibility {
   closeBet: boolean;
   accum: boolean;
   valuation: boolean;
+  earnings: boolean;
   assetTrend: boolean;
 }
 
@@ -30,6 +31,7 @@ export const TAB_VIS_ITEMS: { key: keyof TabVisibility; label: string; sep?: boo
   { key: "stockMarket", label: "💰 증시" },
   { key: "usMarket",    label: "📈 지수" },
   { key: "sectorRank",  label: "🧩 섹터별등락" },
+  { key: "earnings",    label: "📅 실적 일정" },
   { key: "semiCheck",   label: "반도체" },          // 아이콘(Cpu)은 렌더 쪽에서 붙인다
   { key: "valuation",   label: "📊 종목찾기(섹터별)" },
   { key: "screener",    label: "🔎 종목찾기(눌림목)" },
@@ -62,6 +64,7 @@ const BASE_KEYS = {
   closeBet:   "portfolio_tab_close_bet",
   accum:      "portfolio_tab_accum",
   valuation:  "portfolio_tab_valuation",
+  earnings:   "portfolio_tab_earnings",
   assetTrend: "portfolio_tab_asset_trend",
 } as const;
 
@@ -106,6 +109,7 @@ export function getTabVisibility(): TabVisibility {
     closeBet:   read(BASE_KEYS.closeBet),
     accum:      read(BASE_KEYS.accum),
     valuation:  read(BASE_KEYS.valuation),
+    earnings:   read(BASE_KEYS.earnings),
     assetTrend: read(BASE_KEYS.assetTrend),
   };
 }
@@ -126,6 +130,7 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.closeBet   !== undefined) write(BASE_KEYS.closeBet,   patch.closeBet);
   if (patch.accum      !== undefined) write(BASE_KEYS.accum,      patch.accum);
   if (patch.valuation  !== undefined) write(BASE_KEYS.valuation,  patch.valuation);
+  if (patch.earnings   !== undefined) write(BASE_KEYS.earnings,   patch.earnings);
   if (patch.assetTrend !== undefined) write(BASE_KEYS.assetTrend, patch.assetTrend);
 }
 

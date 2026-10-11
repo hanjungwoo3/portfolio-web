@@ -345,6 +345,8 @@ export const ETF_COMPARE_TAB_KEY = "__etf-compare__";
 export const HEATMAP_TAB_KEY = "__heatmap__";
 // 성적표 — 관심종목 전체의 기업가치 지표(시총·PER·ROE 등)를 한 표로, 열별 정렬
 export const VALUATION_TAB_KEY = "__valuation__";
+// 실적 일정 — 미국·한국 주요 기업 + 내 관심종목의 실적 발표일 달력(한국 시간)
+export const EARNINGS_TAB_KEY = "__earnings__";
 export const ASSET_TREND_TAB_KEY = "__asset-trend__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
@@ -352,14 +354,14 @@ const RESERVED = new Set<string>([
   "관심ETF", MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY, SEMI_CHECK_TAB_KEY,
   SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY,
   ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
-  SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY,
+  SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY,
 ]);
 
 // 묶기 대상 시스템 탭 — 드롭다운 하나로 합침. (증시·지수는 자주 써서 별도 고정 탭)
 export const SYSTEM_TAB_KEYS = new Set<string>([
   MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
   CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
-  SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY,
+  SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY,
 ]);
 
 // 내자산 묶음 — 내주식 + 내거래를 별도 드롭다운 하나로 (지수 묶음과 동일 방식).
@@ -407,6 +409,7 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   }
   // 섹터 (KODEX ETF 기반 4기간 ranking + 토스 핫 테마). 반도체는 지수 대시보드 그룹으로 통합됨.
   if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터별등락", emoji: "🧩", count: 0 });
+  if (visibility?.earnings ?? true) tabs.push({ key: EARNINGS_TAB_KEY, label: "실적 일정", emoji: "📅", count: 0 });
   // 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
   if (showMy && uniqHeld.size > 0) {
     tabs.push({ key: MY_STOCKS_TAB_KEY, label: "내주식", emoji: "📦", count: uniqHeld.size });

@@ -11,7 +11,7 @@ import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { useIncrementalRender } from "./lib/useIncrementalRender";
-import { Tabs, buildTabs, filterByTab, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
 import { EtfRankingTab } from "./components/EtfRankingTab";
@@ -22,6 +22,7 @@ import { defaultDashboardPage, INDEX_GROUP_KEYS, indexPageOf } from "./lib/dashb
 import { EtfCompareTab } from "./components/EtfCompareTab";
 import { HeatmapTab } from "./components/HeatmapTab";
 import { ValuationTableTab } from "./components/ValuationTableTab";
+import { EarningsCalendarTab } from "./components/EarningsCalendarTab";
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
 import { SimpleViewModal } from "./components/SimpleViewModal";
 import { SectorRankingTab } from "./components/SectorRankingTab";
@@ -960,6 +961,8 @@ function Dashboard() {
           <AssetTrendTab trades={allTrades} holdings={holdings} />
         ) : activeTab === VALUATION_TAB_KEY ? (
           <ValuationTableTab items={consensusItems} onOpenValuation={(code, n) => { setValuationName(n ?? null); setValuationTicker(code); }} />
+        ) : activeTab === EARNINGS_TAB_KEY ? (
+          <EarningsCalendarTab items={consensusItems} onOpenValuation={(code, n) => { setValuationName(n ?? null); setValuationTicker(code); }} />
         ) : visible.length === 0 ? (
           holdings.length === 0 ? (
             <div className="text-center py-16 text-gray-500">

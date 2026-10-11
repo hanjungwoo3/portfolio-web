@@ -28,6 +28,7 @@ import { useExtensionProxyReady, compareVersion } from "../lib/extensionProxy";
 import { isNativeApp } from "../lib/nativeProxy";
 import { getInstalledAppVersion, fetchLatestRelease, openApkDownload, APK_DOWNLOAD_URL, RELEASE_PAGE, type LatestRelease } from "../lib/appRelease";
 import { ValuationTableTab } from "./ValuationTableTab";
+import { EarningsCalendarTab } from "./EarningsCalendarTab";
 import { normalizeAccount } from "../lib/account";
 import { attachTodayBuys, lastTradeOf } from "../lib/tradeCalc";
 import type { MarketIndexKey } from "../lib/api";
@@ -71,7 +72,7 @@ import { TotalRow } from "./TotalRow";
 import { SemiCheckTab } from "./SemiCheckTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { filterByTab, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
+import { filterByTab, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, EARNINGS_TAB_KEY as EARNINGS_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
 import { EtfReverseTab } from "./EtfReverseTab";
 import { EtfRankingTab } from "./EtfRankingTab";
 import { ScreenerTab } from "./ScreenerTab";
@@ -133,7 +134,7 @@ const ASSET_TREND_KEY = "__asset-trend__";  // 자산추이 — 일별 총자산
 //   새 시스템 탭은 여기에만 넣으면 된다. (탭 자체를 만드는 곳 — groupTabs 의 push — 은 별도)
 const SYS_DROPDOWN_KEYS = new Set<string>([    // '투자도구' 드롭다운에 묶이는 탭
   SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY,
-  HEATMAP_KEY, SCREENER_KEY, CLOSE_BET_KEY, ACCUM_KEY, VALUATION_KEY,
+  HEATMAP_KEY, SCREENER_KEY, CLOSE_BET_KEY, ACCUM_KEY, VALUATION_KEY, EARNINGS_KEY,
 ]);
 const MY_GROUP_KEYS_M = new Set<string>([MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY]);   // '내자산' 드롭다운
 // '지수' 드롭다운 — 주간(옛 지수 키 KR_KEY 를 그대로 써서 저장된 마지막 탭이 이어진다)·야간·반도체
@@ -412,6 +413,9 @@ export function MobileSimpleView() {
     }
     if (vis.sectorRank) {
       tabs.push({ key: SECTOR_KEY, label: "🧩섹터별등락", count: 0 });
+    }
+    if (vis.earnings) {   // 실적 일정 — PC buildTabs 와 같은 자리(섹터별등락 뒤)
+      tabs.push({ key: EARNINGS_KEY, label: "📅실적 일정", count: 0 });
     }
     // 합산 그룹 — 보유 수량 있는 unique ticker 수
     const uniqHeld = new Set<string>();
@@ -1733,6 +1737,11 @@ export function MobileSimpleView() {
         if (activeTab === VALUATION_KEY) {
           return <div className="px-1 py-2 pb-32">
             <ValuationTableTab items={consensusItems} onOpenValuation={(code, n) => { setValuationName(n ?? null); setValuationTicker(code); }} />
+          </div>;
+        }
+        if (activeTab === EARNINGS_KEY) {
+          return <div className="px-1 py-2 pb-32">
+            <EarningsCalendarTab items={consensusItems} onOpenValuation={(code, n) => { setValuationName(n ?? null); setValuationTicker(code); }} />
           </div>;
         }
         // 지수 — PC(UsMarketTab)와 동일한 공용 그룹 정의를 그룹 헤더 + 2열 카드로 렌더 (단일 통합 뷰)

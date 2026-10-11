@@ -237,6 +237,13 @@ function fmtCell(v: number | null, col: Col): string {
   }
   if (col.key === "burst_days" && v === 0) return "—";   // 0일은 '없음'으로 읽히게
   if (col.flow) return fmtShares(v);
+  // 억원 단위가 1조를 넘으면 '17조 154억' — 여섯 자리 숫자는 한눈에 안 읽힌다(사용자 요청 2026-10-11)
+  if (col.unit?.includes("억") && Math.abs(v) >= 10_000) {
+    const sign = v < 0 ? "-" : "";
+    const a = Math.round(Math.abs(v));
+    const jo = Math.floor(a / 10_000), eok = a % 10_000;
+    return `${sign}${jo.toLocaleString("ko-KR")}조${eok ? ` ${eok.toLocaleString("ko-KR")}억` : ""}`;
+  }
   if (col.pct) return `${v > 0 ? "+" : ""}${v.toFixed(col.digits ?? 1)}`;
   if (col.digits) return v.toLocaleString("ko-KR", { minimumFractionDigits: col.digits, maximumFractionDigits: col.digits });
   return Math.round(v).toLocaleString("ko-KR");
