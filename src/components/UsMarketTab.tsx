@@ -417,8 +417,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               const regSign = regPct == null ? "text-gray-700"
                 : (isInverse ? regPct < 0 : regPct > 0) ? "text-rose-600"
                 : (isInverse ? regPct > 0 : regPct < 0) ? "text-blue-600" : "text-gray-700";
-              // 종목명 = 정규장 등락 색(사용자 결정 2026-10-09) — 애프터·프리장에 큰 숫자가 반대로 가도 정규장 방향이 이름에 남는다. 선물은 주황 그대로.
-              const nameColor = isFuture ? "text-amber-700" : regPct == null ? "text-gray-900" : regSign;
+              // 종목명 색 — 정규장 마감 책갈피가 떠 있을 때(큰 숫자 = 애프터·프리장)만 정규장 등락 색(2026-10-09).
+              //   그 밖엔 큰 숫자와 같은 색 — 한국 NXT 프리마켓(08~08:50)엔 책갈피 없이 '지난 정규장' 색이 이름에 남아
+              //   엘앤에프(이름 파랑·+2.15%)처럼 서로 엇갈렸다(2026-10-12). 선물은 주황 그대로.
+              const nameColor = isFuture ? "text-amber-700" : showCloseTag && regPct != null ? regSign : sign;
               // 마감 책갈피는 노란 배경 + 흐림 제외 → dim 은 콘텐츠 자식에만 적용
               const dimCls = dimNow ? "opacity-60" : "";
               return (
