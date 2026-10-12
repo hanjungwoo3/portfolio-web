@@ -1,4 +1,4 @@
-// 심플 보기 팝업 — 현재 탭 종목들을 "현재가 박스"(목/고/현재가/저)만 컴팩트 그리드로.
+// 히트맵 팝업(옛 심플 보기) — 현재 탭 종목을 히트맵(기본) 또는 "현재가 박스"(목/고/현재가/저) 카드 그리드로.
 // 카드 본체는 SimplePriceCard 가 그린다 — 섹터(업종·테마) 팝업과 같은 컴포넌트다.
 // 두 곳이 각자 그리면 같은 숫자가 다르게 보이기 시작한다.
 import type { Stock, Price } from "../types";
@@ -6,6 +6,14 @@ import { SimplePriceCard } from "./SimplePriceCard";
 import { marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, isKrHoldingClosed, tradeSecOf, isEtfOrEtnByName } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEscClose } from "../lib/useEscClose";
+import { useState } from "react";
+import { HoldingsHeatmap } from "./HoldingsHeatmap";
+import { HEAT_SIZE_OPTS, HEAT_COLOR_OPTS, HEAT_GROUP_OPTS, type HeatSizeBy, type HeatColorBy, type HeatGroupBy } from "../lib/holdingsHeat";
+
+// 보기 전환(카드 | 히트맵)·히트맵 크기 기준 — 마지막 선택을 기억한다(2026-10-13)
+const SIZE_KEY = "simple_heat_size", COLOR_KEY = "simple_heat_color", GROUP_KEY = "simple_heat_group";
+const load = <T extends string>(k: string, ok: readonly T[], d: T): T => { try { const v = localStorage.getItem(k) as T; return ok.includes(v) ? v : d; } catch { return d; } };
+const save = (k: string, v: string) => { try { localStorage.setItem(k, v); } catch { /* 이번 세션만 */ } };
 
 // 흐림 판정에 필요한 최소 형태만 — StockCard·MobileStockCard 가 각자 KrRegInfo 를
 //   로컬 선언해 둬서 가져올 곳이 없다. 여기서도 쓰는 필드만 구조적으로 받는다.
@@ -28,7 +36,13 @@ export function SimpleViewModal({
   isOpen, onClose, title, stocks, priceMap, chartMap, targetMap, onOpenValuation, krRegMap,
 }: Props) {
   useEscClose(isOpen, onClose);
+  // 열 때는 늘 히트맵부터(사용자 결정 2026-10-13) — 카드는 전환 버튼으로. 그래서 보기는 기억하지 않는다.
+  const [view, setView] = useState<"card" | "heat">("heat");
+  const [sizeBy, setSizeBy] = useState<HeatSizeBy>(() => load(SIZE_KEY, HEAT_SIZE_OPTS.map(o => o.key), "value"));
+  const [colorBy, setColorBy] = useState<HeatColorBy>(() => load(COLOR_KEY, HEAT_COLOR_OPTS.map(o => o.key), "d1"));
+  const [groupBy, setGroupBy] = useState<HeatGroupBy>(() => load(GROUP_KEY, HEAT_GROUP_OPTS.map(o => o.key), "none"));
   if (!isOpen) return null;
+  const seg = (on: boolean) => `px-2 py-0.5 ${on ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`;
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 sm:p-4"
@@ -36,12 +50,39 @@ export function SimpleViewModal({
       <div className="bg-white shadow-xl w-full max-w-5xl rounded-t-xl sm:rounded-lg
                       max-h-[92vh] flex flex-col overflow-hidden">
         <header className="px-5 py-3 border-b bg-gray-50 flex items-center shrink-0">
-          <h2 className="text-lg font-bold">💠 심플 보기{title ? ` (${title})` : ""}</h2>
+          <h2 className="text-lg font-bold">🗺️ 히트맵{title ? ` (${title})` : ""}</h2>
           <span className="ml-3 text-xs text-gray-500">{stocks.length}종목</span>
+          <span className="ml-3 inline-flex rounded border border-gray-300 overflow-hidden text-[12px] font-bold">
+            <button onClick={() => setView("heat")} className={seg(view === "heat")}>히트맵</button>
+            <button onClick={() => setView("card")} className={seg(view === "card")}>카드</button>
+          </span>
+          {view === "heat" && (
+            <span className="ml-3 inline-flex items-center gap-1.5 text-[12px] text-gray-600">
+              크기
+              <select value={sizeBy} onChange={e => { const v = e.target.value as HeatSizeBy; setSizeBy(v); save(SIZE_KEY, v); }}
+                      className="border border-gray-300 rounded px-1 py-0.5 bg-white">
+                {HEAT_SIZE_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+              색
+              <select value={colorBy} onChange={e => { const v = e.target.value as HeatColorBy; setColorBy(v); save(COLOR_KEY, v); }}
+                      className="border border-gray-300 rounded px-1 py-0.5 bg-white">
+                {HEAT_COLOR_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+              그룹
+              <select value={groupBy} onChange={e => { const v = e.target.value as HeatGroupBy; setGroupBy(v); save(GROUP_KEY, v); }}
+                      className="border border-gray-300 rounded px-1 py-0.5 bg-white">
+                {HEAT_GROUP_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
+              </select>
+            </span>
+          )}
           <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
 
         <div className="px-3 py-3 overflow-y-auto">
+          {view === "heat" ? (
+            <HoldingsHeatmap stocks={stocks} priceMap={priceMap} sizeBy={sizeBy} colorBy={colorBy} groupBy={groupBy}
+                             onOpen={onOpenValuation ? (t => { if (/^[\dA-Za-z]{6}$/.test(t)) onOpenValuation(t); }) : undefined} />
+          ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-2 gap-y-3.5 items-stretch">
             {stocks.map(stock => {
               const p = priceMap.get(stock.ticker);
@@ -76,6 +117,7 @@ export function SimpleViewModal({
               );
             })}
           </div>
+          )}
         </div>
       </div>
     </div>

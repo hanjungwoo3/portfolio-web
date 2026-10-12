@@ -1017,7 +1017,7 @@ function Dashboard() {
           )
         ) : (
           <>
-            {/* 정렬 옵션 + 심플 보기 + 추가지표 일괄 토글 — sticky. 탭 바 바로 아래에 고정
+            {/* 정렬 옵션 + 히트맵(옛 심플 보기) + 추가지표 일괄 토글 — sticky. 탭 바 바로 아래에 고정
                 (탭이 여러 줄로 wrap 되므로 top 을 헤더+탭 높이로 동적 계산) */}
             <div style={{ top: (headerCollapsed ? 0 : headerH) + tabsH }}
                  className="sticky z-30 bg-white/95 backdrop-blur
@@ -1030,10 +1030,10 @@ function Dashboard() {
                              className="mr-auto" />
               ) : <div className="mr-auto" />}
               <button onClick={() => setSimpleOpen(true)}
-                      title="심플 보기 — 현재가만 한눈에 (팝업)"
+                      title="히트맵 — 이 그룹 종목을 크기·색으로 한눈에(팝업, 카드 보기로 전환 가능)"
                       className="px-2.5 py-1 rounded text-xs font-bold border transition
                                  bg-white text-gray-600 border-gray-300 hover:bg-gray-50">
-                💠 심플 보기
+                🗺️ 히트맵
               </button>
               <button onClick={async () => {
                         const codes = krxTickers.join(", ");

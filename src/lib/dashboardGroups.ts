@@ -273,10 +273,11 @@ function sectionMap(): Record<string, DashboardSection> {
       id: "ustech", short: "빅테크·미래", label: "🤖 빅테크·미래기술",
       sortable: true,
       lead: 1, extras: [],
-      rowLabels: ["빅테크", "로봇", "우주", "양자", "레버리지"],
+      rowLabels: ["빅테크", "로봇", "2차전지", "우주", "양자", "레버리지"],
       rows: [
         ["381170.KS", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NFLX"],
         ["0038A0.KS", "ISRG", "TER", "SYM"],   // 테슬라는 바로 위 빅테크 줄에 — 한 묶음 안 같은 카드 두 번 금지
+        ["394670.KS", "LIT", "ALB", "SQM", "QS", "FLNC", "EOSE"],   // 리튬·전고체·ESS — 테슬라는 위 빅테크 줄에(2026-10-12)
         ["0183J0.KS", "RKLB", "ASTS", "LUNR", "SPCX"],
         ["0023A0.KS", "IONQ", "RGTI", "QBTS"],
         ["418660.KS", "TQQQ", "SOXL"],   // 나스닥·반도체 3배 — 서학개미 심리(옛 '미국 대표 ETF')
