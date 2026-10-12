@@ -421,7 +421,9 @@ export const US_PAIRS: Pair[] = [
   { symbol: "476260.KS", name: "HANARO 반도체핵심공정주도주", desc: "반도체 핵심공정 주도주 ETF — 소부장 대표", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "455850.KS", name: "SOL AI반도체소부장",     desc: "AI반도체 소재·부품·장비 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "471990.KS", name: "KODEX AI반도체핵심장비",  desc: "AI반도체 핵심장비 ETF — 전공정 장비주", tier: "T0", sector: "dashboard", direction: "direct" },
-  // ── 지수(미국순환) 페이지 — 국내 상장 미국 ETF(왼쪽) ➜ 미국 개별 종목(오른쪽) (2026-10-12)
+  // ── 지수(미국) 페이지(옛 미국순환) — 국내 상장 미국 ETF(왼쪽) ➜ 미국 개별 종목(오른쪽) (2026-10-12)
+  { symbol: "418660.KS", name: "TIGER 미국나스닥100레버리지(합성)", desc: "나스닥100 2배 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "476760.KS", name: "ACE 미국30년국채액티브", desc: "미국 장기국채(환노출) — 국내 상장, TLT 와 같은 방향", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "0142D0.KS", name: "TIGER 미국AI데이터센터TOP4Plus", desc: "미국 AI 데이터센터 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "442320.KS", name: "RISE 글로벌원자력", desc: "원전·우라늄 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "481180.KS", name: "SOL 미국AI소프트웨어", desc: "미국 AI 소프트웨어 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },

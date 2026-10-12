@@ -5,7 +5,6 @@ import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
 import { useChartRange, pickCardChart } from "../lib/chartRange";
-import { AiCampCard } from "./AiCampCard";
 import { ChartRangeToggle } from "./ChartRangeToggle";
 import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
@@ -260,9 +259,6 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             {section.render === "etfTop" && (
                   <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
                 )}
-                {section.render === "aiCamp" && (
-                  <AiCampCard cards={false} onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
-                )}
                 {section.note && <div className="text-[11px] text-gray-500 leading-snug">{section.note}</div>}
                 {section.id === "krfx" && <RealRateNote usMap={usMap} />}
                 {section.render === "rotation" && (
@@ -270,7 +266,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             )}
                 {section.render === "sectorFlow" && (
               <TicsSectorBoard onOpenValuation={onOpenValuation}
-                                krClosed={page === "night"} />
+                                krClosed={page === "night" || page === "rot"} />
             )}
             {(arr => !section.pairRows ? arr : (
               // 짝 줄 — 상자 둘을 좌우로 **붙여서**. 상자 폭은 카드 수에 비례(flex-grow), 남는 자리는 오른쪽 빈칸(한 줄 8장 기준)

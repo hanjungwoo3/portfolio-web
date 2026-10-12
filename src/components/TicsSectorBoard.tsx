@@ -158,7 +158,7 @@ function Panel({ nation, items, selected, onPick, onOpen, bothOnly, common, expa
 
 export function TicsSectorBoard({ onOpenValuation, krClosed = false }: {
   onOpenValuation?: (ticker: string, name: string) => void;
-  /** true 면 🇺🇸 미국을 왼쪽에 — 호출하는 쪽이 **페이지**로 정한다(지수(야간)=미국 왼쪽, 주간=한국 왼쪽).
+  /** true 면 🇺🇸 미국을 왼쪽에 — 호출하는 쪽이 **페이지**로 정한다(지수(순환매)=미국 왼쪽: 간밤 미국 → 오늘 한국 순서. 2026-10-12).
    *  시계로 바꾸면 같은 페이지인데 시간 따라 좌우가 뒤집혀 헷갈린다. */
   krClosed?: boolean;
 }) {

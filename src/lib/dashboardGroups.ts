@@ -36,7 +36,7 @@ export interface DashboardSection {
   note?: string;
   // 카드 대신 다른 블록으로 그리는 섹션. "sectorFlow" 면 ETF 랭킹의 '섹터별 흐름' 을 넣는다.
   //   랭킹 스냅샷이 없으면(캐시 없음·조회 실패) rows 의 고정 카드로 폴백한다.
-  render?: "sectorFlow" | "etfTop" | "rotation" | "aiCamp";
+  render?: "sectorFlow" | "etfTop" | "rotation";
   // 카드 오른쪽 아래 책갈피 — "이 종목이 이 그룹에서 무슨 역할인지". 심볼 → 짧은 라벨.
   //   **그룹별**로 둔다: 마이크론은 반도체 그룹에선 태그가 없고 AI 단계 줄에서만 '반도체' 다.
   tags?: Record<string, string>;
@@ -143,14 +143,7 @@ function sectionMap(): Record<string, DashboardSection> {
       rows: [["NQ=F", "ES=F", "SOX=F", "SKHY-PERP", "SMSN-PERP", "KORU", "^KS200N", "^KQ150N"]],
     },
     {
-      // AI 하드웨어 vs 소프트웨어 — 미국 AI 섹터 순환은 두 진영 사이(국내 상장 미국 ETF 15개월 실측, lib/aiCamp).
-      id: "aicamp", short: "AI 순환",
-      render: "aiCamp",
-      label: "🔀 (미국) AI 하드웨어 vs 소프트웨어",
-      rows: [],
-    },
-    {
-      // ETF 등락 TOP10(상승·하락) — 한국 시장 바로 아래. 레버리지·선물을 빼야 '오늘 실제로 오른 곳' 이 보인다.
+      // ETF 등락 TOP10(상승·하락) — 지수(순환매) 탭, AI 순환매 바로 아래(오늘 실제로 돈이 간 테마). 레버리지·선물을 빼야 '오늘 실제로 오른 곳' 이 보인다.
       //   폴백 카드가 없어 rows 는 비어 있다(블록 자체가 그린다).
       id: "etftop", short: "ETF TOP",
       render: "etfTop",
@@ -248,7 +241,8 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     // ── 지수(미국순환) — 주간 섹터 대장주와 같은 모양: 왼쪽 국내 상장 미국 ETF ➜ 오른쪽 미국 개별 종목.
-    //   AI 하드웨어·소프트웨어 두 진영 구분은 15개월 실측(lib/aiCamp). 방어·경기는 AI 와 상관이 거의 없다
+    //   AI 하드웨어·소프트웨어 두 진영 구분은 15개월 실측(국내 상장 미국 ETF 13종, 2025-07~2026-10): 진영 안 일별 상관
+//   0.6~0.8, 진영 사이 0.1~0.3, 하드웨어가 크게 빠진 달(26.3·26.7월)에 소프트웨어가 1등. 방어·경기는 AI 와 상관이 거의 없다
     //   (필수소비재 XLP 와 AI 양쪽 일별 상관 −0.09/−0.04, 2년 실측) — 다른 축으로 따로 본다. (사용자 요청 2026-10-12)
     {
       id: "usaihw", short: "AI 하드웨어", label: "🔧 AI 하드웨어·인프라",
@@ -256,11 +250,11 @@ function sectionMap(): Record<string, DashboardSection> {
       lead: 1, extras: [],
       rowLabels: ["반도체", "HBM메모리", "AI전력", "광통신", "데이터센터", "원자력"],
       rows: [
-        ["381180.KS", "NVDA", "AVGO", "TSM", "AMD", "ASML", "LRCX", "AMAT"],
+        ["381180.KS", "NVDA", "AVGO", "TSM", "AMD", "ASML", "LRCX", "SOXX"],   // SOXX = 옛 '미국 대표 ETF'. 어플라이드는 순환매 전공정 줄에
         ["442580.KS", "MU", "SNDK", "SKHY", "WDC"],
         ["487230.KS", "GEV", "VRT", "ETN", "PWR", "CEG"],
         ["0173Y0.KS", "LITE", "COHR", "CIEN", "ANET", "CRDO"],
-        ["0142D0.KS", "EQIX", "DLR", "CRWV"],
+        ["0142D0.KS", "EQIX", "DLR", "CRWV", "NBIS", "DELL"],   // 네비우스·델 = 옛 '미국 빅테크'(AI 클라우드·기기)
         ["442320.KS", "CCJ", "OKLO", "SMR", "BWXT"],
       ],
     },
@@ -270,7 +264,7 @@ function sectionMap(): Record<string, DashboardSection> {
       lead: 1, extras: [],
       rowLabels: ["AI소프트웨어", "사이버보안", "클라우드"],
       rows: [
-        ["481180.KS", "PLTR", "MSFT", "ORCL", "NOW", "CRM"],
+        ["481180.KS", "PLTR", "ORCL", "NOW", "CRM"],   // MS 는 아래 빅테크 줄에 — 같은 탭 두 번 금지(2026-10-12 점검)
         ["418670.KS", "CRWD", "PANW", "ZS", "FTNT", "NET"],
         ["371450.KS", "SNOW", "DDOG", "MDB", "SHOP"],
       ],
@@ -279,21 +273,23 @@ function sectionMap(): Record<string, DashboardSection> {
       id: "ustech", short: "빅테크·미래", label: "🤖 빅테크·미래기술",
       sortable: true,
       lead: 1, extras: [],
-      rowLabels: ["빅테크", "로봇", "우주", "양자"],
+      rowLabels: ["빅테크", "로봇", "우주", "양자", "레버리지"],
       rows: [
-        ["381170.KS", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA"],
+        ["381170.KS", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NFLX"],
         ["0038A0.KS", "ISRG", "TER", "SYM"],   // 테슬라는 바로 위 빅테크 줄에 — 한 묶음 안 같은 카드 두 번 금지
-        ["0183J0.KS", "RKLB", "ASTS", "LUNR"],
+        ["0183J0.KS", "RKLB", "ASTS", "LUNR", "SPCX"],
         ["0023A0.KS", "IONQ", "RGTI", "QBTS"],
+        ["418660.KS", "TQQQ", "SOXL"],   // 나스닥·반도체 3배 — 서학개미 심리(옛 '미국 대표 ETF')
       ],
     },
     {
       id: "usdef", short: "방어·경기", label: "🛡️ 방어·경기",
       sortable: true,
       lead: 1, extras: [],
-      rowLabels: ["배당·방어", "헬스케어", "금융", "에너지", "방산"],
+      rowLabels: ["배당·방어", "채권", "헬스케어", "금융", "에너지", "방산"],
       rows: [
-        ["458730.KS", "KO", "PEP", "PG", "VZ"],
+        ["458730.KS", "KO", "PEP", "PG", "VZ", "SCHD", "JEPQ"],
+        ["476760.KS", "TLT"],   // 미국 장기국채 — 환노출(원화) ETF 라 TLT 와 같은 방향(옛 '미국 대표 ETF')
         ["453640.KS", "LLY", "UNH", "JNJ", "ABBV"],
         ["453650.KS", "JPM", "BAC", "GS", "V"],
         ["474800.KS", "XOM", "CVX", "COP"],
@@ -334,6 +330,7 @@ function sectionMap(): Record<string, DashboardSection> {
       //   한국 다음 날 상관 0.06~0.11 로 최하위. 대신 MPS(AI 서버 전원, 0.22~0.23). 앰코(0.25)는 순환매 후공정 대장주로.
       boxLines: [4],
       //   순서 [지수 | 설계 | 파운드리 | AI 칩 3] — 3장짜리를 끝에 둬 모바일 빈칸이 마지막 한 칸뿐(1장 줄 둘은 한 줄에).
+      //   지수(순환매) 탭으로 옮겨 'AI 하드웨어 → 반도체' 줄(지수(미국))과 다른 탭이라 겹치지 않는다(2026-10-12).
       rowLabels: ["지수", "설계", "파운드리", "AI 칩"],
       rows: [
         ["^SOX", "SOX=F"],                                // 필라델피아 반도체 지수 · 선물
@@ -460,50 +457,16 @@ function sectionMap(): Record<string, DashboardSection> {
       wide: true,
       rows: [["GC=F", "SI=F", "HG=F", "ZW=F", "CL=F", "BZ=F", "NG=F"]],
     },
-    {
-      id: "bigtech", short: "빅테크",
-      label: "🍎 미국 빅테크",
-      // 업종별 상자 — 첫 줄 [플랫폼 4 | AI 칩 2 | AI 클라우드 2], 둘째 줄 [클라우드·SW 4 | 머스크 2 | 기기 2] — 줄마다 8장.
-      //   4장 상자를 왼쪽에 — 줄마다 같은 자리(4·2·2)라 상자 시작선이 위아래로 다 맞는다.
-      //   엔비디아·브로드컴은 반도체 탭에도 있지만 야간 페이지엔 반도체 그룹이 없어 여기도 둔다.
-      pairRows: true,
-      boxLines: [3, 3],
-      rowLabels: ["플랫폼", "AI 칩", "AI 클라우드", "클라우드·SW", "머스크", "기기"],
-      rows: [
-        ["GOOGL", "META", "AMZN", "NFLX"],   // 검색·광고·커머스·콘텐츠 — 구글·메타·아마존·넷플릭스
-        ["NVDA", "AVGO"],                    // AI 칩 — 엔비디아·브로드컴
-        ["CRWV", "NBIS"],                    // AI 클라우드(GPU 임대 '네오클라우드') — 코어위브·네비우스. 한국 연동은 약하다(0.2 안팎) — 미국 AI 투자 흐름용
-        ["MSFT", "ORCL", "PLTR", "CRM"],     // 클라우드·기업용 AI 소프트웨어 — MS·오라클·팔란티어·세일즈포스
-        ["TSLA", "SPCX"],                    // 머스크 — 테슬라·스페이스X
-        ["AAPL", "DELL"],                    // 기기 — 애플 · 델(AI 서버·PC)
-      ],
-    },
-    {
-      id: "usetf", short: "ETF",
-      label: "📦 미국 대표 ETF",
-      // 지수 추종(SPY·QQQ·DIA·VTI·IWM)은 뺐다 — 바로 위 '미국 지수' 와 상관 0.99~1.00 으로 같은 카드였다.
-      //   대신 화면에 없던 정보: 채권(금리·안전자산) · 반도체 · 개인 레버리지 심리 · 배당.
-      //   SCHD 는 국내 '미국배당다우존스' ETF 들의 원본 지수라 같이 봐야 비교가 된다(ETF미국 탭).
-      pairRows: true,
-      boxesPerLine: 4,
-      rowLabels: ["채권", "반도체", "레버리지", "배당"],
-      rows: [
-        ["TLT"],                             // 미국 장기국채 20년+ — 금리 하락·안전자산 수요
-        ["SOXX"],                            // 미국 반도체 ETF — 야간 페이지에서 반도체 전체를 한 장으로
-        ["TQQQ", "SOXL"],                    // 나스닥·반도체 3배 — 서학개미가 가장 많이 사는 ETF(개인 심리)
-        ["SCHD", "JEPQ"],                    // 배당 — 배당성장(SCHD) · 나스닥 커버드콜(JEPQ)
-      ],
-    },
   ];
   return Object.fromEntries(sections.map(s => [s.id, s]));
 }
 
-export type DashboardPage = "day" | "night" | "us";
+export type DashboardPage = "day" | "night" | "rot";
 // 지수 탭 셋 — 메뉴의 '📈 지수' 드롭다운에 들어간다. PC·모바일이 이 라벨 한 벌을 쓴다.
 export const DASHBOARD_PAGES: { key: DashboardPage; emoji: string; tab: string; hint: string }[] = [
-  { key: "day",   emoji: "🌞", tab: "지수(주간)",   hint: "한국장 · 섹터 대장주 + 미국 야간선물" },
-  { key: "night", emoji: "🌙", tab: "지수(야간)",   hint: "미국장 · 반도체 · 순환매 + 한국 야간선물·24h" },
-  { key: "us",    emoji: "🇺🇸", tab: "지수(미국순환)", hint: "국내 상장 미국 ETF ➜ 미국 종목 — AI 하드웨어·소프트웨어·빅테크·방어" },
+  { key: "day",   emoji: "🇰🇷", tab: "지수(한국/주간)", hint: "한국장 · 섹터 대장주 + 미국 지수선물" },
+  { key: "night", emoji: "🇺🇸", tab: "지수(미국/야간)", hint: "미국장 · AI 하드/소프트 · 빅테크·방어 + 한국 야간선물" },
+  { key: "rot",   emoji: "🔄", tab: "지수(순환매)", hint: "간밤 미국 ➜ 오늘 한국 — 반도체 지수·일본 반도체·AI 순환매(반도체·전력·원자력·2차전지·방산·로봇)" },
 ];
 
 // 페이지별 구성 — **그 시간에 필요한 걸 다**. 중복 허용(한 페이지만 봐도 되게).
@@ -513,13 +476,18 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 주간 시장 → 공통 세트 → 섹터 ETF ➜ 대장주(모든 섹터) → ETF TOP → 한·미 섹터.
   //   옛 '지수(대장주)' 페이지를 여기로 합쳤다(2026-10-08).
   //   반도체·2차전지·전력도 넣는다(야간의 반도체 묶음과 겹쳐도 — 섹터 전체를 한 페이지에서 보게, 2026-10-06).
-  day:   ["kr", "krfx", "dayfut", "spot", "ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "etftop", "sector"],
+  day:   ["kr", "krfx", "dayfut", "spot", "ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont"],
   // 미국 지수 → 공통 세트 → 반도체(반도체·일본·순환매) → 빅테크·ETF → 한·미 섹터.
   //   옛 '지수(반도체)' 페이지를 여기로 합쳤다 — 반도체는 빅테크 위(사용자 결정 2026-10-07).
-  night: ["macro", "krfx", "krnight", "spot", "semi", "jpsemi", "rotflow", "bigtech", "usetf", "sector"],
-  // 미국순환 — 맨 위 AI 하드 vs 소프트 판정(요약) → 진영별 ETF ➜ 종목 줄 → 빅테크·미래 → 방어·경기 → 환율(원화 ETF 라 환율이 섞인다).
-  //   AI 하드 vs 소프트 블록은 주간에서 옮겨 왔다(2026-10-12).
-  us:    ["aicamp", "usaihw", "usaisw", "ustech", "usdef", "krfx"],
+  night: ["macro", "krfx", "krnight", "spot", "usaihw", "usaisw", "ustech", "usdef"],
+  // 순환매 — 반도체·일본 반도체·AI 순환매를 지수(미국)에서 떼어 냈다(미국 페이지가 13블록으로 길었다, 사용자 결정 2026-10-12).
+  //   'AI 순환매' 는 반도체만이 아니라 전력·원자력·2차전지·방산·로봇 줄도 있어 이름을 '순환매' 로 했다.
+  //   ETF 등락 TOP10 은 한국 탭에서 옮겨 와 AI 순환매 바로 아래에 — 위 = 간밤 미국으로 본 예상, 아래 = 오늘 실제로 돈이 간 테마(2026-10-12).
+  //   한·미 섹터도 한국·미국 탭에서 옮겨 와 ETF TOP 아래에 — 둘 다 '어느 분야로 돈이 가나'(2026-10-12).
+  //   환율·금리·투심과 선물은 뺐다 — 한국·미국 탭 위쪽에 있다(사용자 결정 2026-10-12).
+  rot:   ["semi", "jpsemi", "rotflow", "etftop", "sector"],
+  // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
+  //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)
   // AI 단계별 미국 대장주(aiflow)는 뺐다 — 바로 아래 순환매 블록 줄마다 첫 카드가 같은 대장주다.
   // 소부장(semieq)은 뺐다 — 순환매 블록이 전공정·소재·부품·후공정 줄로 같은 미국 장비주를 한국 종목과 이어 보여준다.
@@ -546,12 +514,12 @@ function isKrNightNow(): boolean {
   return hm >= 18 * 60 || hm < 9 * 60;
 }
 
-// PC 지수 탭 키 — Tabs.tsx 의 US_MARKET_TAB_KEY · INDEX_NIGHT_TAB_KEY · INDEX_US_TAB_KEY 와 **같은 문자열**.
+// PC 지수 탭 키 — Tabs.tsx 의 US_MARKET_TAB_KEY · INDEX_NIGHT_TAB_KEY · INDEX_ROT_TAB_KEY 와 **같은 문자열**.
 //   (lib 이 컴포넌트를 import 하지 않게 문자열로 둔다 — 어긋나지 않게 테스트가 대조한다)
-//   폐지된 탭(반도체 → 야간, 대장주 → 주간)은 합쳐진 페이지로 보낸다.
-export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-us__"]);
+//   폐지된 탭(미국순환 → 미국, 반도체 → 순환매, 대장주 → 한국)은 합쳐진 페이지로 보낸다.
+export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-rot__"]);
 export function indexPageOf(key: string): DashboardPage {
-  return key === "__idx-night__" || key === "__idx-semi__" ? "night" : key === "__idx-us__" ? "us" : "day";
+  return key === "__idx-night__" || key === "__idx-us__" ? "night" : key === "__idx-rot__" || key === "__idx-semi__" ? "rot" : "day";
 }
 
 // 처음 열 때 페이지 — 시간으로. 한국 07~18시는 주간, 그 외는 야간.

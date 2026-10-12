@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { buildDashboardPage, defaultDashboardPage, sortedRows, PAGE_IDS, DASHBOARD_PAGES, INDEX_GROUP_KEYS, indexPageOf, type DashboardPage } from "../dashboardGroups";
-import { US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY } from "../../components/Tabs";
+import { US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY } from "../../components/Tabs";
 import { US_PAIRS } from "../usMarketData";
 import { STAGES } from "../rotation";
 
 // 지수 탭 — 나라가 아니라 **지금 움직이는 시장** 으로 나눈 세 페이지.
 //   ⚠️ 기대값을 코드에 맞춰 베끼지 말 것. 각 테스트 이름의 **의도**가 먼저다.
-const PAGES: DashboardPage[] = ["day", "night", "us"];
+const PAGES: DashboardPage[] = ["day", "night", "rot"];
 const ids = (p: DashboardPage) => buildDashboardPage(p).map(s => s.id);
 
 describe("지수 탭 페이지 구성", () => {
@@ -53,8 +53,8 @@ describe("지수 탭 페이지 구성", () => {
     expect(n).not.toContain("etftop");   // 한국 ETF 랭킹은 밤엔 멈춰 있다
   });
 
-  it("24시간 움직이는 그룹(현물·섹터·환율금리)은 주간·야간 둘 다에 있다 (한쪽에만 두면 반대 시간에 못 본다)", () => {
-    for (const g of ["spot", "sector", "krfx"]) {
+  it("24시간 움직이는 그룹(현물·환율금리)은 한국·미국 둘 다에 있다 (한쪽에만 두면 반대 시간에 못 본다)", () => {
+    for (const g of ["spot", "krfx"]) {   // 한·미 섹터는 순환매 탭으로 옮겼다(2026-10-12)
       expect(ids("day")).toContain(g);
       expect(ids("night")).toContain(g);
     }
@@ -65,12 +65,12 @@ describe("지수 탭 페이지 구성", () => {
     expect(ids("night").slice(0, 4)).toEqual(["macro", "krfx", "krnight", "spot"]);
   });
 
-  it("야간 = 옛 반도체 페이지를 합쳤다 — 공통 세트 아래, 빅테크 위에 반도체 · 일본 반도체 · 순환매 (사용자 결정 2026-10-07)", () => {
-    expect(ids("night").slice(4, 8)).toEqual(["semi", "jpsemi", "rotflow", "bigtech"]);
+  it("순환매 = 반도체 지수 → 일본 반도체 → AI 순환매 → ETF TOP → 한·미 섹터 — 환율·선물은 한국·미국 탭에 (2026-10-12)", () => {
+    expect(ids("rot")).toEqual(["semi", "jpsemi", "rotflow", "etftop", "sector"]);
   });
 
   it("순환매 = 큰 블록 하나에 단계별 줄 11개(AI 8 + 2차전지 + 방산 + 로봇) — 줄마다 책갈피 이름, 앞 2~3칸 미국 대장주, 나머지 한국 쪽", () => {
-    const g = buildDashboardPage("night").find(s => s.id === "rotflow")!;
+    const g = buildDashboardPage("rot").find(s => s.id === "rotflow")!;
     expect(g.note).toBeTruthy();                                  // 미국→한국 영향이라는 설명 한 줄
     expect(g.rows).toHaveLength(11);
     expect(g.rowLabels).toEqual(["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "2차전지", "방산", "로봇"]);
@@ -87,7 +87,7 @@ describe("지수 탭 페이지 구성", () => {
   });
 
   it("순환매 카드 줄과 순환매 통계(lib/rotation STAGES)가 같은 단계·같은 대장주·같은 종목이다 (어긋나면 카드와 통계가 딴소리)", () => {
-    const g = buildDashboardPage("night").find(s => s.id === "rotflow")!;
+    const g = buildDashboardPage("rot").find(s => s.id === "rotflow")!;
     expect(g.rowLabels).toEqual(STAGES.map(st => st.label));
     g.rows.forEach((row, i) => {
       const n = g.leadByRow?.[i] ?? g.lead!;
@@ -103,13 +103,13 @@ describe("지수 탭 페이지 구성", () => {
   });
 
   it("반도체 그룹엔 순환매 블록에 있는 종목이 없다 (같은 카드가 한 화면에 두 번 나오지 않게)", () => {
-    const page = buildDashboardPage("night");
+    const page = buildDashboardPage("rot");
     const rot = new Set(page.find(s => s.id === "rotflow")!.rows.flat());
     for (const id of ["semi", "jpsemi"]) expect(page.find(s => s.id === id)!.rows.flat().filter(x => rot.has(x))).toEqual([]);
   });
 
   it("주간 = 옛 대장주 페이지를 합쳤다 — 공통 세트 아래에 섹터 대장주 6묶음, 그다음 ETF TOP (사용자 결정 2026-10-08)", () => {
-    expect(ids("day").slice(4, 11)).toEqual(["ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "etftop"]);
+    expect(ids("day").slice(4)).toEqual(["ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont"]);   // ETF TOP·한·미 섹터는 순환매 탭으로
   });
 
   it("섹터 대장주 = 섹터 줄마다 [섹터 ETF] ➜ [대장주](한 줄 8칸 이내, 반도체·2차전지 등 모든 섹터 — 야간의 반도체 묶음과 겹쳐도 된다)", () => {
@@ -160,12 +160,13 @@ describe("대장주 줄 정렬", () => {
 
 describe("지수 탭 키 ↔ 페이지", () => {
   it("lib 의 키 문자열이 Tabs.tsx 상수와 같다 (어긋나면 탭을 눌러도 엉뚱한 페이지가 뜬다)", () => {
-    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_US_TAB_KEY].sort());
+    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY].sort());
     expect(indexPageOf(INDEX_LEADERS_TAB_KEY)).toBe("day");   // 폐지된 대장주 탭 — 주간으로
     expect(indexPageOf(US_MARKET_TAB_KEY)).toBe("day");
     expect(indexPageOf(INDEX_NIGHT_TAB_KEY)).toBe("night");
-    expect(indexPageOf(INDEX_US_TAB_KEY)).toBe("us");
-    expect(indexPageOf(INDEX_SEMI_TAB_KEY)).toBe("night");   // 폐지된 반도체 탭 — 야간으로
+    expect(indexPageOf(INDEX_US_TAB_KEY)).toBe("night");   // 폐지된 미국순환 탭 — 미국(옛 야간)으로
+    expect(indexPageOf(INDEX_SEMI_TAB_KEY)).toBe("rot");     // 폐지된 반도체 탭 — 지금은 순환매로
+    expect(indexPageOf(INDEX_ROT_TAB_KEY)).toBe("rot");
   });
 });
 
@@ -184,12 +185,21 @@ describe("처음 여는 페이지 — 시간으로", () => {
   });
 });
 
-describe("지수(미국순환)", () => {
-  it("맨 위 AI 하드 vs 소프트 판정 → AI 하드웨어 → AI 소프트웨어 → 빅테크·미래 → 방어·경기 → 환율 (사용자 요청 2026-10-12)", () => {
-    expect(ids("us")).toEqual(["aicamp", "usaihw", "usaisw", "ustech", "usdef", "krfx"]);
+describe("지수(미국) — 옛 야간 + 미국순환 (2026-10-12)", () => {
+  it("미국 지수 다음 AI 하드웨어 → AI 소프트웨어 → 빅테크·미래 → 방어·경기, 옛 '미국 빅테크'·'미국 대표 ETF' 블록은 없다", () => {
+    const n = ids("night");
+    expect(n).toEqual(["macro", "krfx", "krnight", "spot", "usaihw", "usaisw", "ustech", "usdef"]);
+    for (const g of ["semi", "jpsemi", "rotflow"]) expect(n).not.toContain(g);   // 순환매 탭으로
+    expect(n).not.toContain("bigtech");
+    expect(n).not.toContain("usetf");
   });
-  it("줄마다 왼쪽 1칸 = 국내 상장 ETF, 나머지 = 미국 종목 — 주간 섹터 대장주와 같은 모양", () => {
-    for (const s of buildDashboardPage("us").filter(x => x.id.startsWith("us"))) {
+  it("뺀 블록의 종목은 미국순환 줄로 옮겼다 — 빠진 카드가 없다", () => {
+    const all = new Set([...buildDashboardPage("night"), ...buildDashboardPage("rot")].flatMap(s => s.rows.flat()));
+    for (const sym of ["GOOGL", "META", "AMZN", "NFLX", "NVDA", "AVGO", "CRWV", "NBIS", "MSFT", "ORCL", "PLTR", "CRM", "TSLA", "SPCX", "AAPL", "DELL",
+                       "TLT", "SOXX", "TQQQ", "SOXL", "SCHD", "JEPQ"]) expect(all.has(sym)).toBe(true);
+  });
+  it("줄마다 왼쪽 1칸 = 국내 상장 ETF, 나머지 = 미국 종목 — 한국 페이지 섹터 대장주와 같은 모양", () => {
+    for (const s of buildDashboardPage("night").filter(x => /^us(ai|tech|def)/.test(x.id))) {
       expect(s.lead).toBe(1);
       expect(s.rowLabels).toHaveLength(s.rows.length);
       for (const row of s.rows) {
@@ -199,13 +209,8 @@ describe("지수(미국순환)", () => {
       }
     }
   });
-  it("한 묶음 안에 같은 카드가 두 번 나오지 않는다", () => {
-    for (const s of buildDashboardPage("us")) {
-      const all = s.rows.flat();
-      expect(new Set(all).size).toBe(all.length);
-    }
-  });
-  it("AI 하드 vs 소프트 블록은 미국순환에만 — 주간에서 옮겼다", () => {
-    expect(ids("day")).not.toContain("aicamp");
+  it("같은 탭 안에 같은 카드가 두 번 나오지 않는다(블록이 따로 그리는 폴백 목록은 제외)", () => {
+    const all = buildDashboardPage("night").filter(s => !s.render).flatMap(s => s.rows.flat());
+    expect(all.filter((x, i) => all.indexOf(x) !== i)).toEqual([]);
   });
 });
