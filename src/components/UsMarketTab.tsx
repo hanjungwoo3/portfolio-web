@@ -261,7 +261,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
                 )}
                 {section.render === "aiCamp" && (
-                  <AiCampCard onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
+                  <AiCampCard cards={false} onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
                 )}
                 {section.note && <div className="text-[11px] text-gray-500 leading-snug">{section.note}</div>}
                 {section.id === "krfx" && <RealRateNote usMap={usMap} />}

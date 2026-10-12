@@ -247,6 +247,59 @@ function sectionMap(): Record<string, DashboardSection> {
         ["266360.KS", "352820.KS", "035900.KS", "041510.KS", "122870.KS", "035760.KS", "376300.KS", "253450.KS"],
       ],
     },
+    // ── 지수(미국순환) — 주간 섹터 대장주와 같은 모양: 왼쪽 국내 상장 미국 ETF ➜ 오른쪽 미국 개별 종목.
+    //   AI 하드웨어·소프트웨어 두 진영 구분은 15개월 실측(lib/aiCamp). 방어·경기는 AI 와 상관이 거의 없다
+    //   (필수소비재 XLP 와 AI 양쪽 일별 상관 −0.09/−0.04, 2년 실측) — 다른 축으로 따로 본다. (사용자 요청 2026-10-12)
+    {
+      id: "usaihw", short: "AI 하드웨어", label: "🔧 AI 하드웨어·인프라",
+      sortable: true,
+      lead: 1, extras: [],
+      rowLabels: ["반도체", "HBM메모리", "AI전력", "광통신", "데이터센터", "원자력"],
+      rows: [
+        ["381180.KS", "NVDA", "AVGO", "TSM", "AMD", "ASML", "LRCX", "AMAT"],
+        ["442580.KS", "MU", "SNDK", "SKHY", "WDC"],
+        ["487230.KS", "GEV", "VRT", "ETN", "PWR", "CEG"],
+        ["0173Y0.KS", "LITE", "COHR", "CIEN", "ANET", "CRDO"],
+        ["0142D0.KS", "EQIX", "DLR", "CRWV"],
+        ["442320.KS", "CCJ", "OKLO", "SMR", "BWXT"],
+      ],
+    },
+    {
+      id: "usaisw", short: "AI 소프트웨어", label: "💻 AI 소프트웨어",
+      sortable: true,
+      lead: 1, extras: [],
+      rowLabels: ["AI소프트웨어", "사이버보안", "클라우드"],
+      rows: [
+        ["481180.KS", "PLTR", "MSFT", "ORCL", "NOW", "CRM"],
+        ["418670.KS", "CRWD", "PANW", "ZS", "FTNT", "NET"],
+        ["371450.KS", "SNOW", "DDOG", "MDB", "SHOP"],
+      ],
+    },
+    {
+      id: "ustech", short: "빅테크·미래", label: "🤖 빅테크·미래기술",
+      sortable: true,
+      lead: 1, extras: [],
+      rowLabels: ["빅테크", "로봇", "우주", "양자"],
+      rows: [
+        ["381170.KS", "AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA"],
+        ["0038A0.KS", "ISRG", "TER", "SYM"],   // 테슬라는 바로 위 빅테크 줄에 — 한 묶음 안 같은 카드 두 번 금지
+        ["0183J0.KS", "RKLB", "ASTS", "LUNR"],
+        ["0023A0.KS", "IONQ", "RGTI", "QBTS"],
+      ],
+    },
+    {
+      id: "usdef", short: "방어·경기", label: "🛡️ 방어·경기",
+      sortable: true,
+      lead: 1, extras: [],
+      rowLabels: ["배당·방어", "헬스케어", "금융", "에너지", "방산"],
+      rows: [
+        ["458730.KS", "KO", "PEP", "PG", "VZ"],
+        ["453640.KS", "LLY", "UNH", "JNJ", "ABBV"],
+        ["453650.KS", "JPM", "BAC", "GS", "V"],
+        ["474800.KS", "XOM", "CVX", "COP"],
+        ["494840.KS", "LMT", "RTX", "NOC", "GD"],
+      ],
+    },
     {
       id: "macro", short: "미국지수",
       label: "📈 미국 지수",                          // NYSE 종합(기술주 뺀 나머지 시장) + 대표(나스닥·S&P·다우)
@@ -445,11 +498,12 @@ function sectionMap(): Record<string, DashboardSection> {
   return Object.fromEntries(sections.map(s => [s.id, s]));
 }
 
-export type DashboardPage = "day" | "night";
+export type DashboardPage = "day" | "night" | "us";
 // 지수 탭 셋 — 메뉴의 '📈 지수' 드롭다운에 들어간다. PC·모바일이 이 라벨 한 벌을 쓴다.
 export const DASHBOARD_PAGES: { key: DashboardPage; emoji: string; tab: string; hint: string }[] = [
   { key: "day",   emoji: "🌞", tab: "지수(주간)",   hint: "한국장 · 섹터 대장주 + 미국 야간선물" },
   { key: "night", emoji: "🌙", tab: "지수(야간)",   hint: "미국장 · 반도체 · 순환매 + 한국 야간선물·24h" },
+  { key: "us",    emoji: "🇺🇸", tab: "지수(미국순환)", hint: "국내 상장 미국 ETF ➜ 미국 종목 — AI 하드웨어·소프트웨어·빅테크·방어" },
 ];
 
 // 페이지별 구성 — **그 시간에 필요한 걸 다**. 중복 허용(한 페이지만 봐도 되게).
@@ -459,10 +513,13 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 주간 시장 → 공통 세트 → 섹터 ETF ➜ 대장주(모든 섹터) → ETF TOP → 한·미 섹터.
   //   옛 '지수(대장주)' 페이지를 여기로 합쳤다(2026-10-08).
   //   반도체·2차전지·전력도 넣는다(야간의 반도체 묶음과 겹쳐도 — 섹터 전체를 한 페이지에서 보게, 2026-10-06).
-  day:   ["kr", "krfx", "dayfut", "spot", "ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "aicamp", "etftop", "sector"],
+  day:   ["kr", "krfx", "dayfut", "spot", "ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "etftop", "sector"],
   // 미국 지수 → 공통 세트 → 반도체(반도체·일본·순환매) → 빅테크·ETF → 한·미 섹터.
   //   옛 '지수(반도체)' 페이지를 여기로 합쳤다 — 반도체는 빅테크 위(사용자 결정 2026-10-07).
   night: ["macro", "krfx", "krnight", "spot", "semi", "jpsemi", "rotflow", "bigtech", "usetf", "sector"],
+  // 미국순환 — 맨 위 AI 하드 vs 소프트 판정(요약) → 진영별 ETF ➜ 종목 줄 → 빅테크·미래 → 방어·경기 → 환율(원화 ETF 라 환율이 섞인다).
+  //   AI 하드 vs 소프트 블록은 주간에서 옮겨 왔다(2026-10-12).
+  us:    ["aicamp", "usaihw", "usaisw", "ustech", "usdef", "krfx"],
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)
   // AI 단계별 미국 대장주(aiflow)는 뺐다 — 바로 아래 순환매 블록 줄마다 첫 카드가 같은 대장주다.
   // 소부장(semieq)은 뺐다 — 순환매 블록이 전공정·소재·부품·후공정 줄로 같은 미국 장비주를 한국 종목과 이어 보여준다.
@@ -489,12 +546,12 @@ function isKrNightNow(): boolean {
   return hm >= 18 * 60 || hm < 9 * 60;
 }
 
-// PC 지수 탭 키 — Tabs.tsx 의 US_MARKET_TAB_KEY · INDEX_NIGHT_TAB_KEY 와 **같은 문자열**.
+// PC 지수 탭 키 — Tabs.tsx 의 US_MARKET_TAB_KEY · INDEX_NIGHT_TAB_KEY · INDEX_US_TAB_KEY 와 **같은 문자열**.
 //   (lib 이 컴포넌트를 import 하지 않게 문자열로 둔다 — 어긋나지 않게 테스트가 대조한다)
 //   폐지된 탭(반도체 → 야간, 대장주 → 주간)은 합쳐진 페이지로 보낸다.
-export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__"]);
+export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-us__"]);
 export function indexPageOf(key: string): DashboardPage {
-  return key === "__idx-night__" || key === "__idx-semi__" ? "night" : "day";
+  return key === "__idx-night__" || key === "__idx-semi__" ? "night" : key === "__idx-us__" ? "us" : "day";
 }
 
 // 처음 열 때 페이지 — 시간으로. 한국 07~18시는 주간, 그 외는 야간.

@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { buildDashboardPage, defaultDashboardPage, sortedRows, PAGE_IDS, DASHBOARD_PAGES, INDEX_GROUP_KEYS, indexPageOf, type DashboardPage } from "../dashboardGroups";
-import { US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY } from "../../components/Tabs";
+import { US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY } from "../../components/Tabs";
 import { US_PAIRS } from "../usMarketData";
 import { STAGES } from "../rotation";
 
 // 지수 탭 — 나라가 아니라 **지금 움직이는 시장** 으로 나눈 세 페이지.
 //   ⚠️ 기대값을 코드에 맞춰 베끼지 말 것. 각 테스트 이름의 **의도**가 먼저다.
-const PAGES: DashboardPage[] = ["day", "night"];
+const PAGES: DashboardPage[] = ["day", "night", "us"];
 const ids = (p: DashboardPage) => buildDashboardPage(p).map(s => s.id);
 
 describe("지수 탭 페이지 구성", () => {
@@ -109,7 +109,7 @@ describe("지수 탭 페이지 구성", () => {
   });
 
   it("주간 = 옛 대장주 페이지를 합쳤다 — 공통 세트 아래에 섹터 대장주 6묶음, 그다음 ETF TOP (사용자 결정 2026-10-08)", () => {
-    expect(ids("day").slice(4, 12)).toEqual(["ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "aicamp", "etftop"]);   // 섹터 대장주 뒤 AI 하드 vs 소프트(2026-10-12)
+    expect(ids("day").slice(4, 11)).toEqual(["ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "etftop"]);
   });
 
   it("섹터 대장주 = 섹터 줄마다 [섹터 ETF] ➜ [대장주](한 줄 8칸 이내, 반도체·2차전지 등 모든 섹터 — 야간의 반도체 묶음과 겹쳐도 된다)", () => {
@@ -160,10 +160,11 @@ describe("대장주 줄 정렬", () => {
 
 describe("지수 탭 키 ↔ 페이지", () => {
   it("lib 의 키 문자열이 Tabs.tsx 상수와 같다 (어긋나면 탭을 눌러도 엉뚱한 페이지가 뜬다)", () => {
-    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY].sort());
+    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_US_TAB_KEY].sort());
     expect(indexPageOf(INDEX_LEADERS_TAB_KEY)).toBe("day");   // 폐지된 대장주 탭 — 주간으로
     expect(indexPageOf(US_MARKET_TAB_KEY)).toBe("day");
     expect(indexPageOf(INDEX_NIGHT_TAB_KEY)).toBe("night");
+    expect(indexPageOf(INDEX_US_TAB_KEY)).toBe("us");
     expect(indexPageOf(INDEX_SEMI_TAB_KEY)).toBe("night");   // 폐지된 반도체 탭 — 야간으로
   });
 });
@@ -180,5 +181,31 @@ describe("처음 여는 페이지 — 시간으로", () => {
   });
   it("그 외는 야간", () => {
     expect(at(18)).toBe("night"); expect(at(23)).toBe("night"); expect(at(30)).toBe("night");   // 30 = 다음날 06시
+  });
+});
+
+describe("지수(미국순환)", () => {
+  it("맨 위 AI 하드 vs 소프트 판정 → AI 하드웨어 → AI 소프트웨어 → 빅테크·미래 → 방어·경기 → 환율 (사용자 요청 2026-10-12)", () => {
+    expect(ids("us")).toEqual(["aicamp", "usaihw", "usaisw", "ustech", "usdef", "krfx"]);
+  });
+  it("줄마다 왼쪽 1칸 = 국내 상장 ETF, 나머지 = 미국 종목 — 주간 섹터 대장주와 같은 모양", () => {
+    for (const s of buildDashboardPage("us").filter(x => x.id.startsWith("us"))) {
+      expect(s.lead).toBe(1);
+      expect(s.rowLabels).toHaveLength(s.rows.length);
+      for (const row of s.rows) {
+        expect(row[0]).toMatch(/^[\dA-Za-z]{6}\.KS$/);
+        expect(row.slice(1).every(x => /^[A-Z.]{1,6}$/.test(x))).toBe(true);
+        expect(row.length).toBeLessThanOrEqual(8);
+      }
+    }
+  });
+  it("한 묶음 안에 같은 카드가 두 번 나오지 않는다", () => {
+    for (const s of buildDashboardPage("us")) {
+      const all = s.rows.flat();
+      expect(new Set(all).size).toBe(all.length);
+    }
+  });
+  it("AI 하드 vs 소프트 블록은 미국순환에만 — 주간에서 옮겼다", () => {
+    expect(ids("day")).not.toContain("aicamp");
   });
 });

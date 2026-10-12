@@ -16,7 +16,8 @@ const pctCls = (v: number | null) => v == null ? "text-gray-300" : v > 0 ? "text
 const fmt = (v: number | null, unit = "%") => v == null ? "—" : `${v > 0 ? "+" : ""}${v.toFixed(1)}${unit}`;
 const kstToday = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 
-export function AiCampCard({ onOpenEtf, small = false }: { onOpenEtf?: (code: string, name: string) => void; small?: boolean }) {
+// cards=false — 판정·표만(지수(미국순환)처럼 아래에 ETF ➜ 종목 줄이 따로 있을 때)
+export function AiCampCard({ onOpenEtf, small = false, cards = true }: { onOpenEtf?: (code: string, name: string) => void; small?: boolean; cards?: boolean }) {
   const qs = useQueries({
     queries: AI_CAMP_CODES.map(code => ({
       queryKey: ["ai-camp-candles", code],
@@ -32,6 +33,7 @@ export function AiCampCard({ onOpenEtf, small = false }: { onOpenEtf?: (code: st
   const { data: priceList } = useQuery({
     queryKey: ["ai-camp-prices", AI_CAMP_CODES.join(",")],
     queryFn: () => fetchTossPrices(AI_CAMP_CODES),
+    enabled: cards,   // 요약만 그릴 땐 카드용 시세를 안 받는다
     staleTime: 30_000, refetchInterval: 60_000,
   });
   const priceMap = new Map((priceList ?? []).map(p => [p.ticker, p]));
@@ -39,6 +41,7 @@ export function AiCampCard({ onOpenEtf, small = false }: { onOpenEtf?: (code: st
     queries: AI_CAMP_CODES.map(code => ({
       queryKey: ["price-history", code, "6mo"],
       queryFn: () => fetchKrPriceHistory(code, "6mo"),
+      enabled: cards,
       staleTime: 60 * 60_000, refetchOnWindowFocus: false,
     })),
   });
@@ -98,10 +101,10 @@ export function AiCampCard({ onOpenEtf, small = false }: { onOpenEtf?: (code: st
           </tr>
         </tbody>
       </table>
-      <div className="text-[10px] text-gray-400">1주·1개월·3개월 = 아래 카드 오른쪽 박스 값의 평균(매일 아침 갱신) · 오늘 = 지금</div>
+      <div className="text-[10px] text-gray-400">1주·1개월·3개월 = ETF 기간 수익률(매일 아침 갱신, ETF 카드 오른쪽 박스와 같은 값)의 평균 · 오늘 = 지금</div>
 
       {/* 진영별 ETF 카드 — 'ETF 포함 종목' 팝업과 같은 카드. 꼬리표 = 섹터, 🍱 = 구성종목 */}
-      {(["hw", "sw", "ref"] as const).map(k => (
+      {cards && (["hw", "sw", "ref"] as const).map(k => (
         <div key={k} className="space-y-1">
           <div className={`font-bold ${CAMP_TONE[k]}`}>
             {k === "hw" ? "🔧 " : k === "sw" ? "💻 " : ""}{AI_CAMPS[k].label}
