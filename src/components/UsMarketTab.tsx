@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
+import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
 import { useChartRange, pickCardChart } from "../lib/chartRange";
 import { ChartRangeToggle } from "./ChartRangeToggle";
@@ -411,7 +411,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               const indexKey = isKospi ? "KOSPI" : isKosdaq ? "KOSDAQ" : null;
               // 정규장 종료(sleeping) 후 항상 마감가 책갈피 표시.
               // 시간외 거래값(regularPrice 별도)이 있으면 그 값을, 없으면 현재가를 마감가로 통일 표시.
-              const showCloseTag = sleeping && effPrice != null;
+              // 미국 개별 종목은 프리장(04:00 ET)부터 '열림' 이라 sleeping 만 보면 프리장에 어제 종가가 사라졌다(2026-10-12).
+              //   큰 숫자가 프리·애프터·오버나이트 가격인 동안(= 정규장 09:30~16:00 밖)은 정규장 마감 책갈피를 같이 보인다.
+              const usOffRegular = marketOfSymbol(p.symbol) === "US" && !isMarketOpen("US_INDEX");
+              const showCloseTag = (sleeping || usOffRegular) && effPrice != null;
               const closeVal = q?.regularPrice ?? effPrice;
               const regPct = q?.regularPct ?? pct;
               const regSign = regPct == null ? "text-gray-700"

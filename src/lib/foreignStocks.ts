@@ -196,7 +196,8 @@ export async function resolveForeignSymbols(names: string[]): Promise<Map<string
 interface YahooChartMeta {
   chart?: {
     result?: {
-      meta?: { regularMarketPrice?: number; chartPreviousClose?: number; currency?: string };
+      meta?: { regularMarketPrice?: number; chartPreviousClose?: number; currency?: string;
+               currentTradingPeriod?: { regular?: { start?: number; end?: number } } };
       timestamp?: number[];
       indicators?: { quote?: { close?: (number | null)[] }[] };
     }[];
@@ -244,7 +245,7 @@ export async function fetchForeignHoldingPrices(names: string[]): Promise<Foreig
   const out: Price[] = [];
   const charts: Record<string, number[]> = {};
   // 1차: 일봉을 받아 현지통화 값을 모은다. 환율은 나온 통화 종류만큼만 2차에서 받는다.
-  const raw: { name: string; sym: string; cur: string; px: number; prev: number; date: string }[] = [];
+  const raw: { name: string; sym: string; cur: string; px: number; prev: number; date: string; open?: boolean }[] = [];
   await Promise.all([...syms].map(async ([name, sym]) => {
     try {
       const resp = await fetchProxied(
@@ -280,7 +281,12 @@ export async function fetchForeignHoldingPrices(names: string[]): Promise<Foreig
       const prevPx = prev?.close ?? 0;
       if (px <= 0 || prevPx <= 0) return;
       charts[name] = bars.map(b => b.close);
-      raw.push({ name, sym, cur: res?.meta?.currency ?? "", px, prev: prevPx, date: last.date });
+      // 지금 현지 정규장이 열려 있나 — 야후 '오늘 정규장' 구간 안인가로 본다. 휴장일엔 야후가 이 구간을
+      //   **마지막 거래일**로 주므로(일본 스포츠의 날 10/12 실측: 10/9 09:00~15:30) 장 마감·휴장을 함께 잡는다.
+      const reg = res?.meta?.currentTradingPeriod?.regular;
+      const nowSec = Date.now() / 1000;
+      const open = reg?.start && reg?.end ? nowSec >= reg.start && nowSec <= reg.end : undefined;
+      raw.push({ name, sym, cur: res?.meta?.currency ?? "", px, prev: prevPx, date: last.date, open });
     } catch { /* 한 종목 실패가 나머지를 막지 않는다 */ }
   }));
 
@@ -298,7 +304,7 @@ export async function fetchForeignHoldingPrices(names: string[]): Promise<Foreig
       // 이 값이 **언제 것인지**. 현지 휴장(일본 9/21~23 연휴 등)이면 한국 ETF 와 며칠씩
       //   어긋난다 — 화면이 날짜를 말해주지 않으면 값이 틀린 것처럼 보인다.
       trade_date: r.date,
-      priceNative: r.px, nativeCurrency: r.cur, fxSymbol: r.sym,
+      priceNative: r.px, nativeCurrency: r.cur, fxSymbol: r.sym, foreignOpen: r.open,
       currency: k > 0 ? "KRW" : "USD",             // USD 는 '원 아님' 표식으로만 쓴다
     });
   }

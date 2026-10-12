@@ -12,7 +12,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
+import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { getPersonalProxies, setPersonalProxies, type PersonalProxy, fetchProxyUsage, type ProxyUsage, getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS, pollLabel, getDimSleepingEnabled, setDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
@@ -1945,7 +1945,10 @@ export function MobileSimpleView() {
                 : effDn ? "text-blue-600"
                 : "text-gray-900";
               // 정규장 종료(sleeping) 후 항상 마감가 책갈피. 시간외 거래값 있으면 그 값, 없으면 현재가를 마감가로 통일.
-              const showCloseTag = sleeping && effPrice != null;
+              // 미국 개별 종목은 프리장(04:00 ET)부터 '열림' 이라 sleeping 만 보면 프리장에 어제 종가가 사라졌다(2026-10-12).
+              //   큰 숫자가 프리·애프터·오버나이트 가격인 동안(= 정규장 09:30~16:00 밖)은 정규장 마감 책갈피를 같이 보인다.
+              const usOffRegular = marketOfSymbol(p.symbol) === "US" && !isMarketOpen("US_INDEX");
+              const showCloseTag = (sleeping || usOffRegular) && effPrice != null;
               const closeVal = q?.regularPrice ?? effPrice;
               const regPct = q?.regularPct ?? pct;
               const regSign = regPct == null ? "text-gray-700"

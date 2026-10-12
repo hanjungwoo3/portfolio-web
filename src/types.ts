@@ -15,6 +15,7 @@ export interface Stock {
 }
 
 export interface Price {
+  foreignOpen?: boolean;  // 미국 외 해외 종목(야후) — 지금 현지 정규장이 열려 있나. false = 마감·휴장(카드 흐림)
   ticker: string;
   price: number;
   base: number;        // "어제대비" 표시용 — 비거래일엔 price 와 동일 (= 0)
