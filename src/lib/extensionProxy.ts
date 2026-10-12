@@ -127,15 +127,25 @@ async function extensionRequest<T extends ExtResponse>(payload: Record<string, u
 export async function getGoogleTokenViaExtension(
   interactive: boolean,
 ): Promise<{ token: string; expiresIn: number } | null> {
-  if (!ready) return null;
+  const r = await getGoogleTokenViaExtensionDetailed(interactive);
+  return "token" in r ? r : null;
+}
+
+/** 실패 사유까지 — 크롬이 준 원문(예: "The user is not signed in.")을 그대로 넘긴다.
+ *  예전엔 이걸 버리고 '거절됐거나 구버전' 한 줄만 보여 줘서, 크롬 프로필 로그인이 없는
+ *  사용자가 원인을 알 수 없었다(사용자 문의 2026-10-12). */
+export async function getGoogleTokenViaExtensionDetailed(
+  interactive: boolean,
+): Promise<{ token: string; expiresIn: number } | { error: string }> {
+  if (!ready) return { error: "no-extension" };
   try {
     const res = await extensionRequest<ExtResponse & { token?: string; expiresIn?: number }>(
       { kind: "googleToken", interactive },
     );
-    if (res.error || !res.token) return null;
+    if (res.error || !res.token) return { error: res.error || "no-token" };
     return { token: res.token, expiresIn: res.expiresIn ?? 3600 };
-  } catch {
-    return null;
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : "timeout" };
   }
 }
 

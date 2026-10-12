@@ -9,7 +9,7 @@ import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
 import { isNativeApp } from "./nativeProxy";
 import {
-  isExtensionProxyReady, getGoogleTokenViaExtension, clearGoogleTokenViaExtension,
+  isExtensionProxyReady, getGoogleTokenViaExtension, getGoogleTokenViaExtensionDetailed, clearGoogleTokenViaExtension,
 } from "./extensionProxy";
 import { getInstalledAppVersion } from "./appRelease";
 
@@ -412,17 +412,33 @@ if (isNativeApp()) {
  *  이미 웹으로 로그인해 둔 사용자는 signIn() 을 다시 안 거치므로, 설정에서 이 버튼으로 받는다.
  *  성공하면 그 뒤 토큰 갱신이 전부 확장(chrome.identity)으로 가 **팝업이 사라진다.** */
 export type ExtAuthResult = "ok" | "no-extension" | "denied" | "error";
-export async function grantExtensionAuth(): Promise<ExtAuthResult> {
-  if (isNativeApp() || !isExtensionProxyReady()) return "no-extension";
-  try {
-    const r = await getGoogleTokenViaExtension(true);
-    if (!r) return "denied";     // 사용자가 거절했거나 확장이 googleToken 을 모른다(구버전)
+export async function grantExtensionAuth(): Promise<{ result: ExtAuthResult; reason?: string }> {
+  if (isNativeApp() || !isExtensionProxyReady()) return { result: "no-extension" };
+  const r = await getGoogleTokenViaExtensionDetailed(true);
+  if ("token" in r) {
     clearAuthDiag();
     saveToken(r.token, r.expiresIn);
-    return "ok";
-  } catch {
-    return "error";              // 확장 응답 없음(타임아웃) — 대개 구버전이다
+    return { result: "ok" };
   }
+  // 확장 응답 없음(타임아웃)은 대개 구버전 — 그 밖엔 크롬이 준 사유를 그대로 넘긴다
+  return /timeout/i.test(r.error) ? { result: "error", reason: r.error } : { result: "denied", reason: r.error };
+}
+
+/** 확장 인증 실패 사유 → 사용자가 할 일. 크롬 원문은 영어라 그대로 보여 주면 못 읽는다.
+ *  chrome.identity.getAuthToken 은 **크롬 프로필 로그인**이 있어야 하고, 엣지·웨일은 이 API 가 없다. */
+export function explainExtAuthFailure(reason: string | undefined): string {
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  if (/Edg\/|Whale|OPR\//.test(ua)) return "이 기능은 크롬에서만 됩니다(엣지·웨일 미지원) — 동기화는 그대로 됩니다";
+  const s = (reason ?? "").toLowerCase();
+  if (/not signed in|sign in|signed out/.test(s))
+    return "크롬 프로필에 구글 계정 로그인이 필요합니다 — 크롬 오른쪽 위 프로필 아이콘에서 로그인한 뒤 다시 눌러 주세요";
+  if (/did not approve|canceled|cancelled|user interaction|denied|not granted|revoked/.test(s))
+    return "동의 창에서 '허용'을 누르지 않았습니다 — 다시 눌러 허용해 주세요";
+  if (/not supported|is not a function|undefined/.test(s))
+    return "이 브라우저는 확장 인증을 지원하지 않습니다(크롬 필요) — 동기화는 그대로 됩니다";
+  if (/timeout|no-response|context invalidated/.test(s))
+    return "확장이 응답하지 않습니다 — 페이지를 새로고침하거나 확장을 업데이트해 주세요";
+  return `확장 인증 실패: ${reason ?? "알 수 없음"}`;
 }
 
 /** 확장이 붙어 있는가(동의 여부와 무관). */

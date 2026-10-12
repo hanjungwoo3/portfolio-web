@@ -31,7 +31,7 @@ import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/group
 import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
 import { detectPortfolioJson } from "../lib/portfolioImport";
-import { getAuthDiag, grantExtensionAuth, canUseExtensionAuth, hasExtensionAuth } from "../lib/googleAuth";
+import { getAuthDiag, grantExtensionAuth, explainExtAuthFailure, canUseExtensionAuth, hasExtensionAuth } from "../lib/googleAuth";
 import {
   getSyncState, getLastSyncedAt, disableSync, pauseSync, resumeSync, reconcileOnEnable,
   uploadToDrive, downloadFromDrive, tryRestoreSession,
@@ -531,6 +531,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   마지막 동기화: {new Date(lastSyncedAt).toLocaleString("ko-KR")}
                 </div>
               )}
+              {/* 앱 전용 숨김 폴더(drive.appdata)라 드라이브 파일 목록엔 안 나온다 — "저장했는데 파일이 없다" 문의(2026-10-12) */}
+              <div className="text-[10px] text-gray-400 leading-snug">
+                ℹ️ 드라이브의 <b className="text-gray-500">숨겨진 앱 전용 공간</b>에 저장돼 드라이브 파일 목록엔 보이지 않습니다.
+                확인: 구글 드라이브 → ⚙️ 설정 → <b className="text-gray-500">앱 관리</b> → 이 앱의 &lsquo;숨겨진 앱 데이터&rsquo;.
+              </div>
               {!signedIn && (
                 <div className="text-[11px] text-amber-700">
                   🔐 로그인 안 됨 — 저장/가져오기를 누르면 Google 로그인 후 그대로 실행됩니다.
@@ -547,17 +552,18 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                           onClick={async () => {
                             setExtBusy(true); setExtMsg("");
                             try {
-                              const r = await grantExtensionAuth();
+                              const { result, reason } = await grantExtensionAuth();
                               // ★ 결과는 **버튼 옆**에 띄운다. statusMsg 는 다이얼로그 맨 위라
                               //   동기화 섹션까지 스크롤해 누르면 안 보여 '반응 없음' 으로 보였다.
-                              const msg = r === "ok"
+                              // 실패는 크롬이 준 사유를 할 일로 바꿔 보여 준다 — 예전 '거절됐거나 구버전'
+                              //   한 줄로는 크롬 프로필 로그인이 없는 사용자가 원인을 몰랐다(사용자 문의 2026-10-12).
+                              const msg = result === "ok"
                                 ? "✅ 완료 — 이제 갱신에 팝업이 안 뜹니다"
-                                : r === "no-extension" ? "확장이 감지되지 않았습니다"
-                                : r === "denied" ? "⚠️ 거절됐거나 확장이 구버전입니다(업데이트 필요)"
-                                : "⚠️ 확장이 응답하지 않습니다 — 구버전이면 업데이트하세요";
+                                : result === "no-extension" ? "확장이 감지되지 않았습니다"
+                                : `⚠️ ${explainExtAuthFailure(reason)}`;
                               setExtMsg(msg);
                               setStatusMsg(msg);
-                              if (r === "ok") setExtGranted(true);   // 버튼은 사라진다
+                              if (result === "ok") setExtGranted(true);   // 버튼은 사라진다
                             } finally { setExtBusy(false); }
                           }}
                           className="px-2 py-1 rounded border border-indigo-300 bg-indigo-50
@@ -566,7 +572,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                     {extBusy ? "인증 중…" : "🧩 확장으로 인증 (팝업 없애기)"}
                   </button>
                   <span className={`text-[10px] ${extMsg ? "text-gray-700 font-bold" : "text-gray-500"}`}>
-                    {extMsg || "한 번만 누르면 됩니다 — 그 뒤 갱신은 확장이 조용히 처리합니다."}
+                    {extMsg || "선택 기능 — 1시간마다 뜨는 로그인 팝업을 없애 줍니다(크롬·크롬 프로필 로그인 필요). 안 해도 동기화는 됩니다."}
                   </span>
                 </div>
               )}
