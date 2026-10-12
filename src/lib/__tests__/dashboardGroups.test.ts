@@ -109,7 +109,7 @@ describe("지수 탭 페이지 구성", () => {
   });
 
   it("주간 = 옛 대장주 페이지를 합쳤다 — 공통 세트 아래에 섹터 대장주 6묶음, 그다음 ETF TOP (사용자 결정 2026-10-08)", () => {
-    expect(ids("day").slice(4, 11)).toEqual(["ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "etftop"]);
+    expect(ids("day").slice(4, 12)).toEqual(["ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "aicamp", "etftop"]);   // 섹터 대장주 뒤 AI 하드 vs 소프트(2026-10-12)
   });
 
   it("섹터 대장주 = 섹터 줄마다 [섹터 ETF] ➜ [대장주](한 줄 8칸 이내, 반도체·2차전지 등 모든 섹터 — 야간의 반도체 묶음과 겹쳐도 된다)", () => {

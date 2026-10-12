@@ -5,6 +5,7 @@ import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
 import { useChartRange, pickCardChart } from "../lib/chartRange";
+import { AiCampCard } from "./AiCampCard";
 import { ChartRangeToggle } from "./ChartRangeToggle";
 import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
@@ -258,6 +259,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             {/* 한국 섹터 — 토스 TICS 분류. 미국 블록과 **같은 한글 분류**라 이름으로 맞출 수 있다. */}
             {section.render === "etfTop" && (
                   <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
+                )}
+                {section.render === "aiCamp" && (
+                  <AiCampCard onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
                 )}
                 {section.note && <div className="text-[11px] text-gray-500 leading-snug">{section.note}</div>}
                 {section.id === "krfx" && <RealRateNote usMap={usMap} />}

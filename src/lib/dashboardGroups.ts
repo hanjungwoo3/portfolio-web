@@ -36,7 +36,7 @@ export interface DashboardSection {
   note?: string;
   // 카드 대신 다른 블록으로 그리는 섹션. "sectorFlow" 면 ETF 랭킹의 '섹터별 흐름' 을 넣는다.
   //   랭킹 스냅샷이 없으면(캐시 없음·조회 실패) rows 의 고정 카드로 폴백한다.
-  render?: "sectorFlow" | "etfTop" | "rotation";
+  render?: "sectorFlow" | "etfTop" | "rotation" | "aiCamp";
   // 카드 오른쪽 아래 책갈피 — "이 종목이 이 그룹에서 무슨 역할인지". 심볼 → 짧은 라벨.
   //   **그룹별**로 둔다: 마이크론은 반도체 그룹에선 태그가 없고 AI 단계 줄에서만 '반도체' 다.
   tags?: Record<string, string>;
@@ -141,6 +141,13 @@ function sectionMap(): Record<string, DashboardSection> {
       // 한 줄(PC 전체 폭 8칸) — 미국 지수 선물 셋 + 삼성·하이닉스 24h + 한국 주간선물 둘(맨 뒤 — 밤엔 빠지는 카드라 끝에 둬야 자리가 안 흔들린다)
       wide: true,
       rows: [["NQ=F", "ES=F", "SOX=F", "SKHY-PERP", "SMSN-PERP", "KORU", "^KS200N", "^KQ150N"]],
+    },
+    {
+      // AI 하드웨어 vs 소프트웨어 — 미국 AI 섹터 순환은 두 진영 사이(국내 상장 미국 ETF 15개월 실측, lib/aiCamp).
+      id: "aicamp", short: "AI 순환",
+      render: "aiCamp",
+      label: "🔀 (미국) AI 하드웨어 vs 소프트웨어",
+      rows: [],
     },
     {
       // ETF 등락 TOP10(상승·하락) — 한국 시장 바로 아래. 레버리지·선물을 빼야 '오늘 실제로 오른 곳' 이 보인다.
@@ -452,7 +459,7 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 주간 시장 → 공통 세트 → 섹터 ETF ➜ 대장주(모든 섹터) → ETF TOP → 한·미 섹터.
   //   옛 '지수(대장주)' 페이지를 여기로 합쳤다(2026-10-08).
   //   반도체·2차전지·전력도 넣는다(야간의 반도체 묶음과 겹쳐도 — 섹터 전체를 한 페이지에서 보게, 2026-10-06).
-  day:   ["kr", "krfx", "dayfut", "spot", "ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "etftop", "sector"],
+  day:   ["kr", "krfx", "dayfut", "spot", "ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont", "aicamp", "etftop", "sector"],
   // 미국 지수 → 공통 세트 → 반도체(반도체·일본·순환매) → 빅테크·ETF → 한·미 섹터.
   //   옛 '지수(반도체)' 페이지를 여기로 합쳤다 — 반도체는 빅테크 위(사용자 결정 2026-10-07).
   night: ["macro", "krfx", "krnight", "spot", "semi", "jpsemi", "rotflow", "bigtech", "usetf", "sector"],
