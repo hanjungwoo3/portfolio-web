@@ -2270,7 +2270,11 @@ export interface IntradayFlowPoint {
   financialInvestment: number; insurance: number; trust: number;
   bank: number; otherFinancial: number; pensionFund: number; otherCorp: number;
 }
-export interface IntradayFlow { unit: "억원" | "계약"; points: IntradayFlowPoint[]; }
+export interface IntradayFlow {
+  unit: "억원" | "계약"; points: IntradayFlowPoint[];
+  date?: string;    // 이 행들의 실제 날짜 "YYYY-MM-DD" — 장 시작 전엔 KRX 가 **어제** 행을 준다
+  pre?: boolean;    // 넥스트레이드 프리장(08:00~) 수급
+}
 
 interface TrendRow { bizdate?: string; time?: string; netAmounts?: Array<{ investorGubun?: string; diffValue?: string }> }
 interface TrendResp { content?: TrendRow[]; last?: boolean }
@@ -2309,29 +2313,43 @@ export async function fetchKrIntradayInvestorFlow(market: IntradayMarket): Promi
   const mkt = TREND_MARKET[market];
   const futures = market === "futures";
   const bd = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
-  const MAX_PAGES = 4;   // 200×4 = 800행 — 하루(435행)보다 넉넉하다
-  const byTime = new Map<string, IntradayFlowPoint>();
-  for (let page = 0; page < MAX_PAGES; page++) {
-    let data: TrendResp;
-    try {
-      const resp = await fetchProxied(
-        `https://stock.naver.com/api/domestic/market/trend/time`
-        + `?tradeType=KRX&marketType=${mkt}&bizdate=${bd}&startIdx=${page}&pageSize=200`);
-      if (!resp.ok) break;
-      data = await resp.json() as TrendResp;
-    } catch { break; }
-    const rows = data.content ?? [];
-    if (rows.length === 0) break;
-    for (const r of rows) {
-      const t = String(r.time ?? "");
-      if (t.length < 4) continue;
-      const time = `${t.slice(0, 2)}:${t.slice(2, 4)}`;
-      if (!byTime.has(time)) byTime.set(time, { time, ...mapTrendRow(r, futures) });
+  const unit = futures ? "계약" as const : "억원" as const;
+  const load = async (tradeType: "KRX" | "NXT") => {
+    const MAX_PAGES = 4;   // 200×4 = 800행 — 하루(443행)보다 넉넉하다
+    const byTime = new Map<string, IntradayFlowPoint>();
+    let rowDate = "";
+    for (let page = 0; page < MAX_PAGES; page++) {
+      let data: TrendResp;
+      try {
+        const resp = await fetchProxied(
+          `https://stock.naver.com/api/domestic/market/trend/time`
+          + `?tradeType=${tradeType}&marketType=${mkt}&bizdate=${bd}&startIdx=${page}&pageSize=200`);
+        if (!resp.ok) break;
+        data = await resp.json() as TrendResp;
+      } catch { break; }
+      const rows = data.content ?? [];
+      if (rows.length === 0) break;
+      for (const r of rows) {
+        const t = String(r.time ?? "");
+        if (t.length < 4) continue;
+        if (!rowDate && r.bizdate) rowDate = String(r.bizdate);
+        const time = `${t.slice(0, 2)}:${t.slice(2, 4)}`;
+        if (!byTime.has(time)) byTime.set(time, { time, ...mapTrendRow(r, futures) });
+      }
+      if (data.last) break;
     }
-    if (data.last) break;
+    return { rowDate, points: [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time)) };
+  };
+  const iso = (d: string) => d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : undefined;
+  const krx = await load("KRX");
+  // ★ 프리장(08:00~09:00) — KRX 는 09:01 첫 행이 나올 때까지 **어제 행(~20:04)** 을 그대로 준다.
+  //   그 사이 넥스트레이드(tradeType=NXT)는 오늘 08:00 부터 프리장 수급을 준다(실측 2026-10-14 08:45:
+  //   KRX=20261013 443행 / NXT=20261014 08:00~). 선물은 넥스트레이드에 없다. 추가 1콜은 이때만 든다.
+  if (!futures && krx.rowDate !== bd) {
+    const nxt = await load("NXT");
+    if (nxt.rowDate === bd && nxt.points.length >= 2) return { unit, points: nxt.points, date: iso(bd), pre: true };
   }
-  const points = [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time));
-  return { unit: futures ? "계약" : "억원", points };
+  return { unit, points: krx.points, date: iso(krx.rowDate) };
 }
 
 // ─── 일별 투자자 순매수 (네이버 stock.naver 시장 매매동향, 기간별) ───────────

@@ -17,6 +17,13 @@ import { isMarketOpen, nowKstDateStr } from "../lib/format";
 import type { FlowSeriesPoint } from "./IntradayInvestorChart";
 import type { UTCTimestamp } from "lightweight-charts";
 
+// 넥스트레이드 프리장 08:00~09:00 KST(평일)
+function isKrPreMarket(): boolean {
+  const k = new Date(Date.now() + 9 * 3600_000);
+  const day = k.getUTCDay(), hhmm = k.getUTCHours() * 60 + k.getUTCMinutes();
+  return day >= 1 && day <= 5 && hhmm >= 8 * 60 && hhmm < 9 * 60 + 2;
+}
+
 const IntradayInvestorChart = lazy(() => import("./IntradayInvestorChart"));
 
 const MARKETS: { key: IntradayMarket; label: string }[] = [
@@ -84,13 +91,15 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
   // 장중일 때만 60초 폴링 — 안 걸면 첫 로드 값에 그대로 굳어(지수선이 실제와 어긋남) 있게 된다.
   //   장 마감 후·섹션 접힘 상태에서는 폴링 없음(프록시 호출수 절약).
   const live = on && isMarketOpen("KR");
+  // 프리장(08:00~09:00, 넥스트레이드) — 수급만 60초 폴링. 선물은 프리장이 없다.
+  const preNow = on && market !== "futures" && isKrPreMarket();
   const livePoll = live ? 60_000 : (false as const);
 
   const intra = useQuery({
     queryKey: ["market-flow-intraday", market],
     queryFn: () => fetchKrIntradayInvestorFlow(market),
     enabled: on && mode === "intraday",
-    refetchInterval: mode === "intraday" ? livePoll : false,
+    refetchInterval: mode === "intraday" ? (preNow ? 60_000 : livePoll) : false,
     staleTime: 60_000, refetchOnWindowFocus: false,
   });
   const daily = useQuery({
@@ -139,6 +148,11 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
   });
 
   const q = mode === "intraday" ? intra : daily;
+  // 당일 차트가 실제로 무엇인지 — 프리장이면 '프리장(NXT)', 오늘 행이 아직 없으면 그 날짜(장 시작 전엔 어제 수급이다)
+  const intraDate = intra.data?.date;
+  const intraTag = mode !== "intraday" ? ""
+    : intra.data?.pre ? " · 프리장(NXT)"
+    : intraDate && intraDate !== bizdate ? ` · ${+intraDate.slice(5, 7)}/${+intraDate.slice(8, 10)} 수급` : "";
 
   const shell = (inner: ReactNode) => (
     <div className="h-[240px] flex flex-col items-center justify-center text-xs text-gray-400 border border-gray-200 rounded gap-0.5">
@@ -258,7 +272,7 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
   return (
     <Suspense fallback={<div className="h-[260px]" />}>
       <IntradayInvestorChart series={series} summary={summary} enabled={enabled}
-        unit={unit} marketLabel={label} timeVisible={mode === "intraday"}
+        unit={unit} marketLabel={label + intraTag} timeVisible={mode === "intraday"}
         summaryHint={mode === "daily" ? "기간합계" : undefined}
         indexSeries={indexSeries} indexLabel={ysym ? INDEX_LABEL[market] : undefined}
         indexBaseline={indexBaseline} onReady={onReady} onToggle={onToggle}
