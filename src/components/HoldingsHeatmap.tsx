@@ -9,7 +9,7 @@ import type { Stock, Price } from "../types";
 import { squarify } from "../lib/treemap";
 import { heatColor, sectorKr } from "../lib/heatColor";
 import { fetchHeatmapForTickers, heatmapLogoUrl, type HeatmapItem } from "../lib/api";
-import { HEAT_SIZE_OPTS, HEAT_COLOR_OPTS, type HeatSizeBy, type HeatColorBy, type HeatGroupBy, type HeatSign } from "../lib/holdingsHeat";
+import { HEAT_SIZE_OPTS, HEAT_COLOR_OPTS, type HeatSizeBy, type HeatColorBy, type HeatGroupBy, type HeatSign, HEAT_FAINT_RATIO } from "../lib/holdingsHeat";
 
 interface Cell { ticker: string; name: string; held: number; price: number; d1: number | null; shares: number; cost: number; tv?: HeatmapItem; krwPer: number }
 
@@ -24,13 +24,14 @@ function fmtWon(v: number): string {
 const logoPx = (w: number, h: number) => Math.round(Math.max(16, Math.min(40, Math.min(w, h) * 0.22)));
 const fmtCount = (v: number) => v >= 1e8 ? `${(v / 1e8).toFixed(1)}억주` : v >= 1e4 ? `${Math.round(v / 1e4).toLocaleString()}만주` : `${Math.round(v)}주`;
 
-export function HoldingsHeatmap({ stocks, priceMap, sizeBy, colorBy, groupBy = "none", sign = "all", onOpen }: {
+export function HoldingsHeatmap({ stocks, priceMap, sizeBy, colorBy, groupBy = "none", sign = "all", hideFaint = false, onOpen }: {
   stocks: Stock[];
   priceMap: Map<string, Price>;
   sizeBy: HeatSizeBy;
   colorBy: HeatColorBy;
   groupBy?: HeatGroupBy;
   sign?: HeatSign;
+  hideFaint?: boolean;   // 색이 흐린(거의 보합) 종목 빼기
   onOpen?: (ticker: string) => void;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
@@ -104,7 +105,12 @@ export function HoldingsHeatmap({ stocks, priceMap, sizeBy, colorBy, groupBy = "
     colorDef.key === "pnl" ? pnlOf(c) : colorDef.field ? (c.tv ? colorDef.field(c.tv) : null) : c.d1;
   // 부호 필터 — 색 기준 값이 +인 것만 / −인 것만. 색과 같은 값으로 걸러야 '상승만' 에 파란 칸이 안 섞인다.
   const signOk = (c: Cell) => { if (sign === "all") return true; const v = colorVal(c); return v != null && (sign === "up" ? v > 0 : v < 0); };
-  const shown = cells.filter(signOk);
+  // 흐린 종목 제외 — 값이 없는 회색 칸은 '흐림' 이 아니라 그대로 둔다
+  const faintCut = colorDef.sat * HEAT_FAINT_RATIO;
+  const isFaint = (c: Cell) => { const v = colorVal(c); return v != null && Math.abs(v) < faintCut; };
+  const signed = cells.filter(signOk);
+  const shown = hideFaint ? signed.filter(c => !isFaint(c)) : signed;
+  const faintN = signed.length - shown.length;
   const inputs = shown.map(c => ({ item: c, value: sizeOf(c) })).filter(x => x.value > 0);
   const missing = shown.length - inputs.length;
   // 배치 — 그룹 없음 / 섹터(섹터 묶음 안에 종목) / 등락 방향(왼→오 상승·보합·하락 고정). 히트맵 탭과 같은 방식.
@@ -225,6 +231,7 @@ export function HoldingsHeatmap({ stocks, priceMap, sizeBy, colorBy, groupBy = "
         {sizeBy === "marketCap" && " · ETF 는 순자산총액"}
         {(sizeBy === "marketCap" || sizeBy === "traded") && " · 미국 종목은 원화 환산"}
         {sign !== "all" && ` · ${sign === "up" ? "+" : "−"}인 ${shown.length}종목만(전체 ${cells.length})`}
+        {faintN > 0 && ` · 흐린 종목 ${faintN}개 제외(±${faintCut.toFixed(2).replace(/\.?0+$/, "")}% 미만)`}
         {missing > 0 && ` · 값이 없어 빠진 종목 ${missing}개`}
       </div>
     </div>

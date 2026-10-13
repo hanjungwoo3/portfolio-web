@@ -818,6 +818,14 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
     : krReg.regularPct > 0 ? "bg-rose-100/20 border-rose-300/20"
     : krReg.regularPct < 0 ? "bg-blue-100/20 border-blue-300/20"
     : "bg-white/20 border-gray-300/20";
+  // 종목명 색 = 정규장 종가 기준 — '마감' 책갈피가 떠 있을 때만(지수 카드와 같은 규칙, 2026-10-14).
+  //   애프터장 +0.26% 로 이름이 빨갛고 그 아래 마감이 −3.62% 면 오늘 오른 종목처럼 읽힌다. 큰 숫자 색은 그대로(지금 장).
+  const usRegTagShown = isForeignCode && usSess !== "정규장" && !!price && (price.usRegClose ?? 0) > 0;
+  const regNamePct: number | null = leftTag ? null
+    : showRegTag && krReg ? krReg.regularPct
+    : usRegTagShown ? regPctResolved : null;
+  const nameColorCls = regNamePct == null ? priceColorCls
+    : regNamePct > 0 ? "text-rose-600" : regNamePct < 0 ? "text-blue-600" : "text-gray-900";
   const isHeld = groups.length > 0;
   const shownGroups = groups.length >= 3 ? groups.slice(0, 2) : groups;
   const moreGroups = groups.length - shownGroups.length;
@@ -851,7 +859,7 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                   disabled={!isStandard && !fxSym}
                   className={`inline-flex items-center px-2 py-0.5 rounded-t-md min-w-0 max-w-full
                               border-t border-l border-r font-bold text-xs leading-none
-                              ${tabBg} ${priceColorCls}
+                              ${tabBg} ${nameColorCls}
                               ${isStandard || fxSym ? "cursor-pointer hover:brightness-95 transition" : ""}`}
                   title={isStandard ? item.name
                        : fxSym ? `${item.name} (${fxSym}) — 야후 파이낸스에서 보기`
