@@ -24,3 +24,8 @@ export const HEAT_COLOR_OPTS: { key: HeatColorBy; label: string; sat: number; fi
 export const HEAT_GROUP_OPTS: { key: HeatGroupBy; label: string }[] = [
   { key: "none", label: "없음" }, { key: "sector", label: "섹터" }, { key: "dir", label: "등락 방향" },
 ];
+// 부호 필터 — 색 기준 값이 +인 종목만 / −인 종목만(2026-10-13). 값이 없는 종목은 전체에서만 보인다.
+export type HeatSign = "all" | "up" | "down";
+export const HEAT_SIGN_OPTS: { key: HeatSign; label: string }[] = [
+  { key: "all", label: "전체" }, { key: "up", label: "+만" }, { key: "down", label: "−만" },
+];

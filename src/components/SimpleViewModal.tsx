@@ -8,7 +8,7 @@ import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEscClose } from "../lib/useEscClose";
 import { useState } from "react";
 import { HoldingsHeatmap } from "./HoldingsHeatmap";
-import { HEAT_SIZE_OPTS, HEAT_COLOR_OPTS, HEAT_GROUP_OPTS, type HeatSizeBy, type HeatColorBy, type HeatGroupBy } from "../lib/holdingsHeat";
+import { HEAT_SIZE_OPTS, HEAT_COLOR_OPTS, HEAT_GROUP_OPTS, HEAT_SIGN_OPTS, type HeatSizeBy, type HeatColorBy, type HeatGroupBy, type HeatSign } from "../lib/holdingsHeat";
 
 // 보기 전환(카드 | 히트맵)·히트맵 크기 기준 — 마지막 선택을 기억한다(2026-10-13)
 const SIZE_KEY = "simple_heat_size", COLOR_KEY = "simple_heat_color", GROUP_KEY = "simple_heat_group";
@@ -41,6 +41,7 @@ export function SimpleViewModal({
   const [sizeBy, setSizeBy] = useState<HeatSizeBy>(() => load(SIZE_KEY, HEAT_SIZE_OPTS.map(o => o.key), "value"));
   const [colorBy, setColorBy] = useState<HeatColorBy>(() => load(COLOR_KEY, HEAT_COLOR_OPTS.map(o => o.key), "d1"));
   const [groupBy, setGroupBy] = useState<HeatGroupBy>(() => load(GROUP_KEY, HEAT_GROUP_OPTS.map(o => o.key), "none"));
+  const [sign, setSign] = useState<HeatSign>("all");   // +만 / −만 — 열 때마다 전체부터(걸러 둔 걸 잊고 종목이 사라진 줄 알지 않게)
   if (!isOpen) return null;
   const seg = (on: boolean) => `px-2 py-0.5 ${on ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`;
 
@@ -73,6 +74,14 @@ export function SimpleViewModal({
                       className="border border-gray-300 rounded px-1 py-0.5 bg-white">
                 {HEAT_GROUP_OPTS.map(o => <option key={o.key} value={o.key}>{o.label}</option>)}
               </select>
+              <span className="inline-flex rounded border border-gray-300 overflow-hidden font-bold" title="색 기준 값이 +인 종목만 / −인 종목만">
+                {HEAT_SIGN_OPTS.map(o => (
+                  <button key={o.key} onClick={() => setSign(o.key)}
+                          className={`px-2 py-0.5 ${sign === o.key
+                            ? (o.key === "up" ? "bg-rose-600 text-white" : o.key === "down" ? "bg-blue-600 text-white" : "bg-gray-800 text-white")
+                            : "bg-white text-gray-600 hover:bg-gray-100"}`}>{o.label}</button>
+                ))}
+              </span>
             </span>
           )}
           <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-600 text-xl">✕</button>
@@ -80,7 +89,7 @@ export function SimpleViewModal({
 
         <div className="px-3 py-3 overflow-y-auto">
           {view === "heat" ? (
-            <HoldingsHeatmap stocks={stocks} priceMap={priceMap} sizeBy={sizeBy} colorBy={colorBy} groupBy={groupBy}
+            <HoldingsHeatmap stocks={stocks} priceMap={priceMap} sizeBy={sizeBy} colorBy={colorBy} groupBy={groupBy} sign={sign}
                              onOpen={onOpenValuation ? (t => { if (/^[\dA-Za-z]{6}$/.test(t)) onOpenValuation(t); }) : undefined} />
           ) : (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-2 gap-y-3.5 items-stretch">

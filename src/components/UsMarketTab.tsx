@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
+import { useMarketAlerts } from "../lib/marketAlerts";
+import { IndexWarnTag } from "./IndexWarnTag";
 import { fetchYahooBatch, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
@@ -205,6 +207,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const [leaderSort, setLeaderSort] = useState<LeaderSort>(loadLeaderSort);   // 대장주 줄 정렬(등락률순 기본)
   const chartRange = useChartRange();   // 카드 배경 차트 3개월 | 24시간 — 앱 전체 설정
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
+  const marketAlerts = useMarketAlerts();   // 종목코드 → 투자주의·경고·위험
   // 야간선물(yasun.gg)은 프록시를 타므로 구버전 개인 워커면 값이 빈다 → 그때만 업데이트 안내.
   //   "값이 없다"만으로 워커를 탓하면 업스트림 차단(예: investing.com Cloudflare 챌린지)까지
   //   워커 탓으로 오진한다. 반드시 실제 화이트리스트 검사 결과("outdated")로만 띄운다.
@@ -442,6 +445,12 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                         ETF
                       </button>
                     );
+                  })()}
+                  {/* 경고 책갈피 — 투자주의·경고·위험(크롤러 목록, 0콜) */}
+                  {(() => {
+                    const tk = krEtfTicker(p.symbol);
+                    const lv = tk ? marketAlerts.get(tk) : undefined;
+                    return tk && lv ? <IndexWarnTag ticker={tk} name={p.name} level={lv} shift={!p.krStock} /> : null;
                   })()}
                   {/* 정규장 마감가 책갈피 — 카드 위로 올림(-top-2). 노란 배경 + 흐림 제외(z-20) */}
                   {showCloseTag && closeVal != null && (

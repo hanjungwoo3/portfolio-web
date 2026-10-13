@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMarketAlerts } from "../lib/marketAlerts";
+import { IndexWarnTag } from "./IndexWarnTag";
 import {
   sortHoldings, loadSortKey, loadSortDir, saveSortKey, saveSortDir,
   type SortKey, type SortDirection,
@@ -173,6 +175,7 @@ export function MobileSimpleView() {
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInitQuery, setSearchInitQuery] = useState("");
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
+  const marketAlerts = useMarketAlerts();   // 종목코드 → 투자주의·경고·위험
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // 상단 헤더 접기/펼치기 (PC 와 동일 키)
@@ -1976,6 +1979,12 @@ export function MobileSimpleView() {
                         ETF
                       </button>
                     );
+                  })()}
+                  {/* 경고 책갈피 — 투자주의·경고·위험(크롤러 목록, 0콜) */}
+                  {(() => {
+                    const tk = krEtfTicker(p.symbol);
+                    const lv = tk ? marketAlerts.get(tk) : undefined;
+                    return tk && lv ? <IndexWarnTag ticker={tk} name={p.name} level={lv} shift={!p.krStock} /> : null;
                   })()}
                   {/* 정규장 마감가 책갈피 — 카드 위로 올림(-top-2). 노란 배경(살짝 투명) + 흐림 제외(z-20) */}
                   {showCloseTag && closeVal != null && (
