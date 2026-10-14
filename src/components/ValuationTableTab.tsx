@@ -53,7 +53,7 @@ function fmtShares(v: number): string {
 }
 
 type ColKey =
-  | "name" | "market" | "sub" | "spark" | "price" | "chg" | "ret_1m" | "ret_3m" | "vs_sector" | "ret_1y" | "breakout" | "frg_avg" | "frg_vs"
+  | "name" | "market" | "sub" | "spark" | "price" | "chg" | "ret_1m" | "ret_3m" | "vs_sector" | "ret_1y" | "breakout" | "frg_avg" | "frg_vs" | "ins_avg" | "ins_vs" | "pen_avg" | "pen_vs"
   | "from_52h" | "pos_52" | "from_ath" | "fwd_per" | "op_next" | "op_growth" | "target" | "target_up" | "opinion"
   | "trend_d" | "trend_m"
   | "market_cap" | "per" | "pbr" | "eps" | "bps" | "industry_per"
@@ -95,6 +95,10 @@ const COLS: Col[] = [
   { key: "breakout",  label: "횡보 돌파", hint: `약 ${BREAKOUT_BASE}거래일 좁은 박스(폭 ${BREAKOUT_MAX_WIDTH}% 이내) 뒤 최근 ${BREAKOUT_RECENT}거래일 안에 거래량 ${BREAKOUT_VOL_X}배 이상 싣고 박스 상단을 뚫은 날. 정렬은 최근 돌파 먼저.` },
   { key: "frg_avg",   label: "외인 평균단가", unit: "원", hint: "최근 약 200거래일, 외국인이 순매수한 날의 종가를 수량으로 가중 평균(토스 일별 수급 × 종가 근사). 기업가치 팝업의 수급단가와 같은 값." },
   { key: "frg_vs",    label: "외인 단가 대비", unit: "%", digits: 1, pct: true, hint: "현재가 ÷ 외국인 평균 매수단가 − 1. 음수 = 외국인이 산 값보다 싸다(외국인 평가손)." },
+  { key: "ins_avg",   label: "기관 평균단가", unit: "원", hint: "최근 약 200거래일, 기관(금융투자 제외)이 순매수한 날의 종가를 수량으로 가중 평균. 금융투자는 ETF 설정·차익·헤지 물량이라 방향이 섞여 뺀다." },
+  { key: "ins_vs",    label: "기관 단가 대비", unit: "%", digits: 1, pct: true, hint: "현재가 ÷ 기관(금융투자 제외) 평균 매수단가 − 1. 음수 = 기관이 산 값보다 싸다." },
+  { key: "pen_avg",   label: "연기금 평균단가", unit: "원", hint: "최근 약 200거래일, 연기금이 순매수한 날의 종가를 수량으로 가중 평균." },
+  { key: "pen_vs",    label: "연기금 단가 대비", unit: "%", digits: 1, pct: true, hint: "현재가 ÷ 연기금 평균 매수단가 − 1. 음수 = 연기금이 산 값보다 싸다." },
   { key: "ret_1y",    label: "1년",      unit: "%", digits: 1, pct: true, hint: "약 250거래일 전 종가 대비." },
   { key: "from_52h",  label: "52주고점比", unit: "%", digits: 1, pct: true, hint: "52주(약 250거래일) 최고가 대비 현재 위치. 0 이면 신고가." },
   { key: "pos_52",    label: "52주위치", unit: "%", hint: "52주 최저(0)~최고(100) 사이 어디인가. 80 이상 = 고점권, 20 이하 = 저점권." },
@@ -183,7 +187,8 @@ const VIEW_COLS: Col[] = SIMPLE.map(v => {
   return { ...c, label: v.label ?? c.label, hint: v.hint ?? c.hint, unit: v.unit ?? c.unit };
 });
 const BREAKOUT_COL: Col = COLS.find(c => c.key === "breakout")!;
-const FRG_COLS: Col[] = COLS.filter(c => c.key === "frg_avg" || c.key === "frg_vs");
+// 수급 평균단가 모드에서 현재가 뒤에 붙는 열 — 외국인·기관·연기금 평균단가(같은 수급 응답에서 셋 다 낸다, 추가 호출 0)
+const FRG_COLS: Col[] = COLS.filter(c => /^(frg|ins|pen)_(avg|vs)$/.test(c.key));
 
 interface Row extends ValuationRow {
   ticker: string;
@@ -198,6 +203,8 @@ interface Row extends ValuationRow {
   brk?: Breakout | null;
   frg_avg?: number | null;        // 외국인 평균 매수단가(원) — lib/flowProfile
   frg_vs?: number | null;         // 현재가 ÷ 외인 단가 − 1 (%)
+  ins_avg?: number | null; ins_vs?: number | null;   // 기관(금융투자 제외)
+  pen_avg?: number | null; pen_vs?: number | null;   // 연기금
   from_52h?: number | null; pos_52?: number | null; from_ath?: number | null;
   fwd_per?: number | null; op_next?: number | null; op_growth?: number | null;
   target?: number | null; target_up?: number | null; opinion?: number | null; opinionText?: string;
@@ -227,6 +234,17 @@ function numOf(r: Row, key: ColKey): number | null {
   if (key === "sub") return r.subRank ?? null;
   const v = r[key];
   return typeof v === "number" && Number.isFinite(v) ? v : null;
+}
+
+// 현재가·오늘 열 — 노란 세로 띠로 눈에 띄게(2026-10-14). 줄무늬(odd/even) 위에 덮인다.
+//   정렬 중인 열은 초록 띠(노랑보다 우선) — 무엇 기준으로 줄 세웠는지 한눈에.
+const hiCol = (k: ColKey, sortKey?: ColKey) =>
+  k === sortKey && k !== "name" ? "bg-green-100/80 border-x border-green-300/70"
+  : k === "price" || k === "chg" ? "bg-yellow-100/80 border-x border-yellow-300/60" : "";
+
+// 현재가 색 = 오늘 등락(직전 거래일 종가 대비) 방향 — 빨강 상승 / 파랑 하락
+function priceColor(chg: number | null): string {
+  return chg == null || chg === 0 ? "text-gray-900" : chg > 0 ? "text-rose-600" : "text-blue-600";
 }
 
 function fmtCell(v: number | null, col: Col): string {
@@ -346,7 +364,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   // 시장 필터 — 전체 / 코스피 / 코스닥 (시장은 네이버 상세로 알아낸다 — 아직 모르는 종목은 '전체' 에만)
   const [mkt, setMkt] = useState<"all" | "KOSPI" | "KOSDAQ">("all");
   const [sub, setSub] = useState<string>("all");   // 세부 분류 필터(분류가 있는 섹터만)
-  // 찾기 모드 — 🔎 덜 오른 종목 / 🚀 횡보 돌파 / 🟣 외인 단가 아래 (하나만 켜진다)
+  // 찾기 모드 — 🔎 덜 오른 종목 / 🚀 횡보 돌파 / 🟣 수급 평균단가 (하나만 켜진다)
   type Finder = "laggard" | "breakout" | "foreign";
   const [finder, setFinder] = useState<"none" | Finder>("none");
   const pickFinder = (f: Finder) => {
@@ -386,7 +404,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
     queries: tickers.map(t => ({
       queryKey: ["investor-history-long", t],
       queryFn: () => fetchInvestorHistorySafe(t, [200, 120, 60]),
-      enabled: finder === "foreign",   // 평소엔 안 부른다(초보용 정리) — '외인 단가 아래' 를 켰을 때만 종목당 1콜
+      enabled: finder === "foreign",   // 평소엔 안 부른다(초보용 정리) — '수급 평균단가' 를 켰을 때만 종목당 1콜
       staleTime: INVESTOR_STALE_MS,
       refetchOnWindowFocus: false,
     })),
@@ -471,7 +489,8 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
     const ex = extraQs[i]?.data;
     const target = ex?.cons.consensus_target_official;
     const brk = detectBreakout(dayCandleQs[i]?.data);   // 이미 받는 토스 일봉 450 — 추가 호출 없음
-    const frgAvg = inv ? computeFlowProfile(inv, "외국인")?.avgBuy ?? null : null;
+    const avgOf = (g: "외국인" | "기관" | "연기금") => inv ? computeFlowProfile(inv, g)?.avgBuy ?? null : null;
+    const frgAvg = avgOf("외국인"), insAvg = avgOf("기관"), penAvg = avgOf("연기금");
     return {
       ...(d ?? { ticker: t }),
       ...priceStats(dayCandleQs[i]?.data, monthCandleQs[i]?.data, lp?.price),
@@ -499,6 +518,8 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
       brk, breakout: brk?.daysAgo ?? null,
       frg_avg: frgAvg,
       frg_vs: frgAvg && now ? (now / frgAvg - 1) * 100 : null,
+      ins_avg: insAvg, ins_vs: insAvg && now ? (now / insAvg - 1) * 100 : null,
+      pen_avg: penAvg, pen_vs: penAvg && now ? (now / penAvg - 1) * 100 : null,
       trendD, trendM,
       trend_d: trendD?.score ?? null,
       trend_m: trendM?.score ?? null,
@@ -521,13 +542,11 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   const isLaggard = (r: Row) => r.vs_sector != null && r.vs_sector <= LAGGARD_GAP && r.op_growth != null && r.op_growth > 0;
 
   // 종목 수십 개 규모라 매 렌더 정렬해도 부담 없다(메모 키를 만드는 비용이 오히려 큼).
-  // 외인 단가 아래 — 수급을 받는 동안은 다 보여 주고(빈 표로 깜빡이지 않게), 받은 뒤 걸러낸다.
-  const finderOk = (r: Row, i: number) =>
+    const finderOk = (r: Row) =>
     finder === "laggard" ? isLaggard(r)
     : finder === "breakout" ? !!r.brk
-    : finder === "foreign" ? (invQs[i]?.isLoading || (r.frg_vs != null && r.frg_vs < 0))
-    : true;
-  const sorted = rows.filter((r, i) => (mkt === "all" || r.market === mkt) && (sub === "all" || r.sub === sub) && finderOk(r, i)).sort((a, b) => {
+    : true;   // 수급 평균단가는 거르지 않는다 — 외국인·기관·연기금 단가 열을 붙여 섹터 전체를 비교(2026-10-14)
+  const sorted = rows.filter(r => (mkt === "all" || r.market === mkt) && (sub === "all" || r.sub === sub) && finderOk(r)).sort((a, b) => {
     if (sortKey === "name") {
       return asc ? a.label.localeCompare(b.label, "ko") : b.label.localeCompare(a.label, "ko");
     }
@@ -600,10 +619,10 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
           🚀 횡보 돌파
         </button>
         <button onClick={() => pickFinder("foreign")}
-                title="현재가가 외국인 평균 매수단가(최근 약 200거래일, 순매수한 날 종가의 수량 가중 평균)보다 낮은 종목 — 외국인이 산 값보다 싼 순. 켤 때 종목마다 수급을 받는다."
+                title="외국인·기관(금융투자 제외)·연기금 평균 매수단가(최근 약 200거래일, 순매수한 날 종가의 수량 가중 평균)와 현재가를 비교 — 열을 눌러 정렬. 켤 때 종목마다 수급을 받는다."
                 className={`px-2 py-0.5 rounded border text-[12px] font-bold
                             ${finder === "foreign" ? "bg-violet-600 text-white border-violet-600" : "bg-white text-violet-700 border-violet-300 hover:bg-violet-50"}`}>
-          🟣 외인 단가 아래
+          🟣 수급 평균단가
         </button>
         {sectorMed != null && (
           <span className="text-[11px] text-gray-500" title="비교 묶음(분류를 고르면 그 분류) 종목들의 3개월 수익률 가운데 값">
@@ -633,7 +652,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                       onClick={() => clickCol(col.key)}
                       title={`${col.hint}\n(클릭: 정렬)`}
                       className={`px-2 py-1.5 whitespace-nowrap cursor-pointer select-none border-b border-gray-200
-                                  text-[12px] ${col.key === "name" ? "text-left sticky left-0 bg-gray-50 z-30" : "text-right"}
+                                  text-[12px] ${col.key === "name" ? "text-left sticky left-0 bg-gray-50 z-30" : "text-right"} ${hiCol(col.key, sortKey)}
                                   ${active ? "text-blue-700 font-bold" : "text-gray-600 hover:text-gray-900"}`}>
                     {/* 열 제목은 전부 두 줄 — 윗줄 이름, 아랫줄 (단위) + 정렬 화살표. 폭을 아끼고 줄 높이를 맞춘다. */}
                     <span className="block">{col.label}</span>
@@ -670,7 +689,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                   }
                   if (col.key === "sub") {
                     return (
-                      <td key={col.key} className="px-2 py-1 text-center whitespace-nowrap">
+                      <td key={col.key} className={`px-2 py-1 text-center whitespace-nowrap ${hiCol(col.key, sortKey)}`}>
                         {r.sub ? <span className={`px-1.5 rounded text-[11px] font-bold border ${SUB_TONE[r.sub] ?? SUB_PALETTE[(r.subRank ?? 0) % SUB_PALETTE.length]}`}>{r.sub}</span>
                                : <span className="text-gray-300">—</span>}
                       </td>
@@ -678,7 +697,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                   }
                   if (col.key === "market") {
                     return (
-                      <td key={col.key} className="px-2 py-1 text-center whitespace-nowrap">
+                      <td key={col.key} className={`px-2 py-1 text-center whitespace-nowrap ${hiCol(col.key, sortKey)}`}>
                         {r.market
                           ? <span className={`px-1.5 rounded text-[11px] font-bold border
                                               ${r.market === "KOSDAQ" ? "text-emerald-700 bg-emerald-50 border-emerald-200" : "text-blue-700 bg-blue-50 border-blue-200"}`}>
@@ -700,7 +719,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                   if (col.key === "breakout") {
                     const b = r.brk;
                     return (
-                      <td key={col.key} className="px-2 py-1 text-right whitespace-nowrap"
+                      <td key={col.key} className={`px-2 py-1 text-right whitespace-nowrap ${hiCol(col.key, sortKey)}`}
                           title={b ? `${b.date} 돌파 · 박스 상단 ${Math.round(b.boxTop).toLocaleString("ko-KR")}원 (폭 ${b.boxWidth.toFixed(0)}%)\n돌파일 거래량 = 박스 평균의 ${b.volX.toFixed(1)}배 · 지금 상단보다 ${b.aboveTop.toFixed(1)}% 위` : undefined}>
                         {b
                           ? <span className="text-rose-600 font-bold">
@@ -714,7 +733,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                   }
                   if (col.key === "opinion") {
                     return (
-                      <td key={col.key} className="px-2 py-1 text-right whitespace-nowrap"
+                      <td key={col.key} className={`px-2 py-1 text-right whitespace-nowrap ${hiCol(col.key, sortKey)}`}
                           title={r.opinion != null ? `평균 점수 ${r.opinion.toFixed(2)} / 5` : undefined}>
                         {r.opinionText
                           ? <span className={r.opinion != null && r.opinion >= 3.5 ? "text-rose-600 font-bold" : "text-gray-700"}>{r.opinionText}</span>
@@ -727,7 +746,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                     return (
                       <td key={col.key}
                           title={trendTooltip(r, col)}
-                          className="px-2 py-1 text-right whitespace-nowrap">
+                          className={`px-2 py-1 text-right whitespace-nowrap ${hiCol(col.key, sortKey)}`}>
                         {t
                           ? <span className={`px-1 py-0.5 ${MA_TREND_CLASS[t.state]}`}>
                               {MA_TREND_LABEL[t.state]}
@@ -740,7 +759,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                   return (
                     <td key={col.key}
                         title={col.burst ? burstTooltip(r) : undefined}
-                        className={`px-2 py-1 text-right whitespace-nowrap tabular-nums ${cellColor(v, col)}`}>
+                        className={`px-2 py-1 text-right whitespace-nowrap tabular-nums ${hiCol(col.key, sortKey)} ${col.key === "price" ? priceColor(numOf(r, "chg")) : cellColor(v, col)}`}>
                       {r.loading && v == null ? <span className="text-gray-300">…</span> : fmtCell(v, col)}
                     </td>
                   );
