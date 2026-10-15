@@ -1732,6 +1732,39 @@ export async function fetchKrFuturesDaily(count = 60): Promise<KrFuturesData | n
   }
 }
 
+// KOSPI200 선물 미결제약정 — 다음 금융. 네이버(FUT integration·basic·price·polling)엔 필드가 없다.
+//   masters = 상장 월물 목록(근월물이 맨 앞) → days = 그 월물의 일별 종가·미결제수량.
+//   ⚠️ Referer 가 finance.daum.net 이 아니면 403 — 프록시 8곳·확장 HEADER_GROUPS·nativeProxy 가 붙인다.
+//   월물 단위 값이라 만기 전후(롤오버)엔 근월물 미결제가 크게 줄어든다 — 방향 신호가 아니다.
+export interface KrFuturesOpenInterest {
+  contract: string;       // "F 202612"
+  date: string;           // "YYYY-MM-DD"
+  oi: number;             // 미결제약정(계약)
+  prevOi: number | null;  // 직전 거래일
+}
+export async function fetchKrFuturesOpenInterest(): Promise<KrFuturesOpenInterest | null> {
+  try {
+    const mr = await fetchProxied("https://finance.daum.net/api/futures/masters");
+    if (!mr.ok) return null;
+    const masters = (await mr.json()) as { data?: Array<{ symbolCode?: string; name?: string }> };
+    const near = masters.data?.[0];
+    if (!near?.symbolCode) return null;
+    const dr = await fetchProxied(`https://finance.daum.net/api/future/${near.symbolCode}/days?page=1&perPage=2`);
+    if (!dr.ok) return null;
+    const days = (await dr.json()) as { data?: Array<{ date?: string; unsettledVolume?: number }> };
+    const rows = (days.data ?? []).filter(r => r.date && Number.isFinite(r.unsettledVolume) && (r.unsettledVolume ?? 0) > 0);
+    if (!rows.length) return null;
+    return {
+      contract: near.name ?? near.symbolCode,
+      date: String(rows[0].date).slice(0, 10),
+      oi: rows[0].unsettledVolume!,
+      prevOi: rows[1]?.unsettledVolume ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
 // Yahoo 임의 심볼 가격 history (^KS11, ^KQ11 등 인덱스 포함)
 export async function fetchYahooPriceHistory(
   symbol: string, range = "1y",

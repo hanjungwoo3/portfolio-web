@@ -31,6 +31,7 @@ const ALLOWED_HOSTS = new Set([
   "query2.finance.yahoo.com",
   "api.investing.com",
   "yasun.gg",
+  "finance.daum.net",
   "scanner.tradingview.com",
 ]);
 
@@ -141,6 +142,8 @@ function upstreamHeaders(t) {
   } else if (t.hostname.includes("naver")) {
     h["Referer"] = "https://finance.naver.com/";
     h["Accept-Language"] = "ko-KR,ko;q=0.9";
+  } else if (t.hostname === "finance.daum.net") {
+    h["Referer"] = "https://finance.daum.net/";
   } else if (t.hostname.includes("yasun.gg")) {
     h["Referer"] = "https://yasun.gg/";
     h["Accept"] = "application/json";

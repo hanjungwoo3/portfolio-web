@@ -132,9 +132,18 @@ function pickContentType(headers: Record<string, string> | undefined): string {
   return "application/octet-stream";
 }
 
+// 호스트별 Referer — 프록시 워커·확장(HEADER_GROUPS)과 같은 규칙. 없으면 막는 곳만 둔다.
+//   다음 금융 api 는 Referer 없이 403 이다(선물 미결제약정).
+function refererFor(targetUrl: string): Record<string, string> {
+  try {
+    if (new URL(targetUrl).hostname === "finance.daum.net") return { Referer: "https://finance.daum.net/" };
+  } catch { /* URL 파싱 실패 — 헤더 없이 */ }
+  return {};
+}
+
 export async function fetchViaNative(targetUrl: string, init?: RequestInit): Promise<Response> {
   const given = (init?.headers ?? {}) as Record<string, string>;
-  const headers: Record<string, string> = { "User-Agent": UA, ...given };
+  const headers: Record<string, string> = { "User-Agent": UA, ...refererFor(targetUrl), ...given };
 
   // crumb 이 필요한 Yahoo 엔드포인트면 쿼리에 붙여 보낸다(없으면 401).
   let url = targetUrl;

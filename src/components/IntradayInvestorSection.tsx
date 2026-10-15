@@ -8,7 +8,7 @@
 
 import { useState, useMemo, useCallback, lazy, Suspense, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntraday, fetchTossIndexIntraday, fetchYahooPriceHistory, fetchKrFuturesDaily, fetchLeverageDailyFlow, fetchKrPriceHistory, LEVERAGE_BASKETS } from "../lib/api";
+import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntraday, fetchTossIndexIntraday, fetchYahooPriceHistory, fetchKrFuturesDaily, fetchKrFuturesOpenInterest, fetchLeverageDailyFlow, fetchKrPriceHistory, LEVERAGE_BASKETS } from "../lib/api";
 import type { IntradayMarket, LeverageBasket } from "../lib/api";
 import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
 import { useCrosshairSync, type SyncRegistrar } from "../lib/useCrosshairSync";
@@ -339,6 +339,32 @@ function LeverageBlock({ basket, enabled, days, on, onReady, onToggle }: {
   );
 }
 
+// 선물 미결제약정 — 근월물 기준, 전일 대비 증감. 일별 값이라 장중 5분 간격으로만 다시 묻는다.
+//   증감 색은 가격 색(빨강·파랑)과 헷갈리지 않게 중립(진회색)·굵기만. 늘었다 = 새 포지션 유입.
+function FuturesOpenInterestLine({ on }: { on: boolean }) {
+  const q = useQuery({
+    queryKey: ["kr-futures-oi"],
+    queryFn: fetchKrFuturesOpenInterest,
+    enabled: on,
+    refetchInterval: on && isMarketOpen("KR") ? 5 * 60_000 : false,
+    staleTime: 5 * 60_000, refetchOnWindowFocus: false,
+  });
+  const d = q.data;
+  if (!d) return null;
+  const diff = d.prevOi != null ? d.oi - d.prevOi : null;
+  return (
+    <div className="mt-1 px-1 text-[11px] text-gray-500 flex flex-wrap items-baseline gap-x-1.5"
+         title="미결제약정 — 아직 청산되지 않고 남아 있는 선물 계약 수. 가격과 함께 늘면 새 포지션 유입(추세 강화), 줄면 청산. 만기(롤오버) 전후엔 근월물 값이 크게 줄어든다.">
+      <span>미결제약정</span>
+      <span className="font-semibold text-gray-800 tabular-nums">{d.oi.toLocaleString()}계약</span>
+      {diff != null && (
+        <span className="tabular-nums text-gray-700">({diff > 0 ? "+" : ""}{diff.toLocaleString()})</span>
+      )}
+      <span className="text-gray-400">{+d.date.slice(5, 7)}/{+d.date.slice(8, 10)} · {d.contract}</span>
+    </div>
+  );
+}
+
 // 선물·옵션 동시만기 배지 — 만기 1주 이내에만 표시(당일은 강조). 만기일 현물 변동성↑ 경고.
 function FuturesExpiryBadge() {
   const info = nextFuturesExpiry();
@@ -534,6 +560,7 @@ export function IntradayInvestorSection() {
                     <MarketBlock market={m.key} label={m.label} enabled={enabled}
                       mode={mode} days={days} on={open} onReady={registerSync} onToggle={toggleInvestor}
                       refFirstT={refRange?.from} refLastT={refRange?.to} />
+                    {m.key === "futures" && <FuturesOpenInterestLine on={open} />}
                   </div>
                 ))}
               </div>
