@@ -148,11 +148,11 @@ const SIMPLE: { key: ColKey; label?: string; hint?: string; unit?: string }[] = 
   { key: "sub" },
   { key: "spark",            label: "6개월 추세", hint: "최근 6개월 주가 흐름. 정렬은 6개월 수익률." },
   { key: "price" },
-  { key: "target",           label: "평균 목표주가", hint: "증권사들이 제시한 목표주가의 평균. 현재가와 바로 비교하게 옆에 둔다." },
-  { key: "target_up",        label: "목표주가까지", hint: "평균 목표주가가 지금 주가보다 몇 % 위인가. 클수록 더 오를 여지를 본다는 뜻." },
   { key: "chg",              label: "오늘", hint: "어제 종가보다 오늘 몇 % 올랐나(내렸나)." },
   { key: "ret_1m",           label: "1개월", hint: "한 달 전보다 몇 % 올랐나." },
   { key: "ret_3m",           label: "3개월", hint: "석 달 전보다 몇 % 올랐나." },
+  { key: "target",           label: "평균 목표주가", hint: "증권사들이 제시한 목표주가의 평균. 현재가와 바로 비교하게 옆에 둔다." },
+  { key: "target_up",        label: "목표주가까지", hint: "평균 목표주가가 지금 주가보다 몇 % 위인가. 클수록 더 오를 여지를 본다는 뜻." },
   { key: "vs_sector",        label: "섹터보다", hint: "석 달 동안 섹터 안 다른 종목들(가운데 값)보다 몇 %p 더/덜 올랐나. 크게 음수면 아직 덜 오른 종목." },
   { key: "ret_1y",           label: "1년", hint: "1년 전보다 몇 % 올랐나." },
   { key: "from_52h",         label: "1년 고점 대비", hint: "지난 1년 중 가장 비쌌던 가격보다 지금 몇 % 아래인가. 0 이면 지금이 1년 중 최고가." },
@@ -187,7 +187,7 @@ const VIEW_COLS: Col[] = SIMPLE.map(v => {
   return { ...c, label: v.label ?? c.label, hint: v.hint ?? c.hint, unit: v.unit ?? c.unit };
 });
 const BREAKOUT_COL: Col = COLS.find(c => c.key === "breakout")!;
-// 수급 평균단가 모드에서 현재가 뒤에 붙는 열 — 외국인·기관·연기금 평균단가(같은 수급 응답에서 셋 다 낸다, 추가 호출 0)
+// 수급 평균단가 모드에서 3개월 뒤에 붙는 열 — 외국인·기관·연기금 평균단가(같은 수급 응답에서 셋 다 낸다, 추가 호출 0)
 const FRG_COLS: Col[] = COLS.filter(c => /^(frg|ins|pen)_(avg|vs)$/.test(c.key));
 
 interface Row extends ValuationRow {
@@ -374,7 +374,8 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   };
   // '횡보 돌파' 열은 돌파 모드에서만 — 평소 표는 초보용 쉬운 열 그대로
   const viewCols = (preset.subs ? VIEW_COLS : VIEW_COLS.filter(c => c.key !== "sub"))
-    .flatMap(c => c.key !== "price" ? [c] : finder === "breakout" ? [c, BREAKOUT_COL] : finder === "foreign" ? [c, ...FRG_COLS] : [c]);
+    // 찾기 열은 현재가·오늘·1개월·3개월 묶음 바로 뒤에 붙인다
+    .flatMap(c => c.key !== "ret_3m" ? [c] : finder === "breakout" ? [c, BREAKOUT_COL] : finder === "foreign" ? [c, ...FRG_COLS] : [c]);
   const items: ConsensusItem[] = useMemo(
     () => preset.tickers.map(t => ({ ticker: t, name: preset.names[t] ?? "" })),
     [preset],

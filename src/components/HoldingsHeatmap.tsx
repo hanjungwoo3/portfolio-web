@@ -132,13 +132,17 @@ export function HoldingsHeatmap({ stocks, priceMap, sizeBy, colorBy, groupBy = "
         tiles.push(...squarify(list, { x: rect.x, y: rect.y + head, w: rect.w, h: rect.h - head }));
       };
       if (groupBy === "dir") {
-        // 자리를 고정해야 날마다 비교가 된다 — 폭만 크기 합에 비례
+        // 자리를 고정해야 날마다 비교가 된다. 상승·하락은 화면을 반씩 — 크기 합에 비례시키면
+        //   하락 236 : 상승 33 같은 날 상승이 실처럼 가늘어져 안 읽힌다. 보합·값 없음만 크기 합에 비례.
         const blocks = ["상승", "보합", "하락", "값 없음"].map(k => ({ k, list: groups.get(k) ?? [] })).filter(g => g.list.length)
           .map(g => ({ ...g, total: g.list.reduce((a, x) => a + x.value, 0) }));
         const sum = blocks.reduce((a, g) => a + g.total, 0);
+        const halves = blocks.filter(g => g.k === "상승" || g.k === "하락");
+        const sideW = blocks.filter(g => !halves.includes(g)).reduce((a, g) => a + (w * g.total) / sum, 0);
         let x = 0;
         blocks.forEach((g, i) => {
-          const bw = i === blocks.length - 1 ? w - x : (w * g.total) / sum;
+          const bw = i === blocks.length - 1 ? w - x
+            : halves.includes(g) ? (w - sideW) / halves.length : (w * g.total) / sum;
           place(g.k, g.list, { x, y: 0, w: bw, h });
           x += bw;
         });
