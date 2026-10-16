@@ -427,8 +427,10 @@ function OiTip({ d, diff, kase, rollDrop, daysLeft }: {
           <div className={`font-medium ${OI_CASES[kase].tone}`}>→ {OI_CASES[kase].why}</div>
         ) : rollDrop ? (
           <div className="text-gray-600">→ 만기 D-{daysLeft} 롤오버 구간이라 근월물 감소는 다음 월물로 옮겨 가는 것 — 방향 신호로 읽지 않는다.</div>
+        ) : d.chg == null || diff == null ? (
+          <div className="text-gray-600">→ {d.chg == null ? "선물 가격 등락" : "전일 미결제"}을 못 받아 둘을 묶어 읽을 수 없다.</div>
         ) : (
-          <div className="text-gray-600">→ 가격이나 미결제가 그대로라 방향을 읽을 신호가 없다.</div>
+          <div className="text-gray-600">→ {d.chg === 0 ? "선물 가격이 전일과 같아" : "미결제가 전일과 같아"} 방향을 읽을 신호가 없다.</div>
         )}
       </div>
       <div><b>미결제약정</b> — 아직 청산되지 않고 남아 있는 선물 계약 수. 새로 사고·파는 사람이 만나면 +1, 둘 다 청산하면 −1.</div>
