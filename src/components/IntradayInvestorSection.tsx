@@ -396,6 +396,11 @@ function FuturesOpenInterestLine({ on }: { on: boolean }) {
 
 // 미결제약정 설명 레이어 — 브라우저 title 은 1초 넘게 늦게 떠서 즉시 뜨는 Tooltip 을 쓴다.
 //   맨 위에 **지금 값**을 숫자로 풀고, 아래 표에서 지금 해당하는 줄을 칠한다.
+// "F 202612" → "26년 12월물"
+function contractLabel(name: string): string {
+  const m = /(\d{2})(\d{2})(\d{2})\s*$/.exec(name);
+  return m ? `${m[2]}년 ${+m[3]}월물` : name;
+}
 function OiTip({ d, diff, kase, rollDrop, daysLeft }: {
   d: KrFuturesOpenInterest; diff: number | null; kase: OiCase | null; rollDrop: boolean; daysLeft: number;
 }) {
@@ -412,12 +417,15 @@ function OiTip({ d, diff, kase, rollDrop, daysLeft }: {
   return (
     <div className="space-y-1.5 max-w-[360px]">
       <div className="rounded bg-gray-50 border border-gray-200 px-2 py-1.5 space-y-0.5">
-        <div className="font-bold text-gray-700">지금 값 ({md} · {d.contract})</div>
+        <div className="font-bold text-gray-700">지금 값 ({md} · {d.contract} = {contractLabel(d.contract)} 코스피200 선물)</div>
         {d.chg != null && (
-          <div>선물 <b className="tabular-nums">{d.price?.toFixed(2)}</b>{" "}
+          // 다음 금융은 지수 포인트(881.05) 그대로다. 같은 카드 차트는 ×100(88,105 — KODEX 200 가격대)이라 둘 다 적는다.
+          <div>선물가 <b className="tabular-nums">{d.price?.toFixed(2)}</b>pt{" "}
             <span className={`tabular-nums font-bold ${d.chg > 0 ? "text-rose-600" : d.chg < 0 ? "text-blue-600" : ""}`}>
               {sgn(d.chg, 2)}pt{chgPct != null ? ` (${sgn(chgPct, 2)}%)` : ""}
-            </span></div>
+            </span>
+            {d.price != null && <span className="text-gray-400"> · 차트 표기 {Math.round(d.price * 100).toLocaleString()}</span>}
+          </div>
         )}
         {diff != null && d.prevOi != null && (
           <div>미결제 <span className="tabular-nums">{d.prevOi.toLocaleString()}</span> → <b className="tabular-nums">{d.oi.toLocaleString()}</b>계약{" "}
