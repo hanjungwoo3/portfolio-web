@@ -1506,6 +1506,7 @@ export interface PricePoint {
 interface YahooChartResp {
   chart?: {
     result?: Array<{
+      meta?: { regularMarketPrice?: number; regularMarketTime?: number };
       timestamp?: number[];
       indicators?: {
         quote?: Array<{
@@ -1610,8 +1611,15 @@ async function fetchPriceHistoryWithEventsFor(
   const highs = q.high ?? [];
   const lows = q.low ?? [];
   const points: PricePoint[] = [];
+  // ★ 장 마감 직후 몇 시간은 **마지막 봉의 OHLC 가 전부 null** 로 온다(MU 10/15 실측 — 다음 날 아침에도 비어 있었다).
+  //   그냥 버리면 직전 봉이 '마지막 정규장' 으로 둔갑해 마감 책갈피가 하루 전 날짜·등락률을 단다.
+  //   그 세션의 종가는 meta.regularMarketPrice 에 이미 있다(regularMarketTime 이 그 봉 이후면 같은 세션).
+  const meta = res.meta;
+  const lastFill = (i: number): number | null =>
+    i === ts.length - 1 && (meta?.regularMarketPrice ?? 0) > 0 && (meta?.regularMarketTime ?? 0) >= ts[i]
+      ? meta!.regularMarketPrice! : null;
   for (let i = 0; i < ts.length; i++) {
-    const c = closes[i];
+    const c = closes[i] ?? lastFill(i);
     if (c == null) continue;
     const d = new Date(ts[i] * 1000);
     const kst = new Date(d.getTime() + (d.getTimezoneOffset() + 540) * 60_000);
