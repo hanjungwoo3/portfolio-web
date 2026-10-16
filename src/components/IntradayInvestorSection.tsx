@@ -9,10 +9,11 @@
 import { useState, useMemo, useCallback, lazy, Suspense, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntraday, fetchTossIndexIntraday, fetchYahooPriceHistory, fetchKrFuturesDaily, fetchKrFuturesOpenInterest, fetchLeverageDailyFlow, fetchKrPriceHistory, LEVERAGE_BASKETS } from "../lib/api";
-import type { IntradayMarket, LeverageBasket } from "../lib/api";
+import type { IntradayMarket, LeverageBasket, KrFuturesOpenInterest } from "../lib/api";
 import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
 import { useCrosshairSync, type SyncRegistrar } from "../lib/useCrosshairSync";
 import { nextFuturesExpiry } from "../lib/futuresExpiry";
+import { Tooltip } from "./Tooltip";
 import { isMarketOpen, nowKstDateStr } from "../lib/format";
 import type { FlowSeriesPoint } from "./IntradayInvestorChart";
 import type { UTCTimestamp } from "lightweight-charts";
@@ -341,6 +342,23 @@ function LeverageBlock({ basket, enabled, days, on, onReady, onToggle }: {
 
 // 선물 미결제약정 — 근월물 기준, 전일 대비 증감. 일별 값이라 장중 5분 간격으로만 다시 묻는다.
 //   증감 색은 가격 색(빨강·파랑)과 헷갈리지 않게 중립(진회색)·굵기만. 늘었다 = 새 포지션 유입.
+//   숫자만으론 읽을 수 없어 같은 날 가격 방향과 짝지은 해석을 한 줄 붙인다(모바일엔 title 이 안 보인다).
+//   ★ 만기 2주 안은 근월물→차월물 롤오버로 근월물 미결제가 줄어드는 게 정상 — 그땐 감소를 해석하지 않는다.
+type OiCase = "uu" | "ud" | "du" | "dd";   // 가격 방향 + 미결제 방향
+function oiCase(diff: number, chg: number): OiCase | null {
+  if (diff === 0 || chg === 0) return null;
+  return `${chg > 0 ? "u" : "d"}${diff > 0 ? "u" : "d"}` as OiCase;
+}
+const OI_CASES: Record<OiCase, { text: string; tone: string; why: string }> = {
+  uu: { text: "가격↑·미결제↑ 신규 매수 유입 — 상승에 힘이 실림", tone: "text-rose-600",
+        why: "새로 사는 쪽이 들어오며 계약이 늘었다. 상승에 새 돈이 붙은 것이라 추세가 이어질 근거가 된다." },
+  ud: { text: "가격↑·미결제↓ 매도 포지션 청산(숏커버링) — 새 매수 없는 반등", tone: "text-rose-400",
+        why: "판 사람들이 되사서 포지션을 닫으며 오른 것. 새로 사는 돈이 아니라 청산이라, 청산이 끝나면 힘이 빠지기 쉽다." },
+  du: { text: "가격↓·미결제↑ 신규 매도 유입 — 하락에 힘이 실림", tone: "text-blue-600",
+        why: "새로 파는 쪽이 들어오며 계약이 늘었다. 하락에 새 매도가 붙은 것이라 추세가 이어질 근거가 된다." },
+  dd: { text: "가격↓·미결제↓ 매수 포지션 정리 — 새 매도 없는 하락", tone: "text-blue-400",
+        why: "산 사람들이 팔고 나가며 내린 것. 새 매도가 아니라 정리라, 정리가 끝나면 하락이 멈추기 쉽다." },
+};
 function FuturesOpenInterestLine({ on }: { on: boolean }) {
   const q = useQuery({
     queryKey: ["kr-futures-oi"],
@@ -352,15 +370,80 @@ function FuturesOpenInterestLine({ on }: { on: boolean }) {
   const d = q.data;
   if (!d) return null;
   const diff = d.prevOi != null ? d.oi - d.prevOi : null;
+  const exp = nextFuturesExpiry();
+  const rolling = exp.daysLeft <= 14;
+  const rollDrop = rolling && diff != null && diff < 0;
+  const kase = diff != null && d.chg != null && !rollDrop ? oiCase(diff, d.chg) : null;
+  const reading = kase ? OI_CASES[kase] : null;
   return (
-    <div className="mt-1 px-1 text-[11px] text-gray-500 flex flex-wrap items-baseline gap-x-1.5"
-         title="미결제약정 — 아직 청산되지 않고 남아 있는 선물 계약 수. 가격과 함께 늘면 새 포지션 유입(추세 강화), 줄면 청산. 만기(롤오버) 전후엔 근월물 값이 크게 줄어든다.">
-      <span>미결제약정</span>
-      <span className="font-semibold text-gray-800 tabular-nums">{d.oi.toLocaleString()}계약</span>
-      {diff != null && (
-        <span className="tabular-nums text-gray-700">({diff > 0 ? "+" : ""}{diff.toLocaleString()})</span>
-      )}
-      <span className="text-gray-400">{+d.date.slice(5, 7)}/{+d.date.slice(8, 10)} · {d.contract}</span>
+    <Tooltip className="mt-1 px-1 text-[11px] leading-snug flex-col cursor-help" content={<OiTip d={d} diff={diff} kase={kase} rollDrop={rollDrop} daysLeft={exp.daysLeft} />}>
+      <div className="text-gray-500 flex flex-wrap items-baseline gap-x-1.5">
+        <span className="underline decoration-dotted underline-offset-2">미결제약정</span>
+        <span className="font-semibold text-gray-800 tabular-nums">{d.oi.toLocaleString()}계약</span>
+        {diff != null && (
+          <span className="tabular-nums text-gray-700">({diff > 0 ? "+" : ""}{diff.toLocaleString()})</span>
+        )}
+        <span className="text-gray-400">{+d.date.slice(5, 7)}/{+d.date.slice(8, 10)} · {d.contract}</span>
+      </div>
+      <div className="text-[10px] text-gray-400">
+        {reading ? <span className={`font-medium ${reading.tone}`}>{reading.text}</span>
+          : rollDrop ? <span>만기 D-{exp.daysLeft} 롤오버 구간 — 근월물 감소는 다음 월물로 옮겨 가는 것(방향 신호 아님)</span>
+          : <span>청산 안 된 계약 수 · 가격과 같이 늘면 새 돈 유입, 줄면 기존 포지션 정리</span>}
+      </div>
+    </Tooltip>
+  );
+}
+
+// 미결제약정 설명 레이어 — 브라우저 title 은 1초 넘게 늦게 떠서 즉시 뜨는 Tooltip 을 쓴다.
+//   맨 위에 **지금 값**을 숫자로 풀고, 아래 표에서 지금 해당하는 줄을 칠한다.
+function OiTip({ d, diff, kase, rollDrop, daysLeft }: {
+  d: KrFuturesOpenInterest; diff: number | null; kase: OiCase | null; rollDrop: boolean; daysLeft: number;
+}) {
+  const md = `${+d.date.slice(5, 7)}/${+d.date.slice(8, 10)}`;
+  const chgPct = d.chg != null && d.price != null && d.price - d.chg > 0 ? (d.chg / (d.price - d.chg)) * 100 : null;
+  const oiPct = diff != null && d.prevOi ? (diff / d.prevOi) * 100 : null;
+  const sgn = (v: number, digits = 0) => `${v > 0 ? "+" : ""}${v.toLocaleString(undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
+  const rows: [OiCase, string, string, string][] = [
+    ["uu", "↑", "↑", "신규 매수 유입 — 상승 추세 강화"],
+    ["ud", "↑", "↓", "매도 청산(숏커버링) — 힘이 약한 반등"],
+    ["du", "↓", "↑", "신규 매도 유입 — 하락 추세 강화"],
+    ["dd", "↓", "↓", "매수 정리 — 하락 막바지일 수 있음"],
+  ];
+  return (
+    <div className="space-y-1.5 max-w-[360px]">
+      <div className="rounded bg-gray-50 border border-gray-200 px-2 py-1.5 space-y-0.5">
+        <div className="font-bold text-gray-700">지금 값 ({md} · {d.contract})</div>
+        {d.chg != null && (
+          <div>선물 <b className="tabular-nums">{d.price?.toFixed(2)}</b>{" "}
+            <span className={`tabular-nums font-bold ${d.chg > 0 ? "text-rose-600" : d.chg < 0 ? "text-blue-600" : ""}`}>
+              {sgn(d.chg, 2)}pt{chgPct != null ? ` (${sgn(chgPct, 2)}%)` : ""}
+            </span></div>
+        )}
+        {diff != null && d.prevOi != null && (
+          <div>미결제 <span className="tabular-nums">{d.prevOi.toLocaleString()}</span> → <b className="tabular-nums">{d.oi.toLocaleString()}</b>계약{" "}
+            <span className="tabular-nums font-bold">{sgn(diff)}{oiPct != null ? ` (${sgn(oiPct, 1)}%)` : ""}</span></div>
+        )}
+        {kase ? (
+          <div className={`font-medium ${OI_CASES[kase].tone}`}>→ {OI_CASES[kase].why}</div>
+        ) : rollDrop ? (
+          <div className="text-gray-600">→ 만기 D-{daysLeft} 롤오버 구간이라 근월물 감소는 다음 월물로 옮겨 가는 것 — 방향 신호로 읽지 않는다.</div>
+        ) : (
+          <div className="text-gray-600">→ 가격이나 미결제가 그대로라 방향을 읽을 신호가 없다.</div>
+        )}
+      </div>
+      <div><b>미결제약정</b> — 아직 청산되지 않고 남아 있는 선물 계약 수. 새로 사고·파는 사람이 만나면 +1, 둘 다 청산하면 −1.</div>
+      <table className="text-[11px] border-collapse">
+        <thead><tr className="text-gray-500"><th className="pr-2 text-left font-medium">가격</th><th className="pr-2 text-left font-medium">미결제</th><th className="text-left font-medium">읽는 법</th></tr></thead>
+        <tbody>
+          {rows.map(([k, p, o, t]) => (
+            <tr key={k} className={k === kase ? "bg-amber-100 font-bold" : ""}>
+              <td className={`pl-1 ${p === "↑" ? "text-rose-600" : "text-blue-600"}`}>{p}</td><td>{o}</td>
+              <td className="pr-1">{t}{k === kase ? " ← 지금" : ""}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div className="text-gray-500">근월물(가장 가까운 만기) 기준 일별 값 · 출처 다음 금융. 장중엔 그 시각까지의 값이다. 만기 2주 전후엔 다음 월물로 옮겨 가며(롤오버) 근월물 값이 크게 줄어드는데, 방향 신호가 아니다.</div>
     </div>
   );
 }

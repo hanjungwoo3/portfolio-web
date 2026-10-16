@@ -1749,6 +1749,8 @@ export interface KrFuturesOpenInterest {
   date: string;           // "YYYY-MM-DD"
   oi: number;             // 미결제약정(계약)
   prevOi: number | null;  // 직전 거래일
+  price: number | null;   // 같은 날 선물 종가(장중엔 현재가)
+  chg: number | null;     // 같은 날 선물 가격 전일 대비(pt) — 미결제 증감과 짝지어 해석(같은 행이라 날짜가 어긋나지 않는다)
 }
 export async function fetchKrFuturesOpenInterest(): Promise<KrFuturesOpenInterest | null> {
   try {
@@ -1759,7 +1761,7 @@ export async function fetchKrFuturesOpenInterest(): Promise<KrFuturesOpenInteres
     if (!near?.symbolCode) return null;
     const dr = await fetchProxied(`https://finance.daum.net/api/future/${near.symbolCode}/days?page=1&perPage=2`);
     if (!dr.ok) return null;
-    const days = (await dr.json()) as { data?: Array<{ date?: string; unsettledVolume?: number }> };
+    const days = (await dr.json()) as { data?: Array<{ date?: string; unsettledVolume?: number; changePrice?: number; tradePrice?: number }> };
     const rows = (days.data ?? []).filter(r => r.date && Number.isFinite(r.unsettledVolume) && (r.unsettledVolume ?? 0) > 0);
     if (!rows.length) return null;
     return {
@@ -1767,6 +1769,8 @@ export async function fetchKrFuturesOpenInterest(): Promise<KrFuturesOpenInteres
       date: String(rows[0].date).slice(0, 10),
       oi: rows[0].unsettledVolume!,
       prevOi: rows[1]?.unsettledVolume ?? null,
+      price: Number.isFinite(rows[0].tradePrice) ? rows[0].tradePrice! : null,
+      chg: Number.isFinite(rows[0].changePrice) ? rows[0].changePrice! : null,
     };
   } catch {
     return null;
