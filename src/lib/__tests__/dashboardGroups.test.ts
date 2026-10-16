@@ -120,7 +120,8 @@ describe("지수 탭 페이지 구성", () => {
       sec.rows.forEach((row, i) => {
         const n = sec.leadByRow?.[i] ?? sec.lead!;
         expect(row.length).toBeLessThanOrEqual(8);
-        expect(row.slice(0, n).every(x => !krStock.has(x))).toBe(true);   // 앞 칸 = ETF
+        // 앞 칸 = ETF. 예외: 맞는 ETF 가 없는 줄은 대표 종목이 기준선(백화점·유통 = 신세계, 2026-10-17)
+        if (sec.rowLabels?.[i] !== "백화점·유통") expect(row.slice(0, n).every(x => !krStock.has(x))).toBe(true);
         expect(row.slice(n).every(x => krStock.has(x))).toBe(true);       // 뒤 = 대장주(개별주)
         expect(row.length).toBeLessThanOrEqual(8);                        // ETF + 대장주 합쳐 한 줄 8칸
       });
