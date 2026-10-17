@@ -133,10 +133,15 @@ function pickContentType(headers: Record<string, string> | undefined): string {
 }
 
 // 호스트별 Referer — 프록시 워커·확장(HEADER_GROUPS)과 같은 규칙. 없으면 막는 곳만 둔다.
-//   다음 금융 api 는 Referer 없이 403 이다(선물 미결제약정).
+//   다음 금융 api 는 Referer 없이 403 이다(선물 미결제약정). CNN 은 418.
 function refererFor(targetUrl: string): Record<string, string> {
   try {
-    if (new URL(targetUrl).hostname === "finance.daum.net") return { Referer: "https://finance.daum.net/" };
+    const host = new URL(targetUrl).hostname;
+    if (host === "finance.daum.net") return { Referer: "https://finance.daum.net/" };
+    // CNN 공포·탐욕 — 브라우저처럼 안 보이면 418("You're a bot")
+    if (host === "production.dataviz.cnn.io") {
+      return { Origin: "https://edition.cnn.com", Referer: "https://edition.cnn.com/", "Accept-Language": "en-US,en;q=0.9" };
+    }
   } catch { /* URL 파싱 실패 — 헤더 없이 */ }
   return {};
 }

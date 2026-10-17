@@ -93,6 +93,7 @@ import { startAutoSync, SYNC_PULLED_EVENT } from "../lib/syncManager";
 import { SyncConflictBar } from "./SyncConflictBar";
 import { MyTradesTab } from "./MyTradesTab";
 import { AssetTrendTab } from "./AssetTrendTab";
+import { CnnFearGreedTag } from "./CnnFearGreedTag";
 import { TickArrow } from "./TickArrow";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { EtfReverseDialog } from "./EtfReverseDialog";
@@ -153,6 +154,7 @@ const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
 // 자동 갱신 X — 새로고침 버튼만. 자기 주식/그룹/검색 등 모든 추가 기능 없음.
 
 function fmtPrice(symbol: string, price: number): string {
+  if (symbol === "CNNFG") return Math.round(price).toString();   // CNN 공포·탐욕 — 0~100 점수, CNN 표기처럼 정수
   if (symbol === "^TIPS10" || symbol === "^MOVE" || symbol === "^TNX" || symbol === "^TYX" || symbol === "^VIX" || symbol === "VKOSPI") return price.toFixed(2);
   // 원엔은 한국 관행대로 100엔 기준 표기 (Yahoo 는 1엔당 원 = 8.6원 꼴)
   if (symbol === "JPYKRW=X") return (price * 100).toFixed(2);
@@ -1951,7 +1953,8 @@ export function MobileSimpleView() {
               // 미국 개별 종목은 프리장(04:00 ET)부터 '열림' 이라 sleeping 만 보면 프리장에 어제 종가가 사라졌다(2026-10-12).
               //   큰 숫자가 프리·애프터·오버나이트 가격인 동안(= 정규장 09:30~16:00 밖)은 정규장 마감 책갈피를 같이 보인다.
               const usOffRegular = marketOfSymbol(p.symbol) === "US" && !isMarketOpen("US_INDEX");
-              const showCloseTag = (sleeping || usOffRegular) && effPrice != null;
+              // CNN 공포·탐욕은 '정규장 마감가' 개념이 없는 하루 점수라 책갈피를 안 단다
+              const showCloseTag = (sleeping || usOffRegular) && effPrice != null && p.symbol !== "CNNFG";
               const closeVal = q?.regularPrice ?? effPrice;
               const regPct = q?.regularPct ?? pct;
               const regSign = regPct == null ? "text-gray-700"
@@ -2025,6 +2028,7 @@ export function MobileSimpleView() {
                        className={`text-sm font-bold ${nameColor} active:underline min-w-0 truncate`}>
                       {p.name}
                     </a>
+                    {p.symbol === "CNNFG" && <CnnFearGreedTag />}
                     {(p.symbol === "^KS11" || p.symbol === "^KQ11") && (
                       <button onClick={() =>
                                 setMarketFlowFor(p.symbol === "^KS11" ? "KOSPI" : "KOSDAQ")}
@@ -2051,7 +2055,10 @@ export function MobileSimpleView() {
                     <span className={`flex-1 text-right text-base font-bold tabular-nums ${sign}`}>
                       {/* 직전 틱 대비 화살표 — 주식 카드와 같은 규칙, % 왼쪽 */}
                       <TickArrow value={effPrice} className="mr-1 text-xs" />
-                      {showPct != null && Math.abs(showPct) >= 0.005
+                      {p.symbol === "CNNFG" && effPrice != null && effBase != null
+                        // 0~100 점수라 % 가 아니라 점수 차(전일 대비). 31→18 이 "−43%" 로 찍히면 과장돼 보인다
+                        ? (() => { const d = Math.round(effPrice - effBase); return `${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)}점`; })()
+                        : showPct != null && Math.abs(showPct) >= 0.005
                         ? `${showPct >= 0 ? "+" : ""}${showPct.toFixed(2)}%`
                         : ""}
                     </span>

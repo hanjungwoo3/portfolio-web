@@ -51,6 +51,8 @@ export const US_PAIRS: Pair[] = [
   { symbol: "^VIX",     name: "VIX",         desc: "공포지수 — 20↑ 경계, 30↑ 공포", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "^TIPS10",  name: "미국 10Y 실질", desc: "2%↑ 부담, 2.5%↑ 위험 — 10년 물가연동국채(TIPS) 실질금리. 성장주·금에 부담, 급등 속도가 더 중요. CNBC", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "^MOVE",    name: "MOVE",        desc: "채권 공포지수 — 미 국채 변동성. 100↑ 경계, 120↑ 불안", tier: "T0", sector: "dashboard", direction: "inverse" },
+  // CNN 공포·탐욕 — 가상 심볼(api.ts fetchCnnFgIndex). 탐욕(↑)이 위험선호라 direct. 0~25 극공포·75~100 극탐욕
+  { symbol: "CNNFG",    name: "공포·탐욕",    desc: "CNN Fear & Greed — 미국 투자심리 0~100 (25↓ 극공포·45↓ 공포·55↑ 탐욕·75↑ 극탐욕). 극단은 역발상 신호. CNN", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "VKOSPI",   name: "V-KOSPI",     desc: "코스피200 변동성지수 — 한국 공포지수 (20↑ 경계, 30↑ 공포). CNBC", tier: "T0", sector: "dashboard", direction: "inverse" },
   // 행 2 — 원자재 + 위험자산
   //   색은 '한국 주가에 유리한가' 기준(사용자 결정 2026-10-08): 원자재 수입국이라 유가·가스·곡물 상승은 원가·물가 부담,

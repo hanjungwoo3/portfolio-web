@@ -3681,6 +3681,7 @@ export async function fetchDashboardChart(sym: string): Promise<number[]> {
   const kr = /^([\dA-Za-z]{6})\.KS$/.exec(sym);
   if (kr) return (await fetchKrPriceHistory(kr[1], "3mo")).map(p => p.close);
   if (isCnbcIndex(sym)) return fetchCnbcChart(sym);
+  if (sym === CNN_FG_SYMBOL) return fetchCnnFgChart();
   return fetchYahooChart(sym, "3mo");
 }
 
@@ -3708,6 +3709,84 @@ export async function fetchCnbcPriceHistory(symbol: string): Promise<PricePoint[
     });
   }
   return Array.from(byDate.values()).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+// ─── CNN 공포·탐욕 지수 (Fear & Greed) ─────────────────────────
+//   CNN 페이지가 쓰는 내부 JSON 하나에 점수·전일·1주·1개월·1년 전 값, 구성 지표 7개, 1년치 일별 시계열이 다 있다.
+//   ⚠️ 브라우저 Referer/Origin(edition.cnn.com) 없으면 418 "You're a bot" — 프록시 8곳·확장·nativeProxy 가 붙인다.
+//      Cloudflare 워커 IP 는 안 막힌다(2026-10-17 실측).
+//   가상 심볼 CNNFG — 지수 카드(fetchYahooBatch)와 스파크라인(fetchDashboardChart)이 같은 응답을 나눠 쓰게
+//   5분 메모를 둔다(카드 폴링마다 2콜이 나가지 않게). 값은 미국 장중 수 분 간격으로만 바뀐다.
+export const CNN_FG_SYMBOL = "CNNFG";
+const CNN_FG_URL = "https://production.dataviz.cnn.io/index/fearandgreed/graphdata";
+interface CnnFgPart { score?: number; rating?: string }
+interface CnnFgResp {
+  fear_and_greed?: CnnFgPart & {
+    timestamp?: string; previous_close?: number; previous_1_week?: number;
+    previous_1_month?: number; previous_1_year?: number;
+  };
+  fear_and_greed_historical?: { data?: { x: number; y: number }[] };
+  [k: string]: unknown;
+}
+let cnnFgMemo: { at: number; p: Promise<CnnFgResp | null> } | null = null;
+function loadCnnFg(): Promise<CnnFgResp | null> {
+  if (cnnFgMemo && Date.now() - cnnFgMemo.at < 5 * 60_000) return cnnFgMemo.p;
+  const p = fetchProxied(CNN_FG_URL)
+    .then(r => (r.ok ? (r.json() as Promise<CnnFgResp>) : null))
+    .catch(() => null);
+  cnnFgMemo = { at: Date.now(), p };
+  p.then(v => { if (!v) cnnFgMemo = null; });   // 실패는 메모하지 않는다 — 다음 폴링에 다시
+  return p;
+}
+// 구성 지표 7개 — CNN 화면 순서·한국어 이름
+const CNN_FG_PARTS: [string, string][] = [
+  ["market_momentum_sp500", "시장 모멘텀(S&P500 vs 125일선)"],
+  ["stock_price_strength", "주가 강도(52주 신고가 vs 신저가)"],
+  ["stock_price_breadth", "시장 폭(상승·하락 거래량)"],
+  ["put_call_options", "풋/콜 옵션 비율"],
+  ["market_volatility_vix", "변동성(VIX vs 50일 평균)"],
+  ["junk_bond_demand", "정크본드 수요(신용 스프레드)"],
+  ["safe_haven_demand", "안전자산 수요(주식 vs 국채)"],
+];
+export interface CnnFearGreed {
+  score: number; rating: string; timestamp: string;
+  prevClose: number | null; week: number | null; month: number | null; year: number | null;
+  parts: { label: string; score: number; rating: string }[];
+}
+export async function fetchCnnFearGreed(): Promise<CnnFearGreed | null> {
+  const d = await loadCnnFg();
+  const f = d?.fear_and_greed;
+  if (!f || typeof f.score !== "number") return null;
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  return {
+    score: f.score, rating: f.rating ?? "", timestamp: f.timestamp ?? "",
+    prevClose: num(f.previous_close), week: num(f.previous_1_week),
+    month: num(f.previous_1_month), year: num(f.previous_1_year),
+    parts: CNN_FG_PARTS.flatMap(([k, label]) => {
+      const p = d?.[k] as CnnFgPart | undefined;
+      return typeof p?.score === "number" ? [{ label, score: p.score, rating: p.rating ?? "" }] : [];
+    }),
+  };
+}
+async function fetchCnnFgIndex(name: string): Promise<UsIndex | null> {
+  const fg = await fetchCnnFearGreed();
+  if (!fg) return null;
+  const prev = fg.prevClose ?? fg.score;
+  const diff = fg.score - prev;
+  const ms = Date.parse(fg.timestamp);
+  return {
+    symbol: CNN_FG_SYMBOL, name, price: fg.score, prev, prevClose: prev,
+    diff, pct: prev > 0 ? (diff / prev) * 100 : 0, currency: "",
+    tradeDate: Number.isFinite(ms) ? new Date(ms + 9 * 3600_000).toISOString().slice(0, 10) : "",
+    regularMarketTime: Number.isFinite(ms) ? Math.floor(ms / 1000) : undefined,
+    marketState: "",
+  };
+}
+// 스파크라인 — 다른 카드와 같은 3개월(약 63거래일). CNN 은 1년치 일별을 준다.
+async function fetchCnnFgChart(): Promise<number[]> {
+  const d = await loadCnnFg();
+  const pts = d?.fear_and_greed_historical?.data ?? [];
+  return pts.map(p => p.y).filter(v => Number.isFinite(v)).slice(-63);
 }
 
 // 토스 원달러 환율 — base(당일 09:00 고시 기준가) + close(실시간 현재가).
@@ -3752,8 +3831,9 @@ export async function fetchYahooBatch(
     .filter(p => TOSS_US_STOCK_CODE[p.symbol])
     .map(p => ({ ...p, code: TOSS_US_STOCK_CODE[p.symbol] }));
   const investItems = pairs.filter(p => isCnbcIndex(p.symbol));
+  const cnnFg = pairs.find(p => p.symbol === CNN_FG_SYMBOL);
 
-  const [ksMap, overviewMap, usMap, investResults, yahooResults] = await Promise.all([
+  const [ksMap, overviewMap, usMap, investResults, yahooResults, cnnFgIdx] = await Promise.all([
     ksItems.length > 0
       ? fetchTossPrices(ksItems.map(p => ksRegex.exec(p.symbol)![1]))
           .then(prices => {
@@ -3785,7 +3865,8 @@ export async function fetchYahooBatch(
     fetchTossUsIndexMap(tossUsItems),
     Promise.all(investItems.map(p => fetchCnbcIndexPrice(p.symbol, p.name))),
     // 모든 심볼 Yahoo 베이스 — v7 배치(~2콜). marketState/prevClose + 토스 실패 시 fallback
-    fetchYahooBatchQuote(pairs),
+    fetchYahooBatchQuote(pairs.filter(p => p.symbol !== CNN_FG_SYMBOL)),   // 가상 심볼 — 야후엔 없다
+    cnnFg ? fetchCnnFgIndex(cnnFg.name) : Promise.resolve(null),
   ]);
 
   // 1) Yahoo 결과를 베이스로
@@ -3835,6 +3916,7 @@ export async function fetchYahooBatch(
   for (const [sym, t] of overviewMap) applyToss(sym, t);   // 지수/환율/금리/원자재/BTC (overview 1콜)
   for (const [sym, t] of usMap) applyToss(sym, t);
   for (const r of investResults) { if (r) applyToss(r.symbol, r); }
+  if (cnnFgIdx) applyToss(cnnFgIdx.symbol, cnnFgIdx);
 
   return merged;
 }

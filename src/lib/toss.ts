@@ -50,6 +50,8 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "^KR30Y": "https://www.tossinvest.com/indices/KR1BENCH0030",
   // V-KOSPI — CNBC (토스/야후 미제공)
   "VKOSPI": "https://www.cnbc.com/quotes/.KSVKOSPI",
+  // CNN 공포·탐욕 지수 — CNN 페이지
+  "CNNFG": "https://edition.cnn.com/markets/fear-and-greed",
   // 미국 빅테크 개별주 (토스 종목 페이지)
   "SPCX": "https://www.tossinvest.com/stocks/NAS2606012004",
   "AAPL": "https://www.tossinvest.com/stocks/US19801212001",

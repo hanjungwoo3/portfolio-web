@@ -19,6 +19,7 @@ const ALLOWED_HOSTS = new Set<string>([
   "api.investing.com",        // VKOSPI 등 — investing financialdata chart API
   "yasun.gg",                 // 코스피200/코스닥150 야간선물 1분봉 캔들
   "finance.daum.net",         // 코스피200 선물 미결제약정·투자자별 순매수(일별) — Referer 없으면 403
+  "production.dataviz.cnn.io", // CNN 공포·탐욕 지수 — 브라우저 Referer/Origin 없으면 418(봇)
   "scanner.tradingview.com",  // KOSPI/KOSDAQ 히트맵 — TradingView scanner (POST)
 ]);
 
@@ -147,6 +148,10 @@ export default async function handler(request: Request): Promise<Response> {
     headers["Accept-Language"] = "ko-KR,ko;q=0.9";
   } else if (targetUrl.hostname === "finance.daum.net") {
     headers["Referer"] = "https://finance.daum.net/";
+  } else if (targetUrl.hostname === "production.dataviz.cnn.io") {
+    headers["Origin"] = "https://edition.cnn.com";
+    headers["Referer"] = "https://edition.cnn.com/";
+    headers["Accept-Language"] = "en-US,en;q=0.9";
   } else if (targetUrl.hostname.includes("yasun.gg")) {
     headers["Referer"] = "https://yasun.gg/";
     headers["Accept"] = "application/json";
