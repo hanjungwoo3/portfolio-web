@@ -10,7 +10,7 @@ import { squarify } from "../lib/treemap";
 import { heatColor, sectorKr } from "../lib/heatColor";
 import { fetchHeatmapForTickers, heatmapLogoUrl, type HeatmapItem } from "../lib/api";
 import { marketOfSymbol, isKrHoldingClosed, tradeSecOf, isEtfOrEtnByName, isUsExtendedTradingOpen, isQuoteStale } from "../lib/format";
-import { HEAT_SIZE_OPTS, HEAT_COLOR_OPTS, type HeatSizeBy, type HeatColorBy, type HeatGroupBy, type HeatSign, HEAT_FAINT_RATIO } from "../lib/holdingsHeat";
+import { HEAT_SIZE_OPTS, HEAT_COLOR_OPTS, type HeatSizeBy, type HeatColorBy, type HeatGroupBy, type HeatSign } from "../lib/holdingsHeat";
 
 interface Cell { ticker: string; name: string; held: number; price: number; d1: number | null; shares: number; cost: number; asleep: boolean; tv?: HeatmapItem; krwPer: number }
 // 한국 종목 거래시간 — 흐림(장 안 열림) 판정용. App 의 fetchKrRegularPrices 결과를 그대로 받는다.
@@ -35,7 +35,7 @@ export function HoldingsHeatmap({ stocks, priceMap, krRegMap, sizeBy, colorBy, g
   colorBy: HeatColorBy;
   groupBy?: HeatGroupBy;
   sign?: HeatSign;
-  hideFaint?: boolean;   // 색이 흐린(거의 보합) 종목 빼기
+  hideFaint?: boolean;   // 카드에서 흐린(장 안 열린) 종목 빼기 — 옛 이름 그대로(저장 키 호환)
   onOpen?: (ticker: string) => void;
 }) {
   const boxRef = useRef<HTMLDivElement>(null);
@@ -116,16 +116,14 @@ export function HoldingsHeatmap({ stocks, priceMap, krRegMap, sizeBy, colorBy, g
     colorDef.key === "pnl" ? pnlOf(c) : colorDef.field ? (c.tv ? colorDef.field(c.tv) : null) : c.d1;
   // 부호 필터 — 색 기준 값이 +인 것만 / −인 것만. 색과 같은 값으로 걸러야 '상승만' 에 파란 칸이 안 섞인다.
   const signOk = (c: Cell) => { if (sign === "all") return true; const v = colorVal(c); return v != null && (sign === "up" ? v > 0 : v < 0); };
-  // 흐린 종목 제외 — 값이 없는 회색 칸은 '흐림' 이 아니라 그대로 둔다
-  const faintCut = colorDef.sat * HEAT_FAINT_RATIO;
-  const isFaint = (c: Cell) => { const v = colorVal(c); return v != null && Math.abs(v) < faintCut; };
   const signed = cells.filter(signOk);
-  // '흐린 종목' 은 둘 — 색이 연한 보합 칸, 그리고 장이 안 열려 지난 거래일 값에 멈춘 칸(카드에서 흐린 것).
-  //   후자는 **일부만 잠들어 있을 때만** 뺀다. 밤·주말처럼 전부 닫혀 있으면 지난 거래일 지도가 맞는 그림이라 그대로 둔다.
+  // 흐린 종목 제외 = **카드에서 흐린 종목**(장이 안 열려 지난 거래일 값에 멈춘 것)만 뺀다.
+  //   ⚠️ 예전엔 '색이 연한 보합 칸(±0.75% 미만)' 도 같이 뺐는데, 상승 4종목 중 +0.74·+0.18·+0.08% 셋이 사라져
+  //   '상승 1' 로 보였다(2026-10-19 사용자 지적) — 작게 오른 것도 오른 것이다. 보합 기준은 없앴다.
+  //   **일부만 잠들어 있을 때만** 뺀다. 밤·주말처럼 전부 닫혀 있으면 지난 거래일 지도가 맞는 그림이라 그대로 둔다.
   const someAwake = signed.some(c => !c.asleep);
-  const sleepOut = hideFaint && someAwake ? signed.filter(c => c.asleep).length : 0;
-  const shown = hideFaint ? signed.filter(c => !isFaint(c) && !(someAwake && c.asleep)) : signed;
-  const faintN = signed.length - shown.length - sleepOut;
+  const shown = hideFaint && someAwake ? signed.filter(c => !c.asleep) : signed;
+  const sleepOut = signed.length - shown.length;
   const inputs = shown.map(c => ({ item: c, value: sizeOf(c) })).filter(x => x.value > 0);
   const missing = shown.length - inputs.length;
   // 배치 — 그룹 없음 / 섹터(섹터 묶음 안에 종목) / 등락 방향(왼→오 상승·보합·하락 고정). 히트맵 탭과 같은 방식.
@@ -251,7 +249,6 @@ export function HoldingsHeatmap({ stocks, priceMap, krRegMap, sizeBy, colorBy, g
         {(sizeBy === "marketCap" || sizeBy === "traded") && " · 미국 종목은 원화 환산"}
         {sign !== "all" && ` · ${sign === "up" ? "+" : "−"}인 ${shown.length}종목만(전체 ${cells.length})`}
         {sleepOut > 0 && ` · 장 안 열린 종목 ${sleepOut}개 제외`}
-        {faintN > 0 && ` · 흐린 종목 ${faintN}개 제외(±${faintCut.toFixed(2).replace(/\.?0+$/, "")}% 미만)`}
         {missing > 0 && ` · 값이 없어 빠진 종목 ${missing}개`}
       </div>
     </div>

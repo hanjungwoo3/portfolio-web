@@ -84,7 +84,7 @@ export function SimpleViewModal({
                             : "bg-white text-gray-600 hover:bg-gray-100"}`}>{o.label}</button>
                 ))}
               </span>
-              <label className="inline-flex items-center gap-1 cursor-pointer select-none" title="색이 흐린(거의 보합) 종목과, 장이 안 열려 지난 거래일 값에 멈춘(카드에서 흐린) 종목을 뺀다 — 전부 닫혀 있을 땐 그대로 둔다">
+              <label className="inline-flex items-center gap-1 cursor-pointer select-none" title="장이 안 열려 지난 거래일 값에 멈춘(카드에서 흐린) 종목을 뺀다 — 전부 닫혀 있을 땐 그대로 둔다">
                 <input type="checkbox" checked={hideFaint}
                        onChange={e => { setHideFaint(e.target.checked); save(FAINT_KEY, e.target.checked ? "1" : "0"); }} />
                 흐린 종목 제외

@@ -29,5 +29,3 @@ export type HeatSign = "all" | "up" | "down";
 export const HEAT_SIGN_OPTS: { key: HeatSign; label: string }[] = [
   { key: "all", label: "전체" }, { key: "up", label: "+만" }, { key: "down", label: "−만" },
 ];
-// 흐린 종목 = 색 기준 값이 포화값(sat)의 이 비율 미만 — 거의 보합이라 색이 회색에 가깝다(1일이면 ±0.75% 미만).
-export const HEAT_FAINT_RATIO = 0.25;
