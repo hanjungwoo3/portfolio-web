@@ -9,9 +9,12 @@ import type { Stock, Price } from "../types";
 import { squarify } from "../lib/treemap";
 import { heatColor, sectorKr } from "../lib/heatColor";
 import { fetchHeatmapForTickers, heatmapLogoUrl, type HeatmapItem } from "../lib/api";
+import { marketOfSymbol, isKrHoldingClosed, tradeSecOf, isEtfOrEtnByName, isUsExtendedTradingOpen, isQuoteStale } from "../lib/format";
 import { HEAT_SIZE_OPTS, HEAT_COLOR_OPTS, type HeatSizeBy, type HeatColorBy, type HeatGroupBy, type HeatSign, HEAT_FAINT_RATIO } from "../lib/holdingsHeat";
 
-interface Cell { ticker: string; name: string; held: number; price: number; d1: number | null; shares: number; cost: number; tv?: HeatmapItem; krwPer: number }
+interface Cell { ticker: string; name: string; held: number; price: number; d1: number | null; shares: number; cost: number; asleep: boolean; tv?: HeatmapItem; krwPer: number }
+// 한국 종목 거래시간 — 흐림(장 안 열림) 판정용. App 의 fetchKrRegularPrices 결과를 그대로 받는다.
+interface KrRegLite { tradingEnd?: string; nextTradingStart?: string }
 
 const fmtPct = (p: number | null | undefined) => p == null ? "—" : `${p >= 0 ? "+" : ""}${p.toFixed(2)}%`;
 function fmtWon(v: number): string {
@@ -24,9 +27,10 @@ function fmtWon(v: number): string {
 const logoPx = (w: number, h: number) => Math.round(Math.max(16, Math.min(40, Math.min(w, h) * 0.22)));
 const fmtCount = (v: number) => v >= 1e8 ? `${(v / 1e8).toFixed(1)}억주` : v >= 1e4 ? `${Math.round(v / 1e4).toLocaleString()}만주` : `${Math.round(v)}주`;
 
-export function HoldingsHeatmap({ stocks, priceMap, sizeBy, colorBy, groupBy = "none", sign = "all", hideFaint = false, onOpen }: {
+export function HoldingsHeatmap({ stocks, priceMap, krRegMap, sizeBy, colorBy, groupBy = "none", sign = "all", hideFaint = false, onOpen }: {
   stocks: Stock[];
   priceMap: Map<string, Price>;
+  krRegMap?: Map<string, KrRegLite | undefined>;
   sizeBy: HeatSizeBy;
   colorBy: HeatColorBy;
   groupBy?: HeatGroupBy;
@@ -56,8 +60,15 @@ export function HoldingsHeatmap({ stocks, priceMap, sizeBy, colorBy, groupBy = "
     const base = p.prevClose || p.base || p.price;
     const prev = byTicker.get(s.ticker);
     const sh = s.shares > 0 && s.avg_price > 0 ? s.shares : 0;
+    // 흐림(장 안 열림) — 기본 종목 카드와 같은 판정. NXT 프리장(08:00~)엔 NXT 종목만 움직이고 KRX 전용 종목은
+    //   지난 정규장 값에 멈춰 있어, 둘이 섞이면 '오늘 움직임'과 '지난 거래일 움직임'이 한 지도에 칠해진다(2026-10-19).
+    const reg = krRegMap?.get(s.ticker);
+    const mk = marketOfSymbol(s.ticker);
+    const asleep = mk === "KR"
+      ? isKrHoldingClosed(reg?.tradingEnd, reg?.nextTradingStart, p.singlePrice, tradeSecOf(p.trade_dt), isEtfOrEtnByName(s.name))
+      : mk === "US" ? (!isUsExtendedTradingOpen() || isQuoteStale(p.freshTime)) : false;
     byTicker.set(s.ticker, {
-      ticker: s.ticker, name: s.name, price: p.price,
+      ticker: s.ticker, name: s.name, price: p.price, asleep,
       d1: base > 0 ? (p.price / base - 1) * 100 : null,
       held: (prev?.held ?? 0) + Math.max(0, s.shares || 0) * p.price,
       // 내 수익률용 — 여러 계좌면 수량 가중 평단(매입금액 합 ÷ 수량 합)
@@ -109,8 +120,12 @@ export function HoldingsHeatmap({ stocks, priceMap, sizeBy, colorBy, groupBy = "
   const faintCut = colorDef.sat * HEAT_FAINT_RATIO;
   const isFaint = (c: Cell) => { const v = colorVal(c); return v != null && Math.abs(v) < faintCut; };
   const signed = cells.filter(signOk);
-  const shown = hideFaint ? signed.filter(c => !isFaint(c)) : signed;
-  const faintN = signed.length - shown.length;
+  // '흐린 종목' 은 둘 — 색이 연한 보합 칸, 그리고 장이 안 열려 지난 거래일 값에 멈춘 칸(카드에서 흐린 것).
+  //   후자는 **일부만 잠들어 있을 때만** 뺀다. 밤·주말처럼 전부 닫혀 있으면 지난 거래일 지도가 맞는 그림이라 그대로 둔다.
+  const someAwake = signed.some(c => !c.asleep);
+  const sleepOut = hideFaint && someAwake ? signed.filter(c => c.asleep).length : 0;
+  const shown = hideFaint ? signed.filter(c => !isFaint(c) && !(someAwake && c.asleep)) : signed;
+  const faintN = signed.length - shown.length - sleepOut;
   const inputs = shown.map(c => ({ item: c, value: sizeOf(c) })).filter(x => x.value > 0);
   const missing = shown.length - inputs.length;
   // 배치 — 그룹 없음 / 섹터(섹터 묶음 안에 종목) / 등락 방향(왼→오 상승·보합·하락 고정). 히트맵 탭과 같은 방식.
@@ -235,6 +250,7 @@ export function HoldingsHeatmap({ stocks, priceMap, sizeBy, colorBy, groupBy = "
         {sizeBy === "marketCap" && " · ETF 는 순자산총액"}
         {(sizeBy === "marketCap" || sizeBy === "traded") && " · 미국 종목은 원화 환산"}
         {sign !== "all" && ` · ${sign === "up" ? "+" : "−"}인 ${shown.length}종목만(전체 ${cells.length})`}
+        {sleepOut > 0 && ` · 장 안 열린 종목 ${sleepOut}개 제외`}
         {faintN > 0 && ` · 흐린 종목 ${faintN}개 제외(±${faintCut.toFixed(2).replace(/\.?0+$/, "")}% 미만)`}
         {missing > 0 && ` · 값이 없어 빠진 종목 ${missing}개`}
       </div>
