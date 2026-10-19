@@ -362,6 +362,15 @@ export function krCloseTimeLabel(tradingEnd?: string): string {
   return "18:00";
 }
 
+// 한국 정규장(15:30)이 오늘 이미 끝났나 — 평일 15:30~24:00 KST. 이 시간엔 NXT 애프터(~20:00)가 열려 있어
+//   카드가 흐려지지 않지만, 토스 meta close 는 이미 **오늘 정규장 종가**다(2026-10-19 18:52 실측: 하이닉스
+//   meta 1,293,000 = 네이버 KRX 종가 / details 1,294,000 = NXT). 마감 책갈피를 이 시간에도 띄우는 근거.
+//   ⚠️ 08:00~09:00 NXT 프리장엔 meta close 가 프리장 가격으로 바뀐다 — 그 시간은 여기서 제외된다.
+export function isKrAfterRegularClose(): boolean {
+  const t = nowInTz("Asia/Seoul");
+  return t.weekday >= 1 && t.weekday <= 5 && t.hour * 60 + t.minute >= 15 * 60 + 30;
+}
+
 // 단일가 세션 종류 — 09:00 이전이면 프리장(장전 동시호가/단일가),
 // 그 외(주로 15:30~18:00) 시간외 단일가. 카드 라벨 분기용.
 export function krSinglePriceSession(): "PRE" | "POST" {

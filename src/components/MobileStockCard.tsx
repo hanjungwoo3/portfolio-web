@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
-import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, holdingYesterdayBaseSum, marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, tradeSecOf, isEtfOrEtnByName } from "../lib/format";
+import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, holdingYesterdayBaseSum, marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, tradeSecOf, isEtfOrEtnByName, isKrAfterRegularClose } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
@@ -161,7 +161,9 @@ export function MobileStockCard({
   const tradeSec = price.trade_dt ? Math.floor(Date.parse(price.trade_dt) / 1000) : undefined;
   const agoLabel = sleeping ? fmtAgo(tradeSec) : "";
   // 마감 책갈피(좌상단) 표시 여부 — 있으면 갱신 책갈피는 자리 양보
-  const showCloseTag = !!(krReg && sleeping && krReg.regularPrice !== price.price
+  //   ★ 흐릴 때만이 아니라 **정규장이 끝난 뒤 NXT 애프터 중(15:30~20:00)** 에도 — 그땐 카드가 안 흐려져
+    //   오늘 정규장 종가가 어디에도 안 보였다(2026-10-19). 값이 같아도 띄운다(큰 숫자가 정규장 종가인지 NXT 인지 알 수 있게).
+  const showCloseTag = !!(krReg && (sleeping || (!isUsHolding && isKrAfterRegularClose()))
     && price.price > 0 && Math.abs(krReg.regularPrice - price.price) / price.price < 0.15);
   const dayDiff = price.price - price.base;
   const dayPct = price.base > 0 ? (dayDiff / price.base) * 100 : 0;
@@ -481,7 +483,7 @@ export function MobileStockCard({
           </span>
         </div>
       )}
-      {!sleeping && price.singlePrice && price.price > 0 && closeImminentMin == null && (
+      {!sleeping && !showCloseTag && price.singlePrice && price.price > 0 && closeImminentMin == null && (
         <div className="absolute -top-2 left-1 z-10 px-1.5 py-0
                         border rounded text-[10px] leading-tight whitespace-nowrap
                         bg-yellow-100/30 border-yellow-300/30">

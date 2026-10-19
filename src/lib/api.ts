@@ -9,7 +9,7 @@ import {
 import { isExtensionProxyReady, fetchViaExtension } from "./extensionProxy";
 import { isNativeApp, fetchViaNative } from "./nativeProxy";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
-import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen, nowKstDateStr } from "./format";
+import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen, nowKstDateStr, isMarketOpen, isKrAfterRegularClose } from "./format";
 import { rememberTossCode, getTossCode } from "./toss";
 
 // 앱 로드 시 1회 — 30일 이상 된 일자 키 정리
@@ -1159,6 +1159,7 @@ export interface KrRegularPrice {
   ticker: string;
   regularPrice: number;
   regularPct: number;       // (regularPrice - prevClose) / prevClose × 100
+  base?: number;            // 토스 base(전일 종가) — 야후 정규장 종가로 덮을 때 등락률 기준
   marketState: string;
   tradingEnd?: string;      // 이번/직전 세션 종료 시각 (ISO) — 종목별(정규장 15:30 or NXT 20:00)
   nextTradingStart?: string; // 다음 세션 시작 시각 (ISO)
@@ -1228,8 +1229,47 @@ export async function fetchKrStockName(ticker: string): Promise<string | null> {
 // markets 매개변수는 호환용으로 유지 (토스는 A 코드만 사용).
 export async function fetchKrRegularPrices(
   tickers: string[],
-  _markets?: Map<string, string>,
+  markets?: Map<string, string>,
 ): Promise<Map<string, KrRegularPrice>> {
+  const out = await fetchKrRegularPricesToss(tickers);
+  await overlayYahooKrClose(out, markets);
+  return out;
+}
+
+// ★ 토스 meta close 는 **정규장 종가가 아니다** — 15:30 뒤 NXT 애프터(~20:00)·밤에도 NXT 최신가를 따라 움직인다
+//   (2026-10-19 18:5x 실측: 하이닉스 meta 1,295,000~1,297,000 / 실제 KRX 종가 1,277,000). 마감 책갈피가 큰 숫자와
+//   같은 값으로 계속 바뀌던 원인. 정규장 종가는 야후 .KS/.KQ regularMarketPrice 가 정확하다 — 토스 1분봉의
+//   15:30 종가 단일가 체결(15:31 봉)·다음 금융(현재가 − afterMarketChangePrice)과 세 종목 모두 일치했다.
+//   야후 v7 은 40종목 1콜이라 싸다. 정규장 중(09:00~15:30)엔 부르지 않는다 — 그땐 종가가 없고 책갈피도 안 뜬다.
+//   야후가 가끔 옛 값을 주므로(코스닥을 .KS 로 물으면 옛 상장 기록) **체결 시각이 15:20 KST 이후이고 4일 이내**인 값만 쓴다.
+async function overlayYahooKrClose(out: Map<string, KrRegularPrice>, markets?: Map<string, string>): Promise<void> {
+  if (out.size === 0 || (isMarketOpen("KR") && !isKrAfterRegularClose())) return;
+  const sym = (t: string) => `${t}.${/KOSDAQ|코스닥/i.test(markets?.get(t) ?? "") ? "KQ" : "KS"}`;
+  const tickers = [...out.keys()];
+  const quotes: V7Quote[] = [];
+  for (let i = 0; i < tickers.length; i += YAHOO_V7_CHUNK) {
+    const chunk = tickers.slice(i, i + YAHOO_V7_CHUNK).map(sym).join(",");
+    try {
+      const r = await fetchProxied(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(chunk)}`);
+      if (!r.ok) continue;
+      quotes.push(...(((await r.json()) as V7Response).quoteResponse?.result ?? []));
+    } catch { /* 이 묶음은 토스 값 그대로 */ }
+  }
+  for (const q of quotes) {
+    const t = (q.symbol ?? "").replace(/\.K[SQ]$/, "");
+    const reg = out.get(t);
+    const px = _vnum(q.regularMarketPrice), ts = q.regularMarketTime;
+    if (!reg || px == null || px <= 0 || typeof ts !== "number") continue;
+    const kst = new Date((ts + 9 * 3600) * 1000);
+    const fresh = Date.now() / 1000 - ts < 4 * 86400 && kst.getUTCHours() * 60 + kst.getUTCMinutes() >= 15 * 60 + 20;
+    if (!fresh) continue;
+    // 등락률 기준 = 토스 base(전일 종가) — 카드 큰 숫자와 같은 기준이라야 둘을 나란히 읽을 수 있다
+    const base = reg.base ?? 0;
+    out.set(t, { ...reg, regularPrice: px, regularPct: base > 0 ? (px / base - 1) * 100 : reg.regularPct });
+  }
+}
+
+async function fetchKrRegularPricesToss(tickers: string[]): Promise<Map<string, KrRegularPrice>> {
   const out = new Map<string, KrRegularPrice>();
   if (tickers.length === 0) return out;
   // 200종목 폴더처럼 코드가 많으면 URL 이 길어져 토스가 거절한다 → 시세와 같은 50개 단위로 분할.
@@ -1241,7 +1281,7 @@ export async function fetchKrRegularPrices(
   if (tickers.length > CHUNK) {
     const chunks: string[][] = [];
     for (let i = 0; i < tickers.length; i += CHUNK) chunks.push(tickers.slice(i, i + CHUNK));
-    const settled = await Promise.allSettled(chunks.map(c => fetchKrRegularPrices(c)));
+    const settled = await Promise.allSettled(chunks.map(c => fetchKrRegularPricesToss(c)));
     for (const r of settled) {
       if (r.status === "fulfilled") for (const [k, v] of r.value) out.set(k, v);
     }
@@ -1269,6 +1309,7 @@ export async function fetchKrRegularPrices(
         ticker,
         regularPrice: r.close,
         regularPct: regPct,
+        base: base > 0 ? base : undefined,
         marketState: "",
         tradingEnd: r.tradingEnd,
         nextTradingStart: r.nextTradingStart,
