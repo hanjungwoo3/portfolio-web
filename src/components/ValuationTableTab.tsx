@@ -668,12 +668,14 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
           </thead>
           <tbody>
             {sorted.map(r => (
-              <tr key={r.ticker} className="odd:bg-white even:bg-gray-50/60 hover:bg-blue-50/50">
+              <tr key={r.ticker} className="group odd:bg-white even:bg-gray-50/60 hover:bg-blue-50/50">
                 {viewCols.map(col => {
                   if (col.key === "name") {
                     return (
                       <td key={col.key}
-                          className="px-2 py-1 whitespace-nowrap sticky left-0 bg-inherit border-r border-gray-100">
+                          // 고정 칸은 **불투명** 배경 + 위 레이어 — bg-inherit 는 줄의 반투명 배경(gray-50/60·blue-50/50)을 물려받아
+                          //   가로 스크롤 때 뒤로 지나가는 칸(티커·소재 배지)이 비쳐 보였다(2026-10-19). 같은 색을 불투명으로 맞춘다.
+                          className="px-2 py-1 whitespace-nowrap sticky left-0 z-10 bg-white group-even:bg-[#fbfcfd] group-hover:bg-[#f7fbff] border-r border-gray-100">
                         <button onClick={() => onOpenValuation?.(r.ticker, r.label)}
                                 title={`${r.label} 기업가치 자세히 보기`}
                                 className="font-bold text-gray-900 hover:text-blue-600">
