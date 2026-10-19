@@ -3333,6 +3333,8 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "SMH":  "US20191211007",
   "PAVE": "US20170308001",
   "LIT":  "US20100723002",
+  "LITP": "NAS0230202004",   // 리튬 광산 ETF (현물 줄 리튬 대용)
+  "NIKL": "NAS0230322005",   // 니켈 광산 ETF (현물 줄 니켈 대용)
   "XBI":  "US20060206001",
   "KBE":  "US20051115001",
   "ITA":  "US20060505010",
