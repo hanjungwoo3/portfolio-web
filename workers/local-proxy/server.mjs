@@ -33,6 +33,8 @@ const ALLOWED_HOSTS = new Set([
   "yasun.gg",
   "finance.daum.net",
   "production.dataviz.cnn.io",
+  "hq.sinajs.cn",
+  "stock2.finance.sina.com.cn",
   "scanner.tradingview.com",
 ]);
 
@@ -145,6 +147,8 @@ function upstreamHeaders(t) {
     h["Accept-Language"] = "ko-KR,ko;q=0.9";
   } else if (t.hostname === "finance.daum.net") {
     h["Referer"] = "https://finance.daum.net/";
+  } else if (t.hostname.endsWith("sina.com.cn") || t.hostname === "hq.sinajs.cn") {
+    h["Referer"] = "https://finance.sina.com.cn/";
   } else if (t.hostname === "production.dataviz.cnn.io") {
     h["Origin"] = "https://edition.cnn.com";
     h["Referer"] = "https://edition.cnn.com/";

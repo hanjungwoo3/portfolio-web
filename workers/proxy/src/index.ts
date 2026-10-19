@@ -23,6 +23,8 @@ const ALLOWED_HOSTS = new Set<string>([
   "yasun.gg",                 // 코스피200/코스닥150 야간선물 1분봉 캔들
   "finance.daum.net",         // 코스피200 선물 미결제약정·투자자별 순매수(일별) — Referer 없으면 403
   "production.dataviz.cnn.io", // CNN 공포·탐욕 지수 — 브라우저 Referer/Origin 없으면 418(봇)
+  "hq.sinajs.cn",             // 시나 금융 — 탄산리튬(광저우)·LME 니켈 시세. Referer 없으면 403
+  "stock2.finance.sina.com.cn", // 시나 금융 — 리튬·니켈 일봉
   "scanner.tradingview.com",  // KOSPI/KOSDAQ 히트맵 — TradingView scanner (POST)
 ]);
 
@@ -178,6 +180,8 @@ export default {
       headers["Accept-Language"] = "ko-KR,ko;q=0.9";
     } else if (targetUrl.hostname === "finance.daum.net") {
       headers["Referer"] = "https://finance.daum.net/";
+    } else if (targetUrl.hostname.endsWith("sina.com.cn") || targetUrl.hostname === "hq.sinajs.cn") {
+      headers["Referer"] = "https://finance.sina.com.cn/";
     } else if (targetUrl.hostname === "production.dataviz.cnn.io") {
       headers["Origin"] = "https://edition.cnn.com";
       headers["Referer"] = "https://edition.cnn.com/";

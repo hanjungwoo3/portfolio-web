@@ -52,6 +52,9 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "VKOSPI": "https://www.cnbc.com/quotes/.KSVKOSPI",
   // 미국 10Y 실질금리 — 값을 CNBC(US10YTIP)에서 받는 가상 심볼이라 야후로 보내면 "No results"
   "^TIPS10": "https://www.cnbc.com/quotes/US10YTIP",
+  // 리튬·니켈 — 시나 시세지만 보기 좋은 Trading Economics 페이지로(사용자가 준 링크)
+  "LITHIUM=F": "https://ko.tradingeconomics.com/commodity/lithium",
+  "NICKEL=F": "https://ko.tradingeconomics.com/commodity/nickel",
   // CNN 공포·탐욕 지수 — CNN 페이지
   "CNNFG": "https://edition.cnn.com/markets/fear-and-greed",
   // 미국 빅테크 개별주 (토스 종목 페이지)

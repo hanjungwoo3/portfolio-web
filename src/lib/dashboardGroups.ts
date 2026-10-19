@@ -473,11 +473,10 @@ function sectionMap(): Record<string, DashboardSection> {
       id: "spot", short: "현물",
       label: "💵 현물 (원자재)",                        // 가격 자체가 신호
       // 한 줄(PC 전체 폭 8칸) — 금속 → 에너지 순. 암호화폐(BTC·ETH·XRP·SOL)는 뺐다.
-      //   리튬·니켈(2차전지 원료)을 넣고 밀을 뺐다(사용자 결정 2026-10-19). 리튬·니켈은 선물(LTH=F)·지수(^SPGSIK)가
-      //   야후에 일봉이 1개뿐이라 차트·등락을 못 그려 **광산 ETF**(LITP·NIKL)를 시세 대용으로 쓴다 — LIT 는 LG엔솔·SDI 등
-      //   배터리 회사가 섞여 금속 신호가 아니다. 1년 주간 상관: KODEX 2차전지 ↔ LITP 0.45 · NIKL 0.42 (구리 0.30).
+      //   리튬·니켈(2차전지 원료)을 넣고 밀을 뺐다(사용자 결정 2026-10-19). 시세는 시나 금융 — 리튬 = 광저우 탄산리튬 선물,
+      //   니켈 = LME(Trading Economics 와 같은 시장). 야후는 둘 다 일봉이 1개뿐이고, 광산 ETF(LITP·NIKL)는 금속 가격이 아니었다.
       wide: true,
-      rows: [["GC=F", "SI=F", "HG=F", "LITP", "NIKL", "CL=F", "BZ=F", "NG=F"]],
+      rows: [["GC=F", "SI=F", "HG=F", "LITHIUM=F", "NICKEL=F", "CL=F", "BZ=F", "NG=F"]],
     },
   ];
   return Object.fromEntries(sections.map(s => [s.id, s]));

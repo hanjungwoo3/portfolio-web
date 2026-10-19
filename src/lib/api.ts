@@ -3333,8 +3333,6 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
   "SMH":  "US20191211007",
   "PAVE": "US20170308001",
   "LIT":  "US20100723002",
-  "LITP": "NAS0230202004",   // 리튬 광산 ETF (현물 줄 리튬 대용)
-  "NIKL": "NAS0230322005",   // 니켈 광산 ETF (현물 줄 니켈 대용)
   "XBI":  "US20060206001",
   "KBE":  "US20051115001",
   "ITA":  "US20060505010",
@@ -3725,6 +3723,7 @@ export async function fetchDashboardChart(sym: string): Promise<number[]> {
   if (kr) return (await fetchKrPriceHistory(kr[1], "3mo")).map(p => p.close);
   if (isCnbcIndex(sym)) return fetchCnbcChart(sym);
   if (sym === CNN_FG_SYMBOL) return fetchCnnFgChart();
+  if (isSinaMetal(sym)) return fetchSinaMetalChart(sym);
   return fetchYahooChart(sym, "3mo");
 }
 
@@ -3832,6 +3831,59 @@ async function fetchCnnFgChart(): Promise<number[]> {
   return pts.map(p => p.y).filter(v => Number.isFinite(v)).slice(-63);
 }
 
+// ─── 리튬·니켈 — 시나 금융 (가상 심볼 LITHIUM=F · NICKEL=F) ─────────────
+//   리튬 = 광저우선물거래소 **탄산리튬 연결물**(CNY/톤), 니켈 = **LME 니켈**(USD/톤) — Trading Economics 가 보여주는 그 시장들.
+//   야후엔 리튬 선물(LTH=F)·니켈 지수(^SPGSIK)가 일봉 1개뿐이라 차트를 못 그리고, 광산 ETF(LITP·NIKL)는 금속 가격이 아니다.
+//   시세 1콜(hq.sinajs.cn, 두 종목 한 번에) + 일봉 종목당 1콜. ⚠️ Referer finance.sina.com.cn 없으면 403 — 프록시·확장·네이티브가 붙인다.
+//   응답은 GBK 지만 숫자·날짜만 쓰므로 그냥 text() 로 읽는다(이름 글자만 깨진다).
+const SINA_METALS: Record<string, { hq: string; kline: string; nf: boolean }> = {
+  "LITHIUM=F": { hq: "nf_LC0", nf: true,
+    kline: "https://stock2.finance.sina.com.cn/futures/api/jsonp.php/x=/InnerFuturesNewService.getDailyKLine?symbol=LC0" },
+  "NICKEL=F": { hq: "hf_NID", nf: false,
+    kline: "https://stock2.finance.sina.com.cn/futures/api/jsonp.php/x=/GlobalFuturesService.getGlobalFuturesDailyKLine?symbol=NID" },
+};
+export function isSinaMetal(symbol: string): boolean { return symbol in SINA_METALS; }
+async function fetchSinaMetals(pairs: { symbol: string; name: string }[]): Promise<UsIndex[]> {
+  const items = pairs.filter(p => isSinaMetal(p.symbol));
+  if (!items.length) return [];
+  try {
+    const r = await fetchProxied(`https://hq.sinajs.cn/list=${items.map(p => SINA_METALS[p.symbol].hq).join(",")}`);
+    if (!r.ok) return [];
+    const text = await r.text();
+    const out: UsIndex[] = [];
+    for (const p of items) {
+      const m = new RegExp(`hq_str_${SINA_METALS[p.symbol].hq}="([^"]*)"`).exec(text);
+      const f = m?.[1].split(",") ?? [];
+      // 국내 선물(nf_): 8 현재가 · 10 전일 정산가 · 1 시각(HHMMSS) · 17 날짜 / 해외 선물(hf_): 0 현재가 · 7 전일 종가 · 6 시각 · 12 날짜
+      const nf = SINA_METALS[p.symbol].nf;
+      const price = Number(nf ? f[8] : f[0]), prev = Number(nf ? f[10] : f[7]);
+      if (!(price > 0) || !(prev > 0)) continue;
+      const date = (nf ? f[17] : f[12]) ?? "";
+      const tm = nf ? (f[1] ?? "").replace(/^(\d{2})(\d{2})(\d{2})$/, "$1:$2:$3") : (f[6] ?? "");
+      const ms = Date.parse(`${date}T${tm}+08:00`);   // 시나 시각은 베이징(UTC+8)
+      out.push({
+        symbol: p.symbol, name: p.name, price, prev, prevClose: prev,
+        diff: price - prev, pct: (price / prev - 1) * 100, currency: nf ? "CNY" : "USD",
+        tradeDate: date, marketState: "",
+        ...(Number.isFinite(ms) ? { regularMarketTime: Math.floor(ms / 1000), freshTime: Math.floor(ms / 1000) } : {}),
+      });
+    }
+    return out;
+  } catch { return []; }
+}
+// 스파크라인 — 다른 카드와 같은 3개월(63거래일) 종가
+async function fetchSinaMetalChart(symbol: string): Promise<number[]> {
+  const def = SINA_METALS[symbol];
+  if (!def) return [];
+  try {
+    const r = await fetchProxied(def.kline);
+    if (!r.ok) return [];
+    const s = await r.text();
+    const rows = JSON.parse(s.slice(s.indexOf("["), s.lastIndexOf("]") + 1)) as { c?: string; close?: string }[];
+    return rows.map(x => Number(x.c ?? x.close)).filter(v => v > 0).slice(-63);
+  } catch { return []; }
+}
+
 // 토스 원달러 환율 — base(당일 09:00 고시 기준가) + close(실시간 현재가).
 //   Yahoo/yasun forex(KRW=X)는 기준점을 새벽 FX 롤오버(~02시 KST)로 리셋해 변동률이 ~0%로 어긋남.
 //   토스는 '어제 종가' 기준이라 토스 환율 페이지 표시값(-1.x%)과 일치.
@@ -3876,7 +3928,7 @@ export async function fetchYahooBatch(
   const investItems = pairs.filter(p => isCnbcIndex(p.symbol));
   const cnnFg = pairs.find(p => p.symbol === CNN_FG_SYMBOL);
 
-  const [ksMap, overviewMap, usMap, investResults, yahooResults, cnnFgIdx] = await Promise.all([
+  const [ksMap, overviewMap, usMap, investResults, yahooResults, cnnFgIdx, sinaMetals] = await Promise.all([
     ksItems.length > 0
       ? fetchTossPrices(ksItems.map(p => ksRegex.exec(p.symbol)![1]))
           .then(prices => {
@@ -3908,8 +3960,9 @@ export async function fetchYahooBatch(
     fetchTossUsIndexMap(tossUsItems),
     Promise.all(investItems.map(p => fetchCnbcIndexPrice(p.symbol, p.name))),
     // 모든 심볼 Yahoo 베이스 — v7 배치(~2콜). marketState/prevClose + 토스 실패 시 fallback
-    fetchYahooBatchQuote(pairs.filter(p => p.symbol !== CNN_FG_SYMBOL)),   // 가상 심볼 — 야후엔 없다
+    fetchYahooBatchQuote(pairs.filter(p => p.symbol !== CNN_FG_SYMBOL && !isSinaMetal(p.symbol))),   // 가상 심볼 — 야후엔 없다
     cnnFg ? fetchCnnFgIndex(cnnFg.name) : Promise.resolve(null),
+    fetchSinaMetals(pairs),
   ]);
 
   // 1) Yahoo 결과를 베이스로
@@ -3960,6 +4013,7 @@ export async function fetchYahooBatch(
   for (const [sym, t] of usMap) applyToss(sym, t);
   for (const r of investResults) { if (r) applyToss(r.symbol, r); }
   if (cnnFgIdx) applyToss(cnnFgIdx.symbol, cnnFgIdx);
+  for (const m of sinaMetals) applyToss(m.symbol, m);
 
   return merged;
 }

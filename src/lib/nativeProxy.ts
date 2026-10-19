@@ -138,6 +138,8 @@ function refererFor(targetUrl: string): Record<string, string> {
   try {
     const host = new URL(targetUrl).hostname;
     if (host === "finance.daum.net") return { Referer: "https://finance.daum.net/" };
+    // 시나 금융(리튬·니켈) — Referer 없으면 403
+    if (host === "hq.sinajs.cn" || host.endsWith("sina.com.cn")) return { Referer: "https://finance.sina.com.cn/" };
     // CNN 공포·탐욕 — 브라우저처럼 안 보이면 418("You're a bot")
     if (host === "production.dataviz.cnn.io") {
       return { Origin: "https://edition.cnn.com", Referer: "https://edition.cnn.com/", "Accept-Language": "en-US,en;q=0.9" };

@@ -65,9 +65,9 @@ export const US_PAIRS: Pair[] = [
   //   유럽·중동·아시아 도입 원유의 기준이라 국내 정유주는 WTI 보다 이쪽에 더 붙는다.
   { symbol: "BZ=F",     name: "브렌트유",     desc: "국제 유가(북해) — 국내 정유·항공 원가의 기준", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "NG=F",     name: "천연가스",     desc: "헨리허브 — LNG·발전·난방·화학", tier: "T0", sector: "dashboard", direction: "inverse" },
-  // 리튬·니켈 — 금속 시세 대용 광산 ETF(dashboardGroups 현물 주석). 오르면 국내 양극재 판가↑ → 2차전지에 우호 = direct
-  { symbol: "LITP",     name: "리튬",        desc: "Sprott 리튬 광산 ETF — 리튬 가격 대용. 2차전지·ESS 공통 원료(양극재 판가 연동)", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "NIKL",     name: "니켈",        desc: "Sprott 니켈 광산 ETF — 니켈 가격 대용. 하이니켈(NCM) 양극재 원료, ESS(LFP)엔 거의 안 씀", tier: "T0", sector: "dashboard", direction: "direct" },
+  // 리튬·니켈 — 시나 금융 가상 심볼(api.ts SINA_METALS). 오르면 국내 양극재 판가↑ → 2차전지에 우호 = direct
+  { symbol: "LITHIUM=F", name: "리튬",       desc: "탄산리튬 선물(광저우, CNY/톤) — 2차전지·ESS 공통 원료. 양극재 판가가 따라간다. 시나 금융", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "NICKEL=F", name: "니켈",        desc: "LME 니켈(USD/톤) — 하이니켈(NCM) 양극재 원료, ESS(LFP)엔 거의 안 씀. 시나 금융", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ZW=F",     name: "밀",          desc: "시카고 소맥 선물 — 사료·식품 원가. 토스 원자재에 같이 온다", tier: "T0", sector: "dashboard", direction: "inverse" },
   // 암호화폐 — 토스가 **원화(VWAP.KRW-*)** 로 준다. 심볼은 야후식(-USD)이지만 값은 원이다.
   { symbol: "BTC-USD",  name: "비트코인",    desc: "위험자산 — 한국 IT/플랫폼 상관", tier: "T0", sector: "dashboard", direction: "direct" },
