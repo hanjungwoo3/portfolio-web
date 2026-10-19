@@ -22,12 +22,18 @@ import {
 import { EtfSectorFlow } from "./EtfSectorFlow";
 import { UsRankingPanel } from "./UsRankingPanel";
 import { useEtfReturns, PERIOD_LABEL, type ReturnPeriod } from "../lib/etfReturns";
+import { useEtfFlows, flowOf, FLOW_WINDOWS, FLOW_WHO_LABEL, FLOW_WINDOW_LABEL, type FlowWho, type FlowWindow } from "../lib/etfFlows";
 
 interface Props {
   onOpenEtfComposition?: (code: string, name: string) => void;
 }
 
-type Side = "top" | "bottom";
+// 상승·하락 = 등락률 순, 수급별 = 외국인·개인 순매수(도) 순 — 같은 카드 목록을 기준만 바꿔 보여준다.
+type Side = "top" | "bottom" | "flow";
+// 수급별 안의 기준 — 누가 · 사고(+)/팔고(−)
+type FlowKey = "fo+" | "fo-" | "pe+" | "pe-";
+const FLOW_KEYS: FlowKey[] = ["fo+", "fo-", "pe+", "pe-"];
+const fmtEok = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v) >= 100 ? Math.round(Math.abs(v)).toLocaleString() : Math.abs(v).toFixed(1)}억`;
 // 기간 — "today" 는 실시간 시세(스냅샷)로, 나머지는 크롤러가 심어 둔 값으로 줄 세운다.
 type Period = "today" | ReturnPeriod;
 
@@ -50,11 +56,12 @@ interface State {
 //
 // 배경 추세(3개월 일봉)는 뷰포트에 들어온 카드만 지연 조회한다 — 전체 시세는 6콜 배치지만
 //   종목별 차트는 개별 호출이라, 50장을 한꺼번에 부르면 호출수 병목에 그대로 걸린다.
-function RankCard({ row, rank, period, periodPct, onOpenEtfComposition, tradeDate }: {
+function RankCard({ row, rank, period, periodPct, flowTag, onOpenEtfComposition, tradeDate }: {
   row: EtfRankRow;
   rank: number;
   period: Period;
   periodPct?: number;      // 줄 세운 기준 값 — 기간 탭일 때만(오늘이면 큰 숫자가 곧 기준이다)
+  flowTag?: { win: FlowWindow; who: FlowWho; fo?: number; pe?: number };   // 수급별 탭 — 그 창의 외국인·개인 순매수
   tradeDate: string;
   onOpenEtfComposition?: (code: string, name: string) => void;
 }) {
@@ -105,7 +112,21 @@ function RankCard({ row, rank, period, periodPct, onOpenEtfComposition, tradeDat
                      {rank}위
                    </div>
                  }
-                 centerTag={period !== "today" && periodPct !== undefined ? (
+                 centerTag={flowTag ? (
+                   // 수급별 — 줄 세운 주체를 굵게, 다른 주체는 옆에 흐리게(둘이 반대로 가는지 보이게)
+                   <div className="border border-gray-300 rounded px-1.5 py-0 leading-tight tabular-nums
+                                   text-[11px] bg-white whitespace-nowrap">
+                     <span className="text-gray-500">{FLOW_WINDOW_LABEL[flowTag.win]} </span>
+                     {(["fo", "pe"] as const).map(w => {
+                       const v = w === "fo" ? flowTag.fo : flowTag.pe;
+                       return (
+                         <span key={w} className={`${w === flowTag.who ? "font-bold" : "opacity-60"} ${v != null ? signColor(v) : "text-gray-400"} ${w === "pe" ? "ml-1" : ""}`}>
+                           {FLOW_WHO_LABEL[w].slice(0, w === "fo" ? 3 : 2)} {v != null ? fmtEok(v) : "—"}
+                         </span>
+                       );
+                     })}
+                   </div>
+                 ) : period !== "today" && periodPct !== undefined ? (
                    // 큰 숫자는 '오늘' 이다. 기간 탭으로 줄 세웠을 땐 그 기준값을 따로 적어 줘야
                    //   왜 이 순서인지 읽힌다(1년 정렬인데 오늘 −0.3% 인 카드가 1위일 수 있다).
                    <div className={`border border-gray-300 rounded px-1.5 py-0 leading-tight tabular-nums
@@ -133,7 +154,13 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
   // 시장 전환 — 한국은 크롤러가 심어 둔 기간 수익률, 미국은 TradingView 스캐너 1콜.
   const [market, setMarket] = useState<"kr" | "us">("kr");
   // 기간 파일은 기간 탭을 누를 때만 받는다 — '오늘' 만 볼 사용자는 아예 안 받는다.
-  const returnData = useEtfReturns(period !== "today");
+  const returnData = useEtfReturns(period !== "today" && side !== "flow");
+  // 수급별 — 누가·방향, 창(전일·5일·20일·60일). 파일은 수급별 탭을 처음 열 때 받는다.
+  const [flowKey, setFlowKey] = useState<FlowKey>("fo+");
+  const [flowWin, setFlowWin] = useState<FlowWindow>(5);
+  const flowData = useEtfFlows(side === "flow");
+  const flowWho: FlowWho = flowKey.startsWith("fo") ? "fo" : "pe";
+  const flowVal = (r: EtfRankRow) => flowOf(flowData?.flows[r.code], flowWho, flowWin);
   const [expanded, setExpanded] = useState(false);
   const [hideLeverage, setHideLeverage] = useState(true);   // 레버리지 ETF 제외 (기본 ON)
   const [hideFutures, setHideFutures] = useState(true);     // 선물 ETF 제외 (기본 ON)
@@ -174,13 +201,20 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
   //   전체 랭킹은 상·하위 100 만 남기므로, 가운데 있는 종목은 이 경로로만 볼 수 있다.
   //   ★ 기간 정렬은 상·하위 100 으로 하면 안 된다 — 그건 '오늘' 기준으로 잘린 목록이라
   //     1개월 상위가 그 안에 없을 수 있다. 그래서 섹터에 담긴 전수를 다시 모아 쓴다.
+  // 수급별은 '오늘' 상·하위 100 으로 자르면 안 된다(오늘 많이 오른 것과 많이 산 것은 다르다) → 섹터 전수.
+  const allSector = () => [...new Map(sectors.flatMap(sc => sc.rows).map(r => [r.code, r])).values()];
   const universe: EtfRankRow[] = picked
     ? picked.rows
-    : period === "today"
-      ? (ranking ? (side === "top" ? ranking.top : ranking.bottom) : [])
-      : sectors.flatMap(sc => sc.rows);
-  const allRows: EtfRankRow[] =
-    picked || period !== "today"
+    : side === "flow"
+      ? allSector()
+      : period === "today"
+        ? (ranking ? (side === "top" ? ranking.top : ranking.bottom) : [])
+        : allSector();
+  const allRows: EtfRankRow[] = side === "flow"
+    ? universe
+        .filter(r => { const v = flowVal(r); return v !== undefined && (flowKey.endsWith("+") ? v > 0 : v < 0); })
+        .sort((a, b) => flowKey.endsWith("+") ? flowVal(b)! - flowVal(a)! : flowVal(a)! - flowVal(b)!)
+    : picked || period !== "today"
       ? [...universe]
           .filter(r => pctOf(r) !== undefined)
           .sort((a, b) => {
@@ -221,14 +255,15 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
       {/* 헤더 — 상승/하락 토글 + 새로고침 + 기준 정보 */}
       <div className="flex flex-wrap items-center gap-2 rounded-xl border border-gray-300 bg-white p-2.5">
         <div className="flex rounded-md border border-gray-300 overflow-hidden">
-          {(["top", "bottom"] as const).map(s => (
+          {(["top", "bottom", "flow"] as const).map(s => (
             <button key={s}
                     onClick={() => { setSide(s); setExpanded(false); }}
+                    title={s === "flow" ? "외국인·개인 순매수(도) 순 — 전 거래일까지, 매일 06:00 갱신" : undefined}
                     className={`px-2.5 py-1.5 text-sm font-medium transition-colors
                                 ${side === s
-                                  ? (s === "top" ? "bg-rose-600 text-white" : "bg-blue-600 text-white")
+                                  ? (s === "top" ? "bg-rose-600 text-white" : s === "bottom" ? "bg-blue-600 text-white" : "bg-emerald-600 text-white")
                                   : "bg-white text-gray-600 hover:bg-gray-100"}`}>
-              {s === "top" ? "📈 상승" : "📉 하락"}
+              {s === "top" ? "📈 상승" : s === "bottom" ? "📉 하락" : "💰 수급별"}
             </button>
           ))}
         </div>
@@ -258,8 +293,36 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
           {hideFutures ? "✓ 선물 제외" : "선물 제외"}
         </button>
 
-        {/* 기간 — 오늘만 실시간, 나머지는 크롤 시점 기준 */}
-        <div className="flex rounded-md border border-gray-300 overflow-hidden">
+        {side === "flow" && (
+          <>
+            <div className="flex rounded-md border border-gray-300 overflow-hidden">
+              {FLOW_KEYS.map(k => (
+                <button key={k}
+                        onClick={() => { setFlowKey(k); setExpanded(false); }}
+                        className={`px-2.5 py-1.5 text-sm font-medium transition-colors
+                                    ${flowKey === k
+                                      ? (k.endsWith("+") ? "bg-rose-600 text-white" : "bg-blue-600 text-white")
+                                      : "bg-white text-gray-600 hover:bg-gray-100"}`}>
+                  {FLOW_WHO_LABEL[k.startsWith("fo") ? "fo" : "pe"]} {k.endsWith("+") ? "순매수" : "순매도"}
+                </button>
+              ))}
+            </div>
+            <div className="flex rounded-md border border-gray-300 overflow-hidden">
+              {FLOW_WINDOWS.map(w => (
+                <button key={w}
+                        onClick={() => { setFlowWin(w); setExpanded(false); }}
+                        title={w === 1 ? "전 거래일 하루" : `최근 ${w}거래일 누적`}
+                        className={`px-3 py-1.5 text-sm font-medium transition-colors
+                                    ${flowWin === w ? "bg-gray-800 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>
+                  {FLOW_WINDOW_LABEL[w]}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* 기간 — 오늘만 실시간, 나머지는 크롤 시점 기준 (수급별에선 위의 창 버튼이 대신한다) */}
+        {side !== "flow" && <div className="flex rounded-md border border-gray-300 overflow-hidden">
           {(["today", "w1", "m1", "m3", "m6", "y1"] as const).map(p => (
             <button key={p}
                     onClick={() => { setPeriod(p); setExpanded(false); }}
@@ -273,7 +336,7 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
               {p === "today" ? "오늘" : PERIOD_LABEL[p]}
             </button>
           ))}
-        </div>
+        </div>}
 
         <div className="ml-auto text-[11px] text-gray-500 leading-tight text-right">
           {ranking ? (
@@ -332,7 +395,17 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
         </div>
       )}
 
-      {picked && (
+      {side === "flow" && (
+        <div className="px-1 text-[11px] text-gray-500 leading-relaxed">
+          <b className="text-gray-700">{FLOW_WHO_LABEL[flowWho]} {FLOW_WINDOW_LABEL[flowWin]} {flowKey.endsWith("+") ? "순매수" : "순매도"}</b> 큰 순
+          {picked ? ` (${picked.label} 안에서)` : ""} · 억원 = 순매수 수량 × 그날 종가 · 전 거래일까지
+          {flowData?.asOf ? ` (${flowData.asOf} 기준)` : ""}, 매일 06:00 갱신.
+          {" "}기관은 뺐습니다 — ETF 기관 수치엔 LP(유동성공급자) 호가 대응 물량이 섞여 개인과 거울처럼 움직입니다.
+          {!flowData && <span className="text-amber-600"> 수급 데이터를 받는 중…</span>}
+        </div>
+      )}
+
+      {picked && side !== "flow" && (
         <div className="px-1 text-[11px] text-gray-500">
           <b className="text-gray-700">{picked.label}</b> {picked.count}종 · 거래대금 상위 {picked.rows.length}종을
           {side === "top" ? " 등락률 높은 순" : " 낮은 순"}으로 보여줍니다.
@@ -353,6 +426,8 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-2 gap-y-5 pt-3 items-stretch">
           {shown.map((r, i) => (
             <RankCard key={r.code} row={r} rank={i + 1} period={period} periodPct={pctOf(r)}
+                      flowTag={side === "flow" ? { win: flowWin, who: flowWho,
+                        fo: flowOf(flowData?.flows[r.code], "fo", flowWin), pe: flowOf(flowData?.flows[r.code], "pe", flowWin) } : undefined}
                       tradeDate={ranking?.tradeDate ?? ""}
                       onOpenEtfComposition={onOpenEtfComposition} />
           ))}
