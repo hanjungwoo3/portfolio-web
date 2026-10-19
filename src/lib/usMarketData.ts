@@ -218,6 +218,8 @@ export const US_PAIRS: Pair[] = [
   { symbol: "QCOM",     name: "퀄컴",         desc: "Qualcomm — 모바일 AP(스냅드래곤)·모뎀 팹리스. 스마트폰 수요·온디바이스 AI 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "TSM",      name: "TSMC(ADR)",   desc: "TSMC ADR(뉴욕 상장) — 세계 최대 파운드리(NVDA·AMD·애플 칩 위탁생산). 반도체 전방수요·삼성 파운드리 경쟁 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   // 일본 반도체 — 한국과 같은 시간에 열리는 도쿄 본주(야후). 한국 반도체와 당일 상관 0.5~0.69.
+  { symbol: "^HSI",     name: "홍콩항셍",       desc: "홍콩 항셍지수 — 텐센트·알리바바·HSBC 등. 중국 경기·빅테크 체온계 (야후)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "000001.SS", name: "상해종합",    desc: "상하이 종합지수 — 중국 본토 A주 전체. 한국 수출(중국) 경기 가늠자 (야후)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^N225",    name: "닛케이",       desc: "닛케이225 — 도쿄일렉트론·어드반테스트 등 반도체 비중 큼", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "8035.T",   name: "도쿄일렉트론", desc: "Tokyo Electron — 세계 3위 전공정 장비(증착·식각·코터). 한국 전공정 장비 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "6857.T",   name: "어드반테스트", desc: "Advantest — 반도체 테스터 1위(HBM·AI칩 테스트). 한국 후공정·테스트 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },

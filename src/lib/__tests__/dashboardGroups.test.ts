@@ -34,7 +34,7 @@ describe("지수 탭 페이지 구성", () => {
     expect(row(true)).not.toContain("^KS200N");
     expect(row(true)).not.toContain("^KQ150N");
     // 주간 시장은 한 줄(6칸) — 지수·KODEX·밸류업·V-KOSPI
-    expect(buildDashboardPage("day", false).find(s => s.id === "kr")!.rows).toEqual([["^KS11", "^KQ11", "069500.KS", "229200.KS", "KVALUE", "VKOSPI"]]);
+    expect(buildDashboardPage("day", false).find(s => s.id === "kr")!.rows).toEqual([["^KS11", "^KQ11", "069500.KS", "229200.KS", "VKOSPI", "^N225", "^HSI", "000001.SS"]]);
     // 야간 페이지 '밤의 한국' 은 반대 — 밤엔 야간선물이 있고, 낮(주간선물 시간)엔 안 보인다
     const nightRow = (krNight: boolean) => buildDashboardPage("night", krNight).find(s => s.id === "krnight")!.rows.flat();
     expect(nightRow(true)).toContain("^KS200N");
