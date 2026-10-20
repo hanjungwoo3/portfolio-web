@@ -1,6 +1,6 @@
 // Drive 이전 버전에서 복구 — PC 설정(SettingsDialog)·모바일 설정(MobileSimpleView) 공용.
 //   새 기기의 빈 데이터가 Drive 를 덮은 사고(2026-10-20) 같은 때, Drive 가 보관한 이전 버전(revision)을 골라 되돌린다.
-//   목록(시각·크기)은 한 콜로 **바로** 띄우고, 종목·거래 수는 버전마다 내용을 받아야 해서 4개씩 동시에 채워 넣는다.
+//   목록(시각·크기)은 한 콜로 **바로** 띄우고, 종목·거래 수는 버전마다 내용을 받아야 해서 2개씩 동시에 채워 넣는다.
 //   (처음엔 40개를 하나씩 순서대로 다 받은 뒤 띄워 한참 '불러오는 중' 에 멈춰 있었다)
 import { useState } from "react";
 import { listDriveBackups, summarizeDriveBackup, restoreDriveBackup, type DriveBackup, type DriveBackupSummary } from "../lib/syncManager";
@@ -8,7 +8,7 @@ import { listDriveBackups, summarizeDriveBackup, restoreDriveBackup, type DriveB
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString("ko-KR", { year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
 const fmtSize = (b: number) => (b >= 1024 ? `${(b / 1024).toFixed(0)}KB` : `${b}B`);
-const PARALLEL = 4;
+const PARALLEL = 2;   // 4 면 Drive 속도 제한(403)에 자주 걸린다 — 재시도와 함께 2개씩
 
 export function DriveRestorePanel({ onRestored }: { onRestored?: () => void }) {
   const [open, setOpen] = useState(false);
@@ -23,7 +23,7 @@ export function DriveRestorePanel({ onRestored }: { onRestored?: () => void }) {
     try { revs = await listDriveBackups(); setList(revs); }
     catch (e) { setMsg(`⚠️ ${(e as Error).message}`); setBusy(""); return; }
     setBusy("");
-    // 종목 수 채우기 — 최신부터 4개씩 동시에. 다 받기 전에도 '이 버전으로 복구' 는 누를 수 있다.
+    // 종목 수 채우기 — 최신부터 2개씩 동시에. 다 받기 전에도 '이 버전으로 복구' 는 누를 수 있다.
     let next = 0;
     await Promise.all(Array.from({ length: PARALLEL }, async () => {
       for (;;) {

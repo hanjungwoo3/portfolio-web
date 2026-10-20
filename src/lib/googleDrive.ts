@@ -131,11 +131,18 @@ export async function downloadRevision<T = unknown>(revisionId: string): Promise
     if (!m) throw new Error("Drive 파일이 없습니다");
     fileIdCache = { id: m.id, at: Date.now() };
   }
-  const meta = { id: fileIdCache.id };
-  const resp = await driveFetch(
-    `https://www.googleapis.com/drive/v3/files/${meta.id}/revisions/${encodeURIComponent(revisionId)}?alt=media`);
-  if (!resp.ok) throw new Error(`Drive 버전 받기 실패: ${resp.status}`);
-  return await resp.json() as T;
+  const url = `https://www.googleapis.com/drive/v3/files/${fileIdCache.id}/revisions/${encodeURIComponent(revisionId)}?alt=media`;
+  // ★ 연달아 받으면 Drive 가 속도 제한으로 403(rateLimitExceeded)·429 를 섞어 준다(2026-10-20 실측 — 200·403 이 번갈아).
+  //   잠깐 쉬었다(1·2·4초) 다시 받는다. 그래도 안 되면 그 버전만 '확인 실패' 로 둔다.
+  for (let attempt = 0; ; attempt++) {
+    const resp = await driveFetch(url);
+    if (resp.ok) return await resp.json() as T;
+    if ((resp.status === 403 || resp.status === 429) && attempt < 3) {
+      await new Promise(r => setTimeout(r, 1000 * 2 ** attempt));
+      continue;
+    }
+    throw new Error(`Drive 버전 받기 실패: ${resp.status}`);
+  }
 }
 
 // 파일 완전 삭제 (테스트·디버깅용)
