@@ -338,18 +338,33 @@ export async function fetchTossUsStockCandles(symbol: string, count = 120): Prom
 // 종목 당일 10분봉 종가 — 카드 배경 '24시간' 차트용. 국내 kr-s(NXT 포함 통합 08~20시), 미국 us-s(오버나이트 포함).
 //   응답은 최신→과거, 여러 날이 섞여 오므로 **가장 최근 날짜(현지 날짜)** 봉만 남긴다.
 //   빈 결과는 던진다 — 일시적 0건이 staleTime 동안 굳지 않게(빈 캐시 금지).
-export async function fetchTossIntraday(ticker: string): Promise<number[]> {
+// 종목 카드 배경 '24시간' 그래프용 당일 시계열 — 시간 축(xs)·어제 종가(base)·정규장 시작(openIdx) 포함.
+//   지수 카드(KrDaySparkline·야후 spark)와 같은 모양(어제 종가선 위 빨강·아래 파랑, 정규장 시작 세로선)으로 그리려고
+//   종가만 주던 걸 넓혔다(2026-10-21). 한국 = 08:00~20:00 KST(정규 09:00), 미국 = 00:00~24:00 ET(정규 09:30).
+//   봉이 2개도 안 되면(장 시작 직후) 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
+export interface DaySeries { closes: number[]; xs?: number[]; base?: number; openIdx?: number; date?: string }
+export async function fetchTossIntraday(ticker: string): Promise<DaySeries | null> {
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
   const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));
-  if (!code) return [];   // 코드 모름 — 3개월로 그린다
-  const target = `https://wts-info-api.tossinvest.com/api/v1/c-chart/${isKr ? "kr-s" : "us-s"}/${code}/min:10?count=150`;
+  if (!code) return null;   // 코드 모름 — 3개월로 그린다
+  const target = `https://wts-info-api.tossinvest.com/api/v1/c-chart/${isKr ? "kr-s" : "us-s"}/${code}/min:10?count=${isKr ? 150 : 300}`;
   const resp = await fetchProxied(target);
   if (!resp.ok) throw new Error(`toss intraday ${ticker}: HTTP ${resp.status}`);
-  const data = await resp.json() as { result?: { candles?: Array<{ dt?: string; close?: number }> } };
+  const data = await resp.json() as { result?: { candles?: Array<{ dt?: string; close?: number; base?: number }> } };
   const rows = (data.result?.candles ?? []).filter(c => c.dt && typeof c.close === "number" && c.close > 0);
   if (rows.length === 0) throw new Error(`toss intraday ${ticker}: empty`);
-  const day = rows[0].dt!.slice(0, 10);   // dt 는 현지 오프셋 포함 ISO → 앞 10자리가 현지 날짜
-  return rows.filter(c => c.dt!.slice(0, 10) === day).map(c => c.close!).reverse();
+  // dt 는 현지 오프셋 포함 ISO → 앞 10자리가 현지 날짜, 11~16 이 현지 시각
+  const [startMin, spanMin, openHHMM] = isKr ? [8 * 60, 12 * 60, "09:00"] : [0, 24 * 60, "09:30"];
+  const xOf = (dt: string) => (Number(dt.slice(11, 13)) * 60 + Number(dt.slice(14, 16)) - startMin) / spanMin;
+  for (const day of [...new Set(rows.map(c => c.dt!.slice(0, 10)))]) {
+    const bars = rows.filter(c => c.dt!.slice(0, 10) === day).reverse();   // 과거 → 최신
+    if (bars.length < 2) continue;
+    const oi = bars.findIndex(c => c.dt!.slice(11, 16) >= openHHMM);
+    const base = bars[bars.length - 1].base;
+    return { closes: bars.map(c => c.close!), xs: bars.map(c => xOf(c.dt!)), base: base && base > 0 ? base : undefined,
+             openIdx: oi > 0 ? oi : undefined, date: day };
+  }
+  return null;
 }
 
 // 토스 내부코드를 이미 아는 경우(TICS 구성종목 등) — 심볼→코드 변환을 건너뛴다.

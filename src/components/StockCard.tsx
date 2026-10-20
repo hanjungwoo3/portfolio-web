@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
-import type { PricePoint } from "../lib/api";
+import type { PricePoint, DaySeries } from "../lib/api";
 import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, holdingYesterdayBaseSum, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, tradeSecOf, isEtfOrEtnByName, isKrAfterRegularClose } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
@@ -40,7 +40,7 @@ interface Props {
   warning?: string;
   loading?: boolean;
   chart?: number[];   // 비거래일 sparkline 용 일봉 종가 시계열 (3개월)
-  dayChart?: number[];   // 당일 10분봉 종가 — 그래프 설정이 24시간이면 배경에 이걸 그린다
+  dayChart?: DaySeries;   // 당일 10분봉(시간 축·어제 종가 포함) — 그래프 설정이 24시간이면 배경에 이걸 그린다
   priceHistory?: PricePoint[];  // OHLC 포함 — 가격 박스 hover tooltip 의 1개월 캔들차트용
   otherGroups?: string[];  // 같은 ticker 가 속한 다른 그룹 이름들 (현재 그룹 제외)
   heldGroups?: Set<string>;  // 그 중 보유수량>0 인 그룹들 (붉은색 표시용)
@@ -599,8 +599,25 @@ export function StockCard({
   // 전체수익 (보유 종목만 — shares > 0)
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
   // 배경 그래프 — 앱 전체 설정(3개월 | 24시간). 24시간 시계열이 없으면 3개월.
-  const bgChart = pickCardChart(chartRange, chart ?? [], dayChart);
-  const bgIsDay = bgChart === dayChart;
+  const bgChart = pickCardChart(chartRange, chart ?? [], dayChart?.closes);
+  const bgIsDay = !!dayChart && bgChart === dayChart.closes;
+  // 24시간 차트 — 시간 축·어제 종가선(위 빨강·아래 파랑)·정규장 시작선 + **끝에 지금 가격**(5초 폴링, 추가 호출 0).
+  //   미국 종목 시계열은 달러라 지금 가격도 달러(priceUsd)로 붙인다. 오늘 차트이고 지금이 축 안·마지막 봉 뒤일 때만.
+  const dayLive = (() => {
+    if (!bgIsDay || !dayChart?.xs?.length) return dayChart;
+    const isUs = !/\d/.test(stock.ticker);
+    const live = isUs ? price.priceUsd : price.price;
+    if (!(live && live > 0)) return dayChart;
+    const tz = isUs ? "America/New_York" : "Asia/Seoul";
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+      .formatToParts(new Date()).reduce<Record<string, string>>((a, p) => { a[p.type] = p.value; return a; }, {});
+    if (`${parts.year}-${parts.month}-${parts.day}` !== dayChart.date) return dayChart;
+    const mins = (Number(parts.hour) % 24) * 60 + Number(parts.minute);
+    const x = isUs ? mins / (24 * 60) : (mins - 8 * 60) / (12 * 60);
+    if (x <= dayChart.xs[dayChart.xs.length - 1] || x > 1) return dayChart;
+    return { ...dayChart, closes: [...dayChart.closes, live], xs: [...dayChart.xs, x] };
+  })();
+
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
   const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
 
@@ -1125,7 +1142,9 @@ export function StockCard({
           {/* 배경 그래프 — 3개월 추이 또는 24시간(당일 10분봉, 앱 전체 설정). 색은 차트 자체 추세.
               24시간엔 목표가·평단 선을 뺀다 — 하루 폭이 좁아 선이 축을 넓히면 그래프가 납작해진다. */}
           {bgChart.length > 1 && (
-            <Sparkline data={bgChart} width={300} height={80}
+            <Sparkline data={bgIsDay && dayLive ? dayLive.closes : bgChart} width={300} height={80}
+                       xs={bgIsDay ? dayLive?.xs : undefined} baseline={bgIsDay ? dayLive?.base : undefined}
+                       markIndex={bgIsDay ? dayLive?.openIdx : undefined}
                        target={bgIsDay ? undefined : consensus?.target}
                        avgPrice={!bgIsDay && hasPosition ? stock.avg_price : undefined}
                        entry={bgIsDay ? undefined : memo?.entryPrice}

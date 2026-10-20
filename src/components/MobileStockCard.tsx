@@ -5,7 +5,7 @@ import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, 
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
-import { pickTodayInvestor } from "../lib/api";
+import { pickTodayInvestor, type DaySeries } from "../lib/api";
 import { openTossStock } from "../lib/toss";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { Sparkline } from "./Sparkline";
@@ -58,7 +58,7 @@ interface Props {
   market?: "KOSPI" | "KOSDAQ" | string;
   warning?: string;
   chart?: number[];           // 비거래일 sparkline 용 일봉 종가 시계열
-  dayChart?: number[];        // 당일 10분봉 종가 — 그래프 설정이 24시간이면 배경에 이걸 그린다
+  dayChart?: DaySeries;       // 당일 10분봉(시간 축·어제 종가 포함) — 그래프 설정이 24시간이면 배경에 이걸 그린다
   investorHistory?: Investor[] | null;   // 60일 수급 (AuxIndicators 외국인/기관/연기금)
   lastBuy?: LastTrade | null;            // 마지막 매수 (PC 카드와 동일 — lastTradeOf)
   lastSell?: LastTrade | null;           // 마지막 매도
@@ -200,8 +200,25 @@ export function MobileStockCard({
     memo?.stopPrice != null && Number.isFinite(memo.stopPrice) &&
     price.price <= memo.stopPrice;
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
-  const bgChart = pickCardChart(chartRange, chart ?? [], dayChart);
-  const bgIsDay = bgChart === dayChart;
+  const bgChart = pickCardChart(chartRange, chart ?? [], dayChart?.closes);
+  const bgIsDay = !!dayChart && bgChart === dayChart.closes;
+  // 24시간 차트 — 시간 축·어제 종가선(위 빨강·아래 파랑)·정규장 시작선 + **끝에 지금 가격**(5초 폴링, 추가 호출 0).
+  //   미국 종목 시계열은 달러라 지금 가격도 달러(priceUsd)로 붙인다. 오늘 차트이고 지금이 축 안·마지막 봉 뒤일 때만.
+  const dayLive = (() => {
+    if (!bgIsDay || !dayChart?.xs?.length) return dayChart;
+    const isUs = !/\d/.test(stock.ticker);
+    const live = isUs ? price.priceUsd : price.price;
+    if (!(live && live > 0)) return dayChart;
+    const tz = isUs ? "America/New_York" : "Asia/Seoul";
+    const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+      .formatToParts(new Date()).reduce<Record<string, string>>((a, p) => { a[p.type] = p.value; return a; }, {});
+    if (`${parts.year}-${parts.month}-${parts.day}` !== dayChart.date) return dayChart;
+    const mins = (Number(parts.hour) % 24) * 60 + Number(parts.minute);
+    const x = isUs ? mins / (24 * 60) : (mins - 8 * 60) / (12 * 60);
+    if (x <= dayChart.xs[dayChart.xs.length - 1] || x > 1) return dayChart;
+    return { ...dayChart, closes: [...dayChart.closes, live], xs: [...dayChart.xs, x] };
+  })();
+
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
   const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
 
@@ -550,7 +567,9 @@ export function MobileStockCard({
                       flex flex-col justify-center space-y-0.5">
         {/* 배경 그래프 — 3개월 추이 또는 24시간(당일 10분봉, 앱 전체 설정). 24시간엔 목표가·평단 선 생략(PC 동일) */}
         {bgChart.length > 1 && (
-          <Sparkline data={bgChart} width={300} height={70}
+          <Sparkline data={bgIsDay && dayLive ? dayLive.closes : bgChart} width={300} height={70}
+                       xs={bgIsDay ? dayLive?.xs : undefined} baseline={bgIsDay ? dayLive?.base : undefined}
+                       markIndex={bgIsDay ? dayLive?.openIdx : undefined}
                      target={bgIsDay ? undefined : consensus?.target}
                      avgPrice={!bgIsDay && hasPosition ? stock.avg_price : undefined}
                      entry={bgIsDay ? undefined : memo?.entryPrice}
