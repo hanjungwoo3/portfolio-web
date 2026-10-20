@@ -26,10 +26,13 @@ interface Props {
   // 기준선(어제 종가) — 회색 가로 점선, Y 범위에 포함. 주면 **색도 이 값 기준**(끝값 > 기준 = 빨강)으로 칠한다
   //   — 24시간 차트의 첫 점은 프리장 시작이라, 첫 점 기준 색은 카드 큰 숫자(어제 종가 대비)와 어긋났다(2026-10-20).
   baseline?: number;
+  // 점마다 가로 위치(0~1) — 시간 축으로 그릴 때(예: 한국 08:00~20:00). 없으면 점을 고르게 편다.
+  //   장 초반처럼 봉이 몇 개뿐일 때 선이 카드 전체로 늘어나지 않고 왼쪽에 짧게 그려진다.
+  xs?: number[];
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline,
+  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs,
   aboveColor = "#dc2626", belowColor = "#2563eb",
 }: Props) {
   const uid = useId().replace(/:/g, "");   // 위·아래 잘라내기(clipPath)·그라디언트 id — 카드마다 달라야 한다
@@ -65,7 +68,8 @@ export function Sparkline({
 
   // 정규화 좌표
   const points = data.map((v, i) => {
-    const x = padX + (i / (data.length - 1)) * innerW;
+    const frac = xs && xs.length === data.length ? Math.min(1, Math.max(0, xs[i])) : i / (data.length - 1);
+    const x = padX + frac * innerW;
     const y = padY + innerH - ((v - min) / range) * innerH;
     return [x, y] as const;
   });

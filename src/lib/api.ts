@@ -3971,6 +3971,32 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
   return out;
 }
 
+// ─── 한국 종목·ETF 24시간(당일) 차트 — 토스 10분봉 ─────────────
+//   토스 c-chart 분봉은 NXT 프리(08:00)~애프터(20:00)까지 들어 있고 봉마다 base(= 어제 종가)가 붙는다.
+//   종목당 1콜이라 화면에 보이는 카드만 부른다(KrDaySparkline). openIdx = 09:00 KRX 정규장 첫 봉.
+export interface KrDayCandles { closes: number[]; base?: number; openIdx?: number; xs?: number[] }   // xs = 08:00~20:00 시간 축 위치(0~1)
+export async function fetchKrDayCandles(code: string): Promise<KrDayCandles | null> {
+  try {
+    const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/c-chart/kr-s/A${code}/min:10?count=150`);   // 오늘 + 직전 거래일(72봉/일)
+    if (!r.ok) return null;
+    const cs = ((await r.json()) as { result?: { candles?: { dt: string; close: number; base?: number }[] } }).result?.candles ?? [];
+    if (!cs.length) return null;
+    // 가장 최근 날(오늘)을 **08:00~20:00 시간 축**에 그린다 — 점을 고르게 펴면 장 초반 봉 2~3개가 카드 전체로 늘어나
+    //   어제 종가선과 큰 삼각형을 만들었다(2026-10-21). 시간 축이면 왼쪽에 짧게 그려지고 하루가 지나며 채워진다.
+    //   봉이 2개도 안 되면(08:00 직후) 직전 거래일.
+    const days = [...new Set(cs.map(c => c.dt.slice(0, 10)))];          // 최신 날짜 먼저
+    const xOf = (dt: string) => (Number(dt.slice(11, 13)) * 60 + Number(dt.slice(14, 16)) - 8 * 60) / (12 * 60);
+    for (const day of days) {
+      const bars = cs.filter(c => c.dt.slice(0, 10) === day && c.close > 0).reverse();   // 과거 → 최신
+      if (bars.length < 2) continue;
+      const oi = bars.findIndex(c => c.dt.slice(11, 16) >= "09:00");
+      const base = bars[bars.length - 1].base;                           // 그날의 기준가 = 그 전 거래일 종가
+      return { closes: bars.map(c => c.close), base: base && base > 0 ? base : undefined, openIdx: oi > 0 ? oi : undefined, xs: bars.map(c => xOf(c.dt)) };
+    }
+    return null;
+  } catch { return null; }
+}
+
 // 토스 원달러 환율 — base(당일 09:00 고시 기준가) + close(실시간 현재가).
 //   Yahoo/yasun forex(KRW=X)는 기준점을 새벽 FX 롤오버(~02시 KST)로 리셋해 변동률이 ~0%로 어긋남.
 //   토스는 '어제 종가' 기준이라 토스 환율 페이지 표시값(-1.x%)과 일치.

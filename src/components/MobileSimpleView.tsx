@@ -106,6 +106,7 @@ import { EditHoldingDialog } from "./EditHoldingDialog";
 import { MyStockEditDialog } from "./MyStockEditDialog";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./HelpDialog";
 import { Sparkline } from "./Sparkline";
+import { KrDaySparkline } from "./KrDaySparkline";
 import { ValuationModal } from "./ValuationModal";
 import {
   getSyncState, getLastSyncedAt, enableSync, disableSync, pauseSync, resumeSync, reconcileOnEnable,
@@ -2071,13 +2072,31 @@ export function MobileSimpleView() {
                   <div className={`relative overflow-hidden h-full flex flex-col gap-0.5
                                   rounded-lg border px-3 py-1.5
                                   ${leadRowOf(section, p.symbol) >= 0 ? dashboardTagCard(section.rowLabels?.[leadRowOf(section, p.symbol)]) : bg}`}>
+                  {chartRange === "day" && krEtfTicker(p.symbol) ? (
+
+                    // 한국 종목·ETF 24시간 — 토스 10분봉(NXT 포함), 보이는 카드만 받는다
+
+                    <KrDaySparkline code={krEtfTicker(p.symbol)!} fallback={chartArr} width={300} height={70}
+
+                                    color={sparkColor} dim={dimNow} className={`absolute inset-0 w-full h-full opacity-50
+                                        pointer-events-none ${dimCls}`} />
+
+                  ) : (
+
                   <Sparkline data={chartArr}
+
                              width={300} height={70}
+
                              markIndex={markIdx}
+
                              baseline={dayBase}
+
                              color={sparkColor}
+
                              className={`absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none ${dimCls}`} />
+
+                  )}
                   <div className={`relative flex items-baseline gap-1.5 h-5 overflow-hidden ${dimCls}`}>
                     {sleeping && !inSession && (
                       <span className="text-[11px] text-gray-400">zZ</span>
