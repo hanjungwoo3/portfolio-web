@@ -517,6 +517,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                       {/* 정규장 종가 → 지금(아래 큰 숫자) 차이 — 애프터·프리·NXT 에서 얼마나 더 움직였나(사용자 요청 2026-10-20) */}
                       {(() => {
                         if (effPrice == null || !(closeVal > 0)) return null;
+                        // 큰 숫자 % 의 기준이 이미 이 정규장 종가면(미국 종목 장 마감 뒤 — 토스식) 같은 값을 두 번 쓰게 된다 → 생략
+                        if (effBase != null && effBase > 0 && Math.abs(effBase / closeVal - 1) < 0.0005) return null;
                         const gap = (effPrice / closeVal - 1) * 100;
                         if (!Number.isFinite(gap) || Math.abs(gap) < 0.005) return null;
                         const gapCls = (isInverse ? gap < 0 : gap > 0) ? "text-rose-600" : "text-blue-600";
