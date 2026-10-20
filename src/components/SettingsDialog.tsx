@@ -1,3 +1,4 @@
+import { DriveRestorePanel } from "./DriveRestorePanel";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, Cpu } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -618,6 +619,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   </button>
                 )}
               </div>
+              {/* 덮어쓰기 사고 복구 — Drive 가 보관한 이전 버전(로그인돼 있을 때만) */}
+              {signedIn && <DriveRestorePanel onRestored={() => window.location.reload()} />}
             </div>
           </div>
 

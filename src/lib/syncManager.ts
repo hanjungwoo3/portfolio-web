@@ -8,7 +8,7 @@
 import { exportAll, replaceAllHoldings, replaceAllPeaks, replaceAllMemos, replaceAllTrades, applyImportedSettings } from "./db";
 import type { ExportPayload } from "./db";
 import { signIn, signOut, wasSignedIn, getAccessToken } from "./googleAuth";
-import { downloadFile, uploadFile, getFileMeta, deleteFile } from "./googleDrive";
+import { downloadFile, uploadFile, getFileMeta, deleteFile, listRevisions, downloadRevision } from "./googleDrive";
 
 type SyncMode = "on" | "off";
 const KEY_MODE = "gdrive_sync_mode";
@@ -164,6 +164,25 @@ export function normalize(p: ExportPayload): string {
   return JSON.stringify({ holdings, peaks, memos, trades, settings });
 }
 
+// ─── 빈 데이터 덮어쓰기 방지 ─────────────────────────────────
+// ★ 2026-10-20 사고: 새 폰에 앱을 깔고 로그인했더니 Drive 의 기존 데이터가 사라졌다.
+//   비어 있는 기기의 내용이 데이터가 든 Drive 파일을 덮은 것. 경로가 여럿이라(자동 올리기의 '기준 시각 없음'
+//   예외·수동 ↑·충돌 배너 '이 기기 것') 업로드 직전에 한 곳에서 막는다.
+//   종목·거래·메모가 **하나도 없는** 로컬로 **무언가 있는** Drive 를 덮으려 하면 거부한다.
+//   (정말 비우고 싶으면 Drive 파일 삭제 기능을 쓰면 된다 — 실수로 비는 경우가 압도적으로 많다)
+const countOf = (p?: Partial<ExportPayload> | null) =>
+  (p?.holdings?.length ?? 0) + (p?.trades?.length ?? 0) + (p?.memos?.length ?? 0);
+export class EmptyOverwriteError extends Error {
+  constructor() { super("이 기기에 종목·거래 데이터가 없어 Drive 의 기존 데이터를 덮어쓰지 않았습니다 — 먼저 Drive 에서 불러오세요"); }
+}
+async function guardedUpload(local: ExportPayload): Promise<string> {
+  if (countOf(local) === 0) {
+    const remote = await downloadFile<ExportPayload>();   // 실패하면 던진다 — 확인 못 하면 올리지 않는다
+    if (remote && countOf(remote.data) > 0) throw new EmptyOverwriteError();
+  }
+  return uploadFile<ExportPayload>(local);
+}
+
 export async function uploadToDrive(): Promise<void> {
   const local = await exportAll();
   // Drive 와 내용이 같으면 업로드 skip — modifiedTime advance 방지 (핑퐁 차단)
@@ -173,8 +192,8 @@ export async function uploadToDrive(): Promise<void> {
       setLastSynced(remote.modifiedTime, normalize(local));
       return;
     }
-  } catch { /* 다운로드 실패 시 그냥 업로드 진행 */ }
-  const ts = await uploadFile<ExportPayload>(local);
+  } catch { /* 다운로드 실패 시 그냥 업로드 진행 — 단 빈 데이터면 guardedUpload 가 다시 확인한다 */ }
+  const ts = await guardedUpload(local);
   setLastSynced(ts, normalize(local));
 }
 
@@ -276,11 +295,13 @@ export async function autoPush(): Promise<"pushed" | "none" | "conflict" | "skip
   if (!token) return "skip";
   const meta = await getFileMeta();
   const lastTs = getLastSyncedTs();
-  if (meta && lastTs && meta.modifiedTime > lastTs) {
+  // ★ 기준 시각이 없는데(이 기기는 Drive 와 한 번도 맞춘 적 없음 — 새 설치) Drive 에 파일이 있으면 **올리지 않는다**.
+  //   예전엔 `lastTs &&` 조건 때문에 이 경우 검사를 건너뛰고 그대로 올려 남의(=다른 기기의) 데이터를 덮었다.
+  if (meta && (!lastTs || meta.modifiedTime > lastTs)) {
     emitConflict();                                      // Drive 도 앞섰다 — 내가 올리면 저쪽이 사라진다
     return "conflict";
   }
-  const ts = await uploadFile<ExportPayload>(local);
+  const ts = await guardedUpload(local);
   setLastSynced(ts, h);
   return "pushed";
 }
@@ -321,7 +342,7 @@ export async function resolveConflict(side: "local" | "remote"): Promise<void> {
     return;
   }
   const local = await exportAll();
-  const ts = await uploadFile<ExportPayload>(local);
+  const ts = await guardedUpload(local);
   setLastSynced(ts, normalize(local));
 }
 
@@ -336,7 +357,7 @@ export async function reconcileOnEnable(): Promise<"pushed" | "insync" | "confli
   const h = normalize(local);
   const remote = await downloadFile<ExportPayload>();
   if (!remote) {
-    const ts = await uploadFile<ExportPayload>(local);
+    const ts = await guardedUpload(local);
     setLastSynced(ts, h);
     return "pushed";
   }
@@ -346,6 +367,40 @@ export async function reconcileOnEnable(): Promise<"pushed" | "insync" | "confli
   }
   emitConflict();
   return "conflict";
+}
+
+// ─── 이전 버전에서 복구 ─────────────────────────────────────
+export interface DriveBackup { id: string; modifiedTime: string; size: number; holdings: number; trades: number; memos: number; groups: number }
+/** Drive 백업 파일의 이전 버전 목록(최신 먼저) — 각 버전의 종목·거래 수를 같이 보여주려고 내용도 받는다(최대 limit 개). */
+export async function listDriveBackups(limit = 40): Promise<DriveBackup[]> {
+  const revs = (await listRevisions()).slice(0, limit);
+  const out: DriveBackup[] = [];
+  for (const r of revs) {
+    try {
+      const d = await downloadRevision<ExportPayload>(r.id);
+      out.push({
+        id: r.id, modifiedTime: r.modifiedTime, size: Number(r.size ?? 0),
+        holdings: d.holdings?.length ?? 0, trades: d.trades?.length ?? 0, memos: d.memos?.length ?? 0,
+        groups: new Set((d.holdings ?? []).map(h => h.account ?? "")).size,
+      });
+    } catch {
+      out.push({ id: r.id, modifiedTime: r.modifiedTime, size: Number(r.size ?? 0), holdings: -1, trades: -1, memos: -1, groups: -1 });
+    }
+  }
+  return out;
+}
+/** 고른 버전으로 이 기기를 되돌리고, 그 내용을 다시 Drive 최신본으로 올린다(다른 기기도 받아가게). */
+export async function restoreDriveBackup(revisionId: string): Promise<void> {
+  const data = await downloadRevision<ExportPayload>(revisionId);
+  if (countOf(data) === 0) throw new Error("이 버전은 비어 있습니다 — 다른 버전을 골라주세요");
+  if (data.holdings) await replaceAllHoldings(data.holdings);
+  if (data.peaks) await replaceAllPeaks(data.peaks);
+  await replaceAllMemos(data.memos ?? []);
+  await replaceAllTrades(data.trades ?? []);
+  applyImportedSettings(data.settings);
+  const local = await exportAll();
+  const ts = await uploadFile<ExportPayload>(local);     // 복구본이 최신이 된다(빈 데이터가 아니라 guard 불필요)
+  setLastSynced(ts, normalize(local));
 }
 
 let pushTimer: number | null = null;

@@ -110,6 +110,28 @@ export async function uploadFile<T>(payload: T): Promise<string> {
   return updated.modifiedTime;
 }
 
+// ─── 이전 버전(revision) — 덮어쓰기 사고 복구용 ─────────────────
+//   Drive 는 PATCH 로 내용을 바꿀 때마다 이전 내용을 revision 으로 남긴다(일반 파일은 약 30일·최대 100개).
+//   appDataFolder 파일도 같다. 새 기기에서 빈 데이터가 올라가 덮인 경우 여기서 되살린다(2026-10-20 사고).
+export interface DriveRevision { id: string; modifiedTime: string; size?: string }
+export async function listRevisions(): Promise<DriveRevision[]> {
+  const meta = await getFileMeta();
+  if (!meta) return [];
+  const resp = await driveFetch(
+    `https://www.googleapis.com/drive/v3/files/${meta.id}/revisions?fields=revisions(id,modifiedTime,size)&pageSize=200`);
+  if (!resp.ok) throw new Error(`Drive 버전 목록 실패: ${resp.status}`);
+  const data = await resp.json() as { revisions?: DriveRevision[] };
+  return [...(data.revisions ?? [])].sort((a, b) => b.modifiedTime.localeCompare(a.modifiedTime));   // 최신 먼저
+}
+export async function downloadRevision<T = unknown>(revisionId: string): Promise<T> {
+  const meta = await getFileMeta();
+  if (!meta) throw new Error("Drive 파일이 없습니다");
+  const resp = await driveFetch(
+    `https://www.googleapis.com/drive/v3/files/${meta.id}/revisions/${encodeURIComponent(revisionId)}?alt=media`);
+  if (!resp.ok) throw new Error(`Drive 버전 받기 실패: ${resp.status}`);
+  return await resp.json() as T;
+}
+
 // 파일 완전 삭제 (테스트·디버깅용)
 export async function deleteFile(): Promise<void> {
   const meta = await getFileMeta();

@@ -94,6 +94,7 @@ import { SyncConflictBar } from "./SyncConflictBar";
 import { MyTradesTab } from "./MyTradesTab";
 import { AssetTrendTab } from "./AssetTrendTab";
 import { CnnFearGreedTag } from "./CnnFearGreedTag";
+import { DriveRestorePanel } from "./DriveRestorePanel";
 import { TickArrow } from "./TickArrow";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { EtfReverseDialog } from "./EtfReverseDialog";
@@ -2709,6 +2710,8 @@ function SettingsModal({
                     }}
                     className="px-2 py-1 bg-rose-100 text-rose-700 text-xs rounded ml-auto">🚪 로그아웃</button>
                 </div>
+                {/* 덮어쓰기 사고 복구 — Drive 가 보관한 이전 버전 (PC 설정과 같은 패널) */}
+                <DriveRestorePanel onRestored={() => window.location.reload()} />
               </div>
             )}
           </div>
