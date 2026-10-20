@@ -1,5 +1,7 @@
 // 작은 SVG 스파크라인 — 라인 + 영역 채움.
 // 한국식 색: 첫값보다 끝값 ↑ = 빨강 / ↓ = 파랑 / 동일 = 회색.
+// 기준선(baseline)을 주면 **선 위 구간은 빨강, 아래 구간은 파랑**으로 나눠 칠한다(채움도 기준선까지).
+import { useId } from "react";
 
 interface Props {
   data: number[];
@@ -18,6 +20,9 @@ interface Props {
   strokeWidth?: number;
   // 세로 표시선 위치(data 인덱스) — 24시간 차트에서 '오늘 정규장 시작'(프리마켓 뒤) 지점. 점선 + 그 값에 점.
   markIndex?: number;
+  // 기준선 위·아래 색(기본 빨강·파랑) — 거꾸로 칠하는 카드(VIX·환율)는 바꿔서 넘긴다
+  aboveColor?: string;
+  belowColor?: string;
   // 기준선(어제 종가) — 회색 가로 점선, Y 범위에 포함. 주면 **색도 이 값 기준**(끝값 > 기준 = 빨강)으로 칠한다
   //   — 24시간 차트의 첫 점은 프리장 시작이라, 첫 점 기준 색은 카드 큰 숫자(어제 종가 대비)와 어긋났다(2026-10-20).
   baseline?: number;
@@ -25,7 +30,9 @@ interface Props {
 
 export function Sparkline({
   data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline,
+  aboveColor = "#dc2626", belowColor = "#2563eb",
 }: Props) {
+  const uid = useId().replace(/:/g, "");   // 위·아래 잘라내기(clipPath)·그라디언트 id — 카드마다 달라야 한다
   if (!data || data.length < 2) {
     return (
       <div className={className}
@@ -93,9 +100,34 @@ export function Sparkline({
           <stop offset="100%" stopColor={trendColor} stopOpacity="0" />
         </linearGradient>
       </defs>
-      <path d={areaPath} fill={`url(#${gradId})`} />
-      <path d={linePath} fill="none" stroke={trendColor} strokeWidth={strokeWidth}
-            strokeLinejoin="round" strokeLinecap="round" />
+      {baseY !== null && !color ? (() => {
+        // 기준선 위·아래 분할 — 같은 선을 두 번 그리고 위/아래 영역으로 잘라 색을 다르게.
+        //   채움은 선과 기준선 사이(바닥까지가 아니라) — 기준선을 넘나드는 구간이 바로 보인다.
+        const last = points[points.length - 1], firstPt = points[0];
+        const bandPath = `${linePath} L ${last[0].toFixed(2)} ${baseY.toFixed(2)} L ${firstPt[0].toFixed(2)} ${baseY.toFixed(2)} Z`;
+        return (
+          <>
+            <defs>
+              <clipPath id={`${uid}-up`}><rect x="0" y="0" width={width} height={baseY} /></clipPath>
+              <clipPath id={`${uid}-dn`}><rect x="0" y={baseY} width={width} height={Math.max(0, height - baseY)} /></clipPath>
+            </defs>
+            <g clipPath={`url(#${uid}-up)`}>
+              <path d={bandPath} fill={aboveColor} fillOpacity="0.22" />
+              <path d={linePath} fill="none" stroke={aboveColor} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
+            </g>
+            <g clipPath={`url(#${uid}-dn)`}>
+              <path d={bandPath} fill={belowColor} fillOpacity="0.22" />
+              <path d={linePath} fill="none" stroke={belowColor} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
+            </g>
+          </>
+        );
+      })() : (
+        <>
+          <path d={areaPath} fill={`url(#${gradId})`} />
+          <path d={linePath} fill="none" stroke={trendColor} strokeWidth={strokeWidth}
+                strokeLinejoin="round" strokeLinecap="round" />
+        </>
+      )}
       {/* 어제 종가 — 회색 가로 점선 (24시간 차트) */}
       {baseY !== null && (
         <line x1={padX} x2={width - padX} y1={baseY} y2={baseY}
