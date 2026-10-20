@@ -3974,7 +3974,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
 // ─── 한국 종목·ETF 24시간(당일) 차트 — 토스 10분봉 ─────────────
 //   토스 c-chart 분봉은 NXT 프리(08:00)~애프터(20:00)까지 들어 있고 봉마다 base(= 어제 종가)가 붙는다.
 //   종목당 1콜이라 화면에 보이는 카드만 부른다(KrDaySparkline). openIdx = 09:00 KRX 정규장 첫 봉.
-export interface KrDayCandles { closes: number[]; base?: number; openIdx?: number; xs?: number[] }   // xs = 08:00~20:00 시간 축 위치(0~1)
+export interface KrDayCandles { closes: number[]; base?: number; openIdx?: number; xs?: number[]; date?: string }   // xs = 08:00~20:00 시간 축 위치(0~1)
 export async function fetchKrDayCandles(code: string): Promise<KrDayCandles | null> {
   try {
     const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/c-chart/kr-s/A${code}/min:10?count=150`);   // 오늘 + 직전 거래일(72봉/일)
@@ -3991,7 +3991,7 @@ export async function fetchKrDayCandles(code: string): Promise<KrDayCandles | nu
       if (bars.length < 2) continue;
       const oi = bars.findIndex(c => c.dt.slice(11, 16) >= "09:00");
       const base = bars[bars.length - 1].base;                           // 그날의 기준가 = 그 전 거래일 종가
-      return { closes: bars.map(c => c.close), base: base && base > 0 ? base : undefined, openIdx: oi > 0 ? oi : undefined, xs: bars.map(c => xOf(c.dt)) };
+      return { closes: bars.map(c => c.close), base: base && base > 0 ? base : undefined, openIdx: oi > 0 ? oi : undefined, xs: bars.map(c => xOf(c.dt)), date: day };
     }
     return null;
   } catch { return null; }

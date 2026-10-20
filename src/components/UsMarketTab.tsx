@@ -427,6 +427,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               // 24시간 차트의 기준선·색 기준 = 어제 종가(카드 큰 숫자와 같은 기준). 야후 spark 는 달러라 그 응답의 전일 종가를,
               //   토스·야선 당일 봉은 카드 값과 같은 단위라 카드의 전일 종가(prevClose)를 쓴다. 3개월 차트엔 안 쓴다.
               const isDayChart = chartRange === "day" && !!dayArr && chartArr === dayArr;
+              // 24시간 차트 끝에 **지금 가격**을 붙인다 — 분봉 이력은 5분마다지만 현재가는 5초마다라, 큰 숫자가 바뀔 때
+              //   그래프 끝도 같이 움직이게(추가 호출 0). 단위가 같은 경우만: 미국 종목(달러)·토스 지수·야간선물.
+              const liveChart = isDayChart && effPrice != null && effPrice > 0 ? [...chartArr, effPrice] : chartArr;
               const dayBase = !isDayChart ? undefined
                 : daySpark && chartArr === daySpark.closes ? daySpark.prevClose
                 : (q?.prevClose && q.prevClose > 0 ? q.prevClose : undefined);
@@ -541,14 +544,14 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
 
                     // 한국 종목·ETF 24시간 — 토스 10분봉(NXT 포함), 보이는 카드만 받는다
 
-                    <KrDaySparkline code={krEtfTicker(p.symbol)!} fallback={chartArr} width={400} height={80}
+                    <KrDaySparkline code={krEtfTicker(p.symbol)!} fallback={chartArr} live={effPrice ?? undefined} width={400} height={80}
 
                                     color={sparkColor} dim={dimNow} className={`absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none ${dimCls}`} />
 
                   ) : (
 
-                  <Sparkline data={chartArr}
+                  <Sparkline data={liveChart}
 
                              width={400} height={80}
 
