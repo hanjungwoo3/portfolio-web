@@ -432,7 +432,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               const sparkColor = dimNow ? "#94a3b8"
                 : (isInverse && chartArr.length > 1 && dayBase == null)
                   // 거꾸로 칠하는 카드(VIX·환율·금리)의 3개월 차트 — 첫 점 기준 한 색. 24시간이면 아래 Sparkline 이
-                  //   어제 종가 선 위·아래를 나눠 칠한다(위=파랑·아래=빨강으로 뒤집어 넘김)
+                  //   어제 종가 선 위·아래를 나눠 칠한다 — 이때는 반전하지 않는다(위=빨강·아래=파랑, 사용자 결정 2026-10-21)
                   ? (chartArr[chartArr.length - 1] > chartArr[0] ? "#2563eb" : "#dc2626")
                   : undefined;
               const isFuture = p.symbol.endsWith("=F") || p.symbol === "^KS200N" || p.symbol === "^KQ150N";
@@ -536,7 +536,6 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                              width={400} height={80}
                              markIndex={markIdx}
                              baseline={dayBase}
-                             aboveColor={isInverse ? "#2563eb" : undefined} belowColor={isInverse ? "#dc2626" : undefined}
                              color={sparkColor}
                              className={`absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none ${dimCls}`} />
