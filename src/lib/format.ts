@@ -306,6 +306,14 @@ export function isUsAfterMarketOpen(): boolean {
   return 16 * 60 <= hhmm && hhmm < 20 * 60;
 }
 
+// 미국 오버나잇(20:00~다음날 04:00 ET) — 애프터가 끝나고 다음 거래일 프리마켓 전. 토스는 이 구간부터
+//   기준가(base)를 '오늘 정규장 종가' 로 바꾸지만, 화면은 다음 프리마켓 전까지 '어제 종가 대비' 를 유지한다.
+export function isUsOvernightNow(): boolean {
+  const t = nowInTz("America/New_York");
+  const hhmm = t.hour * 60 + t.minute;
+  return hhmm >= 20 * 60 || hhmm < 4 * 60;
+}
+
 // yasun.gg 한국 선물 — 현재 표시 데이터가 '야간 세션' 소속인지.
 //   세션 개장 시각 기준으로 소유권 전환: 야간(18:00 개장)은 다음날 주간 개장(09:00) 전까지,
 //   주간(09:00 개장)은 야간 개장(18:00) 전까지. → 마감 대기 구간도 직전 세션 라벨 유지.

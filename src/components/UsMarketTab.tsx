@@ -435,6 +435,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   //   어제 종가 선 위·아래를 나눠 칠한다 — 이때는 반전하지 않는다(위=빨강·아래=파랑, 사용자 결정 2026-10-21)
                   ? (chartArr[chartArr.length - 1] > chartArr[0] ? "#2563eb" : "#dc2626")
                   : undefined;
+              // 미국 종목·ETF — 달러로만 표시(원화 환산 없음, 사용자 결정 2026-10-21) → 가격에 $ 를 붙인다
+              const usDollar = q?.currency === "USD" && /^[A-Z][A-Z.]{0,5}$/.test(p.symbol) && marketOfSymbol(p.symbol) === "US" && p.symbol !== "CNNFG";
               const isFuture = p.symbol.endsWith("=F") || p.symbol === "^KS200N" || p.symbol === "^KQ150N";
               const bg = dimNow
                 ? "bg-gray-100 border-transparent"
@@ -507,7 +509,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                         </span>
                       )}
                       <span className={`tabular-nums ${regSign}`}>
-                        {closeVal < 1000 ? closeVal.toFixed(2) : Math.round(closeVal).toLocaleString()}
+                        {usDollar ? "$" : ""}{closeVal < 1000 ? closeVal.toFixed(2) : Math.round(closeVal).toLocaleString()}
                       </span>
                       {regPct != null && (
                         <span className={`tabular-nums ml-1 font-bold text-[11px] ${regSign}`}>
@@ -591,7 +593,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                       <span className={`block text-[10px] font-normal leading-tight text-gray-900 ${q?.currency === "KRW" && q?.priceUsd != null ? "" : "invisible"}`}>
                         {q?.currency === "KRW" && q?.priceUsd != null ? `$${q.priceUsd.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : "$"}
                       </span>
-                      <span className="text-sm">{effPrice != null ? fmtPrice(p.symbol, effPrice) : "—"}</span>
+                      <span className="text-sm">{effPrice != null ? `${usDollar ? "$" : ""}${fmtPrice(p.symbol, effPrice)}` : "—"}</span>
                     </span>
                     <span className={`flex-1 text-right text-xl font-bold tabular-nums ${sign}`}>
                       {/* 직전 틱 대비 화살표 — 주식 카드와 같은 규칙, % 왼쪽 */}

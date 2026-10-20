@@ -9,7 +9,7 @@ import {
 import { isExtensionProxyReady, fetchViaExtension } from "./extensionProxy";
 import { isNativeApp, fetchViaNative } from "./nativeProxy";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
-import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen, nowKstDateStr, isMarketOpen, isKrAfterRegularClose } from "./format";
+import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen, nowKstDateStr, isMarketOpen, isKrAfterRegularClose, isUsOvernightNow } from "./format";
 import { rememberTossCode, getTossCode } from "./toss";
 
 // 앱 로드 시 1회 — 30일 이상 된 일자 키 정리
@@ -290,6 +290,7 @@ export interface TossUsPrice {
   closeKrw: number;    // 토스 환산 원화 정규장 종가 (토스 앱 표시값)
   baseKrw: number;     // 토스 환산 원화 직전(어제) 종가
   afterCloseKrw: number; // 애프터장 원화 현재가 (16:00~20:00 ET, 없으면 0)
+  afterClose: number;    // 애프터장 달러 현재가 (16:00~20:00 ET, 없으면 0)
   pct: number;         // (close - base) / base × 100
   tradeDateTime: string;
 }
@@ -303,7 +304,7 @@ export async function fetchTossUsPrices(codes: string[]): Promise<Map<string, To
     const data = await resp.json() as {
       result?: Array<{
         code: string; close: number; base: number; tradeDateTime: string;
-        closeKrw?: number; baseKrw?: number; afterMarketCloseKrw?: number;
+        closeKrw?: number; baseKrw?: number; afterMarketCloseKrw?: number; afterMarketClose?: number;
       }>;
     };
     for (const item of (data.result ?? [])) {
@@ -316,6 +317,7 @@ export async function fetchTossUsPrices(codes: string[]): Promise<Map<string, To
         code: item.code, close: item.close, base: item.base,
         closeKrw, baseKrw,
         afterCloseKrw: item.afterMarketCloseKrw && item.afterMarketCloseKrw > 0 ? item.afterMarketCloseKrw : 0,
+        afterClose: item.afterMarketClose && item.afterMarketClose > 0 ? item.afterMarketClose : 0,   // 애프터 현재가(달러)
         pct, tradeDateTime: item.tradeDateTime,
       });
     }
@@ -3405,51 +3407,42 @@ const TOSS_US_STOCK_CODE: Record<string, string> = {
 };
 
 // 토스 US 종목 가격(기존 fetchTossUsPrices) → UsIndex 변환. 현재가 = close, 기준 = base.
+// 지수 탭 미국 종목·ETF 카드(+티커바) — **달러로만**, 등락은 **어제 종가 대비 누적**(사용자 결정 2026-10-21).
+//   예전엔 원화 환산 + 장 마감 뒤엔 '정규장 종가 대비'(토스식)라, 한국 카드(어제 종가 대비)와 기준이 달라
+//   "정규장 −3.22% → 애프터 +3.31%" 를 더해 읽는 혼동이 생겼다. 이제 큰 숫자 = 어제 종가 대비, 마감 책갈피 = 정규장 종가.
+//   토스 세션별 값(USD):
+//     정규·휴장   close = 현재/정규 종가, base = 어제 종가
+//     애프터      close = 오늘 정규 종가(고정), afterMarketClose = 애프터 현재가, base = 어제 종가
+//     오버나잇    close = 현재가, base = **오늘 정규 종가** → 어제 종가는 머지 단계에서 야후 등락률로 되짚는다(fetchYahooBatch)
+//     프리마켓    close = 현재가, base = 직전 정규 종가 = 새 거래일의 '어제 종가' 그대로
 async function fetchTossUsIndexMap(
   items: { symbol: string; name: string; code: string }[],
 ): Promise<Map<string, UsIndex>> {
   const out = new Map<string, UsIndex>();
   if (items.length === 0) return out;
   const priceByCode = await fetchTossUsPrices(items.map(i => i.code));
-  // 애프터장(16:00~20:00 ET): close 는 정규 종가로 고정, 체결은 afterMarketClose 로만 들어옴 → 메인을 애프터값으로.
   const afterOpen = isUsAfterMarketOpen();
+  const closeIsLive = isUsExtendedTradingOpen() && !afterOpen;   // 오버나잇·프리마켓 — close 가 라이브
   for (const it of items) {
     const tp = priceByCode.get(it.code);
     if (!tp) continue;
-    // 토스 앱과 동일하게 환산 원화로 표시. closeKrw 없으면(폴백) 달러 그대로.
-    const hasKrw = tp.closeKrw > tp.close;   // 원화는 달러 × ~1500 → 항상 큼
-    const liveKrw = hasKrw ? tp.closeKrw : tp.close;   // 토스 close(원화) = 현재가 (정규·프리·오버나잇 땐 live, 애프터·휴장 땐 정규 종가)
-    const baseKrw = hasKrw ? tp.baseKrw  : tp.base;    // 토스 base(원화) = 기준가
-    // 토스 close 가 '라이브 비정규' 인 세션(오버나잇·프리마켓) 여부 — 이땐 정규 종가가 base 에 들어옴.
-    //   (애프터장 16:00~20:00 ET·휴장 땐 close 가 정규 종가 그대로 → 그때만 close 가 마감가)
-    const closeIsLive = isUsExtendedTradingOpen() && !afterOpen;
-    // 정규장 마감가(책갈피용): close 가 라이브면 base(직전 정규 종가), 아니면 close 자체가 정규 종가.
-    const regClose    = closeIsLive ? baseKrw : liveKrw;
-    const regCloseUsd = closeIsLive ? tp.base : tp.close;
-    // 애프터장 거래중이고 애프터값(원화)이 있으면 메인 = 애프터 현재가, 아니면 close(라이브 or 정규 종가).
-    const useAfter = hasKrw && afterOpen && tp.afterCloseKrw > 0;
-    const price = useAfter ? tp.afterCloseKrw : liveKrw;
-    // 변동 기준: 애프터장은 토스 앱처럼 '정규 종가 대비'(애프터 세션 변동), 오버나잇/프리도 정규 종가(base) 대비, 정규/휴장은 어제(base) 대비.
-    const base = useAfter ? regClose : baseKrw;
+    const regClose = closeIsLive ? tp.base : tp.close;            // 정규장 종가(마감 책갈피)
+    const useAfter = afterOpen && tp.afterClose > 0;
+    const price = useAfter ? tp.afterClose : tp.close;
+    const base = tp.base;                                         // 어제 종가(오버나잇은 머지에서 다시 맞춘다)
     const diff = price - base;
     const pct = base > 0 ? (diff / base) * 100 : 0;
-    // 마감 책갈피 등락률 = 정규 종가의 전일대비. 오버나잇/프리엔 전전일 종가가 없어 계산 불가 → undefined(머지 시 Yahoo regularPct 폴백).
-    const regPct = closeIsLive
-      ? undefined
-      : (baseKrw > 0 ? ((regClose - baseKrw) / baseKrw) * 100 : undefined);
+    // 정규장 종가의 전일 대비 — 오버나잇·프리엔 토스에 전전일 값이 없어 undefined(야후 regularPct 폴백)
+    const regPct = closeIsLive ? undefined : (base > 0 ? ((regClose - base) / base) * 100 : undefined);
     out.set(it.symbol, {
       symbol: it.symbol, name: it.name,
       price, prev: base, prevClose: base,
-      diff, pct, currency: hasKrw ? "KRW" : "USD",
-      // 달러 보조표기 — 현재가 달러(실시간: 현재 원가 × 환율) / 마감 달러(정규 종가 USD)
-      priceUsd: (hasKrw && tp.closeKrw > 0) ? price * (tp.close / tp.closeKrw) : tp.close,
-      regularPriceUsd: regCloseUsd,
+      diff, pct, currency: "USD",
+      priceUsd: price, regularPriceUsd: regClose,
       tradeDate: tp.tradeDateTime ? toKstDateString(tp.tradeDateTime) : "",
-      // 토스 tradeDateTime = 실측 마지막 체결시각(체결 있을 때만 전진, 무체결 종목은 멈춤 — 폴링 검증됨).
-      //   24h(Blue Ocean) 거래 중엔 계속 갱신 → 정체 판정에서 통과(밝게). 진짜 끊기면 흐림.
+      // 토스 tradeDateTime = 실측 마지막 체결시각 — 24h(Blue Ocean) 거래 중엔 계속 갱신(흐림 판정용)
       freshTime: isoToUnixSec(tp.tradeDateTime),
       marketState: "",
-      // 마감 책갈피 = 토스 정규 종가(원화) — 애프터장엔 메인(애프터)과 별개로 정규 종가 표시. Yahoo 달러값 대체.
       regularPrice: regClose, regularPct: regPct,
     });
   }
@@ -4106,6 +4099,17 @@ export async function fetchYahooBatch(
   }
   for (const [sym, t] of overviewMap) applyToss(sym, t);   // 지수/환율/금리/원자재/BTC (overview 1콜)
   for (const [sym, t] of usMap) applyToss(sym, t);
+  // 미국 종목·ETF 오버나잇 — 토스 base 가 '오늘 정규 종가' 로 바뀐 구간이라, 야후의 오늘 정규장 등락률로 어제 종가를 되짚어
+  //   큰 숫자를 계속 '어제 종가 대비 누적' 으로 둔다(애프터와 이어지게). 프리마켓(04:00 ET~)부터는 토스 base 그대로.
+  if (isUsOvernightNow()) {
+    for (const sym of usMap.keys()) {
+      const m = merged.get(sym);
+      if (!m || !(m.regularPrice && m.regularPrice > 0) || m.regularPct == null) continue;
+      const yClose = m.regularPrice / (1 + m.regularPct / 100);
+      if (!(yClose > 0)) continue;
+      merged.set(sym, { ...m, prev: yClose, prevClose: yClose, diff: m.price - yClose, pct: (m.price / yClose - 1) * 100 });
+    }
+  }
   for (const r of investResults) { if (r) applyToss(r.symbol, r); }
   if (cnnFgIdx) applyToss(cnnFgIdx.symbol, cnnFgIdx);
   for (const m of sinaMetals) applyToss(m.symbol, m);
