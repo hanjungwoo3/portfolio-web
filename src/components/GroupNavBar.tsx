@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { DashboardNavItem } from "../lib/dashboardGroups";
 
 // label:true 면 클릭 불가 그룹 라벨(작은 글씨 + 세로 구분선), 아니면 클릭 칩
@@ -14,11 +14,12 @@ interface GroupNavBarProps {
   className?: string;        // 추가 클래스 (non-sticky 배치용)
   bleedClass?: string;       // sticky 시 가로 블리드 — 부모 padding 에 맞춤 (기본 -mx-3 px-3)
   floating?: boolean;        // 세로 스크롤 시에만 떠서 보이는 오버레이(레이아웃 공간 차지 안 함)
+  trailing?: ReactNode;      // 칩들 뒤에 붙는 것(예: 차트 기간 3개월|24시간 토글)
 }
 
 // 지수 그룹 색인 칩바 — 상단 고정. 칩 클릭 시 해당 그룹으로 부드럽게 스크롤,
 //   스크롤 위치에 따라 현재 보는 그룹 칩 자동 하이라이트(scroll-spy) + 바 안에서 가운데로 이동.
-export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, sticky = true, compact, className, bleedClass = "-mx-3 px-3", floating }: GroupNavBarProps) {
+export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, sticky = true, compact, className, bleedClass = "-mx-3 px-3", floating, trailing }: GroupNavBarProps) {
   const barRef = useRef<HTMLDivElement>(null);
   const firstChip = items.find(i => !i.label)?.id ?? "";
   const [active, setActive] = useState(firstChip);
@@ -122,6 +123,7 @@ export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, s
           </button>
         );
       })}
+      {trailing && !floating && <span className="shrink-0 ml-2">{trailing}</span>}
     </div>
   );
 }

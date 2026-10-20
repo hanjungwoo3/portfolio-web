@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { IndexWarnTag } from "./IndexWarnTag";
-import { fetchYahooBatch, fetchKrRegularPrices, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
+import { fetchYahooBatch, fetchKrRegularPrices, fetchYahooSparkDay, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed, isKrAfterRegularClose, nowKstDateStr } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
@@ -39,6 +39,8 @@ function krEtfTicker(symbol: string): string | null {
 
 const BASE_REFRESH_MS = 10_000;
 // 지수 카드에 오르는 한국 개별 종목 코드(정규장 종가 조회용) — 목록은 usMarketData 한 벌
+// 24시간 차트용 미국 종목·ETF 심볼(야후 spark) — 지수(^)·선물(=)·가상 심볼·한국은 빼고 대문자 티커만
+const US_SPARK_SYMBOLS = US_PAIRS.map(p => p.symbol).filter(s => /^[A-Z][A-Z.]{0,5}$/.test(s) && marketOfSymbol(s) === "US" && s !== "CNNFG");
 const KR_STOCK_CODES = US_PAIRS.filter(p => p.krStock && /^[\dA-Za-z]{6}\.KS$/.test(p.symbol)).map(p => p.symbol.slice(0, 6));
 
 function fmtPrice(symbol: string, price: number): string {
@@ -223,6 +225,14 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
   const [leaderSort, setLeaderSort] = useState<LeaderSort>(loadLeaderSort);   // 대장주 줄 정렬(등락률순 기본)
   const chartRange = useChartRange();   // 카드 배경 차트 3개월 | 24시간 — 앱 전체 설정
+  // 미국 종목·ETF 24시간 차트 — 야후 spark(20종목 1콜). '24시간' 을 골랐을 때만 받는다(5분마다).
+  const { data: usSpark } = useQuery({
+    queryKey: ["us-spark-day", US_SPARK_SYMBOLS.length],
+    queryFn: () => fetchYahooSparkDay(US_SPARK_SYMBOLS),
+    enabled: chartRange === "day",
+    refetchInterval: chartRange === "day" ? 5 * 60_000 : false,
+    staleTime: 4 * 60_000, refetchOnWindowFocus: false,
+  });
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const marketAlerts = useMarketAlerts();   // 종목코드 → 투자주의·경고·위험
   // 야간선물(yasun.gg)은 프록시를 타므로 구버전 개인 워커면 값이 빈다 → 그때만 업데이트 안내.
@@ -239,8 +249,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
 
   return (
     <div className="space-y-3">
+      {/* 차트 기간(3개월|24시간)은 그룹 칩 줄 끝에 — 스크롤해도 늘 보이는 자리(사용자 결정 2026-10-20) */}
       <GroupNavBar items={navItems} idPrefix="usidx-"
-                   stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin} />
+                   stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin}
+                   trailing={<ChartRangeToggle />} />
       {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
       {/* 다른 탭과 같은 전체 폭 — 예전엔 lg 에서 75% 로 줄여 PC 에서만 좁아 보였다 */}
       <div className="space-y-4">
@@ -268,10 +280,6 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     </button>
                   ))}
                 </span>
-              )}
-              {/* 배경 차트 기간 — 페이지에 하나, 첫 그룹 제목에 */}
-              {section.id === T0_SECTIONS[0]?.id && (
-                <ChartRangeToggle className="ml-2" />
               )}
             </span>
             {/* 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장)는 오늘 등락률(%) 내림차순 정렬 (6개씩 줄바꿈) */}
@@ -410,7 +418,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               const isInverse = p.direction === "inverse";
               const effUp = isInverse ? (mainPct != null && mainPct < 0) : (mainPct != null && mainPct > 0);
               const effDn = isInverse ? (mainPct != null && mainPct > 0) : (mainPct != null && mainPct < 0);
-              const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], nightClosesMap.get(p.symbol) ?? usMap?.get(p.symbol)?.sparkline);
+              const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], nightClosesMap.get(p.symbol) ?? usMap?.get(p.symbol)?.sparkline ?? usSpark?.get(p.symbol));
               const sparkColor = dimNow ? "#94a3b8"
                 : (isInverse && chartArr.length > 1)
                   ? (chartArr[chartArr.length - 1] > chartArr[0] ? "#2563eb" : "#dc2626")

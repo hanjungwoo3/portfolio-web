@@ -3944,6 +3944,29 @@ async function fetchMemChart(symbol: string): Promise<number[]> {
   return (s?.v ?? []).filter(x => x > 0).slice(-63);   // 다른 카드와 같은 3개월(일별 품목 기준 63점)
 }
 
+// ─── 미국 종목 24시간(당일) 차트 — 야후 spark 배치 ─────────────
+//   카드 배경 차트 '24시간' 용. 지수·원자재는 토스 overview 의 당일 봉(sparkline)이 있지만 미국 개별 종목·ETF 는
+//   당일 시계열이 없어 3개월로 그려졌다(2026-10-20 지적). 야후 v7 spark 는 **20종목 1콜**로 5분봉을 주고
+//   includePrePost 면 프리(04:00 ET)~애프터(20:00 ET)까지 들어 있다. 오버나잇(20:00~04:00)은 없다.
+const SPARK_CHUNK = 20;
+export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string, number[]>> {
+  const out = new Map<string, number[]>();
+  const chunks: string[][] = [];
+  for (let i = 0; i < symbols.length; i += SPARK_CHUNK) chunks.push(symbols.slice(i, i + SPARK_CHUNK));
+  await Promise.all(chunks.map(async c => {
+    try {
+      const r = await fetchProxied(`https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(c.join(","))}&range=1d&interval=5m&includePrePost=true`);
+      if (!r.ok) return;
+      const j = await r.json() as { spark?: { result?: { symbol?: string; response?: { indicators?: { quote?: { close?: (number | null)[] }[] } }[] }[] } };
+      for (const x of j.spark?.result ?? []) {
+        const closes = (x.response?.[0]?.indicators?.quote?.[0]?.close ?? []).filter((v): v is number => v != null && v > 0);
+        if (x.symbol && closes.length > 1) out.set(x.symbol, closes);
+      }
+    } catch { /* 이 묶음은 3개월 차트로 */ }
+  }));
+  return out;
+}
+
 // 토스 원달러 환율 — base(당일 09:00 고시 기준가) + close(실시간 현재가).
 //   Yahoo/yasun forex(KRW=X)는 기준점을 새벽 FX 롤오버(~02시 KST)로 리셋해 변동률이 ~0%로 어긋남.
 //   토스는 '어제 종가' 기준이라 토스 환율 페이지 표시값(-1.x%)과 일치.
