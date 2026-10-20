@@ -1958,7 +1958,10 @@ export function MobileSimpleView() {
               const isInverse = p.direction === "inverse";
               const effUp = isInverse ? (mainPct != null && mainPct < 0) : (mainPct != null && mainPct > 0);
               const effDn = isInverse ? (mainPct != null && mainPct > 0) : (mainPct != null && mainPct < 0);
-              const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], nightClosesMap.get(p.symbol) ?? usMap?.get(p.symbol)?.sparkline ?? usSpark?.get(p.symbol));
+              const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], nightClosesMap.get(p.symbol) ?? usMap?.get(p.symbol)?.sparkline ?? usSpark?.get(p.symbol)?.closes);
+              // 24시간 차트가 야후 spark 에서 왔으면 '오늘 정규장 시작' 위치를 표시
+              const daySpark = chartRange === "day" && !nightClosesMap.get(p.symbol) && !usMap?.get(p.symbol)?.sparkline ? usSpark?.get(p.symbol) : undefined;
+              const markIdx = daySpark && chartArr === daySpark.closes ? daySpark.openIdx : undefined;
               const sparkColor = dimNow ? "#94a3b8"
                 : (isInverse && chartArr.length > 1)
                   ? (chartArr[chartArr.length - 1] > chartArr[0] ? "#2563eb" : "#dc2626")
@@ -2057,6 +2060,7 @@ export function MobileSimpleView() {
                                   ${leadRowOf(section, p.symbol) >= 0 ? dashboardTagCard(section.rowLabels?.[leadRowOf(section, p.symbol)]) : bg}`}>
                   <Sparkline data={chartArr}
                              width={300} height={70}
+                             markIndex={markIdx}
                              color={sparkColor}
                              className={`absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none ${dimCls}`} />

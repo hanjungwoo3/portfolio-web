@@ -16,10 +16,12 @@ interface Props {
   entry?: number;
   // 라인 두께 (옵션, 기본 1.5). 배경용으로 얇게 하고 싶을 때.
   strokeWidth?: number;
+  // 세로 표시선 위치(data 인덱스) — 24시간 차트에서 '오늘 정규장 시작'(프리마켓 뒤) 지점. 점선 + 그 값에 점.
+  markIndex?: number;
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5,
+  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex,
 }: Props) {
   if (!data || data.length < 2) {
     return (
@@ -88,6 +90,14 @@ export function Sparkline({
       <path d={areaPath} fill={`url(#${gradId})`} />
       <path d={linePath} fill="none" stroke={trendColor} strokeWidth={strokeWidth}
             strokeLinejoin="round" strokeLinecap="round" />
+      {/* 오늘 정규장 시작 — 회색 세로 점선 + 시작가 점 (24시간 차트) */}
+      {markIndex != null && markIndex > 0 && markIndex < points.length && (
+        <>
+          <line x1={points[markIndex][0]} x2={points[markIndex][0]} y1={padY} y2={height - padY}
+                stroke="#334155" strokeWidth="1.2" strokeDasharray="3 2" opacity="0.9" />
+          <circle cx={points[markIndex][0]} cy={points[markIndex][1]} r="3" fill="#334155" />
+        </>
+      )}
       {/* 목표가 — amber 점선 */}
       {targetY !== null && (
         <line x1={padX} x2={width - padX} y1={targetY} y2={targetY}
