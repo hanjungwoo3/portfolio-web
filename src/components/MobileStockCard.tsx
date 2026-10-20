@@ -47,6 +47,7 @@ interface KrRegInfo {
   tradingEnd?: string;
   nextTradingStart?: string;
   exchange?: string;
+  fromYahoo?: boolean;   // regularPrice 가 야후 15:30 종가로 확인됨(아니면 토스 meta = NXT 섞인 값)
 }
 
 interface Props {
@@ -163,8 +164,11 @@ export function MobileStockCard({
   // 마감 책갈피(좌상단) 표시 여부 — 있으면 갱신 책갈피는 자리 양보
   //   ★ 흐릴 때만이 아니라 **정규장이 끝난 뒤 NXT 애프터 중(15:30~20:00)** 에도 — 그땐 카드가 안 흐려져
     //   오늘 정규장 종가가 어디에도 안 보였다(2026-10-19). 값이 같아도 띄운다(큰 숫자가 정규장 종가인지 NXT 인지 알 수 있게).
-  const showCloseTag = !!(krReg && (sleeping || (!isUsHolding && isKrAfterRegularClose()))
-    && price.price > 0 && Math.abs(krReg.regularPrice - price.price) / price.price < 0.15);
+  //   ★ 정규장 종가는 **야후로 확인된 값**(fromYahoo)일 때만 믿는다 — 확인 못 하면 토스 meta 는 NXT 현재가라
+  //   책갈피가 큰 숫자와 같은 값으로 따라 움직인다. 그땐 예전 규칙(흐림 + 값이 다를 때만)으로 물러선다.
+  const showCloseTag = !!(krReg && price.price > 0 && Math.abs(krReg.regularPrice - price.price) / price.price < 0.15
+    && (krReg.fromYahoo ? (sleeping || (!isUsHolding && isKrAfterRegularClose()))
+                        : (sleeping && krReg.regularPrice !== price.price)));
   const dayDiff = price.price - price.base;
   const dayPct = price.base > 0 ? (dayDiff / price.base) * 100 : 0;
   // 색 결정용 — 직전 거래일 종가 대비 (장마감 기준)
@@ -465,12 +469,13 @@ export function MobileStockCard({
           {agoLabel}
         </div>
       )}
-      {showCloseTag && (
-        <div className={`absolute -top-2 left-1 z-10 px-1.5 py-0
+      {/* 마감 책갈피는 보유 주수 상자(z-10) **위**(z-20)·불투명 — 좁은 카드에선 주수 상자를 가려도 된다(사용자 결정 2026-10-20) */}
+        {showCloseTag && (
+        <div className={`absolute -top-2 left-1 z-20 px-1.5 py-0
                          border rounded text-[10px] leading-tight whitespace-nowrap
-                         ${krReg!.regularPct > 0 ? "bg-rose-100/20 border-rose-300/20"
-                           : krReg!.regularPct < 0 ? "bg-blue-100/20 border-blue-300/20"
-                           : "bg-white/20 border-gray-300/20"}`}>
+                         ${krReg!.regularPct > 0 ? "bg-rose-50 border-rose-300/60"
+                           : krReg!.regularPct < 0 ? "bg-blue-50 border-blue-300/60"
+                           : "bg-white border-gray-300/60"}`}>
           <span className="text-gray-500">마감 </span>
           <span className="text-gray-800 tabular-nums">
             {Math.round(krReg!.regularPrice).toLocaleString()}
@@ -481,6 +486,16 @@ export function MobileStockCard({
                               : "text-gray-700"}`}>
             ({krReg!.regularPct >= 0 ? "+" : ""}{krReg!.regularPct.toFixed(2)}%)
           </span>
+          {/* 정규장 종가 → 지금(큰 숫자) 차이 — PC 카드와 같은 표기 */}
+          {(() => {
+            const gap = (price.price / krReg!.regularPrice - 1) * 100;
+            if (!Number.isFinite(gap) || Math.abs(gap) < 0.005) return null;
+            return (
+              <span className={`tabular-nums ml-1 font-bold ${gap > 0 ? "text-rose-600" : "text-blue-600"}`}>
+                <span className="text-gray-400 font-normal">→</span> {gap > 0 ? "+" : "−"}{Math.abs(gap).toFixed(2)}%
+              </span>
+            );
+          })()}
         </div>
       )}
       {!sleeping && !showCloseTag && price.singlePrice && price.price > 0 && closeImminentMin == null && (

@@ -1160,6 +1160,7 @@ export interface KrRegularPrice {
   regularPrice: number;
   regularPct: number;       // (regularPrice - prevClose) / prevClose × 100
   base?: number;            // 토스 base(전일 종가) — 야후 정규장 종가로 덮을 때 등락률 기준
+  fromYahoo?: boolean;      // regularPrice 가 야후 15:30 정규장 종가로 확인됐나(아니면 토스 meta = NXT 섞인 값)
   marketState: string;
   tradingEnd?: string;      // 이번/직전 세션 종료 시각 (ISO) — 종목별(정규장 15:30 or NXT 20:00)
   nextTradingStart?: string; // 다음 세션 시작 시각 (ISO)
@@ -1253,11 +1254,15 @@ async function overlayYahooKrClose(out: Map<string, KrRegularPrice>, markets?: M
   const quotes: V7Quote[] = [];
   for (let i = 0; i < syms.length; i += YAHOO_V7_CHUNK) {
     const chunk = syms.slice(i, i + YAHOO_V7_CHUNK).join(",");
-    try {
-      const r = await fetchProxied(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(chunk)}`);
-      if (!r.ok) continue;
-      quotes.push(...(((await r.json()) as V7Response).quoteResponse?.result ?? []));
-    } catch { /* 이 묶음은 토스 값 그대로 */ }
+    // 야후는 가끔 한 번씩 실패한다(빈 응답·오류) — 한 번 더 묻는다. 그래도 안 되면 그 묶음은 fromYahoo=false 로 남는다.
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try {
+        const r = await fetchProxied(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(chunk)}`);
+        const res = r.ok ? ((await r.json()) as V7Response).quoteResponse?.result : null;
+        if (res?.length) { quotes.push(...res); break; }
+      } catch { /* 재시도 */ }
+      await new Promise(res => setTimeout(res, 800));
+    }
   }
   const usedTs = new Map<string, number>();
   for (const q of quotes) {
@@ -1271,7 +1276,7 @@ async function overlayYahooKrClose(out: Map<string, KrRegularPrice>, markets?: M
     usedTs.set(t, ts);
     // 등락률 기준 = 토스 base(전일 종가) — 카드 큰 숫자와 같은 기준이라야 둘을 나란히 읽을 수 있다
     const base = reg.base ?? 0;
-    out.set(t, { ...reg, regularPrice: px, regularPct: base > 0 ? (px / base - 1) * 100 : reg.regularPct });
+    out.set(t, { ...reg, regularPrice: px, regularPct: base > 0 ? (px / base - 1) * 100 : reg.regularPct, fromYahoo: true });
   }
 }
 

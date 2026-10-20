@@ -887,6 +887,8 @@ export function MobileSimpleView() {
     queryFn: () => fetchKrRegularPrices(krStockCodes),
     enabled: krAfter && krStockCodes.length > 0,
     staleTime: 6 * 60 * 60_000, refetchOnWindowFocus: false,
+    // 야후 확인이 빠진 종목이 있으면(일시 실패) 5분 뒤 다시 — 다 채워지면 멈춘다
+    refetchInterval: q => (q.state.data && [...q.state.data.values()].filter(v => !v.fromYahoo).length > 3 ? 5 * 60_000 : false),   // 야후에 없는 신규 상장 몇 개는 봐준다
   });
 
   // 야간선물 (yasun.gg) — 별도 fetch, usMap 에 병합
@@ -1967,11 +1969,13 @@ export function MobileSimpleView() {
               // CNN 공포·탐욕은 '정규장 마감가' 개념이 없는 하루 점수라 책갈피를 안 단다
               // 한국 개별 종목은 15:30 뒤 NXT 애프터 중엔 안 흐려진다 — 그때도 **오늘 정규장 종가**(야후 15:30) 책갈피를 단다.
               //   ETF 는 애프터가 없어 이미 흐림(sleeping)으로 뜬다. 값은 krRegIdx(fetchKrRegularPrices)를 우선.
+              // 야후로 확인된 값만 — 확인 못 했으면(야후 실패) 토스 meta 는 NXT 현재가라 정규장 종가로 보여주면 안 된다
               const krRegHere = p.krStock ? idxKrReg?.get(p.symbol.slice(0, 6)) : undefined;
-              const krAfterTag = !!krRegHere && isKrAfterRegularClose();
+              const krAfterTag = !!krRegHere?.fromYahoo && isKrAfterRegularClose();
               const showCloseTag = (sleeping || usOffRegular || krAfterTag) && effPrice != null && p.symbol !== "CNNFG";
-              const closeVal = krRegHere?.regularPrice ?? q?.regularPrice ?? effPrice;
-              const regPct = krRegHere?.regularPct ?? q?.regularPct ?? pct;
+              const krRegOk = krRegHere?.fromYahoo ? krRegHere : undefined;
+              const closeVal = krRegOk?.regularPrice ?? q?.regularPrice ?? effPrice;
+              const regPct = krRegOk?.regularPct ?? q?.regularPct ?? pct;
               const regSign = regPct == null ? "text-gray-700"
                 : (isInverse ? regPct < 0 : regPct > 0) ? "text-rose-600"
                 : (isInverse ? regPct > 0 : regPct < 0) ? "text-blue-600" : "text-gray-700";
@@ -2022,6 +2026,19 @@ export function MobileSimpleView() {
                           ({regPct >= 0 ? "+" : ""}{regPct.toFixed(2)}%)
                         </span>
                       )}
+                      {/* 정규장 종가 → 지금(아래 큰 숫자) 차이 — 애프터·프리·NXT 에서 얼마나 더 움직였나(사용자 요청 2026-10-20) */}
+                      {(() => {
+                        if (effPrice == null || !(closeVal > 0)) return null;
+                        const gap = (effPrice / closeVal - 1) * 100;
+                        if (!Number.isFinite(gap) || Math.abs(gap) < 0.005) return null;
+                        const gapCls = (isInverse ? gap < 0 : gap > 0) ? "text-rose-600" : "text-blue-600";
+                        return (
+                          <span className={`tabular-nums ml-1 font-bold text-[11px] ${gapCls}`}
+                                title="정규장 종가 대비 지금(아래 큰 숫자) 차이">
+                            <span className="text-gray-400 font-normal">→</span> {gap > 0 ? "+" : "−"}{Math.abs(gap).toFixed(2)}%
+                          </span>
+                        );
+                      })()}
                     </div>
                   )}
                   <div className={`relative overflow-hidden h-full flex flex-col gap-0.5
