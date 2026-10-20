@@ -3950,7 +3950,7 @@ async function fetchMemChart(symbol: string): Promise<number[]> {
 //   includePrePost 면 프리(04:00 ET)~애프터(20:00 ET)까지 들어 있다. 오버나잇(20:00~04:00)은 없다.
 const SPARK_CHUNK = 20;
 //   openIdx = 오늘 정규장 시작(09:30 ET) 첫 봉의 인덱스 — 카드 차트에 '시작가' 표시선(meta.currentTradingPeriod.regular.start).
-export interface DaySpark { closes: number[]; openIdx?: number }
+export interface DaySpark { closes: number[]; openIdx?: number; prevClose?: number }   // prevClose = 어제 정규장 종가(달러 — closes 와 같은 단위)
 export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string, DaySpark>> {
   const out = new Map<string, DaySpark>();
   const chunks: string[][] = [];
@@ -3960,7 +3960,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
       const r = await fetchProxied(`https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(c.join(","))}&range=1d&interval=5m&includePrePost=true`);
       if (!r.ok) return;
       const j = await r.json() as { spark?: { result?: { symbol?: string; response?: {
-        timestamp?: number[]; meta?: { currentTradingPeriod?: { regular?: { start?: number } } };
+        timestamp?: number[]; meta?: { currentTradingPeriod?: { regular?: { start?: number } }; previousClose?: number; chartPreviousClose?: number };
         indicators?: { quote?: { close?: (number | null)[] }[] } }[] }[] } };
       for (const x of j.spark?.result ?? []) {
         const resp = x.response?.[0];
@@ -3970,7 +3970,8 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         if (!x.symbol || closes.length < 2) continue;
         const regStart = resp?.meta?.currentTradingPeriod?.regular?.start;
         const oi = regStart ? times.findIndex(t => t >= regStart) : -1;
-        out.set(x.symbol, { closes, openIdx: oi > 0 ? oi : undefined });   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
+        const pc = resp?.meta?.previousClose ?? resp?.meta?.chartPreviousClose;
+        out.set(x.symbol, { closes, openIdx: oi > 0 ? oi : undefined, prevClose: pc && pc > 0 ? pc : undefined });   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
       }
     } catch { /* 이 묶음은 3개월 차트로 */ }
   }));

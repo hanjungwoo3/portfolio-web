@@ -18,10 +18,13 @@ interface Props {
   strokeWidth?: number;
   // 세로 표시선 위치(data 인덱스) — 24시간 차트에서 '오늘 정규장 시작'(프리마켓 뒤) 지점. 점선 + 그 값에 점.
   markIndex?: number;
+  // 기준선(어제 종가) — 회색 가로 점선, Y 범위에 포함. 주면 **색도 이 값 기준**(끝값 > 기준 = 빨강)으로 칠한다
+  //   — 24시간 차트의 첫 점은 프리장 시작이라, 첫 점 기준 색은 카드 큰 숫자(어제 종가 대비)와 어긋났다(2026-10-20).
+  baseline?: number;
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex,
+  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline,
 }: Props) {
   if (!data || data.length < 2) {
     return (
@@ -31,7 +34,8 @@ export function Sparkline({
     );
   }
 
-  const first = data[0];
+  const hasBase = baseline !== undefined && baseline > 0;
+  const first = hasBase ? baseline! : data[0];
   const last = data[data.length - 1];
   const trendColor =
     color ?? (last > first ? "#dc2626"   // rose-600
@@ -43,6 +47,7 @@ export function Sparkline({
   if (target !== undefined && target > 0) allValues.push(target);
   if (avgPrice !== undefined && avgPrice > 0) allValues.push(avgPrice);
   if (entry !== undefined && entry > 0) allValues.push(entry);
+  if (hasBase) allValues.push(baseline!);
   const min = Math.min(...allValues);
   const max = Math.max(...allValues);
   const range = max - min || 1;
@@ -75,6 +80,7 @@ export function Sparkline({
   const targetY = target !== undefined && target > 0 ? yFor(target) : null;
   const avgY = avgPrice !== undefined && avgPrice > 0 ? yFor(avgPrice) : null;
   const entryY = entry !== undefined && entry > 0 ? yFor(entry) : null;
+  const baseY = hasBase ? yFor(baseline!) : null;
 
   return (
     <svg width={width} height={height} className={className}
@@ -90,6 +96,11 @@ export function Sparkline({
       <path d={areaPath} fill={`url(#${gradId})`} />
       <path d={linePath} fill="none" stroke={trendColor} strokeWidth={strokeWidth}
             strokeLinejoin="round" strokeLinecap="round" />
+      {/* 어제 종가 — 회색 가로 점선 (24시간 차트) */}
+      {baseY !== null && (
+        <line x1={padX} x2={width - padX} y1={baseY} y2={baseY}
+              stroke="#475569" strokeWidth="1" strokeDasharray="4 3" opacity="0.8" />
+      )}
       {/* 오늘 정규장 시작 — 회색 세로 점선 + 시작가 점 (24시간 차트) */}
       {markIndex != null && markIndex > 0 && markIndex < points.length && (
         <>

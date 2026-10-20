@@ -1958,13 +1958,21 @@ export function MobileSimpleView() {
               const isInverse = p.direction === "inverse";
               const effUp = isInverse ? (mainPct != null && mainPct < 0) : (mainPct != null && mainPct > 0);
               const effDn = isInverse ? (mainPct != null && mainPct > 0) : (mainPct != null && mainPct < 0);
-              const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], nightClosesMap.get(p.symbol) ?? usMap?.get(p.symbol)?.sparkline ?? usSpark?.get(p.symbol)?.closes);
+              const dayArr = nightClosesMap.get(p.symbol) ?? usMap?.get(p.symbol)?.sparkline ?? usSpark?.get(p.symbol)?.closes;
+              const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], dayArr);
               // 24시간 차트가 야후 spark 에서 왔으면 '오늘 정규장 시작' 위치를 표시
               const daySpark = chartRange === "day" && !nightClosesMap.get(p.symbol) && !usMap?.get(p.symbol)?.sparkline ? usSpark?.get(p.symbol) : undefined;
               const markIdx = daySpark && chartArr === daySpark.closes ? daySpark.openIdx : undefined;
+              // 24시간 차트의 기준선·색 기준 = 어제 종가(카드 큰 숫자와 같은 기준). 야후 spark 는 달러라 그 응답의 전일 종가를,
+              //   토스·야선 당일 봉은 카드 값과 같은 단위라 카드의 전일 종가(prevClose)를 쓴다. 3개월 차트엔 안 쓴다.
+              const isDayChart = chartRange === "day" && !!dayArr && chartArr === dayArr;
+              const dayBase = !isDayChart ? undefined
+                : daySpark && chartArr === daySpark.closes ? daySpark.prevClose
+                : (q?.prevClose && q.prevClose > 0 ? q.prevClose : undefined);
               const sparkColor = dimNow ? "#94a3b8"
                 : (isInverse && chartArr.length > 1)
-                  ? (chartArr[chartArr.length - 1] > chartArr[0] ? "#2563eb" : "#dc2626")
+                  // 거꾸로 칠하는 카드(VIX·환율·금리) — 24시간이면 어제 종가 기준, 3개월이면 첫 점 기준
+                  ? (chartArr[chartArr.length - 1] > (dayBase ?? chartArr[0]) ? "#2563eb" : "#dc2626")
                   : undefined;
               const isFuture = p.symbol.endsWith("=F") || p.symbol === "^KS200N" || p.symbol === "^KQ150N";
               const bg = dimNow
@@ -2061,6 +2069,7 @@ export function MobileSimpleView() {
                   <Sparkline data={chartArr}
                              width={300} height={70}
                              markIndex={markIdx}
+                             baseline={dayBase}
                              color={sparkColor}
                              className={`absolute inset-0 w-full h-full opacity-50
                                         pointer-events-none ${dimCls}`} />
