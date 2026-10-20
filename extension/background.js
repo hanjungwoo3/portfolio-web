@@ -17,6 +17,7 @@ const ALLOWED_HOSTS = new Set([
   "production.dataviz.cnn.io",
   "hq.sinajs.cn",
   "stock2.finance.sina.com.cn",
+  "moneyland.co.kr",
   "scanner.tradingview.com",
   // 야후 — 앱은 아직 여기로 안 보낸다(blocksResidentialIp 로 클라우드 프록시행).
   //   가정용 IP 가 정말 막히는지 서비스워커 콘솔에서 직접 시험하려고 열어둔 상태.

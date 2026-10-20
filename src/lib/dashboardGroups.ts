@@ -187,6 +187,12 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     {
+      // 메모리 현물가 — 반도체 주가 옆에서 칩 가격을 같이 본다(사용자 요청 2026-10-20). 소스 = 머니랜드 DRAM 대시보드 JSON 한 콜.
+      //   HBM 은 공개 시세가 없다. DDR4 는 16Gb 이력이 없어 8Gb(일별 이력 있음)를 쓴다.
+      id: "mem", short: "메모리", label: "🧠 메모리 현물가",
+      rows: [["DRAMIDX=ML", "DDR5=ML", "DDR4=ML", "RDIMM=ML", "GDDR6=ML", "NAND=ML"]],
+    },
+    {
       id: "ldpower", short: "전력·에너지", label: "⚡ 전력·에너지",
       sortable: true,
       lead: 1, extras: [],
@@ -497,7 +503,7 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 주간 시장 → 공통 세트 → 섹터 ETF ➜ 대장주(모든 섹터) → ETF TOP → 한·미 섹터.
   //   옛 '지수(대장주)' 페이지를 여기로 합쳤다(2026-10-08).
   //   반도체·2차전지·전력도 넣는다(야간의 반도체 묶음과 겹쳐도 — 섹터 전체를 한 페이지에서 보게, 2026-10-06).
-  day:   ["kr", "krfx", "dayfut", "spot", "ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont"],
+  day:   ["kr", "krfx", "dayfut", "spot", "ldtech", "mem", "ldpower", "ldind", "ldfin", "ldlife", "ldcont"],
   // 미국 지수 → 공통 세트 → 반도체(반도체·일본·순환매) → 빅테크·ETF → 한·미 섹터.
   //   옛 '지수(반도체)' 페이지를 여기로 합쳤다 — 반도체는 빅테크 위(사용자 결정 2026-10-07).
   night: ["macro", "krfx", "krnight", "spot", "usaihw", "usaisw", "ustech", "usdef"],

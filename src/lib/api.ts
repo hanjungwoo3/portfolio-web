@@ -3724,6 +3724,7 @@ export async function fetchDashboardChart(sym: string): Promise<number[]> {
   if (isCnbcIndex(sym)) return fetchCnbcChart(sym);
   if (sym === CNN_FG_SYMBOL) return fetchCnnFgChart();
   if (isSinaMetal(sym)) return fetchSinaMetalChart(sym);
+  if (isMemPrice(sym)) return fetchMemChart(sym);
   return fetchYahooChart(sym, "3mo");
 }
 
@@ -3884,6 +3885,54 @@ async function fetchSinaMetalChart(symbol: string): Promise<number[]> {
   } catch { return []; }
 }
 
+// ─── 메모리 현물가 — 머니랜드 DRAM 대시보드 JSON (가상 심볼 *=ML) ─────────────
+//   https://moneyland.co.kr/moneyweb/api/dram_dashboard.json 한 콜에 DRAM 현물지수(2025-06-23=기준)·DDR5/DDR4 일별 이력(~300일)·
+//   RDIMM·GDDR6·NAND 웨이퍼 주간 이력이 다 있다(원 출처 DRAMeXchange — 거기선 이력이 유료라 못 받는다).
+//   CORS 헤더가 없어 프록시를 탄다(헤더는 필요 없음). 값은 하루 한 번(현지 18시경) 바뀌어 10분 메모.
+//   카드 값 = 이력의 마지막 점, 등락 = 직전 점 대비(주간 품목은 지난주 대비).
+const MONEYLAND_URL = "https://moneyland.co.kr/moneyweb/api/dram_dashboard.json";
+// 심볼 → 이력 위치 (index = DRAM 현물지수, 숫자 = series 키 = DRAMeXchange 품목 번호)
+const MEM_SERIES: Record<string, string> = {
+  "DRAMIDX=ML": "index", "DDR5=ML": "475", "DDR4=ML": "471", "RDIMM=ML": "21", "GDDR6=ML": "3", "NAND=ML": "9603",
+};
+export function isMemPrice(symbol: string): boolean { return symbol in MEM_SERIES; }
+type MemSeries = { d?: string[]; v?: number[] };
+let memMemo: { at: number; p: Promise<Record<string, MemSeries> | null> } | null = null;
+function loadMemSeries(): Promise<Record<string, MemSeries> | null> {
+  if (memMemo && Date.now() - memMemo.at < 10 * 60_000) return memMemo.p;
+  const p = fetchProxied(MONEYLAND_URL)
+    .then(r => (r.ok ? (r.json() as Promise<{ index?: { series?: MemSeries }; series?: Record<string, MemSeries> }>) : null))
+    .then(j => (j ? { index: j.index?.series ?? {}, ...(j.series ?? {}) } : null))
+    .catch(() => null);
+  memMemo = { at: Date.now(), p };
+  p.then(v => { if (!v) memMemo = null; });   // 실패는 메모하지 않는다
+  return p;
+}
+async function fetchMemPrices(pairs: { symbol: string; name: string }[]): Promise<UsIndex[]> {
+  const items = pairs.filter(p => isMemPrice(p.symbol));
+  if (!items.length) return [];
+  const all = await loadMemSeries();
+  if (!all) return [];
+  const out: UsIndex[] = [];
+  for (const p of items) {
+    const s = all[MEM_SERIES[p.symbol]];
+    const v = s?.v ?? [], d = s?.d ?? [];
+    if (v.length < 2) continue;
+    const price = v[v.length - 1], prev = v[v.length - 2];
+    if (!(price > 0) || !(prev > 0)) continue;
+    out.push({
+      symbol: p.symbol, name: p.name, price, prev, prevClose: prev,
+      diff: price - prev, pct: (price / prev - 1) * 100, currency: "USD",
+      tradeDate: d[d.length - 1] ?? "", marketState: "",
+    });
+  }
+  return out;
+}
+async function fetchMemChart(symbol: string): Promise<number[]> {
+  const s = (await loadMemSeries())?.[MEM_SERIES[symbol]];
+  return (s?.v ?? []).filter(x => x > 0).slice(-63);   // 다른 카드와 같은 3개월(일별 품목 기준 63점)
+}
+
 // 토스 원달러 환율 — base(당일 09:00 고시 기준가) + close(실시간 현재가).
 //   Yahoo/yasun forex(KRW=X)는 기준점을 새벽 FX 롤오버(~02시 KST)로 리셋해 변동률이 ~0%로 어긋남.
 //   토스는 '어제 종가' 기준이라 토스 환율 페이지 표시값(-1.x%)과 일치.
@@ -3928,7 +3977,7 @@ export async function fetchYahooBatch(
   const investItems = pairs.filter(p => isCnbcIndex(p.symbol));
   const cnnFg = pairs.find(p => p.symbol === CNN_FG_SYMBOL);
 
-  const [ksMap, overviewMap, usMap, investResults, yahooResults, cnnFgIdx, sinaMetals] = await Promise.all([
+  const [ksMap, overviewMap, usMap, investResults, yahooResults, cnnFgIdx, sinaMetals, memPrices] = await Promise.all([
     ksItems.length > 0
       ? fetchTossPrices(ksItems.map(p => ksRegex.exec(p.symbol)![1]))
           .then(prices => {
@@ -3960,9 +4009,10 @@ export async function fetchYahooBatch(
     fetchTossUsIndexMap(tossUsItems),
     Promise.all(investItems.map(p => fetchCnbcIndexPrice(p.symbol, p.name))),
     // 모든 심볼 Yahoo 베이스 — v7 배치(~2콜). marketState/prevClose + 토스 실패 시 fallback
-    fetchYahooBatchQuote(pairs.filter(p => p.symbol !== CNN_FG_SYMBOL && !isSinaMetal(p.symbol))),   // 가상 심볼 — 야후엔 없다
+    fetchYahooBatchQuote(pairs.filter(p => p.symbol !== CNN_FG_SYMBOL && !isSinaMetal(p.symbol) && !isMemPrice(p.symbol))),   // 가상 심볼 — 야후엔 없다
     cnnFg ? fetchCnnFgIndex(cnnFg.name) : Promise.resolve(null),
     fetchSinaMetals(pairs),
+    fetchMemPrices(pairs),
   ]);
 
   // 1) Yahoo 결과를 베이스로
@@ -4014,6 +4064,7 @@ export async function fetchYahooBatch(
   for (const r of investResults) { if (r) applyToss(r.symbol, r); }
   if (cnnFgIdx) applyToss(cnnFgIdx.symbol, cnnFgIdx);
   for (const m of sinaMetals) applyToss(m.symbol, m);
+  for (const m of memPrices) applyToss(m.symbol, m);
 
   return merged;
 }

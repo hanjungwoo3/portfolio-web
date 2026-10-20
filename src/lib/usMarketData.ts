@@ -65,6 +65,13 @@ export const US_PAIRS: Pair[] = [
   //   유럽·중동·아시아 도입 원유의 기준이라 국내 정유주는 WTI 보다 이쪽에 더 붙는다.
   { symbol: "BZ=F",     name: "브렌트유",     desc: "국제 유가(북해) — 국내 정유·항공 원가의 기준", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "NG=F",     name: "천연가스",     desc: "헨리허브 — LNG·발전·난방·화학", tier: "T0", sector: "dashboard", direction: "inverse" },
+  // 메모리 현물가 — 머니랜드 DRAM 대시보드(api.ts MEM_SERIES). 오르면 메모리 업황 개선 → 삼성·하이닉스에 우호 = direct
+  { symbol: "DRAMIDX=ML", name: "DRAM 현물지수", desc: "DRAM 현물가 종합 지수(2025-06-23 = 100 기준 환산값) — 메모리 업황 체온계. 머니랜드(원 출처 DRAMeXchange)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "DDR5=ML",  name: "DDR5 16Gb",   desc: "DDR5 16Gb 칩 현물 평균가(USD) — 현행 주력 DRAM, 매일 갱신", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "DDR4=ML",  name: "DDR4 8Gb",    desc: "DDR4 8Gb 칩 현물 평균가(USD) — 구형 DRAM(단종 쇼티지), 매일 갱신", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "RDIMM=ML", name: "서버 RDIMM",  desc: "DDR5 RDIMM 32GB 서버 모듈 현물가(USD) — AI·서버 수요, 주 1회 갱신", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "GDDR6=ML", name: "GDDR6 8Gb",   desc: "GDDR6 8Gb 그래픽 메모리 현물가(USD) — GPU 수요, 주 1회 갱신", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "NAND=ML",  name: "NAND 웨이퍼", desc: "NAND 512Gb TLC 웨이퍼 현물가(USD) — 낸드 업황, 주 1회 갱신", tier: "T0", sector: "dashboard", direction: "direct" },
   // 리튬·니켈 — 시나 금융 가상 심볼(api.ts SINA_METALS). 오르면 국내 양극재 판가↑ → 2차전지에 우호 = direct
   { symbol: "LITHIUM=F", name: "리튬",       desc: "탄산리튬 선물(광저우, CNY/톤) — 2차전지·ESS 공통 원료. 양극재 판가가 따라간다. 시나 금융", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "NICKEL=F", name: "니켈",        desc: "LME 니켈(USD/톤) — 하이니켈(NCM) 양극재 원료, ESS(LFP)엔 거의 안 씀. 시나 금융", tier: "T0", sector: "dashboard", direction: "direct" },

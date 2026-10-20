@@ -35,6 +35,7 @@ const ALLOWED_HOSTS = new Set([
   "production.dataviz.cnn.io",
   "hq.sinajs.cn",
   "stock2.finance.sina.com.cn",
+  "moneyland.co.kr",
   "scanner.tradingview.com",
 ]);
 

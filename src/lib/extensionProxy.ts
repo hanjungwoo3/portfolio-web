@@ -74,7 +74,7 @@ export function useExtensionProxyReady(): boolean {
 
 // 앱이 기대하는 확장 버전 — 확장을 고칠 때 manifest.json 과 함께 올린다.
 // 개발자 모드 설치는 자동 업데이트가 없어, 이 값보다 낮으면 설정에서 재설치를 안내한다.
-export const EXPECTED_EXTENSION_VERSION = "1.2.4";
+export const EXPECTED_EXTENSION_VERSION = "1.2.5";
 
 // ★ 확장 zip 받기 경로는 여기 하나뿐이다. GitHub `/releases/latest` 로 보내면 안 된다 —
 //   이 저장소는 확장(zip)과 앱(apk) 릴리스를 함께 내므로 앱 릴리스가 최신이면 확장

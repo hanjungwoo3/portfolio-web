@@ -19,6 +19,7 @@ const ALLOWED_HOSTS = new Set<string>([
   "production.dataviz.cnn.io", // CNN 공포·탐욕 지수 — 브라우저 Referer/Origin 없으면 418(봇)
   "hq.sinajs.cn",             // 시나 금융 — 탄산리튬(광저우)·LME 니켈 시세. Referer 없으면 403
   "stock2.finance.sina.com.cn", // 시나 금융 — 리튬·니켈 일봉
+  "moneyland.co.kr",          // 메모리 현물가(DRAM 지수·DDR5·NAND) 대시보드 JSON — 헤더 불필요
   "scanner.tradingview.com",  // KOSPI/KOSDAQ 히트맵 — TradingView scanner (POST)
 ]);
 
