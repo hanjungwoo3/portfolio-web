@@ -2009,26 +2009,26 @@ export function MobileSimpleView() {
               const dimCls = dimNow ? "opacity-60" : "";
               return (
                 <div key={p.symbol} className={`relative h-full ${rowHeads.has(p.symbol) ? "col-start-1" : ""}`}>
-                  {/* ETF 책갈피 — KR ETF (예: 069500.KS) 만. 왼쪽 위. 클릭 시 구성종목 모달 */}
+                  {/* 왼쪽 위 책갈피 줄 — [ETF] [투자주의…]. 해당되는 것만, 한 줄로 붙여 겹치지 않게.
+                      기업정보는 아이콘 대신 **종목명 클릭**으로 연다(아이콘이 마감 책갈피와 겹쳐 화면을 가렸다 — 사용자 결정 2026-10-21). */}
                   {(() => {
-                    const etfTk = p.krStock ? null : krEtfTicker(p.symbol);   // 한국 개별주는 ETF 가 아니다
-                    if (!etfTk) return null;
+                    const krTk = krEtfTicker(p.symbol);                         // 한국 6자리(.KS) — 종목·ETF 모두
+                    const isKrEtf = !!krTk && !p.krStock;
+                    const lv = krTk ? marketAlerts.get(krTk) : undefined;
+                    if (!krTk || (!isKrEtf && !lv)) return null;
+                    const tag = "px-1.5 py-0 rounded text-[10px] font-bold leading-tight border";
                     return (
-                      <button onClick={() => setEtfDialog({ ticker: etfTk, name: p.name })}
-                              title="ETF 구성 종목 보기"
-                              className="absolute -top-2 left-1 z-20 px-1.5 py-0 rounded
-                                         text-[10px] font-bold leading-tight
-                                         text-violet-700 bg-violet-100/30 active:bg-violet-100/60
-                                         border border-violet-300/40">
-                        ETF
-                      </button>
+                      <div className="absolute -top-2 left-1 z-30 flex items-center gap-0.5">   {/* 마감 책갈피(z-20)가 길어도 위로 */}
+                        {isKrEtf && (
+                          <button onClick={() => setEtfDialog({ ticker: krTk!, name: p.name })}
+                                title="ETF 구성 종목 보기"
+                                className={`${tag} text-violet-700 bg-violet-100/30 active:bg-violet-100/60 border-violet-300/40`}>
+                          ETF
+                        </button>
+                        )}
+                        {lv && <IndexWarnTag inline ticker={krTk!} name={p.name} level={lv} />}
+                      </div>
                     );
-                  })()}
-                  {/* 경고 책갈피 — 투자주의·경고·위험(크롤러 목록, 0콜) */}
-                  {(() => {
-                    const tk = krEtfTicker(p.symbol);
-                    const lv = tk ? marketAlerts.get(tk) : undefined;
-                    return tk && lv ? <IndexWarnTag ticker={tk} name={p.name} level={lv} shift={!p.krStock} /> : null;
                   })()}
                   {/* 정규장 마감가 책갈피 — 카드 위로 올림(-top-2). 노란 배경(살짝 투명) + 흐림 제외(z-20) */}
                   {showCloseTag && closeVal != null && (
@@ -2079,8 +2079,13 @@ export function MobileSimpleView() {
                     )}
                     <a href={quoteUrl(p.symbol)}
                        target="_blank" rel="noopener noreferrer"
-                       onClick={e => handleTossLinkClick(e, quoteUrl(p.symbol))}
-                       title={`${p.name} 자세히 보기`}
+                       onClick={e => {
+                         // 한국 종목·ETF — 종목명 = 앱 기업정보(기업가치) 팝업. 미국 등은 토스 페이지 그대로.
+                         const krNameTk = krEtfTicker(p.symbol);
+                         if (krNameTk) { e.preventDefault(); { setValuationName(p.name); setValuationTicker(krNameTk); }; return; }
+                         handleTossLinkClick(e, quoteUrl(p.symbol));
+                       }}
+                       title={krEtfTicker(p.symbol) ? `${p.name} 기업정보 보기` : `${p.name} 자세히 보기`}
                        className={`text-sm font-bold ${nameColor} active:underline min-w-0 truncate`}>
                       {p.name}
                     </a>
@@ -2128,19 +2133,6 @@ export function MobileSimpleView() {
                   )}
                   {/* 역할 책갈피 — 이 그룹에서 이 종목이 무엇인지(예: 전공정·원자력). 오른쪽 아래가 비어
                       있어 그 자리에 둔다(🗺️ 히트맵은 코덱스200·코스닥150 전용이라 겹치지 않는다). */}
-                  {/* 기업가치 — 한국 종목 카드(순환매 줄)만. 히트맵 책갈피와 같은 모양으로 카드 바깥 오른쪽 아래.
-                      종목명은 그대로 토스 링크다. */}
-                  {p.krStock && (
-                    <button
-                      onClick={() => { setValuationName(p.name); setValuationTicker(p.symbol.slice(0, 6)); }}
-                      title={`${p.name} 기업가치 보기`}
-                      className="absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded
-                                 text-[9px] leading-tight whitespace-nowrap font-bold
-                                 text-indigo-700 bg-indigo-50 border border-indigo-300/70
-                                 hover:bg-indigo-100 transition">
-                      📊
-                    </button>
-                  )}
                   {section.tags?.[p.symbol] && (
                     <div className={`absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded border
                                      text-[9px] leading-tight whitespace-nowrap font-bold

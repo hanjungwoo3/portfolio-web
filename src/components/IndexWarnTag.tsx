@@ -9,16 +9,17 @@ const BG: Record<AlertLevel, string> = {
   투자위험: "bg-red-700", 투자경고: "bg-orange-600", 투자주의: "bg-amber-500",
 };
 
-export function IndexWarnTag({ ticker, name, level, shift }: {
+export function IndexWarnTag({ ticker, name, level, shift, inline }: {
   ticker: string; name: string; level: AlertLevel;
   shift?: boolean;   // ETF 책갈피가 같은 자리에 있으면 오른쪽으로 비킨다
+  inline?: boolean;  // 책갈피 줄(flex) 안에 놓일 때 — 자체 위치 지정 없이
 }) {
   const [open, setOpen] = useState(false);
   return (
     <>
       <button onClick={() => setOpen(true)}
               title={`${name} — 거래소 ${level} 지정. 눌러서 시장조치 공시 보기`}
-              className={`absolute -top-2 ${shift ? "left-9" : "left-1"} z-20 px-1.5 py-0 rounded
+              className={`${inline ? "" : `absolute -top-2 ${shift ? "left-9" : "left-1"} z-20`} px-1.5 py-0 rounded
                           text-[10px] font-bold leading-tight text-white ${BG[level]}`}>
         {level}
       </button>
