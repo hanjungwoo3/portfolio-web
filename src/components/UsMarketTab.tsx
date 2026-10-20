@@ -2,9 +2,9 @@ import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { IndexWarnTag } from "./IndexWarnTag";
-import { fetchYahooBatch, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
+import { fetchYahooBatch, fetchKrRegularPrices, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
-import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
+import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed, isKrAfterRegularClose, nowKstDateStr } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
 import { useChartRange, pickCardChart } from "../lib/chartRange";
 import { ChartRangeToggle } from "./ChartRangeToggle";
@@ -38,6 +38,8 @@ function krEtfTicker(symbol: string): string | null {
 }
 
 const BASE_REFRESH_MS = 10_000;
+// 지수 카드에 오르는 한국 개별 종목 코드(정규장 종가 조회용) — 목록은 usMarketData 한 벌
+const KR_STOCK_CODES = US_PAIRS.filter(p => p.krStock && /^[\dA-Za-z]{6}\.KS$/.test(p.symbol)).map(p => p.symbol.slice(0, 6));
 
 function fmtPrice(symbol: string, price: number): string {
   // 원엔은 한국 관행대로 100엔 기준 표기 (Yahoo 는 1엔당 원 = 8.6원 꼴)
@@ -86,6 +88,17 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
     queryKey: ["yahoo-batch", yahooSymbols.length],
     queryFn: () => fetchYahooBatch(yahooSymbols),
     refetchInterval: REFRESH_MS,
+  });
+
+  // 지수 카드의 한국 개별 종목 — 오늘 15:30 정규장 종가(마감 책갈피용). 장 마감 뒤 **한 번만** 받는다(그 뒤로 안 바뀐다).
+  //   토스 1콜 + 야후 .KS/.KQ ~9콜(179종목). 정규장 중엔 부르지 않는다.
+  const krStockCodes = KR_STOCK_CODES;
+  const krAfter = isKrAfterRegularClose();
+  const { data: idxKrReg } = useQuery({
+    queryKey: ["idx-kr-reg", nowKstDateStr()],
+    queryFn: () => fetchKrRegularPrices(krStockCodes),
+    enabled: krAfter && krStockCodes.length > 0,
+    staleTime: 6 * 60 * 60_000, refetchOnWindowFocus: false,
   });
 
   // 야간선물(yasun.gg) — 코스피200/코스닥150. Yahoo 와 분리된 별도 fetch.
@@ -420,9 +433,13 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               //   큰 숫자가 프리·애프터·오버나이트 가격인 동안(= 정규장 09:30~16:00 밖)은 정규장 마감 책갈피를 같이 보인다.
               const usOffRegular = marketOfSymbol(p.symbol) === "US" && !isMarketOpen("US_INDEX");
               // CNN 공포·탐욕은 '정규장 마감가' 개념이 없는 하루 점수라 책갈피를 안 단다
-              const showCloseTag = (sleeping || usOffRegular) && effPrice != null && p.symbol !== "CNNFG";
-              const closeVal = q?.regularPrice ?? effPrice;
-              const regPct = q?.regularPct ?? pct;
+              // 한국 개별 종목은 15:30 뒤 NXT 애프터 중엔 안 흐려진다 — 그때도 **오늘 정규장 종가**(야후 15:30) 책갈피를 단다.
+              //   ETF 는 애프터가 없어 이미 흐림(sleeping)으로 뜬다. 값은 krRegIdx(fetchKrRegularPrices)를 우선.
+              const krRegHere = p.krStock ? idxKrReg?.get(p.symbol.slice(0, 6)) : undefined;
+              const krAfterTag = !!krRegHere && isKrAfterRegularClose();
+              const showCloseTag = (sleeping || usOffRegular || krAfterTag) && effPrice != null && p.symbol !== "CNNFG";
+              const closeVal = krRegHere?.regularPrice ?? q?.regularPrice ?? effPrice;
+              const regPct = krRegHere?.regularPct ?? q?.regularPct ?? pct;
               const regSign = regPct == null ? "text-gray-700"
                 : (isInverse ? regPct < 0 : regPct > 0) ? "text-rose-600"
                 : (isInverse ? regPct > 0 : regPct < 0) ? "text-blue-600" : "text-gray-700";

@@ -14,7 +14,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed } from "../lib/format";
+import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed, isKrAfterRegularClose, nowKstDateStr } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { getPersonalProxies, setPersonalProxies, type PersonalProxy, fetchProxyUsage, type ProxyUsage, getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS, pollLabel, getDimSleepingEnabled, setDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
@@ -876,6 +876,16 @@ export function MobileSimpleView() {
     queryKey: ["m-yahoo"],
     queryFn: () => fetchYahooBatch(yahooSymbols),
     refetchInterval: REFRESH_MS,
+  });
+
+  // 지수 카드의 한국 개별 종목 — 오늘 15:30 정규장 종가(마감 책갈피용). PC(UsMarketTab)와 같은 키라 캐시를 같이 쓴다.
+  const krStockCodes = US_PAIRS.filter(p => p.krStock && /^[\dA-Za-z]{6}\.KS$/.test(p.symbol)).map(p => p.symbol.slice(0, 6));
+  const krAfter = isKrAfterRegularClose();
+  const { data: idxKrReg } = useQuery({
+    queryKey: ["idx-kr-reg", nowKstDateStr()],
+    queryFn: () => fetchKrRegularPrices(krStockCodes),
+    enabled: krAfter && krStockCodes.length > 0,
+    staleTime: 6 * 60 * 60_000, refetchOnWindowFocus: false,
   });
 
   // 야간선물 (yasun.gg) — 별도 fetch, usMap 에 병합
@@ -1954,9 +1964,13 @@ export function MobileSimpleView() {
               //   큰 숫자가 프리·애프터·오버나이트 가격인 동안(= 정규장 09:30~16:00 밖)은 정규장 마감 책갈피를 같이 보인다.
               const usOffRegular = marketOfSymbol(p.symbol) === "US" && !isMarketOpen("US_INDEX");
               // CNN 공포·탐욕은 '정규장 마감가' 개념이 없는 하루 점수라 책갈피를 안 단다
-              const showCloseTag = (sleeping || usOffRegular) && effPrice != null && p.symbol !== "CNNFG";
-              const closeVal = q?.regularPrice ?? effPrice;
-              const regPct = q?.regularPct ?? pct;
+              // 한국 개별 종목은 15:30 뒤 NXT 애프터 중엔 안 흐려진다 — 그때도 **오늘 정규장 종가**(야후 15:30) 책갈피를 단다.
+              //   ETF 는 애프터가 없어 이미 흐림(sleeping)으로 뜬다. 값은 krRegIdx(fetchKrRegularPrices)를 우선.
+              const krRegHere = p.krStock ? idxKrReg?.get(p.symbol.slice(0, 6)) : undefined;
+              const krAfterTag = !!krRegHere && isKrAfterRegularClose();
+              const showCloseTag = (sleeping || usOffRegular || krAfterTag) && effPrice != null && p.symbol !== "CNNFG";
+              const closeVal = krRegHere?.regularPrice ?? q?.regularPrice ?? effPrice;
+              const regPct = krRegHere?.regularPct ?? q?.regularPct ?? pct;
               const regSign = regPct == null ? "text-gray-700"
                 : (isInverse ? regPct < 0 : regPct > 0) ? "text-rose-600"
                 : (isInverse ? regPct > 0 : regPct < 0) ? "text-blue-600" : "text-gray-700";

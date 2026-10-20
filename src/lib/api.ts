@@ -1244,17 +1244,22 @@ export async function fetchKrRegularPrices(
 //   야후가 가끔 옛 값을 주므로(코스닥을 .KS 로 물으면 옛 상장 기록) **체결 시각이 15:20 KST 이후이고 4일 이내**인 값만 쓴다.
 async function overlayYahooKrClose(out: Map<string, KrRegularPrice>, markets?: Map<string, string>): Promise<void> {
   if (out.size === 0 || (isMarketOpen("KR") && !isKrAfterRegularClose())) return;
-  const sym = (t: string) => `${t}.${/KOSDAQ|코스닥/i.test(markets?.get(t) ?? "") ? "KQ" : "KS"}`;
-  const tickers = [...out.keys()];
+  // 시장을 모르면(지수 카드처럼 코스닥도 '.KS' 로 들고 있는 목록) **.KS·.KQ 둘 다** 묻는다 — 엉뚱한 쪽은 야후가
+  //   옛 상장 기록·빈 값을 줘 아래 신선도 검사에서 걸러진다. 둘 다 신선하면 체결 시각이 늦은 쪽.
+  const syms = [...out.keys()].flatMap(t => {
+    const mk = markets?.get(t) ?? "";
+    return /KOSDAQ|코스닥/i.test(mk) ? [`${t}.KQ`] : /KOSPI|코스피/i.test(mk) ? [`${t}.KS`] : [`${t}.KS`, `${t}.KQ`];
+  });
   const quotes: V7Quote[] = [];
-  for (let i = 0; i < tickers.length; i += YAHOO_V7_CHUNK) {
-    const chunk = tickers.slice(i, i + YAHOO_V7_CHUNK).map(sym).join(",");
+  for (let i = 0; i < syms.length; i += YAHOO_V7_CHUNK) {
+    const chunk = syms.slice(i, i + YAHOO_V7_CHUNK).join(",");
     try {
       const r = await fetchProxied(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${encodeURIComponent(chunk)}`);
       if (!r.ok) continue;
       quotes.push(...(((await r.json()) as V7Response).quoteResponse?.result ?? []));
     } catch { /* 이 묶음은 토스 값 그대로 */ }
   }
+  const usedTs = new Map<string, number>();
   for (const q of quotes) {
     const t = (q.symbol ?? "").replace(/\.K[SQ]$/, "");
     const reg = out.get(t);
@@ -1262,7 +1267,8 @@ async function overlayYahooKrClose(out: Map<string, KrRegularPrice>, markets?: M
     if (!reg || px == null || px <= 0 || typeof ts !== "number") continue;
     const kst = new Date((ts + 9 * 3600) * 1000);
     const fresh = Date.now() / 1000 - ts < 4 * 86400 && kst.getUTCHours() * 60 + kst.getUTCMinutes() >= 15 * 60 + 20;
-    if (!fresh) continue;
+    if (!fresh || (usedTs.get(t) ?? 0) > ts) continue;
+    usedTs.set(t, ts);
     // 등락률 기준 = 토스 base(전일 종가) — 카드 큰 숫자와 같은 기준이라야 둘을 나란히 읽을 수 있다
     const base = reg.base ?? 0;
     out.set(t, { ...reg, regularPrice: px, regularPct: base > 0 ? (px / base - 1) * 100 : reg.regularPct });
