@@ -123,9 +123,15 @@ export async function listRevisions(): Promise<DriveRevision[]> {
   const data = await resp.json() as { revisions?: DriveRevision[] };
   return [...(data.revisions ?? [])].sort((a, b) => b.modifiedTime.localeCompare(a.modifiedTime));   // 최신 먼저
 }
+// 버전 내용 받기 — 목록을 띄운 뒤 여러 개를 연달아 받으므로 파일 id 는 1분 캐시(매번 목록 조회 1콜을 아낀다).
+let fileIdCache: { id: string; at: number } | null = null;
 export async function downloadRevision<T = unknown>(revisionId: string): Promise<T> {
-  const meta = await getFileMeta();
-  if (!meta) throw new Error("Drive 파일이 없습니다");
+  if (!fileIdCache || Date.now() - fileIdCache.at > 60_000) {
+    const m = await getFileMeta();
+    if (!m) throw new Error("Drive 파일이 없습니다");
+    fileIdCache = { id: m.id, at: Date.now() };
+  }
+  const meta = { id: fileIdCache.id };
   const resp = await driveFetch(
     `https://www.googleapis.com/drive/v3/files/${meta.id}/revisions/${encodeURIComponent(revisionId)}?alt=media`);
   if (!resp.ok) throw new Error(`Drive 버전 받기 실패: ${resp.status}`);

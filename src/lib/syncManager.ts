@@ -370,24 +370,19 @@ export async function reconcileOnEnable(): Promise<"pushed" | "insync" | "confli
 }
 
 // ─── 이전 버전에서 복구 ─────────────────────────────────────
-export interface DriveBackup { id: string; modifiedTime: string; size: number; holdings: number; trades: number; memos: number; groups: number }
-/** Drive 백업 파일의 이전 버전 목록(최신 먼저) — 각 버전의 종목·거래 수를 같이 보여주려고 내용도 받는다(최대 limit 개). */
-export async function listDriveBackups(limit = 40): Promise<DriveBackup[]> {
-  const revs = (await listRevisions()).slice(0, limit);
-  const out: DriveBackup[] = [];
-  for (const r of revs) {
-    try {
-      const d = await downloadRevision<ExportPayload>(r.id);
-      out.push({
-        id: r.id, modifiedTime: r.modifiedTime, size: Number(r.size ?? 0),
-        holdings: d.holdings?.length ?? 0, trades: d.trades?.length ?? 0, memos: d.memos?.length ?? 0,
-        groups: new Set((d.holdings ?? []).map(h => h.account ?? "")).size,
-      });
-    } catch {
-      out.push({ id: r.id, modifiedTime: r.modifiedTime, size: Number(r.size ?? 0), holdings: -1, trades: -1, memos: -1, groups: -1 });
-    }
-  }
-  return out;
+export interface DriveBackup { id: string; modifiedTime: string; size: number }
+export interface DriveBackupSummary { holdings: number; trades: number; memos: number; groups: number }
+/** Drive 백업 파일의 이전 버전 목록(최신 먼저) — 메타데이터만, 한 콜이라 즉시. */
+export async function listDriveBackups(): Promise<DriveBackup[]> {
+  return (await listRevisions()).map(r => ({ id: r.id, modifiedTime: r.modifiedTime, size: Number(r.size ?? 0) }));
+}
+/** 한 버전의 내용 요약(종목·거래·메모·그룹 수) — 목록을 띄운 뒤 몇 개씩 동시에 채운다. */
+export async function summarizeDriveBackup(id: string): Promise<DriveBackupSummary> {
+  const d = await downloadRevision<ExportPayload>(id);
+  return {
+    holdings: d.holdings?.length ?? 0, trades: d.trades?.length ?? 0, memos: d.memos?.length ?? 0,
+    groups: new Set((d.holdings ?? []).map(h => h.account ?? "")).size,
+  };
 }
 /** 고른 버전으로 이 기기를 되돌리고, 그 내용을 다시 Drive 최신본으로 올린다(다른 기기도 받아가게). */
 export async function restoreDriveBackup(revisionId: string): Promise<void> {
