@@ -61,8 +61,8 @@ describe("지수 탭 페이지 구성", () => {
   });
 
   it("주간·야간 모두 지수 바로 아래는 같은 한 세트(환율·금리·투심 → 선물 → 현물) — 어느 페이지든 같은 자리에서 찾는다 (사용자 결정 2026-10-08)", () => {
-    expect(ids("day").slice(0, 4)).toEqual(["kr", "krfx", "dayfut", "spot"]);
-    expect(ids("night").slice(0, 4)).toEqual(["macro", "krfx", "krnight", "spot"]);
+    expect(ids("day").slice(0, 5)).toEqual(["kr", "krfx", "dayfut", "spot", "mem"]);        // 메모리 현물가 = 현물 바로 아래(2026-10-20)
+    expect(ids("night").slice(0, 4)).toEqual(["macro", "krfx", "krnight", "spot"]);   // 메모리 현물가는 주간에만
   });
 
   it("순환매 = 반도체 지수 → 일본 반도체 → AI 순환매 → ETF TOP → 한·미 섹터 — 환율·선물은 한국·미국 탭에 (2026-10-12)", () => {
@@ -109,7 +109,7 @@ describe("지수 탭 페이지 구성", () => {
   });
 
   it("주간 = 옛 대장주 페이지를 합쳤다 — 공통 세트 아래에 섹터 대장주 6묶음, 그다음 ETF TOP (사용자 결정 2026-10-08)", () => {
-    expect(ids("day").slice(4)).toEqual(["ldtech", "mem", "ldpower", "ldind", "ldfin", "ldlife", "ldcont"]);   // 메모리 현물가는 반도체 바로 뒤   // ETF TOP·한·미 섹터는 순환매 탭으로
+    expect(ids("day").slice(5)).toEqual(["ldtech", "ldpower", "ldind", "ldfin", "ldlife", "ldcont"]);   // 4번째 = 메모리 현물가(현물 아래)   // ETF TOP·한·미 섹터는 순환매 탭으로
   });
 
   it("섹터 대장주 = 섹터 줄마다 [섹터 ETF] ➜ [대장주](한 줄 8칸 이내, 반도체·2차전지 등 모든 섹터 — 야간의 반도체 묶음과 겹쳐도 된다)", () => {
