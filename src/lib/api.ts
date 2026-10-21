@@ -5716,8 +5716,10 @@ export async function fetchYahooTodayKst(symbol: string): Promise<{ t: string; c
   if (!r.ok) return [];
   const j = await r.json() as { chart?: { result?: { timestamp?: number[]; indicators?: { quote?: { close?: (number | null)[] }[] } }[] } };
   const res = j.chart?.result?.[0], ts = res?.timestamp ?? [], cl = res?.indicators?.quote?.[0]?.close ?? [];
+  // 오늘(KST) 봉만 — 장 시작 전엔 야후 1d 가 어제 세션을 줘서 배경에 어제 그래프가 깔렸다(2026-10-22)
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
   return ts.flatMap((t, i) => {
-    const c = cl[i];
-    return c != null && c > 0 ? [{ t: new Date((t + 9 * 3600) * 1000).toISOString().slice(11, 16), c }] : [];
+    const c = cl[i], k = new Date((t + 9 * 3600) * 1000).toISOString();
+    return c != null && c > 0 && k.slice(0, 10) === today ? [{ t: k.slice(11, 16), c }] : [];
   });
 }

@@ -100,6 +100,14 @@ export function SemiDashTab() {
   // 야간선물이 **실제로 열린 시간**(18:00~05:00)에만 — isKrNightSession 은 주간장 직전(09:00)까지라
   //   야간장이 끝난 뒤에도 08시에 야간 카드가 남아 있었다(사용자 지적 2026-10-22). 그 사이엔 주간 선물(전날 종가) 카드.
   const night = (() => { const h = new Date(Date.now() + 9 * 3600_000).getUTCHours(); return h >= 18 || h < 5; })();
+  // 거래 중인가(한국 시각·주말 제외) — 아니면 카드 흐림. 휴장일은 고려하지 않는다
+  const kstNow = new Date(Date.now() + 9 * 3600_000);
+  const mm = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes(), wd = kstNow.getUTCDay();
+  const weekday = wd >= 1 && wd <= 5;
+  const openStock = weekday && mm >= 8 * 60 && mm < 20 * 60;              // 삼성·하이닉스 — NXT 08:00~20:00
+  const openIndex = weekday && mm >= 9 * 60 && mm < 15 * 60 + 30;         // 코스피·코스닥·V-KOSPI — 정규장
+  const openFut = weekday && mm >= 8 * 60 + 45 && mm < 15 * 60 + 45;      // 주간 선물 08:45~15:45
+  const openNight = night && (mm >= 18 * 60 ? weekday : (wd >= 2 && wd <= 6));   // 야간 — 월~금 저녁에 열려 다음 날 새벽까지
   const nightQs = useQueries({
     queries: (["^KS200N", "^KQ150N"] as const).map(sym => ({
       queryKey: ["yasun-night", sym], queryFn: () => fetchYasunNightFutures(sym),
@@ -120,7 +128,7 @@ export function SemiDashTab() {
   });
 
   const kf = kospiFlow.data, ff = futFlow.data;
-  const futToday = futMin?.todayTimes
+  const futToday = futMin?.todayTimes && futMin.date === new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)   // 오늘 것만(장 전엔 어제)
     ? futMin.todayTimes.map((t, i) => ({ t, v: futMin.closes[(futMin.breakIdx ?? 0) + i] })).filter(p => p.v > 0) : undefined;
   const kLast = kf?.points[kf.points.length - 1], fLast = ff?.points[ff.points.length - 1];
   // 코스피 외국인 최근 5분 변화(속도) — 1분 단위 누적이라 5행 전과의 차
@@ -130,6 +138,9 @@ export function SemiDashTab() {
   // ── 신호(숫자로 확인되는 것만) ──
   // d = 그 줄 아래 회색 설명(사용자 요청 — 숫자만으론 뜻을 모른다)
   const sig: { t: string; c: string; d?: string }[] = [];
+  // 오늘 자료인가 — 장 시작 전엔 수급(네이버)이 어제 행을, 한경 선물은 미결제 0 을 준다. 그런 건 신호에 안 쓴다(사용자 지적 2026-10-22)
+  const todayIso = kstNow.toISOString().slice(0, 10);
+  const kfToday = kf?.date === todayIso, ffToday = ff?.date === todayIso;
   STOCKS.forEach((s, i) => {
     const ms = ticks[i].minutes;
     const st5 = strength(ms, 5), n5 = netAmt(ms, 5);
@@ -141,11 +152,11 @@ export function SemiDashTab() {
       if (p1 < p0 && n5 > 0) sig.push({ t: `${s.name} 가격↓ 인데 체결은 매수 우위 (엇갈림)`, c: "text-amber-600", d: "내리는데 사는 체결이 더 많다 — 저가 매수가 받치는 중일 수 있다." });
     }
   });
-  if (k5 != null) sig.push({ t: `코스피 외국인 5분간 ${eok(k5)}억 (누적 ${eok(kLast!.foreigners)}억)`, c: up(k5),
+  if (k5 != null && kfToday) sig.push({ t: `코스피 외국인 5분간 ${eok(k5)}억 (누적 ${eok(kLast!.foreigners)}억)`, c: up(k5),
     d: Math.sign(k5) === Math.sign(kLast!.foreigners) || k5 === 0
       ? `외국인이 지금도 ${kLast!.foreigners >= 0 ? "사는" : "파는"} 중 — 오늘 누적 ${kLast!.foreigners >= 0 ? "매수" : "매도"}세가 최근 5분에도 이어진다.`
       : `오늘 누적은 ${kLast!.foreigners >= 0 ? "매수" : "매도"}인데 최근 5분은 ${k5 > 0 ? "매수" : "매도"} — 외국인이 방향을 트는지 지켜볼 구간.` });
-  if (fut) {
+  if (fut && fut.oi > 0 && fut.volume > 0) {   // 미결제·거래량 0 = 장 시작 전(한경이 0 으로 초기화)
     const oiUp = fut.oiChg > 0;
     sig.push({
       t: `선물 ${sgn(fut.pct)}% · 미결제 ${eok(fut.oiChg)}계약 → ${fut.chg >= 0 ? (oiUp ? "상승+미결제 증가(신규 매수 유입)" : "상승+미결제 감소(숏 청산)") : (oiUp ? "하락+미결제 증가(신규 매도 유입)" : "하락+미결제 감소(매수 청산)")}`,
@@ -162,7 +173,7 @@ export function SemiDashTab() {
   }
   // 외국인 선물 당일 회전 — 총 매수·매도 중 작은 쪽 = 같은 날 사고판 최대치(데이트레이딩 추정)
   const fg = fLast?.gross;
-  if (fg && fg.fBuy + fg.fSell > 0) {
+  if (fg && fg.fBuy + fg.fSell > 0 && ffToday) {
     const turn = Math.min(fg.fBuy, fg.fSell), net = fg.fBuy - fg.fSell, rate = turn / ((fg.fBuy + fg.fSell) / 2) * 100;
     sig.push({
       t: `외국인 선물 당일 회전 ≈${turn.toLocaleString()}계약(${rate.toFixed(0)}%) · 남긴 건 ${net >= 0 ? "순매수" : "순매도"} ${Math.abs(net).toLocaleString()}`,
@@ -198,29 +209,29 @@ export function SemiDashTab() {
       <div className="grid grid-cols-2 lg:grid-cols-7 gap-1.5 auto-rows-[118px] shrink-0">
         {STOCKS.map(s => {
           const qq = q(`${s.code}.KS`);
-          return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원"
+          return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
                        chart={<KrDaySparkline code={s.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" />} />;
         })}
-        <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct}
+        <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct} dim={!openIndex}
               chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />} />
         {/* 코스닥 — 사용자 요청(2026-10-21). 기준선은 카드 전일 종가(야후 ^KQ11 previousClose 가 그저께 값일 때가 있다) */}
-        <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct}
+        <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct} dim={!openIndex}
               chart={spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />} />
         {/* 야간(18:00~05:00)엔 야간선물(야선) — 사용자 요청. 주간 선물 카드와 자리를 바꾼다 */}
         {night ? (["^KS200N", "^KQ150N"] as const).map((sym, i) => {
           const d = nightQs[i]?.data;
-          return <Card key={sym} title={`${i ? "코스닥150" : "코스피200"} 야간선물`} price={d?.index.price} pct={d?.index.pct}
+          return <Card key={sym} title={`${i ? "코스닥150" : "코스피200"} 야간선물`} price={d?.index.price} pct={d?.index.pct} dim={!openNight}
                        sub={`주간 종가 ${i ? (futQ ? fmtP(futQ.price) : "-") : (fut ? fmtP(fut.price) : "-")} · 18:00~05:00`}
                        chart={d && d.closes.length > 1 && <Sparkline data={d.closes} width={300} height={70} className="w-full h-full" strokeWidth={1.2} baseline={d.index.prevClose} />} />;
         }) : <>
-        <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct}
+        <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct} dim={!openFut}
               sub={fut ? `미결제 ${fut.oi.toLocaleString()}(${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)}` : "한경 실시간"}
               chart={futMin && futMin.closes.length > 1 && <FutSpark s={futMin} live={fut?.price} />} />
-        <Card title={`코스닥150 선물${futQ?.month ? ` ${futQ.month}` : ""}`} price={futQ?.price} pct={futQ?.pct}
+        <Card title={`코스닥150 선물${futQ?.month ? ` ${futQ.month}` : ""}`} price={futQ?.price} pct={futQ?.pct} dim={!openFut}
               sub={futQ ? `미결제 ${futQ.oi.toLocaleString()}(${eok(futQ.oiChg)})` : "한경 실시간"}
               chart={futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />} />
         </>}
-        <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct}
+        <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} dim={!openIndex}
               sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
               chart={vkChart && vkChart.length > 1 && <Sparkline data={vkChart.slice(-60)} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
                                                                color={vk && vk.pct > 0 ? "#dc2626" : "#2563eb"} />} />
@@ -260,11 +271,11 @@ export function SemiDashTab() {
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[235px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
-        <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" />
-        <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" />
-        <FlowBox title="선물 · 코스피200" note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" hoverM={flowHover} onHover={setFlowHover}
+        <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" />
+        <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" dim={!(kosdaqFlow.data?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" />
+        <FlowBox title="선물 · 코스피200" note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && weekday && mm >= 8 * 60 + 45 && mm < 16 * 60 + 10)} hoverM={flowHover} onHover={setFlowHover}
                  bg={futToday} bgLabel="코스피200 선물" endHM="15:45" />
-        <OptionBox opt={opt} vk={vk} />
+        <OptionBox opt={opt} vk={vk} dim={!openFut} />
         <StockFlowTable rows={STOCKS.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: q(`${s.code}.KS`)?.price }))}
                         fLast={fLast}
                         markets={[
@@ -286,14 +297,16 @@ export function SemiDashTab() {
   );
 }
 
-function Card({ title, price, pct, sub, chart, unit }: {
+function Card({ title, price, pct, sub, chart, unit, dim }: {
   title: string; price?: number; pct?: number; sub?: string; chart?: React.ReactNode; unit?: string;
+  dim?: boolean;   // 거래 시간이 아니면 흐리게(지수 탭 카드와 같은 '쉬는 중' 표시, 사용자 요청)
 }) {
   return (
-    <div className="relative rounded-lg border border-gray-200 bg-white overflow-hidden">
+    <div className={`relative rounded-lg border border-gray-200 overflow-hidden ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
+         title={dim ? "지금은 거래 시간이 아닙니다" : undefined}>
       <div className="absolute inset-x-0 bottom-0 top-[40%] pointer-events-none">{chart}</div>
       <div className="relative px-2 pt-1.5">
-        <div className="font-bold text-gray-800 truncate">{title}</div>
+        <div className="font-bold text-gray-800 truncate">{dim && <span className="mr-1 text-[11px] font-normal text-gray-400">zZ</span>}{title}</div>
         <div className="flex items-baseline gap-1.5">
           {/* % 가 주인공(사용자 요청) — 크게, 가격은 옆에 작게 */}
           <span className={`text-[22px] leading-tight font-extrabold tabular-nums ${up(pct ?? 0)}`}>{pct != null ? `${sgn(pct)}%` : "-"}</span>
@@ -413,12 +426,13 @@ const LINES = [
   { k: "foreigners", label: "외국인", color: "#ea580c" },
   { k: "individuals", label: "개인", color: "#7c3aed" },
 ] as const;
-function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM = "15:30", hoverM, onHover }: {
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM = "15:30", hoverM, onHover, dim }: {
   title: string; note: string; flow?: IntradayFlow; unit: string;
   tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
   bg?: { t: string; v: number }[];   // 배경 가격(지수·선물) — 증시 탭처럼 연한 면으로, 축은 따로(사용자 요청)
   bgLabel?: string;
   endHM?: string;                    // 시간 축 끝(선물은 15:45)
+  dim?: boolean;                     // 거래 시간이 아니거나 어제 자료면 흐리게(사용자 요청 2026-10-22)
   hoverM?: number | null;            // 마우스가 가리키는 시각(분) — 세 칸이 같이 따라간다(사용자 요청)
   onHover?: (m: number | null) => void;
 }) {
@@ -450,9 +464,10 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
   } : undefined;
   const hoverX = hoverM != null && hoverM >= 9 * 60 && hoverM <= tmin(endHM) ? PX + ((hoverM - 9 * 60) / span) * (W - PX * 2) : null;
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
+    <div className={`rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
+         title={dim ? "지금은 거래 시간이 아니거나 지난 거래일 자료입니다" : undefined}>
       <div className="flex items-baseline gap-2">
-        <span className="font-bold text-gray-800 shrink-0">{title}</span>
+        <span className="font-bold text-gray-800 shrink-0">{dim && <span className="mr-1 text-[11px] font-normal text-gray-400">zZ</span>}{title}</span>
         <span className="text-[11px] text-gray-400 truncate">{note}{last ? ` · ${last.time}` : ""}{hovPt ? "(마우스)" : ""}{unit === "계약" ? " · 계약" : ""}</span>
         {tabs && (
           <span className="ml-auto shrink-0 inline-flex rounded border border-gray-300 overflow-hidden text-[10.5px]">
@@ -515,13 +530,13 @@ const OPTION_GUIDE: [string, string][] = [
   ["V-KOSPI", "옵션 가격으로 계산한 공포지수. 오르면 하락 보험 수요↑. 20↑ 경계 · 30↑ 공포."],
   ["한계", "근월물·현재가 ±37pt 행사가만 합산(주간 옵션 제외) · 누가 샀는지(외국인·개인)는 모른다."],
 ];
-function OptionBox({ opt, vk }: { opt?: Awaited<ReturnType<typeof fetchKospi200OptionSummary>>; vk?: UsIndex }) {
+function OptionBox({ opt, vk, dim }: { opt?: Awaited<ReturnType<typeof fetchKospi200OptionSummary>>; vk?: UsIndex; dim?: boolean }) {
   const [guide, setGuide] = useState(false);
   const pcr = opt && opt.callVol > 0 ? opt.putVol / opt.callVol : undefined;
   const pcrOi = opt && opt.callOi > 0 ? opt.putOi / opt.callOi : undefined;
   const tag = (t: string) => <span className="font-normal text-[10px] text-gray-400 ml-1">{t}</span>;
   return (
-    <div className="relative rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 tabular-nums">
+    <div className={`relative rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 tabular-nums ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}>
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800 shrink-0 whitespace-nowrap">옵션 · 코스피200</span>
         <span className="text-[11px] text-gray-400 truncate">{opt ? `${opt.month.slice(4, 6)}/${opt.month.slice(6)} 만기 · ${opt.time.slice(0, 5)}` : "한경 실시간"}</span>
