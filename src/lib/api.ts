@@ -341,9 +341,8 @@ export async function fetchTossUsStockCandles(symbol: string, count = 120): Prom
 // 토스 분봉을 '그날 처음'까지 이어받기 — 한 번에 450개가 상한이라 모자라면
 //   응답의 nextDateTime 을 from 으로 넘겨 더 받는다(최대 maxPages). 반환은 최신 → 과거 순(토스 응답과 같다).
 type TossBar = { dt: string; close: number; base?: number };
-//   5분봉(사용자 결정 2026-10-21, 야후와 같은 간격으로 통일): 한국 하루 144개·미국 하루 288개 = 둘 다 1콜.
-//   (1분봉이면 한국 2콜·미국 3콜, 3분봉은 야후에 없다)
-const TOSS_DAY_MIN = 5;
+//   10분봉(사용자 결정 2026-10-21 — 어제+오늘 이틀을 그리므로): 한국 이틀 144개·미국 이틀 288개 = 둘 다 1콜.
+const TOSS_DAY_MIN = 10;
 async function fetchTossMinuteBars(path: string, maxPages: number): Promise<TossBar[]> {
   const out: TossBar[] = [];
   let from: string | undefined;
@@ -392,8 +391,8 @@ export async function fetchTossIntraday(ticker: string): Promise<DaySeries | nul
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
   const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));
   if (!code) return null;   // 코드 모름 — 3개월로 그린다
-  // 5분봉 이틀(어제+오늘) — 한국 288개 = 1콜, 미국 576개 = 2콜(450개 상한 → 이어받기)
-  const rows = await fetchTossMinuteBars(`${isKr ? "kr-s" : "us-s"}/${code}`, isKr ? 1 : 2);
+  // 10분봉 이틀(어제+오늘) — 한국 144개·미국 288개 = 둘 다 1콜
+  const rows = await fetchTossMinuteBars(`${isKr ? "kr-s" : "us-s"}/${code}`, 1);
   if (rows.length === 0) throw new Error(`toss intraday ${ticker}: empty`);
   return buildTwoDaySeries(rows, isKr);
 }
@@ -3985,7 +3984,7 @@ async function fetchMemChart(symbol: string): Promise<number[]> {
 
 // ─── 미국 종목 24시간(당일) 차트 — 야후 spark 배치 ─────────────
 //   카드 배경 차트 '24시간' 용. 지수·원자재는 토스 overview 의 당일 봉(sparkline)이 있지만 미국 개별 종목·ETF 는
-//   당일 시계열이 없어 3개월로 그려졌다(2026-10-20 지적). 야후 v7 spark 는 **20종목 1콜**로 5분봉을 주고
+//   당일 시계열이 없어 3개월로 그려졌다(2026-10-20 지적). 야후 v7 spark 는 **20종목 1콜**로 15분봉(이틀)을 주고
 //   includePrePost 면 프리(04:00 ET)~애프터(20:00 ET)까지 들어 있다. 오버나잇(20:00~04:00)은 없다.
 const SPARK_CHUNK = 20;
 //   openIdx = 오늘 정규장 시작(09:30 ET) 첫 봉의 인덱스 — 카드 차트에 '시작가' 표시선(meta.currentTradingPeriod.regular.start).
@@ -3996,7 +3995,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
   for (let i = 0; i < symbols.length; i += SPARK_CHUNK) chunks.push(symbols.slice(i, i + SPARK_CHUNK));
   await Promise.all(chunks.map(async c => {
     try {
-      const r = await fetchProxied(`https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(c.join(","))}&range=2d&interval=5m&includePrePost=true`);   // 토스 카드와 같은 5분봉, 어제+오늘
+      const r = await fetchProxied(`https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(c.join(","))}&range=2d&interval=15m&includePrePost=true`);   // 어제+오늘 — 야후엔 10분봉이 없어 가장 가까운 15분봉
       if (!r.ok) return;
       const j = await r.json() as { spark?: { result?: { symbol?: string; response?: {
         timestamp?: number[]; meta?: { currentTradingPeriod?: { regular?: { start?: number } }; previousClose?: number; chartPreviousClose?: number };
@@ -4020,10 +4019,10 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
 // ─── 한국 종목·ETF 24시간(당일) 차트 — 토스 10분봉 ─────────────
 //   토스 c-chart 분봉은 NXT 프리(08:00)~애프터(20:00)까지 들어 있고 봉마다 base(= 어제 종가)가 붙는다.
 //   종목당 1콜이라 화면에 보이는 카드만 부른다(KrDaySparkline). openIdx = 09:00 KRX 정규장 첫 봉.
-export type KrDayCandles = DaySeries;   // 5분봉 어제+오늘   // xs = 08:00~20:00 시간 축 위치(0~1)
+export type KrDayCandles = DaySeries;   // 10분봉 어제+오늘   // xs = 08:00~20:00 시간 축 위치(0~1)
 export async function fetchKrDayCandles(code: string): Promise<KrDayCandles | null> {
   try {
-    // 5분봉 이틀(어제+오늘 = 288개) — 1콜. 어제 하루를 왼쪽 절반에 이어 붙인다(buildTwoDaySeries)
+    // 10분봉 이틀(어제+오늘 = 144개) — 1콜. 어제 하루를 왼쪽 절반에 이어 붙인다(buildTwoDaySeries)
     const cs = await fetchTossMinuteBars(`kr-s/A${code}`, 1);
     return cs.length ? buildTwoDaySeries(cs, true) : null;
   } catch { return null; }
