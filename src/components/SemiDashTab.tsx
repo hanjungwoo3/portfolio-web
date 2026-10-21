@@ -8,8 +8,8 @@
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
-  fetchKrFuturesLive, fetchKrFuturesMinute, fetchKospi200OptionSummary, fetchHlXyzPerps,
-  type UsIndex, type IntradayFlow, type HlPerp,
+  fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
+  type UsIndex, type IntradayFlow, type HlPerp, type DayStrength,
 } from "../lib/api";
 import type { Investor } from "../types";
 import { allYahooSymbols } from "../lib/usMarketData";
@@ -77,6 +77,11 @@ export function SemiDashTab() {
     })),
   });
   const ticks = [useTickFlow(STOCKS[0].code), useTickFlow(STOCKS[1].code)];
+  const { data: dayStr } = useQuery({
+    queryKey: ["toss-day-strength", STOCKS.map(s => s.code).join(",")],
+    queryFn: () => fetchTossDayStrength(STOCKS.map(s => s.code)),
+    refetchInterval: 10_000, staleTime: 5_000,
+  });
 
   const kf = kospiFlow.data, ff = futFlow.data;
   const kLast = kf?.points[kf.points.length - 1], fLast = ff?.points[ff.points.length - 1];
@@ -134,7 +139,7 @@ export function SemiDashTab() {
 
       {/* ② 실시간 체결 + 신호 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_300px] gap-1.5 lg:flex-1 min-h-0 auto-rows-[320px] lg:auto-rows-auto">
-        {STOCKS.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} />)}
+        {STOCKS.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} />)}
         <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
           <div className="font-bold text-gray-800 mb-1">지금 신호 <span className="font-normal text-[11px] text-gray-400">숫자로 확인되는 것만</span></div>
           <div className="space-y-1 overflow-auto">
@@ -193,7 +198,7 @@ function SparkBg({ sp }: { sp: { closes: number[]; openIdx?: number; prevClose?:
 }
 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
-function TickPanel({ name, flow }: { name: string; flow: TickFlow }) {
+function TickPanel({ name, flow, day }: { name: string; flow: TickFlow; day?: DayStrength }) {
   const ms = flow.minutes.slice(-90);   // 최근 90분
   const W = 600, H = 220, PAD = 4;
   const nets = ms.map(m => m.buyAmt - m.sellAmt);
@@ -219,8 +224,15 @@ function TickPanel({ name, flow }: { name: string; flow: TickFlow }) {
         <Stat label="체결강도 1분" v={st1} />
         <Stat label="5분" v={st5} />
         <Stat label="켠 뒤 전체" v={stAll} />
-        <span className="ml-auto">5분 <b className={up(netAmt(ms, 5))}>{netWord(netAmt(ms, 5))}</b> · 전체 <b className={up(netAmt(ms))}>{netWord(netAmt(ms))}</b></span>
+        <span className="ml-auto">5분 <b className={up(netAmt(ms, 5))}>{netWord(netAmt(ms, 5))}</b> · 켠 뒤 <b className={up(netAmt(ms))}>{netWord(netAmt(ms))}</b></span>
       </div>
+      {/* 오늘 하루 전체 — 토스 체결강도(장 시작부터 누적)로 역산. 켜기 전 구간까지 포함된 유일한 값 */}
+      {day && (
+        <div className="flex gap-3 tabular-nums -mt-0.5 mb-1 text-[11.5px]">
+          <span className="text-gray-500">오늘 전체 체결강도 <b className={day.strength >= 100 ? "text-rose-600" : "text-blue-600"}>{day.strength.toFixed(0)}</b></span>
+          <span className="text-gray-500">오늘 전체 <b className={up(day.netAmt)}>{netWord(day.netAmt)}</b> <span className="text-[10px] text-gray-400">(체결강도·거래대금 {Math.round(day.value / 1e8).toLocaleString()}억 역산)</span></span>
+        </div>
+      )}
       <div className="flex-1 min-h-0 flex gap-2">
         <div className="flex-1 min-w-0">
           {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div className="relative w-full h-full">

@@ -5533,3 +5533,19 @@ export async function fetchKrFuturesMinute(): Promise<DaySeries | null> {
     date: today, twoDay: true, breakIdx: prev.length > 0 ? prev.length : undefined,
   };
 }
+
+// 오늘 하루 전체 체결강도(토스) — 시세 상세의 tradingStrength(매수 체결량 ÷ 매도 체결량 × 100, 장 시작부터 누적)·거래량·거래대금.
+//   반도체 대시보드 '오늘 전체' 순매수 근사: 대금 × (S−100)/(S+100). 동시호가처럼 방향 없는 체결도 대금에 섞여 있어 근사다.
+export interface DayStrength { strength: number; volume: number; value: number; netAmt: number }
+export async function fetchTossDayStrength(codes: string[]): Promise<Map<string, DayStrength>> {
+  const out = new Map<string, DayStrength>();
+  const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v3/stock-prices/details?productCodes=${codes.map(c => `A${c}`).join(",")}`);
+  if (!r.ok) return out;
+  const j = await r.json() as { result?: { code?: string; tradingStrength?: number; volume?: number; value?: number }[] };
+  for (const x of j.result ?? []) {
+    const s = x.tradingStrength ?? 0, v = x.value ?? 0;
+    if (!x.code || !(s > 0)) continue;
+    out.set(x.code.replace(/^A/, ""), { strength: s, volume: x.volume ?? 0, value: v, netAmt: v * (s - 100) / (s + 100) });
+  }
+  return out;
+}
