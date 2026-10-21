@@ -1,5 +1,6 @@
 // 투자자별 매수·매도 막대 — 주체마다 한 줄씩 위아래로 쌓은 작은 차트(시간 축 공유, 사용자 결정 2026-10-21).
-//   구간(기본 10분)마다 위 = 그 구간에 산 양, 아래 = 판 양, 진한 선 = 누적 순매수(축 별도).
+//   구간(기본 10분)마다 연한 막대 = 산 양(위)·판 양(아래), 진한 막대 = 차이(빨강 = 산 게 많음·파랑 = 판 게 많음).
+//   누적 순매수 선은 뺐다(사용자 결정 — 위 큰 차트에 이미 있다).
 //   순매수 선만으론 '얼마나 사고팔아서 그 결과가 됐나'가 안 보였다 — 특히 마감 동시호가처럼 한꺼번에 사고판 구간.
 //   값은 네이버 시간별 수급의 투자자별 누적 매수·매도(IntradayFlowPoint.gs)에서 구간 차이로 만든다.
 import type { IntradayFlowPoint } from "../lib/api";
@@ -48,8 +49,7 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket = 10, start 
         const last = pts[pts.length - 1].gs?.[k] ?? [0, 0];
         const totB = last[0] * scale, totS = last[1] * scale, net = totB - totS;
         const mxBar = Math.max(1e-9, ...bars.map(x => Math.max(x.b, x.s)));
-        const nets = pts.map(p => ({ m: tmin(p.time), v: ((p.gs?.[k]?.[0] ?? 0) - (p.gs?.[k]?.[1] ?? 0)) * scale }));
-        const mxNet = Math.max(1e-9, ...nets.map(n => Math.abs(n.v)));
+        const mxD = Math.max(1e-9, ...bars.map(x => Math.abs(x.b - x.s)));   // 차이 막대는 자기 축 — 총량에 비해 작아 묻히지 않게
         return (
           <div key={k}>
             <div className={`flex items-baseline gap-2 tabular-nums ${compact ? "text-[10px]" : "text-[11px]"}`}>
@@ -63,23 +63,23 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket = 10, start 
               {bars.map((x, i) => {
                 const hb = (x.b / mxBar) * (mid - 2), hs = (x.s / mxBar) * (mid - 2);
                 const bx = PAD + i * bw + bw * 0.1;
+                // 차이(매수−매도) — 어느 쪽이 큰지 한눈에(사용자 요청): 매수·매도는 연하게, 차이만 진한 빨강/파랑
+                const d = x.b - x.s, hd = (Math.abs(d) / mxD) * (mid - 2);
                 return (
                   <g key={i}>
-                    {x.b > 0 && <rect x={bx} width={bw * 0.8} y={mid - hb} height={hb} fill={color} opacity={0.85} />}
-                    {x.s > 0 && <rect x={bx} width={bw * 0.8} y={mid} height={hs} fill={color} opacity={0.35} />}
+                    {x.b > 0 && <rect x={bx} width={bw * 0.8} y={mid - hb} height={hb} fill={color} opacity={0.18} />}
+                    {x.s > 0 && <rect x={bx} width={bw * 0.8} y={mid} height={hs} fill={color} opacity={0.18} />}
+                    {d !== 0 && <rect x={bx} width={bw * 0.8} y={d > 0 ? mid - hd : mid} height={Math.max(0.5, hd)} fill={d > 0 ? "#e11d48" : "#2563eb"} opacity={0.9} />}
                   </g>
                 );
               })}
-              <path d={nets.map((n, i) => `${i ? "L" : "M"} ${xOfMin(n.m).toFixed(1)} ${(mid - (n.v / mxNet) * (mid - 2)).toFixed(1)}`).join(" ")}
-                    fill="none" stroke="#1f2937" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
             </svg>
           </div>
         );
       })}
       {!compact && (
         <div className="flex gap-3 text-[10px] text-gray-400">
-          <span>막대 {bucket}분마다 — 위(진한 색) 매수 · 아래(연한 색) 매도</span>
-          <span>검은 선 = 누적 순매수(축 별도)</span>
+          <span>{bucket}분마다 <b className="text-rose-600">빨강 = 산 게 많음</b> · <b className="text-blue-600">파랑 = 판 게 많음</b> · 연한 막대 = 매수·매도 총량</span>
         </div>
       )}
     </div>
