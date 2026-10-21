@@ -475,7 +475,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
       </div>
       {/* 외국인·개인 매수·매도 막대(10분) — 그래프 바로 아래, 같은 시간 축(사용자 요청). 축 밖(프리·시간외)은 그리지 않는다 */}
       {flow && pts.length > 1 && (
-        <BuySellBars points={flow.points} keys={["foreigners", "individuals"]} unit={unit === "계약" ? "계약" : "억"} start="09:00" end={endHM}
+        <BuySellBars points={flow.points} keys={["individuals", "foreigners"]} unit={unit === "계약" ? "계약" : "억"} start="09:00" end={endHM}
           rowH={22} compact
           geom={{
             width: W, hoverT: hoverM ?? null, toT: tmin, hover: onHover,
