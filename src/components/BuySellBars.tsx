@@ -95,7 +95,8 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket = 10, start 
               ) : (
                 <span className="text-gray-500 whitespace-nowrap">{!compact && "매수 "}<b className="text-rose-600">{fmtBig(totB, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(totS, unit)}</b></span>
               )}
-              <span className="ml-auto whitespace-nowrap">{!compact && "순 "}<b className={net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-500"}>{signed(net, unit)}</b></span>
+              {/* 마우스로 구간을 볼 땐 하루 총액은 감춘다(사용자 요청) */}
+              {!hb && <span className="ml-auto whitespace-nowrap">{!compact && "순 "}<b className={net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-500"}>{signed(net, unit)}</b></span>}
             </div>
             <svg viewBox={`0 0 ${PX_W} ${H}`} preserveAspectRatio="none" className="w-full block" style={{ height: rowH }}
                  onMouseMove={geom?.hover ? e => {
