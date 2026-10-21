@@ -20,7 +20,7 @@ import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
 
 const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }] as const;
-const SPARK = ["^KS11", "^SOX"];   // 야후 spark 1콜(어제+오늘 5분봉)
+const SPARK = ["^KS11", "^KQ11", "^SOX"];   // 야후 spark 1콜(어제+오늘 5분봉)
 const FLOW_MS = 60_000;
 const US_ROW = ["MU", "NVDA", "SKHY", "SNDK", "AMD", "DRAM"];
 const MEM_ROW = ["DRAMIDX=ML", "DDR5=ML", "DDR4=ML", "NAND=ML"];
@@ -147,7 +147,7 @@ export function SemiDashTab() {
   return (
     <div className="flex flex-col gap-1.5 p-2 lg:h-[calc(100vh-150px)] lg:min-h-[700px] text-[12px] bg-gray-50">
       {/* ① 시세 */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-1.5 auto-rows-[118px] shrink-0">
+      <div className="grid grid-cols-2 lg:grid-cols-6 gap-1.5 auto-rows-[118px] shrink-0">
         {STOCKS.map(s => {
           const qq = q(`${s.code}.KS`);
           return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원"
@@ -155,6 +155,9 @@ export function SemiDashTab() {
         })}
         <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct}
               chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />} />
+        {/* 코스닥 — 사용자 요청(2026-10-21). 기준선은 카드 전일 종가(야후 ^KQ11 previousClose 가 그저께 값일 때가 있다) */}
+        <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct}
+              chart={spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />} />
         <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct}
               sub={fut ? `미결제 ${fut.oi.toLocaleString()} (${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)} · ${fut.time.slice(0, 5)}` : "한경 실시간"}
               chart={futMin && futMin.closes.length > 1 && (
