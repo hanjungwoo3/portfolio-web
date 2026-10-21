@@ -2426,6 +2426,8 @@ export interface IntradayFlowPoint {
   individuals: number; foreigners: number; institutions: number;
   financialInvestment: number; insurance: number; trust: number;
   bank: number; otherFinancial: number; pensionFund: number; otherCorp: number;
+  // 그 시각까지의 **총 매수·총 매도**(선물=계약, 현물=억원) — 순매수만으론 안 보이는 '당일 회전'(사고판 양) 계산용
+  gross?: { fBuy: number; fSell: number; iBuy: number; iSell: number };
 }
 export interface IntradayFlow {
   unit: "억원" | "계약"; points: IntradayFlowPoint[];
@@ -2433,7 +2435,7 @@ export interface IntradayFlow {
   pre?: boolean;    // 넥스트레이드 프리장(08:00~) 수급
 }
 
-interface TrendRow { bizdate?: string; time?: string; netAmounts?: Array<{ investorGubun?: string; diffValue?: string }> }
+interface TrendRow { bizdate?: string; time?: string; netAmounts?: Array<{ investorGubun?: string; diffValue?: string; buyQuant?: string; sellQuant?: string; buyPrice?: string; sellPrice?: string }> }
 interface TrendResp { content?: TrendRow[]; last?: boolean }
 
 // 한 행의 투자자별 값 → 우리 컬럼. 금액은 원 → 억원, 선물은 계약 그대로.
@@ -2447,7 +2449,18 @@ function mapTrendRow(row: TrendRow, futures: boolean) {
   const trust = v(GUBUN.trust) + v(GUBUN.privateEquity);
   const institutions = v(GUBUN.financialInvestment) + v(GUBUN.insurance) + trust
     + v(GUBUN.bank) + v(GUBUN.otherFinancial) + v(GUBUN.pensionFund) + v(GUBUN.stateLocal);
+  // 총 매수·매도 — 선물은 수량(계약), 현물은 금액(원 → 억원)
+  const side = (code: string, k: "buy" | "sell") => {
+    const n = (row.netAmounts ?? []).find(x => x.investorGubun === code);
+    return Number((futures ? (k === "buy" ? n?.buyQuant : n?.sellQuant) : (k === "buy" ? n?.buyPrice : n?.sellPrice)) ?? 0) || 0;
+  };
+  const g = (code: string[], k: "buy" | "sell") => scale(code.reduce((a, c) => a + side(c, k), 0));
+  const gross = {
+    fBuy: g([GUBUN.foreigners, GUBUN.otherForeigners], "buy"), fSell: g([GUBUN.foreigners, GUBUN.otherForeigners], "sell"),
+    iBuy: g([GUBUN.individuals], "buy"), iSell: g([GUBUN.individuals], "sell"),
+  };
   return {
+    gross,
     individuals: scale(v(GUBUN.individuals)),
     foreigners: scale(v(GUBUN.foreigners) + v(GUBUN.otherForeigners)),
     institutions: scale(institutions),

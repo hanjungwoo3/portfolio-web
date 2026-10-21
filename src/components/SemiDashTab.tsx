@@ -138,6 +138,17 @@ export function SemiDashTab() {
       })(),
     });
   }
+  // 외국인 선물 당일 회전 — 총 매수·매도 중 작은 쪽 = 같은 날 사고판 최대치(데이트레이딩 추정)
+  const fg = fLast?.gross;
+  if (fg && fg.fBuy + fg.fSell > 0) {
+    const turn = Math.min(fg.fBuy, fg.fSell), net = fg.fBuy - fg.fSell, rate = turn / ((fg.fBuy + fg.fSell) / 2) * 100;
+    sig.push({
+      t: `외국인 선물 당일 회전 ≈${turn.toLocaleString()}계약(${rate.toFixed(0)}%) · 남긴 건 ${net >= 0 ? "순매수" : "순매도"} ${Math.abs(net).toLocaleString()}`,
+      c: up(net),
+      d: `외국인이 오늘 선물을 ${fg.fBuy.toLocaleString()}계약 사고 ${fg.fSell.toLocaleString()}계약 팔았다. 그중 ≈${turn.toLocaleString()}계약은 같은 날 사고판 물량(단타·당일 청산 추정 — 어제 포지션 정리와는 구분 안 됨)이고, `
+        + `실제로 남긴 방향은 ${net >= 0 ? "매수" : "매도"} ${Math.abs(net).toLocaleString()}계약 — ${rate >= 90 ? "거의 다 당일 안에서 돌린 물량이라 남긴 방향이 더 중요하다." : "당일 회전보다 방향을 실은 비중이 크다."} (20분 지연)`,
+    });
+  }
   if (opt && opt.callVol > 0) {
     const pcr = opt.putVol / opt.callVol;
     sig.push({ t: `옵션 풋/콜 거래량 ${pcr.toFixed(2)} ${pcr >= 1.2 ? "(풋 쏠림 — 하락 대비↑)" : pcr <= 0.8 ? "(콜 쏠림)" : ""}`, c: pcr >= 1.2 ? "text-blue-600" : pcr <= 0.8 ? "text-rose-600" : "text-gray-700",
@@ -394,6 +405,15 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab }: {
           <span key={l.k}><i className="inline-block w-2 h-0.5 mr-0.5 align-middle" style={{ background: l.color }} />{l.label} <b className={last ? up(val(last, l.k)) : "text-gray-300"}>{last ? eok(val(last, l.k)) : "-"}</b></span>
         ))}
       </div>
+      {/* 당일 회전 — 선물만(사용자 요청). 순매수는 남긴 포지션 변화뿐이라, 하루 동안 사고판 총량을 같이 보여 준다 */}
+      {unit === "계약" && last?.gross && (
+        <div className="text-[10.5px] text-gray-500 tabular-nums leading-snug">
+          {([["외국인", last.gross.fBuy, last.gross.fSell], ["개인", last.gross.iBuy, last.gross.iSell]] as const).map(([n, b, sl]) => (
+            <div key={n}>{n} 매수 {b.toLocaleString()} · 매도 {sl.toLocaleString()} → 당일 회전 ≈{Math.min(b, sl).toLocaleString()}
+              {b + sl > 0 ? ` (${Math.round(Math.min(b, sl) / ((b + sl) / 2) * 100)}%)` : ""}</div>
+          ))}
+        </div>
+      )}
       <div className="flex-1 min-h-0">
         {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
