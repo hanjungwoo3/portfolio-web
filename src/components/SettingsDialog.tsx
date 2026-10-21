@@ -696,7 +696,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   ⚠️ <b>새 확장 버전 v{EXPECTED_EXTENSION_VERSION}</b> 이 나왔습니다
                   (현재 v{extVersion}). 개발자 모드 확장은 자동 업데이트가 없어
                   <b> 새 zip 을 받아 다시 등록</b>해야 합니다.&nbsp;
-                  <a href={EXTENSION_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer"
+                  <a href={EXTENSION_DOWNLOAD_URL} download="portfolio-proxy-extension.zip"
                      className="text-blue-600 underline">↓ 내려받기</a>
                 </div>
               )}

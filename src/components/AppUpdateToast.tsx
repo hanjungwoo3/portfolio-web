@@ -39,7 +39,8 @@ export function ExtensionUpdateToast() {
             지금 v{extVersion} 입니다. 개발자 모드 확장은 자동 업데이트가 없어
             새 zip 을 받아 다시 등록해야 합니다.
           </div>
-          <a href={EXTENSION_DOWNLOAD_URL} target="_blank" rel="noopener noreferrer"
+          {/* download — 같은 출처라 새 창 없이 바로 받는다(서비스 워커가 이동을 가로채 앱 화면을 띄우던 문제도 피한다) */}
+          <a href={EXTENSION_DOWNLOAD_URL} download="portfolio-proxy-extension.zip"
              className="inline-block mt-1.5 px-2 py-1 rounded bg-amber-600 text-white font-bold">
             ↓ 내려받기
           </a>
