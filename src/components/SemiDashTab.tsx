@@ -29,7 +29,9 @@ const up = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "
 const sgn = (v: number, d = 2) => `${v > 0 ? "+" : ""}${v.toFixed(d)}`;
 const fmtP = (v: number) => (v >= 1000 ? Math.round(v).toLocaleString() : v >= 100 ? v.toFixed(1) : v.toFixed(2));
 const eok = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v).toLocaleString()}`;
-const eokW = (won: number) => eok(won / 1e8);   // 원 → 억 표기
+// 순매수 금액을 말로 — "순매수 −29억" 을 매수로 읽는 일이 있어(사용자 혼동 2026-10-21) 음수면 '순매도'로 쓴다
+const netWord = (won: number) => `${won >= 0 ? "순매수" : "순매도"} ${Math.abs(Math.round(won / 1e8)).toLocaleString()}억`;
+const sideWord = (st: number) => (st >= 120 ? "매수 우위" : st <= 80 ? "매도 우위" : "팽팽");
 
 export function SemiDashTab() {
   const yahooSymbols = allYahooSymbols();
@@ -88,10 +90,10 @@ export function SemiDashTab() {
     const ms = ticks[i].minutes;
     const st5 = strength(ms, 5), n5 = netAmt(ms, 5);
     if (st5 != null && ms.length >= 3) {
-      sig.push({ t: `${s.name} 5분 체결강도 ${st5.toFixed(0)} · 순매수 ${eokW(n5)}억`, c: st5 >= 120 ? "text-rose-600" : st5 <= 80 ? "text-blue-600" : "text-gray-700" });
+      sig.push({ t: `${s.name} 5분 ${sideWord(st5)} — 체결강도 ${st5.toFixed(0)} · ${netWord(n5)}`, c: st5 >= 120 ? "text-rose-600" : st5 <= 80 ? "text-blue-600" : "text-gray-700" });
       const p0 = ms[Math.max(0, ms.length - 6)].close, p1 = ms[ms.length - 1].close;
-      if (p1 > p0 && n5 < 0) sig.push({ t: `${s.name} 가격↑ 인데 순매수 체결↓ (엇갈림)`, c: "text-amber-600" });
-      if (p1 < p0 && n5 > 0) sig.push({ t: `${s.name} 가격↓ 인데 순매수 체결↑ (엇갈림)`, c: "text-amber-600" });
+      if (p1 > p0 && n5 < 0) sig.push({ t: `${s.name} 가격↑ 인데 체결은 매도 우위 (엇갈림)`, c: "text-amber-600" });
+      if (p1 < p0 && n5 > 0) sig.push({ t: `${s.name} 가격↓ 인데 체결은 매수 우위 (엇갈림)`, c: "text-amber-600" });
     }
   });
   if (k5 != null) sig.push({ t: `코스피 외국인 5분간 ${eok(k5)}억 (누적 ${eok(kLast!.foreigners)}억)`, c: up(k5) });
@@ -217,7 +219,7 @@ function TickPanel({ name, flow }: { name: string; flow: TickFlow }) {
         <Stat label="체결강도 1분" v={st1} />
         <Stat label="5분" v={st5} />
         <Stat label="켠 뒤 전체" v={stAll} />
-        <span className="ml-auto">순매수 5분 <b className={up(netAmt(ms, 5))}>{eokW(netAmt(ms, 5))}억</b> · 전체 <b className={up(netAmt(ms))}>{eokW(netAmt(ms))}억</b></span>
+        <span className="ml-auto">5분 <b className={up(netAmt(ms, 5))}>{netWord(netAmt(ms, 5))}</b> · 전체 <b className={up(netAmt(ms))}>{netWord(netAmt(ms))}</b></span>
       </div>
       <div className="flex-1 min-h-0 flex gap-2">
         <div className="flex-1 min-w-0">
