@@ -399,7 +399,7 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
 //   지수 카드(KrDaySparkline·야후 spark)와 같은 모양(어제 종가선 위 빨강·아래 파랑, 정규장 시작 세로선)으로 그리려고
 //   종가만 주던 걸 넓혔다(2026-10-21). 한국 = 08:00~20:00 KST(정규 09:00), 미국 = 00:00~24:00 ET(정규 09:30).
 //   오늘 봉이 1개라도 있으면 오늘(실시간 끝점과 이어 선이 된다), 없을 때만 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
-export interface DaySeries { closes: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
+export interface DaySeries { closes: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
 export async function fetchTossIntraday(ticker: string): Promise<DaySeries | null> {
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
   const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));
@@ -2530,6 +2530,7 @@ export interface DailyFlowPoint {
   individuals: number; foreigners: number; institutions: number;
   financialInvestment: number; insurance: number; trust: number;
   bank: number; otherFinancial: number; pensionFund: number; otherCorp: number;
+  gross?: { fBuy: number; fSell: number; iBuy: number; iSell: number };   // 그날 총 매수·매도(선물=계약)
 }
 export interface DailyFlow { unit: "억원" | "계약"; points: DailyFlowPoint[]; }
 
@@ -4038,7 +4039,11 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const tod = (t: number) => (((t + gmt) % 86400) + 86400) % 86400;   // 거래소 현지 하루 중 초
         const dayOf = (t: number) => Math.floor((t + gmt) / 86400);
         const lastDay = times.length ? dayOf(times[times.length - 1]) : 0;
-        const sTod = reg?.start != null ? tod(reg.start) : undefined, eTod = reg?.end != null ? tod(reg.end) : undefined;
+        // 한국은 야후가 마감을 아직 15:00 으로 준다(실제 15:30 — 2026-10-21 실측). 한국 지수·종목은 15:30 으로 고정하고,
+        //   15:30 봉(종가 단일가 체결)까지가 정규장이라 그 봉을 종가로 친다(<= 로).
+        const isKrSym = /^\^K[SQ]|\.K[SQ]$/.test(x.symbol);
+        const sTod = reg?.start != null ? tod(reg.start) : undefined;
+        const eTod = isKrSym ? 15 * 3600 + 30 * 60 + 1 : reg?.end != null ? tod(reg.end) : undefined;
         const inLast = (i: number) => dayOf(times[i]) === lastDay;
         const oi = sTod != null ? times.findIndex((t, i) => inLast(i) && tod(t) >= sTod) : -1;
         // 종가 = 마감 전 마지막 봉(야후 봉 시각은 시작 시각). 마지막 날 정규장이 끝난 뒤에만(마감 직전 봉이 있을 때)
@@ -5587,6 +5592,7 @@ export async function fetchKrFuturesMinute(kind: "kospi200" | "kosdaq150" = "kos
     xs: [...prev.map(x => frac(x.mtime) * TWO_DAY_HALF), ...cur.map(x => twoDayTodayX(frac(x.mtime)))],
     base: baseOf(cur), prevBase: baseOf(prev), openIdx: oi >= 0 ? prev.length + oi : undefined,
     closeIdx: ci > 0 ? prev.length + ci : undefined,
+    todayTimes: cur.map(x => (x.mtime ?? "").slice(0, 5)),   // 오늘 봉 시각(가설 검증 — 베이시스 시계열)
     date: today, twoDay: true, breakIdx: prev.length > 0 ? prev.length : undefined,
   };
 }
@@ -5605,4 +5611,33 @@ export async function fetchTossDayStrength(codes: string[]): Promise<Map<string,
     out.set(x.code.replace(/^A/, ""), { strength: s, volume: x.volume ?? 0, value: v, netAmt: v * (s - 100) / (s + 100) });
   }
   return out;
+}
+
+
+// 프로그램 매매 **일별**(시장 전체, 네이버) — 가설 검증용 '최근 N거래일 차익·비차익 순매수'.
+//   periodType=DAY 에 기간을 주면 그 사이 거래일이 온다(약 20일/콜, 실측 2026-10-21). 값은 그날 순매수(원, 비누적).
+export interface ProgramDay { date: string; arbitrage: number; nonArbitrage: number }
+export async function fetchKrProgramDaily(market: "KOSPI" | "KOSDAQ", days = 20): Promise<ProgramDay[]> {
+  const end = nowKstDateStr().replace(/-/g, "");
+  const start = new Date(Date.now() + 9 * 3600_000 - Math.ceil(days * 1.6) * 86400_000).toISOString().slice(0, 10).replace(/-/g, "");
+  const r = await fetchProxied("https://stock.naver.com/api/domestic/market/trendProgram/chart"
+    + `?tradeType=KRX&krxMarketType=${market}&bizdate=${end}&startDate=${start}&endDate=${end}&periodType=DAY`);
+  if (!r.ok) throw new Error(`프로그램 일별 실패 (HTTP ${r.status})`);
+  const rows = await r.json() as Record<string, unknown>[];
+  return (Array.isArray(rows) ? rows : []).flatMap(x => {
+    const d = String(x.bizdate ?? "");
+    return d.length === 8 ? [{ date: `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6)}`, arbitrage: progNum(x.diffPureBuyAmt), nonArbitrage: progNum(x.biDiffPureBuyAmt) }] : [];
+  }).sort((a, b) => a.date.localeCompare(b.date)).slice(-days);
+}
+
+// 오늘 5분봉(야후 v8) — 시각("HH:MM" KST)과 종가. 가설 검증의 베이시스(선물 − 코스피200 현물) 계산용.
+export async function fetchYahooTodayKst(symbol: string): Promise<{ t: string; c: number }[]> {
+  const r = await fetchProxied(`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?range=1d&interval=5m`);
+  if (!r.ok) return [];
+  const j = await r.json() as { chart?: { result?: { timestamp?: number[]; indicators?: { quote?: { close?: (number | null)[] }[] } }[] } };
+  const res = j.chart?.result?.[0], ts = res?.timestamp ?? [], cl = res?.indicators?.quote?.[0]?.close ?? [];
+  return ts.flatMap((t, i) => {
+    const c = cl[i];
+    return c != null && c > 0 ? [{ t: new Date((t + 9 * 3600) * 1000).toISOString().slice(11, 16), c }] : [];
+  });
 }
