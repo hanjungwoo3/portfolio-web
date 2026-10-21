@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { IndexWarnTag } from "./IndexWarnTag";
@@ -2152,6 +2153,16 @@ export function MobileSimpleView() {
                       {p.name}
                     </a>
                     {p.symbol === "CNNFG" && <CnnFearGreedTag />}
+                    {/* 🔍AI — 미국 종목·ETF(보유 종목 카드와 같은 구글 AI 분석 팝업, 사용자 요청 2026-10-22) */}
+                    {/^[A-Z][A-Z.]{0,5}$/.test(p.symbol) && marketOfSymbol(p.symbol) === "US" && p.symbol !== "CNNFG" && (
+                      <button onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${p.name}(${p.symbol}) — ${p.desc}`
+                                + (effPrice != null ? `, 현재가 $${effPrice.toFixed(2)}` : "") + (mainPct != null ? ` (${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""))}
+                              title="구글 AI에 현재상태 분석 요청 (팝업)"
+                              className="relative z-20 shrink-0 ml-1 px-1 py-0.5 rounded text-[9px] font-bold leading-none
+                                         border border-blue-300 text-blue-700 bg-blue-50/90 hover:bg-blue-100">
+                        🔍AI
+                      </button>
+                    )}
                     {(p.symbol === "^KS11" || p.symbol === "^KQ11") && (
                       <button onClick={() =>
                                 setMarketFlowFor(p.symbol === "^KS11" ? "KOSPI" : "KOSDAQ")}
