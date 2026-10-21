@@ -1,5 +1,6 @@
 // 종목 실시간 체결 누적 — 토스 ticks(최근 300건 ≈ 수십 초)를 5초마다 받아 **이 화면이 켜진 동안** 1분 단위로 쌓는다.
-//   과거 체결을 거슬러 받는 API 가 없어 새로고침하면 처음부터다(반도체 대시보드 1차 — 2026-10-21).
+//   과거 체결을 거슬러 받는 API 가 없다 → **오늘치를 이 브라우저(localStorage)에 저장**해 새로고침·재방문에도 잇는다
+//   (사용자 요청 2026-10-21). 날짜(KST)가 바뀌면 버린다. 꺼져 있던 동안은 못 받으니 빈 구간으로 센다.
 //   중복 제거: 체결마다 붙는 누적 거래량(cum)이 단조 증가라 마지막 cum 보다 큰 것만 새 체결로 본다.
 //   두 번 받는 사이 300건을 넘게 체결되면 빈 구간이 생긴다 → gaps 로 세어 화면에 알린다.
 import { useEffect, useRef, useState } from "react";
@@ -15,11 +16,25 @@ export interface BigTrade { time: string; side: "BUY" | "SELL"; amt: number; pri
 export interface TickFlow { minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; error?: string }
 
 const POLL_MS = 5_000;
+const kstDate = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+const storeKey = (code: string) => `semi_tickflow_${code}`;
+type Saved = { date: string; lastCum: number; minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string };
+function loadSaved(code: string): Saved | null {
+  try {
+    const v = JSON.parse(localStorage.getItem(storeKey(code)) ?? "null") as Saved | null;
+    return v && v.date === kstDate() ? v : null;   // 어제 것은 버린다
+  } catch { return null; }
+}
 export const BIG_TRADE_WON = 1e8;   // 1억 원 이상 체결 = 큰 체결
 
 export function useTickFlow(code: string, enabled = true): TickFlow {
-  const store = useRef<{ lastCum: number; minutes: Map<string, MinuteFlow>; big: BigTrade[]; gaps: number; since?: string; last?: string }>(
-    { lastCum: 0, minutes: new Map(), big: [], gaps: 0 });
+  const store = useRef<{ lastCum: number; minutes: Map<string, MinuteFlow>; big: BigTrade[]; gaps: number; since?: string; last?: string }>(null!);
+  if (!store.current) {
+    const sv = loadSaved(code);
+    store.current = sv
+      ? { lastCum: sv.lastCum, minutes: new Map(sv.minutes.map(m => [m.t, m])), big: sv.big, gaps: sv.gaps, since: sv.since, last: sv.last }
+      : { lastCum: 0, minutes: new Map(), big: [], gaps: 0 };
+  }
   const [, setVer] = useState(0);
   const [error, setError] = useState<string>();
   useEffect(() => {
@@ -49,6 +64,10 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
         s.lastCum = fresh[fresh.length - 1].cum;
         s.since ??= fresh[0].time;
         s.last = fresh[fresh.length - 1].time;
+        try {
+          const sv: Saved = { date: kstDate(), lastCum: s.lastCum, minutes: [...s.minutes.values()], big: s.big, gaps: s.gaps, since: s.since, last: s.last };
+          localStorage.setItem(storeKey(code), JSON.stringify(sv));
+        } catch { /* 저장 실패(사생활 모드·용량) — 화면은 그대로 */ }
         setVer(v => v + 1);
       } catch (e) {
         if (alive) setError((e as Error).message);
