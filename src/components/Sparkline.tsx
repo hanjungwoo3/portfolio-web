@@ -31,10 +31,13 @@ interface Props {
   xs?: number[];
   // 이 인덱스에서 선을 끊는다(새 구간 시작) — 어제+오늘 차트에서 어제 마지막 봉과 오늘 첫 봉을 잇지 않고 비워 둔다
   breakIndex?: number;
+  // 끊은 앞 구간(어제)의 기준선 — 어제의 전일 종가. 주면 기준선이 **두 개**(왼쪽=어제 기준·오른쪽=오늘 기준)가 되고
+  //   위·아래 색도 구간마다 자기 기준선으로 칠한다(카드 등락률과 같은 기준 — 어제는 어제 등락, 오늘은 오늘 등락).
+  prevBaseline?: number;
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs, breakIndex,
+  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs, breakIndex, prevBaseline,
   aboveColor = "#dc2626", belowColor = "#2563eb",
 }: Props) {
   const uid = useId().replace(/:/g, "");   // 위·아래 잘라내기(clipPath)·그라디언트 id — 카드마다 달라야 한다
@@ -60,6 +63,7 @@ export function Sparkline({
   if (avgPrice !== undefined && avgPrice > 0) allValues.push(avgPrice);
   if (entry !== undefined && entry > 0) allValues.push(entry);
   if (hasBase) allValues.push(baseline!);
+  if (prevBaseline !== undefined && prevBaseline > 0) allValues.push(prevBaseline);
   const min = Math.min(...allValues);
   const max = Math.max(...allValues);
   const range = max - min || 1;
@@ -88,7 +92,7 @@ export function Sparkline({
   // 라인 path
   const linePath = segs.map(segLine).join(" ");
   // 영역 채움 path (구간마다 아래쪽으로 닫기)
-  const closeTo = (y: number) => segs.filter(seg => seg.length > 0).map(seg =>
+  const closeTo = (y: number, ss = segs) => ss.filter(seg => seg.length > 0).map(seg =>
     `${segLine(seg)} L ${seg[seg.length - 1][0].toFixed(2)} ${y.toFixed(2)} L ${seg[0][0].toFixed(2)} ${y.toFixed(2)} Z`).join(" ");
   const areaPath = closeTo(height - padY);
 
@@ -101,6 +105,12 @@ export function Sparkline({
   const avgY = avgPrice !== undefined && avgPrice > 0 ? yFor(avgPrice) : null;
   const entryY = entry !== undefined && entry > 0 ? yFor(entry) : null;
   const baseY = hasBase ? yFor(baseline!) : null;
+  // 기준선 구간 — 어제 기준선이 있으면 끊는 곳 가운데(splitX)에서 좌우로 나눈다
+  const splitX = segs.length === 2 ? (segs[0][segs[0].length - 1][0] + segs[1][0][0]) / 2 : width;
+  const parts: { ss: typeof segs; by: number; x0: number; x1: number }[] = baseY === null ? []
+    : segs.length === 2 && prevBaseline !== undefined && prevBaseline > 0
+      ? [{ ss: [segs[0]], by: yFor(prevBaseline), x0: 0, x1: splitX }, { ss: [segs[1]], by: baseY, x0: splitX, x1: width }]
+      : [{ ss: segs, by: baseY, x0: 0, x1: width }];
 
   return (
     <svg width={width} height={height} className={className}
@@ -116,23 +126,27 @@ export function Sparkline({
       {baseY !== null && !color ? (() => {
         // 기준선 위·아래 분할 — 같은 선을 두 번 그리고 위/아래 영역으로 잘라 색을 다르게.
         //   채움은 선과 기준선 사이(바닥까지가 아니라) — 기준선을 넘나드는 구간이 바로 보인다.
-        const bandPath = closeTo(baseY);   // 구간마다 기준선까지 닫는다
-        return (
-          <>
-            <defs>
-              <clipPath id={`${uid}-up`}><rect x="0" y="0" width={width} height={baseY} /></clipPath>
-              <clipPath id={`${uid}-dn`}><rect x="0" y={baseY} width={width} height={Math.max(0, height - baseY)} /></clipPath>
-            </defs>
-            <g clipPath={`url(#${uid}-up)`}>
-              <path d={bandPath} fill={aboveColor} fillOpacity="0.22" />
-              <path d={linePath} fill="none" stroke={aboveColor} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
+        //   기준선이 둘이면(어제·오늘) 구간마다 자기 기준선으로 — 잘라내기 영역도 그 구간 폭만.
+        return parts.map(({ ss, by, x0, x1 }, k) => {
+          const bandPath = closeTo(by, ss);   // 구간마다 기준선까지 닫는다
+          const line = ss.map(segLine).join(" ");
+          return (
+            <g key={k}>
+              <defs>
+                <clipPath id={`${uid}-up${k}`}><rect x={x0} y="0" width={x1 - x0} height={by} /></clipPath>
+                <clipPath id={`${uid}-dn${k}`}><rect x={x0} y={by} width={x1 - x0} height={Math.max(0, height - by)} /></clipPath>
+              </defs>
+              <g clipPath={`url(#${uid}-up${k})`}>
+                <path d={bandPath} fill={aboveColor} fillOpacity="0.22" />
+                <path d={line} fill="none" stroke={aboveColor} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
+              </g>
+              <g clipPath={`url(#${uid}-dn${k})`}>
+                <path d={bandPath} fill={belowColor} fillOpacity="0.22" />
+                <path d={line} fill="none" stroke={belowColor} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
+              </g>
             </g>
-            <g clipPath={`url(#${uid}-dn)`}>
-              <path d={bandPath} fill={belowColor} fillOpacity="0.22" />
-              <path d={linePath} fill="none" stroke={belowColor} strokeWidth={strokeWidth} strokeLinejoin="round" strokeLinecap="round" />
-            </g>
-          </>
-        );
+          );
+        });
       })() : (
         <>
           <path d={areaPath} fill={`url(#${gradId})`} />
@@ -140,11 +154,11 @@ export function Sparkline({
                 strokeLinejoin="round" strokeLinecap="round" />
         </>
       )}
-      {/* 어제 종가 — 회색 가로 점선 (24시간 차트) */}
-      {baseY !== null && (
-        <line x1={padX} x2={width - padX} y1={baseY} y2={baseY}
+      {/* 기준선(전일 종가) — 회색 가로 점선 (24시간 차트). 어제·오늘 둘이면 좌우로 나눠 따로, 사이는 살짝 띄운다 */}
+      {parts.map(({ by, x0, x1 }, k) => (
+        <line key={k} x1={Math.max(padX, x0 + (k > 0 ? 2 : 0))} x2={Math.min(width - padX, x1 - (k < parts.length - 1 ? 2 : 0))} y1={by} y2={by}
               stroke="#475569" strokeWidth="1" strokeDasharray="4 3" opacity="0.8" />
-      )}
+      ))}
       {/* 오늘 정규장 시작 — 회색 세로 점선 + 시작가 점 (24시간 차트) */}
       {markIndex != null && markIndex > 0 && markIndex < points.length && (
         <>

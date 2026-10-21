@@ -2094,6 +2094,7 @@ export function MobileSimpleView() {
                              markIndex={markIdx}
 
                              breakIndex={breakIdx}
+                             prevBaseline={breakIdx != null ? daySpark?.prevBase : undefined}
 
                              baseline={dayBase}
 

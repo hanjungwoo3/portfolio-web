@@ -559,6 +559,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                              markIndex={markIdx}
 
                              breakIndex={breakIdx}
+                             prevBaseline={breakIdx != null ? daySpark?.prevBase : undefined}
 
                              baseline={dayBase}
 

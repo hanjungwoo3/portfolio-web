@@ -380,10 +380,12 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
   const latest = barsOf(days[li]), prev = barsOf(days[li + 1]);
   const oi = latest.findIndex(c => c.dt.slice(11, 16) >= openHHMM);
   const base = latest[latest.length - 1].base;
+  const pb = prev.length ? prev[prev.length - 1].base : undefined;   // 어제의 기준(그저께 종가) — 왼쪽 기준선
   return {
     closes: [...prev.map(c => c.close), ...latest.map(c => c.close)],
     xs: [...prev.map(c => frac(c.dt) * TWO_DAY_HALF), ...latest.map(c => twoDayTodayX(frac(c.dt)))],
     base: base && base > 0 ? base : undefined,
+    prevBase: pb && pb > 0 ? pb : undefined,
     openIdx: oi >= 0 ? prev.length + oi : undefined,
     date: days[li], twoDay: true, breakIdx: prev.length > 0 ? prev.length : undefined,
   };
@@ -393,7 +395,7 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
 //   지수 카드(KrDaySparkline·야후 spark)와 같은 모양(어제 종가선 위 빨강·아래 파랑, 정규장 시작 세로선)으로 그리려고
 //   종가만 주던 걸 넓혔다(2026-10-21). 한국 = 08:00~20:00 KST(정규 09:00), 미국 = 00:00~24:00 ET(정규 09:30).
 //   오늘 봉이 1개라도 있으면 오늘(실시간 끝점과 이어 선이 된다), 없을 때만 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
-export interface DaySeries { closes: number[]; xs?: number[]; base?: number; openIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number }   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
+export interface DaySeries { closes: number[]; xs?: number[]; base?: number; openIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
 export async function fetchTossIntraday(ticker: string): Promise<DaySeries | null> {
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
   const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));
@@ -3995,7 +3997,7 @@ async function fetchMemChart(symbol: string): Promise<number[]> {
 //   includePrePost 면 프리(04:00 ET)~애프터(20:00 ET)까지 들어 있다. 오버나잇(20:00~04:00)은 없다.
 const SPARK_CHUNK = 20;
 //   openIdx = 오늘 정규장 시작(09:30 ET) 첫 봉의 인덱스 — 카드 차트에 '시작가' 표시선(meta.currentTradingPeriod.regular.start).
-export interface DaySpark { closes: number[]; openIdx?: number; prevClose?: number; breakIdx?: number }   // prevClose = 어제 정규장 종가(달러 — closes 와 같은 단위)
+export interface DaySpark { closes: number[]; openIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }   // prevBase = 어제 칸 기준선(그저께 종가 = 2d 범위의 chartPreviousClose)   // prevClose = 어제 정규장 종가(달러 — closes 와 같은 단위)
 export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string, DaySpark>> {
   const out = new Map<string, DaySpark>();
   const chunks: string[][] = [];
@@ -4016,10 +4018,11 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const regStart = resp?.meta?.currentTradingPeriod?.regular?.start;
         const oi = regStart ? times.findIndex(t => t >= regStart) : -1;
         const pc = resp?.meta?.previousClose ?? resp?.meta?.chartPreviousClose;
+        const cpc = resp?.meta?.previousClose ? resp?.meta?.chartPreviousClose : undefined;   // previousClose 없으면 cpc 가 어제 종가라 어제 기준으론 못 쓴다
         // 날짜(뉴욕)가 바뀌는 첫 봉 — 어제와 선을 잇지 않는다
         const etDay = (t: number) => new Date((t - 4 * 3600) * 1000).toISOString().slice(0, 10);   // 대략 EDT(일자 경계만 필요)
         const bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
-        out.set(x.symbol, { closes, openIdx: oi > 0 ? oi : undefined, prevClose: pc && pc > 0 ? pc : undefined, breakIdx: bi > 0 ? bi : undefined });   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
+        out.set(x.symbol, { closes, openIdx: oi > 0 ? oi : undefined, prevClose: pc && pc > 0 ? pc : undefined, breakIdx: bi > 0 ? bi : undefined, prevBase: bi > 0 && cpc && cpc > 0 ? cpc : undefined });   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
       }
     } catch { /* 이 묶음은 3개월 차트로 */ }
   }));
