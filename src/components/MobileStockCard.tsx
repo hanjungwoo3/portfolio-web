@@ -575,6 +575,7 @@ export function MobileStockCard({
           <Sparkline data={bgIsDay && dayLive ? dayLive.closes : bgChart} width={300} height={70}
                        xs={bgIsDay ? dayLive?.xs : undefined} baseline={bgIsDay ? dayLive?.base : undefined}
                        markIndex={bgIsDay ? dayLive?.openIdx : undefined}
+                       closeIndex={bgIsDay ? dayLive?.closeIdx : undefined}
                        breakIndex={bgIsDay ? dayLive?.breakIdx : undefined}
                        prevBaseline={bgIsDay ? dayLive?.prevBase : undefined}
                      target={bgIsDay ? undefined : consensus?.target}

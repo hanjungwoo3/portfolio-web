@@ -193,7 +193,7 @@ export function MobileSimpleView() {
   const krFutSpark = (sym: string) => {
     if (!krFutDayOn) return undefined;
     const d = (sym === "^KS200N" ? krFutDay[0] : sym === "^KQ150N" ? krFutDay[1] : undefined)?.data;
-    return d && d.closes.length > 1 ? { closes: d.closes, openIdx: d.openIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase } : undefined;
+    return d && d.closes.length > 1 ? { closes: d.closes, openIdx: d.openIdx, closeIdx: d.closeIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase } : undefined;
   };
   // 로그인 redirect 복귀 — 저장/불러오기 대기 동작이 있으면 설정 자동 오픈 → 자동 재개
   useEffect(() => {
@@ -1982,6 +1982,7 @@ export function MobileSimpleView() {
               // 24시간 차트가 야후 spark 에서 왔으면 '오늘 정규장 시작' 위치를 표시
               const daySpark = chartRange === "day" ? (krFutSpark(p.symbol) ?? (!nightClosesMap.get(p.symbol) ? usSpark?.get(p.symbol) : undefined)) : undefined;
               const markIdx = daySpark && chartArr === daySpark.closes ? daySpark.openIdx : undefined;
+              const closeIdx = daySpark && chartArr === daySpark.closes ? daySpark.closeIdx : undefined;   // 오늘 정규장 종가 세로선
               const breakIdx = daySpark && chartArr === daySpark.closes ? daySpark.breakIdx : undefined;   // 어제·오늘 사이 끊기
               // 24시간 차트의 기준선·색 기준 = 어제 종가(카드 큰 숫자와 같은 기준). 야후 spark 는 달러라 그 응답의 전일 종가를,
               //   토스·야선 당일 봉은 카드 값과 같은 단위라 카드의 전일 종가(prevClose)를 쓴다. 3개월 차트엔 안 쓴다.
@@ -2110,6 +2111,8 @@ export function MobileSimpleView() {
                              width={300} height={70}
 
                              markIndex={markIdx}
+
+                             closeIndex={closeIdx}
 
                              breakIndex={breakIdx}
                              prevBaseline={breakIdx != null ? daySpark?.prevBase : undefined}
