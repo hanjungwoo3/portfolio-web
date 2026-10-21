@@ -7,8 +7,9 @@ export type ChartRange = "all" | "day";
 const KEY = "dashboard_chart_range";
 const EVENT = "chart-range-change";
 
+// 기본 = 24시간(사용자 결정 2026-10-22). 직접 3개월을 고른 적이 있으면("all" 저장) 그 선택을 따른다.
 function read(): ChartRange {
-  try { return localStorage.getItem(KEY) === "day" ? "day" : "all"; } catch { return "all"; }
+  try { return localStorage.getItem(KEY) === "all" ? "all" : "day"; } catch { return "day"; }
 }
 let current: ChartRange = read();
 
