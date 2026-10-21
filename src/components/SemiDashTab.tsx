@@ -240,7 +240,7 @@ export function SemiDashTab() {
       </div>
 
       {/* ③ 현물·선물·옵션 수급 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[200px] shrink-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[235px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
         <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" />
         <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" />
@@ -473,10 +473,10 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
           </div>
         )}
       </div>
-      {/* 외국인 매수·매도 막대(10분) — 그래프 바로 아래, 같은 시간 축(사용자 요청). 축 밖(프리·시간외)은 그리지 않는다 */}
+      {/* 외국인·개인 매수·매도 막대(10분) — 그래프 바로 아래, 같은 시간 축(사용자 요청). 축 밖(프리·시간외)은 그리지 않는다 */}
       {flow && pts.length > 1 && (
-        <BuySellBars points={flow.points} keys={["foreigners"]} unit={unit === "계약" ? "계약" : "억"} start="09:00" end={endHM}
-          rowH={30} compact
+        <BuySellBars points={flow.points} keys={["foreigners", "individuals"]} unit={unit === "계약" ? "계약" : "억"} start="09:00" end={endHM}
+          rowH={22} compact
           geom={{
             width: W, hoverT: hoverM ?? null, toT: tmin, hover: onHover,
             xOfT: m => (m < tmin("09:00") || m > tmin(endHM) ? null : x(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`)),
