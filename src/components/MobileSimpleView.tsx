@@ -2049,7 +2049,8 @@ export function MobileSimpleView() {
                     const krTk = krEtfTicker(p.symbol);                         // 한국 6자리(.KS) — 종목·ETF 모두
                     const isKrEtf = !!krTk && !p.krStock;
                     const lv = krTk ? marketAlerts.get(krTk) : undefined;
-                    if (!krTk || (!isKrEtf && !lv)) return null;
+                    const isUsStock = /^[A-Z][A-Z.]{0,5}$/.test(p.symbol) && marketOfSymbol(p.symbol) === "US" && p.symbol !== "CNNFG";
+                    if (!isUsStock && (!krTk || (!isKrEtf && !lv))) return null;
                     const tag = "px-1.5 py-0 rounded text-[10px] font-bold leading-tight border";
                     return (
                       <div className="absolute -top-2 left-1 z-30 flex items-center gap-0.5">   {/* 마감 책갈피(z-20)가 길어도 위로 */}
@@ -2061,6 +2062,15 @@ export function MobileSimpleView() {
                         </button>
                         )}
                         {lv && <IndexWarnTag inline ticker={krTk!} name={p.name} level={lv} />}
+                        {/* 🔍AI — 미국 종목·ETF, ETF 책갈피와 같은 자리(사용자 요청 2026-10-22). 보유 카드와 같은 구글 AI 분석 */}
+                        {isUsStock && (
+                          <button onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${p.name}(${p.symbol}) — ${p.desc}`
+                                    + (effPrice != null ? `, 현재가 $${effPrice.toFixed(2)}` : "") + (mainPct != null ? ` (${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""))}
+                                  title="구글 AI에 현재상태 분석 요청 (팝업)"
+                                  className={`${tag} !px-1 text-blue-700 bg-blue-50/90 hover:bg-blue-100 border-blue-300`}>
+                            AI
+                          </button>
+                        )}
                       </div>
                     );
                   })()}
@@ -2153,16 +2163,6 @@ export function MobileSimpleView() {
                       {p.name}
                     </a>
                     {p.symbol === "CNNFG" && <CnnFearGreedTag />}
-                    {/* 🔍AI — 미국 종목·ETF(보유 종목 카드와 같은 구글 AI 분석 팝업, 사용자 요청 2026-10-22) */}
-                    {/^[A-Z][A-Z.]{0,5}$/.test(p.symbol) && marketOfSymbol(p.symbol) === "US" && p.symbol !== "CNNFG" && (
-                      <button onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${p.name}(${p.symbol}) — ${p.desc}`
-                                + (effPrice != null ? `, 현재가 $${effPrice.toFixed(2)}` : "") + (mainPct != null ? ` (${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""))}
-                              title="구글 AI에 현재상태 분석 요청 (팝업)"
-                              className="relative z-20 shrink-0 ml-1 px-1 py-0.5 rounded text-[9px] font-bold leading-none
-                                         border border-blue-300 text-blue-700 bg-blue-50/90 hover:bg-blue-100">
-                        🔍AI
-                      </button>
-                    )}
                     {(p.symbol === "^KS11" || p.symbol === "^KQ11") && (
                       <button onClick={() =>
                                 setMarketFlowFor(p.symbol === "^KS11" ? "KOSPI" : "KOSDAQ")}
