@@ -435,7 +435,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
       </div>
       <div className="flex gap-2.5 tabular-nums">
         {LINES.map(l => (
-          <span key={l.k}><i className="inline-block w-2 h-0.5 mr-0.5 align-middle" style={{ background: l.color }} />{l.label} <b className={last ? up(val(last, l.k)) : "text-gray-300"}>{last ? eok(val(last, l.k)) : "-"}</b></span>
+          <span key={l.k}><i className="inline-block w-2 h-0.5 mr-0.5 align-middle" style={{ background: l.color }} />{l.label} <b className={last ? up(val(last, l.k)) : "text-gray-300"}>{last ? eok(val(last, l.k)) : "-"}{last && unit === "계약" ? "계약" : ""}</b></span>
         ))}
       </div>
       {/* 당일 회전 — 선물만(사용자 요청). 순매수는 남긴 포지션 변화뿐이라, 하루 동안 사고판 총량을 같이 보여 준다 */}
