@@ -200,7 +200,9 @@ function TickPanel({ name, flow }: { name: string; flow: TickFlow }) {
   const cum = nets.map(v => (acc += v));
   const mxCum = Math.max(1, ...cum.map(Math.abs));
   const prices = ms.map(m => m.close);
-  const pMin = Math.min(...prices), pMax = Math.max(...prices), pR = pMax - pMin || 1;
+  // 가격 축은 최소 ±0.2% 폭 — 켠 직후 한 호가(0.1%)만 움직여도 위아래 끝까지 그어져 세로선처럼 보였다
+  const pMid = (Math.min(...prices) + Math.max(...prices)) / 2;
+  const pR = Math.max(Math.max(...prices) - Math.min(...prices), pMid * 0.004) * 1.1, pMin = pMid - pR / 2;
   const bw = (W - PAD * 2) / Math.max(30, ms.length);
   const xOf = (i: number) => PAD + i * bw + bw / 2;
   const mid = H / 2;
@@ -219,7 +221,8 @@ function TickPanel({ name, flow }: { name: string; flow: TickFlow }) {
       </div>
       <div className="flex-1 min-h-0 flex gap-2">
         <div className="flex-1 min-w-0">
-          {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (
+          {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div className="relative w-full h-full">
+            {ms.length < 5 && <div className="absolute inset-x-0 top-1 text-center text-[11px] text-gray-400">켠 뒤 {ms.length}분째 — 10분쯤 지나면 흐름이 보입니다</div>}
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
               <line x1={0} x2={W} y1={mid} y2={mid} stroke="#cbd5e1" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
               {nets.map((v, i) => {
@@ -231,7 +234,7 @@ function TickPanel({ name, flow }: { name: string; flow: TickFlow }) {
               <path d={cum.map((c, i) => `${i ? "L" : "M"} ${xOf(i)} ${mid - (c / mxCum) * (mid - PAD)}`).join(" ")}
                     fill="none" stroke="#ea580c" strokeWidth={1.6} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />
               {ms.map((m, i) => (m.t.endsWith("0") && i % 10 === 0 ? <text key={m.t} x={xOf(i)} y={H - 2} fontSize="11" fill="#9ca3af">{m.t}</text> : null))}
-            </svg>
+            </svg></div>
           )}
         </div>
         <div className="w-[118px] shrink-0 overflow-hidden text-[11px] tabular-nums">
