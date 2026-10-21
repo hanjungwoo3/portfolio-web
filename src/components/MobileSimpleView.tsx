@@ -2049,8 +2049,7 @@ export function MobileSimpleView() {
                     const krTk = krEtfTicker(p.symbol);                         // 한국 6자리(.KS) — 종목·ETF 모두
                     const isKrEtf = !!krTk && !p.krStock;
                     const lv = krTk ? marketAlerts.get(krTk) : undefined;
-                    const isUsStock = /^[A-Z][A-Z.]{0,5}$/.test(p.symbol) && marketOfSymbol(p.symbol) === "US" && p.symbol !== "CNNFG";
-                    if (!isUsStock && (!krTk || (!isKrEtf && !lv))) return null;
+                    if (!krTk || (!isKrEtf && !lv)) return null;
                     const tag = "px-1.5 py-0 rounded text-[10px] font-bold leading-tight border";
                     return (
                       <div className="absolute -top-2 left-1 z-30 flex items-center gap-0.5">   {/* 마감 책갈피(z-20)가 길어도 위로 */}
@@ -2062,15 +2061,6 @@ export function MobileSimpleView() {
                         </button>
                         )}
                         {lv && <IndexWarnTag inline ticker={krTk!} name={p.name} level={lv} />}
-                        {/* 🔍AI — 미국 종목·ETF, ETF 책갈피와 같은 자리(사용자 요청 2026-10-22). 보유 카드와 같은 구글 AI 분석 */}
-                        {isUsStock && (
-                          <button onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${p.name}(${p.symbol}) — ${p.desc}`
-                                    + (effPrice != null ? `, 현재가 $${effPrice.toFixed(2)}` : "") + (mainPct != null ? ` (${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""))}
-                                  title="구글 AI에 현재상태 분석 요청 (팝업)"
-                                  className={`${tag} !px-1 text-blue-700 bg-blue-50/90 hover:bg-blue-100 border-blue-300`}>
-                            AI
-                          </button>
-                        )}
                       </div>
                     );
                   })()}
@@ -2215,6 +2205,17 @@ export function MobileSimpleView() {
                   )}
                   {/* 구성종목 히트맵 — 코덱스200·코스닥150 만. '정규장 마감' 책갈피와 같은 모양으로
                       카드 **바깥 오른쪽 아래**에 붙인다(카드 안은 overflow-hidden 이라 잘린다). */}
+                  {/* 🔍AI — 미국 종목·ETF. 카드 바깥 오른쪽 아래(히트맵 책갈피 자리 — 미국 카드는 비어 있어 안 겹친다, 사용자 결정 2026-10-22) */}
+                  {/^[A-Z][A-Z.]{0,5}$/.test(p.symbol) && marketOfSymbol(p.symbol) === "US" && p.symbol !== "CNNFG" && (
+                    <button onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${p.name}(${p.symbol}) — ${p.desc}`
+                              + (effPrice != null ? `, 현재가 $${effPrice.toFixed(2)}` : "") + (mainPct != null ? ` (${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""))}
+                            title="구글 AI에 현재상태 분석 요청 (팝업)"
+                            className="absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded
+                                       text-[9px] leading-tight whitespace-nowrap font-bold
+                                       text-blue-700 bg-blue-50 border border-blue-300/70 hover:bg-blue-100 transition">
+                      🔍AI
+                    </button>
+                  )}
                   {CARD_HEATMAP_LINK[p.symbol] && (
                     <button
                       onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
