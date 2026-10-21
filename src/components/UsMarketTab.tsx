@@ -160,6 +160,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       queryFn: () => fetchDashboardChart(sym),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
+      // 빈 차트는 던진다(fetchDashboardChart) — 실패면 5분 뒤 다시(원래 차트가 없는 심볼이 매분 부르지 않게 1번만 재시도)
+      retry: 1, refetchInterval: (q: { state: { status: string } }) => (q.state.status === "error" ? 5 * 60_000 : false),
     })),
   });
   const yahooChartMap = new Map(

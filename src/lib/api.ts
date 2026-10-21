@@ -3836,6 +3836,13 @@ async function fetchCnbcBars(symbol: string): Promise<CnbcBar[]> {
 //   야후로 채워 먼저 부른 쪽이 이겼다).
 //   한국 6자리(.KS)는 토스 일봉 — 야후는 코스닥이 .KQ 라 '240810.KS' 로는 빈 차트가 온다.
 export async function fetchDashboardChart(sym: string): Promise<number[]> {
+  const r = await fetchDashboardChartRaw(sym);
+  // 빈 결과는 던진다 — 캐시(staleTime 1시간)에 '빈 차트'가 굳지 않고 바로 다시 받게(빈 캐시 금지).
+  //   APK 에서 리튬·니켈 시세는 고쳐진 뒤 살아났는데 배경 그래프는 빈 값이 1시간 남아 안 나왔다(2026-10-22).
+  if (!r.length) throw new Error(`빈 차트: ${sym}`);
+  return r;
+}
+async function fetchDashboardChartRaw(sym: string): Promise<number[]> {
   const kr = /^([\dA-Za-z]{6})\.KS$/.exec(sym);
   if (kr) return (await fetchKrPriceHistory(kr[1], "3mo")).map(p => p.close);
   if (isCnbcIndex(sym)) return fetchCnbcChart(sym);
