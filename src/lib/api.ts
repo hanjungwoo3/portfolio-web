@@ -2428,6 +2428,8 @@ export interface IntradayFlowPoint {
   bank: number; otherFinancial: number; pensionFund: number; otherCorp: number;
   // 그 시각까지의 **총 매수·총 매도**(선물=계약, 현물=억원) — 순매수만으론 안 보이는 '당일 회전'(사고판 양) 계산용
   gross?: { fBuy: number; fSell: number; iBuy: number; iSell: number };
+  // 투자자별 [누적 매수, 누적 매도] — 키는 위 숫자 필드와 같다(foreigners·individuals·…). 매수/매도 막대 차트용
+  gs?: Partial<Record<string, [number, number]>>;
 }
 export interface IntradayFlow {
   unit: "억원" | "계약"; points: IntradayFlowPoint[];
@@ -2459,8 +2461,16 @@ function mapTrendRow(row: TrendRow, futures: boolean) {
     fBuy: g([GUBUN.foreigners, GUBUN.otherForeigners], "buy"), fSell: g([GUBUN.foreigners, GUBUN.otherForeigners], "sell"),
     iBuy: g([GUBUN.individuals], "buy"), iSell: g([GUBUN.individuals], "sell"),
   };
+  const GS: Record<string, string[]> = {
+    individuals: [GUBUN.individuals], foreigners: [GUBUN.foreigners, GUBUN.otherForeigners],
+    institutions: [GUBUN.financialInvestment, GUBUN.insurance, GUBUN.trust, GUBUN.privateEquity, GUBUN.bank, GUBUN.otherFinancial, GUBUN.pensionFund, GUBUN.stateLocal],
+    financialInvestment: [GUBUN.financialInvestment], insurance: [GUBUN.insurance], trust: [GUBUN.trust, GUBUN.privateEquity],
+    bank: [GUBUN.bank], otherFinancial: [GUBUN.otherFinancial], pensionFund: [GUBUN.pensionFund], otherCorp: [GUBUN.otherCorp],
+  };
+  const gs: Record<string, [number, number]> = {};
+  for (const [k, codes] of Object.entries(GS)) gs[k] = [g(codes, "buy"), g(codes, "sell")];
   return {
-    gross,
+    gross, gs,
     individuals: scale(v(GUBUN.individuals)),
     foreigners: scale(v(GUBUN.foreigners) + v(GUBUN.otherForeigners)),
     institutions: scale(institutions),

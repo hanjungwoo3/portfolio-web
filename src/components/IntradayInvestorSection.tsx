@@ -16,6 +16,7 @@ import { nextFuturesExpiry } from "../lib/futuresExpiry";
 import { Tooltip } from "./Tooltip";
 import { isMarketOpen, nowKstDateStr } from "../lib/format";
 import type { FlowSeriesPoint } from "./IntradayInvestorChart";
+import { BuySellBars } from "./BuySellBars";
 import type { UTCTimestamp } from "lightweight-charts";
 
 // 넥스트레이드 프리장 08:00~09:00 KST(평일)
@@ -278,6 +279,16 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
         indexSeries={indexSeries} indexLabel={ysym ? INDEX_LABEL[market] : undefined}
         indexBaseline={indexBaseline} onReady={onReady} onToggle={onToggle}
         refFirstT={refFirstT} refLastT={refLastT} />
+      {/* 투자자별 매수·매도 막대(사용자 요청) — 위 체크박스로 켠 주체만, 당일 모드에서 */}
+      {mode === "intraday" && intra.data && (
+        <div className="mt-1.5 px-1">
+          <BuySellBars points={intra.data.points}
+            keys={INTRADAY_SERIES.filter(d => enabled[d.key]).map(d => d.key)}
+            unit={market === "futures" && !fut.data ? "계약" : "억"}
+            scale={market === "futures" && fut.data ? (fut.data.price * 250_000) / 1e8 : 1}
+            start={intra.data.pre ? "08:00" : "09:00"} end={market === "futures" ? "15:45" : "15:30"} />
+        </div>
+      )}
     </Suspense>
   );
 }

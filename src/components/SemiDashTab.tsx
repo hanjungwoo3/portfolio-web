@@ -19,6 +19,7 @@ import { useTickFlow, strength, netAmt, BIG_TRADE_WON, type TickFlow } from "../
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
 import { HypothesisBox } from "./HypothesisBox";
+import { BuySellBars } from "./BuySellBars";
 
 const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }] as const;
 const SPARK = ["^KS11", "^KQ11"];   // 야후 spark 1콜(어제+오늘 5분봉)
@@ -438,13 +439,10 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
           <span key={l.k}><i className="inline-block w-2 h-0.5 mr-0.5 align-middle" style={{ background: l.color }} />{l.label} <b className={last ? up(val(last, l.k)) : "text-gray-300"}>{last ? eok(val(last, l.k)) : "-"}{last && unit === "계약" ? "계약" : ""}</b></span>
         ))}
       </div>
-      {/* 당일 회전 — 선물만(사용자 요청). 순매수는 남긴 포지션 변화뿐이라, 하루 동안 사고판 총량을 같이 보여 준다 */}
-      {unit === "계약" && last?.gross && (
-        <div className="text-[10.5px] text-gray-500 tabular-nums leading-snug">
-          {([["외국인", last.gross.fBuy, last.gross.fSell], ["개인", last.gross.iBuy, last.gross.iSell]] as const).map(([n, b, sl]) => (
-            <div key={n}>{n} 매수 {b.toLocaleString()} · 매도 {sl.toLocaleString()} → 당일 회전 ≈{Math.min(b, sl).toLocaleString()}
-              {b + sl > 0 ? ` (${Math.round(Math.min(b, sl) / ((b + sl) / 2) * 100)}%)` : ""}</div>
-          ))}
+      {/* 선물 — 외국인 매수·매도 막대(10분, 사용자 요청). 총량은 막대 줄 머리에, 당일 회전은 '지금 신호'에 */}
+      {unit === "계약" && flow && (
+        <div className="mb-0.5">
+          <BuySellBars points={flow.points} keys={["foreigners"]} unit="계약" start="09:00" end="15:45" rowH={30} compact />
         </div>
       )}
       <div className="flex-1 min-h-0">
