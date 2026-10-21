@@ -33,13 +33,15 @@ interface Props {
   breakIndex?: number;
   // 세로 표시선(종가) — '오늘 정규장 마감' 지점. 시작선과 같은 점선(점은 안 찍는다 — 사용자 결정)
   closeIndex?: number;
+  // 어제 구간 정규장 시작·종가 세로선(사용자 요청) — 오늘 것과 같은 점선
+  extraMarks?: (number | undefined)[];
   // 끊은 앞 구간(어제)의 기준선 — 어제의 전일 종가. 주면 기준선이 **두 개**(왼쪽=어제 기준·오른쪽=오늘 기준)가 되고
   //   위·아래 색도 구간마다 자기 기준선으로 칠한다(카드 등락률과 같은 기준 — 어제는 어제 등락, 오늘은 오늘 등락).
   prevBaseline?: number;
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs, breakIndex, prevBaseline, closeIndex,
+  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs, breakIndex, prevBaseline, closeIndex, extraMarks,
   aboveColor = "#dc2626", belowColor = "#2563eb",
 }: Props) {
   const uid = useId().replace(/:/g, "");   // 위·아래 잘라내기(clipPath)·그라디언트 id — 카드마다 달라야 한다
@@ -168,6 +170,10 @@ export function Sparkline({
                 stroke="#334155" strokeWidth="1.2" strokeDasharray="3 2" opacity="0.9" />
         </>
       )}
+      {(extraMarks ?? []).map((m, k) => m != null && m > 0 && m < points.length ? (
+        <line key={`em${k}`} x1={points[m][0]} x2={points[m][0]} y1={padY} y2={height - padY}
+              stroke="#334155" strokeWidth="1.2" strokeDasharray="3 2" opacity="0.9" />
+      ) : null)}
       {/* 오늘 정규장 종가 — 회색 세로 점선 */}
       {closeIndex != null && closeIndex > 0 && closeIndex < points.length && (
         <>

@@ -576,6 +576,7 @@ export function MobileStockCard({
                        xs={bgIsDay ? dayLive?.xs : undefined} baseline={bgIsDay ? dayLive?.base : undefined}
                        markIndex={bgIsDay ? dayLive?.openIdx : undefined}
                        closeIndex={bgIsDay ? dayLive?.closeIdx : undefined}
+                       extraMarks={bgIsDay ? [dayLive?.prevOpenIdx, dayLive?.prevCloseIdx] : undefined}
                        breakIndex={bgIsDay ? dayLive?.breakIdx : undefined}
                        prevBaseline={bgIsDay ? dayLive?.prevBase : undefined}
                      target={bgIsDay ? undefined : consensus?.target}

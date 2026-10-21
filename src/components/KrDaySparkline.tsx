@@ -46,7 +46,7 @@ export function KrDaySparkline({ code, fallback, live, width, height, color, dim
   return (
     <div ref={ref} className="absolute inset-0 pointer-events-none">
       <Sparkline data={dayOk ? dayOk.closes : fallback} width={width} height={height}
-                 color={dayOk && !dim ? undefined : color} baseline={dayOk?.base} markIndex={dayOk?.openIdx} closeIndex={dayOk?.closeIdx} xs={dayOk?.xs} breakIndex={dayOk?.breakIdx} prevBaseline={dayOk?.prevBase}
+                 color={dayOk && !dim ? undefined : color} baseline={dayOk?.base} markIndex={dayOk?.openIdx} closeIndex={dayOk?.closeIdx} extraMarks={[dayOk?.prevOpenIdx, dayOk?.prevCloseIdx]} xs={dayOk?.xs} breakIndex={dayOk?.breakIdx} prevBaseline={dayOk?.prevBase}
                  className={className} />
     </div>
   );

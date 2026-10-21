@@ -391,6 +391,9 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
     prevBase: pb && pb > 0 ? pb : undefined,
     openIdx: oi >= 0 ? prev.length + oi : undefined,
     closeIdx: ci > 0 ? prev.length + ci : undefined,
+    // 어제 구간의 정규장 시작·종가 세로선(사용자 요청)
+    prevOpenIdx: (() => { const i = prev.findIndex(c => c.dt.slice(11, 16) >= openHHMM); return i > 0 ? i : undefined; })(),
+    prevCloseIdx: (() => { const i = prev.map(c => c.dt.slice(11, 16) <= closeHHMM).lastIndexOf(true); return i > 0 && i < prev.length - 1 ? i : undefined; })(),
     date: days[li], twoDay: true, breakIdx: prev.length > 0 ? prev.length : undefined,
   };
 }
@@ -399,7 +402,7 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
 //   지수 카드(KrDaySparkline·야후 spark)와 같은 모양(어제 종가선 위 빨강·아래 파랑, 정규장 시작 세로선)으로 그리려고
 //   종가만 주던 걸 넓혔다(2026-10-21). 한국 = 08:00~20:00 KST(정규 09:00), 미국 = 00:00~24:00 ET(정규 09:30).
 //   오늘 봉이 1개라도 있으면 오늘(실시간 끝점과 이어 선이 된다), 없을 때만 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
-export interface DaySeries { closes: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
+export interface DaySeries { closes: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
 export async function fetchTossIntraday(ticker: string): Promise<DaySeries | null> {
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
   const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));
@@ -4025,7 +4028,7 @@ async function fetchMemChart(symbol: string): Promise<number[]> {
 //   includePrePost 면 프리(04:00 ET)~애프터(20:00 ET)까지 들어 있다. 오버나잇(20:00~04:00)은 없다.
 const SPARK_CHUNK = 20;
 //   openIdx = 오늘 정규장 시작(09:30 ET) 첫 봉의 인덱스 — 카드 차트에 '시작가' 표시선(meta.currentTradingPeriod.regular.start).
-export interface DaySpark { closes: number[]; openIdx?: number; closeIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }   // prevBase = 어제 칸 기준선(그저께 종가 = 2d 범위의 chartPreviousClose)   // prevClose = 어제 정규장 종가(달러 — closes 와 같은 단위)
+export interface DaySpark { closes: number[]; xs?: number[]; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }   // prevBase = 어제 칸 기준선(그저께 종가 = 2d 범위의 chartPreviousClose)   // prevClose = 어제 정규장 종가(달러 — closes 와 같은 단위)
 export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string, DaySpark>> {
   const out = new Map<string, DaySpark>();
   const chunks: string[][] = [];
@@ -4060,15 +4063,35 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const lastTod = times.length ? tod(times[times.length - 1]) : 0;
         const ci = eTod != null && eTod > (sTod ?? 0) && lastTod >= eTod - 300
           ? times.map((t, i) => inLast(i) && tod(t) < eTod).lastIndexOf(true) : -1;
-        const pc = resp?.meta?.previousClose ?? resp?.meta?.chartPreviousClose;
-        const cpc = resp?.meta?.previousClose ? resp?.meta?.chartPreviousClose : undefined;   // previousClose 없으면 cpc 가 어제 종가라 어제 기준으론 못 쓴다
+        // 기준선은 **차트 자료로** 정한다 — 야후 previousClose 는 미국 프리마켓 동안 그저께 종가로 남아 있다
+        //   (2026-10-21 LRCX: previousClose = chartPreviousClose = 272.20(10/17), 실제 어제 10/20 종가 263.45).
+        //   오늘 기준 = 어제 구간의 정규장 마지막 봉, 어제 기준 = chartPreviousClose(2d 범위 첫날 직전 종가).
+        const metaPc = resp?.meta?.previousClose ?? resp?.meta?.chartPreviousClose;
+        const cpc = resp?.meta?.chartPreviousClose;
         // 날짜(뉴욕)가 바뀌는 첫 봉 — 어제와 선을 잇지 않는다
         //   아시아 지수·종목은 한국 날짜로 — 뉴욕 날짜면 아시아 장중(한국 13:00)에 끊긴다
         //   선물(=F)은 거래일이 뉴욕 18:00 에 시작 — 그 시각을 날짜 경계로(UTC+2 로 보면 18:00 ET 가 자정)
         const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : /=F$/.test(x.symbol) ? 2 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
         const etDay = (t: number) => new Date((t + off * 3600) * 1000).toISOString().slice(0, 10);   // 대략 EDT/KST(일자 경계만 필요)
         const bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
-        out.set(x.symbol, { closes, openIdx: oi > 0 ? oi : undefined, closeIdx: ci > 0 ? ci : undefined, prevClose: pc && pc > 0 ? pc : undefined, breakIdx: bi > 0 ? bi : undefined, prevBase: bi > 0 && cpc && cpc > 0 ? cpc : undefined });   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
+        // 어제 구간의 정규장 시작·종가 봉(세로선 — 사용자 요청) + 어제 정규장 종가 = 오늘 기준선
+        const inPrev = (i: number) => bi > 0 && i < bi;
+        const poi = sTod != null ? times.findIndex((t, i) => inPrev(i) && tod(t) >= sTod) : -1;
+        const pci = eTod != null && eTod > (sTod ?? 0) ? times.map((t, i) => inPrev(i) && tod(t) < eTod).lastIndexOf(true) : -1;
+        const pc = pci >= 0 ? closes[pci] : metaPc;
+        // 가로축 — 어제 50%·오늘 50% 고정, 각 칸 안은 시간 축(사용자 요청: 봉 개수로 나누면 어제가 78% 를 차지했다).
+        //   하루 안 시각은 날짜 경계(off)로 민 시각 — 미국 주식 04:00~20:00, 한국 09:00~15:30, 선물 18:00~17:00
+        const todS = (t: number) => (((t + off * 3600) % 86400) + 86400) % 86400;
+        const span = bi > 0 ? times.slice(0, bi) : times;   // 어제(완결된 하루)의 시각 폭을 기준으로
+        const lo = Math.min(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
+        const hi = Math.max(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
+        const fr = (t: number) => (hi > lo ? (todS(t) - lo) / (hi - lo) : 0);
+        const xs = bi > 0 ? times.map((t, i) => (i < bi ? fr(t) * TWO_DAY_HALF : twoDayTodayX(fr(t)))) : undefined;
+        out.set(x.symbol, {
+          closes, xs, openIdx: oi > 0 ? oi : undefined, closeIdx: ci > 0 ? ci : undefined, prevClose: pc && pc > 0 ? pc : undefined,
+          breakIdx: bi > 0 ? bi : undefined, prevBase: bi > 0 && cpc && cpc > 0 ? cpc : undefined,
+          prevOpenIdx: poi > 0 ? poi : undefined, prevCloseIdx: pci > 0 ? pci : undefined,
+        });   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
       }
     } catch { /* 이 묶음은 3개월 차트로 */ }
   }));
@@ -5602,6 +5625,8 @@ export async function fetchKrFuturesMinute(kind: "kospi200" | "kosdaq150" = "kos
     xs: [...prev.map(x => frac(x.mtime) * TWO_DAY_HALF), ...cur.map(x => twoDayTodayX(frac(x.mtime)))],
     base: baseOf(cur), prevBase: baseOf(prev), openIdx: oi >= 0 ? prev.length + oi : undefined,
     closeIdx: ci > 0 ? prev.length + ci : undefined,
+    prevOpenIdx: (() => { const i = prev.findIndex(x => (x.mtime ?? "") >= "09:00"); return i > 0 ? i : undefined; })(),
+    prevCloseIdx: (() => { const i = prev.map(x => (x.mtime ?? "") < "15:45").lastIndexOf(true); return i > 0 && i < prev.length - 1 ? i : undefined; })(),
     todayTimes: cur.map(x => (x.mtime ?? "").slice(0, 5)),   // 오늘 봉 시각(가설 검증 — 베이시스 시계열)
     date: today, twoDay: true, breakIdx: prev.length > 0 ? prev.length : undefined,
   };
