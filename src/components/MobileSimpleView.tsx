@@ -2082,11 +2082,11 @@ export function MobileSimpleView() {
                         if (effBase != null && effBase > 0 && Math.abs(effBase / closeVal - 1) < 0.0005) return null;
                         const gap = (effPrice / closeVal - 1) * 100;
                         if (!Number.isFinite(gap) || Math.abs(gap) < 0.005) return null;
-                        const gapCls = (isInverse ? gap < 0 : gap > 0) ? "text-rose-600" : "text-blue-600";
+                        const gapCls = (isInverse ? gap < 0 : gap > 0) ? "bg-rose-600/60" : "bg-blue-600/60";   // 마감 후 변동 — 색 배경·흰 글자 배지로 눈에 띄게(사용자 요청)
                         return (
-                          <span className={`tabular-nums ml-1 font-bold text-[11px] ${gapCls}`}
+                          <span className={`tabular-nums ml-1 font-bold text-[11px] text-white px-1 rounded ${gapCls}`}
                                 title="정규장 종가 대비 지금(아래 큰 숫자) 차이">
-                            <span className="text-gray-400 font-normal">→</span> {gap > 0 ? "+" : "−"}{Math.abs(gap).toFixed(2)}%
+                            {gap > 0 ? "+" : "−"}{Math.abs(gap).toFixed(2)}%
                           </span>
                         );
                       })()}

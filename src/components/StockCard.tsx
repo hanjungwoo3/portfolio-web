@@ -1095,9 +1095,9 @@ export function StockCard({
               const gap = (price.price / krReg!.regularPrice - 1) * 100;
               if (!Number.isFinite(gap) || Math.abs(gap) < 0.005) return null;
               return (
-                <span className={`tabular-nums ml-1 font-bold ${gap > 0 ? "text-rose-600" : "text-blue-600"}`}
+                <span className={`tabular-nums ml-1 font-bold text-white px-1 rounded ${gap > 0 ? "bg-rose-600/60" : "bg-blue-600/60"}`}
                       title="정규장 종가 대비 지금(큰 숫자) 차이">
-                  <span className="text-gray-400 font-normal">→</span> {gap > 0 ? "+" : "−"}{Math.abs(gap).toFixed(2)}%
+                  {gap > 0 ? "+" : "−"}{Math.abs(gap).toFixed(2)}%
                 </span>
               );
             })()}
