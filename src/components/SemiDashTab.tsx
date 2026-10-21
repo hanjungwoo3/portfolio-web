@@ -9,12 +9,13 @@ import { useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
-  fetchKrFuturesLive, fetchKrFuturesMinute, fetchYahooTodayKst, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
+  fetchKrFuturesLive, fetchKrFuturesMinute, fetchYasunNightFutures, fetchYahooTodayKst, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
 } from "../lib/api";
 import type { Investor } from "../types";
 import { allYahooSymbols } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
+import { isKrNightSession } from "../lib/format";
 import { useTickFlow, strength, netAmt, BIG_TRADE_WON, type TickFlow } from "../lib/useTickFlow";
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
@@ -96,6 +97,14 @@ export function SemiDashTab() {
   });
   const ticks = [useTickFlow(STOCKS[0].code), useTickFlow(STOCKS[1].code)];
   const [rightTab, setRightTab] = useState<"sig" | "hyp">("sig");
+  // 야간선물(18:00~05:00) — 지수 탭과 같은 쿼리키(캐시 공유)
+  const night = isKrNightSession();
+  const nightQs = useQueries({
+    queries: (["^KS200N", "^KQ150N"] as const).map(sym => ({
+      queryKey: ["yasun-night", sym], queryFn: () => fetchYasunNightFutures(sym),
+      enabled: night, refetchInterval: night ? REFRESH_MS : (false as const), staleTime: 60_000,
+    })),
+  });
   const [flowHover, setFlowHover] = useState<number | null>(null);   // 수급 세 칸 공통 마우스 시각(분)
   // 수급 그래프 배경 가격 — 지수는 야후 오늘 5분봉, 선물은 한경 1분봉(오늘 구간)
   const [{ data: ksToday }, { data: kqToday }] = useQueries({
@@ -196,12 +205,20 @@ export function SemiDashTab() {
         {/* 코스닥 — 사용자 요청(2026-10-21). 기준선은 카드 전일 종가(야후 ^KQ11 previousClose 가 그저께 값일 때가 있다) */}
         <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct}
               chart={spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />} />
+        {/* 야간(18:00~05:00)엔 야간선물(야선) — 사용자 요청. 주간 선물 카드와 자리를 바꾼다 */}
+        {night ? (["^KS200N", "^KQ150N"] as const).map((sym, i) => {
+          const d = nightQs[i]?.data;
+          return <Card key={sym} title={`${i ? "코스닥150" : "코스피200"} 야간선물`} price={d?.index.price} pct={d?.index.pct}
+                       sub={`주간 종가 ${i ? (futQ ? fmtP(futQ.price) : "-") : (fut ? fmtP(fut.price) : "-")} · 18:00~05:00`}
+                       chart={d && d.closes.length > 1 && <Sparkline data={d.closes} width={300} height={70} className="w-full h-full" strokeWidth={1.2} baseline={d.index.prevClose} />} />;
+        }) : <>
         <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct}
               sub={fut ? `미결제 ${fut.oi.toLocaleString()}(${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)}` : "한경 실시간"}
               chart={futMin && futMin.closes.length > 1 && <FutSpark s={futMin} live={fut?.price} />} />
         <Card title={`코스닥150 선물${futQ?.month ? ` ${futQ.month}` : ""}`} price={futQ?.price} pct={futQ?.pct}
               sub={futQ ? `미결제 ${futQ.oi.toLocaleString()}(${eok(futQ.oiChg)})` : "한경 실시간"}
               chart={futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />} />
+        </>}
         <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} inverse
               sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
               chart={vkChart && vkChart.length > 1 && <Sparkline data={vkChart.slice(-60)} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
