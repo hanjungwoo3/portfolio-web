@@ -103,14 +103,14 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
         const hLabel = `${String(Math.floor(hm0 / 60)).padStart(2, "0")}:${String(hm0 % 60).padStart(2, "0")}~`;
         return (
           <div key={k}>
-            <div className={`flex items-baseline gap-2 tabular-nums ${compact ? "text-[10px]" : "text-[11px]"}`}>
+            <div className={`flex items-baseline gap-2 tabular-nums min-w-0 ${compact ? "text-[10px]" : "text-[11px]"}`}>
               <b className="whitespace-nowrap" style={{ color }}>{def?.label ?? k}</b>
               {/* 좁은 칸(compact)은 '매수·매도·→' 글자를 뺀다(사용자 요청) — 빨강 = 매수, 파랑 = 매도 */}
               {hb ? (
-                <span className="text-gray-500 whitespace-nowrap">{hLabel} {!compact && "매수 "}<b className="text-rose-600">{fmtBig(hb.b, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(hb.s, unit)}</b>
+                <span className="text-gray-500 whitespace-nowrap min-w-0 truncate">{hLabel} {!compact && "매수 "}<b className="text-rose-600">{fmtBig(hb.b, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(hb.s, unit)}</b>
 </span>
               ) : (
-                <span className="text-gray-500 whitespace-nowrap">{!compact && "매수 "}<b className="text-rose-600">{fmtBig(totB, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(totS, unit)}</b></span>
+                <span className="text-gray-500 whitespace-nowrap min-w-0 truncate">{!compact && "매수 "}<b className="text-rose-600">{fmtBig(totB, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(totS, unit)}</b></span>
               )}
               {/* 마우스로 구간을 볼 땐 하루 총액은 감춘다(사용자 요청) */}
               {/* 마우스로 구간을 볼 땐 그 구간 차이를, 아니면 하루 순매수를 — 둘 다 오른쪽 끝 같은 자리(사용자 요청) */}

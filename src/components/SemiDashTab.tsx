@@ -473,7 +473,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
   } : undefined;
   const hoverX = hoverM != null && hoverM >= T0 && hoverM <= T1 ? PX + ((hoverM - T0) / span) * (W - PX * 2) : null;
   return (
-    <div className={`rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
+    <div className={`rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 min-w-0 ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
          title={dim ? "지금은 거래 시간이 아니거나 지난 거래일 자료입니다" : undefined}>
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800 shrink-0">{dim && <span className="mr-1 text-[11px] font-normal text-gray-400">zZ</span>}{title}</span>
