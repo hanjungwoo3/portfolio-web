@@ -4020,8 +4020,8 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const pc = resp?.meta?.previousClose ?? resp?.meta?.chartPreviousClose;
         const cpc = resp?.meta?.previousClose ? resp?.meta?.chartPreviousClose : undefined;   // previousClose 없으면 cpc 가 어제 종가라 어제 기준으론 못 쓴다
         // 날짜(뉴욕)가 바뀌는 첫 봉 — 어제와 선을 잇지 않는다
-        //   한국 지수·종목(^KS·^KQ·.KS·.KQ)은 한국 날짜로 — 뉴욕 날짜면 한국 장중(13:00 KST)에 끊긴다
-        const off = /^\^K[SQ]|\.K[SQ]$/.test(x.symbol) ? 9 : -4;
+        //   아시아 지수·종목은 한국 날짜로 — 뉴욕 날짜면 아시아 장중(한국 13:00)에 끊긴다
+        const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
         const etDay = (t: number) => new Date((t + off * 3600) * 1000).toISOString().slice(0, 10);   // 대략 EDT/KST(일자 경계만 필요)
         const bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
         out.set(x.symbol, { closes, openIdx: oi > 0 ? oi : undefined, prevClose: pc && pc > 0 ? pc : undefined, breakIdx: bi > 0 ? bi : undefined, prevBase: bi > 0 && cpc && cpc > 0 ? cpc : undefined });   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함

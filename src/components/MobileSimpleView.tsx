@@ -167,7 +167,11 @@ function fmtPrice(symbol: string, price: number): string {
 }
 
 // 24시간 차트용 미국 종목·ETF 심볼(야후 spark) — 지수(^)·선물(=)·가상 심볼·한국은 빼고 대문자 티커만
-const US_SPARK_SYMBOLS = US_PAIRS.map(p => p.symbol).filter(s => /^[A-Z][A-Z.]{0,5}$/.test(s) && marketOfSymbol(s) === "US" && s !== "CNNFG");
+const US_SPARK_SYMBOLS = [
+  ...US_PAIRS.map(p => p.symbol).filter(s => /^[A-Z][A-Z.]{0,5}$/.test(s) && marketOfSymbol(s) === "US" && s !== "CNNFG"),
+  // 한국·아시아 지수도 어제+오늘 5분봉(야후) — 토스 지수 시세엔 오늘 10분봉뿐이라 24시간 모양이 아니었다(사용자 지적 2026-10-21)
+  "^KS11", "^KQ11", "^N225", "^HSI", "000001.SS",
+];
 
 export function MobileSimpleView() {
   const queryClient = useQueryClient();
@@ -1964,10 +1968,10 @@ export function MobileSimpleView() {
               const isInverse = p.direction === "inverse";
               const effUp = isInverse ? (mainPct != null && mainPct < 0) : (mainPct != null && mainPct > 0);
               const effDn = isInverse ? (mainPct != null && mainPct > 0) : (mainPct != null && mainPct < 0);
-              const dayArr = nightClosesMap.get(p.symbol) ?? usMap?.get(p.symbol)?.sparkline ?? usSpark?.get(p.symbol)?.closes;
+              const dayArr = nightClosesMap.get(p.symbol) ?? usSpark?.get(p.symbol)?.closes ?? usMap?.get(p.symbol)?.sparkline;   // 야후 어제+오늘이 있으면 그걸 먼저
               const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], dayArr);
               // 24시간 차트가 야후 spark 에서 왔으면 '오늘 정규장 시작' 위치를 표시
-              const daySpark = chartRange === "day" && !nightClosesMap.get(p.symbol) && !usMap?.get(p.symbol)?.sparkline ? usSpark?.get(p.symbol) : undefined;
+              const daySpark = chartRange === "day" && !nightClosesMap.get(p.symbol) ? usSpark?.get(p.symbol) : undefined;
               const markIdx = daySpark && chartArr === daySpark.closes ? daySpark.openIdx : undefined;
               const breakIdx = daySpark && chartArr === daySpark.closes ? daySpark.breakIdx : undefined;   // 어제·오늘 사이 끊기
               // 24시간 차트의 기준선·색 기준 = 어제 종가(카드 큰 숫자와 같은 기준). 야후 spark 는 달러라 그 응답의 전일 종가를,
