@@ -412,12 +412,12 @@ export function MobileSimpleView() {
     // 증시 — 지수 왼쪽. 증시 자금동향 + 실시간 지수·투자자 차트.
     if (vis.stockMarket) {
       tabs.push({ key: MONEY_KEY, label: "💰증시", count: 0 });
-      tabs.push({ key: SEMI_DASH_KEY, label: "💾반도체", count: 0 });   // PC 와 같이 증시 옆(증시와 같이 켜고 끈다)
     }
     if (vis.usMarket) {
       // 지수 — 한국·미국·순환매 세 탭('지수' 드롭다운). 라벨은 PC 와 같은 한 벌(DASHBOARD_PAGES).
       const keyOf: Record<DashboardPage, string> = { day: KR_KEY, night: IDX_NIGHT_KEY, rot: IDX_ROT_KEY };
       for (const p of DASHBOARD_PAGES) tabs.push({ key: keyOf[p.key], label: `${p.emoji}${p.tab}`, count: 0 });
+      tabs.push({ key: SEMI_DASH_KEY, label: "💾지수(반도체 수급)", count: 0 });   // PC 와 같이 지수 묶음 끝
     }
     // 눌림목 — 시스템 묶음 첫 자리(섹터 위, PC buildTabs 와 같은 순서).
     if (vis.valuation) {   // 종목찾기(섹터별) — 종목찾기 묶음 맨 위
@@ -536,8 +536,7 @@ export function MobileSimpleView() {
     for (const t of groupTabs) if (SYS_DROPDOWN_KEYS.has(t.key)) keys.push(t.key);   // 투자도구 묶음
     for (const t of groupTabs) if (MY_GROUP_KEYS_M.has(t.key)) keys.push(t.key);     // 내자산 묶음
     if (has(MONEY_KEY)) keys.push(MONEY_KEY);                            // 증시(별도 탭)
-    if (has(SEMI_DASH_KEY)) keys.push(SEMI_DASH_KEY);                    // 반도체(별도 탭)
-    for (const t of groupTabs) if (INDEX_KEYS_M.has(t.key)) keys.push(t.key);   // 지수 묶음(주간·야간·반도체)
+    for (const t of groupTabs) if (INDEX_KEYS_M.has(t.key) || t.key === SEMI_DASH_KEY) keys.push(t.key);   // 지수 묶음(주간·야간·순환매·반도체 수급)
     for (const t of groupTabs) if (!SYS_ALL_KEYS.has(t.key) && !folderedGroups.has(t.key) && !isFolderAllKey(t.key)) keys.push(t.key);  // 사용자그룹(전체보기 가상탭 제외 — 아래 폴더 루프에서 넣음)
     for (const f of folders) {
       const ms = f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko"));
@@ -1272,7 +1271,7 @@ export function MobileSimpleView() {
           );
         })()}
         {/* 증시 — 지수 왼쪽 별도 탭 */}
-        {[MONEY_KEY, SEMI_DASH_KEY].map(k => {
+        {[MONEY_KEY].map(k => {
           const t = groupTabs.find(x => x.key === k);
           if (!t) return null;
           const active = activeTab === k;
@@ -1286,7 +1285,7 @@ export function MobileSimpleView() {
         })}
         {/* 지수 — 주간·야간·반도체 드롭다운 (투자도구·내자산과 같은 모양) */}
         {(() => {
-          const idx = groupTabs.filter(t => INDEX_KEYS_M.has(t.key));
+          const idx = groupTabs.filter(t => INDEX_KEYS_M.has(t.key) || t.key === SEMI_DASH_KEY);
           if (idx.length === 0) return null;
           const on = idx.some(t => t.key === activeTab);
           const current = on ? activeTab : idx[0].key;

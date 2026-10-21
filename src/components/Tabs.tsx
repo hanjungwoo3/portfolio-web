@@ -54,9 +54,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
   // 시스템 탭 묶기 — 섹터~ETF 를 드롭다운 하나로 (증시·지수는 자주 써서 별도 고정 탭으로 분리)
   const sysTabs = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key)
     && t.key !== US_MARKET_TAB_KEY && t.key !== MARKET_MONEY_TAB_KEY && t.key !== SEMI_DASH_TAB_KEY);
-  const indexTabs = tabs.filter(t => INDEX_GROUP_KEYS.has(t.key));   // 지수 드롭다운(주간·야간·반도체)
+  const indexTabs = tabs.filter(t => INDEX_GROUP_KEYS.has(t.key) || t.key === SEMI_DASH_TAB_KEY);   // 반도체 대시보드도 지수 묶음 끝에   // 지수 드롭다운(주간·야간·반도체)
   const marketMoneyTab = tabs.find(t => t.key === MARKET_MONEY_TAB_KEY);
-  const semiDashTab = tabs.find(t => t.key === SEMI_DASH_TAB_KEY);
   // 내자산 묶기 — 내주식 + 내거래 드롭다운 하나로
   const myTabs = tabs.filter(t => MY_GROUP_KEYS.has(t.key));
 
@@ -124,7 +123,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
       {renderGroupDropdown(sysTabs, "📊", "투자도구(분석)", VALUATION_TAB_KEY)}   {/* 맨 위 = 종목찾기(섹터별) — 버튼 이름과 누르면 가는 곳이 같게 */}
       {renderGroupDropdown(myTabs, "📦", "내자산")}
       {/* 증시 — 지수 왼쪽 별도 탭 */}
-      {[marketMoneyTab, semiDashTab].map(t => t && (
+      {[marketMoneyTab].map(t => t && (
         <button key={t.key} onClick={() => onChange(t.key)}
                 className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 transition-colors -mb-px
                             ${t.key === activeKey
@@ -393,11 +392,11 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   const tabs: TabSpec[] = [];
   // 증시 — 지수 왼쪽. 증시 자금동향 + 실시간 지수·투자자 차트.
   if (visibility?.stockMarket ?? true) tabs.push({ key: MARKET_MONEY_TAB_KEY, label: "증시", emoji: "💰", count: 0 });
-  if (visibility?.stockMarket ?? true) tabs.push({ key: SEMI_DASH_TAB_KEY, label: "반도체", emoji: "💾", count: 0 });   // 증시와 같이 켜고 끈다
   // 지수 — 한국·미국·순환매 세 탭(메뉴의 '📈 지수' 드롭다운). 라벨은 lib 한 벌(DASHBOARD_PAGES).
   if (showUs) {
     const keyOf: Record<DashboardPage, string> = { day: US_MARKET_TAB_KEY, night: INDEX_NIGHT_TAB_KEY, rot: INDEX_ROT_TAB_KEY };
     for (const p of DASHBOARD_PAGES) tabs.push({ key: keyOf[p.key], label: p.tab, emoji: p.emoji, count: 0 });
+    tabs.push({ key: SEMI_DASH_TAB_KEY, label: "지수(반도체 수급)", emoji: "💾", count: 0 });   // 지수 묶음 끝 — UsMarketTab 페이지가 아니라 별도 화면
   }
   // 종목찾기(섹터별) — 섹터를 골라 그 안의 종목을 한 표로(옛 '성적표'). 종목찾기 묶음 맨 위.
   if (visibility?.valuation ?? true) {

@@ -5508,3 +5508,28 @@ export async function fetchKospi200OptionSummary(underlying: number): Promise<Op
     range: [lo, hi], time: hkTime(time),
   };
 }
+
+// 코스피200 선물 1분봉(한경) — 최근 6거래일(08:45~15:45, 하루 약 411개)이 한 콜로 온다. 실시간(11:46 요청 → 11:46 봉).
+//   카드 배경용 **어제+오늘** 시계열(buildTwoDaySeries 와 같은 모양): 축은 하루 08:45~15:45, 기준선은 각 날의 전일 종가
+//   (봉의 close − chg_net), 세로선은 09:00(현물 개장).
+export async function fetchKrFuturesMinute(): Promise<DaySeries | null> {
+  const r = await fetchProxied("https://markets.hankyung.com/api/v2/future/kospi200/min");
+  if (!r.ok) return null;
+  const rows = await r.json() as { mdate?: string; mtime?: string; close?: number; chg_net?: number }[];
+  if (!Array.isArray(rows) || !rows.length) return null;
+  const days = [...new Set(rows.map(x => x.mdate ?? ""))].filter(Boolean).sort();
+  const today = days[days.length - 1], prevDay = days[days.length - 2];
+  const START = 8 * 60 + 45, SPAN = 7 * 60;
+  const frac = (t = "") => Math.min(1, Math.max(0, (Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) - START) / SPAN));
+  const of = (d?: string) => rows.filter(x => x.mdate === d && (x.close ?? 0) > 0);
+  const prev = of(prevDay), cur = of(today);
+  if (!cur.length) return null;
+  const baseOf = (xs: typeof rows) => { const l = xs[xs.length - 1]; return l ? (l.close ?? 0) - (l.chg_net ?? 0) : undefined; };
+  const oi = cur.findIndex(x => (x.mtime ?? "") >= "09:00");
+  return {
+    closes: [...prev.map(x => x.close!), ...cur.map(x => x.close!)],
+    xs: [...prev.map(x => frac(x.mtime) * TWO_DAY_HALF), ...cur.map(x => twoDayTodayX(frac(x.mtime)))],
+    base: baseOf(cur), prevBase: baseOf(prev), openIdx: oi >= 0 ? prev.length + oi : undefined,
+    date: today, twoDay: true, breakIdx: prev.length > 0 ? prev.length : undefined,
+  };
+}

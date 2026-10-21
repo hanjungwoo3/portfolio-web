@@ -222,8 +222,8 @@ function Dashboard() {
   const navKeys = useMemo(() => {
     const sys = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key) && t.key !== US_MARKET_TAB_KEY && t.key !== MARKET_MONEY_TAB_KEY && t.key !== SEMI_DASH_TAB_KEY);
     const my = tabs.filter(t => MY_GROUP_KEYS.has(t.key));
-    const money = tabs.filter(t => t.key === MARKET_MONEY_TAB_KEY || t.key === SEMI_DASH_TAB_KEY);
-    const idx = tabs.filter(t => INDEX_GROUP_KEYS.has(t.key));
+    const money = tabs.filter(t => t.key === MARKET_MONEY_TAB_KEY);
+    const idx = tabs.filter(t => INDEX_GROUP_KEYS.has(t.key) || t.key === SEMI_DASH_TAB_KEY);
     const rest = tabs.filter(t => !SYSTEM_TAB_KEYS.has(t.key) && !MY_GROUP_KEYS.has(t.key)
       && !INDEX_GROUP_KEYS.has(t.key) && !isFolderAllKey(t.key));
     return [...sys, ...my, ...money, ...idx, ...rest];

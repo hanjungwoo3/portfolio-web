@@ -8,7 +8,7 @@
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
-  fetchKrFuturesLive, fetchKospi200OptionSummary, fetchHlXyzPerps,
+  fetchKrFuturesLive, fetchKrFuturesMinute, fetchKospi200OptionSummary, fetchHlXyzPerps,
   type UsIndex, type IntradayFlow, type HlPerp,
 } from "../lib/api";
 import type { Investor } from "../types";
@@ -46,6 +46,9 @@ export function SemiDashTab() {
   });
   const { data: fut } = useQuery({
     queryKey: ["hk-futures-live"], queryFn: fetchKrFuturesLive, refetchInterval: 10_000, staleTime: 5_000,
+  });
+  const { data: futMin } = useQuery({
+    queryKey: ["hk-futures-min"], queryFn: fetchKrFuturesMinute, refetchInterval: FLOW_MS, staleTime: 30_000,
   });
   const ks200 = fut?.price ?? 0;
   const { data: opt } = useQuery({
@@ -116,7 +119,12 @@ export function SemiDashTab() {
         <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct}
               chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} />} />
         <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct}
-              sub={fut ? `미결제 ${fut.oi.toLocaleString()} (${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)} · ${fut.time.slice(0, 5)}` : "한경 실시간"} />
+              sub={fut ? `미결제 ${fut.oi.toLocaleString()} (${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)} · ${fut.time.slice(0, 5)}` : "한경 실시간"}
+              chart={futMin && futMin.closes.length > 1 && (
+                <Sparkline data={fut?.price && futMin.date ? [...futMin.closes, fut.price] : futMin.closes}
+                           xs={fut?.price && futMin.xs ? [...futMin.xs, futMin.xs[futMin.xs.length - 1] + 0.001] : futMin.xs}
+                           width={300} height={70} className="w-full h-full" strokeWidth={1.2}
+                           baseline={futMin.base} prevBaseline={futMin.prevBase} markIndex={futMin.openIdx} breakIndex={futMin.breakIdx} />)} />
         <Card title="필라델피아 반도체" price={sox?.price} pct={sox?.regularPct ?? sox?.pct}
               sub={soxF ? `선물 ${fmtP(soxF.price)} (${sgn(soxF.pct)}%)` : undefined}
               chart={spark?.get("^SOX") && <SparkBg sp={spark.get("^SOX")!} />} />
