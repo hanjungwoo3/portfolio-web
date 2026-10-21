@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
-  fetchKrFuturesLive, fetchKrFuturesMinute, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
+  fetchKrFuturesLive, fetchKrFuturesMinute, fetchYahooTodayKst, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
 } from "../lib/api";
 import type { Investor } from "../types";
@@ -95,6 +95,12 @@ export function SemiDashTab() {
   });
   const ticks = [useTickFlow(STOCKS[0].code), useTickFlow(STOCKS[1].code)];
   const [rightTab, setRightTab] = useState<"sig" | "hyp">("sig");
+  // 수급 그래프 배경 가격 — 지수는 야후 오늘 5분봉, 선물은 한경 1분봉(오늘 구간)
+  const [{ data: ksToday }, { data: kqToday }] = useQueries({
+    queries: (["^KS11", "^KQ11"] as const).map(sym => ({
+      queryKey: ["yahoo-today", sym], queryFn: () => fetchYahooTodayKst(sym), refetchInterval: FLOW_MS, staleTime: 30_000,
+    })),
+  });
   const { data: dayStr } = useQuery({
     queryKey: ["toss-day-strength", STOCKS.map(s => s.code).join(",")],
     queryFn: () => fetchTossDayStrength(STOCKS.map(s => s.code)),
@@ -102,6 +108,8 @@ export function SemiDashTab() {
   });
 
   const kf = kospiFlow.data, ff = futFlow.data;
+  const futToday = futMin?.todayTimes
+    ? futMin.todayTimes.map((t, i) => ({ t, v: futMin.closes[(futMin.breakIdx ?? 0) + i] })).filter(p => p.v > 0) : undefined;
   const kLast = kf?.points[kf.points.length - 1], fLast = ff?.points[ff.points.length - 1];
   // 코스피 외국인 최근 5분 변화(속도) — 1분 단위 누적이라 5행 전과의 차
   const k5 = kf && kf.points.length > 5 ? kLast!.foreigners - kf.points[kf.points.length - 6].foreigners : undefined;
@@ -232,9 +240,10 @@ export function SemiDashTab() {
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[200px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
-        <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" />
-        <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" />
-        <FlowBox title="선물 · 코스피200" note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" />
+        <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" />
+        <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" />
+        <FlowBox title="선물 · 코스피200" note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약"
+                 bg={futToday} bgLabel="코스피200 선물" endHM="15:45" />
         <OptionBox opt={opt} vk={vk} />
         <StockFlowTable rows={STOCKS.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: q(`${s.code}.KS`)?.price }))}
                         fLast={fLast}
@@ -386,9 +395,12 @@ const LINES = [
   { k: "foreigners", label: "외국인", color: "#ea580c" },
   { k: "individuals", label: "개인", color: "#7c3aed" },
 ] as const;
-function FlowBox({ title, note, flow, unit, tabs, tab, onTab }: {
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM = "15:30" }: {
   title: string; note: string; flow?: IntradayFlow; unit: string;
   tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
+  bg?: { t: string; v: number }[];   // 배경 가격(지수·선물) — 증시 탭처럼 연한 면으로, 축은 따로(사용자 요청)
+  bgLabel?: string;
+  endHM?: string;                    // 시간 축 끝(선물은 15:45)
 }) {
   const pts = flow?.points ?? [];
   const val = (p: IntradayFlow["points"][number], k: (typeof LINES)[number]["k"]) =>
@@ -396,7 +408,15 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab }: {
   const W = 400, H = 140, PX = 2, PY = 6;
   const tmin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   const mx = Math.max(1, ...pts.flatMap(p => LINES.map(l => Math.abs(val(p, l.k)))));
-  const x = (t: string) => PX + Math.min(1, Math.max(0, (tmin(t) - 9 * 60) / 390)) * (W - PX * 2);
+  const span = tmin(endHM) - 9 * 60;
+  const x = (t: string) => PX + Math.min(1, Math.max(0, (tmin(t) - 9 * 60) / span)) * (W - PX * 2);
+  // 배경 가격 면
+  const bgp = (bg ?? []).filter(b => b.t >= "09:00" && b.t <= endHM);
+  const bMin = Math.min(...bgp.map(b => b.v)), bMax = Math.max(...bgp.map(b => b.v)), bR = bMax - bMin || 1;
+  const by = (v: number) => PY + (1 - (v - bMin) / bR) * (H - PY * 2);
+  const bgUp = bgp.length > 1 && bgp[bgp.length - 1].v >= bgp[0].v;
+  // 마감 동시호가(일괄 체결) 구간 — 현물 15:20~15:30, 선물 15:35~15:45. 음영만 칠한다(글자는 그래프를 가려 뺐다)
+  const aucFrom = unit === "계약" ? "15:35" : "15:20";
   const y = (v: number) => H / 2 - (v / mx) * (H / 2 - PY);
   const last = pts[pts.length - 1];
   return (
@@ -429,14 +449,22 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab }: {
       )}
       <div className="flex-1 min-h-0">
         {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (
+          <div className="relative w-full h-full" title={bgLabel ? `배경 = ${bgLabel} 가격 · 노란 음영 = 마감 동시호가` : undefined}>
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
+            {bgp.length > 1 && (
+              <path d={`${bgp.map((b, i) => `${i ? "L" : "M"} ${x(b.t).toFixed(1)} ${by(b.v).toFixed(1)}`).join(" ")} L ${x(bgp[bgp.length - 1].t).toFixed(1)} ${H} L ${x(bgp[0].t).toFixed(1)} ${H} Z`}
+                    fill={bgUp ? "#fecdd3" : "#bfdbfe"} fillOpacity={0.45} stroke={bgUp ? "#fb7185" : "#60a5fa"} strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+            )}
             <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#94a3b8" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+            {/* 마감 동시호가 구간 음영 */}
+            <rect x={x(aucFrom)} width={Math.max(1, x(endHM) - x(aucFrom))} y={0} height={H} fill="#fde68a" fillOpacity={0.35} />
             {["10:00", "12:00", "14:00"].map(t => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H} stroke="#eef2f7" vectorEffect="non-scaling-stroke" />)}
             {LINES.map(l => (
               <path key={l.k} d={pts.map((p, i) => `${i ? "L" : "M"} ${x(p.time).toFixed(1)} ${y(val(p, l.k)).toFixed(1)}`).join(" ")}
                     fill="none" stroke={l.color} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
             ))}
           </svg>
+          </div>
         )}
       </div>
     </div>
