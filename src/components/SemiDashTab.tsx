@@ -19,7 +19,7 @@ import { useTickFlow, strength, netAmt, BIG_TRADE_WON, type TickFlow } from "../
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
 import { HypothesisBox } from "./HypothesisBox";
-import { BuySellBars } from "./BuySellBars";
+import { BuySellBars, joEok } from "./BuySellBars";
 
 const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }] as const;
 const SPARK = ["^KS11", "^KQ11"];   // 야후 spark 1콜(어제+오늘 5분봉)
@@ -96,6 +96,7 @@ export function SemiDashTab() {
   });
   const ticks = [useTickFlow(STOCKS[0].code), useTickFlow(STOCKS[1].code)];
   const [rightTab, setRightTab] = useState<"sig" | "hyp">("sig");
+  const [flowHover, setFlowHover] = useState<number | null>(null);   // 수급 세 칸 공통 마우스 시각(분)
   // 수급 그래프 배경 가격 — 지수는 야후 오늘 5분봉, 선물은 한경 1분봉(오늘 구간)
   const [{ data: ksToday }, { data: kqToday }] = useQueries({
     queries: (["^KS11", "^KQ11"] as const).map(sym => ({
@@ -241,9 +242,9 @@ export function SemiDashTab() {
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[200px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
-        <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" />
-        <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" />
-        <FlowBox title="선물 · 코스피200" note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약"
+        <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" />
+        <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" />
+        <FlowBox title="선물 · 코스피200" note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" hoverM={flowHover} onHover={setFlowHover}
                  bg={futToday} bgLabel="코스피200 선물" endHM="15:45" />
         <OptionBox opt={opt} vk={vk} />
         <StockFlowTable rows={STOCKS.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: q(`${s.code}.KS`)?.price }))}
@@ -396,12 +397,14 @@ const LINES = [
   { k: "foreigners", label: "외국인", color: "#ea580c" },
   { k: "individuals", label: "개인", color: "#7c3aed" },
 ] as const;
-function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM = "15:30" }: {
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM = "15:30", hoverM, onHover }: {
   title: string; note: string; flow?: IntradayFlow; unit: string;
   tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
   bg?: { t: string; v: number }[];   // 배경 가격(지수·선물) — 증시 탭처럼 연한 면으로, 축은 따로(사용자 요청)
   bgLabel?: string;
   endHM?: string;                    // 시간 축 끝(선물은 15:45)
+  hoverM?: number | null;            // 마우스가 가리키는 시각(분) — 세 칸이 같이 따라간다(사용자 요청)
+  onHover?: (m: number | null) => void;
 }) {
   const pts = flow?.points ?? [];
   const val = (p: IntradayFlow["points"][number], k: (typeof LINES)[number]["k"]) =>
@@ -419,12 +422,22 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
   // 마감 동시호가(일괄 체결) 구간 — 현물 15:20~15:30, 선물 15:35~15:45. 음영만 칠한다(글자는 그래프를 가려 뺐다)
   const aucFrom = unit === "계약" ? "15:35" : "15:20";
   const y = (v: number) => H / 2 - (v / mx) * (H / 2 - PY);
-  const last = pts[pts.length - 1];
+  const lastPt = pts[pts.length - 1];
+  // 마우스 시각의 값(그 시각 이하 마지막 점) — 숫자 줄이 그 값으로 바뀐다
+  const hovPt = hoverM != null ? [...pts].reverse().find(p => tmin(p.time) <= hoverM) : undefined;
+  const last = hovPt ?? lastPt;
+  const xToM = (px: number) => 9 * 60 + ((px - PX) / (W - PX * 2)) * span;
+  const onMove = onHover ? (e: React.MouseEvent<SVGSVGElement>) => {
+    const r = e.currentTarget.getBoundingClientRect();
+    const m = Math.round(xToM(((e.clientX - r.left) / r.width) * W));
+    onHover(m < 9 * 60 || m > tmin(endHM) ? null : m);
+  } : undefined;
+  const hoverX = hoverM != null && hoverM >= 9 * 60 && hoverM <= tmin(endHM) ? PX + ((hoverM - 9 * 60) / span) * (W - PX * 2) : null;
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800 shrink-0">{title}</span>
-        <span className="text-[11px] text-gray-400 truncate">{note}{last ? ` · ${last.time}` : ""} · {unit}</span>
+        <span className="text-[11px] text-gray-400 truncate">{note}{last ? ` · ${last.time}` : ""}{hovPt ? "(마우스)" : ""}{unit === "계약" ? " · 계약" : ""}</span>
         {tabs && (
           <span className="ml-auto shrink-0 inline-flex rounded border border-gray-300 overflow-hidden text-[10.5px]">
             {tabs.map(([k, l]) => (
@@ -436,19 +449,13 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
       </div>
       <div className="flex gap-2.5 tabular-nums">
         {LINES.map(l => (
-          <span key={l.k}><i className="inline-block w-2 h-0.5 mr-0.5 align-middle" style={{ background: l.color }} />{l.label} <b className={last ? up(val(last, l.k)) : "text-gray-300"}>{last ? eok(val(last, l.k)) : "-"}{last && unit === "계약" ? "계약" : ""}</b></span>
+          <span key={l.k}><i className="inline-block w-2 h-0.5 mr-0.5 align-middle" style={{ background: l.color }} />{l.label} <b className={last ? up(val(last, l.k)) : "text-gray-300"}>{last ? (unit === "억" ? `${val(last, l.k) > 0 ? "+" : val(last, l.k) < 0 ? "−" : ""}${joEok(val(last, l.k))}` : eok(val(last, l.k))) : "-"}{last && unit === "계약" ? "계약" : ""}</b></span>
         ))}
       </div>
-      {/* 선물 — 외국인 매수·매도 막대(10분, 사용자 요청). 총량은 막대 줄 머리에, 당일 회전은 '지금 신호'에 */}
-      {unit === "계약" && flow && (
-        <div className="mb-0.5">
-          <BuySellBars points={flow.points} keys={["foreigners"]} unit="계약" start="09:00" end="15:45" rowH={30} compact />
-        </div>
-      )}
       <div className="flex-1 min-h-0">
         {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (
           <div className="relative w-full h-full" title={bgLabel ? `배경 = ${bgLabel} 가격 · 노란 음영 = 마감 동시호가` : undefined}>
-          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
+          <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full" onMouseMove={onMove} onMouseLeave={onHover ? () => onHover(null) : undefined}>
             {bgp.length > 1 && (
               <path d={`${bgp.map((b, i) => `${i ? "L" : "M"} ${x(b.t).toFixed(1)} ${by(b.v).toFixed(1)}`).join(" ")} L ${x(bgp[bgp.length - 1].t).toFixed(1)} ${H} L ${x(bgp[0].t).toFixed(1)} ${H} Z`}
                     fill={bgUp ? "#fecdd3" : "#bfdbfe"} fillOpacity={0.45} stroke={bgUp ? "#fb7185" : "#60a5fa"} strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
@@ -461,10 +468,20 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
               <path key={l.k} d={pts.map((p, i) => `${i ? "L" : "M"} ${x(p.time).toFixed(1)} ${y(val(p, l.k)).toFixed(1)}`).join(" ")}
                     fill="none" stroke={l.color} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
             ))}
+            {hoverX != null && <line x1={hoverX} x2={hoverX} y1={0} y2={H} stroke="#475569" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
           </svg>
           </div>
         )}
       </div>
+      {/* 외국인 매수·매도 막대(10분) — 그래프 바로 아래, 같은 시간 축(사용자 요청). 축 밖(프리·시간외)은 그리지 않는다 */}
+      {flow && pts.length > 1 && (
+        <BuySellBars points={flow.points} keys={["foreigners"]} unit={unit === "계약" ? "계약" : "억"} start="09:00" end={endHM}
+          rowH={30} compact
+          geom={{
+            width: W, hoverT: hoverM ?? null, toT: tmin, hover: onHover,
+            xOfT: m => (m < tmin("09:00") || m > tmin(endHM) ? null : x(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`)),
+          }} />
+      )}
     </div>
   );
 }

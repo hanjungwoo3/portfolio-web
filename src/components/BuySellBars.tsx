@@ -8,9 +8,12 @@ import type { IntradayFlowPoint } from "../lib/api";
 import { INTRADAY_SERIES } from "../lib/intradayInvestor";
 
 const tmin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-const fmtBig = (v: number, unit: string) =>
-  unit === "억" && Math.abs(v) >= 10_000 ? `${(v / 10_000).toFixed(1)}조`
-    : `${Math.round(v).toLocaleString()}${unit === "억" ? "억" : "계약"}`;
+// 억 단위 값 → "1조 1,097억원"·"5,433억원"(사용자 요청 — 조·억원으로), 선물 계약은 "122,744계약"
+export const joEok = (v: number) => {
+  const a = Math.round(Math.abs(v)), jo = Math.floor(a / 10_000), eok = a % 10_000;
+  return jo ? `${jo}조${eok ? ` ${eok.toLocaleString()}억원` : "원"}` : `${eok.toLocaleString()}억원`;
+};
+const fmtBig = (v: number, unit: string) => (unit === "억" ? joEok(v) : `${Math.round(v).toLocaleString()}계약`);
 const signed = (v: number, unit: string) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmtBig(Math.abs(v), unit)}`;
 
 export interface BarsGeom {
@@ -84,14 +87,15 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket = 10, start 
         return (
           <div key={k}>
             <div className={`flex items-baseline gap-2 tabular-nums ${compact ? "text-[10px]" : "text-[11px]"}`}>
-              <b style={{ color }}>{def?.label ?? k}</b>
+              <b className="whitespace-nowrap" style={{ color }}>{def?.label ?? k}</b>
+              {/* 좁은 칸(compact)은 '매수·매도·→' 글자를 뺀다(사용자 요청) — 빨강 = 매수, 파랑 = 매도 */}
               {hb ? (
-                <span className="text-gray-500">{hLabel} 매수 <b className="text-rose-600">{fmtBig(hb.b, unit)}</b> · 매도 <b className="text-blue-600">{fmtBig(hb.s, unit)}</b>
-                  {" "}→ <b className={hb.b - hb.s > 0 ? "text-rose-600" : hb.b - hb.s < 0 ? "text-blue-600" : ""}>{signed(hb.b - hb.s, unit)}</b></span>
+                <span className="text-gray-500 whitespace-nowrap">{hLabel} {!compact && "매수 "}<b className="text-rose-600">{fmtBig(hb.b, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(hb.s, unit)}</b>
+                  {" "}{!compact && "→ "}<b className={hb.b - hb.s > 0 ? "text-rose-600" : hb.b - hb.s < 0 ? "text-blue-600" : ""}>{signed(hb.b - hb.s, unit)}</b></span>
               ) : (
-                <span className="text-gray-500">매수 <b className="text-rose-600">{fmtBig(totB, unit)}</b> · 매도 <b className="text-blue-600">{fmtBig(totS, unit)}</b></span>
+                <span className="text-gray-500 whitespace-nowrap">{!compact && "매수 "}<b className="text-rose-600">{fmtBig(totB, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(totS, unit)}</b></span>
               )}
-              <span className="ml-auto">순 <b className={net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-500"}>{signed(net, unit)}</b></span>
+              <span className="ml-auto whitespace-nowrap">{!compact && "순 "}<b className={net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-500"}>{signed(net, unit)}</b></span>
             </div>
             <svg viewBox={`0 0 ${PX_W} ${H}`} preserveAspectRatio="none" className="w-full block" style={{ height: rowH }}
                  onMouseMove={geom?.hover ? e => {
