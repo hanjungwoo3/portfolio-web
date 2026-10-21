@@ -18,6 +18,7 @@ const ALLOWED_HOSTS = new Set([
   "hq.sinajs.cn",
   "stock2.finance.sina.com.cn",
   "moneyland.co.kr",
+  "markets.hankyung.com",
   "scanner.tradingview.com",
   // 야후 — 앱은 아직 여기로 안 보낸다(blocksResidentialIp 로 클라우드 프록시행).
   //   가정용 IP 가 정말 막히는지 서비스워커 콘솔에서 직접 시험하려고 열어둔 상태.
@@ -78,6 +79,10 @@ const HEADER_GROUPS = [
   { domains: ["yasun.gg"], headers: { Referer: "https://yasun.gg/" } },
   { domains: ["finance.daum.net"], headers: { Referer: "https://finance.daum.net/" } },
   { domains: ["hq.sinajs.cn", "stock2.finance.sina.com.cn"], headers: { Referer: "https://finance.sina.com.cn/" } },   // 리튬·니켈 — 없으면 403
+  {
+    domains: ["markets.hankyung.com"],   // 한경 선물·옵션 — 사이트 공개 키 없으면 403
+    headers: { Authorization: "Bearer 0ZdNlr7LrQoawewqweq78k6usasBsqhqSIaUarSTf8mxnHuQVh9CvKAfpUy94LhBmZMg", Referer: "https://markets.hankyung.com/" },
+  },
   {
     domains: ["production.dataviz.cnn.io"],   // CNN 공포·탐욕 — 없으면 418(봇)
     headers: { Origin: "https://edition.cnn.com", Referer: "https://edition.cnn.com/", "Accept-Language": "en-US,en;q=0.9" },

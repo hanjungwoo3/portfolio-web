@@ -53,9 +53,10 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
 
   // 시스템 탭 묶기 — 섹터~ETF 를 드롭다운 하나로 (증시·지수는 자주 써서 별도 고정 탭으로 분리)
   const sysTabs = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key)
-    && t.key !== US_MARKET_TAB_KEY && t.key !== MARKET_MONEY_TAB_KEY);
+    && t.key !== US_MARKET_TAB_KEY && t.key !== MARKET_MONEY_TAB_KEY && t.key !== SEMI_DASH_TAB_KEY);
   const indexTabs = tabs.filter(t => INDEX_GROUP_KEYS.has(t.key));   // 지수 드롭다운(주간·야간·반도체)
   const marketMoneyTab = tabs.find(t => t.key === MARKET_MONEY_TAB_KEY);
+  const semiDashTab = tabs.find(t => t.key === SEMI_DASH_TAB_KEY);
   // 내자산 묶기 — 내주식 + 내거래 드롭다운 하나로
   const myTabs = tabs.filter(t => MY_GROUP_KEYS.has(t.key));
 
@@ -123,15 +124,15 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
       {renderGroupDropdown(sysTabs, "📊", "투자도구(분석)", VALUATION_TAB_KEY)}   {/* 맨 위 = 종목찾기(섹터별) — 버튼 이름과 누르면 가는 곳이 같게 */}
       {renderGroupDropdown(myTabs, "📦", "내자산")}
       {/* 증시 — 지수 왼쪽 별도 탭 */}
-      {marketMoneyTab && (
-        <button onClick={() => onChange(marketMoneyTab.key)}
+      {[marketMoneyTab, semiDashTab].map(t => t && (
+        <button key={t.key} onClick={() => onChange(t.key)}
                 className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 transition-colors -mb-px
-                            ${marketMoneyTab.key === activeKey
+                            ${t.key === activeKey
                               ? "border-blue-500 text-blue-700 bg-blue-50"
                               : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
-          <span className="mr-1">{marketMoneyTab.emoji ?? "💰"}</span>{marketMoneyTab.label}
+          <span className="mr-1">{t.emoji}</span>{t.label}
         </button>
-      )}
+      ))}
       {/* 지수 — 별도 탭 */}
       {/* 지수 — 주간·야간·반도체 드롭다운(투자도구·내자산과 같은 모양) */}
       {/* 지수 탭을 누르면 시간에 맞는 페이지로 — 한국 낮(07~18시)은 주간, 그 외는 야간 */}
@@ -323,6 +324,8 @@ export const INDEX_LEADERS_TAB_KEY = "__idx-leaders__";   // 폐지 — 주간�
 // 묶음·페이지 매핑(INDEX_GROUP_KEYS·indexPageOf)은 lib/dashboardGroups — 컴포넌트 파일에서 Set·함수를
 //   export 하면 HMR(fast refresh)이 이 파일을 통째로 다시 그린다.
 export const SEMI_CHECK_TAB_KEY = "__semi-check__";
+// 반도체 한눈에 — 삼성·하이닉스 실시간 체결 + 현물·선물·옵션 수급(증시 옆 별도 탭, 2026-10-21)
+export const SEMI_DASH_TAB_KEY = "__semi-dash__";
 // 한국 섹터 순위 — 토스 TICS depth1 기반, 돈의 흐름 시각화
 export const SECTOR_RANK_TAB_KEY = "__sector-rank__";
 // 가상 합산 그룹 — 모든 그룹의 동일 ticker 를 합쳐 표시 (수량/평단 통합 뷰)
@@ -353,7 +356,7 @@ export const ASSET_TREND_TAB_KEY = "__asset-trend__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
-  "관심ETF", MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY, SEMI_CHECK_TAB_KEY,
+  "관심ETF", MARKET_MONEY_TAB_KEY, SEMI_DASH_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY, SEMI_CHECK_TAB_KEY,
   SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY,
   ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
   SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY,
@@ -361,7 +364,7 @@ const RESERVED = new Set<string>([
 
 // 묶기 대상 시스템 탭 — 드롭다운 하나로 합침. (증시·지수는 자주 써서 별도 고정 탭)
 export const SYSTEM_TAB_KEYS = new Set<string>([
-  MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
+  MARKET_MONEY_TAB_KEY, SEMI_DASH_TAB_KEY, US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
   CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
   SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY,
 ]);
@@ -390,6 +393,7 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   const tabs: TabSpec[] = [];
   // 증시 — 지수 왼쪽. 증시 자금동향 + 실시간 지수·투자자 차트.
   if (visibility?.stockMarket ?? true) tabs.push({ key: MARKET_MONEY_TAB_KEY, label: "증시", emoji: "💰", count: 0 });
+  if (visibility?.stockMarket ?? true) tabs.push({ key: SEMI_DASH_TAB_KEY, label: "반도체", emoji: "💾", count: 0 });   // 증시와 같이 켜고 끈다
   // 지수 — 한국·미국·순환매 세 탭(메뉴의 '📈 지수' 드롭다운). 라벨은 lib 한 벌(DASHBOARD_PAGES).
   if (showUs) {
     const keyOf: Record<DashboardPage, string> = { day: US_MARKET_TAB_KEY, night: INDEX_NIGHT_TAB_KEY, rot: INDEX_ROT_TAB_KEY };

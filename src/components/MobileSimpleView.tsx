@@ -72,9 +72,10 @@ import { MobileStockCard } from "./MobileStockCard";
 import { MemoDialog } from "./MemoDialog";
 import { TotalRow } from "./TotalRow";
 import { SemiCheckTab } from "./SemiCheckTab";
+import { SemiDashTab } from "./SemiDashTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { filterByTab, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_ROT_TAB_KEY as IDX_ROT_KEY, INDEX_US_TAB_KEY as IDX_US_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, EARNINGS_TAB_KEY as EARNINGS_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY } from "./Tabs";
+import { filterByTab, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_ROT_TAB_KEY as IDX_ROT_KEY, INDEX_US_TAB_KEY as IDX_US_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, EARNINGS_TAB_KEY as EARNINGS_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY, SEMI_DASH_TAB_KEY as SEMI_DASH_KEY } from "./Tabs";
 import { EtfReverseTab } from "./EtfReverseTab";
 import { EtfRankingTab } from "./EtfRankingTab";
 import { ScreenerTab } from "./ScreenerTab";
@@ -145,7 +146,7 @@ const MY_GROUP_KEYS_M = new Set<string>([MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY]
 // '지수' 드롭다운 — 주간(옛 지수 키 KR_KEY 를 그대로 써서 저장된 마지막 탭이 이어진다)·야간·반도체
 const INDEX_KEYS_M = new Set<string>([KR_KEY, IDX_NIGHT_KEY, IDX_ROT_KEY]);
 const indexPageOfM = (k: string): DashboardPage => k === IDX_NIGHT_KEY ? "night" : k === IDX_ROT_KEY ? "rot" : "day";
-const SYS_ALL_KEYS = new Set<string>([MONEY_KEY, ...INDEX_KEYS_M, ...SYS_DROPDOWN_KEYS, ...MY_GROUP_KEYS_M]);
+const SYS_ALL_KEYS = new Set<string>([MONEY_KEY, SEMI_DASH_KEY, ...INDEX_KEYS_M, ...SYS_DROPDOWN_KEYS, ...MY_GROUP_KEYS_M]);
 // 일부 심볼 sparkline 은 Yahoo 가 historical 안 줌 → 가까운 현물 차트로 폴백 (차트 목록 계산에도 쓴다)
 const SPARKLINE_FALLBACK_M: Record<string, string> = { "SOX=F": "^SOX" };
 const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
@@ -411,6 +412,7 @@ export function MobileSimpleView() {
     // 증시 — 지수 왼쪽. 증시 자금동향 + 실시간 지수·투자자 차트.
     if (vis.stockMarket) {
       tabs.push({ key: MONEY_KEY, label: "💰증시", count: 0 });
+      tabs.push({ key: SEMI_DASH_KEY, label: "💾반도체", count: 0 });   // PC 와 같이 증시 옆(증시와 같이 켜고 끈다)
     }
     if (vis.usMarket) {
       // 지수 — 한국·미국·순환매 세 탭('지수' 드롭다운). 라벨은 PC 와 같은 한 벌(DASHBOARD_PAGES).
@@ -534,6 +536,7 @@ export function MobileSimpleView() {
     for (const t of groupTabs) if (SYS_DROPDOWN_KEYS.has(t.key)) keys.push(t.key);   // 투자도구 묶음
     for (const t of groupTabs) if (MY_GROUP_KEYS_M.has(t.key)) keys.push(t.key);     // 내자산 묶음
     if (has(MONEY_KEY)) keys.push(MONEY_KEY);                            // 증시(별도 탭)
+    if (has(SEMI_DASH_KEY)) keys.push(SEMI_DASH_KEY);                    // 반도체(별도 탭)
     for (const t of groupTabs) if (INDEX_KEYS_M.has(t.key)) keys.push(t.key);   // 지수 묶음(주간·야간·반도체)
     for (const t of groupTabs) if (!SYS_ALL_KEYS.has(t.key) && !folderedGroups.has(t.key) && !isFolderAllKey(t.key)) keys.push(t.key);  // 사용자그룹(전체보기 가상탭 제외 — 아래 폴더 루프에서 넣음)
     for (const f of folders) {
@@ -1269,18 +1272,18 @@ export function MobileSimpleView() {
           );
         })()}
         {/* 증시 — 지수 왼쪽 별도 탭 */}
-        {(() => {
-          const t = groupTabs.find(x => x.key === MONEY_KEY);
+        {[MONEY_KEY, SEMI_DASH_KEY].map(k => {
+          const t = groupTabs.find(x => x.key === k);
           if (!t) return null;
-          const active = activeTab === MONEY_KEY;
+          const active = activeTab === k;
           return (
-            <button onClick={() => setActiveTab(MONEY_KEY)}
+            <button key={k} onClick={() => setActiveTab(k)}
                     className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition inline-flex items-center
                                 ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
               {t.label}
             </button>
           );
-        })()}
+        })}
         {/* 지수 — 주간·야간·반도체 드롭다운 (투자도구·내자산과 같은 모양) */}
         {(() => {
           const idx = groupTabs.filter(t => INDEX_KEYS_M.has(t.key));
@@ -1701,6 +1704,9 @@ export function MobileSimpleView() {
       {isSystemTab && (() => {
         if (activeTab === MONEY_KEY) {
           return <div className="px-3 py-2 pb-32"><StockMarketTab onOpenValuation={(code, n2) => { setValuationName(n2); setValuationTicker(code); }} /></div>;
+        }
+        if (activeTab === SEMI_DASH_KEY) {
+          return <div className="pb-32"><SemiDashTab /></div>;
         }
         if (activeTab === ASSET_TREND_KEY) {
           return <div className="px-2 py-2 pb-32"><AssetTrendTab trades={allTrades} holdings={holdings} /></div>;

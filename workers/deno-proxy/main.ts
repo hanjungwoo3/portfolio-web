@@ -20,6 +20,7 @@ const ALLOWED_HOSTS = new Set<string>([
   "hq.sinajs.cn",             // 시나 금융 — 탄산리튬(광저우)·LME 니켈 시세. Referer 없으면 403
   "stock2.finance.sina.com.cn", // 시나 금융 — 리튬·니켈 일봉
   "moneyland.co.kr",          // 메모리 현물가(DRAM 지수·DDR5·NAND) 대시보드 JSON — 헤더 불필요
+  "markets.hankyung.com",      // 한국경제 — 코스피200 선물 실시간·옵션 행사가별 시세. 사이트 공개 키(Authorization) 필요
   "scanner.tradingview.com",  // KOSPI/KOSDAQ 히트맵 — TradingView scanner (POST)
 ]);
 
@@ -150,6 +151,10 @@ async function handler(request: Request): Promise<Response> {
     headers["Referer"] = "https://finance.daum.net/";
   } else if (targetUrl.hostname.endsWith("sina.com.cn") || targetUrl.hostname === "hq.sinajs.cn") {
     headers["Referer"] = "https://finance.sina.com.cn/";
+  } else if (targetUrl.hostname === "markets.hankyung.com") {
+    headers["Authorization"] = "Bearer 0ZdNlr7LrQoawewqweq78k6usasBsqhqSIaUarSTf8mxnHuQVh9CvKAfpUy94LhBmZMg";   // 한경 프론트엔드 번들의 공개 키 — 없으면 403
+    headers["Referer"] = "https://markets.hankyung.com/";
+    headers["Accept"] = "application/json";
   } else if (targetUrl.hostname === "production.dataviz.cnn.io") {
     headers["Origin"] = "https://edition.cnn.com";
     headers["Referer"] = "https://edition.cnn.com/";

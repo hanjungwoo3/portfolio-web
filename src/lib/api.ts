@@ -4020,7 +4020,9 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const pc = resp?.meta?.previousClose ?? resp?.meta?.chartPreviousClose;
         const cpc = resp?.meta?.previousClose ? resp?.meta?.chartPreviousClose : undefined;   // previousClose 없으면 cpc 가 어제 종가라 어제 기준으론 못 쓴다
         // 날짜(뉴욕)가 바뀌는 첫 봉 — 어제와 선을 잇지 않는다
-        const etDay = (t: number) => new Date((t - 4 * 3600) * 1000).toISOString().slice(0, 10);   // 대략 EDT(일자 경계만 필요)
+        //   한국 지수·종목(^KS·^KQ·.KS·.KQ)은 한국 날짜로 — 뉴욕 날짜면 한국 장중(13:00 KST)에 끊긴다
+        const off = /^\^K[SQ]|\.K[SQ]$/.test(x.symbol) ? 9 : -4;
+        const etDay = (t: number) => new Date((t + off * 3600) * 1000).toISOString().slice(0, 10);   // 대략 EDT/KST(일자 경계만 필요)
         const bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
         out.set(x.symbol, { closes, openIdx: oi > 0 ? oi : undefined, prevClose: pc && pc > 0 ? pc : undefined, breakIdx: bi > 0 ? bi : undefined, prevBase: bi > 0 && cpc && cpc > 0 ? cpc : undefined });   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
       }
@@ -5404,3 +5406,105 @@ export async function fetchInvestorRankingsByMarket(
   return { groups, range: foRange };
 }
 
+
+// ─── 종목 실시간 체결 (토스 v2 ticks) ───────────────────────────────
+//   체결 하나하나에 매수/매도 구분(tradeType)이 붙어 있다 — 반도체 대시보드의 '지금 사는 쪽이 센가'.
+//   ⚠️ 최근 것만 준다: count 는 300 까지(500 이상은 400). 하이닉스 기준 약 50초치 → 화면이 5초마다 받아 쌓는다.
+//   과거로 넘기는 파라미터는 없다(실측 2026-10-21). 시각은 KST "HH:MM:SS".
+export interface TossTick { time: string; price: number; volume: number; side: "BUY" | "SELL"; cum: number }
+export async function fetchTossTicks(code: string, count = 300): Promise<TossTick[]> {
+  const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-prices/A${code}/ticks?count=${Math.min(300, count)}`);
+  if (!r.ok) throw new Error(`체결 조회 실패 (HTTP ${r.status})`);
+  const j = await r.json() as { result?: { time?: string; price?: number; volume?: number; tradeType?: string; cumulativeVolume?: number }[] };
+  return (j.result ?? []).flatMap(t => t.time && t.price && t.volume && (t.tradeType === "BUY" || t.tradeType === "SELL")
+    ? [{ time: t.time, price: t.price, volume: t.volume, side: t.tradeType, cum: t.cumulativeVolume ?? 0 }] : []);
+}
+
+// ─── 코스피200 선물·옵션 실시간 (한국경제 markets.hankyung.com) ─────────────
+//   네이버 선물 수급은 20분 늦지만 한경 시세는 실시간이다(실측 11:23 요청 → 11:23:12 체결).
+//   인증 헤더(사이트 공개 키)는 프록시가 붙인다 — 프론트엔드 번들의 값을 그대로(사이트가 바꾸면 401).
+//   옵션은 **투자자별 수급이 아니라 시세**(행사가별 현재가·거래량·미결제) — 풋/콜 비율로 분위기를 본다.
+export interface KrFuturesLive {
+  price: number; chg: number; pct: number; open: number; high: number; low: number;
+  volume: number; oi: number; oiChg: number; basis: number; time: string; month: string;
+}
+const HK = "https://markets.hankyung.com/api/v2/future/option";
+type HkTrader = { chetime?: string; curprc?: number | string; chgprc?: number | string; chgrate?: number | string; openprc?: number | string;
+  highprc?: number | string; lowprc?: number | string; volume?: string; mivol?: number | string; basis?: number | string };
+type HkOptRow = { stkprice?: string; premivol?: string; option_trader?: HkTrader };
+const hkTime = (t?: string) => (t && t.length >= 6 ? `${t.slice(0, 2)}:${t.slice(2, 4)}:${t.slice(4, 6)}` : "");
+let hkDetailMemo: { at: number; p: Promise<{ future?: { kr_name?: string; premivol?: string; future_trader?: HkTrader }; lastDates?: string[] } | null> } | null = null;
+function loadHkDetail() {
+  if (hkDetailMemo && Date.now() - hkDetailMemo.at < 4_000) return hkDetailMemo.p;   // 선물·옵션이 같은 응답을 쓴다 — 한 번만
+  const p = fetchProxied(`${HK}/kospi200`).then(r => (r.ok ? r.json() : null)).catch(() => null);
+  hkDetailMemo = { at: Date.now(), p };
+  return p;
+}
+export async function fetchKrFuturesLive(): Promise<KrFuturesLive | null> {
+  const j = await loadHkDetail();
+  const f = j?.future, t = f?.future_trader;
+  const n = (v: unknown) => Number(v) || 0;
+  if (!t || !(n(t.curprc) > 0)) return null;
+  return {
+    price: n(t.curprc), chg: n(t.chgprc), pct: n(t.chgrate), open: n(t.openprc), high: n(t.highprc), low: n(t.lowprc),
+    // 미결제 mivol 은 **천 계약** 단위(144.69 = 144,690 — 전일 premivol 145866 과 비교해 확인)
+    volume: n(t.volume), oi: Math.round(n(t.mivol) * 1000), oiChg: Math.round(n(t.mivol) * 1000) - n(f?.premivol),
+    basis: n(t.basis), time: hkTime(t.chetime), month: f?.kr_name ?? "",
+  };
+}
+
+export interface OptionSummary {
+  month: string;               // 만기일 "YYYYMMDD"(근월물)
+  atm: number;                 // 가운데 행사가
+  callVol: number; putVol: number;   // 받은 행사가 범위의 당일 거래량 합
+  callOi: number; putOi: number;     // 미결제약정 합
+  callOiChg: number; putOiChg: number;   // 전일 대비 미결제 증감
+  maxCallOi?: number; maxPutOi?: number; // 미결제가 가장 많은 행사가(콜=위 저항·풋=아래 지지로 흔히 본다)
+  range: [number, number];     // 받은 행사가 범위
+  time: string;
+}
+// 근월물 옵션 — 행사가가 위에서부터(높은 값 먼저) 10개씩 페이지로 온다(343개 = 35쪽).
+//   지금 가격 근처 3쪽(약 ±37pt)만 받는다 — 1분마다 3~4콜.
+export async function fetchKospi200OptionSummary(underlying: number): Promise<OptionSummary | null> {
+  const d = await loadHkDetail();
+  const month = d?.lastDates?.[0];
+  if (!month || !(underlying > 0)) return null;
+  const page = async (p: number) => {
+    const r = await fetchProxied(`${HK}/kospi200-list?lastDate=${month}&page=${p}`);
+    if (!r.ok) return null;
+    const j = await r.json() as { data?: Record<string, { call?: HkOptRow[]; put?: HkOptRow[] }> | { call?: HkOptRow[]; put?: HkOptRow[] }[]; last_page?: number };
+    // 1쪽은 배열, 2쪽부터는 {"10": …} 객체로 온다(라라벨 페이지네이션) — 둘 다 배열로
+    return { last_page: j.last_page, data: Object.values(j.data ?? {}) };
+  };
+  const first = await page(1);
+  const rows0 = first?.data ?? [];
+  const top = Number(rows0[0]?.call?.[0]?.stkprice ?? 0), step = Math.abs(top - Number(rows0[1]?.call?.[0]?.stkprice ?? top)) || 2.5;
+  if (!top) return null;
+  const idx = Math.max(0, Math.round((top - underlying) / step));
+  // 가운데 행사가 위·아래 15개씩(±37.5pt) 이 걸치는 쪽들 — 보통 3~4쪽
+  const lastPage = first?.last_page ?? 1;
+  const p0 = Math.max(1, Math.floor((idx - 15) / 10) + 1), p1 = Math.min(lastPage, Math.floor((idx + 15) / 10) + 1);
+  const pages = await Promise.all(Array.from({ length: p1 - p0 + 1 }, (_, i) => p0 + i).map(p => (p === 1 ? Promise.resolve(first) : page(p))));
+  const n = (v: unknown) => Number(v) || 0;
+  let callVol = 0, putVol = 0, callOi = 0, putOi = 0, callPre = 0, putPre = 0, lo = Infinity, hi = 0, time = "";
+  let maxC = { k: 0, oi: -1 }, maxP = { k: 0, oi: -1 };
+  for (const pg of pages) for (const r of pg?.data ?? []) {
+    const c = r.call?.[0], p = r.put?.[0];
+    const k = n(c?.stkprice ?? p?.stkprice);
+    if (!k) continue;
+    lo = Math.min(lo, k); hi = Math.max(hi, k);
+    const co = n(c?.option_trader?.mivol), po = n(p?.option_trader?.mivol);
+    callVol += n(c?.option_trader?.volume); putVol += n(p?.option_trader?.volume);
+    callOi += co; putOi += po; callPre += n(c?.premivol); putPre += n(p?.premivol);
+    if (co > maxC.oi) maxC = { k, oi: co };
+    if (po > maxP.oi) maxP = { k, oi: po };
+    const tt = c?.option_trader?.chetime ?? "";
+    if (tt > time && tt.length >= 6) time = tt;
+  }
+  if (!hi) return null;
+  return {
+    month, atm: top - idx * step, callVol, putVol, callOi, putOi, callOiChg: callOi - callPre, putOiChg: putOi - putPre,
+    maxCallOi: maxC.oi > 0 ? maxC.k : undefined, maxPutOi: maxP.oi > 0 ? maxP.k : undefined,
+    range: [lo, hi], time: hkTime(time),
+  };
+}
