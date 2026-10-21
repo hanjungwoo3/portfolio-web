@@ -60,12 +60,13 @@ function b64ToBuf(b64: string): ArrayBuffer {
 }
 
 // 디코딩 결과가 우리가 다루는 본문처럼 보이는가(HTML/JSON/텍스트). base64 오판을 막는 확인.
+//   ★ 첫 바이트만 <·{·[ 로 보면 JS 응답이 빠진다 — 시나(리튬·니켈)는 'var hq_str…', 일봉은 '/*…' 로 시작해
+//     base64 문자열이 그대로 본문이 됐다(APK 에서 리튬·니켈이 안 나오던 원인, 2026-10-22).
+//     앞 4바이트가 전부 인쇄 가능한 ASCII·공백이면 본문으로 본다(진짜 base64 문자열을 잘못 풀면 제어문자·고위 바이트가 섞인다).
 function looksLikeBody(buf: ArrayBuffer): boolean {
   const head = new Uint8Array(buf.slice(0, 4));
   if (head.length === 0) return false;
-  const c = head[0];
-  return c === 0x3c /* < */ || c === 0x7b /* { */ || c === 0x5b /* [ */
-      || c === 0x20 || c === 0x0a || c === 0x0d || c === 0x09;   // 앞 공백/개행
+  return Array.from(head).every(c => (c >= 0x20 && c <= 0x7e) || c === 0x0a || c === 0x0d || c === 0x09);
 }
 
 function toBody(data: unknown): BodyInit {
