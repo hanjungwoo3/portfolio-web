@@ -198,7 +198,7 @@ export function SemiDashTab() {
       </div>
 
       {/* ② 실시간 체결 + 신호 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_440px] gap-1.5 lg:flex-1 min-h-0 auto-rows-[320px] lg:auto-rows-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_600px] gap-1.5 lg:flex-1 min-h-0 auto-rows-[320px] lg:auto-rows-auto">
         {STOCKS.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} />)}
         <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
           <div className="font-bold text-gray-800 mb-1">지금 신호 <span className="font-normal text-[11px] text-gray-400">숫자로 확인되는 것만</span></div>
