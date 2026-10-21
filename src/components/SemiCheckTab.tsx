@@ -65,14 +65,10 @@ interface MiniProps {
   direction?: Direction;
   dimEnabled?: boolean;
 }
-// direction === "inverse" 면 상승 = 한국 위험 → 색 반전 (상승=파랑, 하락=빨강)
-function colorFor(pct: number | null, direction: Direction = "direct"): string {
+// 색 반전 없음 — inverse 도 상승=빨강·하락=파랑(사용자 결정 2026-10-21). direction 인자는 호출 호환용
+function colorFor(pct: number | null, _direction: Direction = "direct"): string {
   if (pct == null) return "text-gray-500";
-  const isUp = pct > 0, isDown = pct < 0;
-  if (direction === "inverse") {
-    return isUp ? "text-blue-600" : isDown ? "text-rose-600" : "text-gray-700";
-  }
-  return isUp ? "text-rose-600" : isDown ? "text-blue-600" : "text-gray-700";
+  return pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-700";
 }
 function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled = false }: MiniProps) {
   // 메인 가격/변동률 — 한국 입장 누적 변동률 (정규장 + 시간외 합산):

@@ -219,10 +219,10 @@ export function SemiDashTab() {
               sub={futQ ? `미결제 ${futQ.oi.toLocaleString()}(${eok(futQ.oiChg)})` : "한경 실시간"}
               chart={futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />} />
         </>}
-        <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} inverse
+        <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct}
               sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
               chart={vkChart && vkChart.length > 1 && <Sparkline data={vkChart.slice(-60)} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
-                                                               color={vk && vk.pct > 0 ? "#2563eb" : "#dc2626"} />} />
+                                                               color={vk && vk.pct > 0 ? "#dc2626" : "#2563eb"} />} />
         {/* 필라델피아 반도체(지수) 카드는 뺐다 — 한국 장중엔 간밤 미국 종가라 안 움직인다(사용자 요청). SOX 선물은 아래 해외 선물 줄 */}
       </div>
 
@@ -285,11 +285,9 @@ export function SemiDashTab() {
   );
 }
 
-function Card({ title, price, pct, sub, chart, unit, inverse }: {
+function Card({ title, price, pct, sub, chart, unit }: {
   title: string; price?: number; pct?: number; sub?: string; chart?: React.ReactNode; unit?: string;
-  inverse?: boolean;   // 공포지수처럼 오르면 나쁜 것 — 색을 뒤집는다(지수 탭 direction=inverse 와 같은 규칙)
 }) {
-  const up = (v: number) => upColor(inverse ? -v : v);
   return (
     <div className="relative rounded-lg border border-gray-200 bg-white overflow-hidden">
       <div className="absolute inset-x-0 bottom-0 top-[40%] pointer-events-none">{chart}</div>

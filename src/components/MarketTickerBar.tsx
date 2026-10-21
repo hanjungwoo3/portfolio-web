@@ -4,7 +4,6 @@ import { ChevronUp, X } from "lucide-react";
 import { fetchTossOverview, fetchTickerKrExtras, fetchTickerUsStockExtras } from "../lib/api";
 import { TOSS_SYMBOL_URL, handleTossLinkClick } from "../lib/toss";
 import { signColor } from "../lib/format";
-import { US_PAIRS } from "../lib/usMarketData";
 import {
   TICKER_BAR_H, useTickerBarOpen, setTickerBarOpen,
   getTickerScope, setTickerScope, type TickerScope,
@@ -43,11 +42,7 @@ const FX_ITEMS: TickerItem[] = [
   { symbol: "EWY",      label: "EWY" },
 ];
 
-// 색 반전 — 오르면 한국 증시엔 악재인 것들(공포지수·환율·달러인덱스·금리)은 내리면 빨강.
-//   지수 카드와 같은 단일 소스에서 뽑는다(usMarketData 의 direction: "inverse").
-//   현재 대상: V-KOSPI · VIX · 달러환율 · 달러 인덱스 · 미국 2Y · 미국 10Y
-const INVERSE_SYMBOLS = new Set(
-  US_PAIRS.filter(p => p.direction === "inverse").map(p => p.symbol));
+// 색 반전은 없앴다 — 공포지수·환율·금리도 오르면 빨강·내리면 파랑(사용자 결정 2026-10-21).
 
 const SCOPES: [TickerScope, string, TickerItem[]][] = [
   ["kr", "국내",    KR_ITEMS],
@@ -137,7 +132,7 @@ export function MarketTickerBar({ refreshMs }: MarketTickerBarProps) {
         {q ? (
           <>
             <span className="font-semibold text-gray-900 tabular-nums">{fmtNum(q.price)}</span>
-            <span className={`tabular-nums ${signColor(INVERSE_SYMBOLS.has(symbol) ? -q.diff : q.diff)}`}>
+            <span className={`tabular-nums ${signColor(q.diff)}`}>
               {fmtDiff(q.diff)} ({Math.abs(q.pct).toFixed(2)}%)
             </span>
           </>

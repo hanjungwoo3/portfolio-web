@@ -429,7 +429,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               const mainPct = showPct;
               // direction === "inverse"(공포지수·환율·달러인덱스·금리 등) → 상승=한국 위험 → 색 반전
               // (빨강=좋음 / 파랑=나쁨 기준). SemiCheckTab 과 동일 규칙.
-              const isInverse = p.direction === "inverse";
+              const isInverse = false;   // 색 반전 없음 — 모든 카드 오르면 빨강·내리면 파랑(사용자 결정 2026-10-21). direction 은 설명용으로만 남긴다
               const effUp = isInverse ? (mainPct != null && mainPct < 0) : (mainPct != null && mainPct > 0);
               const effDn = isInverse ? (mainPct != null && mainPct > 0) : (mainPct != null && mainPct < 0);
               const dayArr = krFutSpark(p.symbol)?.closes ?? nightClosesMap.get(p.symbol) ?? usSpark?.get(p.symbol)?.closes ?? usMap?.get(p.symbol)?.sparkline;   // 야후 어제+오늘이 있으면 그걸 먼저
