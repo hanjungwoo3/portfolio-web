@@ -5,6 +5,7 @@
 //     · 코스피 투자자(네이버) 1분 / 선물 투자자(네이버) **20분 지연** / 선물 시세·옵션(한경) 실시간
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
+import { useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
@@ -90,28 +91,57 @@ export function SemiDashTab() {
   const sox = q("^SOX"), soxF = q("SOX=F"), vk = q("VKOSPI");
 
   // ── 신호(숫자로 확인되는 것만) ──
-  const sig: { t: string; c: string }[] = [];
+  // d = 그 줄 아래 회색 설명(사용자 요청 — 숫자만으론 뜻을 모른다)
+  const sig: { t: string; c: string; d?: string }[] = [];
   STOCKS.forEach((s, i) => {
     const ms = ticks[i].minutes;
     const st5 = strength(ms, 5), n5 = netAmt(ms, 5);
     if (st5 != null && ms.length >= 3) {
-      sig.push({ t: `${s.name} 5분 ${sideWord(st5)} — 체결강도 ${st5.toFixed(0)} · ${netWord(n5)}`, c: st5 >= 120 ? "text-rose-600" : st5 <= 80 ? "text-blue-600" : "text-gray-700" });
+      sig.push({ t: `${s.name} 5분 ${sideWord(st5)} — 체결강도 ${st5.toFixed(0)} · ${netWord(n5)}`, c: st5 >= 120 ? "text-rose-600" : st5 <= 80 ? "text-blue-600" : "text-gray-700",
+        d: `최근 5분 시장가로 사고 들어온 양이 팔고 나간 양의 ${(st5 / 100).toFixed(1)}배${st5 >= 100 ? " — 사는 쪽이 급하다" : " — 파는 쪽이 급하다"}. 120↑ 매수 우위 · 80↓ 매도 우위.` });
       const p0 = ms[Math.max(0, ms.length - 6)].close, p1 = ms[ms.length - 1].close;
-      if (p1 > p0 && n5 < 0) sig.push({ t: `${s.name} 가격↑ 인데 체결은 매도 우위 (엇갈림)`, c: "text-amber-600" });
-      if (p1 < p0 && n5 > 0) sig.push({ t: `${s.name} 가격↓ 인데 체결은 매수 우위 (엇갈림)`, c: "text-amber-600" });
+      if (p1 > p0 && n5 < 0) sig.push({ t: `${s.name} 가격↑ 인데 체결은 매도 우위 (엇갈림)`, c: "text-amber-600", d: "오르는데 파는 체결이 더 많다 — 오름세 힘이 빠지는 신호일 수 있다." });
+      if (p1 < p0 && n5 > 0) sig.push({ t: `${s.name} 가격↓ 인데 체결은 매수 우위 (엇갈림)`, c: "text-amber-600", d: "내리는데 사는 체결이 더 많다 — 저가 매수가 받치는 중일 수 있다." });
     }
   });
-  if (k5 != null) sig.push({ t: `코스피 외국인 5분간 ${eok(k5)}억 (누적 ${eok(kLast!.foreigners)}억)`, c: up(k5) });
+  if (k5 != null) sig.push({ t: `코스피 외국인 5분간 ${eok(k5)}억 (누적 ${eok(kLast!.foreigners)}억)`, c: up(k5),
+    d: Math.sign(k5) === Math.sign(kLast!.foreigners) || k5 === 0
+      ? `외국인이 지금도 ${kLast!.foreigners >= 0 ? "사는" : "파는"} 중 — 오늘 누적 ${kLast!.foreigners >= 0 ? "매수" : "매도"}세가 최근 5분에도 이어진다.`
+      : `오늘 누적은 ${kLast!.foreigners >= 0 ? "매수" : "매도"}인데 최근 5분은 ${k5 > 0 ? "매수" : "매도"} — 외국인이 방향을 트는지 지켜볼 구간.` });
   if (fut) {
     const oiUp = fut.oiChg > 0;
     sig.push({
-      t: `선물 ${sgn(fut.pct)}% · 미결제 ${eok(fut.oiChg)}계약 → ${fut.chg >= 0 ? (oiUp ? "상승+미결제 증가(신규 매수 유입)" : "상승+미결제 감소(매도 청산)") : (oiUp ? "하락+미결제 증가(신규 매도 유입)" : "하락+미결제 감소(매수 청산)")}`,
+      t: `선물 ${sgn(fut.pct)}% · 미결제 ${eok(fut.oiChg)}계약 → ${fut.chg >= 0 ? (oiUp ? "상승+미결제 증가(신규 매수 유입)" : "상승+미결제 감소(숏 청산)") : (oiUp ? "하락+미결제 증가(신규 매도 유입)" : "하락+미결제 감소(매수 청산)")}`,
       c: up(fut.chg),
+      // 지금 값으로 풀어 쓴다(사용자 요청) — 가격 방향 × 미결제 증감 네 경우
+      d: (() => {
+        const n = Math.abs(fut.oiChg).toLocaleString(), pc = `${sgn(fut.pct)}%`;
+        if (fut.chg >= 0 && oiUp) return `선물이 ${pc} 오르면서 미결제도 ${n}계약 늘었다 → 새로 사는 돈(신규 매수)이 들어와 오름세를 밀고 있다.`;
+        if (fut.chg >= 0) return `선물이 ${pc} 올랐는데 미결제는 ${n}계약 줄었다 → 새로 사는 돈보다 팔아 뒀던 계약을 되사서 정리(숏 청산)하며 오른 것. 새 매수가 붙지 않으면 오름세가 오래 못 갈 수 있다.`;
+        if (oiUp) return `선물이 ${pc} 내리면서 미결제가 ${n}계약 늘었다 → 새로 파는 돈(신규 매도)이 들어와 내림세를 밀고 있다.`;
+        return `선물이 ${pc} 내렸는데 미결제는 ${n}계약 줄었다 → 새 매도 공세보다 사 뒀던 계약을 정리(매수 청산)하며 내린 것.`;
+      })(),
     });
   }
   if (opt && opt.callVol > 0) {
     const pcr = opt.putVol / opt.callVol;
-    sig.push({ t: `옵션 풋/콜 거래량 ${pcr.toFixed(2)} ${pcr >= 1.2 ? "(풋 쏠림 — 하락 대비↑)" : pcr <= 0.8 ? "(콜 쏠림)" : ""}`, c: pcr >= 1.2 ? "text-blue-600" : pcr <= 0.8 ? "text-rose-600" : "text-gray-700" });
+    sig.push({ t: `옵션 풋/콜 거래량 ${pcr.toFixed(2)} ${pcr >= 1.2 ? "(풋 쏠림 — 하락 대비↑)" : pcr <= 0.8 ? "(콜 쏠림)" : ""}`, c: pcr >= 1.2 ? "text-blue-600" : pcr <= 0.8 ? "text-rose-600" : "text-gray-700",
+      // 지금 값으로 풀어 쓴다(사용자 요청) — 비율 구간 + 오늘 미결제 증감
+      d: (() => {
+        const ratio = `지금 콜 100계약당 풋 ${Math.round(pcr * 100)}계약`;
+        const read = pcr <= 0.6 ? "콜이 압도적 → 상승에 거는 쪽이 크게 우세. 이만큼 쏠리면 낙관 과열로도 본다."
+          : pcr <= 0.8 ? "콜이 훨씬 많다 → 상승에 거는 쪽이 우세."
+          : pcr < 1 ? "콜이 조금 더 많다 → 약간 상승 기대, 균형 범위."
+          : pcr < 1.2 ? "풋이 조금 더 많다 → 하락 대비(보험)가 약간 우세하지만 균형 범위."
+          : pcr < 1.5 ? "풋이 훨씬 많다 → 하락 대비 수요가 커졌다."
+          : "풋이 압도적 → 공포 구간. 이만큼 치솟으면 공포의 끝(반등 신호)으로 거꾸로 보기도 한다.";
+        const oi = `오늘 미결제는 콜 ${eok(opt.callOiChg)} · 풋 ${eok(opt.putOiChg)}계약`
+          + (opt.putOiChg < 0 && opt.callOiChg >= 0 ? " → 하락 보험을 풀고 상승 쪽 포지션을 쌓는 중."
+            : opt.putOiChg > 0 && opt.callOiChg <= 0 ? " → 하락 보험을 새로 사들이는 중."
+            : opt.putOiChg > 0 && opt.callOiChg > 0 ? " → 양쪽 다 새 계약 — 큰 움직임에 대비."
+            : " → 양쪽 다 정리 중.");
+        return `${ratio}. ${read} ${oi} (근월물·현재가 근처 합산)`;
+      })() });
   }
 
   return (
@@ -138,12 +168,16 @@ export function SemiDashTab() {
       </div>
 
       {/* ② 실시간 체결 + 신호 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_300px] gap-1.5 lg:flex-1 min-h-0 auto-rows-[320px] lg:auto-rows-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_440px] gap-1.5 lg:flex-1 min-h-0 auto-rows-[320px] lg:auto-rows-auto">
         {STOCKS.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} />)}
         <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
           <div className="font-bold text-gray-800 mb-1">지금 신호 <span className="font-normal text-[11px] text-gray-400">숫자로 확인되는 것만</span></div>
           <div className="space-y-1 overflow-auto">
-            {sig.length ? sig.map((n, i) => <div key={i} className={`leading-snug font-semibold ${n.c}`}>• {n.t}</div>)
+            {sig.length ? sig.map((n, i) => (
+              <div key={i} className="leading-snug">
+                <div className={`font-semibold ${n.c}`}>• {n.t}</div>
+                {n.d && <div className="pl-2.5 text-[11px] text-gray-500">{n.d}</div>}
+              </div>))
               : <div className="text-gray-400">체결을 모으는 중… (1~2분)</div>}
           </div>
           <div className="mt-auto pt-2 border-t text-[11px] text-gray-500 leading-snug">
@@ -330,27 +364,53 @@ function FlowBox({ title, note, flow, unit }: { title: string; note: string; flo
   );
 }
 
+// 풋/콜 비율 → 한 단어(0.8 이하 콜 쏠림 · 1.2 이상 풋 쏠림)
+const pcrWord = (v?: number) => (v == null ? "" : v <= 0.8 ? "콜 쏠림" : v >= 1.2 ? "풋 쏠림" : "균형");
+// 옵션 칸 '읽는 법' — 사용자 요청(2026-10-21). 칸이 작아 버튼을 누르면 칸 위에 겹쳐 펼친다.
+const OPTION_GUIDE: [string, string][] = [
+  ["콜·풋", "콜 = 정해진 값에 살 권리(오른다에 건다) · 풋 = 팔 권리(내린다에 걸거나 하락 보험)."],
+  ["풋/콜 거래량", "풋 거래량 ÷ 콜 거래량. 0.71 = 콜 100계약 거래될 때 풋 71계약. 0.8 이하 콜 쏠림(상승 기대 우세) · 1.2 이상 풋 쏠림(하락 대비↑)."],
+  ["거꾸로도 읽는다", "한쪽으로 너무 쏠리면 과열·공포의 끝으로 보기도 한다 — 방향 신호보다 분위기 온도계."],
+  ["풋/콜 미결제", "아직 청산 안 된 계약 기준 — 오늘 거래량보다 느리게, 쌓인 포지션을 보여 준다."],
+  ["미결제 증감", "전일 대비 미결제 변화. 콜↑ = 상승 쪽 새 포지션, 풋↑ = 하락 대비 새 포지션."],
+  ["미결제 최대", "콜 미결제가 가장 많은 행사가는 위쪽 저항, 풋은 아래쪽 지지로 흔히 본다(만기 무렵 그 값 근처로 끌리기도)."],
+  ["V-KOSPI", "옵션 가격으로 계산한 공포지수. 오르면 하락 보험 수요↑. 20↑ 경계 · 30↑ 공포."],
+  ["한계", "근월물·현재가 ±37pt 행사가만 합산(주간 옵션 제외) · 누가 샀는지(외국인·개인)는 모른다."],
+];
 function OptionBox({ opt, vk }: { opt?: Awaited<ReturnType<typeof fetchKospi200OptionSummary>>; vk?: UsIndex }) {
+  const [guide, setGuide] = useState(false);
   const pcr = opt && opt.callVol > 0 ? opt.putVol / opt.callVol : undefined;
   const pcrOi = opt && opt.callOi > 0 ? opt.putOi / opt.callOi : undefined;
+  const tag = (t: string) => <span className="font-normal text-[10px] text-gray-400 ml-1">{t}</span>;
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 tabular-nums">
+    <div className="relative rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 tabular-nums">
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800">옵션 · 코스피200</span>
-        <span className="text-[11px] text-gray-400">한경 실시간{opt ? ` · ${opt.month.slice(4, 6)}/${opt.month.slice(6)} 만기 · ${opt.time.slice(0, 5)}` : ""}</span>
+        <span className="text-[11px] text-gray-400 truncate">한경 실시간{opt ? ` · ${opt.month.slice(4, 6)}/${opt.month.slice(6)} 만기 · ${opt.time.slice(0, 5)}` : ""}</span>
+        <button onClick={() => setGuide(g => !g)}
+                className={`ml-auto shrink-0 px-1.5 rounded border text-[10.5px] ${guide ? "bg-gray-700 text-white border-gray-700" : "text-gray-500 border-gray-300 hover:bg-gray-100"}`}>
+          {guide ? "닫기" : "읽는 법"}
+        </button>
       </div>
       {!opt ? <div className="flex-1 flex items-center justify-center text-gray-400">불러오는 중…</div> : (
         <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1">
-          <span className="text-gray-500">풋/콜 거래량</span><b className={pcr != null && pcr >= 1 ? "text-blue-600" : "text-rose-600"}>{pcr?.toFixed(2) ?? "-"}</b>
-          <span className="text-gray-500">풋/콜 미결제</span><b className={pcrOi != null && pcrOi >= 1 ? "text-blue-600" : "text-rose-600"}>{pcrOi?.toFixed(2) ?? "-"}</b>
-          <span className="text-gray-500">콜 미결제 증감</span><b className={up(opt.callOiChg)}>{eok(opt.callOiChg)}</b>
-          <span className="text-gray-500">풋 미결제 증감</span><b className={up(opt.putOiChg)}>{eok(opt.putOiChg)}</b>
-          <span className="text-gray-500">콜 미결제 최대</span><b className="text-gray-800">{opt.maxCallOi ?? "-"} <span className="font-normal text-[10px] text-gray-400">저항</span></b>
-          <span className="text-gray-500">풋 미결제 최대</span><b className="text-gray-800">{opt.maxPutOi ?? "-"} <span className="font-normal text-[10px] text-gray-400">지지</span></b>
-          <span className="text-gray-500">V-KOSPI</span><b className={vk ? up(vk.pct) : "text-gray-300"}>{vk ? `${vk.price.toFixed(2)} (${sgn(vk.pct)}%)` : "-"}</b>
+          <span className="text-gray-500">풋/콜 거래량</span><b className={pcr != null && pcr >= 1 ? "text-blue-600" : "text-rose-600"}>{pcr?.toFixed(2) ?? "-"}{tag(pcrWord(pcr))}</b>
+          <span className="text-gray-500">풋/콜 미결제</span><b className={pcrOi != null && pcrOi >= 1 ? "text-blue-600" : "text-rose-600"}>{pcrOi?.toFixed(2) ?? "-"}{tag(pcrWord(pcrOi))}</b>
+          <span className="text-gray-500">콜 미결제 증감</span><b className={up(opt.callOiChg)}>{eok(opt.callOiChg)}{tag(opt.callOiChg > 0 ? "상승 쪽 새 계약" : opt.callOiChg < 0 ? "상승 쪽 청산" : "")}</b>
+          <span className="text-gray-500">풋 미결제 증감</span><b className={up(opt.putOiChg)}>{eok(opt.putOiChg)}{tag(opt.putOiChg > 0 ? "하락 대비 새 계약" : opt.putOiChg < 0 ? "하락 대비 청산" : "")}</b>
+          <span className="text-gray-500">콜 미결제 최대</span><b className="text-gray-800">{opt.maxCallOi ?? "-"}{tag("위 저항")}</b>
+          <span className="text-gray-500">풋 미결제 최대</span><b className="text-gray-800">{opt.maxPutOi ?? "-"}{tag("아래 지지")}</b>
+          <span className="text-gray-500">V-KOSPI</span><b className={vk ? up(vk.pct) : "text-gray-300"}>{vk ? `${vk.price.toFixed(2)} (${sgn(vk.pct)}%)` : "-"}{vk ? tag(vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정") : null}</b>
         </div>
       )}
       {opt && <div className="mt-auto text-[10.5px] text-gray-400">행사가 {opt.range[0]}~{opt.range[1]} 범위 합계 (현재가 근처)</div>}
+      {guide && (
+        <div className="absolute inset-x-0 top-7 bottom-0 z-10 bg-white rounded-b-lg px-2 pb-2 overflow-auto text-[11px] leading-snug border-t">
+          {OPTION_GUIDE.map(([k, v]) => (
+            <div key={k} className="mt-1"><b className="text-gray-800">{k}</b> <span className="text-gray-600">{v}</span></div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
