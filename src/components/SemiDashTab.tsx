@@ -224,7 +224,7 @@ function TickPanel({ name, flow }: { name: string; flow: TickFlow }) {
       <div className="flex-1 min-h-0 flex gap-2">
         <div className="flex-1 min-w-0">
           {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div className="relative w-full h-full">
-            {ms.length < 5 && <div className="absolute inset-x-0 top-1 text-center text-[11px] text-gray-400">켠 뒤 {ms.length}분째 — 10분쯤 지나면 흐름이 보입니다</div>}
+            {ms.length < 5 && <div className="absolute inset-x-0 bottom-1 text-center text-[11px] text-gray-400">켠 뒤 {ms.length}분째 — 10분쯤 지나면 흐름이 보입니다</div>}
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
               <line x1={0} x2={W} y1={mid} y2={mid} stroke="#cbd5e1" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
               {nets.map((v, i) => {
@@ -234,9 +234,21 @@ function TickPanel({ name, flow }: { name: string; flow: TickFlow }) {
               <path d={prices.map((p, i) => `${i ? "L" : "M"} ${xOf(i)} ${PAD + (1 - (p - pMin) / pR) * (H - PAD * 2)}`).join(" ")}
                     fill="none" stroke="#334155" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
               <path d={cum.map((c, i) => `${i ? "L" : "M"} ${xOf(i)} ${mid - (c / mxCum) * (mid - PAD)}`).join(" ")}
-                    fill="none" stroke="#ea580c" strokeWidth={1.6} strokeDasharray="5 3" vectorEffect="non-scaling-stroke" />
+                    fill="none" stroke="#ea580c" strokeWidth={2.2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
+
               {ms.map((m, i) => (m.t.endsWith("0") && i % 10 === 0 ? <text key={m.t} x={xOf(i)} y={H - 2} fontSize="11" fill="#9ca3af">{m.t}</text> : null))}
-            </svg></div>
+            </svg>
+            {/* 누적 끝값 — 막대(1분)와 축이 달라 선만으론 크기를 모른다. svg 가 늘어나므로 글자는 HTML 로 */}
+            {cum.length > 0 && (() => {
+              const lx = (xOf(cum.length - 1) / W) * 100, ly = ((mid - (cum[cum.length - 1] / mxCum) * (mid - PAD)) / H) * 100;
+              return (
+                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${Math.min(lx, 70)}%`, top: `${Math.max(4, Math.min(92, ly))}%`, transform: "translateY(-50%)" }}>
+                  <span className="w-2 h-2 rounded-full bg-orange-600 shrink-0" style={{ marginLeft: lx > 70 ? 0 : -4 }} />
+                  <span className="text-[11px] font-bold text-orange-600 bg-white/80 px-0.5 rounded whitespace-nowrap">누적 {netWord(cum[cum.length - 1])}</span>
+                </div>
+              );
+            })()}
+          </div>
           )}
         </div>
         <div className="w-[118px] shrink-0 overflow-hidden text-[11px] tabular-nums">
@@ -252,7 +264,7 @@ function TickPanel({ name, flow }: { name: string; flow: TickFlow }) {
         <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" />1분 순매수</span>
         <span><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />1분 순매도</span>
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
-        <span><i className="inline-block w-3 h-0.5 bg-orange-600 mr-0.5 align-middle" />누적 순매수</span>
+        <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dashed border-orange-600" />누적 순매수(켠 뒤 합계 · 축 별도)</span>
       </div>
     </div>
   );
