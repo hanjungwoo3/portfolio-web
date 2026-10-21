@@ -20,7 +20,7 @@ import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
 
 const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }] as const;
-const SPARK = ["^KS11", "^KQ11", "^SOX"];   // 야후 spark 1콜(어제+오늘 5분봉)
+const SPARK = ["^KS11", "^KQ11"];   // 야후 spark 1콜(어제+오늘 5분봉)
 const FLOW_MS = 60_000;
 const US_ROW = ["MU", "NVDA", "SKHY", "SNDK", "AMD", "DRAM"];
 const MEM_ROW = ["DRAMIDX=ML", "DDR5=ML", "DDR4=ML", "NAND=ML"];
@@ -103,7 +103,7 @@ export function SemiDashTab() {
   const kLast = kf?.points[kf.points.length - 1], fLast = ff?.points[ff.points.length - 1];
   // 코스피 외국인 최근 5분 변화(속도) — 1분 단위 누적이라 5행 전과의 차
   const k5 = kf && kf.points.length > 5 ? kLast!.foreigners - kf.points[kf.points.length - 6].foreigners : undefined;
-  const sox = q("^SOX"), soxF = q("SOX=F"), vk = q("VKOSPI");
+  const vk = q("VKOSPI");
 
   // ── 신호(숫자로 확인되는 것만) ──
   // d = 그 줄 아래 회색 설명(사용자 요청 — 숫자만으론 뜻을 모른다)
@@ -162,7 +162,7 @@ export function SemiDashTab() {
   return (
     <div className="flex flex-col gap-1.5 p-2 lg:h-[calc(100vh-150px)] lg:min-h-[700px] text-[12px] bg-gray-50">
       {/* ① 시세 */}
-      <div className="grid grid-cols-2 lg:grid-cols-8 gap-1.5 auto-rows-[118px] shrink-0">
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-1.5 auto-rows-[118px] shrink-0">
         {STOCKS.map(s => {
           const qq = q(`${s.code}.KS`);
           return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원"
@@ -183,9 +183,7 @@ export function SemiDashTab() {
               sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
               chart={vkChart && vkChart.length > 1 && <Sparkline data={vkChart.slice(-60)} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
                                                                color={vk && vk.pct > 0 ? "#2563eb" : "#dc2626"} />} />
-        <Card title="필라델피아 반도체" price={sox?.price} pct={sox?.regularPct ?? sox?.pct}
-              sub={soxF ? `선물 ${fmtP(soxF.price)} (${sgn(soxF.pct)}%)` : undefined}
-              chart={spark?.get("^SOX") && <SparkBg sp={spark.get("^SOX")!} />} />
+        {/* 필라델피아 반도체(지수) 카드는 뺐다 — 한국 장중엔 간밤 미국 종가라 안 움직인다(사용자 요청). SOX 선물은 아래 해외 선물 줄 */}
       </div>
 
       {/* ② 실시간 체결 + 신호 */}
