@@ -442,10 +442,19 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
   const W = 400, H = 140, PX = 2, PY = 6;
   const tmin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   const mx = Math.max(1, ...pts.flatMap(p => LINES.map(l => Math.abs(val(p, l.k)))));
-  const span = tmin(endHM) - 9 * 60;
-  const x = (t: string) => PX + Math.min(1, Math.max(0, (tmin(t) - 9 * 60) / span)) * (W - PX * 2);
+  // 축 시작 — 프리장(NXT 08:00~) 자료가 있으면 08:00 부터. 09:00 고정이면 프리장 점이 왼쪽 끝 한 점에 몰려
+  //   세로선처럼 보였다(사용자 지적 2026-10-22, 증시 탭과 모양이 달랐다)
+  const startHM = pts.length && pts[0].time < "09:00" ? "08:00" : "09:00";
+  const T0 = tmin(startHM);
+  // 축 끝 = 지금(마지막 자료) — 장 초반엔 자료가 가로를 꽉 채우고, 시간이 갈수록 장 마감까지 늘며 좁아진다(사용자 요청).
+  //   최소 30분 폭 — 자료 몇 개를 너무 크게 늘리지 않게. 장 마감(endHM)을 넘지 않는다.
+  const lastHM = pts.length ? pts[pts.length - 1].time : startHM;
+  const T1 = Math.min(tmin(endHM), Math.max(tmin(lastHM) + 2, T0 + 30));
+  const axisEnd = `${String(Math.floor(T1 / 60)).padStart(2, "0")}:${String(T1 % 60).padStart(2, "0")}`;
+  const span = T1 - T0;
+  const x = (t: string) => PX + Math.min(1, Math.max(0, (tmin(t) - T0) / span)) * (W - PX * 2);
   // 배경 가격 면
-  const bgp = (bg ?? []).filter(b => b.t >= "09:00" && b.t <= endHM);
+  const bgp = (bg ?? []).filter(b => b.t >= startHM && b.t <= axisEnd);
   const bMin = Math.min(...bgp.map(b => b.v)), bMax = Math.max(...bgp.map(b => b.v)), bR = bMax - bMin || 1;
   const by = (v: number) => PY + (1 - (v - bMin) / bR) * (H - PY * 2);
   const bgUp = bgp.length > 1 && bgp[bgp.length - 1].v >= bgp[0].v;
@@ -456,13 +465,13 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
   // 마우스 시각의 값(그 시각 이하 마지막 점) — 숫자 줄이 그 값으로 바뀐다
   const hovPt = hoverM != null ? [...pts].reverse().find(p => tmin(p.time) <= hoverM) : undefined;
   const last = hovPt ?? lastPt;
-  const xToM = (px: number) => 9 * 60 + ((px - PX) / (W - PX * 2)) * span;
+  const xToM = (px: number) => T0 + ((px - PX) / (W - PX * 2)) * span;
   const onMove = onHover ? (e: React.MouseEvent<SVGSVGElement>) => {
     const r = e.currentTarget.getBoundingClientRect();
     const m = Math.round(xToM(((e.clientX - r.left) / r.width) * W));
-    onHover(m < 9 * 60 || m > tmin(endHM) ? null : m);
+    onHover(m < T0 || m > T1 ? null : m);
   } : undefined;
-  const hoverX = hoverM != null && hoverM >= 9 * 60 && hoverM <= tmin(endHM) ? PX + ((hoverM - 9 * 60) / span) * (W - PX * 2) : null;
+  const hoverX = hoverM != null && hoverM >= T0 && hoverM <= T1 ? PX + ((hoverM - T0) / span) * (W - PX * 2) : null;
   return (
     <div className={`rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
          title={dim ? "지금은 거래 시간이 아니거나 지난 거래일 자료입니다" : undefined}>
@@ -493,7 +502,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
             )}
             <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#94a3b8" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
             {/* 마감 동시호가 구간 음영 */}
-            <rect x={x(aucFrom)} width={Math.max(1, x(endHM) - x(aucFrom))} y={0} height={H} fill="#fde68a" fillOpacity={0.35} />
+            <rect x={x(aucFrom)} width={Math.max(0, x(axisEnd) - x(aucFrom))} y={0} height={H} fill="#fde68a" fillOpacity={0.35} />
             {["10:00", "12:00", "14:00"].map(t => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H} stroke="#eef2f7" vectorEffect="non-scaling-stroke" />)}
             {LINES.map(l => (
               <path key={l.k} d={pts.map((p, i) => `${i ? "L" : "M"} ${x(p.time).toFixed(1)} ${y(val(p, l.k)).toFixed(1)}`).join(" ")}
@@ -506,11 +515,11 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
       </div>
       {/* 외국인·개인 매수·매도 막대(10분) — 그래프 바로 아래, 같은 시간 축(사용자 요청). 축 밖(프리·시간외)은 그리지 않는다 */}
       {flow && pts.length > 1 && (
-        <BuySellBars points={flow.points} keys={["individuals", "foreigners"]} unit={unit === "계약" ? "계약" : "억"} start="09:00" end={endHM}
+        <BuySellBars points={flow.points} keys={["individuals", "foreigners"]} unit={unit === "계약" ? "계약" : "억"} start={startHM} end={axisEnd}
           rowH={22} compact
           geom={{
             width: W, hoverT: hoverM ?? null, toT: tmin, hover: onHover,
-            xOfT: m => (m < tmin("09:00") || m > tmin(endHM) ? null : x(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`)),
+            xOfT: m => (m < T0 || m > T1 ? null : x(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`)),
           }} />
       )}
     </div>

@@ -24,12 +24,12 @@ export interface BarsGeom {
   hover?: (t: number | null) => void;   // 막대 위 마우스 → 위 차트 crosshair 도 같은 시각으로
 }
 
-export function BuySellBars({ points, keys, unit, scale = 1, bucket = 10, start = "09:00", end = "15:30", rowH = 56, compact, geom }: {
+export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, start = "09:00", end = "15:30", rowH = 56, compact, geom }: {
   points: IntradayFlowPoint[];
   keys: string[];          // 그릴 주체(foreigners·individuals·…) — 위에서부터 이 순서
   unit: "억" | "계약";      // 표시 단위(scale 을 곱한 뒤의 단위)
   scale?: number;          // 값에 곱할 배수(선물 계약 → 억원 환산 등)
-  bucket?: number;         // 막대 한 개 = 몇 분
+  bucket?: number;         // 막대 한 개 = 몇 분(안 주면 자료 길이로 — 1시간↓ 1분·3시간↓ 5분·그 위 10분)
   start?: string; end?: string;
   rowH?: number;
   compact?: boolean;       // 좁은 칸용 — 합계 글자를 작게
@@ -37,6 +37,9 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket = 10, start 
 }) {
   const pts = points.filter(p => p.gs);
   if (pts.length < 2 || !keys.length) return null;
+  // 장 초반엔 10분 막대 하나가 화면을 다 차지했다 — 쌓인 자료 길이에 맞춰 막대 간격을 줄인다(사용자 지적 2026-10-22)
+  const dataSpan = tmin(pts[pts.length - 1].time) - tmin(pts[0].time);
+  const bucket = bucketIn ?? (dataSpan <= 60 ? 1 : dataSpan <= 180 ? 5 : 10);
   const t0 = Math.min(tmin(start), tmin(pts[0].time)), t1 = Math.max(tmin(end), tmin(pts[pts.length - 1].time));
   const nB = Math.max(1, Math.ceil((t1 - t0) / bucket));
   // 구간마다 그 안의 자료 시각들(차트 좌표를 얻으려면 실제 있는 시각이어야 한다)
