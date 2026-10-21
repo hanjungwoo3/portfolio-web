@@ -18,6 +18,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTickFlow, strength, netAmt, BIG_TRADE_WON, type TickFlow } from "../lib/useTickFlow";
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
+import { HypothesisBox } from "./HypothesisBox";
 
 const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }] as const;
 const SPARK = ["^KS11", "^KQ11"];   // 야후 spark 1콜(어제+오늘 5분봉)
@@ -93,6 +94,7 @@ export function SemiDashTab() {
     })),
   });
   const ticks = [useTickFlow(STOCKS[0].code), useTickFlow(STOCKS[1].code)];
+  const [rightTab, setRightTab] = useState<"sig" | "hyp">("sig");
   const { data: dayStr } = useQuery({
     queryKey: ["toss-day-strength", STOCKS.map(s => s.code).join(",")],
     queryFn: () => fetchTossDayStrength(STOCKS.map(s => s.code)),
@@ -201,7 +203,17 @@ export function SemiDashTab() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_600px] gap-1.5 lg:flex-1 min-h-0 auto-rows-[320px] lg:auto-rows-auto">
         {STOCKS.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} />)}
         <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
-          <div className="font-bold text-gray-800 mb-1">지금 신호 <span className="font-normal text-[11px] text-gray-400">숫자로 확인되는 것만</span></div>
+          {/* 지금 신호 / 가설 검증 — 탭(사용자 요청) */}
+          <div className="flex items-baseline gap-1 mb-1 border-b">
+            {(["sig", "hyp"] as const).map(k => (
+              <button key={k} onClick={() => setRightTab(k)}
+                      className={`px-2 pb-1 -mb-px border-b-2 font-bold ${rightTab === k ? "border-blue-500 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
+                {k === "sig" ? "지금 신호" : "가설 검증"}
+              </button>
+            ))}
+            <span className="ml-1 text-[11px] text-gray-400">{rightTab === "sig" ? "숫자로 확인되는 것만" : "같이 일어났는지만(인과 아님)"}</span>
+          </div>
+          {rightTab === "hyp" ? <HypothesisBox ff={ff} futMin={futMin ?? undefined} embedded /> : <>
           <div className="space-y-1 overflow-auto">
             {sig.length ? sig.map((n, i) => (
               <div key={i} className="leading-snug">
@@ -213,6 +225,7 @@ export function SemiDashTab() {
           <div className="mt-auto pt-2 border-t text-[11px] text-gray-500 leading-snug">
             체결강도 = 매수 체결량 ÷ 매도 체결량 × 100 (100 위 = 사는 쪽 우위). 큰 체결 = {BIG_TRADE_WON / 1e8}억 원 이상.
           </div>
+          </>}
         </div>
       </div>
 
