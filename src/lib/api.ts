@@ -4074,6 +4074,17 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const closes: number[] = [], times: number[] = [];
         raw.forEach((v, i) => { if (v != null && v > 0) { closes.push(v); times.push(ts[i] ?? 0); } });   // 빈 봉은 시각과 같이 뺀다
         if (!x.symbol || closes.length < 2) continue;
+        // 마지막 두 날만 — 24시간 거래(환율 등)는 2d 범위가 날짜 경계로는 사흘에 걸쳐(10/19 밤·10/20·10/21),
+        //   셋째 날 점이 '오늘' 칸 앞쪽으로 되돌아가 긴 직선이 그어졌다(2026-10-22 USD/KRW 실측).
+        {
+          const off0 = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : /=F$/.test(x.symbol) ? 2 : -4;
+          const dk = (t: number) => Math.floor((t + off0 * 3600) / 86400);
+          const days = [...new Set(times.map(dk))];
+          if (days.length > 2) {
+            const keepFrom = times.findIndex(t => dk(t) === days[days.length - 2]);
+            closes.splice(0, keepFrom); times.splice(0, keepFrom);
+          }
+        }
         // 정규장 시작·종가 봉 — currentTradingPeriod 는 '지금 기준 다음/현재' 세션이라, 장이 끝난 뒤엔
         //   차트의 마지막 날과 날짜가 어긋나 선이 사라졌다. 그래서 하루 중 시각(거래소 현지)만 뽑아 마지막 날에 적용한다.
         const reg = resp?.meta?.currentTradingPeriod?.regular, gmt = resp?.meta?.gmtoffset ?? 0;
