@@ -31,7 +31,7 @@ interface Props {
   xs?: number[];
   // 이 인덱스에서 선을 끊는다(새 구간 시작) — 어제+오늘 차트에서 어제 마지막 봉과 오늘 첫 봉을 잇지 않고 비워 둔다
   breakIndex?: number;
-  // 세로 표시선(종가) — '오늘 정규장 마감' 지점. 시작선과 같은 점선 + 속이 빈 점(시작=꽉 찬 점)
+  // 세로 표시선(종가) — '오늘 정규장 마감' 지점. 시작선과 같은 점선(점은 안 찍는다 — 사용자 결정)
   closeIndex?: number;
   // 끊은 앞 구간(어제)의 기준선 — 어제의 전일 종가. 주면 기준선이 **두 개**(왼쪽=어제 기준·오른쪽=오늘 기준)가 되고
   //   위·아래 색도 구간마다 자기 기준선으로 칠한다(카드 등락률과 같은 기준 — 어제는 어제 등락, 오늘은 오늘 등락).
@@ -161,20 +161,18 @@ export function Sparkline({
         <line key={k} x1={Math.max(padX, x0 + (k > 0 ? 2 : 0))} x2={Math.min(width - padX, x1 - (k < parts.length - 1 ? 2 : 0))} y1={by} y2={by}
               stroke="#475569" strokeWidth="1" strokeDasharray="4 3" opacity="0.8" />
       ))}
-      {/* 오늘 정규장 시작 — 회색 세로 점선 + 시작가 점 (24시간 차트) */}
+      {/* 오늘 정규장 시작 — 회색 세로 점선 (24시간 차트) */}
       {markIndex != null && markIndex > 0 && markIndex < points.length && (
         <>
           <line x1={points[markIndex][0]} x2={points[markIndex][0]} y1={padY} y2={height - padY}
                 stroke="#334155" strokeWidth="1.2" strokeDasharray="3 2" opacity="0.9" />
-          <circle cx={points[markIndex][0]} cy={points[markIndex][1]} r="3" fill="#334155" />
         </>
       )}
-      {/* 오늘 정규장 종가 — 회색 세로 점선 + 속 빈 점 */}
+      {/* 오늘 정규장 종가 — 회색 세로 점선 */}
       {closeIndex != null && closeIndex > 0 && closeIndex < points.length && (
         <>
           <line x1={points[closeIndex][0]} x2={points[closeIndex][0]} y1={padY} y2={height - padY}
                 stroke="#334155" strokeWidth="1.2" strokeDasharray="3 2" opacity="0.9" />
-          <circle cx={points[closeIndex][0]} cy={points[closeIndex][1]} r="3" fill="#fff" stroke="#334155" strokeWidth="1.5" />
         </>
       )}
       {/* 목표가 — amber 점선 */}
