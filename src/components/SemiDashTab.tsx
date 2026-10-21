@@ -93,7 +93,6 @@ export function SemiDashTab() {
     })),
   });
   const ticks = [useTickFlow(STOCKS[0].code), useTickFlow(STOCKS[1].code)];
-  const [spotMkt, setSpotMkt] = useState<"kospi" | "kosdaq">("kospi");
   const { data: dayStr } = useQuery({
     queryKey: ["toss-day-strength", STOCKS.map(s => s.code).join(",")],
     queryFn: () => fetchTossDayStrength(STOCKS.map(s => s.code)),
@@ -209,10 +208,11 @@ export function SemiDashTab() {
       </div>
 
       {/* ③ 현물·선물·옵션 수급 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_0.8fr_1.1fr] gap-1.5 auto-rows-[200px] shrink-0">
-        <FlowBox title={`현물 · ${spotMkt === "kospi" ? "코스피" : "코스닥"} 투자자`} note="1분" flow={spotMkt === "kospi" ? kf : kosdaqFlow.data} unit="억"
-                 tabs={[["kospi", "코스피"], ["kosdaq", "코스닥"]]} tab={spotMkt} onTab={k => setSpotMkt(k as "kospi" | "kosdaq")} />
-        <FlowBox title="선물 · 코스피200 투자자" note="20분 지연(코스닥150 선물은 소스 없음)" flow={ff} unit="계약" />
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[200px] shrink-0">
+        {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
+        <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" />
+        <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" />
+        <FlowBox title="선물 · 코스피200" note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" />
         <OptionBox opt={opt} vk={vk} />
         <StockFlowTable rows={STOCKS.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: q(`${s.code}.KS`)?.price }))}
                         fLast={fLast}
@@ -433,15 +433,15 @@ function OptionBox({ opt, vk }: { opt?: Awaited<ReturnType<typeof fetchKospi200O
   return (
     <div className="relative rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 tabular-nums">
       <div className="flex items-baseline gap-2">
-        <span className="font-bold text-gray-800">옵션 · 코스피200</span>
-        <span className="text-[11px] text-gray-400 truncate">한경 실시간{opt ? ` · ${opt.month.slice(4, 6)}/${opt.month.slice(6)} 만기 · ${opt.time.slice(0, 5)}` : ""}</span>
+        <span className="font-bold text-gray-800 shrink-0 whitespace-nowrap">옵션 · 코스피200</span>
+        <span className="text-[11px] text-gray-400 truncate">{opt ? `${opt.month.slice(4, 6)}/${opt.month.slice(6)} 만기 · ${opt.time.slice(0, 5)}` : "한경 실시간"}</span>
         <button onClick={() => setGuide(g => !g)}
                 className={`ml-auto shrink-0 px-1.5 rounded border text-[10.5px] ${guide ? "bg-gray-700 text-white border-gray-700" : "text-gray-500 border-gray-300 hover:bg-gray-100"}`}>
           {guide ? "닫기" : "읽는 법"}
         </button>
       </div>
       {!opt ? <div className="flex-1 flex items-center justify-center text-gray-400">불러오는 중…</div> : (
-        <div className="grid grid-cols-2 gap-x-3 gap-y-1 mt-1">
+        <div className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 mt-1 text-[11.5px]">
           <span className="text-gray-500">풋/콜 거래량</span><b className={pcr != null && pcr >= 1 ? "text-blue-600" : "text-rose-600"}>{pcr?.toFixed(2) ?? "-"}{tag(pcrWord(pcr))}</b>
           <span className="text-gray-500">풋/콜 미결제</span><b className={pcrOi != null && pcrOi >= 1 ? "text-blue-600" : "text-rose-600"}>{pcrOi?.toFixed(2) ?? "-"}{tag(pcrWord(pcrOi))}</b>
           <span className="text-gray-500">콜 미결제 증감</span><b className={up(opt.callOiChg)}>{eok(opt.callOiChg)}{tag(opt.callOiChg > 0 ? "상승 쪽 새 계약" : opt.callOiChg < 0 ? "상승 쪽 청산" : "")}</b>
@@ -451,7 +451,7 @@ function OptionBox({ opt, vk }: { opt?: Awaited<ReturnType<typeof fetchKospi200O
           <span className="text-gray-500">V-KOSPI</span><b className={vk ? up(vk.pct) : "text-gray-300"}>{vk ? `${vk.price.toFixed(2)} (${sgn(vk.pct)}%)` : "-"}{vk ? tag(vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정") : null}</b>
         </div>
       )}
-      {opt && <div className="mt-auto text-[10.5px] text-gray-400">행사가 {opt.range[0]}~{opt.range[1]} 범위 합계 (현재가 근처)</div>}
+      {opt && <div className="mt-auto text-[10px] text-gray-400 truncate">행사가 {opt.range[0]}~{opt.range[1]} 합계(현재가 근처)</div>}
       {guide && (
         <div className="absolute inset-x-0 top-7 bottom-0 z-10 bg-white rounded-b-lg px-2 pb-2 overflow-auto text-[11px] leading-snug border-t">
           {OPTION_GUIDE.map(([k, v]) => (
