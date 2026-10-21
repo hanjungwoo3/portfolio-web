@@ -71,7 +71,12 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
     ? pts.reduce((best, p) => (Math.abs(geom.toT(p.time) - geom.hoverT!) < Math.abs(geom.toT(best.time) - geom.hoverT!) ? p : best), pts[0]).time
     : undefined;
   const hoverI = hoverHm ? Math.min(nB - 1, Math.max(0, Math.floor((tmin(hoverHm) - t0) / bucket))) : undefined;
-  const hoverX = geom?.hoverT != null ? geom.xOfT(geom.hoverT) : null;
+  // 세로선은 가리킨 구간 막대의 **가운데**로(사용자 요청) — 정확한 시각에 그으면 막대 왼쪽 끝에 붙어 보였다
+  const hoverX = (() => {
+    if (geom?.hoverT == null) return null;
+    const r = hoverI != null ? xRange(hoverI) : null;
+    return r ? (r[0] + r[1]) / 2 : geom.xOfT(geom.hoverT);
+  })();
   return (
     <div className="w-full space-y-1">
       {keys.map(k => {
