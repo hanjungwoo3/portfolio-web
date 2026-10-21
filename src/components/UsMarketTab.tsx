@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { IndexWarnTag } from "./IndexWarnTag";
-import { fetchYahooBatch, fetchKrRegularPrices, fetchYahooSparkDay, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
+import { fetchYahooBatch, fetchKrFuturesMinute, fetchKrRegularPrices, fetchYahooSparkDay, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed, isKrAfterRegularClose, nowKstDateStr } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
@@ -12,7 +12,7 @@ import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLa
 import { RotationTab } from "./RotationTab";
 import { requestTab, isTabVisible } from "../lib/tabNav";
 import { GroupNavBar } from "./GroupNavBar";
-import { US_PAIRS, allYahooSymbols } from "../lib/usMarketData";
+import { US_PAIRS, allYahooSymbols, DAY_SPARK_SYMBOLS } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
 import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
@@ -41,11 +41,7 @@ function krEtfTicker(symbol: string): string | null {
 const BASE_REFRESH_MS = 10_000;
 // 지수 카드에 오르는 한국 개별 종목 코드(정규장 종가 조회용) — 목록은 usMarketData 한 벌
 // 24시간 차트용 미국 종목·ETF 심볼(야후 spark) — 지수(^)·선물(=)·가상 심볼·한국은 빼고 대문자 티커만
-const US_SPARK_SYMBOLS = [
-  ...US_PAIRS.map(p => p.symbol).filter(s => /^[A-Z][A-Z.]{0,5}$/.test(s) && marketOfSymbol(s) === "US" && s !== "CNNFG"),
-  // 한국·아시아 지수도 어제+오늘 5분봉(야후) — 토스 지수 시세엔 오늘 10분봉뿐이라 24시간 모양이 아니었다(사용자 지적 2026-10-21)
-  "^KS11", "^KQ11", "^N225", "^HSI", "000001.SS",
-];
+const US_SPARK_SYMBOLS = DAY_SPARK_SYMBOLS;   // 목록은 lib 한 벌(usMarketData)
 const KR_STOCK_CODES = US_PAIRS.filter(p => p.krStock && /^[\dA-Za-z]{6}\.KS$/.test(p.symbol)).map(p => p.symbol.slice(0, 6));
 
 function fmtPrice(symbol: string, price: number): string {
@@ -238,6 +234,19 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
     refetchInterval: chartRange === "day" ? 5 * 60_000 : false,
     staleTime: 4 * 60_000, refetchOnWindowFocus: false,
   });
+  // 코스피200·코스닥150 **주간**선물 — 낮엔 한경 1분봉 어제+오늘(야선은 당일 세션뿐). 야간장(18~05시)엔 야선 그대로.
+  const krFutDayOn = chartRange === "day" && !isKrNightSession();
+  const krFutDay = useQueries({
+    queries: (["kospi200", "kosdaq150"] as const).map(k => ({
+      queryKey: ["hk-futures-min", k], queryFn: () => fetchKrFuturesMinute(k),
+      enabled: krFutDayOn, refetchInterval: krFutDayOn ? 60_000 : (false as const), staleTime: 30_000, refetchOnWindowFocus: false,
+    })),
+  });
+  const krFutSpark = (sym: string) => {
+    if (!krFutDayOn) return undefined;
+    const d = (sym === "^KS200N" ? krFutDay[0] : sym === "^KQ150N" ? krFutDay[1] : undefined)?.data;
+    return d && d.closes.length > 1 ? { closes: d.closes, openIdx: d.openIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase } : undefined;
+  };
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const marketAlerts = useMarketAlerts();   // 종목코드 → 투자주의·경고·위험
   // 야간선물(yasun.gg)은 프록시를 타므로 구버전 개인 워커면 값이 빈다 → 그때만 업데이트 안내.
@@ -423,10 +432,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               const isInverse = p.direction === "inverse";
               const effUp = isInverse ? (mainPct != null && mainPct < 0) : (mainPct != null && mainPct > 0);
               const effDn = isInverse ? (mainPct != null && mainPct > 0) : (mainPct != null && mainPct < 0);
-              const dayArr = nightClosesMap.get(p.symbol) ?? usSpark?.get(p.symbol)?.closes ?? usMap?.get(p.symbol)?.sparkline;   // 야후 어제+오늘이 있으면 그걸 먼저
+              const dayArr = krFutSpark(p.symbol)?.closes ?? nightClosesMap.get(p.symbol) ?? usSpark?.get(p.symbol)?.closes ?? usMap?.get(p.symbol)?.sparkline;   // 야후 어제+오늘이 있으면 그걸 먼저
               const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], dayArr);
               // 24시간 차트가 야후 spark 에서 왔으면 '오늘 정규장 시작' 위치를 표시
-              const daySpark = chartRange === "day" && !nightClosesMap.get(p.symbol) ? usSpark?.get(p.symbol) : undefined;
+              const daySpark = chartRange === "day" ? (krFutSpark(p.symbol) ?? (!nightClosesMap.get(p.symbol) ? usSpark?.get(p.symbol) : undefined)) : undefined;
               const markIdx = daySpark && chartArr === daySpark.closes ? daySpark.openIdx : undefined;
               const breakIdx = daySpark && chartArr === daySpark.closes ? daySpark.breakIdx : undefined;   // 어제·오늘 사이 끊기
               // 24시간 차트의 기준선·색 기준 = 어제 종가(카드 큰 숫자와 같은 기준). 야후 spark 는 달러라 그 응답의 전일 종가를,
@@ -436,7 +445,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               //   그래프 끝도 같이 움직이게(추가 호출 0). 단위가 같은 경우만: 미국 종목(달러)·토스 지수·야간선물.
               const liveChart = isDayChart && effPrice != null && effPrice > 0 ? [...chartArr, effPrice] : chartArr;
               const dayBase = !isDayChart ? undefined
-                : daySpark && chartArr === daySpark.closes ? daySpark.prevClose
+                : daySpark && chartArr === daySpark.closes && marketOfSymbol(p.symbol) === "US" ? daySpark.prevClose   // 미국만 야후 값(달러 단위) — 한국·아시아 지수는 야후 전일 종가가 틀릴 때가 있어(^KQ11 이 그저께 값, 2026-10-21) 카드 값으로
                 : (q?.prevClose && q.prevClose > 0 ? q.prevClose : undefined);
               const sparkColor = dimNow ? "#94a3b8"
                 : (isInverse && chartArr.length > 1 && dayBase == null)

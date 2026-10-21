@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchHlXyzPerps, fetchHlPerpCandles } from "../lib/api";
+import { fetchHlXyzPerps, fetchHlPerpCandles, fetchHlPerpTwoDay } from "../lib/api";
+import { useChartRange } from "../lib/chartRange";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { Sparkline } from "./Sparkline";
 import { TickArrow } from "./TickArrow";
@@ -28,6 +29,13 @@ export function HlPerpCard({ coin, name }: Props) {
     refetchInterval: refreshMs,
     staleTime: 5_000,
   });
+  const day = useChartRange() === "day";
+  // 24시간 설정이면 어제+오늘(48시간 반반) — 기준선·끊김·위아래 색을 다른 카드와 같게
+  const { data: two } = useQuery({
+    queryKey: ["hl-perp-2day", coin],
+    queryFn: () => fetchHlPerpTwoDay(`xyz:${coin}`),
+    enabled: day, refetchInterval: day ? 60_000 : false, staleTime: 30_000,
+  });
   const { data: spark } = useQuery({
     queryKey: ["hl-perp-candles", coin],
     queryFn: () => fetchHlPerpCandles(`xyz:${coin}`),
@@ -46,7 +54,10 @@ export function HlPerpCard({ coin, name }: Props) {
   return (
     <div className="relative h-full">
       <div className={`relative overflow-hidden h-full flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}`}>
-        {spark && spark.length > 1 && (
+        {day && two && two.closes.length > 1 ? (
+          <Sparkline data={two.closes} xs={two.xs} baseline={two.base} prevBaseline={two.prevBase} breakIndex={two.breakIdx}
+                     width={400} height={80} className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />
+        ) : spark && spark.length > 1 && (
           <Sparkline data={spark} width={400} height={80}
                      className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />
         )}

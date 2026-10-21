@@ -4021,7 +4021,8 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const cpc = resp?.meta?.previousClose ? resp?.meta?.chartPreviousClose : undefined;   // previousClose 없으면 cpc 가 어제 종가라 어제 기준으론 못 쓴다
         // 날짜(뉴욕)가 바뀌는 첫 봉 — 어제와 선을 잇지 않는다
         //   아시아 지수·종목은 한국 날짜로 — 뉴욕 날짜면 아시아 장중(한국 13:00)에 끊긴다
-        const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
+        //   선물(=F)은 거래일이 뉴욕 18:00 에 시작 — 그 시각을 날짜 경계로(UTC+2 로 보면 18:00 ET 가 자정)
+        const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : /=F$/.test(x.symbol) ? 2 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
         const etDay = (t: number) => new Date((t + off * 3600) * 1000).toISOString().slice(0, 10);   // 대략 EDT/KST(일자 경계만 필요)
         const bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
         out.set(x.symbol, { closes, openIdx: oi > 0 ? oi : undefined, prevClose: pc && pc > 0 ? pc : undefined, breakIdx: bi > 0 ? bi : undefined, prevBase: bi > 0 && cpc && cpc > 0 ? cpc : undefined });   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
@@ -5135,6 +5136,29 @@ export async function fetchHlXyzPerps(): Promise<Map<string, HlPerp>> {
   return out;
 }
 // 스파크라인용 — 최근 24시간 15분봉 종가. coin 은 "xyz:SKHY" 처럼 프리픽스 포함.
+// 24h 카드용 **어제+오늘** — 무기한선물은 끝없이 거래돼 '하루'가 없다. 그래서 최근 48시간을 반으로:
+//   왼쪽 = 48~24시간 전, 오른쪽 = 최근 24시간(시간 축). 기준선 = 각 반쪽의 시작 가격 — 오른쪽 기준은 24시간 전 가격이라
+//   카드 %(prevDayPx 대비)와 같은 기준이다.
+export async function fetchHlPerpTwoDay(coin: string): Promise<DaySeries | null> {
+  try {
+    const end = Date.now(), start = end - 48 * 3600_000, mid = end - 24 * 3600_000;
+    const resp = await fetch("https://api.hyperliquid.xyz/info", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "candleSnapshot", req: { coin, interval: "5m", startTime: start, endTime: end } }),
+    });
+    if (!resp.ok) return null;
+    const arr = (await resp.json() as { t?: number; c?: string }[]).flatMap(k => (k.t && Number(k.c) > 0 ? [{ t: k.t, c: Number(k.c) }] : []));
+    if (arr.length < 2) return null;
+    const bi = arr.findIndex(k => k.t >= mid);
+    const xs = arr.map(k => (k.t < mid ? ((k.t - start) / (24 * 3600_000)) * TWO_DAY_HALF : twoDayTodayX((k.t - mid) / (24 * 3600_000))));
+    return {
+      closes: arr.map(k => k.c), xs, twoDay: true,
+      base: bi > 0 ? arr[bi - 1].c : undefined, prevBase: arr[0].c,
+      breakIdx: bi > 0 ? bi : undefined,
+    };
+  } catch { return null; }
+}
+
 export async function fetchHlPerpCandles(coin: string): Promise<number[]> {
   try {
     const end = Date.now(), start = end - 24 * 60 * 60 * 1000;
@@ -5512,8 +5536,8 @@ export async function fetchKospi200OptionSummary(underlying: number): Promise<Op
 // 코스피200 선물 1분봉(한경) — 최근 6거래일(08:45~15:45, 하루 약 411개)이 한 콜로 온다. 실시간(11:46 요청 → 11:46 봉).
 //   카드 배경용 **어제+오늘** 시계열(buildTwoDaySeries 와 같은 모양): 축은 하루 08:45~15:45, 기준선은 각 날의 전일 종가
 //   (봉의 close − chg_net), 세로선은 09:00(현물 개장).
-export async function fetchKrFuturesMinute(): Promise<DaySeries | null> {
-  const r = await fetchProxied("https://markets.hankyung.com/api/v2/future/kospi200/min");
+export async function fetchKrFuturesMinute(kind: "kospi200" | "kosdaq150" = "kospi200"): Promise<DaySeries | null> {
+  const r = await fetchProxied(`https://markets.hankyung.com/api/v2/future/${kind}/min`);
   if (!r.ok) return null;
   const rows = await r.json() as { mdate?: string; mtime?: string; close?: number; chg_net?: number }[];
   if (!Array.isArray(rows) || !rows.length) return null;

@@ -50,7 +50,7 @@ export function SemiDashTab() {
     queryKey: ["hk-futures-live"], queryFn: fetchKrFuturesLive, refetchInterval: 10_000, staleTime: 5_000,
   });
   const { data: futMin } = useQuery({
-    queryKey: ["hk-futures-min"], queryFn: fetchKrFuturesMinute, refetchInterval: FLOW_MS, staleTime: 30_000,
+    queryKey: ["hk-futures-min", "kospi200"], queryFn: () => fetchKrFuturesMinute("kospi200"), refetchInterval: FLOW_MS, staleTime: 30_000,
   });
   const ks200 = fut?.price ?? 0;
   const { data: opt } = useQuery({
@@ -124,7 +124,7 @@ export function SemiDashTab() {
                        chart={<KrDaySparkline code={s.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" />} />;
         })}
         <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct}
-              chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} />} />
+              chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />} />
         <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct}
               sub={fut ? `미결제 ${fut.oi.toLocaleString()} (${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)} · ${fut.time.slice(0, 5)}` : "한경 실시간"}
               chart={futMin && futMin.closes.length > 1 && (
@@ -193,9 +193,10 @@ function Card({ title, price, pct, sub, chart, unit }: {
   );
 }
 
-function SparkBg({ sp }: { sp: { closes: number[]; openIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number } }) {
+// base = 카드의 전일 종가(한국 지수는 야후 previousClose 가 틀릴 때가 있어 카드 값을 우선)
+function SparkBg({ sp, base }: { sp: { closes: number[]; openIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }; base?: number }) {
   return <Sparkline data={sp.closes} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
-                    baseline={sp.prevClose} markIndex={sp.openIdx} breakIndex={sp.breakIdx} prevBaseline={sp.prevBase} />;
+                    baseline={base && base > 0 ? base : sp.prevClose} markIndex={sp.openIdx} breakIndex={sp.breakIdx} prevBaseline={sp.prevBase} />;
 }
 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
