@@ -5457,15 +5457,17 @@ type HkTrader = { chetime?: string; curprc?: number | string; chgprc?: number | 
   highprc?: number | string; lowprc?: number | string; volume?: string; mivol?: number | string; basis?: number | string };
 type HkOptRow = { stkprice?: string; premivol?: string; option_trader?: HkTrader };
 const hkTime = (t?: string) => (t && t.length >= 6 ? `${t.slice(0, 2)}:${t.slice(2, 4)}:${t.slice(4, 6)}` : "");
-let hkDetailMemo: { at: number; p: Promise<{ future?: { kr_name?: string; premivol?: string; future_trader?: HkTrader }; lastDates?: string[] } | null> } | null = null;
-function loadHkDetail() {
-  if (hkDetailMemo && Date.now() - hkDetailMemo.at < 4_000) return hkDetailMemo.p;   // 선물·옵션이 같은 응답을 쓴다 — 한 번만
-  const p = fetchProxied(`${HK}/kospi200`).then(r => (r.ok ? r.json() : null)).catch(() => null);
-  hkDetailMemo = { at: Date.now(), p };
+type HkKind = "kospi200" | "kosdaq150";
+const hkDetailMemo = new Map<HkKind, { at: number; p: Promise<{ future?: { kr_name?: string; premivol?: string; future_trader?: HkTrader }; lastDates?: string[] } | null> }>();
+function loadHkDetail(kind: HkKind = "kospi200") {
+  const m = hkDetailMemo.get(kind);
+  if (m && Date.now() - m.at < 4_000) return m.p;   // 선물·옵션이 같은 응답을 쓴다 — 한 번만
+  const p = fetchProxied(`${HK}/${kind}`).then(r => (r.ok ? r.json() : null)).catch(() => null);
+  hkDetailMemo.set(kind, { at: Date.now(), p });
   return p;
 }
-export async function fetchKrFuturesLive(): Promise<KrFuturesLive | null> {
-  const j = await loadHkDetail();
+export async function fetchKrFuturesLive(kind: HkKind = "kospi200"): Promise<KrFuturesLive | null> {
+  const j = await loadHkDetail(kind);
   const f = j?.future, t = f?.future_trader;
   const n = (v: unknown) => Number(v) || 0;
   if (!t || !(n(t.curprc) > 0)) return null;

@@ -10,7 +10,7 @@ import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
   fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
-  type UsIndex, type IntradayFlow, type HlPerp, type DayStrength,
+  type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
 } from "../lib/api";
 import type { Investor } from "../types";
 import { allYahooSymbols } from "../lib/usMarketData";
@@ -48,10 +48,17 @@ export function SemiDashTab() {
     refetchInterval: 5 * 60_000, staleTime: 4 * 60_000, refetchOnWindowFocus: false,
   });
   const { data: fut } = useQuery({
-    queryKey: ["hk-futures-live"], queryFn: fetchKrFuturesLive, refetchInterval: 10_000, staleTime: 5_000,
+    queryKey: ["hk-futures-live", "kospi200"], queryFn: () => fetchKrFuturesLive("kospi200"), refetchInterval: 10_000, staleTime: 5_000,
   });
   const { data: futMin } = useQuery({
     queryKey: ["hk-futures-min", "kospi200"], queryFn: () => fetchKrFuturesMinute("kospi200"), refetchInterval: FLOW_MS, staleTime: 30_000,
+  });
+  // 코스닥150 선물 — 사용자 요청(2026-10-21). 같은 한경 소스(실시간 시세 + 1분봉 어제+오늘)
+  const { data: futQ } = useQuery({
+    queryKey: ["hk-futures-live", "kosdaq150"], queryFn: () => fetchKrFuturesLive("kosdaq150"), refetchInterval: 10_000, staleTime: 5_000,
+  });
+  const { data: futQMin } = useQuery({
+    queryKey: ["hk-futures-min", "kosdaq150"], queryFn: () => fetchKrFuturesMinute("kosdaq150"), refetchInterval: FLOW_MS, staleTime: 30_000,
   });
   const ks200 = fut?.price ?? 0;
   const { data: opt } = useQuery({
@@ -147,7 +154,7 @@ export function SemiDashTab() {
   return (
     <div className="flex flex-col gap-1.5 p-2 lg:h-[calc(100vh-150px)] lg:min-h-[700px] text-[12px] bg-gray-50">
       {/* ① 시세 */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-1.5 auto-rows-[118px] shrink-0">
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-1.5 auto-rows-[118px] shrink-0">
         {STOCKS.map(s => {
           const qq = q(`${s.code}.KS`);
           return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원"
@@ -159,12 +166,11 @@ export function SemiDashTab() {
         <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct}
               chart={spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />} />
         <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct}
-              sub={fut ? `미결제 ${fut.oi.toLocaleString()} (${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)} · ${fut.time.slice(0, 5)}` : "한경 실시간"}
-              chart={futMin && futMin.closes.length > 1 && (
-                <Sparkline data={fut?.price && futMin.date ? [...futMin.closes, fut.price] : futMin.closes}
-                           xs={fut?.price && futMin.xs ? [...futMin.xs, futMin.xs[futMin.xs.length - 1] + 0.001] : futMin.xs}
-                           width={300} height={70} className="w-full h-full" strokeWidth={1.2}
-                           baseline={futMin.base} prevBaseline={futMin.prevBase} markIndex={futMin.openIdx} breakIndex={futMin.breakIdx} />)} />
+              sub={fut ? `미결제 ${fut.oi.toLocaleString()}(${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)}` : "한경 실시간"}
+              chart={futMin && futMin.closes.length > 1 && <FutSpark s={futMin} live={fut?.price} />} />
+        <Card title={`코스닥150 선물${futQ?.month ? ` ${futQ.month}` : ""}`} price={futQ?.price} pct={futQ?.pct}
+              sub={futQ ? `미결제 ${futQ.oi.toLocaleString()}(${eok(futQ.oiChg)})` : "한경 실시간"}
+              chart={futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />} />
         <Card title="필라델피아 반도체" price={sox?.price} pct={sox?.regularPct ?? sox?.pct}
               sub={soxF ? `선물 ${fmtP(soxF.price)} (${sgn(soxF.pct)}%)` : undefined}
               chart={spark?.get("^SOX") && <SparkBg sp={spark.get("^SOX")!} />} />
@@ -228,6 +234,14 @@ function Card({ title, price, pct, sub, chart, unit }: {
       </div>
     </div>
   );
+}
+
+// 선물 1분봉(한경) 어제+오늘 + 끝에 지금 가격
+function FutSpark({ s, live }: { s: DaySeries; live?: number }) {
+  const on = !!live && !!s.xs;
+  return <Sparkline data={on ? [...s.closes, live!] : s.closes} xs={on ? [...s.xs!, s.xs![s.xs!.length - 1] + 0.001] : s.xs}
+                    width={300} height={70} className="w-full h-full" strokeWidth={1.2}
+                    baseline={s.base} prevBaseline={s.prevBase} markIndex={s.openIdx} breakIndex={s.breakIdx} />;
 }
 
 // base = 카드의 전일 종가(한국 지수는 야후 previousClose 가 틀릴 때가 있어 카드 값을 우선)
