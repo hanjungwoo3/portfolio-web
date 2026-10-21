@@ -108,11 +108,13 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
               {/* 좁은 칸(compact)은 '매수·매도·→' 글자를 뺀다(사용자 요청) — 빨강 = 매수, 파랑 = 매도 */}
               {hb ? (
                 <span className="text-gray-500 whitespace-nowrap">{hLabel} {!compact && "매수 "}<b className="text-rose-600">{fmtBig(hb.b, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(hb.s, unit)}</b>
-                  {!compact && " → "}<b className={`ml-2 ${hb.b - hb.s > 0 ? "text-rose-600" : hb.b - hb.s < 0 ? "text-blue-600" : ""}`}>{signed(hb.b - hb.s, unit)}</b></span>
+</span>
               ) : (
                 <span className="text-gray-500 whitespace-nowrap">{!compact && "매수 "}<b className="text-rose-600">{fmtBig(totB, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(totS, unit)}</b></span>
               )}
               {/* 마우스로 구간을 볼 땐 하루 총액은 감춘다(사용자 요청) */}
+              {/* 마우스로 구간을 볼 땐 그 구간 차이를, 아니면 하루 순매수를 — 둘 다 오른쪽 끝 같은 자리(사용자 요청) */}
+              {hb && <span className="ml-auto whitespace-nowrap"><b className={hb.b - hb.s > 0 ? "text-rose-600" : hb.b - hb.s < 0 ? "text-blue-600" : "text-gray-500"}>{signed(hb.b - hb.s, unit)}</b></span>}
               {!hb && <span className="ml-auto whitespace-nowrap">{!compact && "순 "}<b className={net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-500"}>{signed(net, unit)}</b></span>}
             </div>
             <svg viewBox={`0 0 ${PX_W} ${H}`} preserveAspectRatio="none" className="w-full block" style={{ height: rowH }}
