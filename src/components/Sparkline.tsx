@@ -3,6 +3,10 @@
 // 기준선(baseline)을 주면 **선 위 구간은 빨강, 아래 구간은 파랑**으로 나눠 칠한다(채움도 기준선까지).
 import { useId } from "react";
 
+// 정규장 세로선 — 시작 = 진한 점선, 종가 = 연한 실선(사용자 결정 2026-10-21, 글자·기호 없이 선 모양·색으로만 구분)
+const OPEN_LINE = { stroke: "#334155", strokeWidth: 1.2, strokeDasharray: "3 2", opacity: 0.9 } as const;
+const CLOSE_LINE = { stroke: "#94a3b8", strokeWidth: 1.2, opacity: 0.9 } as const;
+
 interface Props {
   data: number[];
   width?: number;
@@ -33,7 +37,7 @@ interface Props {
   breakIndex?: number;
   // 세로 표시선(종가) — '오늘 정규장 마감' 지점. 시작선과 같은 점선(점은 안 찍는다 — 사용자 결정)
   closeIndex?: number;
-  // 어제 구간 정규장 시작·종가 세로선(사용자 요청) — 오늘 것과 같은 점선
+  // 어제 구간 정규장 [시작, 종가] 세로선(사용자 요청) — 오늘 것과 같은 모양(시작 = 진한 점선, 종가 = 연한 실선)
   extraMarks?: (number | undefined)[];
   // 끊은 앞 구간(어제)의 기준선 — 어제의 전일 종가. 주면 기준선이 **두 개**(왼쪽=어제 기준·오른쪽=오늘 기준)가 되고
   //   위·아래 색도 구간마다 자기 기준선으로 칠한다(카드 등락률과 같은 기준 — 어제는 어제 등락, 오늘은 오늘 등락).
@@ -166,19 +170,18 @@ export function Sparkline({
       {/* 오늘 정규장 시작 — 회색 세로 점선 (24시간 차트) */}
       {markIndex != null && markIndex > 0 && markIndex < points.length && (
         <>
-          <line x1={points[markIndex][0]} x2={points[markIndex][0]} y1={padY} y2={height - padY}
-                stroke="#334155" strokeWidth="1.2" strokeDasharray="3 2" opacity="0.9" />
+          <line x1={points[markIndex][0]} x2={points[markIndex][0]} y1={padY} y2={height - padY} {...OPEN_LINE} />
         </>
       )}
       {(extraMarks ?? []).map((m, k) => m != null && m > 0 && m < points.length ? (
-        <line key={`em${k}`} x1={points[m][0]} x2={points[m][0]} y1={padY} y2={height - padY}
-              stroke="#334155" strokeWidth="1.2" strokeDasharray="3 2" opacity="0.9" />
+        k % 2 === 0
+          ? <line key={`em${k}`} x1={points[m][0]} x2={points[m][0]} y1={padY} y2={height - padY} {...OPEN_LINE} />
+          : <line key={`em${k}`} x1={points[m][0]} x2={points[m][0]} y1={padY} y2={height - padY} {...CLOSE_LINE} />
       ) : null)}
       {/* 오늘 정규장 종가 — 회색 세로 점선 */}
       {closeIndex != null && closeIndex > 0 && closeIndex < points.length && (
         <>
-          <line x1={points[closeIndex][0]} x2={points[closeIndex][0]} y1={padY} y2={height - padY}
-                stroke="#334155" strokeWidth="1.2" strokeDasharray="3 2" opacity="0.9" />
+          <line x1={points[closeIndex][0]} x2={points[closeIndex][0]} y1={padY} y2={height - padY} {...CLOSE_LINE} />
         </>
       )}
       {/* 목표가 — amber 점선 */}
