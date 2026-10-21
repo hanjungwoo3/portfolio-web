@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
-  fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
+  fetchKrFuturesLive, fetchKrFuturesMinute, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
 } from "../lib/api";
 import type { Investor } from "../types";
@@ -26,7 +26,8 @@ const US_ROW = ["MU", "NVDA", "SKHY", "SNDK", "AMD", "DRAM"];
 const MEM_ROW = ["DRAMIDX=ML", "DDR5=ML", "DDR4=ML", "NAND=ML"];
 const PERPS = [["SKHY", "하이닉스"], ["SMSN", "삼성"], ["MU", "마이크론"], ["NVDA", "엔비디아"], ["TSM", "TSMC"], ["KR200", "코스피200"]] as const;
 
-const up = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500");
+const upColor = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500");
+const up = upColor;
 const sgn = (v: number, d = 2) => `${v > 0 ? "+" : ""}${v.toFixed(d)}`;
 const fmtP = (v: number) => (v >= 1000 ? Math.round(v).toLocaleString() : v >= 100 ? v.toFixed(1) : v.toFixed(2));
 const eok = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v).toLocaleString()}`;
@@ -59,6 +60,11 @@ export function SemiDashTab() {
   });
   const { data: futQMin } = useQuery({
     queryKey: ["hk-futures-min", "kosdaq150"], queryFn: () => fetchKrFuturesMinute("kosdaq150"), refetchInterval: FLOW_MS, staleTime: 30_000,
+  });
+  // V-KOSPI 일봉 — CNBC 는 분봉이 없다(1D·5D 빈 응답, 2026-10-21 실측). 지수 탭과 같은 쿼리키(캐시 공유)
+  const { data: vkChart } = useQuery({
+    queryKey: ["yahoo-chart", "VKOSPI", "3mo"], queryFn: () => fetchDashboardChart("VKOSPI"),
+    staleTime: 60 * 60 * 1000, refetchOnWindowFocus: false,
   });
   const ks200 = fut?.price ?? 0;
   const { data: opt } = useQuery({
@@ -154,7 +160,7 @@ export function SemiDashTab() {
   return (
     <div className="flex flex-col gap-1.5 p-2 lg:h-[calc(100vh-150px)] lg:min-h-[700px] text-[12px] bg-gray-50">
       {/* ① 시세 */}
-      <div className="grid grid-cols-2 lg:grid-cols-7 gap-1.5 auto-rows-[118px] shrink-0">
+      <div className="grid grid-cols-2 lg:grid-cols-8 gap-1.5 auto-rows-[118px] shrink-0">
         {STOCKS.map(s => {
           const qq = q(`${s.code}.KS`);
           return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원"
@@ -171,6 +177,10 @@ export function SemiDashTab() {
         <Card title={`코스닥150 선물${futQ?.month ? ` ${futQ.month}` : ""}`} price={futQ?.price} pct={futQ?.pct}
               sub={futQ ? `미결제 ${futQ.oi.toLocaleString()}(${eok(futQ.oiChg)})` : "한경 실시간"}
               chart={futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />} />
+        <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} inverse
+              sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
+              chart={vkChart && vkChart.length > 1 && <Sparkline data={vkChart.slice(-60)} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
+                                                               color={vk && vk.pct > 0 ? "#2563eb" : "#dc2626"} />} />
         <Card title="필라델피아 반도체" price={sox?.price} pct={sox?.regularPct ?? sox?.pct}
               sub={soxF ? `선물 ${fmtP(soxF.price)} (${sgn(soxF.pct)}%)` : undefined}
               chart={spark?.get("^SOX") && <SparkBg sp={spark.get("^SOX")!} />} />
@@ -217,9 +227,11 @@ export function SemiDashTab() {
   );
 }
 
-function Card({ title, price, pct, sub, chart, unit }: {
+function Card({ title, price, pct, sub, chart, unit, inverse }: {
   title: string; price?: number; pct?: number; sub?: string; chart?: React.ReactNode; unit?: string;
+  inverse?: boolean;   // 공포지수처럼 오르면 나쁜 것 — 색을 뒤집는다(지수 탭 direction=inverse 와 같은 규칙)
 }) {
+  const up = (v: number) => upColor(inverse ? -v : v);
   return (
     <div className="relative rounded-lg border border-gray-200 bg-white overflow-hidden">
       <div className="absolute inset-x-0 bottom-0 top-[40%] pointer-events-none">{chart}</div>
