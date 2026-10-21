@@ -612,10 +612,11 @@ export function StockCard({
       .formatToParts(new Date()).reduce<Record<string, string>>((a, p) => { a[p.type] = p.value; return a; }, {});
     if (`${parts.year}-${parts.month}-${parts.day}` !== dayChart.date) return dayChart;
     const mins = (Number(parts.hour) % 24) * 60 + Number(parts.minute);
-    const x = isUs ? mins / (24 * 60) : (mins - 8 * 60) / (12 * 60);
+    const f = isUs ? mins / (24 * 60) : (mins - 8 * 60) / (12 * 60);
+    const x = dayChart.twoDay ? 0.5 + f * 0.5 : f;   // 어제+오늘 축이면 오늘은 오른쪽 절반
     // 토스 봉 시각은 '끝나는 시각' — 지금이 진행 중인 봉 안이면 그 봉 바로 뒤에 붙인다
     const lastX = dayChart.xs[dayChart.xs.length - 1];
-    if (x > 1 || x < lastX - 10 / (isUs ? 24 * 60 : 12 * 60)) return dayChart;
+    if (x > 1 || x < lastX - (dayChart.twoDay ? 0.5 : 1) * 10 / (isUs ? 24 * 60 : 12 * 60)) return dayChart;
     return { ...dayChart, closes: [...dayChart.closes, live], xs: [...dayChart.xs, Math.max(x, lastX + 0.002)] };
   })();
   // 오늘 봉 1개뿐이면 지금 가격을 붙여야 선이 된다 — 그래도 2점이 안 되면 3개월로

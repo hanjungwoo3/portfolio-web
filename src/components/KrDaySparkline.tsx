@@ -35,10 +35,11 @@ export function KrDaySparkline({ code, fallback, live, width, height, color, dim
   const day = (() => {
     if (!day0 || !(live && live > 0) || !day0.xs?.length || day0.date !== kstToday()) return day0;
     const now = new Date(Date.now() + 9 * 3600_000);
-    const x = (now.getUTCHours() * 60 + now.getUTCMinutes() - 8 * 60) / (12 * 60);
+    const f = (now.getUTCHours() * 60 + now.getUTCMinutes() - 8 * 60) / (12 * 60);
+    const x = day0.twoDay ? 0.5 + f * 0.5 : f;   // 어제+오늘 축이면 오늘은 오른쪽 절반
     // 토스 봉 시각은 '끝나는 시각'(09:00~09:10 봉 = 09:10) — 지금이 진행 중인 봉 안이면 그 봉 바로 뒤에 붙인다
     const lastX = day0.xs[day0.xs.length - 1];
-    if (x > 1 || x < lastX - 10 / (12 * 60)) return day0;
+    if (x > 1 || x < lastX - (day0.twoDay ? 0.5 : 1) * 10 / (12 * 60)) return day0;
     return { ...day0, closes: [...day0.closes, live], xs: [...day0.xs, Math.max(x, lastX + 0.002)] };
   })();
   const dayOk = day && day.closes.length > 1 ? day : null;   // 봉 1개 + 끝점이 없으면(장 밖) 3개월로

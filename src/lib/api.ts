@@ -354,37 +354,48 @@ async function fetchTossMinuteBars(path: string, maxPages: number): Promise<Toss
     const res = ((await r.json()) as { result?: { candles?: TossBar[]; nextDateTime?: string } }).result;
     const cs = (res?.candles ?? []).filter(c => c.dt && c.close > 0);
     out.push(...cs);
-    // 받은 것 중 가장 옛 봉이 이미 '최신 날' 이전이면 그날은 다 받았다
-    if (!cs.length || !res?.nextDateTime || cs[cs.length - 1].dt.slice(0, 10) !== out[0].dt.slice(0, 10)) break;
+    // 날짜가 3개째 보이면(= 어제까지 다 받았다) 그만
+    if (!cs.length || !res?.nextDateTime || new Set(out.map(c => c.dt.slice(0, 10))).size >= 3) break;
     from = res.nextDateTime;
   }
   return out;
+}
+
+// 분봉(최신→과거) → **어제 + 오늘** 두 날을 이어 붙인 시계열(사용자 요청 2026-10-21).
+//   가로축 왼쪽 절반 = 직전 거래일, 오른쪽 절반 = 최신 날(오늘) — 각 날은 한국 08:00~20:00 / 미국 00:00~24:00 시간 축.
+//   장 초반에 오늘 봉이 적어 그래프 대부분이 비던 문제. 기준선(base)·정규장 시작(openIdx)은 **오늘** 것.
+function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
+  const [startMin, spanMin, openHHMM] = isKr ? [8 * 60, 12 * 60, "09:00"] : [0, 24 * 60, "09:30"];
+  const frac = (dt: string) => Math.min(1, Math.max(0, (Number(dt.slice(11, 13)) * 60 + Number(dt.slice(14, 16)) - startMin) / spanMin));
+  const days = [...new Set(rows.map(c => c.dt.slice(0, 10)))];         // 최신 날짜 먼저
+  const barsOf = (d?: string) => d ? rows.filter(c => c.dt.slice(0, 10) === d && c.close > 0).reverse() : [];
+  const li = days.findIndex(d => barsOf(d).length > 0);
+  if (li < 0) return null;
+  const latest = barsOf(days[li]), prev = barsOf(days[li + 1]);
+  const oi = latest.findIndex(c => c.dt.slice(11, 16) >= openHHMM);
+  const base = latest[latest.length - 1].base;
+  return {
+    closes: [...prev.map(c => c.close), ...latest.map(c => c.close)],
+    xs: [...prev.map(c => frac(c.dt) * 0.5), ...latest.map(c => 0.5 + frac(c.dt) * 0.5)],
+    base: base && base > 0 ? base : undefined,
+    openIdx: oi >= 0 ? prev.length + oi : undefined,
+    date: days[li], twoDay: true,
+  };
 }
 
 // 종목 카드 배경 '24시간' 그래프용 당일 시계열 — 시간 축(xs)·어제 종가(base)·정규장 시작(openIdx) 포함.
 //   지수 카드(KrDaySparkline·야후 spark)와 같은 모양(어제 종가선 위 빨강·아래 파랑, 정규장 시작 세로선)으로 그리려고
 //   종가만 주던 걸 넓혔다(2026-10-21). 한국 = 08:00~20:00 KST(정규 09:00), 미국 = 00:00~24:00 ET(정규 09:30).
 //   오늘 봉이 1개라도 있으면 오늘(실시간 끝점과 이어 선이 된다), 없을 때만 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
-export interface DaySeries { closes: number[]; xs?: number[]; base?: number; openIdx?: number; date?: string }
+export interface DaySeries { closes: number[]; xs?: number[]; base?: number; openIdx?: number; date?: string; twoDay?: boolean }   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
 export async function fetchTossIntraday(ticker: string): Promise<DaySeries | null> {
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
   const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));
   if (!code) return null;   // 코드 모름 — 3개월로 그린다
-  // 5분봉 하루 전체 — 한국 144개·미국 24시간 288개 = 둘 다 1콜(450개 상한 안)
-  const rows = await fetchTossMinuteBars(`${isKr ? "kr-s" : "us-s"}/${code}`, 1);
+  // 5분봉 이틀(어제+오늘) — 한국 288개 = 1콜, 미국 576개 = 2콜(450개 상한 → 이어받기)
+  const rows = await fetchTossMinuteBars(`${isKr ? "kr-s" : "us-s"}/${code}`, isKr ? 1 : 2);
   if (rows.length === 0) throw new Error(`toss intraday ${ticker}: empty`);
-  // dt 는 현지 오프셋 포함 ISO → 앞 10자리가 현지 날짜, 11~16 이 현지 시각
-  const [startMin, spanMin, openHHMM] = isKr ? [8 * 60, 12 * 60, "09:00"] : [0, 24 * 60, "09:30"];
-  const xOf = (dt: string) => (Number(dt.slice(11, 13)) * 60 + Number(dt.slice(14, 16)) - startMin) / spanMin;
-  for (const day of [...new Set(rows.map(c => c.dt!.slice(0, 10)))]) {
-    const bars = rows.filter(c => c.dt!.slice(0, 10) === day).reverse();   // 과거 → 최신
-    if (bars.length < 1) continue;
-    const oi = bars.findIndex(c => c.dt!.slice(11, 16) >= openHHMM);
-    const base = bars[bars.length - 1].base;
-    return { closes: bars.map(c => c.close!), xs: bars.map(c => xOf(c.dt!)), base: base && base > 0 ? base : undefined,
-             openIdx: oi > 0 ? oi : undefined, date: day };
-  }
-  return null;
+  return buildTwoDaySeries(rows, isKr);
 }
 
 // 토스 내부코드를 이미 아는 경우(TICS 구성종목 등) — 심볼→코드 변환을 건너뛴다.
@@ -3985,7 +3996,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
   for (let i = 0; i < symbols.length; i += SPARK_CHUNK) chunks.push(symbols.slice(i, i + SPARK_CHUNK));
   await Promise.all(chunks.map(async c => {
     try {
-      const r = await fetchProxied(`https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(c.join(","))}&range=1d&interval=5m&includePrePost=true`);   // 토스 카드와 같은 5분봉
+      const r = await fetchProxied(`https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(c.join(","))}&range=2d&interval=5m&includePrePost=true`);   // 토스 카드와 같은 5분봉, 어제+오늘
       if (!r.ok) return;
       const j = await r.json() as { spark?: { result?: { symbol?: string; response?: {
         timestamp?: number[]; meta?: { currentTradingPeriod?: { regular?: { start?: number } }; previousClose?: number; chartPreviousClose?: number };
@@ -4009,26 +4020,12 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
 // ─── 한국 종목·ETF 24시간(당일) 차트 — 토스 10분봉 ─────────────
 //   토스 c-chart 분봉은 NXT 프리(08:00)~애프터(20:00)까지 들어 있고 봉마다 base(= 어제 종가)가 붙는다.
 //   종목당 1콜이라 화면에 보이는 카드만 부른다(KrDaySparkline). openIdx = 09:00 KRX 정규장 첫 봉.
-export interface KrDayCandles { closes: number[]; base?: number; openIdx?: number; xs?: number[]; date?: string }   // 5분봉   // xs = 08:00~20:00 시간 축 위치(0~1)
+export type KrDayCandles = DaySeries;   // 5분봉 어제+오늘   // xs = 08:00~20:00 시간 축 위치(0~1)
 export async function fetchKrDayCandles(code: string): Promise<KrDayCandles | null> {
   try {
-    // 5분봉 하루 전체(08:00~20:00 = 144개) — 1콜
+    // 5분봉 이틀(어제+오늘 = 288개) — 1콜. 어제 하루를 왼쪽 절반에 이어 붙인다(buildTwoDaySeries)
     const cs = await fetchTossMinuteBars(`kr-s/A${code}`, 1);
-    if (!cs.length) return null;
-    // 가장 최근 날(오늘)을 **08:00~20:00 시간 축**에 그린다 — 점을 고르게 펴면 장 초반 봉 2~3개가 카드 전체로 늘어나
-    //   어제 종가선과 큰 삼각형을 만들었다(2026-10-21). 시간 축이면 왼쪽에 짧게 그려지고 하루가 지나며 채워진다.
-    //   오늘 봉이 **1개라도** 있으면 오늘(지금 가격 점을 이어 붙여 선이 된다) — 2개 미만이면 어제를 그렸더니 장 시작 직후
-    //   카드는 오늘 +3.48% 인데 그래프는 어제 하락(파랑)이었다(2026-10-21 09:04 주성엔지니어링). 오늘 봉이 없을 때만 직전 거래일.
-    const days = [...new Set(cs.map(c => c.dt.slice(0, 10)))];          // 최신 날짜 먼저
-    const xOf = (dt: string) => (Number(dt.slice(11, 13)) * 60 + Number(dt.slice(14, 16)) - 8 * 60) / (12 * 60);
-    for (const day of days) {
-      const bars = cs.filter(c => c.dt.slice(0, 10) === day && c.close > 0).reverse();   // 과거 → 최신
-      if (bars.length < 1) continue;
-      const oi = bars.findIndex(c => c.dt.slice(11, 16) >= "09:00");
-      const base = bars[bars.length - 1].base;                           // 그날의 기준가 = 그 전 거래일 종가
-      return { closes: bars.map(c => c.close), base: base && base > 0 ? base : undefined, openIdx: oi > 0 ? oi : undefined, xs: bars.map(c => xOf(c.dt)), date: day };
-    }
-    return null;
+    return cs.length ? buildTwoDaySeries(cs, true) : null;
   } catch { return null; }
 }
 
