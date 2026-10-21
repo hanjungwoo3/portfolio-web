@@ -15,7 +15,6 @@ import {
 import type { Investor } from "../types";
 import { allYahooSymbols } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
-import { isKrNightSession } from "../lib/format";
 import { useTickFlow, strength, netAmt, BIG_TRADE_WON, type TickFlow } from "../lib/useTickFlow";
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
@@ -98,7 +97,9 @@ export function SemiDashTab() {
   const ticks = [useTickFlow(STOCKS[0].code), useTickFlow(STOCKS[1].code)];
   const [rightTab, setRightTab] = useState<"sig" | "hyp">("sig");
   // 야간선물(18:00~05:00) — 지수 탭과 같은 쿼리키(캐시 공유)
-  const night = isKrNightSession();
+  // 야간선물이 **실제로 열린 시간**(18:00~05:00)에만 — isKrNightSession 은 주간장 직전(09:00)까지라
+  //   야간장이 끝난 뒤에도 08시에 야간 카드가 남아 있었다(사용자 지적 2026-10-22). 그 사이엔 주간 선물(전날 종가) 카드.
+  const night = (() => { const h = new Date(Date.now() + 9 * 3600_000).getUTCHours(); return h >= 18 || h < 5; })();
   const nightQs = useQueries({
     queries: (["^KS200N", "^KQ150N"] as const).map(sym => ({
       queryKey: ["yasun-night", sym], queryFn: () => fetchYasunNightFutures(sym),
