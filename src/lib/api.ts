@@ -341,7 +341,7 @@ export async function fetchTossUsStockCandles(symbol: string, count = 120): Prom
 // 종목 카드 배경 '24시간' 그래프용 당일 시계열 — 시간 축(xs)·어제 종가(base)·정규장 시작(openIdx) 포함.
 //   지수 카드(KrDaySparkline·야후 spark)와 같은 모양(어제 종가선 위 빨강·아래 파랑, 정규장 시작 세로선)으로 그리려고
 //   종가만 주던 걸 넓혔다(2026-10-21). 한국 = 08:00~20:00 KST(정규 09:00), 미국 = 00:00~24:00 ET(정규 09:30).
-//   봉이 2개도 안 되면(장 시작 직후) 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
+//   오늘 봉이 1개라도 있으면 오늘(실시간 끝점과 이어 선이 된다), 없을 때만 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
 export interface DaySeries { closes: number[]; xs?: number[]; base?: number; openIdx?: number; date?: string }
 export async function fetchTossIntraday(ticker: string): Promise<DaySeries | null> {
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
@@ -358,7 +358,7 @@ export async function fetchTossIntraday(ticker: string): Promise<DaySeries | nul
   const xOf = (dt: string) => (Number(dt.slice(11, 13)) * 60 + Number(dt.slice(14, 16)) - startMin) / spanMin;
   for (const day of [...new Set(rows.map(c => c.dt!.slice(0, 10)))]) {
     const bars = rows.filter(c => c.dt!.slice(0, 10) === day).reverse();   // 과거 → 최신
-    if (bars.length < 2) continue;
+    if (bars.length < 1) continue;
     const oi = bars.findIndex(c => c.dt!.slice(11, 16) >= openHHMM);
     const base = bars[bars.length - 1].base;
     return { closes: bars.map(c => c.close!), xs: bars.map(c => xOf(c.dt!)), base: base && base > 0 ? base : undefined,
@@ -3998,12 +3998,13 @@ export async function fetchKrDayCandles(code: string): Promise<KrDayCandles | nu
     if (!cs.length) return null;
     // 가장 최근 날(오늘)을 **08:00~20:00 시간 축**에 그린다 — 점을 고르게 펴면 장 초반 봉 2~3개가 카드 전체로 늘어나
     //   어제 종가선과 큰 삼각형을 만들었다(2026-10-21). 시간 축이면 왼쪽에 짧게 그려지고 하루가 지나며 채워진다.
-    //   봉이 2개도 안 되면(08:00 직후) 직전 거래일.
+    //   오늘 봉이 **1개라도** 있으면 오늘(지금 가격 점을 이어 붙여 선이 된다) — 2개 미만이면 어제를 그렸더니 장 시작 직후
+    //   카드는 오늘 +3.48% 인데 그래프는 어제 하락(파랑)이었다(2026-10-21 09:04 주성엔지니어링). 오늘 봉이 없을 때만 직전 거래일.
     const days = [...new Set(cs.map(c => c.dt.slice(0, 10)))];          // 최신 날짜 먼저
     const xOf = (dt: string) => (Number(dt.slice(11, 13)) * 60 + Number(dt.slice(14, 16)) - 8 * 60) / (12 * 60);
     for (const day of days) {
       const bars = cs.filter(c => c.dt.slice(0, 10) === day && c.close > 0).reverse();   // 과거 → 최신
-      if (bars.length < 2) continue;
+      if (bars.length < 1) continue;
       const oi = bars.findIndex(c => c.dt.slice(11, 16) >= "09:00");
       const base = bars[bars.length - 1].base;                           // 그날의 기준가 = 그 전 거래일 종가
       return { closes: bars.map(c => c.close), base: base && base > 0 ? base : undefined, openIdx: oi > 0 ? oi : undefined, xs: bars.map(c => xOf(c.dt)), date: day };

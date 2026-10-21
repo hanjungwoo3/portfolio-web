@@ -30,19 +30,22 @@ export function KrDaySparkline({ code, fallback, live, width, height, color, dim
     enabled: seen,
     staleTime: 4 * 60_000, refetchInterval: seen ? 5 * 60_000 : false, refetchOnWindowFocus: false,
   });
-  const day0 = data && data.closes.length > 1 ? data : null;
+  const day0 = data && data.closes.length > 0 ? data : null;
   // 지금 가격을 오늘 차트 끝(지금 시각 위치)에 붙인다 — 차트가 오늘 것이고 지금이 08:00~20:00 이며 마지막 봉보다 뒤일 때만
   const day = (() => {
     if (!day0 || !(live && live > 0) || !day0.xs?.length || day0.date !== kstToday()) return day0;
     const now = new Date(Date.now() + 9 * 3600_000);
     const x = (now.getUTCHours() * 60 + now.getUTCMinutes() - 8 * 60) / (12 * 60);
-    if (x <= day0.xs[day0.xs.length - 1] || x > 1) return day0;
-    return { ...day0, closes: [...day0.closes, live], xs: [...day0.xs, x] };
+    // 토스 봉 시각은 '끝나는 시각'(09:00~09:10 봉 = 09:10) — 지금이 진행 중인 봉 안이면 그 봉 바로 뒤에 붙인다
+    const lastX = day0.xs[day0.xs.length - 1];
+    if (x > 1 || x < lastX - 10 / (12 * 60)) return day0;
+    return { ...day0, closes: [...day0.closes, live], xs: [...day0.xs, Math.max(x, lastX + 0.002)] };
   })();
+  const dayOk = day && day.closes.length > 1 ? day : null;   // 봉 1개 + 끝점이 없으면(장 밖) 3개월로
   return (
     <div ref={ref} className="absolute inset-0 pointer-events-none">
-      <Sparkline data={day ? day.closes : fallback} width={width} height={height}
-                 color={day && !dim ? undefined : color} baseline={day?.base} markIndex={day?.openIdx} xs={day?.xs}
+      <Sparkline data={dayOk ? dayOk.closes : fallback} width={width} height={height}
+                 color={dayOk && !dim ? undefined : color} baseline={dayOk?.base} markIndex={dayOk?.openIdx} xs={dayOk?.xs}
                  className={className} />
     </div>
   );

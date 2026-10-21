@@ -19,6 +19,6 @@ export function useIntradayCharts(tickers: string[], enabled = true): Map<string
     })),
   });
   const m = new Map<string, DaySeries>();
-  qs.forEach((q, i) => { if (q.data && q.data.closes.length > 1) m.set(tickers[i], q.data); });
+  qs.forEach((q, i) => { if (q.data && q.data.closes.length > 0) m.set(tickers[i], q.data); });   // 1봉도 넘긴다 — 카드가 지금 가격을 붙여 선으로
   return m;
 }

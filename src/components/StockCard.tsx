@@ -599,12 +599,11 @@ export function StockCard({
   // 전체수익 (보유 종목만 — shares > 0)
   const hasPosition = stock.shares > 0 && stock.avg_price > 0;
   // 배경 그래프 — 앱 전체 설정(3개월 | 24시간). 24시간 시계열이 없으면 3개월.
-  const bgChart = pickCardChart(chartRange, chart ?? [], dayChart?.closes);
-  const bgIsDay = !!dayChart && bgChart === dayChart.closes;
+  const bgIsDayRaw = chartRange === "day" && !!dayChart && dayChart.closes.length > 0;
   // 24시간 차트 — 시간 축·어제 종가선(위 빨강·아래 파랑)·정규장 시작선 + **끝에 지금 가격**(5초 폴링, 추가 호출 0).
   //   미국 종목 시계열은 달러라 지금 가격도 달러(priceUsd)로 붙인다. 오늘 차트이고 지금이 축 안·마지막 봉 뒤일 때만.
   const dayLive = (() => {
-    if (!bgIsDay || !dayChart?.xs?.length) return dayChart;
+    if (!bgIsDayRaw || !dayChart?.xs?.length) return dayChart;
     const isUs = !/\d/.test(stock.ticker);
     const live = isUs ? price.priceUsd : price.price;
     if (!(live && live > 0)) return dayChart;
@@ -614,9 +613,14 @@ export function StockCard({
     if (`${parts.year}-${parts.month}-${parts.day}` !== dayChart.date) return dayChart;
     const mins = (Number(parts.hour) % 24) * 60 + Number(parts.minute);
     const x = isUs ? mins / (24 * 60) : (mins - 8 * 60) / (12 * 60);
-    if (x <= dayChart.xs[dayChart.xs.length - 1] || x > 1) return dayChart;
-    return { ...dayChart, closes: [...dayChart.closes, live], xs: [...dayChart.xs, x] };
+    // 토스 봉 시각은 '끝나는 시각' — 지금이 진행 중인 봉 안이면 그 봉 바로 뒤에 붙인다
+    const lastX = dayChart.xs[dayChart.xs.length - 1];
+    if (x > 1 || x < lastX - 10 / (isUs ? 24 * 60 : 12 * 60)) return dayChart;
+    return { ...dayChart, closes: [...dayChart.closes, live], xs: [...dayChart.xs, Math.max(x, lastX + 0.002)] };
   })();
+  // 오늘 봉 1개뿐이면 지금 가격을 붙여야 선이 된다 — 그래도 2점이 안 되면 3개월로
+  const bgIsDay = bgIsDayRaw && !!dayLive && dayLive.closes.length > 1;
+  const bgChart = bgIsDay ? dayLive!.closes : pickCardChart("all", chart ?? [], undefined);
 
   const pnl = hasPosition ? Math.round((price.price - stock.avg_price) * stock.shares) : 0;
   const pnlPct = hasPosition ? ((price.price - stock.avg_price) / stock.avg_price) * 100 : 0;
