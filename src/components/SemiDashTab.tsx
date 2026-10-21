@@ -356,11 +356,10 @@ function Stat({ label, v }: { label: string; v?: number }) {
   return <span className="text-gray-500">{label} <b className={v == null ? "text-gray-300" : v >= 100 ? "text-rose-600" : "text-blue-600"}>{v == null ? "-" : v.toFixed(0)}</b></span>;
 }
 
-// 시장 투자자 시간별 누적 — 외국인·연기금·개인. 기관 대신 연기금(사용자 결정 2026-10-21):
-//   기관 합계엔 금융투자(ETF·차익 헤지)가 섞여 방향이 흐려진다 — 연기금이 '진짜 기관 돈'의 방향을 가장 잘 보여 준다.
+// 시장 투자자 시간별 누적 — 외국인·개인 두 줄만(사용자 결정 2026-10-21).
+//   기관은 금융투자(ETF·차익 헤지)가 섞여 방향이 흐려지고, 대신 넣어 본 연기금은 금액이 작아 0선에 붙어 있었다.
 const LINES = [
   { k: "foreigners", label: "외국인", color: "#ea580c" },
-  { k: "pensionFund", label: "연기금", color: "#2563eb" },
   { k: "individuals", label: "개인", color: "#7c3aed" },
 ] as const;
 function FlowBox({ title, note, flow, unit, tabs, tab, onTab }: {
@@ -474,7 +473,7 @@ function StockFlowTable({ rows, fLast, markets }: {
     const sum = (n: number) => hist.slice(0, n).reduce((a, r) => a + won(r, r.외국인), 0);
     let streak = 0;
     for (const r of hist) { const sg = Math.sign(r.외국인); if (!sg || (streak && Math.sign(streak) !== sg)) break; streak += sg; }
-    return { f: today ? won(today, today.외국인) : undefined, i: today ? won(today, today.연기금) : undefined, f5: sum(5), f20: sum(20), streak };
+    return { f: today ? won(today, today.외국인) : undefined, f5: sum(5), f20: sum(20), streak };
   };
   const dsum = (daily: { foreigners: number }[], n: number) => daily.slice(-n).reduce((a, p) => a + p.foreigners, 0);
   const dstreak = (daily: { foreigners: number }[]) => {   // 최신부터 외국인 같은 방향 연속 일수
@@ -490,7 +489,7 @@ function StockFlowTable({ rows, fLast, markets }: {
       </div>
       <table className="w-full tabular-nums mt-1">
         <thead><tr className="text-gray-500 text-[11px] border-b">
-          <th className="text-left font-normal"></th><th className="text-right font-normal">외국인</th><th className="text-right font-normal">연기금</th>
+          <th className="text-left font-normal"></th><th className="text-right font-normal">외국인</th>
           <th className="text-right font-normal">외인5일</th><th className="text-right font-normal">외인20일</th><th className="text-right font-normal">연속</th>
         </tr></thead>
         <tbody>
@@ -498,7 +497,7 @@ function StockFlowTable({ rows, fLast, markets }: {
             const c = calc(r.hist, r.price);
             return (
               <tr key={r.code} className="border-b border-gray-100">
-                <td className="py-1 font-bold">{r.name}</td><N v={c.f} /><N v={c.i} /><N v={c.f5} /><N v={c.f20} />
+                <td className="py-1 font-bold">{r.name}</td><N v={c.f} /><N v={c.f5} /><N v={c.f20} />
                 <td className={`text-right ${up(c.streak)}`}>{c.streak ? `${Math.abs(c.streak)}일${c.streak > 0 ? "↑" : "↓"}` : "-"}</td>
               </tr>
             );
@@ -507,14 +506,14 @@ function StockFlowTable({ rows, fLast, markets }: {
             const st = m.daily.length ? dstreak(m.daily) : 0;
             return (
               <tr key={m.name} className="border-b border-gray-100">
-                <td className="py-1 font-bold">{m.name}</td><N v={m.last?.foreigners} /><N v={m.last?.pensionFund} />
+                <td className="py-1 font-bold">{m.name}</td><N v={m.last?.foreigners} />
                 <N v={m.daily.length ? dsum(m.daily, 5) : undefined} /><N v={m.daily.length ? dsum(m.daily, 20) : undefined} />
                 <td className={`text-right ${up(st)}`}>{st ? `${Math.abs(st)}일${st > 0 ? "↑" : "↓"}` : "-"}</td>
               </tr>
             );
           })}
           <tr>
-            <td className="py-1 font-bold">선물<span className="text-[10px] font-normal text-gray-400"> 계약·20분</span></td><N v={fLast?.foreigners} /><N v={fLast?.pensionFund} /><td /><td /><td />
+            <td className="py-1 font-bold">선물<span className="text-[10px] font-normal text-gray-400"> 계약·20분</span></td><N v={fLast?.foreigners} /><td /><td /><td />
           </tr>
         </tbody>
       </table>
