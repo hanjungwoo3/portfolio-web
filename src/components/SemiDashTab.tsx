@@ -74,15 +74,17 @@ export function SemiDashTab() {
   const { data: perps } = useQuery({
     queryKey: ["hl-xyz-perps"], queryFn: fetchHlXyzPerps, refetchInterval: useAdaptiveRefreshMs(15_000), staleTime: 5_000,
   });
-  const [kospiFlow, futFlow] = useQueries({
-    queries: (["kospi", "futures"] as const).map(m => ({
+  const [kospiFlow, futFlow, kosdaqFlow] = useQueries({
+    queries: (["kospi", "futures", "kosdaq"] as const).map(m => ({
       queryKey: ["semi-dash-flow", m], queryFn: () => fetchKrIntradayInvestorFlow(m),
       refetchInterval: FLOW_MS, staleTime: 30_000,
     })),
   });
-  const { data: kospiDaily } = useQuery({
-    queryKey: ["semi-dash-daily", "kospi"], queryFn: () => fetchKrDailyInvestorFlow("kospi", 20),
-    staleTime: 10 * 60_000, refetchOnWindowFocus: false,
+  const [{ data: kospiDaily }, { data: kosdaqDaily }] = useQueries({
+    queries: (["kospi", "kosdaq"] as const).map(m => ({
+      queryKey: ["semi-dash-daily", m], queryFn: () => fetchKrDailyInvestorFlow(m, 20),
+      staleTime: 10 * 60_000, refetchOnWindowFocus: false,
+    })),
   });
   const stockInv = useQueries({
     queries: STOCKS.map(s => ({
@@ -91,6 +93,7 @@ export function SemiDashTab() {
     })),
   });
   const ticks = [useTickFlow(STOCKS[0].code), useTickFlow(STOCKS[1].code)];
+  const [spotMkt, setSpotMkt] = useState<"kospi" | "kosdaq">("kospi");
   const { data: dayStr } = useQuery({
     queryKey: ["toss-day-strength", STOCKS.map(s => s.code).join(",")],
     queryFn: () => fetchTossDayStrength(STOCKS.map(s => s.code)),
@@ -207,11 +210,16 @@ export function SemiDashTab() {
 
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_0.8fr_1.1fr] gap-1.5 auto-rows-[200px] shrink-0">
-        <FlowBox title="현물 · 코스피 투자자" note="1분" flow={kf} unit="억" />
-        <FlowBox title="선물 · 코스피200 투자자" note="네이버 20분 지연" flow={ff} unit="계약" />
+        <FlowBox title={`현물 · ${spotMkt === "kospi" ? "코스피" : "코스닥"} 투자자`} note="1분" flow={spotMkt === "kospi" ? kf : kosdaqFlow.data} unit="억"
+                 tabs={[["kospi", "코스피"], ["kosdaq", "코스닥"]]} tab={spotMkt} onTab={k => setSpotMkt(k as "kospi" | "kosdaq")} />
+        <FlowBox title="선물 · 코스피200 투자자" note="20분 지연(코스닥150 선물은 소스 없음)" flow={ff} unit="계약" />
         <OptionBox opt={opt} vk={vk} />
         <StockFlowTable rows={STOCKS.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: q(`${s.code}.KS`)?.price }))}
-                        kLast={kLast} fLast={fLast} daily={kospiDaily?.points ?? []} />
+                        fLast={fLast}
+                        markets={[
+                          { name: "코스피", last: kLast, daily: kospiDaily?.points ?? [] },
+                          { name: "코스닥", last: kosdaqFlow.data?.points[kosdaqFlow.data.points.length - 1], daily: kosdaqDaily?.points ?? [] },
+                        ]} />
       </div>
 
       {/* ④ 해외 선물·현물·미국 반도체 */}
@@ -356,7 +364,10 @@ const LINES = [
   { k: "inst", label: "기관", color: "#2563eb" },
   { k: "individuals", label: "개인", color: "#7c3aed" },
 ] as const;
-function FlowBox({ title, note, flow, unit }: { title: string; note: string; flow?: IntradayFlow; unit: string }) {
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab }: {
+  title: string; note: string; flow?: IntradayFlow; unit: string;
+  tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
+}) {
   const pts = flow?.points ?? [];
   const val = (p: IntradayFlow["points"][number], k: (typeof LINES)[number]["k"]) =>
     k === "inst" ? p.institutions - (unit === "억" ? p.financialInvestment : 0) : p[k];
@@ -369,8 +380,16 @@ function FlowBox({ title, note, flow, unit }: { title: string; note: string; flo
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
       <div className="flex items-baseline gap-2">
-        <span className="font-bold text-gray-800">{title}</span>
-        <span className="text-[11px] text-gray-400">{note}{last ? ` · ${last.time}` : ""} · {unit}{unit === "억" ? " · 기관=금투 제외" : ""}</span>
+        <span className="font-bold text-gray-800 shrink-0">{title}</span>
+        <span className="text-[11px] text-gray-400 truncate">{note}{last ? ` · ${last.time}` : ""} · {unit}{unit === "억" ? " · 기관=금투 제외" : ""}</span>
+        {tabs && (
+          <span className="ml-auto shrink-0 inline-flex rounded border border-gray-300 overflow-hidden text-[10.5px]">
+            {tabs.map(([k, l]) => (
+              <button key={k} onClick={() => onTab?.(k)}
+                      className={`px-1.5 ${k === tab ? "bg-gray-700 text-white" : "text-gray-500 hover:bg-gray-100"}`}>{l}</button>
+            ))}
+          </span>
+        )}
       </div>
       <div className="flex gap-2.5 tabular-nums">
         {LINES.map(l => (
@@ -444,10 +463,11 @@ function OptionBox({ opt, vk }: { opt?: Awaited<ReturnType<typeof fetchKospi200O
   );
 }
 
-function StockFlowTable({ rows, kLast, fLast, daily }: {
+function StockFlowTable({ rows, fLast, markets }: {
   rows: { code: string; name: string; hist: Investor[]; price?: number }[];
-  kLast?: IntradayFlow["points"][number]; fLast?: IntradayFlow["points"][number];
-  daily: { foreigners: number }[];
+  fLast?: IntradayFlow["points"][number];
+  // 시장 줄(코스피·코스닥) — 오늘은 1분 단위 누적(네이버), 5·20일·연속은 일별
+  markets: { name: string; last?: IntradayFlow["points"][number]; daily: { foreigners: number }[] }[];
 }) {
   const calc = (hist: Investor[], price?: number) => {
     const won = (r: Investor, v: number) => (v * (r.종가 || price || 0)) / 1e8;
@@ -457,7 +477,12 @@ function StockFlowTable({ rows, kLast, fLast, daily }: {
     for (const r of hist) { const sg = Math.sign(r.외국인); if (!sg || (streak && Math.sign(streak) !== sg)) break; streak += sg; }
     return { f: today ? won(today, today.외국인) : undefined, i: today ? won(today, today.기관 - today.금융투자) : undefined, f5: sum(5), f20: sum(20), streak };
   };
-  const dsum = (n: number) => daily.slice(-n).reduce((a, p) => a + p.foreigners, 0);
+  const dsum = (daily: { foreigners: number }[], n: number) => daily.slice(-n).reduce((a, p) => a + p.foreigners, 0);
+  const dstreak = (daily: { foreigners: number }[]) => {   // 최신부터 외국인 같은 방향 연속 일수
+    let st = 0;
+    for (const p of [...daily].reverse()) { const sg = Math.sign(p.foreigners); if (!sg || (st && Math.sign(st) !== sg)) break; st += sg; }
+    return st;
+  };
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
       <div className="flex items-baseline gap-2">
@@ -479,10 +504,16 @@ function StockFlowTable({ rows, kLast, fLast, daily }: {
               </tr>
             );
           })}
-          <tr className="border-b border-gray-100">
-            <td className="py-1 font-bold">코스피</td><N v={kLast?.foreigners} /><N v={kLast ? kLast.institutions - kLast.financialInvestment : undefined} />
-            <N v={daily.length ? dsum(5) : undefined} /><N v={daily.length ? dsum(20) : undefined} /><td />
-          </tr>
+          {markets.map(m => {
+            const st = m.daily.length ? dstreak(m.daily) : 0;
+            return (
+              <tr key={m.name} className="border-b border-gray-100">
+                <td className="py-1 font-bold">{m.name}</td><N v={m.last?.foreigners} /><N v={m.last ? m.last.institutions - m.last.financialInvestment : undefined} />
+                <N v={m.daily.length ? dsum(m.daily, 5) : undefined} /><N v={m.daily.length ? dsum(m.daily, 20) : undefined} />
+                <td className={`text-right ${up(st)}`}>{st ? `${Math.abs(st)}일${st > 0 ? "↑" : "↓"}` : "-"}</td>
+              </tr>
+            );
+          })}
           <tr>
             <td className="py-1 font-bold">선물<span className="text-[10px] font-normal text-gray-400"> 계약·20분</span></td><N v={fLast?.foreigners} /><N v={fLast?.institutions} /><td /><td /><td />
           </tr>
