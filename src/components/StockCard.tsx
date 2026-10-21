@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
-import type { PricePoint, DaySeries } from "../lib/api";
+import { twoDayTodayX, TWO_DAY_HALF, type PricePoint, type DaySeries } from "../lib/api";
 import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, holdingYesterdayBaseSum, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, tradeSecOf, isEtfOrEtnByName, isKrAfterRegularClose } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEtfCount } from "../lib/etfIndex";
@@ -613,10 +613,10 @@ export function StockCard({
     if (`${parts.year}-${parts.month}-${parts.day}` !== dayChart.date) return dayChart;
     const mins = (Number(parts.hour) % 24) * 60 + Number(parts.minute);
     const f = isUs ? mins / (24 * 60) : (mins - 8 * 60) / (12 * 60);
-    const x = dayChart.twoDay ? 0.5 + f * 0.5 : f;   // 어제+오늘 축이면 오늘은 오른쪽 절반
+    const x = dayChart.twoDay ? twoDayTodayX(f) : f;   // 어제+오늘 축이면 오늘은 오른쪽 절반
     // 토스 봉 시각은 '끝나는 시각' — 지금이 진행 중인 봉 안이면 그 봉 바로 뒤에 붙인다
     const lastX = dayChart.xs[dayChart.xs.length - 1];
-    if (x > 1 || x < lastX - (dayChart.twoDay ? 0.5 : 1) * 10 / (isUs ? 24 * 60 : 12 * 60)) return dayChart;
+    if (x > 1 || x < lastX - (dayChart.twoDay ? TWO_DAY_HALF : 1) * 10 / (isUs ? 24 * 60 : 12 * 60)) return dayChart;
     return { ...dayChart, closes: [...dayChart.closes, live], xs: [...dayChart.xs, Math.max(x, lastX + 0.002)] };
   })();
   // 오늘 봉 1개뿐이면 지금 가격을 붙여야 선이 된다 — 그래도 2점이 안 되면 3개월로

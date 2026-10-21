@@ -364,6 +364,12 @@ async function fetchTossMinuteBars(path: string, maxPages: number): Promise<Toss
 // 분봉(최신→과거) → **어제 + 오늘** 두 날을 이어 붙인 시계열(사용자 요청 2026-10-21).
 //   가로축 왼쪽 절반 = 직전 거래일, 오른쪽 절반 = 최신 날(오늘) — 각 날은 한국 08:00~20:00 / 미국 00:00~24:00 시간 축.
 //   장 초반에 오늘 봉이 적어 그래프 대부분이 비던 문제. 기준선(base)·정규장 시작(openIdx)은 **오늘** 것.
+//   두 날 사이엔 빈칸(TWO_DAY_GAP)을 둔다 — 한국 주식은 어제 20:00 과 오늘 08:00 이 맞닿아, 선을 끊어도
+//   세로선처럼 보였다(ETF 는 NXT 가 없어 원래 비어 보임 → 카드마다 달라 보이던 문제).
+export const TWO_DAY_GAP = 0.04;
+export const TWO_DAY_HALF = (1 - TWO_DAY_GAP) / 2;   // 하루가 차지하는 폭
+/** 오늘 하루 안 위치(0~1) → 어제+오늘 축의 x(오른쪽 칸) */
+export const twoDayTodayX = (f: number) => 1 - TWO_DAY_HALF + f * TWO_DAY_HALF;
 function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
   const [startMin, spanMin, openHHMM] = isKr ? [8 * 60, 12 * 60, "09:00"] : [0, 24 * 60, "09:30"];
   const frac = (dt: string) => Math.min(1, Math.max(0, (Number(dt.slice(11, 13)) * 60 + Number(dt.slice(14, 16)) - startMin) / spanMin));
@@ -376,7 +382,7 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
   const base = latest[latest.length - 1].base;
   return {
     closes: [...prev.map(c => c.close), ...latest.map(c => c.close)],
-    xs: [...prev.map(c => frac(c.dt) * 0.5), ...latest.map(c => 0.5 + frac(c.dt) * 0.5)],
+    xs: [...prev.map(c => frac(c.dt) * TWO_DAY_HALF), ...latest.map(c => twoDayTodayX(frac(c.dt)))],
     base: base && base > 0 ? base : undefined,
     openIdx: oi >= 0 ? prev.length + oi : undefined,
     date: days[li], twoDay: true, breakIdx: prev.length > 0 ? prev.length : undefined,

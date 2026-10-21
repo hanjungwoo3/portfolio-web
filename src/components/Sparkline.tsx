@@ -68,9 +68,13 @@ export function Sparkline({
   const innerW = width - padX * 2;
   const innerH = height - padY * 2;
 
-  // 정규화 좌표
+  // 정규화 좌표 — 시간 축(xs)이 없고 끊는 곳(breakIndex)이 있으면 그 사이에 빈칸(약 4%)을 둔다.
+  //   한 칸 차이로 맞닿으면 끊어도 이어진 세로선처럼 보인다(야후 지수 카드 — 20:00→04:00 이 붙어 있음).
+  const hasBrk = breakIndex != null && breakIndex > 0 && breakIndex < data.length;
+  const gapSlots = hasBrk && !(xs && xs.length === data.length) ? Math.max(2, Math.round((data.length - 1) * 0.04)) : 0;
   const points = data.map((v, i) => {
-    const frac = xs && xs.length === data.length ? Math.min(1, Math.max(0, xs[i])) : i / (data.length - 1);
+    const frac = xs && xs.length === data.length ? Math.min(1, Math.max(0, xs[i]))
+      : (i + (gapSlots && i >= breakIndex! ? gapSlots : 0)) / (data.length - 1 + gapSlots);
     const x = padX + frac * innerW;
     const y = padY + innerH - ((v - min) / range) * innerH;
     return [x, y] as const;
