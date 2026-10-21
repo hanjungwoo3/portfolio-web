@@ -278,17 +278,18 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
         summaryHint={mode === "daily" ? "기간합계" : undefined}
         indexSeries={indexSeries} indexLabel={ysym ? INDEX_LABEL[market] : undefined}
         indexBaseline={indexBaseline} onReady={onReady} onToggle={onToggle}
-        refFirstT={refFirstT} refLastT={refLastT} />
-      {/* 투자자별 매수·매도 막대(사용자 요청) — 위 체크박스로 켠 주체만, 당일 모드에서 */}
-      {mode === "intraday" && intra.data && (
-        <div className="mt-1.5 px-1">
-          <BuySellBars points={intra.data.points}
-            keys={INTRADAY_SERIES.filter(d => enabled[d.key]).map(d => d.key)}
-            unit={market === "futures" && !fut.data ? "계약" : "억"}
-            scale={market === "futures" && fut.data ? (fut.data.price * 250_000) / 1e8 : 1}
-            start={intra.data.pre ? "08:00" : "09:00"} end={market === "futures" ? "15:45" : "15:30"} />
-        </div>
-      )}
+        refFirstT={refFirstT} refLastT={refLastT}
+        // 투자자별 매수·매도 막대(사용자 요청) — 차트 바로 아래, 같은 가로축·마우스 위치를 따른다. 켠 주체만, 당일 모드에서
+        below={mode === "intraday" && intra.data ? g => (
+          <div className="mt-0.5">
+            <BuySellBars points={intra.data!.points}
+              keys={INTRADAY_SERIES.filter(d => enabled[d.key]).map(d => d.key)}
+              unit={market === "futures" && !fut.data ? "계약" : "억"}
+              scale={market === "futures" && fut.data ? (fut.data.price * 250_000) / 1e8 : 1}
+              start={intra.data!.pre ? "08:00" : "09:00"} end={market === "futures" ? "15:45" : "15:30"}
+              rowH={44} geom={{ ...g, toT: hm => hmToTime(hm) as number }} />
+          </div>
+        ) : undefined} />
     </Suspense>
   );
 }

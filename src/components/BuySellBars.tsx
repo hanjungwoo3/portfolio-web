@@ -1,8 +1,9 @@
 // 투자자별 매수·매도 막대 — 주체마다 한 줄씩 위아래로 쌓은 작은 차트(시간 축 공유, 사용자 결정 2026-10-21).
-//   구간(기본 10분)마다 연한 막대 = 산 양(위)·판 양(아래), 진한 막대 = 차이(빨강 = 산 게 많음·파랑 = 판 게 많음).
-//   누적 순매수 선은 뺐다(사용자 결정 — 위 큰 차트에 이미 있다).
-//   순매수 선만으론 '얼마나 사고팔아서 그 결과가 됐나'가 안 보였다 — 특히 마감 동시호가처럼 한꺼번에 사고판 구간.
+//   구간(기본 10분)마다 연한 막대 = 산 양(위)·판 양(아래), 진한 막대 = 차이(빨강 = 산 게 많음·파랑 = 판 게 많음, 자기 축).
+//   누적 순매수 선은 뺐다(사용자 결정 — 위 큰 차트에 이미 있다). 범례 문구도 뺐다(사용자 결정).
 //   값은 네이버 시간별 수급의 투자자별 누적 매수·매도(IntradayFlowPoint.gs)에서 구간 차이로 만든다.
+//   geom 을 주면 큰 차트(lightweight-charts) 바로 아래에 붙어 **같은 가로축 좌표**로 그리고, 차트에 마우스를 올리면
+//   그 시각 세로선과 그 구간 값을 같이 보여 준다(사용자 요청).
 import type { IntradayFlowPoint } from "../lib/api";
 import { INTRADAY_SERIES } from "../lib/intradayInvestor";
 
@@ -12,7 +13,15 @@ const fmtBig = (v: number, unit: string) =>
     : `${Math.round(v).toLocaleString()}${unit === "억" ? "억" : "계약"}`;
 const signed = (v: number, unit: string) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmtBig(Math.abs(v), unit)}`;
 
-export function BuySellBars({ points, keys, unit, scale = 1, bucket = 10, start = "09:00", end = "15:30", rowH = 56, compact }: {
+export interface BarsGeom {
+  xOfT: (t: number) => number | null;   // 차트 시각값 → 컨테이너 x(px)
+  width: number;                        // 컨테이너 폭(px)
+  hoverT: number | null;                // 차트에서 마우스가 가리키는 시각값
+  toT: (hm: string) => number;          // "HH:MM" → 차트 시각값
+  hover?: (t: number | null) => void;   // 막대 위 마우스 → 위 차트 crosshair 도 같은 시각으로
+}
+
+export function BuySellBars({ points, keys, unit, scale = 1, bucket = 10, start = "09:00", end = "15:30", rowH = 56, compact, geom }: {
   points: IntradayFlowPoint[];
   keys: string[];          // 그릴 주체(foreigners·individuals·…) — 위에서부터 이 순서
   unit: "억" | "계약";      // 표시 단위(scale 을 곱한 뒤의 단위)
@@ -20,15 +29,34 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket = 10, start 
   bucket?: number;         // 막대 한 개 = 몇 분
   start?: string; end?: string;
   rowH?: number;
-  compact?: boolean;       // 좁은 칸용 — 합계 글자를 작게 한 줄로
+  compact?: boolean;       // 좁은 칸용 — 합계 글자를 작게
+  geom?: BarsGeom;         // 큰 차트 아래에 붙일 때 — 그 차트의 가로축·마우스를 따른다
 }) {
   const pts = points.filter(p => p.gs);
   if (pts.length < 2 || !keys.length) return null;
   const t0 = Math.min(tmin(start), tmin(pts[0].time)), t1 = Math.max(tmin(end), tmin(pts[pts.length - 1].time));
   const nB = Math.max(1, Math.ceil((t1 - t0) / bucket));
-  const W = 600, PAD = 2, H = 100, mid = H / 2;
-  const bw = (W - PAD * 2) / nB;
-  const xOfMin = (m: number) => PAD + ((m - t0) / (t1 - t0)) * (W - PAD * 2);
+  // 구간마다 그 안의 자료 시각들(차트 좌표를 얻으려면 실제 있는 시각이어야 한다)
+  const bucketPts: IntradayFlowPoint[][] = Array.from({ length: nB }, () => []);
+  for (const p of pts) bucketPts[Math.min(nB - 1, Math.max(0, Math.floor((tmin(p.time) - t0) / bucket)))].push(p);
+  const PX_W = geom ? Math.max(1, geom.width) : 600, H = 100, mid = H / 2, PAD = 2;
+  const xRange = (i: number): [number, number] | null => {   // 구간 i 의 가로 위치
+    if (geom) {
+      const ps = bucketPts[i]; if (!ps.length) return null;
+      const a = geom.xOfT(geom.toT(ps[0].time)), b = geom.xOfT(geom.toT(ps[ps.length - 1].time));
+      if (a == null || b == null) return null;
+      return [a, a + Math.max(2, b - a + (b - a) / Math.max(1, ps.length - 1))];   // 마지막 1분 폭만큼 더
+    }
+    const bw = (PX_W - PAD * 2) / nB;
+    return [PAD + i * bw, PAD + (i + 1) * bw];
+  };
+  const xOfMin = (m: number) => PAD + ((m - t0) / (t1 - t0)) * (PX_W - PAD * 2);
+  // 마우스가 가리키는 구간
+  const hoverHm = geom?.hoverT != null
+    ? pts.reduce((best, p) => (Math.abs(geom.toT(p.time) - geom.hoverT!) < Math.abs(geom.toT(best.time) - geom.hoverT!) ? p : best), pts[0]).time
+    : undefined;
+  const hoverI = hoverHm ? Math.min(nB - 1, Math.max(0, Math.floor((tmin(hoverHm) - t0) / bucket))) : undefined;
+  const hoverX = geom?.hoverT != null ? geom.xOfT(geom.hoverT) : null;
   return (
     <div className="w-full space-y-1">
       {keys.map(k => {
@@ -42,7 +70,7 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket = 10, start 
         const bars: { b: number; s: number }[] = [];
         let prev = cumAt(t0 - 1);
         for (let i = 0; i < nB; i++) {
-          const cur = cumAt(t0 + (i + 1) * bucket);
+          const cur = cumAt(t0 + (i + 1) * bucket - 1);
           bars.push({ b: Math.max(0, cur[0] - prev[0]), s: Math.max(0, cur[1] - prev[1]) });
           prev = cur;
         }
@@ -50,38 +78,52 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket = 10, start 
         const totB = last[0] * scale, totS = last[1] * scale, net = totB - totS;
         const mxBar = Math.max(1e-9, ...bars.map(x => Math.max(x.b, x.s)));
         const mxD = Math.max(1e-9, ...bars.map(x => Math.abs(x.b - x.s)));   // 차이 막대는 자기 축 — 총량에 비해 작아 묻히지 않게
+        const hb = hoverI != null ? bars[hoverI] : undefined;
+        const hm0 = hoverI != null ? t0 + hoverI * bucket : 0;
+        const hLabel = `${String(Math.floor(hm0 / 60)).padStart(2, "0")}:${String(hm0 % 60).padStart(2, "0")}~`;
         return (
           <div key={k}>
             <div className={`flex items-baseline gap-2 tabular-nums ${compact ? "text-[10px]" : "text-[11px]"}`}>
               <b style={{ color }}>{def?.label ?? k}</b>
-              <span className="text-gray-500">매수 <b className="text-rose-600">{fmtBig(totB, unit)}</b> · 매도 <b className="text-blue-600">{fmtBig(totS, unit)}</b></span>
+              {hb ? (
+                <span className="text-gray-500">{hLabel} 매수 <b className="text-rose-600">{fmtBig(hb.b, unit)}</b> · 매도 <b className="text-blue-600">{fmtBig(hb.s, unit)}</b>
+                  {" "}→ <b className={hb.b - hb.s > 0 ? "text-rose-600" : hb.b - hb.s < 0 ? "text-blue-600" : ""}>{signed(hb.b - hb.s, unit)}</b></span>
+              ) : (
+                <span className="text-gray-500">매수 <b className="text-rose-600">{fmtBig(totB, unit)}</b> · 매도 <b className="text-blue-600">{fmtBig(totS, unit)}</b></span>
+              )}
               <span className="ml-auto">순 <b className={net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-500"}>{signed(net, unit)}</b></span>
             </div>
-            <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full" style={{ height: rowH }}>
-              <line x1={0} x2={W} y1={mid} y2={mid} stroke="#cbd5e1" vectorEffect="non-scaling-stroke" />
-              {[10, 12, 14].map(h => <line key={h} x1={xOfMin(h * 60)} x2={xOfMin(h * 60)} y1={0} y2={H} stroke="#f1f5f9" vectorEffect="non-scaling-stroke" />)}
+            <svg viewBox={`0 0 ${PX_W} ${H}`} preserveAspectRatio="none" className="w-full block" style={{ height: rowH }}
+                 onMouseMove={geom?.hover ? e => {
+                   // 마우스 x(px) → 가장 가까운 자료 시각 → 위 차트에 알린다
+                   const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
+                   const mx = ((e.clientX - r.left) / r.width) * PX_W;
+                   let best: number | null = null, bd = Infinity;
+                   for (const p of pts) { const t = geom.toT(p.time), x = geom.xOfT(t); if (x != null && Math.abs(x - mx) < bd) { bd = Math.abs(x - mx); best = t; } }
+                   geom.hover!(best);
+                 } : undefined}
+                 onMouseLeave={geom?.hover ? () => geom.hover!(null) : undefined}>
+              <line x1={0} x2={PX_W} y1={mid} y2={mid} stroke="#cbd5e1" vectorEffect="non-scaling-stroke" />
+              {!geom && [10, 12, 14].map(h => <line key={h} x1={xOfMin(h * 60)} x2={xOfMin(h * 60)} y1={0} y2={H} stroke="#f1f5f9" vectorEffect="non-scaling-stroke" />)}
               {bars.map((x, i) => {
-                const hb = (x.b / mxBar) * (mid - 2), hs = (x.s / mxBar) * (mid - 2);
-                const bx = PAD + i * bw + bw * 0.1;
+                const r = xRange(i); if (!r) return null;
+                const [x0, x1] = r, bx = x0 + (x1 - x0) * 0.1, w = Math.max(1, (x1 - x0) * 0.8);
+                const hbh = (x.b / mxBar) * (mid - 2), hsh = (x.s / mxBar) * (mid - 2);
                 // 차이(매수−매도) — 어느 쪽이 큰지 한눈에(사용자 요청): 매수·매도는 연하게, 차이만 진한 빨강/파랑
                 const d = x.b - x.s, hd = (Math.abs(d) / mxD) * (mid - 2);
                 return (
-                  <g key={i}>
-                    {x.b > 0 && <rect x={bx} width={bw * 0.8} y={mid - hb} height={hb} fill={color} opacity={0.18} />}
-                    {x.s > 0 && <rect x={bx} width={bw * 0.8} y={mid} height={hs} fill={color} opacity={0.18} />}
-                    {d !== 0 && <rect x={bx} width={bw * 0.8} y={d > 0 ? mid - hd : mid} height={Math.max(0.5, hd)} fill={d > 0 ? "#e11d48" : "#2563eb"} opacity={0.9} />}
+                  <g key={i} opacity={hoverI == null || hoverI === i ? 1 : 0.55}>
+                    {x.b > 0 && <rect x={bx} width={w} y={mid - hbh} height={hbh} fill={color} opacity={0.18} />}
+                    {x.s > 0 && <rect x={bx} width={w} y={mid} height={hsh} fill={color} opacity={0.18} />}
+                    {d !== 0 && <rect x={bx} width={w} y={d > 0 ? mid - hd : mid} height={Math.max(0.5, hd)} fill={d > 0 ? "#e11d48" : "#2563eb"} opacity={0.9} />}
                   </g>
                 );
               })}
+              {hoverX != null && <line x1={hoverX} x2={hoverX} y1={0} y2={H} stroke="#475569" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
             </svg>
           </div>
         );
       })}
-      {!compact && (
-        <div className="flex gap-3 text-[10px] text-gray-400">
-          <span>{bucket}분마다 <b className="text-rose-600">빨강 = 산 게 많음</b> · <b className="text-blue-600">파랑 = 판 게 많음</b> · 연한 막대 = 매수·매도 총량</span>
-        </div>
-      )}
     </div>
   );
 }

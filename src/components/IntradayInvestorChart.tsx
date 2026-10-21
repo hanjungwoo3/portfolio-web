@@ -44,8 +44,12 @@ const barColor = (v: number) => (v >= 0 ? "#dc2626" : "#2563eb");
 // 차트 아래 값표 표시 시각 (09:00 / 12:00 / 15:00) — 각 시각 최근접 포인트 사용.
 const MARK_TIMES = ["09:00", "12:00", "15:00"];
 
+export interface BelowGeom {
+  xOfT: (t: number) => number | null; width: number; hoverT: number | null; ver: number;
+  hover: (t: number | null) => void;   // 아래(막대)에서 마우스를 움직이면 위 차트 crosshair·툴팁도 같이(사용자 요청)
+}
 export function IntradayInvestorChart({
-  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel, indexBaseline, onReady, onToggle, refFirstT, refLastT,
+  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel, indexBaseline, onReady, onToggle, refFirstT, refLastT, below,
 }: {
   series: FlowSeriesPoint[];
   summary: Record<IntradayKey, number>;
@@ -61,8 +65,14 @@ export function IntradayInvestorChart({
   onToggle?: (key: IntradayKey) => void;                // 헤더/값표 칩 클릭 → 상위 공통 토글
   refFirstT?: UTCTimestamp;                             // 기준 시간범위(코스피·코스닥) — 후행 선물이 도메인을 맞추도록
   refLastT?: UTCTimestamp;                              //   선물은 우측 공백, 코스피·코스닥이 시간축 기준
+  // 차트 바로 아래에 붙일 것(매수·매도 막대) — 차트 가로축 좌표·마우스 위치를 받아 같이 움직인다(사용자 요청)
+  below?: (g: BelowGeom) => React.ReactNode;
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
+  const chartApiRef = useRef<IChartApi | null>(null);
+  const hoverFnRef = useRef<((t: number | null) => void) | null>(null);
+  const [geomVer, setGeomVer] = useState(0);              // 축이 바뀌면(줌·리사이즈) 아래 막대 다시 그림
+  const [hoverT, setHoverT] = useState<number | null>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const vlinesRef = useRef<HTMLDivElement>(null);
   const fracKeyRef = useRef("");
@@ -207,11 +217,12 @@ export function IntradayInvestorChart({
 
     chart.timeScale().fitContent();
 
-    const hide = () => { if (tooltipRef.current) tooltipRef.current.style.display = "none"; };
+    const hide = () => { if (tooltipRef.current) tooltipRef.current.style.display = "none"; setHoverT(null); };
     const idxByT = new Map<number, number>();
     if (indexSeries) for (const p of indexSeries) idxByT.set(p.t as number, p.value);
     // 툴팁 렌더+위치 (onMove·동기화 hover 공용)
     const showAt = (time: Time, xPixel: number) => {
+      setHoverT(time as number);
       const tip = tooltipRef.current, cont = containerRef.current;
       if (!tip || !cont) return;
       const pt = byT.get(time as number);
@@ -261,6 +272,8 @@ export function IntradayInvestorChart({
       if (x != null) showAt(best.t, x + lw);
     };
     const syncCleanup = onReady?.(chart, zero, onSyncedHover);
+    // 아래 막대에서 고른 시각 — 이 차트에 그리고, 같은 줄 다른 차트(코스피·선물·코스닥)에도 알린다
+    hoverFnRef.current = t => { const tm = t == null ? null : (t as Time); onSyncedHover(tm); syncCleanup?.broadcast?.(tm); };
 
     // 12:00 / 15:00 세로선 + 아래 값표 컬럼 위치 — timeScale 좌표 기반 (줌·리사이즈 시 재배치).
     const vlEl = vlinesRef.current;
@@ -280,6 +293,7 @@ export function IntradayInvestorChart({
         return { line, tag, t: c.pt.t };
       });
       reposition = () => {
+        setGeomVer(v => v + 1);
         // timeToCoordinate 는 플롯(가격축 제외) 기준 → 왼쪽 지수축 폭만큼 더해 컨테이너 좌표로 보정.
         let lw = 0;
         try { lw = chart.priceScale("left").width(); } catch { /* 없으면 0 */ }
@@ -308,7 +322,9 @@ export function IntradayInvestorChart({
       if (containerRef.current) { ro = new ResizeObserver(() => reposition && reposition()); ro.observe(containerRef.current); }
     }
 
+    chartApiRef.current = chart;
     return () => {
+      chartApiRef.current = null;
       try { chart.unsubscribeCrosshairMove(onMove); } catch { /* noop */ }
       if (syncCleanup) syncCleanup();
       if (reposition) { try { chart.timeScale().unsubscribeVisibleLogicalRangeChange(reposition); } catch { /* noop */ } }
@@ -393,6 +409,17 @@ export function IntradayInvestorChart({
                         px-2 py-1 text-xs text-gray-800 tabular-nums z-50 leading-snug"
              style={{ display: "none" }} />
       </div>
+      {below && below({
+        // 시각 → 컨테이너 x(px). 플롯 기준 좌표에 왼쪽 지수축 폭을 더한다(세로선·값표와 같은 보정)
+        xOfT: (t: number) => {
+          const c = chartApiRef.current; if (!c) return null;
+          let lw = 0; try { lw = c.priceScale("left").width(); } catch { /* noop */ }
+          const x = c.timeScale().timeToCoordinate(t as Time);
+          return x == null ? null : x + lw;
+        },
+        width: containerRef.current?.clientWidth ?? 0, hoverT, ver: geomVer,
+        hover: t => hoverFnRef.current?.(t),
+      })}
 
       {/* 차트 아래 값표 — 09:00 / 12:00 / 15:00 / 현재 를 그래프 x 위치에 맞추되, 서로 겹치면 오른쪽으로 밀어냄(useLayoutEffect) */}
       {timeVisible && colFrac.length > 0 && enabledDefs.length > 0 && (

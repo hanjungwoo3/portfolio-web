@@ -17,7 +17,9 @@ export type SyncRegistrar = (
   anchor: ISeriesApi<SeriesType>,
   onSyncedHover?: (time: Time | null) => void,
   opts?: SyncOpts,
-) => () => void;
+) => SyncHandle;
+// cleanup 함수 + broadcast(차트 밖 — 예: 아래 매수·매도 막대 — 에서 고른 시각을 다른 차트들에 알린다)
+export type SyncHandle = (() => void) & { broadcast?: (time: Time | null) => void };
 
 export function useCrosshairSync(): SyncRegistrar {
   const entriesRef = useRef<Array<{
@@ -77,7 +79,7 @@ export function useCrosshairSync(): SyncRegistrar {
     // broadcast 거부 차트(예: 희박한 수급 패널)는 range 변화를 전파하지 않음 → 남을 클램프 못 함.
     if (rangeBroadcast) chart.timeScale().subscribeVisibleLogicalRangeChange(rangeHandler);
 
-    return () => {
+    const cleanup: SyncHandle = () => {
       entriesRef.current = entriesRef.current.filter(e => e !== entry);
       try { chart.unsubscribeCrosshairMove(moveHandler); } catch { /* noop */ }
       if (rangeBroadcast) {
@@ -85,5 +87,7 @@ export function useCrosshairSync(): SyncRegistrar {
         catch { /* noop */ }
       }
     };
+    cleanup.broadcast = (time: Time | null) => moveHandler({ time: time ?? undefined } as MouseEventParams);
+    return cleanup;
   }, []);
 }
