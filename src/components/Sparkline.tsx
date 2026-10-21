@@ -29,10 +29,12 @@ interface Props {
   // 점마다 가로 위치(0~1) — 시간 축으로 그릴 때(예: 한국 08:00~20:00). 없으면 점을 고르게 편다.
   //   장 초반처럼 봉이 몇 개뿐일 때 선이 카드 전체로 늘어나지 않고 왼쪽에 짧게 그려진다.
   xs?: number[];
+  // 이 인덱스에서 선을 끊는다(새 구간 시작) — 어제+오늘 차트에서 어제 마지막 봉과 오늘 첫 봉을 잇지 않고 비워 둔다
+  breakIndex?: number;
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs,
+  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs, breakIndex,
   aboveColor = "#dc2626", belowColor = "#2563eb",
 }: Props) {
   const uid = useId().replace(/:/g, "");   // 위·아래 잘라내기(clipPath)·그라디언트 id — 카드마다 달라야 한다
@@ -74,14 +76,17 @@ export function Sparkline({
     return [x, y] as const;
   });
 
+  // 구간 — breakIndex 가 있으면 둘로 나눠 사이를 잇지 않는다(선·채움 모두)
+  const segs: (readonly [number, number])[][] = breakIndex != null && breakIndex > 0 && breakIndex < points.length
+    ? [points.slice(0, breakIndex), points.slice(breakIndex)] : [points];
+  const segLine = (seg: (readonly [number, number])[]) =>
+    seg.map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`).join(" ");
   // 라인 path
-  const linePath = points
-    .map(([x, y], i) => `${i === 0 ? "M" : "L"} ${x.toFixed(2)} ${y.toFixed(2)}`)
-    .join(" ");
-
-  // 영역 채움 path (라인 아래쪽으로 닫기)
-  const areaPath = `${linePath} L ${points[points.length - 1][0].toFixed(2)} ${(height - padY).toFixed(2)} `
-                 + `L ${points[0][0].toFixed(2)} ${(height - padY).toFixed(2)} Z`;
+  const linePath = segs.map(segLine).join(" ");
+  // 영역 채움 path (구간마다 아래쪽으로 닫기)
+  const closeTo = (y: number) => segs.filter(seg => seg.length > 0).map(seg =>
+    `${segLine(seg)} L ${seg[seg.length - 1][0].toFixed(2)} ${y.toFixed(2)} L ${seg[0][0].toFixed(2)} ${y.toFixed(2)} Z`).join(" ");
+  const areaPath = closeTo(height - padY);
 
   // 그라디언트 ID — 색별 고유
   const gradId = `spark-grad-${trendColor.replace("#", "")}`;
@@ -107,8 +112,7 @@ export function Sparkline({
       {baseY !== null && !color ? (() => {
         // 기준선 위·아래 분할 — 같은 선을 두 번 그리고 위/아래 영역으로 잘라 색을 다르게.
         //   채움은 선과 기준선 사이(바닥까지가 아니라) — 기준선을 넘나드는 구간이 바로 보인다.
-        const last = points[points.length - 1], firstPt = points[0];
-        const bandPath = `${linePath} L ${last[0].toFixed(2)} ${baseY.toFixed(2)} L ${firstPt[0].toFixed(2)} ${baseY.toFixed(2)} Z`;
+        const bandPath = closeTo(baseY);   // 구간마다 기준선까지 닫는다
         return (
           <>
             <defs>

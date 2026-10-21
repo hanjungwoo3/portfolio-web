@@ -1964,6 +1964,7 @@ export function MobileSimpleView() {
               // 24시간 차트가 야후 spark 에서 왔으면 '오늘 정규장 시작' 위치를 표시
               const daySpark = chartRange === "day" && !nightClosesMap.get(p.symbol) && !usMap?.get(p.symbol)?.sparkline ? usSpark?.get(p.symbol) : undefined;
               const markIdx = daySpark && chartArr === daySpark.closes ? daySpark.openIdx : undefined;
+              const breakIdx = daySpark && chartArr === daySpark.closes ? daySpark.breakIdx : undefined;   // 어제·오늘 사이 끊기
               // 24시간 차트의 기준선·색 기준 = 어제 종가(카드 큰 숫자와 같은 기준). 야후 spark 는 달러라 그 응답의 전일 종가를,
               //   토스·야선 당일 봉은 카드 값과 같은 단위라 카드의 전일 종가(prevClose)를 쓴다. 3개월 차트엔 안 쓴다.
               const isDayChart = chartRange === "day" && !!dayArr && chartArr === dayArr;
@@ -2091,6 +2092,8 @@ export function MobileSimpleView() {
                              width={300} height={70}
 
                              markIndex={markIdx}
+
+                             breakIndex={breakIdx}
 
                              baseline={dayBase}
 
