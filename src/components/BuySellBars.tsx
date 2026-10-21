@@ -46,12 +46,21 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
   const bucketPts: IntradayFlowPoint[][] = Array.from({ length: nB }, () => []);
   for (const p of pts) bucketPts[Math.min(nB - 1, Math.max(0, Math.floor((tmin(p.time) - t0) / bucket)))].push(p);
   const PX_W = geom ? Math.max(1, geom.width) : 600, H = 100, mid = H / 2, PAD = 2;
+  // 1분당 화면 폭(px) — 처음·끝 자료의 좌표로 잰다. 막대 폭 = 구간 길이 × 이 값(1분 막대가 2px 로 가늘던 것, 사용자 지적)
+  const ppm = (() => {
+    if (!geom) return 0;
+    const f = pts.find(p => geom.xOfT(geom.toT(p.time)) != null), l = [...pts].reverse().find(p => geom.xOfT(geom.toT(p.time)) != null);
+    if (!f || !l) return 0;
+    const dm = tmin(l.time) - tmin(f.time);
+    return dm > 0 ? ((geom.xOfT(geom.toT(l.time))! - geom.xOfT(geom.toT(f.time))!) / dm) : 0;
+  })();
   const xRange = (i: number): [number, number] | null => {   // 구간 i 의 가로 위치
     if (geom) {
       const ps = bucketPts[i]; if (!ps.length) return null;
-      const a = geom.xOfT(geom.toT(ps[0].time)), b = geom.xOfT(geom.toT(ps[ps.length - 1].time));
-      if (a == null || b == null) return null;
-      return [a, a + Math.max(2, b - a + (b - a) / Math.max(1, ps.length - 1))];   // 마지막 1분 폭만큼 더
+      const a = geom.xOfT(geom.toT(ps[0].time));
+      if (a == null) return null;
+      const x0 = a - (tmin(ps[0].time) - (t0 + i * bucket)) * ppm;   // 구간 시작 시각 자리
+      return [x0, x0 + Math.max(2, bucket * ppm)];
     }
     const bw = (PX_W - PAD * 2) / nB;
     return [PAD + i * bw, PAD + (i + 1) * bw];
