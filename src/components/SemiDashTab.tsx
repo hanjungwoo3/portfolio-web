@@ -183,8 +183,9 @@ function Card({ title, price, pct, sub, chart, unit }: {
       <div className="relative px-2 pt-1.5">
         <div className="font-bold text-gray-800 truncate">{title}</div>
         <div className="flex items-baseline gap-1.5">
-          <span className={`text-[18px] font-extrabold tabular-nums ${up(pct ?? 0)}`}>{price != null ? fmtP(price) : "-"}{unit && price != null ? <span className="text-[11px]">{unit}</span> : null}</span>
-          {pct != null && <span className={`font-bold tabular-nums ${up(pct)}`}>{sgn(pct)}%</span>}
+          {/* % 가 주인공(사용자 요청) — 크게, 가격은 옆에 작게 */}
+          <span className={`text-[22px] leading-tight font-extrabold tabular-nums ${up(pct ?? 0)}`}>{pct != null ? `${sgn(pct)}%` : "-"}</span>
+          <span className={`text-[12px] font-semibold tabular-nums ${up(pct ?? 0)}`}>{price != null ? fmtP(price) : "-"}{unit && price != null ? <span className="text-[10px]">{unit}</span> : null}</span>
         </div>
         {sub && <div className="text-[10.5px] text-gray-500 tabular-nums leading-tight">{sub}</div>}
       </div>
