@@ -370,6 +370,28 @@ export const TWO_DAY_GAP = 0.04;
 export const TWO_DAY_HALF = (1 - TWO_DAY_GAP) / 2;   // 하루가 차지하는 폭
 /** 오늘 하루 안 위치(0~1) → 어제+오늘 축의 x(오른쪽 칸) */
 export const twoDayTodayX = (f: number) => 1 - TWO_DAY_HALF + f * TWO_DAY_HALF;
+
+// ── 최근 하루치 '밀어 보기'(사용자 결정 2026-10-21, C안) ──
+//   어제 50%·오늘 50% 고정 대신, 오른쪽 끝 = 지금, 왼쪽 끝 = 거래 시간으로 하루 전. 시간이 갈수록 어제는 왼쪽으로 밀려 줄고
+//   오늘이 늘어난다(장 초반에도 비지 않는다). 벽시계 24시간이 아니라 **거래 시간** 하루치 — 한국 밤 12시간이 통째로 비지 않게.
+//   g = 하루 안 위치(0~1, 어제) 또는 1+GAP+위치(오늘), 창 = [fNow, 1+GAP+fNow]. fNow = 오늘 거래 시간 중 지금 위치(오늘이 끝났거나
+//   최신 날이 오늘이 아니면 1 → 최신 하루가 꽉 찬다).
+const ROLL_GAP = TWO_DAY_GAP / (1 - TWO_DAY_GAP);   // 두 날 사이 빈칸(창 폭의 약 4%)
+export interface RollIdx { breakIdx?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; todayTimes?: string[] }
+export function rollDay<T extends { closes: number[] } & RollIdx>(s: T, fr: number[], bi: number, fNow: number): T & { xs: number[]; rolling: true } {
+  const g = fr.map((f, i) => (bi > 0 && i < bi ? f : 1 + ROLL_GAP + f));
+  const full = fNow >= 1;
+  const start = full ? 1 + ROLL_GAP : fNow, W = full ? 1 : 1 + ROLL_GAP;
+  let k = g.findIndex(v => v >= start - 1e-9); if (k < 0) k = g.length;
+  const sh = (i?: number) => (i == null || i - k <= 0 ? undefined : i - k);
+  return {
+    ...s,
+    closes: s.closes.slice(k), xs: g.slice(k).map(v => Math.min(1, Math.max(0, (v - start) / W))),
+    breakIdx: bi > 0 && bi > k ? bi - k : undefined,
+    openIdx: sh(s.openIdx), closeIdx: sh(s.closeIdx), prevOpenIdx: sh(s.prevOpenIdx), prevCloseIdx: sh(s.prevCloseIdx),
+    rolling: true,
+  };
+}
 function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
   const [startMin, spanMin, openHHMM, closeHHMM] = isKr ? [8 * 60, 12 * 60, "09:00", "15:30"] : [0, 24 * 60, "09:30", "16:00"];
   const frac = (dt: string) => Math.min(1, Math.max(0, (Number(dt.slice(11, 13)) * 60 + Number(dt.slice(14, 16)) - startMin) / spanMin));
@@ -384,7 +406,13 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
   const ci = ended ? latest.map(c => c.dt.slice(11, 16) <= closeHHMM).lastIndexOf(true) : -1;
   const base = latest[latest.length - 1].base;
   const pb = prev.length ? prev[prev.length - 1].base : undefined;   // 어제의 기준(그저께 종가) — 왼쪽 기준선
-  return {
+  // 지금 위치(그 시장 현지 날짜·시각) — 최신 날이 오늘이 아니면 1
+  const tz = isKr ? "Asia/Seoul" : "America/New_York";
+  const pp = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+    .formatToParts(new Date()).reduce<Record<string, string>>((a, p) => { a[p.type] = p.value; return a; }, {});
+  const fNow = `${pp.year}-${pp.month}-${pp.day}` === days[li]
+    ? Math.min(1, Math.max(0, ((Number(pp.hour) % 24) * 60 + Number(pp.minute) - startMin) / spanMin)) : 1;
+  return rollDay({
     closes: [...prev.map(c => c.close), ...latest.map(c => c.close)],
     xs: [...prev.map(c => frac(c.dt) * TWO_DAY_HALF), ...latest.map(c => twoDayTodayX(frac(c.dt)))],
     base: base && base > 0 ? base : undefined,
@@ -395,14 +423,14 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
     prevOpenIdx: (() => { const i = prev.findIndex(c => c.dt.slice(11, 16) >= openHHMM); return i > 0 ? i : undefined; })(),
     prevCloseIdx: (() => { const i = prev.map(c => c.dt.slice(11, 16) <= closeHHMM).lastIndexOf(true); return i > 0 && i < prev.length - 1 ? i : undefined; })(),
     date: days[li], twoDay: true, breakIdx: prev.length > 0 ? prev.length : undefined,
-  };
+  }, [...prev.map(c => frac(c.dt)), ...latest.map(c => frac(c.dt))], prev.length, fNow);
 }
 
 // 종목 카드 배경 '24시간' 그래프용 당일 시계열 — 시간 축(xs)·어제 종가(base)·정규장 시작(openIdx) 포함.
 //   지수 카드(KrDaySparkline·야후 spark)와 같은 모양(어제 종가선 위 빨강·아래 파랑, 정규장 시작 세로선)으로 그리려고
 //   종가만 주던 걸 넓혔다(2026-10-21). 한국 = 08:00~20:00 KST(정규 09:00), 미국 = 00:00~24:00 ET(정규 09:30).
 //   오늘 봉이 1개라도 있으면 오늘(실시간 끝점과 이어 선이 된다), 없을 때만 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
-export interface DaySeries { closes: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
+export interface DaySeries { rolling?: boolean; closes: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
 export async function fetchTossIntraday(ticker: string): Promise<DaySeries | null> {
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
   const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));
@@ -4028,7 +4056,7 @@ async function fetchMemChart(symbol: string): Promise<number[]> {
 //   includePrePost 면 프리(04:00 ET)~애프터(20:00 ET)까지 들어 있다. 오버나잇(20:00~04:00)은 없다.
 const SPARK_CHUNK = 20;
 //   openIdx = 오늘 정규장 시작(09:30 ET) 첫 봉의 인덱스 — 카드 차트에 '시작가' 표시선(meta.currentTradingPeriod.regular.start).
-export interface DaySpark { closes: number[]; xs?: number[]; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }   // prevBase = 어제 칸 기준선(그저께 종가 = 2d 범위의 chartPreviousClose)   // prevClose = 어제 정규장 종가(달러 — closes 와 같은 단위)
+export interface DaySpark { rolling?: boolean; closes: number[]; xs?: number[]; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }   // prevBase = 어제 칸 기준선(그저께 종가 = 2d 범위의 chartPreviousClose)   // prevClose = 어제 정규장 종가(달러 — closes 와 같은 단위)
 export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string, DaySpark>> {
   const out = new Map<string, DaySpark>();
   const chunks: string[][] = [];
@@ -4086,12 +4114,13 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const lo = Math.min(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
         const hi = Math.max(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
         const fr = (t: number) => (hi > lo ? (todS(t) - lo) / (hi - lo) : 0);
-        const xs = bi > 0 ? times.map((t, i) => (i < bi ? fr(t) * TWO_DAY_HALF : twoDayTodayX(fr(t)))) : undefined;
-        out.set(x.symbol, {
-          closes, xs, openIdx: oi > 0 ? oi : undefined, closeIdx: ci > 0 ? ci : undefined, prevClose: pc && pc > 0 ? pc : undefined,
+        const nowS = Date.now() / 1000;
+        const fNow = times.length && etDay(nowS) === etDay(times[times.length - 1]) ? Math.min(1, Math.max(0, fr(nowS))) : 1;
+        out.set(x.symbol, rollDay({
+          closes, openIdx: oi > 0 ? oi : undefined, closeIdx: ci > 0 ? ci : undefined, prevClose: pc && pc > 0 ? pc : undefined,
           breakIdx: bi > 0 ? bi : undefined, prevBase: bi > 0 && cpc && cpc > 0 ? cpc : undefined,
           prevOpenIdx: poi > 0 ? poi : undefined, prevCloseIdx: pci > 0 ? pci : undefined,
-        });   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
+        }, times.map(fr), bi > 0 ? bi : 0, fNow));   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
       }
     } catch { /* 이 묶음은 3개월 차트로 */ }
   }));
@@ -5206,8 +5235,10 @@ export async function fetchHlXyzPerps(): Promise<Map<string, HlPerp>> {
 //   왼쪽 = 48~24시간 전, 오른쪽 = 최근 24시간(시간 축). 기준선 = 각 반쪽의 시작 가격 — 오른쪽 기준은 24시간 전 가격이라
 //   카드 %(prevDayPx 대비)와 같은 기준이다.
 export async function fetchHlPerpTwoDay(coin: string): Promise<DaySeries | null> {
+  // 무기한선물은 끝없이 거래돼 '하루'가 없다 — 최근 24시간을 그대로(오른쪽 끝 = 지금, 다른 카드의 밀어 보기와 같은 모양).
+  //   기준선 = 24시간 전 가격 — 카드 %(prevDayPx 대비)와 같은 기준.
   try {
-    const end = Date.now(), start = end - 48 * 3600_000, mid = end - 24 * 3600_000;
+    const end = Date.now(), start = end - 24 * 3600_000;
     const resp = await fetch("https://api.hyperliquid.xyz/info", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "candleSnapshot", req: { coin, interval: "5m", startTime: start, endTime: end } }),
@@ -5215,13 +5246,7 @@ export async function fetchHlPerpTwoDay(coin: string): Promise<DaySeries | null>
     if (!resp.ok) return null;
     const arr = (await resp.json() as { t?: number; c?: string }[]).flatMap(k => (k.t && Number(k.c) > 0 ? [{ t: k.t, c: Number(k.c) }] : []));
     if (arr.length < 2) return null;
-    const bi = arr.findIndex(k => k.t >= mid);
-    const xs = arr.map(k => (k.t < mid ? ((k.t - start) / (24 * 3600_000)) * TWO_DAY_HALF : twoDayTodayX((k.t - mid) / (24 * 3600_000))));
-    return {
-      closes: arr.map(k => k.c), xs, twoDay: true,
-      base: bi > 0 ? arr[bi - 1].c : undefined, prevBase: arr[0].c,
-      breakIdx: bi > 0 ? bi : undefined,
-    };
+    return { closes: arr.map(k => k.c), xs: arr.map(k => Math.min(1, Math.max(0, (k.t - start) / (24 * 3600_000)))), base: arr[0].c, rolling: true };
   } catch { return null; }
 }
 
@@ -5620,16 +5645,18 @@ export async function fetchKrFuturesMinute(kind: "kospi200" | "kosdaq150" = "kos
   const oi = cur.findIndex(x => (x.mtime ?? "") >= "09:00");
   // 선물 정규장 종가 15:45 — 한경 봉 시각은 시작 시각이라 15:45 전 마지막 봉, 장이 끝난 뒤에만
   const ci = cur.some(x => (x.mtime ?? "") >= "15:44") ? cur.map(x => (x.mtime ?? "") < "15:45").lastIndexOf(true) : -1;
-  return {
+  const kst = new Date(Date.now() + 9 * 3600_000);
+  const fNow = kst.toISOString().slice(0, 10) === today
+    ? Math.min(1, Math.max(0, (kst.getUTCHours() * 60 + kst.getUTCMinutes() - START) / SPAN)) : 1;
+  return rollDay({
     closes: [...prev.map(x => x.close!), ...cur.map(x => x.close!)],
-    xs: [...prev.map(x => frac(x.mtime) * TWO_DAY_HALF), ...cur.map(x => twoDayTodayX(frac(x.mtime)))],
     base: baseOf(cur), prevBase: baseOf(prev), openIdx: oi >= 0 ? prev.length + oi : undefined,
     closeIdx: ci > 0 ? prev.length + ci : undefined,
     prevOpenIdx: (() => { const i = prev.findIndex(x => (x.mtime ?? "") >= "09:00"); return i > 0 ? i : undefined; })(),
     prevCloseIdx: (() => { const i = prev.map(x => (x.mtime ?? "") < "15:45").lastIndexOf(true); return i > 0 && i < prev.length - 1 ? i : undefined; })(),
     todayTimes: cur.map(x => (x.mtime ?? "").slice(0, 5)),   // 오늘 봉 시각(가설 검증 — 베이시스 시계열)
     date: today, twoDay: true, breakIdx: prev.length > 0 ? prev.length : undefined,
-  };
+  }, [...prev.map(x => frac(x.mtime)), ...cur.map(x => frac(x.mtime))], prev.length, fNow);
 }
 
 // 오늘 하루 전체 체결강도(토스) — 시세 상세의 tradingStrength(매수 체결량 ÷ 매도 체결량 × 100, 장 시작부터 누적)·거래량·거래대금.

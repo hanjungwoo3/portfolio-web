@@ -309,7 +309,7 @@ function Card({ title, price, pct, sub, chart, unit, inverse }: {
 // 선물 1분봉(한경) 어제+오늘 + 끝에 지금 가격
 function FutSpark({ s, live }: { s: DaySeries; live?: number }) {
   const on = !!live && !!s.xs;
-  return <Sparkline data={on ? [...s.closes, live!] : s.closes} xs={on ? [...s.xs!, s.xs![s.xs!.length - 1] + 0.001] : s.xs}
+  return <Sparkline data={on ? [...s.closes, live!] : s.closes} xs={on ? [...s.xs!, s.rolling ? 1 : s.xs![s.xs!.length - 1] + 0.001] : s.xs}
                     width={300} height={70} className="w-full h-full" strokeWidth={1.2}
                     baseline={s.base} prevBaseline={s.prevBase} markIndex={s.openIdx} closeIndex={s.closeIdx} extraMarks={[s.prevOpenIdx, s.prevCloseIdx]} breakIndex={s.breakIdx} />;
 }

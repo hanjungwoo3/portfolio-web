@@ -613,7 +613,7 @@ export function StockCard({
     if (`${parts.year}-${parts.month}-${parts.day}` !== dayChart.date) return dayChart;
     const mins = (Number(parts.hour) % 24) * 60 + Number(parts.minute);
     const f = isUs ? mins / (24 * 60) : (mins - 8 * 60) / (12 * 60);
-    const x = dayChart.twoDay ? twoDayTodayX(f) : f;   // 어제+오늘 축이면 오늘은 오른쪽 절반
+    const x = dayChart.rolling ? 1 : dayChart.twoDay ? twoDayTodayX(f) : f;   // 밀어 보기(rolling)면 오른쪽 끝 = 지금   // 어제+오늘 축이면 오늘은 오른쪽 절반
     // 토스 봉 시각은 '끝나는 시각' — 지금이 진행 중인 봉 안이면 그 봉 바로 뒤에 붙인다
     const lastX = dayChart.xs[dayChart.xs.length - 1];
     if (x > 1 || x < lastX - (dayChart.twoDay ? TWO_DAY_HALF : 1) * 10 / (isUs ? 24 * 60 : 12 * 60)) return dayChart;
