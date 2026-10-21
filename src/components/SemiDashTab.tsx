@@ -356,10 +356,11 @@ function Stat({ label, v }: { label: string; v?: number }) {
   return <span className="text-gray-500">{label} <b className={v == null ? "text-gray-300" : v >= 100 ? "text-rose-600" : "text-blue-600"}>{v == null ? "-" : v.toFixed(0)}</b></span>;
 }
 
-// 시장 투자자 시간별 누적 — 외국인·기관(금투 제외)·개인
+// 시장 투자자 시간별 누적 — 외국인·연기금·개인. 기관 대신 연기금(사용자 결정 2026-10-21):
+//   기관 합계엔 금융투자(ETF·차익 헤지)가 섞여 방향이 흐려진다 — 연기금이 '진짜 기관 돈'의 방향을 가장 잘 보여 준다.
 const LINES = [
   { k: "foreigners", label: "외국인", color: "#ea580c" },
-  { k: "inst", label: "기관", color: "#2563eb" },
+  { k: "pensionFund", label: "연기금", color: "#2563eb" },
   { k: "individuals", label: "개인", color: "#7c3aed" },
 ] as const;
 function FlowBox({ title, note, flow, unit, tabs, tab, onTab }: {
@@ -368,7 +369,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab }: {
 }) {
   const pts = flow?.points ?? [];
   const val = (p: IntradayFlow["points"][number], k: (typeof LINES)[number]["k"]) =>
-    k === "inst" ? p.institutions - (unit === "억" ? p.financialInvestment : 0) : p[k];
+    p[k];
   const W = 400, H = 140, PX = 2, PY = 6;
   const tmin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   const mx = Math.max(1, ...pts.flatMap(p => LINES.map(l => Math.abs(val(p, l.k)))));
@@ -379,7 +380,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab }: {
     <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800 shrink-0">{title}</span>
-        <span className="text-[11px] text-gray-400 truncate">{note}{last ? ` · ${last.time}` : ""} · {unit}{unit === "억" ? " · 기관=금투 제외" : ""}</span>
+        <span className="text-[11px] text-gray-400 truncate">{note}{last ? ` · ${last.time}` : ""} · {unit}</span>
         {tabs && (
           <span className="ml-auto shrink-0 inline-flex rounded border border-gray-300 overflow-hidden text-[10.5px]">
             {tabs.map(([k, l]) => (
@@ -473,7 +474,7 @@ function StockFlowTable({ rows, fLast, markets }: {
     const sum = (n: number) => hist.slice(0, n).reduce((a, r) => a + won(r, r.외국인), 0);
     let streak = 0;
     for (const r of hist) { const sg = Math.sign(r.외국인); if (!sg || (streak && Math.sign(streak) !== sg)) break; streak += sg; }
-    return { f: today ? won(today, today.외국인) : undefined, i: today ? won(today, today.기관 - today.금융투자) : undefined, f5: sum(5), f20: sum(20), streak };
+    return { f: today ? won(today, today.외국인) : undefined, i: today ? won(today, today.연기금) : undefined, f5: sum(5), f20: sum(20), streak };
   };
   const dsum = (daily: { foreigners: number }[], n: number) => daily.slice(-n).reduce((a, p) => a + p.foreigners, 0);
   const dstreak = (daily: { foreigners: number }[]) => {   // 최신부터 외국인 같은 방향 연속 일수
@@ -489,7 +490,7 @@ function StockFlowTable({ rows, fLast, markets }: {
       </div>
       <table className="w-full tabular-nums mt-1">
         <thead><tr className="text-gray-500 text-[11px] border-b">
-          <th className="text-left font-normal"></th><th className="text-right font-normal">외국인</th><th className="text-right font-normal">기관</th>
+          <th className="text-left font-normal"></th><th className="text-right font-normal">외국인</th><th className="text-right font-normal">연기금</th>
           <th className="text-right font-normal">외인5일</th><th className="text-right font-normal">외인20일</th><th className="text-right font-normal">연속</th>
         </tr></thead>
         <tbody>
@@ -506,14 +507,14 @@ function StockFlowTable({ rows, fLast, markets }: {
             const st = m.daily.length ? dstreak(m.daily) : 0;
             return (
               <tr key={m.name} className="border-b border-gray-100">
-                <td className="py-1 font-bold">{m.name}</td><N v={m.last?.foreigners} /><N v={m.last ? m.last.institutions - m.last.financialInvestment : undefined} />
+                <td className="py-1 font-bold">{m.name}</td><N v={m.last?.foreigners} /><N v={m.last?.pensionFund} />
                 <N v={m.daily.length ? dsum(m.daily, 5) : undefined} /><N v={m.daily.length ? dsum(m.daily, 20) : undefined} />
                 <td className={`text-right ${up(st)}`}>{st ? `${Math.abs(st)}일${st > 0 ? "↑" : "↓"}` : "-"}</td>
               </tr>
             );
           })}
           <tr>
-            <td className="py-1 font-bold">선물<span className="text-[10px] font-normal text-gray-400"> 계약·20분</span></td><N v={fLast?.foreigners} /><N v={fLast?.institutions} /><td /><td /><td />
+            <td className="py-1 font-bold">선물<span className="text-[10px] font-normal text-gray-400"> 계약·20분</span></td><N v={fLast?.foreigners} /><N v={fLast?.pensionFund} /><td /><td /><td />
           </tr>
         </tbody>
       </table>
