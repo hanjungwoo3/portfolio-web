@@ -108,7 +108,7 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
               {/* 좁은 칸(compact)은 '매수·매도·→' 글자를 뺀다(사용자 요청) — 빨강 = 매수, 파랑 = 매도 */}
               {hb ? (
                 <span className="text-gray-500 whitespace-nowrap">{hLabel} {!compact && "매수 "}<b className="text-rose-600">{fmtBig(hb.b, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(hb.s, unit)}</b>
-                  {" "}{!compact && "→ "}<b className={hb.b - hb.s > 0 ? "text-rose-600" : hb.b - hb.s < 0 ? "text-blue-600" : ""}>{signed(hb.b - hb.s, unit)}</b></span>
+                  {!compact && " → "}<b className={`ml-2 ${hb.b - hb.s > 0 ? "text-rose-600" : hb.b - hb.s < 0 ? "text-blue-600" : ""}`}>{signed(hb.b - hb.s, unit)}</b></span>
               ) : (
                 <span className="text-gray-500 whitespace-nowrap">{!compact && "매수 "}<b className="text-rose-600">{fmtBig(totB, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(totS, unit)}</b></span>
               )}
