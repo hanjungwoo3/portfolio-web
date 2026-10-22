@@ -2520,7 +2520,7 @@ function mapTrendRow(row: TrendRow, futures: boolean) {
 //   오늘 수급이 그 날짜인 척 그려진다 → 그래서 날짜 인자를 아예 받지 않는다.
 //   시간별 과거 수급은 무료 소스가 없다(옛 investorDealTrendTime 은 410, KRX 는 로그인 필수).
 //   과거를 보려면 fetchKrDailyInvestorFlow(일별)를 쓴다.
-export async function fetchKrIntradayInvestorFlow(market: IntradayMarket): Promise<IntradayFlow> {
+export async function fetchKrIntradayInvestorFlow(market: IntradayMarket, nxtOnly = false): Promise<IntradayFlow> {
   const mkt = TREND_MARKET[market];
   const futures = market === "futures";
   const bd = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
@@ -2552,6 +2552,11 @@ export async function fetchKrIntradayInvestorFlow(market: IntradayMarket): Promi
     return { rowDate, points: [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time)) };
   };
   const iso = (d: string) => d.length === 8 ? `${d.slice(0, 4)}-${d.slice(4, 6)}-${d.slice(6, 8)}` : undefined;
+  // nxtOnly — 넥스트레이드만(프리장 08:00~09:00 결과를 정규장 뒤에도 따로 보려고, 사용자 요청 2026-10-22)
+  if (nxtOnly) {
+    const n = await load("NXT");
+    return { unit, points: n.points, date: iso(n.rowDate), pre: true };
+  }
   const krx = await load("KRX");
   // ★ 프리장(08:00~09:00) — KRX 는 09:01 첫 행이 나올 때까지 **어제 행(~20:04)** 을 그대로 준다.
   //   그 사이 넥스트레이드(tradeType=NXT)는 오늘 08:00 부터 프리장 수급을 준다(실측 2026-10-14 08:45:
