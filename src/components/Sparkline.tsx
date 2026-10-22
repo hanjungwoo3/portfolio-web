@@ -166,7 +166,7 @@ export function Sparkline({
                 strokeLinejoin="round" strokeLinecap="round" />
         </>
       )}
-      {/* 거래량 — 아래 띠, 점 위치에 회색 막대 */}
+      {/* 거래량 — 아래 띠. 직전 봉보다 오르면 빨강·내리면 파랑·같으면 회색(사용자 요청) */}
       {hasVol && (() => {
         // 기준 = 상위 5% 값 — 동시호가(15:30) 한 봉이 수십 배라 최대값에 맞추면 나머지가 다 바닥에 붙었다. 넘는 봉은 띠 높이로 자른다
         const sorted = volumes!.filter(v => v > 0).sort((x, y) => x - y);
@@ -174,7 +174,7 @@ export function Sparkline({
         const bw = Math.max(0.8, (innerW / data.length) * 0.7);
         return volumes!.map((v, i) => v > 0 && (
           <rect key={`v${i}`} x={points[i][0] - bw / 2} width={bw} y={height - Math.min(1, v / vMax) * volH} height={Math.min(1, v / vMax) * volH}
-                fill="#64748b" opacity="0.6" />
+                fill={i > 0 && data[i] < data[i - 1] ? belowColor : i > 0 && data[i] > data[i - 1] ? aboveColor : "#94a3b8"} opacity="0.55" />
         ));
       })()}
       {/* 기준선(전일 종가) — 회색 가로 점선 (24시간 차트). 어제·오늘 둘이면 좌우로 나눠 따로, 사이는 살짝 띄운다 */}
