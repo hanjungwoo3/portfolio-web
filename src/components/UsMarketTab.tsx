@@ -381,8 +381,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 : isSymbolSleeping(p.symbol);
               // 메인 가격/변동률 — 한국 입장(미국장 마감 후 아침에 확인):
               // · REGULAR: regularPct (어제 종가 대비)
-              // · 시간외(PRE/POST/POSTPOST/PREPRE/CLOSED): postPrice + 어제 종가(prevClose) 대비
-              //   = 정규장 + 시간외 누적 변동률 (예: -7.75%)
+              // · 시간외(PRE/POST/POSTPOST/PREPRE/CLOSED): postPrice + 기준 종가 대비
+              //   미국 종목 = 최근 정규장 종가(토스식, 아래 usOffBase) · 그 외 = 어제 종가(prevClose)
               // 시간외 진입~마감 전체 구간에서 postPrice 일관 사용 → POST↔POSTPOST 전환 시 점프 없음
               const offHoursStates = ["PRE", "POST", "POSTPOST", "PREPRE", "CLOSED"];
               const isOffHours = q?.marketState != null && offHoursStates.includes(q.marketState);
@@ -416,7 +416,12 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 ? isFxFuturesWeekendClosed(p.symbol)
                 : (stale || weekendClosed || (!inSession && (sleeping || isClosed))));
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
-              const effBase = q?.prevClose;
+              // 미국 종목이 정규장 밖(애프터·데이마켓·프리)이면 기준 = **최근 정규장 종가**(토스·내 주식 카드와 같은 규칙).
+              //   야후 prevClose 는 다음 날 프리장(04:00 ET)이 열려야 넘어가, 그 사이(정규장 마감~다음 프리) 큰 % 가
+              //   이틀치 누적으로 떴다(NVDA 데이마켓 토스 −2.00% ↔ 우리 +0.49%, 사용자 지적 2026-10-22).
+              const usOffBase = marketOfSymbol(p.symbol) === "US" && !isMarketOpen("US_INDEX") && q?.regularPrice && q.regularPrice > 0
+                ? q.regularPrice : undefined;
+              const effBase = usOffBase ?? q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
                 ? q.regularPct
                 : (effPrice != null && effBase != null && effBase > 0
@@ -425,9 +430,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               // 개장 전·마감 등 현재 세션 변동이 0(토스 base==close)이면 마지막 정규장 %로 폴백 표시.
               //   한국 지수·ETF 가 개장 전 % 가 비는 문제 — 미국 종목은 마감 후에도 마지막 % 가 노출되므로 동일하게 맞춤.
               const liveFlat = pct == null || Math.abs(pct) < 0.005;
-              const showPct = (sleeping && liveFlat && q?.regularPct != null && Math.abs(q.regularPct) >= 0.005)
+              const showPct = (!usOffBase && sleeping && liveFlat && q?.regularPct != null && Math.abs(q.regularPct) >= 0.005)   // 미국 장 밖은 0% 도 그대로(토스처럼)
                 ? q.regularPct : pct;
-              // 메인 변동률(본문 큰 %) = 어제 종가 대비 누적(정규장 + 시간외) = showPct.
+              // 메인 변동률(본문 큰 %) = showPct. 한국은 어제 종가 대비 누적(정규장 + NXT), 미국 종목은 장 밖이면 최근 정규장 종가 대비.
               //   정규장 마감가·마감 변동%는 상단 노란 책갈피가 담당.
               //   (예전엔 본문에 '애프터 변동분'만 떠서, 시간외 보합이면 0.00% 로 죽던 문제 → 누적으로 환원)
               const mainPct = showPct;
@@ -492,7 +497,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               const showCloseTag = (sleeping || usOffRegular || krAfterTag) && effPrice != null && p.symbol !== "CNNFG";
               const krRegOk = krRegHere?.fromYahoo ? krRegHere : undefined;
               const closeVal = krRegOk?.regularPrice ?? q?.regularPrice ?? effPrice;
-              const regPct = krRegOk?.regularPct ?? q?.regularPct ?? pct;
+              const regPct = krRegOk?.regularPct ?? q?.regularPct ?? (usOffBase ? null : pct);   // 미국 장 밖이면 pct 는 정규장 종가 대비라 정규장 등락이 아니다 — 모르면 비운다
               const regSign = regPct == null ? "text-gray-700"
                 : (isInverse ? regPct < 0 : regPct > 0) ? "text-rose-600"
                 : (isInverse ? regPct > 0 : regPct < 0) ? "text-blue-600" : "text-gray-700";
