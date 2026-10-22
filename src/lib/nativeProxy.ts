@@ -24,6 +24,8 @@
 import { Capacitor, CapacitorHttp } from "@capacitor/core";
 
 const TIMEOUT_MS = 20_000;
+// 토스 _browserId — 앱 실행마다 하나(아래 refererFor)
+const TOSS_BROWSER_ID = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 
 // 로컬 프록시(server.mjs)와 같은 UA — 데스크톱 크롬 행세. 소스가 UA 로 거르는 경우 대비.
 const UA =
@@ -138,6 +140,8 @@ function pickContentType(headers: Record<string, string> | undefined): string {
 function refererFor(targetUrl: string): Record<string, string> {
   try {
     const host = new URL(targetUrl).hostname;
+    // 토스 — 2026-10-22 부터 `_browserId` 쿠키 없으면 400(값은 아무거나). PC 브라우저는 토스가 심은 쿠키가 있어 멀쩡했고 APK 만 막혔다
+    if (host.endsWith("tossinvest.com")) return { Cookie: `_browserId=${TOSS_BROWSER_ID}` };
     if (host === "finance.daum.net") return { Referer: "https://finance.daum.net/" };
     // 시나 금융(리튬·니켈) — Referer 없으면 403
     if (host === "hq.sinajs.cn" || host.endsWith("sina.com.cn")) return { Referer: "https://finance.sina.com.cn/" };

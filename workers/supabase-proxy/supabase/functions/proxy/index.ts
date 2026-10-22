@@ -1,3 +1,6 @@
+// 토스 wts-info-api 는 2026-10-22 부터 `_browserId` 쿠키가 없으면 400(invalid-request)이다(값은 아무거나 통과, 실측).
+//   토스 웹이 브라우저마다 심는 식별자 — 인스턴스마다 하나 만들어 붙인다(모두가 같은 값을 쓰면 한 ID 로 몰린다).
+const TOSS_BROWSER_ID = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 // Supabase Edge Function (Deno) — Cloudflare/Vercel/Netlify 워커와 동일 로직의 CORS 프록시
 // 사용:  GET|POST {base}/?url=<encoded_target_url>
 //   base = https://<project-ref>.supabase.co/functions/v1/proxy
@@ -151,6 +154,7 @@ async function handler(request: Request): Promise<Response> {
   if (targetUrl.hostname.includes("toss")) {
     headers["Origin"] = "https://tossinvest.com";
     headers["Referer"] = "https://tossinvest.com/";
+    headers["Cookie"] = `_browserId=${TOSS_BROWSER_ID}`;   // 없으면 400(2026-10-22~)
   } else if (targetUrl.hostname.includes("yahoo")) {
     headers["Origin"] = "https://finance.yahoo.com";
     headers["Referer"] = "https://finance.yahoo.com/";
