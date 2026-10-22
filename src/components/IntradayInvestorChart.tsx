@@ -172,8 +172,19 @@ export function IntradayInvestorChart({
     });
     const zeroData = series.map(p => ({ time: p.t as Time, value: 0 }));
     const firstT = series[0].t as number, lastT = series[series.length - 1].t as number;
-    if (refFirstT != null && (refFirstT as number) < firstT) zeroData.unshift({ time: refFirstT as Time, value: 0 });
-    if (refLastT != null && (refLastT as number) > lastT) zeroData.push({ time: refLastT as Time, value: 0 });
+    // ★ 가로축은 시간 간격이 아니라 점 순서로 칸을 나눈다 — 끝에 점 하나만 붙이면 09:29~09:48 이 한 칸으로 줄어
+    //   선물 선이 오른쪽 끝까지 늘어 보였다(사용자 지적 2026-10-22). 당일(분) 모드는 1분마다 빈 점으로 채운다.
+    const step = timeVisible ? 60 : 0;
+    if (refFirstT != null && (refFirstT as number) < firstT) {
+      const pad: { time: Time; value: number }[] = [];
+      if (step) for (let t = refFirstT as number; t < firstT; t += step) pad.push({ time: t as Time, value: 0 });
+      else pad.push({ time: refFirstT as Time, value: 0 });
+      zeroData.unshift(...pad);
+    }
+    if (refLastT != null && (refLastT as number) > lastT) {
+      if (step) for (let t = lastT + step; t <= (refLastT as number); t += step) zeroData.push({ time: t as Time, value: 0 });
+      else zeroData.push({ time: refLastT as Time, value: 0 });
+    }
     zero.setData(zeroData);
 
     for (const def of INTRADAY_SERIES) {
