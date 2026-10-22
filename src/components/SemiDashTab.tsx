@@ -9,7 +9,7 @@ import { useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
-  fetchKrFuturesLive, fetchKrFuturesMinute, fetchYasunNightFutures, fetchYahooTodayKst, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
+  fetchKrFuturesLive, fetchKrFuturesMinute, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
 } from "../lib/api";
 import type { Investor } from "../types";
@@ -123,9 +123,10 @@ export function SemiDashTab() {
   });
   const [flowHover, setFlowHover] = useState<number | null>(null);   // 수급 세 칸 공통 마우스 시각(분)
   // 수급 그래프 배경 가격 — 지수는 야후 오늘 5분봉, 선물은 한경 1분봉(오늘 구간)
+  // 배경 지수 — 다음 금융 1분(실시간). 야후는 한국 지수가 20분 늦어 장 초반 배경이 몇 점뿐이었다
   const [{ data: ksToday }, { data: kqToday }] = useQueries({
-    queries: (["^KS11", "^KQ11"] as const).map(sym => ({
-      queryKey: ["yahoo-today", sym], queryFn: () => fetchYahooTodayKst(sym), refetchInterval: FLOW_MS, staleTime: 30_000,
+    queries: (["KOSPI", "KOSDAQ"] as const).map(m => ({
+      queryKey: ["daum-index-today", m], queryFn: () => fetchDaumIndexToday(m), refetchInterval: FLOW_MS, staleTime: 30_000,
     })),
   });
   const { data: dayStr } = useQuery({
@@ -278,10 +279,10 @@ export function SemiDashTab() {
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[235px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
-        <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" />
-        <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" preFlow={kosdaqNxt} dim={!(kosdaqFlow.data?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" />
+        <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
+        <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" preFlow={kosdaqNxt} dim={!(kosdaqFlow.data?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
         <FlowBox title="선물 · 코스피200" note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && weekday && mm >= 8 * 60 + 45 && mm < 16 * 60 + 10)} hoverM={flowHover} onHover={setFlowHover}
-                 bg={futToday} bgLabel="코스피200 선물" endHM="15:45" />
+                 bg={futToday} bgLabel="코스피200 선물" bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
         <StockFlowTable rows={STOCKS.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: q(`${s.code}.KS`)?.price }))}
                         fLast={fLast}
@@ -433,11 +434,12 @@ const LINES = [
   { k: "foreigners", label: "외국인", color: "#ea580c" },
   { k: "individuals", label: "개인", color: "#7c3aed" },
 ] as const;
-function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM = "15:30", hoverM, onHover, dim, preFlow }: {
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow }: {
   title: string; note: string; flow?: IntradayFlow; unit: string;
   tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
   bg?: { t: string; v: number }[];   // 배경 가격(지수·선물) — 증시 탭처럼 연한 면으로, 축은 따로(사용자 요청)
   bgLabel?: string;
+  bgBase?: number;                   // 배경 색 기준 = 어제 종가(카드와 같은 기준). 없으면 오늘 첫 봉
   endHM?: string;                    // 시간 축 끝(선물은 15:45)
   dim?: boolean;                     // 거래 시간이 아니거나 어제 자료면 흐리게(사용자 요청 2026-10-22)
   preFlow?: IntradayFlow;            // 넥스트레이드 수급 — 정규장 시작 뒤 '프리장 결과' 한 줄용
@@ -465,7 +467,8 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, endHM
   const bgp = (bg ?? []).filter(b => b.t >= startHM && b.t <= axisEnd);
   const bMin = Math.min(...bgp.map(b => b.v)), bMax = Math.max(...bgp.map(b => b.v)), bR = bMax - bMin || 1;
   const by = (v: number) => PY + (1 - (v - bMin) / bR) * (H - PY * 2);
-  const bgUp = bgp.length > 1 && bgp[bgp.length - 1].v >= bgp[0].v;
+  // 색 = 어제 종가 대비(카드 % 와 같은 기준) — 오늘 첫 봉 대비였더니 코스피 −0.77% 인데 분홍으로 칠해졌다(사용자 지적)
+  const bgUp = bgp.length > 1 && bgp[bgp.length - 1].v >= (bgBase && bgBase > 0 ? bgBase : bgp[0].v);
   // 마감 동시호가(일괄 체결) 구간 — 현물 15:20~15:30, 선물 15:35~15:45. 음영만 칠한다(글자는 그래프를 가려 뺐다)
   const aucFrom = unit === "계약" ? "15:35" : "15:20";
   const y = (v: number) => H / 2 - (v / mx) * (H / 2 - PY);
