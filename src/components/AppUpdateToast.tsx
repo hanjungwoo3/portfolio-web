@@ -10,6 +10,7 @@
 
 import { useEffect, useState } from "react";
 import { isNativeApp } from "../lib/nativeProxy";
+import { checkDesktopUpdate, installDesktopUpdate, type DesktopUpdate } from "../lib/desktopApp";
 // 버전 비교는 설정 화면과 같은 함수를 쓴다 — 규칙이 갈라지면 한쪽만 안 뜨는 일이 생긴다.
 import {
   useExtensionProxyVersion, EXPECTED_EXTENSION_VERSION, compareVersion, EXTENSION_DOWNLOAD_URL,
@@ -94,6 +95,42 @@ export function AppUpdateToast() {
           </button>
         </div>
         <button onClick={close} aria-label="닫기"
+                className="shrink-0 text-emerald-700 hover:text-emerald-900 text-lg leading-none">✕</button>
+      </div>
+    </div>
+  );
+}
+
+// 데스크톱 앱(맥·윈도우) 새 버전 알림 — 맥·윈도우 설치판은 버튼 한 번에 받고 재시작, 윈도우 실행형은 다운로드 페이지
+export function DesktopUpdateToast() {
+  const [u, setU] = useState<DesktopUpdate | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
+  const [dismissed, setDismissed] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    void checkDesktopUpdate().then(r => { if (alive) setU(r); });
+    return () => { alive = false; };
+  }, []);
+  if (dismissed || !u?.latest || compareVersion(u.current, u.latest) >= 0) return null;
+  return (
+    <div className="fixed inset-x-2 top-2 z-[60] mx-auto max-w-md rounded-lg border border-emerald-300
+                    bg-emerald-50 shadow-lg px-3 py-2 text-[12px] text-emerald-900">
+      <div className="flex items-start gap-2">
+        <span className="text-base leading-none">🖥️</span>
+        <div className="flex-1 min-w-0">
+          <div className="font-bold">데스크톱 앱 새 버전 v{u.latest}</div>
+          <div className="text-emerald-800 leading-relaxed">
+            지금 v{u.current} 입니다. {u.canInstall ? "업데이트하면 받아서 바꾸고 다시 시작합니다." : "실행형은 새 portfolio.exe 를 받아 바꿔 쓰세요."}
+          </div>
+          {err && <div className="text-rose-600">⚠️ {err}</div>}
+          <button disabled={busy}
+                  onClick={() => { setBusy(true); setErr(null); installDesktopUpdate().catch(e => setErr(String(e))).finally(() => setBusy(false)); }}
+                  className="inline-block mt-1.5 px-2 py-1 rounded bg-emerald-600 text-white font-bold disabled:opacity-60">
+            {busy ? "받는 중…" : u.canInstall ? "⟳ 업데이트" : "↓ 다운로드 페이지"}
+          </button>
+        </div>
+        <button onClick={() => setDismissed(true)} aria-label="닫기"
                 className="shrink-0 text-emerald-700 hover:text-emerald-900 text-lg leading-none">✕</button>
       </div>
     </div>

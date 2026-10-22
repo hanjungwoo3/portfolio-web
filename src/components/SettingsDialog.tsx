@@ -18,6 +18,10 @@ import {
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { resetProxyStats } from "../lib/proxyStatus";
 import { useExtensionProxyVersion, EXPECTED_EXTENSION_VERSION, compareVersion, EXTENSION_DOWNLOAD_URL } from "../lib/extensionProxy";
+import { isDesktopApp } from "../lib/nativeProxy";
+
+// 맥·윈도우·안드로이드 앱 모음 — 고정 릴리스(파일 이름 고정, .github/workflows/desktop.yml)
+const APPS_RELEASE = "https://github.com/hanjungwoo3/portfolio-web/releases/download/apps";
 
 const UPDATE_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-POST-SUPPORT.md";
 const LOCAL_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/local-proxy/README.md";
@@ -712,6 +716,16 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   <b> 새 zip 을 받아 다시 등록</b>해야 합니다.&nbsp;
                   <a href={EXTENSION_DOWNLOAD_URL} download="portfolio-proxy-extension.zip"
                      className="text-blue-600 underline">↓ 내려받기</a>
+                </div>
+              )}
+              {/* 데스크톱 앱 — 확장도 프록시도 없이(앱이 직접 받는다). 파일은 고정 릴리스 'apps'(이름 고정) */}
+              {!isDesktopApp() && (
+                <div className="mt-1 pt-1 border-t border-emerald-200">
+                  <b>🖥️ 데스크톱 앱</b> — 확장 설치 없이 앱이 시세를 직접 받습니다.&nbsp;
+                  <a href={`${APPS_RELEASE}/portfolio-mac.zip`} className="text-blue-600 underline">맥</a>{" · "}
+                  <a href={`${APPS_RELEASE}/portfolio-setup.exe`} className="text-blue-600 underline">윈도우 설치판</a>{" · "}
+                  <a href={`${APPS_RELEASE}/portfolio.exe`} className="text-blue-600 underline">윈도우 실행형</a>
+                  <span className="opacity-70"> (처음 한 번: 맥은 우클릭 → 열기, 윈도우는 추가 정보 → 실행)</span>
                 </div>
               )}
             </div>

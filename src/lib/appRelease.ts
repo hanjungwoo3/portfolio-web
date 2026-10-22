@@ -100,7 +100,7 @@ export async function fetchLatestRelease(): Promise<LatestRelease | null> {
       const apk = (rel.assets ?? []).find(a => String(a.name ?? "").toLowerCase().endsWith(".apk"));
       if (!apk) continue;                       // 확장(zip) 릴리스 — 앱과 무관
       const version = String(rel.tag_name ?? "").replace(/^(app-)?v/i, "").trim();
-      if (!version) continue;
+      if (!/^\d/.test(version)) continue;    // 고정 릴리스 'apps'(모든 플랫폼 모음)는 태그에 버전이 없다 — 건너뜀
       // 버전만 GitHub 에서 읽고, 받는 곳은 항상 gh-pages 다(위 주석 참조).
       return { version, apkUrl: APK_DOWNLOAD_URL, pageUrl: rel.html_url || RELEASE_PAGE };
     }

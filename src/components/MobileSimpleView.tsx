@@ -62,7 +62,7 @@ import { TICKER_BAR_H, useTickerBarOpen } from "../lib/tickerBar";
 import { RefreshIndicator } from "./RefreshIndicator";
 import { forceUpdate } from "./VersionBadge";
 import { NewVersionToast } from "./NewVersionToast";
-import { AppUpdateToast, ExtensionUpdateToast } from "./AppUpdateToast";
+import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast } from "./AppUpdateToast";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadMemos, loadAllTrades,
@@ -1124,6 +1124,7 @@ export function MobileSimpleView() {
       )}
       <NewVersionToast />
       <AppUpdateToast />
+      <DesktopUpdateToast />
       <ExtensionUpdateToast />
       {tossMaint.active && (
         <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-[11px]

@@ -203,6 +203,51 @@ fn open_external(url: String) -> Result<(), String> {
     open::that_detached(url).map_err(|e| e.to_string())
 }
 
+// ─── 앱 업데이트 ─────────────────────────────────────────────────────
+//   고정 릴리스 'apps' 의 latest.json(서명 포함)을 본다(tauri.conf.json plugins.updater).
+//   맥 .app·윈도우 설치판은 받아서 바꾸고 재시작. 윈도우 실행형(portfolio.exe)은 스스로 못 바꾼다 —
+//   설치판 옆에는 NSIS 가 uninstall.exe 를 두므로 그게 없으면 실행형으로 보고, 새 버전 알림 + 다운로드 링크만.
+//   웹 화면은 사이트를 그대로 띄워 웹 배포로 바로 바뀐다 — 이건 앱 자체(요청·로그인 등)가 바뀔 때만.
+const RELEASE_PAGE: &str = "https://github.com/hanjungwoo3/portfolio-web/releases/tag/apps";
+
+fn is_portable() -> bool {
+    if !cfg!(windows) { return false; }
+    std::env::current_exe().ok()
+        .and_then(|p| p.parent().map(|d| !d.join("uninstall.exe").exists()))
+        .unwrap_or(false)
+}
+
+#[derive(serde::Serialize)]
+struct AppUpdateInfo {
+    current: String,
+    latest: Option<String>,
+    can_install: bool,   // false = 윈도우 실행형 → 다운로드 페이지로
+    page: String,
+}
+
+#[tauri::command]
+async fn app_update_check(app: tauri::AppHandle) -> Result<AppUpdateInfo, String> {
+    use tauri_plugin_updater::UpdaterExt;
+    let current = app.package_info().version.to_string();
+    let latest = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())?
+        .map(|u| u.version.clone());
+    Ok(AppUpdateInfo { current, latest, can_install: !is_portable(), page: RELEASE_PAGE.into() })
+}
+
+#[tauri::command]
+async fn app_update_install(app: tauri::AppHandle) -> Result<(), String> {
+    use tauri_plugin_updater::UpdaterExt;
+    if is_portable() {
+        let _ = open::that_detached(RELEASE_PAGE);
+        return Ok(());
+    }
+    if let Some(u) = app.updater().map_err(|e| e.to_string())?.check().await.map_err(|e| e.to_string())? {
+        u.download_and_install(|_, _| {}, || {}).await.map_err(|e| e.to_string())?;
+        app.restart();
+    }
+    Ok(())
+}
+
 // 맥 대화상자 — osascript(기본 대화상자). 취소는 종료 코드 1.
 //   prompt 취소는 "\u{0}"(빈 문자열 입력과 구분), confirm 은 "1"/"0".
 fn mac_dialog(kind: &str, msg: &str, def: &str) -> String {
@@ -234,6 +279,7 @@ fn main() {
     let url = std::env::var("PORTFOLIO_URL").unwrap_or_else(|_| SITE_URL.to_string());
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(client)
         .register_asynchronous_uri_scheme_protocol("pfdialog", |_ctx, req, responder| {
             let url = reqwest::Url::parse(&req.uri().to_string()).ok();
@@ -250,7 +296,7 @@ fn main() {
                 );
             });
         })
-        .invoke_handler(tauri::generate_handler![native_fetch, open_external, google_login, google_refresh])
+        .invoke_handler(tauri::generate_handler![native_fetch, open_external, google_login, google_refresh, app_update_check, app_update_install])
         .setup(move |app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse()?))
                 .title("포트폴리오")

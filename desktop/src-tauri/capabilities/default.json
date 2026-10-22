@@ -16,6 +16,8 @@
     "allow-native-fetch",
     "allow-open-external",
     "allow-google-login",
-    "allow-google-refresh"
+    "allow-google-refresh",
+    "allow-app-update-check",
+    "allow-app-update-install"
   ]
 }

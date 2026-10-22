@@ -19,7 +19,8 @@
     "android:apk": "npm run build:android && cd android && ./gradlew assembleDebug",
     "pack:app": "node scripts/pack-app.mjs",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "release:apk": "gh release view apps >/dev/null 2>&1 || gh release create apps --prerelease --title \"포트폴리오 앱 — 맥·윈도우·안드로이드\" --notes \"고정 링크\"; gh release upload apps public/app/portfolio-app.apk --clobber"
   },
   "dependencies": {
     "@capacitor/android": "^8.5.1",

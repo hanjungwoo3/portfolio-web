@@ -1,0 +1,88 @@
+# 데스크톱 앱(맥·윈도우) 빌드 → 고정 릴리스 'apps' 에 올린다.
+#   파일 이름은 버전과 무관하게 고정(링크가 안 바뀌게): portfolio-mac.zip · portfolio-setup.exe · portfolio.exe
+#   + latest.json(앱 안 업데이트용, 서명 포함). APK 도 같은 릴리스에 둔다(npm run release:apk).
+#   실행: Actions 탭 → desktop → Run workflow, 또는 태그 desktop-v* 푸시. 버전 = desktop/src-tauri/tauri.conf.json
+#   필요한 저장소 시크릿: TAURI_SIGNING_PRIVATE_KEY(_PASSWORD) — 업데이트 서명, GOOGLE_DESKTOP_CLIENT_SECRET — 구글 로그인
+name: desktop
+on:
+  workflow_dispatch:
+  push:
+    tags: ["desktop-v*"]
+
+permissions:
+  contents: write
+
+env:
+  TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+  TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+  GOOGLE_DESKTOP_CLIENT_SECRET: ${{ secrets.GOOGLE_DESKTOP_CLIENT_SECRET }}
+
+jobs:
+  mac:
+    runs-on: macos-latest
+    defaults: { run: { working-directory: desktop } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: dtolnay/rust-toolchain@stable
+        with: { targets: "aarch64-apple-darwin,x86_64-apple-darwin" }
+      - run: npm ci
+      # universal = Apple Silicon·Intel 하나로
+      - run: npx tauri build --target universal-apple-darwin --bundles app
+      - name: 이름 고정
+        run: |
+          B=src-tauri/target/universal-apple-darwin/release/bundle/macos
+          mkdir -p out
+          ditto -c -k --keepParent "$(ls -d $B/*.app | head -1)" out/portfolio-mac.zip
+          cp "$(ls $B/*.app.tar.gz | head -1)" out/portfolio-mac.app.tar.gz
+          cp "$(ls $B/*.app.tar.gz.sig | head -1)" out/portfolio-mac.app.tar.gz.sig
+      - uses: actions/upload-artifact@v4
+        with: { name: mac, path: desktop/out/* }
+
+  windows:
+    runs-on: windows-latest
+    defaults: { run: { working-directory: desktop, shell: bash } }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - uses: dtolnay/rust-toolchain@stable
+      - run: npm ci
+      - run: npx tauri build --bundles nsis
+      - name: 이름 고정
+        run: |
+          B=src-tauri/target/release
+          mkdir -p out
+          cp "$B/portfolio.exe" out/portfolio.exe                       # 실행형
+          cp "$(ls $B/bundle/nsis/*-setup.exe | head -1)" out/portfolio-setup.exe
+          cp "$(ls $B/bundle/nsis/*-setup.exe.sig | head -1)" out/portfolio-setup.exe.sig
+      - uses: actions/upload-artifact@v4
+        with: { name: windows, path: desktop/out/* }
+
+  publish:
+    needs: [mac, windows]
+    runs-on: ubuntu-latest
+    env: { GH_TOKEN: "${{ github.token }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: out, merge-multiple: true }
+      - name: latest.json
+        run: |
+          V=$(node -p "require('./desktop/src-tauri/tauri.conf.json').version")
+          U=https://github.com/${{ github.repository }}/releases/download/apps
+          node -e '
+            const fs=require("fs"); const [v,u]=process.argv.slice(1);
+            const mac={signature:fs.readFileSync("out/portfolio-mac.app.tar.gz.sig","utf8"), url:u+"/portfolio-mac.app.tar.gz"};
+            const win={signature:fs.readFileSync("out/portfolio-setup.exe.sig","utf8"), url:u+"/portfolio-setup.exe"};
+            fs.writeFileSync("out/latest.json", JSON.stringify({version:v, notes:"포트폴리오 데스크톱 v"+v, pub_date:new Date().toISOString(),
+              platforms:{"darwin-aarch64":mac,"darwin-x86_64":mac,"windows-x86_64":win}}, null, 2));
+          ' "$V" "$U"
+          echo "V=$V" >> $GITHUB_ENV
+      - name: 릴리스 'apps' 에 올리기
+        run: |
+          # prerelease — 'Latest' 는 확장 릴리스가 쓴다(확장 받기 링크가 releases/latest)
+          gh release view apps >/dev/null 2>&1 || gh release create apps --prerelease --title "포트폴리오 앱 — 맥·윈도우·안드로이드" --notes "고정 링크. 새 버전이 나오면 같은 이름으로 바뀝니다."
+          gh release upload apps out/portfolio-mac.zip out/portfolio-mac.app.tar.gz out/portfolio-setup.exe out/portfolio.exe out/latest.json --clobber
+          gh release edit apps --notes "$(printf '데스크톱 v%s · %s\n\n- 맥: portfolio-mac.zip (압축 풀고 포트폴리오.app, 처음 한 번 우클릭 → 열기)\n- 윈도우 설치판: portfolio-setup.exe (앱 안 업데이트)\n- 윈도우 실행형: portfolio.exe (설치 없이)\n- 안드로이드: portfolio-app.apk\n' "$V" "$(date -u +%F)")"
