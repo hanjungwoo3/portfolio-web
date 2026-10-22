@@ -24,15 +24,15 @@ export function Tooltip({ content, children, className = "" }: Props) {
   // 툴팁 DOM 이 마운트되면 실제 크기 측정 (한 프레임 invisible → measure → visible)
   useLayoutEffect(() => {
     if (!pos || !tipRef.current) { setSize(null); return; }
-    // offset* = transform(scale) 전 크기 — getBoundingClientRect 는 줄인 뒤 크기라 줄이기↔되돌리기를 오간다
-    setSize({ w: tipRef.current.offsetWidth, h: tipRef.current.offsetHeight });
+    // scroll* = transform(scale) 전 크기 + 넘친 내용까지 — getBoundingClientRect 는 줄인 뒤 크기라 줄이기↔되돌리기를 오간다
+    setSize({ w: tipRef.current.scrollWidth, h: tipRef.current.scrollHeight });
   }, [pos, content]);
   // 안쪽이 나중에 커지는 툴팁(수급 표가 데이터를 받아 채워짐)도 다시 잰다 — content 가 같은 객체라 위 effect 만으론 못 잡는다
   const open = !!pos;
   useEffect(() => {
     const el = tipRef.current;
     if (!open || !el || typeof ResizeObserver === "undefined") return;
-    const ro = new ResizeObserver(() => setSize({ w: el.offsetWidth, h: el.offsetHeight }));
+    const ro = new ResizeObserver(() => setSize({ w: el.scrollWidth, h: el.scrollHeight }));
     ro.observe(el);
     return () => ro.disconnect();
   }, [open]);
@@ -45,7 +45,9 @@ export function Tooltip({ content, children, className = "" }: Props) {
     const PAD = 12;
     // 측정 전 임시 추정 — 평균적 작은 툴팁 크기. 측정 후 한 프레임 안에 정확값으로 갱신.
     // 화면보다 키 큰 툴팁은 줄여서(scale) 통째로 보이게 — 종목 수급 표에 매수·매도 줄을 넣자 위아래가 화면 밖으로 잘렸다(2026-10-22)
-    const fit = size && typeof window !== "undefined" ? Math.min(1, (window.innerHeight - PAD * 2) / size.h) : 1;
+    //   가로도 — 줄바꿈 안 되는 넓은 표(매수·매도 줄)가 max-w 를 넘으면 상자 밖으로 삐져나왔다 → 상자를 내용만큼 넓히고 화면 폭에 맞춰 줄인다
+    const fit = size && typeof window !== "undefined"
+      ? Math.min(1, (window.innerHeight - PAD * 2) / size.h, (window.innerWidth - PAD * 2) / size.w) : 1;
     const W = (size?.w ?? 240) * fit;
     const H = (size?.h ?? 80) * fit;
     let x = pos.x + 14;
@@ -85,6 +87,7 @@ export function Tooltip({ content, children, className = "" }: Props) {
           style={{
             position: "fixed", left: adjusted.x, top: adjusted.y, zIndex: 1000,
             transform: adjusted.fit < 1 ? `scale(${adjusted.fit})` : undefined, transformOrigin: "top left",
+            maxWidth: size && size.w > 760 ? "none" : undefined,   // 넓은 표는 max-w-[760px] 를 풀어 상자가 감싸게
             opacity: size ? 1 : 0,  // 측정 전엔 보이지 않게 (한 프레임 깜빡임 방지)
           }}
           className="px-3 py-2 rounded-md shadow-xl
