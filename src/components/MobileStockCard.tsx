@@ -8,6 +8,7 @@ import { memoTagClass } from "../lib/memoColor";
 import { pickTodayInvestor, twoDayTodayX, TWO_DAY_HALF, type DaySeries } from "../lib/api";
 import { openTossStock } from "../lib/toss";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
+import { openTickPopup, canTickPopup } from "../lib/tickPopup";
 import { Sparkline } from "./Sparkline";
 import { useChartRange, pickCardChart } from "../lib/chartRange";
 import { Tooltip, ColorName } from "./Tooltip";
@@ -317,6 +318,15 @@ export function MobileStockCard({
               </span>
             );
           })()}
+          {/* ⚡ 실시간 체결 팝업 — 국내 종목만(PC 카드와 같이) */}
+          {canTickPopup(stock.ticker) && (
+            <button onClick={() => openTickPopup(stock.ticker, stock.name)}
+                    title="실시간 체결 크게 보기 (팝업)"
+                    className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold leading-none
+                               border border-amber-300 text-amber-700 bg-amber-50 active:bg-amber-100">
+              ⚡체결
+            </button>
+          )}
           {/* 🔍AI — 섹션과 같은 9px, 아이콘 축소 */}
           <button onClick={() => openGoogleAi(buildAiQuery())}
                   title="현재가·등락률·컨센서스로 구글 AI에 현재상태 분석 요청 (팝업)"

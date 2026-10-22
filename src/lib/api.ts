@@ -5550,6 +5550,19 @@ export async function fetchInvestorRankingsByMarket(
 //   ⚠️ 최근 것만 준다: count 는 300 까지(500 이상은 400). 하이닉스 기준 약 50초치 → 화면이 5초마다 받아 쌓는다.
 //   과거로 넘기는 파라미터는 없다(실측 2026-10-21). 시각은 KST "HH:MM:SS".
 export interface TossTick { time: string; price: number; volume: number; side: "BUY" | "SELL"; cum: number }
+// 종목 오늘 1분봉(토스 c-chart min:1) — 종목 체결 팝업의 하루 가격 그래프. base = 전일 종가(봉마다 같은 값).
+//   최신 → 과거 450봉(≈ 08:00~15:30). 오늘(KST) 봉만 남겨 과거 → 최신으로.
+export interface MinuteBar { t: string; close: number; volume: number }
+export async function fetchTossKrMinuteToday(code: string): Promise<{ bars: MinuteBar[]; base?: number; date?: string }> {
+  const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/c-chart/kr-s/A${code}/min:1?count=450&useAdjustedRate=true`);
+  if (!r.ok) throw new Error(`분봉 조회 실패 (HTTP ${r.status})`);
+  const j = await r.json() as { result?: { candles?: { dt?: string; base?: number; close?: number; volume?: number }[] } };
+  const cs = j.result?.candles ?? [];
+  const date = cs[0]?.dt?.slice(0, 10);
+  const today = cs.filter(c => c.dt?.slice(0, 10) === date && (c.close ?? 0) > 0).reverse();
+  return { bars: today.map(c => ({ t: c.dt!.slice(11, 16), close: c.close!, volume: c.volume ?? 0 })), base: today[0]?.base, date };
+}
+
 export async function fetchTossTicks(code: string, count = 300): Promise<TossTick[]> {
   const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-prices/A${code}/ticks?count=${Math.min(300, count)}`);
   if (!r.ok) throw new Error(`체결 조회 실패 (HTTP ${r.status})`);

@@ -79,6 +79,7 @@ import { startAutoSync, SYNC_PULLED_EVENT } from "./lib/syncManager";
 import { SyncConflictBar } from "./components/SyncConflictBar";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
+import { StockTickPopupHost } from "./components/StockTickPopup";
 import { useExtensionProxyReady } from "./lib/extensionProxy";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./components/HelpDialog";
 import type { Stock, Memo } from "./types";
@@ -1425,7 +1426,7 @@ function AppRoot() {
   }, []);
 
   if (!ready) return null;
-  return isMobile ? <MobileSimpleView /> : <Dashboard />;
+  return <>{isMobile ? <MobileSimpleView /> : <Dashboard />}<StockTickPopupHost /></>;   // ⚡ 종목 체결 팝업(전역 하나)
 }
 
 function App() {

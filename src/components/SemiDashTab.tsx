@@ -15,6 +15,7 @@ import {
 import type { Investor } from "../types";
 import { allYahooSymbols } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
+import { openTickPopup } from "../lib/tickPopup";
 import { useTickFlow, strength, netAmt, BIG_TRADE_WON, type TickFlow } from "../lib/useTickFlow";
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
@@ -263,7 +264,7 @@ export function SemiDashTab() {
 
       {/* ② 실시간 체결 + 신호 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_600px] gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]">
-        {STOCKS.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} />)}
+        {STOCKS.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} onTitle={() => openTickPopup(s.code, s.name)} />)}
         <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
           {/* 지금 신호 / 가설 검증 — 탭(사용자 요청) */}
           <div className="flex items-baseline gap-1 mb-1 border-b">
@@ -356,8 +357,12 @@ function SparkBg({ sp, base }: { sp: { closes: number[]; xs?: number[]; openIdx?
 }
 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
-function TickPanel({ name, flow, day }: { name: string; flow: TickFlow; day?: DayStrength }) {
-  const ms = flow.minutes.slice(-90);   // 최근 90분
+//   팝업(StockTickPopup)에서도 같은 칸을 크게 쓴다 — big: 큰 체결 줄 수, split: 아래에 1분 매수·매도 막대
+export function TickPanel({ name, flow, day, onTitle, big = 12, split, span = 90 }: {
+  name: string; flow: TickFlow; day?: DayStrength;
+  onTitle?: () => void; big?: number; split?: boolean; span?: number;
+}) {
+  const ms = flow.minutes.slice(-span);   // 최근 span 분(기본 90)
   const W = 600, H = 220, PAD = 4;
   const nets = ms.map(m => m.buyAmt - m.sellAmt);
   const mxBar = Math.max(1, ...nets.map(Math.abs));
@@ -375,7 +380,9 @@ function TickPanel({ name, flow, day }: { name: string; flow: TickFlow; day?: Da
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
       <div className="flex items-baseline gap-2">
-        <span className="font-bold text-gray-800">{name} 실시간 체결</span>
+        {onTitle
+          ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
+          : <span className="font-bold text-gray-800">{name} 실시간 체결</span>}
         <span className="text-[11px] text-gray-400">{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
       </div>
       <div className="flex gap-3 tabular-nums my-1">
@@ -392,7 +399,8 @@ function TickPanel({ name, flow, day }: { name: string; flow: TickFlow; day?: Da
         </div>
       )}
       <div className="flex-1 min-h-0 flex gap-2">
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 flex flex-col">
+          <div className="flex-1 min-h-0">
           {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div className="relative w-full h-full">
             {ms.length < 5 && <div className="absolute inset-x-0 bottom-1 text-center text-[11px] text-gray-400">켠 뒤 {ms.length}분째 — 10분쯤 지나면 흐름이 보입니다</div>}
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
@@ -406,8 +414,11 @@ function TickPanel({ name, flow, day }: { name: string; flow: TickFlow; day?: Da
               <path d={cum.map((c, i) => `${i ? "L" : "M"} ${xOf(i)} ${mid - (c / mxCum) * (mid - PAD)}`).join(" ")}
                     fill="none" stroke="#ea580c" strokeWidth={2.2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
 
-              {ms.map((m, i) => (m.t.endsWith("0") && i % 10 === 0 ? <text key={m.t} x={xOf(i)} y={H - 2} fontSize="11" fill="#9ca3af">{m.t}</text> : null))}
             </svg>
+            {/* 시각 글자 — svg 는 칸 크기로 늘어나(preserveAspectRatio none) 글자가 찌그러진다 → HTML 로(팝업에서 크게 깨졌다) */}
+            {ms.map((m, i) => (m.t.endsWith("0") ? (
+              <span key={m.t} className="absolute bottom-0 -translate-x-1/2 text-[10px] text-gray-400 pointer-events-none" style={{ left: `${(xOf(i) / W) * 100}%` }}>{m.t}</span>
+            ) : null))}
             {/* 누적 끝값 — 막대(1분)와 축이 달라 선만으론 크기를 모른다. svg 가 늘어나므로 글자는 HTML 로 */}
             {cum.length > 0 && (() => {
               const lx = (xOf(cum.length - 1) / W) * 100, ly = ((mid - (cum[cum.length - 1] / mxCum) * (mid - PAD)) / H) * 100;
@@ -420,10 +431,34 @@ function TickPanel({ name, flow, day }: { name: string; flow: TickFlow; day?: Da
             })()}
           </div>
           )}
+          </div>
+          {/* 1분 매수(위·빨강)·매도(아래·파랑) 체결 금액 — 순매수 막대만으론 양쪽이 다 큰 '손바뀜'이 안 보인다(팝업 전용) */}
+          {split && ms.length > 0 && (() => {
+            const SH = 70, smid = SH / 2;
+            const mx = Math.max(1, ...ms.flatMap(m => [m.buyAmt, m.sellAmt]));
+            return (
+              <svg viewBox={`0 0 ${W} ${SH}`} preserveAspectRatio="none" className="w-full h-[70px] shrink-0 mt-1 border-t border-gray-100">
+                <line x1={0} x2={W} y1={smid} y2={smid} stroke="#cbd5e1" vectorEffect="non-scaling-stroke" />
+                {ms.map((m, i) => {
+                  const hb = (m.buyAmt / mx) * (smid - 2), hs = (m.sellAmt / mx) * (smid - 2);
+                  return (
+                    <g key={m.t}>
+                      <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={smid - hb} height={Math.max(0.5, hb)} fill="#f43f5e" opacity={0.7} />
+                      <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={smid} height={Math.max(0.5, hs)} fill="#3b82f6" opacity={0.7} />
+                    </g>
+                  );
+                })}
+              </svg>
+            );
+          })()}
         </div>
-        <div className="w-[118px] shrink-0 overflow-hidden text-[11px] tabular-nums">
+        <div className={`${big > 12 ? "w-[150px] overflow-y-auto" : "w-[118px] overflow-hidden"} shrink-0 text-[11px] tabular-nums`}>
           <div className="text-gray-500 mb-0.5">큰 체결 ({BIG_TRADE_WON / 1e8}억↑)</div>
-          {flow.big.slice(0, 12).map((b, i) => (
+          {big > 12 && flow.big.length > 0 && (() => {
+            const b = flow.big.filter(x => x.side === "BUY").reduce((a, x) => a + x.amt, 0), sl = flow.big.filter(x => x.side === "SELL").reduce((a, x) => a + x.amt, 0);
+            return <div className="mb-0.5 pb-0.5 border-b text-[10.5px]"><b className="text-rose-600">+{(b / 1e8).toFixed(0)}억</b> · <b className="text-blue-600">−{(sl / 1e8).toFixed(0)}억</b></div>;
+          })()}
+          {flow.big.slice(0, big).map((b, i) => (
             <div key={i} className={`flex justify-between ${b.side === "BUY" ? "text-rose-600" : "text-blue-600"}`}>
               <span>{b.time}</span><b>{b.side === "BUY" ? "+" : "-"}{(b.amt / 1e8).toFixed(1)}억</b>
             </div>
