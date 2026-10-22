@@ -17,6 +17,8 @@ const DENO_GUIDE_URL =
   "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/deno-proxy/README.md";
 const CF_GUIDE_URL =
   "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md";
+// 데스크톱 앱(맥·윈도우) 받기 — 고정 릴리스 apps(.github/workflows/desktop.yml)
+const DESKTOP_URL = "https://github.com/hanjungwoo3/portfolio-web/releases/tag/apps";
 const EXT_GUIDE_URL =
   "https://github.com/hanjungwoo3/portfolio-web/blob/main/extension/README.md";
 // APK 는 gh-pages 직링크를 쓴다 — GitHub 릴리스 자산 링크는 안드로이드 다운로드 매니저가
@@ -158,6 +160,9 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
             <ChoiceRow href={EXT_GUIDE_URL} icon="🧩" tone="blue"
                        title="PC 크롬·엣지 — 확장 프로그램 설치"
                        desc="설치만 하면 끝. 중계 서버가 아예 필요 없습니다" />
+            <ChoiceRow href={DESKTOP_URL} icon="🖥️" tone="blue"
+                       title="맥·윈도우 — 데스크톱 앱 받기"
+                       desc="확장 없이 앱이 직접 받아옵니다. 받아서 바로 실행" />
             <ChoiceRow href={APK_URL} icon="📱" tone="emerald" download
                        title="안드로이드 — 앱(APK) 받기"
                        desc="앱이 직접 받아옵니다. 모바일에선 이 방법뿐입니다" />
@@ -197,6 +202,9 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
             <ChoiceRow href={EXT_GUIDE_URL} icon="🧩" tone="blue"
                        title="PC 크롬·엣지 — 확장 프로그램 설치"
                        desc="설치만 하면 브라우저가 직접 받아옵니다. 설정할 것 없음" />
+            <ChoiceRow href={DESKTOP_URL} icon="🖥️" tone="blue"
+                       title="맥·윈도우 — 데스크톱 앱 받기"
+                       desc="확장 없이 앱이 직접 받아옵니다. 받아서 바로 실행" />
             <ChoiceRow href={APK_URL} icon="📱" tone="emerald" download
                        title="안드로이드 — 앱(APK) 받기"
                        desc="앱이 직접 받아옵니다. 모바일에선 이 방법뿐입니다" />
@@ -206,7 +214,7 @@ export function OnboardingDialog({ onOpenSettings }: Props) {
           </div>
 
           <div className="text-[11px] text-emerald-800/80">
-            확장·앱은 호출 한도가 없고, 남과 나눠 쓰지 않아 <b>5·10초 갱신</b>도 열립니다.
+            확장·앱(안드로이드·데스크톱)은 호출 한도가 없고, 남과 나눠 쓰지 않아 <b>5·10초 갱신</b>도 열립니다.
           </div>
 
           <div className="text-xs text-gray-500 pt-1">
