@@ -158,7 +158,9 @@ export function SemiDashTab() {
     if (!fl.length) return undefined;
     const firsts = fl.map(f => f.points[0].time), lasts = fl.map(f => f.points[f.points.length - 1].time);
     const start = firsts.reduce((a, b) => (a < b ? a : b)), end = lasts.reduce((a, b) => (a > b ? a : b));
-    return { start: start < "09:00" ? start.slice(0, 4) + "0" : start, end };   // 시작은 10분 단위로 내림(08:45 → 08:40)
+    // 정규장 자료(09:00~)가 하나라도 있으면 09:00 부터 — 선물 08:45 때문에 현물 칸 앞이 비던 것(사용자 지적). 정규장 전엔 이른 시각부터
+    const anyRegular = firsts.some(t => t >= "09:00");
+    return { start: anyRegular ? "09:00" : start.slice(0, 4) + "0", end };
   })();
   STOCKS.forEach((s, i) => {
     const ms = ticks[i].minutes;
@@ -477,7 +479,9 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   const span = T1 - T0;
   const x = (t: string) => PX + Math.min(1, Math.max(0, (tmin(t) - T0) / span)) * (W - PX * 2);
   // 배경 가격 면
-  const bgp = (bg ?? []).filter(b => b.t >= startHM && b.t <= axisEnd);
+  // 배경은 이 칸 수급 선이 끝나는 시각까지만 — 배경(실시간)이 늦은 수급 선(선물 20분 지연)보다 길게 나가 어긋나 보였다
+  const flowEnd = pts.length ? pts[pts.length - 1].time : axisEnd;
+  const bgp = (bg ?? []).filter(b => b.t >= startHM && b.t <= (flowEnd < axisEnd ? flowEnd : axisEnd));
   const bMin = Math.min(...bgp.map(b => b.v)), bMax = Math.max(...bgp.map(b => b.v)), bR = bMax - bMin || 1;
   const by = (v: number) => PY + (1 - (v - bMin) / bR) * (H - PY * 2);
   // 색 = 어제 종가 대비(카드 % 와 같은 기준) — 오늘 첫 봉 대비였더니 코스피 −0.77% 인데 분홍으로 칠해졌다(사용자 지적)
