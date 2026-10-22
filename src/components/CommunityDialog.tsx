@@ -51,7 +51,7 @@ function agoNaver(d: string): string {
 
 function PaneShell({ title, right, children }: { title: string; right?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="h-full flex flex-col min-h-0 border border-gray-200 rounded-md overflow-hidden">
+    <div className="h-full flex flex-col min-h-0 border border-gray-200 rounded-md overflow-hidden bg-white">
       <div className="flex items-center justify-between px-3 py-1.5 border-b border-gray-200 bg-gray-50 shrink-0">
         <span className="text-xs font-bold text-gray-700">{title}</span>
         {right}
@@ -91,7 +91,7 @@ function TossComment({ c }: { c: TossCommunityComment }) {
   );
 }
 
-function TossPane({ ticker, refreshTs }: { ticker: string; refreshTs: number }) {
+export function TossPane({ ticker, refreshTs }: { ticker: string; refreshTs: number }) {
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["toss-community", ticker],
     queryFn: () => fetchTossCommunity(ticker),
@@ -132,7 +132,7 @@ function NaverPost({ p }: { p: NaverBoardPost }) {
   );
 }
 
-function NaverPane({ ticker, refreshTs }: { ticker: string; refreshTs: number }) {
+export function NaverPane({ ticker, refreshTs }: { ticker: string; refreshTs: number }) {
   const { data, isLoading, isError, refetch, isFetching } = useQuery({
     queryKey: ["naver-board", ticker],
     queryFn: () => fetchNaverBoard(ticker),

@@ -9,13 +9,15 @@ import { useId, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
-  fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchNaverNews, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
+  fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
 } from "../lib/api";
 import type { Investor } from "../types";
 import { allYahooSymbols } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { openTickPopup } from "../lib/tickPopup";
+import { useLastRefresh } from "../lib/lastRefresh";
+import { TossPane, NaverPane } from "./CommunityDialog";
 import { useTickFlow, strength, netAmt, BIG_TRADE_WON, type TickFlow } from "../lib/useTickFlow";
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
@@ -110,6 +112,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return q(`${code}.KS`);
   };
   const [rightTab, setRightTab] = useState<"sig" | "hyp">("sig");
+  const refreshTs = useLastRefresh();   // 팝업 댓글 칸 — 전역 갱신 신호에 맞춰 같이 새로
   // 프리장(NXT 08:00~09:00) 결과 — 정규장이 열리면 현물 수급은 KRX 로 바뀌어 프리장이 안 보인다 → 따로 한 줄(사용자 요청)
   const [{ data: kospiNxt }, { data: kosdaqNxt }] = useQueries({
     queries: (["kospi", "kosdaq"] as const).map(m => ({
@@ -274,8 +277,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       </div>
 
       {/* ② 실시간 체결 + 신호 */}
-      {/* 한 종목(팝업)이면 체결 · 신호 · 종목 뉴스 3등분(사용자 요청) */}
-      <div className={`grid grid-cols-1 ${stocks.length === 1 ? "lg:grid-cols-3" : "lg:grid-cols-[1fr_1fr_600px]"} gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]`}>
+      {/* 한 종목(팝업)이면 체결 · 신호 · 토스 커뮤니티 · 네이버 토론 4칸(사용자 요청 — 뉴스 대신 댓글, 댓글 두 칸은 조금 좁게) */}
+      <div className={`grid grid-cols-1 ${stocks.length === 1 ? "lg:grid-cols-[1.2fr_1.2fr_0.8fr_0.8fr]" : "lg:grid-cols-[1fr_1fr_600px]"} gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]`}>
         {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} onTitle={popup ? undefined : () => openTickPopup(s.code, s.name)} />)}
         <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
           {/* 지금 신호 / 가설 검증 — 탭(사용자 요청) */}
@@ -302,7 +305,10 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           </div>
           </>}
         </div>
-        {stocks.length === 1 && <NewsBox code={stocks[0].code} name={stocks[0].name} />}
+        {stocks.length === 1 && <>
+          <TossPane ticker={stocks[0].code} refreshTs={refreshTs} />
+          <NaverPane ticker={stocks[0].code} refreshTs={refreshTs} />
+        </>}
       </div>
 
       {/* ③ 현물·선물·옵션 수급 */}
@@ -625,38 +631,6 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
           </div>
         );
       })()}
-    </div>
-  );
-}
-
-// 종목 뉴스(네이버) — 팝업(한 종목) 오른쪽 칸. 최신순, 누르면 기사 새 창
-function NewsBox({ code, name }: { code: string; name: string }) {
-  const { data: news } = useQuery({
-    queryKey: ["semi-dash-news", code], queryFn: () => fetchNaverNews(code, 20),
-    refetchInterval: 3 * 60_000, staleTime: 60_000,
-  });
-  const when = (d: string) => {   // YYYYMMDDHHmm → 오늘이면 HH:MM, 아니면 M/D HH:MM
-    if (d.length < 12) return "";
-    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
-    return `${d.slice(0, 8) === today ? "" : `${+d.slice(4, 6)}/${+d.slice(6, 8)} `}${d.slice(8, 10)}:${d.slice(10, 12)}`;
-  };
-  return (
-    <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
-      <div className="flex items-baseline gap-2">
-        <span className="font-bold text-gray-800">{name} 뉴스</span>
-        <span className="text-[11px] text-gray-400">네이버 · 최신순</span>
-      </div>
-      <div className="flex-1 min-h-0 overflow-y-auto mt-1">
-        {!news ? <div className="text-gray-400">불러오는 중…</div> : !news.length ? <div className="text-gray-400">뉴스 없음</div> : news.map(n => (
-          <a key={n.id} href={n.url} target="_blank" rel="noopener noreferrer" className="flex gap-2 py-1 border-b border-gray-100 hover:bg-gray-50">
-            <span className="w-[72px] shrink-0 text-[11px] text-gray-400 tabular-nums">{when(n.datetime)}</span>
-            <span className="min-w-0 flex-1">
-              <span className="text-gray-800 leading-snug line-clamp-2">{n.title}</span>
-              <span className="text-[10.5px] text-gray-400">{n.press}</span>
-            </span>
-          </a>
-        ))}
-      </div>
     </div>
   );
 }
