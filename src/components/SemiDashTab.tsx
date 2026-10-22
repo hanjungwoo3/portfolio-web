@@ -293,9 +293,9 @@ export function SemiDashTab() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[360px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
         <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
-        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
         <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && weekday && mm >= 8 * 60 + 45 && mm < 16 * 60 + 10)} hoverM={flowHover} onHover={setFlowHover}
                  bg={futToday} bgLabel="코스피200 선물" bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
+        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
         <StockFlowTable rows={STOCKS.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: q(`${s.code}.KS`)?.price }))}
                         fLast={fLast}
@@ -484,12 +484,8 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   const flowEnd = pts.length ? pts[pts.length - 1].time : axisEnd;
   const bgp = (bg ?? []).filter(b => b.t >= startHM && b.t <= (flowEnd < axisEnd ? flowEnd : axisEnd));
   const hasBgBase = !!bgBase && bgBase > 0;
-  // 기준선(전일 종가)을 세로 가운데(수급 0 점선과 같은 높이)에 둔다 — 위아래 대칭 범위.
-  //   최소~최대로 맞추면 선물처럼 한쪽으로 쏠린 날 기준선이 맨 위에 붙어 그래프가 화면을 다 덮었다(사용자 지적).
-  const bDev = hasBgBase ? Math.max(...bgp.map(b => Math.abs(b.v - bgBase!)), 0) || 1 : 0;
-  const bMin = hasBgBase ? bgBase! - bDev : Math.min(...bgp.map(b => b.v));
-  const bMax = hasBgBase ? bgBase! + bDev : Math.max(...bgp.map(b => b.v));
-  const bR = bMax - bMin || 1;
+  const bVals = [...bgp.map(b => b.v), ...(hasBgBase ? [bgBase!] : [])];   // 기준선(전일 종가)도 범위에 — 위·아래로 나눠 칠하려고
+  const bMin = Math.min(...bVals), bMax = Math.max(...bVals), bR = bMax - bMin || 1;
   const by = (v: number) => PY + (1 - (v - bMin) / bR) * (H - PY * 2);
   // 색 = 어제 종가 대비(카드 % 와 같은 기준) — 오늘 첫 봉 대비였더니 코스피 −0.77% 인데 분홍으로 칠해졌다(사용자 지적)
   const bgUp = bgp.length > 1 && bgp[bgp.length - 1].v >= (bgBase && bgBase > 0 ? bgBase : bgp[0].v);
