@@ -24,9 +24,18 @@ export function Tooltip({ content, children, className = "" }: Props) {
   // 툴팁 DOM 이 마운트되면 실제 크기 측정 (한 프레임 invisible → measure → visible)
   useLayoutEffect(() => {
     if (!pos || !tipRef.current) { setSize(null); return; }
-    const r = tipRef.current.getBoundingClientRect();
-    setSize({ w: r.width, h: r.height });
+    // offset* = transform(scale) 전 크기 — getBoundingClientRect 는 줄인 뒤 크기라 줄이기↔되돌리기를 오간다
+    setSize({ w: tipRef.current.offsetWidth, h: tipRef.current.offsetHeight });
   }, [pos, content]);
+  // 안쪽이 나중에 커지는 툴팁(수급 표가 데이터를 받아 채워짐)도 다시 잰다 — content 가 같은 객체라 위 effect 만으론 못 잡는다
+  const open = !!pos;
+  useEffect(() => {
+    const el = tipRef.current;
+    if (!open || !el || typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setSize({ w: el.offsetWidth, h: el.offsetHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [open]);
 
   // viewport 경계 회피 — 마우스 위치 기준 배치. 측정된 실제 크기 사용.
   //   가로: 우측 부족하면 좌측 뒤집기.
@@ -35,8 +44,10 @@ export function Tooltip({ content, children, className = "" }: Props) {
     if (!pos) return null;
     const PAD = 12;
     // 측정 전 임시 추정 — 평균적 작은 툴팁 크기. 측정 후 한 프레임 안에 정확값으로 갱신.
-    const W = size?.w ?? 240;
-    const H = size?.h ?? 80;
+    // 화면보다 키 큰 툴팁은 줄여서(scale) 통째로 보이게 — 종목 수급 표에 매수·매도 줄을 넣자 위아래가 화면 밖으로 잘렸다(2026-10-22)
+    const fit = size && typeof window !== "undefined" ? Math.min(1, (window.innerHeight - PAD * 2) / size.h) : 1;
+    const W = (size?.w ?? 240) * fit;
+    const H = (size?.h ?? 80) * fit;
     let x = pos.x + 14;
     let y = pos.y + 14;
     if (typeof window !== "undefined") {
@@ -48,7 +59,7 @@ export function Tooltip({ content, children, className = "" }: Props) {
       }
       if (y < PAD) y = PAD;
     }
-    return { x, y };
+    return { x, y, fit };
   })();
 
   // 모바일·터치 환경 — mouseleave 가 잘 안 발생할 수 있어 수동 cleanup
@@ -73,6 +84,7 @@ export function Tooltip({ content, children, className = "" }: Props) {
           role="tooltip"
           style={{
             position: "fixed", left: adjusted.x, top: adjusted.y, zIndex: 1000,
+            transform: adjusted.fit < 1 ? `scale(${adjusted.fit})` : undefined, transformOrigin: "top left",
             opacity: size ? 1 : 0,  // 측정 전엔 보이지 않게 (한 프레임 깜빡임 방지)
           }}
           className="px-3 py-2 rounded-md shadow-xl
