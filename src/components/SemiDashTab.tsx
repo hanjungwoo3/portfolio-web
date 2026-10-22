@@ -138,6 +138,8 @@ export function SemiDashTab() {
   // 현물 = KRX(정규장 전엔 NXT 프리장). 프리장을 정규장 그래프에 합치는 건 해 보고 뺐다(사용자 결정 2026-10-22) — 프리장은 노란 '결과' 상자로만
   const kf = kospiFlow.data, ff = futFlow.data;
   const kqFlow = kosdaqFlow.data;
+  // 선물 1계약 = 선물가 × 25만원 → 억원. 선물가가 아직 없으면 계약 그대로
+  const futScale = fut && fut.price > 0 ? (fut.price * 250_000) / 1e8 : undefined;
   const futToday = futMin?.todayTimes && futMin.date === new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)   // 오늘 것만(장 전엔 어제)
     ? futMin.todayTimes.map((t, i) => ({ t, v: futMin.closes[(futMin.breakIdx ?? 0) + i] })).filter(p => p.v > 0) : undefined;
   const kLast = kf?.points[kf.points.length - 1], fLast = ff?.points[ff.points.length - 1];
@@ -293,7 +295,7 @@ export function SemiDashTab() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[400px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
         <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
-        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && weekday && mm >= 8 * 60 + 45 && mm < 16 * 60 + 10)} hoverM={flowHover} onHover={setFlowHover}
+        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit={futScale ? "억" : "계약"} scale={futScale} dim={!(ffToday && weekday && mm >= 8 * 60 + 45 && mm < 16 * 60 + 10)} hoverM={flowHover} onHover={setFlowHover}
                  bg={futToday} bgLabel="코스피200 선물" bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
         <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
@@ -447,8 +449,9 @@ const LINES = [
   { k: "foreigners", label: "외국인", color: "#ea580c" },
   { k: "individuals", label: "개인", color: "#7c3aed" },
 ] as const;
-function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis }: {
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis, scale = 1 }: {
   title: string; note: string; flow?: IntradayFlow; unit: string;
+  scale?: number;                    // 값에 곱할 배수 — 선물 계약 → 억원(계약 × 선물가 × 25만원 ÷ 1억, 사용자 요청 2026-10-22)
   tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
   bg?: { t: string; v: number }[];   // 배경 가격(지수·선물) — 증시 탭처럼 연한 면으로, 축은 따로(사용자 요청)
   bgLabel?: string;
@@ -463,7 +466,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   const uid = useId().replace(/:/g, "");
   const pts = flow?.points ?? [];
   const val = (p: IntradayFlow["points"][number], k: (typeof LINES)[number]["k"]) =>
-    p[k];
+    p[k] * scale;
   const W = 400, H = 140, PX = 2, PY = 6;
   const tmin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   const mx = Math.max(1, ...pts.flatMap(p => LINES.map(l => Math.abs(val(p, l.k)))));
@@ -490,7 +493,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   // 색 = 어제 종가 대비(카드 % 와 같은 기준) — 오늘 첫 봉 대비였더니 코스피 −0.77% 인데 분홍으로 칠해졌다(사용자 지적)
   const bgUp = bgp.length > 1 && bgp[bgp.length - 1].v >= (bgBase && bgBase > 0 ? bgBase : bgp[0].v);
   // 마감 동시호가(일괄 체결) 구간 — 현물 15:20~15:30, 선물 15:35~15:45. 음영만 칠한다(글자는 그래프를 가려 뺐다)
-  const aucFrom = unit === "계약" ? "15:35" : "15:20";
+  const aucFrom = endHM === "15:45" ? "15:35" : "15:20";   // 선물 칸 = 축 끝 15:45
   const y = (v: number) => H / 2 - (v / mx) * (H / 2 - PY);
   const lastPt = pts[pts.length - 1];
   // 마우스 시각의 값(그 시각 이하 마지막 점) — 숫자 줄이 그 값으로 바뀐다
@@ -569,7 +572,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
       </div>
       {/* 외국인·개인 매수·매도 막대(10분) — 그래프 바로 아래, 같은 시간 축(사용자 요청). 축 밖(프리·시간외)은 그리지 않는다 */}
       {flow && pts.length > 1 && (
-        <BuySellBars points={flow.points} keys={["individuals", "foreigners"]} unit={unit === "계약" ? "계약" : "억"} start={startHM} end={axisEnd}
+        <BuySellBars points={flow.points} keys={["individuals", "foreigners"]} unit={unit === "계약" ? "계약" : "억"} scale={scale} start={startHM} end={axisEnd}
           rowH={36} compact
           geom={{
             width: W, hoverT: hoverM ?? null, toT: tmin, hover: onHover,
