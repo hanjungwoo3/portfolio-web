@@ -1,0 +1,266 @@
+// 포트폴리오 데스크톱 앱(맥·윈도우) — github.io 사이트를 창에 띄우고, 시세 요청은 앱이 직접 보낸다.
+//
+//   브라우저에서 확장·프록시가 필요한 이유는 CORS 다(토스·네이버가 다른 사이트의 읽기를 막는다).
+//   앱의 네이티브 HTTP(reqwest)에는 CORS 가 없다 → 안드로이드 APK(nativeProxy)와 같은 구조.
+//   웹은 `window.__PORTFOLIO_DESKTOP__` 로 앱 안인지 알고, `native_fetch` 명령으로 요청을 넘긴다
+//   (src/lib/nativeProxy.ts). 헤더 규칙(토스 쿠키·Referer·한경 키 등)은 웹 쪽이 정해서 넘긴다.
+//
+//   사이트를 그대로 띄우므로 **웹 배포만 하면 앱 화면도 새 버전**이다. 이 파일은 요청 경로가 바뀔 때만 다시 빌드.
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use base64::{engine::general_purpose::STANDARD, Engine};
+use std::collections::HashMap;
+use std::time::Duration;
+use tauri::{WebviewUrl, WebviewWindowBuilder};
+
+const SITE_URL: &str = "https://hanjungwoo3.github.io/portfolio-web/";
+
+// 페이지보다 먼저 도는 스크립트 — ① 앱 표식 ② 새 창(window.open·target=_blank)은 기본 브라우저로.
+//   앱 창 안에서 새 창을 열면 막히거나(Tauri 기본) 앱 안에 갇힌다. 토스·네이버 링크·구글 AI 는 브라우저가 맞다.
+const INIT_SCRIPT: &str = r##"
+(() => {
+  window.__PORTFOLIO_DESKTOP__ = true;
+  const ext = (u) => {
+    try {
+      const url = new URL(u, location.href).toString();
+      window.__TAURI_INTERNALS__.invoke("open_external", { url });
+    } catch (e) { console.warn("open_external", e); }
+  };
+  window.open = (u) => { if (u) ext(String(u)); return null; };
+  // 맥 WKWebView 는 alert·confirm·prompt 를 띄우지 않는다(confirm 은 바로 false) → Drive 가져오기 등이 '취소'로 끝났다.
+  //   셋 다 답을 즉시 돌려줘야 하는 동기 함수라, 동기 XHR 로 앱(pfdialog://)에 물어 맥 기본 대화상자를 띄운다.
+  //   윈도우 WebView2 는 원래 지원한다 → 맥만.
+  if (/Mac/.test(navigator.platform)) {
+    const ask = (kind, msg, def) => {
+      const x = new XMLHttpRequest();
+      x.open("GET", "pfdialog://localhost/?kind=" + kind + "&msg=" + encodeURIComponent(msg) + "&def=" + encodeURIComponent(def || ""), false);
+      x.send();
+      return x.responseText;
+    };
+    window.alert = (m) => { ask("alert", String(m ?? "")); };
+    window.confirm = (m) => ask("confirm", String(m ?? "")) === "1";
+    window.prompt = (m, d) => { const r = ask("prompt", String(m ?? ""), d == null ? "" : String(d)); return r === "\u0000" ? null : r; };
+  }
+  document.addEventListener("click", (e) => {
+    const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
+    if (!a) return;
+    const href = a.getAttribute("href") || "";
+    if (a.target === "_blank" || /^https?:/.test(href) && new URL(href, location.href).origin !== location.origin) {
+      if (href.startsWith("#") || href.startsWith("javascript:")) return;
+      e.preventDefault();
+      ext(a.href);
+    }
+  }, true);
+})();
+"##;
+
+#[derive(serde::Serialize)]
+struct NativeRes {
+    status: u16,
+    content_type: String,
+    body: String, // base64 — 바이너리(EUC-KR 등) 그대로 넘긴다
+}
+
+#[tauri::command]
+async fn native_fetch(
+    client: tauri::State<'_, reqwest::Client>,
+    url: String,
+    method: Option<String>,
+    headers: Option<HashMap<String, String>>,
+    body: Option<String>,
+) -> Result<NativeRes, String> {
+    let m = reqwest::Method::from_bytes(method.as_deref().unwrap_or("GET").as_bytes())
+        .map_err(|e| e.to_string())?;
+    let mut req = client.request(m, &url);
+    for (k, v) in headers.unwrap_or_default() {
+        req = req.header(k, v);
+    }
+    if let Some(b) = body {
+        req = req.body(b);
+    }
+    let res = req.send().await.map_err(|e| e.to_string())?;
+    let status = res.status().as_u16();
+    #[cfg(debug_assertions)]
+    eprintln!("native_fetch {status} {}", url.split('?').next().unwrap_or(""));   // 개발 빌드만 — 앱 직결로 나가는지 확인용
+    let content_type = res
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or("application/octet-stream")
+        .to_string();
+    let bytes = res.bytes().await.map_err(|e| e.to_string())?;
+    Ok(NativeRes { status, content_type, body: STANDARD.encode(&bytes) })
+}
+
+// ─── 구글 로그인(Drive 동기화) ─────────────────────────────────────────────
+//   구글은 앱 안 웹뷰 로그인을 막는다(disallowed_useragent). 데스크톱 표준 = 기본 브라우저 + 루프백:
+//   127.0.0.1 임시 포트를 열고, 브라우저 로그인 결과(code)를 그 포트로 받아, PKCE 로 토큰을 바꾼다.
+//   refresh_token 도 받아 1시간마다 다시 로그인할 필요가 없다(웹 GIS 와 다른 점).
+//   클라이언트 = 구글 콘솔 '데스크톱 앱' 유형. 보안 비밀번호는 저장소에 두지 않고 빌드 때 env 로 넣는다
+//   (공개 저장소에 GOCSPX- 값이 올라가면 유출로 보고 막힐 수 있다). 비면 로그인만 안 된다.
+const GOOGLE_CLIENT_ID: &str = "329003207663-2rfjkqui4cs077033pidt5o71gitdndj.apps.googleusercontent.com";
+const GOOGLE_CLIENT_SECRET: Option<&str> = option_env!("GOOGLE_DESKTOP_CLIENT_SECRET");
+const GOOGLE_SCOPE: &str = "https://www.googleapis.com/auth/drive.appdata";
+
+#[derive(serde::Serialize)]
+struct GoogleToken {
+    access_token: String,
+    expires_in: u64,
+    refresh_token: Option<String>,
+}
+
+fn rand_url_safe(n: usize) -> String {
+    use rand::Rng;
+    const A: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-._~";
+    let mut r = rand::thread_rng();
+    (0..n).map(|_| A[r.gen_range(0..A.len())] as char).collect()
+}
+
+async fn token_request(client: &reqwest::Client, form: &[(&str, &str)]) -> Result<GoogleToken, String> {
+    let res = client.post("https://oauth2.googleapis.com/token").form(form).send().await.map_err(|e| e.to_string())?;
+    let status = res.status();
+    let v: serde_json::Value = serde_json::from_slice(&res.bytes().await.map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    if !status.is_success() {
+        return Err(format!("token {}: {}", status.as_u16(), v.get("error").and_then(|e| e.as_str()).unwrap_or("?")));
+    }
+    Ok(GoogleToken {
+        access_token: v["access_token"].as_str().ok_or("no access_token")?.to_string(),
+        expires_in: v["expires_in"].as_u64().unwrap_or(3600),
+        refresh_token: v["refresh_token"].as_str().map(|s| s.to_string()),
+    })
+}
+
+#[tauri::command]
+async fn google_login(client: tauri::State<'_, reqwest::Client>) -> Result<GoogleToken, String> {
+    use sha2::{Digest, Sha256};
+    use std::io::{Read, Write};
+    let secret = GOOGLE_CLIENT_SECRET.ok_or("이 빌드에는 구글 로그인 키가 없다")?;
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
+    let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+    let redirect = format!("http://127.0.0.1:{port}");
+    let verifier = rand_url_safe(64);
+    let challenge = base64::engine::general_purpose::URL_SAFE_NO_PAD.encode(Sha256::digest(verifier.as_bytes()));
+    let state = rand_url_safe(24);
+    let mut auth = reqwest::Url::parse("https://accounts.google.com/o/oauth2/v2/auth").unwrap();
+    auth.query_pairs_mut()
+        .append_pair("client_id", GOOGLE_CLIENT_ID)
+        .append_pair("redirect_uri", &redirect)
+        .append_pair("response_type", "code")
+        .append_pair("scope", GOOGLE_SCOPE)
+        .append_pair("code_challenge", &challenge)
+        .append_pair("code_challenge_method", "S256")
+        .append_pair("state", &state)
+        .append_pair("access_type", "offline")
+        .append_pair("prompt", "consent");
+    open::that_detached(auth.as_str()).map_err(|e| e.to_string())?;
+
+    // 브라우저가 돌아올 때까지(최대 5분) 한 요청만 받는다
+    let want_state = state.clone();
+    let code = tauri::async_runtime::spawn_blocking(move || -> Result<String, String> {
+        listener.set_nonblocking(false).ok();
+        let deadline = std::time::Instant::now() + Duration::from_secs(300);
+        loop {
+            if std::time::Instant::now() > deadline { return Err("로그인 시간 초과".into()); }
+            let (mut s, _) = listener.accept().map_err(|e| e.to_string())?;
+            let mut buf = [0u8; 4096];
+            let n = s.read(&mut buf).unwrap_or(0);
+            let req = String::from_utf8_lossy(&buf[..n]);
+            let path = req.split_whitespace().nth(1).unwrap_or("/");
+            let url = reqwest::Url::parse(&format!("http://127.0.0.1{path}")).map_err(|e| e.to_string())?;
+            let q: HashMap<String, String> = url.query_pairs().into_owned().collect();
+            if q.get("code").is_none() && q.get("error").is_none() { // 파비콘 등 — 무시
+                let _ = s.write_all(b"HTTP/1.1 404 Not Found\r\nContent-Length: 0\r\n\r\n");
+                continue;
+            }
+            let ok = q.get("state") == Some(&want_state) && q.get("code").is_some();
+            let msg = if ok { "로그인 완료 — 이 창을 닫고 포트폴리오 앱으로 돌아가세요." } else { "로그인 실패 — 앱에서 다시 시도하세요." };
+            let html = format!("<!doctype html><meta charset=utf-8><title>포트폴리오</title><body style='font-family:sans-serif;padding:40px'><h2>{msg}</h2>");
+            let _ = s.write_all(format!("HTTP/1.1 200 OK\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\n\r\n{}", html.len(), html).as_bytes());
+            return if ok { Ok(q["code"].clone()) } else { Err(q.get("error").cloned().unwrap_or("state 불일치".into())) };
+        }
+    }).await.map_err(|e| e.to_string())??;
+
+    token_request(&client, &[
+        ("client_id", GOOGLE_CLIENT_ID), ("client_secret", secret), ("code", &code),
+        ("code_verifier", &verifier), ("redirect_uri", &redirect), ("grant_type", "authorization_code"),
+    ]).await
+}
+
+#[tauri::command]
+async fn google_refresh(client: tauri::State<'_, reqwest::Client>, refresh_token: String) -> Result<GoogleToken, String> {
+    let secret = GOOGLE_CLIENT_SECRET.ok_or("이 빌드에는 구글 로그인 키가 없다")?;
+    token_request(&client, &[
+        ("client_id", GOOGLE_CLIENT_ID), ("client_secret", secret),
+        ("refresh_token", &refresh_token), ("grant_type", "refresh_token"),
+    ]).await
+}
+
+#[tauri::command]
+fn open_external(url: String) -> Result<(), String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("http(s) 주소만 연다".into());
+    }
+    open::that_detached(url).map_err(|e| e.to_string())
+}
+
+// 맥 대화상자 — osascript(기본 대화상자). 취소는 종료 코드 1.
+//   prompt 취소는 "\u{0}"(빈 문자열 입력과 구분), confirm 은 "1"/"0".
+fn mac_dialog(kind: &str, msg: &str, def: &str) -> String {
+    let script: &[&str] = match kind {
+        "confirm" => &["on run argv", "display dialog (item 1 of argv) with title \"포트폴리오\" buttons {\"취소\", \"확인\"} default button \"확인\" cancel button \"취소\"", "end run"],
+        "prompt" => &["on run argv", "text returned of (display dialog (item 1 of argv) with title \"포트폴리오\" default answer (item 2 of argv) buttons {\"취소\", \"확인\"} default button \"확인\" cancel button \"취소\")", "end run"],
+        _ => &["on run argv", "display dialog (item 1 of argv) with title \"포트폴리오\" buttons {\"확인\"} default button \"확인\"", "end run"],
+    };
+    let mut cmd = std::process::Command::new("osascript");
+    for l in script { cmd.arg("-e").arg(l); }
+    let out = cmd.arg(msg).arg(def).output();
+    let ok = out.as_ref().map(|o| o.status.success()).unwrap_or(false);
+    match kind {
+        "confirm" => (if ok { "1" } else { "0" }).to_string(),
+        "prompt" => if ok { String::from_utf8_lossy(&out.unwrap().stdout).trim_end_matches('\n').to_string() } else { "\u{0}".to_string() },
+        _ => "1".to_string(),
+    }
+}
+
+fn main() {
+    // 쿠키 저장 — 야후 crumb(쿠키+crumb 짝)이 요청 사이에 이어져야 한다. 압축 응답 자동 해제.
+    let client = reqwest::Client::builder()
+        .cookie_store(true)
+        .timeout(Duration::from_secs(20))
+        .build()
+        .expect("http client");
+
+    // 로컬 확인용 — PORTFOLIO_URL=http://localhost:5173/ 로 띄우면 개발 서버를 연다(배포 전 확인)
+    let url = std::env::var("PORTFOLIO_URL").unwrap_or_else(|_| SITE_URL.to_string());
+
+    tauri::Builder::default()
+        .manage(client)
+        .register_asynchronous_uri_scheme_protocol("pfdialog", |_ctx, req, responder| {
+            let url = reqwest::Url::parse(&req.uri().to_string()).ok();
+            let q: HashMap<String, String> = url.map(|u| u.query_pairs().into_owned().collect()).unwrap_or_default();
+            std::thread::spawn(move || {
+                let get = |k: &str| q.get(k).cloned().unwrap_or_default();
+                let r = mac_dialog(&get("kind"), &get("msg"), &get("def"));
+                responder.respond(
+                    tauri::http::Response::builder()
+                        .header("Access-Control-Allow-Origin", "*")
+                        .header("Content-Type", "text/plain; charset=utf-8")
+                        .body(r.into_bytes())
+                        .unwrap(),
+                );
+            });
+        })
+        .invoke_handler(tauri::generate_handler![native_fetch, open_external, google_login, google_refresh])
+        .setup(move |app| {
+            WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse()?))
+                .title("포트폴리오")
+                .inner_size(1500.0, 950.0)
+                .min_inner_size(400.0, 600.0)
+                .initialization_script(INIT_SCRIPT)
+                .center()
+                .build()?;
+            Ok(())
+        })
+        .run(tauri::generate_context!())
+        .expect("앱 실행 실패");
+}

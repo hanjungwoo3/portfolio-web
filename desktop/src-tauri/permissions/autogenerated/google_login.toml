@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-google-login"
+description = "Enables the google_login command without any pre-configured scope."
+commands.allow = ["google_login"]
+
+[[permission]]
+identifier = "deny-google-login"
+description = "Denies the google_login command without any pre-configured scope."
+commands.deny = ["google_login"]

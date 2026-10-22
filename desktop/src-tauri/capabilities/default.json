@@ -1,0 +1,21 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "원격 사이트(github.io)에서 앱 명령(native_fetch·open_external)을 부를 수 있게 — 로컬 개발 주소도 허용",
+  "windows": [
+    "main"
+  ],
+  "remote": {
+    "urls": [
+      "https://hanjungwoo3.github.io/*",
+      "http://localhost:5173/*"
+    ]
+  },
+  "permissions": [
+    "core:default",
+    "allow-native-fetch",
+    "allow-open-external",
+    "allow-google-login",
+    "allow-google-refresh"
+  ]
+}

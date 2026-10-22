@@ -61,7 +61,10 @@ function getLastSyncedHash(): string | null {
 // — 사전 setSyncMode("off") 해두면 redirect 후 이미 OFF 상태 유지
 export async function enableSync(): Promise<void> {
   setSyncMode("off");
-  signIn();  // redirect — 이 시점 이후 코드는 페이지 navigate 로 실행 안 됨
+  // 웹은 redirect — 이 시점 이후 코드는 페이지 navigate 로 실행 안 됨(Promise 가 안 끝난다).
+  //   데스크톱 앱은 브라우저 로그인 뒤 제자리에서 끝난다 → 호출측이 이어서 첫 저장/불러오기를 한다.
+  const ok = await signIn();
+  if (!ok) throw new Error("Google 로그인 실패·취소");
 }
 
 // 로그아웃 + 상태 초기화

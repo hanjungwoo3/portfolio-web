@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { subscribeProxyStatus, myDownCount, type ProxyState } from "../lib/proxyStatus";
 import { useExtensionProxyReady } from "../lib/extensionProxy";
-import { isNativeApp } from "../lib/nativeProxy";
+import { isNativeApp, isDesktopApp, isDirectApp } from "../lib/nativeProxy";
 
 // 헤더 인라인 텍스트로 표시 (팝업 없음)
 // 메시지에 폴링 간격까지 포함 — 별도 PollingInfo 불필요
@@ -21,7 +21,7 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettin
   // 확장·앱은 프록시 목록을 아예 통과하지 않는다 → 공용 프록시 상태를 말할 이유가 없다.
   //   (확장 감지는 핸드셰이크라 마운트 뒤에 켜지므로 훅으로 구독한다)
   const extReady = useExtensionProxyReady();
-  const direct = isNativeApp() || extReady;
+  const direct = isDirectApp() || extReady;
 
   useEffect(() => subscribeProxyStatus(setState), []);
 
@@ -38,8 +38,8 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettin
   let statusMsg: { emoji: string; text: string; color: string } | null = null;
   if (direct) {
     statusMsg = {
-      emoji: isNativeApp() ? "📱" : "🧩",
-      text: `${isNativeApp() ? "앱" : "확장"} 직결 · ${baseSec}초 갱신`,
+      emoji: isNativeApp() ? "📱" : isDesktopApp() ? "🖥️" : "🧩",
+      text: `${isDirectApp() ? "앱" : "확장"} 직결 · ${baseSec}초 갱신`,
       color: "text-emerald-700",
     };
   } else if (usePersonalProxy && myDownCount() === 0) {

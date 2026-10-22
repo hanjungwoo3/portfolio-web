@@ -253,13 +253,27 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     } finally { setSyncBusy(false); setSyncBusyMsg(""); }
   }, [handleSyncAuthError, onChanged, onClose]);
 
+  // 데스크톱 앱 로그인이 끝나면 바로 잇는 동작 — startLoginThen 은 deps 가 비어 최신 함수를 ref 로 본다
+  const doUploadRef = useRef(doUpload); doUploadRef.current = doUpload;
+  const doDownloadRef = useRef(doDownload); doDownloadRef.current = doDownload;
+
   // 미로그인 시 — 동작 저장 후 로그인 redirect. 돌아오면 resume 효과가 자동 실행.
   const startLoginThen = useCallback((action: PendingSyncAction) => {
     setPendingSyncAction(action);
     setStatusMsg("Google 로그인 중...");
     setSyncBusy(true);
     setSyncBusyMsg("Google 로그인 중...");
-    signIn();   // 전체 페이지 redirect — 이후 코드는 실행 안 됨
+    // 웹은 전체 페이지 redirect — 이후 코드는 실행 안 됨.
+    //   데스크톱 앱은 브라우저 로그인 뒤 제자리에서 끝난다 → 스피너를 걷고 맡겨 둔 동작을 바로 잇는다
+    void signIn().then(ok => {
+      setSyncBusy(false); setSyncBusyMsg("");
+      if (!ok) { clearPendingSyncAction(); setStatusMsg("⚠️ Google 로그인 실패·취소"); return; }
+      clearPendingSyncAction();
+      setSignedIn(true);   // 화면을 '로그인됨'으로 — 안 하면 창을 닫았다 열어야 바뀌었다(사용자 지적)
+      setStatusMsg("✅ Google 로그인됨");
+      if (action === "upload") void doUploadRef.current();
+      else void doDownloadRef.current();
+    });
   }, []);
 
   const onUploadClick = useCallback(() => {

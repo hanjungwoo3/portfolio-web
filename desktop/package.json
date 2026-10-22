@@ -1,0 +1,14 @@
+{
+  "name": "portfolio-desktop",
+  "private": true,
+  "version": "0.1.0",
+  "description": "포트폴리오 데스크톱 앱(맥·윈도우) — github.io 사이트를 띄우고 시세는 앱이 직접 받는다(확장·프록시 불필요)",
+  "scripts": {
+    "dev": "tauri dev",
+    "build": "tauri build",
+    "icon": "tauri icon ../public/icon.svg"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2"
+  }
+}

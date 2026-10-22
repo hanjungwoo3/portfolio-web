@@ -38,6 +38,24 @@ export function isNativeApp(): boolean {
   try { return Capacitor.isNativePlatform(); } catch { return false; }
 }
 
+// 데스크톱 앱(맥·윈도우, Tauri) 안인가 — 앱이 페이지보다 먼저 심는 표식(desktop/src-tauri/src/main.rs INIT_SCRIPT).
+//   안드로이드(Capacitor)와 전송만 같고 나머지(구글 로그인·업데이트 안내·서비스워커)는 다르다 → isNativeApp 과 따로 둔다.
+export function isDesktopApp(): boolean {
+  return typeof window !== "undefined" && !!(window as unknown as { __PORTFOLIO_DESKTOP__?: boolean }).__PORTFOLIO_DESKTOP__;
+}
+// 앱이 직접 요청하는가(안드로이드 또는 데스크톱) — 프록시·확장 없이 CORS 없는 네이티브 HTTP 로
+export function isDirectApp(): boolean {
+  return isNativeApp() || isDesktopApp();
+}
+
+// 데스크톱 앱 전송 — Rust(reqwest) 가 보내고 본문은 base64 로 돌려준다(바이너리·EUC-KR 그대로).
+async function desktopRequest(url: string, method: string, headers: Record<string, string>, body?: string)
+  : Promise<{ status: number; contentType: string; buf: ArrayBuffer }> {
+  const tauri = (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args: unknown) => Promise<{ status: number; content_type: string; body: string }> } }).__TAURI_INTERNALS__;
+  const r = await tauri.invoke("native_fetch", { url, method, headers, body });
+  return { status: r.status, contentType: r.content_type, buf: b64ToBuf(r.body) };
+}
+
 // 네이티브 플랫폼 이름 — 설정 화면 표시용 ("android" / "ios"), 웹이면 null.
 export function nativePlatform(): string | null {
   try { return Capacitor.isNativePlatform() ? Capacitor.getPlatform() : null; } catch { return null; }
@@ -103,13 +121,27 @@ function needsCrumb(u: URL): boolean {
           u.pathname.includes("/v6/finance/quote"));
 }
 
-async function getYahooCrumb(): Promise<string | null> {
-  if (crumbCache && Date.now() - crumbCache.ts < CRUMB_TTL_MS) return crumbCache.crumb;
+// 동시에 들어온 요청들이 crumb 을 각자 새로 받지 않게 한 번으로 묶는다(데스크톱 첫 화면에서 12번 받던 것)
+let crumbInflight: Promise<string | null> | null = null;
+function getYahooCrumb(): Promise<string | null> {
+  if (crumbCache && Date.now() - crumbCache.ts < CRUMB_TTL_MS) return Promise.resolve(crumbCache.crumb);
+  crumbInflight ??= fetchYahooCrumb().finally(() => { crumbInflight = null; });
+  return crumbInflight;
+}
+async function fetchYahooCrumb(): Promise<string | null> {
   try {
     // 1) 세션 쿠키 발급 — 응답은 안 본다. 쿠키만 저장소에 들어가면 된다.
     try {
-      await CapacitorHttp.get({ url: "https://fc.yahoo.com/", headers: { "User-Agent": UA } });
+      if (isDesktopApp()) await desktopRequest("https://fc.yahoo.com/", "GET", { "User-Agent": UA });   // 쿠키는 reqwest 저장소에
+      else await CapacitorHttp.get({ url: "https://fc.yahoo.com/", headers: { "User-Agent": UA } });
     } catch { /* 쿠키만 목적이라 실패해도 진행 */ }
+    if (isDesktopApp()) {
+      const d = await desktopRequest("https://query1.finance.yahoo.com/v1/test/getcrumb", "GET", { "User-Agent": UA });
+      const c = new TextDecoder().decode(d.buf).trim();
+      if (d.status !== 200 || !c || c.length > 50) return null;
+      crumbCache = { crumb: c, ts: Date.now() };
+      return c;
+    }
     // 2) crumb 발급 — 위에서 받은 쿠키가 자동으로 실려 나간다.
     const r = await CapacitorHttp.get({
       url: "https://query1.finance.yahoo.com/v1/test/getcrumb",
@@ -175,6 +207,13 @@ export async function fetchViaNative(targetUrl: string, init?: RequestInit): Pro
       }
     }
   } catch { /* URL 파싱 실패 — 원본 그대로 보낸다 */ }
+
+  // 데스크톱 앱 — Rust 로 보내고 base64 본문을 바이트로 되돌린다(추측 없이 항상 바이트)
+  if (isDesktopApp()) {
+    const d = await desktopRequest(url, init?.method ?? "GET", headers, typeof init?.body === "string" ? init.body : undefined);
+    if (crumbUsed && d.status === 401) crumbCache = null;
+    return new Response(d.buf, { status: d.status || 502, headers: { "Content-Type": d.contentType } });
+  }
 
   const res = await CapacitorHttp.request({
     url,

@@ -7,7 +7,7 @@ import {
   getEnabledPersonalProxies, isLocalProxyUrl, isExtensionProxyUrl, isNativeProxyUrl, isSyntheticProxyUrl,
 } from "./proxyConfig";
 import { isExtensionProxyReady, fetchViaExtension } from "./extensionProxy";
-import { isNativeApp, fetchViaNative } from "./nativeProxy";
+import { isDirectApp, fetchViaNative } from "./nativeProxy";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
 import { isKrNightSession, krFuturesName, isKrFuturesTradingNow, isUsAfterMarketOpen, isUsExtendedTradingOpen, nowKstDateStr, isMarketOpen, isKrAfterRegularClose, isUsOvernightNow } from "./format";
 import { rememberTossCode, getTossCode } from "./toss";
@@ -164,7 +164,7 @@ export async function fetchProxied(
   // 네이티브 앱이면 그 무엇보다 먼저 — 네이티브 HTTP 에는 CORS 가 없어 프록시가 아예 필요 없다.
   //   실패하면 삼키고 아래 경로로 계속한다(앱이 단일 실패점이 되지 않게).
   //   Yahoo 는 여기서 429 가 날 수 있다 — OkHttp 는 브라우저가 아니라서. 그때도 폴백이 받는다.
-  if (isNativeApp()) {
+  if (isDirectApp()) {   // 안드로이드 앱 또는 데스크톱 앱(맥·윈도우)
     try {
       const r = await fetchViaNative(targetUrl, init);
       if (r.ok || r.status === 490) return r;   // 490 = 토스 점검, 다른 경로로 물어도 답이 같다

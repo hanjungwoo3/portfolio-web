@@ -3,7 +3,7 @@
 // → 공개 인프라 부담 0, 사용자 본인 100k/일 무료 한도 전용
 
 import { isExtensionProxyReady } from "./extensionProxy";
-import { isNativeApp } from "./nativeProxy";
+import { isDirectApp } from "./nativeProxy";
 
 const KEY = "portfolio_personal_proxy_url";        // 레거시 단일 URL (마이그레이션/호환)
 const LIST_KEY = "portfolio_personal_proxies";     // 신규 — 여러 개 {url, enabled}
@@ -56,7 +56,7 @@ export function setPersonalProxies(list: PersonalProxy[]) {
 export function getEnabledPersonalProxies(): string[] {
   const stored = getPersonalProxies().filter(p => p.enabled).map(p => p.url);
   // 네이티브 앱이면 맨 앞 — CORS 가 없어 프록시를 아예 거치지 않는다(가장 빠르고 한도도 없다).
-  if (isNativeApp()) return [NATIVE_PROXY_URL, ...stored];
+  if (isDirectApp()) return [NATIVE_PROXY_URL, ...stored];   // 안드로이드·데스크톱 앱
   // 확장은 그다음 — 가정용 IP 이고 호출 한도가 없어 프록시보다 먼저 쓴다.
   return isExtensionProxyReady() ? [EXTENSION_PROXY_URL, ...stored] : stored;
 }
@@ -221,7 +221,8 @@ export function invalidatePersonalProxyStatusCache(): void {
 export function getPersonalPollMs(): number {
   try {
     const v = localStorage.getItem(POLL_KEY);
-    if (v === null || v === "") return DEFAULT_PUBLIC_POLL_MS;
+    // 앱(안드로이드·데스크톱)은 처음부터 5초 — 공용 프록시를 안 써서 호출 한도가 없다(데스크톱 첫 실행이 5분으로 떴다)
+    if (v === null || v === "") return isDirectApp() ? 5_000 : DEFAULT_PUBLIC_POLL_MS;
     const n = Number(v);
     // 0 = 수동(허용), 그 외엔 1초 이상만 유효
     if (n === 0) return 0;
@@ -242,7 +243,7 @@ export function hasDedicatedTransport(): boolean {
 //   전용 '프록시'(본인 워커)와는 구분해야 한다. 워커는 그 자체가 프록시라 다운 집계 대상이지만,
 //   확장·앱은 프록시 목록을 통과하지 않으므로 공용 프록시가 몇 개 죽든 영향을 받지 않는다.
 export function hasDirectTransport(): boolean {
-  return isNativeApp() || isExtensionProxyReady();
+  return isDirectApp() || isExtensionProxyReady();
 }
 
 // 수동 모드 여부 — 자동 폴링 끔 (버튼/메뉴 진입 시에만 갱신)

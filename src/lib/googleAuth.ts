@@ -7,7 +7,7 @@
 import { App as CapApp } from "@capacitor/app";
 import { Browser } from "@capacitor/browser";
 import { Capacitor } from "@capacitor/core";
-import { isNativeApp } from "./nativeProxy";
+import { isNativeApp, isDesktopApp } from "./nativeProxy";
 import {
   isExtensionProxyReady, getGoogleTokenViaExtension, getGoogleTokenViaExtensionDetailed, clearGoogleTokenViaExtension,
 } from "./extensionProxy";
@@ -113,6 +113,41 @@ async function nativeAuthToken(interactive: boolean): Promise<string | null> {
     return r.accessToken;
   } catch (e) {
     noteAuthFailure("native-auth-throw", e);
+    return null;
+  }
+}
+
+// ─── 데스크톱 앱(맥·윈도우) ──────────────────────────────────────
+//   구글은 앱 웹뷰 안 로그인을 막는다 → 기본 브라우저 + 127.0.0.1 루프백(desktop/src-tauri google_login).
+//   refresh_token 을 받아 둬서 만료돼도 브라우저 없이 새 토큰을 받는다. 보안 비밀번호는 Rust 쪽에만 있다.
+const DESKTOP_REFRESH_KEY = "gdrive_desktop_refresh";
+type DesktopToken = { access_token: string; expires_in: number; refresh_token?: string | null };
+function desktopInvoke<T>(cmd: string, args?: Record<string, unknown>): Promise<T> {
+  const t = (window as unknown as { __TAURI_INTERNALS__: { invoke: (c: string, a?: unknown) => Promise<T> } }).__TAURI_INTERNALS__;
+  return t.invoke(cmd, args);
+}
+async function desktopAuthToken(interactive: boolean): Promise<string | null> {
+  try {
+    const rt = localStorage.getItem(DESKTOP_REFRESH_KEY);
+    if (rt) {
+      try {
+        const t = await desktopInvoke<DesktopToken>("google_refresh", { refreshToken: rt });
+        clearAuthDiag();
+        saveToken(t.access_token, t.expires_in);
+        return t.access_token;
+      } catch (e) {
+        noteAuthFailure("desktop-refresh", e);
+        if (String(e).includes("invalid_grant")) localStorage.removeItem(DESKTOP_REFRESH_KEY);   // 권한 해제됨 — 다시 로그인
+        if (!interactive) return null;
+      }
+    } else if (!interactive) return null;
+    const t = await desktopInvoke<DesktopToken>("google_login");
+    if (t.refresh_token) localStorage.setItem(DESKTOP_REFRESH_KEY, t.refresh_token);
+    clearAuthDiag();
+    saveToken(t.access_token, t.expires_in);
+    return t.access_token;
+  } catch (e) {
+    noteAuthFailure("desktop-login", e);
     return null;
   }
 }
@@ -307,7 +342,7 @@ function requestSilentRefresh(): Promise<string | null> {
   //   prompt:"none" 이어도 GIS 가 최상위 navigate 로 떨어뜨려, 설정만 열어도 앱이
   //   accounts.google.com 으로 이동해 웹페이지가 돼 버린다(실측: gsiwebsdk=gis_attributes 로 확인).
   //   앱은 토큰이 없으면 그냥 없는 것으로 두고, 재로그인은 Custom Tab 흐름(signIn)으로만 한다.
-  if (isNativeApp()) return Promise.resolve(null);
+  if (isNativeApp() || isDesktopApp()) return Promise.resolve(null);   // 데스크톱도 GIS 를 안 쓴다(웹뷰 로그인 차단)
   if (!wasSignedIn()) return Promise.resolve(null);
   return new Promise((resolve) => {
     pendingSilentResolvers.push(resolve);
@@ -330,6 +365,14 @@ function requestSilentRefresh(): Promise<string | null> {
 }
 
 function scheduleSilentRefresh(): void {
+  // 데스크톱 앱 — refresh_token 으로 만료 5분 전에 조용히 갱신
+  if (isDesktopApp()) {
+    if (refreshTimer !== null) { window.clearTimeout(refreshTimer); refreshTimer = null; }
+    if (!accessToken) return;
+    refreshTimer = window.setTimeout(() => { refreshTimer = null; void desktopAuthToken(false); },
+      Math.max(0, tokenExpiresAt - Date.now() - SILENT_REFRESH_LEAD_MS));
+    return;
+  }
   // 확장이 있으면 팝업 없이 갱신되므로 타이머가 실제로 동작한다.
   if (!isNativeApp() && isExtensionProxyReady()) { scheduleExtensionRefresh(); return; }
   // 앱은 GIS 를 안 쓰지만(위 주석), 네이티브 인증이 되는 버전이면 그걸로 갱신한다.
@@ -455,13 +498,16 @@ export async function hasExtensionAuth(): Promise<boolean> {
 }
 
 // 로그인 — 전체 페이지가 google 로 redirect (사용자 클릭 후)
-// Promise 안 반환 — redirect 후 다시 돌아올 때 token 처리됨
-export function signIn(): void {
+// 웹은 redirect 후 다시 돌아올 때 token 처리됨 → 반환 Promise 는 끝나지 않는다.
+// 데스크톱 앱만 제자리에서 끝난다(브라우저 루프백) → 성공 여부로 끝난다. 호출측은 그걸로 스피너를 걷는다.
+export function signIn(): Promise<boolean> {
   // 로그인 후 돌아갈 path 저장 (예: 모달 다시 열림 등)
   try {
     localStorage.setItem(PRE_AUTH_PATH_KEY, window.location.pathname + window.location.search);
   } catch { /* noop */ }
 
+  // 데스크톱 앱 — 기본 브라우저로 로그인(루프백). 웹 경로(리다이렉트)는 웹뷰라 구글이 막는다
+  if (isDesktopApp()) return desktopAuthToken(true).then(t => !!t);
   // 새 APK(v1.2.0+)는 네이티브 인증으로. 옛 APK·웹은 아래 기존 경로 그대로.
   void canUseNativeAuth().then((ok) => {
     if (ok) {
@@ -485,6 +531,7 @@ export function signIn(): void {
     }
     signInLegacy();
   });
+  return new Promise<boolean>(() => { /* 페이지가 떠난다 — 끝나지 않음 */ });
 }
 
 function signInLegacy(): void {
@@ -571,6 +618,7 @@ export async function getAccessToken(
     clearAuthDiag();
     return accessToken;
   }
+  if (isDesktopApp()) return await desktopAuthToken(false);   // refresh_token 으로 — 브라우저 없이
   // 앱이면 네이티브로 조용히 받는다 — 이미 동의돼 있으면 UI 없이 새 토큰이 나온다.
   //   이게 앱의 1시간 로그아웃을 푸는 지점이다.
   if (await canUseNativeAuth()) {
@@ -596,6 +644,12 @@ export async function signOut(): Promise<void> {
   const t = accessToken;
   const native = await canUseNativeAuth();
   clearToken();
+  if (isDesktopApp()) {   // 데스크톱 — refresh_token 을 폐기해야 앱 연결이 실제로 끊긴다
+    const rt = localStorage.getItem(DESKTOP_REFRESH_KEY);
+    localStorage.removeItem(DESKTOP_REFRESH_KEY);
+    if (rt) { try { await fetch(`${REVOKE_URL}?token=${encodeURIComponent(rt)}`, { method: "POST" }); } catch { /* noop */ } }
+    return;
+  }
   // ★ 앱에서는 revoke 를 부르지 않는다.
   //   revoke 는 서버 권한만 없애고, 플레이 서비스는 그 토큰을 캐시에서 계속 돌려준다.
   //   그러면 재로그인 때 동의 창 없이 "로그인됨" 이 되고 API 호출만 401 로 죽는다(실측).
@@ -627,6 +681,7 @@ export function wasSignedIn(): boolean {
 export async function recoverFromUnauthorized(): Promise<string | null> {
   const dead = accessToken;
   clearToken();
+  if (isDesktopApp()) return await desktopAuthToken(false);
   // 확장도 토큰을 캐시한다 — 안 비우면 같은 죽은 토큰을 계속 돌려준다(네이티브와 같은 함정).
   if (!isNativeApp() && isExtensionProxyReady()) {
     if (dead) await clearGoogleTokenViaExtension(dead);

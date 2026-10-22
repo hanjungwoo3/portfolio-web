@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-google-refresh"
+description = "Enables the google_refresh command without any pre-configured scope."
+commands.allow = ["google_refresh"]
+
+[[permission]]
+identifier = "deny-google-refresh"
+description = "Denies the google_refresh command without any pre-configured scope."
+commands.deny = ["google_refresh"]
