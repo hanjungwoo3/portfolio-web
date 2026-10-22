@@ -1139,6 +1139,7 @@ function InvestorChartsSection({
   const dailyForeign = useMemo(() => data.map(d => d.외국인), [data]);
   const dailyInst = useMemo(() => data.map(d => d.기관), [data]);
   const dailyPension = useMemo(() => data.map(d => d.연기금), [data]);
+  const dailyIndiv = useMemo(() => data.map(d => d.개인), [data]);
   const cumForeign = useMemo(() => {
     let s = 0; return data.map(d => { s += d.외국인; return s; });
   }, [data]);
@@ -1147,6 +1148,9 @@ function InvestorChartsSection({
   }, [data]);
   const cumPension = useMemo(() => {
     let s = 0; return data.map(d => { s += d.연기금; return s; });
+  }, [data]);
+  const cumIndiv = useMemo(() => {
+    let s = 0; return data.map(d => { s += d.개인; return s; });
   }, [data]);
 
   // 프로그램매매 — dates 정렬 일별/누적 순매수 (InvestorChartLight 용)
@@ -1275,11 +1279,11 @@ function InvestorChartsSection({
       )}
       {/* 수급별 평균 매수단가 — 차트에 겹치지 않고 표로 */}
       {hasInvestor && <FlowCostTable investors={data} curPrice={curPrice} />}
-      {/* 투자 유형별 — ① 순매수 행(외국인/기관계/연기금/프로그램) ② 잔고·압력 행(공매도/대차/신용/CFD) */}
+      {/* 투자 유형별 — ① 순매수 행(외국인/기관계/연기금/개인/프로그램) ② 잔고·압력 행(공매도/대차/신용/CFD) */}
       {hasInvestor ? (
         <Suspense fallback={<div className="h-[220px]" />}>
           {/* ① 순매수 (일별+누적) */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-2">
+          <div className={`grid grid-cols-1 md:grid-cols-2 ${hasProgram ? "lg:grid-cols-5" : "lg:grid-cols-4"} gap-2`}>
             <InvestorChartLight
               label="외국인"
               daily={dailyForeign} cumulative={cumForeign} dates={dates}
@@ -1296,6 +1300,13 @@ function InvestorChartsSection({
               label="연기금"
               daily={dailyPension} cumulative={cumPension} dates={dates}
               barColor="#fed7aa" cumColor="#c2410c"
+              onReady={registerPanelSync}
+            />
+            {/* 개인 — 빈 넷째 칸에(사용자 요청 2026-10-22). 장중엔 토스가 개인을 0 으로 줘 오늘 막대는 장 마감 뒤에 찬다 */}
+            <InvestorChartLight
+              label="개인"
+              daily={dailyIndiv} cumulative={cumIndiv} dates={dates}
+              barColor="#fecdd3" cumColor="#be123c"
               onReady={registerPanelSync}
             />
             {hasProgram && (
