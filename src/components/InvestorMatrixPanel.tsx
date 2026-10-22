@@ -158,6 +158,25 @@ export function InvestorMatrixPanel({ history, highlightKey, title, note, ticker
   const amt = unit === "amount";
   const conv = (shares: number, d: { 종가?: number }): number => amt ? shares * (d.종가 ?? 0) : shares;
   const fmtUnit = (v: number): string => (amt ? compactWon(v) : compact(v));
+  // 매수·매도 따로(개인·외국인·기관만 — 토스가 그 셋만 준다). 순매수 아래 작은 줄 '매수 · 매도'(사용자 요청 2026-10-22)
+  const GS_KEYS = new Set<keyof Investor>(["개인", "외국인", "기관"]);
+  const gsSum = (days: Investor[], k: keyof Investor): [number, number] | null => {
+    if (!GS_KEYS.has(k)) return null;
+    let b = 0, sl = 0, any = false;
+    for (const d of days) {
+      const g = d.매수매도?.[k as "개인" | "외국인" | "기관"];
+      if (!g) continue;
+      any = true; b += conv(g[0], d); sl += conv(g[1], d);
+    }
+    return any && (b > 0 || sl > 0) ? [b, sl] : null;
+  };
+  const gsLine = (g: [number, number] | null) => g && (
+    <div className="text-[8.5px] font-normal leading-tight">
+      <span className="text-rose-500">{fmtUnit(g[0]).replace(/^[+-]/, "")}</span>
+      <span className="text-gray-300"> · </span>
+      <span className="text-blue-500">{fmtUnit(g[1]).replace(/^[+-]/, "")}</span>
+    </div>
+  );
 
   const today = history[0]?.외국인비율 ?? 0;
   const recentDays = history.slice(0, Math.min(7, history.length));
@@ -335,7 +354,7 @@ export function InvestorMatrixPanel({ history, highlightKey, title, note, ticker
           </div>
         );
       })()}
-      <div className="font-bold text-gray-900 mb-1">투자자별 매수/매도</div>
+      <div className="font-bold text-gray-900 mb-1">투자자별 매수/매도 <span className="font-normal text-[10px] text-gray-500">— 개인·외국인·기관 아래 작은 줄 = <span className="text-rose-500">매수</span> · <span className="text-blue-500">매도</span>(장중 개인은 잠정치라 0)</span></div>
       <table className="w-full text-[10px] border border-gray-300 rounded overflow-hidden whitespace-nowrap">
         <thead className="bg-gray-100">
           <tr>
@@ -389,6 +408,7 @@ export function InvestorMatrixPanel({ history, highlightKey, title, note, ticker
                                     ${color}
                                     ${hl ? "bg-amber-50" : ""}`}>
                       {sum === 0 ? "—" : fmtUnit(sum)}
+                      {gsLine(gsSum(slice, inv.key))}
                     </td>
                   );
                 })}
@@ -433,6 +453,7 @@ export function InvestorMatrixPanel({ history, highlightKey, title, note, ticker
                                     ${hl ? "bg-amber-50" : ""}
                                     ${!last ? "border-b" : ""}`}>
                       {v === 0 ? "—" : fmtUnit(v)}
+                      {gsLine(gsSum([d], inv.key))}
                     </td>
                   );
                 })}

@@ -1567,6 +1567,9 @@ interface TossInvestorItem {
   baseDate: string;
   netIndividualsBuyVolume: number;
   netForeignerBuyVolume: number;
+  individualsBuyVolume?: number; individualsSellVolume?: number;
+  foreignerBuyVolume?: number; foreignerSellVolume?: number;
+  institutionBuyVolume?: number; institutionSellVolume?: number;
   netInstitutionBuyVolume: number;
   netPensionFundBuyVolume: number;
   netFinancialInvestmentBuyVolume: number;
@@ -1603,6 +1606,11 @@ function mapInvestorItem(item: TossInvestorItem): Investor {
     기타법인: Number(item.netOtherCorporationBuyVolume || 0),
     외국인비율: Number(item.foreignerRatio || 0),
     종가: Number(item.close || 0) || undefined,
+    매수매도: {
+      개인: [Number(item.individualsBuyVolume || 0), Number(item.individualsSellVolume || 0)],
+      외국인: [Number(item.foreignerBuyVolume || 0), Number(item.foreignerSellVolume || 0)],
+      기관: [Number(item.institutionBuyVolume || 0), Number(item.institutionSellVolume || 0)],
+    },
   };
 }
 
