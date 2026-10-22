@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
+import { openTickPopup, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { IndexWarnTag } from "./IndexWarnTag";
@@ -667,39 +668,44 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     <div className="absolute top-1/2 left-full ml-1 lg:ml-[22px] -translate-x-1/2 -translate-y-1/2 z-30
                                     text-4xl font-black text-gray-400 opacity-20 leading-none pointer-events-none">➜</div>
                   )}
-                  {/* 역할 책갈피 — 이 그룹에서 이 종목이 무엇인지(예: 전공정·원자력). 오른쪽 아래가 비어
-                      있어 그 자리에 둔다(🗺️ 히트맵은 코덱스200·코스닥150 전용이라 겹치지 않는다). */}
-                  {section.tags?.[p.symbol] && (
-                    <div className={`absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded border
-                                     text-[9px] leading-tight whitespace-nowrap font-bold
-                                     ${dashboardTagTone(section.tags[p.symbol])}`}>
-                      {section.tags[p.symbol]}
-                    </div>
-                  )}
-                  {/* 구성종목 히트맵 — 코덱스200·코스닥150 만. '정규장 마감' 책갈피와 같은 모양으로
-                      카드 **바깥 오른쪽 아래**에 붙인다(카드 안은 overflow-hidden 이라 잘린다). */}
-                  {/* 🔍AI — 미국 종목·ETF. 카드 바깥 오른쪽 아래(히트맵 책갈피 자리 — 미국 카드는 비어 있어 안 겹친다, 사용자 결정 2026-10-22) */}
-                  {/^[A-Z][A-Z.]{0,5}$/.test(p.symbol) && marketOfSymbol(p.symbol) === "US" && p.symbol !== "CNNFG" && (
-                    <button onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${p.name}(${p.symbol}) — ${p.desc}`
-                              + (effPrice != null ? `, 현재가 $${effPrice.toFixed(2)}` : "") + (mainPct != null ? ` (${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""))}
-                            title="구글 AI에 현재상태 분석 요청 (팝업)"
-                            className="absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded
-                                       text-[9px] leading-tight whitespace-nowrap font-bold
-                                       text-blue-700 bg-blue-50 border border-blue-300/70 hover:bg-blue-100 transition">
-                      🔍AI
-                    </button>
-                  )}
-                  {CARD_HEATMAP_LINK[p.symbol] && (
-                    <button
-                      onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
-                      title={`${p.name} 구성종목 히트맵(거래량) 보기`}
-                      className="absolute -bottom-1 right-1 z-20 px-1.5 py-0 rounded
-                                 text-[9px] leading-tight whitespace-nowrap font-bold
-                                 text-emerald-700 bg-emerald-50 border border-emerald-300/70
-                                 hover:bg-emerald-100 transition">
-                      🗺️ 히트맵
-                    </button>
-                  )}
+                  {/* 오른쪽 아래 책갈피 줄 — 역할 태그 · 🗺️ 히트맵 · ⚡체결(국내 종목) · 🔍AI(국내·미국 종목)를 한 줄로(겹치지 않게).
+                      카드 **바깥** 아래에 걸친다(카드 안은 overflow-hidden 이라 잘린다). ⚡체결은 AI 옆(사용자 요청 2026-10-22) */}
+                  {(() => {
+                    const krCode = p.symbol.replace(/\.(KS|KQ)$/, "");   // 지수 탭 국내 종목은 005930.KS 꼴
+                    const isKrStock = krCode !== p.symbol && canTickPopup(krCode);
+                    const isUsStock = /^[A-Z][A-Z.]{0,5}$/.test(p.symbol) && marketOfSymbol(p.symbol) === "US" && p.symbol !== "CNNFG";
+                    const tag = section.tags?.[p.symbol];
+                    const pill = "px-1.5 py-0 rounded text-[9px] leading-tight whitespace-nowrap font-bold transition";
+                    if (!tag && !CARD_HEATMAP_LINK[p.symbol] && !isKrStock && !isUsStock) return null;
+                    return (
+                      <div className="absolute -bottom-1 right-1 z-20 flex items-center gap-0.5">
+                        {tag && <span className={`${pill} border ${dashboardTagTone(tag)}`}>{tag}</span>}
+                        {CARD_HEATMAP_LINK[p.symbol] && (
+                          <button onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
+                                  title={`${p.name} 구성종목 히트맵(거래량) 보기`}
+                                  className={`${pill} text-emerald-700 bg-emerald-50 border border-emerald-300/70 hover:bg-emerald-100`}>
+                            🗺️ 히트맵
+                          </button>
+                        )}
+                        {isKrStock && (
+                          <button onClick={() => openTickPopup(krCode, p.name)}
+                                  title="실시간 체결 크게 보기 (팝업)"
+                                  className={`${pill} text-amber-700 bg-amber-50 border border-amber-300/70 hover:bg-amber-100`}>
+                            ⚡체결
+                          </button>
+                        )}
+                        {(isKrStock || isUsStock) && (
+                          <button onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${p.name}(${isKrStock ? krCode : p.symbol}) — ${p.desc}`
+                                    + (effPrice != null ? (isKrStock ? `, 현재가 ${Math.round(effPrice).toLocaleString()}원` : `, 현재가 $${effPrice.toFixed(2)}`) : "")
+                                    + (mainPct != null ? ` (${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""))}
+                                  title="구글 AI에 현재상태 분석 요청 (팝업)"
+                                  className={`${pill} text-blue-700 bg-blue-50 border border-blue-300/70 hover:bg-blue-100`}>
+                            🔍AI
+                          </button>
+                        )}
+                      </div>
+                    );
+                  })()}
                   {sleeping && !isRate && fmtAgo(q?.regularMarketTime) && (
                     <div className="absolute -bottom-1 left-1 z-20 px-1.5 py-0 rounded
                                     text-[9px] leading-tight whitespace-nowrap
