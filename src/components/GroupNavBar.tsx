@@ -84,14 +84,15 @@ export function GroupNavBar({ items, idPrefix, scrollMarginTop, stickyTop = 0, s
 
   if (items.length === 0) return null;
 
+  // z-40 — 카드 책갈피(ETF 태그·리드 화살표, z-30)가 스크롤 중 칩 줄 위로 올라오던 것(사용자 지적 2026-10-22)
   return (
     <div ref={barRef} data-noswipe
          style={(floating || sticky) ? { top: stickyTop } : undefined}
          className={`flex gap-1
                      ${floating
-                       ? `fixed left-0 z-30 flex-col items-start max-h-[74vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pl-0 pr-0.5 py-1
+                       ? `fixed left-0 z-40 flex-col items-start max-h-[74vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden pl-0 pr-0.5 py-1
                           transition-all duration-200 ${shown ? "opacity-100 translate-x-0" : "opacity-0 -translate-x-3 pointer-events-none"}`
-                       : sticky ? `sticky z-30 ${bleedClass} py-1.5 items-center overflow-x-auto whitespace-nowrap bg-white/95 backdrop-blur border-b border-gray-200`
+                       : sticky ? `sticky z-40 ${bleedClass} py-1.5 items-center overflow-x-auto whitespace-nowrap bg-white/95 backdrop-blur border-b border-gray-200`
                                 : "items-center overflow-x-auto whitespace-nowrap"}
                      ${className ?? ""}`}>
       {items.map(it => {

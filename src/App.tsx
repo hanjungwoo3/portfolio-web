@@ -794,7 +794,7 @@ function Dashboard() {
         </div>
       )}
       {!headerCollapsed && (
-      <header ref={headerRef} className="bg-white border-b border-gray-200 sticky top-0 z-30">
+      <header ref={headerRef} className="bg-white border-b border-gray-200 sticky top-0 z-50">   {/* 카드 책갈피(z-30)보다 위 */}
         <div className="max-w-[1600px] mx-auto flex items-center gap-3 px-6 py-3">
           <button onClick={toggleHeader} title="헤더 접기 (포트폴리오~설정 숨김)"
                   className="shrink-0 p-1 rounded text-gray-500
