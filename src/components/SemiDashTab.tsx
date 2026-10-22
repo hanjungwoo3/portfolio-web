@@ -9,7 +9,7 @@ import { useId, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
-  fetchKrFuturesLive, fetchKrFuturesMinute, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
+  fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
 } from "../lib/api";
 import type { Investor } from "../types";
@@ -38,7 +38,8 @@ const eok = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v).toLocaleString()}
 const netWord = (won: number) => `${won >= 0 ? "순매수" : "순매도"} ${Math.abs(Math.round(won / 1e8)).toLocaleString()}억`;
 const sideWord = (st: number) => (st >= 120 ? "매수 우위" : st <= 80 ? "매도 우위" : "팽팽");
 
-export function SemiDashTab() {
+// stocks — 종목 칸. 기본 삼성전자·SK하이닉스. ⚡ 종목 체결 팝업은 같은 화면을 **한 종목**으로 띄운다(사용자 요청 2026-10-22)
+export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { code: string; name: string }[]; popup?: boolean } = {}) {
   const yahooSymbols = allYahooSymbols();
   const REFRESH_MS = useAdaptiveRefreshMs(5_000);
   const { data: quotes } = useQuery({
@@ -90,12 +91,24 @@ export function SemiDashTab() {
     })),
   });
   const stockInv = useQueries({
-    queries: STOCKS.map(s => ({
+    queries: stocks.map(s => ({
       queryKey: ["semi-dash-inv", s.code], queryFn: () => fetchInvestorHistory(s.code, 20),
       refetchInterval: 5 * 60_000, staleTime: 60_000,
     })),
   });
-  const ticks = [useTickFlow(STOCKS[0].code), useTickFlow(STOCKS[1].code)];
+  // 훅 개수는 고정(2) — 한 종목이면 두 번째는 꺼 둔다
+  const ticks = [useTickFlow(stocks[0].code), useTickFlow(stocks[1]?.code ?? stocks[0].code, !!stocks[1])].slice(0, stocks.length);
+  // 종목 시세 — 야후 배치에 없는 종목(팝업으로 연 아무 종목)은 토스 현재가로
+  const { data: tossPx } = useQuery({
+    queryKey: ["semi-dash-toss-px", stocks.map(s => s.code).join(",")],
+    queryFn: () => fetchTossPrices(stocks.map(s => s.code)),
+    enabled: !!popup, refetchInterval: 5_000, staleTime: 3_000,
+  });
+  const sq = (code: string): { price?: number; pct?: number } | undefined => {
+    const t = tossPx?.find(p => p.ticker === code);
+    if (t && t.prevClose > 0) return { price: t.price, pct: ((t.price - t.prevClose) / t.prevClose) * 100 };
+    return q(`${code}.KS`);
+  };
   const [rightTab, setRightTab] = useState<"sig" | "hyp">("sig");
   // 프리장(NXT 08:00~09:00) 결과 — 정규장이 열리면 현물 수급은 KRX 로 바뀌어 프리장이 안 보인다 → 따로 한 줄(사용자 요청)
   const [{ data: kospiNxt }, { data: kosdaqNxt }] = useQueries({
@@ -131,16 +144,14 @@ export function SemiDashTab() {
     })),
   });
   const { data: dayStr } = useQuery({
-    queryKey: ["toss-day-strength", STOCKS.map(s => s.code).join(",")],
-    queryFn: () => fetchTossDayStrength(STOCKS.map(s => s.code)),
+    queryKey: ["toss-day-strength", stocks.map(s => s.code).join(",")],
+    queryFn: () => fetchTossDayStrength(stocks.map(s => s.code)),
     refetchInterval: 10_000, staleTime: 5_000,
   });
 
   // 현물 = KRX(정규장 전엔 NXT 프리장). 프리장을 정규장 그래프에 합치는 건 해 보고 뺐다(사용자 결정 2026-10-22) — 프리장은 노란 '결과' 상자로만
   const kf = kospiFlow.data, ff = futFlow.data;
   const kqFlow = kosdaqFlow.data;
-  // 선물 1계약 = 선물가 × 25만원 → 억원. 선물가가 아직 없으면 계약 그대로
-  const futScale = fut && fut.price > 0 ? (fut.price * 250_000) / 1e8 : undefined;
   const futToday = futMin?.todayTimes && futMin.date === new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)   // 오늘 것만(장 전엔 어제)
     ? futMin.todayTimes.map((t, i) => ({ t, v: futMin.closes[(futMin.breakIdx ?? 0) + i] })).filter(p => p.v > 0) : undefined;
   const kLast = kf?.points[kf.points.length - 1], fLast = ff?.points[ff.points.length - 1];
@@ -165,7 +176,7 @@ export function SemiDashTab() {
     const anyRegular = firsts.some(t => t >= "09:00");
     return { start: anyRegular ? "09:00" : start.slice(0, 4) + "0", end };
   })();
-  STOCKS.forEach((s, i) => {
+  stocks.forEach((s, i) => {
     const ms = ticks[i].minutes;
     const st5 = strength(ms, 5), n5 = netAmt(ms, 5);
     if (st5 != null && ms.length >= 3) {
@@ -230,9 +241,9 @@ export function SemiDashTab() {
   return (
     <div className="flex flex-col gap-1.5 p-2 lg:min-h-[calc(100vh-150px)] text-[12px] bg-gray-50">
       {/* ① 시세 */}
-      <div className="grid grid-cols-2 lg:grid-cols-7 gap-1.5 auto-rows-[118px] shrink-0">
-        {STOCKS.map(s => {
-          const qq = q(`${s.code}.KS`);
+      <div className={`grid grid-cols-2 ${stocks.length === 1 ? "lg:grid-cols-6" : "lg:grid-cols-7"} gap-1.5 auto-rows-[118px] shrink-0`}>
+        {stocks.map(s => {
+          const qq = sq(s.code);
           return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
                        chart={<KrDaySparkline code={s.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" />} />;
         })}
@@ -263,8 +274,8 @@ export function SemiDashTab() {
       </div>
 
       {/* ② 실시간 체결 + 신호 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_600px] gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]">
-        {STOCKS.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} onTitle={() => openTickPopup(s.code, s.name)} />)}
+      <div className={`grid grid-cols-1 ${stocks.length === 1 ? "lg:grid-cols-[1fr_600px]" : "lg:grid-cols-[1fr_1fr_600px]"} gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]`}>
+        {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} onTitle={popup ? undefined : () => openTickPopup(s.code, s.name)} />)}
         <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
           {/* 지금 신호 / 가설 검증 — 탭(사용자 요청) */}
           <div className="flex items-baseline gap-1 mb-1 border-b">
@@ -296,11 +307,11 @@ export function SemiDashTab() {
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[400px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
         <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
-        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit={futScale ? "억" : "계약"} scale={futScale} dim={!(ffToday && weekday && mm >= 8 * 60 + 45 && mm < 16 * 60 + 10)} hoverM={flowHover} onHover={setFlowHover}
+        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && weekday && mm >= 8 * 60 + 45 && mm < 16 * 60 + 10)} hoverM={flowHover} onHover={setFlowHover}
                  bg={futToday} bgLabel="코스피200 선물" bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
         <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
-        <StockFlowTable rows={STOCKS.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: q(`${s.code}.KS`)?.price }))}
+        <StockFlowTable rows={stocks.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: sq(s.code)?.price }))}
                         fLast={fLast}
                         markets={[
                           { name: "코스피", last: kLast, daily: kospiDaily?.points ?? [] },
@@ -357,12 +368,9 @@ function SparkBg({ sp, base }: { sp: { closes: number[]; xs?: number[]; openIdx?
 }
 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
-//   팝업(StockTickPopup)에서도 같은 칸을 크게 쓴다 — big: 큰 체결 줄 수, split: 아래에 1분 매수·매도 막대
-export function TickPanel({ name, flow, day, onTitle, big = 12, split, span = 90 }: {
-  name: string; flow: TickFlow; day?: DayStrength;
-  onTitle?: () => void; big?: number; split?: boolean; span?: number;
-}) {
-  const ms = flow.minutes.slice(-span);   // 최근 span 분(기본 90)
+//   onTitle — 제목을 누르면 ⚡ 종목 체결 팝업(같은 화면을 이 종목 하나로)
+function TickPanel({ name, flow, day, onTitle }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void }) {
+  const ms = flow.minutes.slice(-90);   // 최근 90분
   const W = 600, H = 220, PAD = 4;
   const nets = ms.map(m => m.buyAmt - m.sellAmt);
   const mxBar = Math.max(1, ...nets.map(Math.abs));
@@ -399,8 +407,7 @@ export function TickPanel({ name, flow, day, onTitle, big = 12, split, span = 90
         </div>
       )}
       <div className="flex-1 min-h-0 flex gap-2">
-        <div className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 min-h-0">
+        <div className="flex-1 min-w-0">
           {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div className="relative w-full h-full">
             {ms.length < 5 && <div className="absolute inset-x-0 bottom-1 text-center text-[11px] text-gray-400">켠 뒤 {ms.length}분째 — 10분쯤 지나면 흐름이 보입니다</div>}
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
@@ -431,34 +438,10 @@ export function TickPanel({ name, flow, day, onTitle, big = 12, split, span = 90
             })()}
           </div>
           )}
-          </div>
-          {/* 1분 매수(위·빨강)·매도(아래·파랑) 체결 금액 — 순매수 막대만으론 양쪽이 다 큰 '손바뀜'이 안 보인다(팝업 전용) */}
-          {split && ms.length > 0 && (() => {
-            const SH = 70, smid = SH / 2;
-            const mx = Math.max(1, ...ms.flatMap(m => [m.buyAmt, m.sellAmt]));
-            return (
-              <svg viewBox={`0 0 ${W} ${SH}`} preserveAspectRatio="none" className="w-full h-[70px] shrink-0 mt-1 border-t border-gray-100">
-                <line x1={0} x2={W} y1={smid} y2={smid} stroke="#cbd5e1" vectorEffect="non-scaling-stroke" />
-                {ms.map((m, i) => {
-                  const hb = (m.buyAmt / mx) * (smid - 2), hs = (m.sellAmt / mx) * (smid - 2);
-                  return (
-                    <g key={m.t}>
-                      <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={smid - hb} height={Math.max(0.5, hb)} fill="#f43f5e" opacity={0.7} />
-                      <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={smid} height={Math.max(0.5, hs)} fill="#3b82f6" opacity={0.7} />
-                    </g>
-                  );
-                })}
-              </svg>
-            );
-          })()}
         </div>
-        <div className={`${big > 12 ? "w-[150px] overflow-y-auto" : "w-[118px] overflow-hidden"} shrink-0 text-[11px] tabular-nums`}>
+        <div className="w-[118px] shrink-0 overflow-hidden text-[11px] tabular-nums">
           <div className="text-gray-500 mb-0.5">큰 체결 ({BIG_TRADE_WON / 1e8}억↑)</div>
-          {big > 12 && flow.big.length > 0 && (() => {
-            const b = flow.big.filter(x => x.side === "BUY").reduce((a, x) => a + x.amt, 0), sl = flow.big.filter(x => x.side === "SELL").reduce((a, x) => a + x.amt, 0);
-            return <div className="mb-0.5 pb-0.5 border-b text-[10.5px]"><b className="text-rose-600">+{(b / 1e8).toFixed(0)}억</b> · <b className="text-blue-600">−{(sl / 1e8).toFixed(0)}억</b></div>;
-          })()}
-          {flow.big.slice(0, big).map((b, i) => (
+          {flow.big.slice(0, 12).map((b, i) => (
             <div key={i} className={`flex justify-between ${b.side === "BUY" ? "text-rose-600" : "text-blue-600"}`}>
               <span>{b.time}</span><b>{b.side === "BUY" ? "+" : "-"}{(b.amt / 1e8).toFixed(1)}억</b>
             </div>
@@ -484,9 +467,8 @@ const LINES = [
   { k: "foreigners", label: "외국인", color: "#ea580c" },
   { k: "individuals", label: "개인", color: "#7c3aed" },
 ] as const;
-function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis, scale = 1 }: {
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis }: {
   title: string; note: string; flow?: IntradayFlow; unit: string;
-  scale?: number;                    // 값에 곱할 배수 — 선물 계약 → 억원(계약 × 선물가 × 25만원 ÷ 1억, 사용자 요청 2026-10-22)
   tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
   bg?: { t: string; v: number }[];   // 배경 가격(지수·선물) — 증시 탭처럼 연한 면으로, 축은 따로(사용자 요청)
   bgLabel?: string;
@@ -501,7 +483,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   const uid = useId().replace(/:/g, "");
   const pts = flow?.points ?? [];
   const val = (p: IntradayFlow["points"][number], k: (typeof LINES)[number]["k"]) =>
-    p[k] * scale;
+    p[k];
   const W = 400, H = 140, PX = 2, PY = 6;
   const tmin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   const mx = Math.max(1, ...pts.flatMap(p => LINES.map(l => Math.abs(val(p, l.k)))));
@@ -607,7 +589,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
       </div>
       {/* 외국인·개인 매수·매도 막대(10분) — 그래프 바로 아래, 같은 시간 축(사용자 요청). 축 밖(프리·시간외)은 그리지 않는다 */}
       {flow && pts.length > 1 && (
-        <BuySellBars points={flow.points} keys={["individuals", "foreigners"]} unit={unit === "계약" ? "계약" : "억"} scale={scale} start={startHM} end={axisEnd}
+        <BuySellBars points={flow.points} keys={["individuals", "foreigners"]} unit={unit === "계약" ? "계약" : "억"} start={startHM} end={axisEnd}
           rowH={36} compact
           geom={{
             width: W, hoverT: hoverM ?? null, toT: tmin, hover: onHover,

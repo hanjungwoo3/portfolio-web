@@ -286,20 +286,7 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
       if (indexSeries) indexSeries = indexSeries.map(p => ({ t: p.t, value: p.value * 100 }));
       if (indexBaseline != null) indexBaseline *= 100;
     }
-    // 선물 순매수 계약 → 금액(억원) 환산: 계약 × 선물지수 × 25만원(거래승수) ÷ 1억.
-    //  네이버 선물 엔드포인트는 계약만 주므로 실선물가로 환산해 코스피·코스닥과 같은 억원 단위로 비교.
-    //  (누적 순계약 × 당일 선물가로 근사 — 정확한 거래대금은 아니나 규모 비교엔 충분)
-    if (market === "futures" && fut.data) {
-      const perContractEok = (fut.data.price * 250_000) / 1e8;   // 계약당 억원
-      const conv = (o: Record<IntradayKey, number>) => {
-        const r = {} as Record<IntradayKey, number>;
-        for (const k of KEYS) r[k] = Math.round(o[k] * perContractEok);
-        return r;
-      };
-      series = series.map(sp => ({ ...sp, values: conv(sp.values), daily: sp.daily ? conv(sp.daily) : undefined }));
-      summary = conv(summary);
-      unit = "억원";
-    }
+    // 선물은 계약 그대로(사용자 결정 2026-10-22) — 억원 환산(계약 × 선물가 × 25만원)은 근사치라 뺐다
     return { empty: null as null | "intraday" | "daily", series, summary, unit, indexSeries, indexBaseline };
   }, [mode, market, bizdate, ysym, intra.data, daily.data, idxIntra.data, idxDaily.data, fut.data, tossIdxData, daumIdxData, hkFutData]);
 
@@ -323,8 +310,7 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
           <div className="mt-0.5">
             <BuySellBars points={intra.data!.points}
               keys={INTRADAY_SERIES.filter(d => enabled[d.key]).map(d => d.key)}
-              unit={market === "futures" && !fut.data ? "계약" : "억"}
-              scale={market === "futures" && fut.data ? (fut.data.price * 250_000) / 1e8 : 1}
+              unit={market === "futures" ? "계약" : "억"}
               start={intra.data!.pre ? "08:00" : "09:00"} end={market === "futures" ? "15:45" : "15:30"}
               rowH={44} geom={{ ...g, toT: hm => hmToTime(hm) as number }} />
           </div>
