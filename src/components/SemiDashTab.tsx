@@ -290,7 +290,7 @@ export function SemiDashTab() {
       </div>
 
       {/* ③ 현물·선물·옵션 수급 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[360px] shrink-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[400px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
         <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
         <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && weekday && mm >= 8 * 60 + 45 && mm < 16 * 60 + 10)} hoverM={flowHover} onHover={setFlowHover}
@@ -523,33 +523,8 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
           <span key={l.k}><i className="inline-block w-2 h-0.5 mr-0.5 align-middle" style={{ background: l.color }} />{l.label} <b className={last ? up(val(last, l.k)) : "text-gray-300"}>{last ? (unit === "억" ? `${val(last, l.k) > 0 ? "+" : val(last, l.k) < 0 ? "−" : ""}${joEok(val(last, l.k))}` : eok(val(last, l.k))) : "-"}{last && unit === "계약" ? "계약" : ""}</b></span>
         ))}
       </div>
-      {/* 프리장(NXT 08:00~09:00) 결과 — 정규장이 열려 본 그래프가 KRX 로 바뀐 뒤에만(그 전엔 본 그래프가 곧 프리장) */}
-      {(() => {
-        if (!preFlow || flow?.pre || !flow?.points.length || preFlow.date !== flow.date) return null;
-        const p9 = [...preFlow.points].reverse().find(p => p.time <= "09:00");
-        if (!p9) return null;
-        const g = p9.gs ?? {};
-        const item = (k: "individuals" | "foreigners", label: string, color: string) => {
-          const [b, sl] = g[k] ?? [0, 0];
-          const n = p9[k];
-          // 산 금액(빨강) · 판 금액(파랑) · 순(오른쪽 끝) — 막대 줄 머리와 같은 모양(사용자 요청)
-          return (
-            <div key={k} className="flex items-baseline gap-1.5 min-w-0" title={`프리장 ${label} 매수 ${joEok(b)} · 매도 ${joEok(sl)}`}>
-              <span className="shrink-0 w-8" style={{ color }}>{label}</span>
-              <span className="truncate"><b className="text-rose-600">{joEok(b)}</b> · <b className="text-blue-600">{joEok(sl)}</b></span>
-              <b className={`ml-auto shrink-0 ${up(n)}`}>{n > 0 ? "+" : n < 0 ? "−" : ""}{joEok(n)}</b>
-            </div>
-          );
-        };
-        return (
-          <div className="mt-0.5 px-1 py-0.5 rounded bg-amber-50/70 border border-amber-200 text-[10.5px] text-gray-500 tabular-nums min-w-0">
-            <div className="text-amber-700 font-bold leading-tight">프리장(NXT 08:00~09:00) 결과</div>
-            {item("individuals", "개인", "#7c3aed")}
-            {item("foreigners", "외국인", "#ea580c")}
-          </div>
-        );
-      })()}
-      <div className="flex-1 min-h-0">
+      {/* 그래프 높이 고정 — 세 칸(현물·선물)이 같은 높이·같은 가로 위치 */}
+      <div className="h-[190px] shrink-0">
         {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (
           <div className="relative w-full h-full" title={bgLabel ? `배경 = ${bgLabel} 가격 · 노란 음영 = 마감 동시호가` : undefined}>
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full" onMouseMove={onMove} onMouseLeave={onHover ? () => onHover(null) : undefined}>
@@ -601,6 +576,33 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
             xOfT: m => (m < T0 || m > T1 ? null : x(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`)),
           }} />
       )}
+      {/* 프리장(NXT 08:00~09:00) 결과 — 정규장이 열려 본 그래프가 KRX 로 바뀐 뒤에만(그 전엔 본 그래프가 곧 프리장).
+          막대 아래(그래프 밖)에 둔다 — 그래프 위에 있으면 그만큼 그래프가 낮아져 선물 칸과 높이가 달랐다(사용자 지적) */}
+      {(() => {
+        if (!preFlow || flow?.pre || !flow?.points.length || preFlow.date !== flow.date) return null;
+        const p9 = [...preFlow.points].reverse().find(p => p.time <= "09:00");
+        if (!p9) return null;
+        const g = p9.gs ?? {};
+        const item = (k: "individuals" | "foreigners", label: string, color: string) => {
+          const [b, sl] = g[k] ?? [0, 0];
+          const n = p9[k];
+          // 산 금액(빨강) · 판 금액(파랑) · 순(오른쪽 끝) — 막대 줄 머리와 같은 모양(사용자 요청)
+          return (
+            <div key={k} className="flex items-baseline gap-1.5 min-w-0" title={`프리장 ${label} 매수 ${joEok(b)} · 매도 ${joEok(sl)}`}>
+              <span className="shrink-0 w-8" style={{ color }}>{label}</span>
+              <span className="truncate"><b className="text-rose-600">{joEok(b)}</b> · <b className="text-blue-600">{joEok(sl)}</b></span>
+              <b className={`ml-auto shrink-0 ${up(n)}`}>{n > 0 ? "+" : n < 0 ? "−" : ""}{joEok(n)}</b>
+            </div>
+          );
+        };
+        return (
+          <div className="mt-1 px-1 py-0.5 rounded bg-amber-50/70 border border-amber-200 text-[10.5px] text-gray-500 tabular-nums min-w-0">
+            <div className="text-amber-700 font-bold leading-tight">프리장(NXT 08:00~09:00) 결과</div>
+            {item("individuals", "개인", "#7c3aed")}
+            {item("foreigners", "외국인", "#ea580c")}
+          </div>
+        );
+      })()}
     </div>
   );
 }
