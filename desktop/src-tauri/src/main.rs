@@ -28,18 +28,11 @@ const INIT_SCRIPT: &str = r##"
   };
   window.open = (u) => { if (u) ext(String(u)); return null; };
   // 맥 WKWebView 는 alert·confirm·prompt 를 띄우지 않는다(confirm 은 바로 false) → Drive 가져오기 등이 '취소'로 끝났다.
-  //   셋 다 답을 즉시 돌려줘야 하는 동기 함수라, 동기 XHR 로 앱(pfdialog://)에 물어 맥 기본 대화상자를 띄운다.
-  //   윈도우 WebView2 는 원래 지원한다 → 맥만.
+  //   alert 는 답이 필요 없어 여기서 앱 대화상자로 바꿔 끼운다. confirm·prompt 는 답을 즉시 돌려줘야 해서
+  //   웹 코드가 await appConfirm/appPrompt(src/lib/appDialog.ts → app_dialog 명령)로 부른다.
+  //   (동기 XHR 로 앱에 묻는 방식은 https 사이트에서 막혔다 — pfdialog://·127.0.0.1 모두, 실측)
   if (/Mac/.test(navigator.platform)) {
-    const ask = (kind, msg, def) => {
-      const x = new XMLHttpRequest();
-      x.open("GET", "pfdialog://localhost/?kind=" + kind + "&msg=" + encodeURIComponent(msg) + "&def=" + encodeURIComponent(def || ""), false);
-      x.send();
-      return x.responseText;
-    };
-    window.alert = (m) => { ask("alert", String(m ?? "")); };
-    window.confirm = (m) => ask("confirm", String(m ?? "")) === "1";
-    window.prompt = (m, d) => { const r = ask("prompt", String(m ?? ""), d == null ? "" : String(d)); return r === "\u0000" ? null : r; };
+    window.alert = (m) => { window.__TAURI_INTERNALS__.invoke("app_dialog", { kind: "alert", msg: String(m ?? ""), def: "" }); };
   }
   document.addEventListener("click", (e) => {
     const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
@@ -195,6 +188,12 @@ async fn google_refresh(client: tauri::State<'_, reqwest::Client>, refresh_token
     ]).await
 }
 
+// 맥 대화상자 명령 — 웹의 appConfirm/appPrompt/alert 가 부른다. "1"/"0"(confirm), 입력값 또는 "\u{0}"(prompt 취소)
+#[tauri::command]
+async fn app_dialog(kind: String, msg: String, def: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || mac_dialog(&kind, &msg, &def)).await.map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn open_external(url: String) -> Result<(), String> {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
@@ -281,22 +280,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(client)
-        .register_asynchronous_uri_scheme_protocol("pfdialog", |_ctx, req, responder| {
-            let url = reqwest::Url::parse(&req.uri().to_string()).ok();
-            let q: HashMap<String, String> = url.map(|u| u.query_pairs().into_owned().collect()).unwrap_or_default();
-            std::thread::spawn(move || {
-                let get = |k: &str| q.get(k).cloned().unwrap_or_default();
-                let r = mac_dialog(&get("kind"), &get("msg"), &get("def"));
-                responder.respond(
-                    tauri::http::Response::builder()
-                        .header("Access-Control-Allow-Origin", "*")
-                        .header("Content-Type", "text/plain; charset=utf-8")
-                        .body(r.into_bytes())
-                        .unwrap(),
-                );
-            });
-        })
-        .invoke_handler(tauri::generate_handler![native_fetch, open_external, google_login, google_refresh, app_update_check, app_update_install])
+        .invoke_handler(tauri::generate_handler![native_fetch, open_external, google_login, google_refresh, app_update_check, app_update_install, app_dialog])
         .setup(move |app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse()?))
                 .title("포트폴리오")

@@ -18,6 +18,7 @@
     "allow-google-login",
     "allow-google-refresh",
     "allow-app-update-check",
-    "allow-app-update-install"
+    "allow-app-update-install",
+    "allow-app-dialog"
   ]
 }

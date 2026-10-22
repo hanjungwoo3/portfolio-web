@@ -10,6 +10,7 @@ import type { GroupFolder } from "../lib/groupFolders";
 import {
   getGroupFolders, folderAllKey, isFolderAllKey, folderNameOfAllKey, FOLDER_ALL_LABEL,
 } from "../lib/groupFolders";
+import { appConfirm, appPrompt } from "../lib/appDialog";
 
 export interface TabSpec {
   key: string;
@@ -30,8 +31,8 @@ interface Props {
 }
 
 export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, leading }: Props) {
-  const handleRename = (oldKey: string, displayLabel: string) => {
-    const next = window.prompt(`"${displayLabel}" 그룹명 변경 — 새 이름:`, displayLabel);
+  const handleRename = async (oldKey: string, displayLabel: string) => {
+    const next = await appPrompt(`"${displayLabel}" 그룹명 변경 — 새 이름:`, displayLabel);
     if (next == null) return;
     const trimmed = next.trim();
     if (!trimmed || trimmed === oldKey) return;
@@ -180,11 +181,11 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                 {onDelete && (
                   <button
                     type="button"
-                    onClick={e => {
+                    onClick={async e => {
                       e.stopPropagation();
                       const msg = `"${t.label}" 그룹의 ${t.count}건을 모두 삭제할까요?`
                                 + `\n(되돌릴 수 없음)`;
-                      if (confirm(msg)) onDelete(t.key);
+                      if (await appConfirm(msg)) onDelete(t.key);
                     }}
                     title="그룹 삭제"
                     className="text-[10px] leading-none px-0.5
@@ -277,9 +278,9 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                       )}
                       {onDelete && (
                         <button type="button" title="그룹 삭제"
-                                onClick={e => {
+                                onClick={async e => {
                                   e.stopPropagation();
-                                  if (confirm(`"${g}" 그룹의 ${cnt}건을 모두 삭제할까요?\n(되돌릴 수 없음)`)) onDelete(g);
+                                  if (await appConfirm(`"${g}" 그룹의 ${cnt}건을 모두 삭제할까요?\n(되돌릴 수 없음)`)) onDelete(g);
                                 }}
                                 className="text-[10px] leading-none px-0.5 hover:text-rose-600">🗑</button>
                       )}

@@ -19,6 +19,7 @@ import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { resetProxyStats } from "../lib/proxyStatus";
 import { useExtensionProxyVersion, EXPECTED_EXTENSION_VERSION, compareVersion, EXTENSION_DOWNLOAD_URL } from "../lib/extensionProxy";
 import { isDesktopApp } from "../lib/nativeProxy";
+import { appConfirm } from "../lib/appDialog";
 
 // 맥·윈도우·안드로이드 앱 모음 — 고정 릴리스(파일 이름 고정, .github/workflows/desktop.yml)
 const APPS_RELEASE = "https://github.com/hanjungwoo3/portfolio-web/releases/download/apps";
@@ -123,11 +124,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   const handleIndependentToggle = async (next: boolean) => {
     if (next) {
       // ON 으로 토글 — 즉시 적용 (확인창)
-      if (!window.confirm(
+      if (!(await appConfirm(
         "그룹별 독립 보유(다중 계좌) 모드를 켤까요?\n\n"
         + "같은 종목을 그룹마다 다른 수량·평단으로 따로 관리합니다.\n"
         + "※ 즉시 적용됩니다 (하단 '적용' 버튼과 무관)."
-      )) return;   // 취소 시 체크박스 원복
+      ))) return;   // 취소 시 체크박스 원복
       setIndependentGroupsMode(true);
       setIndependent(true);
       window.alert("✅ 그룹별 독립 보유 모드 ON (적용됨)");
@@ -136,11 +137,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
       // OFF 로 토글 — 충돌 검사 후 모달 (있으면)
       const list = await findTickerConflicts();
       if (list.length === 0) {
-        if (!window.confirm(
+        if (!(await appConfirm(
           "그룹별 동기화 모드로 바꿀까요?\n\n"
           + "같은 종목은 모든 그룹에서 동일한 수량·평단을 갖습니다.\n"
           + "※ 즉시 적용됩니다."
-        )) return;
+        ))) return;
         setIndependentGroupsMode(false);
         setIndependent(false);
         window.alert("✅ 그룹별 동기화 모드 (적용됨)");
@@ -233,7 +234,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   }, [handleSyncAuthError]);
 
   const doDownload = useCallback(async () => {
-    if (!confirm("Drive 의 데이터로 이 기기를 덮어씁니다. 계속할까요?")) return;
+    if (!(await appConfirm("Drive 의 데이터로 이 기기를 덮어씁니다. 계속할까요?"))) return;
     setSyncBusy(true);
     setSyncBusyMsg("Drive 에서 불러오는 중...");
     try {
@@ -363,7 +364,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
       const results = await Promise.all(enabled.map(p => verifyOne(p.url)));
       const failed = enabled.filter((_, i) => !results[i]).map(p => p.url);
       if (failed.length > 0) {
-        const ok = confirm(`⚠️ 응답 확인 실패한 프록시:\n${failed.join("\n")}\n\n그래도 저장할까요? (오타·미배포 가능)`);
+        const ok = await appConfirm(`⚠️ 응답 확인 실패한 프록시:\n${failed.join("\n")}\n\n그래도 저장할까요? (오타·미배포 가능)`);
         if (!ok) { setStatusMsg(""); return; }
       }
     }
@@ -415,11 +416,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
       alert(`❌ 불러올 수 없는 파일입니다\n\n${result?.kind === "error" ? result.error : ""}`);
       return;
     }
-    if (!window.confirm(
+    if (!(await appConfirm(
       "이 파일로 덮어쓸까요?\n\n"
       + "⚠️ 현재 보유·예수금·그룹·폴더·탭 등 모든 데이터/설정이 교체됩니다.\n"
       + "되돌릴 수 없습니다."
-    )) return;
+    ))) return;
     setBusy(true);
     try {
       if (result.kind === "holdings" || result.kind === "combined") await replaceAllHoldings(result.stocks);
@@ -623,7 +624,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 {signedIn && (
                   <button disabled={syncBusy}
                     onClick={async () => {
-                      if (!confirm("로그아웃 + 동기화 설정 해제?")) return;
+                      if (!(await appConfirm("로그아웃 + 동기화 설정 해제?"))) return;
                       setSyncBusy(true);
                       try {
                         await disableSync();

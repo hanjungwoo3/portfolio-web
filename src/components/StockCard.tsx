@@ -18,6 +18,7 @@ import { MarketAlertDialog } from "./MarketAlertDialog";
 import { IntradayPatternDialog } from "./IntradayPatternDialog";
 import { CommunityDialog } from "./CommunityDialog";
 import { InvestorMatrixPanel } from "./InvestorMatrixPanel";
+import { appConfirm } from "../lib/appDialog";
 
 interface KrRegInfo {
   ticker: string;
@@ -902,8 +903,8 @@ export function StockCard({
           {onDelete && (
             <button
               type="button"
-              onClick={() => {
-                if (confirm(`${stock.name} 을(를) ${stock.account} 에서 삭제할까요?`)) {
+              onClick={async () => {
+                if (await appConfirm(`${stock.name} 을(를) ${stock.account} 에서 삭제할까요?`)) {
                   onDelete(stock);
                 }
               }}

@@ -17,6 +17,7 @@ import { handleTossLinkClick, tossStockUrl } from "../lib/toss";
 import { useEscClose } from "../lib/useEscClose";
 import { getRecentSearches, addRecentSearch, removeRecentSearch, clearRecentSearches } from "../lib/recentSearches";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
+import { appConfirm } from "../lib/appDialog";
 
 interface Props {
   isOpen: boolean;
@@ -854,9 +855,9 @@ function SearchResultRow({
         )}
         {existing.map(g => (
           <button key={g}
-                  onClick={e => {
+                  onClick={async e => {
                     e.stopPropagation();
-                    if (confirm(`"${item.name}" 을 "${g}" 에서 제거할까요?`)) {
+                    if (await appConfirm(`"${item.name}" 을 "${g}" 에서 제거할까요?`)) {
                       onRemoveGroup(g);
                     }
                   }}

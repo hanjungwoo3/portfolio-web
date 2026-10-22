@@ -12,6 +12,7 @@ import { computeRealizedByTrade, realizedChip } from "../lib/tradeCalc";
 import { TradeGantt, type TradeSummary } from "./TradeGantt";
 import { TossImportDialog } from "./TossImportDialog";
 import type { Stock, Price } from "../types";
+import { appConfirm } from "../lib/appDialog";
 
 type ViewMode = "recent" | "byStock" | "byDate" | "byGroup";
 type Dir = "desc" | "asc";
@@ -142,7 +143,7 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
     await reload();
   };
   const remove = async (id: string) => {
-    if (confirm("이 거래 기록을 삭제할까요? (보유엔 영향 없음)")) { await deleteTrade(id); await reload(); }
+    if (await appConfirm("이 거래 기록을 삭제할까요? (보유엔 영향 없음)")) { await deleteTrade(id); await reload(); }
   };
 
   if (trades === null) {

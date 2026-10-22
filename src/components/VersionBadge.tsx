@@ -1,5 +1,6 @@
 // 빌드 시각 + git hash 표시 + 강제 갱신 (Service Worker + Cache 초기화)
 // __BUILD_TIME__ / __COMMIT_HASH__ 는 vite.config.ts 의 define 으로 주입됨.
+import { appConfirm } from "../lib/appDialog";
 
 // 첫 로드 시 1회 콘솔에 버전 출력 (개발자 도구로도 확인 가능)
 if (typeof window !== "undefined" && !(window as any).__VERSION_LOGGED__) {
@@ -26,10 +27,10 @@ function formatBuildTime(iso: string): string {
 
 // 외부에서도 호출 가능 (헤더 🔄 버튼 등)
 export async function forceUpdate(opts?: { silent?: boolean }) {
-  if (!opts?.silent && !confirm("최신 버전으로 강제 갱신할까요?\n\n"
+  if (!opts?.silent && !(await appConfirm("최신 버전으로 강제 갱신할까요?\n\n"
                 + "• Service Worker + 캐시 초기화 후 새로고침\n"
                 + "• 보유/피크/그룹 등 저장된 설정값은 그대로 유지됩니다 (IndexedDB는 초기화 X)"
-              )) return;
+              ))) return;
   try {
     // 1) 모든 SW 등록 해제
     if ("serviceWorker" in navigator) {

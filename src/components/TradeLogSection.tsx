@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { Table2 } from "lucide-react";
 import { getTradesForTicker, addTrade, updateTrade, deleteTrade, type Trade } from "../lib/db";
+import { appConfirm } from "../lib/appDialog";
 
 function todayKstStr(): string {
   return new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
@@ -66,7 +67,7 @@ export function TradeLogSection({ ticker, account, refreshKey, defaultOpen }:
               unit: String(Math.round(t.amount / t.qty)), last: "amount" });
   };
   const remove = async (id: string) => {
-    if (confirm("이 거래 기록을 삭제할까요? (보유엔 영향 없음)")) { await deleteTrade(id); await reload(); }
+    if (await appConfirm("이 거래 기록을 삭제할까요? (보유엔 영향 없음)")) { await deleteTrade(id); await reload(); }
   };
 
   const count = trades?.length ?? 0;

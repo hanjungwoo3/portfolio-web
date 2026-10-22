@@ -63,6 +63,7 @@ import { RefreshIndicator } from "./RefreshIndicator";
 import { forceUpdate } from "./VersionBadge";
 import { NewVersionToast } from "./NewVersionToast";
 import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast } from "./AppUpdateToast";
+import { appConfirm, appPrompt } from "../lib/appDialog";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadMemos, loadAllTrades,
@@ -236,7 +237,7 @@ export function MobileSimpleView() {
   const folderBarRef = useCallback((el: HTMLDivElement | null) => { folderBarEl.current = el; setFolderBarH(el ? el.offsetHeight : 0); }, []);
   // 폴더 sub바 칩 — 그룹 이름변경/삭제 (tabMenu 와 동일 로직, 인라인 아이콘용)
   const renameGroupInline = async (g: string) => {
-    const next = window.prompt(`"${g}" → 새 이름:`, g);
+    const next = await appPrompt(`"${g}" → 새 이름:`, g);
     if (next == null) return;
     const trimmed = next.trim();
     if (!trimmed || trimmed === g) return;
@@ -245,7 +246,7 @@ export function MobileSimpleView() {
     void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
   };
   const deleteGroupInline = async (g: string) => {
-    if (!confirm(`"${g}" 그룹의 모든 항목을 삭제할까요?\n(되돌릴 수 없음)`)) return;
+    if (!(await appConfirm(`"${g}" 그룹의 모든 항목을 삭제할까요?\n(되돌릴 수 없음)`))) return;
     await deleteGroup(g);
     if (activeTab === g) setActiveTab(KR_KEY);
     void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
@@ -1530,7 +1531,7 @@ export function MobileSimpleView() {
                                  const msg = indep
                                    ? `"${st.name}" 을(를) "${st.account}" 그룹에서 삭제할까요?`
                                    : `"${st.name}" 을(를) 삭제할까요?\n(모든 그룹에서 제거됩니다)`;
-                                 if (!confirm(msg)) return;
+                                 if (!(await appConfirm(msg))) return;
                                  if (indep) {
                                    await removeHolding(st.ticker, st.account || "");
                                  } else {
@@ -2415,7 +2416,7 @@ export function MobileSimpleView() {
                 const oldKey = tabMenu.key;
                 const oldLabel = tabMenu.label;
                 setTabMenu(null);
-                const next = window.prompt(`"${oldLabel}" → 새 이름:`, oldLabel);
+                const next = await appPrompt(`"${oldLabel}" → 새 이름:`, oldLabel);
                 if (next == null) return;
                 const trimmed = next.trim();
                 if (!trimmed || trimmed === oldKey) return;
@@ -2434,9 +2435,9 @@ export function MobileSimpleView() {
                 const k = tabMenu.key;
                 const l = tabMenu.label;
                 setTabMenu(null);
-                if (!confirm(
+                if (!(await appConfirm(
                   `"${l}" 그룹의 모든 항목을 삭제할까요?\n(되돌릴 수 없음)`
-                )) return;
+                ))) return;
                 await deleteGroup(k);
                 if (activeTab === k) setActiveTab(KR_KEY);
                 void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
@@ -2605,9 +2606,9 @@ function SettingsModal({
         window.alert(`❌ 불러올 수 없는 파일입니다\n${parsed?.kind === "error" ? parsed.error : ""}`);
         return;
       }
-      if (!window.confirm(
+      if (!(await appConfirm(
         "이 파일로 덮어쓸까요?\n현재 보유·예수금·그룹·폴더·탭 등 모든 데이터/설정이 교체됩니다."
-      )) return;
+      ))) return;
       setBusy(true);
       try {
         if (parsed.kind === "holdings" || parsed.kind === "combined") await replaceAllHoldings(parsed.stocks);
@@ -2794,7 +2795,7 @@ function SettingsModal({
                   </button>
                   <button disabled={syncBusyLocal}
                     onClick={async () => {
-                      if (!confirm("Drive 의 데이터로 덮어쓸까요?")) return;
+                      if (!(await appConfirm("Drive 의 데이터로 덮어쓸까요?"))) return;
                       setSyncBusyLocal(true);
                       setSyncBusyMsgLocal("Drive 에서 불러오는 중...");
                       try {
@@ -2822,7 +2823,7 @@ function SettingsModal({
                   </button>
                   <button disabled={syncBusyLocal}
                     onClick={async () => {
-                      if (!confirm("로그아웃?")) return;
+                      if (!(await appConfirm("로그아웃?"))) return;
                       setSyncBusyLocal(true);
                       try { await disableSync(); setSyncStateLocal("unconfigured"); setLastSyncedAtLocal(null); }
                       finally { setSyncBusyLocal(false); }

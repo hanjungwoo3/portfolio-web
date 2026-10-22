@@ -4,6 +4,7 @@
 //   (처음엔 40개를 하나씩 순서대로 다 받은 뒤 띄워 한참 '불러오는 중' 에 멈춰 있었다)
 import { useState } from "react";
 import { listDriveBackups, summarizeDriveBackup, restoreDriveBackup, type DriveBackup, type DriveBackupSummary } from "../lib/syncManager";
+import { appConfirm } from "../lib/appDialog";
 
 const fmtTime = (iso: string) =>
   new Date(iso).toLocaleString("ko-KR", { year: "2-digit", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
@@ -37,7 +38,7 @@ export function DriveRestorePanel({ onRestored }: { onRestored?: () => void }) {
   const restore = async (b: DriveBackup) => {
     const s = sums[b.id];
     const desc = s && s !== "err" ? `종목 ${s.holdings}·거래 ${s.trades}` : fmtSize(b.size);
-    if (!window.confirm(`${fmtTime(b.modifiedTime)} 버전(${desc})으로 되돌릴까요?\n이 기기의 지금 데이터는 이 버전으로 바뀌고, Drive 최신본도 이 버전이 됩니다.`)) return;
+    if (!(await appConfirm(`${fmtTime(b.modifiedTime)} 버전(${desc})으로 되돌릴까요?\n이 기기의 지금 데이터는 이 버전으로 바뀌고, Drive 최신본도 이 버전이 됩니다.`))) return;
     setBusy("복구 중…"); setMsg("");
     try {
       await restoreDriveBackup(b.id);

@@ -2,6 +2,7 @@ import { Fragment, useMemo, useState } from "react";
 import { loadAllTrades, addTrade, replaceAllTrades, type Trade } from "../lib/db";
 import { parseTossTransactionsJson, tradeDedupeKey, type ImportTradeRow } from "../lib/parseTossTransactions";
 import { rememberTickerNames } from "../lib/tickerNames";
+import { appConfirm } from "../lib/appDialog";
 
 interface Props {
   isOpen: boolean;
@@ -166,7 +167,7 @@ export function TossImportDialog({ isOpen, onClose, onImported, groups }: Props)
           <div className="text-base font-bold text-gray-800">📥 토스 거래 가져오기</div>
           <div className="flex items-center gap-3">
             <button onClick={async () => {
-                      if (!confirm("저장된 모든 거래기록을 삭제할까요?\n(보유 수량/평단엔 영향 없음 — 거래 로그만 초기화)")) return;
+                      if (!(await appConfirm("저장된 모든 거래기록을 삭제할까요?\n(보유 수량/평단엔 영향 없음 — 거래 로그만 초기화)"))) return;
                       await replaceAllTrades([]);
                       onImported();
                     }}
