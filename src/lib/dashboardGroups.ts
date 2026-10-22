@@ -550,10 +550,10 @@ export function indexPageOf(key: string): DashboardPage {
   return key === "__idx-night__" || key === "__idx-us__" ? "night" : key === "__idx-rot__" || key === "__idx-semi__" ? "rot" : "day";
 }
 
-// 처음 열 때 페이지 — 시간으로. 한국 07~18시는 주간, 그 외는 야간.
+// 처음 열 때·탭 클릭 시 페이지 — 시간으로. 한국 07~20시(NXT 애프터 끝까지)는 주간, 그 외는 야간(사용자 요청 2026-10-22, 옛 18시).
 export function defaultDashboardPage(): DashboardPage {
   const h = new Date(Date.now() + 9 * 3600_000).getUTCHours();
-  return h >= 7 && h < 18 ? "day" : "night";
+  return h >= 7 && h < 20 ? "day" : "night";
 }
 
 // 색인 칩 네비게이션용 항목 — 이모지(라벨 첫 토큰) + 짧은 라벨 + 앵커 id

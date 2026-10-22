@@ -134,7 +134,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
       ))}
       {/* 지수 — 별도 탭 */}
       {/* 지수 — 주간·야간·반도체 드롭다운(투자도구·내자산과 같은 모양) */}
-      {/* 지수 탭을 누르면 시간에 맞는 페이지로 — 한국 낮(07~18시)은 주간, 그 외는 야간 */}
+      {/* 지수 탭을 누르면 시간에 맞는 페이지로 — 한국 07~20시(NXT 애프터까지)는 주간, 그 외는 야간 */}
       {renderGroupDropdown(indexTabs, "📈", "지수",
         defaultDashboardPage() === "day" ? US_MARKET_TAB_KEY : INDEX_NIGHT_TAB_KEY)}
       {tabs.map(t => {

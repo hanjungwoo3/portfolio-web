@@ -178,11 +178,11 @@ describe("처음 여는 페이지 — 시간으로", () => {
     vi.setSystemTime(new Date(Date.UTC(2026, 8, 30, kstHour - 9, 0)));   // KST = UTC+9
     return defaultDashboardPage();
   };
-  it("한국 낮(07~18시)은 주간", () => {
-    expect(at(7)).toBe("day"); expect(at(10)).toBe("day"); expect(at(17)).toBe("day");
+  it("한국 07~20시(NXT 애프터까지)는 주간", () => {
+    expect(at(7)).toBe("day"); expect(at(10)).toBe("day"); expect(at(18)).toBe("day"); expect(at(19)).toBe("day");
   });
   it("그 외는 야간", () => {
-    expect(at(18)).toBe("night"); expect(at(23)).toBe("night"); expect(at(30)).toBe("night");   // 30 = 다음날 06시
+    expect(at(20)).toBe("night"); expect(at(23)).toBe("night"); expect(at(30)).toBe("night");   // 30 = 다음날 06시
   });
 });
 
