@@ -135,7 +135,9 @@ export function SemiDashTab() {
     refetchInterval: 10_000, staleTime: 5_000,
   });
 
+  // 현물 = KRX(정규장 전엔 NXT 프리장). 프리장을 정규장 그래프에 합치는 건 해 보고 뺐다(사용자 결정 2026-10-22) — 프리장은 노란 '결과' 상자로만
   const kf = kospiFlow.data, ff = futFlow.data;
+  const kqFlow = kosdaqFlow.data;
   const futToday = futMin?.todayTimes && futMin.date === new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)   // 오늘 것만(장 전엔 어제)
     ? futMin.todayTimes.map((t, i) => ({ t, v: futMin.closes[(futMin.breakIdx ?? 0) + i] })).filter(p => p.v > 0) : undefined;
   const kLast = kf?.points[kf.points.length - 1], fLast = ff?.points[ff.points.length - 1];
@@ -149,6 +151,15 @@ export function SemiDashTab() {
   // 오늘 자료인가 — 장 시작 전엔 수급(네이버)이 어제 행을, 한경 선물은 미결제 0 을 준다. 그런 건 신호에 안 쓴다(사용자 지적 2026-10-22)
   const todayIso = kstNow.toISOString().slice(0, 10);
   const kfToday = kf?.date === todayIso, ffToday = ff?.date === todayIso;
+  // 수급 세 칸 공통 시간 축 — 오늘 자료만 모아 가장 이른 첫 시각 ~ 가장 늦은 마지막 시각
+  const flowAxis = (() => {
+    const fl = [kfToday ? kf : undefined, kqFlow?.date === todayIso ? kqFlow : undefined, ffToday ? ff : undefined]
+      .filter((f): f is IntradayFlow => !!f && f.points.length > 0);
+    if (!fl.length) return undefined;
+    const firsts = fl.map(f => f.points[0].time), lasts = fl.map(f => f.points[f.points.length - 1].time);
+    const start = firsts.reduce((a, b) => (a < b ? a : b)), end = lasts.reduce((a, b) => (a > b ? a : b));
+    return { start: start < "09:00" ? start.slice(0, 4) + "0" : start, end };   // 시작은 10분 단위로 내림(08:45 → 08:40)
+  })();
   STOCKS.forEach((s, i) => {
     const ms = ticks[i].minutes;
     const st5 = strength(ms, 5), n5 = netAmt(ms, 5);
@@ -279,16 +290,16 @@ export function SemiDashTab() {
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[360px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
-        <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
-        <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" preFlow={kosdaqNxt} dim={!(kosdaqFlow.data?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
-        <FlowBox title="선물 · 코스피200" note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && weekday && mm >= 8 * 60 + 45 && mm < 16 * 60 + 10)} hoverM={flowHover} onHover={setFlowHover}
+        <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
+        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
+        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && weekday && mm >= 8 * 60 + 45 && mm < 16 * 60 + 10)} hoverM={flowHover} onHover={setFlowHover}
                  bg={futToday} bgLabel="코스피200 선물" bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
         <StockFlowTable rows={STOCKS.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: q(`${s.code}.KS`)?.price }))}
                         fLast={fLast}
                         markets={[
                           { name: "코스피", last: kLast, daily: kospiDaily?.points ?? [] },
-                          { name: "코스닥", last: kosdaqFlow.data?.points[kosdaqFlow.data.points.length - 1], daily: kosdaqDaily?.points ?? [] },
+                          { name: "코스닥", last: kqFlow?.points[kqFlow.points.length - 1], daily: kosdaqDaily?.points ?? [] },
                         ]} />
       </div>
 
@@ -434,7 +445,7 @@ const LINES = [
   { k: "foreigners", label: "외국인", color: "#ea580c" },
   { k: "individuals", label: "개인", color: "#7c3aed" },
 ] as const;
-function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow }: {
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis }: {
   title: string; note: string; flow?: IntradayFlow; unit: string;
   tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
   bg?: { t: string; v: number }[];   // 배경 가격(지수·선물) — 증시 탭처럼 연한 면으로, 축은 따로(사용자 요청)
@@ -443,6 +454,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   endHM?: string;                    // 시간 축 끝(선물은 15:45)
   dim?: boolean;                     // 거래 시간이 아니거나 어제 자료면 흐리게(사용자 요청 2026-10-22)
   preFlow?: IntradayFlow;            // 넥스트레이드 수급 — 정규장 시작 뒤 '프리장 결과' 한 줄용
+  axis?: { start: string; end: string };   // 세 칸 공통 시간 축(시작 = 가장 이른 첫 자료, 끝 = 가장 늦은 마지막 자료)
   hoverM?: number | null;            // 마우스가 가리키는 시각(분) — 세 칸이 같이 따라간다(사용자 요청)
   onHover?: (m: number | null) => void;
 }) {
@@ -454,11 +466,12 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   const mx = Math.max(1, ...pts.flatMap(p => LINES.map(l => Math.abs(val(p, l.k)))));
   // 축 시작 — 프리장(NXT 08:00~) 자료가 있으면 08:00 부터. 09:00 고정이면 프리장 점이 왼쪽 끝 한 점에 몰려
   //   세로선처럼 보였다(사용자 지적 2026-10-22, 증시 탭과 모양이 달랐다)
-  const startHM = pts.length && pts[0].time < "09:00" ? "08:00" : "09:00";
+  // 공통 축(axis)이 오면 그걸 — 세 칸(현물 코스피·코스닥·선물)이 같은 시각을 같은 가로 위치에(사용자 지적 2026-10-22)
+  const startHM = axis?.start ?? (pts.length && pts[0].time < "09:00" ? "08:00" : "09:00");
   const T0 = tmin(startHM);
   // 축 끝 = 지금(마지막 자료) — 장 초반엔 자료가 가로를 꽉 채우고, 시간이 갈수록 장 마감까지 늘며 좁아진다(사용자 요청).
   //   최소 30분 폭 — 자료 몇 개를 너무 크게 늘리지 않게. 장 마감(endHM)을 넘지 않는다.
-  const lastHM = pts.length ? pts[pts.length - 1].time : startHM;
+  const lastHM = axis?.end ?? (pts.length ? pts[pts.length - 1].time : startHM);
   const T1 = Math.min(tmin(endHM), Math.max(tmin(lastHM) + 2, T0 + 30));
   const axisEnd = `${String(Math.floor(T1 / 60)).padStart(2, "0")}:${String(T1 % 60).padStart(2, "0")}`;
   const span = T1 - T0;
