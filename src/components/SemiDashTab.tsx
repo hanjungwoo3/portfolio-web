@@ -212,7 +212,7 @@ export function SemiDashTab() {
   }
 
   return (
-    <div className="flex flex-col gap-1.5 p-2 lg:h-[calc(100vh-150px)] lg:min-h-[700px] text-[12px] bg-gray-50">
+    <div className="flex flex-col gap-1.5 p-2 lg:min-h-[calc(100vh-150px)] text-[12px] bg-gray-50">
       {/* ① 시세 */}
       <div className="grid grid-cols-2 lg:grid-cols-7 gap-1.5 auto-rows-[118px] shrink-0">
         {STOCKS.map(s => {
@@ -247,7 +247,7 @@ export function SemiDashTab() {
       </div>
 
       {/* ② 실시간 체결 + 신호 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_600px] gap-1.5 lg:flex-1 min-h-0 auto-rows-[320px] lg:auto-rows-auto">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_600px] gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]">
         {STOCKS.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} />)}
         <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
           {/* 지금 신호 / 가설 검증 — 탭(사용자 요청) */}
@@ -277,7 +277,7 @@ export function SemiDashTab() {
       </div>
 
       {/* ③ 현물·선물·옵션 수급 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[235px] shrink-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[360px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
         <FlowBox title="현물 · 코스피" note="1분" flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
         <FlowBox title="현물 · 코스닥" note="1분" flow={kosdaqFlow.data} unit="억" preFlow={kosdaqNxt} dim={!(kosdaqFlow.data?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
@@ -553,7 +553,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
       {/* 외국인·개인 매수·매도 막대(10분) — 그래프 바로 아래, 같은 시간 축(사용자 요청). 축 밖(프리·시간외)은 그리지 않는다 */}
       {flow && pts.length > 1 && (
         <BuySellBars points={flow.points} keys={["individuals", "foreigners"]} unit={unit === "계약" ? "계약" : "억"} start={startHM} end={axisEnd}
-          rowH={22} compact
+          rowH={36} compact
           geom={{
             width: W, hoverT: hoverM ?? null, toT: tmin, hover: onHover,
             xOfT: m => (m < T0 || m > T1 ? null : x(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`)),
