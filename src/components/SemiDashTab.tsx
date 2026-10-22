@@ -5,7 +5,7 @@
 //     · 코스피 투자자(네이버) 1분 / 선물 투자자(네이버) **20분 지연** / 선물 시세·옵션(한경) 실시간
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
@@ -460,6 +460,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   hoverM?: number | null;            // 마우스가 가리키는 시각(분) — 세 칸이 같이 따라간다(사용자 요청)
   onHover?: (m: number | null) => void;
 }) {
+  const uid = useId().replace(/:/g, "");
   const pts = flow?.points ?? [];
   const val = (p: IntradayFlow["points"][number], k: (typeof LINES)[number]["k"]) =>
     p[k];
@@ -482,7 +483,13 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   // 배경은 이 칸 수급 선이 끝나는 시각까지만 — 배경(실시간)이 늦은 수급 선(선물 20분 지연)보다 길게 나가 어긋나 보였다
   const flowEnd = pts.length ? pts[pts.length - 1].time : axisEnd;
   const bgp = (bg ?? []).filter(b => b.t >= startHM && b.t <= (flowEnd < axisEnd ? flowEnd : axisEnd));
-  const bMin = Math.min(...bgp.map(b => b.v)), bMax = Math.max(...bgp.map(b => b.v)), bR = bMax - bMin || 1;
+  const hasBgBase = !!bgBase && bgBase > 0;
+  // 기준선(전일 종가)을 세로 가운데(수급 0 점선과 같은 높이)에 둔다 — 위아래 대칭 범위.
+  //   최소~최대로 맞추면 선물처럼 한쪽으로 쏠린 날 기준선이 맨 위에 붙어 그래프가 화면을 다 덮었다(사용자 지적).
+  const bDev = hasBgBase ? Math.max(...bgp.map(b => Math.abs(b.v - bgBase!)), 0) || 1 : 0;
+  const bMin = hasBgBase ? bgBase! - bDev : Math.min(...bgp.map(b => b.v));
+  const bMax = hasBgBase ? bgBase! + bDev : Math.max(...bgp.map(b => b.v));
+  const bR = bMax - bMin || 1;
   const by = (v: number) => PY + (1 - (v - bMin) / bR) * (H - PY * 2);
   // 색 = 어제 종가 대비(카드 % 와 같은 기준) — 오늘 첫 봉 대비였더니 코스피 −0.77% 인데 분홍으로 칠해졌다(사용자 지적)
   const bgUp = bgp.length > 1 && bgp[bgp.length - 1].v >= (bgBase && bgBase > 0 ? bgBase : bgp[0].v);
@@ -550,10 +557,32 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
         {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (
           <div className="relative w-full h-full" title={bgLabel ? `배경 = ${bgLabel} 가격 · 노란 음영 = 마감 동시호가` : undefined}>
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full" onMouseMove={onMove} onMouseLeave={onHover ? () => onHover(null) : undefined}>
-            {bgp.length > 1 && (
+            {bgp.length > 1 && (hasBgBase ? (() => {
+              // 기준선(전일 종가) 위 = 빨강·아래 = 파랑으로 나눠 칠한다 — 마지막 값 하나로 전체를 한 색으로 칠하니
+              //   막 전일 종가를 넘긴 순간 화면 전체가 빨개졌다(사용자 지적 2026-10-22). 카드 그래프와 같은 규칙.
+              const baseY = by(bgBase!);
+              const line = bgp.map((b, i) => `${i ? "L" : "M"} ${x(b.t).toFixed(1)} ${by(b.v).toFixed(1)}`).join(" ");
+              const band = `${line} L ${x(bgp[bgp.length - 1].t).toFixed(1)} ${baseY.toFixed(1)} L ${x(bgp[0].t).toFixed(1)} ${baseY.toFixed(1)} Z`;
+              return (
+                <>
+                  <defs>
+                    <clipPath id={`${uid}u`}><rect x={0} y={0} width={W} height={baseY} /></clipPath>
+                    <clipPath id={`${uid}d`}><rect x={0} y={baseY} width={W} height={Math.max(0, H - baseY)} /></clipPath>
+                  </defs>
+                  <g clipPath={`url(#${uid}u)`}>
+                    <path d={band} fill="#fecdd3" fillOpacity={0.5} />
+                    <path d={line} fill="none" stroke="#fb7185" strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                  </g>
+                  <g clipPath={`url(#${uid}d)`}>
+                    <path d={band} fill="#bfdbfe" fillOpacity={0.5} />
+                    <path d={line} fill="none" stroke="#60a5fa" strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                  </g>
+                </>
+              );
+            })() : (
               <path d={`${bgp.map((b, i) => `${i ? "L" : "M"} ${x(b.t).toFixed(1)} ${by(b.v).toFixed(1)}`).join(" ")} L ${x(bgp[bgp.length - 1].t).toFixed(1)} ${H} L ${x(bgp[0].t).toFixed(1)} ${H} Z`}
                     fill={bgUp ? "#fecdd3" : "#bfdbfe"} fillOpacity={0.45} stroke={bgUp ? "#fb7185" : "#60a5fa"} strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-            )}
+            ))}
             <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#94a3b8" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
             {/* 마감 동시호가 구간 음영 */}
             <rect x={x(aucFrom)} width={Math.max(0, x(axisEnd) - x(aucFrom))} y={0} height={H} fill="#fde68a" fillOpacity={0.35} />
