@@ -8,7 +8,7 @@
 
 import { useState, useMemo, useCallback, lazy, Suspense, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntraday, fetchTossIndexIntraday, fetchYahooPriceHistory, fetchKrFuturesDaily, fetchKrFuturesOpenInterest, fetchLeverageDailyFlow, fetchKrPriceHistory, LEVERAGE_BASKETS } from "../lib/api";
+import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntraday, fetchTossIndexIntraday, fetchDaumIndexToday, fetchYahooPriceHistory, fetchKrFuturesDaily, fetchKrFuturesOpenInterest, fetchLeverageDailyFlow, fetchKrPriceHistory, LEVERAGE_BASKETS } from "../lib/api";
 import type { IntradayMarket, LeverageBasket, KrFuturesOpenInterest } from "../lib/api";
 import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
 import { useCrosshairSync, type SyncRegistrar } from "../lib/useCrosshairSync";
@@ -124,6 +124,16 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
     staleTime: 3000, refetchOnWindowFocus: false,
   });
   const tossIdxData = tossIdxOk && ysym ? tossIdx.data?.get(ysym) : undefined;
+  // 배경 지수 1분(다음 금융, 실시간) — 토스 10분봉은 계단이라 반도체 수급 탭(1분)과 모양이 달랐다(사용자 결정 2026-10-22, A안).
+  //   반도체 수급 탭과 같은 쿼리키(캐시 공유). 없으면 아래 토스 10분봉·야후로.
+  const daumIdx = useQuery({
+    queryKey: ["daum-index-today", market === "kosdaq" ? "KOSDAQ" : "KOSPI"],
+    queryFn: () => fetchDaumIndexToday(market === "kosdaq" ? "KOSDAQ" : "KOSPI"),
+    enabled: on && mode === "intraday" && tossIdxOk,
+    refetchInterval: mode === "intraday" ? livePoll : false,
+    staleTime: 30_000, refetchOnWindowFocus: false,
+  });
+  const daumIdxData = tossIdxOk && daumIdx.data && daumIdx.data.points.length > 1 ? daumIdx.data : undefined;
 
   // 야후 분봉 — 선물(^KS200) 전용 + 토스가 못 주는 경우(과거 날짜·장마감) 폴백.
   const idxIntra = useQuery({
@@ -178,7 +188,16 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
       unit = intra.data!.unit;
       series = pts.map(p => ({ t: hmToTime(p.time), label: p.time, values: pick(p) }));
       summary = pick(pts[pts.length - 1]);   // 당일 누적 최신
-      if (tossIdxData) {
+      if (daumIdxData) {
+        // 다음 1분봉을 투자자 시각 격자에(각 시각 이하의 마지막 1분 값) — 수급도 1분이라 거의 그대로 맞는다
+        indexBaseline = daumIdxData.base ?? tossIdxData?.base;
+        const cs = daumIdxData.points;
+        let j = 0;
+        indexSeries = series.map(sp => {
+          while (j < cs.length - 1 && cs[j + 1].t <= sp.label) j++;
+          return { t: sp.t, value: cs[j].c };
+        });
+      } else if (tossIdxData) {
         // 토스 10분봉을 투자자 시각 격자에 계단식으로 붙임(각 시각 이하의 마지막 봉).
         indexBaseline = tossIdxData.base;
         const cs = tossIdxData.points;
@@ -262,7 +281,7 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
       unit = "억원";
     }
     return { empty: null as null | "intraday" | "daily", series, summary, unit, indexSeries, indexBaseline };
-  }, [mode, market, bizdate, ysym, intra.data, daily.data, idxIntra.data, idxDaily.data, fut.data, tossIdxData]);
+  }, [mode, market, bizdate, ysym, intra.data, daily.data, idxIntra.data, idxDaily.data, fut.data, tossIdxData, daumIdxData]);
 
   if (q.isLoading) return shell(<span>불러오는 중…</span>);
   if (built.empty === "intraday") {

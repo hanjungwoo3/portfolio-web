@@ -5731,11 +5731,14 @@ export async function fetchYahooTodayKst(symbol: string): Promise<{ t: string; c
 
 // 코스피·코스닥 지수 오늘 1분 시세(다음 금융) — 실시간(09:28 요청 → 09:28 값). 야후 한국 지수는 약 20분 늦어
 //   반도체 수급 칸 배경이 장 초반에 몇 점뿐이었다(2026-10-22). 최신 → 과거로 온다. 시각("HH:MM")·종가.
-export async function fetchDaumIndexToday(market: "KOSPI" | "KOSDAQ"): Promise<{ t: string; c: number }[]> {
+//   base = 전일 종가(tradePrice − changePrice) — 증시 탭 배경 기준선용. 반도체 수급·증시 탭이 같은 쿼리키로 공유.
+export async function fetchDaumIndexToday(market: "KOSPI" | "KOSDAQ"): Promise<{ points: { t: string; c: number }[]; base?: number }> {
   const r = await fetchProxied(`https://finance.daum.net/api/market_index/times?page=1&perPage=400&market=${market}`);
-  if (!r.ok) return [];
-  const j = await r.json() as { data?: { date?: string; tradePrice?: number }[] };
+  if (!r.ok) return { points: [] };
+  const j = await r.json() as { data?: { date?: string; tradePrice?: number; changePrice?: number }[] };
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-  return (j.data ?? []).flatMap(d => (d.date?.startsWith(today) && (d.tradePrice ?? 0) > 0 ? [{ t: d.date.slice(11, 16), c: d.tradePrice! }] : []))
-    .reverse();
+  const rows = (j.data ?? []).filter(d => d.date?.startsWith(today) && (d.tradePrice ?? 0) > 0);
+  const top = rows[0];
+  const base = top && top.changePrice != null ? top.tradePrice! - top.changePrice : undefined;
+  return { points: rows.map(d => ({ t: d.date!.slice(11, 16), c: d.tradePrice! })).reverse(), base: base && base > 0 ? base : undefined };
 }

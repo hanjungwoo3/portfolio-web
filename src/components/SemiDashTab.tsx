@@ -292,8 +292,8 @@ export function SemiDashTab() {
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[360px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
-        <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
-        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
+        <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
+        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openStock)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
         <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && weekday && mm >= 8 * 60 + 45 && mm < 16 * 60 + 10)} hoverM={flowHover} onHover={setFlowHover}
                  bg={futToday} bgLabel="코스피200 선물" bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
