@@ -25,7 +25,16 @@ function loadSaved(code: string): Saved | null {
     return v && v.date === kstDate() ? v : null;   // 어제 것은 버린다
   } catch { return null; }
 }
-export const BIG_TRADE_WON = 1e8;   // 1억 원 이상 체결 = 큰 체결
+// 큰 체결 기준 — 1억부터, 그 이상이 적은 종목(중소형주)은 단계를 낮춘다(사용자 요청 2026-10-22).
+//   모으기는 가장 낮은 단계(1천만)부터 해 두고, 보여 줄 때 bigThreshold 로 고른다.
+export const BIG_STEPS = [1e8, 5e7, 3e7, 1e7] as const;
+const BIG_MIN = BIG_STEPS[BIG_STEPS.length - 1];
+/** 보여 줄 큰 체결 기준 — 그 이상이 5건 이상 쌓인 가장 높은 단계(없으면 가장 낮은 단계) */
+export function bigThreshold(big: BigTrade[]): number {
+  return BIG_STEPS.find(t => big.filter(b => b.amt >= t).length >= 5) ?? BIG_MIN;
+}
+/** 1억 → "1억", 5천만 → "5천만" */
+export const wonStep = (t: number) => (t >= 1e8 ? `${t / 1e8}억` : `${t / 1e7}천만`);
 
 export function useTickFlow(code: string, enabled = true): TickFlow {
   const store = useRef<{ lastCum: number; minutes: Map<string, MinuteFlow>; big: BigTrade[]; gaps: number; since?: string; last?: string }>(null!);
@@ -58,9 +67,9 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
           const amt = t.price * t.volume;
           if (t.side === "BUY") { b.buyVol += t.volume; b.buyAmt += amt; } else { b.sellVol += t.volume; b.sellAmt += amt; }
           b.close = t.price;
-          if (amt >= BIG_TRADE_WON) s.big.unshift({ time: t.time, side: t.side, amt, price: t.price, volume: t.volume });
+          if (amt >= BIG_MIN) s.big.unshift({ time: t.time, side: t.side, amt, price: t.price, volume: t.volume });
         }
-        s.big = s.big.slice(0, 30);
+        s.big = s.big.slice(0, 200);   // 낮은 단계까지 모으니 넉넉히
         s.lastCum = fresh[fresh.length - 1].cum;
         s.since ??= fresh[0].time;
         s.last = fresh[fresh.length - 1].time;

@@ -18,7 +18,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { openTickPopup } from "../lib/tickPopup";
 import { useLastRefresh } from "../lib/lastRefresh";
 import { TossPane, NaverPane } from "./CommunityDialog";
-import { useTickFlow, strength, netAmt, BIG_TRADE_WON, type TickFlow } from "../lib/useTickFlow";
+import { useTickFlow, strength, netAmt, bigThreshold, wonStep, type TickFlow } from "../lib/useTickFlow";
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
 import { HypothesisBox } from "./HypothesisBox";
@@ -301,7 +301,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
               : <div className="text-gray-400">체결을 모으는 중… (1~2분)</div>}
           </div>
           <div className="mt-auto pt-2 border-t text-[11px] text-gray-500 leading-snug">
-            체결강도 = 매수 체결량 ÷ 매도 체결량 × 100 (100 위 = 사는 쪽 우위). 큰 체결 = {BIG_TRADE_WON / 1e8}억 원 이상.
+            체결강도 = 매수 체결량 ÷ 매도 체결량 × 100 (100 위 = 사는 쪽 우위). 큰 체결 = 1억 원 이상(5건이 안 되면 5천만 · 3천만 · 1천만으로 낮춤).
           </div>
           </>}
         </div>
@@ -393,6 +393,7 @@ function TickPanel({ name, flow, day, onTitle }: { name: string; flow: TickFlow;
   const xOf = (i: number) => PAD + i * bw + bw / 2;
   const mid = H / 2;
   const st1 = strength(ms, 1), st5 = strength(ms, 5), stAll = strength(ms);
+  const bigThr = bigThreshold(flow.big);
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
       <div className="flex items-baseline gap-2">
@@ -448,10 +449,10 @@ function TickPanel({ name, flow, day, onTitle }: { name: string; flow: TickFlow;
           )}
         </div>
         <div className="w-[118px] shrink-0 overflow-hidden text-[11px] tabular-nums">
-          <div className="text-gray-500 mb-0.5">큰 체결 ({BIG_TRADE_WON / 1e8}억↑)</div>
-          {flow.big.slice(0, 12).map((b, i) => (
+          <div className="text-gray-500 mb-0.5">큰 체결 ({wonStep(bigThr)}↑)</div>
+          {flow.big.filter(b => b.amt >= bigThr).slice(0, 12).map((b, i) => (
             <div key={i} className={`flex justify-between ${b.side === "BUY" ? "text-rose-600" : "text-blue-600"}`}>
-              <span>{b.time}</span><b>{b.side === "BUY" ? "+" : "-"}{(b.amt / 1e8).toFixed(1)}억</b>
+              <span>{b.time}</span><b>{b.side === "BUY" ? "+" : "-"}{b.amt >= 1e8 ? `${(b.amt / 1e8).toFixed(1)}억` : `${Math.round(b.amt / 1e6).toLocaleString()}백만`}</b>
             </div>
           ))}
         </div>
