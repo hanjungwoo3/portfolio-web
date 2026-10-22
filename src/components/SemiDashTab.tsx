@@ -9,7 +9,7 @@ import { useId, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
-  fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
+  fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchNaverNews, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
 } from "../lib/api";
 import type { Investor } from "../types";
@@ -274,7 +274,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       </div>
 
       {/* ② 실시간 체결 + 신호 */}
-      <div className={`grid grid-cols-1 ${stocks.length === 1 ? "lg:grid-cols-[1fr_600px]" : "lg:grid-cols-[1fr_1fr_600px]"} gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]`}>
+      {/* 한 종목(팝업)이면 체결 · 신호 · 종목 뉴스 3등분(사용자 요청) */}
+      <div className={`grid grid-cols-1 ${stocks.length === 1 ? "lg:grid-cols-3" : "lg:grid-cols-[1fr_1fr_600px]"} gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]`}>
         {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} onTitle={popup ? undefined : () => openTickPopup(s.code, s.name)} />)}
         <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
           {/* 지금 신호 / 가설 검증 — 탭(사용자 요청) */}
@@ -301,6 +302,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           </div>
           </>}
         </div>
+        {stocks.length === 1 && <NewsBox code={stocks[0].code} name={stocks[0].name} />}
       </div>
 
       {/* ③ 현물·선물·옵션 수급 */}
@@ -623,6 +625,38 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
           </div>
         );
       })()}
+    </div>
+  );
+}
+
+// 종목 뉴스(네이버) — 팝업(한 종목) 오른쪽 칸. 최신순, 누르면 기사 새 창
+function NewsBox({ code, name }: { code: string; name: string }) {
+  const { data: news } = useQuery({
+    queryKey: ["semi-dash-news", code], queryFn: () => fetchNaverNews(code, 20),
+    refetchInterval: 3 * 60_000, staleTime: 60_000,
+  });
+  const when = (d: string) => {   // YYYYMMDDHHmm → 오늘이면 HH:MM, 아니면 M/D HH:MM
+    if (d.length < 12) return "";
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
+    return `${d.slice(0, 8) === today ? "" : `${+d.slice(4, 6)}/${+d.slice(6, 8)} `}${d.slice(8, 10)}:${d.slice(10, 12)}`;
+  };
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
+      <div className="flex items-baseline gap-2">
+        <span className="font-bold text-gray-800">{name} 뉴스</span>
+        <span className="text-[11px] text-gray-400">네이버 · 최신순</span>
+      </div>
+      <div className="flex-1 min-h-0 overflow-y-auto mt-1">
+        {!news ? <div className="text-gray-400">불러오는 중…</div> : !news.length ? <div className="text-gray-400">뉴스 없음</div> : news.map(n => (
+          <a key={n.id} href={n.url} target="_blank" rel="noopener noreferrer" className="flex gap-2 py-1 border-b border-gray-100 hover:bg-gray-50">
+            <span className="w-[72px] shrink-0 text-[11px] text-gray-400 tabular-nums">{when(n.datetime)}</span>
+            <span className="min-w-0 flex-1">
+              <span className="text-gray-800 leading-snug line-clamp-2">{n.title}</span>
+              <span className="text-[10.5px] text-gray-400">{n.press}</span>
+            </span>
+          </a>
+        ))}
+      </div>
     </div>
   );
 }
