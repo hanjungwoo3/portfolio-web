@@ -340,7 +340,7 @@ export async function fetchTossUsStockCandles(symbol: string, count = 120): Prom
 //   빈 결과는 던진다 — 일시적 0건이 staleTime 동안 굳지 않게(빈 캐시 금지).
 // 토스 분봉을 '그날 처음'까지 이어받기 — 한 번에 450개가 상한이라 모자라면
 //   응답의 nextDateTime 을 from 으로 넘겨 더 받는다(최대 maxPages). 반환은 최신 → 과거 순(토스 응답과 같다).
-type TossBar = { dt: string; close: number; base?: number };
+type TossBar = { dt: string; close: number; base?: number; volume?: number };
 //   5분봉 — 토스·야후 **둘 다 있는 간격**으로 통일(사용자 결정 2026-10-21). 어제+오늘 이틀:
 //   한국 288개 = 1콜, 미국 576개 = 2콜(450개 상한 → 이어받기).
 const TOSS_DAY_MIN = 5;
@@ -377,7 +377,7 @@ export const twoDayTodayX = (f: number) => 1 - TWO_DAY_HALF + f * TWO_DAY_HALF;
 //   g = 하루 안 위치(0~1, 어제) 또는 1+GAP+위치(오늘), 창 = [fNow, 1+GAP+fNow]. fNow = 오늘 거래 시간 중 지금 위치(오늘이 끝났거나
 //   최신 날이 오늘이 아니면 1 → 최신 하루가 꽉 찬다).
 const ROLL_GAP = TWO_DAY_GAP / (1 - TWO_DAY_GAP);   // 두 날 사이 빈칸(창 폭의 약 4%)
-export interface RollIdx { breakIdx?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; todayTimes?: string[] }
+export interface RollIdx { volumes?: number[]; breakIdx?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; todayTimes?: string[] }
 export function rollDay<T extends { closes: number[] } & RollIdx>(s: T, fr: number[], bi: number, fNow: number): T & { xs: number[]; rolling: true } {
   const g = fr.map((f, i) => (bi > 0 && i < bi ? f : 1 + ROLL_GAP + f));
   const full = fNow >= 1;
@@ -386,7 +386,7 @@ export function rollDay<T extends { closes: number[] } & RollIdx>(s: T, fr: numb
   const sh = (i?: number) => (i == null || i - k <= 0 ? undefined : i - k);
   return {
     ...s,
-    closes: s.closes.slice(k), xs: g.slice(k).map(v => Math.min(1, Math.max(0, (v - start) / W))),
+    closes: s.closes.slice(k), volumes: s.volumes?.slice(k), xs: g.slice(k).map(v => Math.min(1, Math.max(0, (v - start) / W))),
     breakIdx: bi > 0 && bi > k ? bi - k : undefined,
     openIdx: sh(s.openIdx), closeIdx: sh(s.closeIdx), prevOpenIdx: sh(s.prevOpenIdx), prevCloseIdx: sh(s.prevCloseIdx),
     rolling: true,
@@ -414,6 +414,7 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
     ? Math.min(1, Math.max(0, ((Number(pp.hour) % 24) * 60 + Number(pp.minute) - startMin) / spanMin)) : 1;
   return rollDay({
     closes: [...prev.map(c => c.close), ...latest.map(c => c.close)],
+    volumes: [...prev.map(c => c.volume ?? 0), ...latest.map(c => c.volume ?? 0)],   // 카드 아래 거래량 막대
     xs: [...prev.map(c => frac(c.dt) * TWO_DAY_HALF), ...latest.map(c => twoDayTodayX(frac(c.dt)))],
     base: base && base > 0 ? base : undefined,
     prevBase: pb && pb > 0 ? pb : undefined,
@@ -430,7 +431,7 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
 //   지수 카드(KrDaySparkline·야후 spark)와 같은 모양(어제 종가선 위 빨강·아래 파랑, 정규장 시작 세로선)으로 그리려고
 //   종가만 주던 걸 넓혔다(2026-10-21). 한국 = 08:00~20:00 KST(정규 09:00), 미국 = 00:00~24:00 ET(정규 09:30).
 //   오늘 봉이 1개라도 있으면 오늘(실시간 끝점과 이어 선이 된다), 없을 때만 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
-export interface DaySeries { rolling?: boolean; closes: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
+export interface DaySeries { rolling?: boolean; closes: number[]; volumes?: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
 export async function fetchTossIntraday(ticker: string): Promise<DaySeries | null> {
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
   const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));

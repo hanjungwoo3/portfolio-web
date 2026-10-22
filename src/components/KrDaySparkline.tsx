@@ -8,12 +8,13 @@ import { Sparkline } from "./Sparkline";
 
 const kstToday = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 
-export function KrDaySparkline({ code, fallback, live, width, height, color, dim, className }: {
+export function KrDaySparkline({ code, fallback, live, width, height, color, dim, className, volume }: {
   code: string; fallback: number[]; width: number; height: number;
   live?: number;    // 카드의 지금 가격(5초 폴링) — 오늘 차트 끝에 '지금 시각' 위치로 붙인다(분봉은 5분마다라)
   color?: string;   // 3개월 폴백·흐린 카드용 강제 색
   dim?: boolean;    // 흐린 카드 — 당일 차트도 회색 한 색(분할 색칠 안 함)
   className?: string;
+  volume?: boolean;  // 아래에 거래량 막대(반도체 수급 탭 카드, 사용자 요청 2026-10-22)
 }) {
   const ref = useRef<HTMLDivElement>(null);
   const [seen, setSeen] = useState(false);
@@ -40,13 +41,13 @@ export function KrDaySparkline({ code, fallback, live, width, height, color, dim
     // 토스 봉 시각은 '끝나는 시각'(09:00~09:10 봉 = 09:10) — 지금이 진행 중인 봉 안이면 그 봉 바로 뒤에 붙인다
     const lastX = day0.xs[day0.xs.length - 1];
     if (x > 1 || x < lastX - (day0.twoDay ? TWO_DAY_HALF : 1) * 10 / (12 * 60)) return day0;
-    return { ...day0, closes: [...day0.closes, live], xs: [...day0.xs, Math.max(x, lastX + 0.002)] };
+    return { ...day0, closes: [...day0.closes, live], volumes: day0.volumes && [...day0.volumes, 0], xs: [...day0.xs, Math.max(x, lastX + 0.002)] };
   })();
   const dayOk = day && day.closes.length > 1 ? day : null;   // 봉 1개 + 끝점이 없으면(장 밖) 3개월로
   return (
     <div ref={ref} className="absolute inset-0 pointer-events-none">
       <Sparkline data={dayOk ? dayOk.closes : fallback} width={width} height={height}
-                 color={dayOk && !dim ? undefined : color} baseline={dayOk?.base} markIndex={dayOk?.openIdx} closeIndex={dayOk?.closeIdx} extraMarks={[dayOk?.prevOpenIdx, dayOk?.prevCloseIdx]} xs={dayOk?.xs} breakIndex={dayOk?.breakIdx} prevBaseline={dayOk?.prevBase}
+                 color={dayOk && !dim ? undefined : color} baseline={dayOk?.base} markIndex={dayOk?.openIdx} closeIndex={dayOk?.closeIdx} extraMarks={[dayOk?.prevOpenIdx, dayOk?.prevCloseIdx]} xs={dayOk?.xs} breakIndex={dayOk?.breakIdx} prevBaseline={dayOk?.prevBase} volumes={volume ? dayOk?.volumes : undefined}
                  className={className} />
     </div>
   );

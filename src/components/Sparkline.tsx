@@ -42,10 +42,12 @@ interface Props {
   // 끊은 앞 구간(어제)의 기준선 — 어제의 전일 종가. 주면 기준선이 **두 개**(왼쪽=어제 기준·오른쪽=오늘 기준)가 되고
   //   위·아래 색도 구간마다 자기 기준선으로 칠한다(카드 등락률과 같은 기준 — 어제는 어제 등락, 오늘은 오늘 등락).
   prevBaseline?: number;
+  // 거래량(점마다, data 와 같은 길이) — 주면 아래 1/4 을 거래량 막대 자리로 비우고 회색 막대를 그린다(사용자 요청 2026-10-22)
+  volumes?: number[];
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs, breakIndex, prevBaseline, closeIndex, extraMarks,
+  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs, breakIndex, prevBaseline, closeIndex, extraMarks, volumes,
   aboveColor = "#dc2626", belowColor = "#2563eb",
 }: Props) {
   const uid = useId().replace(/:/g, "");   // 위·아래 잘라내기(clipPath)·그라디언트 id — 카드마다 달라야 한다
@@ -78,7 +80,9 @@ export function Sparkline({
   const padX = 1;
   const padY = 2;
   const innerW = width - padX * 2;
-  const innerH = height - padY * 2;
+  const hasVol = !!volumes && volumes.length === data.length && volumes.some(v => v > 0);
+  const volH = hasVol ? Math.round(height * 0.25) : 0;   // 아래 거래량 띠 — 가격은 그 위에서만
+  const innerH = height - padY * 2 - volH;
 
   // 정규화 좌표 — 시간 축(xs)이 없고 끊는 곳(breakIndex)이 있으면 그 사이에 빈칸(약 4%)을 둔다.
   //   한 칸 차이로 맞닿으면 끊어도 이어진 세로선처럼 보인다(야후 지수 카드 — 20:00→04:00 이 붙어 있음).
@@ -162,6 +166,17 @@ export function Sparkline({
                 strokeLinejoin="round" strokeLinecap="round" />
         </>
       )}
+      {/* 거래량 — 아래 띠, 점 위치에 회색 막대 */}
+      {hasVol && (() => {
+        // 기준 = 상위 5% 값 — 동시호가(15:30) 한 봉이 수십 배라 최대값에 맞추면 나머지가 다 바닥에 붙었다. 넘는 봉은 띠 높이로 자른다
+        const sorted = volumes!.filter(v => v > 0).sort((x, y) => x - y);
+        const vMax = sorted[Math.floor(sorted.length * 0.95)] || sorted[sorted.length - 1];
+        const bw = Math.max(0.8, (innerW / data.length) * 0.7);
+        return volumes!.map((v, i) => v > 0 && (
+          <rect key={`v${i}`} x={points[i][0] - bw / 2} width={bw} y={height - Math.min(1, v / vMax) * volH} height={Math.min(1, v / vMax) * volH}
+                fill="#64748b" opacity="0.6" />
+        ));
+      })()}
       {/* 기준선(전일 종가) — 회색 가로 점선 (24시간 차트). 어제·오늘 둘이면 좌우로 나눠 따로, 사이는 살짝 띄운다 */}
       {parts.map(({ by, x0, x1 }, k) => (
         <line key={k} x1={Math.max(padX, x0 + (k > 0 ? 2 : 0))} x2={Math.min(width - padX, x1 - (k < parts.length - 1 ? 2 : 0))} y1={by} y2={by}
