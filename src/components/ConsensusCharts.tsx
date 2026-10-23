@@ -267,7 +267,7 @@ function SingleChart({ title, series, format }: SingleChartProps) {
   );
 }
 
-export function ConsensusCharts({ revenue, operatingIncome, eps }: Props) {
+export function ConsensusCharts({ revenue, operatingIncome, eps, stacked }: Props & { stacked?: boolean }) {
   const anyData = !!(revenue?.points.length || operatingIncome?.points.length || eps?.points.length);
 
   // 빈 상태 — 개인 프록시 사용 중 + 워커가 구버전(POST 미지원) 인지 1회 검증
@@ -304,14 +304,14 @@ export function ConsensusCharts({ revenue, operatingIncome, eps }: Props) {
   }
 
   return (
-    <section className="mt-3">
+    <section className={stacked ? "" : "mt-3"}>
       <header className="mb-2 flex items-baseline gap-2 flex-wrap">
         <h3 className="text-sm font-bold text-gray-700">🔮 컨센서스 예상치 (분기)</h3>
         <span className="text-[10px] text-gray-400">
           출처: 토스 / FnGuide · 발표치 vs 애널리스트 평균 예상 · 점 색 = 서프라이즈 방향
         </span>
       </header>
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+      <div className={`grid grid-cols-1 gap-2 ${stacked ? "sm:grid-cols-2 xl:grid-cols-3" : "md:grid-cols-2 lg:grid-cols-3"}`}>
         {revenue && <SingleChart title="예상 매출" series={revenue} format={fmtKrwBig} />}
         {operatingIncome && <SingleChart title="예상 영업이익" series={operatingIncome} format={fmtKrwBig} />}
         {eps && <SingleChart title="예상 EPS (주당순이익)" series={eps} format={fmtKrwSmall} />}

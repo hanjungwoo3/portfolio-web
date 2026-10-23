@@ -224,7 +224,8 @@ const METRICS: { label: string; get: (r: EarningsRow) => string; cls?: (r: Earni
     cls: r => signCls(r.net_debt_ratio == null ? null : -r.net_debt_ratio) },
 ];
 
-export function EarningsTrend({ rows }: { rows: EarningsRow[] }) {
+// right — 오른쪽 칸을 바꿔 끼운다(기업가치 = 분기 컨센서스 차트, 사용자 요청 2026-10-23: 실적 표 대신). 없으면 실적 표
+export function EarningsTrend({ rows, right }: { rows: EarningsRow[]; right?: React.ReactNode }) {
   if (rows.length === 0) return null;
 
   return (
@@ -237,12 +238,14 @@ export function EarningsTrend({ rows }: { rows: EarningsRow[] }) {
 
       {/* 50/50 — 실적 추이 차트(매출·이익·ROE + PER·PBR) | 실적 표.
           수급·지분율 차트는 위쪽 '가격 축' 줄로 옮겼다(실적 이야기 중간에 수급이 끼지 않게). */}
-      <div className="grid grid-cols-1 gap-3 items-start lg:grid-cols-2">
+      {/* 오른쪽에 컨센서스를 끼우면 왼쪽은 차트 폭(최대 620px)만 — 남는 폭을 오른쪽 세 차트가 한 줄로 쓴다 */}
+      <div className={`grid grid-cols-1 gap-3 items-start ${right ? "lg:grid-cols-[minmax(0,620px)_1fr]" : "lg:grid-cols-2"}`}>
         <div className="min-w-0 space-y-1">
           <TrendChart rows={rows} />
           <ValuationChart rows={rows} />
         </div>
 
+        {right ? <div className="min-w-0">{right}</div> : (
         <div className="min-w-0 overflow-x-auto">
           <table className="w-full border-collapse">
             <thead>
@@ -273,6 +276,7 @@ export function EarningsTrend({ rows }: { rows: EarningsRow[] }) {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
 

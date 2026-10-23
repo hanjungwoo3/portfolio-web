@@ -688,7 +688,9 @@ export function ValuationModal({
               외국인 지분율·상대수익률을 같은 줄에 붙여 네 칸으로 만든다(세로 절약). */}
           {earnings && earnings.length > 0 && (
             <div className="mb-3">
-              <EarningsTrend rows={earnings} />
+              {/* 오른쪽 칸 = 분기 컨센서스(예상 매출·영업이익·EPS) — 실적 표는 왼쪽 차트와 같은 내용이라 뺐다(사용자 요청 2026-10-23) */}
+              <EarningsTrend rows={earnings}
+                             right={estEnabled ? <ConsensusCharts stacked revenue={estRevenue} operatingIncome={estOpIncome} eps={estEps} /> : undefined} />
             </div>
           )}
           {/* 재무 추이 — Wisereport 시계열 5개 차트 */}
@@ -699,7 +701,7 @@ export function ValuationModal({
           )}
           {/* 컨센서스 예상치 — 분기별 발표 vs 예상 (매출/영업이익/EPS).
               데이터 모두 null 이라도 ConsensusCharts 가 워커 구버전 안내를 자체 표시. */}
-          {estEnabled && (
+          {estEnabled && !(earnings && earnings.length > 0) && (
             <div className="mb-3">
               <ConsensusCharts revenue={estRevenue} operatingIncome={estOpIncome} eps={estEps} />
             </div>
