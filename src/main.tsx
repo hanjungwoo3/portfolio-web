@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { isNativeApp } from './lib/nativeProxy'
+import { isDirectApp } from './lib/nativeProxy'
 import { applyNightBg } from './lib/nightBg'
 
 // 야간 배경 — 첫 그림 전에 적용(깜빡임 방지)
@@ -14,7 +14,8 @@ applyNightBg()
 //   "웹만 배포하면 앱도 따라온다" 는 전제가 깨지고, 사용자가 강제 갱신을 눌러야만 반영된다.
 //   앱은 APK 로 갱신하지 SW 로 갱신하지 않으므로, 등록된 게 있으면 지우고 캐시도 비운다.
 //   (index.html 의 자동 등록 스크립트는 그대로 두고 여기서 되돌린다 — 웹 갱신 흐름은 무손상)
-if (isNativeApp() && 'serviceWorker' in navigator) {
+// 데스크톱 앱(맥·윈도우)도 같다 — 맥 앱이 옛 화면(옛 합계 바)을 붙잡고 있었다(2026-10-23)
+if (isDirectApp() && 'serviceWorker' in navigator) {
   void navigator.serviceWorker.getRegistrations()
     .then(regs => Promise.all(regs.map(r => r.unregister())))
     .then(() => (typeof caches !== 'undefined'
