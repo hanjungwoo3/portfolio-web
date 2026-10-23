@@ -721,6 +721,16 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
           </svg>
           {/* 매수·매도 숫자 — 투자자마다 자기 선 위에 작은 상자로(사용자 요청 2026-10-23).
               마우스 땐 그 구간(산·판·차이), 아니면 선 끝에 하루 합계. 마우스를 막지 않게 pointer-events 끔 */}
+          {/* 마우스 구간 시각 — 상자마다 쓰지 않고 아래 축에 한 번(사용자 요청 2026-10-23) */}
+          {fb && hoverX != null && hoverM != null && (() => {
+            const m0 = T0 + Math.max(0, Math.floor((Math.min(hoverM, fb.lastM) - T0) / fb.B)) * fb.B;
+            return (
+              <div className="absolute bottom-0 -translate-x-1/2 rounded bg-gray-700 px-1 text-[10px] leading-tight text-white tabular-nums pointer-events-none"
+                   style={{ left: `${(hoverX / W) * 100}%` }}>
+                {`${String(Math.floor(m0 / 60)).padStart(2, "0")}:${String(m0 % 60).padStart(2, "0")}~`}
+              </div>
+            );
+          })()}
           {fb && LINES.map((l, li) => {
             const i = hoverM != null ? Math.min(fb.rows[li].length - 1, Math.max(0, Math.floor((Math.min(hoverM, fb.lastM) - T0) / fb.B))) : null;
             const m = hoverM != null ? Math.min(hoverM, fb.lastM) : fb.lastM;
@@ -728,14 +738,12 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
             const ly = y(fb.lineAt(l.k, m));
             const [bv, sv] = i != null ? [fb.rows[li][i].b, fb.rows[li][i].s] : fb.tot(l.k);
             const d = bv - sv;
-            const m0 = i != null ? T0 + i * fb.B : 0;
             const right = lx / W > 0.55;   // 오른쪽 반이면 점 왼쪽에 — 칸 밖으로 안 나가게
             return (
               <div key={l.k} className="pg-box absolute whitespace-nowrap rounded border bg-white/90 px-1 text-[10px] leading-tight tabular-nums shadow-sm pointer-events-none"
                    style={{ left: `${(lx / W) * 100}%`, top: `${Math.min(92, Math.max(4, (ly / H) * 100))}%`, borderColor: l.color,
                             transform: `translate(${right ? "calc(-100% - 4px)" : "4px"}, ${li % 2 ? "4px" : "calc(-100% - 4px)"})` }}>
                 <b style={{ color: l.color }}>{l.label}</b>{" "}
-                {i != null && <span className="text-gray-500">{`${String(Math.floor(m0 / 60)).padStart(2, "0")}:${String(m0 % 60).padStart(2, "0")}~ `}</span>}
                 <b className="text-rose-600">{fmtFlow(bv, unit)}</b>·<b className="text-blue-600">{fmtFlow(sv, unit)}</b>{" "}
                 <b className={d > 0 ? "text-rose-600" : d < 0 ? "text-blue-600" : "text-gray-500"}>{d > 0 ? "+" : d < 0 ? "−" : ""}{fmtFlow(Math.abs(d), unit)}</b>
               </div>
