@@ -66,10 +66,13 @@ async function getYahooCrumb() {
 //
 // ⚠️ condition.tabIds = [-1] — '탭에서 나오지 않은 요청', 즉 이 확장이 보낸 것만 대상.
 //    이게 없으면 사용자가 브라우저로 토스·네이버를 볼 때까지 헤더가 바뀐다.
+// 토스 — 2026-10-22 부터 `_browserId` 쿠키 없으면 400(값은 아무거나). 확장이 보내는 요청엔 브라우저의 토스 쿠키가
+//   실리지 않아 확장 사용자 종목이 안 나왔다(사용자 제보 2026-10-23). 확장 시작마다 아무 값 하나를 만들어 직접 싣는다.
+const TOSS_BROWSER_ID = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 const HEADER_GROUPS = [
   {
     domains: ["wts-info-api.tossinvest.com", "wts-cert-api.tossinvest.com", "tossinvest.com"],
-    headers: { Origin: "https://tossinvest.com", Referer: "https://tossinvest.com/" },
+    headers: { Origin: "https://tossinvest.com", Referer: "https://tossinvest.com/", Cookie: `_browserId=${TOSS_BROWSER_ID}` },
   },
   {
     domains: ["finance.naver.com", "m.stock.naver.com", "stock.naver.com",
