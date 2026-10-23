@@ -308,7 +308,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return (
       <div className="flex flex-col gap-1.5 p-2 text-[12px] bg-gray-50 pg-bg">
         {/* 종목 카드 + 시장 카드(반도체 탭과 같은 그래프 카드 — 칩 한 줄보다 낫다, 사용자 요청 2026-10-23) */}
-        <div className="grid grid-cols-2 lg:grid-cols-6 gap-1.5 auto-rows-[118px] shrink-0">
+        {/* 종목은 크게(2칸), 시장 카드 5장은 작게(사용자 요청 2026-10-23) */}
+        <div className="grid grid-cols-2 lg:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] gap-1.5 auto-rows-[118px] shrink-0">
           <Card title={s0.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
                 chart={<KrDaySparkline code={s0.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />
           {marketCards}
