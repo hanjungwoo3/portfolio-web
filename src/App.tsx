@@ -1260,7 +1260,17 @@ function Dashboard() {
                           heldFirst={heldFirst} onToggleHeldFirst={toggleHeldFirst}
                           pnlOpen={pnlOpen} onTogglePnl={togglePnl}
                           onDepositChange={() => setReloadKey(k => k + 1)} />
-                {pnlOpen && <TodayPnLTable holdings={visible} prices={priceMap} />}
+                {pnlOpen && (
+                  <div className="relative">
+                    <TodayPnLTable holdings={visible} prices={priceMap} />
+                    {/* 접기 — 접으면 합계 카드 오른쪽에 '오늘/전체 ▶' 책갈피가 나타난다 */}
+                    <button type="button" onClick={togglePnl} title="오늘/전체 이익·손해 표 접기"
+                            className="absolute -top-2 left-0 z-10 w-5 h-5 rounded-full bg-white
+                                       border border-gray-300 shadow text-[10px] leading-none text-gray-500 hover:text-gray-800">
+                      ◀
+                    </button>
+                  </div>
+                )}
                 <TodayRealizedCard trades={allTrades} account={activeTab}
                                    aggregated={activeTab === MY_STOCKS_TAB_KEY}
                                    scopeAccounts={folderScope}
