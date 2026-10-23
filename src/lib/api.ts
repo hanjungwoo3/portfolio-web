@@ -814,7 +814,7 @@ async function fetchYahooChartCV(symbol: string, range = "2mo"): Promise<{ close
               + `${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
   try {
     const resp = await fetchProxied(target);
-    if (!resp.ok) return { closes: [], volumes: [] };
+    if (!resp.ok) { if (resp.status === 404) return { closes: [], volumes: [] }; throw new Error(`yahoo chart ${symbol}: ${resp.status}`); }   // 일시적 실패는 빈 값으로 굳히지 않는다
     const data = await resp.json() as {
       chart?: { result?: Array<{ indicators?: { quote?: Array<{
         close?: (number | null)[]; volume?: (number | null)[];
@@ -835,15 +835,17 @@ async function fetchYahooChartCV(symbol: string, range = "2mo"): Promise<{ close
       }
     }
     return { closes, volumes };
-  } catch {
+  } catch (e) {
+    if (e instanceof Error && e.message.startsWith("yahoo chart")) throw e;   // 일시적 실패 — 부른 쪽이 판단
     return { closes: [], volumes: [] };
   }
 }
 
 export async function fetchKrSectorEtfRanking(): Promise<KrSectorEtfRank[]> {
+  let failed = 0;
   const results = await Promise.all(
     KR_SECTOR_ETFS.map(async etf => {
-      const { closes, volumes } = await fetchYahooChartCV(`${etf.ticker}.KS`, "2mo");
+      const { closes, volumes } = await fetchYahooChartCV(`${etf.ticker}.KS`, "2mo").catch(() => { failed++; return { closes: [] as number[], volumes: [] as number[] }; });
       if (closes.length < 2) {
         return {
           ticker: etf.ticker, name: etf.name, fullName: etf.fullName, isMarket: etf.isMarket,
@@ -871,6 +873,8 @@ export async function fetchKrSectorEtfRanking(): Promise<KrSectorEtfRank[]> {
       } as KrSectorEtfRank;
     })
   );
+  // 절반 넘게 일시적 실패면 던진다 — 빈 순위표를 캐시하지 않고 다시 묻게(그래프·표가 통째로 비던 것, 사용자 제보 2026-10-23)
+  if (failed > KR_SECTOR_ETFS.length / 2) throw new Error(`sector etf ranking: ${failed}/${KR_SECTOR_ETFS.length} failed`);
   return results;
 }
 
@@ -1752,7 +1756,9 @@ async function fetchPriceHistoryWithEventsFor(
     `?range=${range}&interval=1d&events=div%2Csplit`;
   const empty = { prices: [] as PricePoint[], dividends: [] as DividendEvent[], splits: [] as SplitEvent[] };
   const resp = await fetchProxied(target);
-  if (!resp.ok) return empty;
+  // 404(그 거래소에 없는 종목) 만 '없음'. 429·5xx 같은 일시적 실패는 던진다 — 빈 값으로 돌려주면 React Query 가
+  //   1시간(staleTime) 동안 빈 그래프로 들고 있었다(ETF 구성·검색 그래프 안 나옴, 사용자 제보 2026-10-23)
+  if (!resp.ok) { if (resp.status === 404) return empty; throw new Error(`yahoo chart ${symbol}: ${resp.status}`); }
   const data = await resp.json() as YahooChartResp;
   const res = data.chart?.result?.[0];
   if (!res) return empty;
@@ -1840,11 +1846,15 @@ async function fetchKrEitherExchange<T>(
     const one = await fetchOne(`${ticker}${suffix}`);
     if (countOf(one) > 0) return one;   // 빈 응답이면 아래 양쪽 조회로 폴백
   }
-  const [ks, kq] = await Promise.all([
+  // 한쪽이 일시적 실패(던짐)여도 다른 쪽이 받았으면 그걸로. 둘 다 실패면 던진다(빈 값을 캐시하지 않게)
+  const [ks, kq] = await Promise.allSettled([
     fetchOne(`${ticker}.KS`),
     fetchOne(`${ticker}.KQ`),
   ]);
-  return countOf(ks) >= countOf(kq) ? ks : kq;
+  if (ks.status === "rejected" && kq.status === "rejected") throw ks.reason;
+  if (ks.status === "rejected") return (kq as PromiseFulfilledResult<T>).value;
+  if (kq.status === "rejected") return ks.value;
+  return countOf(ks.value) >= countOf(kq.value) ? ks.value : kq.value;
 }
 
 export async function fetchKrPriceHistory(
