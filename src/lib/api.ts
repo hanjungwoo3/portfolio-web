@@ -4137,7 +4137,14 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         //   선물(=F)은 거래일이 뉴욕 18:00 에 시작 — 그 시각을 날짜 경계로(UTC+2 로 보면 18:00 ET 가 자정)
         const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : /=F$/.test(x.symbol) ? 2 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
         const etDay = (t: number) => new Date((t + off * 3600) * 1000).toISOString().slice(0, 10);   // 대략 EDT/KST(일자 경계만 필요)
-        const bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
+        let bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
+        // 오늘 봉이 아직 없다(프리장 거래가 드문 종목 — 디지털리얼티·에퀴닉스 등) — 그대로면 '어제 하루 전체' 축으로 그려져
+        //   다른 카드(지금 기준 24시간)와 가로 위치·세로선 자리가 어긋났다(사용자 지적 2026-10-23).
+        //   평일이면 받은 봉 전부를 '어제'로 보고 오늘 칸은 비운다 → 같은 24시간 축. (주말엔 그대로 — 금요일 하루 전체)
+        const nowS0 = Date.now() / 1000;
+        const wd = new Date((nowS0 + off * 3600) * 1000).getUTCDay();
+        const noToday = times.length > 0 && etDay(nowS0) > etDay(times[times.length - 1]) && wd >= 1 && wd <= 5;
+        if (noToday) bi = times.length;
         // 어제 구간의 정규장 시작·종가 봉(세로선 — 사용자 요청) + 어제 정규장 종가 = 오늘 기준선
         const inPrev = (i: number) => bi > 0 && i < bi;
         const poi = sTod != null ? times.findIndex((t, i) => inPrev(i) && tod(t) >= sTod) : -1;
@@ -4147,13 +4154,16 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         //   하루 안 시각은 날짜 경계(off)로 민 시각 — 미국 주식 04:00~20:00, 한국 09:00~15:30, 선물 18:00~17:00
         const todS = (t: number) => (((t + off * 3600) % 86400) + 86400) % 86400;
         const span = bi > 0 ? times.slice(0, bi) : times;   // 어제(완결된 하루)의 시각 폭을 기준으로
-        const lo = Math.min(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
-        const hi = Math.max(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
+        // 미국 주식·ETF 는 04:00~20:00(뉴욕) 고정 — 자료로 정하면 프리·애프터 거래가 드문 종목(에퀴닉스는 09:30~19:45)만
+        //   축이 좁아져 다른 카드와 세로선 자리가 어긋났다(사용자 지적 2026-10-23). 지수·선물·아시아는 자료대로.
+        const usEq = off === -4 && /^[A-Z][A-Z.-]{0,5}$/.test(x.symbol);
+        const lo = usEq ? 4 * 3600 : Math.min(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
+        const hi = usEq ? 20 * 3600 : Math.max(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
         const fr = (t: number) => (hi > lo ? (todS(t) - lo) / (hi - lo) : 0);
         const nowS = Date.now() / 1000;
-        const fNow = times.length && etDay(nowS) === etDay(times[times.length - 1]) ? Math.min(1, Math.max(0, fr(nowS))) : 1;
+        const fNow = times.length && (noToday || etDay(nowS) === etDay(times[times.length - 1])) ? Math.min(1, Math.max(0, fr(nowS))) : 1;
         out.set(x.symbol, rollDay({
-          closes, openIdx: oi > 0 ? oi : undefined, closeIdx: ci > 0 ? ci : undefined, prevClose: pc && pc > 0 ? pc : undefined,
+          closes, openIdx: oi > 0 && !noToday ? oi : undefined, closeIdx: ci > 0 && !noToday ? ci : undefined, prevClose: pc && pc > 0 ? pc : undefined,
           breakIdx: bi > 0 ? bi : undefined, prevBase: bi > 0 && cpc && cpc > 0 ? cpc : undefined,
           prevOpenIdx: poi > 0 ? poi : undefined, prevCloseIdx: pci > 0 ? pci : undefined,
         }, times.map(fr), bi > 0 ? bi : 0, fNow));   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
