@@ -3,9 +3,10 @@
 // 기준선(baseline)을 주면 **선 위 구간은 빨강, 아래 구간은 파랑**으로 나눠 칠한다(채움도 기준선까지).
 import { useId } from "react";
 
-// 정규장 세로선 — 시작 = 진한 점선, 종가 = 연한 실선(사용자 결정 2026-10-21, 글자·기호 없이 선 모양·색으로만 구분)
+// 정규장 세로선 — 시작 = 진한 점선, 종가 = 진한 실선(사용자 결정 2026-10-21, 글자·기호 없이 선 모양으로만 구분).
+//   종가는 원래 연한 회색이었는데 분홍·보라 면에 묻혀 '마감선이 없다'로 보였다(사용자 지적 2026-10-23) → 시작과 같은 진한 색, 모양만 실선
 const OPEN_LINE = { stroke: "#334155", strokeWidth: 1.2, strokeDasharray: "3 2", opacity: 0.9 } as const;
-const CLOSE_LINE = { stroke: "#94a3b8", strokeWidth: 1.2, opacity: 0.9 } as const;
+const CLOSE_LINE = { stroke: "#334155", strokeWidth: 1.2, opacity: 0.75 } as const;
 
 interface Props {
   data: number[];
