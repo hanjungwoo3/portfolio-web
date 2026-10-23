@@ -274,12 +274,21 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   }
 
   // 시장 카드(코스피·코스닥·선물(야간엔 야간선물)·V-KOSPI) — 반도체 탭 첫 줄과 종목정보 팝업이 같이 쓴다
+  // 시장 대표 ETF 카드 — 팝업엔 넣지 않는다. 순서: 코스피 · 코스피200(KODEX 200) · 코스닥 · 코스닥150(사용자 요청 2026-10-23)
+  const etfCard = (i: 0 | 1) => {
+    if (popup) return null;
+    const e = ETFS[i], qq = eq(e.code);
+    return <Card title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
+                 chart={<KrDaySparkline code={e.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
+  };
   const marketCards = (<>
         <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct} dim={!openIndex}
               chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />} />
+        {etfCard(0)}
         {/* 코스닥 — 사용자 요청(2026-10-21). 기준선은 카드 전일 종가(야후 ^KQ11 previousClose 가 그저께 값일 때가 있다) */}
         <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct} dim={!openIndex}
               chart={spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />} />
+        {etfCard(1)}
         {/* 야간(18:00~05:00)엔 야간선물(야선) — 사용자 요청. 주간 선물 카드와 자리를 바꾼다 */}
         {night ? (["^KS200N", "^KQ150N"] as const).map((sym, i) => {
           const d = nightQs[i]?.data;
@@ -375,11 +384,6 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           const qq = sq(s.code);
           return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
                        chart={<KrDaySparkline code={s.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
-        })}
-        {ETFS.map(e => {
-          const qq = eq(e.code);
-          return <Card key={e.code} title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
-                       chart={<KrDaySparkline code={e.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
         })}
         {marketCards}
         {/* 필라델피아 반도체(지수) 카드는 뺐다 — 한국 장중엔 간밤 미국 종가라 안 움직인다(사용자 요청). SOX 선물은 아래 해외 선물 줄 */}
