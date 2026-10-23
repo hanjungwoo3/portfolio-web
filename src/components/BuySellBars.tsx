@@ -107,16 +107,17 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
             <div className={`flex items-baseline gap-2 tabular-nums min-w-0 ${compact ? "text-[10px]" : "text-[11px]"}`}>
               <b className="whitespace-nowrap" style={{ color }}>{def?.label ?? k}</b>
               {/* 좁은 칸(compact)은 '매수·매도·→' 글자를 뺀다(사용자 요청) — 빨강 = 매수, 파랑 = 매도 */}
-              {hb ? (
-                <span className="text-gray-500 whitespace-nowrap min-w-0 truncate">{hLabel} {!compact && "매수 "}<b className="text-rose-600">{fmtBig(hb.b, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(hb.s, unit)}</b>
-</span>
-              ) : (
-                <span className="text-gray-500 whitespace-nowrap min-w-0 truncate">{!compact && "매수 "}<b className="text-rose-600">{fmtBig(totB, unit)}</b> · {!compact && "매도 "}<b className="text-blue-600">{fmtBig(totS, unit)}</b></span>
-              )}
-              {/* 마우스로 구간을 볼 땐 하루 총액은 감춘다(사용자 요청) */}
-              {/* 마우스로 구간을 볼 땐 그 구간 차이를, 아니면 하루 순매수를 — 둘 다 오른쪽 끝 같은 자리(사용자 요청) */}
-              {hb && <span className="ml-auto whitespace-nowrap"><b className={hb.b - hb.s > 0 ? "text-rose-600" : hb.b - hb.s < 0 ? "text-blue-600" : "text-gray-500"}>{signed(hb.b - hb.s, unit)}</b></span>}
-              {!hb && <span className="ml-auto whitespace-nowrap">{!compact && "순 "}<b className={net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-500"}>{signed(net, unit)}</b></span>}
+              {/* 개인 금액 (+산 −판) — 마우스 땐 그 구간, 아니면 하루(사용자 요청 2026-10-23) */}
+              {(() => {
+                const [bv, sv, nv] = hb ? [hb.b, hb.s, hb.b - hb.s] : [totB, totS, net];
+                return (
+                  <span className="whitespace-nowrap min-w-0 truncate">
+                    {hb && <span className="text-gray-500">{hLabel} </span>}
+                    <b className={`${compact ? "text-[11.5px]" : "text-[12.5px]"} ${nv > 0 ? "text-rose-600" : nv < 0 ? "text-blue-600" : "text-gray-500"}`}>{signed(nv, unit)}</b>
+                    <span className="text-gray-500"> (<b className="text-rose-600">+{fmtBig(bv, unit)}</b> <b className="text-blue-600">−{fmtBig(sv, unit)}</b>)</span>
+                  </span>
+                );
+              })()}
             </div>
             {!textOnly && <svg viewBox={`0 0 ${PX_W} ${H}`} preserveAspectRatio="none" className="w-full block" style={{ height: rowH }}
                  onMouseMove={geom?.hover ? e => {
