@@ -108,9 +108,9 @@ export function NewsFeed() {
   CATS.forEach((c, i) => dataByCat.set(c.key, results[i].data ?? []));
 
   return (
-    <div className="relative rounded-xl border border-gray-300 bg-white p-2.5 pt-4 mt-1.5">
+    <div className="relative rounded-xl border border-gray-300 bg-white pg-box pg-render p-2.5 pt-4 mt-1.5">
       <a href={FEED_URL} target="_blank" rel="noopener noreferrer"
-         className="absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
+         className="absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 pg-title
                     text-sm font-bold text-gray-700 whitespace-nowrap hover:bg-gray-100 hover:text-blue-600">
         📰 증시 뉴스 <span className="text-[10px] text-gray-400">↗</span>
       </a>
@@ -119,7 +119,7 @@ export function NewsFeed() {
         // PC — 4개 카테고리 블럭을 한번에
         <div className="grid grid-cols-2 xl:grid-cols-4 gap-x-3 gap-y-2">
           {CATS.map(c => (
-            <div key={c.key} className="min-w-0">
+            <div key={c.key} className="min-w-0 pg-card pg-list rounded">
               <div className="text-xs font-bold text-gray-700 mb-1 px-0.5 sticky top-0 bg-white">{c.label}</div>
               <div className="max-h-[70vh] overflow-y-auto">
                 <NewsList items={dataByCat.get(c.key)!} />

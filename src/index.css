@@ -81,9 +81,13 @@ html.night-bg .pg-bg :is(.bg-indigo-50,.bg-blue-50,.bg-rose-50,.bg-red-50,.bg-am
 html.night-bg [role="tooltip"] { filter: brightness(0.7); }
 /* 색 글자가 많은 흰 바탕 차트(섹터 등락 순위) — 바탕 그대로, 밝기만 조금 */
 html.night-bg .pg-soft { filter: brightness(0.86); }
+/* 목록·차트 칸(증시 탭 등) — 바탕이 투명·흰색인 칸을 흰 바탕째 카드처럼 낮춘다. 마우스 올린 줄(hover:bg-gray-50)도 같이 낮아진다.
+   안의 canvas 는 칸이 이미 낮췄으니 한 번 더 낮추지 않는다(사용자 지적 2026-10-23: 증시 배경 밝음·순위 글자 안 보임·hover 흰색) */
+html.night-bg .pg-list { background-color: #ffffff !important; }
+html.night-bg .pg-bg .pg-list canvas { filter: none; }
 /* 글·카드가 섞인 그룹 상자(ETF TOP10·한미 섹터, pg-render) — 상자는 어둡게, 안 카드는 pg-card(흰 바탕째 톤 낮춤),
    상자 위에 바로 쓴 글자만 밝게(사용자 지적 — 위쪽 그룹과 톤을 맞추라) */
-html.night-bg .pg-render :is(.text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-blue-800, .text-emerald-800):not(.pg-card *, button, button *) { color: #d1d5db !important; }
+html.night-bg .pg-render :is(.text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-gray-900, .text-blue-800, .text-emerald-800):not(.pg-card *, button, button *) { color: #d1d5db !important; }
 html.night-bg .pg-render :is(.border-gray-200):not(.pg-card *) { border-color: #4b515a !important; }
 /* 가로 스크롤바(폴더 하위 탭 줄 등) — 흰 트랙이 어두운 메뉴에서 튄다 */
 html.night-bg { color-scheme: dark; }

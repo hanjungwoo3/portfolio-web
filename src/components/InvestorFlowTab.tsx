@@ -175,7 +175,7 @@ function FlowList({ rows, side, selected, onSelect, bothWay, onlyBoth, highlight
       ) : (
         <ul ref={listRef}
             className="space-y-0.5 max-h-[300px] overflow-y-auto pr-1
-                       border border-gray-100 rounded p-1">
+                       border border-gray-100 rounded p-1 pg-card pg-list">
           {items.map(({ r, rank }) => (
             <li key={r.ticker} data-ticker={r.ticker}
                 onClick={() => onSelect(selected === r.ticker ? null : r.ticker)}
@@ -361,8 +361,8 @@ export function InvestorFlowTab({ onOpenValuation }: {
   const range = PERIODS.find(x => x.key === period)?.label ?? "";
 
   return (
-    <div className="space-y-2 pt-2">
-      <div className="bg-blue-50/40 border border-blue-100 rounded p-2.5 text-xs text-gray-700 leading-relaxed">
+    <div className="space-y-2 pt-2 pg-render">
+      <div className="bg-blue-50/40 pg-box border border-blue-100 rounded p-2.5 text-xs text-gray-700 leading-relaxed">
         <div className="font-bold text-gray-900 mb-0.5">👥 외국인 · 기관 매매 동향</div>
         투자자별 순매수·순매도 금액 순위입니다. 종목을 클릭하면 다른 투자자 목록에서도 같이 표시됩니다.
         <br />

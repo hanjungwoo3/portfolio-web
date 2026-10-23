@@ -599,9 +599,9 @@ export function IntradayInvestorSection() {
   }, [mode, refKospiIntra.data, refKosdaqIntra.data, refKospiDaily.data, refKosdaqDaily.data]);
 
   return (
-    <div className="relative rounded-xl border border-gray-300 bg-white p-2.5 pt-4 mt-1.5">
+    <div className="relative rounded-xl border border-gray-300 bg-white pg-box pg-render p-2.5 pt-4 mt-1.5">
       <button onClick={toggleOpen}
-              className="absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
+              className="absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 pg-title
                          text-sm font-bold text-gray-700 whitespace-nowrap hover:bg-gray-100 hover:text-blue-600">
         🕐 투자자 순매수 <span className="text-[10px] text-gray-400">{open ? "▲" : "▼"}</span>
       </button>

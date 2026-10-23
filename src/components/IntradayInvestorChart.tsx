@@ -430,7 +430,7 @@ export function IntradayInvestorChart({
   });
 
   return (
-    <div data-flow-chart className="border border-gray-200 rounded p-1.5 bg-white min-w-0">
+    <div data-flow-chart className="border border-gray-200 rounded p-1.5 bg-white min-w-0 pg-card pg-list">
       {/* 헤더 — 시장명(녹색) + 전체 투자자 요약값(당일=최신 / 일별=기간합계). 여러 줄 wrap. */}
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[11px] mb-1 px-0.5 tabular-nums leading-tight">
         <span className="font-bold text-green-600 text-xs">{marketLabel}</span>

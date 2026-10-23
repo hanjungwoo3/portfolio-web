@@ -86,7 +86,7 @@ export function KrxNoticeCard() {
   const freshCount = notices.filter(n => isRecent(n.date)).length;
 
   return (
-    <div className="h-full flex flex-col rounded-xl border border-gray-300 bg-white p-2.5">
+    <div className="h-full flex flex-col rounded-xl border border-gray-300 bg-white pg-box pg-render p-2.5">
       <div className="flex items-baseline gap-2 mb-1.5">
         <span className="text-sm font-bold text-gray-800">📋 KRX 지수 공지</span>
         {freshCount > 0 && (
@@ -97,7 +97,7 @@ export function KrxNoticeCard() {
         <span className="text-[11px] text-gray-400">정기변경·수시변경 — 누르면 KRX 원문</span>
       </div>
       {/* flex-1 — 옆 카드가 더 길면 남는 세로 공간을 목록이 차지한다(빈 여백 방지) */}
-      <ul className="flex-1 divide-y divide-gray-100">
+      <ul className="flex-1 divide-y divide-gray-100 pg-card pg-list rounded px-1">
         {shown.map(n => (
           <li key={n.seq}>
             <button onClick={() => setOpened(n)}

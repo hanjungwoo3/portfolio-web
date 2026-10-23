@@ -145,7 +145,7 @@ function Panel({ metric, dates, hover, onHover }: {
              : idx > 0 ? s[idx] - s[idx - 1] : 0;
 
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-2 min-w-0">
+    <div className="rounded-lg border border-gray-200 bg-white p-2 min-w-0 pg-card pg-list">
       <div className="flex items-baseline gap-1.5 mb-0.5">
         <span className="w-2 h-2 rounded-sm shrink-0" style={{ backgroundColor: color }} />
         <span className="text-[11px] font-bold text-gray-600">{LABEL[metric.key]}</span>
@@ -185,11 +185,11 @@ export function FundFlowCard() {
   const hoverDate = hover == null ? null : data.dates[Math.min(hover, data.dates.length - 1)];
 
   return (
-    <div className="relative rounded-xl border border-gray-300 bg-white p-2.5 pt-4 mt-1.5"
+    <div className="relative rounded-xl border border-gray-300 bg-white pg-box pg-render p-2.5 pt-4 mt-1.5"
          onMouseLeave={() => setHover(null)}
          onTouchEnd={() => setHover(null)}>
       <a href={NAVER_URL} target="_blank" rel="noopener noreferrer"
-         className="absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
+         className="absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 pg-title
                     text-sm font-bold text-gray-700 whitespace-nowrap hover:bg-gray-100 hover:text-blue-600">
         💰 증시 자금동향 <span className="text-[10px] text-gray-400">↗</span>
       </a>

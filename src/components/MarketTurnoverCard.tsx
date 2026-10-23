@@ -95,7 +95,7 @@ function MarketBlock({ market, label, days, onReady }: {
     : `20일 평균 ${fmtAmount(lastMa)} 대비`;
 
   return (
-    <div className="border border-gray-200 rounded p-2 bg-white">
+    <div className="border border-gray-200 rounded p-2 bg-white pg-card pg-list">
       <div className="flex items-baseline gap-2 text-xs mb-1 flex-wrap">
         <a href={TOSS_INDEX_URL[market]} target="_blank" rel="noopener noreferrer"
            className="font-bold text-gray-700 hover:text-blue-600">{label}</a>
@@ -130,8 +130,8 @@ export function MarketTurnoverCard() {
   }, []);
 
   return (
-    <div className="relative rounded-xl border border-gray-300 bg-white p-2.5 pt-4 mt-3 lg:mt-0 h-full">
-      <div className="absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
+    <div className="relative rounded-xl border border-gray-300 bg-white pg-box pg-render p-2.5 pt-4 mt-3 lg:mt-0 h-full">
+      <div className="absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 pg-title
                       text-sm font-bold text-gray-700 whitespace-nowrap">
         📊 증시 거래대금
       </div>
