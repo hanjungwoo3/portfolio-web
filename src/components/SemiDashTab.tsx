@@ -278,7 +278,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   const etfCard = (i: 0 | 1) => {
     if (popup) return null;
     const e = ETFS[i], qq = eq(e.code);
-    return <Card title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
+    // ETF 는 NXT(넥스트레이드)에 없다 — 정규장(15:30) 마감에 지수 카드와 같이 흐리게(사용자 지적 2026-10-23)
+    return <Card title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openIndex}
                  chart={<KrDaySparkline code={e.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
   };
   const marketCards = (<>
