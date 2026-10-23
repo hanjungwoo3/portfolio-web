@@ -183,7 +183,7 @@ export function SectorBumpChart({ ranks, sortMode, hoverTicker, onHover, onOpenE
     .filter(r => r === 1 || r % 5 === 0 || r === n);
 
   return (
-    <div className="border border-gray-200 rounded p-2 bg-white">
+    <div className="pg-soft border border-gray-200 rounded p-2 bg-white">   {/* pg-soft — 야간엔 흰 바탕째 밝기만 조금 낮춤(바탕을 회색으로 바꾸거나 많이 낮추면 연한 색 글자가 묻힌다) */}
       <svg viewBox={`0 0 ${W} ${H}`}
            preserveAspectRatio="xMidYMid meet"
            className="w-full h-auto"

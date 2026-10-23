@@ -61,7 +61,7 @@ html.night-bg .pg-menu :is(.text-emerald-700, .text-green-700) { color: #86efac 
 html.night-bg .pg-menu .bg-indigo-600 { background-color: #3f4380 !important; }
 /* ── 모든 탭 공통(사용자 요청: "모든 페이지 탭을 둘러 보면서") — 페이지 안의 흰·연회색 면(표·패널·입력칸)을
    부드러운 회색으로 낮춘다. 글자는 그대로(진한 글자라 읽힘). 이미 따로 처리한 곳(메뉴·그룹 상자·카드)은 뺀다. */
-html.night-bg .pg-bg :is([class~="bg-white"], [class*="bg-white/"]):not(.pg-box, .pg-menu, .pg-menu *, .pg-card *, .pg-note, table *) { background-color: #a9aeb5 !important; }
+html.night-bg .pg-bg :is([class~="bg-white"], [class*="bg-white/"]):not(.pg-box, .pg-menu, .pg-menu *, .pg-card, .pg-card *, .pg-soft, .pg-soft *, .pg-note, table *) { background-color: #a9aeb5 !important; }
 html.night-bg .pg-bg .bg-gray-50:not(.pg-bg, .pg-title, .pg-menu *, .pg-card *, .pg-note, table *) { background-color: #a0a5ac !important; }
 html.night-bg .pg-bg .bg-gray-100:not(.pg-menu *, .pg-card *, table *) { background-color: #979ca4 !important; }
 html.night-bg .pg-bg :is(.border-gray-100, .border-gray-200, .border-gray-300):not(.pg-menu *, .pg-box, .pg-row) { border-color: #9aa0a8 !important; }
@@ -79,3 +79,5 @@ html.night-bg .pg-bg :is(.text-gray-300, .text-gray-400):not(.pg-menu *, .pg-car
 html.night-bg .pg-bg :is(.bg-indigo-50,.bg-blue-50,.bg-rose-50,.bg-red-50,.bg-amber-50,.bg-yellow-50,.bg-emerald-50,.bg-green-50,.bg-violet-50,.bg-purple-50,.bg-sky-50,.bg-orange-50,.bg-pink-50,.bg-teal-50,.bg-cyan-50,.bg-lime-50,.bg-slate-50,.bg-fuchsia-50,.bg-indigo-100,.bg-blue-100,.bg-rose-100,.bg-red-100,.bg-amber-100,.bg-yellow-100,.bg-emerald-100,.bg-green-100,.bg-violet-100,.bg-purple-100,.bg-sky-100,.bg-orange-100,.bg-pink-100,.bg-teal-100,.bg-cyan-100,.bg-lime-100,.bg-slate-100,.bg-fuchsia-100):not(.pg-menu *, .pg-card *, table *, button, .pg-note, .pg-card) { filter: brightness(0.72); }
 /* 마우스를 올리면 뜨는 창(Tooltip — body 에 따로 그려져 위 규칙이 안 닿는다) — 카드처럼 밝기만 낮춤 */
 html.night-bg [role="tooltip"] { filter: brightness(0.7); }
+/* 색 글자가 많은 흰 바탕 차트(섹터 등락 순위) — 바탕 그대로, 밝기만 조금 */
+html.night-bg .pg-soft { filter: brightness(0.86); }
