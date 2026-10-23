@@ -53,3 +53,9 @@ html.night-bg .pg-menu .text-blue-700 { color: #93c5fd !important; }
 /* 그룹 제목 안 버튼(등락률순·거래대금순 등) */
 html.night-bg .pg-title .bg-white { background-color: #3d424a !important; color: #d1d5db !important; }
 html.night-bg .pg-title .border-gray-300 { border-color: #5d646f !important; }
+/* 그룹 칩 줄에서 지금 보이는 칩(진파랑) — 야간엔 톤을 낮춘 파랑 */
+html.night-bg .pg-menu .bg-blue-600 { background-color: #34507a !important; }
+/* 질문하기(연초록)·기간 토글 선택(남색) */
+html.night-bg .pg-menu :is(.bg-emerald-50, .bg-green-50) { background-color: #2e4a3e !important; border-color: #3f6b57 !important; }
+html.night-bg .pg-menu :is(.text-emerald-700, .text-green-700) { color: #86efac !important; }
+html.night-bg .pg-menu .bg-indigo-600 { background-color: #3f4380 !important; }
