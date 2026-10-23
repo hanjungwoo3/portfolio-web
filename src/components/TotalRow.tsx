@@ -21,6 +21,8 @@ interface Props {
   // "내꺼먼저" — 켜면 보유 종목을 위로 정렬 (책갈피 토글)
   heldFirst?: boolean;
   onToggleHeldFirst?: () => void;
+  pnlOpen?: boolean;             // 오른쪽 "오늘/전체" 책갈피 — 이익·손해 표 펼침 여부
+  onTogglePnl?: () => void;
 }
 
 // 합계는 매도 수수료 미적용 (raw 가격 × 주수). 데스크톱 v2 와 동일.
@@ -28,7 +30,7 @@ interface Props {
 // 장마감 종목도 종가 vs 어제 종가 차이로 합계에 정상 반영 (다음 장 시작 전까지 유효).
 // 예수금(현금) 은 평가손익 없음 — 총자산에만 합산, pnl/오늘 계산엔 미반영.
 
-export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts, onDepositChange, heldFirst, onToggleHeldFirst }: Props) {
+export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts, onDepositChange, heldFirst, onToggleHeldFirst, pnlOpen, onTogglePnl }: Props) {
   const [editingDeposit, setEditingDeposit] = useState(false);
   const [draft, setDraft] = useState("");
   const [pendingOpen, setPendingOpen] = useState(false);   // 구매대기 관리 팝업
@@ -89,11 +91,11 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
   };
 
   return (
-    <div className="relative w-fit bg-white border border-gray-300
+    <div className={`relative w-fit ${onTogglePnl ? "mr-[22px]" : ""} bg-white border border-gray-300
                      rounded-lg shadow-md px-5 py-3
                      grid grid-cols-[auto_auto_auto_auto]
                      gap-x-3 gap-y-1 items-baseline
-                     text-sm leading-tight whitespace-nowrap">
+                     text-sm leading-tight whitespace-nowrap`}>   {/* mr — 오른쪽 책갈피 자리 */}
       {/* 내꺼먼저 책갈피 — 켜면 보유 종목 위로 정렬 */}
       {onToggleHeldFirst && (
         <button onClick={e => { e.stopPropagation(); onToggleHeldFirst(); }}
@@ -104,6 +106,16 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
                               ? "bg-emerald-500 text-white border-emerald-600"
                               : "bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-200"}`}>
           🔖 내꺼먼저 {heldFirst ? "ON" : "OFF"}
+        </button>
+      )}
+      {/* 오늘/전체 책갈피 — 오른쪽 가장자리. 누르면 옆의 이익·손해 표를 접고 편다(합계는 그대로) */}
+      {onTogglePnl && (
+        <button onClick={e => { e.stopPropagation(); onTogglePnl(); }}
+                title={pnlOpen ? "오늘/전체 이익·손해 표 접기" : "오늘/전체 이익·손해 표 펼치기"}
+                className={`absolute top-3 -right-[22px] w-[22px] py-1.5 rounded-r-md text-[10px] font-bold leading-tight
+                            border border-l-0 shadow-sm [writing-mode:vertical-rl]
+                            ${pnlOpen ? "bg-indigo-50 text-indigo-700 border-indigo-300" : "bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-200"}`}>
+          오늘/전체 {pnlOpen ? "◀" : "▶"}
         </button>
       )}
       {/* Row 1: 원금  |  전체 */}

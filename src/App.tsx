@@ -637,6 +637,9 @@ function Dashboard() {
   // "내꺼먼저" — 켜면 보유(shares>0) 종목을 위로
   const [heldFirst, setHeldFirstState] = useState(getHeldFirst);
   const toggleHeldFirst = () => setHeldFirstState(v => { setHeldFirst(!v); return !v; });
+  // 오늘/전체 이익·손해 표(TodayPnLTable) 접기 — 합계 카드 오른쪽 책갈피(사용자 요청 2026-10-23). 합계는 그대로
+  const [pnlOpen, setPnlOpen] = useState<boolean>(() => { try { return localStorage.getItem("pnl_tables_open") !== "0"; } catch { return true; } });
+  const togglePnl = () => setPnlOpen(v => { try { localStorage.setItem("pnl_tables_open", v ? "0" : "1"); } catch { /* 이번 화면만 */ } return !v; });
 
   // 정렬 적용 — sleeping 은 항상 맨 아래, 그 외엔 sortKey + sortDir 따라.
   //  내꺼먼저 ON 이면 보유(shares>0) 를 맨 위로(그 안에서는 기존 정렬 유지).
@@ -1255,8 +1258,9 @@ function Dashboard() {
                           aggregated={activeTab === MY_STOCKS_TAB_KEY}
                           scopeAccounts={folderScope}
                           heldFirst={heldFirst} onToggleHeldFirst={toggleHeldFirst}
+                          pnlOpen={pnlOpen} onTogglePnl={togglePnl}
                           onDepositChange={() => setReloadKey(k => k + 1)} />
-                <TodayPnLTable holdings={visible} prices={priceMap} />
+                {pnlOpen && <TodayPnLTable holdings={visible} prices={priceMap} />}
                 <TodayRealizedCard trades={allTrades} account={activeTab}
                                    aggregated={activeTab === MY_STOCKS_TAB_KEY}
                                    scopeAccounts={folderScope}
