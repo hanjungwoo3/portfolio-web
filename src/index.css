@@ -72,7 +72,7 @@ html.night-bg .pg-bg table:not(.pg-card *) { filter: brightness(0.66); backgroun
 /* 페이지 안 선택된 칩·강조 버튼 — 진한 파랑·남색은 톤 낮춘 색, 나머지 버튼은 밝기만 */
 html.night-bg .pg-bg :is(.bg-blue-600, .bg-blue-500):not(.pg-menu *, .pg-card *) { background-color: #34507a !important; }
 html.night-bg .pg-bg :is(.bg-indigo-600, .bg-violet-600, .bg-purple-600):not(.pg-menu *, .pg-card *) { background-color: #463f80 !important; }
-html.night-bg .pg-bg button:not(.pg-menu *, .pg-card *, table *) { filter: brightness(0.82); }
+html.night-bg .pg-bg button:not(.pg-menu *, .pg-card, .pg-card *, table *) { filter: brightness(0.82); }   /* .pg-card 자신이 버튼인 카드(ETF 등락 TOP)는 카드 밝기로 — 이 규칙이 더 구체적이라 0.82 로 덮어썼다 */
 /* 회색 면 위의 연한 회색 글자(설명·단위)는 묻힌다 → 한 단계 진하게. 메뉴·카드·그룹 상자 제목은 따로 */
 html.night-bg .pg-bg :is(.text-gray-300, .text-gray-400):not(.pg-menu *, .pg-card *, .pg-title *) { color: #6b7280 !important; }   /* 회색 면·어두운 바탕 양쪽에서 보이는 중간 톤 */
 /* 연한 색 면(…-50·-100: 안내 줄·배지·강조 칸)은 색을 살리고 밝기만 낮춤 */
