@@ -52,7 +52,7 @@ export function HlPerpCard({ coin, name }: Props) {
   const url = `https://app.hyperliquid.xyz/trade/xyz:${coin}`;
 
   return (
-    <div className="relative h-full">
+    <div className="pg-card relative h-full">
       <div className={`relative overflow-hidden h-full flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}`}>
         {day && two && two.closes.length > 1 ? (
           <Sparkline data={two.closes} xs={two.xs} baseline={two.base} prevBaseline={two.prevBase} breakIndex={two.breakIdx}

@@ -41,7 +41,7 @@ export function ValueupMiniCard() {
   const sign = dimNow ? "text-gray-500" : pctColor(pct);
 
   return (
-    <div className="relative h-full">
+    <div className="pg-card relative h-full">
       {/* 히트맵 — 다른 지수 카드와 같은 자리·같은 모양('정규장 마감' 책갈피와 짝).
           카드 안은 overflow-hidden 이라 바깥 래퍼에 건다. */}
       <button onClick={() => requestHeatmap("kr_valueup", { sizeMode: "volume" })}
