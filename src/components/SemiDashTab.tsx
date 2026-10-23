@@ -741,9 +741,9 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
             const cur = fb.lineAt(l.k, m);   // 지금(마우스) 누적 순매수 = 선 값
             // 세 줄 — 위 = 산 양(+), 가운데 = 지금 누적(크게, 선 높이에 맞춤), 아래 = 판 양(−). 막대 모양(위 매수·아래 매도)과 같게(사용자 요청)
             return (
-              <div key={l.k} className="absolute whitespace-nowrap rounded border bg-white/50 px-1 py-px text-[10px] leading-tight tabular-nums pointer-events-none"
+              <div key={l.k} className="absolute whitespace-nowrap rounded border bg-white/40 px-1 py-px text-[10px] leading-tight tabular-nums pointer-events-none"
                    style={{ left: `${(lx / W) * 100}%`, top: `${Math.min(90, Math.max(10, (ly / H) * 100))}%`, borderColor: l.color,
-                            // 배경 반투명(50%) — 뒤 선이 보이게(사용자 요청). 글자는 흰 테두리 그림자로 선 위에서도 읽히게
+                            // 배경 반투명(40%) — 뒤 선이 보이게(사용자 요청). 글자는 흰 테두리 그림자로 선 위에서도 읽히게
                             textShadow: "0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff",
                             transform: `translate(${right ? "calc(-100% - 4px)" : "4px"}, -50%)` }}>
                 <div className="text-rose-600">+{fmtFlow(bv, unit)}</div>
