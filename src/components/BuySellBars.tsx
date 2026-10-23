@@ -24,7 +24,7 @@ export interface BarsGeom {
   hover?: (t: number | null) => void;   // 막대 위 마우스 → 위 차트 crosshair 도 같은 시각으로
 }
 
-export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, start = "09:00", end = "15:30", rowH = 56, compact, geom }: {
+export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, start = "09:00", end = "15:30", rowH = 56, compact, geom, textOnly }: {
   points: IntradayFlowPoint[];
   keys: string[];          // 그릴 주체(foreigners·individuals·…) — 위에서부터 이 순서
   unit: "억" | "계약";      // 표시 단위(scale 을 곱한 뒤의 단위)
@@ -34,6 +34,7 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
   rowH?: number;
   compact?: boolean;       // 좁은 칸용 — 합계 글자를 작게
   geom?: BarsGeom;         // 큰 차트 아래에 붙일 때 — 그 차트의 가로축·마우스를 따른다
+  textOnly?: boolean;      // 숫자 줄만 — 막대는 위 큰 차트 배경에 그릴 때(반도체 수급, 사용자 요청 2026-10-23)
 }) {
   const pts = points.filter(p => p.gs);
   if (pts.length < 2 || !keys.length) return null;
@@ -117,7 +118,7 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
               {hb && <span className="ml-auto whitespace-nowrap"><b className={hb.b - hb.s > 0 ? "text-rose-600" : hb.b - hb.s < 0 ? "text-blue-600" : "text-gray-500"}>{signed(hb.b - hb.s, unit)}</b></span>}
               {!hb && <span className="ml-auto whitespace-nowrap">{!compact && "순 "}<b className={net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-500"}>{signed(net, unit)}</b></span>}
             </div>
-            <svg viewBox={`0 0 ${PX_W} ${H}`} preserveAspectRatio="none" className="w-full block" style={{ height: rowH }}
+            {!textOnly && <svg viewBox={`0 0 ${PX_W} ${H}`} preserveAspectRatio="none" className="w-full block" style={{ height: rowH }}
                  onMouseMove={geom?.hover ? e => {
                    // 마우스 x(px) → 가장 가까운 자료 시각 → 위 차트에 알린다
                    const r = (e.currentTarget as SVGSVGElement).getBoundingClientRect();
@@ -144,7 +145,7 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
                 );
               })}
               {hoverX != null && <line x1={hoverX} x2={hoverX} y1={0} y2={H} stroke="#475569" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
-            </svg>
+            </svg>}
           </div>
         );
       })}
