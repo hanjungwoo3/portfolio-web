@@ -190,7 +190,7 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
       </div>
 
       {/* 비교 — 한 종목당 한 줄. 행 배경에 1년 추세 스파크라인. 가로 스크롤(모바일). */}
-      <div className="overflow-x-auto border border-gray-200 rounded-lg">
+      <div className="overflow-x-auto border border-gray-200 rounded-lg bg-white">   {/* bg-white — 야간 배경에서 줄이 투명해 글자가 묻히지 않게 */}
         <div className="min-w-[1300px]">
           {/* 헤더 */}
           <div className="grid items-end gap-x-2 px-3 py-2 bg-gray-50 border-b border-gray-200 text-gray-500 text-xs"

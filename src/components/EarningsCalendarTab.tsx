@@ -107,7 +107,7 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
             <div className="px-2 py-1 bg-amber-50 border-b border-amber-100 text-[12px] font-bold text-amber-900">
               {w === 0 ? (monday > today ? "다음 주" : "이번 주") : w === 1 ? (monday > today ? "다다음 주" : "다음 주") : `${w + (monday > today ? 1 : 0)}주 뒤`} · {start.slice(5).replace("-", "/")} 주
             </div>
-            <div className={`grid grid-cols-1 ${MD_COLS[days.length] ?? "md:grid-cols-5"} divide-y md:divide-y-0 md:divide-x divide-gray-100`}>
+            <div className={`bg-white grid grid-cols-1 ${MD_COLS[days.length] ?? "md:grid-cols-5"} divide-y md:divide-y-0 md:divide-x divide-gray-100`}>   {/* bg-white — 야간 배경에서 칸이 투명해 글자가 묻히지 않게 */}
               {days.map(d => {
                 const list = byDay.get(d) ?? [];
                 const isToday = d === today;
