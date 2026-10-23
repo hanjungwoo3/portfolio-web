@@ -260,8 +260,12 @@ async fn open_viewer(app: tauri::AppHandle, url: String) -> Result<(), String> {
         let _ = w.set_focus();
         return Ok(());
     }
-    WebviewWindowBuilder::new(&app, "viewer", WebviewUrl::External(parsed))
-        .title("포트폴리오 — 보기")
+    let b = WebviewWindowBuilder::new(&app, "viewer", WebviewUrl::External(parsed));
+    // 맥 WKWebView 기본 UA 엔 'Version/… Safari/…' 가 없어 구글이 옛 기본 화면을 줬다 — AI 모드(udm=50)가 그냥 검색으로
+    //   떨어졌다(사용자 지적 2026-10-23). 보기 창만 일반 사파리로 소개한다. 윈도우(WebView2)는 이미 Edge UA 라 그대로.
+    #[cfg(target_os = "macos")]
+    let b = b.user_agent("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Safari/605.1.15");
+    b.title("포트폴리오 — 보기")
         .inner_size(1100.0, 850.0)
         .min_inner_size(400.0, 400.0)
         .initialization_script(VIEWER_SCRIPT)
