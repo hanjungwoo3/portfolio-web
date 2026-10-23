@@ -80,7 +80,7 @@ export const BURST_LEVELS = [300, 500, 1000, 2000] as const;   // 억원
 export type BurstLevel = typeof BURST_LEVELS[number];
 
 const BURST_LEVEL_KEY = "value_burst_level";
-const DEFAULT_LEVEL: BurstLevel = 2000;
+const DEFAULT_LEVEL: BurstLevel = 2000;   // 기본 2,000억(사용자 결정 2026-10-23)
 
 export function loadBurstLevel(): BurstLevel {
   try {

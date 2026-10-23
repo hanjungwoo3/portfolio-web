@@ -203,6 +203,7 @@ export function CandleChartLight({
         wickDownColor: DN_COLOR,
         priceLineVisible: false,         // 자동 priceLine 숨김
         lastValueVisible: false,         // 자동 우측 라벨 숨김 — "현재가" priceLine 으로 대체
+        priceFormat: { type: "price", precision: 0, minMove: 1 },   // 원화 — 소수점 없이(3257727.00 이 축에 찍혔다)
       });
       s.setData(candleData);
       priceSeries = s;
@@ -213,6 +214,7 @@ export function CandleChartLight({
         lineWidth: 1,
         priceLineVisible: false,         // 자동 priceLine 숨김
         lastValueVisible: false,         // 자동 우측 라벨 숨김 — "현재가" priceLine 으로 대체
+        priceFormat: { type: "price", precision: 0, minMove: 1 },
       });
       s.setData(lineData);
       priceSeries = s;
@@ -315,10 +317,12 @@ export function CandleChartLight({
         const auto = original();
         if (!auto) return null;
         const candidates = [auto.priceRange.minValue, auto.priceRange.maxValue];
-        if (targetPrice && targetPrice > 0) candidates.push(targetPrice);
-        if (myAvgPrice && myAvgPrice > 0) candidates.push(myAvgPrice);
-        if (entryPrice && entryPrice > 0) candidates.push(entryPrice);
-        for (const l of flowLines ?? []) candidates.push(l.price);
+        // ★ 너무 먼 선은 축에 넣지 않는다 — 목표주가가 현재가의 2.7배(하이닉스 3,257,727원)라 축이 거기까지 늘어나
+        //   캔들이 바닥에 눌려 1년 흐름이 안 보였다(사용자 지적 2026-10-23). 보이는 가격 범위의 ±40% 안에 있는 선만.
+        const lo = auto.priceRange.minValue * 0.6, hi = auto.priceRange.maxValue * 1.4;
+        const near = (v?: number) => { if (v && v > 0 && v >= lo && v <= hi) candidates.push(v); };
+        near(targetPrice); near(myAvgPrice); near(entryPrice);
+        for (const l of flowLines ?? []) near(l.price);
         return {
           priceRange: {
             minValue: Math.min(...candidates),

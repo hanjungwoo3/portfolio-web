@@ -1386,9 +1386,10 @@ function InvestorChartsSection({
 // ─── 1) 주가 + 거래량 + 외국인비율(%) + 목표가/평단가 가로선 ─────
 type ChartMode = "line" | "candle";
 const CHART_MODE_KEY = "price_chart_mode";
+// 기본값은 캔들·이평·공시·대금·수급단가 ON, 볼린저 OFF(사용자 결정 2026-10-23 — 저장된 선택이 있으면 그대로)
 function loadChartMode(): ChartMode {
-  try { return localStorage.getItem(CHART_MODE_KEY) === "candle" ? "candle" : "line"; }
-  catch { return "line"; }
+  try { return localStorage.getItem(CHART_MODE_KEY) === "line" ? "line" : "candle"; }
+  catch { return "candle"; }
 }
 function saveChartMode(m: ChartMode): void {
   try { localStorage.setItem(CHART_MODE_KEY, m); } catch { /* noop */ }
@@ -1396,17 +1397,17 @@ function saveChartMode(m: ChartMode): void {
 
 const DISC_TOGGLE_KEY = "price_chart_disclosures";
 function loadDiscToggle(): boolean {
-  try { return localStorage.getItem(DISC_TOGGLE_KEY) === "on"; }    // 기본 OFF
-  catch { return false; }
+  try { return localStorage.getItem(DISC_TOGGLE_KEY) !== "off"; }    // 기본 ON
+  catch { return true; }
 }
 function saveDiscToggle(on: boolean): void {
   try { localStorage.setItem(DISC_TOGGLE_KEY, on ? "on" : "off"); } catch { /* noop */ }
 }
 
 // 보조지표 토글 — 이평선 / 볼린저밴드(20, 2σ). 둘 다 기본 OFF.
-function loadOnOff(key: string): boolean {
-  try { return localStorage.getItem(key) === "on"; }
-  catch { return false; }
+function loadOnOff(key: string, def = false): boolean {
+  try { const v = localStorage.getItem(key); return v === null ? def : v === "on"; }
+  catch { return def; }
 }
 function saveOnOff(key: string, on: boolean): void {
   try { localStorage.setItem(key, on ? "on" : "off"); } catch { /* noop */ }
@@ -1457,7 +1458,7 @@ function PriceVolumeChart({
   const setModePersist = (m: ChartMode) => { setMode(m); saveChartMode(m); };
   const [showDisc, setShowDisc] = useState<boolean>(loadDiscToggle);
   const toggleDisc = () => { const v = !showDisc; setShowDisc(v); saveDiscToggle(v); };
-  const [showMA, setShowMA] = useState<boolean>(() => loadOnOff(MA_TOGGLE_KEY));
+  const [showMA, setShowMA] = useState<boolean>(() => loadOnOff(MA_TOGGLE_KEY, true));
   const toggleMA = () => { const v = !showMA; setShowMA(v); saveOnOff(MA_TOGGLE_KEY, v); };
   const [showBB, setShowBB] = useState<boolean>(() => loadOnOff(BB_TOGGLE_KEY));
   const toggleBB = () => { const v = !showBB; setShowBB(v); saveOnOff(BB_TOGGLE_KEY, v); };
@@ -1466,7 +1467,7 @@ function PriceVolumeChart({
   const [showTrades, setShowTrades] = useState<boolean>(loadTradesToggle);
   const toggleTrades = () => { const v = !showTrades; setShowTrades(v); saveOnOff(TRADES_TOGGLE_KEY, v); };
   // 거래대금 급증일 강조 — 기준은 가치표 탭과 공유(localStorage). OFF 면 강조 없음.
-  const [showBurst, setShowBurst] = useState<boolean>(() => loadOnOff(BURST_TOGGLE_KEY));
+  const [showBurst, setShowBurst] = useState<boolean>(() => loadOnOff(BURST_TOGGLE_KEY, true));
   const toggleBurst = () => { const v = !showBurst; setShowBurst(v); saveOnOff(BURST_TOGGLE_KEY, v); };
   const [burstLevel, setBurstLevel] = useState<BurstLevel>(loadBurstLevel);
   // 수급별 평균 매수단가 가로선 — 외국인·기관(금투 제외)·연기금. 기본 ON, 끄면 기억.

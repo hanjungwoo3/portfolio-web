@@ -81,7 +81,7 @@ function TrendChart({ rows }: { rows: EarningsRow[] }) {
     r.roe == null ? null : [PAD_L + i * slotW + slotW / 2, ry(r.roe)] as const);
 
   return (
-    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto" role="img" aria-label="실적·추정 추이">
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto max-w-[620px]" role="img" aria-label="실적·추정 추이">   {/* max-w — 98vw 창에서 글자까지 커지지 않게 */}
       <defs>
         {["2563eb", "f97316"].map(c => (
           <pattern key={c} id={`hatch-${c}`} width="5" height="5" patternTransform="rotate(45)"
@@ -186,7 +186,7 @@ function ValuationChart({ rows }: { rows: EarningsRow[] }) {
 
   const firstEst = rows.findIndex(r => r.estimate);
   return (
-    <svg viewBox={`0 0 ${VW} ${VH}`} className="w-full h-auto" role="img" aria-label="PER·PBR 추이">
+    <svg viewBox={`0 0 ${VW} ${VH}`} className="w-full h-auto max-w-[620px]" role="img" aria-label="PER·PBR 추이">
       {firstEst > 0 && (
         <rect x={V_L + firstEst * slot} y={V_T} width={innerW - firstEst * slot} height={innerH} fill="#f8fafc" />
       )}
