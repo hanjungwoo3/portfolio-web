@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -2927,6 +2928,7 @@ function SettingsModal({
               📖 배포 가이드 보기
             </a>
             <div className="space-y-1.5">
+              {!nativeApp && extReady && proxies.length > 0 && <ProxyFallbackNote via="확장" anyEnabled={proxies.some(p => p.enabled)} />}
               {proxies.length === 0 && (
                 <div className="text-[11px] text-gray-400 py-1">등록된 전용 프록시 없음 — 공개 4-way 사용 중</div>
               )}
@@ -2948,6 +2950,7 @@ function SettingsModal({
                       <button onClick={() => removeProxy(i)} title="삭제"
                               className="shrink-0 px-1.5 py-1 text-gray-400 hover:text-rose-600 text-sm">✕</button>
                     </div>
+                    <ProxyDownNote url={url} enabled={p.enabled} />
                     {u && u !== "loading" && (
                       u === "unsupported" ? (
                         <div className="text-[10px] text-amber-600 pl-6">

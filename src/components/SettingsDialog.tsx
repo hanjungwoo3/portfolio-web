@@ -1,4 +1,5 @@
 import { DriveRestorePanel } from "./DriveRestorePanel";
+import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, Cpu } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -733,6 +734,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               )}
             </div>
             <div className="space-y-1.5">
+              {extReady && proxies.length > 0 && <ProxyFallbackNote via="확장" anyEnabled={proxies.some(p => p.enabled)} />}
               {proxies.length === 0 && (
                 <div className="text-[11px] text-gray-400 py-1">
                   등록된 전용 프록시 없음 — 공개 4-way 사용 중
@@ -759,6 +761,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                         ✕
                       </button>
                     </div>
+                    <ProxyDownNote url={url} enabled={p.enabled} />
                     {/* 로컬 프록시 — 한도 개념이 없어 별도 안내. 사용량 조회 전(방금 추가해
                         아직 저장 안 함)에도 반드시 무언가 그린다: u 로 감싸면 행이 통째로 비어
                         가이드 링크에 닿을 방법이 없어진다. */}
