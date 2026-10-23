@@ -15,6 +15,7 @@
     "core:default",
     "allow-native-fetch",
     "allow-open-external",
+    "allow-open-viewer",
     "allow-google-login",
     "allow-google-refresh",
     "allow-app-update-check",

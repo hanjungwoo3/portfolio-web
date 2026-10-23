@@ -11,19 +11,20 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::collections::HashMap;
 use std::time::Duration;
-use tauri::{WebviewUrl, WebviewWindowBuilder};
+use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 const SITE_URL: &str = "https://hanjungwoo3.github.io/portfolio-web/";
 
-// 페이지보다 먼저 도는 스크립트 — ① 앱 표식 ② 새 창(window.open·target=_blank)은 기본 브라우저로.
-//   앱 창 안에서 새 창을 열면 막히거나(Tauri 기본) 앱 안에 갇힌다. 토스·네이버 링크·구글 AI 는 브라우저가 맞다.
+// 페이지보다 먼저 도는 스크립트 — ① 앱 표식 ② 새 창(window.open·target=_blank)은 앱 안 '보기 창'으로(open_viewer).
+//   보기 창은 별도 창이라 사이트의 iframe 차단(X-Frame-Options)과 상관없다. 받기 파일만 기본 브라우저로.
 const INIT_SCRIPT: &str = r##"
 (() => {
   window.__PORTFOLIO_DESKTOP__ = true;
   const ext = (u) => {
     try {
       const url = new URL(u, location.href).toString();
-      window.__TAURI_INTERNALS__.invoke("open_external", { url });
+      // 앱 안 보기 창(open_viewer)으로 — 뉴스·공시·토스·AI 를 브라우저로 내보내지 않는다(사용자 요청 2026-10-23)
+      window.__TAURI_INTERNALS__.invoke("open_viewer", { url }).catch(() => window.__TAURI_INTERNALS__.invoke("open_external", { url }));
     } catch (e) { console.warn("open_external", e); }
   };
   window.open = (u) => { if (u) ext(String(u)); return null; };
@@ -205,6 +206,70 @@ fn open_external(url: String) -> Result<(), String> {
     open::that_detached(url).map_err(|e| e.to_string())
 }
 
+// ─── 앱 안 보기 창 ───────────────────────────────────────────────────
+//   뉴스·공시·토스·네이버·구글 AI 를 브라우저 대신 앱 안의 두 번째 창에 띄운다(사용자 요청 2026-10-23).
+//   창은 하나만 — 다시 열면 그 창이 주소만 바꾸고 앞으로 온다. 닫아도 본 창은 그대로.
+//   이 창엔 앱 명령 권한이 없다(capabilities/viewer.json 은 open_external 하나만) — 바깥 사이트가 native_fetch 등을 못 부르게.
+const VIEWER_SCRIPT: &str = r##"
+(() => {
+  // 새 창 대신 이 창에서 — 보기 창이 또 창을 만들면 갇히거나 막힌다
+  window.open = (u) => { if (u) location.assign(String(u)); return null; };
+  window.addEventListener("click", (e) => {
+    if (e.defaultPrevented) return;
+    const a = e.target && e.target.closest ? e.target.closest("a[target=_blank][href]") : null;
+    if (a) { e.preventDefault(); location.assign(a.href); }
+  });
+  // 작은 도구 막대 — 뒤로·앞으로·브라우저로 열기(창에 주소창이 없어서)
+  const bar = () => {
+    if (document.getElementById("__pf_viewer_bar")) return;
+    const b = document.createElement("div");
+    b.id = "__pf_viewer_bar";
+    b.style.cssText = "position:fixed;right:10px;bottom:10px;z-index:2147483647;display:flex;gap:4px;padding:4px;border-radius:8px;background:rgba(31,41,55,.85);font:13px system-ui;box-shadow:0 2px 8px rgba(0,0,0,.3)";
+    const btn = (t, title, f) => { const x = document.createElement("button"); x.textContent = t; x.title = title;
+      x.style.cssText = "all:unset;cursor:pointer;color:#fff;padding:2px 8px;border-radius:5px"; x.onmouseenter = () => x.style.background = "rgba(255,255,255,.15)";
+      x.onmouseleave = () => x.style.background = ""; x.onclick = f; b.appendChild(x); };
+    btn("◀", "뒤로", () => history.back());
+    btn("▶", "앞으로", () => history.forward());
+    btn("↗ 브라우저로", "기본 브라우저로 열기", () => { try { window.__TAURI_INTERNALS__.invoke("open_external", { url: location.href }); } catch (e) {} });
+    document.documentElement.appendChild(b);
+  };
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bar); else bar();
+})();
+"##;
+
+// 받기 파일(zip·exe·apk·dmg·GitHub 릴리스 받기)은 보기 창이 아니라 기본 브라우저로 — 웹뷰는 파일 받기를 못 한다
+fn is_download(url: &str) -> bool {
+    let l = url.to_ascii_lowercase();
+    let path = l.split(['?', '#']).next().unwrap_or("");
+    l.contains("/releases/download/") || [".zip", ".exe", ".apk", ".dmg", ".msi", ".tar.gz"].iter().any(|e| path.ends_with(e))
+}
+
+#[tauri::command]
+async fn open_viewer(app: tauri::AppHandle, url: String) -> Result<(), String> {
+    if !(url.starts_with("https://") || url.starts_with("http://")) {
+        return Err("http(s) 주소만 연다".into());
+    }
+    if is_download(&url) {
+        return open::that_detached(url).map_err(|e| e.to_string());
+    }
+    let parsed: tauri::Url = url.parse().map_err(|e| format!("{e}"))?;
+    if let Some(w) = app.get_webview_window("viewer") {
+        w.navigate(parsed).map_err(|e| e.to_string())?;
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+        return Ok(());
+    }
+    WebviewWindowBuilder::new(&app, "viewer", WebviewUrl::External(parsed))
+        .title("포트폴리오 — 보기")
+        .inner_size(1100.0, 850.0)
+        .min_inner_size(400.0, 400.0)
+        .initialization_script(VIEWER_SCRIPT)
+        .build()
+        .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
 // ─── 앱 업데이트 ─────────────────────────────────────────────────────
 //   고정 릴리스 'apps' 의 latest.json(서명 포함)을 본다(tauri.conf.json plugins.updater).
 //   맥 .app·윈도우 설치판은 받아서 바꾸고 재시작. 윈도우 실행형(portfolio.exe)은 스스로 못 바꾼다 —
@@ -283,7 +348,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(client)
-        .invoke_handler(tauri::generate_handler![native_fetch, open_external, google_login, google_refresh, app_update_check, app_update_install, app_dialog])
+        .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, google_login, google_refresh, app_update_check, app_update_install, app_dialog])
         .setup(move |app| {
             WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse()?))
                 .title("포트폴리오")

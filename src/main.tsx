@@ -4,9 +4,12 @@ import './index.css'
 import App from './App.tsx'
 import { isDirectApp } from './lib/nativeProxy'
 import { applyNightBg } from './lib/nightBg'
+import { installInAppBrowser } from './lib/inAppBrowser'
 
 // 야간 배경 — 첫 그림 전에 적용(깜빡임 방지)
 applyNightBg()
+// 안드로이드 앱 — 바깥 링크는 앱 안 브라우저로(웹·데스크톱은 아무것도 안 함)
+installInAppBrowser()
 
 // 앱(네이티브)에서는 서비스워커를 쓰지 않는다.
 //   앱은 배포된 웹을 원격으로 불러온다(capacitor.config server.url). 그런데 그 웹에는 PWA

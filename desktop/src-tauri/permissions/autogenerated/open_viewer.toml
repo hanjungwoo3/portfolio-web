@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-viewer"
+description = "Enables the open_viewer command without any pre-configured scope."
+commands.allow = ["open_viewer"]
+
+[[permission]]
+identifier = "deny-open-viewer"
+description = "Denies the open_viewer command without any pre-configured scope."
+commands.deny = ["open_viewer"]

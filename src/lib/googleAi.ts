@@ -50,7 +50,13 @@ export function openGoogleAi(query: string): void {
   if (isDesktopApp()) {
     const t = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (c: string, a: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__;
     // 실패하면 이유를 보여 준다 — 조용히 끝나면 '반응 없음'으로만 보인다
-    if (t) { void t.invoke("open_external", { url }).catch(e => window.alert(`구글 AI 를 브라우저로 열지 못했습니다\n\n${String(e)}`)); return; }
+    //   0.1.3+ 는 앱 안 보기 창(open_viewer), 그 전 앱은 명령이 없어 실패 → 기본 브라우저(open_external)
+    if (t) {
+      void t.invoke("open_viewer", { url })
+        .catch(() => t.invoke("open_external", { url }))
+        .catch(e => window.alert(`구글 AI 를 열지 못했습니다\n\n${String(e)}`));
+      return;
+    }
   }
   if (aiWin && !aiWin.closed) {
     try {
