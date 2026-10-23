@@ -171,6 +171,13 @@ export function IntradayInvestorChart({
         priceLineVisible: false, lastValueVisible: false,
       });
       idx.setData(bars);
+      // 캔들 위에 지수 선도(사용자 요청) — 1분 움직임은 선으로, 묶음 흐름은 캔들로
+      const idxLine = chart.addSeries(LineSeries, {
+        priceScaleId: "left", color: "rgba(71,85,105,0.55)", lineWidth: 1,
+        priceFormat: { type: "price", precision: 0, minMove: 1 },
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
+      });
+      idxLine.setData(indexSeries.map(p => ({ time: p.t as Time, value: p.value })));
       idx.createPriceLine({ price: base, color: "rgba(100,116,139,0.6)", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
     } else if (indexSeries && indexSeries.length > 1) {
       const base = indexBaseline ?? indexSeries[0].value;

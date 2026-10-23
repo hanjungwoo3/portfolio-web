@@ -5,7 +5,7 @@
 //     · 코스피 투자자(네이버) 1분 / 선물 투자자(네이버) **20분 지연** / 선물 시세·옵션(한경) 실시간
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
-import { useId, useState } from "react";
+import { useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
@@ -22,7 +22,7 @@ import { useTickFlow, strength, netAmt, bigThreshold, wonStep, type TickFlow } f
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
 import { HypothesisBox } from "./HypothesisBox";
-import { joEok } from "./BuySellBars";
+import { BuySellBars, joEok } from "./BuySellBars";
 
 const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }] as const;
 const SPARK = ["^KS11", "^KQ11", "KRW=X", "NQ=F", "SOX=F"];   // 야후 spark 1콜(어제+오늘 5분봉) — 뒤 셋은 종목정보 팝업 위 줄
@@ -35,7 +35,6 @@ const upColor = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600
 const up = upColor;
 const sgn = (v: number, d = 2) => `${v > 0 ? "+" : ""}${v.toFixed(d)}`;
 const fmtP = (v: number) => (v >= 1000 ? Math.round(v).toLocaleString() : v >= 100 ? v.toFixed(1) : v.toFixed(2));
-const fmtFlow = (v: number, unit: string) => (unit === "억" ? joEok(v) : `${Math.round(v).toLocaleString()}계약`);
 const eok = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v).toLocaleString()}`;
 // 순매수 금액을 말로 — "순매수 −29억" 을 매수로 읽는 일이 있어(사용자 혼동 2026-10-21) 음수면 '순매도'로 쓴다
 const netWord = (won: number) => `${won >= 0 ? "순매수" : "순매도"} ${Math.abs(Math.round(won / 1e8)).toLocaleString()}억`;
@@ -561,7 +560,6 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
   onHover?: (m: number | null) => void;
   lines: FlowLine[];                 // 그릴 투자자(위 선택 줄)
 }) {
-  const uid = useId().replace(/:/g, "");
   const LINES = lines;
   const pts = flow?.points ?? [];
   const val = (p: IntradayFlow["points"][number], k: IntradayKey) => p[k];
@@ -588,8 +586,6 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
   const bVals = [...bgp.map(b => b.v), ...(hasBgBase ? [bgBase!] : [])];   // 기준선(전일 종가)도 범위에 — 위·아래로 나눠 칠하려고
   const bMin = Math.min(...bVals), bMax = Math.max(...bVals), bR = bMax - bMin || 1;
   const by = (v: number) => PY + (1 - (v - bMin) / bR) * (H - PY * 2);
-  // 색 = 어제 종가 대비(카드 % 와 같은 기준) — 오늘 첫 봉 대비였더니 코스피 −0.77% 인데 분홍으로 칠해졌다(사용자 지적)
-  const bgUp = bgp.length > 1 && bgp[bgp.length - 1].v >= (bgBase && bgBase > 0 ? bgBase : bgp[0].v);
   // 마감 동시호가(일괄 체결) 구간 — 현물 15:20~15:30, 선물 15:35~15:45. 음영만 칠한다(글자는 그래프를 가려 뺐다)
   const aucFrom = endHM === "15:45" ? "15:35" : "15:20";   // 선물 칸 = 축 끝 15:45
   const y = (v: number) => H / 2 - (v / mx) * (H / 2 - PY);
@@ -604,39 +600,18 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
     onHover(m < T0 || m > T1 ? null : m);
   } : undefined;
   const hoverX = hoverM != null && hoverM >= T0 && hoverM <= T1 ? PX + ((hoverM - T0) / span) * (W - PX * 2) : null;
-  // 구간별 매수·매도(투자자마다) — 선을 따라 그리는 막대와 선 위 숫자 상자가 같이 쓴다
-  const fb = (() => {
-    const gp = pts.filter(p => p.gs);
-    if (gp.length < 2 || !LINES.length) return null;
-    const dataSpan = tmin(gp[gp.length - 1].time) - tmin(gp[0].time);
-    const B = dataSpan <= 60 ? 1 : dataSpan <= 180 ? 5 : 10;   // BuySellBars 와 같은 간격
-    const nB = Math.max(1, Math.ceil(span / B));
-    const slotW = ((W - PX * 2) * B) / span, cw = (slotW * 0.8) / LINES.length;
-    const cumAt = (k: string, m: number): [number, number] => {
-      let v: [number, number] = [0, 0];
-      for (const p of gp) { if (tmin(p.time) <= m) v = p.gs?.[k] ?? v; else break; }
-      return v;
-    };
-    const rows = LINES.map(l => {
-      const bars: { b: number; s: number }[] = [];
-      let prev = cumAt(l.k, T0 - 1);
-      for (let i = 0; i < nB; i++) {
-        const cur = cumAt(l.k, T0 + (i + 1) * B - 1);
-        bars.push({ b: Math.max(0, cur[0] - prev[0]), s: Math.max(0, cur[1] - prev[1]) });
-        prev = cur;
-      }
-      return bars;
-    });
-    const lastM = tmin(gp[gp.length - 1].time);
-    // 구간 기준 높이 = 그 구간 끝의 누적 순매수(선 위치)
-    const lineAt = (k: IntradayKey, m: number) => { let v = 0; for (const p of pts) { if (tmin(p.time) <= m) v = val(p, k); else break; } return v; };
-    const tot = (k: string): [number, number] => gp[gp.length - 1].gs?.[k] ?? [0, 0];
-    return {
-      B, T0b: T0, slotW, cw, rows, lastM, lineAt, tot,
-      maxH: H * 0.1,   // 막대 최대 길이 — 선을 가리지 않게 칸 높이의 10%(사용자 요청)
-      mxBar: Math.max(1e-9, ...rows.flat().map(x => Math.max(x.b, x.s))),
-      mxD: Math.max(1e-9, ...rows.flat().map(x => Math.abs(x.b - x.s))),
-    };
+  // 배경 지수 캔들 — 묶음 폭은 아래 매수·매도 막대와 같은 규칙(자료 1시간↓ 1분·3시간↓ 5분·그 위 10분), 증시 탭과 같은 모양(사용자 요청 2026-10-23)
+  const bgCandles = (() => {
+    if (bgp.length < 2) return [];
+    const ds = pts.length > 1 ? tmin(pts[pts.length - 1].time) - tmin(pts[0].time) : 999;
+    const B = ds <= 60 ? 1 : ds <= 180 ? 5 : 10;
+    const out: { m: number; B: number; o: number; h: number; l: number; c: number }[] = [];
+    for (const p of bgp) {
+      const m = T0 + Math.floor((tmin(p.t) - T0) / B) * B, last = out[out.length - 1];
+      if (!last || last.m !== m) out.push({ m, B, o: p.v, h: p.v, l: p.v, c: p.v });
+      else { last.h = Math.max(last.h, p.v); last.l = Math.min(last.l, p.v); last.c = p.v; }
+    }
+    return out;
   })();
   return (
     <div className={`pg-card rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 min-w-0 ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
@@ -658,58 +633,29 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
           <span key={l.k}><i className="inline-block w-2 h-0.5 mr-0.5 align-middle" style={{ background: l.color }} />{l.label} <b className={last ? up(val(last, l.k)) : "text-gray-300"}>{last ? (unit === "억" ? `${val(last, l.k) > 0 ? "+" : val(last, l.k) < 0 ? "−" : ""}${joEok(val(last, l.k))}` : eok(val(last, l.k))) : "-"}{last && unit === "계약" ? "계약" : ""}</b></span>
         ))}
       </div>
-      {/* 그래프 높이 고정 — 세 칸(현물·선물)이 같은 높이·같은 가로 위치. 아래 막대 줄을 차트 안으로 올려 그만큼 키웠다 */}
-      <div className="h-[260px] shrink-0">
+      {/* 그래프 높이 고정 — 세 칸(현물·선물)이 같은 높이·같은 가로 위치 */}
+      <div className="h-[190px] shrink-0">
         {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (
           <div className="relative w-full h-full">
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full" onMouseMove={onMove} onMouseLeave={onHover ? () => onHover(null) : undefined}>
-            {bgp.length > 1 && (hasBgBase ? (() => {
-              // 기준선(전일 종가) 위 = 빨강·아래 = 파랑으로 나눠 칠한다 — 마지막 값 하나로 전체를 한 색으로 칠하니
-              //   막 전일 종가를 넘긴 순간 화면 전체가 빨개졌다(사용자 지적 2026-10-22). 카드 그래프와 같은 규칙.
-              const baseY = by(bgBase!);
-              const line = bgp.map((b, i) => `${i ? "L" : "M"} ${x(b.t).toFixed(1)} ${by(b.v).toFixed(1)}`).join(" ");
-              const band = `${line} L ${x(bgp[bgp.length - 1].t).toFixed(1)} ${baseY.toFixed(1)} L ${x(bgp[0].t).toFixed(1)} ${baseY.toFixed(1)} Z`;
+            {/* 배경 지수 = 캔들(빨강 오름·파랑 내림, 반투명, 꼬리는 몸통 밖만) + 전일 종가 점선 — 증시 탭과 같게 */}
+            {hasBgBase && <line x1={0} x2={W} y1={by(bgBase!)} y2={by(bgBase!)} stroke="#64748b" strokeOpacity={0.5} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />}
+            {bgCandles.map(k => {
+              const sw = ((W - PX * 2) * k.B) / span, gap = sw * 0.15;
+              const x0 = PX + ((k.m - T0) / span) * (W - PX * 2) + gap / 2, w = Math.max(0.6, sw - gap), cx = x0 + w / 2;
+              const upK = k.c >= k.o, top = by(Math.max(k.o, k.c)), bot = by(Math.min(k.o, k.c));
+              const line = upK ? "rgba(220,38,38,0.35)" : "rgba(37,99,235,0.35)", fill = upK ? "rgba(220,38,38,0.13)" : "rgba(37,99,235,0.13)";   // 투명하게(사용자 요청)
               return (
-                <>
-                  <defs>
-                    <clipPath id={`${uid}u`}><rect x={0} y={0} width={W} height={baseY} /></clipPath>
-                    <clipPath id={`${uid}d`}><rect x={0} y={baseY} width={W} height={Math.max(0, H - baseY)} /></clipPath>
-                  </defs>
-                  <g clipPath={`url(#${uid}u)`}>
-                    <path d={band} fill="#fecdd3" fillOpacity={0.5} />
-                    <path d={line} fill="none" stroke="#fb7185" strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-                  </g>
-                  <g clipPath={`url(#${uid}d)`}>
-                    <path d={band} fill="#bfdbfe" fillOpacity={0.5} />
-                    <path d={line} fill="none" stroke="#60a5fa" strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-                  </g>
-                </>
+                <g key={k.m}>
+                  {by(k.h) < top && <line x1={cx} x2={cx} y1={by(k.h)} y2={top} stroke={line} vectorEffect="non-scaling-stroke" />}
+                  {by(k.l) > bot && <line x1={cx} x2={cx} y1={bot} y2={by(k.l)} stroke={line} vectorEffect="non-scaling-stroke" />}
+                  <rect x={x0} width={w} y={top} height={Math.max(0.6, bot - top)} fill={fill} stroke={line} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                </g>
               );
-            })() : (
-              <path d={`${bgp.map((b, i) => `${i ? "L" : "M"} ${x(b.t).toFixed(1)} ${by(b.v).toFixed(1)}`).join(" ")} L ${x(bgp[bgp.length - 1].t).toFixed(1)} ${H} L ${x(bgp[0].t).toFixed(1)} ${H} Z`}
-                    fill={bgUp ? "#fecdd3" : "#bfdbfe"} fillOpacity={0.45} stroke={bgUp ? "#fb7185" : "#60a5fa"} strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-            ))}
+            })}
+            {/* 배경 지수 선 — 캔들 위에 같이(사용자 요청 2026-10-23) */}
+            {bgp.length > 1 && <path d={bgp.map((b, i) => `${i ? "L" : "M"} ${x(b.t).toFixed(1)} ${by(b.v).toFixed(1)}`).join(" ")} fill="none" stroke="#475569" strokeOpacity={0.55} strokeWidth={1} vectorEffect="non-scaling-stroke" />}
             <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#94a3b8" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
-            {/* 매수·매도 막대(구간별) — 각 투자자 선을 따라 그 선 자리에서 위 = 산 양·아래 = 판 양(투자자 색 연하게),
-                진한 빨강/파랑 = 차이(사용자 요청 2026-10-23, 아래 따로 있던 막대를 선에 붙였다). 투자자 여럿이면 한 구간을 나눠 나란히 */}
-            {fb && LINES.map((l, li) => (
-              <g key={l.k}>
-                {fb.rows[li].map((x0, i) => {
-                  if (fb.T0b + i * fb.B > fb.lastM) return null;
-                  const bx = PX + (i * fb.B / span) * (W - PX * 2) + fb.slotW * 0.1 + fb.cw * li;
-                  const base = y(fb.lineAt(l.k, Math.min(fb.lastM, T0 + (i + 1) * fb.B - 1)));
-                  const hb = (x0.b / fb.mxBar) * fb.maxH, hs = (x0.s / fb.mxBar) * fb.maxH;
-                  const d = x0.b - x0.s, hd = (Math.abs(d) / fb.mxD) * fb.maxH;
-                  return (
-                    <g key={i}>
-                      {x0.b > 0 && <rect x={bx} width={fb.cw} y={base - hb} height={hb} fill={l.color} opacity={0.16} />}
-                      {x0.s > 0 && <rect x={bx} width={fb.cw} y={base} height={hs} fill={l.color} opacity={0.16} />}
-                      {d !== 0 && <rect x={bx} width={fb.cw} y={d > 0 ? base - hd : base} height={Math.max(0.5, hd)} fill={d > 0 ? "#e11d48" : "#2563eb"} opacity={0.45} />}
-                    </g>
-                  );
-                })}
-              </g>
-            ))}
             {/* 마감 동시호가 구간 음영 */}
             <rect x={x(aucFrom)} width={Math.max(0, x(axisEnd) - x(aucFrom))} y={0} height={H} fill="#fde68a" fillOpacity={0.35} />
             {["10:00", "12:00", "14:00"].map(t => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H} stroke="#eef2f7" vectorEffect="non-scaling-stroke" />)}
@@ -719,43 +665,18 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
             ))}
             {hoverX != null && <line x1={hoverX} x2={hoverX} y1={0} y2={H} stroke="#475569" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
           </svg>
-          {/* 매수·매도 숫자 — 투자자마다 자기 선 위에 작은 상자로(사용자 요청 2026-10-23).
-              마우스 땐 그 구간(산·판·차이), 아니면 선 끝에 하루 합계. 마우스를 막지 않게 pointer-events 끔 */}
-          {/* 마우스 구간 시각 — 상자마다 쓰지 않고 아래 축에 한 번(사용자 요청 2026-10-23) */}
-          {fb && hoverX != null && hoverM != null && (() => {
-            const m0 = T0 + Math.max(0, Math.floor((Math.min(hoverM, fb.lastM) - T0) / fb.B)) * fb.B;
-            return (
-              <div className="absolute bottom-0 -translate-x-1/2 rounded bg-gray-700 px-1 text-[10px] leading-tight text-white tabular-nums pointer-events-none"
-                   style={{ left: `${(hoverX / W) * 100}%` }}>
-                {`${String(Math.floor(m0 / 60)).padStart(2, "0")}:${String(m0 % 60).padStart(2, "0")}~`}
-              </div>
-            );
-          })()}
-          {fb && LINES.map((l, li) => {
-            const i = hoverM != null ? Math.min(fb.rows[li].length - 1, Math.max(0, Math.floor((Math.min(hoverM, fb.lastM) - T0) / fb.B))) : null;
-            const m = hoverM != null ? Math.min(hoverM, fb.lastM) : fb.lastM;
-            const lx = hoverX ?? x(pts[pts.length - 1].time);
-            const ly = y(fb.lineAt(l.k, m));
-            const [bv, sv] = i != null ? [fb.rows[li][i].b, fb.rows[li][i].s] : fb.tot(l.k);
-            const right = lx / W > 0.55;   // 오른쪽 반이면 점 왼쪽에 — 칸 밖으로 안 나가게
-            const cur = fb.lineAt(l.k, m);   // 지금(마우스) 누적 순매수 = 선 값
-            // 세 줄 — 위 = 산 양(+), 가운데 = 지금 누적(크게, 선 높이에 맞춤), 아래 = 판 양(−). 막대 모양(위 매수·아래 매도)과 같게(사용자 요청)
-            return (
-              <div key={l.k} className="absolute whitespace-nowrap rounded border bg-white/40 px-1 py-px text-[10px] leading-tight tabular-nums pointer-events-none"
-                   style={{ left: `${(lx / W) * 100}%`, top: `${Math.min(90, Math.max(10, (ly / H) * 100))}%`, borderColor: l.color,
-                            // 배경 반투명(40%) — 뒤 선이 보이게(사용자 요청). 글자는 흰 테두리 그림자로 선 위에서도 읽히게
-                            textShadow: "0 0 2px #fff, 0 0 2px #fff, 0 0 3px #fff",
-                            transform: `translate(${right ? "calc(-100% - 4px)" : "4px"}, -50%)` }}>
-                <div className="text-rose-600">+{fmtFlow(bv, unit)}</div>
-                <div className="text-[12px] font-bold"><span style={{ color: l.color }}>{l.label}</span>{" "}
-                  <span className={cur > 0 ? "text-rose-600" : cur < 0 ? "text-blue-600" : "text-gray-500"}>{cur > 0 ? "+" : cur < 0 ? "−" : ""}{fmtFlow(Math.abs(cur), unit)}</span></div>
-                <div className="text-blue-600">−{fmtFlow(sv, unit)}</div>
-              </div>
-            );
-          })}
           </div>
         )}
       </div>
+      {/* 외국인·개인 매수·매도 막대 — 그래프 바로 아래, 같은 시간 축. 증시 탭과 같은 모양(사용자 요청 2026-10-23) */}
+      {flow && pts.length > 1 && (
+        <BuySellBars points={flow.points} keys={LINES.map(l => l.k)} unit={unit === "계약" ? "계약" : "억"} start={startHM} end={axisEnd}
+          rowH={36} compact
+          geom={{
+            width: W, hoverT: hoverM ?? null, toT: tmin, hover: onHover,
+            xOfT: m => (m < T0 || m > T1 ? null : x(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`)),
+          }} />
+      )}
       {/* 프리장(NXT 08:00~09:00) 결과 — 정규장이 열려 본 그래프가 KRX 로 바뀐 뒤에만(그 전엔 본 그래프가 곧 프리장).
           막대 아래(그래프 밖)에 둔다 — 그래프 위에 있으면 그만큼 그래프가 낮아져 선물 칸과 높이가 달랐다(사용자 지적) */}
       {(() => {

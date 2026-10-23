@@ -21,8 +21,9 @@ export interface WideCandleData extends CustomData<Time> {
   open: number; high: number; low: number; close: number;
 }
 
-const UP_FILL = "rgba(220,38,38,0.35)", UP_LINE = "rgba(220,38,38,0.65)";
-const DN_FILL = "rgba(37,99,235,0.35)", DN_LINE = "rgba(37,99,235,0.65)";
+// 투명하게 — 배경 지수 선이 같이 깔린다(사용자 요청 2026-10-23)
+const UP_FILL = "rgba(220,38,38,0.13)", UP_LINE = "rgba(220,38,38,0.35)";
+const DN_FILL = "rgba(37,99,235,0.13)", DN_LINE = "rgba(37,99,235,0.35)";
 
 class WideCandleRenderer implements ICustomSeriesPaneRenderer {
   private _data: PaneRendererCustomData<Time, WideCandleData> | null = null;
