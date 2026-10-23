@@ -1,3 +1,4 @@
+import { isDesktopApp } from "./nativeProxy";
 // 종목 분석 지시 프롬프트 — 🔍AI 검색에 앞에 붙여 전송. AI 모드가 10개 항목을 검색·종합하도록 유도.
 export const STOCK_ANALYSIS_PROMPT =
   `당신은 주식 종목을 일반 투자자가 이해하기 쉽게 분석하는 AI다. ` +
@@ -43,6 +44,14 @@ export function openGoogleAi(query: string): void {
   const q = query.replace(/\s+/g, " ").trim().slice(0, 4000);
   const url = `https://www.google.com/search?udm=50&q=${encodeURIComponent(q)}`;
   // 이미 열린 AI 팝업이 살아 있으면 그 창을 재사용 — 새 팝업을 또 만들지 않음.
+  // 데스크톱 앱 — window.open 을 앱이 가로채 기본 브라우저로 넘기는데, 그 대체 함수가 null 을 돌려줘
+  //   아래 '열린 창 재사용' 로직과 꼬였다. 앱 명령으로 바로 브라우저에 연다(2026-10-23 'AI 버튼 반응 없음').
+  //   ★ 0.1.2 이전 앱은 앱 명령이 있어도 window.open 이 같은 일을 하니 그쪽도 안전하다.
+  if (isDesktopApp()) {
+    const t = (window as unknown as { __TAURI_INTERNALS__?: { invoke: (c: string, a: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__;
+    // 실패하면 이유를 보여 준다 — 조용히 끝나면 '반응 없음'으로만 보인다
+    if (t) { void t.invoke("open_external", { url }).catch(e => window.alert(`구글 AI 를 브라우저로 열지 못했습니다\n\n${String(e)}`)); return; }
+  }
   if (aiWin && !aiWin.closed) {
     try {
       aiWin.location.href = url;   // cross-origin 이어도 '이동'은 허용 (읽기만 차단)
