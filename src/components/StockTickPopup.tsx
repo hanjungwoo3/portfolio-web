@@ -22,7 +22,7 @@ function StockTickPopup({ code, name }: { code: string; name: string }) {
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={closeTickPopup}>
       <div className="bg-gray-50 w-full h-full sm:w-[98vw] sm:h-[96vh] sm:rounded-xl shadow-2xl flex flex-col overflow-hidden"
            onClick={e => e.stopPropagation()}>
-        <div className="flex items-baseline gap-2 px-3 py-1.5 bg-white border-b">
+        <div className="pg-menu flex items-baseline gap-2 px-3 py-1.5 bg-white border-b">
           <span className="font-bold text-gray-900">⚡ {name}</span>
           <span className="text-[12px] text-gray-400">{code} · 반도체 수급 화면에서 종목 칸만 바꿔 봄</span>
           <a href={`https://tossinvest.com/stocks/A${code}`} target="_blank" rel="noopener noreferrer" className="text-[11px] text-gray-400 hover:text-blue-600 underline">토스</a>
