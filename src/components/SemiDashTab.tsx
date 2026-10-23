@@ -681,7 +681,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
             {["10:00", "12:00", "14:00"].map(t => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H} stroke="#eef2f7" vectorEffect="non-scaling-stroke" />)}
             {LINES.map(l => (
               <path key={l.k} d={pts.map((p, i) => `${i ? "L" : "M"} ${x(p.time).toFixed(1)} ${y(val(p, l.k)).toFixed(1)}`).join(" ")}
-                    fill="none" stroke={l.color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
+                    fill="none" stroke={l.color} strokeWidth={1.4} vectorEffect="non-scaling-stroke" />
             ))}
             {hoverX != null && <line x1={hoverX} x2={hoverX} y1={0} y2={H} stroke="#475569" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
             {hovBg && <line x1={0} x2={W} y1={by(hovBg.v)} y2={by(hovBg.v)} stroke="#64748b" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
