@@ -5,7 +5,7 @@
 //     · 코스피 투자자(네이버) 1분 / 선물 투자자(네이버) **20분 지연** / 선물 시세·옵션(한경) 실시간
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
-import { useState } from "react";
+import { useId, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
@@ -560,6 +560,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
   onHover?: (m: number | null) => void;
   lines: FlowLine[];                 // 그릴 투자자(위 선택 줄)
 }) {
+  const uid = useId().replace(/:/g, "");
   const LINES = lines;
   const pts = flow?.points ?? [];
   const val = (p: IntradayFlow["points"][number], k: IntradayKey) => p[k];
@@ -600,19 +601,6 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
     onHover(m < T0 || m > T1 ? null : m);
   } : undefined;
   const hoverX = hoverM != null && hoverM >= T0 && hoverM <= T1 ? PX + ((hoverM - T0) / span) * (W - PX * 2) : null;
-  // 배경 지수 캔들 — 묶음 폭은 아래 매수·매도 막대와 같은 규칙(자료 1시간↓ 1분·3시간↓ 5분·그 위 10분), 증시 탭과 같은 모양(사용자 요청 2026-10-23)
-  const bgCandles = (() => {
-    if (bgp.length < 2) return [];
-    const ds = pts.length > 1 ? tmin(pts[pts.length - 1].time) - tmin(pts[0].time) : 999;
-    const B = ds <= 60 ? 1 : ds <= 180 ? 5 : 10;
-    const out: { m: number; B: number; o: number; h: number; l: number; c: number }[] = [];
-    for (const p of bgp) {
-      const m = T0 + Math.floor((tmin(p.t) - T0) / B) * B, last = out[out.length - 1];
-      if (!last || last.m !== m) out.push({ m, B, o: p.v, h: p.v, l: p.v, c: p.v });
-      else { last.h = Math.max(last.h, p.v); last.l = Math.min(last.l, p.v); last.c = p.v; }
-    }
-    return out;
-  })();
   return (
     <div className={`pg-card rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 min-w-0 ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
          title={dim ? "지금은 거래 시간이 아니거나 지난 거래일 자료입니다" : undefined}>
@@ -638,21 +626,28 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
         {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (
           <div className="relative w-full h-full">
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full" onMouseMove={onMove} onMouseLeave={onHover ? () => onHover(null) : undefined}>
-            {/* 배경 지수 = 캔들(빨강 오름·파랑 내림, 반투명, 꼬리는 몸통 밖만) + 전일 종가 점선 — 증시 탭과 같게 */}
-            {hasBgBase && <line x1={0} x2={W} y1={by(bgBase!)} y2={by(bgBase!)} stroke="#64748b" strokeOpacity={0.5} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />}
-            {bgCandles.map(k => {
-              const sw = ((W - PX * 2) * k.B) / span, gap = sw * 0.15;
-              const x0 = PX + ((k.m - T0) / span) * (W - PX * 2) + gap / 2, w = Math.max(0.6, sw - gap), cx = x0 + w / 2;
-              const upK = k.c >= k.o, top = by(Math.max(k.o, k.c)), bot = by(Math.min(k.o, k.c));
-              const line = upK ? "rgba(220,38,38,0.35)" : "rgba(37,99,235,0.35)", fill = upK ? "rgba(220,38,38,0.13)" : "rgba(37,99,235,0.13)";   // 투명하게(사용자 요청)
+            {bgp.length > 1 && (() => {
+              // 배경 지수 면 — 전일 종가 위 = 빨강·아래 = 파랑으로 나눠 칠한다(카드 그래프와 같은 규칙). 캔들은 되돌렸다(사용자 결정 2026-10-23)
+              const baseY = by(hasBgBase ? bgBase! : bgp[0].v);   // 전일 종가 없으면 첫 값 기준
+              const line = bgp.map((b, i) => `${i ? "L" : "M"} ${x(b.t).toFixed(1)} ${by(b.v).toFixed(1)}`).join(" ");
+              const band = `${line} L ${x(bgp[bgp.length - 1].t).toFixed(1)} ${baseY.toFixed(1)} L ${x(bgp[0].t).toFixed(1)} ${baseY.toFixed(1)} Z`;
               return (
-                <g key={k.m}>
-                  {by(k.h) < top && <line x1={cx} x2={cx} y1={by(k.h)} y2={top} stroke={line} vectorEffect="non-scaling-stroke" />}
-                  {by(k.l) > bot && <line x1={cx} x2={cx} y1={bot} y2={by(k.l)} stroke={line} vectorEffect="non-scaling-stroke" />}
-                  <rect x={x0} width={w} y={top} height={Math.max(0.6, bot - top)} fill={fill} stroke={line} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-                </g>
+                <>
+                  <defs>
+                    <clipPath id={`${uid}u`}><rect x={0} y={0} width={W} height={baseY} /></clipPath>
+                    <clipPath id={`${uid}d`}><rect x={0} y={baseY} width={W} height={Math.max(0, H - baseY)} /></clipPath>
+                  </defs>
+                  <g clipPath={`url(#${uid}u)`}>
+                    <path d={band} fill="#fecdd3" fillOpacity={0.5} />
+                    <path d={line} fill="none" stroke="#fb7185" strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                  </g>
+                  <g clipPath={`url(#${uid}d)`}>
+                    <path d={band} fill="#bfdbfe" fillOpacity={0.5} />
+                    <path d={line} fill="none" stroke="#60a5fa" strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                  </g>
+                </>
               );
-            })}
+            })()}
             <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#94a3b8" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
             {/* 마감 동시호가 구간 음영 */}
             <rect x={x(aucFrom)} width={Math.max(0, x(axisEnd) - x(aucFrom))} y={0} height={H} fill="#fde68a" fillOpacity={0.35} />
