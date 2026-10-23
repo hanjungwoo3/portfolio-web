@@ -245,6 +245,33 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       })() });
   }
 
+  // 시장 카드(코스피·코스닥·선물(야간엔 야간선물)·V-KOSPI) — 반도체 탭 첫 줄과 종목정보 팝업이 같이 쓴다
+  const marketCards = (<>
+        <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct} dim={!openIndex}
+              chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />} />
+        {/* 코스닥 — 사용자 요청(2026-10-21). 기준선은 카드 전일 종가(야후 ^KQ11 previousClose 가 그저께 값일 때가 있다) */}
+        <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct} dim={!openIndex}
+              chart={spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />} />
+        {/* 야간(18:00~05:00)엔 야간선물(야선) — 사용자 요청. 주간 선물 카드와 자리를 바꾼다 */}
+        {night ? (["^KS200N", "^KQ150N"] as const).map((sym, i) => {
+          const d = nightQs[i]?.data;
+          return <Card key={sym} title={`${i ? "코스닥150" : "코스피200"} 야간선물`} price={d?.index.price} pct={d?.index.pct} dim={!openNight}
+                       sub={`주간 종가 ${i ? (futQ ? fmtP(futQ.price) : "-") : (fut ? fmtP(fut.price) : "-")} · 18:00~05:00`}
+                       chart={d && d.closes.length > 1 && <Sparkline data={d.closes} width={300} height={70} className="w-full h-full" strokeWidth={1.2} baseline={d.index.prevClose} />} />;
+        }) : <>
+        <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct} dim={!openFut}
+              sub={fut ? `미결제 ${fut.oi.toLocaleString()}(${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)}` : "한경 실시간"}
+              chart={futMin && futMin.closes.length > 1 && <FutSpark s={futMin} live={fut?.price} />} />
+        <Card title={`코스닥150 선물${futQ?.month ? ` ${futQ.month}` : ""}`} price={futQ?.price} pct={futQ?.pct} dim={!openFut}
+              sub={futQ ? `미결제 ${futQ.oi.toLocaleString()}(${eok(futQ.oiChg)})` : "한경 실시간"}
+              chart={futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />} />
+        </>}
+        <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} dim={!openIndex}
+              sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
+              chart={vkChart && vkChart.length > 1 && <Sparkline data={vkChart.slice(-60)} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
+                                                               color={vk && vk.pct > 0 ? "#dc2626" : "#2563eb"} />} />
+  </>);
+
   // 지금 신호 / 가설 검증 칸 — 반도체 탭과 팝업이 같은 칸을 쓴다
   const signalBox = (
         <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
@@ -278,34 +305,15 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   //   ① 종목 카드 + 시장 맥락 칩 ② 체결(크게) + 신호 ③ 호가 | 거래원 | 프로그램·투자자 ④ 새 소식 | 커뮤니티
   if (popup) {
     const s0 = stocks[0], qq = sq(s0.code);
-    const chip = (name: string, x?: { price?: number; pct?: number } | null, fmt: (v: number) => string = v => v.toLocaleString()) => (
-      <span key={name} className="tabular-nums whitespace-nowrap">
-        <span className="text-gray-600">{name}</span>{" "}
-        <b className={x?.pct == null ? "text-gray-300" : up(x.pct)}>{x?.pct == null ? "-" : `${sgn(x.pct)}%`}</b>
-        {x?.price != null && <span className="ml-1 text-[11px] text-gray-500">{fmt(x.price)}</span>}
-      </span>
-    );
     return (
       <div className="flex flex-col gap-1.5 p-2 text-[12px] bg-gray-50 pg-bg">
-        <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-1.5 auto-rows-[118px] shrink-0">
+        {/* 종목 카드 + 시장 카드(반도체 탭과 같은 그래프 카드 — 칩 한 줄보다 낫다, 사용자 요청 2026-10-23) */}
+        <div className="grid grid-cols-2 lg:grid-cols-6 gap-1.5 auto-rows-[118px] shrink-0">
           <Card title={s0.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
                 chart={<KrDaySparkline code={s0.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />
-          <div className="pg-card rounded-lg border border-gray-200 bg-white px-3 py-2 flex flex-col justify-center gap-1.5">
-            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13px]">
-              <span className="font-bold text-gray-800">시장</span>
-              {chip("코스피", q("^KS11"))}
-              {chip("코스닥", q("^KQ11"))}
-              {chip(`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`, fut, v => v.toFixed(2))}
-              {chip("코스닥150 선물", futQ, v => v.toFixed(2))}
-              {chip("V-KOSPI", vk, v => v.toFixed(2))}
-            </div>
-            <div className="text-[11px] text-gray-500 leading-snug">
-              종목이 시장과 같은 방향인지 — 시장은 빠지는데 종목이 버티면 수급이 받치는 것, 시장이 오르는데 종목이 못 따라가면 매물이 많은 것.
-              {fut && fut.oi > 0 ? ` · 선물 미결제 ${fut.oi.toLocaleString()}(${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)}` : ""}
-            </div>
-          </div>
+          {marketCards}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] gap-1.5 min-h-0 auto-rows-[360px]">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[360px]">   {/* 체결 · 신호 반반(사용자 요청) */}
           <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} />
           {signalBox}
         </div>
@@ -331,29 +339,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
                        chart={<KrDaySparkline code={s.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
         })}
-        <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct} dim={!openIndex}
-              chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />} />
-        {/* 코스닥 — 사용자 요청(2026-10-21). 기준선은 카드 전일 종가(야후 ^KQ11 previousClose 가 그저께 값일 때가 있다) */}
-        <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct} dim={!openIndex}
-              chart={spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />} />
-        {/* 야간(18:00~05:00)엔 야간선물(야선) — 사용자 요청. 주간 선물 카드와 자리를 바꾼다 */}
-        {night ? (["^KS200N", "^KQ150N"] as const).map((sym, i) => {
-          const d = nightQs[i]?.data;
-          return <Card key={sym} title={`${i ? "코스닥150" : "코스피200"} 야간선물`} price={d?.index.price} pct={d?.index.pct} dim={!openNight}
-                       sub={`주간 종가 ${i ? (futQ ? fmtP(futQ.price) : "-") : (fut ? fmtP(fut.price) : "-")} · 18:00~05:00`}
-                       chart={d && d.closes.length > 1 && <Sparkline data={d.closes} width={300} height={70} className="w-full h-full" strokeWidth={1.2} baseline={d.index.prevClose} />} />;
-        }) : <>
-        <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct} dim={!openFut}
-              sub={fut ? `미결제 ${fut.oi.toLocaleString()}(${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)}` : "한경 실시간"}
-              chart={futMin && futMin.closes.length > 1 && <FutSpark s={futMin} live={fut?.price} />} />
-        <Card title={`코스닥150 선물${futQ?.month ? ` ${futQ.month}` : ""}`} price={futQ?.price} pct={futQ?.pct} dim={!openFut}
-              sub={futQ ? `미결제 ${futQ.oi.toLocaleString()}(${eok(futQ.oiChg)})` : "한경 실시간"}
-              chart={futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />} />
-        </>}
-        <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} dim={!openIndex}
-              sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
-              chart={vkChart && vkChart.length > 1 && <Sparkline data={vkChart.slice(-60)} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
-                                                               color={vk && vk.pct > 0 ? "#dc2626" : "#2563eb"} />} />
+        {marketCards}
         {/* 필라델피아 반도체(지수) 카드는 뺐다 — 한국 장중엔 간밤 미국 종가라 안 움직인다(사용자 요청). SOX 선물은 아래 해외 선물 줄 */}
       </div>
 
