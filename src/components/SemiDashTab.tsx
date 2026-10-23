@@ -737,15 +737,17 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
             const lx = hoverX ?? x(pts[pts.length - 1].time);
             const ly = y(fb.lineAt(l.k, m));
             const [bv, sv] = i != null ? [fb.rows[li][i].b, fb.rows[li][i].s] : fb.tot(l.k);
-            const d = bv - sv;
             const right = lx / W > 0.55;   // 오른쪽 반이면 점 왼쪽에 — 칸 밖으로 안 나가게
+            const cur = fb.lineAt(l.k, m);   // 지금(마우스) 누적 순매수 = 선 값
+            // 세 줄 — 위 = 산 양(+), 가운데 = 지금 누적(크게, 선 높이에 맞춤), 아래 = 판 양(−). 막대 모양(위 매수·아래 매도)과 같게(사용자 요청)
             return (
-              <div key={l.k} className="pg-box absolute whitespace-nowrap rounded border bg-white/90 px-1 text-[10px] leading-tight tabular-nums shadow-sm pointer-events-none"
-                   style={{ left: `${(lx / W) * 100}%`, top: `${Math.min(92, Math.max(4, (ly / H) * 100))}%`, borderColor: l.color,
-                            transform: `translate(${right ? "calc(-100% - 4px)" : "4px"}, ${li % 2 ? "4px" : "calc(-100% - 4px)"})` }}>
-                <b style={{ color: l.color }}>{l.label}</b>{" "}
-                <b className="text-rose-600">{fmtFlow(bv, unit)}</b>·<b className="text-blue-600">{fmtFlow(sv, unit)}</b>{" "}
-                <b className={d > 0 ? "text-rose-600" : d < 0 ? "text-blue-600" : "text-gray-500"}>{d > 0 ? "+" : d < 0 ? "−" : ""}{fmtFlow(Math.abs(d), unit)}</b>
+              <div key={l.k} className="pg-box absolute whitespace-nowrap rounded border bg-white/90 px-1 py-px text-[10px] leading-tight tabular-nums shadow-sm pointer-events-none"
+                   style={{ left: `${(lx / W) * 100}%`, top: `${Math.min(90, Math.max(10, (ly / H) * 100))}%`, borderColor: l.color,
+                            transform: `translate(${right ? "calc(-100% - 4px)" : "4px"}, -50%)` }}>
+                <div className="text-rose-600">+{fmtFlow(bv, unit)}</div>
+                <div className="text-[12px] font-bold"><span style={{ color: l.color }}>{l.label}</span>{" "}
+                  <span className={cur > 0 ? "text-rose-600" : cur < 0 ? "text-blue-600" : "text-gray-500"}>{cur > 0 ? "+" : cur < 0 ? "−" : ""}{fmtFlow(Math.abs(cur), unit)}</span></div>
+                <div className="text-blue-600">−{fmtFlow(sv, unit)}</div>
               </div>
             );
           })}
