@@ -25,6 +25,8 @@ import { HypothesisBox } from "./HypothesisBox";
 import { BuySellBars, joEok } from "./BuySellBars";
 
 const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }] as const;
+// 시장 대표 ETF 카드(반도체 탭 첫 줄, 사용자 요청 2026-10-23) — 현물 지수 옆에서 ETF 수급·괴리를 같이 본다
+const ETFS = [{ code: "069500", name: "KODEX 200" }, { code: "229200", name: "KODEX 코스닥150" }] as const;
 const SPARK = ["^KS11", "^KQ11", "KRW=X", "NQ=F", "SOX=F"];   // 야후 spark 1콜(어제+오늘 5분봉) — 뒤 셋은 종목정보 팝업 위 줄
 const FLOW_MS = 60_000;
 const US_ROW = ["MU", "NVDA", "SKHY", "SNDK", "AMD", "DRAM"];
@@ -116,6 +118,14 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     queryFn: () => fetchTossPrices(stocks.map(s => s.code)),
     enabled: !!popup, refetchInterval: 5_000, staleTime: 3_000,
   });
+  const { data: etfPx } = useQuery({
+    queryKey: ["semi-dash-etf-px"], queryFn: () => fetchTossPrices(ETFS.map(e => e.code)),
+    enabled: !popup, refetchInterval: 5_000, staleTime: 3_000,
+  });
+  const eq = (code: string) => {
+    const t = etfPx?.find(p => p.ticker === code);
+    return t && t.prevClose > 0 ? { price: t.price, pct: ((t.price - t.prevClose) / t.prevClose) * 100 } : undefined;
+  };
   const sq = (code: string): { price?: number; pct?: number } | undefined => {
     const t = tossPx?.find(p => p.ticker === code);
     if (t && t.prevClose > 0) return { price: t.price, pct: ((t.price - t.prevClose) / t.prevClose) * 100 };
@@ -360,11 +370,16 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   return (
     <div className="flex flex-col gap-1.5 p-2 lg:min-h-[calc(100vh-150px)] text-[12px] bg-gray-50 pg-bg">
       {/* ① 시세 */}
-      <div className="grid grid-cols-2 lg:grid-cols-7 gap-1.5 auto-rows-[118px] shrink-0">
+      <div className="grid grid-cols-2 lg:grid-cols-9 gap-1.5 auto-rows-[118px] shrink-0">
         {stocks.map(s => {
           const qq = sq(s.code);
           return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
                        chart={<KrDaySparkline code={s.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
+        })}
+        {ETFS.map(e => {
+          const qq = eq(e.code);
+          return <Card key={e.code} title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
+                       chart={<KrDaySparkline code={e.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
         })}
         {marketCards}
         {/* 필라델피아 반도체(지수) 카드는 뺐다 — 한국 장중엔 간밤 미국 종가라 안 움직인다(사용자 요청). SOX 선물은 아래 해외 선물 줄 */}
