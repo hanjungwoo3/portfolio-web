@@ -28,8 +28,19 @@ body {
 }
 
 
-/* 야간 배경(설정 → 야간 배경) — 카드 바깥만 어둡게. 카드·표·팝업은 그대로(src/lib/nightBg.ts) */
+/* 야간 배경(헤더 🌙 · 설정) — 카드 바깥만 회색 계열로 어둡게. 카드·표·팝업은 그대로(src/lib/nightBg.ts)
+   검정보다 짙은 회색(사용자 결정 2026-10-23). 메뉴 안의 흰·연회색 버튼은 한 단계 밝은 회색, 회색 글자는 밝게. */
 html.night-bg body,
-html.night-bg .pg-bg { background-color: #0b1220 !important; }
-html.night-bg .pg-box { background-color: #111827 !important; border-color: #334155 !important; }
-html.night-bg .pg-title { background-color: #1f2937 !important; border-color: #475569 !important; color: #e5e7eb !important; }
+html.night-bg .pg-bg { background-color: #2b2f35 !important; }
+html.night-bg .pg-box { background-color: #383d45 !important; border-color: #4b515a !important; }
+html.night-bg .pg-title { background-color: #4b515a !important; border-color: #5d646f !important; color: #f3f4f6 !important; }
+html.night-bg .pg-menu { background-color: #23272c !important; border-color: #3d424a !important; }
+html.night-bg .pg-menu :is(.bg-white, .bg-gray-50, .bg-gray-100) { background-color: #3d424a !important; border-color: #4f5660 !important; }
+html.night-bg .pg-menu :is(.hover\:bg-gray-50, .hover\:bg-gray-100, .hover\:bg-gray-200):hover { background-color: #4b515a !important; }
+html.night-bg .pg-menu :is(.text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-gray-900, .text-slate-700) { color: #e5e7eb !important; }
+html.night-bg .pg-menu .border-gray-200, html.night-bg .pg-menu .border-gray-300 { border-color: #4f5660 !important; }
+/* 카드도 톤을 낮춘다(사용자 요청) — 색은 그대로 두고 밝기만. 등락 빨강·파랑·차트 구분은 유지, 카드 틀에 걸어 책갈피·버튼(히트맵·체결·AI)도 같이 */
+html.night-bg .pg-card { filter: brightness(0.8); }
+/* 섹터 줄 상자(반도체·2차전지…)와 왼쪽 세로 이름 띠 */
+html.night-bg .pg-row { background-color: #30353c !important; border-color: #454b55 !important; }
+html.night-bg .pg-rowlabel { filter: brightness(0.75); }

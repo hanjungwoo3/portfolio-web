@@ -350,11 +350,11 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               : sortedRows(section, leaderSort, sym => displayPctOf(sym, usMap.get(sym)))
             ).map((group, gi) => (
               // 6열 그리드 — 화면은 전체 폭이지만 카드 줄만 lg 75% 로 묶어 카드 크기는 예전 그대로(왼쪽 정렬)
-              <div key={gi} className={section.rowLabels ? `relative ${section.pairRows ? "" : "-mr-[9px]"} rounded-lg border border-gray-200 bg-gray-50/50 pl-9 pr-2 pb-2 pt-4 mt-2` : ""}>
+              <div key={gi} className={section.rowLabels ? `relative ${section.pairRows ? "" : "-mr-[9px]"} rounded-lg border border-gray-200 bg-gray-50/50 pg-row pl-9 pr-2 pb-2 pt-4 mt-2` : ""}>
                 {/* 줄 책갈피 — 이 줄이 어느 단계인지(반도체·전공정…). 위에 얹으면 카드 위 가격 띠와 겹쳐
                     안 보여서, 상자 **왼쪽에 세로 띠**로 따로 뺐다(글자는 위→아래로 세워 쓴다). */}
                 {section.rowLabels?.[gi] && (
-                  <span className={`absolute left-0 inset-y-0 w-7 flex items-center justify-center border-0 border-r rounded-l-lg
+                  <span className={`pg-rowlabel absolute left-0 inset-y-0 w-7 flex items-center justify-center border-0 border-r rounded-l-lg
                                     text-xs font-bold tracking-widest [writing-mode:vertical-rl] [text-orientation:upright]
                                     ${dashboardRowLabelTone(section, section.rowLabels[gi])}`}>
                     {section.rowLabels[gi]}
@@ -508,7 +508,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               // 마감 책갈피는 노란 배경 + 흐림 제외 → dim 은 콘텐츠 자식에만 적용
               const dimCls = dimNow ? "opacity-60" : "";
               return (
-                <div key={p.symbol} className={`relative h-full`}>
+                <div key={p.symbol} className={`pg-card relative h-full`}>   {/* pg-card — 야간 배경에서 카드·책갈피·버튼 함께 톤 낮춤 */}
                   {/* 왼쪽 위 책갈피 줄 — [ETF] [투자주의…]. 해당되는 것만, 한 줄로 붙여 겹치지 않게.
                       기업정보는 아이콘 대신 **종목명 클릭**으로 연다(아이콘이 마감 책갈피와 겹쳐 화면을 가렸다 — 사용자 결정 2026-10-21). */}
                   {(() => {

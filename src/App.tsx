@@ -79,6 +79,7 @@ import { startAutoSync, SYNC_PULLED_EVENT } from "./lib/syncManager";
 import { SyncConflictBar } from "./components/SyncConflictBar";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
+import { NightToggle } from "./components/NightToggle";
 import { StockTickPopupHost } from "./components/StockTickPopup";
 import { useExtensionProxyReady } from "./lib/extensionProxy";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./components/HelpDialog";
@@ -794,7 +795,7 @@ function Dashboard() {
         </div>
       )}
       {!headerCollapsed && (
-      <header ref={headerRef} className="bg-white border-b border-gray-200 sticky top-0 z-50">   {/* 카드 책갈피(z-30)보다 위 */}
+      <header ref={headerRef} className="pg-menu bg-white border-b border-gray-200 sticky top-0 z-50">   {/* 카드 책갈피(z-30)보다 위 */}
         <div className="max-w-[1600px] mx-auto flex items-center gap-3 px-6 py-3">
           <button onClick={toggleHeader} title="헤더 접기 (포트폴리오~설정 숨김)"
                   className="shrink-0 p-1 rounded text-gray-500
@@ -853,6 +854,7 @@ function Dashboard() {
                          text-gray-700 rounded text-sm">
               설정
             </button>
+            <NightToggle className="px-2 py-1.5 text-sm" />
           </div>
         </div>
       </header>
@@ -896,7 +898,7 @@ function Dashboard() {
       <main className="max-w-[1600px] mx-auto p-3">
         <div ref={tabsStickyRef}
              style={{ top: headerCollapsed ? 0 : headerH }}
-             className="sticky z-40 bg-white/95 backdrop-blur -mx-3 px-3 pt-1 mb-3 [&>nav]:!mb-0">
+             className="pg-menu sticky z-40 bg-white/95 backdrop-blur -mx-3 px-3 pt-1 mb-3 [&>nav]:!mb-0">
           <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab}
                  onRename={async (oldName, newName) => {
                    await renameGroup(oldName, newName);

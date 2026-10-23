@@ -109,7 +109,7 @@ export function MarketTickerBar({ refreshMs }: MarketTickerBarProps) {
       <button onClick={() => setTickerBarOpen(true)}
               title="지수 띠 열기"
               style={{ height: TICKER_BAR_H }}
-              className="fixed bottom-0 right-3 z-30 px-2 flex items-center gap-1
+              className="pg-menu fixed bottom-0 right-3 z-30 px-2 flex items-center gap-1
                          bg-white/95 backdrop-blur border border-b-0 border-gray-200
                          rounded-t text-[11px] text-gray-500 hover:text-gray-800 shadow-sm">
             지수 <ChevronUp size={13} />
@@ -148,7 +148,7 @@ export function MarketTickerBar({ refreshMs }: MarketTickerBarProps) {
     {/* 흐름상 여백 — 마지막 카드가 고정 티커바에 가리지 않게 */}
     <div style={{ height: TICKER_BAR_H }} aria-hidden />
     <div style={{ height: TICKER_BAR_H }}
-         className="fixed bottom-0 left-0 right-0 z-30 flex items-center
+         className="pg-menu fixed bottom-0 left-0 right-0 z-30 flex items-center
                     bg-white/95 backdrop-blur border-t border-gray-200 shadow-[0_-1px_3px_rgba(0,0,0,0.04)]">
       {/* 묶음 선택 — 고른 쪽만 계속 표시(자동 전환 없음) */}
       <div className="shrink-0 flex items-center gap-0.5 pl-2 pr-1">

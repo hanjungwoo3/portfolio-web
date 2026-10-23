@@ -64,7 +64,8 @@ import { forceUpdate } from "./VersionBadge";
 import { NewVersionToast } from "./NewVersionToast";
 import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast } from "./AppUpdateToast";
 import { appConfirm, appPrompt } from "../lib/appDialog";
-import { getNightBg, setNightBg } from "../lib/nightBg";
+import { setNightBg, useNightBg } from "../lib/nightBg";
+import { NightToggle } from "./NightToggle";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadMemos, loadAllTrades,
@@ -1139,7 +1140,7 @@ export function MobileSimpleView() {
         </div>
       )}
       {!headerCollapsed && (
-      <header className="sticky top-0 z-50 bg-white border-b border-gray-200
+      <header className="pg-menu sticky top-0 z-50 bg-white border-b border-gray-200
                           px-3 py-2 flex items-center gap-1">
         <button onClick={toggleHeader} title="헤더 접기 (상단 메뉴 숨김)"
                 className="shrink-0 p-1 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition">
@@ -1169,6 +1170,7 @@ export function MobileSimpleView() {
                            bg-blue-600 hover:bg-blue-700 text-white">
           검색
         </button>
+        <NightToggle className="px-1.5 py-1 text-[12px]" />
         {/* 더보기 — 사용법/질문하기/후원하기/설정 묶음 (문구는 PC 동일) */}
         <div className="relative shrink-0">
           <button onClick={() => setMoreOpen(o => !o)}
@@ -1199,7 +1201,7 @@ export function MobileSimpleView() {
 
       {/* ─── 그룹 탭 (가로 스크롤, 작은 폰트) — 길게 누르기 = 액션 시트 ─── */}
       <nav ref={navRef} style={{ top: headerCollapsed ? 0 : 44 }}
-           className="sticky z-40 bg-white border-b border-gray-200
+           className="pg-menu sticky z-40 bg-white border-b border-gray-200
                        px-2 py-1 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
         {/* 헤더 접힘 시 펼치기(≡) 버튼 — 탭 바 맨 앞 */}
         {headerCollapsed && (
@@ -1426,7 +1428,7 @@ export function MobileSimpleView() {
         if (members.length < 2) return null;   // 1개뿐이면 전환할 게 없음
         return (
           <div ref={folderBarRef} data-noswipe style={{ top: (headerCollapsed ? 0 : 44) + navH }}
-               className="sticky z-30 bg-white/95 backdrop-blur border-b border-gray-200
+               className="pg-menu sticky z-30 bg-white/95 backdrop-blur border-b border-gray-200
                           px-2 py-1.5 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
             {members.map(g => {
               const on = g === activeTab;
@@ -1908,7 +1910,7 @@ export function MobileSimpleView() {
                 const lbl = section.rowLabels?.[ri] ?? "";
                 return (
                   <div key={symbol} className={`col-span-2 ${ri > 0 ? "border-t border-gray-200 pt-2" : ""} -mb-2`}>
-                    <span className={`inline-block px-1.5 py-0.5 rounded-md border text-[11px] font-bold ${dashboardRowLabelTone(section, lbl)}`}>
+                    <span className={`pg-rowlabel inline-block px-1.5 py-0.5 rounded-md border text-[11px] font-bold ${dashboardRowLabelTone(section, lbl)}`}>
                       {lbl}
                     </span>
                   </div>
@@ -2051,7 +2053,7 @@ export function MobileSimpleView() {
               // 마감 책갈피는 노란 배경(살짝 투명) + 흐림 제외 → dim 은 콘텐츠 자식에만
               const dimCls = dimNow ? "opacity-60" : "";
               return (
-                <div key={p.symbol} className={`relative h-full ${rowHeads.has(p.symbol) ? "col-start-1" : ""}`}>
+                <div key={p.symbol} className={`pg-card relative h-full ${rowHeads.has(p.symbol) ? "col-start-1" : ""}`}>
                   {/* 왼쪽 위 책갈피 줄 — [ETF] [투자주의…]. 해당되는 것만, 한 줄로 붙여 겹치지 않게.
                       기업정보는 아이콘 대신 **종목명 클릭**으로 연다(아이콘이 마감 책갈피와 겹쳐 화면을 가렸다 — 사용자 결정 2026-10-21). */}
                   {(() => {
@@ -2477,6 +2479,7 @@ function SettingsModal({
 }: SettingsModalProps) {
   const downOnBackdropRef = useRef(false);
   const queryClient = useQueryClient();
+  const nightBg = useNightBg();   // 헤더 🌙 와 같은 값
   const [busy, setBusy] = useState(false);
   const [dataMsg, setDataMsg] = useState("");
   const [proxies, setProxies] = useState<PersonalProxy[]>(() => getPersonalProxies());
@@ -3057,7 +3060,7 @@ function SettingsModal({
 
             {/* 야간 배경 — 카드 바깥만 어둡게(카드는 흐림 기능 그대로) */}
             <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
-              <input type="checkbox" defaultChecked={getNightBg()}
+              <input type="checkbox" checked={nightBg}
                      onChange={e => {
                        setNightBg(e.target.checked);
                        setSavedMsg(`✅ 야간 배경: ${e.target.checked ? "ON" : "OFF"}`);

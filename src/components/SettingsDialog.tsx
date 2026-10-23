@@ -20,7 +20,7 @@ import { resetProxyStats } from "../lib/proxyStatus";
 import { useExtensionProxyVersion, EXPECTED_EXTENSION_VERSION, compareVersion, EXTENSION_DOWNLOAD_URL } from "../lib/extensionProxy";
 import { isDesktopApp } from "../lib/nativeProxy";
 import { appConfirm } from "../lib/appDialog";
-import { getNightBg, setNightBg } from "../lib/nightBg";
+import { setNightBg, useNightBg } from "../lib/nightBg";
 
 // 맥·윈도우·안드로이드 앱 모음 — 고정 릴리스(파일 이름 고정, .github/workflows/desktop.yml)
 const APPS_RELEASE = "https://github.com/hanjungwoo3/portfolio-web/releases/download/apps";
@@ -81,7 +81,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   const [syncBusy, setSyncBusy] = useState(false);
   const [syncBusyMsg, setSyncBusyMsg] = useState("");   // 진행 중 오버레이 메시지
   const [lastSyncedAt, setLastSyncedAt] = useState<string | null>(getLastSyncedAt());
-  const [signedIn, setSignedIn] = useState(isSignedIn());  // 구글 로그인 여부 (UI 반응형)
+  const [signedIn, setSignedIn] = useState(isSignedIn());
+  const nightBg = useNightBg();   // 헤더 🌙 와 같은 값  // 구글 로그인 여부 (UI 반응형)
   // 자동 갱신 실패 기록 — 설정을 열 때 한 번 읽는다(성공하면 googleAuth 가 지운다).
   const authDiag = getAuthDiag();
   const [independentMode, setIndependent] = useState(getIndependentGroupsMode());
@@ -908,7 +909,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
 
             {/* 야간 배경 — 카드 바깥만 어둡게(카드는 흐림 기능 그대로) */}
             <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
-              <input type="checkbox" defaultChecked={getNightBg()}
+              <input type="checkbox" checked={nightBg}
                      onChange={e => {
                        setNightBg(e.target.checked);
                        setStatusMsg(`✅ 야간 배경: ${e.target.checked ? "ON" : "OFF"}`);
