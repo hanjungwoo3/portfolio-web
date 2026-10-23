@@ -1,6 +1,6 @@
 // 히트맵 탭 딥링크 — 카드(ValueupCard 등)에서 특정 소스/크기모드로 히트맵을 열도록 요청.
 //   ValueupMiniCard 는 트리 깊숙이 있어 prop 쓰레딩이 번거로우므로 전역 이벤트로 결합.
-//   App / MobileSimpleView 가 "goto-heatmap" 을 듣고 히트맵 탭으로 전환,
+//   HeatmapPopupHost(App 루트)가 "goto-heatmap" 을 듣고 히트맵을 팝업으로 띄운다(2026-10-23 — 옛: 히트맵 탭으로 전환),
 //   HeatmapTab 은 마운트 시 takePendingHeatmap() 으로 초기 소스·크기모드를 집어온다.
 import type { HeatmapSource } from "./api";
 

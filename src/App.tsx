@@ -71,7 +71,7 @@ import {
 import { SortSelector, makeSortHandlers } from "./components/SortSelector";
 import { reportRefresh, useLastRefresh } from "./lib/lastRefresh";
 import { getEffectivePollMs, getPersonalProxyUrl } from "./lib/proxyConfig";
-import { GOTO_HEATMAP_EVENT } from "./lib/heatmapNav";
+import { HeatmapPopupHost } from "./components/HeatmapPopup";
 import { GOTO_TAB_EVENT } from "./lib/tabNav";
 import { OPEN_VALUATION_EVENT, type ValuationRequest } from "./lib/valuationNav";
 import { TRADES_CHANGED_EVENT } from "./lib/tradeEvents";
@@ -259,12 +259,7 @@ function Dashboard() {
     }
   }, [tabs, activeTab, pendingTab]);
 
-  // 밸류업 카드 등에서 히트맵 딥링크 요청 → 히트맵 탭으로 전환(소스는 HeatmapTab 이 소비).
-  useEffect(() => {
-    const h = () => setActiveTab(HEATMAP_TAB_KEY);
-    window.addEventListener(GOTO_HEATMAP_EVENT, h);
-    return () => window.removeEventListener(GOTO_HEATMAP_EVENT, h);
-  }, []);
+  // 카드의 히트맵 딥링크 → 탭 이동 대신 팝업(HeatmapPopupHost, 사용자 요청 2026-10-23 — 보던 화면으로 돌아가기 쉽게)
 
   // 자동 동기화 엔진 — 모드가 꺼져 있으면 내부에서 아무것도 하지 않는다(매 검사마다 재확인).
   //   자동으로 받아와 DB 가 바뀌면 화면을 다시 읽는다.
@@ -1366,7 +1361,7 @@ function Dashboard() {
             myAvgPrice={s && s.shares > 0 ? s.avg_price : undefined}
             entryPrice={memos.get(valuationTicker)?.entryPrice}
             onRequestSearch={(q) => { setSearchInitQuery(q); setSearchOpen(true); }}
-            initialSection={valuationSec ?? "summary"}
+            initialSection={valuationSec ?? "live"}   // 첫 화면 = 실시간(사용자 요청 2026-10-23)
           />
         );
       })()}
@@ -1414,7 +1409,7 @@ function AppRoot() {
   }, []);
 
   if (!ready) return null;
-  return isMobile ? <MobileSimpleView /> : <Dashboard />;
+  return <>{isMobile ? <MobileSimpleView /> : <Dashboard />}<HeatmapPopupHost /></>;   // 🗺️ 히트맵 팝업(카드 딥링크)
 }
 
 function App() {

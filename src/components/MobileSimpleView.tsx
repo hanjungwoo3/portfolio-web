@@ -91,7 +91,7 @@ import { EtfCompareTab } from "./EtfCompareTab";
 import { HeatmapTab } from "./HeatmapTab";
 import { ValueupMiniCard } from "./ValueupCard";
 import { HlPerpCard } from "./HlPerpCard";
-import { GOTO_HEATMAP_EVENT, requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
+import { requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
 import { GOTO_TAB_EVENT, requestTab, isTabVisible } from "../lib/tabNav";
 import { OPEN_VALUATION_EVENT, type ValuationRequest } from "../lib/valuationNav";
 import { TRADES_CHANGED_EVENT } from "../lib/tradeEvents";
@@ -315,12 +315,7 @@ export function MobileSimpleView() {
     localStorage.setItem(TAB_KEY, activeTab);
   }, [activeTab]);
 
-  // 밸류업 카드 등에서 히트맵 딥링크 요청 → 히트맵 탭으로 전환.
-  useEffect(() => {
-    const h = () => setActiveTab(HEATMAP_KEY);
-    window.addEventListener(GOTO_HEATMAP_EVENT, h);
-    return () => window.removeEventListener(GOTO_HEATMAP_EVENT, h);
-  }, []);
+  // 카드의 히트맵 딥링크 → 팝업(App 루트의 HeatmapPopupHost). 탭은 옮기지 않는다
 
   // 자동 동기화 엔진 — PC 와 같은 규칙. 받아오면 쿼리를 무효화해 화면을 다시 읽는다.
   useEffect(() => {
@@ -2383,7 +2378,7 @@ export function MobileSimpleView() {
           <ValuationModal
             isOpen={true}
             onClose={() => { setValuationTicker(null); setValuationName(null); setValuationSec(undefined); }}
-            initialSection={valuationSec ?? "summary"}
+            initialSection={valuationSec ?? "live"}   // 첫 화면 = 실시간(사용자 요청 2026-10-23)
             ticker={valuationTicker}
             name={nm}
             curPrice={groupPriceMap.get(valuationTicker)?.price}
