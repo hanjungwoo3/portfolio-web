@@ -61,9 +61,11 @@ function PaneShell({ title, right, children }: { title: string; right?: React.Re
   );
 }
 
-function TossComment({ c }: { c: TossCommunityComment }) {
+// 누르면 토스 커뮤니티로(사용자 요청 2026-10-23) — 토스 웹엔 댓글 하나만 여는 주소가 없어(실측) 그 종목 커뮤니티로 간다
+function TossComment({ c, href }: { c: TossCommunityComment; href: string }) {
   return (
-    <div className="border-b border-gray-100 px-3 py-2.5">
+    <a href={href} target="_blank" rel="noopener noreferrer" title="토스 커뮤니티에서 보기"
+       className="block border-b border-gray-100 px-3 py-2.5 hover:bg-gray-50">
       <div className="flex items-center gap-1.5 mb-1">
         {c.profileUrl
           ? <img src={c.profileUrl} alt="" className="w-5 h-5 rounded-full object-cover bg-gray-100"
@@ -87,7 +89,7 @@ function TossComment({ c }: { c: TossCommunityComment }) {
         <span>♡ {c.likeCount.toLocaleString()}</span>
         <span>💬 {c.replyCount.toLocaleString()}</span>
       </div>
-    </div>
+    </a>
   );
 }
 
@@ -112,7 +114,7 @@ export function TossPane({ ticker, refreshTs }: { ticker: string; refreshTs: num
       {isLoading ? <div className="text-center text-xs text-gray-400 py-10">불러오는 중…</div>
         : isError ? <div className="text-center text-xs text-gray-400 py-10">불러오지 못했어요.</div>
         : !data || data.length === 0 ? <div className="text-center text-xs text-gray-400 py-10">아직 글이 없어요.</div>
-        : data.map(c => <TossComment key={c.id} c={c} />)}
+        : data.map(c => <TossComment key={c.id} c={c} href={tossUrl} />)}
     </PaneShell>
   );
 }

@@ -1136,7 +1136,8 @@ export async function fetchNaverBoard(ticker: string): Promise<NaverBoardPost[]>
         comments: p.commentCount ?? 0,
         up: p.recommendCount ?? 0,
         down: p.notRecommendCount ?? 0,
-        url: `https://stock.naver.com/domestic/stock/${ticker}/discussion`,
+        // 글 하나로 — 목록으로 가던 것(사용자 지적 2026-10-23). id 없으면 목록
+        url: `https://stock.naver.com/domestic/stock/${ticker}/discussion${p.id ? `/${p.id}` : ""}`,
       });
     }
     return out;
