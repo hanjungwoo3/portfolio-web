@@ -1,8 +1,7 @@
 // 📊 종목정보 ⚡ 실시간 탭의 종목 전용 칸들(2026-10-23 재설계) — SemiDashTab(popup 모드)이 조립한다.
-//   호가 / 거래원(증권사·외국계) / 프로그램+투자자 오늘·5일 / 새 소식(뉴스+공시) / 커뮤니티(토스|네이버 탭)
+//   호가 / 거래원(증권사·외국계) / 프로그램+투자자 오늘·5일 / 새 소식(뉴스+공시) / 토스·네이버 커뮤니티
 //   + useStockLiveSignals: 위 칸들의 숫자로 '지금 신호' 줄을 만든다(쿼리키가 같아 추가 호출 없음).
 //   팝업이 열려 있을 때만 받는다(= 이 칸들이 마운트된 동안). 호가 3초 · 거래원·프로그램 30초 · 뉴스·공시 1분.
-import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchNaverNews, fetchNaverRecentDisclosures, fetchTossOrderBook, fetchInvestorHistory, fetchTossBrokerRanking, fetchTossProgramRecent,
@@ -279,23 +278,12 @@ export function FeedBox({ code, name }: { code: string; name: string }) {
   );
 }
 
-// ── 커뮤니티 — 토스·네이버를 탭 하나로(칸 수를 줄이려고). 패널 자체는 CommunityDialog 것 그대로
-export function CommunityTabs({ code }: { code: string }) {
-  const [tab, setTab] = useState<"toss" | "naver">("toss");
+// ── 커뮤니티 칸 — 토스·네이버 각각(새 소식과 3등분). 패널 자체는 CommunityDialog 것 그대로
+export function CommunityPane({ code, kind }: { code: string; kind: "toss" | "naver" }) {
   const refreshTs = useLastRefresh();
   return (
-    <div className={`${BOX} overflow-hidden`}>
-      <div className="flex items-end gap-1 border-b mb-1">
-        {(["toss", "naver"] as const).map(k => (
-          <button key={k} onClick={() => setTab(k)}
-                  className={`px-2 pb-1 -mb-px border-b-2 font-bold text-[12px] ${tab === k ? "border-blue-500 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-700"}`}>
-            {k === "toss" ? "🟦 토스 커뮤니티" : "🟩 네이버 토론실"}
-          </button>
-        ))}
-      </div>
-      <div className="flex-1 min-h-0 [&>div]:h-full">
-        {tab === "toss" ? <TossPane ticker={code} refreshTs={refreshTs} /> : <NaverPane ticker={code} refreshTs={refreshTs} />}
-      </div>
+    <div className="pg-card rounded-lg min-h-0 min-w-0 [&>div]:h-full">
+      {kind === "toss" ? <TossPane ticker={code} refreshTs={refreshTs} /> : <NaverPane ticker={code} refreshTs={refreshTs} />}
     </div>
   );
 }

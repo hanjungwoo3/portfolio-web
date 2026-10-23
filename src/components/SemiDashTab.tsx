@@ -16,7 +16,7 @@ import type { Investor } from "../types";
 import { allYahooSymbols } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { openStockInfo } from "../lib/tickPopup";
-import { OrderBookBox, BrokerBox, ProgramInvestorBox, FeedBox, CommunityTabs, useStockLiveSignals } from "./StockPopupRow";
+import { OrderBookBox, BrokerBox, ProgramInvestorBox, FeedBox, CommunityPane, useStockLiveSignals } from "./StockPopupRow";
 import { useTickFlow, strength, netAmt, bigThreshold, wonStep, type TickFlow } from "../lib/useTickFlow";
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
@@ -322,9 +322,11 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           <BrokerBox code={s0.code} />
           <ProgramInvestorBox code={s0.code} price={qq?.price} />
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-1.5 auto-rows-[400px] shrink-0">
+        {/* 새 소식 · 토스 · 네이버 3등분(사용자 요청 — 커뮤니티 탭 대신 한번에) */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 auto-rows-[400px] shrink-0">
           <FeedBox code={s0.code} name={s0.name} />
-          <CommunityTabs code={s0.code} />
+          <CommunityPane code={s0.code} kind="toss" />
+          <CommunityPane code={s0.code} kind="naver" />
         </div>
       </div>
     );
