@@ -6,6 +6,7 @@ import {
 import {
   getEnabledPersonalProxies, isLocalProxyUrl, isExtensionProxyUrl, isNativeProxyUrl, isSyntheticProxyUrl,
 } from "./proxyConfig";
+import { cached, NOT_FOUND, isNotFound } from "./marketCache";
 import { isExtensionProxyReady, fetchViaExtension } from "./extensionProxy";
 import { isDirectApp, fetchViaNative } from "./nativeProxy";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
@@ -809,11 +810,17 @@ function obvSum(closes: number[], volumes: number[], lookback: number): number |
 }
 
 // chart endpoint — close + volume 둘 다 추출 (시간순 정렬)
+// 일봉(종가·거래량) — 기기에 6시간 저장(섹터 ETF 순위 22종 × 매번 받던 것)
 async function fetchYahooChartCV(symbol: string, range = "2mo"): Promise<{ closes: number[]; volumes: number[] }> {
+  return cached(`yhcv:${symbol}:${range}`, 6 * 3600_000, () => fetchYahooChartCVRaw(symbol, range), v => v.closes.length === 0);
+}
+async function fetchYahooChartCVRaw(symbol: string, range = "2mo"): Promise<{ closes: number[]; volumes: number[] }> {
   const target = `https://query1.finance.yahoo.com/v8/finance/chart/`
               + `${encodeURIComponent(symbol)}?interval=1d&range=${range}`;
   try {
+    if (yahooCoolingDown()) throw new Error(`yahoo chart ${symbol}: cooling down`);
     const resp = await fetchProxied(target);
+    noteYahooStatus(resp.status);
     if (!resp.ok) { if (resp.status === 404) return { closes: [], volumes: [] }; throw new Error(`yahoo chart ${symbol}: ${resp.status}`); }   // 일시적 실패는 빈 값으로 굳히지 않는다
     const data = await resp.json() as {
       chart?: { result?: Array<{ indicators?: { quote?: Array<{
@@ -1747,18 +1754,36 @@ async function fetchPriceHistoryFor(
   return r.prices;
 }
 
-// 가격 + 배당 + 액면분할 이벤트 통합 fetch
+// 가격 + 배당 + 액면분할 이벤트 통합 fetch — 일봉이라 기기에 6시간 저장(marketCache). 앱을 다시 켜도 다시 받지 않는다.
+//   404(그 거래소에 없음)도 '없음'으로 저장 — .KS/.KQ 양쪽을 묻는 절반이 404 라 그걸 매번 다시 묻던 것
+const DAILY_CACHE_MS = 6 * 3600_000;
+// 야후가 '너무 많다(429)'로 거절하면 2분 동안 야후 일봉 요청을 보내지 않는다 — 막혔는데 화면마다 다시 묻고(React Query
+//   재시도 3번) 또 거절당해 막힌 시간이 길어졌다(2026-10-23 실측: 화면 하나에 632건). 쉬는 동안은 저장된 값으로.
+let yahooCooldownUntil = 0;
+function yahooCoolingDown(): boolean { return Date.now() < yahooCooldownUntil; }
+function noteYahooStatus(status: number) { if (status === 429) yahooCooldownUntil = Date.now() + 120_000; }
 async function fetchPriceHistoryWithEventsFor(
   symbol: string, range: string,
 ): Promise<{ prices: PricePoint[]; dividends: DividendEvent[]; splits: SplitEvent[] }> {
+  const empty = { prices: [] as PricePoint[], dividends: [] as DividendEvent[], splits: [] as SplitEvent[] };
+  const v = await cached(`yh:${symbol}:${range}`, DAILY_CACHE_MS,
+    async () => (await fetchPriceHistoryWithEventsRaw(symbol, range)) ?? NOT_FOUND,
+    x => !isNotFound(x) && x.prices.length === 0);
+  return isNotFound(v) ? empty : v;
+}
+async function fetchPriceHistoryWithEventsRaw(
+  symbol: string, range: string,
+): Promise<{ prices: PricePoint[]; dividends: DividendEvent[]; splits: SplitEvent[] } | null> {
   const target =
     `https://query1.finance.yahoo.com/v8/finance/chart/${symbol}` +
     `?range=${range}&interval=1d&events=div%2Csplit`;
   const empty = { prices: [] as PricePoint[], dividends: [] as DividendEvent[], splits: [] as SplitEvent[] };
+  if (yahooCoolingDown()) throw new Error(`yahoo chart ${symbol}: cooling down`);
   const resp = await fetchProxied(target);
+  noteYahooStatus(resp.status);
   // 404(그 거래소에 없는 종목) 만 '없음'. 429·5xx 같은 일시적 실패는 던진다 — 빈 값으로 돌려주면 React Query 가
   //   1시간(staleTime) 동안 빈 그래프로 들고 있었다(ETF 구성·검색 그래프 안 나옴, 사용자 제보 2026-10-23)
-  if (!resp.ok) { if (resp.status === 404) return empty; throw new Error(`yahoo chart ${symbol}: ${resp.status}`); }
+  if (!resp.ok) { if (resp.status === 404) return null; throw new Error(`yahoo chart ${symbol}: ${resp.status}`); }   // null = '없음' 확정
   const data = await resp.json() as YahooChartResp;
   const res = data.chart?.result?.[0];
   if (!res) return empty;
@@ -4101,8 +4126,9 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
       // 묶음 하나가 가끔 실패한다(야후 429 등) — 그러면 그 묶음 종목만 세로선 없는 다른 그래프로 그려져
       //   줄마다 시작 점선이 있다 없다 했다(사용자 지적 2026-10-23). 한 번 더 묻고, 그래도 안 되면 지난번 성공분으로
       const url = `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(c.join(","))}&range=2d&interval=5m&includePrePost=true`;   // 어제+오늘, 토스 카드와 같은 5분봉
-      let r = await fetchProxied(url).catch(() => null);
-      if (!r?.ok) { await new Promise(res => setTimeout(res, 1500)); r = await fetchProxied(url).catch(() => null); }
+      let r = yahooCoolingDown() ? null : await fetchProxied(url).catch(() => null);
+      if (r) noteYahooStatus(r.status);
+      if (r && !r.ok && r.status !== 429) { await new Promise(res => setTimeout(res, 1500)); r = await fetchProxied(url).catch(() => null); }   // 429 면 다시 묻지 않는다
       if (!r?.ok) {
         for (const sym of c) { const g = sparkLastGood.get(sym); if (g) out.set(sym, g); }
         return;
