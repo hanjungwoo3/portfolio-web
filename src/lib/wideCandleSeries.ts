@@ -52,9 +52,13 @@ class WideCandleRenderer implements ICustomSeriesPaneRenderer {
         const yh = priceToCoordinate(d.high), yl = priceToCoordinate(d.low);
         if (yo == null || yc == null || yh == null || yl == null) continue;
         const up = d.close >= d.open;
-        ctx.fillStyle = up ? UP_LINE : DN_LINE;
-        ctx.fillRect(Math.round(cx - hpr / 2), Math.round(yh * vpr), Math.max(1, Math.round(hpr)), Math.max(1, Math.round((yl - yh) * vpr)));   // 꼬리
         const top = Math.round(Math.min(yo, yc) * vpr), h = Math.max(1, Math.round(Math.abs(yc - yo) * vpr));
+        // 꼬리는 몸통 밖(위·아래)만 — 반투명 몸통 속으로 가운데 선이 비쳐 보였다(사용자 지적)
+        ctx.fillStyle = up ? UP_LINE : DN_LINE;
+        const wx = Math.round(cx - hpr / 2), ww = Math.max(1, Math.round(hpr));
+        const yhB = Math.round(yh * vpr), ylB = Math.round(yl * vpr);
+        if (top > yhB) ctx.fillRect(wx, yhB, ww, top - yhB);
+        if (ylB > top + h) ctx.fillRect(wx, top + h, ww, ylB - top - h);
         ctx.fillStyle = up ? UP_FILL : DN_FILL;
         ctx.fillRect(Math.round(left), top, Math.round(width), h);
         ctx.strokeStyle = up ? UP_LINE : DN_LINE;
