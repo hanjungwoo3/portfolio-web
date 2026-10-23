@@ -1818,7 +1818,7 @@ export function MobileSimpleView() {
               return (
               <div key={section.label} id={`midx-${section.id}`}
                    style={{ scrollMarginTop: idxScrollMargin }}
-                   className="relative space-y-1.5 rounded-xl border border-gray-300 bg-white pg-box p-2 pt-3.5 mt-1.5">
+                   className={`relative space-y-1.5 rounded-xl border border-gray-300 bg-white ${section.render === "rotation" ? "" : section.render ? "pg-box pg-render" : "pg-box"} p-2 pt-3.5 mt-1.5`}>
                 {/* 섹터명 책갈피 — 카드 상단에 겹치게 */}
                 <span className="pg-title absolute -top-2.5 left-2.5 z-10 px-1.5 py-0.5 rounded-md border border-gray-300 bg-gray-50
                                  text-[11px] font-bold text-gray-700 whitespace-nowrap">

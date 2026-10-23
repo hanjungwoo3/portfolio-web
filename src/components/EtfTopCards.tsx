@@ -168,7 +168,7 @@ function Grid({ rows, label, onOpenEtf, basket }: {
           <button key={r.code}
                   onClick={() => onOpenEtf?.(r.code, r.name)}
                   title={noTrade ? `${r.name} — 이 스냅샷에 체결이 없습니다(거래량 0)` : undefined}
-                  className={`relative overflow-hidden flex items-center gap-1.5 px-2 py-1.5 text-left rounded-lg
+                  className={`pg-card relative overflow-hidden flex items-center gap-1.5 px-2 py-1.5 text-left rounded-lg
                              border border-gray-200 bg-white hover:bg-gray-50 w-full h-full
                              ${noTrade ? "opacity-50" : ""}`}>
             <RankSparkline code={r.code} />

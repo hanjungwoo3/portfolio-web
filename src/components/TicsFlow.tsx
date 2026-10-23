@@ -56,7 +56,7 @@ export function TicsCard({ c, maxAmount, onClick, onOpen, selected, pulledRank }
          title={`${c.name} — ${c.stockCount}종 · 거래대금 ${fmtEok(c.tradingAmountKrw)}`
                 + (c.leaderName ? `\n주도 ${c.leaderName}` : "")
                 + (c.leaderSignal ? ` — ${c.leaderSignal}` : "")}
-         className={`h-full flex flex-col text-left px-2.5 py-2 rounded-lg border cursor-pointer
+         className={`pg-card h-full flex flex-col text-left px-2.5 py-2 rounded-lg border cursor-pointer
                      transition-colors ${selected
                        ? "border-amber-500 bg-amber-100 ring-1 ring-amber-500"
                        : "border-gray-200 bg-white hover:bg-gray-50"}`}>
