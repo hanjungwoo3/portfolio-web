@@ -283,7 +283,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       {/* 한 종목(팝업)이면 체결 · 신호 · 토스 커뮤니티 · 네이버 토론 4칸(사용자 요청 — 뉴스 대신 댓글, 댓글 두 칸은 조금 좁게) */}
       <div className={`grid grid-cols-1 ${stocks.length === 1 ? "lg:grid-cols-[1.2fr_1.2fr_0.8fr_0.8fr]" : "lg:grid-cols-[1fr_1fr_600px]"} gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]`}>
         {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} onTitle={popup ? undefined : () => openTickPopup(s.code, s.name)} />)}
-        <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
+        <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
           {/* 지금 신호 / 가설 검증 — 탭(사용자 요청) */}
           <div className="flex items-baseline gap-1 mb-1 border-b">
             {(["sig", "hyp"] as const).map(k => (
@@ -348,7 +348,7 @@ function Card({ title, price, pct, sub, chart, unit, dim }: {
   dim?: boolean;   // 거래 시간이 아니면 흐리게(지수 탭 카드와 같은 '쉬는 중' 표시, 사용자 요청)
 }) {
   return (
-    <div className={`relative rounded-lg border border-gray-200 overflow-hidden ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
+    <div className={`pg-card relative rounded-lg border border-gray-200 overflow-hidden ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
          title={dim ? "지금은 거래 시간이 아닙니다" : undefined}>
       <div className="absolute inset-x-0 bottom-0 top-[40%] pointer-events-none">{chart}</div>
       <div className="relative px-2 pt-1.5">
@@ -398,7 +398,7 @@ function TickPanel({ name, flow, day, onTitle }: { name: string; flow: TickFlow;
   const st1 = strength(ms, 1), st5 = strength(ms, 5), stAll = strength(ms);
   const bigThr = bigThreshold(flow.big);
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
+    <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
       <div className="flex items-baseline gap-2">
         {onTitle
           ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
@@ -536,7 +536,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   } : undefined;
   const hoverX = hoverM != null && hoverM >= T0 && hoverM <= T1 ? PX + ((hoverM - T0) / span) * (W - PX * 2) : null;
   return (
-    <div className={`rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 min-w-0 ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
+    <div className={`pg-card rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 min-w-0 ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
          title={dim ? "지금은 거래 시간이 아니거나 지난 거래일 자료입니다" : undefined}>
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800 shrink-0">{dim && <span className="mr-1 text-[11px] font-normal text-gray-400">zZ</span>}{title}</span>
@@ -658,7 +658,7 @@ function OptionBox({ opt, vk, dim }: { opt?: Awaited<ReturnType<typeof fetchKosp
   const pcrOi = opt && opt.callOi > 0 ? opt.putOi / opt.callOi : undefined;
   const tag = (t: string) => <span className="font-normal text-[10px] text-gray-400 ml-1">{t}</span>;
   return (
-    <div className={`relative rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 tabular-nums ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}>
+    <div className={`pg-card relative rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 tabular-nums ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}>
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800 shrink-0 whitespace-nowrap">옵션 · 코스피200</span>
         <span className="text-[11px] text-gray-400 truncate">{opt ? `${opt.month.slice(4, 6)}/${opt.month.slice(6)} 만기 · ${opt.time.slice(0, 5)}` : "한경 실시간"}</span>
@@ -711,7 +711,7 @@ function StockFlowTable({ rows, fLast, markets }: {
     return st;
   };
   return (
-    <div className="rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
+    <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800">종목 수급</span>
         <span className="text-[11px] text-gray-400">억원 · 오늘은 KRX 잠정치(하루 몇 번 갱신)</span>
@@ -755,7 +755,7 @@ function N({ v }: { v?: number }) {
 
 function ChipBox({ title, items }: { title: string; items: { k: string; name: string; pct?: number }[] }) {
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-2 py-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+    <div className="pg-card rounded-lg border border-gray-200 bg-white px-2 py-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
       <span className="font-bold text-gray-800">{title}</span>
       {items.map(x => (
         <span key={x.k} className="tabular-nums whitespace-nowrap">
