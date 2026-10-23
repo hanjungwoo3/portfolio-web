@@ -408,7 +408,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         ))}
       </div>
       {/* ③ 현물·선물·옵션 수급 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1.1fr] gap-1.5 lg:auto-rows-[400px] shrink-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1.1fr] gap-1.5 lg:auto-rows-[minmax(400px,auto)] shrink-0">   {/* 최소 400 — 투자자를 많이 켜면 막대 줄만큼 늘어난다(고정 400 이면 아래 줄 위로 넘쳤다, 사용자 지적) */}
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
         <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgBase={q("^KS11")?.prevClose} />
         <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines}
