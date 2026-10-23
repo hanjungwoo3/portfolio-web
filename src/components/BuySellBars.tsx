@@ -16,40 +16,6 @@ export const joEok = (v: number) => {
 const fmtBig = (v: number, unit: string) => (unit === "억" ? joEok(v) : `${Math.round(v).toLocaleString()}계약`);
 const signed = (v: number, unit: string) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${fmtBig(Math.abs(v), unit)}`;
 
-// 시각마다 그 시각이 든 막대 구간의 [매수, 매도](구간 전체) — 위 큰 차트 툴팁이 아래 막대와 같은 값을 보이게(사용자 요청 2026-10-23).
-//   구간 나누기는 BuySellBars 와 같다(자료 길이로 1·5·10분, start 기준)
-export function bucketBuySellByTime(points: IntradayFlowPoint[], start = "09:00", bucketIn?: number) {
-  const out = new Map<string, { from: string; v: Partial<Record<string, [number, number]>> }>();
-  const pts = points.filter(p => p.gs);
-  if (pts.length < 2) return out;
-  const dataSpan = tmin(pts[pts.length - 1].time) - tmin(pts[0].time);
-  const bucket = bucketIn ?? (dataSpan <= 60 ? 1 : dataSpan <= 180 ? 5 : 10);
-  const t0 = Math.min(tmin(start), tmin(pts[0].time));
-  const cumAt = (k: string, m: number): [number, number] => {
-    let v: [number, number] = [0, 0];
-    for (const p of pts) { if (tmin(p.time) <= m) v = p.gs?.[k] ?? v; else break; }
-    return v;
-  };
-  const keys = Object.keys(pts[pts.length - 1].gs ?? {});
-  const cache = new Map<number, { from: string; v: Partial<Record<string, [number, number]>> }>();
-  for (const p of pts) {
-    const i = Math.max(0, Math.floor((tmin(p.time) - t0) / bucket));
-    let e = cache.get(i);
-    if (!e) {
-      const a = t0 + i * bucket, b = a + bucket - 1;
-      const v: Partial<Record<string, [number, number]>> = {};
-      for (const k of keys) {
-        const c1 = cumAt(k, b), c0 = cumAt(k, a - 1);
-        v[k] = [Math.max(0, c1[0] - c0[0]), Math.max(0, c1[1] - c0[1])];
-      }
-      e = { from: `${String(Math.floor(a / 60)).padStart(2, "0")}:${String(a % 60).padStart(2, "0")}`, v };
-      cache.set(i, e);
-    }
-    out.set(p.time, e);
-  }
-  return out;
-}
-
 export interface BarsGeom {
   xOfT: (t: number) => number | null;   // 차트 시각값 → 컨테이너 x(px)
   width: number;                        // 컨테이너 폭(px)

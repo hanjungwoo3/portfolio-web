@@ -16,7 +16,7 @@ import { nextFuturesExpiry } from "../lib/futuresExpiry";
 import { Tooltip } from "./Tooltip";
 import { isMarketOpen, nowKstDateStr } from "../lib/format";
 import type { FlowSeriesPoint } from "./IntradayInvestorChart";
-import { BuySellBars, bucketBuySellByTime } from "./BuySellBars";
+import { BuySellBars } from "./BuySellBars";
 import type { UTCTimestamp } from "lightweight-charts";
 
 // 넥스트레이드 프리장 08:00~09:00 KST(평일)
@@ -197,8 +197,7 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
       const pts = intra.data?.points ?? [];
       if (pts.length < 2) return empty("intraday");
       unit = intra.data!.unit;
-      const bs = bucketBuySellByTime(pts, intra.data!.pre ? "08:00" : "09:00");   // 아래 막대와 같은 구간(같은 start)
-      series = pts.map(p => ({ t: hmToTime(p.time), label: p.time, values: pick(p), bs: bs.get(p.time) }));
+      series = pts.map(p => ({ t: hmToTime(p.time), label: p.time, values: pick(p), gs: p.gs }));
       summary = pick(pts[pts.length - 1]);   // 당일 누적 최신
       if (hkFutData) {
         const off = hkFutData.breakIdx ?? 0;

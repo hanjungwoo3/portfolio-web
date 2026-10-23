@@ -25,7 +25,7 @@ export interface FlowSeriesPoint {
   label: string;                        // 툴팁 표기용 (HH:MM 또는 MM/DD)
   values: Record<IntradayKey, number>;  // 누적(라인용)
   daily?: Record<IntradayKey, number>;  // 그날 순매수(비누적) — 하단 스택 막대용(일별 모드만)
-  bs?: { from: string; v: Partial<Record<string, [number, number]>> };   // 그 시각이 든 아래 막대 구간의 [매수, 매도] — 툴팁 '순 (+산 −판)'용(당일 모드만)
+  gs?: Partial<Record<string, [number, number]>>;   // 그 시각까지 누적 [매수, 매도] — 툴팁 '순 (+산 −판)'용(당일 모드만)
 }
 
 // 금액 표시 — 억원은 조/억원(예: -4조 1,411억원), 선물은 계약.
@@ -239,7 +239,7 @@ export function IntradayInvestorChart({
       if (!tip || !cont) return;
       const pt = byT.get(time as number);
       if (!pt) { hide(); return; }
-      let html = `<div class="text-[10px] text-gray-400 mb-0.5">${pt.label}${pt.bs ? ` · 괄호 = ${pt.bs.from}~ 매수·매도` : ""}</div>`;
+      let html = `<div class="text-[10px] text-gray-400 mb-0.5">${pt.label}</div>`;
       const iv = idxByT.get(time as number);
       if (iv != null) {
         html += `<div class="flex justify-between gap-3"><span style="color:#16a34a">${indexLabel ?? "지수"}</span>`
@@ -252,8 +252,8 @@ export function IntradayInvestorChart({
         html += `<div class="flex justify-between gap-3"><span style="color:${def.color}">${def.label}</span>`
               + `<span><span class="font-bold" style="color:${netColor(v)}">${fmtNet(v, unit)}</span>`
               + (dv != null ? ` <span class="text-[9px]" style="color:${netColor(dv)}">(${fmtNet(dv, unit)})</span>` : "")
-              // 당일 모드 — 순 옆에 (+산 −판) = 아래 막대 그 구간 값(사용자 요청 2026-10-23, 누적이 아니라 막대와 같은 값)
-              + (pt.bs?.v[def.key] ? ` <span class="text-[9.5px]">(<span style="color:#e11d48">+${fmtNet(Math.round(pt.bs.v[def.key]![0]), unit).replace(/^[+-]/, "")}</span> <span style="color:#2563eb">−${fmtNet(Math.round(pt.bs.v[def.key]![1]), unit).replace(/^[+-]/, "")}</span>)</span>` : "")
+              // 당일 모드 — 순 옆에 (+산 −판) 누적(사용자 요청 2026-10-23, 반도체 수급 칸과 같은 모양)
+              + (pt.gs?.[def.key] ? ` <span class="text-[9.5px]">(<span style="color:#e11d48">+${fmtNet(Math.round(pt.gs[def.key]![0]), unit).replace(/^[+-]/, "")}</span> <span style="color:#2563eb">−${fmtNet(Math.round(pt.gs[def.key]![1]), unit).replace(/^[+-]/, "")}</span>)</span>` : "")
               + `</span></div>`;
       }
       tip.innerHTML = html;
