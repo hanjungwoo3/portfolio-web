@@ -17,5 +17,6 @@ export function detectPlatform(): Platform {
 // 앱 받기 — 고정 릴리스 apps(파일 이름 고정, .github/workflows/desktop.yml)
 export const APPS_PAGE = "https://github.com/hanjungwoo3/portfolio-web/releases/tag/apps";
 export const APPS_DL = "https://github.com/hanjungwoo3/portfolio-web/releases/download/apps";
-// 개인정보·안전 안내 — 정적 페이지(public/privacy.html). 앱·웹·릴리스 설명이 같은 주소를 가리킨다
-export const PRIVACY_URL = "https://hanjungwoo3.github.io/portfolio-web/privacy.html";
+// 개인정보·안전 안내 — 정적 페이지(public/privacy.html). 같은 출처의 상대 주소라 로컬(localhost)·배포·앱 어디서든 그 환경의 파일을 연다
+//   (절대 주소로 적었더니 로컬에서 눌러도 아직 없는 배포 사이트로 갔다, 2026-10-23). 릴리스 설명(desktop.yml)만 절대 주소.
+export const PRIVACY_URL = `${import.meta.env.BASE_URL}privacy.html`;
