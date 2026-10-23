@@ -317,14 +317,16 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} />
           {signalBox}
         </div>
-        <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr_1.3fr] gap-1.5 auto-rows-[430px] shrink-0">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[430px] shrink-0">
           <OrderBookBox code={s0.code} />
           <BrokerBox code={s0.code} />
           <ProgramInvestorBox code={s0.code} price={qq?.price} />
+          {/* 공시 — 이 줄 맨 오른쪽(사용자 요청 2026-10-23: 호가 · 거래원 · 프로그램 · 공시 4칸) */}
+          <FeedBox code={s0.code} name={s0.name} kind="disc" />
         </div>
-        {/* 새 소식 · 토스 · 네이버 3등분(사용자 요청 — 커뮤니티 탭 대신 한번에) */}
+        {/* 뉴스 · 토스 · 네이버 3등분(공시는 위 거래원 아래로) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 auto-rows-[400px] shrink-0">
-          <FeedBox code={s0.code} name={s0.name} />
+          <FeedBox code={s0.code} name={s0.name} kind="news" />
           <CommunityPane code={s0.code} kind="toss" />
           <CommunityPane code={s0.code} kind="naver" />
         </div>

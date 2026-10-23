@@ -102,7 +102,7 @@ export function OrderBookBox({ code }: { code: string }) {
 }
 
 // ── 거래원 — 매도·매수 상위 5 증권사(금액) + 외국계 합계. 외국계는 이름 옆 🌐
-export function BrokerBox({ code }: { code: string }) {
+export function BrokerBox({ code, className = "" }: { code: string; className?: string }) {
   const { data: br, error } = useBroker(code);
   const mx = Math.max(1, ...(br ? br.rows.flatMap(r => [r.ask.val, r.bid.val]) : [1]));
   const side = (b: { name: string; val: number; foreign: boolean }, k: "ask" | "bid") => (
@@ -114,7 +114,7 @@ export function BrokerBox({ code }: { code: string }) {
   );
   const fnet = br ? br.foreign.bidVal - br.foreign.askVal : 0;
   return (
-    <div className={BOX}>
+    <div className={`${BOX} ${className}`}>
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800">거래원</span>
         <span className="text-[11px] text-gray-400">증권사 창구별 오늘 매도·매수 상위 5 · 30초마다{br?.updatedAt ? ` · ${br.updatedAt.slice(11, 16)}` : ""}</span>
@@ -138,7 +138,7 @@ export function BrokerBox({ code }: { code: string }) {
           </div>
           <div className="flex justify-between text-gray-600"><span>매수 <b className="text-rose-700">{eokWon(br.foreign.bidVal)}</b></span><span>매도 <b className="text-blue-700">{eokWon(br.foreign.askVal)}</b></span></div>
         </div>
-        <div className="mt-auto pt-1 text-[10.5px] text-gray-400 leading-snug">창구 = 주문을 낸 증권사. 외국계 창구가 곧 외국인은 아니지만, 장 마감 뒤 나오는 외국인 순매수를 장중에 가장 빨리 짐작하는 수치.</div>
+        <div className="pt-1 text-[10.5px] text-gray-400 leading-snug">창구 = 주문을 낸 증권사. 외국계 창구가 곧 외국인은 아니지만, 장 마감 뒤 나오는 외국인 순매수를 장중에 가장 빨리 짐작하는 수치.</div>
       </>)}
     </div>
   );
@@ -228,15 +228,16 @@ export function ProgramInvestorBox({ code, price }: { code: string; price?: numb
 
 // ── 새 소식 — 네이버 뉴스 + 공시를 시각순으로 한 줄씩. 1시간 안 = NEW
 type FeedItem = { kind: "news" | "disc"; t: number; title: string; sub: string; url: string; id: string };
-export function FeedBox({ code, name }: { code: string; name: string }) {
-  const news = useQuery({ queryKey: ["popup-news", code], queryFn: () => fetchNaverNews(code, 20), refetchInterval: 60_000, staleTime: 30_000 });
-  const disc = useQuery({ queryKey: ["popup-disc", code], queryFn: () => fetchNaverRecentDisclosures(code, 15), refetchInterval: 60_000, staleTime: 30_000 });
+// kind — 뉴스만 / 공시만(사용자 요청 2026-10-23: 뉴스 · 공시 · 토스 · 네이버 4칸 한 줄). 생략하면 둘 다 섞어서
+export function FeedBox({ code, name, kind, className = "" }: { code: string; name: string; kind?: "news" | "disc"; className?: string }) {
+  const news = useQuery({ queryKey: ["popup-news", code], queryFn: () => fetchNaverNews(code, 20), refetchInterval: 60_000, staleTime: 30_000, enabled: kind !== "disc" });
+  const disc = useQuery({ queryKey: ["popup-disc", code], queryFn: () => fetchNaverRecentDisclosures(code, 20), refetchInterval: 60_000, staleTime: 30_000, enabled: kind !== "news" });
   // 네이버 뉴스 datetime = "YYYYMMDDHHmm"(KST), 공시 = "YYYY-MM-DDTHH:mm:ss"(KST)
   const kst = (y: string, mo: string, d: string, h: string, mi: string) => Date.parse(`${y}-${mo}-${d}T${h}:${mi}:00+09:00`);
   const items: FeedItem[] = [
-    ...(news.data ?? []).flatMap(n => n.datetime.length >= 12 ? [{ kind: "news" as const, id: "n" + n.id, title: n.title, sub: n.press, url: n.url,
+    ...(kind === "disc" ? [] : news.data ?? []).flatMap(n => n.datetime.length >= 12 ? [{ kind: "news" as const, id: "n" + n.id, title: n.title, sub: n.press, url: n.url,
       t: kst(n.datetime.slice(0, 4), n.datetime.slice(4, 6), n.datetime.slice(6, 8), n.datetime.slice(8, 10), n.datetime.slice(10, 12)) }] : []),
-    ...(disc.data ?? []).map(d => ({ kind: "disc" as const, id: "d" + d.id, title: d.title, sub: "공시", url: d.url, t: Date.parse(`${d.datetime}+09:00`) })),
+    ...(kind === "news" ? [] : disc.data ?? []).map(d => ({ kind: "disc" as const, id: "d" + d.id, title: d.title, sub: "공시", url: d.url, t: Date.parse(`${d.datetime}+09:00`) })),
   ].filter(x => Number.isFinite(x.t)).sort((a, b) => b.t - a.t).slice(0, 30);
   const now = Date.now();
   const todayKst = new Date(now + 9 * 3600_000).toISOString().slice(0, 10);
@@ -246,13 +247,13 @@ export function FeedBox({ code, name }: { code: string; name: string }) {
   };
   const fresh = items.filter(x => now - x.t < NEW_MIN * 60_000).length;
   return (
-    <div className={BOX}>
+    <div className={`${BOX} ${className}`}>
       <div className="flex items-baseline gap-2">
-        <span className="font-bold text-gray-800">{name} 새 소식</span>
-        <span className="text-[11px] text-gray-400">뉴스 + 공시 · 시간순 · 1분마다{fresh ? ` · 1시간 안 ${fresh}건` : ""}</span>
+        <span className="font-bold text-gray-800">{kind === "news" ? "📰 뉴스" : kind === "disc" ? "📋 공시" : `${name} 새 소식`}</span>
+        <span className="text-[11px] text-gray-400">{kind ? "" : "뉴스 + 공시 · "}시간순 · 1분마다{fresh ? ` · 1시간 안 ${fresh}건` : ""}</span>
       </div>
       <div className="flex-1 min-h-0 overflow-y-auto mt-1">
-        {news.isLoading && disc.isLoading ? <div className="text-gray-400 text-[12px]">불러오는 중…</div>
+        {(kind === "disc" ? disc.isLoading : kind === "news" ? news.isLoading : news.isLoading && disc.isLoading) ? <div className="text-gray-400 text-[12px]">불러오는 중…</div>
           : !items.length ? <div className="text-gray-400 text-[12px]">새 소식이 없습니다</div>
           : items.map(x => {
             const isNew = now - x.t < NEW_MIN * 60_000;

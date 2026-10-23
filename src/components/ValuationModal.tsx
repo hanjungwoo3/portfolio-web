@@ -48,14 +48,14 @@ import { useTossMaintenance, getTossMaintenance } from "../lib/tossMaintenance";
 import { EtfIndicatorBlock, EtfFeeTip, EtfCompositionDialog } from "./EtfCompositionDialog";
 
 // 한 페이지 섹션(사용자 요청 2026-10-23 — 탭 대신 한 화면 스크롤, 위 칩을 누르면 그 자리로)
-//   실시간(국내 종목만) → 요약 → 실적·재무 → 차트·수급 → 소식(실시간에 뉴스·커뮤니티가 있어 DART 공시 이력만)
+//   실시간(국내 종목만 — 뉴스·공시·커뮤니티 포함) → 요약 → 실적·재무 → 차트·수급 · 실시간이 없는 종목은 맨 아래 소식·대화
 type ValSec = "live" | "summary" | "fin" | "chart" | "news";
 const VAL_SECS: { k: ValSec; label: string }[] = [
   { k: "live", label: "⚡ 실시간" },
   { k: "summary", label: "요약" },
   { k: "fin", label: "실적·재무" },
   { k: "chart", label: "차트·수급" },
-  { k: "news", label: "공시 이력" },
+  { k: "news", label: "소식·대화" },   // 실시간이 없는 종목만
 ];
 
 interface Props {
@@ -411,7 +411,7 @@ export function ValuationModal({
   useEscClose(isOpen, onClose);
   // 한 페이지 섹션 이동 — 칩 = 그 자리로 스크롤, 스크롤하면 지금 자리 칩에 불
   const hasLive = canStockInfo(ticker);
-  const secs = VAL_SECS.filter(x => x.k !== "live" || hasLive);
+  const secs = VAL_SECS.filter(x => hasLive ? x.k !== "news" : x.k !== "live");
   const scrollRef = useRef<HTMLDivElement>(null);
   const [curSec, setCurSec] = useState<ValSec>(initialSection && (initialSection !== "live" || hasLive) ? initialSection : (hasLive ? "live" : "summary"));
   const goSec = (k: ValSec) => {
@@ -836,13 +836,17 @@ export function ValuationModal({
           )}
 
           </section>
-          <section data-sec="news" className="pt-1 mb-6">
-            <h2 className="text-[13px] font-bold text-gray-500 mb-2 border-b pb-1">공시 이력</h2>
-            {/* 뉴스·커뮤니티는 맨 위 실시간에 있다 — 여기는 DART 공시 이력(국내 종목). ETF·실시간 없는 종목은 뉴스·대화도 */}
-            {!isEtf && <DisclosureSection ticker={ticker} />}
-            {(!hasLive || isEtf) && <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start mt-3"><NewsSection ticker={ticker} /></div>}
-            {!hasLive && <CommunitySection ticker={ticker} />}
-          </section>
+          {/* 실시간이 없는 종목만 — 뉴스·공시·대화(실시간 자리에 이미 있으면 맨 아래 공시는 뺀다, 사용자 요청 2026-10-23) */}
+          {!hasLive && (
+            <section data-sec="news" className="pt-1 mb-6">
+              <h2 className="text-[13px] font-bold text-gray-500 mb-2 border-b pb-1">소식·대화</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start mb-3">
+                <NewsSection ticker={ticker} />
+                {!isEtf && <DisclosureSection ticker={ticker} />}
+              </div>
+              <CommunitySection ticker={ticker} />
+            </section>
+          )}
         </div>
       </div>
       <DrawingChartDialog ticker={ticker} name={name}
