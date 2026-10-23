@@ -34,16 +34,19 @@ const INIT_SCRIPT: &str = r##"
   if (/Mac/.test(navigator.platform)) {
     window.alert = (m) => { window.__TAURI_INTERNALS__.invoke("app_dialog", { kind: "alert", msg: String(m ?? ""), def: "" }); };
   }
-  document.addEventListener("click", (e) => {
+  // ★ 버블 단계 + 이미 처리된 클릭은 건너뛴다 — 캡처로 먼저 가로챘더니, 웹이 preventDefault 하고 앱 팝업을 여는 링크
+  //   (지수 카드 종목명 = 종목정보 팝업)도 브라우저로 같이 열렸다(2026-10-23). 웹이 안 막은 바깥 링크만 브라우저로.
+  window.addEventListener("click", (e) => {
+    if (e.defaultPrevented) return;
     const a = e.target && e.target.closest ? e.target.closest("a[href]") : null;
     if (!a) return;
     const href = a.getAttribute("href") || "";
+    if (href.startsWith("#") || href.startsWith("javascript:")) return;
     if (a.target === "_blank" || /^https?:/.test(href) && new URL(href, location.href).origin !== location.origin) {
-      if (href.startsWith("#") || href.startsWith("javascript:")) return;
       e.preventDefault();
       ext(a.href);
     }
-  }, true);
+  });
 })();
 "##;
 

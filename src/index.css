@@ -95,3 +95,5 @@ html.night-bg * { scrollbar-color: #555c67 #2b2f35; }
 html.night-bg .fixed.inset-0 > div:not(:has(.pg-bg)) { filter: brightness(0.62); }   /* 카드와 같은 톤 */
 html.night-bg .fixed.inset-0 > div:not(:has(.pg-bg)) :is(.pg-card, .pg-soft) { filter: none; }
 html.night-bg .fixed.inset-0 > div:has(.pg-bg) { background-color: #2b2f35 !important; }
+/* SVG 안의 연한 면(실적 추이 '추정' 구간 등 fill 속성) — 클래스가 아니라 위 규칙이 안 닿는다 */
+html.night-bg .pg-bg :is(rect[fill="#f8fafc"], rect[fill="#f9fafb"], rect[fill="#ffffff"], rect[fill="white"]) { fill: #a9aeb5; }

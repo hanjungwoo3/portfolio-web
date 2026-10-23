@@ -686,7 +686,7 @@ export function ValuationModal({
             </button>
           ))}
         </div>
-        <div ref={scrollRef} onScroll={onScrollSec} className="px-5 py-4 overflow-y-auto relative">
+        <div ref={scrollRef} onScroll={onScrollSec} className="pg-bg px-5 py-4 overflow-y-auto relative">   {/* pg-bg — 야간 배경 규칙을 창 전체에(실시간 칸이 pg-bg 라 창 밝기 낮춤이 빠져 아래 기업가치가 밝았다) */}
           {error instanceof Error && (
             <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
               fetch 실패: {error.message}
