@@ -601,6 +601,8 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
     onHover(m < T0 || m > T1 ? null : m);
   } : undefined;
   const hoverX = hoverM != null && hoverM >= T0 && hoverM <= T1 ? PX + ((hoverM - T0) / span) * (W - PX * 2) : null;
+  // 마우스 시각의 배경 지수 값(그 시각 이하 마지막 점)
+  const hovBg = hoverX != null && hoverM != null && bgp.length > 1 ? [...bgp].reverse().find(b => tmin(b.t) <= hoverM) : undefined;
   return (
     <div className={`pg-card rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 min-w-0 ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
          title={dim ? "지금은 거래 시간이 아니거나 지난 거래일 자료입니다" : undefined}>
@@ -657,7 +659,17 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
                     fill="none" stroke={l.color} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
             ))}
             {hoverX != null && <line x1={hoverX} x2={hoverX} y1={0} y2={H} stroke="#475569" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
+            {hovBg && <line x1={0} x2={W} y1={by(hovBg.v)} y2={by(hovBg.v)} stroke="#64748b" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
           </svg>
+          {/* 마우스 — 가로 점선 = 그 시각 지수 값, 왼쪽에 지수 숫자 · 아래에 시각(증시 탭과 같게, 사용자 요청 2026-10-23) */}
+          {hovBg && (
+            <div className="absolute left-0 -translate-y-1/2 rounded-sm bg-gray-600 px-1 text-[10px] leading-tight text-white tabular-nums pointer-events-none"
+                 style={{ top: `${(by(hovBg.v) / H) * 100}%` }}>{Math.round(hovBg.v).toLocaleString()}</div>
+          )}
+          {hoverX != null && hoverM != null && (
+            <div className="absolute bottom-0 -translate-x-1/2 rounded-sm bg-gray-600 px-1 text-[10px] leading-tight text-white tabular-nums pointer-events-none"
+                 style={{ left: `${(hoverX / W) * 100}%` }}>{`${String(Math.floor(hoverM / 60)).padStart(2, "0")}:${String(hoverM % 60).padStart(2, "0")}`}</div>
+          )}
           </div>
         )}
       </div>
