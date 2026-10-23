@@ -197,7 +197,7 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
       const pts = intra.data?.points ?? [];
       if (pts.length < 2) return empty("intraday");
       unit = intra.data!.unit;
-      series = pts.map(p => ({ t: hmToTime(p.time), label: p.time, values: pick(p) }));
+      series = pts.map(p => ({ t: hmToTime(p.time), label: p.time, values: pick(p), gs: p.gs }));
       summary = pick(pts[pts.length - 1]);   // 당일 누적 최신
       if (hkFutData) {
         const off = hkFutData.breakIdx ?? 0;
