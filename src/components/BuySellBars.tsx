@@ -100,8 +100,6 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
         const mxBar = Math.max(1e-9, ...bars.map(x => Math.max(x.b, x.s)));
         const mxD = Math.max(1e-9, ...bars.map(x => Math.abs(x.b - x.s)));   // 차이 막대는 자기 축 — 총량에 비해 작아 묻히지 않게
         const hb = hoverI != null ? bars[hoverI] : undefined;
-        const hm0 = hoverI != null ? t0 + hoverI * bucket : 0;
-        const hLabel = `${String(Math.floor(hm0 / 60)).padStart(2, "0")}:${String(hm0 % 60).padStart(2, "0")}~`;
         return (
           <div key={k}>
             <div className={`flex items-baseline gap-2 tabular-nums min-w-0 ${compact ? "text-[10px]" : "text-[11px]"}`}>
@@ -112,7 +110,6 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
                 const [bv, sv, nv] = hb ? [hb.b, hb.s, hb.b - hb.s] : [totB, totS, net];
                 return (
                   <span className="whitespace-nowrap min-w-0 truncate">
-                    {hb && <span className="text-gray-500">{hLabel} </span>}
                     <b className={`${compact ? "text-[11.5px]" : "text-[12.5px]"} ${nv > 0 ? "text-rose-600" : nv < 0 ? "text-blue-600" : "text-gray-500"}`}>{signed(nv, unit)}</b>
                     <span className="text-gray-500"> (<b className="text-rose-600">+{fmtBig(bv, unit)}</b> <b className="text-blue-600">−{fmtBig(sv, unit)}</b>)</span>
                   </span>
