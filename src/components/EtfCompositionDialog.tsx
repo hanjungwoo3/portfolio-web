@@ -842,7 +842,7 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   //   있으면 흐리게 할 이유가 없다 — '값이 없다' 는 신호를 '값이 있는데' 보내면 안 된다.
   const dimCls = extraDim || ((!isStandard && !fxSym) ? "opacity-60" : closedDim ? "opacity-60" : "");
   return (
-    <div className={`group transition-opacity duration-150 ${dimCls} ${className ?? ""}`}>
+    <div className={`pg-card group transition-opacity duration-150 ${dimCls} ${className ?? ""}`}>   {/* pg-card — 야간 배경에서 다른 카드처럼 톤 낮춤 */}
       {alertOpen && (
         <MarketAlertDialog ticker={tNum} name={item.name} warning={warning ?? ""}
                            onClose={() => setAlertOpen(false)} />
