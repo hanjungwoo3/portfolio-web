@@ -2018,7 +2018,7 @@ export function MobileSimpleView() {
               const bg = dimNow
                 ? "bg-gray-100 border-transparent"
                 : effUp ? "bg-rose-50 border-rose-200"
-                : effDn ? "bg-blue-50/70 border-blue-200"
+                : effDn ? "bg-blue-50 border-blue-200"   // 불투명 — 반투명(/70)이면 야간 배경이 비쳐 칙칙했다(사용자 지적 2026-10-23)
                 : "bg-white border-gray-200";
               const sign =
                 effUp ? "text-rose-600"
@@ -2062,7 +2062,7 @@ export function MobileSimpleView() {
                         {isKrEtf && (
                           <button onClick={() => setEtfDialog({ ticker: krTk!, name: p.name })}
                                 title="ETF 구성 종목 보기"
-                                className={`${tag} text-violet-700 bg-violet-100/30 active:bg-violet-100/60 border-violet-300/40`}>
+                                className={`${tag} text-violet-700 bg-violet-50 active:bg-violet-100 border-violet-300/40`}>
                           ETF
                         </button>
                         )}
@@ -2073,7 +2073,7 @@ export function MobileSimpleView() {
                   {/* 정규장 마감가 책갈피 — 카드 위로 올림(-top-2). 노란 배경(살짝 투명) + 흐림 제외(z-20) */}
                   {showCloseTag && closeVal != null && (
                     <div className="absolute -top-2 right-1 z-20 px-1.5 py-0
-                                    border rounded bg-yellow-200/25 border-yellow-400/40
+                                    border rounded bg-yellow-50 border-yellow-400/60
                                     text-[10px] font-medium leading-tight whitespace-nowrap">
                       {q?.currency === "KRW" && q?.regularPriceUsd != null && (
                         <span className={`tabular-nums mr-1 text-gray-900 ${dimNow ? "opacity-50" : ""}`}>

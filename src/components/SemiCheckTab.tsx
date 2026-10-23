@@ -117,7 +117,7 @@ function Mini({ symbol, name, desc, q, chart, direction = "direct", dimEnabled =
       {/* 마감가 책갈피 — 카드 위로 올림(-top-2). 노란 배경(살짝 투명) + 흐림 제외(z-20) */}
       {q && sleeping && closeVal != null && (
         <div className="absolute -top-2 right-1 z-20 px-1.5 py-0
-                        border rounded bg-yellow-200/25 border-yellow-400/40
+                        border rounded bg-yellow-50 border-yellow-400/60
                         text-[10px] font-medium leading-tight whitespace-nowrap">
           <span className={`tabular-nums ${regSign}`}>
             {closeVal < 1000 ? closeVal.toFixed(2) : Math.round(closeVal).toLocaleString()}
