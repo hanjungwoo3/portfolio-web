@@ -4097,6 +4097,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const resp = x.response?.[0];
         const ts = resp?.timestamp ?? [], raw = resp?.indicators?.quote?.[0]?.close ?? [];
         const closes: number[] = [], times: number[] = [];
+        let noToday = false, dropLast: number | undefined;
         raw.forEach((v, i) => { if (v != null && v > 0) { closes.push(v); times.push(ts[i] ?? 0); } });   // 빈 봉은 시각과 같이 뺀다
         if (!x.symbol || closes.length < 2) continue;
         // 마지막 두 날만 — 24시간 거래(환율 등)는 2d 범위가 날짜 경계로는 사흘에 걸쳐(10/19 밤·10/20·10/21),
@@ -4107,6 +4108,16 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
           const days = [...new Set(times.map(dk))];
           if (days.length > 2) {
             const keepFrom = times.findIndex(t => dk(t) === days[days.length - 2]);
+            closes.splice(0, keepFrom); times.splice(0, keepFrom);
+          }
+          // 오늘 봉이 아직 없다(평일) — 마지막 하루만 남겨 '어제'로 쓴다. 이틀을 남긴 채 어제로 보면 그저께 끝 → 어제 시작으로
+          //   되돌아가는 사선이 카드를 가로질렀다(지수·금리, 2026-10-23)
+          const nowS0 = Date.now() / 1000;
+          const wd = new Date((nowS0 + off0 * 3600) * 1000).getUTCDay();
+          if (times.length && dk(nowS0) > dk(times[times.length - 1]) && wd >= 1 && wd <= 5) {
+            noToday = true;
+            const keepFrom = times.findIndex(t => dk(t) === dk(times[times.length - 1]));
+            if (keepFrom > 0) dropLast = closes[keepFrom - 1];   // 잘라낸 날의 마지막 값 = 남긴 하루의 기준(그저께 종가)
             closes.splice(0, keepFrom); times.splice(0, keepFrom);
           }
         }
@@ -4138,12 +4149,9 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : /=F$/.test(x.symbol) ? 2 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
         const etDay = (t: number) => new Date((t + off * 3600) * 1000).toISOString().slice(0, 10);   // 대략 EDT/KST(일자 경계만 필요)
         let bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
-        // 오늘 봉이 아직 없다(프리장 거래가 드문 종목 — 디지털리얼티·에퀴닉스 등) — 그대로면 '어제 하루 전체' 축으로 그려져
+        // 오늘 봉이 아직 없다(프리장 거래가 드문 종목 — 디지털리얼티·에퀴닉스 등, 지수) — 그대로면 '어제 하루 전체' 축으로 그려져
         //   다른 카드(지금 기준 24시간)와 가로 위치·세로선 자리가 어긋났다(사용자 지적 2026-10-23).
-        //   평일이면 받은 봉 전부를 '어제'로 보고 오늘 칸은 비운다 → 같은 24시간 축. (주말엔 그대로 — 금요일 하루 전체)
-        const nowS0 = Date.now() / 1000;
-        const wd = new Date((nowS0 + off * 3600) * 1000).getUTCDay();
-        const noToday = times.length > 0 && etDay(nowS0) > etDay(times[times.length - 1]) && wd >= 1 && wd <= 5;
+        //   평일이면 남긴 하루(위에서 자름)를 '어제'로 보고 오늘 칸은 비운다 → 같은 24시간 축. (주말엔 그대로 — 금요일 하루 전체)
         if (noToday) bi = times.length;
         // 어제 구간의 정규장 시작·종가 봉(세로선 — 사용자 요청) + 어제 정규장 종가 = 오늘 기준선
         const inPrev = (i: number) => bi > 0 && i < bi;
@@ -4164,7 +4172,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const fNow = times.length && (noToday || etDay(nowS) === etDay(times[times.length - 1])) ? Math.min(1, Math.max(0, fr(nowS))) : 1;
         out.set(x.symbol, rollDay({
           closes, openIdx: oi > 0 && !noToday ? oi : undefined, closeIdx: ci > 0 && !noToday ? ci : undefined, prevClose: pc && pc > 0 ? pc : undefined,
-          breakIdx: bi > 0 ? bi : undefined, prevBase: bi > 0 && cpc && cpc > 0 ? cpc : undefined,
+          breakIdx: bi > 0 ? bi : undefined, prevBase: noToday ? dropLast : bi > 0 && cpc && cpc > 0 ? cpc : undefined,
           prevOpenIdx: poi > 0 ? poi : undefined, prevCloseIdx: pci > 0 ? pci : undefined,
         }, times.map(fr), bi > 0 ? bi : 0, fNow));   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
       }
