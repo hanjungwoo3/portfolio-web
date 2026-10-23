@@ -321,6 +321,15 @@ export function IntradayInvestorChart({
     };
     touchEl?.addEventListener("touchstart", onTouch, { passive: true });
     touchEl?.addEventListener("touchmove", onTouch, { passive: true });
+    // 차트 밖을 누르면 고른 시각을 푼다(반도체 수급 칸처럼, 사용자 요청 2026-10-23).
+    //   같은 줄 다른 차트·아래 막대를 누른 건 '밖'이 아니다(그쪽이 새 시각을 알린다) — data-flow-chart 로 가린다
+    const onOutside = (e: Event) => {
+      const t = e.target as Element | null;
+      if (t && t.closest?.("[data-flow-chart]")) return;
+      onSyncedHover(null);
+    };
+    document.addEventListener("touchstart", onOutside, { passive: true });
+    document.addEventListener("mousedown", onOutside);
 
     // 12:00 / 15:00 세로선 + 아래 값표 컬럼 위치 — timeScale 좌표 기반 (줌·리사이즈 시 재배치).
     const vlEl = vlinesRef.current;
@@ -375,6 +384,8 @@ export function IntradayInvestorChart({
       try { chart.unsubscribeCrosshairMove(onMove); } catch { /* noop */ }
       touchEl?.removeEventListener("touchstart", onTouch);
       touchEl?.removeEventListener("touchmove", onTouch);
+      document.removeEventListener("touchstart", onOutside);
+      document.removeEventListener("mousedown", onOutside);
       if (syncCleanup) syncCleanup();
       if (reposition) { try { chart.timeScale().unsubscribeVisibleLogicalRangeChange(reposition); } catch { /* noop */ } }
       if (ro) ro.disconnect();
@@ -419,7 +430,7 @@ export function IntradayInvestorChart({
   });
 
   return (
-    <div className="border border-gray-200 rounded p-1.5 bg-white min-w-0">
+    <div data-flow-chart className="border border-gray-200 rounded p-1.5 bg-white min-w-0">
       {/* 헤더 — 시장명(녹색) + 전체 투자자 요약값(당일=최신 / 일별=기간합계). 여러 줄 wrap. */}
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 text-[11px] mb-1 px-0.5 tabular-nums leading-tight">
         <span className="font-bold text-green-600 text-xs">{marketLabel}</span>
