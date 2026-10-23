@@ -11,6 +11,8 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::collections::HashMap;
 use std::time::Duration;
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 const SITE_URL: &str = "https://hanjungwoo3.github.io/portfolio-web/";
@@ -338,6 +340,15 @@ fn mac_dialog(kind: &str, msg: &str, def: &str) -> String {
     }
 }
 
+// 본 창 보이기 — 숨김·최소화에서 꺼내 앞으로
+fn show_main(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
 fn main() {
     // 쿠키 저장 — 야후 crumb(쿠키+crumb 짝)이 요청 사이에 이어져야 한다. 압축 응답 자동 해제.
     let client = reqwest::Client::builder()
@@ -354,15 +365,53 @@ fn main() {
         .manage(client)
         .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, google_login, google_refresh, app_update_check, app_update_install, app_dialog])
         .setup(move |app| {
-            WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse()?))
+            let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse()?))
                 .title("포트폴리오")
                 .inner_size(1500.0, 950.0)
                 .min_inner_size(400.0, 600.0)
                 .initialization_script(INIT_SCRIPT)
                 .center()
                 .build()?;
+            // 창 ✕ = 숨기기 — 앱은 메뉴 막대(맥)·트레이(윈도우) 아이콘으로 남는다. 완전히 끄기는 아이콘 메뉴 '종료'
+            let w2 = win.clone();
+            win.on_window_event(move |e| {
+                if let tauri::WindowEvent::CloseRequested { api, .. } = e {
+                    api.prevent_close();
+                    let _ = w2.hide();
+                }
+            });
+            // 메뉴 막대·트레이 아이콘(사용자 요청 2026-10-23) — 아이콘만. 왼쪽 클릭 = 창 열기, 오른쪽 클릭 = 열기·종료
+            let open_i = MenuItem::with_id(app, "open", "포트폴리오 열기", true, None::<&str>)?;
+            let quit_i = MenuItem::with_id(app, "quit", "종료", true, None::<&str>)?;
+            let menu = Menu::with_items(app, &[&open_i, &PredefinedMenuItem::separator(app)?, &quit_i])?;
+            let mut tray = TrayIconBuilder::with_id("main-tray")
+                .tooltip("포트폴리오")
+                .menu(&menu)
+                .show_menu_on_left_click(false)
+                .on_menu_event(|app, e| match e.id.as_ref() {
+                    "open" => show_main(app),
+                    "quit" => app.exit(0),
+                    _ => {}
+                })
+                .on_tray_icon_event(|tray, e| {
+                    if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
+                        show_main(tray.app_handle());
+                    }
+                });
+            if let Some(icon) = app.default_window_icon() {
+                tray = tray.icon(icon.clone());
+            }
+            tray.build(app)?;
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("앱 실행 실패");
+        .build(tauri::generate_context!())
+        .expect("앱 실행 실패")
+        .run(|app, event| {
+            // 맥 — 창을 숨긴 뒤 Dock 아이콘을 누르면 다시 보이게
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                show_main(app);
+            }
+            let _ = (app, event);
+        });
 }
