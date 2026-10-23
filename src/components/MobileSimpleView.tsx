@@ -66,6 +66,7 @@ import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast, AppInstallHin
 import { appConfirm, appPrompt } from "../lib/appDialog";
 import { setNightBg, useNightBg } from "../lib/nightBg";
 import { NightToggle } from "./NightToggle";
+import { DimToggle, useDimSleeping } from "./DimToggle";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadMemos, loadAllTrades,
@@ -1089,7 +1090,7 @@ export function MobileSimpleView() {
   );
 
   // 장 마감 시 흐리게 표시 여부 (설정값)
-  const dimEnabled = getDimSleepingEnabled();
+  const dimEnabled = useDimSleeping();   // 헤더 💤 토글로 바뀌면 바로 다시 그린다
 
   // 시장 매매동향 모달
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
@@ -1163,6 +1164,7 @@ export function MobileSimpleView() {
           검색
         </button>
         <NightToggle className="px-1.5 py-1 text-[12px]" />
+        <DimToggle className="px-1.5 py-1 text-[12px]" />
         {/* 더보기 — 사용법/질문하기/후원하기/설정 묶음 (문구는 PC 동일) */}
         <div className="relative shrink-0">
           <button onClick={() => setMoreOpen(o => !o)}

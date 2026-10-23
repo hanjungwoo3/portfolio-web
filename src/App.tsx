@@ -80,6 +80,7 @@ import { SyncConflictBar } from "./components/SyncConflictBar";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
 import { NightToggle } from "./components/NightToggle";
+import { DimToggle, useDimSleeping } from "./components/DimToggle";
 import { useExtensionProxyReady } from "./lib/extensionProxy";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./components/HelpDialog";
 import type { Stock, Memo } from "./types";
@@ -126,6 +127,7 @@ function Dashboard() {
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  useDimSleeping();   // 흐림 설정이 바뀌면 화면 전체를 다시 그린다(헤더 💤 토글)
   // 데모 모드 — 켜져 있으면 하단에 '데모 데이터' 배너를 띄워 실제 보유와 헷갈리지 않게 한다.
   const [demoOn, setDemoOn] = useState(isDemoActive);
   const [pendingTab, setPendingTab] = useState<string | null>(null);
@@ -850,6 +852,7 @@ function Dashboard() {
               설정
             </button>
             <NightToggle className="px-2 py-1.5 text-sm" />
+            <DimToggle className="px-2 py-1.5 text-sm" />
           </div>
         </div>
       </header>

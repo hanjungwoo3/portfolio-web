@@ -284,10 +284,13 @@ export function getDimSleepingEnabled(): boolean {
     return true;
   }
 }
+export const DIM_SLEEPING_EVENT = "dim-sleeping-change";
 export function setDimSleepingEnabled(enabled: boolean) {
   try {
     localStorage.setItem(DIM_KEY, enabled ? "1" : "0");
   } catch {
     /* ignore */
   }
+  // 헤더 토글·설정 어디서 바꿔도 화면이 바로 다시 그려지게(App·모바일이 듣는다)
+  try { window.dispatchEvent(new Event(DIM_SLEEPING_EVENT)); } catch { /* noop */ }
 }
