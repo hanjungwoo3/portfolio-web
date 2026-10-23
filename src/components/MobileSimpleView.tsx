@@ -62,7 +62,7 @@ import { TICKER_BAR_H, useTickerBarOpen } from "../lib/tickerBar";
 import { RefreshIndicator } from "./RefreshIndicator";
 import { forceUpdate } from "./VersionBadge";
 import { NewVersionToast } from "./NewVersionToast";
-import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast } from "./AppUpdateToast";
+import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast, AppInstallHint } from "./AppUpdateToast";
 import { appConfirm, appPrompt } from "../lib/appDialog";
 import { setNightBg, useNightBg } from "../lib/nightBg";
 import { NightToggle } from "./NightToggle";
@@ -258,7 +258,8 @@ export function MobileSimpleView() {
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpStep, setHelpStep] = useState(0);   // 사용법 열 때 시작 단계 (현재 탭 기준)
   // 첫 방문이면 사용법(빠른 시작)을 먼저 보여주고, 닫은 뒤에 프록시 안내를 노출(겹침 방지).
-  const [onboardReady, setOnboardReady] = useState(() => !shouldShowHelpFirstTime());
+  // 첫 방문 순서 — 앱·프록시 안내가 먼저, 끝나면 사용법(PC 와 같다)
+  const onboardDone = () => { if (shouldShowHelpFirstTime()) setTimeout(() => setHelpOpen(true), 400); };
   const [editing, setEditing] = useState<Stock | null>(null);
   const [editAllStock, setEditAllStock] = useState<{ ticker: string; name: string } | null>(null);
   const [memoTicker, setMemoTicker] = useState<string | null>(null);
@@ -280,12 +281,6 @@ export function MobileSimpleView() {
   const [tabMenu, setTabMenu] = useState<{ key: string; label: string } | null>(null);
   const longPressTimer = useRef<number | null>(null);
 
-  // 첫 방문 자동 노출 (1.5초 지연)
-  useEffect(() => {
-    if (!shouldShowHelpFirstTime()) return;
-    const t = setTimeout(() => setHelpOpen(true), 1500);
-    return () => clearTimeout(t);
-  }, []);
 
   // 구글 로그인/충돌 체크는 설정 다이얼로그 열 때만 수행 (아래 settings useEffect 내부).
   // 검색/편집/메모 등 일반 이동에선 Drive API 호출 안 함.
@@ -1128,6 +1123,7 @@ export function MobileSimpleView() {
       <NewVersionToast />
       <AppUpdateToast />
       <DesktopUpdateToast />
+      <AppInstallHint />
       <ExtensionUpdateToast />
       {tossMaint.active && (
         <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-[11px]
@@ -2360,9 +2356,7 @@ export function MobileSimpleView() {
         }} />
 
       {/* 첫 접속 안내 팝업 — 전용 프록시 미설정 시 자동 표시. 첫 방문은 사용법 닫은 뒤 노출 */}
-      {onboardReady && (
-        <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
-      )}
+      <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} onDone={onboardDone} />
 
       {/* 시장 매매동향 모달 — KOSPI/KOSDAQ 카드 📊 클릭 시 */}
       {marketFlowFor && (
@@ -2376,7 +2370,7 @@ export function MobileSimpleView() {
       <HelpDialog
         isOpen={helpOpen}
         initialStep={helpStep}
-        onClose={() => { markHelpSeen(); setHelpOpen(false); setOnboardReady(true); }}
+        onClose={() => { markHelpSeen(); setHelpOpen(false); }}
         variant="mobile"
       />
 

@@ -84,7 +84,7 @@ export default defineConfig({
         // /app/ 은 APK·release.json 이 사는 실제 파일 경로다. SPA 폴백이 여기를 가로채면
         //   APK 주소로 들어와도 index.html(앱 화면)이 뜬다 — 실제로 그렇게 났다.
         //   /extension/ 도 같다 — 확장 zip '내려받기'를 누르면 새 창에 앱 화면만 뜨고 받아지지 않았다(2026-10-21 제보).
-        navigateFallbackDenylist: [/^\/portfolio-web\/app\//, /^\/portfolio-web\/extension\//],
+        navigateFallbackDenylist: [/^\/portfolio-web\/app\//, /^\/portfolio-web\/extension\//, /^\/portfolio-web\/privacy\.html/],   // privacy.html — 개인정보 안내(정적), SPA 가 가로채지 않게
         // 프록시 응답 + version.json 은 NetworkFirst (짧은 TTL)
         runtimeCaching: [
           {

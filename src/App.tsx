@@ -59,7 +59,7 @@ import { MarketTickerBar } from "./components/MarketTickerBar";
 import { TICKER_BAR_H, useTickerBarOpen } from "./lib/tickerBar";
 import { RefreshIndicator } from "./components/RefreshIndicator";
 import { forceUpdate } from "./components/VersionBadge";
-import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast } from "./components/AppUpdateToast";
+import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast, AppInstallHint } from "./components/AppUpdateToast";
 import { NewVersionToast } from "./components/NewVersionToast";
 import { ProxyStatusBadge } from "./components/ProxyStatusBadge";
 import { useAdaptiveRefreshMs } from "./lib/proxyStatus";
@@ -138,17 +138,12 @@ function Dashboard() {
   const [donateOpen, setDonateOpen] = useState(false);
   const [helpOpen, setHelpOpen] = useState(false);
   const [helpStep, setHelpStep] = useState(0);   // 사용법 열 때 시작 단계 (현재 탭 기준)
-  // 첫 방문이면 사용법(빠른 시작)을 먼저 보여주고, 닫은 뒤에 프록시 안내를 노출(겹침 방지).
-  const [onboardReady, setOnboardReady] = useState(() => !shouldShowHelpFirstTime());
+  // 첫 방문 순서 — 앱·프록시 안내(OnboardingDialog)가 먼저, 그 창이 끝나면 사용법(겹침 방지, 2026-10-23 바꿈).
+  //   공용 프록시 사용자에게 가장 중요한 건 '앱을 받으면 직접 받는다'는 안내라서.
+  const onboardDone = () => { if (shouldShowHelpFirstTime()) setTimeout(() => setHelpOpen(true), 400); };
   const [simpleOpen, setSimpleOpen] = useState(false);
   const [codesCopied, setCodesCopied] = useState(false);
 
-  // 첫 방문 자동 노출 — 1.5초 지연 (다른 모달과 충돌 회피)
-  useEffect(() => {
-    if (!shouldShowHelpFirstTime()) return;
-    const t = setTimeout(() => setHelpOpen(true), 1500);
-    return () => clearTimeout(t);
-  }, []);
 
   // 로그인 redirect 복귀 — 저장/불러오기 대기 동작이 있으면 설정 자동 오픈 → 자동 재개
   useEffect(() => {
@@ -781,6 +776,7 @@ function Dashboard() {
       <NewVersionToast />
       <AppUpdateToast />
       <DesktopUpdateToast />
+      <AppInstallHint />
       <ExtensionUpdateToast />
       {tossMaint.active && (
         <div className="bg-amber-100 border-b border-amber-300 text-amber-900 text-xs
@@ -1262,14 +1258,12 @@ function Dashboard() {
       {/* 자동 동기화 충돌 — 양쪽 다 바뀌었을 때만 뜬다 */}
       <SyncConflictBar onChanged={() => setReloadKey(k => k + 1)} />
 
-      {onboardReady && (
-        <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} />
-      )}
+      <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} onDone={onboardDone} />
 
       <HelpDialog
         isOpen={helpOpen}
         initialStep={helpStep}
-        onClose={() => { markHelpSeen(); setHelpOpen(false); setOnboardReady(true); }}
+        onClose={() => { markHelpSeen(); setHelpOpen(false); }}
       />
 
       <SettingsDialog

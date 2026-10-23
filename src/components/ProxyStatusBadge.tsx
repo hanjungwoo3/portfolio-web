@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { subscribeProxyStatus, myDownCount, type ProxyState } from "../lib/proxyStatus";
 import { useExtensionProxyReady } from "../lib/extensionProxy";
 import { isNativeApp, isDesktopApp, isDirectApp } from "../lib/nativeProxy";
+import { openOnboarding } from "./OnboardingDialog";
 
 // 헤더 인라인 텍스트로 표시 (팝업 없음)
 // 메시지에 폴링 간격까지 포함 — 별도 PollingInfo 불필요
@@ -11,10 +12,7 @@ interface Props {
   onOpenSettings: () => void;  // 힌트의 ⚙️ 설정 클릭 시 다이얼로그 열기
 }
 
-const GUIDE_URL =
-  "https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md";
-
-export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettings }: Props) {
+export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy }: Props) {   // onOpenSettings — 옛 [추가방법] 자리, 지금은 안내 창(openOnboarding)이 설정까지 안내한다
   const [state, setState] = useState<ProxyState>(
     { health: "ok", total: 0, downHosts: [] }
   );
@@ -55,13 +53,13 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettin
     statusMsg = {
       emoji: "❌",
       // '중지' 가 아니라 느려지는 것이다 — 실제로는 간격만 늘어난다.
-      text: `공용 프록시 모두 사용량 소진 (${state.total}/${state.total}) — 갱신 ${intervalSec}초로 늦춤`,
+      text: `공용 서버 모두 한도 소진 — ${intervalSec}초마다 갱신`,
       color: "text-rose-700",
     };
   } else if (state.health === "degraded") {
     statusMsg = {
       emoji: "⚠️",
-      text: `공용 프록시 ${state.downHosts.length}/${state.total} 사용량 소진 — 갱신 ${intervalSec}초로 늦춤`,
+      text: `공용 서버 혼잡(${state.downHosts.length}/${state.total}) — ${intervalSec}초마다 갱신`,
       color: "text-amber-700",
     };
   } else if (usePersonalProxy) {
@@ -85,19 +83,13 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, onOpenSettin
           {statusMsg.emoji} {statusMsg.text}
         </span>
       )}
-      {!usePersonalProxy && (
-        <span title="본인 전용 Cloudflare Worker 무료 배포(카드 불필요, 100k req/일) + 폴링 주기 선택 가능"
+      {/* 공용 서버 사용자에게 — 앱 설치가 가장 쉬운 해결(사용자 요청 2026-10-23, 옛 '설정에서 무료 프록시 추가') */}
+      {!usePersonalProxy && !direct && (
+        <span title="맥·윈도우·안드로이드 앱은 중계 서버 없이 시세를 직접 받아 5초마다 갱신합니다"
               className="text-[11px] text-gray-500">
-          💡{" "}
-          <button onClick={onOpenSettings}
-                  className="text-blue-600 hover:underline font-medium">
-            ⚙️ 설정
-          </button>
-          에서 <b className="text-emerald-600">무료</b> 프록시 추가 시 5초 갱신 가능{" "}
-          <a href={GUIDE_URL} target="_blank" rel="noopener noreferrer"
-             className="text-blue-600 hover:underline">
-            [추가방법]
-          </a>
+          💡 앱으로 보면 <b className="text-emerald-600">5초 갱신</b>{" "}
+          {/* 첫 방문 안내 창을 다시 띄운다 — 이 기기에 맞는 앱·안전 안내가 거기 다 있다 */}
+          <button onClick={() => openOnboarding()} className="text-blue-600 hover:underline font-medium">[앱 받기 안내]</button>
         </span>
       )}
     </span>

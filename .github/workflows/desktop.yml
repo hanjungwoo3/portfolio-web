@@ -85,4 +85,22 @@ jobs:
           # prerelease — 'Latest' 는 확장 릴리스가 쓴다(확장 받기 링크가 releases/latest)
           gh release view apps >/dev/null 2>&1 || gh release create apps --prerelease --title "포트폴리오 앱 — 맥·윈도우·안드로이드" --notes "고정 링크. 새 버전이 나오면 같은 이름으로 바뀝니다."
           gh release upload apps out/portfolio-mac.zip out/portfolio-mac.app.tar.gz out/portfolio-setup.exe out/portfolio.exe out/latest.json --clobber
-          gh release edit apps --notes "$(printf '데스크톱 v%s · %s\n\n- 맥: portfolio-mac.zip (압축 풀고 포트폴리오.app, 처음 한 번 우클릭 → 열기)\n- 윈도우 설치판: portfolio-setup.exe (앱 안 업데이트)\n- 윈도우 실행형: portfolio.exe (설치 없이)\n- 안드로이드: portfolio-app.apk\n' "$V" "$(date -u +%F)")"
+          gh release edit apps --notes-file - <<NOTES
+          ## 포트폴리오 앱 — 데스크톱 v$V · $(date -u +%F)
+
+          | 기기 | 파일 | 처음 한 번 |
+          |---|---|---|
+          | 맥 (Apple Silicon·Intel) | portfolio-mac.zip | 압축 풀고 포트폴리오.app 을 **우클릭 → 열기** |
+          | 윈도우 (설치판, 앱 안 업데이트) | portfolio-setup.exe | 경고 창에서 **추가 정보 → 실행** |
+          | 윈도우 (설치 없이) | portfolio.exe | 위와 같음 |
+          | 안드로이드 | portfolio-app.apk | '출처를 알 수 없는 앱' 허용 |
+
+          ### 🔒 안전한가요?
+          - 이 파일들은 GitHub 서버가 **공개 소스 코드로 자동 빌드**했습니다 — [빌드 기록](https://github.com/hanjungwoo3/portfolio-web/actions/workflows/desktop.yml)
+          - 계좌·비밀번호·인증서를 받지 않고 **공개 시세만** 받아옵니다. 매매 기능 없음, 광고·추적 없음
+          - 보유 종목은 **내 기기에만** 저장됩니다
+          - 처음 실행 때 경고는 유료 개발자 인증서가 없어서입니다(위험하다는 뜻이 아님)
+          - 앱 안 업데이트는 서명을 확인한 파일만 설치합니다
+
+          자세히: [개인정보·안전 안내](https://hanjungwoo3.github.io/portfolio-web/privacy.html)
+          NOTES

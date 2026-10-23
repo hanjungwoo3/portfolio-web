@@ -9,11 +9,14 @@
 // 웹 번들 갱신 알림(NewVersionToast)과는 다른 축이다 — 저건 웹, 이건 APK.
 
 import { useEffect, useState } from "react";
-import { isNativeApp } from "../lib/nativeProxy";
+import { isNativeApp, isDirectApp } from "../lib/nativeProxy";
+import { getPersonalProxyUrl } from "../lib/proxyConfig";
+import { onboardingSnoozed } from "./OnboardingDialog";
+import { APPS_PAGE as APPS_RELEASE_PAGE, PRIVACY_URL } from "../lib/platform";
 import { checkDesktopUpdate, installDesktopUpdate, type DesktopUpdate } from "../lib/desktopApp";
 // 버전 비교는 설정 화면과 같은 함수를 쓴다 — 규칙이 갈라지면 한쪽만 안 뜨는 일이 생긴다.
 import {
-  useExtensionProxyVersion, EXPECTED_EXTENSION_VERSION, compareVersion, EXTENSION_DOWNLOAD_URL,
+  useExtensionProxyVersion, useExtensionProxyReady, EXPECTED_EXTENSION_VERSION, compareVersion, EXTENSION_DOWNLOAD_URL,
 } from "../lib/extensionProxy";
 import {
   getInstalledAppVersion, fetchLatestRelease, openApkDownload, APK_DOWNLOAD_URL, type LatestRelease,
@@ -132,6 +135,43 @@ export function DesktopUpdateToast() {
         </div>
         <button onClick={() => setDismissed(true)} aria-label="닫기"
                 className="shrink-0 text-emerald-700 hover:text-emerald-900 text-lg leading-none">✕</button>
+      </div>
+    </div>
+  );
+}
+
+// 웹(브라우저)으로 보는 사람에게 앱 설치 안내 — 맥·윈도우·안드로이드 앱은 확장·프록시 없이 직접 받아 빠르다(사용자 요청 2026-10-23).
+//   **공용 프록시 사용자에게만** — 앱·확장·전용 프록시가 있으면 이미 직결이라 안 띄운다. 닫으면 7일 동안 숨긴다.
+const INSTALL_HIDE_KEY = "app_install_hint_hidden_until";
+export function AppInstallHint() {
+  const [hidden, setHidden] = useState(() => {
+    try { return Number(localStorage.getItem(INSTALL_HIDE_KEY) ?? 0) > Date.now(); } catch { return false; }
+  });
+  const extReady = useExtensionProxyReady();
+  // 첫 방문 안내를 "나중에"로 닫아 쉬는 동안에만 — 안내 창과 동시에 뜨지 않게
+  if (hidden || isDirectApp() || extReady || getPersonalProxyUrl() || !onboardingSnoozed()) return null;
+  const close = () => {
+    try { localStorage.setItem(INSTALL_HIDE_KEY, String(Date.now() + 7 * 86_400_000)); } catch { /* 이번 화면만 */ }
+    setHidden(true);
+  };
+  return (
+    <div className="fixed left-2 bottom-12 z-[60] max-w-xs rounded-lg border border-indigo-300
+                    bg-indigo-50 shadow-lg px-3 py-2 text-[12px] text-indigo-900">
+      <div className="flex items-start gap-2">
+        <span className="text-base leading-none">💻</span>
+        <div className="flex-1 min-w-0">
+          <div className="font-bold">앱으로 보면 더 빠릅니다</div>
+          <div className="text-indigo-800 leading-relaxed">
+            맥·윈도우·안드로이드 앱은 확장·중계 서버 없이 시세를 직접 받아 5초 갱신이 됩니다.
+          </div>
+          <a href={APPS_RELEASE_PAGE} target="_blank" rel="noopener noreferrer"
+             className="inline-block mt-1.5 px-2 py-1 rounded bg-indigo-600 text-white font-bold">
+            ↓ 앱 받으러 가기
+          </a>
+          <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer" className="ml-2 underline text-[11px]">안전한가요?</a>
+        </div>
+        <button onClick={close} aria-label="닫기" title="7일 동안 숨기기"
+                className="shrink-0 text-indigo-700 hover:text-indigo-900 text-lg leading-none">✕</button>
       </div>
     </div>
   );
