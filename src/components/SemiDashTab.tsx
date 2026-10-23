@@ -15,9 +15,8 @@ import {
 import type { Investor } from "../types";
 import { allYahooSymbols } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
-import { openTickPopup } from "../lib/tickPopup";
-import { useLastRefresh } from "../lib/lastRefresh";
-import { TossPane, NaverPane } from "./CommunityDialog";
+import { openStockInfo } from "../lib/tickPopup";
+import { OrderBookBox, BrokerBox, ProgramInvestorBox, FeedBox, CommunityTabs, useStockLiveSignals } from "./StockPopupRow";
 import { useTickFlow, strength, netAmt, bigThreshold, wonStep, type TickFlow } from "../lib/useTickFlow";
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
@@ -112,7 +111,6 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return q(`${code}.KS`);
   };
   const [rightTab, setRightTab] = useState<"sig" | "hyp">("sig");
-  const refreshTs = useLastRefresh();   // 팝업 댓글 칸 — 전역 갱신 신호에 맞춰 같이 새로
   // 프리장(NXT 08:00~09:00) 결과 — 정규장이 열리면 현물 수급은 KRX 로 바뀌어 프리장이 안 보인다 → 따로 한 줄(사용자 요청)
   const [{ data: kospiNxt }, { data: kosdaqNxt }] = useQueries({
     queries: (["kospi", "kosdaq"] as const).map(m => ({
@@ -182,6 +180,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     const anyRegular = firsts.some(t => t >= "09:00");
     return { start: anyRegular ? "09:00" : start.slice(0, 4) + "0", end };
   })();
+  // 팝업(한 종목)이면 호가·거래원·프로그램 줄을 체결 줄 뒤에(쿼리키가 칸과 같아 추가 호출 없음)
+  const liveSig = useStockLiveSignals(stocks[0].code, !!popup, sq(stocks[0].code)?.price);
   stocks.forEach((s, i) => {
     const ms = ticks[i].minutes;
     const st5 = strength(ms, 5), n5 = netAmt(ms, 5);
@@ -193,6 +193,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       if (p1 < p0 && n5 > 0) sig.push({ t: `${s.name} 가격↓ 인데 체결은 매수 우위 (엇갈림)`, c: "text-amber-600", d: "내리는데 사는 체결이 더 많다 — 저가 매수가 받치는 중일 수 있다." });
     }
   });
+  if (popup) sig.push(...liveSig);
   if (k5 != null && kfToday) sig.push({ t: `코스피 외국인 5분간 ${eok(k5)}억 (누적 ${eok(kLast!.foreigners)}억)`, c: up(k5),
     d: Math.sign(k5) === Math.sign(kLast!.foreigners) || k5 === 0
       ? `외국인이 지금도 ${kLast!.foreigners >= 0 ? "사는" : "파는"} 중 — 오늘 누적 ${kLast!.foreigners >= 0 ? "매수" : "매도"}세가 최근 5분에도 이어진다.`
@@ -244,10 +245,87 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       })() });
   }
 
+  // 지금 신호 / 가설 검증 칸 — 반도체 탭과 팝업이 같은 칸을 쓴다
+  const signalBox = (
+        <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
+          {/* 지금 신호 / 가설 검증 — 탭(사용자 요청) */}
+          <div className="flex items-baseline gap-1 mb-1 border-b">
+            {(["sig", "hyp"] as const).map(k => (
+              <button key={k} onClick={() => setRightTab(k)}
+                      className={`px-2 pb-1 -mb-px border-b-2 font-bold ${rightTab === k ? "border-blue-500 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
+                {k === "sig" ? "지금 신호" : "가설 검증"}
+              </button>
+            ))}
+            <span className="ml-1 text-[11px] text-gray-400">{rightTab === "sig" ? "숫자로 확인되는 것만" : "같이 일어났는지만(인과 아님)"}</span>
+          </div>
+          {rightTab === "hyp" ? <HypothesisBox ff={ff} futMin={futMin ?? undefined} embedded /> : <>
+          <div className="space-y-1 overflow-auto">
+            {sig.length ? sig.map((n, i) => (
+              <div key={i} className="leading-snug">
+                <div className={`font-semibold ${n.c}`}>• {n.t}</div>
+                {n.d && <div className="pl-2.5 text-[11px] text-gray-500">{n.d}</div>}
+              </div>))
+              : <div className="text-gray-400">체결을 모으는 중… (1~2분)</div>}
+          </div>
+          <div className="mt-auto pt-2 border-t text-[11px] text-gray-500 leading-snug">
+            체결강도 = 매수 체결량 ÷ 매도 체결량 × 100 (100 위 = 사는 쪽 우위). 큰 체결 = 1억 원 이상(5건이 안 되면 5천만 · 3천만 · 1천만으로 낮춤).
+          </div>
+          </>}
+        </div>
+  );
+
+  // ⚡ 종목정보 실시간 탭(한 종목) — 시장 수급 칸 대신 **이 종목** 것만(사용자 요청 2026-10-23 재설계):
+  //   ① 종목 카드 + 시장 맥락 칩 ② 체결(크게) + 신호 ③ 호가 | 거래원 | 프로그램·투자자 ④ 새 소식 | 커뮤니티
+  if (popup) {
+    const s0 = stocks[0], qq = sq(s0.code);
+    const chip = (name: string, x?: { price?: number; pct?: number } | null, fmt: (v: number) => string = v => v.toLocaleString()) => (
+      <span key={name} className="tabular-nums whitespace-nowrap">
+        <span className="text-gray-600">{name}</span>{" "}
+        <b className={x?.pct == null ? "text-gray-300" : up(x.pct)}>{x?.pct == null ? "-" : `${sgn(x.pct)}%`}</b>
+        {x?.price != null && <span className="ml-1 text-[11px] text-gray-500">{fmt(x.price)}</span>}
+      </span>
+    );
+    return (
+      <div className="flex flex-col gap-1.5 p-2 text-[12px] bg-gray-50 pg-bg">
+        <div className="grid grid-cols-1 lg:grid-cols-[360px_1fr] gap-1.5 auto-rows-[118px] shrink-0">
+          <Card title={s0.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
+                chart={<KrDaySparkline code={s0.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />
+          <div className="pg-card rounded-lg border border-gray-200 bg-white px-3 py-2 flex flex-col justify-center gap-1.5">
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 text-[13px]">
+              <span className="font-bold text-gray-800">시장</span>
+              {chip("코스피", q("^KS11"))}
+              {chip("코스닥", q("^KQ11"))}
+              {chip(`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`, fut, v => v.toFixed(2))}
+              {chip("코스닥150 선물", futQ, v => v.toFixed(2))}
+              {chip("V-KOSPI", vk, v => v.toFixed(2))}
+            </div>
+            <div className="text-[11px] text-gray-500 leading-snug">
+              종목이 시장과 같은 방향인지 — 시장은 빠지는데 종목이 버티면 수급이 받치는 것, 시장이 오르는데 종목이 못 따라가면 매물이 많은 것.
+              {fut && fut.oi > 0 ? ` · 선물 미결제 ${fut.oi.toLocaleString()}(${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)}` : ""}
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1.7fr_1fr] gap-1.5 min-h-0 auto-rows-[360px]">
+          <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} />
+          {signalBox}
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[0.9fr_1.1fr_1.3fr] gap-1.5 auto-rows-[430px] shrink-0">
+          <OrderBookBox code={s0.code} />
+          <BrokerBox code={s0.code} />
+          <ProgramInvestorBox code={s0.code} price={qq?.price} />
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-[1.3fr_1fr] gap-1.5 auto-rows-[400px] shrink-0">
+          <FeedBox code={s0.code} name={s0.name} />
+          <CommunityTabs code={s0.code} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col gap-1.5 p-2 lg:min-h-[calc(100vh-150px)] text-[12px] bg-gray-50 pg-bg">
       {/* ① 시세 */}
-      <div className={`grid grid-cols-2 ${stocks.length === 1 ? "lg:grid-cols-6" : "lg:grid-cols-7"} gap-1.5 auto-rows-[118px] shrink-0`}>
+      <div className="grid grid-cols-2 lg:grid-cols-7 gap-1.5 auto-rows-[118px] shrink-0">
         {stocks.map(s => {
           const qq = sq(s.code);
           return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
@@ -280,38 +358,9 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       </div>
 
       {/* ② 실시간 체결 + 신호 */}
-      {/* 한 종목(팝업)이면 체결 · 신호 · 토스 커뮤니티 · 네이버 토론 4칸(사용자 요청 — 뉴스 대신 댓글, 댓글 두 칸은 조금 좁게) */}
-      <div className={`grid grid-cols-1 ${stocks.length === 1 ? "lg:grid-cols-[1.2fr_1.2fr_0.8fr_0.8fr]" : "lg:grid-cols-[1fr_1fr_600px]"} gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]`}>
-        {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} onTitle={popup ? undefined : () => openTickPopup(s.code, s.name)} />)}
-        <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
-          {/* 지금 신호 / 가설 검증 — 탭(사용자 요청) */}
-          <div className="flex items-baseline gap-1 mb-1 border-b">
-            {(["sig", "hyp"] as const).map(k => (
-              <button key={k} onClick={() => setRightTab(k)}
-                      className={`px-2 pb-1 -mb-px border-b-2 font-bold ${rightTab === k ? "border-blue-500 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
-                {k === "sig" ? "지금 신호" : "가설 검증"}
-              </button>
-            ))}
-            <span className="ml-1 text-[11px] text-gray-400">{rightTab === "sig" ? "숫자로 확인되는 것만" : "같이 일어났는지만(인과 아님)"}</span>
-          </div>
-          {rightTab === "hyp" ? <HypothesisBox ff={ff} futMin={futMin ?? undefined} embedded /> : <>
-          <div className="space-y-1 overflow-auto">
-            {sig.length ? sig.map((n, i) => (
-              <div key={i} className="leading-snug">
-                <div className={`font-semibold ${n.c}`}>• {n.t}</div>
-                {n.d && <div className="pl-2.5 text-[11px] text-gray-500">{n.d}</div>}
-              </div>))
-              : <div className="text-gray-400">체결을 모으는 중… (1~2분)</div>}
-          </div>
-          <div className="mt-auto pt-2 border-t text-[11px] text-gray-500 leading-snug">
-            체결강도 = 매수 체결량 ÷ 매도 체결량 × 100 (100 위 = 사는 쪽 우위). 큰 체결 = 1억 원 이상(5건이 안 되면 5천만 · 3천만 · 1천만으로 낮춤).
-          </div>
-          </>}
-        </div>
-        {stocks.length === 1 && <>
-          <TossPane ticker={stocks[0].code} refreshTs={refreshTs} />
-          <NaverPane ticker={stocks[0].code} refreshTs={refreshTs} />
-        </>}
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_600px] gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]">
+        {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />)}
+        {signalBox}
       </div>
 
       {/* ③ 현물·선물·옵션 수급 */}

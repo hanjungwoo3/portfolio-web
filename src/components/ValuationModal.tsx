@@ -2,6 +2,7 @@ import { lazy, Suspense, useCallback, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { useCrosshairSync } from "../lib/useCrosshairSync";
+import { StockInfoTabs } from "./StockInfoTabs";
 import { useEscClose } from "../lib/useEscClose";
 import { maColor, parseMaPeriods, MA_DEFAULT_PERIODS, MA_MAX_LINES, MA_MAX_PERIOD } from "../lib/indicators";
 import type { SyncRegistrar } from "../lib/useCrosshairSync";
@@ -44,6 +45,15 @@ import { aggregateTradeMarkers } from "../lib/tradeMarkers";
 import { loadBurstLevel, saveBurstLevel, burstThresholdWon, BURST_LEVELS, type BurstLevel } from "../lib/valueBurst";
 import { useTossMaintenance, getTossMaintenance } from "../lib/tossMaintenance";
 import { EtfIndicatorBlock, EtfFeeTip, EtfCompositionDialog } from "./EtfCompositionDialog";
+
+// 속 탭 — 요약(지표·컨센서스) / 실적·재무 / 차트·수급 / 소식·대화
+type ValTab = "summary" | "fin" | "chart" | "talk";
+const VAL_TABS: { k: ValTab; label: string; hint: string }[] = [
+  { k: "summary", label: "요약", hint: "기업개요 · 가치평가·수익성·재무건전성 지표 · 목표주가 · 주주" },
+  { k: "fin", label: "실적·재무", hint: "실적 추이(확정+추정) · 재무 추이 4년 · 분기 컨센서스" },
+  { k: "chart", label: "차트·수급", hint: "주가 차트 · 기간별 추이 · 가격대별·투자자별 순매수 · 공매도·대차·신용" },
+  { k: "talk", label: "소식·대화", hint: "뉴스 · 공시 · 토스/네이버 커뮤니티" },
+];
 
 interface Props {
   isOpen: boolean;
@@ -395,6 +405,9 @@ export function ValuationModal({
   isOpen, onClose, ticker, name, curPrice, todayBar, myAvgPrice, entryPrice, onRequestSearch,
 }: Props) {
   useEscClose(isOpen, onClose);
+  // 속 탭 — 긴 한 화면을 네 묶음으로(사용자 요청 2026-10-23). 마지막 탭을 기억한다
+  const [vtab, setVtabState] = useState<ValTab>(() => { try { return (localStorage.getItem("valuation_tab") as ValTab) || "summary"; } catch { return "summary"; } });
+  const setVtab = (t: ValTab) => { setVtabState(t); try { localStorage.setItem("valuation_tab", t); } catch { /* noop */ } };
   // ETF(특히 채권형)는 재무·컨센서스·대차·신용·CFD·프로그램·공시가 없음 → 그 조회를 전부 건너뛰어
   //   기업가치 열 때 프록시 요청 폭주(호출수 병목)를 방지. (일봉·수급·뉴스만 조회)
   const isEtf = isEtfByName(name);
@@ -538,21 +551,19 @@ export function ValuationModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center
-                     bg-black/40 p-4"
+                     bg-black/40 p-0 sm:p-4"
          onMouseDown={e => { downOnBackdropRef.current = e.target === e.currentTarget; }}
          onClick={e => {
            if (e.target === e.currentTarget && downOnBackdropRef.current) onClose();
          }}>
-      <div className="bg-white rounded-lg shadow-xl max-w-7xl w-full
-                       max-h-[92vh] flex flex-col">
-        <header className="px-5 py-3 border-b bg-gray-50">
-          {/* 첫 줄: 기업가치 타이틀 + 닫기 (모바일은 종목명 다음 줄로) */}
+      <div className="bg-white sm:rounded-lg shadow-xl w-full h-full sm:w-[98vw] sm:h-[96vh] flex flex-col overflow-hidden">
+        {/* 📊 종목정보 공용 탭 줄 — ⚡ 실시간 창과 같은 머리(2026-10-23). 닫기(✕)도 여기 */}
+        <StockInfoTabs code={ticker} name={name} tab="value" onClose={onClose} />
+        <header className="px-5 py-2 border-b bg-gray-50">
+          {/* 첫 줄: 가격·링크 (모바일은 종목명 다음 줄로) */}
           <div className="flex items-baseline gap-3">
-            <h2 className="text-xl font-bold">📊 기업가치</h2>
             {/* PC: inline 으로 종목명·가격 같이 / 모바일: 다음 줄로 */}
             <span className="hidden sm:inline-flex items-baseline gap-3">
-              <span className="text-base font-bold">{name}</span>
-              <span className="text-sm text-gray-500">({ticker})</span>
               {/* ETF 구성 보기 — 종목코드 옆. 이 팝업의 ETF 지표와 짝이라 같은 줄에 둔다.
                   (구성 팝업에서 여기로 오는 📊 링크와 반대 방향 — 둘 사이를 오갈 수 있다) */}
               {isEtf && (
@@ -589,10 +600,6 @@ export function ValuationModal({
                 </span>
               )}
             </span>
-            <button onClick={onClose}
-                    className="ml-auto text-gray-400 hover:text-gray-600 text-xl">
-              ✕
-            </button>
           </div>
           {/* 모바일 — 종목명·가격을 두 번째 줄에 */}
           <div className="sm:hidden flex items-baseline gap-2 mt-1 flex-wrap">
@@ -639,12 +646,24 @@ export function ValuationModal({
           </div>
         </header>
 
+        {/* 속 탭 줄 */}
+        <div className="px-5 pt-2 border-b bg-white flex items-end gap-1 overflow-x-auto shrink-0">
+          {VAL_TABS.map(t => (
+            <button key={t.k} onClick={() => setVtab(t.k)}
+                    className={`px-2.5 py-1 text-[12px] font-bold rounded-t-md border-b-2 -mb-px whitespace-nowrap transition
+                                ${vtab === t.k ? "border-indigo-500 text-indigo-700 bg-indigo-50" : "border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-100"}`}>
+              {t.label}
+            </button>
+          ))}
+          <span className="ml-2 pb-1 text-[11px] text-gray-400 whitespace-nowrap">{VAL_TABS.find(t => t.k === vtab)?.hint}</span>
+        </div>
         <div className="px-5 py-4 overflow-y-auto">
           {error instanceof Error && (
             <div className="mb-3 p-2 bg-red-50 border border-red-200 rounded text-sm text-red-700">
               fetch 실패: {error.message}
             </div>
           )}
+          {vtab === "summary" && <>
           {/* 기업개요 — 종목 상세 API 의 comment1~3 (출처: 에프앤가이드).
               예전엔 main.naver 의 #summary_info 였는데 그 페이지가 SPA 가 됐다. */}
           {fund.description && fund.description.length > 0 && (
@@ -663,6 +682,8 @@ export function ValuationModal({
               </ul>
             </section>
           )}
+          </>}
+          {vtab === "fin" && <>
           {/* 실적 추이 — 실적 3년 + 추정 2년 (forward PER·ROE 가 여기서만 나온다).
               외국인 지분율·상대수익률을 같은 줄에 붙여 네 칸으로 만든다(세로 절약). */}
           {earnings && earnings.length > 0 && (
@@ -683,6 +704,11 @@ export function ValuationModal({
               <ConsensusCharts revenue={estRevenue} operatingIncome={estOpIncome} eps={estEps} />
             </div>
           )}
+          {(!earnings || earnings.length === 0) && !finSeries && !estEnabled && (
+            <div className="text-xs text-gray-400 py-6 text-center">실적·재무 자료가 없는 종목입니다{isEtf ? " (ETF)" : ""}.</div>
+          )}
+          </>}
+          {vtab === "summary" && <>
           {/* ETF 전용 — 가치평가·수익성·재무 같은 건 ETF 에 아예 없다. 3 컬럼 그리드를
               그대로 쓰면 왼쪽 2칸이 통째로 빈 채 오른쪽 끝에만 블록이 붙는다(실측).
               ETF 에게 의미 있는 지표만 **2단(지표 | 설명)** 으로 따로 깐다.
@@ -704,7 +730,6 @@ export function ValuationModal({
                                         curPrice={effCurPrice}
                                         marketCapText={fund.market_cap_text}
                                         todayBar={todayBar} isEtf={isEtf} part="top" />
-                <NewsSection ticker={ticker} />
               </div>
             </div>
           ) : (
@@ -749,10 +774,17 @@ export function ValuationModal({
           </>
           )}
 
-          {/* 대화 — 종목 카드의 💬 버튼과 같은 화면(토스·네이버).
-              투자자별 순매수 **위**에 둔다: 수급 표·차트가 길어서, 아래로 밀어 두면
-              사람들이 지금 뭘 말하는지를 보려고 한참 스크롤해야 한다. */}
+          </>}
+          {vtab === "talk" && <>
+          {/* 뉴스(좌) + 공시(우) — ETF 는 공시(DART)가 없어 뉴스만 */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 items-start mb-4">
+            <NewsSection ticker={ticker} />
+            {!isEtf && <DisclosureSection ticker={ticker} />}
+          </div>
+          {/* 대화 — 종목 카드의 💬 버튼과 같은 화면(토스·네이버) */}
           <CommunitySection ticker={ticker} />
+          </>}
+          {vtab === "chart" && <>
 
           {/* 투자자별 순매수 (최근 60일) */}
           {/* ETF 는 '가격대별 순매수' 한 줄만 위 오른쪽으로 올렸다 — 여기선 나머지를 그린다.
@@ -774,14 +806,7 @@ export function ValuationModal({
                                  price={effCurPrice} />
           )}
 
-          {/* 뉴스(좌) + 공시(우) — ETF 는 위 오른쪽 칸으로 올렸다(공시가 없어 반쪽만 남으므로) */}
-          {!isEtf && (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-2 gap-3 items-start">
-              <NewsSection ticker={ticker} />
-              <DisclosureSection ticker={ticker} />
-            </div>
-          )}
-
+          </>}
         </div>
       </div>
       <DrawingChartDialog ticker={ticker} name={name}

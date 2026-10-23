@@ -82,7 +82,7 @@ function buildSteps(mobile: boolean): Step[] {
             <span className="block">🇰🇷 <b>한국/주간</b> · 🇺🇸 <b>미국/야간</b> · 🔄 <b>순환매</b> · 💾 <b>반도체 수급</b>(현물·선물·옵션 수급과 실시간 체결)</span>
             <span className="block">· 지수 탭을 누르면 시간에 맞춰 열립니다 — 한국 07~20시는 주간, 그 밖은 야간</span>
             <span className="block">· 카드: 큰 % = 오늘 등락, 노란 책갈피 = 정규장 종가, <b>흐린 카드 = 장 마감</b></span>
-            <span className="block">· 카드 아래 <b>⚡체결</b> = 실시간 체결 크게 보기 · <b>🔍AI</b> = 구글 AI 분석</span>
+            <span className="block">· 카드 아래 <b>📊종목정보</b> = 실시간 체결·호가·거래원 + 기업가치 · <b>🔍AI</b> = 구글 AI 분석</span>
           </span>
         </>
       ),

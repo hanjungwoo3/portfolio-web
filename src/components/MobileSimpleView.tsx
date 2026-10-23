@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
-import { openTickPopup, canTickPopup } from "../lib/tickPopup";
+import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { IndexWarnTag } from "./IndexWarnTag";
@@ -2221,10 +2221,10 @@ export function MobileSimpleView() {
                           </button>
                         )}
                         {isKrStock && (
-                          <button onClick={() => openTickPopup(krCode, p.name)}
-                                  title="실시간 체결 크게 보기 (팝업)"
+                          <button onClick={() => openStockInfo(krCode, p.name)}
+                                  title="종목정보 — 실시간 체결·호가·거래원 / 기업가치 (팝업)"
                                   className={`${pill} text-amber-700 bg-amber-50 border border-amber-300/70 active:bg-amber-100`}>
-                            ⚡체결
+                            📊종목정보
                           </button>
                         )}
                         {(isKrStock || isUsStock) && (

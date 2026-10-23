@@ -8,7 +8,7 @@ import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
 import { openTossStock, tossStockUrl } from "../lib/toss";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
-import { openTickPopup, canTickPopup } from "../lib/tickPopup";
+import { openStockInfo, canStockInfo } from "../lib/tickPopup";
 import { Sparkline } from "./Sparkline";
 import { useChartRange, pickCardChart } from "../lib/chartRange";
 import { AuxIndicators } from "./AuxIndicators";
@@ -464,7 +464,7 @@ const TICK_INIT: TickState = { dir: undefined, arrow: "" };
 
 export function StockCard({
   stock, price, krReg, investor, investorHistory, consensus, sector, market, warning, loading, chart, dayChart, priceHistory, longHistory, onNeedLongHistory, onVisible,
-  memo, otherGroups, heldGroups, onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse,
+  memo, otherGroups, heldGroups, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse,
   hideStats, lastBuy, lastSell,
 }: Props) {
   const [tick, setTick] = useState<TickState>(TICK_INIT);
@@ -869,16 +869,7 @@ export function StockCard({
               ⏰
             </button>
           )}
-          {onOpenValuation && /^[\dA-Za-z]{6}$/.test(stock.ticker) && (
-            <button
-              type="button"
-              onClick={() => onOpenValuation(stock.ticker)}
-              title="기업가치 보기"
-              className="opacity-60 hover:opacity-100
-                         text-xs leading-none px-0.5 transition-opacity">
-              📊
-            </button>
-          )}
+          {/* 📊 기업가치는 위 '📊종목정보' 팝업의 탭으로 들어갔다(2026-10-23) — 여기 버튼은 뺐다 */}
           {/^[\dA-Za-z]{6}$/.test(stock.ticker) && (
             <button
               type="button"
@@ -953,13 +944,13 @@ export function StockCard({
               </span>
             );
           })()}
-          {/* ⚡ 실시간 체결 팝업 — 국내 종목만(사용자 요청 2026-10-22) */}
-          {canTickPopup(stock.ticker) && (
-            <button onClick={() => openTickPopup(stock.ticker, stock.name)}
-                    title="실시간 체결 크게 보기 (팝업)"
+          {/* 📊 종목정보 — 실시간(체결·호가·거래원)·기업가치 탭 팝업. 국내 종목만(미국은 아래 🔍AI 만). 2026-10-23 ⚡체결+📊 통합 */}
+          {canStockInfo(stock.ticker) && (
+            <button onClick={() => openStockInfo(stock.ticker, stock.name)}
+                    title="종목정보 — 실시간 체결·호가·거래원 / 기업가치 (팝업)"
                     className="inline-flex items-center px-1.5 py-0.5 rounded-t-md text-[10px] font-bold leading-none
                                border-t border-l border-r border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition">
-              ⚡체결
+              📊종목정보
             </button>
           )}
           {/* 🔍AI — 섹션 오른쪽 (모바일과 동일). 현재상태 구글 AI 분석 팝업 */}

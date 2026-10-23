@@ -2151,7 +2151,8 @@ async function fetchTossMdsTrend<T extends { date: string }>(
   const out: T[] = [];
   let key: string | null = null;
   for (let i = 0; i < 5; i++) {
-    let url = `https://wts-info-api.tossinvest.com/api/v1/mds/info/${endpoint}?stockCode=A${ticker}&size=100`;
+    // endpoint 가 http 로 시작하면 완성된 주소(프로그램 매매처럼 mds/info 밖으로 옮겨간 것). 페이지네이션(pagingParam.key)은 같다
+    let url = endpoint.startsWith("http") ? endpoint : `https://wts-info-api.tossinvest.com/api/v1/mds/info/${endpoint}?stockCode=A${ticker}&size=100`;
     if (key) url += `&key=${encodeURIComponent(key)}`;
     let resp: Response;
     try { resp = await fetchProxied(url); }
@@ -2185,8 +2186,10 @@ export interface ProgramTradingPoint {
   nonArbitrageNet: number;  // 비차익 순매수 (주)
   totalNet: number;         // 합계 순매수 (주)
 }
+// ★ 2026-10-23: mds/info/program-trading 이 404 — 토스 웹이 쓰는 새 주소 stock-infos/trade/trend/program-trading(productCode) 로.
+//   필드 이름은 그대로(arbitrage/nonArbitrage/total NetBuyQuantity). 기업가치 프로그램 차트가 이걸로 되살아난다.
 export function fetchKrProgramTrading(ticker: string, months = 12): Promise<ProgramTradingPoint[]> {
-  return fetchTossMdsTrend("program-trading", ticker, months, r => ({
+  return fetchTossMdsTrend(`https://wts-info-api.tossinvest.com/api/v1/stock-infos/trade/trend/program-trading?productCode=A${ticker}&size=100`, ticker, months, r => ({
     date: r.baseDate as string,
     arbitrageNet: (r.arbitrageNetBuyQuantity as number) ?? 0,
     nonArbitrageNet: (r.nonArbitrageNetBuyQuantity as number) ?? 0,
@@ -5559,6 +5562,73 @@ export async function fetchInvestorRankingsByMarket(
 //   ⚠️ 최근 것만 준다: count 는 300 까지(500 이상은 400). 하이닉스 기준 약 50초치 → 화면이 5초마다 받아 쌓는다.
 //   과거로 넘기는 파라미터는 없다(실측 2026-10-21). 시각은 KST "HH:MM:SS".
 export interface TossTick { time: string; price: number; volume: number; side: "BUY" | "SELL"; cum: number }
+// 실시간 호가(토스 quotes) — 매도·매수 10단계 + 총잔량. ⚡체결 팝업 호가창(사용자 요청 2026-10-23)
+export interface OrderBook {
+  close: number;
+  sell: { price: number; qty: number }[];   // 낮은 가격 → 높은 가격(화면은 위가 높게 뒤집어 그린다)
+  buy: { price: number; qty: number }[];    // 높은 가격 → 낮은 가격
+  sumSell: number; sumBuy: number;
+  single: boolean; estPrice?: number;
+}
+export async function fetchTossOrderBook(code: string): Promise<OrderBook | null> {
+  const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-prices/A${code}/quotes`);
+  if (!r.ok) throw new Error(`호가 조회 실패 (HTTP ${r.status})`);
+  const j = (await r.json() as { result?: { close?: number; sellPrices?: number[]; sellQuantities?: number[]; buyPrices?: number[]; buyQuantities?: number[];
+    sumOfSellQuantities?: number; sumOfBuyQuantities?: number; isSinglePrice?: boolean; estimatedPrice?: number } }).result;
+  if (!j?.sellPrices || !j.buyPrices) return null;
+  const sell = j.sellPrices.map((p, i) => ({ price: p, qty: j.sellQuantities?.[i] ?? 0 })).filter(x => x.price > 0).sort((a, b) => a.price - b.price);
+  const buy = j.buyPrices.map((p, i) => ({ price: p, qty: j.buyQuantities?.[i] ?? 0 })).filter(x => x.price > 0).sort((a, b) => b.price - a.price);
+  return { close: j.close ?? 0, sell, buy, sumSell: j.sumOfSellQuantities ?? 0, sumBuy: j.sumOfBuyQuantities ?? 0,
+    single: !!j.isSinglePrice, estPrice: j.isSinglePrice ? j.estimatedPrice : undefined };
+}
+
+// 최근 공시(네이버 — 시각 포함) — ⚡체결 팝업 '새 소식'. fetchKrDisclosures 는 날짜만이라 따로
+export interface RecentDisclosure { id: string; title: string; datetime: string; url: string }
+export async function fetchNaverRecentDisclosures(ticker: string, size = 20): Promise<RecentDisclosure[]> {
+  const r = await fetchProxied(`https://m.stock.naver.com/api/stock/${ticker}/disclosure?page=1&size=${size}`);
+  if (!r.ok) throw new Error(`공시 조회 실패 (HTTP ${r.status})`);
+  const rows = await r.json() as { disclosureId?: number; title?: string; datetime?: string }[];
+  return (Array.isArray(rows) ? rows : []).flatMap(x => x.disclosureId && x.title && x.datetime ? [{
+    id: String(x.disclosureId), title: x.title.replace(/^[^)]*\(주\)\s*/, ""), datetime: x.datetime,
+    url: `https://m.stock.naver.com/domestic/stock/${ticker}/notice/${x.disclosureId}`,
+  }] : []);
+}
+
+// 프로그램 매매 최근 n일(주) — ⚡ 실시간 탭 '오늘·5일'. 위 fetchKrProgramTrading(12개월)보다 가볍게 한 페이지만
+export interface ProgramDayRow { date: string; buy: number; sell: number; net: number; arbNet: number; nonArbNet: number }
+export async function fetchTossProgramRecent(code: string, size = 10): Promise<ProgramDayRow[]> {
+  const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/stock-infos/trade/trend/program-trading?productCode=A${code}&size=${size}`);
+  if (!r.ok) throw new Error(`프로그램 매매 조회 실패 (HTTP ${r.status})`);
+  const j = await r.json() as { result?: { body?: Record<string, number | string>[] } };
+  return (j.result?.body ?? []).flatMap(x => x.baseDate ? [{
+    date: String(x.baseDate), buy: Number(x.totalBuyQuantity ?? 0), sell: Number(x.totalSellQuantity ?? 0), net: Number(x.totalNetBuyQuantity ?? 0),
+    arbNet: Number(x.arbitrageNetBuyQuantity ?? 0), nonArbNet: Number(x.nonArbitrageNetBuyQuantity ?? 0),
+  }] : []);
+}
+
+// 거래원(증권사별 매도·매수 상위 5 + 외국계 합계) — 토스 mds/broker/trading-ranking, 장중 실시간. 값 = 원
+export interface BrokerSide { name: string; vol: number; val: number; foreign: boolean }
+export interface BrokerRanking {
+  rows: { ask: BrokerSide; bid: BrokerSide }[];   // 같은 줄의 매도(ask)·매수(bid)는 서로 다른 증권사(각각의 순위)
+  foreign: { askVol: number; askVal: number; bidVol: number; bidVal: number };
+  updatedAt: string;
+}
+export async function fetchTossBrokerRanking(code: string): Promise<BrokerRanking | null> {
+  const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/mds/broker/trading-ranking?code=A${code}`);
+  if (!r.ok) throw new Error(`거래원 조회 실패 (HTTP ${r.status})`);
+  const j = (await r.json() as { result?: Record<string, unknown> & { top5ActivityList?: Record<string, unknown>[] } }).result;
+  if (!j?.top5ActivityList) return null;
+  const n = (v: unknown) => Number(v ?? 0);
+  return {
+    rows: j.top5ActivityList.map(x => ({
+      ask: { name: String(x.askBrokerName ?? ""), vol: n(x.askTradingVolume), val: n(x.askTradingValue), foreign: x.askBrokerForeignYn === "Y" },
+      bid: { name: String(x.bidBrokerName ?? ""), vol: n(x.bidTradingVolume), val: n(x.bidTradingValue), foreign: x.bidBrokerForeignYn === "Y" },
+    })),
+    foreign: { askVol: n(j.askForeignTradingVolume), askVal: n(j.askForeignTradingValue), bidVol: n(j.bidForeignTradingVolume), bidVal: n(j.bidForeignTradingValue) },
+    updatedAt: String(j.updatedAt ?? ""),
+  };
+}
+
 export async function fetchTossTicks(code: string, count = 300): Promise<TossTick[]> {
   const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-prices/A${code}/ticks?count=${Math.min(300, count)}`);
   if (!r.ok) throw new Error(`체결 조회 실패 (HTTP ${r.status})`);

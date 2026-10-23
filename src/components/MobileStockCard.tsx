@@ -8,7 +8,7 @@ import { memoTagClass } from "../lib/memoColor";
 import { pickTodayInvestor, twoDayTodayX, TWO_DAY_HALF, type DaySeries } from "../lib/api";
 import { openTossStock } from "../lib/toss";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
-import { openTickPopup, canTickPopup } from "../lib/tickPopup";
+import { openStockInfo, canStockInfo } from "../lib/tickPopup";
 import { Sparkline } from "./Sparkline";
 import { useChartRange, pickCardChart } from "../lib/chartRange";
 import { Tooltip, ColorName } from "./Tooltip";
@@ -105,7 +105,7 @@ const WARN_TIPS: Record<string, string> = {
 
 export function MobileStockCard({
   stock, price, krReg, sector, market, warning, chart, dayChart, investorHistory, consensus, memo, otherGroups, heldGroups,
-  onOpenValuation, onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse, onVisible, lastBuy, lastSell,
+  onEdit, onDelete, onOpenMemo, onOpenEtf, onOpenEtfReverse, onVisible, lastBuy, lastSell,
 }: Props) {
   // 뷰포트 진입 감지 — PC(StockCard) 와 동일. 화면 밖 카드의 표시용 쿼리를 켜지 않기 위함.
   const ioRef = useRef<IntersectionObserver | null>(null);
@@ -318,13 +318,13 @@ export function MobileStockCard({
               </span>
             );
           })()}
-          {/* ⚡ 실시간 체결 팝업 — 국내 종목만(PC 카드와 같이) */}
-          {canTickPopup(stock.ticker) && (
-            <button onClick={() => openTickPopup(stock.ticker, stock.name)}
-                    title="실시간 체결 크게 보기 (팝업)"
+          {/* 📊 종목정보 — 실시간·기업가치 탭 팝업. 국내 종목만(PC 카드와 같이) */}
+          {canStockInfo(stock.ticker) && (
+            <button onClick={() => openStockInfo(stock.ticker, stock.name)}
+                    title="종목정보 — 실시간 체결·호가·거래원 / 기업가치 (팝업)"
                     className="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold leading-none
                                border border-amber-300 text-amber-700 bg-amber-50 active:bg-amber-100">
-              ⚡체결
+              📊종목정보
             </button>
           )}
           {/* 🔍AI — 섹션과 같은 9px, 아이콘 축소 */}
@@ -398,14 +398,7 @@ export function MobileStockCard({
                           fill={memo ? "currentColor" : "none"} />
             </button>
           )}
-          {onOpenValuation && /^[\dA-Za-z]{6}$/.test(stock.ticker) && (
-            <button onClick={() => onOpenValuation(stock.ticker)}
-                    title="기업가치 보기"
-                    className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200
-                               text-xs leading-none">
-              📊
-            </button>
-          )}
+          {/* 📊 기업가치는 위 '📊종목정보' 팝업의 탭으로(2026-10-23) */}
           {onEdit && (
             <button onClick={() => onEdit(stock)}
                     title="수정 / 매수 / 매도"
