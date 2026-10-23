@@ -173,7 +173,7 @@ export function IntradayInvestorChart({
       idx.setData(bars);
       // 캔들 위에 지수 선도(사용자 요청) — 1분 움직임은 선으로, 묶음 흐름은 캔들로
       const idxLine = chart.addSeries(LineSeries, {
-        priceScaleId: "left", color: "rgba(71,85,105,0.55)", lineWidth: 1,
+        priceScaleId: "left", color: "#475569", lineWidth: 1,
         priceFormat: { type: "price", precision: 0, minMove: 1 },
         priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       });
