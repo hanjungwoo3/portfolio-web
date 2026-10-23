@@ -148,8 +148,6 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return n;
   });
   const flowLines: FlowLine[] = INTRADAY_SERIES.filter(x => flowKeys.includes(x.key)).map(x => ({ k: x.key, label: x.label, color: x.color }));
-  const [flowMode, setFlowModeState] = useState<FlowMode>(loadFlowMode);
-  const setFlowMode = (m: FlowMode) => { setFlowModeState(m); try { localStorage.setItem(FLOW_MODE_KEY, m); } catch { /* noop */ } };   // 수급 세 칸 공통 마우스 시각(분)
   // 수급 그래프 배경 가격 — 지수는 야후 오늘 5분봉, 선물은 한경 1분봉(오늘 구간)
   // 배경 지수 — 다음 금융 1분(실시간). 야후는 한국 지수가 20분 늦어 장 초반 배경이 몇 점뿐이었다
   const [{ data: ksToday }, { data: kqToday }] = useQueries({
@@ -368,7 +366,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {signalBox}
       </div>
 
-      {/* 수급 칸 투자자 선택 — 증시 탭과 같은 체크박스(세 칸 공통) + 배경 가격 모양 */}
+      {/* 수급 칸 투자자 선택 — 증시 탭과 같은 체크박스(세 칸 공통) */}
       <div className="pg-card rounded-lg border border-gray-200 bg-white px-2 py-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 shrink-0">
         <span className="font-bold text-gray-700">수급</span>
         {INTRADAY_SERIES.map(x => (
@@ -377,21 +375,14 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
             <span style={{ color: flowKeys.includes(x.key) ? x.color : "#9ca3af" }} className="font-medium">{x.label}</span>
           </label>
         ))}
-        <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-gray-500">수급 표시
-          <span className="inline-flex rounded border border-gray-300 overflow-hidden">
-            {([["line", "선"], ["candle", "캔들(10분)"]] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setFlowMode(k)} className={`px-1.5 ${flowMode === k ? "bg-gray-700 text-white" : "hover:bg-gray-100"}`}>{l}</button>
-            ))}
-          </span>
-        </span>
       </div>
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[400px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
-        <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} flowMode={flowMode} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
-        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} flowMode={flowMode}
+        <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
+        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines}
                  bg={futToday} bgLabel="코스피200 선물" bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
-        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} flowMode={flowMode} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
+        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
         <StockFlowTable rows={stocks.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: sq(s.code)?.price }))}
                         fLast={fLast}
@@ -556,11 +547,7 @@ function loadFlowKeys(): IntradayKey[] {
   } catch { /* 기본값 */ }
   return ["individuals", "foreigners"];
 }
-// 수급 표시 — 선(누적 순매수) | 캔들(누적 순매수를 10분씩 묶은 봉: 시작·끝·최고·최저). 기억(사용자 요청 2026-10-23)
-type FlowMode = "line" | "candle";
-const FLOW_MODE_KEY = "semi_flow_mode";
-const loadFlowMode = (): FlowMode => { try { return localStorage.getItem(FLOW_MODE_KEY) === "candle" ? "candle" : "line"; } catch { return "line"; } };
-function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis, lines, flowMode = "line" }: {
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis, lines }: {
   title: string; note: string; flow?: IntradayFlow; unit: string;
   tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
   bg?: { t: string; v: number }[];   // 배경 가격(지수·선물) — 증시 탭처럼 연한 면으로, 축은 따로(사용자 요청)
@@ -573,7 +560,6 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   hoverM?: number | null;            // 마우스가 가리키는 시각(분) — 세 칸이 같이 따라간다(사용자 요청)
   onHover?: (m: number | null) => void;
   lines: FlowLine[];                 // 그릴 투자자(위 선택 줄)
-  flowMode?: FlowMode;
 }) {
   const uid = useId().replace(/:/g, "");
   const LINES = lines;
@@ -673,38 +659,10 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
             {/* 마감 동시호가 구간 음영 */}
             <rect x={x(aucFrom)} width={Math.max(0, x(axisEnd) - x(aucFrom))} y={0} height={H} fill="#fde68a" fillOpacity={0.35} />
             {["10:00", "12:00", "14:00"].map(t => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H} stroke="#eef2f7" vectorEffect="non-scaling-stroke" />)}
-            {flowMode === "line" ? LINES.map(l => (
+            {LINES.map(l => (
               <path key={l.k} d={pts.map((p, i) => `${i ? "L" : "M"} ${x(p.time).toFixed(1)} ${y(val(p, l.k)).toFixed(1)}`).join(" ")}
                     fill="none" stroke={l.color} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
-            )) : (() => {
-              // 수급 캔들 — 누적 순매수를 10분씩 묶어 봉으로(시작 = 그 10분 첫 값, 끝 = 마지막, 위·아래 꼬리 = 최고·최저).
-              //   몸통이 빨강 = 그 10분에 순매수가 늘었다(사들임), 파랑 = 줄었다(팔아치움). 테두리 = 투자자 색.
-              //   여러 투자자면 한 칸(10분)을 나눠 나란히 — 겹치지 않게
-              const B = 10, n = Math.max(1, LINES.length);
-              const slotW = ((W - PX * 2) * B) / span;
-              const cw = Math.max(1.2, (slotW * 0.8) / n);
-              const groups = new Map<number, typeof pts>();
-              for (const p of pts) { const k = Math.floor(tmin(p.time) / B) * B; (groups.get(k) ?? groups.set(k, []).get(k)!).push(p); }
-              const xm = (m: number) => PX + Math.min(1, Math.max(0, (m - T0) / span)) * (W - PX * 2);
-              return LINES.map((l, li) => (
-                <g key={l.k}>
-                  {[...groups].map(([k, gp]) => {
-                    const vs = gp.map(p => val(p, l.k));
-                    const o = vs[0], c = vs[vs.length - 1], hi = Math.max(...vs), lo = Math.min(...vs);
-                    const cx = xm(Math.max(T0, k)) + slotW * 0.1 + cw * (li + 0.5);
-                    const col = c >= o ? "#f43f5e" : "#3b82f6";
-                    const top = y(Math.max(o, c)), bot = y(Math.min(o, c));
-                    return (
-                      <g key={k}>
-                        <line x1={cx} x2={cx} y1={y(hi)} y2={y(lo)} stroke={l.color} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-                        <rect x={cx - cw / 2} width={cw} y={top} height={Math.max(0.8, bot - top)} fill={col} fillOpacity={0.85}
-                              stroke={l.color} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-                      </g>
-                    );
-                  })}
-                </g>
-              ));
-            })()}
+            ))}
             {hoverX != null && <line x1={hoverX} x2={hoverX} y1={0} y2={H} stroke="#475569" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
           </svg>
           </div>
