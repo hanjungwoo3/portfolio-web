@@ -187,7 +187,7 @@ export function MobileSimpleView() {
     queryFn: () => fetchYahooSparkDay(US_SPARK_SYMBOLS),
     enabled: chartRange === "day",
     refetchInterval: chartRange === "day" ? 5 * 60_000 : false,
-    staleTime: 4 * 60_000, refetchOnWindowFocus: false,
+    staleTime: 4 * 60_000, refetchOnWindowFocus: true,   // 다시 띄우면 새로(PC 와 같게 — 숨긴 동안 갱신이 멈췄다)
   });
   // 코스피200·코스닥150 **주간**선물 — 낮엔 한경 1분봉 어제+오늘(야선은 당일 세션뿐). 야간장(18~05시)엔 야선 그대로.
   const krFutDayOn = chartRange === "day" && !isKrNightSession();

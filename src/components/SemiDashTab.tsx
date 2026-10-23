@@ -65,7 +65,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   const q = (s: string) => quotes?.get(s);
   const { data: spark } = useQuery({
     queryKey: ["semi-dash-spark"], queryFn: () => fetchYahooSparkDay(SPARK),
-    refetchInterval: 5 * 60_000, staleTime: 4 * 60_000, refetchOnWindowFocus: false,
+    refetchInterval: 5 * 60_000, staleTime: 4 * 60_000, refetchOnWindowFocus: true,   // 다시 띄우면 새로(숨긴 동안 갱신이 멈췄다)
   });
   const { data: fut } = useQuery({
     queryKey: ["hk-futures-live", "kospi200"], queryFn: () => fetchKrFuturesLive("kospi200"), refetchInterval: 10_000, staleTime: 5_000,

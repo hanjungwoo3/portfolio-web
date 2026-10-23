@@ -236,7 +236,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
     queryFn: () => fetchYahooSparkDay(US_SPARK_SYMBOLS),
     enabled: chartRange === "day",
     refetchInterval: chartRange === "day" ? 5 * 60_000 : false,
-    staleTime: 4 * 60_000, refetchOnWindowFocus: false,
+    // 창을 다시 띄우면(4분 지났을 때만) 바로 새로 — 숨겨진 동안은 5분 갱신이 멈춰, 앱을 다시 열면 장 시작 전 그래프
+    //   (오늘 시작 점선 없음)가 그대로 남아 있었다(사용자 지적 2026-10-23). 40종목당 1콜이라 부담 작다
+    staleTime: 4 * 60_000, refetchOnWindowFocus: true,
   });
   // 코스피200·코스닥150 **주간**선물 — 낮엔 한경 1분봉 어제+오늘(야선은 당일 세션뿐). 야간장(18~05시)엔 야선 그대로.
   const krFutDayOn = chartRange === "day" && !isKrNightSession();
