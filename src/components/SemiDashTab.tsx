@@ -24,7 +24,7 @@ import { HypothesisBox } from "./HypothesisBox";
 import { BuySellBars, joEok } from "./BuySellBars";
 
 const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }] as const;
-const SPARK = ["^KS11", "^KQ11"];   // 야후 spark 1콜(어제+오늘 5분봉)
+const SPARK = ["^KS11", "^KQ11", "KRW=X", "NQ=F", "SOX=F"];   // 야후 spark 1콜(어제+오늘 5분봉) — 뒤 셋은 종목정보 팝업 위 줄
 const FLOW_MS = 60_000;
 const US_ROW = ["MU", "NVDA", "SKHY", "SNDK", "AMD", "DRAM"];
 const MEM_ROW = ["DRAMIDX=ML", "DDR5=ML", "DDR4=ML", "NAND=ML"];
@@ -308,11 +308,15 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return (
       <div className="flex flex-col gap-1.5 p-2 text-[12px] bg-gray-50 pg-bg">
         {/* 종목 카드 + 시장 카드(반도체 탭과 같은 그래프 카드 — 칩 한 줄보다 낫다, 사용자 요청 2026-10-23) */}
-        {/* 종목은 크게(2칸), 시장 카드 5장은 작게(사용자 요청 2026-10-23) */}
-        <div className="grid grid-cols-2 lg:grid-cols-[2.4fr_repeat(5,minmax(0,1fr))] gap-1.5 auto-rows-[118px] shrink-0">
+        {/* 종목 1.4칸 + 시장 카드 8장(지수·선물·V-KOSPI + 환율·나스닥 선물·반도체 선물, 사용자 요청 2026-10-23) */}
+        <div className="grid grid-cols-3 lg:grid-cols-[1.4fr_repeat(8,minmax(0,1fr))] gap-1.5 auto-rows-[118px] shrink-0">
           <Card title={s0.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
                 chart={<KrDaySparkline code={s0.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />
           {marketCards}
+          {([["KRW=X", "원달러 환율"], ["NQ=F", "나스닥 선물"], ["SOX=F", "반도체 선물(SOX)"]] as const).map(([sym, t]) => (
+            <Card key={sym} title={t} price={q(sym)?.price} pct={q(sym)?.pct}
+                  chart={spark?.get(sym) && <SparkBg sp={spark.get(sym)!} base={q(sym)?.prevClose} />} />
+          ))}
         </div>
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[360px]">   {/* 체결 · 신호 반반(사용자 요청) */}
           <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} />
