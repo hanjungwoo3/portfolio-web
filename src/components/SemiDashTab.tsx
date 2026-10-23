@@ -702,9 +702,9 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
                   const d = x0.b - x0.s, hd = (Math.abs(d) / fb.mxD) * fb.maxH;
                   return (
                     <g key={i}>
-                      {x0.b > 0 && <rect x={bx} width={fb.cw} y={base - hb} height={hb} fill={l.color} opacity={0.1} />}
-                      {x0.s > 0 && <rect x={bx} width={fb.cw} y={base} height={hs} fill={l.color} opacity={0.1} />}
-                      {d !== 0 && <rect x={bx} width={fb.cw} y={d > 0 ? base - hd : base} height={Math.max(0.5, hd)} fill={d > 0 ? "#e11d48" : "#2563eb"} opacity={0.3} />}
+                      {x0.b > 0 && <rect x={bx} width={fb.cw} y={base - hb} height={hb} fill={l.color} opacity={0.16} />}
+                      {x0.s > 0 && <rect x={bx} width={fb.cw} y={base} height={hs} fill={l.color} opacity={0.16} />}
+                      {d !== 0 && <rect x={bx} width={fb.cw} y={d > 0 ? base - hd : base} height={Math.max(0.5, hd)} fill={d > 0 ? "#e11d48" : "#2563eb"} opacity={0.45} />}
                     </g>
                   );
                 })}
