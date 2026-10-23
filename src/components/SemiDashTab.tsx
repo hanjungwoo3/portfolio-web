@@ -653,8 +653,6 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
                 </g>
               );
             })}
-            {/* 배경 지수 선 — 캔들 위에 같이(사용자 요청 2026-10-23) */}
-            {bgp.length > 1 && <path d={bgp.map((b, i) => `${i ? "L" : "M"} ${x(b.t).toFixed(1)} ${by(b.v).toFixed(1)}`).join(" ")} fill="none" stroke="#475569" strokeWidth={1} vectorEffect="non-scaling-stroke" />}
             <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#94a3b8" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
             {/* 마감 동시호가 구간 음영 */}
             <rect x={x(aucFrom)} width={Math.max(0, x(axisEnd) - x(aucFrom))} y={0} height={H} fill="#fde68a" fillOpacity={0.35} />
