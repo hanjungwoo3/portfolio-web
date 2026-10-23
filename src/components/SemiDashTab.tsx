@@ -394,14 +394,14 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
                  bg={futToday} bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
         <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgBase={q("^KQ11")?.prevClose} />
         {/* 옵션·종목 수급은 한 칸에 세로로 — 남는 폭을 수급 그래프 세 칸에(사용자 요청 2026-10-23) */}
-        <div className="grid grid-rows-[auto_1fr] gap-1.5 min-h-0">
-        <OptionBox opt={opt} vk={vk} dim={!openFut} />
+        <div className="grid grid-rows-[auto_1fr] gap-1.5 min-h-0">   {/* 위 = 종목 수급, 아래 = 옵션(사용자 요청) */}
         <StockFlowTable rows={stocks.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: sq(s.code)?.price }))}
                         fLast={fLast}
                         markets={[
                           { name: "코스피", last: kLast, daily: kospiDaily?.points ?? [] },
                           { name: "코스닥", last: kqFlow?.points[kqFlow.points.length - 1], daily: kosdaqDaily?.points ?? [] },
                         ]} />
+        <OptionBox opt={opt} vk={vk} dim={!openFut} />
         </div>
       </div>
 
