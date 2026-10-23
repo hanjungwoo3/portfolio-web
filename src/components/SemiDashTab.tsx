@@ -633,7 +633,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
     const tot = (k: string): [number, number] => gp[gp.length - 1].gs?.[k] ?? [0, 0];
     return {
       B, T0b: T0, slotW, cw, rows, lastM, lineAt, tot,
-      maxH: H * 0.14,   // 막대 최대 길이 — 선을 가리지 않게 칸 높이의 14%(1/5 에서 줄임, 사용자 요청)
+      maxH: H * 0.1,   // 막대 최대 길이 — 선을 가리지 않게 칸 높이의 10%(사용자 요청)
       mxBar: Math.max(1e-9, ...rows.flat().map(x => Math.max(x.b, x.s))),
       mxD: Math.max(1e-9, ...rows.flat().map(x => Math.abs(x.b - x.s))),
     };
