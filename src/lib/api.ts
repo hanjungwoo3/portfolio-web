@@ -4098,8 +4098,15 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
   for (let i = 0; i < symbols.length; i += SPARK_CHUNK) chunks.push(symbols.slice(i, i + SPARK_CHUNK));
   await Promise.all(chunks.map(async c => {
     try {
-      const r = await fetchProxied(`https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(c.join(","))}&range=2d&interval=5m&includePrePost=true`);   // 어제+오늘, 토스 카드와 같은 5분봉
-      if (!r.ok) return;
+      // 묶음 하나가 가끔 실패한다(야후 429 등) — 그러면 그 묶음 종목만 세로선 없는 다른 그래프로 그려져
+      //   줄마다 시작 점선이 있다 없다 했다(사용자 지적 2026-10-23). 한 번 더 묻고, 그래도 안 되면 지난번 성공분으로
+      const url = `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(c.join(","))}&range=2d&interval=5m&includePrePost=true`;   // 어제+오늘, 토스 카드와 같은 5분봉
+      let r = await fetchProxied(url).catch(() => null);
+      if (!r?.ok) { await new Promise(res => setTimeout(res, 1500)); r = await fetchProxied(url).catch(() => null); }
+      if (!r?.ok) {
+        for (const sym of c) { const g = sparkLastGood.get(sym); if (g) out.set(sym, g); }
+        return;
+      }
       const j = await r.json() as { spark?: { result?: { symbol?: string; response?: {
         timestamp?: number[]; meta?: { currentTradingPeriod?: { regular?: { start?: number; end?: number } }; gmtoffset?: number; previousClose?: number; chartPreviousClose?: number };
         indicators?: { quote?: { close?: (number | null)[] }[] } }[] }[] } };
@@ -4188,8 +4195,10 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
       }
     } catch { /* 이 묶음은 3개월 차트로 */ }
   }));
+  for (const [k, v] of out) sparkLastGood.set(k, v);
   return out;
 }
+const sparkLastGood = new Map<string, DaySpark>();   // 묶음 실패 때 대신 쓸 지난번 성공분(종목별)
 
 // ─── 한국 종목·ETF 24시간(당일) 차트 — 토스 10분봉 ─────────────
 //   토스 c-chart 분봉은 NXT 프리(08:00)~애프터(20:00)까지 들어 있고 봉마다 base(= 어제 종가)가 붙는다.
