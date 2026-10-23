@@ -257,7 +257,7 @@ export function MobileStockCard({
 
 
   return (
-    <div ref={visibilityRef} className={dimmed ? "opacity-60" : ""}>
+    <div ref={visibilityRef} className={`pg-card ${dimmed ? "opacity-60" : ""}`}>
       {/* 메타 줄 — 좌: 경고(섹션 태그 스타일) / 우: 섹션·거래소 + 🔍AI. 종목명 바로 위.
           mb-px: 섹션·AI 아래 1px 간격 */}
       <div className="flex items-center justify-between gap-1 mx-2 mb-px">

@@ -40,7 +40,16 @@ html.night-bg .pg-menu :is(.hover\:bg-gray-50, .hover\:bg-gray-100, .hover\:bg-g
 html.night-bg .pg-menu :is(.text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-gray-900, .text-slate-700) { color: #e5e7eb !important; }
 html.night-bg .pg-menu .border-gray-200, html.night-bg .pg-menu .border-gray-300 { border-color: #4f5660 !important; }
 /* 카드도 톤을 낮춘다(사용자 요청) — 색은 그대로 두고 밝기만. 등락 빨강·파랑·차트 구분은 유지, 카드 틀에 걸어 책갈피·버튼(히트맵·체결·AI)도 같이 */
-html.night-bg .pg-card { filter: brightness(0.8); }
+html.night-bg .pg-card { filter: brightness(0.7); }   /* 지수 탭 카드 + 내 주식 종목 카드(StockCard·MobileStockCard) */
 /* 섹터 줄 상자(반도체·2차전지…)와 왼쪽 세로 이름 띠 */
 html.night-bg .pg-row { background-color: #30353c !important; border-color: #454b55 !important; }
 html.night-bg .pg-rowlabel { filter: brightness(0.75); }
+/* 그룹 상자 안 안내 줄(금리 읽기 등) — 어두운 바탕 + 밝은 글자, 판정 배지는 톤만 낮춤 */
+html.night-bg .pg-note { background-color: #30353c !important; border-color: #454b55 !important; color: #d1d5db !important; }
+html.night-bg .pg-note > span { filter: brightness(0.85); }
+/* 선택된 탭(연파랑 바탕) — 어두운 메뉴 안에서 짙은 회색 + 밝은 파랑 글자 */
+html.night-bg .pg-menu .bg-blue-50 { background-color: #3d4654 !important; }
+html.night-bg .pg-menu .text-blue-700 { color: #93c5fd !important; }
+/* 그룹 제목 안 버튼(등락률순·거래대금순 등) */
+html.night-bg .pg-title .bg-white { background-color: #3d424a !important; color: #d1d5db !important; }
+html.night-bg .pg-title .border-gray-300 { border-color: #5d646f !important; }

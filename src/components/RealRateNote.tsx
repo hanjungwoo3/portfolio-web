@@ -24,7 +24,7 @@ export function RealRateNote({ usMap, small = false }: { usMap: Map<string, UsIn
   const bei = n.price - r.price, dBei = dn - dr;
   const read = readRealRate(dn, dr);
   return (
-    <div className={`${small ? "text-[10px]" : "text-[11px]"} text-gray-600 leading-snug rounded-md bg-gray-50 border border-gray-200 px-2 py-1`}>
+    <div className={`${small ? "text-[10px]" : "text-[11px]"} text-gray-600 leading-snug rounded-md bg-gray-50 border border-gray-200 px-2 py-1 pg-note`}>
       <b>금리 읽기</b> · 명목 10Y {n.price.toFixed(2)}% ({bp(dn)}) − 실질 10Y {r.price.toFixed(2)}% ({bp(dr)})
       {" "}= 기대인플레 <b>{bei.toFixed(2)}%</b> ({bp(dBei)}).{" "}
       <span className={`inline-block font-bold px-1.5 rounded border ${TONE[read.tone]}`}>{read.text}</span>

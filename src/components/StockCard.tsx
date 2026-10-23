@@ -707,7 +707,7 @@ export function StockCard({
 
   return (
     <div ref={visibilityRef}
-         className={`group ${dimmed ? "opacity-60" : ""} ${hideStats ? "h-full flex flex-col" : ""}`}
+         className={`pg-card group ${dimmed ? "opacity-60" : ""} ${hideStats ? "h-full flex flex-col" : ""}`}
          onMouseEnter={onNeedLongHistory}>
       {/* 책갈피 — 종목명 + 섹터 + 위험 (좌) / 신호 + hover 버튼 (우) — 모두 책갈피 통일 */}
       <div className="flex items-end justify-between gap-1 mx-2">
