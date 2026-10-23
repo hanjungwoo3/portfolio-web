@@ -199,7 +199,7 @@ export function IntradayInvestorChart({
     for (const def of INTRADAY_SERIES) {
       if (!enabled[def.key]) continue;
       const s: ISeriesApi<"Line"> = chart.addSeries(LineSeries, {
-        color: def.color, lineWidth: 1,   // 가늘게(사용자 요청 2026-10-23, 반도체 수급 칸과 비슷하게)
+        color: def.color, lineWidth: 2,
         priceFormat: { type: "price", precision: 0, minMove: 1 },   // 순매수 정수(억원/계약)
         priceLineVisible: false, lastValueVisible: false,
       });
