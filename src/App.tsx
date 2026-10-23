@@ -1027,7 +1027,7 @@ function Dashboard() {
             {/* 정렬 옵션 + 히트맵(옛 심플 보기) + 추가지표 일괄 토글 — sticky. 탭 바 바로 아래에 고정
                 (탭이 여러 줄로 wrap 되므로 top 을 헤더+탭 높이로 동적 계산) */}
             <div style={{ top: (headerCollapsed ? 0 : headerH) + tabsH }}
-                 className="sticky z-30 bg-white/95 backdrop-blur
+                 className="pg-menu sticky z-30 bg-white/95 backdrop-blur
                             flex items-center justify-end gap-2 mb-2 py-1.5
                             -mx-3 px-3 border-b border-gray-200">
               {/* 시장분리 점프바 (좌측) — 코스피/코스닥/ETF/기타 섹션으로 스크롤. 분리 OFF 면 스페이서만 */}
