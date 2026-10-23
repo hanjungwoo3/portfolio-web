@@ -92,6 +92,6 @@ html.night-bg ::-webkit-scrollbar-thumb { background: #555c67; border-radius: 6p
 html.night-bg * { scrollbar-color: #555c67 #2b2f35; }
 /* 클릭하면 뜨는 큰 창(기업가치·ETF 구성·커뮤니티 등 — 배경막 .fixed.inset-0 안의 창) — 창 통째로 밝기만 낮춤.
    창 안 카드(pg-card)는 두 번 어두워지지 않게 풀어 준다. 페이지를 통째로 담은 창(⚡체결 = 반도체 수급 화면)은 페이지 규칙을 따른다 */
-html.night-bg .fixed.inset-0 > div:not(:has(.pg-bg)) { filter: brightness(0.72); }
+html.night-bg .fixed.inset-0 > div:not(:has(.pg-bg)) { filter: brightness(0.62); }   /* 카드와 같은 톤 */
 html.night-bg .fixed.inset-0 > div:not(:has(.pg-bg)) :is(.pg-card, .pg-soft) { filter: none; }
 html.night-bg .fixed.inset-0 > div:has(.pg-bg) { background-color: #2b2f35 !important; }
