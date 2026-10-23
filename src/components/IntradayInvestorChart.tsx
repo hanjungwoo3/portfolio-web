@@ -8,6 +8,7 @@ import {
   ColorType,
   LineSeries,
   BaselineSeries,
+  CandlestickSeries,
   LineStyle,
   type IChartApi,
   type ISeriesApi,
@@ -147,7 +148,34 @@ export function IntradayInvestorChart({
     });
 
     // 배경 지수(코스피/코스닥) — 전일 종가 기준 위=빨강/아래=파랑(한국식). 투자자 라인 뒤에 깔림.
-    if (indexSeries && indexSeries.length > 1) {
+    if (indexSeries && indexSeries.length > 1 && timeVisible) {
+      // 당일 — 지수를 캔들로(사용자 요청 2026-10-23). 분 자료를 묶어 봉으로: 시작 = 첫 값, 끝 = 마지막, 위·아래 = 최고·최저.
+      //   묶음 폭은 아래 매수·매도 막대와 같은 규칙(자료 1시간↓ 1분·3시간↓ 5분·그 위 10분).
+      //   봉 시각 = 그 묶음의 첫 자료 시각 — 없는 시각을 만들면 투자자 선과 가로축 칸이 어긋난다.
+      //   빨강 = 오름·파랑 = 내림(한국식), 투자자 선이 보이게 반투명. 전일 종가는 점선.
+      const base = indexBaseline ?? indexSeries[0].value;
+      const spanMin = ((indexSeries[indexSeries.length - 1].t as number) - (indexSeries[0].t as number)) / 60;
+      const B = (spanMin <= 60 ? 1 : spanMin <= 180 ? 5 : 10) * 60;
+      const bars: { time: Time; open: number; high: number; low: number; close: number }[] = [];
+      let curK = NaN;
+      for (const p of indexSeries) {
+        const k = Math.floor((p.t as number) / B);
+        const last = bars[bars.length - 1];
+        if (k !== curK || !last) { bars.push({ time: p.t as Time, open: p.value, high: p.value, low: p.value, close: p.value }); curK = k; }
+        else { last.high = Math.max(last.high, p.value); last.low = Math.min(last.low, p.value); last.close = p.value; }
+      }
+      // 첫 봉 시작은 전일 종가가 아니라 첫 자료 — 갭은 몸통 밖(점선과의 거리)으로 보인다
+      const idx = chart.addSeries(CandlestickSeries, {
+        priceScaleId: "left",
+        priceFormat: { type: "price", precision: 0, minMove: 1 },
+        upColor: "rgba(220,38,38,0.35)", downColor: "rgba(37,99,235,0.35)",
+        borderUpColor: "rgba(220,38,38,0.6)", borderDownColor: "rgba(37,99,235,0.6)",
+        wickUpColor: "rgba(220,38,38,0.5)", wickDownColor: "rgba(37,99,235,0.5)",
+        priceLineVisible: false, lastValueVisible: false,
+      });
+      idx.setData(bars);
+      idx.createPriceLine({ price: base, color: "rgba(100,116,139,0.6)", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: false, title: "" });
+    } else if (indexSeries && indexSeries.length > 1) {
       const base = indexBaseline ?? indexSeries[0].value;
       const idx = chart.addSeries(BaselineSeries, {
         priceScaleId: "left",
@@ -388,7 +416,7 @@ export function IntradayInvestorChart({
         <span className="font-bold text-green-600 text-xs">{marketLabel}</span>
         {summaryHint && <span className="text-[10px] text-gray-400">{summaryHint}</span>}
         {indexLabel && indexSeries && indexSeries.length > 1 && (
-          <span className="text-[10px] text-green-700/70">▨ {indexLabel}</span>
+          <span className="text-[10px] text-green-700/70">{timeVisible ? "🕯" : "▨"} {indexLabel}</span>
         )}
         {(() => {
           // 금액 내림차순 → 순매수(+) 위, 순매도(−) 아래. 그 경계에서 줄바꿈으로 분리.
