@@ -11,6 +11,7 @@ import {
   LineStyle,
   type IChartApi,
   type ISeriesApi,
+  type IPriceLine,
   type Time,
   type UTCTimestamp,
   type MouseEventParams,
@@ -141,12 +142,18 @@ export function IntradayInvestorChart({
       crosshair: {
         mode: 1,
         vertLine: { color: "#9ca3af", width: 1, style: LineStyle.Dotted, labelBackgroundColor: "#475569" },
-        horzLine: { color: "#9ca3af", width: 1, style: LineStyle.Dotted, labelVisible: false },
+        horzLine: { color: "#9ca3af", width: 1, style: LineStyle.Dotted, labelVisible: false, visible: !hasIndex },   // 지수가 있으면 지수 값 점선으로 대신
       },
+      // 당일 — 마우스 시각 칸을 '11:19' 만(날짜 자리에 2000-01-01 이 찍혀 "01 1월 '00 11:19" 로 보였다, 사용자 지적)
+      ...(timeVisible ? { localization: { timeFormatter: (t: Time) => {
+        const d = new Date((t as number) * 1000);
+        return `${String(d.getUTCHours()).padStart(2, "0")}:${String(d.getUTCMinutes()).padStart(2, "0")}`;
+      } } } : {}),
       autoSize: true,
     });
 
     // 배경 지수(코스피/코스닥) — 전일 종가 기준 위=빨강/아래=파랑(한국식). 투자자 라인 뒤에 깔림.
+    let idxApi: ISeriesApi<"Baseline"> | null = null;
     if (indexSeries && indexSeries.length > 1) {
       const base = indexBaseline ?? indexSeries[0].value;
       const idx = chart.addSeries(BaselineSeries, {
@@ -161,6 +168,7 @@ export function IntradayInvestorChart({
         priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
       });
       idx.setData(indexSeries.map(p => ({ time: p.t as Time, value: p.value })));
+      idxApi = idx;
     }
 
     // 0 기준선 — 순매수 부호 판독용. 눈에 띄게 진한 회색.
@@ -229,12 +237,25 @@ export function IntradayInvestorChart({
 
     chart.timeScale().fitContent();
 
-    const hide = () => { if (tooltipRef.current) tooltipRef.current.style.display = "none"; setHoverT(null); };
+    // 마우스 가로 점선 = 그 시각 지수 값 + 왼쪽 축에 지수 숫자(사용자 요청 2026-10-23).
+    //   crosshair 가로선은 마우스 높이를 따라가 의미가 없어 끄고, 지수 시리즈 가격선으로 대신한다.
+    let idxHover: IPriceLine | null = null;
+    const setIdxHover = (t: number | null) => {
+      if (!idxApi || !indexSeries) return;
+      if (idxHover) { idxApi.removePriceLine(idxHover); idxHover = null; }
+      if (t == null) return;
+      let v: number | null = null;   // 그 시각 이하 마지막 지수 값(지수가 5분봉이어도)
+      for (const p of indexSeries) { if ((p.t as number) <= t) v = p.value; else break; }
+      if (v == null) return;
+      idxHover = idxApi.createPriceLine({ price: v, color: "#64748b", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, axisLabelColor: "#475569", axisLabelTextColor: "#ffffff", title: "" });
+    };
+    const hide = () => { if (tooltipRef.current) tooltipRef.current.style.display = "none"; setHoverT(null); setIdxHover(null); };
     const idxByT = new Map<number, number>();
     if (indexSeries) for (const p of indexSeries) idxByT.set(p.t as number, p.value);
     // 툴팁 렌더+위치 (onMove·동기화 hover 공용)
     const showAt = (time: Time, xPixel: number) => {
       setHoverT(time as number);
+      setIdxHover(time as number);
       const tip = tooltipRef.current, cont = containerRef.current;
       if (!tip || !cont) return;
       const pt = byT.get(time as number);
