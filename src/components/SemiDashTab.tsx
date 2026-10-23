@@ -766,12 +766,12 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
         const item = (k: "individuals" | "foreigners", label: string, color: string) => {
           const [b, sl] = g[k] ?? [0, 0];
           const n = p9[k];
-          // 산 금액(빨강) · 판 금액(파랑) · 순(오른쪽 끝) — 막대 줄 머리와 같은 모양(사용자 요청)
+          // 개인 순(크게) (+산 금액 −판 금액) — 사용자 요청 2026-10-23
           return (
             <div key={k} className="flex items-baseline gap-1.5 min-w-0" title={`프리장 ${label} 매수 ${joEok(b)} · 매도 ${joEok(sl)}`}>
               <span className="shrink-0 w-8" style={{ color }}>{label}</span>
-              <span className="truncate"><b className="text-rose-600">{joEok(b)}</b> · <b className="text-blue-600">{joEok(sl)}</b></span>
-              <b className={`ml-auto shrink-0 text-[12.5px] ${up(n)}`}>{n > 0 ? "+" : n < 0 ? "−" : ""}{joEok(n)}</b>
+              <b className={`shrink-0 text-[12.5px] ${up(n)}`}>{n > 0 ? "+" : n < 0 ? "−" : ""}{joEok(n)}</b>
+              <span className="truncate">(<b className="text-rose-600">+{joEok(b)}</b> <b className="text-blue-600">−{joEok(sl)}</b>)</span>
             </div>
           );
         };
