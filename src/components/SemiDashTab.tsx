@@ -148,8 +148,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return n;
   });
   const flowLines: FlowLine[] = INTRADAY_SERIES.filter(x => flowKeys.includes(x.key)).map(x => ({ k: x.key, label: x.label, color: x.color }));
-  const [bgMode, setBgModeState] = useState<BgMode>(loadBgMode);
-  const setBgMode = (m: BgMode) => { setBgModeState(m); try { localStorage.setItem(BG_MODE_KEY, m); } catch { /* noop */ } };   // 수급 세 칸 공통 마우스 시각(분)
+  const [flowMode, setFlowModeState] = useState<FlowMode>(loadFlowMode);
+  const setFlowMode = (m: FlowMode) => { setFlowModeState(m); try { localStorage.setItem(FLOW_MODE_KEY, m); } catch { /* noop */ } };   // 수급 세 칸 공통 마우스 시각(분)
   // 수급 그래프 배경 가격 — 지수는 야후 오늘 5분봉, 선물은 한경 1분봉(오늘 구간)
   // 배경 지수 — 다음 금융 1분(실시간). 야후는 한국 지수가 20분 늦어 장 초반 배경이 몇 점뿐이었다
   const [{ data: ksToday }, { data: kqToday }] = useQueries({
@@ -377,10 +377,10 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
             <span style={{ color: flowKeys.includes(x.key) ? x.color : "#9ca3af" }} className="font-medium">{x.label}</span>
           </label>
         ))}
-        <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-gray-500">배경
+        <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-gray-500">수급 표시
           <span className="inline-flex rounded border border-gray-300 overflow-hidden">
-            {([["candle", "캔들(10분)"], ["area", "면(1분)"]] as const).map(([k, l]) => (
-              <button key={k} onClick={() => setBgMode(k)} className={`px-1.5 ${bgMode === k ? "bg-gray-700 text-white" : "hover:bg-gray-100"}`}>{l}</button>
+            {([["line", "선"], ["candle", "캔들(10분)"]] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setFlowMode(k)} className={`px-1.5 ${flowMode === k ? "bg-gray-700 text-white" : "hover:bg-gray-100"}`}>{l}</button>
             ))}
           </span>
         </span>
@@ -388,10 +388,10 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[400px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
-        <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bgMode={bgMode} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
-        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bgMode={bgMode}
+        <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} flowMode={flowMode} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
+        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} flowMode={flowMode}
                  bg={futToday} bgLabel="코스피200 선물" bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
-        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bgMode={bgMode} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
+        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} flowMode={flowMode} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
         <StockFlowTable rows={stocks.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: sq(s.code)?.price }))}
                         fLast={fLast}
@@ -556,11 +556,11 @@ function loadFlowKeys(): IntradayKey[] {
   } catch { /* 기본값 */ }
   return ["individuals", "foreigners"];
 }
-// 배경 가격 모양 — 캔들(10분, 위아래 꼬리까지) | 면(1분 선). 기억
-type BgMode = "candle" | "area";
-const BG_MODE_KEY = "semi_flow_bg";
-const loadBgMode = (): BgMode => { try { return localStorage.getItem(BG_MODE_KEY) === "area" ? "area" : "candle"; } catch { return "candle"; } };
-function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis, lines, bgMode = "candle" }: {
+// 수급 표시 — 선(누적 순매수) | 캔들(누적 순매수를 10분씩 묶은 봉: 시작·끝·최고·최저). 기억(사용자 요청 2026-10-23)
+type FlowMode = "line" | "candle";
+const FLOW_MODE_KEY = "semi_flow_mode";
+const loadFlowMode = (): FlowMode => { try { return localStorage.getItem(FLOW_MODE_KEY) === "candle" ? "candle" : "line"; } catch { return "line"; } };
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis, lines, flowMode = "line" }: {
   title: string; note: string; flow?: IntradayFlow; unit: string;
   tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
   bg?: { t: string; v: number }[];   // 배경 가격(지수·선물) — 증시 탭처럼 연한 면으로, 축은 따로(사용자 요청)
@@ -573,7 +573,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   hoverM?: number | null;            // 마우스가 가리키는 시각(분) — 세 칸이 같이 따라간다(사용자 요청)
   onHover?: (m: number | null) => void;
   lines: FlowLine[];                 // 그릴 투자자(위 선택 줄)
-  bgMode?: BgMode;
+  flowMode?: FlowMode;
 }) {
   const uid = useId().replace(/:/g, "");
   const LINES = lines;
@@ -643,33 +643,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
         {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (
           <div className="relative w-full h-full" title={bgLabel ? `배경 = ${bgLabel} 가격 · 노란 음영 = 마감 동시호가` : undefined}>
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full" onMouseMove={onMove} onMouseLeave={onHover ? () => onHover(null) : undefined}>
-            {bgp.length > 1 && bgMode === "candle" && (() => {
-              // 10분 캔들 — 1분 가격을 10분씩 묶어(시가 = 첫 값, 종가 = 마지막, 고·저 = 그 사이) 위아래 흔들림까지(사용자 요청 2026-10-23).
-              //   아래 매수·매도 막대도 10분이라 가로 위치가 맞는다. 색 = 봉 자체(양봉 빨강·음봉 파랑), 연하게
-              const B = 10, groups = new Map<number, number[]>();
-              for (const b of bgp) { const k = Math.floor(tmin(b.t) / B) * B; (groups.get(k) ?? groups.set(k, []).get(k)!).push(b.v); }
-              const slotW = ((W - PX * 2) * B) / span;
-              const cw = Math.max(1.5, slotW * 0.62);
-              const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
-              return (
-                <g opacity={0.55}>
-                  {hasBgBase && <line x1={0} x2={W} y1={by(bgBase!)} y2={by(bgBase!)} stroke="#64748b" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />}
-                  {[...groups].map(([k, vs]) => {
-                    const o = vs[0], c = vs[vs.length - 1], hi = Math.max(...vs), lo = Math.min(...vs);
-                    const cx = x(hm(Math.max(T0, k))) + (k >= T0 ? slotW / 2 : 0);
-                    const col = c >= o ? "#f43f5e" : "#3b82f6";
-                    const top = by(Math.max(o, c)), bot = by(Math.min(o, c));
-                    return (
-                      <g key={k}>
-                        <line x1={cx} x2={cx} y1={by(hi)} y2={by(lo)} stroke={col} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-                        <rect x={cx - cw / 2} width={cw} y={top} height={Math.max(0.8, bot - top)} fill={col} />
-                      </g>
-                    );
-                  })}
-                </g>
-              );
-            })()}
-            {bgp.length > 1 && bgMode === "area" && (hasBgBase ? (() => {
+            {bgp.length > 1 && (hasBgBase ? (() => {
               // 기준선(전일 종가) 위 = 빨강·아래 = 파랑으로 나눠 칠한다 — 마지막 값 하나로 전체를 한 색으로 칠하니
               //   막 전일 종가를 넘긴 순간 화면 전체가 빨개졌다(사용자 지적 2026-10-22). 카드 그래프와 같은 규칙.
               const baseY = by(bgBase!);
@@ -699,10 +673,38 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
             {/* 마감 동시호가 구간 음영 */}
             <rect x={x(aucFrom)} width={Math.max(0, x(axisEnd) - x(aucFrom))} y={0} height={H} fill="#fde68a" fillOpacity={0.35} />
             {["10:00", "12:00", "14:00"].map(t => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H} stroke="#eef2f7" vectorEffect="non-scaling-stroke" />)}
-            {LINES.map(l => (
+            {flowMode === "line" ? LINES.map(l => (
               <path key={l.k} d={pts.map((p, i) => `${i ? "L" : "M"} ${x(p.time).toFixed(1)} ${y(val(p, l.k)).toFixed(1)}`).join(" ")}
                     fill="none" stroke={l.color} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
-            ))}
+            )) : (() => {
+              // 수급 캔들 — 누적 순매수를 10분씩 묶어 봉으로(시작 = 그 10분 첫 값, 끝 = 마지막, 위·아래 꼬리 = 최고·최저).
+              //   몸통이 빨강 = 그 10분에 순매수가 늘었다(사들임), 파랑 = 줄었다(팔아치움). 테두리 = 투자자 색.
+              //   여러 투자자면 한 칸(10분)을 나눠 나란히 — 겹치지 않게
+              const B = 10, n = Math.max(1, LINES.length);
+              const slotW = ((W - PX * 2) * B) / span;
+              const cw = Math.max(1.2, (slotW * 0.8) / n);
+              const groups = new Map<number, typeof pts>();
+              for (const p of pts) { const k = Math.floor(tmin(p.time) / B) * B; (groups.get(k) ?? groups.set(k, []).get(k)!).push(p); }
+              const xm = (m: number) => PX + Math.min(1, Math.max(0, (m - T0) / span)) * (W - PX * 2);
+              return LINES.map((l, li) => (
+                <g key={l.k}>
+                  {[...groups].map(([k, gp]) => {
+                    const vs = gp.map(p => val(p, l.k));
+                    const o = vs[0], c = vs[vs.length - 1], hi = Math.max(...vs), lo = Math.min(...vs);
+                    const cx = xm(Math.max(T0, k)) + slotW * 0.1 + cw * (li + 0.5);
+                    const col = c >= o ? "#f43f5e" : "#3b82f6";
+                    const top = y(Math.max(o, c)), bot = y(Math.min(o, c));
+                    return (
+                      <g key={k}>
+                        <line x1={cx} x2={cx} y1={y(hi)} y2={y(lo)} stroke={l.color} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                        <rect x={cx - cw / 2} width={cw} y={top} height={Math.max(0.8, bot - top)} fill={col} fillOpacity={0.85}
+                              stroke={l.color} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                      </g>
+                    );
+                  })}
+                </g>
+              ));
+            })()}
             {hoverX != null && <line x1={hoverX} x2={hoverX} y1={0} y2={H} stroke="#475569" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
           </svg>
           </div>
