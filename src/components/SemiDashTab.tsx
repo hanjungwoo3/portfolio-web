@@ -6,6 +6,7 @@
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
 import { useId, useState } from "react";
+import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
@@ -438,10 +439,11 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   );
 }
 
-function Card({ title, price, pct, sub, chart, unit, dim }: {
+function Card({ title, price, pct, sub, chart, unit, dim: dimIn }: {
   title: string; price?: number; pct?: number; sub?: string; chart?: React.ReactNode; unit?: string;
   dim?: boolean;   // 거래 시간이 아니면 흐리게(지수 탭 카드와 같은 '쉬는 중' 표시, 사용자 요청)
 }) {
+  const dim = dimIn && getDimSleepingEnabled();   // 설정 "장 마감 시 종목 흐리게" 를 따른다(사용자 지적 2026-10-23)
   return (
     <div className={`pg-card relative rounded-lg border border-gray-200 overflow-hidden ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
          title={dim ? "지금은 거래 시간이 아닙니다" : undefined}>
@@ -580,7 +582,7 @@ function loadFlowKeys(): IntradayKey[] {
   } catch { /* 기본값 */ }
   return ["individuals", "foreigners"];
 }
-function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis, lines }: {
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM = "15:30", hoverM, onHover, dim: dimIn, preFlow, axis, lines }: {
   title: string; note: string; flow?: IntradayFlow; unit: string;
   tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
   bg?: { t: string; v: number }[];   // 배경 가격(지수·선물) — 증시 탭처럼 연한 면으로, 축은 따로(사용자 요청)
@@ -593,6 +595,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
   onHover?: (m: number | null) => void;
   lines: FlowLine[];                 // 그릴 투자자(위 선택 줄)
 }) {
+  const dim = dimIn && getDimSleepingEnabled();   // 설정 "장 마감 시 종목 흐리게" 를 따른다(사용자 지적 2026-10-23)
   const uid = useId().replace(/:/g, "");
   const LINES = lines;
   const pts = flow?.points ?? [];
@@ -784,7 +787,8 @@ const OPTION_GUIDE: [string, string][] = [
   ["V-KOSPI", "옵션 가격으로 계산한 공포지수. 오르면 하락 보험 수요↑. 20↑ 경계 · 30↑ 공포."],
   ["한계", "근월물·현재가 ±37pt 행사가만 합산(주간 옵션 제외) · 누가 샀는지(외국인·개인)는 모른다."],
 ];
-function OptionBox({ opt, vk, dim }: { opt?: Awaited<ReturnType<typeof fetchKospi200OptionSummary>>; vk?: UsIndex; dim?: boolean }) {
+function OptionBox({ opt, vk, dim: dimIn }: { opt?: Awaited<ReturnType<typeof fetchKospi200OptionSummary>>; vk?: UsIndex; dim?: boolean }) {
+  const dim = dimIn && getDimSleepingEnabled();   // 설정 "장 마감 시 종목 흐리게" 를 따른다(사용자 지적 2026-10-23)
   const [guide, setGuide] = useState(false);
   const pcr = opt && opt.callVol > 0 ? opt.putVol / opt.callVol : undefined;
   const pcrOi = opt && opt.callOi > 0 ? opt.putOi / opt.callOi : undefined;
