@@ -85,3 +85,8 @@ html.night-bg .pg-soft { filter: brightness(0.86); }
    상자 위에 바로 쓴 글자만 밝게(사용자 지적 — 위쪽 그룹과 톤을 맞추라) */
 html.night-bg .pg-render :is(.text-gray-400, .text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-blue-800, .text-emerald-800):not(.pg-card *, button, button *) { color: #d1d5db !important; }
 html.night-bg .pg-render :is(.border-gray-200):not(.pg-card *) { border-color: #4b515a !important; }
+/* 가로 스크롤바(폴더 하위 탭 줄 등) — 흰 트랙이 어두운 메뉴에서 튄다 */
+html.night-bg { color-scheme: dark; }
+html.night-bg ::-webkit-scrollbar-track { background: #2b2f35; }
+html.night-bg ::-webkit-scrollbar-thumb { background: #555c67; border-radius: 6px; }
+html.night-bg * { scrollbar-color: #555c67 #2b2f35; }
