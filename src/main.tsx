@@ -3,6 +3,10 @@ import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
 import { isNativeApp } from './lib/nativeProxy'
+import { applyNightBg } from './lib/nightBg'
+
+// 야간 배경 — 첫 그림 전에 적용(깜빡임 방지)
+applyNightBg()
 
 // 앱(네이티브)에서는 서비스워커를 쓰지 않는다.
 //   앱은 배포된 웹을 원격으로 불러온다(capacitor.config server.url). 그런데 그 웹에는 PWA

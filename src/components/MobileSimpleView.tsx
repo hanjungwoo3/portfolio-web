@@ -64,6 +64,7 @@ import { forceUpdate } from "./VersionBadge";
 import { NewVersionToast } from "./NewVersionToast";
 import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast } from "./AppUpdateToast";
 import { appConfirm, appPrompt } from "../lib/appDialog";
+import { getNightBg, setNightBg } from "../lib/nightBg";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
   exportAll, replaceAllHoldings, replaceAllPeaks, loadHoldings, loadMemos, loadAllTrades,
@@ -1102,7 +1103,7 @@ export function MobileSimpleView() {
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
 
   return (
-    <div className="min-h-screen bg-gray-50"
+    <div className="min-h-screen bg-gray-50 pg-bg"
          onTouchStart={handleTouchStart}
          onTouchMove={handleTouchMove}
          onTouchEnd={handleTouchEnd}
@@ -1815,9 +1816,9 @@ export function MobileSimpleView() {
               return (
               <div key={section.label} id={`midx-${section.id}`}
                    style={{ scrollMarginTop: idxScrollMargin }}
-                   className="relative space-y-1.5 rounded-xl border border-gray-300 bg-white p-2 pt-3.5 mt-1.5">
+                   className="relative space-y-1.5 rounded-xl border border-gray-300 bg-white pg-box p-2 pt-3.5 mt-1.5">
                 {/* 섹터명 책갈피 — 카드 상단에 겹치게 */}
-                <span className="absolute -top-2.5 left-2.5 z-10 px-1.5 py-0.5 rounded-md border border-gray-300 bg-gray-50
+                <span className="pg-title absolute -top-2.5 left-2.5 z-10 px-1.5 py-0.5 rounded-md border border-gray-300 bg-gray-50
                                  text-[11px] font-bold text-gray-700 whitespace-nowrap">
                   {section.label}
                   {section.link && isTabVisible(section.link.vis) && (
@@ -3050,6 +3051,26 @@ function SettingsModal({
                 <span className="text-[10px] text-gray-500">
                   마지막 체결로부터 시간이 지난 종목이나 정규장 외 시간에
                   카드를 60% 투명도로 표시합니다. 끄면 항상 또렷하게 보입니다.
+                </span>
+              </span>
+            </label>
+
+            {/* 야간 배경 — 카드 바깥만 어둡게(카드는 흐림 기능 그대로) */}
+            <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
+              <input type="checkbox" defaultChecked={getNightBg()}
+                     onChange={e => {
+                       setNightBg(e.target.checked);
+                       setSavedMsg(`✅ 야간 배경: ${e.target.checked ? "ON" : "OFF"}`);
+                       setTimeout(() => setSavedMsg(""), 2000);
+                     }}
+                     className="mt-0.5 w-4 h-4 accent-blue-600 shrink-0" />
+              <span className="flex-1">
+                <span className="text-[11px] text-gray-700 font-medium block">
+                  🌙 야간 배경 (카드 바깥만 어둡게)
+                </span>
+                <span className="text-[10px] text-gray-500">
+                  페이지 바탕과 그룹 상자만 어둡게 합니다. 카드는 그대로 — 장 마감으로 흐려진 카드는
+                  어두운 바탕에 가라앉고 열린 시장 카드만 밝게 보입니다.
                 </span>
               </span>
             </label>

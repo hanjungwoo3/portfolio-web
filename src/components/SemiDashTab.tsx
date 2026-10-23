@@ -245,7 +245,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   }
 
   return (
-    <div className="flex flex-col gap-1.5 p-2 lg:min-h-[calc(100vh-150px)] text-[12px] bg-gray-50">
+    <div className="flex flex-col gap-1.5 p-2 lg:min-h-[calc(100vh-150px)] text-[12px] bg-gray-50 pg-bg">
       {/* ① 시세 */}
       <div className={`grid grid-cols-2 ${stocks.length === 1 ? "lg:grid-cols-6" : "lg:grid-cols-7"} gap-1.5 auto-rows-[118px] shrink-0`}>
         {stocks.map(s => {

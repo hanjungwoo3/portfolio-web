@@ -27,3 +27,9 @@ body {
   display: none;
 }
 
+
+/* 야간 배경(설정 → 야간 배경) — 카드 바깥만 어둡게. 카드·표·팝업은 그대로(src/lib/nightBg.ts) */
+html.night-bg body,
+html.night-bg .pg-bg { background-color: #0b1220 !important; }
+html.night-bg .pg-box { background-color: #111827 !important; border-color: #334155 !important; }
+html.night-bg .pg-title { background-color: #1f2937 !important; border-color: #475569 !important; color: #e5e7eb !important; }

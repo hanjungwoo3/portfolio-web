@@ -20,6 +20,7 @@ import { resetProxyStats } from "../lib/proxyStatus";
 import { useExtensionProxyVersion, EXPECTED_EXTENSION_VERSION, compareVersion, EXTENSION_DOWNLOAD_URL } from "../lib/extensionProxy";
 import { isDesktopApp } from "../lib/nativeProxy";
 import { appConfirm } from "../lib/appDialog";
+import { getNightBg, setNightBg } from "../lib/nightBg";
 
 // 맥·윈도우·안드로이드 앱 모음 — 고정 릴리스(파일 이름 고정, .github/workflows/desktop.yml)
 const APPS_RELEASE = "https://github.com/hanjungwoo3/portfolio-web/releases/download/apps";
@@ -901,6 +902,25 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 <span className="text-[10px] text-gray-500">
                   마지막 체결로부터 시간이 지난 종목이나 정규장 외 시간에
                   카드를 60% 투명도로 표시합니다. 끄면 항상 또렷하게 보입니다.
+                </span>
+              </span>
+            </label>
+
+            {/* 야간 배경 — 카드 바깥만 어둡게(카드는 흐림 기능 그대로) */}
+            <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
+              <input type="checkbox" defaultChecked={getNightBg()}
+                     onChange={e => {
+                       setNightBg(e.target.checked);
+                       setStatusMsg(`✅ 야간 배경: ${e.target.checked ? "ON" : "OFF"}`);
+                     }}
+                     className="mt-0.5 w-4 h-4 accent-blue-600 shrink-0" />
+              <span className="flex-1">
+                <span className="text-[11px] text-gray-700 font-medium block">
+                  🌙 야간 배경 (카드 바깥만 어둡게)
+                </span>
+                <span className="text-[10px] text-gray-500">
+                  페이지 바탕과 그룹 상자만 어둡게 합니다. 카드는 그대로 — 장 마감으로 흐려진 카드는
+                  어두운 바탕에 가라앉고 열린 시장 카드만 밝게 보입니다.
                 </span>
               </span>
             </label>
