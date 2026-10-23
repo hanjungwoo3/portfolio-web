@@ -172,7 +172,7 @@ function Dashboard() {
   // 하단 지수 티커바 펼침 여부 — 합계 sticky 행을 그 높이만큼 위로 올리는 데 사용
   const tickerBarOpen = useTickerBarOpen();
   // 하단 합계 바 접기 — 합계·손익 카드·오늘 매도·샀더라면을 **한 번에**. 바가 카드들을 가린다.
-  //   접으면 바가 **왼쪽으로 밀려 들어가고** 가장자리에 '합계 ▶' 손잡이만 남는다.
+  //   접으면 바가 **아래로 내려가 숨고** 화면 아래 가장자리에 '합계 ▲' 책갈피만 남는다.
   //   모바일과 따로 기억한다(기기별로 원하는 게 다르다).
   const [totalsHidden, setTotalsHiddenState] = useState<boolean>(() => {
     try { return localStorage.getItem("pc_totals_hidden") === "1"; } catch { return false; }
@@ -1223,35 +1223,20 @@ function Dashboard() {
             {/* 점진 렌더 sentinel — 여기가 보이면 다음 20개를 그린다 */}
             {incHasMore && <div ref={incSentinelRef} className="h-1" />}
             {/* 하단 티커바 위에 붙도록 bottom 오프셋 — 티커바 접으면 0 */}
-            {/* 합계 바 — 접으면 **왼쪽으로 밀려 들어간다**(슬라이드). 바 오른쪽 끝에 붙은
-                '합계 ▶' 손잡이가 같이 딸려 와 화면 왼쪽 가장자리에 걸린다.
-                overflow-x-clip — 펼친 상태에선 손잡이가 화면 오른쪽 밖에 있다. hidden 을 쓰면
-                세로도 잘려 위로 삐져나온 ✕·'내꺼먼저' 배지가 사라진다. clip 은 가로만 자른다. */}
+            {/* 합계 바 — 접으면 **아래로 내려가 숨는다**(서랍). 바 위쪽 왼쪽에 붙은 '합계' 책갈피가 같이 내려와
+                화면 아래 가장자리에 걸린다 — 책갈피 하나로 접고 편다(사용자 요청 2026-10-23, 옛 ◀ / 합계 ▶).
+                clip-path — 내려간 바는 잘라 숨기되 위로 삐져나온 책갈피·'내꺼먼저' 배지는 보이게 위로 40px 여유. */}
             <div style={{ bottom: tickerBarOpen ? TICKER_BAR_H : 0 }}
-                 className="sticky z-40 mt-3 w-full overflow-x-clip pointer-events-none">
-              <div className={`relative w-full flex flex-wrap items-start gap-2
+                 className="sticky z-40 mt-3 w-full [clip-path:inset(-40px_0_0_0)] pointer-events-none">
+              <div className={`relative w-full flex flex-wrap items-start gap-2 pointer-events-auto
                                transition-transform duration-300 ease-out
-                               ${totalsHidden ? "-translate-x-full" : "translate-x-0 pointer-events-auto"}`}>
-                {/* 한 번에 다 접기 — 왼쪽 위(오른쪽 위엔 '내꺼먼저' 배지와 샀더라면이 있다).
-                    ◀ — 바가 왼쪽으로 밀려 들어가는 방향 그대로. 펼치는 손잡이 '합계 ▶' 와 짝이다. */}
-                <button type="button" onClick={() => setTotalsHidden(true)}
-                        title="합계 바 왼쪽으로 접기"
-                        tabIndex={totalsHidden ? -1 : 0}
-                        // left-0 — 바깥 컨테이너가 overflow-x-clip 이라 -left-2 로 빼면 반쯤 잘린다.
-                        className="absolute -top-2 left-0 z-10 w-5 h-5 rounded-full bg-white
-                                   border border-gray-300 shadow text-[10px] leading-none text-gray-500
-                                   hover:text-gray-800">
-                  ◀
-                </button>
-                {/* 손잡이 — 바의 오른쪽 끝 바로 바깥. 접히면 바와 함께 왼쪽으로 와서 가장자리에 걸린다. */}
-                <button type="button" onClick={() => setTotalsHidden(false)}
-                        title="합계 다시 보기"
-                        tabIndex={totalsHidden ? 0 : -1}
-                        className={`absolute left-full bottom-1 ml-1 px-2.5 py-1 rounded-r-full
-                                    bg-white/95 border border-l-0 border-gray-300 shadow
-                                    text-xs font-bold text-gray-700 whitespace-nowrap hover:bg-gray-50
-                                    ${totalsHidden ? "pointer-events-auto" : "pointer-events-none"}`}>
-                  합계 ▶
+                               ${totalsHidden ? "translate-y-full" : "translate-y-0"}`}>
+                <button type="button" onClick={() => setTotalsHidden(!totalsHidden)}
+                        title={totalsHidden ? "합계 다시 보기" : "합계 바 아래로 접기"}
+                        className={`absolute bottom-full left-3 px-2.5 py-0.5 rounded-t-md text-[11px] font-bold
+                                    border border-b-0 shadow-sm whitespace-nowrap
+                                    ${totalsHidden ? "bg-indigo-50 text-indigo-700 border-indigo-300" : "bg-gray-100 text-gray-500 border-gray-300 hover:bg-gray-200"}`}>
+                  합계 {totalsHidden ? "▲" : "▼"}
                 </button>
                 <TotalRow holdings={visible} prices={priceMap}
                           account={activeTab}
