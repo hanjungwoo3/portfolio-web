@@ -13,6 +13,7 @@ import {
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
 } from "../lib/api";
 import type { Investor } from "../types";
+import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
 import { allYahooSymbols } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { openStockInfo } from "../lib/tickPopup";
@@ -139,7 +140,16 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       enabled: night, refetchInterval: night ? REFRESH_MS : (false as const), staleTime: 60_000,
     })),
   });
-  const [flowHover, setFlowHover] = useState<number | null>(null);   // 수급 세 칸 공통 마우스 시각(분)
+  const [flowHover, setFlowHover] = useState<number | null>(null);
+  const [flowKeys, setFlowKeysState] = useState<IntradayKey[]>(loadFlowKeys);
+  const toggleFlowKey = (k: IntradayKey) => setFlowKeysState(v => {
+    const n = v.includes(k) ? v.filter(x => x !== k) : [...v, k];
+    try { localStorage.setItem(FLOW_KEYS_KEY, JSON.stringify(n)); } catch { /* 이번 화면만 */ }
+    return n;
+  });
+  const flowLines: FlowLine[] = INTRADAY_SERIES.filter(x => flowKeys.includes(x.key)).map(x => ({ k: x.key, label: x.label, color: x.color }));
+  const [bgMode, setBgModeState] = useState<BgMode>(loadBgMode);
+  const setBgMode = (m: BgMode) => { setBgModeState(m); try { localStorage.setItem(BG_MODE_KEY, m); } catch { /* noop */ } };   // 수급 세 칸 공통 마우스 시각(분)
   // 수급 그래프 배경 가격 — 지수는 야후 오늘 5분봉, 선물은 한경 1분봉(오늘 구간)
   // 배경 지수 — 다음 금융 1분(실시간). 야후는 한국 지수가 20분 늦어 장 초반 배경이 몇 점뿐이었다
   const [{ data: ksToday }, { data: kqToday }] = useQueries({
@@ -358,13 +368,30 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {signalBox}
       </div>
 
+      {/* 수급 칸 투자자 선택 — 증시 탭과 같은 체크박스(세 칸 공통) + 배경 가격 모양 */}
+      <div className="pg-card rounded-lg border border-gray-200 bg-white px-2 py-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 shrink-0">
+        <span className="font-bold text-gray-700">수급</span>
+        {INTRADAY_SERIES.map(x => (
+          <label key={x.key} className="inline-flex items-center gap-1 cursor-pointer select-none">
+            <input type="checkbox" checked={flowKeys.includes(x.key)} onChange={() => toggleFlowKey(x.key)} className="w-3.5 h-3.5" style={{ accentColor: x.color }} />
+            <span style={{ color: flowKeys.includes(x.key) ? x.color : "#9ca3af" }} className="font-medium">{x.label}</span>
+          </label>
+        ))}
+        <span className="ml-auto inline-flex items-center gap-1 text-[11px] text-gray-500">배경
+          <span className="inline-flex rounded border border-gray-300 overflow-hidden">
+            {([["candle", "캔들(10분)"], ["area", "면(1분)"]] as const).map(([k, l]) => (
+              <button key={k} onClick={() => setBgMode(k)} className={`px-1.5 ${bgMode === k ? "bg-gray-700 text-white" : "hover:bg-gray-100"}`}>{l}</button>
+            ))}
+          </span>
+        </span>
+      </div>
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[400px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
-        <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
-        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && openFlow)} hoverM={flowHover} onHover={setFlowHover}
+        <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bgMode={bgMode} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스피" bgBase={q("^KS11")?.prevClose} />
+        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bgMode={bgMode}
                  bg={futToday} bgLabel="코스피200 선물" bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
-        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openFlow)} hoverM={flowHover} onHover={setFlowHover} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
+        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bgMode={bgMode} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgLabel="코스닥" bgBase={q("^KQ11")?.prevClose} />
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
         <StockFlowTable rows={stocks.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: sq(s.code)?.price }))}
                         fLast={fLast}
@@ -519,11 +546,21 @@ function Stat({ label, v }: { label: string; v?: number }) {
 
 // 시장 투자자 시간별 누적 — 외국인·개인 두 줄만(사용자 결정 2026-10-21).
 //   기관은 금융투자(ETF·차익 헤지)가 섞여 방향이 흐려지고, 대신 넣어 본 연기금은 금액이 작아 0선에 붙어 있었다.
-const LINES = [
-  { k: "foreigners", label: "외국인", color: "#ea580c" },
-  { k: "individuals", label: "개인", color: "#7c3aed" },
-] as const;
-function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis }: {
+// 투자자 선택 — 증시 탭과 같은 목록·색(INTRADAY_SERIES). 기본 개인·외국인, 세 칸 공통·기억(사용자 요청 2026-10-23)
+type FlowLine = { k: IntradayKey; label: string; color: string };
+const FLOW_KEYS_KEY = "semi_flow_keys";
+function loadFlowKeys(): IntradayKey[] {
+  try {
+    const v = JSON.parse(localStorage.getItem(FLOW_KEYS_KEY) ?? "null") as IntradayKey[] | null;
+    if (Array.isArray(v) && v.length) return v.filter(k => INTRADAY_SERIES.some(x => x.key === k));
+  } catch { /* 기본값 */ }
+  return ["individuals", "foreigners"];
+}
+// 배경 가격 모양 — 캔들(10분, 위아래 꼬리까지) | 면(1분 선). 기억
+type BgMode = "candle" | "area";
+const BG_MODE_KEY = "semi_flow_bg";
+const loadBgMode = (): BgMode => { try { return localStorage.getItem(BG_MODE_KEY) === "area" ? "area" : "candle"; } catch { return "candle"; } };
+function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBase, endHM = "15:30", hoverM, onHover, dim, preFlow, axis, lines, bgMode = "candle" }: {
   title: string; note: string; flow?: IntradayFlow; unit: string;
   tabs?: [string, string][]; tab?: string; onTab?: (k: string) => void;   // 코스피/코스닥 전환(현물 칸)
   bg?: { t: string; v: number }[];   // 배경 가격(지수·선물) — 증시 탭처럼 연한 면으로, 축은 따로(사용자 요청)
@@ -535,11 +572,13 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
   axis?: { start: string; end: string };   // 세 칸 공통 시간 축(시작 = 가장 이른 첫 자료, 끝 = 가장 늦은 마지막 자료)
   hoverM?: number | null;            // 마우스가 가리키는 시각(분) — 세 칸이 같이 따라간다(사용자 요청)
   onHover?: (m: number | null) => void;
+  lines: FlowLine[];                 // 그릴 투자자(위 선택 줄)
+  bgMode?: BgMode;
 }) {
   const uid = useId().replace(/:/g, "");
+  const LINES = lines;
   const pts = flow?.points ?? [];
-  const val = (p: IntradayFlow["points"][number], k: (typeof LINES)[number]["k"]) =>
-    p[k];
+  const val = (p: IntradayFlow["points"][number], k: IntradayKey) => p[k];
   const W = 400, H = 140, PX = 2, PY = 6;
   const tmin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   const mx = Math.max(1, ...pts.flatMap(p => LINES.map(l => Math.abs(val(p, l.k)))));
@@ -604,7 +643,33 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
         {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (
           <div className="relative w-full h-full" title={bgLabel ? `배경 = ${bgLabel} 가격 · 노란 음영 = 마감 동시호가` : undefined}>
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full" onMouseMove={onMove} onMouseLeave={onHover ? () => onHover(null) : undefined}>
-            {bgp.length > 1 && (hasBgBase ? (() => {
+            {bgp.length > 1 && bgMode === "candle" && (() => {
+              // 10분 캔들 — 1분 가격을 10분씩 묶어(시가 = 첫 값, 종가 = 마지막, 고·저 = 그 사이) 위아래 흔들림까지(사용자 요청 2026-10-23).
+              //   아래 매수·매도 막대도 10분이라 가로 위치가 맞는다. 색 = 봉 자체(양봉 빨강·음봉 파랑), 연하게
+              const B = 10, groups = new Map<number, number[]>();
+              for (const b of bgp) { const k = Math.floor(tmin(b.t) / B) * B; (groups.get(k) ?? groups.set(k, []).get(k)!).push(b.v); }
+              const slotW = ((W - PX * 2) * B) / span;
+              const cw = Math.max(1.5, slotW * 0.62);
+              const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+              return (
+                <g opacity={0.55}>
+                  {hasBgBase && <line x1={0} x2={W} y1={by(bgBase!)} y2={by(bgBase!)} stroke="#64748b" strokeDasharray="2 3" vectorEffect="non-scaling-stroke" />}
+                  {[...groups].map(([k, vs]) => {
+                    const o = vs[0], c = vs[vs.length - 1], hi = Math.max(...vs), lo = Math.min(...vs);
+                    const cx = x(hm(Math.max(T0, k))) + (k >= T0 ? slotW / 2 : 0);
+                    const col = c >= o ? "#f43f5e" : "#3b82f6";
+                    const top = by(Math.max(o, c)), bot = by(Math.min(o, c));
+                    return (
+                      <g key={k}>
+                        <line x1={cx} x2={cx} y1={by(hi)} y2={by(lo)} stroke={col} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                        <rect x={cx - cw / 2} width={cw} y={top} height={Math.max(0.8, bot - top)} fill={col} />
+                      </g>
+                    );
+                  })}
+                </g>
+              );
+            })()}
+            {bgp.length > 1 && bgMode === "area" && (hasBgBase ? (() => {
               // 기준선(전일 종가) 위 = 빨강·아래 = 파랑으로 나눠 칠한다 — 마지막 값 하나로 전체를 한 색으로 칠하니
               //   막 전일 종가를 넘긴 순간 화면 전체가 빨개졌다(사용자 지적 2026-10-22). 카드 그래프와 같은 규칙.
               const baseY = by(bgBase!);
@@ -645,7 +710,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgLabel, bgBas
       </div>
       {/* 외국인·개인 매수·매도 막대(10분) — 그래프 바로 아래, 같은 시간 축(사용자 요청). 축 밖(프리·시간외)은 그리지 않는다 */}
       {flow && pts.length > 1 && (
-        <BuySellBars points={flow.points} keys={["individuals", "foreigners"]} unit={unit === "계약" ? "계약" : "억"} start={startHM} end={axisEnd}
+        <BuySellBars points={flow.points} keys={LINES.map(l => l.k)} unit={unit === "계약" ? "계약" : "억"} start={startHM} end={axisEnd}
           rowH={36} compact
           geom={{
             width: W, hoverT: hoverM ?? null, toT: tmin, hover: onHover,
