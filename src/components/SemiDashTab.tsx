@@ -771,7 +771,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
             <div key={k} className="flex items-baseline gap-1.5 min-w-0" title={`프리장 ${label} 매수 ${joEok(b)} · 매도 ${joEok(sl)}`}>
               <span className="shrink-0 w-8" style={{ color }}>{label}</span>
               <span className="truncate"><b className="text-rose-600">{joEok(b)}</b> · <b className="text-blue-600">{joEok(sl)}</b></span>
-              <b className={`ml-auto shrink-0 ${up(n)}`}>{n > 0 ? "+" : n < 0 ? "−" : ""}{joEok(n)}</b>
+              <b className={`ml-auto shrink-0 text-[12.5px] ${up(n)}`}>{n > 0 ? "+" : n < 0 ? "−" : ""}{joEok(n)}</b>
             </div>
           );
         };
