@@ -110,8 +110,8 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
                 const [bv, sv, nv] = hb ? [hb.b, hb.s, hb.b - hb.s] : [totB, totS, net];
                 const netEl = <b className={`whitespace-nowrap ${compact ? "text-[11.5px]" : "text-[12.5px]"} ${nv > 0 ? "text-rose-600" : nv < 0 ? "text-blue-600" : "text-gray-500"}`}>{signed(nv, unit)}</b>;
                 const bsEl = <span className="text-gray-500 whitespace-nowrap min-w-0 truncate">(<b className="text-rose-600">+{fmtBig(bv, unit)}</b> <b className="text-blue-600">−{fmtBig(sv, unit)}</b>)</span>;
-                // 마우스 땐 이름 바로 옆(왼쪽), 아니면 오른쪽 끝(사용자 요청 2026-10-23)
-                return <span className={`${hb ? "" : "ml-auto "}inline-flex items-baseline gap-1 min-w-0`}>{netEl}{bsEl}</span>;
+                // 마우스 때도 아닐 때도 오른쪽 끝(사용자 요청 2026-10-23)
+                return <span className="ml-auto inline-flex items-baseline gap-1 min-w-0">{netEl}{bsEl}</span>;
               })()}
             </div>
             {!textOnly && <svg viewBox={`0 0 ${PX_W} ${H}`} preserveAspectRatio="none" className="w-full block" style={{ height: rowH }}
