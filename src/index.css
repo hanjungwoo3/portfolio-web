@@ -77,3 +77,5 @@ html.night-bg .pg-bg button:not(.pg-menu *, .pg-card *, table *) { filter: brigh
 html.night-bg .pg-bg :is(.text-gray-300, .text-gray-400):not(.pg-menu *, .pg-card *, .pg-title *) { color: #6b7280 !important; }   /* 회색 면·어두운 바탕 양쪽에서 보이는 중간 톤 */
 /* 연한 색 면(…-50·-100: 안내 줄·배지·강조 칸)은 색을 살리고 밝기만 낮춤 */
 html.night-bg .pg-bg :is(.bg-indigo-50,.bg-blue-50,.bg-rose-50,.bg-red-50,.bg-amber-50,.bg-yellow-50,.bg-emerald-50,.bg-green-50,.bg-violet-50,.bg-purple-50,.bg-sky-50,.bg-orange-50,.bg-pink-50,.bg-teal-50,.bg-cyan-50,.bg-lime-50,.bg-slate-50,.bg-fuchsia-50,.bg-indigo-100,.bg-blue-100,.bg-rose-100,.bg-red-100,.bg-amber-100,.bg-yellow-100,.bg-emerald-100,.bg-green-100,.bg-violet-100,.bg-purple-100,.bg-sky-100,.bg-orange-100,.bg-pink-100,.bg-teal-100,.bg-cyan-100,.bg-lime-100,.bg-slate-100,.bg-fuchsia-100):not(.pg-menu *, .pg-card *, table *, button, .pg-note, .pg-card) { filter: brightness(0.72); }
+/* 마우스를 올리면 뜨는 창(Tooltip — body 에 따로 그려져 위 규칙이 안 닿는다) — 카드처럼 밝기만 낮춤 */
+html.night-bg [role="tooltip"] { filter: brightness(0.7); }
