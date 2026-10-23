@@ -91,7 +91,7 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
   };
 
   return (
-    <div className={`relative w-fit ${onTogglePnl && !pnlOpen ? "mr-[22px]" : ""} bg-white border border-gray-300
+    <div className={`relative w-fit ${onTogglePnl ? "mr-[22px]" : ""} bg-white border border-gray-300
                      rounded-lg shadow-md px-5 py-3
                      grid grid-cols-[auto_auto_auto_auto]
                      gap-x-3 gap-y-1 items-baseline
@@ -109,7 +109,7 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
         </button>
       )}
       {/* 오늘/전체 책갈피 — 오른쪽 가장자리. 누르면 옆의 이익·손해 표를 접고 편다(합계는 그대로) */}
-      {onTogglePnl && !pnlOpen && (   /* 표가 떠 있을 땐 숨김 — 접으면 나타나 다시 펼친다(합계 바 ◀ / 합계 ▶ 와 같은 짝) */
+      {onTogglePnl && (
         <button onClick={e => { e.stopPropagation(); onTogglePnl(); }}
                 title={pnlOpen ? "오늘/전체 이익·손해 표 접기" : "오늘/전체 이익·손해 표 펼치기"}
                 className={`absolute top-3 -right-[22px] w-[22px] py-1.5 rounded-r-md text-[10px] font-bold leading-tight
