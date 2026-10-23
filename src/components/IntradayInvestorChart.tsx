@@ -49,7 +49,7 @@ export interface BelowGeom {
   hover: (t: number | null) => void;   // 아래(막대)에서 마우스를 움직이면 위 차트 crosshair·툴팁도 같이(사용자 요청)
 }
 export function IntradayInvestorChart({
-  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel, indexBaseline, onReady, onToggle, refFirstT, refLastT, below,
+  series, summary, enabled, unit, marketLabel, timeVisible, summaryHint, indexSeries, indexLabel, indexBaseline, onReady, onToggle, refFirstT, refLastT, below, noTip,
 }: {
   series: FlowSeriesPoint[];
   summary: Record<IntradayKey, number>;
@@ -67,6 +67,7 @@ export function IntradayInvestorChart({
   refLastT?: UTCTimestamp;                              //   선물은 우측 공백, 코스피·코스닥이 시간축 기준
   // 차트 바로 아래에 붙일 것(매수·매도 막대) — 차트 가로축 좌표·마우스 위치를 받아 같이 움직인다(사용자 요청)
   below?: (g: BelowGeom) => React.ReactNode;
+  noTip?: boolean;   // 마우스 상자(툴팁) 끄기 — 당일 화면은 숫자가 아래 막대 줄에 있어 뺐다(사용자 요청 2026-10-23)
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartApiRef = useRef<IChartApi | null>(null);
@@ -254,7 +255,7 @@ export function IntradayInvestorChart({
               + `</span></div>`;
       }
       tip.innerHTML = html;
-      tip.style.display = "block";
+      tip.style.display = noTip ? "none" : "block";
       const W = cont.clientWidth;
       const tw = tip.offsetWidth || 110;
       let left = xPixel + 12;
@@ -344,7 +345,7 @@ export function IntradayInvestorChart({
       if (vlEl) vlEl.innerHTML = "";
       chart.remove();
     };
-  }, [series, enabled, unit, timeVisible, byT, indexSeries, indexLabel, indexBaseline, timeCols, onReady, refFirstT, refLastT]);
+  }, [series, enabled, unit, timeVisible, byT, indexSeries, indexLabel, indexBaseline, timeCols, onReady, refFirstT, refLastT, noTip]);
 
   // 값표도 헤더와 동일하게 금액 내림차순(+ 위 / − 아래) 정렬.
   const enabledDefs = INTRADAY_SERIES.filter(d => enabled[d.key]).sort((a, b) => summary[b.key] - summary[a.key]);

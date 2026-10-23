@@ -300,7 +300,7 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
   return (
     <Suspense fallback={<div className="h-[260px]" />}>
       <IntradayInvestorChart series={series} summary={summary} enabled={enabled}
-        unit={unit} marketLabel={label + intraTag} timeVisible={mode === "intraday"}
+        unit={unit} marketLabel={label + intraTag} timeVisible={mode === "intraday"} noTip={mode === "intraday"}
         summaryHint={mode === "daily" ? "기간합계" : undefined}
         indexSeries={indexSeries} indexLabel={ysym ? INDEX_LABEL[market] : undefined}
         indexBaseline={indexBaseline} onReady={onReady} onToggle={onToggle}
