@@ -8,7 +8,6 @@ import {
   ColorType,
   LineSeries,
   BaselineSeries,
-  CandlestickSeries,
   LineStyle,
   type IChartApi,
   type ISeriesApi,
@@ -20,6 +19,7 @@ import type { IntradayKey } from "../lib/intradayInvestor";
 import { INTRADAY_SERIES } from "../lib/intradayInvestor";
 import type { SyncRegistrar } from "../lib/useCrosshairSync";
 import { StackedNetSeries, type StackBarData } from "../lib/stackedNetSeries";
+import { WideCandleSeries } from "../lib/wideCandleSeries";
 
 export interface FlowSeriesPoint {
   t: UTCTimestamp;
@@ -164,13 +164,10 @@ export function IntradayInvestorChart({
         if (k !== curK || !last) { bars.push({ time: p.t as Time, open: p.value, high: p.value, low: p.value, close: p.value }); curK = k; }
         else { last.high = Math.max(last.high, p.value); last.low = Math.min(last.low, p.value); last.close = p.value; }
       }
-      // 첫 봉 시작은 전일 종가가 아니라 첫 자료 — 갭은 몸통 밖(점선과의 거리)으로 보인다
-      const idx = chart.addSeries(CandlestickSeries, {
+      // 넓은 캔들(커스텀) — 표준 캔들은 1분 칸 폭이라 10분 봉이 가늘었다(사용자 지적)
+      const idx = chart.addCustomSeries(new WideCandleSeries(), {
         priceScaleId: "left",
         priceFormat: { type: "price", precision: 0, minMove: 1 },
-        upColor: "rgba(220,38,38,0.35)", downColor: "rgba(37,99,235,0.35)",
-        borderUpColor: "rgba(220,38,38,0.6)", borderDownColor: "rgba(37,99,235,0.6)",
-        wickUpColor: "rgba(220,38,38,0.5)", wickDownColor: "rgba(37,99,235,0.5)",
         priceLineVisible: false, lastValueVisible: false,
       });
       idx.setData(bars);
