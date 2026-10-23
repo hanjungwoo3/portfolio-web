@@ -1611,7 +1611,7 @@ function PieSlot({ items, otherRatio, cashRatio, onHoverIdx }:
 
   return (
     <div className="flex items-center justify-center min-h-[160px]">
-      <svg viewBox="0 0 220 150" className="w-full h-auto max-h-[160px]"
+      <svg viewBox="0 0 220 150" className="pg-card w-full h-auto max-h-[160px]"
            role="img" aria-label="ETF 구성 비중 분포">
         <defs>
           {/* 슬라이스별 radial gradient — 중심 밝게, 가장자리 어둡게 (3D 돔) */}
