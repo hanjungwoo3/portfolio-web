@@ -137,7 +137,8 @@ export function IntradayInvestorChart({
       leftPriceScale: { visible: hasIndex, borderColor: "#e5e7eb", scaleMargins: { top: 0.05, bottom: 0.05 } },   // 배경 지수(코스피/코스닥)만 표시
       timeScale: { borderColor: "#e5e7eb", timeVisible, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
       // 드래그는 이동(팬)만 — 시간축 드래그 줌·끝단 스트레치 방지. 줌은 휠/핀치.
-      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: false },
+      // 손가락 가로 끌기는 화면 이동이 아니라 시각 고르기(아래 터치 처리) — 모바일에서 시간별 값을 볼 수 없었다(사용자 지적 2026-10-23)
+      handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: false, vertTouchDrag: false },
       handleScale: { mouseWheel: true, pinch: true, axisPressedMouseMove: { time: false, price: true } },
       crosshair: {
         mode: 1,
@@ -308,6 +309,19 @@ export function IntradayInvestorChart({
     // 아래 막대에서 고른 시각 — 이 차트에 그리고, 같은 줄 다른 차트(코스피·선물·코스닥)에도 알린다
     hoverFnRef.current = t => { const tm = t == null ? null : (t as Time); onSyncedHover(tm); syncCleanup?.broadcast?.(tm); };
 
+    // 모바일 — 탭/끌기 한 자리의 시각을 고른다(반도체 수급 칸처럼). 라이브러리 기본은 길게 눌러야 crosshair 가 떠서
+    //   '고정'처럼 보였다. 손을 떼도 마지막 시각을 유지한다(다시 탭하면 바뀐다)
+    const touchEl = containerRef.current;
+    const onTouch = (e: TouchEvent) => {
+      const tp = e.touches[0]; if (!tp || !touchEl) return;
+      let lw = 0; try { lw = chart.priceScale("left").width(); } catch { /* noop */ }
+      const px = tp.clientX - touchEl.getBoundingClientRect().left - lw;
+      const t = chart.timeScale().coordinateToTime(px);
+      if (t != null) hoverFnRef.current?.(t as number);
+    };
+    touchEl?.addEventListener("touchstart", onTouch, { passive: true });
+    touchEl?.addEventListener("touchmove", onTouch, { passive: true });
+
     // 12:00 / 15:00 세로선 + 아래 값표 컬럼 위치 — timeScale 좌표 기반 (줌·리사이즈 시 재배치).
     const vlEl = vlinesRef.current;
     let ro: ResizeObserver | null = null;
@@ -359,6 +373,8 @@ export function IntradayInvestorChart({
     return () => {
       chartApiRef.current = null;
       try { chart.unsubscribeCrosshairMove(onMove); } catch { /* noop */ }
+      touchEl?.removeEventListener("touchstart", onTouch);
+      touchEl?.removeEventListener("touchmove", onTouch);
       if (syncCleanup) syncCleanup();
       if (reposition) { try { chart.timeScale().unsubscribeVisibleLogicalRangeChange(reposition); } catch { /* noop */ } }
       if (ro) ro.disconnect();
