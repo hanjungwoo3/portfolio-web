@@ -80,7 +80,6 @@ import { SyncConflictBar } from "./components/SyncConflictBar";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
 import { NightToggle } from "./components/NightToggle";
-import { StockInfoPopupHost } from "./components/StockTickPopup";
 import { useExtensionProxyReady } from "./lib/extensionProxy";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./components/HelpDialog";
 import type { Stock, Memo } from "./types";
@@ -132,6 +131,7 @@ function Dashboard() {
   const [pendingTab, setPendingTab] = useState<string | null>(null);
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [valuationName, setValuationName] = useState<string | null>(null);   // 비보유 종목(ETF비교 등) 이름 폴백
+  const [valuationSec, setValuationSec] = useState<"live" | "summary" | undefined>();   // 종목정보 처음 자리
   const [editing, setEditing] = useState<Stock | null>(null);
   const [editAllStock, setEditAllStock] = useState<{ ticker: string; name: string } | null>(null);
   const [memoTicker, setMemoTicker] = useState<string | null>(null);
@@ -288,6 +288,7 @@ function Dashboard() {
       const d = (e as CustomEvent<ValuationRequest>).detail;
       if (!d?.ticker) return;
       setValuationName(d.name);
+      setValuationSec(d.section);
       setValuationTicker(d.ticker);
     };
     window.addEventListener(OPEN_VALUATION_EVENT, h);
@@ -1357,7 +1358,7 @@ function Dashboard() {
         return (
           <ValuationModal
             isOpen={true}
-            onClose={() => { setValuationTicker(null); setValuationName(null); }}
+            onClose={() => { setValuationTicker(null); setValuationName(null); setValuationSec(undefined); }}
             ticker={valuationTicker}
             name={nm}
             curPrice={priceMap.get(valuationTicker)?.price}
@@ -1365,6 +1366,7 @@ function Dashboard() {
             myAvgPrice={s && s.shares > 0 ? s.avg_price : undefined}
             entryPrice={memos.get(valuationTicker)?.entryPrice}
             onRequestSearch={(q) => { setSearchInitQuery(q); setSearchOpen(true); }}
+            initialSection={valuationSec ?? "summary"}
           />
         );
       })()}
@@ -1412,7 +1414,7 @@ function AppRoot() {
   }, []);
 
   if (!ready) return null;
-  return <>{isMobile ? <MobileSimpleView /> : <Dashboard />}<StockInfoPopupHost /></>;   // ⚡ 종목 체결 팝업(전역 하나)
+  return isMobile ? <MobileSimpleView /> : <Dashboard />;
 }
 
 function App() {

@@ -265,6 +265,7 @@ export function MobileSimpleView() {
   const [memoTicker, setMemoTicker] = useState<string | null>(null);
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [valuationName, setValuationName] = useState<string | null>(null);   // 비보유(ETF비교 등) 이름 폴백
+  const [valuationSec, setValuationSec] = useState<"live" | "summary" | undefined>();   // 종목정보 처음 자리
   const [savedMsg, setSavedMsg] = useState("");
   const [todayPnLOpen, setTodayPnLOpen] = useState(false);
   // 하단 합계 카드 닫기 — 화면 아래를 늘 가려서 마지막 카드들이 안 보였다.
@@ -346,7 +347,7 @@ export function MobileSimpleView() {
   useEffect(() => {
     const h = (e: Event) => {
       const d = (e as CustomEvent<ValuationRequest>).detail;
-      if (d?.ticker) setValuationTicker(d.ticker);
+      if (d?.ticker) { setValuationName(d.name); setValuationSec(d.section); setValuationTicker(d.ticker); }
     };
     window.addEventListener(OPEN_VALUATION_EVENT, h);
     return () => window.removeEventListener(OPEN_VALUATION_EVENT, h);
@@ -2381,7 +2382,8 @@ export function MobileSimpleView() {
         return (
           <ValuationModal
             isOpen={true}
-            onClose={() => { setValuationTicker(null); setValuationName(null); }}
+            onClose={() => { setValuationTicker(null); setValuationName(null); setValuationSec(undefined); }}
+            initialSection={valuationSec ?? "summary"}
             ticker={valuationTicker}
             name={nm}
             curPrice={groupPriceMap.get(valuationTicker)?.price}

@@ -4,10 +4,10 @@
 //   (히트맵 딥링크 heatmapNav, 탭 이동 tabNav 와 같은 방식).
 export const OPEN_VALUATION_EVENT = "open-valuation";
 
-export interface ValuationRequest { ticker: string; name: string }
+export interface ValuationRequest { ticker: string; name: string; section?: "live" | "summary" }
 
-export function requestValuation(ticker: string, name: string): void {
+export function requestValuation(ticker: string, name: string, section?: "live" | "summary"): void {
   window.dispatchEvent(new CustomEvent<ValuationRequest>(OPEN_VALUATION_EVENT, {
-    detail: { ticker, name },
+    detail: { ticker, name, section },
   }));
 }
