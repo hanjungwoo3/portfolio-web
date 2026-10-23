@@ -35,6 +35,16 @@ const upColor = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600
 const up = upColor;
 const sgn = (v: number, d = 2) => `${v > 0 ? "+" : ""}${v.toFixed(d)}`;
 const fmtP = (v: number) => (v >= 1000 ? Math.round(v).toLocaleString() : v >= 100 ? v.toFixed(1) : v.toFixed(2));
+// 축 눈금 — 1·2·5 단위로 n 개쯤
+const niceTicks = (lo: number, hi: number, n: number) => {
+  if (!(hi > lo)) return [];
+  const raw = (hi - lo) / n, p = 10 ** Math.floor(Math.log10(raw)), f = raw / p;
+  const step = (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p;
+  const out: number[] = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(Math.round(v / step) * step);
+  return out;
+};
+const AX_L = 34, AX_R = 38;   // 수급 칸 왼쪽(지수)·오른쪽(순매수) 축 폭(px)
 const eok = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v).toLocaleString()}`;
 // 순매수 금액을 말로 — "순매수 −29억" 을 매수로 읽는 일이 있어(사용자 혼동 2026-10-21) 음수면 '순매도'로 쓴다
 const netWord = (won: number) => `${won >= 0 ? "순매수" : "순매도"} ${Math.abs(Math.round(won / 1e8)).toLocaleString()}억`;
@@ -377,12 +387,14 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         ))}
       </div>
       {/* ③ 현물·선물·옵션 수급 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1fr_1.1fr] gap-1.5 auto-rows-[400px] shrink-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1.1fr] gap-1.5 lg:auto-rows-[400px] shrink-0">
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
         <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgBase={q("^KS11")?.prevClose} />
         <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines}
                  bg={futToday} bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
         <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgBase={q("^KQ11")?.prevClose} />
+        {/* 옵션·종목 수급은 한 칸에 세로로 — 남는 폭을 수급 그래프 세 칸에(사용자 요청 2026-10-23) */}
+        <div className="grid grid-rows-[auto_1fr] gap-1.5 min-h-0">
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
         <StockFlowTable rows={stocks.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: sq(s.code)?.price }))}
                         fLast={fLast}
@@ -390,6 +402,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
                           { name: "코스피", last: kLast, daily: kospiDaily?.points ?? [] },
                           { name: "코스닥", last: kqFlow?.points[kqFlow.points.length - 1], daily: kosdaqDaily?.points ?? [] },
                         ]} />
+        </div>
       </div>
 
       {/* ④ 해외 선물·현물·미국 반도체 */}
@@ -624,9 +637,21 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
         ))}
       </div>
       {/* 그래프 높이 고정 — 세 칸(현물·선물)이 같은 높이·같은 가로 위치 */}
-      <div className="h-[190px] shrink-0">
-        {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (
-          <div className="relative w-full h-full">
+      {/* 축 — 왼쪽 = 배경 지수, 오른쪽 = 순매수, 아래 = 시각(증시 탭과 같게, 사용자 요청 2026-10-23).
+          아래 막대 줄도 같은 좌우 여백(AX_L·AX_R)을 둬 가로 위치가 맞는다 */}
+      <div className="h-[190px] shrink-0 flex flex-col">
+        {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (<>
+          <div className="flex-1 min-h-0 flex">
+          <div className="relative shrink-0 text-[9px] text-gray-400 tabular-nums" style={{ width: AX_L }}>
+            {bgp.length > 1 && niceTicks(bMin, bMax, 5).map(v => (
+              <span key={v} className="absolute right-1 -translate-y-1/2" style={{ top: `${(by(v) / H) * 100}%` }}>{Math.round(v).toLocaleString()}</span>
+            ))}
+            {hovBg && (
+              <span className="absolute right-0 -translate-y-1/2 rounded-sm bg-gray-600 px-0.5 text-[9.5px] leading-tight text-white"
+                    style={{ top: `${(by(hovBg.v) / H) * 100}%` }}>{Math.round(hovBg.v).toLocaleString()}</span>
+            )}
+          </div>
+          <div className="relative flex-1 min-w-0 border-x border-gray-200">
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full" onMouseMove={onMove} onMouseLeave={onHover ? () => onHover(null) : undefined}>
             {bgp.length > 1 && (() => {
               // 배경 지수 면 — 전일 종가 위 = 빨강·아래 = 파랑으로 나눠 칠한다(카드 그래프와 같은 규칙). 캔들은 되돌렸다(사용자 결정 2026-10-23)
@@ -656,31 +681,44 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
             {["10:00", "12:00", "14:00"].map(t => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H} stroke="#eef2f7" vectorEffect="non-scaling-stroke" />)}
             {LINES.map(l => (
               <path key={l.k} d={pts.map((p, i) => `${i ? "L" : "M"} ${x(p.time).toFixed(1)} ${y(val(p, l.k)).toFixed(1)}`).join(" ")}
-                    fill="none" stroke={l.color} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
+                    fill="none" stroke={l.color} strokeWidth={2} vectorEffect="non-scaling-stroke" />
             ))}
             {hoverX != null && <line x1={hoverX} x2={hoverX} y1={0} y2={H} stroke="#475569" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
             {hovBg && <line x1={0} x2={W} y1={by(hovBg.v)} y2={by(hovBg.v)} stroke="#64748b" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
           </svg>
-          {/* 마우스 — 가로 점선 = 그 시각 지수 값, 왼쪽에 지수 숫자 · 아래에 시각(증시 탭과 같게, 사용자 요청 2026-10-23) */}
-          {hovBg && (
-            <div className="absolute left-0 -translate-y-1/2 rounded-sm bg-gray-600 px-1 text-[10px] leading-tight text-white tabular-nums pointer-events-none"
-                 style={{ top: `${(by(hovBg.v) / H) * 100}%` }}>{Math.round(hovBg.v).toLocaleString()}</div>
-          )}
-          {hoverX != null && hoverM != null && (
-            <div className="absolute bottom-0 -translate-x-1/2 rounded-sm bg-gray-600 px-1 text-[10px] leading-tight text-white tabular-nums pointer-events-none"
-                 style={{ left: `${(hoverX / W) * 100}%` }}>{`${String(Math.floor(hoverM / 60)).padStart(2, "0")}:${String(hoverM % 60).padStart(2, "0")}`}</div>
-          )}
+          {/* 마우스 — 투자자 선마다 점(증시 탭 crosshair 점과 같은 크기). svg 가 가로세로로 늘어나 원이 찌그러지지 않게 HTML 로 */}
+          {hovPt && LINES.map(l => (
+            <span key={l.k} className="absolute w-2 h-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white pointer-events-none"
+                  style={{ left: `${(x(hovPt.time) / W) * 100}%`, top: `${(y(val(hovPt, l.k)) / H) * 100}%`, background: l.color }} />
+          ))}
           </div>
-        )}
+          <div className="relative shrink-0 text-[9px] text-gray-400 tabular-nums" style={{ width: AX_R }}>
+            {niceTicks(-mx, mx, 5).map(v => (
+              <span key={v} className="absolute left-1 -translate-y-1/2" style={{ top: `${(y(v) / H) * 100}%` }}>{Math.round(v).toLocaleString()}</span>
+            ))}
+          </div>
+          </div>
+          <div className="relative h-[13px] shrink-0 text-[9px] text-gray-400 tabular-nums" style={{ marginLeft: AX_L, marginRight: AX_R }}>
+            {["09:00", "10:30", "12:00", "13:30", "15:00"].filter(t => tmin(t) >= T0 && tmin(t) <= T1).map(t => (
+              <span key={t} className="absolute -translate-x-1/2" style={{ left: `${(x(t) / W) * 100}%` }}>{t}</span>
+            ))}
+            {hoverX != null && hoverM != null && (
+              <span className="absolute -translate-x-1/2 rounded-sm bg-gray-600 px-1 text-[9.5px] leading-tight text-white"
+                    style={{ left: `${(hoverX / W) * 100}%` }}>{`${String(Math.floor(hoverM / 60)).padStart(2, "0")}:${String(hoverM % 60).padStart(2, "0")}`}</span>
+            )}
+          </div>
+        </>)}
       </div>
       {/* 외국인·개인 매수·매도 막대 — 그래프 바로 아래, 같은 시간 축. 증시 탭과 같은 모양(사용자 요청 2026-10-23) */}
       {flow && pts.length > 1 && (
+        <div style={{ marginLeft: AX_L, marginRight: AX_R }}>
         <BuySellBars points={flow.points} keys={LINES.map(l => l.k)} unit={unit === "계약" ? "계약" : "억"} start={startHM} end={axisEnd}
           rowH={36} compact
           geom={{
             width: W, hoverT: hoverM ?? null, toT: tmin, hover: onHover,
             xOfT: m => (m < T0 || m > T1 ? null : x(`${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`)),
           }} />
+        </div>
       )}
       {/* 프리장(NXT 08:00~09:00) 결과 — 정규장이 열려 본 그래프가 KRX 로 바뀐 뒤에만(그 전엔 본 그래프가 곧 프리장).
           막대 아래(그래프 밖)에 둔다 — 그래프 위에 있으면 그만큼 그래프가 낮아져 선물 칸과 높이가 달랐다(사용자 지적) */}
