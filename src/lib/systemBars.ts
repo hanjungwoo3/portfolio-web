@@ -1,9 +1,9 @@
 // 안드로이드 앱 위아래 시스템 막대(상태 표시줄·내비게이션 막대) — 전체 화면(숨김) 켜기·끄기(사용자 요청 2026-10-25).
 //   Capacitor 8 내장 SystemBars 를 쓴다 — APK 1.2.2 에 이미 들어 있어 웹 배포만으로 동작한다.
 //   웹·데스크톱에서는 아무것도 하지 않는다.
-import { SystemBars, SystemBarsStyle } from "@capacitor/core";
+import { Capacitor, SystemBars, SystemBarsStyle, registerPlugin } from "@capacitor/core";
 import { isNativeApp } from "./nativeProxy";
-import { onNightBgApply } from "./nightBg";
+import { getNightBg, onNightBgApply } from "./nightBg";
 
 const KEY = "app_fullscreen";
 export function getAppFullscreen(): boolean {
@@ -14,12 +14,18 @@ export function setAppFullscreen(on: boolean): void {
   applySystemBars();
 }
 
+// 앱 창 바탕색 플러그인(APK 1.2.3+, SystemUiPlugin.java) — 막대 뒤·카메라 구멍 띠는 웹이 아니라 창 바탕이 보인다
+const SystemUi = registerPlugin<{ setBackground(o: { color: string }): Promise<void> }>("SystemUi");
+const NIGHT_BAR = "#23272c";   // index.css 야간 메뉴(pg-menu)와 같은 색
+
 export function applySystemBars(): void {
   if (!isNativeApp()) return;
-  // 전체 화면 — 위아래 막대를 숨긴다(화면 끝을 쓸면 잠깐 나타났다 다시 숨는다).
-  //   ★ 막대 '색'은 못 바꾼다 — 막대 뒤는 웹 화면이 아니라 앱 창 바탕(흰색)이라, 스타일만 Dark 로 하면
-  //     흰 바탕에 흰 아이콘이 된다. 야간에 막대가 밝은 건 전체 화면으로 푼다(막대 뒤를 웹으로 채우려면 레이아웃 전면 수정 필요).
-  void SystemBars.setStyle({ style: SystemBarsStyle.Light }).catch(() => {});
+  // 야간이면 창 바탕을 어둡게 + 막대 아이콘을 밝게. 바탕을 못 바꾸는 옛 APK(1.2.2)는 아이콘도 그대로(흰 바탕에 흰 아이콘이 되지 않게)
+  const night = getNightBg();
+  const canBg = Capacitor.isPluginAvailable("SystemUi");
+  if (canBg) void SystemUi.setBackground({ color: night ? NIGHT_BAR : "#ffffff" }).catch(() => {});
+  void SystemBars.setStyle({ style: night && canBg ? SystemBarsStyle.Dark : SystemBarsStyle.Light }).catch(() => {});
+  // 전체 화면 — 위아래 막대를 숨긴다(화면 끝을 쓸면 잠깐 나타났다 다시 숨는다)
   void (getAppFullscreen() ? SystemBars.hide() : SystemBars.show()).catch(() => {});
 }
 
