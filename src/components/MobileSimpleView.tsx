@@ -1145,7 +1145,7 @@ export function MobileSimpleView() {
             헤더가 화면보다 넓어져 좌우로 밀렸다(사용자 지적 2026-10-25) */}
         <div className="flex-1 min-w-0 flex items-center gap-1 overflow-hidden whitespace-nowrap [&>*]:min-w-0 [&>*]:truncate">
         <RefreshIndicator dataUpdatedAt={lastAt}
-                          refetchIntervalMs={REFRESH_MS}
+                          refetchIntervalMs={REFRESH_MS} hideTime
                           onRefresh={() => void queryClient.invalidateQueries()} />
         {/* 프록시 상태 — PC 헤더와 같은 배지. 지금까지는 설정을 열어야만 프록시가
             죽었는지 알 수 있었다(데이터가 안 오는데 이유를 화면이 말해주지 않았다). */}

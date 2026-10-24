@@ -5,6 +5,7 @@ interface Props {
   refetchIntervalMs: number;    // 다음 fetch 까지 ms (0 = 수동)
   label?: string;               // 기본 "갱신"
   onRefresh?: () => void;       // 클릭 시 수동 갱신
+  hideTime?: boolean;           // 시각(HH:MM:SS) 빼고 "갱신 (5초)" 만 — 모바일 헤더(사용자 요청 2026-10-25)
 }
 
 function fmt(date: Date): string {
@@ -15,7 +16,7 @@ function fmt(date: Date): string {
   return `${h}:${m}:${s}`;
 }
 
-export function RefreshIndicator({ dataUpdatedAt, refetchIntervalMs, label = "갱신", onRefresh }: Props) {
+export function RefreshIndicator({ dataUpdatedAt, refetchIntervalMs, label = "갱신", onRefresh, hideTime }: Props) {
   const [now, setNow] = useState(Date.now());
   const manual = refetchIntervalMs <= 0;
 
@@ -37,7 +38,7 @@ export function RefreshIndicator({ dataUpdatedAt, refetchIntervalMs, label = "�
       <span onClick={onRefresh}
             title={onRefresh ? "클릭하여 지금 갱신 (수동 모드)" : "수동 모드"}
             className={`${baseCls} text-gray-500`}>
-        🔄 {label} <span className="font-mono">{timeStr}</span>
+        🔄 {label}{!hideTime && <> <span className="font-mono">{timeStr}</span></>}
         <span className="text-gray-400"> (수동)</span>
       </span>
     );
@@ -57,7 +58,7 @@ export function RefreshIndicator({ dataUpdatedAt, refetchIntervalMs, label = "�
   return (
     <span onClick={onRefresh} title={onRefresh ? "클릭하여 지금 갱신" : undefined}
           className={`${baseCls} text-gray-500`}>
-      {label}: <span className="font-mono">{timeStr}</span>
+      {hideTime ? label : <>{label}: <span className="font-mono">{timeStr}</span></>}
       <span className="text-gray-400"> ({remaining}초)</span>
     </span>
   );
