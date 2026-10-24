@@ -33,4 +33,9 @@ export function applySystemBars(): void {
 export function installSystemBars(): void {
   if (!isNativeApp()) return;
   onNightBgApply(applySystemBars);
+  // 전체 화면에서 화면 끝을 쓸어 막대를 꺼내면 계속 남았다 — '잠깐 보였다 숨기'(BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE)를
+  //   샤오미(HyperOS)가 따르지 않았다(실기기 2026-10-25). 켜져 있는 동안 3초마다 다시 숨긴다(숨어 있으면 아무 일 없음)
+  setInterval(() => {
+    if (getAppFullscreen() && document.visibilityState === "visible") void SystemBars.hide().catch(() => {});
+  }, 3000);
 }
