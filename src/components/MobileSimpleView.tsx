@@ -1141,6 +1141,9 @@ export function MobileSimpleView() {
           <Menu size={16} />
         </button>
         <h1 className="text-sm font-bold text-gray-800 shrink-0">📈</h1>
+        {/* 갱신 시각 + 프록시 상태 — 남는 폭만 쓰고 넘치면 말줄임. 버튼(💤 등)이 늘어 좁은 폰(360px)에서
+            헤더가 화면보다 넓어져 좌우로 밀렸다(사용자 지적 2026-10-25) */}
+        <div className="flex-1 min-w-0 flex items-center gap-1 overflow-hidden whitespace-nowrap [&>*]:min-w-0 [&>*]:truncate">
         <RefreshIndicator dataUpdatedAt={lastAt}
                           refetchIntervalMs={REFRESH_MS}
                           onRefresh={() => void queryClient.invalidateQueries()} />
@@ -1149,10 +1152,11 @@ export function MobileSimpleView() {
         <ProxyStatusBadge baseRefreshMs={BASE_REFRESH_MS}
                           usePersonalProxy={!!getPersonalProxyUrl()}
                           onOpenSettings={() => setSettingsOpen(true)} />
+        </div>
         <button onClick={handleRefresh}
                 disabled={isFetching}
                 title="최신 버전 적용 (캐시 초기화 + 새로고침)"
-                className="ml-auto p-1.5 rounded hover:bg-gray-100
+                className="shrink-0 p-1.5 rounded hover:bg-gray-100
                             disabled:opacity-50 transition">
           <span className={`inline-block ${isFetching ? "animate-spin" : ""}`}>✨</span>
         </button>
