@@ -231,6 +231,7 @@ export function MobileSimpleView() {
   });
   // 메인 탭바 높이 측정 — 지수 그룹 색인바를 탭바 바로 아래에 고정시키기 위함
   const navRef = useRef<HTMLElement>(null);
+  const navScrollRef = useRef<HTMLDivElement>(null);   // 탭 바의 가로 스크롤 영역(☰ 버튼은 밖)
   const [navH, setNavH] = useState(33);
   useEffect(() => {
     const el = navRef.current;
@@ -536,7 +537,7 @@ export function MobileSimpleView() {
   //   scrollIntoView 는 세로 스크롤까지 건드려서 쓰지 않고 바 자체의 scrollLeft 만 옮긴다.
   useEffect(() => {
     const id = requestAnimationFrame(() => {
-      for (const bar of [navRef.current, folderBarEl.current]) {
+      for (const bar of [navScrollRef.current, folderBarEl.current]) {
         if (!bar) continue;
         const on = [...bar.querySelectorAll<HTMLElement>(".bg-blue-600")].find(el => el.parentElement === bar);
         if (!on) continue;
@@ -1207,14 +1208,16 @@ export function MobileSimpleView() {
       {/* ─── 그룹 탭 (가로 스크롤, 작은 폰트) — 길게 누르기 = 액션 시트 ─── */}
       <nav ref={navRef} style={{ top: headerCollapsed ? 0 : 44 }}
            className="pg-menu sticky z-40 bg-white border-b border-gray-200
-                       px-2 py-1 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
-        {/* 헤더 접힘 시 펼치기(≡) 버튼 — 탭 바 맨 앞. 탭 줄을 옆으로 밀어도 왼쪽에 고정(사용자 요청 2026-10-25) */}
+                       px-2 py-1 flex items-center gap-1 whitespace-nowrap">
+        {/* 헤더 접힘 시 펼치기(≡) 버튼 — 탭 바 맨 앞, 스크롤 영역 **밖**(탭이 버튼 밑으로 지나가지 않게, 사용자 요청 2026-10-25) */}
         {headerCollapsed && (
           <button onClick={toggleHeader} title="헤더 펼치기 (상단 메뉴 보이기)"
-                  className="sticky left-0 z-10 -ml-2 pl-2 pr-1 py-0.5 shrink-0 bg-white text-gray-500 hover:text-gray-800 transition">
+                  className="shrink-0 p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition">
             <Menu size={16} />
           </button>
         )}
+        {/* 탭들 — 가로 스크롤은 여기서만 */}
+        <div ref={navScrollRef} className="flex-1 min-w-0 flex items-center gap-1 overflow-x-auto">
         {/* 시스템 탭 묶음 — 섹터/컨센서스/ETF/히트맵 (지수는 아래 3번째 별도 탭으로 분리, PC 동일) */}
         {(() => {
           const sys = groupTabs.filter(t => SYS_DROPDOWN_KEYS.has(t.key));
@@ -1419,6 +1422,7 @@ export function MobileSimpleView() {
             </button>
           );
         })}
+        </div>
       </nav>
 
 
