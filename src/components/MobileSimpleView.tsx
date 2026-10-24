@@ -1208,10 +1208,10 @@ export function MobileSimpleView() {
       <nav ref={navRef} style={{ top: headerCollapsed ? 0 : 44 }}
            className="pg-menu sticky z-40 bg-white border-b border-gray-200
                        px-2 py-1 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
-        {/* 헤더 접힘 시 펼치기(≡) 버튼 — 탭 바 맨 앞 */}
+        {/* 헤더 접힘 시 펼치기(≡) 버튼 — 탭 바 맨 앞. 탭 줄을 옆으로 밀어도 왼쪽에 고정(사용자 요청 2026-10-25) */}
         {headerCollapsed && (
           <button onClick={toggleHeader} title="헤더 펼치기 (상단 메뉴 보이기)"
-                  className="shrink-0 p-0.5 rounded text-gray-500 hover:text-gray-800 hover:bg-gray-100 transition">
+                  className="sticky left-0 z-10 -ml-2 pl-2 pr-1 py-0.5 shrink-0 bg-white text-gray-500 hover:text-gray-800 transition">
             <Menu size={16} />
           </button>
         )}
