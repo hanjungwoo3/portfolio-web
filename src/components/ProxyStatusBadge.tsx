@@ -10,7 +10,7 @@ interface Props {
   baseRefreshMs: number;       // adaptive 계산용 (5/10/30/60초)
   usePersonalProxy: boolean;   // 전용 프록시 사용 여부 — 정상 시에도 헤더에 안내
   onOpenSettings: () => void;  // 힌트의 ⚙️ 설정 클릭 시 다이얼로그 열기
-  compact?: boolean;           // 모바일 헤더 — 직결 문구에서 '앱/확장 직결' 빼고 '5초 갱신' 만(사용자 요청 2026-10-25)
+  compact?: boolean;           // 모바일 헤더 — 직결(앱·확장)이면 배지를 띄우지 않는다(사용자 요청 2026-10-25)
 }
 
 export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, compact }: Props) {   // onOpenSettings — 옛 [추가방법] 자리, 지금은 안내 창(openOnboarding)이 설정까지 안내한다
@@ -36,9 +36,11 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, compact }: P
   //     "공용 프록시 1/3 사용량 소진 — 갱신 10초로 늦춤" 같은 무관한 경고가 이긴다(실제 제보).
   let statusMsg: { emoji: string; text: string; color: string } | null = null;
   if (direct) {
+    // 모바일 헤더(compact)는 직결이면 아무것도 안 띄운다 — 옆 '갱신 (5초)'와 겹치는 말이라(사용자 요청 2026-10-25)
+    if (compact) return null;
     statusMsg = {
       emoji: isNativeApp() ? "📱" : isDesktopApp() ? "🖥️" : "🧩",
-      text: compact ? `${baseSec}초 갱신` : `${isDirectApp() ? "앱" : "확장"} 직결 · ${baseSec}초 갱신`,
+      text: `${isDirectApp() ? "앱" : "확장"} 직결 · ${baseSec}초 갱신`,
       color: "text-emerald-700",
     };
   } else if (usePersonalProxy && myDownCount() === 0) {
