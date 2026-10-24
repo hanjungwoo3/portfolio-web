@@ -10,9 +10,10 @@ interface Props {
   baseRefreshMs: number;       // adaptive 계산용 (5/10/30/60초)
   usePersonalProxy: boolean;   // 전용 프록시 사용 여부 — 정상 시에도 헤더에 안내
   onOpenSettings: () => void;  // 힌트의 ⚙️ 설정 클릭 시 다이얼로그 열기
+  compact?: boolean;           // 모바일 헤더 — 직결 문구에서 '앱/확장 직결' 빼고 '5초 갱신' 만(사용자 요청 2026-10-25)
 }
 
-export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy }: Props) {   // onOpenSettings — 옛 [추가방법] 자리, 지금은 안내 창(openOnboarding)이 설정까지 안내한다
+export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, compact }: Props) {   // onOpenSettings — 옛 [추가방법] 자리, 지금은 안내 창(openOnboarding)이 설정까지 안내한다
   const [state, setState] = useState<ProxyState>(
     { health: "ok", total: 0, downHosts: [] }
   );
@@ -37,7 +38,7 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy }: Props) {  
   if (direct) {
     statusMsg = {
       emoji: isNativeApp() ? "📱" : isDesktopApp() ? "🖥️" : "🧩",
-      text: `${isDirectApp() ? "앱" : "확장"} 직결 · ${baseSec}초 갱신`,
+      text: compact ? `${baseSec}초 갱신` : `${isDirectApp() ? "앱" : "확장"} 직결 · ${baseSec}초 갱신`,
       color: "text-emerald-700",
     };
   } else if (usePersonalProxy && myDownCount() === 0) {

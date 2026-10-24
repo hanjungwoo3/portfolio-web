@@ -1149,7 +1149,7 @@ export function MobileSimpleView() {
                           onRefresh={() => void queryClient.invalidateQueries()} />
         {/* 프록시 상태 — PC 헤더와 같은 배지. 지금까지는 설정을 열어야만 프록시가
             죽었는지 알 수 있었다(데이터가 안 오는데 이유를 화면이 말해주지 않았다). */}
-        <ProxyStatusBadge baseRefreshMs={BASE_REFRESH_MS}
+        <ProxyStatusBadge baseRefreshMs={BASE_REFRESH_MS} compact
                           usePersonalProxy={!!getPersonalProxyUrl()}
                           onOpenSettings={() => setSettingsOpen(true)} />
         </div>
