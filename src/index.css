@@ -91,6 +91,9 @@ html.night-bg .pg-render :is(.text-gray-400, .text-gray-500, .text-gray-600, .te
 html.night-bg .pg-render :is(.border-gray-200):not(.pg-card *) { border-color: #4b515a !important; }
 /* 가로 스크롤바(폴더 하위 탭 줄 등) — 흰 트랙이 어두운 메뉴에서 튄다 */
 html.night-bg { color-scheme: dark; }
+/* 야간 + 모바일 화면 — 화면 전체를 한 겹 더 어둡게(사용자 요청 2026-10-25, 모바일만). body 에 filter 를 걸면 position:fixed(헤더·팝업)가 깨져서
+   맨 위에 클릭이 통과하는 검은 막을 덮는다 — 팝업·툴팁까지 함께 어두워진다 */
+html.night-bg.mobile-view::after { content: ""; position: fixed; inset: 0; background: rgba(0, 0, 0, 0.18); pointer-events: none; z-index: 2147483647; }
 html.night-bg ::-webkit-scrollbar-track { background: #2b2f35; }
 html.night-bg ::-webkit-scrollbar-thumb { background: #555c67; border-radius: 6px; }
 html.night-bg * { scrollbar-color: #555c67 #2b2f35; }

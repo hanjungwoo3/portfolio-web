@@ -67,6 +67,7 @@ import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast, AppInstallHin
 import { appConfirm, appPrompt } from "../lib/appDialog";
 import { setNightBg, useNightBg } from "../lib/nightBg";
 import { NightToggle } from "./NightToggle";
+import { getAppFullscreen, setAppFullscreen } from "../lib/systemBars";
 import { DimToggle, useDimSleeping } from "./DimToggle";
 import { OnboardingDialog } from "./OnboardingDialog";
 import {
@@ -203,6 +204,11 @@ export function MobileSimpleView() {
     return d && d.closes.length > 1 ? { rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase } : undefined;
   };
   // 로그인 redirect 복귀 — 저장/불러오기 대기 동작이 있으면 설정 자동 오픈 → 자동 재개
+  // 모바일 화면 표시 — 야간 전체 어둡게(index.css html.night-bg.mobile-view)를 모바일에서만(사용자 요청 2026-10-25)
+  useEffect(() => {
+    document.documentElement.classList.add("mobile-view");
+    return () => document.documentElement.classList.remove("mobile-view");
+  }, []);
   useEffect(() => {
     if (!peekPendingSyncAction()) return;
     const t = setTimeout(() => setSettingsOpen(true), 0);
@@ -3077,6 +3083,25 @@ function SettingsModal({
                 </span>
               </span>
             </label>
+
+            {/* 전체 화면 — 안드로이드 앱만. 위아래 시스템 막대를 숨긴다(야간에 막대가 너무 밝다, 사용자 요청 2026-10-25) */}
+            {isNativeApp() && (
+              <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
+                <input type="checkbox" defaultChecked={getAppFullscreen()}
+                       onChange={e => {
+                         setAppFullscreen(e.target.checked);
+                         setSavedMsg(`✅ 전체 화면: ${e.target.checked ? "ON" : "OFF"}`);
+                         setTimeout(() => setSavedMsg(""), 2000);
+                       }}
+                       className="mt-0.5 w-4 h-4 accent-blue-600 shrink-0" />
+                <span className="flex-1">
+                  <span className="text-[11px] text-gray-700 font-medium block">📱 전체 화면 (위아래 막대 숨김)</span>
+                  <span className="text-[10px] text-gray-500">
+                    시계·배터리 줄과 아래 버튼 줄을 숨깁니다. 화면 위·아래 끝을 쓸어내리면 잠깐 나타납니다.
+                  </span>
+                </span>
+              </label>
+            )}
 
             {/* 코스피/코스닥 분리 보기 */}
             <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">

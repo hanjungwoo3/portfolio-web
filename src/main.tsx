@@ -6,11 +6,14 @@ import { isDirectApp } from './lib/nativeProxy'
 import { applyNightBg } from './lib/nightBg'
 import { installInAppBrowser } from './lib/inAppBrowser'
 import { pruneMarketCache } from './lib/marketCache'
+import { installSystemBars } from './lib/systemBars'
 
 // 야간 배경 — 첫 그림 전에 적용(깜빡임 방지)
 applyNightBg()
 // 안드로이드 앱 — 바깥 링크는 앱 안 브라우저로(웹·데스크톱은 아무것도 안 함)
 installInAppBrowser()
+// 안드로이드 앱 — 위아래 시스템 막대(전체 화면·야간 스타일)
+installSystemBars()
 // 기기 시세 캐시 — 이틀 넘은 줄 정리(어차피 다시 받는다)
 pruneMarketCache()
 

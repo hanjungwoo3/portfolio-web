@@ -12,7 +12,10 @@ export function getNightBg(): boolean {
 }
 export function applyNightBg(): void {
   document.documentElement.classList.toggle("night-bg", getNightBg());
+  for (const f of applyHooks) f();   // 안드로이드 시스템 막대 스타일 등(systemBars.ts)
 }
+const applyHooks = new Set<() => void>();
+export function onNightBgApply(f: () => void): void { applyHooks.add(f); f(); }
 export function setNightBg(on: boolean): void {
   try { localStorage.setItem(KEY, on ? "1" : "0"); } catch { /* 저장 실패 — 이번 화면만 */ }
   applyNightBg();
