@@ -204,11 +204,6 @@ export function MobileSimpleView() {
     return d && d.closes.length > 1 ? { rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase } : undefined;
   };
   // 로그인 redirect 복귀 — 저장/불러오기 대기 동작이 있으면 설정 자동 오픈 → 자동 재개
-  // 모바일 화면 표시 — 야간 전체 어둡게(index.css html.night-bg.mobile-view)를 모바일에서만(사용자 요청 2026-10-25)
-  useEffect(() => {
-    document.documentElement.classList.add("mobile-view");
-    return () => document.documentElement.classList.remove("mobile-view");
-  }, []);
   useEffect(() => {
     if (!peekPendingSyncAction()) return;
     const t = setTimeout(() => setSettingsOpen(true), 0);
