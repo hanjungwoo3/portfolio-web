@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
 import { BrokerLinkSection } from "./BrokerLinkSection";
+import { isLinkedGroup } from "../lib/linkedGroups";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -248,11 +249,13 @@ export function MobileSimpleView() {
     if (next == null) return;
     const trimmed = next.trim();
     if (!trimmed || trimmed === g) return;
+    if (isLinkedGroup(g)) { window.alert("토스 연동 그룹은 이름을 바꿀 수 없습니다 — PC 앱 설정에서 연동을 해제한 뒤 바꾸세요"); return; }
     await renameGroup(g, trimmed);
     if (activeTab === g) setActiveTab(trimmed);
     void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
   };
   const deleteGroupInline = async (g: string) => {
+    if (isLinkedGroup(g)) { window.alert("토스 연동 그룹은 삭제할 수 없습니다 — PC 앱 설정에서 연동을 해제한 뒤 지우세요"); return; }
     if (!(await appConfirm(`"${g}" 그룹의 모든 항목을 삭제할까요?\n(되돌릴 수 없음)`))) return;
     await deleteGroup(g);
     if (activeTab === g) setActiveTab(KR_KEY);
@@ -2427,6 +2430,7 @@ export function MobileSimpleView() {
                 if (next == null) return;
                 const trimmed = next.trim();
                 if (!trimmed || trimmed === oldKey) return;
+                if (isLinkedGroup(oldKey)) { window.alert("토스 연동 그룹은 이름을 바꿀 수 없습니다"); return; }
                 await renameGroup(oldKey, trimmed);
                 if (activeTab === oldKey) setActiveTab(trimmed);
                 void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
@@ -2445,6 +2449,7 @@ export function MobileSimpleView() {
                 if (!(await appConfirm(
                   `"${l}" 그룹의 모든 항목을 삭제할까요?\n(되돌릴 수 없음)`
                 ))) return;
+                if (isLinkedGroup(k)) { window.alert("토스 연동 그룹은 삭제할 수 없습니다 — PC 앱 설정에서 연동 해제 후"); return; }
                 await deleteGroup(k);
                 if (activeTab === k) setActiveTab(KR_KEY);
                 void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });

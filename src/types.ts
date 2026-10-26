@@ -8,6 +8,9 @@ export interface Stock {
   buy_date?: string;
   market?: string;
   account?: string;
+  // 어디서 온 보유인가 — "toss" = 토스 Open API 연동으로 가져온 행(잠금: 수정·삭제·매수·매도 불가, 갱신 때 토스 값으로 교체).
+  //   손으로 넣은 행은 미설정. ★ Drive normalize(syncManager) 에 포함돼 있다 — 빠지면 동기화에서 조용히 사라진다.
+  source?: string;
   // 합산(내주식) 전용 — 매수일이 섞인 보유의 '오늘' 손익을 보유분별로 계산하기 위한 분리값.
   // 일반 행은 미설정(카드/합계가 buy_date 로 당일 여부 판정). 합산 시에만 채워짐.
   todayShares?: number;   // 이 중 '오늘' 매수한 주식 수

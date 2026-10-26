@@ -71,3 +71,16 @@ describe("memoHasContent — 값 하나만 있어도 내용으로 친다", () =>
     expect(memoHasContent({ ticker: "005930", text: "   ", tag: "  " })).toBe(false);
   });
 });
+
+describe("normalize — 증권사 연동 필드", () => {
+  const h = { ticker: "005930", name: "삼성전자", shares: 1, avg_price: 1, account: "토스(연동)" };
+  const p = (holding: object, settings?: object): ExportPayload =>
+    ({ holdings: [holding as ExportPayload["holdings"][number]], peaks: {}, memos: [], trades: [], exported_at: "2026-01-01T00:00:00.000Z",
+       ...(settings ? { settings: settings as ExportPayload["settings"] } : {}) });
+  it("보유의 source(연동 표식)가 바뀌면 지문도 바뀐다", () => {
+    expect(normalize(p({ ...h, source: "toss" }))).not.toBe(normalize(p(h)));
+  });
+  it("settings.linkedGroups 가 바뀌면 지문도 바뀐다", () => {
+    expect(normalize(p(h, { linkedGroups: { "토스(연동)": { broker: "toss", accountSeq: "1" } } }))).not.toBe(normalize(p(h, {})));
+  });
+});

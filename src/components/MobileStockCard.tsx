@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
+import { isSyncedHolding } from "../lib/linkedGroups";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
 import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, holdingYesterdayBaseSum, marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, tradeSecOf, isEtfOrEtnByName, isKrAfterRegularClose } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
@@ -399,7 +400,10 @@ export function MobileStockCard({
             </button>
           )}
           {/* 📊 기업가치는 위 '📊종목정보' 팝업의 탭으로(2026-10-23) */}
-          {onEdit && (
+          {isSyncedHolding(stock) && (
+            <span title="토스 연동 보유 — 자동 갱신, 수정·삭제 불가" className="px-1 text-[11px] text-violet-700">🔗</span>
+          )}
+          {onEdit && !isSyncedHolding(stock) && (
             <button onClick={() => onEdit(stock)}
                     title="수정 / 매수 / 매도"
                     className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200
@@ -407,7 +411,7 @@ export function MobileStockCard({
               <Settings size={14} strokeWidth={2.2} />
             </button>
           )}
-          {onDelete && (
+          {onDelete && !isSyncedHolding(stock) && (
             <button onClick={() => onDelete(stock)}
                     title="삭제 (모든 그룹에서 제거)"
                     className="px-2 py-1 rounded bg-gray-100 hover:bg-rose-100

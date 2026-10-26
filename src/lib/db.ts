@@ -4,6 +4,7 @@ import { getDeposits, getDeposit, setDeposit, replaceAllDeposits, getPendingBuys
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "./groupFolders";
 import type { TabVisibility } from "./tabVisibility";
 import { notifyTradesChanged } from "./tradeEvents";
+import { getLinkedGroups, setLinkedGroups, type LinkedGroups } from "./linkedGroups";
 import {
   getDimSleepingEnabled, setDimSleepingEnabled,
   getPersonalProxyUrl, setPersonalProxyUrl,
@@ -504,6 +505,7 @@ export interface ExportPayload {
     personalProxyUrl?: string | null;    // 전용 프록시 URL (레거시 — 단일, 호환용)
     personalProxies?: PersonalProxy[];   // 전용 프록시 목록 ({url, enabled})
     personalPollMs?: number;             // 폴링 주기(ms)
+    linkedGroups?: LinkedGroups;         // 증권사 연동 그룹 메타(어느 그룹이 어느 계좌의 거울인가 — 비밀 없음)
   };
 }
 export async function exportAll(): Promise<ExportPayload> {
@@ -544,6 +546,7 @@ export async function exportAll(): Promise<ExportPayload> {
       personalProxyUrl: getPersonalProxyUrl(),   // 레거시 호환(구버전 앱 import용)
       personalProxies: getPersonalProxies(),
       personalPollMs: getPersonalPollMs(),
+      linkedGroups: getLinkedGroups(),
     },
   };
 }
@@ -568,6 +571,39 @@ export function applyImportedSettings(settings?: ExportPayload["settings"]): voi
   if (Array.isArray(settings.personalProxies)) setPersonalProxies(settings.personalProxies);
   else if (settings.personalProxyUrl !== undefined) setPersonalProxyUrl(settings.personalProxyUrl);
   if (typeof settings.personalPollMs === "number") setPersonalPollMs(settings.personalPollMs);
+  if (settings.linkedGroups) setLinkedGroups(settings.linkedGroups);
+}
+
+// 증권사 연동 해제 — 그 그룹의 연동 행을 손으로 넣은 행처럼 풀어 준다(보유는 남기고 잠금만 해제)
+export async function unlockSyncedHoldingsOfGroup(group: string, src: string): Promise<number> {
+  const rows = await db.holdings.where("account").equals(group).toArray() as (Stock & { id: string })[];
+  const mine = rows.filter(r => r.source === src);
+  if (mine.length) await db.holdings.bulkPut(mine.map(r => { const c = { ...r }; delete (c as Partial<Stock>).source; return c; }));
+  notifyTradesChanged();
+  return mine.length;
+}
+
+// 증권사 연동 — 그룹 안의 **연동 보유(source=src)만** 새 목록으로 교체한다. 손으로 넣은 행은 그대로.
+//   토스에 없어진(다 판) 연동 보유는 지운다. 토스에 있는 종목이 손으로 넣은 행과 겹치면 그 행을 연동 행으로 바꾼다(토스가 정답).
+//   반환: 교체 뒤 그 그룹의 연동 보유 수
+export async function replaceSyncedHoldingsOfGroup(group: string, rows: Stock[], src: string): Promise<number> {
+  const cleanRows = rows.map(r => ({ ...r, account: group, source: src }));
+  await db.transaction("rw", db.holdings, async () => {
+    const existing = await db.holdings.where("account").equals(group).toArray() as (Stock & { id: string })[];
+    const incoming = new Set(cleanRows.map(r => r.ticker));
+    // 1) 토스에서 사라진 연동 행 삭제
+    const gone = existing.filter(e => e.source === src && !incoming.has(e.ticker)).map(e => e.id);
+    if (gone.length) await db.holdings.bulkDelete(gone);
+    // 2) 연동 행 넣기/덮어쓰기(손으로 넣은 같은 종목도 연동 행으로 전환)
+    await db.holdings.bulkPut(cleanRows.map(r => {
+      const clean = { ...r } as Stock & { id: string };
+      delete (clean as Partial<Stock>).todayShares; delete (clean as Partial<Stock>).todayCost;   // 파생값 저장 금지
+      clean.id = holdingId(clean);
+      return clean;
+    }));
+  });
+  notifyTradesChanged();   // 보유가 바뀌었다 — App·모바일이 이 이벤트로 보유·거래를 다시 읽는다
+  return cleanRows.length;
 }
 
 // 그룹 일괄 삭제 — 해당 그룹의 모든 holdings 삭제 (반환: 삭제 건수)

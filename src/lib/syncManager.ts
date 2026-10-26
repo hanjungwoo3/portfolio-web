@@ -112,6 +112,7 @@ export function normalize(p: ExportPayload): string {
       buy_date: s.buy_date ?? "",
       market: s.market ?? "",
       account: s.account ?? "",
+      source: s.source ?? "",   // 증권사 연동 표식 — 빠지면 Drive 왕복 뒤 잠금이 풀린다(테스트 있음)
     }))
     .sort((a, b) => `${a.ticker}|${a.account}`.localeCompare(`${b.ticker}|${b.account}`));
   const peakKeys = Object.keys(p.peaks ?? {}).sort();
@@ -163,6 +164,7 @@ export function normalize(p: ExportPayload): string {
     personalProxyUrl: s.personalProxyUrl ?? null,
     personalProxies: s.personalProxies ?? null,
     personalPollMs: s.personalPollMs ?? null,
+    linkedGroups: s.linkedGroups ?? null,   // 증권사 연동 그룹 메타(비밀 없음)
   };
   return JSON.stringify({ holdings, peaks, memos, trades, settings });
 }

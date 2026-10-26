@@ -1,3 +1,4 @@
+import { isLinkedGroup } from "../lib/linkedGroups";
 import { useState } from "react";
 import type { Stock, Price } from "../types";
 import { formatSigned, signColor, holdingYesterdayBaseSum, holdingMarketBaseSum } from "../lib/format";
@@ -59,7 +60,8 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
   const pending = scopeAccounts ? getPendingBuysOf(scopeAccounts)
     : aggregated ? getTotalPendingBuys() : getPendingBuy(account ?? "");   // 구매대기(묶임)
   // 폴더 전체보기도 여러 그룹을 합친 값이라 편집 불가 (어느 그룹에 저장할지 정할 수 없음)
-  const editable = !aggregated && !scopeAccounts && account !== undefined;
+  const linked = isLinkedGroup(account);   // 증권사 연동 그룹 — 예수금은 토스 값(수동 입력 불가)
+  const editable = !aggregated && !scopeAccounts && account !== undefined && !linked;
 
   // 종목도 없고 예수금·구매대기도 0 이면 합계 카드 숨김 (편집/팝업 중이면 유지)
   if (activeCount === 0 && deposit <= 0 && pending <= 0 && !editingDeposit && !pendingOpen) return null;
@@ -187,7 +189,9 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
             {deposit > 0 ? `${deposit.toLocaleString()}원` : "+ 입력"}
           </button>
         ) : (
-          <span className="text-gray-800">{deposit.toLocaleString()}원</span>
+          <span className="text-gray-800" title={linked ? "토스 연동 — 주문 가능 금액(자동 갱신)" : undefined}>
+            {linked && <span className="mr-1 text-[10px] text-violet-700">🔗토스</span>}{deposit.toLocaleString()}원
+          </span>
         )}
       </div>
 

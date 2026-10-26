@@ -2,6 +2,7 @@
 //  · sync 모드(기본): 값은 하나 — 수정하면 모든 그룹에 동일하게 반영(보여짐).
 //  · 독립(그룹별) 모드: 그룹마다 값이 달라서 그룹별 행으로 각각 수정.
 import { useEffect, useMemo, useState } from "react";
+import { isSyncedHolding } from "../lib/linkedGroups";
 import { loadHoldings, updateHolding, syncAllRowsForTicker } from "../lib/db";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { useEscClose } from "../lib/useEscClose";
@@ -25,7 +26,7 @@ export function MyStockEditDialog({ ticker, name, onClose, onChanged }: {
       const all = await loadHoldings();
       // 실제 그룹만 (빈 계좌/관심ETF 제외), 그룹명 가나다
       const mine = all
-        .filter(s => s.ticker === ticker && (s.account || "") !== "" && s.account !== "관심ETF")
+        .filter(s => s.ticker === ticker && (s.account || "") !== "" && s.account !== "관심ETF" && !isSyncedHolding(s))   // 토스 연동 행은 여기서 못 고친다
         .sort((a, b) => (a.account || "").localeCompare(b.account || ""));
       setRows(mine.map(s => ({
         account: s.account || "", orig: s,

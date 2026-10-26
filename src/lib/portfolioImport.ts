@@ -6,6 +6,7 @@ import type { Trade } from "./db";
 import type { GroupFolder } from "./groupFolders";
 import type { TabVisibility } from "./tabVisibility";
 import type { PendingBuyItem } from "./deposits";
+import { sanitizeLinkedGroups, type LinkedGroups } from "./linkedGroups";
 
 // 동기화 대상 설정 (exportAll.settings 와 동일 형태)
 export interface ImportSettings {
@@ -18,6 +19,7 @@ export interface ImportSettings {
   personalProxyUrl?: string | null;    // 전용 프록시 URL (레거시 단일)
   personalProxies?: { url: string; enabled: boolean }[];   // 전용 프록시 목록
   personalPollMs?: number;             // 폴링 주기(ms)
+  linkedGroups?: LinkedGroups;         // 증권사 연동 그룹 메타(비밀 없음)
 }
 
 export type Detected =
@@ -110,6 +112,8 @@ function parseSettings(obj: Record<string, unknown>): ImportSettings | undefined
       .map(p => ({ url: p.url, enabled: (p as { enabled?: unknown }).enabled !== false }));
   }
   if (typeof src.personalPollMs === "number") out.personalPollMs = src.personalPollMs;
+  const lg = sanitizeLinkedGroups(src.linkedGroups);
+  if (lg) out.linkedGroups = lg;
   return Object.keys(out).length > 0 ? out : undefined;
 }
 

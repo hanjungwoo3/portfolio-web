@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
+import { isSyncedHolding, linkedGroupOf } from "../lib/linkedGroups";
+const fmtSyncedAt = (iso?: string) => iso ? new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import { twoDayTodayX, TWO_DAY_HALF, type PricePoint, type DaySeries } from "../lib/api";
 import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, holdingYesterdayBaseSum, nowKstDateStr, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, tradeSecOf, isEtfOrEtnByName, isKrAfterRegularClose } from "../lib/format";
@@ -540,6 +542,9 @@ export function StockCard({
   // 미국 보유 종목은 한국 세션이 아니라 미국 세션 기준으로 흐림 (지수창 dimNow 로직의 최소 형태).
   //   24h(Blue Ocean) 창이 열려있으면 밝게, 닫히거나(주말) 체결 정체(90분)면 흐림.
   const isUsHolding = marketOfSymbol(stock.ticker) === "US";
+  // 증권사 연동으로 가져온 행 — 잠금(수정·삭제 숨김), 🔗 표시(사용자 결정 2026-10-26)
+  const synced = isSyncedHolding(stock);
+  const syncedAt = synced ? fmtSyncedAt(linkedGroupOf("toss")?.meta.lastSyncAt) : "";
   // ETF·ETN 은 애프터마켓(16:00~20:00)에 참여하지 않는다 — 흐림 판정·마감 시각 양쪽에 쓰는 한 값.
   const noAfterHours = isEtfOrEtnByName(stock.name);
   const sleeping = isUsHolding
@@ -880,7 +885,11 @@ export function StockCard({
               💬
             </button>
           )}
-          {onEdit && (
+          {synced && (
+            <span title={`토스 연동 보유 — 토스 값으로 자동 갱신, 여기서 수정·삭제 불가${syncedAt ? ` (토스 기준 ${syncedAt})` : ""}`}
+                  className="inline-flex items-center px-1 text-[10px] text-violet-700 cursor-help">🔗</span>
+          )}
+          {onEdit && !synced && (
             <button
               type="button"
               onClick={() => onEdit(stock)}
@@ -891,7 +900,7 @@ export function StockCard({
               <Settings size={14} strokeWidth={2.2} />
             </button>
           )}
-          {onDelete && (
+          {onDelete && !synced && (
             <button
               type="button"
               onClick={async () => {

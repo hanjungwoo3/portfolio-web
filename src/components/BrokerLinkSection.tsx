@@ -9,6 +9,9 @@ import {
 } from "../lib/broker";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { appConfirm } from "../lib/appDialog";
+import { linkedGroupOf, setLinkedGroup, removeLinkedGroup, DEFAULT_TOSS_GROUP, LINKED_GROUPS_EVENT } from "../lib/linkedGroups";
+import { syncTossHoldingsSafe, TOSS_SOURCE } from "../lib/tossSync";
+import { unlockSyncedHoldingsOfGroup } from "../lib/db";
 
 const APPS_RELEASE = "https://github.com/hanjungwoo3/portfolio-web/releases/tag/apps";
 
@@ -24,6 +27,47 @@ export function BrokerLinkSection({ compact }: { compact?: boolean }) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [accounts, setAccounts] = useState<TossAccount[] | null>(null);
   const [accountSeq, setAccountSeqState] = useState(getTossAccountSeq());
+  // 연동 그룹 — 토스 보유·예수금의 거울. 메타는 linkedGroups(Drive 동기화 포함)
+  const [link, setLink] = useState(() => linkedGroupOf("toss"));
+  const [groupName, setGroupName] = useState(DEFAULT_TOSS_GROUP);
+  const [syncMsg, setSyncMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  useEffect(() => {
+    const h = () => setLink(linkedGroupOf("toss"));
+    window.addEventListener(LINKED_GROUPS_EVENT, h);
+    return () => window.removeEventListener(LINKED_GROUPS_EVENT, h);
+  }, []);
+  const runSync = async () => {
+    setBusy(true); setSyncMsg(null);
+    try {
+      const r = await syncTossHoldingsSafe();
+      if (r) setSyncMsg({ ok: true, text: `갱신됐습니다 — ${r.group}: 종목 ${r.count}개 · 예수금 ${r.cash.toLocaleString()}원${r.fxUsed ? ` · 환율 ${r.fxUsed.toFixed(1)}` : ""}` });
+      else setSyncMsg({ ok: false, text: "연동이 꺼져 있거나 연동 그룹이 없습니다" });
+    } catch (e) {
+      setSyncMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
+    } finally { setBusy(false); }
+  };
+  const startLink = async () => {
+    const g = groupName.trim();
+    if (!g) { setSyncMsg({ ok: false, text: "그룹 이름을 넣어 주세요" }); return; }
+    if (!getIndependentGroupsMode()) { setSyncMsg({ ok: false, text: "먼저 설정 아래쪽의 '그룹별 독립 보유 모드'를 켜 주세요 — 꺼져 있으면 같은 종목이 모든 그룹에 같은 값으로 맞춰져 토스 값이 수동 그룹까지 덮습니다." }); return; }
+    if (!accountSeq) { setSyncMsg({ ok: false, text: "먼저 '연결 시험'으로 계좌를 확인해 주세요" }); return; }
+    if (!(await appConfirm(`"${g}" 그룹을 토스 계좌의 연동 그룹으로 쓸까요?\n\n· 토스 보유 종목이 이 그룹에 들어오고 토스 값으로 자동 갱신됩니다(수정·삭제 불가)\n· 이 그룹에 손으로 넣은 종목은 그대로 둡니다. 토스에도 있는 종목이면 토스 값으로 바뀝니다\n· 예수금은 토스 '주문 가능 금액'으로 고정됩니다`))) return;
+    setLinkedGroup(g, { broker: "toss", accountSeq });
+    setTossEnabled(true); setEnabled(true);
+    await runSync();
+  };
+  const unlink = async () => {
+    if (!link) return;
+    if (!(await appConfirm(`"${link.group}" 의 토스 연동을 해제할까요?\n보유 종목은 남고 잠금만 풀립니다(이후엔 손으로 관리).`))) return;
+    setBusy(true);
+    try {
+      await unlockSyncedHoldingsOfGroup(link.group, TOSS_SOURCE);
+      removeLinkedGroup(link.group);
+      setSyncMsg({ ok: true, text: "연동을 해제했습니다 — 보유는 그대로 남았습니다" });
+    } finally { setBusy(false); }
+  };
+  const fmtAt = (iso?: string) => iso ? new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "—";
+
   // 진단 — 응답을 그대로 보여 준다(2단계 설계용 실측: 필드·통화·체결 모양). 계좌번호 등은 사용자 본인 화면에만
   const [probeOpen, setProbeOpen] = useState(false);
   const [probe, setProbe] = useState<{ label: string; text: string } | null>(null);
@@ -186,6 +230,37 @@ export function BrokerLinkSection({ compact }: { compact?: boolean }) {
                   className="border rounded px-1.5 py-0.5 text-[11px] bg-white">
             {accounts.map(a => <option key={a.accountSeq} value={String(a.accountSeq)}>{maskAccountNo(a.accountNo)} · {a.accountType}</option>)}
           </select>
+        </div>
+      )}
+
+      {/* 연동 그룹 — 연결된 뒤에만 */}
+      {configured && accountSeq && (
+        <div className="rounded border border-violet-200 bg-white/70 p-2 text-[11px] space-y-1">
+          {link ? (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="font-bold text-gray-800">연동 그룹</span>
+                <span className="px-1.5 py-0.5 rounded bg-violet-100 text-violet-800 font-bold">🔗 {link.group}</span>
+                <span className="text-gray-500">토스 기준 {fmtAt(link.meta.lastSyncAt)}{enabled ? " · 5분마다 자동" : " · 연동 꺼짐"}</span>
+                <button onClick={() => void runSync()} disabled={busy || !enabled}
+                        className="px-2 py-0.5 rounded bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50">{busy ? "갱신 중…" : "지금 갱신"}</button>
+                <button onClick={() => void unlink()} disabled={busy}
+                        className="px-2 py-0.5 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50">연동 그룹 해제</button>
+              </div>
+              {link.meta.lastError && <div className="text-rose-700">⚠️ 마지막 갱신 실패: {link.meta.lastError}</div>}
+              <div className="text-[10px] text-gray-500">토스에서 가져온 종목(🔗)은 수정·삭제가 막히고, 같은 그룹에 손으로 넣은 종목은 지금처럼 관리됩니다. 예수금은 토스 주문 가능 금액입니다.</div>
+            </>
+          ) : (
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-bold text-gray-800">연동 그룹</span>
+              <input type="text" value={groupName} onChange={e => setGroupName(e.target.value)} placeholder={DEFAULT_TOSS_GROUP}
+                     className="border rounded px-2 py-0.5 text-[11px] w-40 focus:outline-none focus:border-violet-500" />
+              <button onClick={() => void startLink()} disabled={busy}
+                      className="px-2 py-0.5 rounded bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50">연동 시작</button>
+              <span className="text-[10px] text-gray-500">이 이름의 그룹에 토스 보유가 들어옵니다(없으면 새로 만듦)</span>
+            </div>
+          )}
+          {syncMsg && <div className={syncMsg.ok ? "text-emerald-700" : "text-rose-700"}>{syncMsg.ok ? "✅ " : "⚠️ "}{syncMsg.text}</div>}
         </div>
       )}
 
