@@ -16,7 +16,7 @@ import {
 } from "../lib/sortHoldings";
 import { getHeldFirst, setHeldFirst } from "../lib/heldFirst";
 import { SortSelector, makeSortHandlers } from "./SortSelector";
-import { fetchYahooBatch, fetchKrFuturesMinute, fetchYahooSparkDay, fetchTossPrices, fetchNaverPrices, fetchNaverInfoLight, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures, fetchKrRegularPrices, verifyKrMarkets, fetchDashboardChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
+import { fetchYahooBatch, fetchKrFuturesMinute, fetchTossIntraday, fetchYahooSparkDay, fetchTossPrices, fetchNaverPrices, fetchNaverInfoLight, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures, fetchKrRegularPrices, verifyKrMarkets, fetchDashboardChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
 import {
   US_PAIRS, DAY_SPARK_SYMBOLS,
 } from "../lib/usMarketData";
@@ -189,13 +189,28 @@ export function MobileSimpleView() {
   const [leaderSort, setLeaderSort] = useState<LeaderSort>(loadLeaderSort);   // 대장주 줄 정렬(등락률순 기본, PC 와 같은 키)
   const chartRange = useChartRange();   // 카드 배경 차트 3개월 | 24시간 — 앱 전체 설정
   // 미국 종목·ETF 24시간 차트 — 야후 spark(20종목 1콜). '24시간' 을 골랐을 때만 받는다(5분마다).
-  const { data: usSpark } = useQuery({
+  const { data: usSpark, isFetched: usSparkFetched } = useQuery({
     queryKey: ["us-spark-day", US_SPARK_SYMBOLS.length],
     queryFn: () => fetchYahooSparkDay(US_SPARK_SYMBOLS),
     enabled: chartRange === "day",
     refetchInterval: chartRange === "day" ? 5 * 60_000 : false,
     staleTime: 4 * 60_000, refetchOnWindowFocus: true,   // 다시 띄우면 새로(PC 와 같게 — 숨긴 동안 갱신이 멈췄다)
   });
+  // 야후 spark 가 못 준 종목(앱은 네이티브 요청이 쿠키가 없어 야후 429 를 자주 맞는다) → 토스 5분봉 어제+오늘로(PC UsMarketTab 과 같은 폴백).
+  //   야후가 된 종목은 안 부른다(종목당 2콜). 야후 응답이 끝난 뒤에만 빠진 종목을 센다.
+  const usSparkMissing = chartRange === "day" && usSparkFetched ? US_SPARK_SYMBOLS.filter(sym => !usSpark?.get(sym)?.closes?.length) : [];
+  const tossUsDayQs = useQueries({
+    queries: usSparkMissing.map(sym => ({
+      queryKey: ["toss-us-day", sym],
+      queryFn: () => fetchTossIntraday(sym),
+      staleTime: 4 * 60_000, refetchInterval: 5 * 60_000, refetchOnWindowFocus: true, retry: 1,
+    })),
+  });
+  const tossUsSpark = (sym: string) => {
+    const i = usSparkMissing.indexOf(sym);
+    const d = i >= 0 ? tossUsDayQs[i]?.data : undefined;
+    return d && d.closes.length > 1 ? { rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase } : undefined;
+  };
   // 코스피200·코스닥150 **주간**선물 — 낮엔 한경 1분봉 어제+오늘(야선은 당일 세션뿐). 야간장(18~05시)엔 야선 그대로.
   const krFutDayOn = chartRange === "day" && !isKrNightSession();
   const krFutDay = useQueries({
@@ -2000,10 +2015,10 @@ export function MobileSimpleView() {
               const isInverse = false;   // 색 반전 없음 — 모든 카드 오르면 빨강·내리면 파랑(사용자 결정 2026-10-21). direction 은 설명용으로만 남긴다
               const effUp = isInverse ? (mainPct != null && mainPct < 0) : (mainPct != null && mainPct > 0);
               const effDn = isInverse ? (mainPct != null && mainPct > 0) : (mainPct != null && mainPct < 0);
-              const dayArr = krFutSpark(p.symbol)?.closes ?? nightClosesMap.get(p.symbol) ?? usSpark?.get(p.symbol)?.closes ?? usMap?.get(p.symbol)?.sparkline;   // 야후 어제+오늘이 있으면 그걸 먼저
+              const dayArr = krFutSpark(p.symbol)?.closes ?? nightClosesMap.get(p.symbol) ?? usSpark?.get(p.symbol)?.closes ?? tossUsSpark(p.symbol)?.closes ?? usMap?.get(p.symbol)?.sparkline;   // 야후 어제+오늘이 있으면 그걸 먼저, 없으면 토스 5분봉(세로선 포함)
               const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], dayArr);
               // 24시간 차트가 야후 spark 에서 왔으면 '오늘 정규장 시작' 위치를 표시
-              const daySpark = chartRange === "day" ? (krFutSpark(p.symbol) ?? (!nightClosesMap.get(p.symbol) ? usSpark?.get(p.symbol) : undefined)) : undefined;
+              const daySpark = chartRange === "day" ? (krFutSpark(p.symbol) ?? (!nightClosesMap.get(p.symbol) ? (usSpark?.get(p.symbol) ?? tossUsSpark(p.symbol)) : undefined)) : undefined;
               const markIdx = daySpark && chartArr === daySpark.closes ? daySpark.openIdx : undefined;
               const closeIdx = daySpark && chartArr === daySpark.closes ? daySpark.closeIdx : undefined;   // 오늘 정규장 종가 세로선
               const prevMarks = daySpark && chartArr === daySpark.closes ? [daySpark.prevOpenIdx, daySpark.prevCloseIdx] : undefined;   // 어제 정규장 시작·종가 세로선
