@@ -110,10 +110,16 @@ export function DesktopUpdateToast() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  // 켜 둔 채 새 버전이 나오면 모르던 문제(2026-10-26 "업데이트 안 뜨는데?") — 처음 한 번만 보던 것을
+  //   30분마다 + 창이 다시 보일 때(다른 앱 갔다 돌아옴) 다시 본다. latest.json 한 번이라 가볍다.
   useEffect(() => {
     let alive = true;
-    void checkDesktopUpdate().then(r => { if (alive) setU(r); });
-    return () => { alive = false; };
+    const run = () => { void checkDesktopUpdate().then(r => { if (alive && r) setU(r); }); };
+    run();
+    const timer = window.setInterval(run, 30 * 60_000);
+    const onVisible = () => { if (document.visibilityState === "visible") run(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { alive = false; window.clearInterval(timer); document.removeEventListener("visibilitychange", onVisible); };
   }, []);
   if (dismissed || !u?.latest || compareVersion(u.current, u.latest) >= 0) return null;
   return (
