@@ -7,6 +7,7 @@ import {
   getEnabledPersonalProxies, isLocalProxyUrl, isExtensionProxyUrl, isNativeProxyUrl, isSyntheticProxyUrl,
 } from "./proxyConfig";
 import { cached, NOT_FOUND, isNotFound } from "./marketCache";
+import { tossCandleSymbol, tossCandlesUsable, fetchTossDailyCandles, TOSS_RANGE_BARS } from "./tossCandles";
 import { isExtensionProxyReady, fetchViaExtension } from "./extensionProxy";
 import { isDirectApp, fetchViaNative } from "./nativeProxy";
 import { incrementProxyCall, cleanupOldProxyCalls } from "./usageCounter";
@@ -1762,10 +1763,24 @@ const DAILY_CACHE_MS = 6 * 3600_000;
 let yahooCooldownUntil = 0;
 function yahooCoolingDown(): boolean { return Date.now() < yahooCooldownUntil; }
 function noteYahooStatus(status: number) { if (status === 429) yahooCooldownUntil = Date.now() + 120_000; }
+// wantEvents — 배당·분할 이벤트가 꼭 필요하면 true(야후만 준다). 아니면 데스크톱 앱+토스 연동일 때 토스 공식 일봉을 먼저 쓴다
+//   (야후 429 회피, tossCandles.ts). 토스가 못 주는 심볼·실패는 그대로 야후로.
 async function fetchPriceHistoryWithEventsFor(
-  symbol: string, range: string,
+  symbol: string, range: string, wantEvents = false,
 ): Promise<{ prices: PricePoint[]; dividends: DividendEvent[]; splits: SplitEvent[] }> {
   const empty = { prices: [] as PricePoint[], dividends: [] as DividendEvent[], splits: [] as SplitEvent[] };
+  if (!wantEvents && TOSS_RANGE_BARS[range]) {
+    const ts = tossCandleSymbol(symbol);
+    if (ts && tossCandlesUsable()) {
+      try {
+        // .KS/.KQ 를 따로 물어도 키가 같아(코드만) 한 번만 받는다(cached 가 동시 호출도 합친다)
+        const tv = await cached(`tc:${ts}:${range}`, DAILY_CACHE_MS,
+          async () => (await fetchTossDailyCandles(ts, range)) ?? NOT_FOUND,
+          x => !isNotFound(x) && x.length === 0);
+        if (!isNotFound(tv)) return { prices: tv, dividends: [], splits: [] };
+      } catch { /* 토스 실패(한도·토큰) → 야후 */ }
+    }
+  }
   const v = await cached(`yh:${symbol}:${range}`, DAILY_CACHE_MS,
     async () => (await fetchPriceHistoryWithEventsRaw(symbol, range)) ?? NOT_FOUND,
     x => !isNotFound(x) && x.prices.length === 0);
@@ -2026,7 +2041,7 @@ export async function fetchKrPriceHistoryWithEvents(
   const empty = { prices: [] as PricePoint[], dividends: [] as DividendEvent[], splits: [] as SplitEvent[] };
   if (!/^[\dA-Za-z]{6}$/.test(ticker)) return empty;
   // 노이즈 봉 문제(fetchKrPriceHistory 참조) — 둘 다 받아 봉 많은 쪽 선택.
-  return fetchKrEitherExchange(ticker, sym => fetchPriceHistoryWithEventsFor(sym, range), v => v.prices.length);
+  return fetchKrEitherExchange(ticker, sym => fetchPriceHistoryWithEventsFor(sym, range, true), v => v.prices.length);
 }
 
 // 공시 fetch — Naver 모바일 API (인증 불필요, m.stock.naver.com 이미 워커 화이트리스트)
