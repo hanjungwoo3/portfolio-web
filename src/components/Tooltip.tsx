@@ -86,7 +86,7 @@ function ClickLayer({ content, children, className, label, onOpen }: { content: 
         {label ?? "▲"}
       </button>
       {placed && typeof document !== "undefined" && createPortal(
-        <div ref={layerRef} role="dialog"
+        <div ref={layerRef} role="dialog" onClick={close}   // 레이어 아무 데나 눌러도 닫힘(사용자 요청 2026-10-26)
              style={{ position: "fixed", left: placed.x, top: placed.y, zIndex: 1000, maxWidth: placed.maxW, maxHeight: placed.maxH, opacity: size ? 1 : 0 }}
              className="pl-3 pr-7 py-2 rounded-md shadow-xl bg-white text-gray-800 text-[11px] leading-relaxed
                         border border-gray-200 w-max overflow-auto whitespace-normal text-left">
