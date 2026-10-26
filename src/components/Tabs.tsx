@@ -150,10 +150,11 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
         const allCnt = countByKey.get(allKey) ?? 0;
         return (
           <HoverMenu key={`__folder__${folder.name}`} title={`📁 ${folder.name}`} on={active}
+                     accent={folder.name === BROKER_FOLDER ? "amber" : undefined}
                      onTriggerClick={() => onChange(current)}
                      trigger={<>
                        <span>📁{folder.name}</span>
-                       {inGroup && <span className={`text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>· {inGroup}</span>}
+                       {inGroup && <span className={`text-xs ${folder.name === BROKER_FOLDER ? "text-amber-600" : active ? "text-blue-500" : "text-gray-400"}`}>· {inGroup}</span>}
                      </>}
                      items={[
                        { key: allKey, active: activeKey === allKey,
@@ -582,9 +583,10 @@ function aggregateHoldings(holdings: Stock[]): Stock[] {
 //   기본 <select> 는 호버로 못 연다. 탭 줄(nav)이 overflow-x-auto 라 absolute 메뉴는 잘리므로
 //   body 에 포털로 띄우고 탭 위치(getBoundingClientRect)에 fixed 로 붙인다.
 //   탭 자체를 누르면 메뉴 대신 바로 이동한다(지수 = 시간에 맞는 페이지).
-function HoverMenu({ title, on, trigger, items, onPick, onTriggerClick }: {
+function HoverMenu({ title, on, trigger, items, onPick, onTriggerClick, accent }: {
   title: string;
   on: boolean;
+  accent?: "amber";   // 증권사연결 폴더 — 노란 계열로 구분(사용자 요청 2026-10-26)
   trigger: ReactNode;
   items: { key: string; label: ReactNode; active: boolean }[];
   onPick: (key: string) => void;
@@ -615,9 +617,11 @@ function HoverMenu({ title, on, trigger, items, onPick, onTriggerClick }: {
               onMouseEnter={open} onMouseLeave={closeSoon}
               onClick={() => { setPos(null); onTriggerClick(); }}
               className={`shrink-0 inline-flex items-center gap-1 pl-2 pr-1.5 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px
-                          ${on ? "border-blue-500 bg-blue-50 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
+                          ${accent === "amber"
+                            ? (on ? "border-amber-500 bg-amber-100 text-amber-800" : "border-transparent bg-amber-50 text-amber-700 hover:bg-amber-100")
+                            : (on ? "border-blue-500 bg-blue-50 text-blue-700" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100")}`}>
         {trigger}
-        <span className={`text-[10px] ${on ? "text-blue-400" : "text-gray-400"}`}>▾</span>
+        <span className={`text-[10px] ${accent === "amber" ? "text-amber-500" : on ? "text-blue-400" : "text-gray-400"}`}>▾</span>
       </button>
       {pos && createPortal(
         <div onMouseEnter={cancelClose} onMouseLeave={closeSoon}

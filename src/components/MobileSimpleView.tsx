@@ -1141,12 +1141,14 @@ export function MobileSimpleView() {
           return (
             <span key={`folder_${folder.name}`}
                   className={`shrink-0 inline-flex items-center rounded-md text-[11px] pl-1.5
-                              ${folderActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+                              ${folder.name === BROKER_FOLDER   /* 증권사연결은 노란 계열(사용자 요청 2026-10-26) */
+                                ? (folderActive ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-800")
+                                : (folderActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600")}`}>
               <span>📁</span>
               <select value={folderActive ? activeTab : ""}
                       onChange={e => { if (e.target.value) setActiveTab(e.target.value); }}
                       className={`bg-transparent text-[11px] py-1 pl-1 pr-1 rounded-md focus:outline-none
-                                  ${folderActive ? "text-white font-bold" : "text-gray-700"}`}>
+                                  ${folderActive ? "text-white font-bold" : folder.name === BROKER_FOLDER ? "text-amber-800" : "text-gray-700"}`}>
                 {!folderActive && <option value="" disabled hidden className="text-gray-800">{folder.name}</option>}
                 <optgroup label={folder.name}>
                   <option value={allKey} className="text-gray-800">{FOLDER_ALL_LABEL}{(countByKey.get(allKey) ?? 0) > 0 ? ` (${countByKey.get(allKey)})` : ""}</option>
