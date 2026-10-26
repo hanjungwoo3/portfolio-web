@@ -3,7 +3,7 @@
 //   계획서: docs/broker-api-integration-plan.md — 1단계(키 저장·연결 시험)
 import { useEffect, useState } from "react";
 import {
-  isBrokerAvailable, brokerStatus, brokerSet, brokerClear, fetchTossAccounts,
+  isBrokerAvailable, brokerStatus, brokerSet, brokerClear, fetchTossAccounts, brokerGet,
   getTossEnabled, setTossEnabled, getTossAccountSeq, setTossAccountSeq, maskAccountNo,
   BrokerError, type TossAccount,
 } from "../lib/broker";
@@ -24,6 +24,27 @@ export function BrokerLinkSection({ compact }: { compact?: boolean }) {
   const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [accounts, setAccounts] = useState<TossAccount[] | null>(null);
   const [accountSeq, setAccountSeqState] = useState(getTossAccountSeq());
+  // 진단 — 응답을 그대로 보여 준다(2단계 설계용 실측: 필드·통화·체결 모양). 계좌번호 등은 사용자 본인 화면에만
+  const [probeOpen, setProbeOpen] = useState(false);
+  const [probe, setProbe] = useState<{ label: string; text: string } | null>(null);
+  const runProbe = async (label: string, path: string) => {
+    setBusy(true); setProbe({ label, text: "불러오는 중…" });
+    try {
+      const r = await brokerGet<unknown>("toss", path, accountSeq || undefined);
+      const text = JSON.stringify(r, null, 1);
+      setProbe({ label, text: text.length > 6000 ? text.slice(0, 6000) + "\n… (잘림)" : text });
+    } catch (e) {
+      setProbe({ label, text: `오류: ${e instanceof Error ? e.message : String(e)}` });
+    } finally { setBusy(false); }
+  };
+  const PROBES: [string, string][] = [
+    ["보유", "/api/v1/holdings"],
+    ["최근 종료 주문 5건", "/api/v1/orders?status=CLOSED&limit=5"],
+    ["대기 주문", "/api/v1/orders?status=OPEN"],
+    ["매수 가능(KRW)", "/api/v1/buying-power?currency=KRW"],
+    ["매수 가능(USD)", "/api/v1/buying-power?currency=USD"],
+    ["수수료", "/api/v1/commissions"],
+  ];
 
   const refresh = async () => {
     if (!available) return;
@@ -165,6 +186,30 @@ export function BrokerLinkSection({ compact }: { compact?: boolean }) {
                   className="border rounded px-1.5 py-0.5 text-[11px] bg-white">
             {accounts.map(a => <option key={a.accountSeq} value={String(a.accountSeq)}>{maskAccountNo(a.accountNo)} · {a.accountType}</option>)}
           </select>
+        </div>
+      )}
+
+      {/* 진단 — 연결된 뒤에만. 응답 JSON 을 그대로(설계·문제 확인용) */}
+      {configured && accountSeq && (
+        <div className="text-[11px]">
+          <button onClick={() => setProbeOpen(v => !v)} className="text-gray-500 hover:text-gray-800 underline decoration-dotted">
+            🔎 진단 — 응답 보기 {probeOpen ? "▲" : "▼"}
+          </button>
+          {probeOpen && (
+            <div className="mt-1 space-y-1">
+              <div className="flex flex-wrap gap-1">
+                {PROBES.map(([label, path]) => (
+                  <button key={path} onClick={() => void runProbe(label, path)} disabled={busy}
+                          className="px-2 py-0.5 rounded border border-gray-300 bg-white hover:bg-gray-50 disabled:opacity-50">{label}</button>
+                ))}
+              </div>
+              {probe && (
+                <pre className="max-h-[320px] overflow-auto rounded border border-gray-200 bg-white p-2 text-[10px] leading-tight whitespace-pre-wrap break-all select-text">
+                  <b>{probe.label}</b>{"\n"}{probe.text}
+                </pre>
+              )}
+            </div>
+          )}
         </div>
       )}
 
