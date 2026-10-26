@@ -224,7 +224,8 @@
 - [x] 2026-10-26 **일봉 대체**: `src/lib/tossCandles.ts` — 데스크톱 앱+연동 켬이면 야후 일봉(`fetchPriceHistoryWithEventsFor`) 앞에서 토스 `/api/v1/candles?interval=1d` 를 먼저(국내 6자리·미국 티커만, 지수·환율·해외거래소·10y/max 는 야후), 200봉 페이지 `nextBefore` 이어받기, 캐시 키 `tc:<코드>:<range>`(.KS/.KQ 양쪽이 한 번), 404·429·토큰 실패는 야후로 폴백(토큰류는 10분 건너뜀). 배당·분할 이벤트가 필요한 `fetchKrPriceHistoryWithEvents` 는 야후 유지. 스텁 검증: KR 1y 252봉(2페이지)·AAPL 66봉·^KS11 은 야후.
 - [x] 2026-10-26 **새 정보 — 시장 투자자 매매대금 주·월·연**: 증시 탭 '투자자 순매수' 에 [장기] 모드(앱+연동일 때만 버튼) — `src/lib/tossMarketFlow.ts`(`market-indicators/{KOSPI|KOSDAQ}/investor-trading?interval=1w|1mo|1y`, 억원 순매수, 투신=투신+사모) + `LongTermInvestorChart`(SVG 그룹 막대, 마지막 구간 '집계중' 흐리게). 신용잔고·투자경고·VI 는 이미 비공식/네이버로 있어 생략, 상·하한가는 가치 낮아 보류.
 - [x] 2026-10-26 **앱 → Drive → 웹 중계**(`src/lib/tossRelay.ts`, appDataFolder `toss-relay.json`): 앱이 자동 갱신 주기에 6시간마다 [장기] 6개 시계열을 올리고, 웹·휴대폰은 같은 구글 계정이면 그 파일을 읽어 [장기] 버튼·차트를 보여 준다("앱이 M/D HH:MM 에 가져온 값"). 계좌 자료(보유·예수금·거래)는 원래 portfolio.json 동기화로 감.
-- [ ] 이후: 한국투자증권 → KRX
+- [x] 2026-10-26 **한국투자증권 1단계 구현**(실제 키로는 미검증): broker.rs 에 `kis`(실전 openapi.koreainvestment.com:9443 / 모의 openapivts…:29443, 토큰 POST /oauth2/tokenP JSON·24h 재사용(1분 1회 EGW00133), 헤더 appkey·appsecret·tr_id·custtype·tr_cont, 응답 헤더 tr_cont 반환, 한도 실전 60ms·모의 550ms, 경로 /uapi/ 만) · `src/lib/broker.ts kisGet()`(rt_cd≠0 도 오류, 모의면 tr_id V 변환) · `src/lib/kisSync.ts`(국내 잔고 TTTC8434R 페이징 → source "kis" 행, 해외 체결기준잔고 CTRP6504R 의 기준환율로 원화 평단, 예수금 = 매수가능 TTTC8908R 주문가능현금, 거래 = 일별체결 TTTC0081R(3개월 이내)+CTSC9215R(이전)·해외 TTTS3035R(NASD/NYSE/AMEX), id `kisapi_<주문일>_<주문번호>`) · 설정 `KisLinkSection`(실전/모의·계좌 8-2·키·연결 시험·연동 그룹 '한국투자'·진단 raw) · 앱 자동 갱신 `useKisAutoSync`. 스텁으로 저장→시험→연동→보유2·예수금·거래 저장 확인. **데스크톱 새 빌드 필요(broker_set mode·kis)**. 다음: 실제 모의 키로 필드 실측(수수료 없음·해외 응답 모양·모의 미지원 API), 내거래(한국투자) 탭, 장중 추정 수급·주식선물.
+- [ ] 이후: KRX
 - 검토(2026-10-26) 결정: **연동 켜려면 그룹 독립 모드 필수**(꺼져 있으면 수동 그룹이 같이 바뀜·거래 이중 계산). 연동 그룹은 **기존 그룹 지정도 가능**(이름·폴더·예수금 재사용, 합계 이중 계산 없음).
 
 ## 참고

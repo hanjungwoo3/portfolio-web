@@ -1,6 +1,7 @@
 import { DriveRestorePanel } from "./DriveRestorePanel";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
 import { BrokerLinkSection } from "./BrokerLinkSection";
+import { KisLinkSection } from "./KisLinkSection";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, Cpu } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -669,6 +670,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
 
           {/* 증권사 연결(토스 Open API) — 데스크톱 앱만 실제 연결, 웹은 안내 */}
           <BrokerLinkSection />
+          <KisLinkSection />
 
           {/* 전용 프록시 URL */}
           <div className="border border-gray-200 rounded p-2.5 bg-blue-50/30 space-y-1">

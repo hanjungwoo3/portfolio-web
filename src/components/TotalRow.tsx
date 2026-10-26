@@ -1,4 +1,4 @@
-import { isLinkedGroup } from "../lib/linkedGroups";
+import { isLinkedGroup, brokerLabel, linkedGroupByName } from "../lib/linkedGroups";
 import { useState } from "react";
 import type { Stock, Price } from "../types";
 import { formatSigned, signColor, holdingYesterdayBaseSum, holdingMarketBaseSum } from "../lib/format";
@@ -195,8 +195,8 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
             {deposit > 0 ? `${deposit.toLocaleString()}원` : "+ 입력"}
           </button>
         ) : (
-          <span className="text-gray-800" title={linked ? "토스 연동 — 주문 가능 금액(자동 갱신)" : undefined}>
-            {linked && <span className="mr-1 text-[10px] text-violet-700">🔗토스</span>}{deposit.toLocaleString()}원
+          <span className="text-gray-800" title={linked ? `${brokerLabel(linkedGroupByName(account)?.broker)} 연동 — 주문 가능 금액(자동 갱신)` : undefined}>
+            {linked && <span className="mr-1 text-[10px] text-violet-700">🔗{brokerLabel(linkedGroupByName(account)?.broker)}</span>}{deposit.toLocaleString()}원
           </span>
         )}
       </div>

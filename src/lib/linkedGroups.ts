@@ -25,6 +25,7 @@ export type LinkedGroups = Record<string, LinkedGroupMeta>;
 const KEY = "portfolio_linked_groups";
 export const LINKED_GROUPS_EVENT = "linked-groups-changed";
 export const DEFAULT_TOSS_GROUP = "토스";
+export const DEFAULT_KIS_GROUP = "한국투자";
 /** 연동 그룹을 담는 폴더 — 지수 탭 바로 오른쪽에 고정(사용자 결정 2026-10-26). 증권사별 그룹(토스·한국투자…)이 이 안에 */
 export const BROKER_FOLDER = "증권사연결";
 
@@ -74,6 +75,14 @@ export function removeLinkedGroup(group: string): void {
 export function isLinkedGroup(group: string | null | undefined): boolean {
   return !!group && group in getLinkedGroups();
 }
+/** 증권사 표시 이름 — 카드·합계줄의 🔗 라벨 */
+export function brokerLabel(broker: BrokerId | string | undefined): string {
+  return broker === "kis" ? "한국투자" : broker === "toss" ? "토스" : "연동";
+}
+/** 그룹 이름으로 연동 메타 */
+export function linkedGroupByName(group: string | null | undefined): LinkedGroupMeta | null {
+  return group ? (getLinkedGroups()[group] ?? null) : null;
+}
 /** 이 증권사에 연결된 그룹(지금은 증권사당 하나) */
 export function linkedGroupOf(broker: BrokerId): { group: string; meta: LinkedGroupMeta } | null {
   for (const [group, meta] of Object.entries(getLinkedGroups())) if (meta.broker === broker) return { group, meta };
@@ -91,9 +100,9 @@ export function sanitizeLinkedGroups(v: unknown): LinkedGroups | undefined {
   for (const [g, m] of Object.entries(v as Record<string, unknown>)) {
     if (!m || typeof m !== "object") continue;
     const x = m as Partial<LinkedGroupMeta>;
-    if (x.broker !== "toss" || typeof x.accountSeq !== "string") continue;
+    if ((x.broker !== "toss" && x.broker !== "kis") || typeof x.accountSeq !== "string") continue;
     out[g] = {
-      broker: "toss", accountSeq: x.accountSeq,
+      broker: x.broker, accountSeq: x.accountSeq,
       ...(typeof x.lastSyncAt === "string" ? { lastSyncAt: x.lastSyncAt } : {}),
       ...(typeof x.lastTradeSyncAt === "string" ? { lastTradeSyncAt: x.lastTradeSyncAt } : {}),
       ...(typeof x.lastError === "string" ? { lastError: x.lastError } : {}),

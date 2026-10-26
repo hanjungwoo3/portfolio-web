@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
 import { BrokerLinkSection } from "./BrokerLinkSection";
+import { KisLinkSection } from "./KisLinkSection";
 import { isLinkedGroup, linkedGroupOf, BROKER_FOLDER, ensureLinkedGroupsInFolder } from "../lib/linkedGroups";
 import { TOSS_TRADE_ID_PREFIX } from "../lib/tossTrades";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
@@ -2929,6 +2930,7 @@ function SettingsModal({
 
           {/* 증권사 연결 — 휴대폰에선 안내만(연결은 PC 데스크톱 앱) */}
           <BrokerLinkSection compact />
+          <KisLinkSection compact />
 
           {/* 1) 전용 프록시 — 여러 개 가능 */}
           <div className="border border-gray-200 rounded p-3 bg-blue-50/30 space-y-1">

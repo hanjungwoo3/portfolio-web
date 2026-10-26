@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
-import { isSyncedHolding, linkedGroupOf } from "../lib/linkedGroups";
+import { isSyncedHolding, linkedGroupByName } from "../lib/linkedGroups";
 const fmtSyncedAt = (iso?: string) => iso ? new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
 import type { Stock, Price, Investor, Consensus, Memo } from "../types";
 import { twoDayTodayX, TWO_DAY_HALF, type PricePoint, type DaySeries } from "../lib/api";
@@ -544,7 +544,7 @@ export function StockCard({
   const isUsHolding = marketOfSymbol(stock.ticker) === "US";
   // 증권사 연동으로 가져온 행 — 잠금(수정·삭제 숨김), 🔗 표시(사용자 결정 2026-10-26)
   const synced = isSyncedHolding(stock);
-  const syncedAt = synced ? fmtSyncedAt(linkedGroupOf("toss")?.meta.lastSyncAt) : "";
+  const syncedAt = synced ? fmtSyncedAt(linkedGroupByName(stock.account)?.lastSyncAt) : "";
   // ETF·ETN 은 애프터마켓(16:00~20:00)에 참여하지 않는다 — 흐림 판정·마감 시각 양쪽에 쓰는 한 값.
   const noAfterHours = isEtfOrEtnByName(stock.name);
   const sleeping = isUsHolding

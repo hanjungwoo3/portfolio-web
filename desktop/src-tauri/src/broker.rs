@@ -16,14 +16,25 @@ use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 const SERVICE: &str = "io.github.hanjungwoo3.portfolio";
 
+// 증권사별 차이 — 토스: Basic 토큰·경로 /api/v1/·계좌 헤더 X-Tossinvest-Account.
+//   한국투자(KIS Developers): JSON 토큰(POST /oauth2/tokenP, **1분에 1번만 발급** EGW00133 → 저장해 24h 재사용), 경로 /uapi/,
+//   헤더 appkey·appsecret·tr_id(API 마다 다름, 모의는 V 로 시작)·custtype P·tr_cont(이어받기), 실전/모의 호스트가 다르다(mode).
+//   한도(공식 FAQ): 실전 초당 20건, 모의 초당 2건. 허용 IP 등록은 없다.
 struct Broker {
     host: &'static str,
     token_url: &'static str,
+    path_prefix: &'static str,
 }
 
-fn broker_of(name: &str) -> Result<Broker, String> {
+fn broker_of(name: &str) -> Result<Broker, String> { broker_of_mode(name, None) }
+fn broker_of_mode(name: &str, mode: Option<&str>) -> Result<Broker, String> {
     match name {
-        "toss" => Ok(Broker { host: "https://openapi.tossinvest.com", token_url: "https://openapi.tossinvest.com/oauth2/token" }),
+        "toss" => Ok(Broker { host: "https://openapi.tossinvest.com", token_url: "https://openapi.tossinvest.com/oauth2/token", path_prefix: "/api/v1/" }),
+        "kis" => Ok(if mode == Some("paper") {
+            Broker { host: "https://openapivts.koreainvestment.com:29443", token_url: "https://openapivts.koreainvestment.com:29443/oauth2/tokenP", path_prefix: "/uapi/" }
+        } else {
+            Broker { host: "https://openapi.koreainvestment.com:9443", token_url: "https://openapi.koreainvestment.com:9443/oauth2/tokenP", path_prefix: "/uapi/" }
+        }),
         _ => Err(format!("모르는 증권사: {name}")),
     }
 }
@@ -40,6 +51,8 @@ struct Creds {
     client_secret: String,
     #[serde(default)]
     token: Option<String>, // "<exp>|<token>"
+    #[serde(default)]
+    mode: Option<String>,  // 한국투자: "real" | "paper"(모의투자) — 호스트·tr_id 가 갈린다
 }
 
 fn entry(broker: &str) -> Result<keyring::Entry, String> {
@@ -81,7 +94,7 @@ fn load_creds(broker: &str) -> Result<Option<Creds>, String> {
     let secret = read_entry(&legacy_entry(broker, "client_secret")?)?;
     if let (Some(client_id), Some(client_secret)) = (id, secret) {
         let token = read_entry(&legacy_entry(broker, "token")?).unwrap_or(None);
-        let c = Creds { client_id, client_secret, token };
+        let c = Creds { client_id, client_secret, token, mode: None };
         store_creds(broker, &c)?;
         for k in ["client_id", "client_secret", "token"] {
             if let Ok(e) = legacy_entry(broker, k) { let _ = delete_entry(&e); }
@@ -121,12 +134,15 @@ pub struct BrokerState {
 pub struct BrokerStatus {
     configured: bool,
     client_id_hint: String, // 앞 4자리 — 어떤 키인지 알아볼 정도만, 비밀키는 절대 안 돌려준다
+    mode: Option<String>,   // 한국투자 real/paper
 }
 
 #[derive(serde::Serialize)]
 pub struct BrokerRes {
     status: u16,
     body: String, // JSON 문자열 그대로(웹이 해석)
+    #[serde(default)]
+    tr_cont: Option<String>, // 한국투자 응답 헤더 — "F"/"M" 이면 다음 페이지 있음(웹이 이어받기)
 }
 
 #[tauri::command]
@@ -134,19 +150,21 @@ pub fn broker_status(state: tauri::State<'_, BrokerState>, broker: String) -> Re
     broker_of(&broker)?;
     let c = creds_of(&state, &broker)?;
     let configured = c.as_ref().map(|c| !c.client_id.is_empty() && !c.client_secret.is_empty()).unwrap_or(false);
-    Ok(BrokerStatus { configured, client_id_hint: c.map(|c| c.client_id.chars().take(4).collect()).unwrap_or_default() })
+    let mode = c.as_ref().and_then(|c| c.mode.clone());
+    Ok(BrokerStatus { configured, client_id_hint: c.map(|c| c.client_id.chars().take(4).collect()).unwrap_or_default(), mode })
 }
 
 #[tauri::command]
-pub fn broker_set(state: tauri::State<'_, BrokerState>, broker: String, client_id: String, client_secret: String) -> Result<(), String> {
+pub fn broker_set(state: tauri::State<'_, BrokerState>, broker: String, client_id: String, client_secret: String, mode: Option<String>) -> Result<(), String> {
     broker_of(&broker)?;
     let id = client_id.trim();
     let secret = client_secret.trim();
     if id.is_empty() || secret.is_empty() {
         return Err("client_id 와 client_secret 을 모두 넣어 주세요".into());
     }
+    let mode = mode.filter(|m| m == "real" || m == "paper");
     // 키가 바뀌었으니 옛 토큰은 버린다
-    save_creds(&state, &broker, Creds { client_id: id.to_string(), client_secret: secret.to_string(), token: None })?;
+    save_creds(&state, &broker, Creds { client_id: id.to_string(), client_secret: secret.to_string(), token: None, mode })?;
     state.tokens.lock().map_err(|_| "lock")?.remove(&broker);
     Ok(())
 }
@@ -169,8 +187,8 @@ fn now_epoch() -> u64 {
 
 // 유효한 토큰 — 메모리 → 보관함 → 새로 발급 순
 async fn get_token(client: &reqwest::Client, state: &BrokerState, broker: &str, force_new: bool) -> Result<String, String> {
-    let b = broker_of(broker)?;
     let creds = creds_of(state, broker)?.ok_or("증권사 키가 없습니다 — 설정에서 먼저 연결해 주세요")?;
+    let b = broker_of_mode(broker, creds.mode.as_deref())?;
     if !force_new {
         if let Some((t, exp)) = state.tokens.lock().map_err(|_| "lock")?.get(broker).cloned() {
             if exp > now_epoch() + 60 { return Ok(t); }
@@ -189,19 +207,30 @@ async fn get_token(client: &reqwest::Client, state: &BrokerState, broker: &str, 
     }
     let id = creds.client_id.clone();
     let secret = creds.client_secret.clone();
-    // 토스 실측(2026-09-09): 토큰 발급은 HTTP Basic — 폼 본문에 id/secret 을 넣으면 401
-    let r = client
-        .post(b.token_url)
-        .basic_auth(&id, Some(&secret))
-        .form(&[("grant_type", "client_credentials")])
-        .timeout(Duration::from_secs(15))
-        .send()
-        .await
-        .map_err(|e| format!("토큰 발급 요청 실패: {e}"))?;
+    let r = if broker == "kis" {
+        // 한국투자: JSON 본문. 1분에 1번만 발급되므로(EGW00133) 아래에서 저장해 재사용한다
+        client
+            .post(b.token_url)
+            .header("content-type", "application/json; charset=utf-8")
+            .body(serde_json::json!({ "grant_type": "client_credentials", "appkey": id, "appsecret": secret }).to_string())
+            .timeout(Duration::from_secs(15))
+            .send()
+            .await
+    } else {
+        // 토스 실측(2026-09-09): 토큰 발급은 HTTP Basic — 폼 본문에 id/secret 을 넣으면 401
+        client
+            .post(b.token_url)
+            .basic_auth(&id, Some(&secret))
+            .form(&[("grant_type", "client_credentials")])
+            .timeout(Duration::from_secs(15))
+            .send()
+            .await
+    }
+    .map_err(|e| format!("토큰 발급 요청 실패: {e}"))?;
     let status = r.status().as_u16();
     let text = r.text().await.unwrap_or_default();
     if status != 200 {
-        return Err(token_error_message(status, &text));
+        return Err(if broker == "kis" { kis_token_error_message(status, &text) } else { token_error_message(status, &text) });
     }
     #[derive(serde::Deserialize)]
     struct Tok { access_token: String, #[serde(default)] expires_in: Option<u64> }
@@ -211,6 +240,17 @@ async fn get_token(client: &reqwest::Client, state: &BrokerState, broker: &str, 
     let _ = save_creds(state, broker, Creds { token: Some(format!("{exp}|{}", tok.access_token)), ..creds });
     state.tokens.lock().map_err(|_| "lock")?.insert(broker.to_string(), (tok.access_token.clone(), exp));
     Ok(tok.access_token)
+}
+
+// 한국투자 토큰 오류 — 1분 제한·키 불일치가 대부분
+fn kis_token_error_message(status: u16, body: &str) -> String {
+    if body.contains("EGW00133") {
+        return "한국투자 토큰은 1분에 한 번만 발급됩니다 — 1분 뒤 다시 시도해 주세요(앱은 받은 토큰을 24시간 재사용합니다)".into();
+    }
+    if status == 401 || status == 403 || body.contains("EGW00002") || body.contains("EGW00001") {
+        return "앱키·앱시크릿이 맞지 않습니다 — KIS Developers 에서 다시 복사해 주세요(실전/모의 키가 다릅니다)".into();
+    }
+    format!("한국투자 토큰 발급 실패 ({status}): {}", body.chars().take(200).collect::<String>())
 }
 
 // 사용자에게 보여 줄 말로 — 토스 토큰 오류는 거의 셋 중 하나(FAQ)
@@ -225,8 +265,11 @@ fn token_error_message(status: u16, body: &str) -> String {
     format!("토큰 발급 실패 ({status}): {}", body.chars().take(200).collect::<String>())
 }
 
-// 계좌성 경로(초당 1건 묶음)인가 — 1.1초 간격, 나머지는 0.08초
-fn rate_group(path: &str) -> (&'static str, Duration) {
+// 계좌성 경로(초당 1건 묶음)인가 — 1.1초 간격, 나머지는 0.08초. 한국투자는 실전 20/s(60ms)·모의 2/s(550ms)
+fn rate_group(broker: &str, mode: Option<&str>, path: &str) -> (&'static str, Duration) {
+    if broker == "kis" {
+        return if mode == Some("paper") { ("kis-paper", Duration::from_millis(550)) } else { ("kis", Duration::from_millis(60)) };
+    }
     const SLOW: [&str; 7] = ["/api/v1/accounts", "/api/v1/holdings", "/api/v1/orders", "/api/v1/conditional-orders", "/api/v1/buying-power", "/api/v1/sellable-quantity", "/api/v1/commissions"];
     if SLOW.iter().any(|p| path.starts_with(p)) { ("account", Duration::from_millis(1100)) } else { ("market", Duration::from_millis(80)) }
 }
@@ -243,7 +286,8 @@ async fn wait_turn(state: &BrokerState, group: &str, gap: Duration) {
     if !sleep_for.is_zero() { tokio::time::sleep(sleep_for).await; }
 }
 
-/// 조회 전용 요청. path = "/api/v1/..."(쿼리 포함 가능). account = X-Tossinvest-Account(accountSeq).
+/// 조회 전용 요청. path = "/api/v1/..."(토스) 또는 "/uapi/..."(한국투자), 쿼리 포함 가능.
+///   account = 토스 X-Tossinvest-Account(accountSeq). tr_id/tr_cont = 한국투자 헤더(그 둘만 받는다).
 ///   GET 만 보낸다 — 주문·정정·취소는 전부 POST/DELETE 라 이 명령으로는 애초에 못 한다.
 #[tauri::command]
 pub async fn broker_fetch(
@@ -252,34 +296,50 @@ pub async fn broker_fetch(
     broker: String,
     path: String,
     account: Option<String>,
+    tr_id: Option<String>,
+    tr_cont: Option<String>,
 ) -> Result<BrokerRes, String> {
-    let b = broker_of(&broker)?;
-    if !path.starts_with("/api/v1/") || path.contains("..") || path.contains("://") {
+    let mode = creds_of(&state, &broker)?.and_then(|c| c.mode);
+    let b = broker_of_mode(&broker, mode.as_deref())?;
+    if !path.starts_with(b.path_prefix) || path.contains("..") || path.contains("://") {
         return Err(format!("허용되지 않는 경로: {path}"));
     }
     let url = format!("{}{}", b.host, path);
-    let (group, gap) = rate_group(&path);
+    let (group, gap) = rate_group(&broker, mode.as_deref(), &path);
 
     let mut token = get_token(&client, &state, &broker, false).await?;
     for attempt in 0..2 {
         wait_turn(&state, group, gap).await;
         let mut req = client.get(&url).bearer_auth(&token).timeout(Duration::from_secs(20));
-        if let Some(acc) = account.as_deref().filter(|s| !s.is_empty()) {
+        if broker == "kis" {
+            // 한국투자는 키를 헤더로도 요구한다(토큰과 별개). tr_id 는 API 마다 다르고 모의는 V 로 시작(웹이 맞춰 보낸다)
+            let c = creds_of(&state, &broker)?.ok_or("증권사 키가 없습니다")?;
+            req = req
+                .header("content-type", "application/json; charset=utf-8")
+                .header("appkey", c.client_id)
+                .header("appsecret", c.client_secret)
+                .header("custtype", "P")
+                .header("tr_id", tr_id.clone().unwrap_or_default())
+                .header("tr_cont", tr_cont.clone().unwrap_or_default());
+        } else if let Some(acc) = account.as_deref().filter(|s| !s.is_empty()) {
             req = req.header("X-Tossinvest-Account", acc);
         }
         let r = req.send().await.map_err(|e| format!("요청 실패: {e}"))?;
         let status = r.status().as_u16();
+        let res_tr_cont = r.headers().get("tr_cont").and_then(|v| v.to_str().ok()).map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
         let body = r.text().await.unwrap_or_default();
         if status >= 400 {
             // 원인 추적용 — 키·토큰은 안 찍는다(경로·상태·본문 앞부분만)
             eprintln!("broker_fetch {status} {path} {}", body.chars().take(200).collect::<String>());
         }
         // 토큰이 무효(다른 곳에서 새로 받아 끊겼거나 만료) → 한 번만 새로 받아 재시도
-        if status == 401 && attempt == 0 {
+        // 한국투자는 토큰 만료를 HTTP 500 + EGW00123 으로 준다
+        let kis_expired = broker == "kis" && (body.contains("EGW00123") || body.contains("EGW00121"));
+        if (status == 401 || kis_expired) && attempt == 0 {
             token = get_token(&client, &state, &broker, true).await?;
             continue;
         }
-        return Ok(BrokerRes { status, body });
+        return Ok(BrokerRes { status, body, tr_cont: res_tr_cont });
     }
     Err("요청 재시도 실패".into())
 }

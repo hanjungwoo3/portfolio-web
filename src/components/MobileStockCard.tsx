@@ -401,7 +401,7 @@ export function MobileStockCard({
           )}
           {/* 📊 기업가치는 위 '📊종목정보' 팝업의 탭으로(2026-10-23) */}
           {isSyncedHolding(stock) && (
-            <span title="토스 연동 보유 — 자동 갱신, 수정·삭제 불가" className="px-1 text-[11px] text-violet-700">🔗</span>
+            <span title="증권사 연동 보유 — 자동 갱신, 수정·삭제 불가" className="px-1 text-[11px] text-violet-700">🔗</span>
           )}
           {onEdit && !isSyncedHolding(stock) && (
             <button onClick={() => onEdit(stock)}
