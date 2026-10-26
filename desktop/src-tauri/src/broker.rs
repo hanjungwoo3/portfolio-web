@@ -103,14 +103,18 @@ fn load_creds(broker: &str) -> Result<Option<Creds>, String> {
     }
     Ok(None)
 }
-// 메모리 캐시 우선 — 프로세스당 보관함은 한 번만 읽는다
+// 메모리 캐시 우선 — 프로세스당 보관함은 한 번만 읽는다.
+//   ★ 읽는 동안 잠금을 쥔 채로 — 앱이 켜질 때 잔고·거래·일봉·중계 업로드가 **동시에** 키를 찾는데, 잠금을 풀고 읽으면
+//     캐시가 비어 있는 그 사이 들어온 호출마다 보관함을 따로 읽어 맥 허용 창이 호출 수만큼 떴다(0.1.7 에서 4번, 사용자 신고
+//     2026-10-26). 첫 호출이 읽어 캐시에 넣을 때까지 나머지는 기다렸다가 캐시를 본다 → 업데이트당 1번.
 fn creds_of(state: &BrokerState, broker: &str) -> Result<Option<Creds>, String> {
-    if let Some(c) = state.creds.lock().map_err(|_| "lock")?.get(broker).cloned() {
+    let mut cache = state.creds.lock().map_err(|_| "lock")?;
+    if let Some(c) = cache.get(broker).cloned() {
         return Ok(Some(c));
     }
     let loaded = load_creds(broker)?;
     if let Some(c) = &loaded {
-        state.creds.lock().map_err(|_| "lock")?.insert(broker.to_string(), c.clone());
+        cache.insert(broker.to_string(), c.clone());
     }
     Ok(loaded)
 }
@@ -146,7 +150,9 @@ pub struct BrokerRes {
 }
 
 #[tauri::command]
-pub fn broker_status(state: tauri::State<'_, BrokerState>, broker: String) -> Result<BrokerStatus, String> {
+// async — 보관함 접근(맥 허용 창 포함)이 메인 스레드를 막지 않게. 동기 명령은 메인 스레드에서 돌아 허용 창이 떠 있는 동안
+//   앱 전체(IPC·다른 요청)가 멈췄다(2026-10-26 개발 빌드 실측: 요청 15건 뒤 정지).
+pub async fn broker_status(state: tauri::State<'_, BrokerState>, broker: String) -> Result<BrokerStatus, String> {
     broker_of(&broker)?;
     let c = creds_of(&state, &broker)?;
     let configured = c.as_ref().map(|c| !c.client_id.is_empty() && !c.client_secret.is_empty()).unwrap_or(false);
@@ -155,7 +161,9 @@ pub fn broker_status(state: tauri::State<'_, BrokerState>, broker: String) -> Re
 }
 
 #[tauri::command]
-pub fn broker_set(state: tauri::State<'_, BrokerState>, broker: String, client_id: String, client_secret: String, mode: Option<String>) -> Result<(), String> {
+// async — 보관함 접근(맥 허용 창 포함)이 메인 스레드를 막지 않게. 동기 명령은 메인 스레드에서 돌아 허용 창이 떠 있는 동안
+//   앱 전체(IPC·다른 요청)가 멈췄다(2026-10-26 개발 빌드 실측: 요청 15건 뒤 정지).
+pub async fn broker_set(state: tauri::State<'_, BrokerState>, broker: String, client_id: String, client_secret: String, mode: Option<String>) -> Result<(), String> {
     broker_of(&broker)?;
     let id = client_id.trim();
     let secret = client_secret.trim();
@@ -170,7 +178,9 @@ pub fn broker_set(state: tauri::State<'_, BrokerState>, broker: String, client_i
 }
 
 #[tauri::command]
-pub fn broker_clear(state: tauri::State<'_, BrokerState>, broker: String) -> Result<(), String> {
+// async — 보관함 접근(맥 허용 창 포함)이 메인 스레드를 막지 않게. 동기 명령은 메인 스레드에서 돌아 허용 창이 떠 있는 동안
+//   앱 전체(IPC·다른 요청)가 멈췄다(2026-10-26 개발 빌드 실측: 요청 15건 뒤 정지).
+pub async fn broker_clear(state: tauri::State<'_, BrokerState>, broker: String) -> Result<(), String> {
     broker_of(&broker)?;
     delete_entry(&entry(&broker)?)?;
     for k in ["client_id", "client_secret", "token"] {   // 이전 버전 항목도
