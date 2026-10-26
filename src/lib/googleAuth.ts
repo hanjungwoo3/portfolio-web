@@ -497,9 +497,13 @@ export async function hasExtensionAuth(): Promise<boolean> {
   return !!(await extensionAuthToken(false));
 }
 
-// 로그인 — 전체 페이지가 google 로 redirect (사용자 클릭 후)
-// 웹은 redirect 후 다시 돌아올 때 token 처리됨 → 반환 Promise 는 끝나지 않는다.
-// 데스크톱 앱만 제자리에서 끝난다(브라우저 루프백) → 성공 여부로 끝난다. 호출측은 그걸로 스피너를 걷는다.
+// 로그인 (사용자 클릭 후). 플랫폼마다 끝나는 방식이 다르다 — 호출측은 Promise 로 스피너를 걷는다.
+//   · 웹: 전체 페이지가 google 로 redirect → 돌아올 때 token 처리. 반환 Promise 는 끝나지 않는다.
+//   · 데스크톱 앱: 기본 브라우저 루프백 → 제자리에서 성공 여부로 끝난다.
+//   · 안드로이드 앱(v1.2.0+): 플레이 서비스 네이티브 인증 → 제자리에서 끝난다.
+//     ★ 이 경로도 끝나야 한다 — 2026-10-22 데스크톱 추가 때 웹처럼 '안 끝나는 Promise' 로 두는 바람에
+//       토큰을 받고도 enableSync() 가 영원히 기다려 "Google 로그인 중..." 에서 멈췄다(사용자 신고 2026-10-26).
+//   · 웹 + 크롬 확장: 확장 동의로 토큰을 받으면 제자리에서 끝난다. 거절·실패면 웹 redirect.
 export function signIn(): Promise<boolean> {
   // 로그인 후 돌아갈 path 저장 (예: 모달 다시 열림 등)
   try {
@@ -508,15 +512,15 @@ export function signIn(): Promise<boolean> {
 
   // 데스크톱 앱 — 기본 브라우저로 로그인(루프백). 웹 경로(리다이렉트)는 웹뷰라 구글이 막는다
   if (isDesktopApp()) return desktopAuthToken(true).then(t => !!t);
+  const never = () => new Promise<boolean>(() => { /* 페이지가 떠난다 — 끝나지 않음 */ });
   // 새 APK(v1.2.0+)는 네이티브 인증으로. 옛 APK·웹은 아래 기존 경로 그대로.
-  void canUseNativeAuth().then((ok) => {
+  return canUseNativeAuth().then(async (ok) => {
     if (ok) {
       // 사용자가 누른 로그인이므로 필요하면 동의 화면을 띄운다(interactive=true).
-      void nativeAuthToken(true).then((t) => {
-        // 플러그인이 없거나 실패하면 옛 경로로 떨어뜨린다 — 로그인이 먹통이 되면 안 된다.
-        if (!t) signInLegacy();
-      });
-      return;
+      const t = await nativeAuthToken(true);
+      // 실패(취소·플레이 서비스 오류)면 그대로 실패로 돌려준다. 옛 브라우저 경로로 떨어뜨리지 않는다 —
+      //   커스텀 스킴 리다이렉트는 구글이 폐기해 400 만 나온다(reference_android_google_oauth).
+      return !!t;
     }
     // ★ 크롬 확장이 붙어 있으면 **확장으로 먼저 동의를 받는다.**
     //   확장은 웹과 **다른 client_id**(manifest.oauth2)를 쓴다 — 웹에서 로그인해도 확장 쪽
@@ -524,14 +528,13 @@ export function signIn(): Promise<boolean> {
     //   interactive:false 에서 늘 빈손이라, 조용한 갱신이 되는데도 GIS 팝업으로 떨어졌다(실측).
     //   여기서 한 번 받아 두면 그 뒤로는 타이머에서도 팝업 없이 재발급된다.
     if (!isNativeApp() && isExtensionProxyReady()) {
-      void extensionAuthToken(true).then((t) => {
-        if (!t) signInLegacy();   // 확장이 거절·실패하면 기존 웹 경로로
-      });
-      return;
+      const t = await extensionAuthToken(true);
+      if (t) return true;
+      // 확장이 거절·실패하면 기존 웹 경로로
     }
     signInLegacy();
+    return never();
   });
-  return new Promise<boolean>(() => { /* 페이지가 떠난다 — 끝나지 않음 */ });
 }
 
 function signInLegacy(): void {
