@@ -1,6 +1,9 @@
+// 부호 붙인 금액(원) — 원 단위로 반올림한다. 소수점 주식(토스 연동 미국 주식 0.000855주)이 섞이면
+//   금액에 소수점이 붙어 합계·손익 표가 칸을 넘쳤다(2026-10-26). 쓰는 곳은 전부 원 금액·정수 수량이다.
 export function formatSigned(n: number): string {
-  if (n === 0) return "0";
-  return n > 0 ? `+${n.toLocaleString()}` : n.toLocaleString();
+  const v = Math.round(n);
+  if (v === 0) return "0";
+  return v > 0 ? `+${v.toLocaleString()}` : v.toLocaleString();
 }
 
 export function signColor(n: number): string {

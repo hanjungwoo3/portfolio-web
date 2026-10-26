@@ -55,6 +55,12 @@ export function TotalRow({ holdings, prices, account, aggregated, scopeAccounts,
     activeCount++;
   }
 
+  // 소수점 주식(토스 연동 미국 주식 0.000855주 등)이 섞이면 금액에 소수점 원이 붙어 칸을 넘쳤다 → 합계는 원 단위로 반올림
+  totalInvested = Math.round(totalInvested);
+  totalCurrent = Math.round(totalCurrent);
+  totalYesterday = Math.round(totalYesterday);
+  totalMarketBase = Math.round(totalMarketBase);
+
   const deposit = scopeAccounts ? getDepositsOf(scopeAccounts)
     : aggregated ? getTotalDeposits() : getDeposit(account ?? "");
   const pending = scopeAccounts ? getPendingBuysOf(scopeAccounts)
