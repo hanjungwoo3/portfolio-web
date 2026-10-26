@@ -970,7 +970,7 @@ export function StockCard({
                             transition-opacity`}>
         {/* 가격 박스 — 고/현재가/저 (3/10). 비거래일엔 sparkline 워터마크.
             Tooltip 으로 감싸서 overflow-hidden 자식이라도 툴팁 영역은 잘리지 않음 */}
-        <Tooltip content={
+        <Tooltip click onOpen={onNeedLongHistory} content={
           <>
             {/* 캔들차트 — 최근 ~60 거래일 OHLC (3개월) + 오늘 형성중 캔들, 평단가/목표가 가로 점선 + 외인비율 보라 라인 */}
             {candlesWithToday.length > 1 && (() => {
@@ -1546,10 +1546,12 @@ export function StockCard({
         </div>
         )}
 
-      {/* ───────── 투자자 그리드 (4/10) ───────── */}
-      <div className={`${hideStats ? "basis-[55%]" : "basis-[30%]"} min-w-0 bg-white border border-gray-200 rounded-md
-                       px-1.5 py-1 grid grid-cols-2 gap-x-2 gap-y-0
-                       text-[11px]`}>
+      {/* ───────── 투자자 그리드 (4/10) ───────── 오른쪽 아래 '상세보기' = 200일 수급 표(마우스 올림 → 클릭, 사용자 요청 2026-10-26) */}
+      <Tooltip click onOpen={onNeedLongHistory} className={`${hideStats ? "basis-[55%]" : "basis-[30%]"} min-w-0`}
+               content={longHistory && longHistory.length > 0 ? allInvestorsTable() : null}>
+      <div className="w-full bg-white border border-gray-200 rounded-md
+                       px-1.5 py-1 pb-4 grid grid-cols-2 gap-x-2 gap-y-0
+                       text-[11px]">
         {FLOW_FIELDS.map(({ label, key }) => {
           const raw = investor ? investor[key] : null;
           const isRatio = key === "외국인비율";
@@ -1591,17 +1593,9 @@ export function StockCard({
 
           const sizeCls = HIGHLIGHT_SIZE[label] ?? "";
 
-          // 5/20/60/120/200일 누적 + 일별 — 모든 행에서 동일한 통합 표 표시.
-          // 호버한 행에 대응하는 컬럼 강조 (외인비율 행 → 외인비율(%) 컬럼).
-          const tooltipContent = (longHistory && longHistory.length > 0)
-            ? allInvestorsTable(key)
-            : null;
-
-          const rowEl = (
-            <div
-              className={`flex items-center justify-between gap-1 px-1 py-px rounded
-                          ${rowBg} ${sizeCls} ${tooltipContent ? "cursor-help" : ""}`}
-            >
+          return (
+            <div key={label}
+                 className={`flex items-center justify-between gap-1 px-1 py-px rounded ${rowBg} ${sizeCls}`}>
               <span className={`whitespace-nowrap shrink-0 ${labelColor}`}>
                 {label}
               </span>
@@ -1610,15 +1604,9 @@ export function StockCard({
               </span>
             </div>
           );
-          return tooltipContent ? (
-            <Tooltip key={label} content={tooltipContent} className="block">
-              {rowEl}
-            </Tooltip>
-          ) : (
-            <div key={label}>{rowEl}</div>
-          );
         })}
       </div>
+      </Tooltip>
     </article>
     {intradayOpen && (
       <IntradayPatternDialog

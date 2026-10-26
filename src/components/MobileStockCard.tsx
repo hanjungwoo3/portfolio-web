@@ -424,8 +424,8 @@ export function MobileStockCard({
       <article className={`rounded-lg border flex flex-row gap-1.5 p-1.5 min-h-[95px]
                             ${cardBg} ${cardBorder}`}>
       {/* 좌측 — 가격 박스 (50%). 비거래일엔 sparkline 워터마크.
-          Tooltip 으로 감싸서 overflow-hidden 자식이라도 툴팁 영역은 잘리지 않음 */}
-      <Tooltip content={
+          휴대폰엔 마우스 올림이 없어 '상세' 버튼(클릭)으로 — PC 카드와 같은 방식(2026-10-26) */}
+      <Tooltip click detailLabel="상세" content={
         <>
           <div className="text-gray-700 mb-1.5">
             <div className="font-bold mb-1 text-gray-900">{stock.name} ({stock.ticker})</div>

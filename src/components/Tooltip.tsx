@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { ReactNode } from "react";
+import type React from "react";
 
 // 호버 툴팁 — 마우스 좌표를 따라가는 floating layer.
 // position: fixed → overflow-hidden 부모와 무관, viewport 경계 자동 회피.
@@ -10,12 +11,95 @@ interface Props {
   content: ReactNode;
   children: ReactNode;
   className?: string;
+  /** 클릭 방식 — 마우스를 올려도 안 뜨고, 오른쪽 아래 작은 "상세보기" 버튼을 누르면 뜬다(사용자 요청 2026-10-26).
+   *  큰 표(수급 상세·60일 캔들)는 마우스를 따라다니면 읽기 어려웠다. 바깥 클릭·Esc·✕ 로 닫는다. */
+  click?: boolean;
+  detailLabel?: string;      // 버튼 글자(기본 "상세보기")
+  onOpen?: () => void;       // 열 때 — 긴 수급 이력처럼 열 때만 받는 자료를 요청하는 데 쓴다
 }
 
 interface Pos { x: number; y: number; }
 interface Size { w: number; h: number; }
 
-export function Tooltip({ content, children, className = "" }: Props) {
+export function Tooltip({ content, children, className = "", click, detailLabel = "상세보기", onOpen }: Props) {
+  if (click) return <ClickLayer content={content} className={className} label={detailLabel} onOpen={onOpen}>{children}</ClickLayer>;
+  return <HoverTip content={content} className={className}>{children}</HoverTip>;
+}
+
+// 클릭 레이어 — 버튼 아래(오른쪽 맞춤)에 고정 위치로. 화면보다 크면 안에서 스크롤(툴팁처럼 줄이지 않는다 — 눌러서 보는 표는 읽어야 한다)
+function ClickLayer({ content, children, className, label, onOpen }: { content: ReactNode; children: ReactNode; className: string; label: string; onOpen?: () => void }) {
+  const [anchor, setAnchor] = useState<{ right: number; top: number; bottom: number } | null>(null);
+  const [size, setSize] = useState<Size | null>(null);
+  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const layerRef = useRef<HTMLDivElement | null>(null);
+  const open = !!anchor;
+  const close = () => { setAnchor(null); setSize(null); };
+  const toggle = (e: React.MouseEvent) => {
+    e.stopPropagation(); e.preventDefault();
+    if (open) { close(); return; }
+    const r = btnRef.current?.getBoundingClientRect();
+    if (!r) return;
+    onOpen?.();
+    setAnchor({ right: r.right, top: r.top, bottom: r.bottom });
+  };
+  useLayoutEffect(() => {
+    const el = layerRef.current;
+    if (!open || !el) return;
+    setSize({ w: el.offsetWidth, h: el.offsetHeight });
+    if (typeof ResizeObserver === "undefined") return;
+    const ro = new ResizeObserver(() => setSize({ w: el.offsetWidth, h: el.offsetHeight }));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [open, content]);
+  // 바깥 클릭·Esc 로 닫기
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      const t = e.target as Node;
+      if (layerRef.current?.contains(t) || btnRef.current?.contains(t)) return;
+      close();
+    };
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => { document.removeEventListener("mousedown", onDown); document.removeEventListener("keydown", onKey); };
+  }, [open]);
+  const PAD = 12;
+  const placed = (() => {
+    if (!anchor || typeof window === "undefined") return null;
+    const maxW = window.innerWidth - PAD * 2, maxH = window.innerHeight - PAD * 2;
+    const W = Math.min(size?.w ?? 320, maxW), H = Math.min(size?.h ?? 200, maxH);
+    let x = anchor.right - W;                      // 버튼 오른쪽 끝에 맞춤
+    if (x < PAD) x = PAD;
+    if (x + W + PAD > window.innerWidth) x = window.innerWidth - W - PAD;
+    let y = anchor.bottom + 6;                     // 버튼 아래
+    if (y + H + PAD > window.innerHeight) y = Math.max(PAD, anchor.top - H - 6);   // 아래 모자라면 위로
+    return { x, y, maxW, maxH };
+  })();
+  return (
+    <span className={`relative inline-flex ${className}`}>
+      {children}
+      <button ref={btnRef} type="button" onClick={toggle} title={label}
+              className={`absolute bottom-0.5 right-0.5 z-20 px-1.5 py-0.5 rounded border text-[10px] leading-none
+                          ${open ? "bg-gray-700 text-white border-gray-700" : "bg-white/85 text-gray-600 border-gray-300 hover:bg-gray-100"}`}>
+        {label}
+      </button>
+      {placed && typeof document !== "undefined" && createPortal(
+        <div ref={layerRef} role="dialog"
+             style={{ position: "fixed", left: placed.x, top: placed.y, zIndex: 1000, maxWidth: placed.maxW, maxHeight: placed.maxH, opacity: size ? 1 : 0 }}
+             className="pl-3 pr-7 py-2 rounded-md shadow-xl bg-white text-gray-800 text-[11px] leading-relaxed
+                        border border-gray-200 w-max overflow-auto whitespace-normal text-left">
+          <button type="button" onClick={close} aria-label="닫기"
+                  className="absolute top-1 right-1 w-5 h-5 rounded text-gray-400 hover:text-gray-700 hover:bg-gray-100 leading-none">✕</button>
+          {content ?? <div className="text-gray-400">불러오는 중…</div>}
+        </div>,
+        document.body,
+      )}
+    </span>
+  );
+}
+
+function HoverTip({ content, children, className = "" }: { content: ReactNode; children: ReactNode; className?: string }) {
   const [pos, setPos] = useState<Pos | null>(null);
   const [size, setSize] = useState<Size | null>(null);
   const ref = useRef<HTMLSpanElement | null>(null);
