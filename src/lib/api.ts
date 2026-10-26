@@ -401,7 +401,12 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
   const barsOf = (d?: string) => d ? rows.filter(c => c.dt.slice(0, 10) === d && c.close > 0).reverse() : [];
   const li = days.findIndex(d => barsOf(d).length > 0);
   if (li < 0) return null;
-  const latest = barsOf(days[li]), prev = barsOf(days[li + 1]);
+  // '어제' = 정규장이 있던 가장 가까운 전날. 미국 5분봉엔 **일요일 밤 오버나이트**(20:00~24:00 ET) 봉이 일요일 날짜로 섞여 와서
+  //   월요일 아침엔 어제가 일요일이 되고(정규장 없음) 어제 시작·종가 세로선이 사라졌다(2026-10-26 "앱에서만 세로선이 안 보여" —
+  //   앱은 야후 spark 가 429 라 이 토스 폴백을 탄다). 정규장 봉이 하나라도 있는 날을 어제로 삼는다.
+  const inRegular = (c: TossBar) => { const hm = c.dt.slice(11, 16); return hm >= openHHMM && hm <= closeHHMM; };
+  const prevDay = days.slice(li + 1).find(d => barsOf(d).some(inRegular)) ?? days[li + 1];
+  const latest = barsOf(days[li]), prev = barsOf(prevDay);
   const oi = latest.findIndex(c => c.dt.slice(11, 16) >= openHHMM);
   // 정규장 종가 봉 — 토스 봉 시각은 '끝나는 시각'이라 15:30(미국 16:00) 이하인 마지막 봉. 정규장이 끝난 뒤에만.
   const ended = latest.some(c => c.dt.slice(11, 16) >= closeHHMM);
