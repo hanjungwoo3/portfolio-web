@@ -20,6 +20,7 @@ import { BuySellBars } from "./BuySellBars";
 import type { UTCTimestamp } from "lightweight-charts";
 import { fetchTossMarketFlow, type LongFlowInterval, type LongFlowMarket } from "../lib/tossMarketFlow";
 import { isTossLinkOn } from "../lib/broker";
+import { useTossRelay, type TossRelay } from "../lib/tossRelay";
 import { LongTermInvestorChart } from "./LongTermInvestorChart";
 
 // 넥스트레이드 프리장 08:00~09:00 KST(평일)
@@ -51,13 +52,16 @@ const LONG_INTERVALS: { key: LongFlowInterval; label: string; count: number }[] 
 type Mode = "intraday" | "daily" | "long";
 
 // 주·월·연 한 시장 블록 — 토스 공식 투자자 매매대금. 선물은 없다(코스피·코스닥만)
-function LongTermBlock({ market, label, enabled, interval, count, on }: {
+// relay — 웹·휴대폰은 토스 API 를 못 불러 앱이 Drive 에 올려 둔 값(tossRelay)을 쓴다
+function LongTermBlock({ market, label, enabled, interval, count, on, relay }: {
   market: LongFlowMarket; label: string; enabled: Record<string, boolean>; interval: LongFlowInterval; count: number; on: boolean;
+  relay: TossRelay | null;
 }) {
+  const live = isTossLinkOn();
   const q = useQuery({
-    queryKey: ["toss-market-flow", market, interval, count],
-    queryFn: () => fetchTossMarketFlow(market, interval, count),
-    enabled: on, staleTime: 30 * 60_000, refetchOnWindowFocus: false, retry: 1,
+    queryKey: ["toss-market-flow", market, interval, count, live ? "live" : relay?.updatedAt ?? ""],
+    queryFn: () => live ? fetchTossMarketFlow(market, interval, count) : Promise.resolve(relay?.marketFlow[market]?.[interval] ?? []),
+    enabled: on, staleTime: 30 * 60_000, refetchOnWindowFocus: false, retry: live ? 1 : 0,
   });
   const keys = INTRADAY_SERIES.filter(d => enabled[d.key]).map(d => d.key);
   const shell = (inner: ReactNode) => (
@@ -560,7 +564,10 @@ export function IntradayInvestorSection() {
   const [mode, setMode] = useState<Mode>("intraday");
   const [days, setDays] = useState<number>(22);   // 일별 기간 (기본 1개월)
   const [longInterval, setLongInterval] = useState<LongFlowInterval>("1w");   // [장기] 주·월·연
-  const longOk = isTossLinkOn();   // 토스 공식 API 를 부를 수 있는 환경(데스크톱 앱 + 연동 켬)에서만 [장기] 버튼
+  // [장기] 버튼 — 토스 공식 API 를 부를 수 있는 앱, 또는 앱이 Drive 에 올려 둔 중계값이 있는 웹·휴대폰
+  const relay = useTossRelay(open && !isTossLinkOn());
+  const longOk = isTossLinkOn() || !!relay;
+  const relayStamp = !isTossLinkOn() && relay ? new Date(relay.updatedAt) : null;
 
   const [enabled, setEnabled] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
@@ -690,7 +697,9 @@ export function IntradayInvestorSection() {
               </div>
             )}
             <span className="text-[10px] text-gray-400">
-              {mode === "intraday" ? "시간별 누적 (당일만 제공)" : mode === "daily" ? "기간 누적 (합계 상단 표시)" : "구간별 순매수 (토스 공식 · 마지막 구간은 집계중)"} · 전 종목 억원{mode === "long" ? "" : "(선물=계약 환산)"}
+              {mode === "intraday" ? "시간별 누적 (당일만 제공)" : mode === "daily" ? "기간 누적 (합계 상단 표시)"
+                : relayStamp ? `구간별 순매수 (토스 공식 · 앱이 ${relayStamp.getMonth() + 1}/${relayStamp.getDate()} ${String(relayStamp.getHours()).padStart(2, "0")}:${String(relayStamp.getMinutes()).padStart(2, "0")} 에 가져온 값)`
+                : "구간별 순매수 (토스 공식 · 마지막 구간은 집계중)"} · 전 종목 억원{mode === "long" ? "" : "(선물=계약 환산)"}
             </span>
             <FuturesExpiryBadge />
           </div>
@@ -734,7 +743,7 @@ export function IntradayInvestorSection() {
                 {vis.map(m => (
                   <div key={m.key} className="min-w-0">
                     <LongTermBlock market={m.key as LongFlowMarket} label={m.label} enabled={enabled}
-                      interval={longInterval} count={cnt} on={open} />
+                      interval={longInterval} count={cnt} on={open} relay={relay} />
                   </div>
                 ))}
               </div>

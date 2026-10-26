@@ -2,6 +2,7 @@
 //   규칙(사용자 결정 2026-10-26): 연동 그룹에서 토스에서 가져온 행(source="toss")만 교체·잠금, 손으로 넣은 행은 그대로,
 //   예수금 = cashBuyingPower. 휴대폰은 Drive 동기화로 결과만 받는다.
 //   실측(2026-10-26): 숫자는 전부 문자열, 미국은 USD(averagePurchasePrice·purchaseAmount), 소수점 주식 있음, 매수일 없음.
+import { publishTossRelayIfDue } from "./tossRelay";
 import { useEffect } from "react";
 import { brokerGet, getTossAccountSeq, isTossLinkOn, isBrokerAvailable, getTossEnabled } from "./broker";
 import { linkedGroupOf, setLinkedGroup, type LinkedGroupMeta } from "./linkedGroups";
@@ -118,6 +119,7 @@ export function useTossAutoSync(): void {
     const run = () => {
       if (stop || document.visibilityState !== "visible" || !getTossEnabled() || !linkedGroupOf("toss")) return;
       void syncTossHoldingsSafe().catch(() => { /* 메타에 기록됨 */ });
+      void publishTossRelayIfDue().catch(() => { /* 다음 주기에 */ });   // 앱에서만 받는 시세성 값을 Drive 로 웹·휴대폰에 중계
     };
     const t0 = window.setTimeout(run, 4000);   // 첫 화면 시세 요청이 몰리는 순간은 피한다
     const id = window.setInterval(run, AUTO_MS);

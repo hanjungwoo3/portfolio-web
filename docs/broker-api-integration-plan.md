@@ -223,6 +223,7 @@
 - [x] 2026-10-26 **수수료·세금**: `Trade.fee`(수수료+세금 합, 원·선택) — 토스 `commission+tax`(USD 는 체결일 환율), 실현손익은 세후(매수 fee 는 원가에, 매도 fee 는 실현에서), Drive normalize·가져오기 파서 포함, 내거래 표·차트에 '수수료 n' 표시, ✎ 수정에 수수료 칸, 기존 tossapi_ 거래는 다음 자동 증분 때 한 번 전체 다시 받아 채움(`toss_trades_fee_backfilled_v1`)
 - [x] 2026-10-26 **일봉 대체**: `src/lib/tossCandles.ts` — 데스크톱 앱+연동 켬이면 야후 일봉(`fetchPriceHistoryWithEventsFor`) 앞에서 토스 `/api/v1/candles?interval=1d` 를 먼저(국내 6자리·미국 티커만, 지수·환율·해외거래소·10y/max 는 야후), 200봉 페이지 `nextBefore` 이어받기, 캐시 키 `tc:<코드>:<range>`(.KS/.KQ 양쪽이 한 번), 404·429·토큰 실패는 야후로 폴백(토큰류는 10분 건너뜀). 배당·분할 이벤트가 필요한 `fetchKrPriceHistoryWithEvents` 는 야후 유지. 스텁 검증: KR 1y 252봉(2페이지)·AAPL 66봉·^KS11 은 야후.
 - [x] 2026-10-26 **새 정보 — 시장 투자자 매매대금 주·월·연**: 증시 탭 '투자자 순매수' 에 [장기] 모드(앱+연동일 때만 버튼) — `src/lib/tossMarketFlow.ts`(`market-indicators/{KOSPI|KOSDAQ}/investor-trading?interval=1w|1mo|1y`, 억원 순매수, 투신=투신+사모) + `LongTermInvestorChart`(SVG 그룹 막대, 마지막 구간 '집계중' 흐리게). 신용잔고·투자경고·VI 는 이미 비공식/네이버로 있어 생략, 상·하한가는 가치 낮아 보류.
+- [x] 2026-10-26 **앱 → Drive → 웹 중계**(`src/lib/tossRelay.ts`, appDataFolder `toss-relay.json`): 앱이 자동 갱신 주기에 6시간마다 [장기] 6개 시계열을 올리고, 웹·휴대폰은 같은 구글 계정이면 그 파일을 읽어 [장기] 버튼·차트를 보여 준다("앱이 M/D HH:MM 에 가져온 값"). 계좌 자료(보유·예수금·거래)는 원래 portfolio.json 동기화로 감.
 - [ ] 이후: 한국투자증권 → KRX
 - 검토(2026-10-26) 결정: **연동 켜려면 그룹 독립 모드 필수**(꺼져 있으면 수동 그룹이 같이 바뀜·거래 이중 계산). 연동 그룹은 **기존 그룹 지정도 가능**(이름·폴더·예수금 재사용, 합계 이중 계산 없음).
 

@@ -40,20 +40,18 @@ async function driveFetch(url: string, init: RequestInit = {}): Promise<Response
   });
 }
 
-// portfolio.json 파일 메타데이터 조회 — 없으면 null
-export async function getFileMeta(): Promise<DriveFile | null> {
+// ─── 이름으로 파일 다루기(appDataFolder) — portfolio.json 외에 작은 보조 파일도 같은 방식(토스 중계 toss-relay.json 등) ───
+async function getNamedMeta(name: string): Promise<DriveFile | null> {
   const url = `https://www.googleapis.com/drive/v3/files?spaces=appDataFolder`
             + `&fields=files(${META_FIELDS})`
-            + `&q=${encodeURIComponent(`name='${FILE_NAME}'`)}`;
+            + `&q=${encodeURIComponent(`name='${name}'`)}`;
   const resp = await driveFetch(url);
   if (!resp.ok) throw new Error(`Drive list 실패: ${resp.status}`);
   const data = await resp.json() as FileListResp;
   return data.files?.[0] ?? null;
 }
-
-// 파일 다운로드 — JSON 파싱
-export async function downloadFile<T = unknown>(): Promise<{ data: T; modifiedTime: string } | null> {
-  const meta = await getFileMeta();
+export async function downloadNamed<T = unknown>(name: string): Promise<{ data: T; modifiedTime: string } | null> {
+  const meta = await getNamedMeta(name);
   if (!meta) return null;
   const url = `https://www.googleapis.com/drive/v3/files/${meta.id}?alt=media`;
   const resp = await driveFetch(url);
@@ -61,20 +59,14 @@ export async function downloadFile<T = unknown>(): Promise<{ data: T; modifiedTi
   const data = await resp.json() as T;
   return { data, modifiedTime: meta.modifiedTime };
 }
-
-// 파일 업로드 (생성 or 업데이트) — JSON 자동 직렬화
-// 반환: 새 modifiedTime
-export async function uploadFile<T>(payload: T): Promise<string> {
-  const meta = await getFileMeta();
+export async function uploadNamed<T>(name: string, payload: T): Promise<string> {
+  const meta = await getNamedMeta(name);
   const body = JSON.stringify(payload);
 
   // 신규 — multipart upload (metadata + content)
   if (!meta) {
     const boundary = "----portfolio-upload-" + Date.now();
-    const metadata = {
-      name: FILE_NAME,
-      parents: ["appDataFolder"],
-    };
+    const metadata = { name, parents: ["appDataFolder"] };
     const multipart =
       `--${boundary}\r\n` +
       `Content-Type: application/json; charset=UTF-8\r\n\r\n` +
@@ -109,6 +101,15 @@ export async function uploadFile<T>(payload: T): Promise<string> {
   const updated = await resp.json() as DriveFile;
   return updated.modifiedTime;
 }
+
+// portfolio.json 파일 메타데이터 조회 — 없으면 null
+export async function getFileMeta(): Promise<DriveFile | null> { return getNamedMeta(FILE_NAME); }
+
+// 파일 다운로드 — JSON 파싱
+export async function downloadFile<T = unknown>(): Promise<{ data: T; modifiedTime: string } | null> { return downloadNamed<T>(FILE_NAME); }
+
+// 파일 업로드 (생성 or 업데이트) — JSON 자동 직렬화. 반환: 새 modifiedTime
+export async function uploadFile<T>(payload: T): Promise<string> { return uploadNamed(FILE_NAME, payload); }
 
 // ─── 이전 버전(revision) — 덮어쓰기 사고 복구용 ─────────────────
 //   Drive 는 PATCH 로 내용을 바꿀 때마다 이전 내용을 revision 으로 남긴다(일반 파일은 약 30일·최대 100개).
