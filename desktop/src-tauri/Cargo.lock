@@ -2550,13 +2550,14 @@ dependencies = [
 
 [[package]]
 name = "portfolio"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "base64 0.22.1",
  "keyring",
  "open",
  "rand 0.8.8",
  "reqwest 0.12.28",
+ "security-framework 3.7.0",
  "serde",
  "serde_json",
  "sha2",

@@ -1,6 +1,6 @@
 [package]
 name = "portfolio"
-version = "0.1.8"
+version = "0.1.9"
 description = "포트폴리오 데스크톱 앱"
 edition = "2021"
 
@@ -26,3 +26,6 @@ strip = true
 lto = true
 codegen-units = 1
 opt-level = "s"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+security-framework = "3"   # 키체인 항목을 비밀 안 읽고 지우기(delete_noread) — keyring 의 delete 는 읽어서 허용 창이 뜬다

@@ -39,12 +39,15 @@ fn broker_of_mode(name: &str, mode: Option<&str>) -> Result<Broker, String> {
     }
 }
 
-// ── 비밀 보관함 — 증권사당 **항목 하나**(JSON) + 프로세스 안 메모리 캐시 ──
-//   왜 하나로 합쳤나(2026-10-26 사용자 제보 "암호가 맞아도 계속 뜬다"): 맥 키체인은 **항목마다** 접근 허용 창을 띄운다.
-//   client_id·client_secret·token 세 항목이면 창이 세 번 뜨고, 토큰을 새로 쓰면 또 뜬다. 게다가 이 앱은 애플 개발자 서명이
-//   없어(ad-hoc) 빌드마다 신원이 달라져 "항상 허용"이 다음 버전에서 무효가 된다.
-//   → 항목 하나 + 처음 읽은 뒤엔 메모리만 쓰고(요청마다 보관함 안 건드림) + 읽는 데 성공하면 **지우고 다시 만든다**
-//     (이 바이너리가 만든 항목은 이 바이너리에 허용돼 다음 실행부터 창이 안 뜬다). 결과: 앱 업데이트 뒤 **딱 한 번**만 묻는다.
+// ── 비밀 보관함 — **모든 증권사 키를 항목 하나**(JSON map) + 프로세스 안 메모리 캐시 ──
+//   맥 키체인은 **항목마다**, 그리고 **비밀을 읽는 호출마다** 접근 허용 창을 띄운다. 이 앱은 애플 개발자 서명이 없어(ad-hoc)
+//   빌드마다 신원이 달라져 "항상 허용"이 다음 버전에서 무효가 된다. 그래서 (2026-10-26~27 사용자 제보 "4번 뜬다" 실측):
+//   · 항목은 전부 합쳐 하나(brokers) → 업데이트 뒤 읽기 1번.
+//   · 처음 읽은 뒤엔 메모리만 쓴다(요청마다 보관함 안 건드림).
+//   · 읽은 뒤 **지우고 다시 만들어** 이 바이너리 소유로(다음 실행부터 창 없음). 지울 때는 **비밀을 읽지 않고 참조만 찾아** 지운다 —
+//     keyring 의 delete 는 find_generic_password 로 비밀을 꺼낸 뒤 지워서 창이 한 번 더 떴다(증권사당 2번 → 둘이면 4번).
+//     SecItemDelete 는 다른 바이너리가 만든 항목에 -25244 를 내지만, kSecReturnRef 로 찾아 SecKeychainItemDelete 는 창 없이 된다(실측).
+//   결과: 앱 업데이트 뒤 **딱 한 번**(증권사 수와 무관).
 #[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
 struct Creds {
     client_id: String,
@@ -54,12 +57,11 @@ struct Creds {
     #[serde(default)]
     mode: Option<String>,  // 한국투자: "real" | "paper"(모의투자) — 호스트·tr_id 가 갈린다
 }
+type CredsMap = HashMap<String, Creds>;
+const ITEM_ALL: &str = "brokers";   // 합친 항목(0.1.9~)
 
-fn entry(broker: &str) -> Result<keyring::Entry, String> {
-    keyring::Entry::new(SERVICE, &format!("broker.{broker}")).map_err(|e| format!("비밀 보관함 열기 실패: {e}"))
-}
-fn legacy_entry(broker: &str, key: &str) -> Result<keyring::Entry, String> {
-    keyring::Entry::new(SERVICE, &format!("broker.{broker}.{key}")).map_err(|e| format!("비밀 보관함 열기 실패: {e}"))
+fn entry_named(account: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(SERVICE, account).map_err(|e| format!("비밀 보관함 열기 실패: {e}"))
 }
 fn read_entry(e: &keyring::Entry) -> Result<Option<String>, String> {
     match e.get_password() {
@@ -68,66 +70,92 @@ fn read_entry(e: &keyring::Entry) -> Result<Option<String>, String> {
         Err(e) => Err(format!("비밀 보관함 읽기 실패: {e}")),
     }
 }
-fn delete_entry(e: &keyring::Entry) -> Result<(), String> {
-    match e.delete_credential() {
+// 비밀을 읽지 않고 지우기 — 맥은 참조만 찾아 지운다(허용 창 없음). 없으면 성공.
+#[cfg(target_os = "macos")]
+fn delete_noread(account: &str) -> Result<(), String> {
+    use security_framework::item::{ItemClass, ItemSearchOptions, Reference, SearchResult};
+    let found = ItemSearchOptions::new()
+        .class(ItemClass::generic_password()).service(SERVICE).account(account)
+        .load_refs(true).limit(16).search();
+    match found {
+        Ok(items) => {
+            for it in items {
+                if let SearchResult::Ref(Reference::KeychainItem(item)) = it { item.delete(); }
+            }
+            Ok(())
+        }
+        Err(e) if e.code() == -25300 => Ok(()),   // errSecItemNotFound
+        Err(e) => Err(format!("비밀 보관함 삭제 실패: {e}")),
+    }
+}
+#[cfg(not(target_os = "macos"))]
+fn delete_noread(account: &str) -> Result<(), String> {
+    match entry_named(account)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(format!("비밀 보관함 삭제 실패: {e}")),
     }
 }
-// 보관함에 쓰기 — 지우고 새로 만든다(이 바이너리 소유 항목으로)
-fn store_creds(broker: &str, c: &Creds) -> Result<(), String> {
-    let e = entry(broker)?;
-    let _ = delete_entry(&e);
-    let json = serde_json::to_string(c).map_err(|e| format!("직렬화 실패: {e}"))?;
-    e.set_password(&json).map_err(|e| format!("비밀 보관함 저장 실패: {e}"))
+// 합친 항목 쓰기 — 지우고(읽지 않고) 새로 만든다(이 바이너리 소유 항목으로). 비면 항목을 없앤다.
+fn store_all(map: &CredsMap) -> Result<(), String> {
+    delete_noread(ITEM_ALL)?;
+    if map.is_empty() { return Ok(()); }
+    let json = serde_json::to_string(map).map_err(|e| format!("직렬화 실패: {e}"))?;
+    entry_named(ITEM_ALL)?.set_password(&json).map_err(|e| format!("비밀 보관함 저장 실패: {e}"))
 }
-// 보관함에서 읽기(메모리에 없을 때 한 번) — 새 항목 → 없으면 옛 3항목(이전 버전) 이전 → 읽었으면 다시 만들어 소유권 갱신
-fn load_creds(broker: &str) -> Result<Option<Creds>, String> {
-    if let Some(raw) = read_entry(&entry(broker)?)? {
-        if let Ok(c) = serde_json::from_str::<Creds>(&raw) {
-            let _ = store_creds(broker, &c); // 소유권 갱신(실패해도 값은 있다)
-            return Ok(Some(c));
-        }
+// 이전 형식 — 증권사별 항목(0.1.6~0.1.8, JSON) → 더 옛 3항목(0.1.5). 있으면 한 번 읽는다(그 한 번은 창이 뜬다).
+fn load_legacy(broker: &str) -> Result<Option<Creds>, String> {
+    if let Some(raw) = read_entry(&entry_named(&format!("broker.{broker}"))?)? {
+        if let Ok(c) = serde_json::from_str::<Creds>(&raw) { return Ok(Some(c)); }
     }
-    // 옛 형식(항목 3개) → 하나로 합치고 옛 것은 지운다
-    let id = read_entry(&legacy_entry(broker, "client_id")?)?;
-    let secret = read_entry(&legacy_entry(broker, "client_secret")?)?;
+    let id = read_entry(&entry_named(&format!("broker.{broker}.client_id"))?)?;
+    let secret = read_entry(&entry_named(&format!("broker.{broker}.client_secret"))?)?;
     if let (Some(client_id), Some(client_secret)) = (id, secret) {
-        let token = read_entry(&legacy_entry(broker, "token")?).unwrap_or(None);
-        let c = Creds { client_id, client_secret, token, mode: None };
-        store_creds(broker, &c)?;
-        for k in ["client_id", "client_secret", "token"] {
-            if let Ok(e) = legacy_entry(broker, k) { let _ = delete_entry(&e); }
-        }
-        return Ok(Some(c));
+        let token = read_entry(&entry_named(&format!("broker.{broker}.token"))?).unwrap_or(None);
+        return Ok(Some(Creds { client_id, client_secret, token, mode: None }));
     }
     Ok(None)
 }
-// 메모리 캐시 우선 — 프로세스당 보관함은 한 번만 읽는다.
-//   ★ 읽는 동안 잠금을 쥔 채로 — 앱이 켜질 때 잔고·거래·일봉·중계 업로드가 **동시에** 키를 찾는데, 잠금을 풀고 읽으면
-//     캐시가 비어 있는 그 사이 들어온 호출마다 보관함을 따로 읽어 맥 허용 창이 호출 수만큼 떴다(0.1.7 에서 4번, 사용자 신고
-//     2026-10-26). 첫 호출이 읽어 캐시에 넣을 때까지 나머지는 기다렸다가 캐시를 본다 → 업데이트당 1번.
+fn delete_legacy_items(broker: &str) {
+    let _ = delete_noread(&format!("broker.{broker}"));
+    for k in ["client_id", "client_secret", "token"] { let _ = delete_noread(&format!("broker.{broker}.{k}")); }
+}
+const BROKERS: [&str; 2] = ["toss", "kis"];
+// 보관함에서 읽기(프로세스당 한 번) — 합친 항목 → 없으면 이전 형식을 모아 합치고 옛 항목은 지운다
+fn load_all() -> Result<CredsMap, String> {
+    if let Some(raw) = read_entry(&entry_named(ITEM_ALL)?)? {
+        let map: CredsMap = serde_json::from_str(&raw).unwrap_or_default();
+        let _ = store_all(&map);   // 소유권 갱신(실패해도 값은 있다)
+        return Ok(map);
+    }
+    let mut map = CredsMap::new();
+    for b in BROKERS {
+        if let Some(c) = load_legacy(b)? { map.insert(b.to_string(), c); }
+    }
+    if !map.is_empty() { store_all(&map)?; }
+    for b in BROKERS { delete_legacy_items(b); }
+    Ok(map)
+}
+// 메모리 캐시 — 잠금을 **쥔 채** 읽는다: 앱이 켜질 때 잔고·거래·일봉·중계가 동시에 키를 찾는데, 잠금을 풀고 읽으면
+//   캐시가 비어 있는 사이 호출마다 보관함을 따로 읽어 창이 호출 수만큼 떴다. 첫 호출만 읽고 나머지는 기다렸다가 캐시를 본다.
+fn with_creds<T>(state: &BrokerState, f: impl FnOnce(&mut CredsMap) -> T) -> Result<T, String> {
+    let mut g = state.creds.lock().map_err(|_| "lock")?;
+    if g.is_none() { *g = Some(load_all()?); }
+    Ok(f(g.as_mut().expect("loaded")))
+}
 fn creds_of(state: &BrokerState, broker: &str) -> Result<Option<Creds>, String> {
-    let mut cache = state.creds.lock().map_err(|_| "lock")?;
-    if let Some(c) = cache.get(broker).cloned() {
-        return Ok(Some(c));
-    }
-    let loaded = load_creds(broker)?;
-    if let Some(c) = &loaded {
-        cache.insert(broker.to_string(), c.clone());
-    }
-    Ok(loaded)
+    with_creds(state, |m| m.get(broker).cloned())
 }
 fn save_creds(state: &BrokerState, broker: &str, c: Creds) -> Result<(), String> {
-    store_creds(broker, &c)?;
-    state.creds.lock().map_err(|_| "lock")?.insert(broker.to_string(), c);
-    Ok(())
+    with_creds(state, |m| { m.insert(broker.to_string(), c); store_all(m) })?
+}
+fn remove_creds(state: &BrokerState, broker: &str) -> Result<(), String> {
+    with_creds(state, |m| { m.remove(broker); store_all(m) })?
 }
 
 #[derive(Default)]
 pub struct BrokerState {
-    // 키·토큰 메모리 캐시(보관함은 프로세스당 한 번)
-    creds: Mutex<HashMap<String, Creds>>,
+    // 키·토큰 메모리 캐시(보관함은 프로세스당 한 번) — None = 아직 안 읽음
+    creds: Mutex<Option<CredsMap>>,
     // 토큰은 보관함에도 있지만 요청마다 읽지 않게 메모리에 — (access_token, 만료 epoch 초)
     tokens: Mutex<HashMap<String, (String, u64)>>,
     // 한도 — 묶음별 마지막 호출 시각
@@ -182,11 +210,8 @@ pub async fn broker_set(state: tauri::State<'_, BrokerState>, broker: String, cl
 //   앱 전체(IPC·다른 요청)가 멈췄다(2026-10-26 개발 빌드 실측: 요청 15건 뒤 정지).
 pub async fn broker_clear(state: tauri::State<'_, BrokerState>, broker: String) -> Result<(), String> {
     broker_of(&broker)?;
-    delete_entry(&entry(&broker)?)?;
-    for k in ["client_id", "client_secret", "token"] {   // 이전 버전 항목도
-        if let Ok(e) = legacy_entry(&broker, k) { let _ = delete_entry(&e); }
-    }
-    state.creds.lock().map_err(|_| "lock")?.remove(&broker);
+    remove_creds(&state, &broker)?;
+    delete_legacy_items(&broker);   // 이전 버전 항목도(읽지 않고)
     state.tokens.lock().map_err(|_| "lock")?.remove(&broker);
     Ok(())
 }
