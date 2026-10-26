@@ -3,6 +3,7 @@ import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
 import { BrokerLinkSection } from "./BrokerLinkSection";
 import { KisLinkSection } from "./KisLinkSection";
 import { isLinkedGroup, linkedGroupOf, BROKER_FOLDER, ensureLinkedGroupsInFolder } from "../lib/linkedGroups";
+import { FolderIcon } from "./FolderIcon";
 import { TOSS_TRADE_ID_PREFIX } from "../lib/tossTrades";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
@@ -1124,7 +1125,7 @@ export function MobileSimpleView() {
                       onClick={() => setActiveTab(g)}
                       className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition
                                   ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                📁{folder.name}({g}){cnt > 0 ? ` ${cnt}` : ""}
+                <FolderIcon folder={folder.name} className="mr-0.5" />{folder.name}({g}){cnt > 0 ? ` ${cnt}` : ""}
               </button>
             );
           }
@@ -1142,14 +1143,12 @@ export function MobileSimpleView() {
           return (
             <span key={`folder_${folder.name}`}
                   className={`shrink-0 inline-flex items-center rounded-md text-[11px] pl-1.5
-                              ${folder.name === BROKER_FOLDER   /* 증권사연결은 노란 계열(사용자 요청 2026-10-26) */
-                                ? (folderActive ? "bg-amber-500 text-white" : "bg-amber-100 text-amber-800")
-                                : (folderActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600")}`}>
-              <span>📁</span>
+                              ${folderActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+              <FolderIcon folder={folder.name} className={folderActive && folder.name !== BROKER_FOLDER ? "!text-blue-200" : ""} />
               <select value={folderActive ? activeTab : ""}
                       onChange={e => { if (e.target.value) setActiveTab(e.target.value); }}
                       className={`bg-transparent text-[11px] py-1 pl-1 pr-1 rounded-md focus:outline-none
-                                  ${folderActive ? "text-white font-bold" : folder.name === BROKER_FOLDER ? "text-amber-800" : "text-gray-700"}`}>
+                                  ${folderActive ? "text-white font-bold" : "text-gray-700"}`}>
                 {!folderActive && <option value="" disabled hidden className="text-gray-800">{folder.name}</option>}
                 <optgroup label={folder.name}>
                   <option value={allKey} className="text-gray-800">{FOLDER_ALL_LABEL}{(countByKey.get(allKey) ?? 0) > 0 ? ` (${countByKey.get(allKey)})` : ""}</option>
@@ -1468,7 +1467,7 @@ export function MobileSimpleView() {
           <div ref={folderBarRef} data-noswipe style={{ top: (headerCollapsed ? 0 : 44) + navH }}
                className="pg-menu sticky z-30 bg-white/95 backdrop-blur border-b border-gray-200
                           px-2 py-1 flex items-center gap-1.5 whitespace-nowrap text-[11px] text-gray-600">
-            <span className="text-gray-400">📁{activeFolder.name} ›</span>
+            <span className="text-gray-400"><FolderIcon folder={activeFolder.name} className="mr-0.5" />{activeFolder.name} ›</span>
             <span className="font-bold text-gray-800">{sel}</span>
             {cnt > 0 && <span className="text-gray-400">{cnt}</span>}
             <button type="button" title="그룹명 변경" onClick={() => void renameGroupInline(sel)}
