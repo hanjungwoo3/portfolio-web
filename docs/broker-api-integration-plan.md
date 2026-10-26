@@ -214,7 +214,7 @@
 - [x] 2026-10-26 **연결 성공**(계좌 1개, BROKERAGE). 실측 결과:
   - (a) **MTS 에서 낸 주문도 `orders?status=CLOSED` 에 나온다** ✅ — 거래 자동 가져오기 유효. REJECTED(체결 0)도 섞임 → `filledQuantity > 0` 만. 수량·금액 = `execution.filledQuantity`·`filledAmount`(총액). 날짜 = `filledAt`(KST, 없으면 orderedAt). `commission`·`tax` 주문별 제공(앱 Trade 엔 칸 없음 — 후속). 페이지 = `nextCursor`/`hasNext`.
   - (b) **미국 보유는 USD 그대로**(averagePurchasePrice·purchaseAmount 모두 달러, 원화 환산 없음). 국내는 KRW, 평단×수량=매입금액 정확. **소수점 주식 있음**(TSLA 0.000855주) → 수량 정수 가정 코드 점검 필요. 숫자는 전부 **문자열**. 매수일·예수금 없음. 신형 코드(0239Y0) 정상.
-  - (c) `buying-power?currency=KRW` → `{ cashBuyingPower }` — 현금 기준으로 보임(토스 앱 예수금과 대조 중).
+  - (c) `buying-power?currency=KRW` → `{ cashBuyingPower }` = 토스 앱 "주문 가능 금액"과 일치(399원) ✅ → 연동 그룹 예수금으로 사용.
   - 계좌 목록은 **BROKERAGE 1개만** — 연금 계좌(퇴직·개인연금)는 Open API 미노출 → 연동 그룹은 종합매매 계좌만.
   - (d) 한도·(e) 키 복수 발급·(f) 부분 체결 모양: 미확인(표본 없음).
 - 변환 규칙(확정): 미국 평단은 **가져올 때 환율로 원화 환산, 그 종목의 수량·달러 평단이 바뀔 때만 재환산**(환율 따라 매일 흔들리지 않게), 첫 환산은 근사치 표시. 거래 금액(USD)은 체결일 환율(야후 KRW=X 종가)로 환산.
