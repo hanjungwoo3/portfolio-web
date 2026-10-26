@@ -1136,14 +1136,26 @@ export function MobileSimpleView() {
           const current = (members.includes(activeTab) || activeTab === allKey)
             ? activeTab : allKey;
           const folderActive = members.includes(activeTab) || activeTab === allKey;
+          // 폴더 탭 = 셀렉트(지수 묶음과 같은 모양, 사용자 결정 2026-10-26) — 전체보기 + 폴더 안 그룹. 수정/삭제는 아래 줄
+          void current;
           return (
-            <button key={`folder_${folder.name}`}
-                    onClick={() => setActiveTab(current)}
-                    className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition
-                                ${folderActive ? "bg-blue-600 text-white font-bold"
-                                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-              📁{folder.name}
-            </button>
+            <span key={`folder_${folder.name}`}
+                  className={`shrink-0 inline-flex items-center rounded-md text-[11px] pl-1.5
+                              ${folderActive ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+              <span>📁</span>
+              <select value={folderActive ? activeTab : ""}
+                      onChange={e => { if (e.target.value) setActiveTab(e.target.value); }}
+                      className={`bg-transparent text-[11px] py-1 pl-1 pr-1 rounded-md focus:outline-none
+                                  ${folderActive ? "text-white font-bold" : "text-gray-700"}`}>
+                {!folderActive && <option value="" disabled hidden className="text-gray-800">{folder.name}</option>}
+                <optgroup label={folder.name}>
+                  <option value={allKey} className="text-gray-800">{FOLDER_ALL_LABEL}{(countByKey.get(allKey) ?? 0) > 0 ? ` (${countByKey.get(allKey)})` : ""}</option>
+                  {members.map(g => (
+                    <option key={g} value={g} className="text-gray-800">{g}{(countByKey.get(g) ?? 0) > 0 ? ` (${countByKey.get(g)})` : ""}</option>
+                  ))}
+                </optgroup>
+              </select>
+            </span>
           );
   };
 
@@ -1445,51 +1457,25 @@ export function MobileSimpleView() {
         if (!activeFolder) return null;
         const members = activeFolder.groups.filter(g => presentGroups.has(g))
                                     .sort((a, b) => a.localeCompare(b, "ko"));
-        if (members.length < 2 && activeFolder.name !== BROKER_FOLDER) return null;   // 1개뿐이면 전환할 게 없음(증권사연결은 예외)
+        // 그룹 고르기는 위 폴더 셀렉트로 옮겼다(2026-10-26) — 여기는 고른 그룹의 ⚙️ 이름변경·🗑 삭제만
+        if (!members.includes(activeTab)) return null;
+        const sel = activeTab;
+        const cnt = countByKey.get(sel) ?? 0;
         return (
           <div ref={folderBarRef} data-noswipe style={{ top: (headerCollapsed ? 0 : 44) + navH }}
                className="pg-menu sticky z-30 bg-white/95 backdrop-blur border-b border-gray-200
-                          px-2 py-1.5 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
-            {/* 전체보기 — 맨 앞(사용자 결정 2026-10-26, PC 와 같게) */}
-            {(() => {
-              const allKey = folderAllKey(activeFolder.name);
-              const on = activeTab === allKey;
-              const cnt = countByKey.get(allKey) ?? 0;
-              return (
-                <button onClick={() => setActiveTab(allKey)}
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] transition inline-flex items-center gap-1
-                                    ${on ? "bg-blue-600 text-white font-bold"
-                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                  <span>{FOLDER_ALL_LABEL}</span>
-                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
-                </button>
-              );
-            })()}
-            {/* 그룹 고르기 — 셀렉트(PC 와 같게, 사용자 결정 2026-10-26). ✎·🗑 은 고른 그룹에 대한 것 */}
-            {(() => {
-              const sel = members.includes(activeTab) ? activeTab : "";
-              return (
-                <>
-                  <select value={sel} onChange={e => { if (e.target.value) setActiveTab(e.target.value); }}
-                          title="폴더 안 그룹"
-                          className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] border-0 outline-none
-                                      ${sel ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600"}`}>
-                    <option value="" disabled>그룹 선택 ({members.length})</option>
-                    {members.map(g => <option key={g} value={g}>{g}{(countByKey.get(g) ?? 0) > 0 ? ` (${countByKey.get(g)})` : ""}</option>)}
-                  </select>
-                  {sel && (
-                    <button type="button" title="그룹명 변경" onClick={() => void renameGroupInline(sel)}
-                            className="shrink-0 inline-flex items-center px-1 text-slate-500">
-                      <Settings size={13} strokeWidth={2.2} />
-                    </button>
-                  )}
-                  {sel && !isLinkedGroup(sel) && (   /* 증권사 연동 그룹은 삭제 없음 */
-                    <button type="button" title="그룹 삭제" onClick={() => void deleteGroupInline(sel)}
-                            className="shrink-0 text-[12px] px-1 text-slate-500">🗑</button>
-                  )}
-                </>
-              );
-            })()}
+                          px-2 py-1 flex items-center gap-1.5 whitespace-nowrap text-[11px] text-gray-600">
+            <span className="text-gray-400">📁{activeFolder.name} ›</span>
+            <span className="font-bold text-gray-800">{sel}</span>
+            {cnt > 0 && <span className="text-gray-400">{cnt}</span>}
+            <button type="button" title="그룹명 변경" onClick={() => void renameGroupInline(sel)}
+                    className="inline-flex items-center px-1 text-slate-500">
+              <Settings size={13} strokeWidth={2.2} />
+            </button>
+            {!isLinkedGroup(sel) && (   /* 증권사 연동 그룹은 삭제 없음 */
+              <button type="button" title="그룹 삭제" onClick={() => void deleteGroupInline(sel)}
+                      className="text-[12px] px-1 text-slate-500">🗑</button>
+            )}
           </div>
         );
       })()}

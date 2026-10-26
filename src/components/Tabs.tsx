@@ -144,15 +144,48 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
             </button>
           );
         }
-        // 폴더명 링크 — 클릭 시 폴더 진입(현재/첫 멤버). 멤버 전환은 아래 폴더 sub 링크바에서.
+        // 폴더 탭 = 내주식 묶음처럼 **마우스를 올리면 펼쳐지는 메뉴**(사용자 결정 2026-10-26) — 전체보기 + 폴더 안 그룹.
+        //   탭 자체를 누르면 현재 그룹(없으면 전체보기)으로. 그룹 줄에 ⚙️ 이름변경·🗑 삭제(연동 그룹은 🗑 없음).
+        const inGroup = members.includes(activeKey) ? activeKey : null;
+        const allCnt = countByKey.get(allKey) ?? 0;
         return (
-          <button key={`__folder__${folder.name}`}
-                  onClick={() => onChange(current)}
-                  className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px transition-colors
-                              ${active ? "border-blue-500 text-blue-700 bg-blue-50"
-                                       : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
-            📁{folder.name}
-          </button>
+          <HoverMenu key={`__folder__${folder.name}`} title={`📁 ${folder.name}`} on={active}
+                     onTriggerClick={() => onChange(current)}
+                     trigger={<>
+                       <span>📁{folder.name}</span>
+                       {inGroup && <span className={`text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>· {inGroup}</span>}
+                     </>}
+                     items={[
+                       { key: allKey, active: activeKey === allKey,
+                         label: <><span>{FOLDER_ALL_LABEL}</span>{allCnt > 0 && <span className="text-xs text-gray-400">{allCnt}</span>}</> },
+                       ...members.map(g => {
+                         const cnt = countByKey.get(g) ?? 0;
+                         return {
+                           key: g, active: g === activeKey,
+                           label: <>
+                             <span>{g}</span>
+                             {cnt > 0 && <span className="text-xs text-gray-400">{cnt}</span>}
+                             {/* 메뉴 줄이 button 이라 안에는 span role=button — 누르면 이동 대신 수정/삭제 */}
+                             {onRename && (
+                               <span role="button" tabIndex={0} title="그룹명 변경"
+                                     onClick={e => { e.stopPropagation(); handleRename(g, g); }}
+                                     className="ml-auto inline-flex items-center pl-2 text-slate-400 hover:text-slate-800">
+                                 <Settings size={12} strokeWidth={2.2} />
+                               </span>
+                             )}
+                             {onDelete && !isLinkedGroup(g) && (   /* 증권사 연동 그룹은 삭제 없음(연동 해제로) */
+                               <span role="button" tabIndex={0} title="그룹 삭제"
+                                     onClick={async e => {
+                                       e.stopPropagation();
+                                       if (await appConfirm(`"${g}" 그룹의 ${cnt}건을 모두 삭제할까요?\n(되돌릴 수 없음)`)) onDelete(g);
+                                     }}
+                                     className="inline-flex items-center pl-1 text-[11px] text-slate-400 hover:text-rose-600">🗑</span>
+                             )}
+                           </>,
+                         };
+                       }),
+                     ]}
+                     onPick={onChange} />
         );
   };
   // 증권사연결 폴더는 지수 탭 바로 오른쪽에 고정, 나머지 폴더는 사용자 그룹 뒤(사용자 결정 2026-10-26)
@@ -249,67 +282,6 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
       {/* 폴더 — 📁 폴더(선택그룹) (증권사연결은 위 지수 옆에 고정) */}
       {otherFolders.map(renderFolder)}
       </nav>
-      {/* 폴더 sub 링크바 — 폴더 안 그룹에 있을 때, 그 폴더의 그룹들을 칩으로 펼쳐 빠르게 전환.
-          Tabs(=tabsStickyRef) 안에 두어 sticky 측정 높이에 포함 → 아래 정렬 툴바가 자동으로 밀려 내려감. */}
-      {(() => {
-        const activeFolder = folderList.find(f =>
-          f.groups.some(g => g === activeKey && presentGroups.has(g))
-          || folderAllKey(f.name) === activeKey);
-        if (!activeFolder) return null;
-        const members = activeFolder.groups.filter(g => presentGroups.has(g))
-                                    .sort((a, b) => a.localeCompare(b, "ko"));
-        if (members.length < 2 && activeFolder.name !== BROKER_FOLDER) return null;   // 증권사연결은 1개여도 칩 표시
-        return (
-          <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap
-                          px-1 py-1.5 border-b border-gray-200 bg-white">
-            {/* 전체보기 — 폴더 안 모든 그룹의 종목을 한 번에. 실제 그룹이 아니라 이름변경·삭제 없음. 맨 앞(사용자 결정 2026-10-26) */}
-            {(() => {
-              const allKey = folderAllKey(activeFolder.name);
-              const on = activeKey === allKey;
-              const cnt = countByKey.get(allKey) ?? 0;
-              return (
-                <button onClick={() => onChange(allKey)}
-                        className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition inline-flex items-center gap-1
-                                    ${on ? "bg-blue-600 text-white"
-                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                  <span>{FOLDER_ALL_LABEL}</span>
-                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
-                </button>
-              );
-            })()}
-            {/* 그룹 고르기 — 칩 나열 대신 셀렉트(사용자 결정 2026-10-26: 날짜 이름 그룹이 많아 칩 줄이 길어진다).
-                ✎·🗑 은 지금 고른 그룹에 대한 것 — 전체보기 상태에선 숨김 */}
-            {(() => {
-              const sel = members.includes(activeKey) ? activeKey : "";
-              const cnt = sel ? (countByKey.get(sel) ?? 0) : 0;
-              return (
-                <>
-                  <select value={sel} onChange={e => { if (e.target.value) onChange(e.target.value); }}
-                          title="폴더 안 그룹"
-                          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border-0 outline-none cursor-pointer
-                                      ${sel ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
-                    <option value="" disabled>그룹 선택 ({members.length})</option>
-                    {members.map(g => <option key={g} value={g}>{g}{(countByKey.get(g) ?? 0) > 0 ? ` (${countByKey.get(g)})` : ""}</option>)}
-                  </select>
-                  {sel && onRename && (
-                    <button type="button" title="그룹명 변경" onClick={() => handleRename(sel, sel)}
-                            className="shrink-0 inline-flex items-center px-1 text-slate-500 hover:text-slate-800">
-                      <Settings size={13} strokeWidth={2.2} />
-                    </button>
-                  )}
-                  {sel && onDelete && !isLinkedGroup(sel) && (   /* 증권사 연동 그룹은 삭제 없음(연동 해제로) */
-                    <button type="button" title="그룹 삭제"
-                            onClick={async () => {
-                              if (await appConfirm(`"${sel}" 그룹의 ${cnt}건을 모두 삭제할까요?\n(되돌릴 수 없음)`)) onDelete(sel);
-                            }}
-                            className="shrink-0 text-xs px-1 text-slate-500 hover:text-rose-600">🗑</button>
-                  )}
-                </>
-              );
-            })()}
-          </div>
-        );
-      })()}
     </>
   );
 }
