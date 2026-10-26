@@ -7,6 +7,7 @@ import { getIndependentGroupsMode } from "../lib/groupMode";
 import { DASHBOARD_PAGES, INDEX_GROUP_KEYS, defaultDashboardPage, type DashboardPage } from "../lib/dashboardGroups";
 import type { TabVisibility } from "../lib/tabVisibility";
 import type { GroupFolder } from "../lib/groupFolders";
+import { BROKER_FOLDER } from "../lib/linkedGroups";
 import {
   getGroupFolders, folderAllKey, isFolderAllKey, folderNameOfAllKey, FOLDER_ALL_LABEL,
 } from "../lib/groupFolders";
@@ -114,6 +115,49 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
     );
   };
 
+  // 폴더 탭 — 📁 폴더(선택그룹). 멤버 1개면 단일 탭, 2개 이상이면 폴더명(멤버 전환은 아래 sub 링크바)
+  const renderFolder = (folder: GroupFolder) => {
+        const members = folder.groups.filter(g => presentGroups.has(g))
+                              .sort((a, b) => a.localeCompare(b, "ko"));   // 이름순
+        if (members.length === 0) return null;
+        // 폴더 진입 기본은 '첫 그룹' — 이미 폴더 안 그룹(또는 전체보기)에 있으면 그대로 유지.
+        //  기본을 전체보기로 두면 종목 많은 폴더에서 폴더를 누를 때마다 전 종목을 불러온다.
+        //  전체보기는 칩바 맨 끝에서 명시적으로 눌러야 켜진다.
+        const allKey = folderAllKey(folder.name);
+        const current = (members.includes(activeKey) || activeKey === allKey)
+          ? activeKey : members[0];
+        const active = members.includes(activeKey) || activeKey === allKey;
+        // 멤버 1개 → 폴더명(그룹명) 단일 탭 (드롭다운 없이 바로 클릭)
+        if (members.length === 1) {
+          const g = members[0];
+          const cnt = countByKey.get(g) ?? 0;
+          return (
+            <button key={`__folder__${folder.name}`}
+                    onClick={() => onChange(g)}
+                    className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px transition-colors
+                                ${active ? "border-blue-500 text-blue-700 bg-blue-50" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
+              📁{folder.name}({g})
+              {cnt > 0 && (
+                <span className={`ml-1.5 text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>{cnt}</span>
+              )}
+            </button>
+          );
+        }
+        // 폴더명 링크 — 클릭 시 폴더 진입(현재/첫 멤버). 멤버 전환은 아래 폴더 sub 링크바에서.
+        return (
+          <button key={`__folder__${folder.name}`}
+                  onClick={() => onChange(current)}
+                  className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px transition-colors
+                              ${active ? "border-blue-500 text-blue-700 bg-blue-50"
+                                       : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
+            📁{folder.name}
+          </button>
+        );
+  };
+  // 증권사연결 폴더는 지수 탭 바로 오른쪽에 고정, 나머지 폴더는 사용자 그룹 뒤(사용자 결정 2026-10-26)
+  const brokerFolder = folderList.find(f => f.name === BROKER_FOLDER);
+  const otherFolders = folderList.filter(f => f.name !== BROKER_FOLDER);
+
   return (
     <>
     <nav className="flex items-center gap-1 overflow-x-auto overflow-y-hidden whitespace-nowrap
@@ -138,6 +182,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
       {/* 지수 탭을 누르면 시간에 맞는 페이지로 — 한국 07~20시(NXT 애프터까지)는 주간, 그 외는 야간 */}
       {renderGroupDropdown(indexTabs, "📈", "지수",
         defaultDashboardPage() === "day" ? US_MARKET_TAB_KEY : INDEX_NIGHT_TAB_KEY)}
+      {/* 🏦 증권사연결 폴더 — 지수 바로 오른쪽 고정 */}
+      {brokerFolder && renderFolder(brokerFolder)}
       {tabs.map(t => {
         const active = t.key === activeKey;
         const editable = !RESERVED.has(t.key);
@@ -199,45 +245,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
         );
       })}
 
-      {/* 폴더 — 📁 폴더(선택그룹) 드롭다운 */}
-      {folderList.map(folder => {
-        const members = folder.groups.filter(g => presentGroups.has(g))
-                              .sort((a, b) => a.localeCompare(b, "ko"));   // 이름순
-        if (members.length === 0) return null;
-        // 폴더 진입 기본은 '첫 그룹' — 이미 폴더 안 그룹(또는 전체보기)에 있으면 그대로 유지.
-        //  기본을 전체보기로 두면 종목 많은 폴더에서 폴더를 누를 때마다 전 종목을 불러온다.
-        //  전체보기는 칩바 맨 끝에서 명시적으로 눌러야 켜진다.
-        const allKey = folderAllKey(folder.name);
-        const current = (members.includes(activeKey) || activeKey === allKey)
-          ? activeKey : members[0];
-        const active = members.includes(activeKey) || activeKey === allKey;
-        // 멤버 1개 → 폴더명(그룹명) 단일 탭 (드롭다운 없이 바로 클릭)
-        if (members.length === 1) {
-          const g = members[0];
-          const cnt = countByKey.get(g) ?? 0;
-          return (
-            <button key={`__folder__${folder.name}`}
-                    onClick={() => onChange(g)}
-                    className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px transition-colors
-                                ${active ? "border-blue-500 text-blue-700 bg-blue-50" : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
-              📁{folder.name}({g})
-              {cnt > 0 && (
-                <span className={`ml-1.5 text-xs ${active ? "text-blue-500" : "text-gray-400"}`}>{cnt}</span>
-              )}
-            </button>
-          );
-        }
-        // 폴더명 링크 — 클릭 시 폴더 진입(현재/첫 멤버). 멤버 전환은 아래 폴더 sub 링크바에서.
-        return (
-          <button key={`__folder__${folder.name}`}
-                  onClick={() => onChange(current)}
-                  className={`shrink-0 px-3 py-2 text-sm font-medium rounded-t-md border-b-2 -mb-px transition-colors
-                              ${active ? "border-blue-500 text-blue-700 bg-blue-50"
-                                       : "border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-100"}`}>
-            📁{folder.name}
-          </button>
-        );
-      })}
+      {/* 폴더 — 📁 폴더(선택그룹) (증권사연결은 위 지수 옆에 고정) */}
+      {otherFolders.map(renderFolder)}
       </nav>
       {/* 폴더 sub 링크바 — 폴더 안 그룹에 있을 때, 그 폴더의 그룹들을 칩으로 펼쳐 빠르게 전환.
           Tabs(=tabsStickyRef) 안에 두어 sticky 측정 높이에 포함 → 아래 정렬 툴바가 자동으로 밀려 내려감. */}

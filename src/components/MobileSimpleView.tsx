@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
 import { BrokerLinkSection } from "./BrokerLinkSection";
-import { isLinkedGroup, linkedGroupOf } from "../lib/linkedGroups";
+import { isLinkedGroup, linkedGroupOf, BROKER_FOLDER, ensureLinkedGroupsInFolder } from "../lib/linkedGroups";
 import { TOSS_TRADE_ID_PREFIX } from "../lib/tossTrades";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
@@ -208,6 +208,8 @@ export function MobileSimpleView() {
     return d && d.closes.length > 1 ? { rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase } : undefined;
   };
   // 로그인 redirect 복귀 — 저장/불러오기 대기 동작이 있으면 설정 자동 오픈 → 자동 재개
+  // 증권사 연동 그룹이 폴더 밖에 있으면 '증권사연결' 폴더로(한 번) — PC 에서 연동했어도 Drive 로 온 뒤 여기서도 보정
+  useEffect(() => { ensureLinkedGroupsInFolder(); }, []);
   useEffect(() => {
     if (!peekPendingSyncAction()) return;
     const t = setTimeout(() => setSettingsOpen(true), 0);
@@ -251,8 +253,7 @@ export function MobileSimpleView() {
     if (next == null) return;
     const trimmed = next.trim();
     if (!trimmed || trimmed === g) return;
-    if (isLinkedGroup(g)) { window.alert("토스 연동 그룹은 이름을 바꿀 수 없습니다 — PC 앱 설정에서 연동을 해제한 뒤 바꾸세요"); return; }
-    await renameGroup(g, trimmed);
+    await renameGroup(g, trimmed);   // 연동 그룹도 가능 — renameGroup 이 연동 메타 키까지 옮긴다
     if (activeTab === g) setActiveTab(trimmed);
     void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });
   };
@@ -1108,6 +1109,44 @@ export function MobileSimpleView() {
   // 시장 매매동향 모달
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
 
+  // 폴더 탭(📁) — 멤버 1개면 단일 탭, 2개 이상이면 폴더명. 증권사연결 폴더는 지수 옆에 고정으로 따로 그린다
+  const renderFolderTab = (folder: GroupFolder) => {
+          const members = folder.groups.filter(g => presentGroups.has(g))
+                                .sort((a, b) => a.localeCompare(b, "ko"));
+          if (members.length === 0) return null;
+          // 멤버 1개 → 폴더명(그룹명) 단일 탭 (드롭다운 없이 바로 클릭)
+          if (members.length === 1) {
+            const g = members[0];
+            const cnt = countByKey.get(g) ?? 0;
+            const active = activeTab === g;
+            return (
+              <button key={`folder_${folder.name}`}
+                      onClick={() => setActiveTab(g)}
+                      className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition
+                                  ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                📁{folder.name}({g}){cnt > 0 ? ` ${cnt}` : ""}
+              </button>
+            );
+          }
+          // 폴더명 링크 — 클릭 시 폴더로 진입(현재 멤버 또는 첫 멤버). 멤버 전환은 아래 sub 링크바에서.
+          // ★ 폴더 진입 기본은 '첫 그룹' (PC Tabs 와 동일). 이미 폴더 안 그룹이나 전체보기에
+          //   있으면 그대로 유지. 기본을 전체보기로 두면 종목 많은 폴더에서 폴더를 누를 때마다
+          //   전 종목을 불러온다 — 전체보기는 칩바 맨 끝에서 명시적으로 눌러야 켜진다.
+          const allKey = folderAllKey(folder.name);
+          const current = (members.includes(activeTab) || activeTab === allKey)
+            ? activeTab : members[0];
+          const folderActive = members.includes(activeTab) || activeTab === allKey;
+          return (
+            <button key={`folder_${folder.name}`}
+                    onClick={() => setActiveTab(current)}
+                    className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition
+                                ${folderActive ? "bg-blue-600 text-white font-bold"
+                                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+              📁{folder.name}
+            </button>
+          );
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 pg-bg"
          onTouchStart={handleTouchStart}
@@ -1342,6 +1381,8 @@ export function MobileSimpleView() {
             </span>
           );
         })()}
+        {/* 🏦 증권사연결 폴더 — 지수 바로 오른쪽 고정(사용자 결정 2026-10-26) */}
+        {folders.filter(f => f.name === BROKER_FOLDER).map(renderFolderTab)}
         {groupTabs.map(t => {
           // 시스템·내자산 탭은 위 드롭다운/별도 버튼으로만 표시 (개별 탭 숨김)
           if (SYS_ALL_KEYS.has(t.key)) return null;
@@ -1390,43 +1431,8 @@ export function MobileSimpleView() {
             </button>
           );
         })}
-        {/* 📁 폴더 드롭다운 — 폴더에 담긴 그룹 묶음 */}
-        {folders.map(folder => {
-          const members = folder.groups.filter(g => presentGroups.has(g))
-                                .sort((a, b) => a.localeCompare(b, "ko"));
-          if (members.length === 0) return null;
-          // 멤버 1개 → 폴더명(그룹명) 단일 탭 (드롭다운 없이 바로 클릭)
-          if (members.length === 1) {
-            const g = members[0];
-            const cnt = countByKey.get(g) ?? 0;
-            const active = activeTab === g;
-            return (
-              <button key={`folder_${folder.name}`}
-                      onClick={() => setActiveTab(g)}
-                      className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition
-                                  ${active ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                📁{folder.name}({g}){cnt > 0 ? ` ${cnt}` : ""}
-              </button>
-            );
-          }
-          // 폴더명 링크 — 클릭 시 폴더로 진입(현재 멤버 또는 첫 멤버). 멤버 전환은 아래 sub 링크바에서.
-          // ★ 폴더 진입 기본은 '첫 그룹' (PC Tabs 와 동일). 이미 폴더 안 그룹이나 전체보기에
-          //   있으면 그대로 유지. 기본을 전체보기로 두면 종목 많은 폴더에서 폴더를 누를 때마다
-          //   전 종목을 불러온다 — 전체보기는 칩바 맨 끝에서 명시적으로 눌러야 켜진다.
-          const allKey = folderAllKey(folder.name);
-          const current = (members.includes(activeTab) || activeTab === allKey)
-            ? activeTab : members[0];
-          const folderActive = members.includes(activeTab) || activeTab === allKey;
-          return (
-            <button key={`folder_${folder.name}`}
-                    onClick={() => setActiveTab(current)}
-                    className={`px-2 py-1 text-[11px] rounded-md shrink-0 transition
-                                ${folderActive ? "bg-blue-600 text-white font-bold"
-                                               : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-              📁{folder.name}
-            </button>
-          );
-        })}
+        {/* 📁 폴더 — 증권사연결은 위(지수 옆)에 고정, 나머지는 사용자 그룹 뒤 */}
+        {folders.filter(f => f.name !== BROKER_FOLDER).map(renderFolderTab)}
         </div>
       </nav>
 
@@ -2440,7 +2446,6 @@ export function MobileSimpleView() {
                 if (next == null) return;
                 const trimmed = next.trim();
                 if (!trimmed || trimmed === oldKey) return;
-                if (isLinkedGroup(oldKey)) { window.alert("토스 연동 그룹은 이름을 바꿀 수 없습니다"); return; }
                 await renameGroup(oldKey, trimmed);
                 if (activeTab === oldKey) setActiveTab(trimmed);
                 void queryClient.invalidateQueries({ queryKey: ["m-holdings"] });

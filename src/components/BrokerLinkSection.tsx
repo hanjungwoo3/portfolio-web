@@ -9,7 +9,7 @@ import {
 } from "../lib/broker";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { appConfirm } from "../lib/appDialog";
-import { linkedGroupOf, setLinkedGroup, removeLinkedGroup, DEFAULT_TOSS_GROUP, LINKED_GROUPS_EVENT } from "../lib/linkedGroups";
+import { linkedGroupOf, setLinkedGroup, removeLinkedGroup, ensureLinkedGroupsInFolder, DEFAULT_TOSS_GROUP, LINKED_GROUPS_EVENT } from "../lib/linkedGroups";
 import { syncTossHoldingsSafe, TOSS_SOURCE } from "../lib/tossSync";
 import { unlockSyncedHoldingsOfGroup } from "../lib/db";
 
@@ -53,6 +53,7 @@ export function BrokerLinkSection({ compact }: { compact?: boolean }) {
     if (!accountSeq) { setSyncMsg({ ok: false, text: "먼저 '연결 시험'으로 계좌를 확인해 주세요" }); return; }
     if (!(await appConfirm(`"${g}" 그룹을 토스 계좌의 연동 그룹으로 쓸까요?\n\n· 토스 보유 종목이 이 그룹에 들어오고 토스 값으로 자동 갱신됩니다(수정·삭제 불가)\n· 이 그룹에 손으로 넣은 종목은 그대로 둡니다. 토스에도 있는 종목이면 토스 값으로 바뀝니다\n· 예수금은 토스 '주문 가능 금액'으로 고정됩니다`))) return;
     setLinkedGroup(g, { broker: "toss", accountSeq });
+    ensureLinkedGroupsInFolder();   // 📁 증권사연결 폴더(지수 탭 옆 고정) 안에
     setTossEnabled(true); setEnabled(true);
     await runSync();
   };
@@ -257,7 +258,7 @@ export function BrokerLinkSection({ compact }: { compact?: boolean }) {
                      className="border rounded px-2 py-0.5 text-[11px] w-40 focus:outline-none focus:border-violet-500" />
               <button onClick={() => void startLink()} disabled={busy}
                       className="px-2 py-0.5 rounded bg-violet-600 hover:bg-violet-700 text-white disabled:opacity-50">연동 시작</button>
-              <span className="text-[10px] text-gray-500">이 이름의 그룹에 토스 보유가 들어옵니다(없으면 새로 만듦)</span>
+              <span className="text-[10px] text-gray-500">이 이름의 그룹에 토스 보유가 들어오고, 📁 증권사연결 폴더(지수 탭 옆)에 놓입니다</span>
             </div>
           )}
           {syncMsg && <div className={syncMsg.ok ? "text-emerald-700" : "text-rose-700"}>{syncMsg.ok ? "✅ " : "⚠️ "}{syncMsg.text}</div>}

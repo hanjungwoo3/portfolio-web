@@ -4,7 +4,7 @@ import { getDeposits, getDeposit, setDeposit, replaceAllDeposits, getPendingBuys
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "./groupFolders";
 import type { TabVisibility } from "./tabVisibility";
 import { notifyTradesChanged } from "./tradeEvents";
-import { getLinkedGroups, setLinkedGroups, type LinkedGroups } from "./linkedGroups";
+import { getLinkedGroups, setLinkedGroups, moveLinkedGroupName, type LinkedGroups } from "./linkedGroups";
 import {
   getDimSleepingEnabled, setDimSleepingEnabled,
   getPersonalProxyUrl, setPersonalProxyUrl,
@@ -710,6 +710,7 @@ export async function renameGroup(oldName: string, newName: string): Promise<num
     }
   }
   if (folderChanged) setGroupFolders(folders);
+  moveLinkedGroupName(old, next);   // 증권사 연동 그룹이면 메타 키도 새 이름으로
   return count;
 }
 

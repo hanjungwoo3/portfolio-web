@@ -81,7 +81,7 @@ import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
 import { NightToggle } from "./components/NightToggle";
 import { DimToggle, useDimSleeping } from "./components/DimToggle";
-import { isLinkedGroup, linkedGroupOf } from "./lib/linkedGroups";
+import { isLinkedGroup, linkedGroupOf, ensureLinkedGroupsInFolder } from "./lib/linkedGroups";
 import { TOSS_TRADE_ID_PREFIX } from "./lib/tossTrades";
 import { useTossAutoSync } from "./lib/tossSync";
 import { useExtensionProxyReady } from "./lib/extensionProxy";
@@ -215,6 +215,8 @@ function Dashboard() {
       setMemos(m);
       setTradeCount(t.length);
       setAllTrades(t);
+      // 증권사 연동 그룹이 폴더 밖에 있으면 '증권사연결' 폴더로(바뀌었을 때만 한 번 더 읽는다)
+      if (ensureLinkedGroupsInFolder()) setReloadKey(k => k + 1);
     })();
   }, [reloadKey]);
 
@@ -905,8 +907,7 @@ function Dashboard() {
              className="pg-menu sticky z-40 bg-white/95 backdrop-blur -mx-3 px-3 pt-1 mb-3 [&>nav]:!mb-0">
           <Tabs tabs={tabs} activeKey={activeTab} onChange={setActiveTab}
                  onRename={async (oldName, newName) => {
-                   if (isLinkedGroup(oldName)) { window.alert("토스 연동 그룹은 이름을 바꿀 수 없습니다 — 설정 → 증권사 연결에서 연동을 해제한 뒤 바꾸세요"); return; }
-                   await renameGroup(oldName, newName);
+                   await renameGroup(oldName, newName);   // 연동 그룹도 가능 — 연동 메타 키까지 같이 옮긴다
                    if (activeTab === oldName) setActiveTab(newName);
                    setReloadKey(k => k + 1);
                  }}

@@ -9,6 +9,7 @@
 //   · 예수금은 토스 값(cashBuyingPower)으로 고정
 //   · 갱신은 설정의 '지금 갱신' 버튼 + 자동(앱 켤 때·주기)
 import type { BrokerId } from "./broker";
+import { getGroupFolders, setGroupFolders } from "./groupFolders";
 
 export interface LinkedGroupMeta {
   broker: BrokerId;
@@ -23,7 +24,32 @@ export type LinkedGroups = Record<string, LinkedGroupMeta>;
 
 const KEY = "portfolio_linked_groups";
 export const LINKED_GROUPS_EVENT = "linked-groups-changed";
-export const DEFAULT_TOSS_GROUP = "토스(연동)";
+export const DEFAULT_TOSS_GROUP = "토스";
+/** 연동 그룹을 담는 폴더 — 지수 탭 바로 오른쪽에 고정(사용자 결정 2026-10-26). 증권사별 그룹(토스·한국투자…)이 이 안에 */
+export const BROKER_FOLDER = "증권사연결";
+
+/** 연동 그룹이 폴더 밖에 있으면 '증권사연결' 폴더에 넣는다(없으면 폴더 생성). 바꾼 게 있으면 true */
+export function ensureLinkedGroupsInFolder(): boolean {
+  const linked = Object.keys(getLinkedGroups());
+  if (!linked.length) return false;
+  const folders = getGroupFolders();
+  const inAny = new Set(folders.flatMap(f => f.groups));
+  const missing = linked.filter(g => !inAny.has(g));
+  if (!missing.length) return false;
+  let bf = folders.find(f => f.name === BROKER_FOLDER);
+  if (!bf) { bf = { name: BROKER_FOLDER, groups: [] }; folders.push(bf); }
+  bf.groups = Array.from(new Set([...bf.groups, ...missing]));
+  setGroupFolders(folders);
+  return true;
+}
+/** 그룹 이름이 바뀔 때 연동 메타 키도 따라간다(db.renameGroup 이 부른다) */
+export function moveLinkedGroupName(oldName: string, newName: string): void {
+  const all = getLinkedGroups();
+  if (!(oldName in all) || oldName === newName) return;
+  all[newName] = all[oldName];
+  delete all[oldName];
+  setLinkedGroups(all);
+}
 
 export function getLinkedGroups(): LinkedGroups {
   try {
