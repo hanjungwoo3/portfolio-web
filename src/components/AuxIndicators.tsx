@@ -224,7 +224,7 @@ export function AuxIndicators({
 
   // 우측 하단 별도 네모 블럭
   return (
-    <div className="absolute bottom-1 right-1 z-10">
+    <div className={`absolute z-10 ${expanded ? "bottom-1 right-1" : "bottom-0.5 right-1"}`}>
       {expanded ? (
         <div onClick={() => setExpanded(false)}
              title="클릭해 접기"
@@ -246,9 +246,8 @@ export function AuxIndicators({
         <button type="button"
                 onClick={() => setExpanded(true)}
                 title={retLines.length + flowLines.length > 0 ? `추가지표 (${retLines.length + flowLines.length}개) 펼치기` : "기간 수익률 펼치기"}
-                className="border border-gray-300 rounded bg-white/95 px-1.5 py-0.5
-                           text-[8px] text-gray-500 hover:text-gray-700 shadow-sm
-                           cursor-pointer leading-none">
+                className="px-1 py-0.5 text-[11px] leading-none cursor-pointer
+                           text-gray-400/50 hover:text-gray-600">   {/* 테두리 없이 ▲ 하나 — 카드 상세 버튼(Tooltip click)과 같은 모양(2026-10-26) */}
           ▲
         </button>
       )}
