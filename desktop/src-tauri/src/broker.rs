@@ -28,28 +28,89 @@ fn broker_of(name: &str) -> Result<Broker, String> {
     }
 }
 
-fn entry(broker: &str, key: &str) -> Result<keyring::Entry, String> {
+// ── 비밀 보관함 — 증권사당 **항목 하나**(JSON) + 프로세스 안 메모리 캐시 ──
+//   왜 하나로 합쳤나(2026-10-26 사용자 제보 "암호가 맞아도 계속 뜬다"): 맥 키체인은 **항목마다** 접근 허용 창을 띄운다.
+//   client_id·client_secret·token 세 항목이면 창이 세 번 뜨고, 토큰을 새로 쓰면 또 뜬다. 게다가 이 앱은 애플 개발자 서명이
+//   없어(ad-hoc) 빌드마다 신원이 달라져 "항상 허용"이 다음 버전에서 무효가 된다.
+//   → 항목 하나 + 처음 읽은 뒤엔 메모리만 쓰고(요청마다 보관함 안 건드림) + 읽는 데 성공하면 **지우고 다시 만든다**
+//     (이 바이너리가 만든 항목은 이 바이너리에 허용돼 다음 실행부터 창이 안 뜬다). 결과: 앱 업데이트 뒤 **딱 한 번**만 묻는다.
+#[derive(Clone, Default, serde::Serialize, serde::Deserialize)]
+struct Creds {
+    client_id: String,
+    client_secret: String,
+    #[serde(default)]
+    token: Option<String>, // "<exp>|<token>"
+}
+
+fn entry(broker: &str) -> Result<keyring::Entry, String> {
+    keyring::Entry::new(SERVICE, &format!("broker.{broker}")).map_err(|e| format!("비밀 보관함 열기 실패: {e}"))
+}
+fn legacy_entry(broker: &str, key: &str) -> Result<keyring::Entry, String> {
     keyring::Entry::new(SERVICE, &format!("broker.{broker}.{key}")).map_err(|e| format!("비밀 보관함 열기 실패: {e}"))
 }
-fn kv_get(broker: &str, key: &str) -> Result<Option<String>, String> {
-    match entry(broker, key)?.get_password() {
+fn read_entry(e: &keyring::Entry) -> Result<Option<String>, String> {
+    match e.get_password() {
         Ok(v) => Ok(Some(v)),
         Err(keyring::Error::NoEntry) => Ok(None),
         Err(e) => Err(format!("비밀 보관함 읽기 실패: {e}")),
     }
 }
-fn kv_set(broker: &str, key: &str, val: &str) -> Result<(), String> {
-    entry(broker, key)?.set_password(val).map_err(|e| format!("비밀 보관함 저장 실패: {e}"))
-}
-fn kv_del(broker: &str, key: &str) -> Result<(), String> {
-    match entry(broker, key)?.delete_credential() {
+fn delete_entry(e: &keyring::Entry) -> Result<(), String> {
+    match e.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(format!("비밀 보관함 삭제 실패: {e}")),
     }
 }
+// 보관함에 쓰기 — 지우고 새로 만든다(이 바이너리 소유 항목으로)
+fn store_creds(broker: &str, c: &Creds) -> Result<(), String> {
+    let e = entry(broker)?;
+    let _ = delete_entry(&e);
+    let json = serde_json::to_string(c).map_err(|e| format!("직렬화 실패: {e}"))?;
+    e.set_password(&json).map_err(|e| format!("비밀 보관함 저장 실패: {e}"))
+}
+// 보관함에서 읽기(메모리에 없을 때 한 번) — 새 항목 → 없으면 옛 3항목(이전 버전) 이전 → 읽었으면 다시 만들어 소유권 갱신
+fn load_creds(broker: &str) -> Result<Option<Creds>, String> {
+    if let Some(raw) = read_entry(&entry(broker)?)? {
+        if let Ok(c) = serde_json::from_str::<Creds>(&raw) {
+            let _ = store_creds(broker, &c); // 소유권 갱신(실패해도 값은 있다)
+            return Ok(Some(c));
+        }
+    }
+    // 옛 형식(항목 3개) → 하나로 합치고 옛 것은 지운다
+    let id = read_entry(&legacy_entry(broker, "client_id")?)?;
+    let secret = read_entry(&legacy_entry(broker, "client_secret")?)?;
+    if let (Some(client_id), Some(client_secret)) = (id, secret) {
+        let token = read_entry(&legacy_entry(broker, "token")?).unwrap_or(None);
+        let c = Creds { client_id, client_secret, token };
+        store_creds(broker, &c)?;
+        for k in ["client_id", "client_secret", "token"] {
+            if let Ok(e) = legacy_entry(broker, k) { let _ = delete_entry(&e); }
+        }
+        return Ok(Some(c));
+    }
+    Ok(None)
+}
+// 메모리 캐시 우선 — 프로세스당 보관함은 한 번만 읽는다
+fn creds_of(state: &BrokerState, broker: &str) -> Result<Option<Creds>, String> {
+    if let Some(c) = state.creds.lock().map_err(|_| "lock")?.get(broker).cloned() {
+        return Ok(Some(c));
+    }
+    let loaded = load_creds(broker)?;
+    if let Some(c) = &loaded {
+        state.creds.lock().map_err(|_| "lock")?.insert(broker.to_string(), c.clone());
+    }
+    Ok(loaded)
+}
+fn save_creds(state: &BrokerState, broker: &str, c: Creds) -> Result<(), String> {
+    store_creds(broker, &c)?;
+    state.creds.lock().map_err(|_| "lock")?.insert(broker.to_string(), c);
+    Ok(())
+}
 
 #[derive(Default)]
 pub struct BrokerState {
+    // 키·토큰 메모리 캐시(보관함은 프로세스당 한 번)
+    creds: Mutex<HashMap<String, Creds>>,
     // 토큰은 보관함에도 있지만 요청마다 읽지 않게 메모리에 — (access_token, 만료 epoch 초)
     tokens: Mutex<HashMap<String, (String, u64)>>,
     // 한도 — 묶음별 마지막 호출 시각
@@ -69,12 +130,11 @@ pub struct BrokerRes {
 }
 
 #[tauri::command]
-pub fn broker_status(broker: String) -> Result<BrokerStatus, String> {
+pub fn broker_status(state: tauri::State<'_, BrokerState>, broker: String) -> Result<BrokerStatus, String> {
     broker_of(&broker)?;
-    let id = kv_get(&broker, "client_id")?;
-    let secret = kv_get(&broker, "client_secret")?;
-    let configured = id.is_some() && secret.is_some();
-    Ok(BrokerStatus { configured, client_id_hint: id.map(|s| s.chars().take(4).collect()).unwrap_or_default() })
+    let c = creds_of(&state, &broker)?;
+    let configured = c.as_ref().map(|c| !c.client_id.is_empty() && !c.client_secret.is_empty()).unwrap_or(false);
+    Ok(BrokerStatus { configured, client_id_hint: c.map(|c| c.client_id.chars().take(4).collect()).unwrap_or_default() })
 }
 
 #[tauri::command]
@@ -85,10 +145,8 @@ pub fn broker_set(state: tauri::State<'_, BrokerState>, broker: String, client_i
     if id.is_empty() || secret.is_empty() {
         return Err("client_id 와 client_secret 을 모두 넣어 주세요".into());
     }
-    kv_set(&broker, "client_id", id)?;
-    kv_set(&broker, "client_secret", secret)?;
     // 키가 바뀌었으니 옛 토큰은 버린다
-    let _ = kv_del(&broker, "token");
+    save_creds(&state, &broker, Creds { client_id: id.to_string(), client_secret: secret.to_string(), token: None })?;
     state.tokens.lock().map_err(|_| "lock")?.remove(&broker);
     Ok(())
 }
@@ -96,9 +154,11 @@ pub fn broker_set(state: tauri::State<'_, BrokerState>, broker: String, client_i
 #[tauri::command]
 pub fn broker_clear(state: tauri::State<'_, BrokerState>, broker: String) -> Result<(), String> {
     broker_of(&broker)?;
-    kv_del(&broker, "client_id")?;
-    kv_del(&broker, "client_secret")?;
-    kv_del(&broker, "token")?;
+    delete_entry(&entry(&broker)?)?;
+    for k in ["client_id", "client_secret", "token"] {   // 이전 버전 항목도
+        if let Ok(e) = legacy_entry(&broker, k) { let _ = delete_entry(&e); }
+    }
+    state.creds.lock().map_err(|_| "lock")?.remove(&broker);
     state.tokens.lock().map_err(|_| "lock")?.remove(&broker);
     Ok(())
 }
@@ -110,11 +170,12 @@ fn now_epoch() -> u64 {
 // 유효한 토큰 — 메모리 → 보관함 → 새로 발급 순
 async fn get_token(client: &reqwest::Client, state: &BrokerState, broker: &str, force_new: bool) -> Result<String, String> {
     let b = broker_of(broker)?;
+    let creds = creds_of(state, broker)?.ok_or("증권사 키가 없습니다 — 설정에서 먼저 연결해 주세요")?;
     if !force_new {
         if let Some((t, exp)) = state.tokens.lock().map_err(|_| "lock")?.get(broker).cloned() {
             if exp > now_epoch() + 60 { return Ok(t); }
         }
-        if let Some(raw) = kv_get(broker, "token")? {
+        if let Some(raw) = creds.token.as_deref() {
             // "<exp>|<token>"
             if let Some((exp, t)) = raw.split_once('|') {
                 if let Ok(exp) = exp.parse::<u64>() {
@@ -126,8 +187,8 @@ async fn get_token(client: &reqwest::Client, state: &BrokerState, broker: &str, 
             }
         }
     }
-    let id = kv_get(broker, "client_id")?.ok_or("증권사 키가 없습니다 — 설정에서 먼저 연결해 주세요")?;
-    let secret = kv_get(broker, "client_secret")?.ok_or("증권사 키가 없습니다 — 설정에서 먼저 연결해 주세요")?;
+    let id = creds.client_id.clone();
+    let secret = creds.client_secret.clone();
     // 토스 실측(2026-09-09): 토큰 발급은 HTTP Basic — 폼 본문에 id/secret 을 넣으면 401
     let r = client
         .post(b.token_url)
@@ -146,7 +207,8 @@ async fn get_token(client: &reqwest::Client, state: &BrokerState, broker: &str, 
     struct Tok { access_token: String, #[serde(default)] expires_in: Option<u64> }
     let tok: Tok = serde_json::from_str(&text).map_err(|_| format!("토큰 응답을 읽지 못했습니다: {}", text.chars().take(200).collect::<String>()))?;
     let exp = now_epoch() + tok.expires_in.unwrap_or(86_400);
-    let _ = kv_set(broker, "token", &format!("{exp}|{}", tok.access_token));
+    // 토큰도 같은 항목에 — 앱을 다시 켜도 24시간 안이면 재사용(다른 프로그램과 키를 나눠 쓰면 서로 끊기므로)
+    let _ = save_creds(state, broker, Creds { token: Some(format!("{exp}|{}", tok.access_token)), ..creds });
     state.tokens.lock().map_err(|_| "lock")?.insert(broker.to_string(), (tok.access_token.clone(), exp));
     Ok(tok.access_token)
 }
