@@ -36,6 +36,7 @@ const PERIODS = [
   { key: "2y", label: "2년", years: 2 },
   { key: "5y", label: "5년", years: 5 },
   { key: "10y", label: "10년", years: 10 },
+  { key: "all", label: "전체", years: 10 },      // 연동(Open API)은 기간 없이 전체, 붙여넣기는 10년 창으로
   { key: "custom", label: "직접", years: 0 },
 ] as const;
 type PeriodKey = typeof PERIODS[number]["key"];
@@ -65,7 +66,9 @@ export function TossImportDialog({ isOpen, onClose, onImported, groups }: Props)
     if (!apiLink) return;
     setErr(""); setBusy(true); setApiProgress("받는 중…");
     try {
-      const f = await fetchTossTrades(from, to, n => setApiProgress(`주문 ${n}건 받는 중…`));
+      const all = period === "all";
+      const f = all ? await fetchTossTrades(undefined, undefined, n => setApiProgress(`주문 ${n}건 받는 중…`))
+                    : await fetchTossTrades(from, to, n => setApiProgress(`주문 ${n}건 받는 중…`));
       const map = new Map<string, Cand>((cands ?? []).map(c => [c.key, c]));
       const newlyPicked = new Set(picked);
       let added = 0, already = 0;
@@ -86,7 +89,7 @@ export function TossImportDialog({ isOpen, onClose, onImported, groups }: Props)
       setPicked(newlyPicked);
       setSkipped(sk => sk + f.skipped.noFill);
       setAccount(f.group);   // 연동 거래는 연동 그룹으로
-      const parts = [`${from}~${to}: 새 거래 ${added}건`, already ? `이미 있음 ${already}건` : "", f.skipped.noFx ? `환율 없어 제외 ${f.skipped.noFx}건` : ""].filter(Boolean);
+      const parts = [`${all ? "전체 기간" : `${from}~${to}`}: 새 거래 ${added}건`, already ? `이미 있음 ${already}건` : "", f.skipped.noFx ? `환율 없어 제외 ${f.skipped.noFx}건` : ""].filter(Boolean);
       setApiProgress(`✅ ${parts.join(" · ")}${f.overlaps.size ? ` · 수동 기록과 겹치는 것 같음 ${f.overlaps.size}건(표시만)` : ""}`);
     } catch (e) {
       setApiProgress(""); setErr(e instanceof Error ? e.message : String(e));

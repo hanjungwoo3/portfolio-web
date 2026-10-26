@@ -11,7 +11,7 @@ import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { useIncrementalRender } from "./lib/useIncrementalRender";
-import { Tabs, buildTabs, filterByTab, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SEMI_DASH_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SEMI_DASH_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
 import { EtfRankingTab } from "./components/EtfRankingTab";
@@ -81,7 +81,8 @@ import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
 import { NightToggle } from "./components/NightToggle";
 import { DimToggle, useDimSleeping } from "./components/DimToggle";
-import { isLinkedGroup } from "./lib/linkedGroups";
+import { isLinkedGroup, linkedGroupOf } from "./lib/linkedGroups";
+import { TOSS_TRADE_ID_PREFIX } from "./lib/tossTrades";
 import { useTossAutoSync } from "./lib/tossSync";
 import { useExtensionProxyReady } from "./lib/extensionProxy";
 import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./components/HelpDialog";
@@ -218,7 +219,9 @@ function Dashboard() {
   }, [reloadKey]);
 
   // reloadKey 의존성 — 설정에서 시스템 탭 visibility 변경 시 즉시 반영
-  const tabs = useMemo(() => buildTabs(holdings, getTabVisibility(), tradeCount), [holdings, reloadKey, tradeCount]);
+  const tossTradeCount = useMemo(() => allTrades.filter(t => t.id.startsWith(TOSS_TRADE_ID_PREFIX)).length, [allTrades]);
+  const tabs = useMemo(() => buildTabs(holdings, getTabVisibility(), tradeCount, { count: tossTradeCount, linked: !!linkedGroupOf("toss") }),
+    [holdings, reloadKey, tradeCount, tossTradeCount]);
   // PC 좌우 화살표로 넘기는 순서 — 탭 줄에 **보이는 순서 그대로**(모바일 스와이프와 같은 역할).
   //   투자도구 묶음 → 내자산 묶음 → 증시 → 지수 묶음 → 사용자 그룹. 폴더 '전체' 가상 탭은 뺀다.
   const navKeys = useMemo(() => {
@@ -944,6 +947,9 @@ function Dashboard() {
           <SemiCheckTab />
         ) : activeTab === MY_TRADES_TAB_KEY ? (
           <MyTradesTab holdings={holdings} pc prices={priceMap} onOpenValuation={setValuationTicker} />
+        ) : activeTab === MY_TRADES_TOSS_TAB_KEY ? (
+          <MyTradesTab holdings={holdings} pc prices={priceMap} onOpenValuation={setValuationTicker}
+                       onlyAccount={linkedGroupOf("toss")?.group ?? "토스(연동)"} defaultPeriod="all" />
         ) : activeTab === CONSENSUS_TAB_KEY ? (
           <ConsensusTab items={consensusItems} onOpenValuation={setValuationTicker}
                         onSelectGroup={setActiveTab}

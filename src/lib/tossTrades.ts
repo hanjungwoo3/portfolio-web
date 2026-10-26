@@ -79,10 +79,10 @@ export function findOverlaps(rows: TossTradeRow[], existing: Trade[]): Map<strin
   return out;
 }
 
-// 환율 표 — 기간에 맞는 범위의 KRW=X 일봉. 그 날이 휴일이면 직전 거래일 종가
-async function fxTable(from: string): Promise<(date: string) => number | undefined> {
-  const days = Math.max(1, (Date.parse(todayKst()) - Date.parse(from)) / 86400_000);
-  const range = days <= 360 ? "1y" : days <= 720 ? "2y" : days <= 1800 ? "5y" : "10y";
+// 환율 표 — 기간에 맞는 범위의 KRW=X 일봉. 그 날이 휴일이면 직전 거래일 종가. from 없음(전체) = max
+async function fxTable(from?: string): Promise<(date: string) => number | undefined> {
+  const days = from ? Math.max(1, (Date.parse(todayKst()) - Date.parse(from)) / 86400_000) : Infinity;
+  const range = days <= 360 ? "1y" : days <= 720 ? "2y" : days <= 1800 ? "5y" : days <= 3600 ? "10y" : "max";
   const pts = (await fetchYahooPriceHistory("KRW=X", range)).filter(p => p.close > 0).sort((a, b) => a.date.localeCompare(b.date));
   return (date: string) => {
     let best: number | undefined;
@@ -91,11 +91,13 @@ async function fxTable(from: string): Promise<(date: string) => number | undefin
   };
 }
 
-async function fetchClosedOrders(account: string, from: string, to: string, onProgress?: (n: number) => void): Promise<TossOrder[]> {
+// from/to 없음 = 전체 기간(토스 문서: "미지정 시 전체 기간")
+async function fetchClosedOrders(account: string, from: string | undefined, to: string | undefined, onProgress?: (n: number) => void): Promise<TossOrder[]> {
   const out: TossOrder[] = [];
   let cursor: string | null = null;
   for (let page = 0; page < 300; page++) {   // 100건 × 300 = 3만 건 상한
-    const q = `status=CLOSED&from=${from}&to=${to}&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+    const range = from && to ? `&from=${from}&to=${to}` : "";
+    const q = `status=CLOSED${range}&limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
     const r: OrdersPage = await brokerGet<OrdersPage>("toss", `/api/v1/orders?${q}`, account);
     out.push(...(r?.orders ?? []));
     onProgress?.(out.length);
@@ -107,8 +109,8 @@ async function fetchClosedOrders(account: string, from: string, to: string, onPr
 
 export interface TossTradesFetch { rows: TossTradeRow[]; overlaps: Map<string, string>; existingIds: Set<string>; skipped: { noFill: number; noFx: number }; group: string }
 
-/** 기간의 체결 거래를 받아 후보로 — 저장은 하지 않는다(가져오기 대화창이 고른 뒤 저장) */
-export async function fetchTossTrades(from: string, to: string, onProgress?: (n: number) => void): Promise<TossTradesFetch> {
+/** 기간의 체결 거래를 받아 후보로 — 저장은 하지 않는다(가져오기 대화창이 고른 뒤 저장). from/to 생략 = 전체 */
+export async function fetchTossTrades(from?: string, to?: string, onProgress?: (n: number) => void): Promise<TossTradesFetch> {
   const link = linkedGroupOf("toss");
   if (!link) throw new Error("토스 연동 그룹이 없습니다 — 설정 → 증권사 연결에서 '연동 시작'을 먼저 해 주세요");
   const account = link.meta.accountSeq || getTossAccountSeq();
@@ -132,13 +134,14 @@ export async function saveTossTrades(rows: TossTradeRow[], group: string): Promi
   return rows.length;
 }
 
-/** 자동 증분 — 보유 갱신 뒤에 부른다. 마지막 가져온 날 3일 전부터(지연 체결 대비) 오늘까지, 처음이면 90일 */
+/** 자동 증분 — 보유 갱신 뒤에 부른다. 마지막 가져온 날 3일 전부터(지연 체결 대비) 오늘까지. **처음이면 전체 이력**(사용자 요청 2026-10-26) */
 export async function syncTossTradesIncremental(): Promise<number> {
   const link = linkedGroupOf("toss");
   if (!link) return 0;
   const to = todayKst();
-  const from = link.meta.lastTradeSyncAt ? addDays(link.meta.lastTradeSyncAt.slice(0, 10), -3) : addDays(to, -90);
-  const f = await fetchTossTrades(from, to);
+  const f = link.meta.lastTradeSyncAt
+    ? await fetchTossTrades(addDays(link.meta.lastTradeSyncAt.slice(0, 10), -3), to)
+    : await fetchTossTrades();   // 전체
   const fresh = f.rows.filter(r => !f.existingIds.has(r.id));
   const n = await saveTossTrades(f.rows, f.group);   // 기존 것도 덮어쓰기(수정된 값 반영) — 멱등
   const cur = linkedGroupOf("toss");

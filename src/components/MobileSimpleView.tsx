@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
 import { BrokerLinkSection } from "./BrokerLinkSection";
-import { isLinkedGroup } from "../lib/linkedGroups";
+import { isLinkedGroup, linkedGroupOf } from "../lib/linkedGroups";
+import { TOSS_TRADE_ID_PREFIX } from "../lib/tossTrades";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -142,6 +143,7 @@ const SEMI_KEY = "__semi__";  // 반도체 점검 — MU·NVDA·장비주·환�
 const SECTOR_KEY = "__sector__";  // 한국 섹터 순위 — 토스 TICS depth1 ranking
 const MY_KEY = "__my-stocks__";  // 내주식(가상 합산) — 모든 그룹의 동일 ticker 를 shares 합/가중평균 평단
 const MY_TRADES_KEY = "__my-trades__";  // 내거래 — 모든 종목 거래 기록 모아보기 (내주식과 한 묶음)
+const MY_TRADES_TOSS_KEY = "__my-trades-toss__";   // 내거래(토스) — 토스 연동 그룹 거래만(PC 와 같은 키)
 const ASSET_TREND_KEY = "__asset-trend__";  // 자산추이 — 일별 총자산·원금 대비 수익 (내자산 묶음 세 번째)
 
 // 시스템 탭 목록 — **이 한 벌**로 드롭다운·스와이프·개별탭 숨김·isSystemTab 을 모두 만든다.
@@ -152,7 +154,7 @@ const SYS_DROPDOWN_KEYS = new Set<string>([    // '투자도구' 드롭다운에
   SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY,
   HEATMAP_KEY, SCREENER_KEY, CLOSE_BET_KEY, ACCUM_KEY, VALUATION_KEY, EARNINGS_KEY,
 ]);
-const MY_GROUP_KEYS_M = new Set<string>([MY_KEY, MY_TRADES_KEY, ASSET_TREND_KEY]);   // '내자산' 드롭다운
+const MY_GROUP_KEYS_M = new Set<string>([MY_KEY, MY_TRADES_KEY, MY_TRADES_TOSS_KEY, ASSET_TREND_KEY]);   // '내자산' 드롭다운
 // '지수' 드롭다운 — 주간(옛 지수 키 KR_KEY 를 그대로 써서 저장된 마지막 탭이 이어진다)·야간·반도체
 const INDEX_KEYS_M = new Set<string>([KR_KEY, IDX_NIGHT_KEY, IDX_ROT_KEY]);
 const indexPageOfM = (k: string): DashboardPage => k === IDX_NIGHT_KEY ? "night" : k === IDX_ROT_KEY ? "rot" : "day";
@@ -466,6 +468,10 @@ export function MobileSimpleView() {
     // 내거래 — 내주식 바로 옆(한 묶음). 거래 기록 있거나 보유 종목 있을 때.
     if (vis.myTrades && (tradeCount > 0 || uniqHeld.size > 0)) {
       tabs.push({ key: MY_TRADES_KEY, label: "🧾내거래", count: tradeCount });
+    }
+    // 내거래(토스) — 토스 연동 그룹이 있을 때(연동은 PC 앱에서, 거래는 Drive 동기화로 온다)
+    if (vis.myTrades && linkedGroupOf("toss")) {
+      tabs.push({ key: MY_TRADES_TOSS_KEY, label: "🔗내거래(토스)", count: allTrades.filter(t => t.id.startsWith(TOSS_TRADE_ID_PREFIX)).length });
     }
     // 자산추이 — 거래 기록으로 역산하므로 기록이 있을 때만 (데스크톱 buildTabs 와 동일 조건)
     if (vis.assetTrend && tradeCount > 0) {
@@ -971,7 +977,7 @@ export function MobileSimpleView() {
   // 이 제스처가 '옆으로 넘기기' 인가 — 이동 중(당기기 표시)·놓을 때 같은 규칙.
   //   위아래 스크롤하다 비스듬히 간 손짓, 가로 스크롤 표·차트 위, 내거래(갠트) 에선 아니다.
   const pullTarget = (dx: number, dy: number) => {
-    if (!touchStart.current || activeTab === MY_TRADES_KEY || swipeScroll.current) return null;
+    if (!touchStart.current || activeTab === MY_TRADES_KEY || activeTab === MY_TRADES_TOSS_KEY || swipeScroll.current) return null;
     if (Math.abs(dy) > Math.abs(dx) / 2 || Math.abs(dy) > 60) return null;
     if (Math.abs(window.scrollY - touchStart.current.sy) > 8) return null;
     const idx = navKeys.indexOf(activeTab);
@@ -1742,6 +1748,10 @@ export function MobileSimpleView() {
         }
         if (activeTab === MY_TRADES_KEY) {
           return <div className="px-2 py-2 pb-32"><MyTradesTab holdings={holdings} prices={groupPriceMap} onOpenValuation={setValuationTicker} /></div>;
+        }
+        if (activeTab === MY_TRADES_TOSS_KEY) {
+          return <div className="px-2 py-2 pb-32"><MyTradesTab holdings={holdings} prices={groupPriceMap} onOpenValuation={setValuationTicker}
+                                                               onlyAccount={linkedGroupOf("toss")?.group ?? "토스(연동)"} defaultPeriod="all" /></div>;
         }
         if (activeTab === SEMI_KEY) {
           return <div className="px-2 py-2"><SemiCheckTab /></div>;

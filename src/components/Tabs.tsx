@@ -332,6 +332,7 @@ export const SECTOR_RANK_TAB_KEY = "__sector-rank__";
 export const MY_STOCKS_TAB_KEY = "__my-stocks__";
 // 내거래 — 모든 종목의 거래 기록(trades) 모아보기. 내주식과 한 묶음.
 export const MY_TRADES_TAB_KEY = "__my-trades__";
+export const MY_TRADES_TOSS_TAB_KEY = "__my-trades-toss__";   // 내거래(토스) — 토스 연동 그룹 거래만(사용자 요청 2026-10-26)
 // 컨센서스 — 증권사 목표주가·연기금·변동폭·등락률 sub탭 (관심종목을 줄 세우는 화면들)
 export const CONSENSUS_TAB_KEY = "__consensus__";
 // 눌림목 — RSI·볼린저·200일선·흑자·유동성 조건으로 코스피·코스닥 전 종목 스크리닝 (+ 백테스트)
@@ -357,7 +358,7 @@ export const ASSET_TREND_TAB_KEY = "__asset-trend__";
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
   "관심ETF", MARKET_MONEY_TAB_KEY, SEMI_DASH_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY, SEMI_CHECK_TAB_KEY,
-  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, CONSENSUS_TAB_KEY,
+  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY,
   ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
   SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY,
 ]);
@@ -371,13 +372,13 @@ export const SYSTEM_TAB_KEYS = new Set<string>([
 
 // 내자산 묶음 — 내주식 + 내거래를 별도 드롭다운 하나로 (지수 묶음과 동일 방식).
 export const MY_GROUP_KEYS = new Set<string>([
-  MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, ASSET_TREND_TAB_KEY,
+  MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, ASSET_TREND_TAB_KEY,
 ]);
 
 // 미국증시 → 섹터순위 → 반도체 점검 → 내주식(합산) → 사용자 그룹 알파벳 순.
 // "보유"도 일반 사용자 그룹과 동일하게 취급 (별도 분기 없음).
 // visibility 미지정 시 시스템 탭 모두 노출 (기본 동작).
-export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCount = 0): TabSpec[] {
+export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCount = 0, tossTrades?: { count: number; linked: boolean }): TabSpec[] {
   const showUs = visibility?.usMarket ?? true;
   const showSector = visibility?.sectorRank ?? true;
   const showMy = visibility?.myStocks ?? true;
@@ -423,6 +424,10 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 내거래 — 내주식 바로 옆(한 묶음). 거래 기록이 있거나 보유 종목이 있을 때 노출.
   if (showMyTrades && (tradeCount > 0 || uniqHeld.size > 0)) {
     tabs.push({ key: MY_TRADES_TAB_KEY, label: "내거래", emoji: "🧾", count: tradeCount });
+  }
+  // 내거래(토스) — 토스 연동 그룹이 있을 때, 내거래 바로 아래(같은 묶음). 연동으로 가져온 거래만 모아 본다.
+  if (showMyTrades && tossTrades?.linked) {
+    tabs.push({ key: MY_TRADES_TOSS_TAB_KEY, label: "내거래(토스)", emoji: "🔗", count: tossTrades.count });
   }
   // 자산추이 — 내자산 묶음(내주식·내거래)의 세 번째. 거래 기록이 있어야 역산이 되므로 그때만.
   if ((visibility?.assetTrend ?? true) && tradeCount > 0) {

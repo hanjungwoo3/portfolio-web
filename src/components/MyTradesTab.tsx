@@ -46,14 +46,15 @@ function presetRange(p: Period): { from: string; to: string } {
   return { from: d.toISOString().slice(0, 10), to };
 }
 
-export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: { holdings: Stock[]; pc?: boolean; prices?: Map<string, Price>; onOpenValuation?: (ticker: string) => void }) {
+// onlyAccount — 이 그룹 거래만(내거래(토스) 탭 = 토스 연동 그룹). defaultPeriod — 처음 조회 기간(연동 탭은 전체)
+export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation, onlyAccount, defaultPeriod = "week" }: { holdings: Stock[]; pc?: boolean; prices?: Map<string, Price>; onOpenValuation?: (ticker: string) => void; onlyAccount?: string; defaultPeriod?: Period }) {
   const [trades, setTrades] = useState<Trade[] | null>(null);
   const [view, setView] = useState<"chart" | "table">("chart");   // 차트 / 상세(표·수정)
   const [scope, setScope] = useState<"all" | "byGroup">("all");        // 차트: 전체 / 그룹별
   const [dir, setDir] = useState<Dir>("desc");   // 기본 최신순 (최신 거래가 맨 위)
-  const [period, setPeriod] = useState<Period>("week");   // 프리셋(표시용) — 기본 최근 1주
-  const [from, setFrom] = useState<string>(() => presetRange("week").from);  // 시작일 YYYY-MM-DD ('' = 제한없음)
-  const [to, setTo] = useState<string>(() => presetRange("week").to);        // 종료일 YYYY-MM-DD
+  const [period, setPeriod] = useState<Period>(defaultPeriod);   // 프리셋(표시용) — 기본 최근 1주(연동 탭은 전체)
+  const [from, setFrom] = useState<string>(() => presetRange(defaultPeriod).from);  // 시작일 YYYY-MM-DD ('' = 제한없음)
+  const [to, setTo] = useState<string>(() => presetRange(defaultPeriod).to);        // 종료일 YYYY-MM-DD
   const applyPreset = (p: Period) => { setPeriod(p); const r = presetRange(p); if (p !== "custom") { setFrom(r.from); setTo(r.to); } };
   const [editId, setEditId] = useState<string | null>(null);
   const [form, setForm] = useState<EditForm | null>(null);
@@ -61,10 +62,14 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation }: {
   const [importOpen, setImportOpen] = useState(false);
   const [summary, setSummary] = useState<TradeSummary | null>(null);   // 차트뷰 합계(총손익·평가금액)
   const groups = useMemo(
-    () => Array.from(new Set(holdings.map(h => h.account).filter((a): a is string => !!a && a !== "관심ETF"))).sort(),
-    [holdings]);
+    () => onlyAccount ? [onlyAccount]
+      : Array.from(new Set(holdings.map(h => h.account).filter((a): a is string => !!a && a !== "관심ETF"))).sort(),
+    [holdings, onlyAccount]);
 
-  const reload = async () => setTrades(await loadAllTrades());
+  const reload = async () => {
+    const all = await loadAllTrades();
+    setTrades(onlyAccount ? all.filter(t => (t.account ?? "") === onlyAccount) : all);
+  };
   // holdings 변경(그룹 이름변경·삭제 등 reloadKey 반영) 시 거래도 다시 로드 — 옛 그룹명 잔존 방지
   useEffect(() => { void reload(); }, [holdings]);
 
