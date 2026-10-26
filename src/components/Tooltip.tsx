@@ -14,7 +14,7 @@ interface Props {
   /** 클릭 방식 — 마우스를 올려도 안 뜨고, 오른쪽 아래 작은 "상세보기" 버튼을 누르면 뜬다(사용자 요청 2026-10-26).
    *  큰 표(수급 상세·60일 캔들)는 마우스를 따라다니면 읽기 어려웠다. 바깥 클릭·Esc·✕ 로 닫는다. */
   click?: boolean;
-  detailLabel?: string;      // 버튼 글자 — 안 주면 ▼/▲ 삼각형(통계 칸의 접기 버튼과 같은 모양, 사용자 요청 2026-10-26)
+  detailLabel?: string;      // 버튼 글자 — 안 주면 테두리 없는 ▲ 하나(사용자 요청 2026-10-26)
   onOpen?: () => void;       // 열 때 — 긴 수급 이력처럼 열 때만 받는 자료를 요청하는 데 쓴다
 }
 
@@ -79,10 +79,11 @@ function ClickLayer({ content, children, className, label, onOpen }: { content: 
   return (
     <span className={`relative inline-flex ${className}`}>
       {children}
+      {/* 테두리 없는 ▲ 하나만(사용자 요청 2026-10-26) — 열려 있으면 진하게 */}
       <button ref={btnRef} type="button" onClick={toggle} title={label ?? (open ? "상세 닫기" : "상세 보기")}
-              className={`absolute bottom-1 right-1 z-20 px-1.5 py-0.5 rounded border border-gray-300 bg-white/95 shadow-sm
-                          text-[10px] leading-none text-gray-600 hover:bg-gray-50 ${open ? "bg-gray-100" : ""}`}>
-        {label ?? (open ? "▲" : "▼")}
+              className={`absolute bottom-0.5 right-1 z-20 px-1 py-0.5 text-[11px] leading-none
+                          ${open ? "text-gray-800" : "text-gray-400 hover:text-gray-700"}`}>
+        {label ?? "▲"}
       </button>
       {placed && typeof document !== "undefined" && createPortal(
         <div ref={layerRef} role="dialog"
