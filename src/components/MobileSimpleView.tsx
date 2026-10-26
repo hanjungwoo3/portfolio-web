@@ -1465,34 +1465,31 @@ export function MobileSimpleView() {
                 </button>
               );
             })()}
-            {members.map(g => {
-              const on = g === activeTab;
-              const cnt = countByKey.get(g) ?? 0;
+            {/* 그룹 고르기 — 셀렉트(PC 와 같게, 사용자 결정 2026-10-26). ✎·🗑 은 고른 그룹에 대한 것 */}
+            {(() => {
+              const sel = members.includes(activeTab) ? activeTab : "";
               return (
-                <button key={g} onClick={() => setActiveTab(g)}
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] transition inline-flex items-center gap-1
-                                    ${on ? "bg-blue-600 text-white font-bold"
-                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                  <span>{g}</span>
-                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
-                  {/* 선택된 그룹 칩 — 수정/삭제 아이콘 인라인 (chip 이 button 이라 span role=button) */}
-                  {on && (
-                    <>
-                      <span role="button" tabIndex={0} title="그룹명 변경"
-                            onClick={e => { e.stopPropagation(); void renameGroupInline(g); }}
-                            className="ml-1 inline-flex items-center text-blue-100 hover:text-white">
-                        <Settings size={12} strokeWidth={2.2} />
-                      </span>
-                      {!isLinkedGroup(g) && (   /* 증권사 연동 그룹은 삭제 없음 */
-                        <span role="button" tabIndex={0} title="그룹 삭제"
-                              onClick={e => { e.stopPropagation(); void deleteGroupInline(g); }}
-                              className="inline-flex items-center text-blue-100 hover:text-white text-[11px]">🗑</span>
-                      )}
-                    </>
+                <>
+                  <select value={sel} onChange={e => { if (e.target.value) setActiveTab(e.target.value); }}
+                          title="폴더 안 그룹"
+                          className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] border-0 outline-none
+                                      ${sel ? "bg-blue-600 text-white font-bold" : "bg-gray-100 text-gray-600"}`}>
+                    <option value="" disabled>그룹 선택 ({members.length})</option>
+                    {members.map(g => <option key={g} value={g}>{g}{(countByKey.get(g) ?? 0) > 0 ? ` (${countByKey.get(g)})` : ""}</option>)}
+                  </select>
+                  {sel && (
+                    <button type="button" title="그룹명 변경" onClick={() => void renameGroupInline(sel)}
+                            className="shrink-0 inline-flex items-center px-1 text-slate-500">
+                      <Settings size={13} strokeWidth={2.2} />
+                    </button>
                   )}
-                </button>
+                  {sel && !isLinkedGroup(sel) && (   /* 증권사 연동 그룹은 삭제 없음 */
+                    <button type="button" title="그룹 삭제" onClick={() => void deleteGroupInline(sel)}
+                            className="shrink-0 text-[12px] px-1 text-slate-500">🗑</button>
+                  )}
+                </>
               );
-            })}
+            })()}
           </div>
         );
       })()}

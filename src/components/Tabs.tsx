@@ -277,43 +277,36 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                 </button>
               );
             })()}
-            {members.map(g => {
-              const on = g === activeKey;
-              const cnt = countByKey.get(g) ?? 0;
+            {/* 그룹 고르기 — 칩 나열 대신 셀렉트(사용자 결정 2026-10-26: 날짜 이름 그룹이 많아 칩 줄이 길어진다).
+                ✎·🗑 은 지금 고른 그룹에 대한 것 — 전체보기 상태에선 숨김 */}
+            {(() => {
+              const sel = members.includes(activeKey) ? activeKey : "";
+              const cnt = sel ? (countByKey.get(sel) ?? 0) : 0;
               return (
-                <div key={g} className="group relative inline-flex shrink-0">
-                  <button onClick={() => onChange(g)}
-                          className={`rounded-full px-3 py-1 text-xs font-medium transition inline-flex items-center gap-1
-                                      ${on ? "bg-blue-600 text-white"
-                                           : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                    <span>{g}</span>
-                    {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
-                  </button>
-                  {/* 수정/삭제 — hover 시 노출 (일반 탭과 동일) */}
-                  {(onRename || onDelete) && (
-                    <div className="absolute -top-1.5 -right-1 flex gap-0.5
-                                    opacity-0 group-hover:opacity-90 hover:!opacity-100
-                                    bg-white rounded shadow px-0.5 transition-opacity">
-                      {onRename && (
-                        <button type="button" title="그룹명 변경"
-                                onClick={e => { e.stopPropagation(); handleRename(g, g); }}
-                                className="inline-flex items-center leading-none px-0.5 text-slate-500 hover:text-slate-800">
-                          <Settings size={11} strokeWidth={2.2} />
-                        </button>
-                      )}
-                      {onDelete && !isLinkedGroup(g) && (   /* 증권사 연동 그룹은 삭제 없음(연동 해제로) */
-                        <button type="button" title="그룹 삭제"
-                                onClick={async e => {
-                                  e.stopPropagation();
-                                  if (await appConfirm(`"${g}" 그룹의 ${cnt}건을 모두 삭제할까요?\n(되돌릴 수 없음)`)) onDelete(g);
-                                }}
-                                className="text-[10px] leading-none px-0.5 hover:text-rose-600">🗑</button>
-                      )}
-                    </div>
+                <>
+                  <select value={sel} onChange={e => { if (e.target.value) onChange(e.target.value); }}
+                          title="폴더 안 그룹"
+                          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-medium border-0 outline-none cursor-pointer
+                                      ${sel ? "bg-blue-600 text-white" : "bg-gray-100 text-gray-600"}`}>
+                    <option value="" disabled>그룹 선택 ({members.length})</option>
+                    {members.map(g => <option key={g} value={g}>{g}{(countByKey.get(g) ?? 0) > 0 ? ` (${countByKey.get(g)})` : ""}</option>)}
+                  </select>
+                  {sel && onRename && (
+                    <button type="button" title="그룹명 변경" onClick={() => handleRename(sel, sel)}
+                            className="shrink-0 inline-flex items-center px-1 text-slate-500 hover:text-slate-800">
+                      <Settings size={13} strokeWidth={2.2} />
+                    </button>
                   )}
-                </div>
+                  {sel && onDelete && !isLinkedGroup(sel) && (   /* 증권사 연동 그룹은 삭제 없음(연동 해제로) */
+                    <button type="button" title="그룹 삭제"
+                            onClick={async () => {
+                              if (await appConfirm(`"${sel}" 그룹의 ${cnt}건을 모두 삭제할까요?\n(되돌릴 수 없음)`)) onDelete(sel);
+                            }}
+                            className="shrink-0 text-xs px-1 text-slate-500 hover:text-rose-600">🗑</button>
+                  )}
+                </>
               );
-            })}
+            })()}
           </div>
         );
       })()}
