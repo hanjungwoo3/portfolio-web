@@ -211,7 +211,13 @@
 ## 9. 진행 상황 / 다음에 할 일
 - [x] 2026-10-26 **토스 먼저**로 변경. 1단계 구현: `desktop/src-tauri/src/broker.rs`(키체인 저장·GET 전용·토큰 재사용·401 재시도·계좌성 1.1초 간격) + `src/lib/broker.ts` + 설정 `BrokerLinkSection`(PC 실제 연결 / 웹·휴대폰 안내만). **실제 토스 응답으로는 미검증**(키 없음).
 - [ ] 사용자: 토스 WTS → 설정 → Open API 키 발급(**이 앱 전용 키**), 허용 IP 에 이 맥 공인 IP 등록 → 앱 설정에서 "저장하고 연결 시험"
-- [ ] 연결 뒤 첫 실측: (a) MTS 주문이 `orders?status=CLOSED` 에 나오나 (b) `holdings.purchaseAmount` 통화 (c) `buying-power` 현금성인가 (d) ORDER_HISTORY 한도 (e) 키 여러 개 발급 가능한가 (f) 부분 체결 주문 모양
+- [x] 2026-10-26 **연결 성공**(계좌 1개, BROKERAGE). 실측 결과:
+  - (a) **MTS 에서 낸 주문도 `orders?status=CLOSED` 에 나온다** ✅ — 거래 자동 가져오기 유효. REJECTED(체결 0)도 섞임 → `filledQuantity > 0` 만. 수량·금액 = `execution.filledQuantity`·`filledAmount`(총액). 날짜 = `filledAt`(KST, 없으면 orderedAt). `commission`·`tax` 주문별 제공(앱 Trade 엔 칸 없음 — 후속). 페이지 = `nextCursor`/`hasNext`.
+  - (b) **미국 보유는 USD 그대로**(averagePurchasePrice·purchaseAmount 모두 달러, 원화 환산 없음). 국내는 KRW, 평단×수량=매입금액 정확. **소수점 주식 있음**(TSLA 0.000855주) → 수량 정수 가정 코드 점검 필요. 숫자는 전부 **문자열**. 매수일·예수금 없음. 신형 코드(0239Y0) 정상.
+  - (c) `buying-power?currency=KRW` → `{ cashBuyingPower }` — 현금 기준으로 보임(토스 앱 예수금과 대조 중).
+  - 계좌 목록은 **BROKERAGE 1개만** — 연금 계좌(퇴직·개인연금)는 Open API 미노출 → 연동 그룹은 종합매매 계좌만.
+  - (d) 한도·(e) 키 복수 발급·(f) 부분 체결 모양: 미확인(표본 없음).
+- 변환 규칙(확정): 미국 평단은 **가져올 때 환율로 원화 환산, 그 종목의 수량·달러 평단이 바뀔 때만 재환산**(환율 따라 매일 흔들리지 않게), 첫 환산은 근사치 표시. 거래 금액(USD)은 체결일 환율(야후 KRW=X 종가)로 환산.
 - [ ] 2단계: 연동 그룹 지정(기존 그룹 선택 or 새 그룹) + `linkedGroups` 메타(settings, Drive normalize 포함) + 보유 거울 교체 + 휴대폰 읽기 전용 표시
 - [ ] 3단계: 거래 이력 가져오기(`tossapi_`, filledQuantity/filledAmount, CANCELED 체결분 포함, 미국은 거래일 환율 환산)
 - [ ] 이후: 일봉 대체(야후 429 해결) → 신용잔고 등 → 한국투자증권 → KRX
