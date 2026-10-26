@@ -57,9 +57,11 @@ export async function brokerGet<T>(broker: BrokerId, path: string, account?: str
   if (r.status < 200 || r.status >= 300) {
     const err = (json as { error?: { code?: string; message?: string } } | null)?.error;
     const code = err?.code ?? (r.status === 403 ? "edge-blocked" : String(r.status));
+    // 403 — 허용 IP 문제가 흔하지만 전부는 아니다 → 토스가 보낸 code·message 를 같이 보여 준다(원인을 가리지 않게)
+    const detail = err ? ` [${err.code ?? ""}${err.message ? ` · ${err.message}` : ""}]` : (r.body ? ` [${r.body.slice(0, 160)}]` : "");
     const msg = r.status === 403
-      ? "토스가 요청을 막았습니다(403) — 이 PC 의 공인 IP 가 Open API 허용 IP 에 등록돼 있는지 확인해 주세요"
-      : err?.message ?? `요청 실패 (${r.status})`;
+      ? `토스가 요청을 막았습니다(403)${detail} — 허용 IP 미등록이면 이 PC 의 공인 IP 를 등록해 주세요`
+      : `${err?.message ?? `요청 실패 (${r.status})`}${err?.code ? ` [${err.code}]` : ""}`;
     throw new BrokerError(r.status, code, msg);
   }
   // 토스 성공 응답은 { result: ... } envelope

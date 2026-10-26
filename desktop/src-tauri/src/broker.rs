@@ -208,6 +208,10 @@ pub async fn broker_fetch(
         let r = req.send().await.map_err(|e| format!("요청 실패: {e}"))?;
         let status = r.status().as_u16();
         let body = r.text().await.unwrap_or_default();
+        if status >= 400 {
+            // 원인 추적용 — 키·토큰은 안 찍는다(경로·상태·본문 앞부분만)
+            eprintln!("broker_fetch {status} {path} {}", body.chars().take(200).collect::<String>());
+        }
         // 토큰이 무효(다른 곳에서 새로 받아 끊겼거나 만료) → 한 번만 새로 받아 재시도
         if status == 401 && attempt == 0 {
             token = get_token(&client, &state, &broker, true).await?;
