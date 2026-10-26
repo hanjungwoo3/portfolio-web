@@ -23,7 +23,8 @@ export interface Trade {
   type: "buy" | "sell";
   date: string;              // YYYY-MM-DD (KST)
   qty: number;               // 수량
-  amount: number;            // 총액(원) — 단가는 amount/qty
+  amount: number;            // 총액(원) — 단가는 amount/qty. **수수료·세금 미포함**(gross)
+  fee?: number;              // 수수료+세금(원, 선택). 실현손익은 이걸 빼고(세후) 계산 — 토스 연동은 commission+tax, 미국은 체결일 환율 환산
   createdAt?: number;        // 기록 생성 시각(정렬 보조)
 }
 

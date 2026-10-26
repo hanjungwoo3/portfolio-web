@@ -19,7 +19,7 @@ type Dir = "desc" | "asc";
 type Period = "week" | "month" | "year" | "all" | "custom";
 
 // unit=주당가, amount=총액 — 둘 다 입력칸. 한쪽 입력 시 수량 기준 자동 계산.
-interface EditForm { type: "buy" | "sell"; date: string; qty: string; unit: string; amount: string; account: string; last: "unit" | "amount" }
+interface EditForm { type: "buy" | "sell"; date: string; qty: string; unit: string; amount: string; fee: string; account: string; last: "unit" | "amount" }
 
 // 수량/주당가/총액 상호 계산 — 변경 필드 기준 파생값 갱신
 function recalcEdit(f: EditForm, field: "qty" | "unit" | "amount", v: string): EditForm {
@@ -135,7 +135,7 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation, onl
 
   const startEdit = (t: Trade) => {
     setEditId(t.id);
-    setForm({ type: t.type, date: t.date, qty: String(t.qty), amount: String(t.amount),
+    setForm({ type: t.type, date: t.date, qty: String(t.qty), amount: String(t.amount), fee: t.fee ? String(t.fee) : "",
               unit: String(Math.round(t.amount / t.qty)), account: t.account ?? "", last: "amount" });
   };
   const cancelEdit = () => { setEditId(null); setForm(null); };
@@ -143,7 +143,10 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation, onl
     if (!form) return;
     const qty = Number(form.qty), amount = Number(form.amount);
     if (!(qty > 0) || !(amount > 0) || !form.date) return;
-    await updateTrade({ ...orig, type: form.type, date: form.date, qty, amount, account: form.account || undefined });
+    const fee = Math.round(Number(form.fee));
+    const { fee: _drop, ...rest } = orig;   // 비우면 필드 제거
+    void _drop;
+    await updateTrade({ ...rest, type: form.type, date: form.date, qty, amount, account: form.account || undefined, ...(fee > 0 ? { fee } : {}) });
     cancelEdit();
     await reload();
   };
@@ -176,12 +179,13 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation, onl
 
   // 행 묶음의 매수/매도 수량·금액 합계
   const totalsOf = (rows: Trade[]) => {
-    let buyQty = 0, buyAmt = 0, sellQty = 0, sellAmt = 0;
+    let buyQty = 0, buyAmt = 0, sellQty = 0, sellAmt = 0, fee = 0;
     for (const t of rows) {
       if (t.type === "buy") { buyQty += t.qty; buyAmt += t.amount; }
       else { sellQty += t.qty; sellAmt += t.amount; }
+      fee += t.fee ?? 0;
     }
-    return { buyQty, buyAmt, sellQty, sellAmt };
+    return { buyQty, buyAmt, sellQty, sellAmt, fee };
   };
 
   const won = (n: number) => n.toLocaleString();
@@ -219,14 +223,14 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation, onl
   //  매도 셀엔 그 매도의 실현손익(익절/손절)을 한 줄 더 — 그 시점 평단가 기준, 부분매도 포함.
   const valueCell = (
     qty: number, amt: number, kind: "buy" | "sell",
-    realized?: { realized: number; pct: number },
+    realized?: { realized: number; pct: number }, fee?: number,
   ) => {
     if (qty <= 0) return <td className="py-1 px-1.5"></td>;
     const color = kind === "buy" ? "text-rose-600" : "text-blue-600";
     return (
       <td className="py-1 px-1.5 text-right">
         <div className={`font-medium ${color}`}>{won(amt)}</div>
-        <div className="text-[10px] text-gray-400">{won(qty)}주 · {won(Math.round(amt / qty))}</div>
+        <div className="text-[10px] text-gray-400">{won(qty)}주 · {won(Math.round(amt / qty))}{fee ? <span title="수수료+세금(실현손익에 반영)" className="ml-1 text-gray-400/80">· 수수료 {won(fee)}</span> : null}</div>
         {realized && (
           <div className="mt-1 flex items-center justify-end gap-1 whitespace-nowrap"
                title="이 매도의 실현손익 — 그 시점 평단가 기준 (부분매도 포함)">
@@ -272,6 +276,9 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation, onl
           <input type="number" inputMode="numeric" value={form.amount} placeholder="총액"
                  onChange={e => setForm(f => f ? recalcEdit(f, "amount", e.target.value) : f)}
                  className="border rounded px-1 py-0.5 w-24 text-right text-[11px] tabular-nums" />
+          <input type="number" inputMode="numeric" value={form.fee} placeholder="수수료" title="수수료+세금(원, 선택) — 실현손익에서 뺀다"
+                 onChange={e => setForm(f => f ? { ...f, fee: e.target.value } : f)}
+                 className="border rounded px-1 py-0.5 w-16 text-right text-[11px] tabular-nums" />
           {/* 그룹 변경 — 거래의 소속 그룹 직접 수정 */}
           <select value={form.account}
                   onChange={e => setForm(f => f ? { ...f, account: e.target.value } : f)}
@@ -308,9 +315,9 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation, onl
           )}
         </td>
         <td className={`py-1 px-1.5 text-gray-500 whitespace-nowrap ${boldDate && showDate ? "font-bold text-gray-700" : ""}`}>{showDate ? t.date : ""}</td>
-        {valueCell(t.type === "buy" ? t.qty : 0, t.type === "buy" ? t.amount : 0, "buy")}
+        {valueCell(t.type === "buy" ? t.qty : 0, t.type === "buy" ? t.amount : 0, "buy", undefined, t.type === "buy" ? t.fee : undefined)}
         {valueCell(t.type === "sell" ? t.qty : 0, t.type === "sell" ? t.amount : 0, "sell",
-                   t.type === "sell" ? realizedByTrade.get(t.id) : undefined)}
+                   t.type === "sell" ? realizedByTrade.get(t.id) : undefined, t.type === "sell" ? t.fee : undefined)}
         {actionsCell(t)}
       </tr>
     );
@@ -329,7 +336,10 @@ export function MyTradesTab({ holdings, pc = false, prices, onOpenValuation, onl
         <td className={`py-1 px-1.5 text-[10px] ${labelCls}`}>{label}</td>
         <td className="py-1 px-1.5"></td>
         <td className={`py-1 px-1.5 text-right text-rose-600 ${amtCls}`}>{tot.buyQty > 0 ? won(tot.buyAmt) : ""}</td>
-        <td className={`py-1 px-1.5 text-right text-blue-600 ${amtCls}`}>{tot.sellQty > 0 ? won(tot.sellAmt) : ""}</td>
+        <td className={`py-1 px-1.5 text-right text-blue-600 ${amtCls}`}>
+          {tot.sellQty > 0 ? won(tot.sellAmt) : ""}
+          {tot.fee > 0 && <div className="text-[9px] font-normal text-gray-400" title="이 묶음의 수수료+세금 합">수수료 {won(tot.fee)}</div>}
+        </td>
         <td className="py-1 px-1.5"></td>
       </tr>
     );

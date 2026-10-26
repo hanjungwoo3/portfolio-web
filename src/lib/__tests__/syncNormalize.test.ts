@@ -7,7 +7,7 @@
 import { describe, it, expect } from "vitest";
 import { normalize } from "../syncManager";
 import { memoHasContent } from "../db";
-import type { ExportPayload } from "../db";
+import type { ExportPayload, Trade } from "../db";
 import type { Memo } from "../../types";
 
 const base: Memo = {
@@ -79,6 +79,11 @@ describe("normalize — 증권사 연동 필드", () => {
        ...(settings ? { settings: settings as ExportPayload["settings"] } : {}) });
   it("보유의 source(연동 표식)가 바뀌면 지문도 바뀐다", () => {
     expect(normalize(p({ ...h, source: "toss" }))).not.toBe(normalize(p(h)));
+  });
+  it("거래의 fee(수수료·세금)가 바뀌면 지문도 바뀐다 — normalize 에 빠지면 Drive 왕복에서 조용히 사라진다", () => {
+    const t = { id: "t1", ticker: "005930", type: "buy" as const, date: "2026-10-06", qty: 1, amount: 70000 };
+    const pt = (trade: object): ExportPayload => ({ ...p(h), trades: [trade as Trade] });
+    expect(normalize(pt({ ...t, fee: 314 }))).not.toBe(normalize(pt(t)));
   });
   it("settings.linkedGroups 가 바뀌면 지문도 바뀐다", () => {
     expect(normalize(p(h, { linkedGroups: { "토스(연동)": { broker: "toss", accountSeq: "1" } } }))).not.toBe(normalize(p(h, {})));

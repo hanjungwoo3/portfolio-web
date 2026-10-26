@@ -57,17 +57,18 @@ function applyTrade(pos: Map<string, Pos>, t: Trade): { realized: number; net: n
   const p = pos.get(t.ticker) ?? { qty: 0, cost: 0 };
   let realized = 0;
   let net: number;
+  const fee = t.fee ?? 0;                      // 수수료·세금 — 매수는 원가에, 매도는 실현에서 뺀다(tradeCalc 와 같은 규칙)
   if (t.type === "buy") {
     p.qty += t.qty;
-    p.cost += t.amount;
-    net = t.amount;
+    p.cost += t.amount + fee;
+    net = t.amount + fee;
   } else {
     const avg = p.qty > 0 ? p.cost / p.qty : 0;
     const q = Math.min(t.qty, p.qty);          // 로그가 어긋나도 음수 보유는 만들지 않는다
-    realized = t.amount - avg * q;
+    realized = t.amount - fee - avg * q;
     p.qty -= q;
     p.cost -= avg * q;
-    net = -t.amount;
+    net = -(t.amount - fee);
     if (p.qty <= 0) { p.qty = 0; p.cost = 0; }  // 전량 매도 — 반올림 잔여 제거
   }
   pos.set(t.ticker, p);

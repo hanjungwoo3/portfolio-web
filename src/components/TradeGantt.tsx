@@ -36,7 +36,7 @@ function priceLabel(qty: number, amount: number): string {
   return `${unit.toLocaleString()}×${qty} (${amount.toLocaleString()})`;
 }
 
-interface Ev { kind: "buy" | "sell"; ms: number; qty: number; amount: number; realized?: RealizedInfo }
+interface Ev { kind: "buy" | "sell"; ms: number; qty: number; amount: number; fee?: number; realized?: RealizedInfo }
 interface Col { key: string; name: string; account?: string; ticker: string; held: boolean; heldQty: number; heldAvg: number; events: Ev[] }
 
 export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc, prices, onOpenValuation, onSummary }: {
@@ -70,7 +70,7 @@ export function TradeGantt({ trades, nameOf, heldTickers, scope, from, to, desc,
       const sorted = [...rows].sort((a, b) =>
         a.date.localeCompare(b.date) || (a.createdAt ?? 0) - (b.createdAt ?? 0));
       const all: Ev[] = sorted.map(t => ({
-        kind: t.type, ms: parseDateMs(t.date), qty: t.qty, amount: t.amount,
+        kind: t.type, ms: parseDateMs(t.date), qty: t.qty, amount: t.amount, fee: t.fee,
         realized: t.type === "sell" ? realized.get(t.id) : undefined,
       }));
       // 라운드를 전체 거래로 만든 뒤, 기간과 겹치는(이벤트 하나라도 기간 내) 라운드만 표시.
@@ -391,6 +391,7 @@ function EventCard({ e }: { e: Ev }) {
         )}
         <div className={`text-[12px] font-bold ${C.amt}`}>{e.amount.toLocaleString()}</div>
         <div className={`text-[10px] ${C.unit}`}>{Math.round(e.amount / e.qty).toLocaleString()}×{e.qty}</div>
+        {e.fee ? <div className="text-[9px] text-gray-400" title="수수료+세금 — 실현손익에 반영">수수료 {e.fee.toLocaleString()}</div> : null}
         {r && (
           <div className={`mt-0.5 border-t border-black/10 pt-0.5 font-bold leading-tight ${signColor(r.realized)}`}>
             <div className="text-[14px] whitespace-nowrap">{formatSigned(r.realized)}</div>

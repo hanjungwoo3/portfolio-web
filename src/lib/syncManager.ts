@@ -140,7 +140,7 @@ export function normalize(p: ExportPayload): string {
   const trades = [...(p.trades ?? [])]
     .map(t => ({
       id: t.id, ticker: t.ticker, account: t.account ?? "",
-      type: t.type, date: t.date, qty: t.qty, amount: t.amount,
+      type: t.type, date: t.date, qty: t.qty, amount: t.amount, fee: t.fee ?? 0,
     }))
     .sort((a, b) => a.id.localeCompare(b.id));
   // settings 도 비교에 포함 — 그룹폴더/예수금/탭표시 등만 바뀌어도 업로드되도록 (skip 방지)

@@ -68,7 +68,8 @@ export function tradeKey(t: Trade, independent: boolean): string {
 }
 
 // 매도 건별 실현손익 — 종목별 시간순 처리하는 이동평균 원가법.
-//   매수: 보유수량·원가총액 누적.  매도: (매도단가 − 그 시점 평단가) × 매칭수량 = 실현손익.
+//   매수: 보유수량·원가총액 누적(수수료는 원가에 더한다).  매도: (매도단가 − 그 시점 평단가) × 매칭수량 − 매도 수수료·세금 = 실현손익(세후).
+//   fee 없는 거래(수동 입력 대부분)는 0 — 그러면 예전 계산과 같다.
 //   평단가는 매도로 변하지 않음(원가·수량 비례 차감). 보유 없이 나온 매도는 원가 불명 → 제외.
 //   ⚠️ 반드시 전체 거래로 계산(기간필터 무관) — 기간 잘리면 원가가 어긋남.
 // 반환: tradeId → RealizedInfo
@@ -87,15 +88,17 @@ export function computeRealizedByTrade(
       a.date.localeCompare(b.date) || (a.createdAt ?? 0) - (b.createdAt ?? 0));
     let qty = 0, cost = 0;   // 보유수량, 보유원가총액(= qty × 평단)
     for (const t of sorted) {
-      if (t.type === "buy") { qty += t.qty; cost += t.amount; continue; }
+      const fee = t.fee ?? 0;
+      if (t.type === "buy") { qty += t.qty; cost += t.amount + fee; continue; }
       if (qty <= 0 || t.qty <= 0) continue;                 // 원가 불명 매도 → skip
       const avg = cost / qty;
       const sellAvg = t.amount / t.qty;
       const matched = Math.min(t.qty, qty);
       const basis = avg * matched;
+      const realized = Math.round((sellAvg - avg) * matched - fee);
       out.set(t.id, {
-        realized: Math.round((sellAvg - avg) * matched),
-        pct: avg > 0 ? (sellAvg - avg) / avg * 100 : 0,
+        realized,
+        pct: basis > 0 ? realized / basis * 100 : 0,
         cost: basis,
       });
       cost -= basis; qty -= matched;                        // 이동평균: 평단 유지

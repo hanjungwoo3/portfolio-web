@@ -40,7 +40,8 @@ function parseTrades(obj: Record<string, unknown>): Trade[] | undefined {
           && (x.type === "buy" || x.type === "sell")
           && typeof x.date === "string"
           && typeof x.qty === "number" && typeof x.amount === "number") {
-        out.push(x as Trade);
+        const { fee, ...rest } = x;
+        out.push({ ...(rest as Trade), ...(typeof fee === "number" && fee > 0 ? { fee } : {}) });
       }
     }
   }

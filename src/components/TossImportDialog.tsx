@@ -5,7 +5,7 @@ import { rememberTickerNames } from "../lib/tickerNames";
 import { appConfirm } from "../lib/appDialog";
 import { isBrokerAvailable } from "../lib/broker";
 import { linkedGroupOf } from "../lib/linkedGroups";
-import { fetchTossTrades } from "../lib/tossTrades";
+import { feeOf, fetchTossTrades } from "../lib/tossTrades";
 
 interface Props {
   isOpen: boolean;
@@ -16,7 +16,7 @@ interface Props {
 
 type Status = "new" | "dup";
 // id = 토스 Open API 로 받은 거래(tossapi_<orderId>) — 저장 id 로 그대로 쓴다. overlap = 수동 기록과 겹치는 것 같음(표시만)
-interface Cand extends ImportTradeRow { status: Status; key: string; id?: string; overlap?: string; native?: string }
+interface Cand extends ImportTradeRow { status: Status; key: string; id?: string; overlap?: string; native?: string; fee?: number }
 
 const today = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);   // KST
 // YYYY-MM-DD 에서 n개월 빼기 (윈도우 이동용)
@@ -79,7 +79,7 @@ export function TossImportDialog({ isOpen, onClose, onImported, groups }: Props)
         if (status === "dup") already++; else added++;
         map.set(key, {
           ticker: r.ticker, name: r.name, date: r.date, type: r.type, qty: r.qty, amount: r.amount,
-          key, status, id: r.id, overlap: f.overlaps.get(r.id),
+          key, status, id: r.id, overlap: f.overlaps.get(r.id), ...feeOf(r),
           native: r.currency === "USD" ? `$${r.nativeAmount.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : undefined,
         });
         if (status === "new") newlyPicked.add(key);
@@ -186,6 +186,7 @@ export function TossImportDialog({ isOpen, onClose, onImported, groups }: Props)
           date: c.date,
           qty: c.qty,
           amount: c.amount,
+          ...(c.fee ? { fee: c.fee } : {}),
           ...(acct ? { account: acct } : {}),
         };
         await addTrade(t);
@@ -330,6 +331,7 @@ export function TossImportDialog({ isOpen, onClose, onImported, groups }: Props)
                       </span>
                       <span className="w-12 text-right tabular-nums">{c.qty}주</span>
                       <span className="w-20 text-right tabular-nums" title={c.native ? `${c.native} → 체결일 환율 환산` : undefined}>{won(c.amount)}{c.native && <span className="text-gray-400 text-[9px] ml-0.5">$</span>}</span>
+                      <span className="w-12 text-right tabular-nums text-[10px] text-gray-400" title="수수료+세금">{c.fee ? `-${won(c.fee)}` : ""}</span>
                       {dup && <span className="w-10 text-right text-gray-400">있음</span>}
                       {!dup && c.overlap && <span className="text-[10px] text-amber-700" title={`수동 기록(${c.overlap})과 같은 거래로 보입니다 — 둘 다 두면 그룹이 다를 때만 안전합니다`}>⚠ 수동과 겹침</span>}
                     </label>

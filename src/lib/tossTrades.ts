@@ -29,7 +29,7 @@ export interface TossTradeRow {
   currency: string;
   nativeAmount: number;       // 거래 통화 금액(USD 면 달러)
   fx?: number;                // 환산에 쓴 환율
-  commission?: number; tax?: number;
+  commission?: number; tax?: number;   // 원(USD 는 같은 환율로 환산). 저장은 둘을 합쳐 Trade.fee
 }
 
 const num = (s: string | number | null | undefined) => { const v = Number(s); return Number.isFinite(v) ? v : 0; };
@@ -50,18 +50,18 @@ export function mapTossOrders(orders: TossOrder[], names: Record<string, string>
     if (!/^\d{4}-\d{2}-\d{2}$/.test(when)) { skipped.noFill++; continue; }
     const native = num(o.execution?.filledAmount) || num(o.execution?.averageFilledPrice) * qty;
     let amount = native, fx: number | undefined;
+    const toKrw = (v: number) => Math.round(o.currency === "USD" ? v * (fx ?? 0) : v);
     if (o.currency === "USD") {
       fx = fxOf?.(when);
       if (!fx) { skipped.noFx++; continue; }
-      amount = Math.round(native * fx);
-    } else {
-      amount = Math.round(native);
     }
+    amount = toKrw(native);
+    const commission = toKrw(num(o.execution?.commission)), tax = toKrw(num(o.execution?.tax));
     const ticker = o.symbol.trim();
     rows.push({
       id: `${TOSS_TRADE_ID_PREFIX}${o.orderId}`, ticker, name: names[ticker] ?? ticker, date: when, type, qty, amount,
       currency: o.currency, nativeAmount: native, fx,
-      commission: num(o.execution?.commission) || undefined, tax: num(o.execution?.tax) || undefined,
+      commission: commission || undefined, tax: tax || undefined,
     });
   }
   return { rows, skipped };
@@ -107,6 +107,12 @@ async function fetchClosedOrders(account: string, from: string | undefined, to: 
   return out;
 }
 
+/** 수수료+세금 → Trade.fee (0 이면 필드 자체를 안 넣는다) */
+export function feeOf(r: { commission?: number; tax?: number }): { fee?: number } {
+  const fee = (r.commission ?? 0) + (r.tax ?? 0);
+  return fee > 0 ? { fee } : {};
+}
+
 export interface TossTradesFetch { rows: TossTradeRow[]; overlaps: Map<string, string>; existingIds: Set<string>; skipped: { noFill: number; noFx: number }; group: string }
 
 /** 기간의 체결 거래를 받아 후보로 — 저장은 하지 않는다(가져오기 대화창이 고른 뒤 저장). from/to 생략 = 전체 */
@@ -130,7 +136,7 @@ export async function fetchTossTrades(from?: string, to?: string, onProgress?: (
 export async function saveTossTrades(rows: TossTradeRow[], group: string): Promise<number> {
   if (!rows.length) return 0;
   rememberTickerNames(rows.map(r => ({ ticker: r.ticker, name: r.name })));
-  await upsertTrades(rows.map(r => ({ id: r.id, ticker: r.ticker, account: group, type: r.type, date: r.date, qty: r.qty, amount: r.amount })));
+  await upsertTrades(rows.map(r => ({ id: r.id, ticker: r.ticker, account: group, type: r.type, date: r.date, qty: r.qty, amount: r.amount, ...feeOf(r) })));
   return rows.length;
 }
 
@@ -139,9 +145,14 @@ export async function syncTossTradesIncremental(): Promise<number> {
   const link = linkedGroupOf("toss");
   if (!link) return 0;
   const to = todayKst();
-  const f = link.meta.lastTradeSyncAt
-    ? await fetchTossTrades(addDays(link.meta.lastTradeSyncAt.slice(0, 10), -3), to)
-    : await fetchTossTrades();   // 전체
+  // 수수료·세금 칸이 생기기 전(2026-10-26)에 가져온 거래에 fee 를 채우려고 한 번은 전체를 다시 받는다(멱등 덮어쓰기)
+  const FEE_BACKFILL = "toss_trades_fee_backfilled_v1";
+  let needFull = !link.meta.lastTradeSyncAt;
+  try { if (!needFull && localStorage.getItem(FEE_BACKFILL) !== "1") needFull = true; } catch { /* noop */ }
+  const f = needFull
+    ? await fetchTossTrades()   // 전체
+    : await fetchTossTrades(addDays(link.meta.lastTradeSyncAt!.slice(0, 10), -3), to);
+  try { localStorage.setItem(FEE_BACKFILL, "1"); } catch { /* noop */ }
   const fresh = f.rows.filter(r => !f.existingIds.has(r.id));
   const n = await saveTossTrades(f.rows, f.group);   // 기존 것도 덮어쓰기(수정된 값 반영) — 멱등
   const cur = linkedGroupOf("toss");

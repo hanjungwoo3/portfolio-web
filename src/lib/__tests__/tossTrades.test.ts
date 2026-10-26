@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { mapTossOrders, findOverlaps, type TossOrder } from "../tossTrades";
+import { mapTossOrders, findOverlaps, feeOf, type TossOrder } from "../tossTrades";
 
 // 2026-10-26 실측 응답 모양 그대로
 const filled = (over: Partial<TossOrder> = {}): TossOrder => ({
@@ -27,6 +27,11 @@ describe("mapTossOrders — 토스 주문 → 거래", () => {
     const us = filled({ orderId: "u1", symbol: "TSLA", currency: "USD", execution: { filledQuantity: "0.000855", averageFilledPrice: "426.58", filledAmount: "0.364726", filledAt: "2026-09-10T23:30:00+09:00" } });
     const ok = mapTossOrders([us], {}, d => (d === "2026-09-10" ? 1390 : undefined));
     expect(ok.rows[0]).toMatchObject({ ticker: "TSLA", amount: Math.round(0.364726 * 1390), fx: 1390, qty: 0.000855 });
+    // 수수료도 같은 환율로 원화
+    const usFee = filled({ orderId: "u2", symbol: "TSLA", currency: "USD", execution: { filledQuantity: "1", averageFilledPrice: "400", filledAmount: "400", commission: "0.4", tax: "0.01", filledAt: "2026-09-10T23:30:00+09:00" } });
+    const r2 = mapTossOrders([usFee], {}, () => 1390).rows[0];
+    expect(r2.commission).toBe(Math.round(0.4 * 1390)); expect(r2.tax).toBe(Math.round(0.01 * 1390));
+    expect(feeOf(r2)).toEqual({ fee: Math.round(0.4 * 1390) + Math.round(0.01 * 1390) });
     const none = mapTossOrders([us], {}, () => undefined);
     expect(none.rows).toHaveLength(0); expect(none.skipped.noFx).toBe(1);
   });
