@@ -504,7 +504,7 @@ export function MobileSimpleView() {
     //  폴더 sub 링크바 칩으로만 노출하지만, 아래 '없는 탭이면 지수로' 가드를
     //  통과하려면 목록에 있어야 한다. count 는 중복 제거한 종목 수.
     for (const f of getGroupFolders()) {
-      if (f.groups.filter(g => counts.has(g)).length < 2) continue;
+      if (f.groups.filter(g => counts.has(g)).length < 1) continue;   // 멤버 1개 폴더(증권사연결)도 — 진입 기본이 전체보기
       const inFolder = new Set(f.groups);
       const uniq = new Set<string>();
       for (const s of holdings) if (inFolder.has(normalizeAccount(s.account))) uniq.add(s.ticker);
@@ -564,10 +564,9 @@ export function MobileSimpleView() {
     for (const t of groupTabs) if (!SYS_ALL_KEYS.has(t.key) && !folderedGroups.has(t.key) && !isFolderAllKey(t.key)) keys.push(t.key);  // 사용자그룹(전체보기 가상탭 제외 — 아래 폴더 루프에서 넣음)
     for (const f of folders) {
       const ms = f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko"));
+      // 전체보기는 폴더의 **첫자리**(칩 순서와 같게 — 사용자 결정 2026-10-26)
+      if (ms.length >= 1) keys.push(folderAllKey(f.name));
       keys.push(...ms);
-      // 전체보기는 폴더의 **끝자리** (PC Tabs 와 동일) — 앞에 있으면 스와이프로 지나가다
-      //   매번 폴더 전체를 불러오게 된다. 종목 많은 폴더에서 특히 비싸다.
-      if (ms.length >= 2) keys.push(folderAllKey(f.name));
     }
     return keys;
   }, [groupTabs, folderedGroups, folders, presentGroups]);
@@ -1114,8 +1113,8 @@ export function MobileSimpleView() {
           const members = folder.groups.filter(g => presentGroups.has(g))
                                 .sort((a, b) => a.localeCompare(b, "ko"));
           if (members.length === 0) return null;
-          // 멤버 1개 → 폴더명(그룹명) 단일 탭 (드롭다운 없이 바로 클릭)
-          if (members.length === 1) {
+          // 멤버 1개 → 폴더명(그룹명) 단일 탭. 증권사연결 폴더는 1개여도 폴더명 + 아래 칩(PC 와 같게)
+          if (members.length === 1 && folder.name !== BROKER_FOLDER) {
             const g = members[0];
             const cnt = countByKey.get(g) ?? 0;
             const active = activeTab === g;
@@ -1133,8 +1132,9 @@ export function MobileSimpleView() {
           //   있으면 그대로 유지. 기본을 전체보기로 두면 종목 많은 폴더에서 폴더를 누를 때마다
           //   전 종목을 불러온다 — 전체보기는 칩바 맨 끝에서 명시적으로 눌러야 켜진다.
           const allKey = folderAllKey(folder.name);
+          // 폴더 진입 기본 = 전체보기(사용자 결정 2026-10-26, PC 와 같게)
           const current = (members.includes(activeTab) || activeTab === allKey)
-            ? activeTab : members[0];
+            ? activeTab : allKey;
           const folderActive = members.includes(activeTab) || activeTab === allKey;
           return (
             <button key={`folder_${folder.name}`}
@@ -1445,11 +1445,26 @@ export function MobileSimpleView() {
         if (!activeFolder) return null;
         const members = activeFolder.groups.filter(g => presentGroups.has(g))
                                     .sort((a, b) => a.localeCompare(b, "ko"));
-        if (members.length < 2) return null;   // 1개뿐이면 전환할 게 없음
+        if (members.length < 2 && activeFolder.name !== BROKER_FOLDER) return null;   // 1개뿐이면 전환할 게 없음(증권사연결은 예외)
         return (
           <div ref={folderBarRef} data-noswipe style={{ top: (headerCollapsed ? 0 : 44) + navH }}
                className="pg-menu sticky z-30 bg-white/95 backdrop-blur border-b border-gray-200
                           px-2 py-1.5 flex items-center gap-1 overflow-x-auto whitespace-nowrap">
+            {/* 전체보기 — 맨 앞(사용자 결정 2026-10-26, PC 와 같게) */}
+            {(() => {
+              const allKey = folderAllKey(activeFolder.name);
+              const on = activeTab === allKey;
+              const cnt = countByKey.get(allKey) ?? 0;
+              return (
+                <button onClick={() => setActiveTab(allKey)}
+                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] transition inline-flex items-center gap-1
+                                    ${on ? "bg-blue-600 text-white font-bold"
+                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  <span>{FOLDER_ALL_LABEL}</span>
+                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
+                </button>
+              );
+            })()}
             {members.map(g => {
               const on = g === activeTab;
               const cnt = countByKey.get(g) ?? 0;
@@ -1468,31 +1483,16 @@ export function MobileSimpleView() {
                             className="ml-1 inline-flex items-center text-blue-100 hover:text-white">
                         <Settings size={12} strokeWidth={2.2} />
                       </span>
-                      <span role="button" tabIndex={0} title="그룹 삭제"
-                            onClick={e => { e.stopPropagation(); void deleteGroupInline(g); }}
-                            className="inline-flex items-center text-blue-100 hover:text-white text-[11px]">🗑</span>
+                      {!isLinkedGroup(g) && (   /* 증권사 연동 그룹은 삭제 없음 */
+                        <span role="button" tabIndex={0} title="그룹 삭제"
+                              onClick={e => { e.stopPropagation(); void deleteGroupInline(g); }}
+                              className="inline-flex items-center text-blue-100 hover:text-white text-[11px]">🗑</span>
+                      )}
                     </>
                   )}
                 </button>
               );
             })}
-            {/* 전체보기 — 폴더 안 모든 그룹의 종목을 한 번에. 실제 그룹이 아니라 이름변경·삭제 없음.
-                맨 끝에 두는 이유(PC Tabs 와 동일): 종목이 많은 폴더에서 이게 앞에 있으면
-                무심코 눌러 매번 전부 불러오게 된다. */}
-            {(() => {
-              const allKey = folderAllKey(activeFolder.name);
-              const on = activeTab === allKey;
-              const cnt = countByKey.get(allKey) ?? 0;
-              return (
-                <button onClick={() => setActiveTab(allKey)}
-                        className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] transition inline-flex items-center gap-1
-                                    ${on ? "bg-blue-600 text-white font-bold"
-                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                  <span>{FOLDER_ALL_LABEL}</span>
-                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
-                </button>
-              );
-            })()}
           </div>
         );
       })()}

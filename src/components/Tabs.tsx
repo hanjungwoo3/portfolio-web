@@ -7,7 +7,7 @@ import { getIndependentGroupsMode } from "../lib/groupMode";
 import { DASHBOARD_PAGES, INDEX_GROUP_KEYS, defaultDashboardPage, type DashboardPage } from "../lib/dashboardGroups";
 import type { TabVisibility } from "../lib/tabVisibility";
 import type { GroupFolder } from "../lib/groupFolders";
-import { BROKER_FOLDER } from "../lib/linkedGroups";
+import { BROKER_FOLDER, isLinkedGroup } from "../lib/linkedGroups";
 import {
   getGroupFolders, folderAllKey, isFolderAllKey, folderNameOfAllKey, FOLDER_ALL_LABEL,
 } from "../lib/groupFolders";
@@ -124,11 +124,12 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
         //  기본을 전체보기로 두면 종목 많은 폴더에서 폴더를 누를 때마다 전 종목을 불러온다.
         //  전체보기는 칩바 맨 끝에서 명시적으로 눌러야 켜진다.
         const allKey = folderAllKey(folder.name);
+        // 폴더 진입 기본 = 전체보기(사용자 결정 2026-10-26). 이미 폴더 안 그룹에 있으면 그대로
         const current = (members.includes(activeKey) || activeKey === allKey)
-          ? activeKey : members[0];
+          ? activeKey : allKey;
         const active = members.includes(activeKey) || activeKey === allKey;
-        // 멤버 1개 → 폴더명(그룹명) 단일 탭 (드롭다운 없이 바로 클릭)
-        if (members.length === 1) {
+        // 멤버 1개 → 폴더명(그룹명) 단일 탭 (드롭다운 없이 바로 클릭). 증권사연결 폴더는 1개여도 '보따리'처럼 폴더명 + 아래 칩(사용자 요청)
+        if (members.length === 1 && folder.name !== BROKER_FOLDER) {
           const g = members[0];
           const cnt = countByKey.get(g) ?? 0;
           return (
@@ -257,10 +258,25 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
         if (!activeFolder) return null;
         const members = activeFolder.groups.filter(g => presentGroups.has(g))
                                     .sort((a, b) => a.localeCompare(b, "ko"));
-        if (members.length < 2) return null;
+        if (members.length < 2 && activeFolder.name !== BROKER_FOLDER) return null;   // 증권사연결은 1개여도 칩 표시
         return (
           <div className="flex items-center gap-1.5 overflow-x-auto whitespace-nowrap
                           px-1 py-1.5 border-b border-gray-200 bg-white">
+            {/* 전체보기 — 폴더 안 모든 그룹의 종목을 한 번에. 실제 그룹이 아니라 이름변경·삭제 없음. 맨 앞(사용자 결정 2026-10-26) */}
+            {(() => {
+              const allKey = folderAllKey(activeFolder.name);
+              const on = activeKey === allKey;
+              const cnt = countByKey.get(allKey) ?? 0;
+              return (
+                <button onClick={() => onChange(allKey)}
+                        className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition inline-flex items-center gap-1
+                                    ${on ? "bg-blue-600 text-white"
+                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
+                  <span>{FOLDER_ALL_LABEL}</span>
+                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
+                </button>
+              );
+            })()}
             {members.map(g => {
               const on = g === activeKey;
               const cnt = countByKey.get(g) ?? 0;
@@ -285,7 +301,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                           <Settings size={11} strokeWidth={2.2} />
                         </button>
                       )}
-                      {onDelete && (
+                      {onDelete && !isLinkedGroup(g) && (   /* 증권사 연동 그룹은 삭제 없음(연동 해제로) */
                         <button type="button" title="그룹 삭제"
                                 onClick={async e => {
                                   e.stopPropagation();
@@ -298,22 +314,6 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                 </div>
               );
             })}
-            {/* 전체보기 — 폴더 안 모든 그룹의 종목을 한 번에. 실제 그룹이 아니라 이름변경·삭제 없음.
-                맨 끝에 두는 이유: 종목이 많은 폴더에서 이게 앞에 있으면 무심코 눌러 매번 전부 불러오게 된다. */}
-            {(() => {
-              const allKey = folderAllKey(activeFolder.name);
-              const on = activeKey === allKey;
-              const cnt = countByKey.get(allKey) ?? 0;
-              return (
-                <button onClick={() => onChange(allKey)}
-                        className={`shrink-0 rounded-full px-3 py-1 text-xs font-medium transition inline-flex items-center gap-1
-                                    ${on ? "bg-blue-600 text-white"
-                                         : "bg-gray-100 text-gray-600 hover:bg-gray-200"}`}>
-                  <span>{FOLDER_ALL_LABEL}</span>
-                  {cnt > 0 && <span className={on ? "text-blue-100" : "text-gray-400"}>{cnt}</span>}
-                </button>
-              );
-            })()}
           </div>
         );
       })()}
@@ -469,12 +469,13 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   for (const g of userGroups) {
     tabs.push({ key: g, label: g, emoji: "📁", count: counts.get(g)! });
   }
-  // 폴더 전체보기 — 폴더(멤버 2개 이상)마다 가상 탭 하나.
+  // 폴더 전체보기 — 폴더(멤버 1개 이상)마다 가상 탭 하나.
   //   탭 바에는 안 그리고 폴더 sub 링크바의 칩으로만 노출하지만,
   //   App 의 'activeTab 이 탭 목록에 없으면 첫 탭으로 되돌리기' 가드를 통과하려면
   //   목록에는 반드시 들어 있어야 한다. count 는 중복 제거한 종목 수.
+  //   멤버 1개(증권사연결 폴더)도 넣는다 — 폴더 진입 기본이 전체보기라, 빠지면 가드가 증시로 튕긴다(실측 2026-10-26).
   for (const f of getGroupFolders()) {
-    if (f.groups.filter(g => counts.has(g)).length < 2) continue;
+    if (f.groups.filter(g => counts.has(g)).length < 1) continue;
     const inFolder = new Set(f.groups);
     const uniq = new Set<string>();
     for (const s of holdings) if (inFolder.has(normalizeAccount(s.account))) uniq.add(s.ticker);
