@@ -14,20 +14,20 @@ interface Props {
   /** 클릭 방식 — 마우스를 올려도 안 뜨고, 오른쪽 아래 작은 "상세보기" 버튼을 누르면 뜬다(사용자 요청 2026-10-26).
    *  큰 표(수급 상세·60일 캔들)는 마우스를 따라다니면 읽기 어려웠다. 바깥 클릭·Esc·✕ 로 닫는다. */
   click?: boolean;
-  detailLabel?: string;      // 버튼 글자(기본 "상세보기")
+  detailLabel?: string;      // 버튼 글자 — 안 주면 ▼/▲ 삼각형(통계 칸의 접기 버튼과 같은 모양, 사용자 요청 2026-10-26)
   onOpen?: () => void;       // 열 때 — 긴 수급 이력처럼 열 때만 받는 자료를 요청하는 데 쓴다
 }
 
 interface Pos { x: number; y: number; }
 interface Size { w: number; h: number; }
 
-export function Tooltip({ content, children, className = "", click, detailLabel = "상세보기", onOpen }: Props) {
+export function Tooltip({ content, children, className = "", click, detailLabel, onOpen }: Props) {
   if (click) return <ClickLayer content={content} className={className} label={detailLabel} onOpen={onOpen}>{children}</ClickLayer>;
   return <HoverTip content={content} className={className}>{children}</HoverTip>;
 }
 
 // 클릭 레이어 — 버튼 아래(오른쪽 맞춤)에 고정 위치로. 화면보다 크면 안에서 스크롤(툴팁처럼 줄이지 않는다 — 눌러서 보는 표는 읽어야 한다)
-function ClickLayer({ content, children, className, label, onOpen }: { content: ReactNode; children: ReactNode; className: string; label: string; onOpen?: () => void }) {
+function ClickLayer({ content, children, className, label, onOpen }: { content: ReactNode; children: ReactNode; className: string; label?: string; onOpen?: () => void }) {
   const [anchor, setAnchor] = useState<{ right: number; top: number; bottom: number } | null>(null);
   const [size, setSize] = useState<Size | null>(null);
   const btnRef = useRef<HTMLButtonElement | null>(null);
@@ -79,10 +79,10 @@ function ClickLayer({ content, children, className, label, onOpen }: { content: 
   return (
     <span className={`relative inline-flex ${className}`}>
       {children}
-      <button ref={btnRef} type="button" onClick={toggle} title={label}
-              className={`absolute bottom-0.5 right-0.5 z-20 px-1.5 py-0.5 rounded border text-[10px] leading-none
-                          ${open ? "bg-gray-700 text-white border-gray-700" : "bg-white/85 text-gray-600 border-gray-300 hover:bg-gray-100"}`}>
-        {label}
+      <button ref={btnRef} type="button" onClick={toggle} title={label ?? (open ? "상세 닫기" : "상세 보기")}
+              className={`absolute bottom-1 right-1 z-20 px-1.5 py-0.5 rounded border border-gray-300 bg-white/95 shadow-sm
+                          text-[10px] leading-none text-gray-600 hover:bg-gray-50 ${open ? "bg-gray-100" : ""}`}>
+        {label ?? (open ? "▲" : "▼")}
       </button>
       {placed && typeof document !== "undefined" && createPortal(
         <div ref={layerRef} role="dialog"
