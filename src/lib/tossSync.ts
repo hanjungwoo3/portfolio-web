@@ -9,6 +9,7 @@ import { replaceSyncedHoldingsOfGroup, loadHoldings } from "./db";
 import { setDeposit } from "./deposits";
 import { fetchYahooBatch } from "./api";
 import type { Stock } from "../types";
+import { syncTossTradesIncremental } from "./tossTrades";
 
 export const TOSS_SOURCE = "toss";
 
@@ -23,7 +24,7 @@ interface TossBuyingPower { currency: string; cashBuyingPower: string }
 const num = (s: string | number | null | undefined) => { const v = Number(s); return Number.isFinite(v) ? v : 0; };
 const todayKst = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 
-export interface TossSyncResult { group: string; count: number; cash: number; at: string; fxUsed?: number }
+export interface TossSyncResult { group: string; count: number; cash: number; at: string; fxUsed?: number; trades?: number }
 
 /** 보유·예수금을 토스 값으로 갱신. 연동 그룹이 없거나 꺼져 있으면 null. 실패는 던진다(호출 쪽이 메시지로) */
 export async function syncTossHoldings(): Promise<TossSyncResult | null> {
@@ -92,7 +93,10 @@ export async function syncTossHoldings(): Promise<TossSyncResult | null> {
 
   const at = new Date().toISOString();
   setLinkedGroup(group, { ...meta, accountSeq: account, lastSyncAt: at, lastError: undefined, usdAvg });
-  return { group, count, cash, at, fxUsed: fx };
+  // 거래 이력 증분(3단계) — 실패해도 보유 갱신은 성공으로 둔다
+  let trades = 0;
+  try { trades = await syncTossTradesIncremental(); } catch (e) { console.warn("[toss] 거래 증분 실패:", e); }
+  return { group, count, cash, at, fxUsed: fx, trades };
 }
 
 /** 실패를 메타에 남기고 다시 던진다(설정 칸·배지가 보여 준다) */

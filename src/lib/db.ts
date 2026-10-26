@@ -145,6 +145,13 @@ export async function addTrade(t: Omit<Trade, "id" | "createdAt"> & { id?: strin
   notifyTradesChanged();
   return id;
 }
+// 여러 건 한 번에(알림 1번) — 증권사 연동 거래 가져오기용. id 가 같으면 덮어쓴다(멱등)
+export async function upsertTrades(trades: (Omit<Trade, "createdAt"> & { createdAt?: number })[]): Promise<void> {
+  if (!trades.length) return;
+  const now = Date.now();
+  await db.trades.bulkPut(trades.map(t => ({ ...t, createdAt: t.createdAt ?? now })));
+  notifyTradesChanged();
+}
 export async function updateTrade(t: Trade): Promise<void> {
   await db.trades.put(t);
   notifyTradesChanged();

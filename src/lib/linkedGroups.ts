@@ -13,7 +13,8 @@ import type { BrokerId } from "./broker";
 export interface LinkedGroupMeta {
   broker: BrokerId;
   accountSeq: string;
-  lastSyncAt?: string;     // ISO
+  lastSyncAt?: string;     // ISO — 보유·예수금 마지막 갱신
+  lastTradeSyncAt?: string; // ISO — 거래 이력 마지막 증분 가져오기
   lastError?: string;      // 마지막 갱신 실패 이유(성공하면 지움)
   /** 미국 보유 평단 환산 기억 — 달러 평단·수량이 그대로면 원화 평단을 다시 환산하지 않는다(환율 따라 매일 흔들리지 않게) */
   usdAvg?: Record<string, { usd: number; qty: number; krw: number }>;
@@ -68,6 +69,7 @@ export function sanitizeLinkedGroups(v: unknown): LinkedGroups | undefined {
     out[g] = {
       broker: "toss", accountSeq: x.accountSeq,
       ...(typeof x.lastSyncAt === "string" ? { lastSyncAt: x.lastSyncAt } : {}),
+      ...(typeof x.lastTradeSyncAt === "string" ? { lastTradeSyncAt: x.lastTradeSyncAt } : {}),
       ...(typeof x.lastError === "string" ? { lastError: x.lastError } : {}),
       ...(x.usdAvg && typeof x.usdAvg === "object" ? { usdAvg: x.usdAvg } : {}),
     };

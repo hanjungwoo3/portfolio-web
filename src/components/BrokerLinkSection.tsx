@@ -40,7 +40,7 @@ export function BrokerLinkSection({ compact }: { compact?: boolean }) {
     setBusy(true); setSyncMsg(null);
     try {
       const r = await syncTossHoldingsSafe();
-      if (r) setSyncMsg({ ok: true, text: `갱신됐습니다 — ${r.group}: 종목 ${r.count}개 · 예수금 ${r.cash.toLocaleString()}원${r.fxUsed ? ` · 환율 ${r.fxUsed.toFixed(1)}` : ""}` });
+      if (r) setSyncMsg({ ok: true, text: `갱신됐습니다 — ${r.group}: 종목 ${r.count}개 · 예수금 ${r.cash.toLocaleString()}원${r.fxUsed ? ` · 환율 ${r.fxUsed.toFixed(1)}` : ""}${r.trades ? ` · 새 거래 ${r.trades}건` : ""}` });
       else setSyncMsg({ ok: false, text: "연동이 꺼져 있거나 연동 그룹이 없습니다" });
     } catch (e) {
       setSyncMsg({ ok: false, text: e instanceof Error ? e.message : String(e) });
