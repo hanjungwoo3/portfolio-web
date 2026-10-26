@@ -82,7 +82,7 @@ function ClickLayer({ content, children, className, label, onOpen }: { content: 
       {/* 테두리 없는 ▲ 하나만(사용자 요청 2026-10-26) — 열려 있으면 진하게 */}
       <button ref={btnRef} type="button" onClick={toggle} title={label ?? (open ? "상세 닫기" : "상세 보기")}
               className={`absolute bottom-0.5 right-1 z-20 px-1 py-0.5 text-[11px] leading-none
-                          ${open ? "text-gray-800" : "text-gray-400 hover:text-gray-700"}`}>
+                          ${open ? "text-gray-700" : "text-gray-400/50 hover:text-gray-600"}`}>
         {label ?? "▲"}
       </button>
       {placed && typeof document !== "undefined" && createPortal(
