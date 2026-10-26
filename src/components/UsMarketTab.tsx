@@ -1,10 +1,10 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { IndexWarnTag } from "./IndexWarnTag";
-import { fetchYahooBatch, fetchKrFuturesMinute, fetchKrRegularPrices, fetchYahooSparkDay, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries, fetchTossIntraday } from "../lib/api";
+import { fetchYahooBatch, fetchKrFuturesMinute, fetchKrRegularPrices, daySparkPlan, fetchYahooSparkDay, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries, fetchTossIntraday } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed, isKrAfterRegularClose, nowKstDateStr } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
@@ -231,9 +231,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const [leaderSort, setLeaderSort] = useState<LeaderSort>(loadLeaderSort);   // 대장주 줄 정렬(등락률순 기본)
   const chartRange = useChartRange();   // 카드 배경 차트 3개월 | 24시간 — 앱 전체 설정
   // 미국 종목·ETF 24시간 차트 — 야후 spark(20종목 1콜). '24시간' 을 골랐을 때만 받는다(5분마다).
+  const sparkPlan = useMemo(() => daySparkPlan(US_SPARK_SYMBOLS), []);   // 앱=토스 1순위, 웹=야후 1순위(api.daySparkPlan)
   const { data: usSpark, isFetched: usSparkFetched } = useQuery({
-    queryKey: ["us-spark-day", US_SPARK_SYMBOLS.length],
-    queryFn: () => fetchYahooSparkDay(US_SPARK_SYMBOLS),
+    queryKey: ["us-spark-day", sparkPlan.yahoo.length],
+    queryFn: () => fetchYahooSparkDay(sparkPlan.yahoo),
     enabled: chartRange === "day",
     refetchInterval: chartRange === "day" ? 5 * 60_000 : false,
     // 창을 다시 띄우면(4분 지났을 때만) 바로 새로 — 숨겨진 동안은 5분 갱신이 멈춰, 앱을 다시 열면 장 시작 전 그래프
@@ -243,7 +244,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   // 야후 spark 가 못 준 종목(데스크톱 앱은 네이티브 요청이 쿠키가 없어 야후 429 를 자주 맞는다 — 2026-10-26 "앱에서만 세로선이 안 보여")
   //   → 토스 5분봉 어제+오늘(fetchTossIntraday)로. 정규장 시작·종가 세로선·끊김·기준선을 같이 만들어 야후와 같은 모양.
   //   야후가 된 종목은 안 부른다(종목당 2콜이라). 야후 응답이 끝난 뒤에만 빠진 종목을 센다(대기 중엔 전부 빠진 걸로 보이므로)
-  const usSparkMissing = chartRange === "day" && usSparkFetched ? US_SPARK_SYMBOLS.filter(sym => !usSpark?.get(sym)?.closes?.length) : [];
+  const usSparkMissing = chartRange === "day"
+    ? [...sparkPlan.toss, ...(usSparkFetched ? sparkPlan.yahoo.filter(sym => !usSpark?.get(sym)?.closes?.length) : [])]
+    : [];
   const tossUsDayQs = useQueries({
     queries: usSparkMissing.map(sym => ({
       queryKey: ["toss-us-day", sym],

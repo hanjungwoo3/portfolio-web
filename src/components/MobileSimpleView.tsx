@@ -16,7 +16,7 @@ import {
 } from "../lib/sortHoldings";
 import { getHeldFirst, setHeldFirst } from "../lib/heldFirst";
 import { SortSelector, makeSortHandlers } from "./SortSelector";
-import { fetchYahooBatch, fetchKrFuturesMinute, fetchTossIntraday, fetchYahooSparkDay, fetchTossPrices, fetchNaverPrices, fetchNaverInfoLight, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures, fetchKrRegularPrices, verifyKrMarkets, fetchDashboardChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
+import { fetchYahooBatch, fetchKrFuturesMinute, fetchTossIntraday, daySparkPlan, fetchYahooSparkDay, fetchTossPrices, fetchNaverPrices, fetchNaverInfoLight, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures, fetchKrRegularPrices, verifyKrMarkets, fetchDashboardChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices, fetchTossUsStockCandles, fetchKrBondYieldSeries } from "../lib/api";
 import {
   US_PAIRS, DAY_SPARK_SYMBOLS,
 } from "../lib/usMarketData";
@@ -189,16 +189,19 @@ export function MobileSimpleView() {
   const [leaderSort, setLeaderSort] = useState<LeaderSort>(loadLeaderSort);   // 대장주 줄 정렬(등락률순 기본, PC 와 같은 키)
   const chartRange = useChartRange();   // 카드 배경 차트 3개월 | 24시간 — 앱 전체 설정
   // 미국 종목·ETF 24시간 차트 — 야후 spark(20종목 1콜). '24시간' 을 골랐을 때만 받는다(5분마다).
+  const sparkPlan = useMemo(() => daySparkPlan(US_SPARK_SYMBOLS), []);   // 앱=토스 1순위, 웹=야후 1순위(api.daySparkPlan)
   const { data: usSpark, isFetched: usSparkFetched } = useQuery({
-    queryKey: ["us-spark-day", US_SPARK_SYMBOLS.length],
-    queryFn: () => fetchYahooSparkDay(US_SPARK_SYMBOLS),
+    queryKey: ["us-spark-day", sparkPlan.yahoo.length],
+    queryFn: () => fetchYahooSparkDay(sparkPlan.yahoo),
     enabled: chartRange === "day",
     refetchInterval: chartRange === "day" ? 5 * 60_000 : false,
     staleTime: 4 * 60_000, refetchOnWindowFocus: true,   // 다시 띄우면 새로(PC 와 같게 — 숨긴 동안 갱신이 멈췄다)
   });
   // 야후 spark 가 못 준 종목(앱은 네이티브 요청이 쿠키가 없어 야후 429 를 자주 맞는다) → 토스 5분봉 어제+오늘로(PC UsMarketTab 과 같은 폴백).
   //   야후가 된 종목은 안 부른다(종목당 2콜). 야후 응답이 끝난 뒤에만 빠진 종목을 센다.
-  const usSparkMissing = chartRange === "day" && usSparkFetched ? US_SPARK_SYMBOLS.filter(sym => !usSpark?.get(sym)?.closes?.length) : [];
+  const usSparkMissing = chartRange === "day"
+    ? [...sparkPlan.toss, ...(usSparkFetched ? sparkPlan.yahoo.filter(sym => !usSpark?.get(sym)?.closes?.length) : [])]
+    : [];
   const tossUsDayQs = useQueries({
     queries: usSparkMissing.map(sym => ({
       queryKey: ["toss-us-day", sym],

@@ -449,6 +449,20 @@ export async function fetchTossIntraday(ticker: string): Promise<DaySeries | nul
   return buildTwoDaySeries(rows, isKr);
 }
 
+// 24시간 카드의 자료 출처 계획 — **앱(안드로이드·데스크톱)은 토스 5분봉을 1순위**(사용자 결정 2026-10-27), 웹은 야후 spark 1순위.
+//   앱은 네이티브 요청이라 야후가 429 를 자주 내고(쿠키 없음), 그때그때 묶음이 빠져 세로선이 들쭉날쭉했다. 토스 c-chart 5분봉은
+//   종목당 2콜이지만 115종목을 한꺼번에 던져도 전부 정상(실측)이라 앱에선 처음부터 토스로 간다. 토스 분봉이 없는 심볼
+//   (지수·환율·금리·선물·코인)만 야후. 웹은 야후가 20종목 1콜이라 그대로(토스는 실패 폴백).
+export function hasTossIntraday(symbol: string): boolean {
+  const isKr = /^[\dA-Za-z]{6}$/.test(symbol) && /\d/.test(symbol);
+  return isKr || !!(TOSS_US_STOCK_CODE[symbol] ?? getTossCode(symbol));
+}
+export function daySparkPlan(symbols: string[]): { yahoo: string[]; toss: string[] } {
+  if (!isDirectApp()) return { yahoo: symbols, toss: [] };
+  const toss = symbols.filter(hasTossIntraday);
+  return { yahoo: symbols.filter(s => !toss.includes(s)), toss };
+}
+
 // 토스 내부코드를 이미 아는 경우(TICS 구성종목 등) — 심볼→코드 변환을 건너뛴다.
 //   getTossCode 는 '이미 본 종목' 만 아는 캐시라, 처음 보는 미국 종목은 그 경로로 못 찾는다.
 export async function fetchTossUsCandlesByCode(code: string, count = 120): Promise<number[]> {
