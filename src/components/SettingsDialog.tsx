@@ -1,5 +1,6 @@
 import { DriveRestorePanel } from "./DriveRestorePanel";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
+import { BrokerLinkSection } from "./BrokerLinkSection";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, Cpu } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -665,6 +666,9 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               보유·예수금·그룹·폴더·탭·거래기록 등 모든 데이터를 .json 파일로 백업/복원합니다. (가져오기 = 전체 덮어쓰기)
             </div>
           </div>
+
+          {/* 증권사 연결(토스 Open API) — 데스크톱 앱만 실제 연결, 웹은 안내 */}
+          <BrokerLinkSection />
 
           {/* 전용 프록시 URL */}
           <div className="border border-gray-200 rounded p-2.5 bg-blue-50/30 space-y-1">

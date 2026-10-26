@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
+import { BrokerLinkSection } from "./BrokerLinkSection";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -2920,6 +2921,9 @@ function SettingsModal({
               )}
             </div>
           )}
+
+          {/* 증권사 연결 — 휴대폰에선 안내만(연결은 PC 데스크톱 앱) */}
+          <BrokerLinkSection compact />
 
           {/* 1) 전용 프록시 — 여러 개 가능 */}
           <div className="border border-gray-200 rounded p-3 bg-blue-50/30 space-y-1">

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-broker-fetch"
+description = "Enables the broker_fetch command without any pre-configured scope."
+commands.allow = ["broker_fetch"]
+
+[[permission]]
+identifier = "deny-broker-fetch"
+description = "Denies the broker_fetch command without any pre-configured scope."
+commands.deny = ["broker_fetch"]

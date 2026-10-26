@@ -15,6 +15,8 @@ use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
 use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
+mod broker;
+
 const SITE_URL: &str = "https://hanjungwoo3.github.io/portfolio-web/";
 
 // 페이지보다 먼저 도는 스크립트 — ① 앱 표식 ② 새 창(window.open·target=_blank)은 앱 안 '보기 창'으로(open_viewer).
@@ -363,7 +365,8 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(client)
-        .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, google_login, google_refresh, app_update_check, app_update_install, app_dialog])
+        .manage(broker::BrokerState::default())   // 증권사 연결 — 토큰 캐시·한도
+        .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, broker::broker_status, broker::broker_set, broker::broker_clear, broker::broker_fetch, google_login, google_refresh, app_update_check, app_update_install, app_dialog])
         .setup(move |app| {
             let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse()?))
                 .title("포트폴리오")

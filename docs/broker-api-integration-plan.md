@@ -208,11 +208,14 @@
 7. KRX — 키 승인 목록 보고 결정.
 별도 선택 기능: 앱 잠금 암호(보유·기록 암호화).
 
-## 9. 다음에 할 일
-- [ ] 사용자: 계좌 있는 증권사 확인 — 한국투자증권이면 KIS Developers 에서 **모의투자 키** 발급
-- [ ] 사용자(선택): KRX Open API 키 발급 → 승인 가능한 API 목록 캡처(특히 투자자별 매매 유무)
-- [ ] 개발: 1단계 공통 틀부터
-- [ ] 개발 착수 시 KIS 공식 문서로 한도·허용 IP·응답 필드 재확인
+## 9. 진행 상황 / 다음에 할 일
+- [x] 2026-10-26 **토스 먼저**로 변경. 1단계 구현: `desktop/src-tauri/src/broker.rs`(키체인 저장·GET 전용·토큰 재사용·401 재시도·계좌성 1.1초 간격) + `src/lib/broker.ts` + 설정 `BrokerLinkSection`(PC 실제 연결 / 웹·휴대폰 안내만). **실제 토스 응답으로는 미검증**(키 없음).
+- [ ] 사용자: 토스 WTS → 설정 → Open API 키 발급(**이 앱 전용 키**), 허용 IP 에 이 맥 공인 IP 등록 → 앱 설정에서 "저장하고 연결 시험"
+- [ ] 연결 뒤 첫 실측: (a) MTS 주문이 `orders?status=CLOSED` 에 나오나 (b) `holdings.purchaseAmount` 통화 (c) `buying-power` 현금성인가 (d) ORDER_HISTORY 한도 (e) 키 여러 개 발급 가능한가 (f) 부분 체결 주문 모양
+- [ ] 2단계: 연동 그룹 지정(기존 그룹 선택 or 새 그룹) + `linkedGroups` 메타(settings, Drive normalize 포함) + 보유 거울 교체 + 휴대폰 읽기 전용 표시
+- [ ] 3단계: 거래 이력 가져오기(`tossapi_`, filledQuantity/filledAmount, CANCELED 체결분 포함, 미국은 거래일 환율 환산)
+- [ ] 이후: 일봉 대체(야후 429 해결) → 신용잔고 등 → 한국투자증권 → KRX
+- 검토(2026-10-26) 결정: **연동 켜려면 그룹 독립 모드 필수**(꺼져 있으면 수동 그룹이 같이 바뀜·거래 이중 계산). 연동 그룹은 **기존 그룹 지정도 가능**(이름·폴더·예수금 재사용, 합계 이중 계산 없음).
 
 ## 참고
 - 토스: developers.tossinvest.com/docs · openapi.tossinvest.com/openapi-docs/faq.md

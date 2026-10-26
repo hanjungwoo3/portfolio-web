@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-broker-status"
+description = "Enables the broker_status command without any pre-configured scope."
+commands.allow = ["broker_status"]
+
+[[permission]]
+identifier = "deny-broker-status"
+description = "Denies the broker_status command without any pre-configured scope."
+commands.deny = ["broker_status"]

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "원격 사이트(github.io)에서 앱 명령(native_fetch·open_external)을 부를 수 있게 — 로컬 개발 주소도 허용",
+  "description": "원격 사이트(github.io)에서 앱 명령(native_fetch·open_external·증권사 broker_*)을 부를 수 있게 — 로컬 개발 주소도 허용. broker_* 는 본 창(main)만",
   "windows": [
     "main"
   ],
@@ -20,6 +20,10 @@
     "allow-google-refresh",
     "allow-app-update-check",
     "allow-app-update-install",
-    "allow-app-dialog"
+    "allow-app-dialog",
+    "allow-broker-status",
+    "allow-broker-set",
+    "allow-broker-clear",
+    "allow-broker-fetch"
   ]
 }

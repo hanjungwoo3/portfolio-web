@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-broker-clear"
+description = "Enables the broker_clear command without any pre-configured scope."
+commands.allow = ["broker_clear"]
+
+[[permission]]
+identifier = "deny-broker-clear"
+description = "Denies the broker_clear command without any pre-configured scope."
+commands.deny = ["broker_clear"]
