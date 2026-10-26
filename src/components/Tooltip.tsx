@@ -16,21 +16,23 @@ interface Props {
   click?: boolean;
   detailLabel?: string;      // 버튼 글자 — 안 주면 테두리 없는 ▲ 하나(사용자 요청 2026-10-26)
   onOpen?: () => void;       // 열 때 — 긴 수급 이력처럼 열 때만 받는 자료를 요청하는 데 쓴다
+  /** click 모드의 여는 방법 — "button"(기본): 오른쪽 아래 ▲ / "children": 감싼 요소 자체를 누르면(책갈피 칩 등) */
+  trigger?: "button" | "children";
 }
 
 interface Pos { x: number; y: number; }
 interface Size { w: number; h: number; }
 
-export function Tooltip({ content, children, className = "", click, detailLabel, onOpen }: Props) {
-  if (click) return <ClickLayer content={content} className={className} label={detailLabel} onOpen={onOpen}>{children}</ClickLayer>;
+export function Tooltip({ content, children, className = "", click, detailLabel, onOpen, trigger = "button" }: Props) {
+  if (click) return <ClickLayer content={content} className={className} label={detailLabel} onOpen={onOpen} trigger={trigger}>{children}</ClickLayer>;
   return <HoverTip content={content} className={className}>{children}</HoverTip>;
 }
 
 // 클릭 레이어 — 버튼 아래(오른쪽 맞춤)에 고정 위치로. 화면보다 크면 안에서 스크롤(툴팁처럼 줄이지 않는다 — 눌러서 보는 표는 읽어야 한다)
-function ClickLayer({ content, children, className, label, onOpen }: { content: ReactNode; children: ReactNode; className: string; label?: string; onOpen?: () => void }) {
-  const [anchor, setAnchor] = useState<{ right: number; top: number; bottom: number } | null>(null);
+function ClickLayer({ content, children, className, label, onOpen, trigger }: { content: ReactNode; children: ReactNode; className: string; label?: string; onOpen?: () => void; trigger: "button" | "children" }) {
+  const [anchor, setAnchor] = useState<{ left: number; right: number; top: number; bottom: number } | null>(null);
   const [size, setSize] = useState<Size | null>(null);
-  const btnRef = useRef<HTMLButtonElement | null>(null);
+  const btnRef = useRef<HTMLElement | null>(null);   // ▲ 버튼 또는(children 트리거) 감싼 span
   const layerRef = useRef<HTMLDivElement | null>(null);
   const open = !!anchor;
   const close = () => { setAnchor(null); setSize(null); };
@@ -40,7 +42,7 @@ function ClickLayer({ content, children, className, label, onOpen }: { content: 
     const r = btnRef.current?.getBoundingClientRect();
     if (!r) return;
     onOpen?.();
-    setAnchor({ right: r.right, top: r.top, bottom: r.bottom });
+    setAnchor({ left: r.left, right: r.right, top: r.top, bottom: r.bottom });
   };
   useLayoutEffect(() => {
     const el = layerRef.current;
@@ -69,23 +71,14 @@ function ClickLayer({ content, children, className, label, onOpen }: { content: 
     if (!anchor || typeof window === "undefined") return null;
     const maxW = window.innerWidth - PAD * 2, maxH = window.innerHeight - PAD * 2;
     const W = Math.min(size?.w ?? 320, maxW), H = Math.min(size?.h ?? 200, maxH);
-    let x = anchor.right - W;                      // 버튼 오른쪽 끝에 맞춤
+    let x = trigger === "children" ? anchor.left : anchor.right - W;   // ▲ 버튼은 오른쪽 끝 맞춤, 칩은 칩 왼쪽부터
     if (x < PAD) x = PAD;
     if (x + W + PAD > window.innerWidth) x = window.innerWidth - W - PAD;
     let y = anchor.bottom + 6;                     // 버튼 아래
     if (y + H + PAD > window.innerHeight) y = Math.max(PAD, anchor.top - H - 6);   // 아래 모자라면 위로
     return { x, y, maxW, maxH };
   })();
-  return (
-    <span className={`relative inline-flex ${className}`}>
-      {children}
-      {/* 테두리 없는 ▲ 하나만(사용자 요청 2026-10-26) — 열려 있으면 진하게 */}
-      <button ref={btnRef} type="button" onClick={toggle} title={label ?? (open ? "상세 닫기" : "상세 보기")}
-              className={`absolute bottom-0.5 right-1 z-20 px-1 py-0.5 text-[11px] leading-none
-                          ${open ? "text-gray-700" : "text-gray-400/50 hover:text-gray-600"}`}>
-        {label ?? "▲"}
-      </button>
-      {placed && typeof document !== "undefined" && createPortal(
+  const layer = placed && typeof document !== "undefined" && createPortal(
         <div ref={layerRef} role="dialog" onClick={close}   // 레이어 아무 데나 눌러도 닫힘(사용자 요청 2026-10-26)
              style={{ position: "fixed", left: placed.x, top: placed.y, zIndex: 1000, maxWidth: placed.maxW, maxHeight: placed.maxH, opacity: size ? 1 : 0 }}
              className="pl-3 pr-7 py-2 rounded-md shadow-xl bg-white text-gray-800 text-[11px] leading-relaxed
@@ -95,7 +88,27 @@ function ClickLayer({ content, children, className, label, onOpen }: { content: 
           {content ?? <div className="text-gray-400">불러오는 중…</div>}
         </div>,
         document.body,
-      )}
+  );
+  if (trigger === "children") {
+    // 감싼 요소 자체가 트리거(책갈피 칩) — 누르면 칩 왼쪽 아래에 뜬다
+    return (
+      <span ref={btnRef as React.RefObject<HTMLSpanElement>} onClick={toggle}
+            title={label ?? (open ? "닫기" : "상세 보기")} className={`relative inline-flex cursor-pointer ${className}`}>
+        {children}
+        {layer}
+      </span>
+    );
+  }
+  return (
+    <span className={`relative inline-flex ${className}`}>
+      {children}
+      {/* 테두리 없는 ▲ 하나만(사용자 요청 2026-10-26) — 열려 있으면 진하게 */}
+      <button ref={btnRef as React.RefObject<HTMLButtonElement>} type="button" onClick={toggle} title={label ?? (open ? "상세 닫기" : "상세 보기")}
+              className={`absolute bottom-0.5 right-1 z-20 px-1 py-0.5 text-[11px] leading-none
+                          ${open ? "text-gray-700" : "text-gray-400/50 hover:text-gray-600"}`}>
+        {label ?? "▲"}
+      </button>
+      {layer}
     </span>
   );
 }

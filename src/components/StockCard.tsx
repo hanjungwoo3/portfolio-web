@@ -791,9 +791,9 @@ export function StockCard({
             </Tooltip>
           )}
           {/* 수급 신호 — 외인+기관 동반매수 / 개인 떠받치기 / 외인비율 추세
-              호버 시 투자자 그리드 행과 동일한 통합 표 + 미니차트 표시 (시그널 톤별 컬럼 강조) */}
+              칩을 **누르면** 투자자 그리드와 같은 통합 표 + 미니차트(시그널 톤별 컬럼 강조) — 마우스 올림 → 클릭(2026-10-26) */}
           {sig?.primary && (
-            <Tooltip content={
+            <Tooltip click trigger="children" onOpen={onNeedLongHistory} content={
               <>
                 <div className={`font-bold mb-1 ${
                   sig.primary.tone === "bull" ? "text-rose-700" : "text-blue-700"
@@ -806,14 +806,14 @@ export function StockCard({
             }>
               <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
                                 rounded-t-md border-t border-l border-r
-                                text-[10px] leading-none cursor-help
+                                text-[10px] leading-none cursor-pointer
                                 ${SIGNAL_TONE[sig.primary.tone]}`}>
                 {SIGNAL_ICON[sig.primary.tone]} {sig.primary.label}
               </span>
             </Tooltip>
           )}
           {sig?.secondary && (
-            <Tooltip content={
+            <Tooltip click trigger="children" onOpen={onNeedLongHistory} content={
               <>
                 <div className={`font-bold mb-1 ${
                   sig.secondary.tone === "pension_buy" || sig.secondary.tone === "up"
@@ -827,7 +827,7 @@ export function StockCard({
             }>
               <span className={`inline-flex items-center gap-0.5 px-2 py-0.5
                                 rounded-t-md border-t border-l border-r
-                                text-[10px] leading-none cursor-help
+                                text-[10px] leading-none cursor-pointer
                                 ${SIGNAL_TONE[sig.secondary.tone]}`}>
                 {SIGNAL_ICON[sig.secondary.tone]} {sig.secondary.label}
               </span>
