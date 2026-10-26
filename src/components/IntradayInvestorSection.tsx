@@ -18,6 +18,9 @@ import { isMarketOpen, nowKstDateStr } from "../lib/format";
 import type { FlowSeriesPoint } from "./IntradayInvestorChart";
 import { BuySellBars } from "./BuySellBars";
 import type { UTCTimestamp } from "lightweight-charts";
+import { fetchTossMarketFlow, type LongFlowInterval, type LongFlowMarket } from "../lib/tossMarketFlow";
+import { isTossLinkOn } from "../lib/broker";
+import { LongTermInvestorChart } from "./LongTermInvestorChart";
 
 // 넥스트레이드 프리장 08:00~09:00 KST(평일)
 function isKrPreMarket(): boolean {
@@ -39,6 +42,34 @@ const PERIODS: { label: string; days: number }[] = [
   { label: "3개월", days: 66 },
   { label: "6개월", days: 132 },
 ];
+// [장기] 주·월·연 집계 — 토스 공식 API(데스크톱 앱 + 연동 켬)에서만. KRX 로그인 없이 못 받던 값(계획서 §4). count = 보여 줄 구간 수
+const LONG_INTERVALS: { key: LongFlowInterval; label: string; count: number }[] = [
+  { key: "1w",  label: "주별", count: 26 },
+  { key: "1mo", label: "월별", count: 24 },
+  { key: "1y",  label: "연별", count: 15 },
+];
+type Mode = "intraday" | "daily" | "long";
+
+// 주·월·연 한 시장 블록 — 토스 공식 투자자 매매대금. 선물은 없다(코스피·코스닥만)
+function LongTermBlock({ market, label, enabled, interval, count, on }: {
+  market: LongFlowMarket; label: string; enabled: Record<string, boolean>; interval: LongFlowInterval; count: number; on: boolean;
+}) {
+  const q = useQuery({
+    queryKey: ["toss-market-flow", market, interval, count],
+    queryFn: () => fetchTossMarketFlow(market, interval, count),
+    enabled: on, staleTime: 30 * 60_000, refetchOnWindowFocus: false, retry: 1,
+  });
+  const keys = INTRADAY_SERIES.filter(d => enabled[d.key]).map(d => d.key);
+  const shell = (inner: ReactNode) => (
+    <div className="h-[240px] flex flex-col items-center justify-center text-xs text-gray-400 border border-gray-200 rounded gap-0.5">
+      <span className="font-bold text-green-600">{label}</span>{inner}
+    </div>
+  );
+  if (q.isLoading) return shell(<span>불러오는 중…</span>);
+  if (q.isError) return shell(<span className="px-3 text-center">토스에서 못 받음 <span className="text-[10px]">({q.error instanceof Error ? q.error.message.slice(0, 80) : "오류"})</span></span>);
+  if (!q.data?.length) return shell(<span>데이터 없음</span>);
+  return <LongTermInvestorChart points={q.data} keys={keys} interval={interval} label={label} />;
+}
 const KEYS: IntradayKey[] = INTRADAY_SERIES.map(s => s.key);
 const OPEN_KEY = "intraday_investor_open";
 const CARDS_KEY = "intraday_investor_cards";   // 카드 숨김/보임 (체크한 카드만 렌더)
@@ -526,8 +557,10 @@ export function IntradayInvestorSection() {
     try { localStorage.setItem(OPEN_KEY, next ? "on" : "off"); } catch { /* noop */ }
   };
 
-  const [mode, setMode] = useState<"intraday" | "daily">("intraday");
+  const [mode, setMode] = useState<Mode>("intraday");
   const [days, setDays] = useState<number>(22);   // 일별 기간 (기본 1개월)
+  const [longInterval, setLongInterval] = useState<LongFlowInterval>("1w");   // [장기] 주·월·연
+  const longOk = isTossLinkOn();   // 토스 공식 API 를 부를 수 있는 환경(데스크톱 앱 + 연동 켬)에서만 [장기] 버튼
 
   const [enabled, setEnabled] = useState<Record<string, boolean>>(() => {
     const init: Record<string, boolean> = {};
@@ -611,11 +644,12 @@ export function IntradayInvestorSection() {
           {/* 당일/일별 + (일별) 기간 선택 */}
           <div className="flex items-center gap-2 flex-wrap mb-1.5 mt-0.5">
             <div className="flex rounded-md border border-gray-300 overflow-hidden text-xs">
-              {(["intraday", "daily"] as const).map(m => (
+              {(longOk ? ["intraday", "daily", "long"] as const : ["intraday", "daily"] as const).map(m => (
                 <button key={m} onClick={() => setMode(m)}
+                        title={m === "long" ? "주·월·연 집계 — 토스 공식 API(앱 전용)" : undefined}
                         className={`px-3 py-1 font-medium transition ${
                           mode === m ? "bg-gray-800 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
-                  {m === "intraday" ? "당일" : "일별"}
+                  {m === "intraday" ? "당일" : m === "daily" ? "일별" : "장기"}
                 </button>
               ))}
             </div>
@@ -625,6 +659,17 @@ export function IntradayInvestorSection() {
                   <button key={p.days} onClick={() => setDays(p.days)}
                           className={`px-2.5 py-1 font-medium transition ${
                             days === p.days ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+            {mode === "long" && (
+              <div className="flex rounded-md border border-gray-300 overflow-hidden text-xs">
+                {LONG_INTERVALS.map(p => (
+                  <button key={p.key} onClick={() => setLongInterval(p.key)}
+                          className={`px-2.5 py-1 font-medium transition ${
+                            longInterval === p.key ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-50"}`}>
                     {p.label}
                   </button>
                 ))}
@@ -645,7 +690,7 @@ export function IntradayInvestorSection() {
               </div>
             )}
             <span className="text-[10px] text-gray-400">
-              {mode === "intraday" ? "시간별 누적 (당일만 제공)" : "기간 누적 (합계 상단 표시)"} · 전 종목 억원(선물=계약 환산)
+              {mode === "intraday" ? "시간별 누적 (당일만 제공)" : mode === "daily" ? "기간 누적 (합계 상단 표시)" : "구간별 순매수 (토스 공식 · 마지막 구간은 집계중)"} · 전 종목 억원{mode === "long" ? "" : "(선물=계약 환산)"}
             </span>
             <FuturesExpiryBadge />
           </div>
@@ -668,7 +713,7 @@ export function IntradayInvestorSection() {
           <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1 mb-2 pt-1 border-t border-gray-100">
             <span className="text-[10px] text-gray-400 font-medium">카드</span>
             {[
-              ...MARKETS.map(m => ({ key: m.key as string, label: m.label })),
+              ...MARKETS.filter(m => mode !== "long" || m.key !== "futures").map(m => ({ key: m.key as string, label: m.label })),
               ...(mode === "daily" ? LEVERAGE_BASKETS.map(b => ({ key: b.key, label: b.name })) : []),
             ].map(c => (
               <label key={c.key} className="inline-flex items-center gap-1 text-[11px] cursor-pointer select-none">
@@ -679,7 +724,22 @@ export function IntradayInvestorSection() {
           </div>
 
           {/* 코스피 / 선물 / 코스닥 — 보이는 카드만 (폭 자동) */}
-          {(() => {
+          {mode === "long" ? (() => {
+            // [장기] 코스피·코스닥만(선물 집계 없음)
+            const vis = MARKETS.filter(m => m.key !== "futures" && cardVisible(m.key));
+            if (vis.length === 0) return null;
+            const cnt = LONG_INTERVALS.find(x => x.key === longInterval)?.count ?? 26;
+            return (
+              <div className={`grid ${gridColsClass(vis.length, 2)} gap-2`}>
+                {vis.map(m => (
+                  <div key={m.key} className="min-w-0">
+                    <LongTermBlock market={m.key as LongFlowMarket} label={m.label} enabled={enabled}
+                      interval={longInterval} count={cnt} on={open} />
+                  </div>
+                ))}
+              </div>
+            );
+          })() : (() => {
             const vis = MARKETS.filter(m => cardVisible(m.key));
             if (vis.length === 0) return null;
             return (
@@ -688,7 +748,7 @@ export function IntradayInvestorSection() {
                   // min-w-0 — grid 자식 기본 min-width:auto 로 선물(칩 많음) 셀이 안 줄고 나머지를 압축하는 것 방지.
                   <div key={m.key} className="min-w-0">
                     <MarketBlock market={m.key} label={m.label} enabled={enabled}
-                      mode={mode} days={days} on={open} onReady={registerSync} onToggle={toggleInvestor}
+                      mode={mode === "daily" ? "daily" : "intraday"} days={days} on={open} onReady={registerSync} onToggle={toggleInvestor}
                       refFirstT={refRange?.from} refLastT={refRange?.to} />
                     {m.key === "futures" && <FuturesOpenInterestLine on={open} />}
                   </div>
