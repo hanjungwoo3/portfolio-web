@@ -28,7 +28,7 @@ import { BuySellBars, joEok } from "./BuySellBars";
 const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }] as const;
 // 시장 대표 ETF 카드(반도체 탭 첫 줄, 사용자 요청 2026-10-23) — 현물 지수 옆에서 ETF 수급·괴리를 같이 본다
 const ETFS = [{ code: "069500", name: "KODEX 200" }, { code: "229200", name: "KODEX 코스닥150" }] as const;
-const SPARK = ["^KS11", "^KQ11", "KRW=X", "NQ=F", "SOX=F"];   // 야후 spark 1콜(어제+오늘 5분봉) — 뒤 셋은 종목정보 팝업 위 줄
+const SPARK = ["^KS11", "^KQ11", "KRW=X"];   // 야후 spark 1콜(어제+오늘 5분봉) — 환율은 종목정보 팝업 위 줄
 const FLOW_MS = 60_000;
 const US_ROW = ["MU", "NVDA", "SKHY", "SNDK", "AMD", "DRAM"];
 const MEM_ROW = ["DRAMIDX=ML", "DDR5=ML", "DDR4=ML", "NAND=ML"];
@@ -121,7 +121,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   });
   const { data: etfPx } = useQuery({
     queryKey: ["semi-dash-etf-px"], queryFn: () => fetchTossPrices(ETFS.map(e => e.code)),
-    enabled: !popup, refetchInterval: 5_000, staleTime: 3_000,
+    refetchInterval: 5_000, staleTime: 3_000,   // 팝업 위 줄에도 KODEX 200·코스닥150(사용자 2026-10-27 — 반도체 수급 탭 첫 줄처럼)
   });
   const eq = (code: string) => {
     const t = etfPx?.find(p => p.ticker === code);
@@ -277,7 +277,6 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   // 시장 카드(코스피·코스닥·선물(야간엔 야간선물)·V-KOSPI) — 반도체 탭 첫 줄과 종목정보 팝업이 같이 쓴다
   // 시장 대표 ETF 카드 — 팝업엔 넣지 않는다. 순서: 코스피 · 코스피200(KODEX 200) · 코스닥 · 코스닥150(사용자 요청 2026-10-23)
   const etfCard = (i: 0 | 1) => {
-    if (popup) return null;
     const e = ETFS[i], qq = eq(e.code);
     // ETF 는 NXT(넥스트레이드)에 없다 — 정규장(15:30) 마감에 지수 카드와 같이 흐리게(사용자 지적 2026-10-23)
     return <Card title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openIndex}
@@ -347,12 +346,13 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return (
       <div className="flex flex-col gap-1.5 p-2 text-[12px] bg-gray-50 pg-bg">
         {/* 종목 카드 + 시장 카드(반도체 탭과 같은 그래프 카드 — 칩 한 줄보다 낫다, 사용자 요청 2026-10-23) */}
-        {/* 종목 1.4칸 + 시장 카드 8장(지수·선물·V-KOSPI + 환율·나스닥 선물·반도체 선물, 사용자 요청 2026-10-23) */}
+        {/* 종목 1.4칸 + 시장 카드 8장 — 반도체 수급 탭 첫 줄(코스피·KODEX 200·코스닥·KODEX 코스닥150·선물 둘·V-KOSPI) + 환율.
+            나스닥 선물·반도체 선물은 뺐다(사용자 2026-10-27) */}
         <div className="grid grid-cols-3 lg:grid-cols-[1.4fr_repeat(8,minmax(0,1fr))] gap-1.5 auto-rows-[118px] shrink-0">
           <Card title={s0.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
                 chart={<KrDaySparkline code={s0.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />
           {marketCards}
-          {([["KRW=X", "원달러 환율"], ["NQ=F", "나스닥 선물"], ["SOX=F", "반도체 선물(SOX)"]] as const).map(([sym, t]) => (
+          {([["KRW=X", "원달러 환율"]] as const).map(([sym, t]) => (
             <Card key={sym} title={t} price={q(sym)?.price} pct={q(sym)?.pct}
                   chart={spark?.get(sym) && <SparkBg sp={spark.get(sym)!} base={q(sym)?.prevClose} />} />
           ))}
