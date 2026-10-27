@@ -4,6 +4,7 @@ import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { IndexWarnTag } from "./IndexWarnTag";
+import { KrHaltTag } from "./KrHaltTag";
 import { fetchYahooBatch, fetchKrFuturesMinute, fetchKrRegularPrices, daySparkPlan, fetchYahooSparkDay, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries, fetchTossIntraday } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed, isKrAfterRegularClose, nowKstDateStr } from "../lib/format";
@@ -536,7 +537,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     const krTk = krEtfTicker(p.symbol);                         // 한국 6자리(.KS) — 종목·ETF 모두
                     const isKrEtf = !!krTk && !p.krStock;
                     const lv = krTk ? marketAlerts.get(krTk) : undefined;
-                    if (!krTk || (!isKrEtf && !lv)) return null;
+                    if (!krTk) return null;   // 한국 종목이면 늘 줄을 둔다 — 거래정지 책갈피(KrHaltTag)는 받아 봐야 안다
                     const tag = "px-1.5 py-0 rounded text-[10px] font-bold leading-tight border";
                     return (
                       <div className="absolute -top-2 left-1 z-30 flex items-center gap-0.5">   {/* 마감 책갈피(z-20)가 길어도 위로 */}
@@ -548,6 +549,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                         </button>
                         )}
                         {lv && <IndexWarnTag inline ticker={krTk!} name={p.name} level={lv} />}
+                        {p.krStock && <KrHaltTag code={krTk!} />}
                       </div>
                     );
                   })()}

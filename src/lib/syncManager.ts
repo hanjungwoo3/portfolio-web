@@ -5,7 +5,7 @@
 //   "on"      → 자동 sync 활성
 //   "off"     → 일시 중지 (수동 ↑↓ 만)
 
-import { exportAll, replaceAllHoldings, replaceAllPeaks, replaceAllMemos, replaceAllTrades, applyImportedSettings } from "./db";
+import { exportAll, replaceAllHoldings, replaceAllPeaks, replaceAllMemos, replaceAllTrades, applyImportedSettings, loadPeaks } from "./db";
 import type { ExportPayload } from "./db";
 import { signIn, signOut, wasSignedIn, getAccessToken } from "./googleAuth";
 import { downloadFile, uploadFile, getFileMeta, deleteFile, listRevisions, downloadRevision } from "./googleDrive";
@@ -53,7 +53,20 @@ function getLastSyncedTs(): string | null {
 }
 
 function getLastSyncedHash(): string | null {
-  try { return localStorage.getItem(KEY_LAST_SYNCED_HASH); } catch { return null; }
+  try { const h = localStorage.getItem(KEY_LAST_SYNCED_HASH); return h == null ? null : upgradeSyncedHash(h); } catch { return null; }
+}
+/** 옛 지문(2026-10-27 이전: peaks·연동 메타 전체 포함) → 지금 형식. 저장된 '지문'은 normalize 결과 JSON 그대로라 바꿔 읽을 수 있다.
+ *  안 바꾸면 업데이트 직후 모든 기기가 "로컬이 바뀌었다"로 보고 한 번 더 충돌을 물었다. */
+export function upgradeSyncedHash(h: string): string {
+  try {
+    const o = JSON.parse(h) as { holdings?: unknown; peaks?: unknown; memos?: unknown; trades?: unknown; settings?: Record<string, unknown> };
+    const lg = o.settings?.linkedGroups as Record<string, { broker?: string; accountSeq?: string }> | null | undefined;
+    const slim = lg && typeof lg === "object"
+      ? Object.fromEntries(Object.keys(lg).sort().map(g => [g, { broker: lg[g].broker, accountSeq: lg[g].accountSeq }])) : lg;
+    if (!("peaks" in o) && JSON.stringify(slim) === JSON.stringify(lg)) return h;   // 이미 새 형식
+    const settings = o.settings ? { ...o.settings, linkedGroups: slim ?? null } : o.settings;
+    return JSON.stringify({ holdings: o.holdings, memos: o.memos, trades: o.trades, settings });
+  } catch { return h; }
 }
 
 // 로그인 + 모드 OFF 로 시작 (자동 sync 는 사용자가 명시적으로 ON 해야 활성)
@@ -115,9 +128,9 @@ export function normalize(p: ExportPayload): string {
       source: s.source ?? "",   // 증권사 연동 표식 — 빠지면 Drive 왕복 뒤 잠금이 풀린다(테스트 있음)
     }))
     .sort((a, b) => `${a.ticker}|${a.account}`.localeCompare(`${b.ticker}|${b.account}`));
-  const peakKeys = Object.keys(p.peaks ?? {}).sort();
-  const peaks: Record<string, number> = {};
-  for (const k of peakKeys) peaks[k] = p.peaks[k];
+  // peaks(최고가)는 **지문에서 뺀다** — 가격이 오를 때마다 기기마다 스스로 갱신해, 앱과 웹을 같이 켜 두면 양쪽 다 '바뀜'이
+  //   되어 아무것도 안 고쳤는데 매번 "Drive 와 다르다, 가져올까?" 를 물었다(사용자 2026-10-27). 값은 payload 로 계속 오가고,
+  //   받을 때 기기 값과 **큰 쪽**을 남긴다(downloadFromDrive) — 앞으로만 가는 값이라 합쳐도 잃는 게 없다.
   // memos — updatedAt 은 noise (저장 시점 차이) 라 정규화에서 제외, 콘텐츠만 비교
   //
   // ⚠️ **Memo 에 필드를 추가하면 여기에도 반드시 넣어야 한다.** 빠뜨리면 그 필드만 바꿨을 때
@@ -164,9 +177,14 @@ export function normalize(p: ExportPayload): string {
     personalProxyUrl: s.personalProxyUrl ?? null,
     personalProxies: s.personalProxies ?? null,
     personalPollMs: s.personalPollMs ?? null,
-    linkedGroups: s.linkedGroups ?? null,   // 증권사 연동 그룹 메타(비밀 없음)
+    // 증권사 연동 그룹 — **어떤 계좌가 어느 그룹인지만**. 갱신 시각(lastSyncAt·lastTradeSyncAt)·오류·평단 환산 기억(usdAvg)은
+    //   앱이 5분마다 스스로 바꾸는 값이라 지문에 넣으면 앱 쪽이 늘 '바뀜'이 되어 충돌 질문이 반복됐다(위 peaks 와 같은 사고).
+    //   받을 때도 그 값들은 이 기기 것을 지킨다(db.applyImportedSettings → mergeLinkedGroups).
+    linkedGroups: s.linkedGroups
+      ? Object.fromEntries(Object.keys(s.linkedGroups).sort().map(g => [g, { broker: s.linkedGroups![g].broker, accountSeq: s.linkedGroups![g].accountSeq }]))
+      : null,
   };
-  return JSON.stringify({ holdings, peaks, memos, trades, settings });
+  return JSON.stringify({ holdings, memos, trades, settings });
 }
 
 // ─── 빈 데이터 덮어쓰기 방지 ─────────────────────────────────
@@ -207,7 +225,12 @@ export async function downloadFromDrive(): Promise<boolean> {
   if (!result) return false;
   const { data, modifiedTime } = result;
   if (data.holdings) await replaceAllHoldings(data.holdings);
-  if (data.peaks) await replaceAllPeaks(data.peaks);
+  if (data.peaks) {   // 최고가는 큰 쪽을 남긴다(지문 밖 — normalize 주석). 이전 버전 복구(restoreDriveBackup)는 통째로 되돌린다
+    const mine = await loadPeaks();
+    const merged: Record<string, number> = { ...data.peaks };
+    for (const [t, v] of mine) if (!(merged[t] >= v)) merged[t] = v;
+    await replaceAllPeaks(merged);
+  }
   // memos — 구버전 payload 에 없으면 빈 배열 (= 메모 없음 상태로 동기화)
   await replaceAllMemos(data.memos ?? []);
   // trades(거래기록) — 구버전 payload 에 없으면 빈 배열로 동기화

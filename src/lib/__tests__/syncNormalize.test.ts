@@ -89,3 +89,54 @@ describe("normalize — 증권사 연동 필드", () => {
     expect(normalize(p(h, { linkedGroups: { "토스(연동)": { broker: "toss", accountSeq: "1" } } }))).not.toBe(normalize(p(h, {})));
   });
 });
+
+// 앱과 웹을 같이 켜 두면 아무것도 안 고쳤는데 매번 "Drive 와 다르다, 가져올까?" 를 물었다(사용자 2026-10-27).
+//   기기가 스스로 바꾸는 값(최고가·연동 갱신 시각)이 지문에 있었기 때문 — 이 값들은 지문을 바꾸면 안 된다.
+describe("normalize — 기기가 스스로 바꾸는 값은 지문 밖", () => {
+  const h = { ticker: "005930", name: "삼성전자", shares: 1, avg_price: 1, account: "토스" };
+  const p = (over: Partial<ExportPayload>): ExportPayload =>
+    ({ holdings: [h as ExportPayload["holdings"][number]], peaks: {}, memos: [], trades: [], exported_at: "x", ...over });
+  const lg = (meta: object) => ({ settings: { linkedGroups: { "토스": { broker: "toss", accountSeq: "1", ...meta } } } as ExportPayload["settings"] });
+  it("최고가가 올라도 지문은 그대로", () => {
+    expect(normalize(p({ peaks: { "005930": 90000 } }))).toBe(normalize(p({ peaks: { "005930": 91000 } })));
+  });
+  it("연동 갱신 시각·오류·평단 환산 기억이 바뀌어도 지문은 그대로", () => {
+    expect(normalize(p(lg({ lastSyncAt: "2026-10-27T01:00:00Z", lastTradeSyncAt: "a", usdAvg: { MU: { usd: 1, qty: 1, krw: 1 } } }))))
+      .toBe(normalize(p(lg({ lastSyncAt: "2026-10-27T01:05:00Z", lastError: "429" }))));
+  });
+  it("연결 계좌가 바뀌면 지문도 바뀐다", () => {
+    expect(normalize(p(lg({ accountSeq: "2" })))).not.toBe(normalize(p(lg({}))));
+  });
+});
+
+describe("mergeLinkedGroups — 받을 때 기기 값 지키기", () => {
+  it("같은 계좌면 갱신 시각은 최신 쪽, 평단 환산 기억은 이 기기 것", async () => {
+    const { mergeLinkedGroups } = await import("../db");
+    const local = { "토스": { broker: "toss" as const, accountSeq: "1", lastSyncAt: "2026-10-27T01:05:00Z", usdAvg: { MU: { usd: 1, qty: 1, krw: 1 } } } };
+    const remote = { "토스": { broker: "toss" as const, accountSeq: "1", lastSyncAt: "2026-10-26T10:00:00Z", lastError: "옛 오류" } };
+    const m = mergeLinkedGroups(local, remote);
+    expect(m["토스"].lastSyncAt).toBe("2026-10-27T01:05:00Z");
+    expect(m["토스"].lastError).toBeUndefined();
+    expect(m["토스"].usdAvg).toEqual(local["토스"].usdAvg);
+  });
+  it("계좌가 다르거나 이 기기에 없으면 Drive 것 그대로", async () => {
+    const { mergeLinkedGroups } = await import("../db");
+    const remote = { "한국투자": { broker: "kis" as const, accountSeq: "9", lastSyncAt: "z" } };
+    expect(mergeLinkedGroups({}, remote)).toEqual(remote);
+  });
+});
+
+describe("upgradeSyncedHash — 옛 지문을 새 형식으로", () => {
+  it("옛 normalize 결과(peaks·연동 메타 전체)를 바꾸면 지금 normalize 와 같다", async () => {
+    const { upgradeSyncedHash } = await import("../syncManager");
+    const h = { ticker: "005930", name: "삼성전자", shares: 1, avg_price: 1, account: "토스" };
+    const pl: ExportPayload = { holdings: [h as ExportPayload["holdings"][number]], peaks: { "005930": 9 }, memos: [], trades: [], exported_at: "x",
+      settings: { independentGroups: true, linkedGroups: { "토스": { broker: "toss", accountSeq: "1", lastSyncAt: "t" } } } as ExportPayload["settings"] };
+    const now = JSON.parse(normalize(pl));
+    // 옛 형식 재현 — peaks 를 holdings 뒤에, linkedGroups 는 원본 그대로
+    const old = JSON.stringify({ holdings: now.holdings, peaks: { "005930": 9 }, memos: now.memos, trades: now.trades,
+      settings: { ...now.settings, linkedGroups: pl.settings!.linkedGroups } });
+    expect(upgradeSyncedHash(old)).toBe(normalize(pl));
+    expect(upgradeSyncedHash(normalize(pl))).toBe(normalize(pl));   // 새 형식은 그대로
+  });
+});

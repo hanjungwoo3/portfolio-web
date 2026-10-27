@@ -579,7 +579,27 @@ export function applyImportedSettings(settings?: ExportPayload["settings"]): voi
   if (Array.isArray(settings.personalProxies)) setPersonalProxies(settings.personalProxies);
   else if (settings.personalProxyUrl !== undefined) setPersonalProxyUrl(settings.personalProxyUrl);
   if (typeof settings.personalPollMs === "number") setPersonalPollMs(settings.personalPollMs);
-  if (settings.linkedGroups) setLinkedGroups(settings.linkedGroups);
+  if (settings.linkedGroups) setLinkedGroups(mergeLinkedGroups(getLinkedGroups(), settings.linkedGroups));
+}
+
+// 연동 메타 받기 — 계좌·그룹은 Drive 대로, 기기가 스스로 쓰는 값(갱신 시각·오류·평단 환산 기억)은 같은 계좌면 이 기기 것을 지킨다.
+//   지문(syncManager.normalize)에서 뺀 값이라, 그대로 덮으면 앱의 최근 갱신 시각이 다른 기기의 옛 값으로 되돌아간다.
+export function mergeLinkedGroups(local: LinkedGroups, remote: LinkedGroups): LinkedGroups {
+  const out: LinkedGroups = {};
+  const newer = (a?: string, b?: string) => (!a ? b : !b ? a : a > b ? a : b);
+  for (const [g, r] of Object.entries(remote)) {
+    const l = local[g];
+    if (!l || l.broker !== r.broker || l.accountSeq !== r.accountSeq) { out[g] = r; continue; }
+    const localNewer = !!l.lastSyncAt && (!r.lastSyncAt || l.lastSyncAt >= r.lastSyncAt);
+    out[g] = {
+      ...r,
+      lastSyncAt: newer(l.lastSyncAt, r.lastSyncAt),
+      lastTradeSyncAt: newer(l.lastTradeSyncAt, r.lastTradeSyncAt),
+      lastError: localNewer ? l.lastError : r.lastError,
+      usdAvg: l.usdAvg ?? r.usdAvg,
+    };
+  }
+  return out;
 }
 
 // 증권사 연동 해제 — 그 그룹의 연동 행을 손으로 넣은 행처럼 풀어 준다(보유는 남기고 잠금만 해제)

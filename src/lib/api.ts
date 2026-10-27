@@ -421,7 +421,11 @@ export function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | n
   // '어제' = 정규장이 있던 가장 가까운 전날. 미국 5분봉엔 **일요일 밤 오버나이트**(20:00~24:00 ET) 봉이 일요일 날짜로 섞여 와서
   //   월요일 아침엔 어제가 일요일이 되고(정규장 없음) 어제 시작·종가 세로선이 사라졌다(2026-10-26 "앱에서만 세로선이 안 보여" —
   //   앱은 야후 spark 가 429 라 이 토스 폴백을 탄다). 정규장 봉이 하나라도 있는 날을 어제로 삼는다.
-  const inRegular = (c: TossBar) => { const hm = c.dt.slice(11, 16); return hm >= openHHMM && hm <= closeHHMM; };
+  // 거래량 0 봉 = 체결 없음 — 거래정지 종목도 토스는 같은 값(어제 종가)으로 빈 봉을 채워 보낸다(유니슨 2026-10-21~27, 5거래일 전부 1,044·거래량 0).
+  //   그대로면 선이 기준선과 겹쳐 사라지고, 시간표 세로선만 섰다(사용자 2026-10-27). 거래량이 없는 응답(undefined)은 체결로 본다.
+  const traded = (c: TossBar) => (c.volume ?? 1) > 0;
+  if (!rows.some(traded)) return null;   // 체결이 하나도 없다(거래정지 등) → 24시간 대신 3개월 그래프로
+  const inRegular = (c: TossBar) => { const hm = c.dt.slice(11, 16); return traded(c) && hm >= openHHMM && hm <= closeHHMM; };
   const prevDay = days.slice(li + 1).find(d => barsOf(d).some(inRegular)) ?? days[li + 1];
   const latest = barsOf(days[li]), prev = barsOf(prevDay);
   const oi = latest.findIndex(c => c.dt.slice(11, 16) >= openHHMM);
@@ -440,7 +444,7 @@ export function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | n
   // 세로선 — 위치는 시간표, 그릴지는: 오늘이면 시각이 지났는지 + 그날 장이 열렸는지(개장 뒤 봉이 하나라도), 지난 날이면 정규장 봉이 있었는지(휴장 제외)
   const hm2min = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
   const fHM = (hm: string) => Math.min(1, Math.max(0, (hm2min(hm) - startMin) / spanMin));
-  const opened = latest.some(c => c.dt.slice(11, 16) >= openHHMM);
+  const opened = latest.some(c => traded(c) && c.dt.slice(11, 16) >= openHHMM);
   const sess: SessionMarks = {
     open: fHM(openHHMM), close: fHM(closeHHMM),
     todayOpen: latestIsToday ? opened && nowMin >= hm2min(openHHMM) : latest.some(inRegular),
@@ -466,7 +470,7 @@ export function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | n
 //   지수 카드(KrDaySparkline·야후 spark)와 같은 모양(어제 종가선 위 빨강·아래 파랑, 정규장 시작 세로선)으로 그리려고
 //   종가만 주던 걸 넓혔다(2026-10-21). 한국 = 08:00~20:00 KST(정규 09:00), 미국 = 00:00~24:00 ET(정규 09:30).
 //   오늘 봉이 1개라도 있으면 오늘(실시간 끝점과 이어 선이 된다), 없을 때만 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
-export interface DaySeries { markXs?: MarkX[]; rolling?: boolean; closes: number[]; volumes?: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
+export interface DaySeries { halted?: boolean; markXs?: MarkX[]; rolling?: boolean; closes: number[]; volumes?: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
 export async function fetchTossIntraday(ticker: string): Promise<DaySeries | null> {
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
   const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));
@@ -4310,6 +4314,8 @@ export async function fetchKrDayCandles(code: string): Promise<KrDayCandles | nu
   try {
     // 5분봉 이틀(어제+오늘 = 288개) — 1콜. 어제 하루를 왼쪽 절반에 이어 붙인다(buildTwoDaySeries)
     const cs = await fetchTossMinuteBars(`kr-s/A${code}`, 1);
+    // 이틀 내내 체결 0(거래정지 등) — 토스는 빈 봉을 채워 보낸다. 시계열 대신 표시만(카드 '거래정지' 책갈피, 그래프는 3개월로)
+    if (cs.length && !cs.some(c => (c.volume ?? 1) > 0)) return { closes: [], halted: true };
     return cs.length ? buildTwoDaySeries(cs, true) : null;
   } catch { return null; }
 }

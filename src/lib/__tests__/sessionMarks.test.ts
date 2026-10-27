@@ -3,6 +3,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { buildTwoDaySeries, rollDay } from "../api";
 import jnj from "./fixtures/toss_us_5m_jnj_20261026.json";
+import unison from "./fixtures/toss_kr_5m_unison_halted_20261027.json";
 
 // 토스 미국 축 = 00:00~24:00 ET. 09:30 = 0.3958, 16:00 = 0.6667
 const OPEN = 9.5 / 24, CLOSE = 16 / 24;
@@ -49,5 +50,20 @@ describe("토스 5분봉 실제 응답(JNJ, 2026-10-26)", () => {
     const early = jnj.filter(c => c.dt.slice(0, 10) !== "2026-10-26" || c.dt.slice(11, 16) <= "08:00");
     const s = buildTwoDaySeries(early, false)!;
     expect((s.markXs ?? []).filter(m => m.x > 0.5)).toEqual([]);   // 오른쪽(오늘) 칸엔 선 없음
+  });
+});
+
+describe("거래정지(체결 0) — 유니슨 실제 응답 2026-10-27", () => {
+  it("모든 봉이 거래량 0 이면 24시간 시계열을 만들지 않는다(3개월로) — 선이 기준선에 묻히고 세로선만 서던 문제", () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-27T01:10:00Z"));   // 10:10 KST
+    expect(buildTwoDaySeries(unison, true)).toBeNull();
+    vi.useRealTimers();
+  });
+  it("오늘만 체결이 없으면(장 시작 전 빈 봉) 오늘 세로선은 안 선다", () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-27T00:25:00Z"));   // 20:25 ET 월
+    const rows = jnj.map(c => c.dt.slice(0, 10) === "2026-10-26" ? { ...c, volume: 0 } : c);
+    const s = buildTwoDaySeries(rows, false)!;
+    expect((s.markXs ?? []).filter(m => m.x > 0.5)).toEqual([]);
+    vi.useRealTimers();
   });
 });
