@@ -889,11 +889,11 @@ export function StockCard({
             <span title={`토스 연동 보유 — 토스 값으로 자동 갱신, 여기서 수정·삭제 불가${syncedAt ? ` (토스 기준 ${syncedAt})` : ""}`}
                   className="inline-flex items-center px-1 text-[10px] text-violet-700 cursor-help">🔗</span>
           )}
-          {onEdit && !synced && (
+          {onEdit && (
             <button
               type="button"
               onClick={() => onEdit(stock)}
-              title="수정"
+              title={synced ? "거래 기록 / 그룹" : "수정"}
               className="opacity-60 hover:opacity-100 inline-flex items-center
                          text-slate-600 hover:text-slate-900
                          px-0.5 transition-opacity">

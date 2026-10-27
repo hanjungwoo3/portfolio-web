@@ -9,6 +9,12 @@ import {
 import { TradeLogSection } from "./TradeLogSection";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { useEscClose } from "../lib/useEscClose";
+import { getGroupFolders, type GroupFolder } from "../lib/groupFolders";
+import { FolderIcon } from "./FolderIcon";
+import { isLinkedGroup, isSyncedHolding } from "../lib/linkedGroups";
+
+// 그룹 선택은 폴더 줄마다 "든 그룹 칩 + 고르는 select" — 그룹이 40개 넘으면 칩 전부는 화면을 다 먹는다
+// (사용자 2026-10-27: "폴더들을 나열하고 각 폴더들에서 selectbox로 선택"). 폴더 밖 그룹은 '폴더 없음' 줄.
 
 // 모드별 적용 — sync OFF 면 단건만, ON 이면 모든 그룹 sync
 async function applyTickerUpdate(
@@ -79,6 +85,7 @@ export function EditHoldingDialog({
   const [originalGroups, setOriginalGroups] = useState<Set<string>>(new Set());
   const [allGroups, setAllGroups] = useState<string[]>([]);
   const [newGroup, setNewGroup] = useState("");
+  const [folders, setFolders] = useState<GroupFolder[]>([]);
 
   // 다이얼로그 열릴 때 (혹은 다른 종목으로 변경 시) 그룹 정보 로드 + 로컬 보유/입력 초기화
   useEffect(() => {
@@ -99,6 +106,7 @@ export function EditHoldingDialog({
       setGroupSelection(new Set(current));
       setOriginalGroups(new Set(current));
       setAllGroups(userGroups.filter(Boolean));
+      setFolders(getGroupFolders());
       setNewGroup("");
       setErr("");
     })();
@@ -111,6 +119,10 @@ export function EditHoldingDialog({
   const curAvg = cur.avg_price;
   const curInvested = cur.invested ?? Math.round(curShares * curAvg);
   const independent = getIndependentGroupsMode();  // 그룹별 독립 보유 모드
+  // 증권사 연동 보유 — 수량·평단은 증권사 값으로 자동 갱신이라 매수/매도/직접수정은 숨기고
+  // 거래 기록(증권사 주문 이력도 이 그룹 계정으로 저장됨)과 그룹만 보여준다(사용자 요청 2026-10-27:
+  // "이 거래기록이 증권사연결 종목에서는 볼 곳이 없어").
+  const synced = isSyncedHolding(cur);
 
   const toggleGroup = (g: string) => {
     setGroupSelection(prev => {
@@ -120,6 +132,14 @@ export function EditHoldingDialog({
       return next;
     });
   };
+
+  // 폴더 줄 — 폴더에 등록됐지만 아직 보유가 없는 빈 그룹도 고를 수 있게(여기서 종목을 넣어 채운다).
+  // 폴더 밖 그룹(새로 만든 그룹 포함)은 '폴더 없음' 줄. 선택 상태(groupSelection)는 줄과 무관하게 전체 하나.
+  const inAnyFolder = new Set(folders.flatMap(f => f.groups));
+  const folderRows: { name: string; folder: boolean; groups: string[] }[] = [
+    ...folders.map(f => ({ name: f.name, folder: true, groups: f.groups })),
+    { name: "폴더 없음", folder: false, groups: allGroups.filter(g => !inAnyFolder.has(g)) },
+  ].filter(r => r.groups.length > 0);
 
   const addNewGroupMark = () => {
     const g = newGroup.trim();
@@ -274,6 +294,12 @@ export function EditHoldingDialog({
             )}
           </div>
 
+          {synced && (
+            <div className="text-[11px] text-violet-700 bg-violet-50 border border-violet-200 rounded px-2 py-1">
+              🔗 증권사 연동 보유 — 수량·평단가는 증권사 값으로 자동 갱신됩니다. 여기서는 거래 기록과 그룹만 다룹니다.
+            </div>
+          )}
+          {!synced && (<>
           {/* 모드 탭 */}
           <div className="flex gap-1">
             {tabBtn("buy", "➕ 추가매수")}
@@ -381,6 +407,7 @@ export function EditHoldingDialog({
               : mode === "sell" ? "➖ 매도 적용 (기록 추가)"
               : "⚙️ 직접수정 적용"}
           </button>
+          </>)}
 
           {/* 📒 거래 기록 — 매수/매도 바로 아래. 보유와 별개 로그(추가/수정/삭제는 보유 무관) */}
           <TradeLogSection ticker={stock.ticker} account={stock.account} refreshKey={logKey} />
@@ -388,26 +415,48 @@ export function EditHoldingDialog({
           {/* 그룹 토글 — 클릭 = 추가/제외, [그룹 적용] 으로 별도 반영 */}
           <div className="border-t pt-3 space-y-1.5">
             <label className="text-xs font-bold text-gray-700 block">
-              이 종목이 속한 그룹 (클릭 = 추가/제외)
+              이 종목이 속한 그룹
             </label>
             <p className="text-[11px] text-gray-500 leading-relaxed">
-              체크된 그룹 = 이 종목이 포함된 그룹입니다. 클릭으로 넣거나 빼고 <b>[적용]</b> 시 반영됩니다.
+              폴더마다 <b>선택 상자</b>로 그룹을 넣고, 파란 칩을 클릭하면 뺍니다. <b>[그룹 변경 적용]</b> 시 반영됩니다.
               {independent && (
                 <><br />그룹별 독립 보유가 설정되어 있어 수량과 매수가가 선택한 그룹 전체에 적용되지는 않습니다.</>
               )}
             </p>
-            <div className="flex flex-wrap items-center gap-1.5">
-              {allGroups.map(g => {
-                const active = groupSelection.has(g);
+            {/* 폴더 줄마다: 이 종목이 든 그룹 칩(클릭 = 빼기) + 그룹 고르는 select(고르면 넣기) */}
+            <div className="space-y-1.5">
+              {folderRows.map(row => {
+                const picked = row.groups.filter(g => groupSelection.has(g));
+                const rest = row.groups.filter(g => !groupSelection.has(g) && !isLinkedGroup(g));
                 return (
-                  <button key={g}
-                          onClick={() => toggleGroup(g)}
-                          className={`px-2.5 py-1 text-xs rounded border transition
-                                      ${active
-                                        ? "bg-blue-600 text-white border-blue-700 font-bold"
-                                        : "bg-white hover:bg-gray-50 text-gray-700 border-gray-300"}`}>
-                    {active ? "✓ " : ""}{g}
-                  </button>
+                  <div key={row.name} className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-gray-700 inline-flex items-center gap-1 shrink-0">
+                      {row.folder && <FolderIcon folder={row.name} />}{row.name}
+                      <span className="text-[10px] text-gray-400">{picked.length}/{row.groups.length}</span>
+                    </span>
+                    {picked.map(g => {
+                      const locked = isLinkedGroup(g);   // 증권사 연동 그룹은 동기화가 관리 — 손으로 넣고 빼지 않는다
+                      return (
+                        <button key={g} type="button"
+                                onClick={() => { if (!locked) toggleGroup(g); }}
+                                disabled={locked}
+                                title={locked ? "증권사 연동 그룹 — 동기화로 자동 관리" : `클릭 = "${g}" 에서 제외`}
+                                className={`px-2 py-0.5 text-xs rounded border transition font-bold
+                                            bg-blue-600 text-white border-blue-700
+                                            ${locked ? "cursor-not-allowed opacity-70" : "hover:bg-rose-600 hover:border-rose-700"}`}>
+                          ✓ {locked ? "🔗" : ""}{g}
+                        </button>
+                      );
+                    })}
+                    <select value="" aria-label={`${row.name} 그룹 선택`}
+                            disabled={rest.length === 0}
+                            onChange={e => { if (e.target.value) toggleGroup(e.target.value); }}
+                            className="border rounded px-1.5 py-0.5 text-xs bg-white text-gray-700
+                                       disabled:opacity-40 focus:outline-none focus:border-blue-500 max-w-[10rem]">
+                      <option value="">{rest.length === 0 ? "모두 선택됨" : "＋ 그룹 선택…"}</option>
+                      {rest.map(g => <option key={g} value={g}>{g}</option>)}
+                    </select>
+                  </div>
                 );
               })}
               <div className="flex items-center gap-1 ml-1">

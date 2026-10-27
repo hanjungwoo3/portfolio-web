@@ -403,9 +403,9 @@ export function MobileStockCard({
           {isSyncedHolding(stock) && (
             <span title="증권사 연동 보유 — 자동 갱신, 수정·삭제 불가" className="px-1 text-[11px] text-violet-700">🔗</span>
           )}
-          {onEdit && !isSyncedHolding(stock) && (
+          {onEdit && (
             <button onClick={() => onEdit(stock)}
-                    title="수정 / 매수 / 매도"
+                    title={isSyncedHolding(stock) ? "거래 기록 / 그룹" : "수정 / 매수 / 매도"}
                     className="px-2 py-1 rounded bg-gray-100 hover:bg-gray-200
                                text-gray-700 inline-flex items-center leading-none">
               <Settings size={14} strokeWidth={2.2} />

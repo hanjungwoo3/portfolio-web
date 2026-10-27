@@ -38,6 +38,9 @@ const CF_GUIDE_URL = "https://github.com/hanjungwoo3/portfolio-web/blob/main/wor
 import { getIndependentGroupsMode, setIndependentGroupsMode } from "../lib/groupMode";
 import { getTabVisibility, setTabVisibility, getMarketSplit, setMarketSplit, TAB_VIS_ITEMS, type TabVisibility } from "../lib/tabVisibility";
 import { getGroupFolders, setGroupFolders, type GroupFolder } from "../lib/groupFolders";
+import { FolderMembersEditor } from "./FolderMembersEditor";
+import { SettingsTabBar } from "./SettingsTabBar";
+import { getLastSettingsTab, setLastSettingsTab, type SettingsTabKey } from "../lib/settingsTabs";
 import { findTickerConflicts, type TickerConflict } from "../lib/db";
 import { GroupConflictDialog } from "./GroupConflictDialog";
 import { detectPortfolioJson } from "../lib/portfolioImport";
@@ -93,6 +96,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
   const [tabVis, setTabVis] = useState(getTabVisibility());
   const [folders, setFolders] = useState<GroupFolder[]>([]);
   const [newFolderName, setNewFolderName] = useState("");
+  const [tab, setTab] = useState<SettingsTabKey>(getLastSettingsTab());
+  const pickTab = (t: SettingsTabKey) => { setTab(t); setLastSettingsTab(t); };
 
   const persistFolders = (next: GroupFolder[]) => {
     setFolders(next);
@@ -105,17 +110,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
     persistFolders([...folders, { name: n, groups: [] }]);
     setNewFolderName("");
   };
-  const toggleGroupInFolder = (folderName: string, group: string, checked: boolean) => {
-    // 한 그룹은 한 폴더만 — 체크 시 다른 폴더에서 제거
-    const next = folders.map(f => {
-      if (f.name === folderName) {
-        return { ...f, groups: checked ? Array.from(new Set([...f.groups, group])) : f.groups.filter(g => g !== group) };
-      }
-      return checked ? { ...f, groups: f.groups.filter(g => g !== group) } : f;
-    });
-    persistFolders(next);
-  };
-
   const toggleTab = (key: keyof TabVisibility, v: boolean) => {
     const next = { ...tabVis, [key]: v };
     setTabVis(next);
@@ -505,8 +499,10 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
           <button onClick={onClose}
                   className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
+        <SettingsTabBar tab={tab} onChange={pickTab} />
 
         <div className="px-5 py-3 space-y-3 flex-1 flex flex-col min-h-0 overflow-y-auto">
+          {tab === "sync" && (<>
           {/* Google Drive 동기화 */}
           <div className="border border-gray-200 rounded p-2.5 bg-emerald-50/40 space-y-1.5">
             <div className="text-xs font-bold text-gray-700">
@@ -668,11 +664,16 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
             </div>
           </div>
 
+          </>)}
+
+          {tab === "broker" && (<>
           {/* 증권사 연결(토스 Open API) — 데스크톱 앱만 실제 연결, 웹은 안내 */}
           <BrokerLinkSection />
           <KisLinkSection />
+          </>)}
 
           {/* 전용 프록시 URL */}
+          {tab === "proxy" && (
           <div className="border border-gray-200 rounded p-2.5 bg-blue-50/30 space-y-1">
             <div className="text-xs font-bold text-gray-700">
               🔧 내 전용 프록시 (여러 개 가능)
@@ -847,6 +848,10 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                 </a>
               </div>
             )}
+          </div>)}
+
+          {tab === "general" && (
+          <div className="border border-gray-200 rounded p-2.5 bg-blue-50/30 space-y-1">
             {/* 폴링 주기 — 공개는 5분·수동만. 그보다 빠른 건 전용 전송(확장·앱·개인 워커)일 때만.
                 확장·앱은 브라우저/폰이 직접 요청하므로 워커 호출 한도가 아예 없다. */}
             {/* 폭이 좁으면 버튼이 눌려 글자가 세로로 쪼개졌다("수\n동", "5\n초") →
@@ -998,29 +1003,18 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               </div>
             </div>
 
-            {/* 그룹 폴더 — 그룹을 폴더로 묶어 탭 단순화 */}
+          </div>)}
+
+          {/* 그룹 폴더 — 그룹을 폴더로 묶어 탭 단순화 */}
+          {tab === "folders" && (
+          <div className="border border-gray-200 rounded p-2.5 space-y-1">
+            {groups.length === 0 && (
+              <div className="text-xs text-gray-400">그룹이 아직 없습니다 — 검색으로 종목을 그룹에 넣으면 여기서 폴더로 묶을 수 있습니다.</div>
+            )}
             {groups.length > 0 && (
-              <div className="mt-3 pt-2 border-t border-gray-200">
+              <div>
                 <div className="text-[11px] text-gray-700 font-medium mb-1.5">📁 그룹 폴더</div>
-                {folders.map(f => (
-                  <div key={f.name} className="mb-2 p-2 border border-gray-200 rounded">
-                    <div className="flex items-center mb-1">
-                      <span className="text-xs font-bold text-gray-800">📁 {f.name}</span>
-                      <button onClick={() => persistFolders(folders.filter(x => x.name !== f.name))}
-                              className="ml-auto text-[10px] text-rose-500 hover:underline">폴더 삭제</button>
-                    </div>
-                    <div className="flex flex-wrap gap-x-3 gap-y-1">
-                      {groups.map(g => (
-                        <label key={g} className="flex items-center gap-1 cursor-pointer select-none">
-                          <input type="checkbox" checked={f.groups.includes(g)}
-                                 onChange={e => toggleGroupInFolder(f.name, g, e.target.checked)}
-                                 className="w-3.5 h-3.5 accent-blue-600" />
-                          <span className="text-[11px] text-gray-700">{g}</span>
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-                ))}
+                <FolderMembersEditor folders={folders} groups={groups} onChange={persistFolders} />
                 <div className="flex items-center gap-1.5 mt-1">
                   <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
                          onKeyDown={e => { if (e.key === "Enter") addFolder(); }}
@@ -1033,11 +1027,11 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                   </button>
                 </div>
                 <div className="text-[10px] text-gray-500 mt-1">
-                  그룹을 폴더에 담으면 상단 탭에서 "📁 폴더 ▾" 드롭다운으로 합쳐 보입니다. (그룹은 한 폴더에만)
+                  그룹을 폴더에 담으면 상단 탭에서 "📁 폴더 ▾" 드롭다운으로 합쳐 보입니다. 그룹은 한 폴더에만 — 다른 폴더의 그룹을 고르면 옮겨집니다.
                 </div>
               </div>
             )}
-          </div>
+          </div>)}
 
         </div>
 

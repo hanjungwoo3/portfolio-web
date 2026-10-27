@@ -29,19 +29,27 @@ export const DEFAULT_KIS_GROUP = "한국투자";
 /** 연동 그룹을 담는 폴더 — 지수 탭 바로 오른쪽에 고정(사용자 결정 2026-10-26). 증권사별 그룹(토스·한국투자…)이 이 안에 */
 export const BROKER_FOLDER = "증권사연결";
 
-/** 연동 그룹이 폴더 밖에 있으면 '증권사연결' 폴더에 넣는다(없으면 폴더 생성). 바꾼 게 있으면 true */
+/** '증권사연결' 폴더는 자동 관리 — 연동 그룹이 폴더 밖에 있으면 넣고(없으면 폴더 생성), 수동 그룹이 들어 있으면 뺀다.
+ *  들어가는 것도 나가는 것도 자동(사용자 2026-10-27: "증권사연결에서는 삭제도 자동아냐?"). 바꾼 게 있으면 true */
 export function ensureLinkedGroupsInFolder(): boolean {
-  const linked = Object.keys(getLinkedGroups());
-  if (!linked.length) return false;
+  const linkedSet = new Set(Object.keys(getLinkedGroups()));
   const folders = getGroupFolders();
+  let changed = false;
+  const bf = folders.find(f => f.name === BROKER_FOLDER);
+  if (bf) {
+    const kept = bf.groups.filter(g => linkedSet.has(g));
+    if (kept.length !== bf.groups.length) { bf.groups = kept; changed = true; }
+  }
   const inAny = new Set(folders.flatMap(f => f.groups));
-  const missing = linked.filter(g => !inAny.has(g));
-  if (!missing.length) return false;
-  let bf = folders.find(f => f.name === BROKER_FOLDER);
-  if (!bf) { bf = { name: BROKER_FOLDER, groups: [] }; folders.push(bf); }
-  bf.groups = Array.from(new Set([...bf.groups, ...missing]));
-  setGroupFolders(folders);
-  return true;
+  const missing = [...linkedSet].filter(g => !inAny.has(g));
+  if (missing.length) {
+    const target = bf ?? { name: BROKER_FOLDER, groups: [] as string[] };
+    if (!bf) folders.push(target);
+    target.groups = Array.from(new Set([...target.groups, ...missing]));
+    changed = true;
+  }
+  if (changed) setGroupFolders(folders);
+  return changed;
 }
 /** 그룹 이름이 바뀔 때 연동 메타 키도 따라간다(db.renameGroup 이 부른다) */
 export function moveLinkedGroupName(oldName: string, newName: string): void {
@@ -71,6 +79,10 @@ export function setLinkedGroup(group: string, meta: LinkedGroupMeta): void {
 export function removeLinkedGroup(group: string): void {
   const all = getLinkedGroups();
   if (group in all) { delete all[group]; setLinkedGroups(all); }
+  // 연동 해제 → 이제 수동 그룹이므로 자동 관리 폴더에서도 뺀다(보유 row 는 그대로, 폴더 밖 일반 탭으로)
+  const folders = getGroupFolders();
+  const bf = folders.find(f => f.name === BROKER_FOLDER);
+  if (bf && bf.groups.includes(group)) { bf.groups = bf.groups.filter(g => g !== group); setGroupFolders(folders); }
 }
 export function isLinkedGroup(group: string | null | undefined): boolean {
   return !!group && group in getLinkedGroups();

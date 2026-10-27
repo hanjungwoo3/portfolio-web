@@ -4,6 +4,9 @@ import { BrokerLinkSection } from "./BrokerLinkSection";
 import { KisLinkSection } from "./KisLinkSection";
 import { isLinkedGroup, linkedGroupOf, BROKER_FOLDER, ensureLinkedGroupsInFolder } from "../lib/linkedGroups";
 import { FolderIcon } from "./FolderIcon";
+import { FolderMembersEditor } from "./FolderMembersEditor";
+import { SettingsTabBar } from "./SettingsTabBar";
+import { getLastSettingsTab, setLastSettingsTab, type SettingsTabKey } from "../lib/settingsTabs";
 import { TOSS_TRADE_ID_PREFIX } from "../lib/tossTrades";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
@@ -88,7 +91,7 @@ import { SemiCheckTab } from "./SemiCheckTab";
 import { SemiDashTab } from "./SemiDashTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { filterByTab, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_ROT_TAB_KEY as IDX_ROT_KEY, INDEX_US_TAB_KEY as IDX_US_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, EARNINGS_TAB_KEY as EARNINGS_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY, SEMI_DASH_TAB_KEY as SEMI_DASH_KEY } from "./Tabs";
+import { filterByTab, realHoldingOf, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_ROT_TAB_KEY as IDX_ROT_KEY, INDEX_US_TAB_KEY as IDX_US_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, EARNINGS_TAB_KEY as EARNINGS_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY, SEMI_DASH_TAB_KEY as SEMI_DASH_KEY } from "./Tabs";
 import { EtfReverseTab } from "./EtfReverseTab";
 import { EtfRankingTab } from "./EtfRankingTab";
 import { ScreenerTab } from "./ScreenerTab";
@@ -1551,7 +1554,7 @@ export function MobileSimpleView() {
                                onOpenMemo={t => setMemoTicker(t)}
                                onOpenEtf={(tk, nm) => setEtfDialog({ ticker: tk, name: nm })}
                                onOpenEtfReverse={(tk, nm) => setEtfReverseDialog({ ticker: tk, name: nm })}
-                               onEdit={isAggregated ? (st => setEditAllStock({ ticker: st.ticker, name: st.name })) : (st => setEditing(st))}
+                               onEdit={isAggregated ? (st => setEditAllStock({ ticker: st.ticker, name: st.name })) : (st => setEditing(realHoldingOf(holdings, st)))}
                                onDelete={isAggregated ? undefined : (async st => {
                                  const indep = getIndependentGroupsMode();
                                  const msg = indep
@@ -2512,6 +2515,8 @@ function SettingsModal({
   const [proxies, setProxies] = useState<PersonalProxy[]>(() => getPersonalProxies());
   const [usage, setUsage] = useState<Record<string, ProxyUsage | "unsupported" | "loading">>({});
   const [folderDraft, setFolderDraft] = useState<GroupFolder[]>([]);
+  const [settingsTab, setSettingsTab] = useState<SettingsTabKey>(getLastSettingsTab());
+  const pickSettingsTab = (t: SettingsTabKey) => { setSettingsTab(t); setLastSettingsTab(t); };
   const [newFolderName, setNewFolderName] = useState("");
   const [pollMs, setPollMs] = useState(getPersonalPollMs());
   const extReady = useExtensionProxyReady();
@@ -2670,14 +2675,6 @@ function SettingsModal({
     persistFolders([...folderDraft, { name: n, groups: [] }]);
     setNewFolderName("");
   };
-  const toggleGroupInFolder = (folderName: string, group: string, checked: boolean) => {
-    persistFolders(folderDraft.map(f => {
-      if (f.name === folderName) {
-        return { ...f, groups: checked ? Array.from(new Set([...f.groups, group])) : f.groups.filter(g => g !== group) };
-      }
-      return checked ? { ...f, groups: f.groups.filter(g => g !== group) } : f;
-    }));
-  };
 
 
   return (
@@ -2722,8 +2719,10 @@ function SettingsModal({
           <button onClick={onClose}
                   className="text-gray-400 hover:text-gray-600 text-xl">✕</button>
         </header>
+        <SettingsTabBar tab={settingsTab} onChange={pickSettingsTab} compact />
         <div className="px-4 py-3 space-y-4 overflow-y-auto flex-1">
 
+          {settingsTab === "sync" && (<>
           {/* 0) Google Drive 동기화 */}
           <div className="border border-gray-200 rounded p-3 bg-emerald-50/40 space-y-1.5">
             <div className="text-xs font-bold text-gray-700">
@@ -2884,6 +2883,9 @@ function SettingsModal({
             <p className="text-[10px] text-gray-500">{dataMsg || "보유·예수금·그룹·폴더·탭 등 .json 백업/복원 (가져오기 = 전체 덮어쓰기)"}</p>
           </div>
 
+          </>)}
+
+          {settingsTab === "proxy" && (<>
           {/* 앱이면 프록시가 필요 없다 — 확장과 같은 자리에서 같은 방식으로 알린다 */}
           {nativeApp && (
             <div className="border border-emerald-300 rounded p-3 bg-emerald-50 space-y-1">
@@ -2945,11 +2947,16 @@ function SettingsModal({
             </div>
           )}
 
+          </>)}
+
+          {settingsTab === "broker" && (<>
           {/* 증권사 연결 — 휴대폰에선 안내만(연결은 PC 데스크톱 앱) */}
           <BrokerLinkSection compact />
           <KisLinkSection compact />
+          </>)}
 
           {/* 1) 전용 프록시 — 여러 개 가능 */}
+          {settingsTab === "proxy" && (
           <div className="border border-gray-200 rounded p-3 bg-blue-50/30 space-y-1">
             <label className="text-xs font-bold text-gray-700 block">
               🔧 내 전용 프록시 (여러 개 가능){nativeApp && " — 예비"}
@@ -3031,6 +3038,10 @@ function SettingsModal({
               <p className="text-[11px] text-emerald-700">{savedMsg}</p>
             )}
 
+          </div>)}
+
+          {settingsTab === "general" && (
+          <div className="border border-gray-200 rounded p-3 bg-blue-50/30 space-y-1">
             {/* 폴링 주기 — 공개는 5분·수동만. 그보다 빠른 건 전용 전송일 때만 enabled */}
             <div className="flex items-center gap-1 mt-2 flex-wrap">
               <span className={`text-[11px] ${fastPollAllowed ? "text-gray-700" : "text-gray-400"}`}>
@@ -3183,31 +3194,16 @@ function SettingsModal({
                 꺼두면 해당 탭이 상단에서 사라집니다 (모달 닫을 때 반영).
               </div>
             </div>
-          </div>
+          </div>)}
 
           {/* 그룹 폴더 관리 */}
-          {mgmtGroups.length > 0 && (
+          {settingsTab === "folders" && mgmtGroups.length === 0 && (
+            <div className="text-xs text-gray-400">그룹이 아직 없습니다 — 검색으로 종목을 그룹에 넣으면 여기서 폴더로 묶을 수 있습니다.</div>
+          )}
+          {settingsTab === "folders" && mgmtGroups.length > 0 && (
             <div className="border border-gray-200 rounded p-3 space-y-2">
               <label className="text-xs font-bold text-gray-700 block">📁 그룹 폴더</label>
-              {folderDraft.map(f => (
-                <div key={f.name} className="border border-gray-200 rounded p-2">
-                  <div className="flex items-center mb-1">
-                    <span className="text-xs font-bold text-gray-800">📁 {f.name}</span>
-                    <button onClick={() => persistFolders(folderDraft.filter(x => x.name !== f.name))}
-                            className="ml-auto text-[10px] text-rose-500">삭제</button>
-                  </div>
-                  <div className="flex flex-wrap gap-x-3 gap-y-1">
-                    {mgmtGroups.map(g => (
-                      <label key={g} className="flex items-center gap-1">
-                        <input type="checkbox" checked={f.groups.includes(g)}
-                               onChange={e => toggleGroupInFolder(f.name, g, e.target.checked)}
-                               className="w-3.5 h-3.5 accent-blue-600" />
-                        <span className="text-[11px] text-gray-700">{g}</span>
-                      </label>
-                    ))}
-                  </div>
-                </div>
-              ))}
+              <FolderMembersEditor folders={folderDraft} groups={mgmtGroups} onChange={persistFolders} deleteLabel="삭제" />
               <div className="flex items-center gap-1.5">
                 <input value={newFolderName} onChange={e => setNewFolderName(e.target.value)}
                        placeholder="새 폴더 이름"

@@ -451,6 +451,17 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   return tabs;
 }
 
+// 폴더 전체보기의 row 는 account 가 가상 키(__folder_all__폴더) 인 사본 — 보유 수정 창은 실제 그룹이 있어야
+// 거래 기록(그룹 계정으로 저장)·폴더 select 가 맞는다(실측 2026-10-27: 전체보기에서 열면 거래 기록 0건, 제목에 가상 키).
+// 보유가 있는 row 우선, 없으면 첫 row. 폴더 밖 row(일반 탭)는 그대로.
+export function realHoldingOf(holdings: Stock[], stock: Stock): Stock {
+  const folderName = folderNameOfAllKey(stock.account || "");
+  if (folderName == null) return stock;
+  const members = new Set(getGroupFolders().find(f => f.name === folderName)?.groups ?? []);
+  const rows = holdings.filter(h => h.ticker === stock.ticker && members.has(normalizeAccount(h.account)));
+  return rows.find(r => r.shares > 0) ?? rows[0] ?? stock;
+}
+
 export function filterByTab(holdings: Stock[], tabKey: string): Stock[] {
   if (tabKey === MY_STOCKS_TAB_KEY) return aggregateHoldings(holdings);
   const folderName = folderNameOfAllKey(tabKey);

@@ -11,7 +11,7 @@ import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { useIncrementalRender } from "./lib/useIncrementalRender";
-import { Tabs, buildTabs, filterByTab, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SEMI_DASH_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, realHoldingOf, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SEMI_DASH_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
 import { EtfRankingTab } from "./components/EtfRankingTab";
@@ -1110,7 +1110,7 @@ function Dashboard() {
                         .filter(g => g !== (stock.account || ""))}
                   heldGroups={tickerHeldGroupsMap.get(stock.ticker)}
                   onOpenValuation={setValuationTicker}
-                  onEdit={isAggregated ? (s => setEditAllStock({ ticker: s.ticker, name: s.name })) : (s => setEditing(s))}
+                  onEdit={isAggregated ? (s => setEditAllStock({ ticker: s.ticker, name: s.name })) : (s => setEditing(realHoldingOf(holdings, s)))}
                   onDelete={isAggregated ? undefined : (async s => {
                     await removeHolding(s.ticker, s.account || "");
                     setReloadKey(k => k + 1);
