@@ -15,6 +15,7 @@ import { fmtAmount, MA_DAYS } from "../lib/marketTurnover";
 
 const UP_BAR   = "#fca5a5";   // 지수 상승일 (red-300)
 const DOWN_BAR = "#93c5fd";   // 지수 하락일 (blue-300)
+const UP_LINE = "#dc2626", DOWN_LINE = "#2563eb";   // 오늘 거래대금 가로선 — 막대보다 진하게
 const MA_COLOR = "#4b5563";   // 20일 평균 (gray-600)
 const IDX_COLOR = "#a78bfa";  // 지수 종가 (violet-400) — 막대와 색이 겹치지 않게
 
@@ -76,6 +77,14 @@ export function MarketTurnoverChart({ points, ma, upFlags, label, resetKey, onRe
     bars.setData(points.map((p, i) => ({
       time: p.date as Time, value: p.amount, color: upFlags[i] ? UP_BAR : DOWN_BAR,
     })));
+    // 마지막 봉(오늘) 높이 가로선 — 지난 날들과 오늘 거래대금을 한눈에 견주게(사용자 2026-10-27). 색은 오늘 막대 색, 축에 값 표시
+    const last = points.length - 1;
+    if (last >= 0 && points[last].amount > 0) {
+      bars.createPriceLine({
+        price: points[last].amount, color: upFlags[last] ? UP_LINE : DOWN_LINE, lineWidth: 1,
+        lineStyle: LineStyle.Dashed, axisLabelVisible: true, title: "",
+      });
+    }
 
     // 20일 평균 거래대금
     const maLine = chart.addSeries(LineSeries, {
