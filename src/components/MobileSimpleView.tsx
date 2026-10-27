@@ -12,6 +12,7 @@ import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
+import { dashboardCardDim } from "../lib/dashboardCardDim";
 import { IndexWarnTag } from "./IndexWarnTag";
 import {
   sortHoldings, loadSortKey, loadSortDir, saveSortKey, saveSortDir,
@@ -25,7 +26,7 @@ import {
 } from "../lib/usMarketData";
 import { Settings, Cpu, Menu, MoreVertical } from "lucide-react";
 import type { ReactNode } from "react";
-import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isQuoteStale, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isFxFuturesWeekendClosed, isKrAfterRegularClose, nowKstDateStr } from "../lib/format";
+import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, holdingYesterdayBaseSum, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isKrAfterRegularClose, nowKstDateStr } from "../lib/format";
 import { getTodayProxyCalls, getRecentProxyCalls } from "../lib/usageCounter";
 import { getPersonalProxies, setPersonalProxies, type PersonalProxy, fetchProxyUsage, type ProxyUsage, getEffectivePollMs, getPersonalPollMs, setPersonalPollMs, POLL_OPTIONS, PUBLIC_MIN_POLL_MS, pollLabel, getDimSleepingEnabled, setDimSleepingEnabled, getPersonalProxyUrl } from "../lib/proxyConfig";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
@@ -1131,6 +1132,8 @@ export function MobileSimpleView() {
 
   // 장 마감 시 흐리게 표시 여부 (설정값)
   const dimEnabled = useDimSleeping();   // 헤더 💤 토글로 바뀌면 바로 다시 그린다
+  // 흐린(장 안 열린) 카드는 줄 뒤로 — 카드 반복문과 같은 판정(dashboardCardDim, PC 와 한 벌)
+  const dimOf = (sym: string) => { const tp = tier0.find(x => x.symbol === sym); return !!tp && dashboardCardDim(tp, usMap.get(sym), dimEnabled); };
 
   // 시장 매매동향 모달
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
@@ -1895,7 +1898,7 @@ export function MobileSimpleView() {
                   {(section.render ? []
                     : section.id === "sector"
                     // 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장) — 오늘 등락률(%) 내림차순 정렬 (PC 동일)
-                    ? section.rows.flat().sort((a, b) =>
+                    ? section.rows.flat().sort((a, b) => Number(dimOf(a)) - Number(dimOf(b)) ||
                         (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity))
                     : section.mobilePair
                     // 좌 미국·우 한국 — 미국 줄(rows[0])과 한국 줄(rows[1])을 열 단위로 zip → [US0,KR0, US1,KR1, …]
@@ -1915,7 +1918,7 @@ export function MobileSimpleView() {
                     //   카드 1장짜리 줄이 연달아 오면(설계·파운드리 등) 두 줄을 한 줄에 — 머리도 좌우 둘('__pair__:i' = i·i+1 줄).
                     ? (() => {
                         const out: string[] = [];
-                        const rows = sortedRows(section, leaderSort, sym => displayPctOf(sym, usMap.get(sym)));
+                        const rows = sortedRows(section, leaderSort, sym => displayPctOf(sym, usMap.get(sym)), dimOf);
                         for (let ri = 0; ri < rows.length; ri++) {
                           const row = rows[ri], next = rows[ri + 1];
                           if (row.length === 1 && next?.length === 1) { out.push(`__pair__:${ri}`, row[0], next[0]); ri++; continue; }
@@ -1973,9 +1976,6 @@ export function MobileSimpleView() {
               const isOffHours = q?.marketState != null && offHoursStates.includes(q.marketState);
               // dim 처리 — 정규장 마감 후 모든 상태 (POST 부터). PRE 는 새 거래일 시작 직전이라 제외.
               // 24h 시장(환율·금/은·원유·암호화폐 등)은 Yahoo가 CLOSED 를 자주 반환하지만 흐림 제외.
-              const is24h = marketOfSymbol(p.symbol) === "OTHER";
-              const isClosed = !is24h && q?.marketState != null
-                && ["POST", "POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState);
               // 거래중('열림')이면 흐림 제외 — 정규/시간외 marketState 또는 미국 개별종목 24h 거래창(토스).
               //   (정규장 마감은 별도 '마감 책갈피'로 표시되므로 흐림과 무관)
               const inSession = !!(q?.marketState
@@ -1986,20 +1986,16 @@ export function MobileSimpleView() {
               const isNightFut = marketOfSymbol(p.symbol) === "KR_NIGHT";
               // 갱신 정체(흐림) — 24h 거래(시각창) 중에도 '진짜 멈춘' 종목(VIX·데이터 끊김)을 freshTime 90분+ 정체로 잡음.
               //   미국 종목/ETF 는 토스 실측 체결시각이 24h 갱신돼 통과(밝게), 주말·VIX 마감은 정체/시각창으로 흐림.
-              const stale = isQuoteStale(q?.freshTime);
               // 국채 yield(2Y/10Y 등)는 출처(토스·Yahoo)가 섞여도 표현 통일 — 흐림 제외.
               const isRate = isUsRateSymbol(p.symbol);
               // 24h 시장(외환·선물·달러인덱스)의 주말 휴장 — isMarketOpen("OTHER") 이 늘 true 라
               //   sleeping/isClosed 로는 안 잡힌다. 암호화폐는 진짜 24/7 이라 제외된다.
-              const weekendClosed = is24h && isFxFuturesWeekendClosed(p.symbol);
               // 미 국채 yield 는 **미국 정규장에만 움직이는 게 아니다** — 아시아·런던 세션에도
               //   거래된다(한국 낮에도 값이 바뀐다, 실측). sleeping(미국 정규장)으로 흐리면
               //   멀쩡히 살아 있는 값을 죽은 것처럼 보여준다.
               //   출처(토스·Yahoo)가 섞여 freshTime·marketState 는 못 믿으니 외환·선물과 같은
               //   **주말 휴장**만 본다 — 셋이 같은 근거라 2Y 만 흐리는 일도 없다.
-              const dimNow = dimEnabled && (isRate
-                ? isFxFuturesWeekendClosed(p.symbol)
-                : (stale || weekendClosed || (!inSession && (sleeping || isClosed))));
+              const dimNow = dashboardCardDim(p, q, dimEnabled);   // lib 한 벌 — 줄 정렬(흐린 카드 뒤로)도 같은 판정
               const effPrice = isOffHours && q?.postPrice ? q.postPrice : q?.price;
               // 미국 종목이 정규장 밖(애프터·데이마켓·프리)이면 기준 = **최근 정규장 종가**(토스·내 주식 카드와 같은 규칙).
               //   야후 prevClose 는 다음 날 프리장(04:00 ET)이 열려야 넘어가, 그 사이(정규장 마감~다음 프리) 큰 % 가

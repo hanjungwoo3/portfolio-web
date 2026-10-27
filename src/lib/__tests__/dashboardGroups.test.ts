@@ -215,3 +215,14 @@ describe("지수(미국) — 옛 야간 + 미국순환 (2026-10-12)", () => {
     expect(all.filter((x, i) => all.indexOf(x) !== i)).toEqual([]);
   });
 });
+
+describe("sortedRows — 흐린(장 안 열린) 카드는 줄 뒤로", () => {
+  it("열린 카드끼리 등락률순, 흐린 카드는 그 뒤에 등락률순 — 대장(lead) 자리는 그대로", async () => {
+    const { sortedRows } = await import("../dashboardGroups");
+    const s = { id: "t", short: "t", label: "t", sortable: true, lead: 1, extras: [], rows: [["LEAD", "A", "B", "C", "D"]] } as unknown as Parameters<typeof sortedRows>[0];
+    const pct: Record<string, number> = { A: 8, B: 4, C: 6, D: 2 };
+    const dim = new Set(["A", "C"]);   // 프리장에 체결 없는 종목(대덕전자·원익IPS 같은)
+    expect(sortedRows(s, "pct", x => pct[x], x => dim.has(x))[0]).toEqual(["LEAD", "B", "D", "A", "C"]);
+    expect(sortedRows(s, "pct", x => pct[x])[0]).toEqual(["LEAD", "A", "C", "B", "D"]);   // dimOf 없으면 예전 그대로
+  });
+});

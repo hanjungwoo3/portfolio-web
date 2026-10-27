@@ -57,12 +57,13 @@ export function saveLeaderSort(v: LeaderSort): void {
   try { localStorage.setItem(LEADER_SORT_KEY, v); } catch { /* 이번 세션만 */ }
 }
 /** sortable 그룹이면 줄마다 앞 ETF 칸은 두고 나머지를 등락률 내림차순(값 없음은 뒤). 아니면 그대로. */
-export function sortedRows(s: DashboardSection, sort: LeaderSort, pctOf: (sym: string) => number | null | undefined): string[][] {
+// dimOf — 흐린(장 안 열린) 카드는 줄 뒤로(사용자 2026-10-28 "프리장에서 안 열린 종목은 뒤로"). 열린 것끼리·흐린 것끼리는 등락률순.
+export function sortedRows(s: DashboardSection, sort: LeaderSort, pctOf: (sym: string) => number | null | undefined, dimOf?: (sym: string) => boolean): string[][] {
   if (!s.sortable || sort !== "pct") return s.rows;
   return s.rows.map((r, i) => {
     const n = rowLead(s, i);
-    const rest = r.slice(n).map((sym, k) => ({ sym, k, v: pctOf(sym) }));
-    rest.sort((a, b) => (b.v ?? -Infinity) - (a.v ?? -Infinity) || a.k - b.k);
+    const rest = r.slice(n).map((sym, k) => ({ sym, k, v: pctOf(sym), d: dimOf?.(sym) ? 1 : 0 }));
+    rest.sort((a, b) => a.d - b.d || (b.v ?? -Infinity) - (a.v ?? -Infinity) || a.k - b.k);
     return [...r.slice(0, n), ...rest.map(x => x.sym)];
   });
 }
