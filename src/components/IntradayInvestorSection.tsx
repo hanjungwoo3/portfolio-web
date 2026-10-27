@@ -231,6 +231,11 @@ function MarketBlock({ market, label, enabled, mode, days, on, onReady, onToggle
     if (mode === "intraday") {
       const pts = intra.data?.points ?? [];
       if (pts.length < 2) return empty("intraday");
+      // 선물은 프리장이 없다 — 평일 개장(08:45) 전·첫 집계 전엔 네이버가 **어제 행**을 주는데, 위 그래프는 코스피·코스닥과
+      //   맞춘 오늘 시간축이라 비어 보이고 아래 숫자 줄·09/12/15시 요약만 어제 값으로 떠 헷갈렸다(사용자 2026-10-28
+      //   "선물은 오늘 값이 아직 없는데 아래에 나와"). 평일엔 비워 두고, 주말엔 지금처럼 마지막 거래일 수급(날짜 표시).
+      const kstDow = new Date(Date.now() + 9 * 3600_000).getUTCDay();
+      if (market === "futures" && intra.data?.date && intra.data.date !== bizdate && kstDow >= 1 && kstDow <= 5) return empty("intraday");
       unit = intra.data!.unit;
       series = pts.map(p => ({ t: hmToTime(p.time), label: p.time, values: pick(p) }));
       summary = pick(pts[pts.length - 1]);   // 당일 누적 최신
