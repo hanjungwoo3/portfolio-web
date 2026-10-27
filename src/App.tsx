@@ -81,7 +81,7 @@ import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
 import { NightToggle } from "./components/NightToggle";
 import { DimToggle, useDimSleeping } from "./components/DimToggle";
-import { isLinkedGroup, linkedGroupOf, ensureLinkedGroupsInFolder } from "./lib/linkedGroups";
+import { isLinkedGroup, linkedGroupOf, ensureLinkedGroupsInFolder, BROKER_FOLDER } from "./lib/linkedGroups";
 import { TOSS_TRADE_ID_PREFIX } from "./lib/tossTrades";
 import { useTossAutoSync } from "./lib/tossSync";
 import { useKisAutoSync } from "./lib/kisSync";
@@ -235,8 +235,17 @@ function Dashboard() {
     const idx = tabs.filter(t => INDEX_GROUP_KEYS.has(t.key) || t.key === SEMI_DASH_TAB_KEY);
     const rest = tabs.filter(t => !SYSTEM_TAB_KEYS.has(t.key) && !MY_GROUP_KEYS.has(t.key)
       && !INDEX_GROUP_KEYS.has(t.key) && !isFolderAllKey(t.key));
-    return [...sys, ...my, ...money, ...idx, ...rest];
-  }, [tabs]);
+    // 탭 줄과 같은 자리 — 증권사연결 폴더는 지수 바로 오른쪽, 폴더 밖 그룹, 그다음 나머지 폴더(폴더 안은 가나다).
+    //   예전엔 폴더를 무시하고 그룹 이름순으로 섞어 넘겨 증권사연결이 엉뚱한 자리에서 나왔다(사용자 2026-10-27, 모바일과 같은 문제)
+    const folders = getGroupFolders();
+    const inFolder = new Set(folders.flatMap(f => f.groups));
+    const byKey = new Map(rest.map(t => [t.key, t]));
+    const ofFolder = (f: { groups: string[] }) => [...f.groups].sort((x, y) => x.localeCompare(y, "ko")).flatMap(g => byKey.get(g) ?? []);
+    const broker = folders.filter(f => f.name === BROKER_FOLDER).flatMap(ofFolder);
+    const loose = rest.filter(t => !inFolder.has(t.key));
+    const others = folders.filter(f => f.name !== BROKER_FOLDER).flatMap(ofFolder);
+    return [...sys, ...my, ...money, ...idx, ...broker, ...loose, ...others];
+  }, [tabs, reloadKey]);
   const groupFolders = useMemo(() => getGroupFolders(), [reloadKey]);
   // 사용자 그룹 이름들 (폴더 관리용) — 빈 계좌·관심ETF 제외
   const userGroups = useMemo(() => {

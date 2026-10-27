@@ -584,13 +584,17 @@ export function MobileSimpleView() {
     for (const t of groupTabs) if (MY_GROUP_KEYS_M.has(t.key)) keys.push(t.key);     // 내자산 묶음
     if (has(MONEY_KEY)) keys.push(MONEY_KEY);                            // 증시(별도 탭)
     for (const t of groupTabs) if (INDEX_KEYS_M.has(t.key) || t.key === SEMI_DASH_KEY) keys.push(t.key);   // 지수 묶음(주간·야간·순환매·반도체 수급)
-    for (const t of groupTabs) if (!SYS_ALL_KEYS.has(t.key) && !folderedGroups.has(t.key) && !isFolderAllKey(t.key)) keys.push(t.key);  // 사용자그룹(전체보기 가상탭 제외 — 아래 폴더 루프에서 넣음)
-    for (const f of folders) {
+    const pushFolder = (f: GroupFolder) => {
       const ms = f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko"));
       // 전체보기는 폴더의 **첫자리**(칩 순서와 같게 — 사용자 결정 2026-10-26)
       if (ms.length >= 1) keys.push(folderAllKey(f.name));
       keys.push(...ms);
-    }
+    };
+    // 증권사연결 폴더는 탭 바에서 지수 바로 오른쪽 고정 — 넘기기 순서도 거기(예전엔 다른 폴더와 함께 맨 끝이라
+    //   지수에서 오른쪽으로 넘기면 사용자 그룹으로 가고, 증권사연결은 맨 끝에서야 나왔다 — 사용자 2026-10-27)
+    folders.filter(f => f.name === BROKER_FOLDER).forEach(pushFolder);
+    for (const t of groupTabs) if (!SYS_ALL_KEYS.has(t.key) && !folderedGroups.has(t.key) && !isFolderAllKey(t.key)) keys.push(t.key);  // 사용자그룹(전체보기 가상탭 제외 — 폴더에서 넣음)
+    folders.filter(f => f.name !== BROKER_FOLDER).forEach(pushFolder);
     return keys;
   }, [groupTabs, folderedGroups, folders, presentGroups]);
 
