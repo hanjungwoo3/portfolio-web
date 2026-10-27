@@ -4314,7 +4314,7 @@ export async function fetchKrDayCandles(code: string): Promise<KrDayCandles | nu
   try {
     // 5분봉 이틀(어제+오늘 = 288개) — 1콜. 어제 하루를 왼쪽 절반에 이어 붙인다(buildTwoDaySeries)
     const cs = await fetchTossMinuteBars(`kr-s/A${code}`, 1);
-    // 이틀 내내 체결 0(거래정지 등) — 토스는 빈 봉을 채워 보낸다. 시계열 대신 표시만(카드 '거래정지' 책갈피, 그래프는 3개월로)
+    // 이틀 내내 체결 0(거래정지 등) — 토스는 빈 봉을 채워 보낸다. 24시간 대신 3개월 그래프로(정지 책갈피는 시장경보 목록이 단다)
     if (cs.length && !cs.some(c => (c.volume ?? 1) > 0)) return { closes: [], halted: true };
     return cs.length ? buildTwoDaySeries(cs, true) : null;
   } catch { return null; }

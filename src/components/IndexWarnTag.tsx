@@ -6,7 +6,7 @@ import type { AlertLevel } from "../lib/marketAlerts";
 
 // 색은 종목 카드(StockCard WARN_BG)와 같은 체계
 const BG: Record<AlertLevel, string> = {
-  투자위험: "bg-red-700", 투자경고: "bg-orange-600", 투자주의: "bg-amber-500",
+  투자위험: "bg-red-700", 투자경고: "bg-orange-600", 투자주의: "bg-amber-500", 거래정지: "bg-gray-500",
 };
 
 export function IndexWarnTag({ ticker, name, level, shift, inline }: {
@@ -18,7 +18,7 @@ export function IndexWarnTag({ ticker, name, level, shift, inline }: {
   return (
     <>
       <button onClick={() => setOpen(true)}
-              title={`${name} — 거래소 ${level} 지정. 눌러서 시장조치 공시 보기`}
+              title={level === "거래정지" ? `${name} — 거래소 매매거래정지 중. 눌러서 시장조치 공시 보기` : `${name} — 거래소 ${level} 지정. 눌러서 시장조치 공시 보기`}
               className={`${inline ? "" : `absolute -top-2 ${shift ? "left-9" : "left-1"} z-20`} px-1.5 py-0 rounded
                           text-[10px] font-bold leading-tight text-white ${BG[level]}`}>
         {level}

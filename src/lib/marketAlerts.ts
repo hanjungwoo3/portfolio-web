@@ -7,7 +7,8 @@ import { useQuery } from "@tanstack/react-query";
 const URL_ALERTS =
   "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/main/data/market-alerts.json";
 
-export type AlertLevel = "투자주의" | "투자경고" | "투자위험";
+// 거래정지 = 크롤러가 KIND 매매거래정지 목록(그날 06:00 기준)에서 넣는다(2026-10-27, 사용자 "투자경고랑 같은 로직"). 장중 새 정지는 다음 날 반영.
+export type AlertLevel = "투자주의" | "투자경고" | "투자위험" | "거래정지";
 export interface MarketAlertFile {
   meta: { version: string; builtAt: string };
   alerts: Record<string, { level: AlertLevel; from: string; name: string }>;
