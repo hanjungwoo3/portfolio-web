@@ -102,16 +102,24 @@ export function BuySellBars({ points, keys, unit, scale = 1, bucket: bucketIn, s
         const hb = hoverI != null ? bars[hoverI] : undefined;
         return (
           <div key={k}>
-            <div className={`flex items-baseline gap-2 tabular-nums min-w-0 ${compact ? "text-[10px]" : "text-[11px]"}`}>
+            <div className={`relative flex items-baseline gap-2 tabular-nums min-w-0 ${compact ? "text-[10px]" : "text-[11px]"}`}>
               <b className="whitespace-nowrap" style={{ color }}>{def?.label ?? k}</b>
               {/* 좁은 칸(compact)은 '매수·매도·→' 글자를 뺀다(사용자 요청) — 빨강 = 매수, 파랑 = 매도 */}
               {/* 개인 … 금액 (+산 −판) — 마우스 땐 그 구간, 아니면 하루 합계(사용자 요청 2026-10-23) */}
               {(() => {
                 const [bv, sv, nv] = hb ? [hb.b, hb.s, hb.b - hb.s] : [totB, totS, net];
                 const netEl = <b className={`whitespace-nowrap ${compact ? "text-[11.5px]" : "text-[12.5px]"} ${nv > 0 ? "text-rose-600" : nv < 0 ? "text-blue-600" : "text-gray-500"}`}>{signed(nv, unit)}</b>;
-                const bsEl = <span className="text-gray-500 whitespace-nowrap min-w-0 truncate">(<b className="text-rose-600">+{fmtBig(bv, unit)}</b> <b className="text-blue-600">−{fmtBig(sv, unit)}</b>)</span>;
-                // 마우스 때도 아닐 때도 오른쪽 끝(사용자 요청 2026-10-23)
-                return <span className="ml-auto inline-flex items-baseline gap-1 min-w-0">{netEl}{bsEl}</span>;
+                // 순매수는 맨 오른쪽, 괄호(산·판)는 그 바로 왼쪽에 연하게(사용자 요청 2026-10-28 "+303억원을 오른쪽으로, ()안은 연한색", "금액 왼쪽에 붙여")
+                const bsEl = <span className="text-gray-400 whitespace-nowrap min-w-0 truncate">(<span className="text-rose-400">+{fmtBig(bv, unit)}</span> <span className="text-blue-400">−{fmtBig(sv, unit)}</span>)</span>;
+                const group = <>{bsEl}<span className="shrink-0">{netEl}</span></>;
+                // 마우스를 올린 동안은 그 막대 바로 위로(사용자 요청 2026-10-28) — 왼쪽 절반이면 오른쪽으로, 오른쪽 절반이면 왼쪽으로 뻗어 칸 안에 둔다
+                const hr = hoverI != null ? xRange(hoverI) : null;
+                if (hr) {
+                  const pct = Math.min(100, Math.max(0, ((hr[0] + hr[1]) / 2 / PX_W) * 100));
+                  return <span className="absolute bottom-0 inline-flex items-baseline gap-1 whitespace-nowrap bg-white/85 px-0.5 rounded pointer-events-none"
+                               style={pct < 50 ? { left: `${pct}%`, transform: "translateX(-0.5rem)" } : { right: `${100 - pct}%`, transform: "translateX(0.5rem)" }}>{group}</span>;
+                }
+                return <span className="ml-auto inline-flex items-baseline gap-1 min-w-0">{group}</span>;
               })()}
             </div>
             {!textOnly && <svg viewBox={`0 0 ${PX_W} ${H}`} preserveAspectRatio="none" className="w-full block" style={{ height: rowH }}
