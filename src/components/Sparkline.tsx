@@ -124,12 +124,17 @@ export function Sparkline({
   const avgY = avgPrice !== undefined && avgPrice > 0 ? yFor(avgPrice) : null;
   const entryY = entry !== undefined && entry > 0 ? yFor(entry) : null;
   const baseY = hasBase ? yFor(baseline!) : null;
-  // 기준선 구간 — 어제 기준선이 있으면 끊는 곳 가운데(splitX)에서 좌우로 나눈다
+  // 기준선 구간 — 어제 기준선이 있으면 끊는 곳 가운데(splitX)에서 좌우로 나눈다(색칠은 이 구간대로)
   const splitX = segs.length === 2 ? (segs[0][segs[0].length - 1][0] + segs[1][0][0]) / 2 : width;
   const parts: { ss: typeof segs; by: number; x0: number; x1: number }[] = baseY === null ? []
     : segs.length === 2 && prevBaseline !== undefined && prevBaseline > 0
       ? [{ ss: [segs[0]], by: yFor(prevBaseline), x0: 0, x1: splitX }, { ss: [segs[1]], by: baseY, x0: splitX, x1: width }]
       : [{ ss: segs, by: baseY, x0: 0, x1: width }];
+  // 오늘 기준선(= 어제 종가) **점선만** 어제 종가 세로선부터 이어 긋는다 — 색칠은 위 구간 그대로(사용자 2026-10-27:
+  //   "가로 점선을 종가에서부터 이어서", "선만 추가하고 색은 지금처럼"). 어제 종가선이 창 밖이면 예전처럼 오늘 칸부터.
+  const prevCloseX = parts.length === 2 && markXs
+    ? markXs.filter(m => m.close).map(m => padX + Math.min(1, Math.max(0, m.x)) * innerW).find(x => x < splitX)
+    : undefined;
 
   return (
     <svg width={width} height={height} className={className}
@@ -186,7 +191,7 @@ export function Sparkline({
       })()}
       {/* 기준선(전일 종가) — 회색 가로 점선 (24시간 차트). 어제·오늘 둘이면 좌우로 나눠 따로, 사이는 살짝 띄운다 */}
       {parts.map(({ by, x0, x1 }, k) => (
-        <line key={k} x1={Math.max(padX, x0 + (k > 0 ? 2 : 0))} x2={Math.min(width - padX, x1 - (k < parts.length - 1 ? 2 : 0))} y1={by} y2={by}
+        <line key={k} x1={k === 1 && prevCloseX != null ? prevCloseX : Math.max(padX, x0 + (k > 0 ? 2 : 0))} x2={Math.min(width - padX, x1 - (k < parts.length - 1 ? 2 : 0))} y1={by} y2={by}
               stroke="#475569" strokeWidth="1" strokeDasharray="4 3" opacity="0.8" />
       ))}
       {/* 시간표 세로선 — 시작 = 점선, 종가 = 실선 */}
