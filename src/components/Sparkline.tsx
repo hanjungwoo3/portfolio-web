@@ -5,8 +5,11 @@ import { useId } from "react";
 
 // 정규장 세로선 — 시작 = 진한 점선, 종가 = 진한 실선(사용자 결정 2026-10-21, 글자·기호 없이 선 모양으로만 구분).
 //   종가는 원래 연한 회색이었는데 분홍·보라 면에 묻혀 '마감선이 없다'로 보였다(사용자 지적 2026-10-23) → 시작과 같은 진한 색, 모양만 실선
-const OPEN_LINE = { stroke: "#334155", strokeWidth: 1.2, strokeDasharray: "3 2", opacity: 0.9 } as const;
-const CLOSE_LINE = { stroke: "#334155", strokeWidth: 1.2, opacity: 0.75 } as const;
+//   ⚠️ 차트는 viewBox 400 폭을 카드 폭(~170px)으로 줄여(preserveAspectRatio none) 그려서, 굵기 1.2 가 화면에선 0.5px 로
+//   가늘어져 1배율 화면·보라 채움 위에선 종가선이 사라졌다(사용자 2026-10-27 "국장 어제 종가 선이 없어" — 선은 있었다).
+//   non-scaling-stroke 로 카드 크기와 상관없이 **화면 1px**(점선 간격도 화면 px)로 고정한다.
+const OPEN_LINE = { stroke: "#334155", strokeWidth: 1, strokeDasharray: "3 2", opacity: 0.95, vectorEffect: "non-scaling-stroke" } as const;
+const CLOSE_LINE = { stroke: "#334155", strokeWidth: 1, opacity: 0.95, vectorEffect: "non-scaling-stroke" } as const;
 
 interface Props {
   data: number[];
