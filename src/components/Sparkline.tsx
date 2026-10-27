@@ -45,10 +45,13 @@ interface Props {
   prevBaseline?: number;
   // 거래량(점마다, data 와 같은 길이) — 주면 아래 1/4 을 거래량 막대 자리로 비우고 회색 막대를 그린다(사용자 요청 2026-10-22)
   volumes?: number[];
+  // 정규장 시작·종가 세로선을 **가로 위치(0~1)** 로 — 시장 시간표로 정한 자리(api.rollDay 의 markXs). 주면 markIndex·closeIndex·extraMarks 는 무시.
+  //   같은 시장 카드는 봉이 어떻게 왔든 같은 x 에 선다(사용자 결정 2026-10-27).
+  markXs?: { x: number; close?: boolean }[];
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs, breakIndex, prevBaseline, closeIndex, extraMarks, volumes,
+  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs, breakIndex, prevBaseline, closeIndex, extraMarks, volumes, markXs,
   aboveColor = "#dc2626", belowColor = "#2563eb",
 }: Props) {
   const uid = useId().replace(/:/g, "");   // 위·아래 잘라내기(clipPath)·그라디언트 id — 카드마다 달라야 한다
@@ -183,19 +186,24 @@ export function Sparkline({
         <line key={k} x1={Math.max(padX, x0 + (k > 0 ? 2 : 0))} x2={Math.min(width - padX, x1 - (k < parts.length - 1 ? 2 : 0))} y1={by} y2={by}
               stroke="#475569" strokeWidth="1" strokeDasharray="4 3" opacity="0.8" />
       ))}
+      {/* 시간표 세로선 — 시작 = 점선, 종가 = 실선 */}
+      {markXs?.map((m, k) => {
+        const x = padX + Math.min(1, Math.max(0, m.x)) * innerW;
+        return <line key={`mx${k}`} x1={x} x2={x} y1={padY} y2={height - padY} {...(m.close ? CLOSE_LINE : OPEN_LINE)} />;
+      })}
       {/* 오늘 정규장 시작 — 회색 세로 점선 (24시간 차트) */}
-      {markIndex != null && markIndex > 0 && markIndex < points.length && (
+      {!markXs && markIndex != null && markIndex > 0 && markIndex < points.length && (
         <>
           <line x1={points[markIndex][0]} x2={points[markIndex][0]} y1={padY} y2={height - padY} {...OPEN_LINE} />
         </>
       )}
-      {(extraMarks ?? []).map((m, k) => m != null && m > 0 && m < points.length ? (
+      {(markXs ? [] : extraMarks ?? []).map((m, k) => m != null && m > 0 && m < points.length ? (
         k % 2 === 0
           ? <line key={`em${k}`} x1={points[m][0]} x2={points[m][0]} y1={padY} y2={height - padY} {...OPEN_LINE} />
           : <line key={`em${k}`} x1={points[m][0]} x2={points[m][0]} y1={padY} y2={height - padY} {...CLOSE_LINE} />
       ) : null)}
       {/* 오늘 정규장 종가 — 회색 세로 점선 */}
-      {closeIndex != null && closeIndex > 0 && closeIndex < points.length && (
+      {!markXs && closeIndex != null && closeIndex > 0 && closeIndex < points.length && (
         <>
           <line x1={points[closeIndex][0]} x2={points[closeIndex][0]} y1={padY} y2={height - padY} {...CLOSE_LINE} />
         </>

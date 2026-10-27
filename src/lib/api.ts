@@ -380,21 +380,38 @@ export const twoDayTodayX = (f: number) => 1 - TWO_DAY_HALF + f * TWO_DAY_HALF;
 //   최신 날이 오늘이 아니면 1 → 최신 하루가 꽉 찬다).
 const ROLL_GAP = TWO_DAY_GAP / (1 - TWO_DAY_GAP);   // 두 날 사이 빈칸(창 폭의 약 4%)
 export interface RollIdx { volumes?: number[]; breakIdx?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; todayTimes?: string[] }
-export function rollDay<T extends { closes: number[] } & RollIdx>(s: T, fr: number[], bi: number, fNow: number): T & { xs: number[]; rolling: true } {
+// 정규장 시작·종가 세로선 — **봉 번호가 아니라 시장 시간표로** 위치를 정한다(사용자 결정 2026-10-27: "같은 분류는 다 동일하지 않아?").
+//   예전엔 카드마다 '09:30 이후 첫 봉'을 찾아 그 점에 그어, 봉이 늦게 오거나 빠지거나 출처가 바뀌면 카드마다 시가만·종가만
+//   보였다(앱에서만 들쭉날쭉). 시각은 시장마다 같으니(미국 09:30·16:00 ET, 한국 09:00·15:30 KST …) 같은 시장 카드는 같은 x 에 선다.
+//   open·close = 하루 안 위치(0~1, 그 빌더의 축 기준). today*/prev* = 그 선을 그릴지(시각이 지났는지·그날 장이 열렸는지).
+export interface SessionMarks { open: number; close?: number; todayOpen: boolean; todayClose: boolean; prevOpen: boolean; prevClose: boolean }
+export interface MarkX { x: number; close?: boolean }   // x = 카드 가로 위치(0~1)
+export function rollDay<T extends { closes: number[] } & RollIdx>(s: T, fr: number[], bi: number, fNow: number, sess?: SessionMarks): T & { xs: number[]; rolling: true; markXs?: MarkX[] } {
   const g = fr.map((f, i) => (bi > 0 && i < bi ? f : 1 + ROLL_GAP + f));
   const full = fNow >= 1;
   const start = full ? 1 + ROLL_GAP : fNow, W = full ? 1 : 1 + ROLL_GAP;
   let k = g.findIndex(v => v >= start - 1e-9); if (k < 0) k = g.length;
   const sh = (i?: number) => (i == null || i - k <= 0 ? undefined : i - k);
+  let markXs: MarkX[] | undefined;
+  if (sess) {
+    const at = (g: number, close?: boolean) => { const x = (g - start) / W; return x > 0.002 && x <= 1 + 1e-9 ? [{ x: Math.min(1, x), close }] : []; };
+    const today = (f: number) => 1 + ROLL_GAP + f;
+    markXs = [
+      ...(sess.prevOpen ? at(sess.open) : []),
+      ...(sess.prevClose && sess.close != null ? at(sess.close, true) : []),
+      ...(sess.todayOpen ? at(today(sess.open)) : []),
+      ...(sess.todayClose && sess.close != null ? at(today(sess.close), true) : []),
+    ];
+  }
   return {
     ...s,
     closes: s.closes.slice(k), volumes: s.volumes?.slice(k), xs: g.slice(k).map(v => Math.min(1, Math.max(0, (v - start) / W))),
     breakIdx: bi > 0 && bi > k ? bi - k : undefined,
     openIdx: sh(s.openIdx), closeIdx: sh(s.closeIdx), prevOpenIdx: sh(s.prevOpenIdx), prevCloseIdx: sh(s.prevCloseIdx),
-    rolling: true,
+    rolling: true, markXs,
   };
 }
-function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
+export function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
   const [startMin, spanMin, openHHMM, closeHHMM] = isKr ? [8 * 60, 12 * 60, "09:00", "15:30"] : [0, 24 * 60, "09:30", "16:00"];
   const frac = (dt: string) => Math.min(1, Math.max(0, (Number(dt.slice(11, 13)) * 60 + Number(dt.slice(14, 16)) - startMin) / spanMin));
   const days = [...new Set(rows.map(c => c.dt.slice(0, 10)))];         // 최신 날짜 먼저
@@ -417,8 +434,19 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
   const tz = isKr ? "Asia/Seoul" : "America/New_York";
   const pp = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
     .formatToParts(new Date()).reduce<Record<string, string>>((a, p) => { a[p.type] = p.value; return a; }, {});
-  const fNow = `${pp.year}-${pp.month}-${pp.day}` === days[li]
-    ? Math.min(1, Math.max(0, ((Number(pp.hour) % 24) * 60 + Number(pp.minute) - startMin) / spanMin)) : 1;
+  const latestIsToday = `${pp.year}-${pp.month}-${pp.day}` === days[li];
+  const nowMin = (Number(pp.hour) % 24) * 60 + Number(pp.minute);
+  const fNow = latestIsToday ? Math.min(1, Math.max(0, (nowMin - startMin) / spanMin)) : 1;
+  // 세로선 — 위치는 시간표, 그릴지는: 오늘이면 시각이 지났는지 + 그날 장이 열렸는지(개장 뒤 봉이 하나라도), 지난 날이면 정규장 봉이 있었는지(휴장 제외)
+  const hm2min = (hm: string) => Number(hm.slice(0, 2)) * 60 + Number(hm.slice(3, 5));
+  const fHM = (hm: string) => Math.min(1, Math.max(0, (hm2min(hm) - startMin) / spanMin));
+  const opened = latest.some(c => c.dt.slice(11, 16) >= openHHMM);
+  const sess: SessionMarks = {
+    open: fHM(openHHMM), close: fHM(closeHHMM),
+    todayOpen: latestIsToday ? opened && nowMin >= hm2min(openHHMM) : latest.some(inRegular),
+    todayClose: latestIsToday ? opened && nowMin >= hm2min(closeHHMM) : latest.some(inRegular) && latest.some(c => c.dt.slice(11, 16) >= closeHHMM),
+    prevOpen: prev.some(inRegular), prevClose: prev.some(inRegular),
+  };
   return rollDay({
     closes: [...prev.map(c => c.close), ...latest.map(c => c.close)],
     volumes: [...prev.map(c => c.volume ?? 0), ...latest.map(c => c.volume ?? 0)],   // 카드 아래 거래량 막대
@@ -431,14 +459,14 @@ function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
     prevOpenIdx: (() => { const i = prev.findIndex(c => c.dt.slice(11, 16) >= openHHMM); return i > 0 ? i : undefined; })(),
     prevCloseIdx: (() => { const i = prev.map(c => c.dt.slice(11, 16) <= closeHHMM).lastIndexOf(true); return i > 0 && i < prev.length - 1 ? i : undefined; })(),
     date: days[li], twoDay: true, breakIdx: prev.length > 0 ? prev.length : undefined,
-  }, [...prev.map(c => frac(c.dt)), ...latest.map(c => frac(c.dt))], prev.length, fNow);
+  }, [...prev.map(c => frac(c.dt)), ...latest.map(c => frac(c.dt))], prev.length, fNow, sess);
 }
 
 // 종목 카드 배경 '24시간' 그래프용 당일 시계열 — 시간 축(xs)·어제 종가(base)·정규장 시작(openIdx) 포함.
 //   지수 카드(KrDaySparkline·야후 spark)와 같은 모양(어제 종가선 위 빨강·아래 파랑, 정규장 시작 세로선)으로 그리려고
 //   종가만 주던 걸 넓혔다(2026-10-21). 한국 = 08:00~20:00 KST(정규 09:00), 미국 = 00:00~24:00 ET(정규 09:30).
 //   오늘 봉이 1개라도 있으면 오늘(실시간 끝점과 이어 선이 된다), 없을 때만 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
-export interface DaySeries { rolling?: boolean; closes: number[]; volumes?: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
+export interface DaySeries { markXs?: MarkX[]; rolling?: boolean; closes: number[]; volumes?: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
 export async function fetchTossIntraday(ticker: string): Promise<DaySeries | null> {
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
   const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));
@@ -4150,7 +4178,7 @@ async function fetchMemChart(symbol: string): Promise<number[]> {
 //   includePrePost 면 프리(04:00 ET)~애프터(20:00 ET)까지 들어 있다. 오버나잇(20:00~04:00)은 없다.
 const SPARK_CHUNK = 20;
 //   openIdx = 오늘 정규장 시작(09:30 ET) 첫 봉의 인덱스 — 카드 차트에 '시작가' 표시선(meta.currentTradingPeriod.regular.start).
-export interface DaySpark { rolling?: boolean; closes: number[]; xs?: number[]; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }   // prevBase = 어제 칸 기준선(그저께 종가 = 2d 범위의 chartPreviousClose)   // prevClose = 어제 정규장 종가(달러 — closes 와 같은 단위)
+export interface DaySpark { markXs?: MarkX[]; rolling?: boolean; closes: number[]; xs?: number[]; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }   // prevBase = 어제 칸 기준선(그저께 종가 = 2d 범위의 chartPreviousClose)   // prevClose = 어제 정규장 종가(달러 — closes 와 같은 단위)
 export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string, DaySpark>> {
   const out = new Map<string, DaySpark>();
   const chunks: string[][] = [];
@@ -4246,12 +4274,26 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const hi = usEq ? 20 * 3600 : Math.max(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
         const fr = (t: number) => (hi > lo ? (todS(t) - lo) / (hi - lo) : 0);
         const nowS = Date.now() / 1000;
-        const fNow = times.length && (noToday || etDay(nowS) === etDay(times[times.length - 1])) ? Math.min(1, Math.max(0, fr(nowS))) : 1;
+        const lastIsToday = times.length > 0 && etDay(nowS) === etDay(times[times.length - 1]);
+        const fNow = times.length && (noToday || lastIsToday) ? Math.min(1, Math.max(0, fr(nowS))) : 1;
+        // 세로선 — 위치는 거래소 시간표(regular 시작·마감의 하루 중 시각), 봉 번호와 무관. 그릴지: 오늘 = 개장 뒤 봉이 있고 시각이 지났는지,
+        //   지난 날 = 그날 정규장 봉이 있었는지. 프리장 없는 지수도(개장 봉이 첫 봉) 이제 시작선이 선다.
+        let sess: SessionMarks | undefined;
+        if (reg?.start != null && sTod != null) {
+          const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+          const hasClose = eTod != null && eTod > sTod;
+          sess = {
+            open: clamp01(fr(reg.start)), close: hasClose ? clamp01(fr(reg.start - sTod + eTod!)) : undefined,
+            todayOpen: !noToday && oi >= 0 && (!lastIsToday || tod(nowS) >= sTod),
+            todayClose: !noToday && hasClose && oi >= 0 && (lastIsToday ? tod(nowS) >= eTod! : lastTod >= eTod! - 300),
+            prevOpen: poi >= 0, prevClose: hasClose && pci >= 0,
+          };
+        }
         out.set(x.symbol, rollDay({
           closes, openIdx: oi > 0 && !noToday ? oi : undefined, closeIdx: ci > 0 && !noToday ? ci : undefined, prevClose: pc && pc > 0 ? pc : undefined,
           breakIdx: bi > 0 ? bi : undefined, prevBase: noToday ? dropLast : bi > 0 && cpc && cpc > 0 ? cpc : undefined,
           prevOpenIdx: poi > 0 ? poi : undefined, prevCloseIdx: pci > 0 ? pci : undefined,
-        }, times.map(fr), bi > 0 ? bi : 0, fNow));   // 0 이면(프리 없음) 왼쪽 끝이라 표시 안 함
+        }, times.map(fr), bi > 0 ? bi : 0, fNow, sess));
       }
     } catch { /* 이 묶음은 3개월 차트로 */ }
   }));
@@ -5846,8 +5888,15 @@ export async function fetchKrFuturesMinute(kind: "kospi200" | "kosdaq150" = "kos
   // 선물 정규장 종가 15:45 — 한경 봉 시각은 시작 시각이라 15:45 전 마지막 봉, 장이 끝난 뒤에만
   const ci = cur.some(x => (x.mtime ?? "") >= "15:44") ? cur.map(x => (x.mtime ?? "") < "15:45").lastIndexOf(true) : -1;
   const kst = new Date(Date.now() + 9 * 3600_000);
-  const fNow = kst.toISOString().slice(0, 10) === today
-    ? Math.min(1, Math.max(0, (kst.getUTCHours() * 60 + kst.getUTCMinutes() - START) / SPAN)) : 1;
+  const isToday = kst.toISOString().slice(0, 10) === today, nowMin = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+  const fNow = isToday ? Math.min(1, Math.max(0, (nowMin - START) / SPAN)) : 1;
+  // 세로선 — 09:00(현물 개장)·15:45(선물 마감) 시간표 위치
+  const sess: SessionMarks = {
+    open: frac("09:00"), close: frac("15:45"),
+    todayOpen: isToday ? nowMin >= 9 * 60 && oi >= 0 : oi >= 0,
+    todayClose: isToday ? nowMin >= 15 * 60 + 45 && oi >= 0 : ci > 0,
+    prevOpen: prev.some(x => (x.mtime ?? "") >= "09:00"), prevClose: prev.some(x => (x.mtime ?? "") >= "15:40"),
+  };
   return rollDay({
     closes: [...prev.map(x => x.close!), ...cur.map(x => x.close!)],
     base: baseOf(cur), prevBase: baseOf(prev), openIdx: oi >= 0 ? prev.length + oi : undefined,
@@ -5856,7 +5905,7 @@ export async function fetchKrFuturesMinute(kind: "kospi200" | "kosdaq150" = "kos
     prevCloseIdx: (() => { const i = prev.map(x => (x.mtime ?? "") < "15:45").lastIndexOf(true); return i > 0 && i < prev.length - 1 ? i : undefined; })(),
     todayTimes: cur.map(x => (x.mtime ?? "").slice(0, 5)),   // 오늘 봉 시각(가설 검증 — 베이시스 시계열)
     date: today, twoDay: true, breakIdx: prev.length > 0 ? prev.length : undefined,
-  }, [...prev.map(x => frac(x.mtime)), ...cur.map(x => frac(x.mtime))], prev.length, fNow);
+  }, [...prev.map(x => frac(x.mtime)), ...cur.map(x => frac(x.mtime))], prev.length, fNow, sess);
 }
 
 // 오늘 하루 전체 체결강도(토스) — 시세 상세의 tradingStrength(매수 체결량 ÷ 매도 체결량 × 100, 장 시작부터 누적)·거래량·거래대금.

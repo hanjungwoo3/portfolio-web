@@ -466,13 +466,13 @@ function FutSpark({ s, live }: { s: DaySeries; live?: number }) {
   const on = !!live && !!s.xs;
   return <Sparkline data={on ? [...s.closes, live!] : s.closes} xs={on ? [...s.xs!, s.rolling ? 1 : s.xs![s.xs!.length - 1] + 0.001] : s.xs}
                     width={300} height={70} className="w-full h-full" strokeWidth={1.2}
-                    baseline={s.base} prevBaseline={s.prevBase} markIndex={s.openIdx} closeIndex={s.closeIdx} extraMarks={[s.prevOpenIdx, s.prevCloseIdx]} breakIndex={s.breakIdx} />;
+                    baseline={s.base} prevBaseline={s.prevBase} markIndex={s.openIdx} closeIndex={s.closeIdx} extraMarks={[s.prevOpenIdx, s.prevCloseIdx]} markXs={s.markXs} breakIndex={s.breakIdx} />;
 }
 
 // base = 카드의 전일 종가(한국 지수는 야후 previousClose 가 틀릴 때가 있어 카드 값을 우선)
-function SparkBg({ sp, base }: { sp: { closes: number[]; xs?: number[]; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }; base?: number }) {
+function SparkBg({ sp, base }: { sp: { markXs?: { x: number; close?: boolean }[]; closes: number[]; xs?: number[]; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }; base?: number }) {
   return <Sparkline data={sp.closes} xs={sp.xs} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
-                    baseline={base && base > 0 ? base : sp.prevClose} markIndex={sp.openIdx} closeIndex={sp.closeIdx} extraMarks={[sp.prevOpenIdx, sp.prevCloseIdx]} breakIndex={sp.breakIdx} prevBaseline={sp.prevBase} />;
+                    baseline={base && base > 0 ? base : sp.prevClose} markIndex={sp.openIdx} closeIndex={sp.closeIdx} extraMarks={[sp.prevOpenIdx, sp.prevCloseIdx]} markXs={sp.markXs} breakIndex={sp.breakIdx} prevBaseline={sp.prevBase} />;
 }
 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
