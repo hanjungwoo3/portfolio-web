@@ -433,7 +433,11 @@ export function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | n
   const ended = latest.some(c => c.dt.slice(11, 16) >= closeHHMM);
   const ci = ended ? latest.map(c => c.dt.slice(11, 16) <= closeHHMM).lastIndexOf(true) : -1;
   const base = latest[latest.length - 1].base;
-  const pb = prev.length ? prev[prev.length - 1].base : undefined;   // 어제의 기준(그저께 종가) — 왼쪽 기준선
+  // 어제의 기준(그저께 종가) — 왼쪽 기준선. **어제 정규장 봉의 base** 로 잡는다: 토스 미국 5분봉은 20:00 ET 오버나이트부터
+  //   base 를 다음 거래일 기준(= 어제 종가)으로 바꿔서, 마지막 봉으로 잡으면 오늘 기준선과 같은 값이 되어 두 점선이 한 높이로
+  //   겹쳤다(사용자 2026-10-27 "엇그제 종가와 어제 종가가 같아?" — NVDA 월 23:55 봉 base 216 = 월 종가, 정규장 봉은 210.96).
+  const prevReg = prev.filter(inRegular);
+  const pb = prev.length ? (prevReg.length ? prevReg[prevReg.length - 1] : prev[prev.length - 1]).base : undefined;
   // 지금 위치(그 시장 현지 날짜·시각) — 최신 날이 오늘이 아니면 1
   const tz = isKr ? "Asia/Seoul" : "America/New_York";
   const pp = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })

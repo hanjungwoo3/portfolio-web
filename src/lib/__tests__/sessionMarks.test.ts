@@ -67,3 +67,14 @@ describe("거래정지(체결 0) — 유니슨 실제 응답 2026-10-27", () => 
     vi.useRealTimers();
   });
 });
+
+import nvda from "./fixtures/toss_us_5m_nvda_20261027.json";
+describe("어제 기준선(그저께 종가) — 토스 오버나이트 봉의 base 교체", () => {
+  it("월요일 20:00 ET 뒤 봉의 base(=월 종가)가 아니라 정규장 봉의 base(=금 종가)를 쓴다 — NVDA 실제 응답", () => {
+    vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-27T08:20:00Z"));   // 화 04:20 ET
+    const s = buildTwoDaySeries(nvda, false)!;
+    expect(s.base).toBe(216);
+    expect(s.prevBase).toBe(210.96);
+    vi.useRealTimers();
+  });
+});
