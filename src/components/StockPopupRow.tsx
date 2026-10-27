@@ -6,7 +6,6 @@ import { useQuery } from "@tanstack/react-query";
 import {
   fetchNaverNews, fetchNaverRecentDisclosures, fetchTossOrderBook, fetchInvestorHistory, fetchTossBrokerRanking, fetchTossProgramRecent,
 } from "../lib/api";
-import type { BrokerRanking, BrokerSide } from "../lib/api";
 import type { Investor } from "../types";
 import { useLastRefresh } from "../lib/lastRefresh";
 import { TossPane, NaverPane } from "./CommunityDialog";
@@ -106,13 +105,41 @@ export function OrderBookBox({ code }: { code: string }) {
 export function BrokerBox({ code, className = "" }: { code: string; className?: string }) {
   const { data: br, error } = useBroker(code);
   const mx = Math.max(1, ...(br ? br.rows.flatMap(r => [r.ask.val, r.bid.val]) : [1]));
-  const side = (b: { name: string; val: number; foreign: boolean }, k: "ask" | "bid") => (
-    <div className="relative flex items-center justify-between px-1 h-[22px] text-[11.5px]">
-      <span className={`absolute inset-y-0.5 left-0 rounded-sm ${k === "ask" ? "bg-blue-100" : "bg-rose-100"}`} style={{ width: `${(b.val / mx) * 100}%` }} />
-      <span className="relative truncate font-medium text-gray-800">{b.name}{b.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}</span>
-      <span className={`relative tabular-nums shrink-0 ${k === "ask" ? "text-blue-700" : "text-rose-700"}`}>{eokWon(b.val)}</span>
-    </div>
-  );
+  // 같은 증권사가 매도·매수 상위 5에 다 들면 그 줄에 막대 둘을 겹친다(사용자 2026-10-27): 큰 쪽을 연하게 아래, 작은 쪽을
+  //   진하게 위 → 덮이지 않은 꼬리 색이 순매매 부호(빨강 = 순매수, 파랑 = 순매도). 한쪽에만 든 곳은 제 막대 하나 그대로.
+  const askBy = new Map(br ? br.rows.map(r => [r.ask.name, r.ask.val]) : []);
+  const bidBy = new Map(br ? br.rows.map(r => [r.bid.name, r.bid.val]) : []);
+  const side = (b: { name: string; val: number; foreign: boolean }, k: "ask" | "bid") => {
+    const other = (k === "ask" ? bidBy : askBy).get(b.name);
+    const both = other != null;
+    const bid = k === "bid" ? b.val : other ?? 0, ask = k === "ask" ? b.val : other ?? 0;
+    const net = bid - ask;
+    const w = (v: number) => `${(v / mx) * 100}%`;
+    // 큰 쪽 아래, 작은 쪽 위(같은 높이·같은 진하기 — 원래 매도 파랑·매수 빨강) → 덮이지 않은 꼬리 색이 부호(사용자 2026-10-27)
+    const big = bid >= ask ? { v: bid, cls: "bg-rose-400" } : { v: ask, cls: "bg-blue-300" };
+    const small = bid >= ask ? { v: ask, cls: "bg-blue-300" } : { v: bid, cls: "bg-rose-400" };
+    return (
+      // 글자 줄 아래에 막대 줄을 따로(사용자 2026-10-27 "그래프를 글자아래에 별도로") — 두 막대는 같은 높이로 겹친다
+      <div className="px-1 pt-0.5 pb-1 text-[11.5px]"
+           title={both ? `${b.name} — 매수 ${eokWon(bid)} · 매도 ${eokWon(ask)} · 순${net >= 0 ? "매수" : "매도"} ${eokWon(Math.abs(net))}` : undefined}>
+        <div className="flex items-center justify-between gap-1 leading-tight">
+          <span className="truncate font-medium text-gray-800">{b.name}{b.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}</span>
+          <span className={`tabular-nums shrink-0 ${k === "ask" ? "text-blue-700" : "text-rose-700"}`}>
+            {eokWon(b.val)}
+            {both && <span className={`ml-0.5 text-[10.5px] font-bold ${up(net)}`}>({net > 0 ? "+" : net < 0 ? "−" : ""}{eokWon(Math.abs(net))})</span>}
+          </span>
+        </div>
+        <div className="relative h-[10px] mt-0.5">
+          {both ? (<>
+            <span className={`absolute inset-y-0 left-0 rounded-sm ${big.cls}`} style={{ width: w(big.v) }} />
+            <span className={`absolute inset-y-0 left-0 rounded-sm ${small.cls}`} style={{ width: w(small.v) }} />
+          </>) : (
+            <span className={`absolute inset-y-0 left-0 rounded-sm ${k === "ask" ? "bg-blue-300" : "bg-rose-400"}`} style={{ width: w(b.val) }} />
+          )}
+        </div>
+      </div>
+    );
+  };
   const fnet = br ? br.foreign.bidVal - br.foreign.askVal : 0;
   return (
     <div className={`${BOX} ${className}`}>
@@ -131,7 +158,6 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
             {br.rows.map((r, i) => <div key={"b" + i}>{side(r.bid, "bid")}</div>)}
           </div>
         </div>
-        <BrokerNetBars br={br} />
         {/* 외국계 합계 — 장중 외국인 매매의 가장 빠른 어림 */}
         <div className="mt-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-[11.5px] tabular-nums">
           <div className="flex items-baseline justify-between">
@@ -142,54 +168,6 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
         </div>
         <div className="pt-1 text-[10.5px] text-gray-400 leading-snug">창구 = 주문을 낸 증권사. 외국계 창구가 곧 외국인은 아니지만, 장 마감 뒤 나오는 외국인 순매수를 장중에 가장 빨리 짐작하는 수치.</div>
       </>)}
-    </div>
-  );
-}
-
-// 같은 증권사 순매매(매수 − 매도) — 사용자 요청 2026-10-27("같은 증권사면 +- 해서 합계도", 투자자 막대처럼).
-//   토스는 매도·매수 **각각 상위 5** 만 준다 → 양쪽에 다 든 증권사만 정확히 계산된다. 한쪽에만 든 곳은 반대쪽이
-//   '상위 5 밖'(그 목록 5위보다 작다)이라 값을 지어내지 않고 따로 적는다. 막대는 가운데 0 — 순매수 오른쪽 빨강·순매도 왼쪽 파랑.
-export function brokerNets(br: BrokerRanking): { both: { name: string; foreign: boolean; net: number; bid: number; ask: number }[]; onlyAsk: BrokerSide[]; onlyBid: BrokerSide[] } {
-  const ask = new Map(br.rows.map(r => [r.ask.name, r.ask])), bid = new Map(br.rows.map(r => [r.bid.name, r.bid]));
-  const both = [...ask.keys()].filter(n => n && bid.has(n)).map(n => {
-    const a = ask.get(n)!, b = bid.get(n)!;
-    return { name: n, foreign: a.foreign || b.foreign, net: b.val - a.val, bid: b.val, ask: a.val };
-  }).sort((x, y) => y.net - x.net);
-  return {
-    both,
-    onlyAsk: [...ask.values()].filter(a => a.name && !bid.has(a.name)),
-    onlyBid: [...bid.values()].filter(b => b.name && !ask.has(b.name)),
-  };
-}
-function BrokerNetBars({ br }: { br: BrokerRanking }) {
-  const { both, onlyAsk, onlyBid } = brokerNets(br);
-  if (!both.length && !onlyAsk.length && !onlyBid.length) return null;
-  const mx = Math.max(1, ...both.map(x => Math.abs(x.net)));
-  return (
-    <div className="mt-2">
-      <div className="flex items-baseline gap-2 px-1">
-        <span className="text-[10.5px] font-bold text-gray-700">같은 증권사 순매매</span>
-        <span className="text-[10px] text-gray-400">매수 − 매도 · 양쪽 상위 5에 다 든 곳만</span>
-      </div>
-      {both.map(x => (
-        <div key={x.name} className="grid grid-cols-[6.5rem_1fr_4rem] items-center gap-1 px-1 h-[20px] text-[11.5px]"
-             title={`${x.name} — 매수 ${eokWon(x.bid)} · 매도 ${eokWon(x.ask)}`}>
-          <span className="truncate font-medium text-gray-800">{x.name}{x.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}</span>
-          {/* 가운데 0 기준 막대 */}
-          <div className="relative h-[12px]">
-            <span className="absolute inset-y-0 left-1/2 w-px bg-gray-300" />
-            <span className={`absolute inset-y-0 rounded-sm ${x.net >= 0 ? "left-1/2 bg-rose-400" : "right-1/2 bg-blue-400"}`}
-                  style={{ width: `${(Math.abs(x.net) / mx) * 50}%` }} />
-          </div>
-          <span className={`text-right tabular-nums shrink-0 font-bold ${up(x.net)}`}>{x.net > 0 ? "+" : x.net < 0 ? "−" : ""}{eokWon(Math.abs(x.net))}</span>
-        </div>
-      ))}
-      {(onlyAsk.length > 0 || onlyBid.length > 0) && (
-        <div className="px-1 pt-0.5 text-[10.5px] text-gray-500 leading-snug">
-          반대쪽은 상위 5 밖이라 순매매 모름 —{" "}
-          {[...onlyBid.map(b => `${b.name} 매수 ${eokWon(b.val)}`), ...onlyAsk.map(a => `${a.name} 매도 ${eokWon(a.val)}`)].join(" · ")}
-        </div>
-      )}
     </div>
   );
 }
