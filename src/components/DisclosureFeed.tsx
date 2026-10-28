@@ -3,8 +3,11 @@
 //   검색(종목명·코드·제목) + 그룹·기간·종류 필터, '중요만'(기본 켬)은 lib/disclosureFilter 의 잡음 규칙으로 거른다.
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchNaverRecentDisclosures, type RecentDisclosure } from "../lib/api";
-import { classifyDisclosure, DISC_CATS, type DiscCat } from "../lib/disclosureFilter";
+import { fetchNaverRecentDisclosures, fetchTossPrices, type RecentDisclosure } from "../lib/api";
+import { KrDaySparkline } from "./KrDaySparkline";
+import { openStockInfo } from "../lib/tickPopup";
+import { STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
+import { classifyDisclosure, DISC_CATS, DISC_CAT_TONE, type DiscCat } from "../lib/disclosureFilter";
 import { openGoogleAi, discAiQuery } from "../lib/googleAi";
 import type { ConsensusItem } from "./ConsensusTab";
 
@@ -29,6 +32,33 @@ async function loadAll(items: ConsensusItem[]): Promise<Row[]> {
   };
   await Promise.all(Array.from({ length: Math.min(POOL, items.length) }, worker));
   return out.sort((a, b) => b.t - a.t);
+}
+
+// 왼쪽 시세 카드 — 지수 탭 종목 카드와 같은 모양(24시간 그래프 배경 + 현재가·등락률 + 종목정보·AI), 사용자 요청 2026-10-28
+function MiniQuoteCard({ code, name, px }: { code: string; name: string; px?: { price: number; pct: number } }) {
+  const pct = px?.pct;
+  const tone = pct == null ? "bg-gray-50 border-gray-200" : pct > 0 ? "bg-rose-50/70 border-rose-200" : pct < 0 ? "bg-blue-50/70 border-blue-200" : "bg-gray-50 border-gray-200";
+  const col = pct == null ? "text-gray-700" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
+  return (
+    <div className={`relative overflow-hidden rounded-lg border ${tone} w-[132px] sm:w-[176px] h-[88px] shrink-0`}>
+      <KrDaySparkline code={code} fallback={[]} live={px?.price} width={300} height={80} className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />
+      <div className="relative h-full flex flex-col px-2 py-1">
+        <button type="button" onClick={() => openStockInfo(code, name)} title="종목정보"
+                className={`text-left truncate font-bold text-[13px] ${col} hover:underline`}>{name}</button>
+        <div className="mt-auto flex items-baseline justify-between gap-1 tabular-nums">
+          <span className={`text-[12px] ${col}`}>{px ? Math.round(px.price).toLocaleString() : "—"}</span>
+          <span className={`font-bold text-[16px] sm:text-[18px] ${col}`}>{pct == null ? "" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
+        </div>
+        <div className="flex justify-end gap-0.5 -mb-0.5">
+          <button type="button" onClick={() => openStockInfo(code, name)}
+                  className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">📊종목정보</button>
+          <button type="button" title="구글 AI에 현재상태 분석 요청"
+                  onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${name}(${code})${px ? `, 현재가 ${Math.round(px.price).toLocaleString()}원 (${pct! >= 0 ? "+" : ""}${pct!.toFixed(2)}%)` : ""}`)}
+                  className="px-1 rounded border border-blue-300/70 bg-blue-50 text-blue-700 text-[9.5px] font-bold leading-[15px]">🔍AI</button>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 // 날짜(KST) → 종목 묶음. 날짜는 최신 먼저, 한 날 안에서는 마지막 공시가 늦은 종목 먼저, 종목 안은 시간 역순
@@ -66,6 +96,16 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
     && (!needle || r.name.toLowerCase().includes(needle) || r.ticker.includes(needle) || r.title.toLowerCase().includes(needle)));
   const hidden = importantOnly ? base.filter(r => r.noise).length : 0;
   const rows = base.filter(r => (!importantOnly || !r.noise) && (!cats.size || cats.has(r.cat)));
+  // 화면에 보이는 종목 시세 — 토스 한 번에 묶어(200종목까지 1콜), 30초마다
+  const shownCodes = useMemo(() => [...new Set(rows.slice(0, 400).map(r => r.ticker))].sort(), [rows]);
+  const { data: pxList } = useQuery({
+    queryKey: ["disc-feed-px", shownCodes.join(",")], queryFn: () => fetchTossPrices(shownCodes),
+    enabled: shownCodes.length > 0, refetchInterval: 30_000, staleTime: 15_000,
+  });
+  const pxOf = (code: string) => {
+    const t = pxList?.find(p => p.ticker === code);
+    return t && t.prevClose > 0 ? { price: t.price, pct: ((t.price - t.prevClose) / t.prevClose) * 100 } : undefined;
+  };
   const catCount = (c: DiscCat) => base.filter(r => (!importantOnly || !r.noise) && r.cat === c).length;
   const when = (t: number) => {
     const d = new Date(t + 9 * 3600_000).toISOString();
@@ -101,7 +141,10 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
       </div>
       <div className="flex flex-wrap gap-1 px-1">
         {DISC_CATS.map(c => { const n = catCount(c); return n > 0 || cats.has(c) ? (
-          <button key={c} className={chip(cats.has(c))} onClick={() => toggleCat(c)}>{c} <span className="opacity-70">{n}</span></button>
+          <button key={c} onClick={() => toggleCat(c)}
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold border transition ${cats.has(c) ? DISC_CAT_TONE[c].on : `${DISC_CAT_TONE[c].tag} hover:brightness-95`}`}>
+            {c} <span className="opacity-70">{n}</span>
+          </button>
         ) : null; })}
         {cats.size > 0 && <button className="text-[11px] text-gray-400 hover:underline" onClick={() => setCats(new Set())}>종류 해제</button>}
       </div>
@@ -116,11 +159,13 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
               </div>
               {/* 같은 날 같은 종목 = 카드 한 장(사용자 요청 2026-10-28 "일별로 같은 종목은 묶자", "카드로 묶으면 — 좌우가 넓어").
                   화면 폭에 따라 1~3열 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 items-start">   {/* 한 줄에 3장(넓은 화면, 사용자 요청 2026-10-28) */}
               {day.stocks.map(st => (
-                <div key={st.ticker} className="pg-card rounded-lg border border-gray-200 bg-white px-2 py-1.5">
-                  <div className="flex items-baseline gap-1.5 min-w-0 mb-0.5">
-                    <div className="truncate font-bold text-[12.5px] text-gray-800" title={`${st.name}(${st.ticker})`}>{st.name}</div>
+                <div key={st.ticker} className="pg-card rounded-lg border border-gray-200 bg-white p-1.5 flex gap-2">
+                  {/* 왼쪽 = 시세 카드, 오른쪽 = 그날 공시 목록(사용자 요청 2026-10-28) */}
+                  <MiniQuoteCard code={st.ticker} name={st.name} px={pxOf(st.ticker)} />
+                  <div className="min-w-0 flex-1">
+                  <div className="flex items-baseline gap-1 min-w-0 mb-0.5">
                     <span className="text-[10px] text-gray-400 shrink-0">{st.rows.length}건</span>
                     {st.groups.length > 0 && onSelectGroup && (
                       <div className="ml-auto flex gap-0.5 min-w-0 overflow-hidden">
@@ -138,7 +183,7 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
                         <a key={r.id} href={r.url} target="_blank" rel="noopener noreferrer"
                            className={`flex items-start gap-1.5 py-0.5 rounded hover:bg-gray-50 text-[12px] ${r.noise ? "opacity-60" : ""}`}>
                           <span className="w-[34px] shrink-0 text-[10.5px] text-gray-400 tabular-nums pt-px">{when(r.t).slice(-5)}</span>
-                          <span className="shrink-0 px-1 rounded text-[10px] font-bold leading-[18px] bg-amber-100 text-amber-800">{r.cat}</span>
+                          <span className={`shrink-0 px-1 rounded border text-[10px] font-bold leading-[16px] ${DISC_CAT_TONE[r.cat].tag}`}>{r.cat}</span>
                           <span className={`min-w-0 flex-1 leading-snug ${isNew ? "font-bold text-gray-900" : "text-gray-800"}`}>
                             {isNew && <span className="mr-1 px-1 rounded bg-rose-500 text-white text-[9px] align-middle">NEW</span>}
                             {r.title}
@@ -151,6 +196,7 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
                         </a>
                       );
                     })}
+                  </div>
                   </div>
                 </div>
               ))}

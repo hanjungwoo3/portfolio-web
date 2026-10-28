@@ -35,3 +35,20 @@ export function classifyDisclosure(title: string): { cat: DiscCat; noise: boolea
   const noise = NOISE.some(re => re.test(t)) && !/잠정\)\s*실적|결산실적|손익구조|배당|자기주식|공급계약|유상증자|전환사채|합병|분할|최대주주/.test(t);
   return { cat: hit ? hit[0] : corrected ? "정정" : "기타", noise, corrected };
 }
+
+// 종류별 색 — 줄의 종류 표시와 위쪽 종류 필터 버튼이 같은 색(사용자 요청 2026-10-28 "각각 색을 다르게, 상단 버튼도")
+//   tag = 연한 바탕+진한 글자(줄 표시·꺼진 버튼), on = 진한 바탕+흰 글자(켜진 버튼)
+export const DISC_CAT_TONE: Record<DiscCat, { tag: string; on: string }> = {
+  실적:      { tag: "bg-rose-100 text-rose-700 border-rose-200",       on: "bg-rose-600 text-white border-rose-600" },
+  배당:      { tag: "bg-emerald-100 text-emerald-700 border-emerald-200", on: "bg-emerald-600 text-white border-emerald-600" },
+  자사주:    { tag: "bg-sky-100 text-sky-700 border-sky-200",          on: "bg-sky-600 text-white border-sky-600" },
+  계약:      { tag: "bg-indigo-100 text-indigo-700 border-indigo-200", on: "bg-indigo-600 text-white border-indigo-600" },
+  "증자·CB": { tag: "bg-orange-100 text-orange-700 border-orange-200", on: "bg-orange-600 text-white border-orange-600" },
+  지분:      { tag: "bg-violet-100 text-violet-700 border-violet-200", on: "bg-violet-600 text-white border-violet-600" },
+  IR:        { tag: "bg-teal-100 text-teal-700 border-teal-200",       on: "bg-teal-600 text-white border-teal-600" },
+  "합병·분할": { tag: "bg-fuchsia-100 text-fuchsia-700 border-fuchsia-200", on: "bg-fuchsia-600 text-white border-fuchsia-600" },
+  "소송·제재": { tag: "bg-red-200 text-red-800 border-red-300",        on: "bg-red-700 text-white border-red-700" },
+  해명:      { tag: "bg-amber-100 text-amber-800 border-amber-200",    on: "bg-amber-500 text-white border-amber-500" },
+  정정:      { tag: "bg-slate-200 text-slate-700 border-slate-300",    on: "bg-slate-600 text-white border-slate-600" },
+  기타:      { tag: "bg-gray-100 text-gray-600 border-gray-200",       on: "bg-gray-600 text-white border-gray-600" },
+};
