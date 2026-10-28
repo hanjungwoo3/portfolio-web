@@ -87,8 +87,10 @@ const SPLIT_COLOR = "#a855f7"; // 액면분할 marker — purple-500
 const DART_COLOR = "#ea580c";  // DART 공시 marker — orange-600
 // 거래대금 터진 날의 거래량 막대 — 평소 막대(반투명 빨강/파랑)와 확실히 구분되는 진보라.
 const BURST_VOL_COLOR = "rgba(147, 51, 234, 0.95)";
-const BUY_COLOR  = "#f59e0b";  // 내 매수 marker — amber-500 (증권사 앱 관례: 매수=주황 ↑)
-const SELL_COLOR = "#38bdf8";  // 내 매도 marker — sky-400 (매도=파랑 ↓)
+// 내 매수·매도 표시 — 증권사 앱처럼 동그라미 안 화살표(사용자 요청 2026-10-28 "이 화살표로 사고파는거 표시"):
+//   매수 = 봉 아래 빨간 원 ↑, 매도 = 봉 위 파란 원 ↓
+const BUY_COLOR  = "#e11d48";  // rose-600
+const SELL_COLOR = "#2563eb";  // blue-600
 
 // 공시 제목에서 차트 라벨용 짧은 키워드 추출 (우선순위 순)
 //   매칭 안 되면 null → 호출자가 "N건" 카운트로 폴백
@@ -491,7 +493,7 @@ export function CandleChartLight({
       //     매수는 캔들 아래(▲), 매도는 캔들 위(▼). 탭하면 상세 팝업.
       //     거래가 잦으면 마커끼리 겹쳐 캔들을 가리므로 — 작게 그리고, x 가 가까운
       //     마커는 바깥쪽으로 한 칸씩 밀어 레인을 나눈다 (레인은 3칸까지만).
-      const TRI = 7;              // 삼각형 밑변/높이 (px) — 캔들 가림 최소화
+      const TRI = 14;             // 동그라미 지름(px)
       const LANE_GAP = TRI + 2;
       const MAX_LANE = 2;         // 0,1,2 — 그 이상은 겹쳐도 그대로 (무한히 밀면 차트 밖)
       const lanesOf = { buy: [] as number[][], sell: [] as number[][] };
@@ -530,14 +532,15 @@ export function CandleChartLight({
           `width:${TRI + pad * 2}px;height:${TRI + pad * 2}px;` +
           `display:flex;align-items:center;justify-content:center;` +
           `transform:translateX(-50%);pointer-events:auto;cursor:pointer;z-index:6;`;
-        const tri = document.createElement("div");
-        tri.style.cssText =
-          `width:0;height:0;` +
-          `border-left:${TRI / 2}px solid transparent;` +
-          `border-right:${TRI / 2}px solid transparent;` +
-          (buy ? `border-bottom:${TRI}px solid ${color};`
-               : `border-top:${TRI}px solid ${color};`);
-        hit.appendChild(tri);
+        const dot = document.createElement("div");
+        dot.style.cssText =
+          `width:${TRI}px;height:${TRI}px;border-radius:50%;background:${color};opacity:0.6;` +   // 반투명 — 뒤 그래프가 비치게(사용자 요청)
+          `box-shadow:0 0 0 1px rgba(255,255,255,0.7);display:flex;align-items:center;justify-content:center;`;
+        // 흰 화살표(SVG) — 글자 화살표는 글꼴마다 굵기·위치가 달라 그린다
+        dot.innerHTML = `<svg width="${TRI - 4}" height="${TRI - 4}" viewBox="0 0 10 10" aria-hidden="true">` +
+          (buy ? `<path d="M5 1.2 L8.6 5.2 H6.2 V8.8 H3.8 V5.2 H1.4 Z" fill="#fff"/>`
+               : `<path d="M5 8.8 L8.6 4.8 H6.2 V1.2 H3.8 V4.8 H1.4 Z" fill="#fff"/>`) + `</svg>`;
+        hit.appendChild(dot);
         hit.title = `${buy ? "매수" : "매도"} ${m.date} · 평균 ${Math.round(m.avgPrice).toLocaleString()}원 · ${m.qty.toLocaleString()}주`;
         hit.addEventListener("click", e => {
           e.stopPropagation();
@@ -801,7 +804,7 @@ export function CandleChartLight({
 
   return (
     <div className="relative">
-      <div ref={containerRef} className="w-full h-[220px] lg:h-[360px]" />
+      <div ref={containerRef} className="w-full h-[300px] lg:h-[520px]" />   {/* 높이 늘림(사용자 요청 2026-10-28) */}
       <div ref={markersRef}
            className="absolute inset-0 pointer-events-none overflow-hidden" />
       <div ref={tooltipRef}

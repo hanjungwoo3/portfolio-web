@@ -1740,7 +1740,7 @@ function PriceVolumeChart({
         </span>
       </div>
       <Suspense fallback={
-        <div className="w-full h-[220px] lg:h-[360px] flex items-center justify-center text-xs text-gray-400">
+        <div className="w-full h-[300px] lg:h-[520px] flex items-center justify-center text-xs text-gray-400">
           차트 로딩 중...
         </div>
       }>
