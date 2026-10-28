@@ -9,7 +9,7 @@ import { fetchDartDayPreferServer, loadListedCorps, normCorp, type DartRow } fro
 import { KrDaySparkline } from "./KrDaySparkline";
 import { openStockInfo } from "../lib/tickPopup";
 import { STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
-import { classifyDisclosure, DISC_CATS, DISC_CAT_TONE, type DiscCat } from "../lib/disclosureFilter";
+import { classifyDisclosure, DISC_CATS, DISC_CAT_TONE, DEFAULT_DISC_CATS, loadDiscCats, saveDiscCats, type DiscCat } from "../lib/disclosureFilter";
 import { openGoogleAi, discAiQuery } from "../lib/googleAi";
 import type { ConsensusItem } from "./ConsensusTab";
 
@@ -60,6 +60,7 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
   const today = kstToday();
   const [day, setDay] = useState(today);   // 기본 = 오늘(사용자 요청 2026-10-28)
   const isToday = day === today;
+  const minDay = shiftDay(today, -40);   // 서버(크롤러)가 최근 40일만 보관 — 그 앞은 고를 수 없게
   const { data: dartDay, isLoading, isFetching, error, dataUpdatedAt, refetch } = useQuery({
     queryKey: ["dart-day", day], queryFn: () => fetchDartDayPreferServer(day),
     staleTime: isToday ? 5 * 60_000 : Infinity, refetchInterval: isToday ? 10 * 60_000 : false, refetchOnWindowFocus: false,
@@ -70,9 +71,11 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
   const { data: corps } = useQuery({ queryKey: ["listed-corps"], queryFn: loadListedCorps, staleTime: 12 * 3600_000, retry: 1, enabled: dartDay?.source === "live" });
   const [q, setQ] = useState("");
   const [group, setGroup] = useState("");
-  const [cats, setCats] = useState<Set<DiscCat>>(new Set());
+  const [cats, setCatsRaw] = useState<Set<DiscCat>>(loadDiscCats);   // 기본 = 중요한 종류만, 바꾸면 기억
+  const setCats = (next: Set<DiscCat> | ((p: Set<DiscCat>) => Set<DiscCat>)) =>
+    setCatsRaw(prev => { const n = typeof next === "function" ? next(prev) : next; saveDiscCats(n); return n; });
   const [importantOnly, setImportantOnly] = useState(true);
-  const [heldOnly, setHeldOnly] = useState(true);
+  const [heldOnly, setHeldOnly] = useState(false);   // 기본 = 상장사 전체(사용자 요청 2026-10-28 "보유 종목만은 기본 체크 안 하게")
 
   const kr = useMemo(() => items.filter(it => /^[\dA-Za-z]{6}$/.test(it.ticker) && /\d/.test(it.ticker)), [items]);
   const byCode = useMemo(() => new Map(kr.map(it => [it.ticker, it])), [kr]);
@@ -90,7 +93,7 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
   const base = all.filter(r => (!heldOnly || r.held) && (!group || r.groups.includes(group))
     && (!needle || r.name.toLowerCase().includes(needle) || r.corp.toLowerCase().includes(needle) || (r.code ?? "").includes(needle) || r.title.toLowerCase().includes(needle)));
   const hidden = importantOnly ? base.filter(r => r.noise).length : 0;
-  const rows = base.filter(r => (!importantOnly || !r.noise) && (!cats.size || cats.has(r.cat)));
+  const rows = base.filter(r => (!importantOnly || !r.noise) && cats.has(r.cat));
   const catCount = (c: DiscCat) => base.filter(r => (!importantOnly || !r.noise) && r.cat === c).length;
   const stocks = byStock(rows.slice(0, 600));
   // 화면 종목 시세 — 토스 한 번에 묶어(200종목까지 1콜), 30초마다
@@ -111,8 +114,8 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5 px-1">
         {/* 날짜 하나씩 — 기본 오늘 */}
-        <button className={navBtn} onClick={() => setDay(d => shiftDay(d, -1))} title="전날">◀</button>
-        <input type="date" value={day} max={today} onChange={e => e.target.value && setDay(e.target.value)} aria-label="날짜"
+        <button className={navBtn} onClick={() => setDay(d => shiftDay(d, -1))} disabled={day <= minDay} title="전날">◀</button>
+        <input type="date" value={day} min={minDay} max={today} onChange={e => e.target.value && e.target.value >= minDay && setDay(e.target.value)} aria-label="날짜"
                className="border border-gray-300 rounded px-1.5 py-0.5 text-xs bg-white text-gray-700 focus:outline-none focus:border-blue-400" />
         <button className={navBtn} onClick={() => setDay(d => shiftDay(d, 1))} disabled={isToday} title="다음날">▶</button>
         {!isToday && <button className={navBtn} onClick={() => setDay(today)}>오늘</button>}
@@ -142,13 +145,14 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
         </span>
       </div>
       <div className="flex flex-wrap gap-1 px-1">
-        {DISC_CATS.map(c => { const n = catCount(c); return n > 0 || cats.has(c) ? (
+        {DISC_CATS.map(c => { const n = catCount(c); return (
           <button key={c} onClick={() => toggleCat(c)}
-                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold border transition ${cats.has(c) ? DISC_CAT_TONE[c].on : `${DISC_CAT_TONE[c].tag} hover:brightness-95`}`}>
+                  className={`px-2 py-0.5 rounded-full text-[11px] font-bold border transition ${cats.has(c) ? `${DISC_CAT_TONE[c].on} opacity-80` : "bg-gray-50 text-gray-300 border-gray-200 hover:text-gray-500"}`}>
             {c} <span className="opacity-70">{n}</span>
           </button>
-        ) : null; })}
-        {cats.size > 0 && <button className="text-[11px] text-gray-400 hover:underline" onClick={() => setCats(new Set())}>종류 해제</button>}
+        ); })}
+        <button className="text-[11px] text-gray-500 hover:underline ml-1" onClick={() => setCats(new Set(DISC_CATS))}>전체 보기</button>
+        <button className="text-[11px] text-gray-500 hover:underline" onClick={() => setCats(new Set(DEFAULT_DISC_CATS))}>기본값</button>
       </div>
       {isLoading ? <div className="p-3 text-xs text-gray-400">DART 공시 불러오는 중…</div>
         : error && !dart.length ? <div className="p-3 text-xs text-rose-600">⚠️ {(error as Error).message}</div>

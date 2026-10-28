@@ -53,3 +53,18 @@ export const DISC_CAT_TONE: Record<DiscCat, { tag: string; on: string }> = {
   정정:      { tag: "bg-slate-200 text-slate-700 border-slate-300",    on: "bg-slate-600 text-white border-slate-600" },
   기타:      { tag: "bg-gray-100 text-gray-600 border-gray-200",       on: "bg-gray-600 text-white border-gray-600" },
 };
+
+// 기본으로 켜 두는 종류 — 주가에 바로 닿는 것만(사용자 요청 2026-10-28 "중요한거만 기본으로 체크").
+//   지분·IR·해명·정정·기타는 버튼으로 켤 수 있다. 사용자가 바꾼 선택은 localStorage 에 기억(기기별).
+export const DEFAULT_DISC_CATS: DiscCat[] = ["실적", "배당", "자사주", "계약", "증자·CB", "합병·분할", "소송·제재"];
+const CATS_KEY = "portfolio_disc_cats";
+export function loadDiscCats(): Set<DiscCat> {
+  try {
+    const v = JSON.parse(localStorage.getItem(CATS_KEY) ?? "null") as unknown;
+    if (Array.isArray(v)) return new Set(v.filter((x): x is DiscCat => DISC_CATS.includes(x as DiscCat)));
+  } catch { /* 기본값 */ }
+  return new Set(DEFAULT_DISC_CATS);
+}
+export function saveDiscCats(s: Set<DiscCat>): void {
+  try { localStorage.setItem(CATS_KEY, JSON.stringify([...s])); } catch { /* noop */ }
+}
