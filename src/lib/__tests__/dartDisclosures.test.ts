@@ -20,3 +20,15 @@ describe("parseDartList — DART 오늘의 공시 실제 응답(2026-10-27 1페�
     expect(normCorp("(주) 현대 자동차")).toBe(normCorp("현대자동차"));
   });
 });
+
+import viewer from "./fixtures/dart_viewer_meditox_20261027.html?raw";
+import { dartBodyText } from "../dartDisclosures";
+describe("dartBodyText — DART 본문(viewer.do) 실제 응답", () => {
+  it("공시 표의 항목과 값이 글로 남는다(스크립트·스타일 제거)", () => {
+    const t = dartBodyText(viewer);
+    expect(t).toContain("중간(분기)배당락");
+    expect(t).toContain("A086900");
+    expect(t).toContain("67,500");
+    expect(t).not.toMatch(/font-family|xforms/);
+  });
+});

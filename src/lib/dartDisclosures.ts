@@ -74,6 +74,45 @@ export async function fetchDartDay(ymd = new Date(Date.now() + 9 * 3600_000).toI
 const SERVER = "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/dart/data/dart";
 const STALE_MS = 30 * 60_000;
 export interface DartDay { rows: DartRow[]; source: "server" | "live"; builtAt?: string }
+// 공시 본문 글 — 🔍AI 요약에 넣는다(구글 AI 는 DART 본문을 못 읽는다, 사용자 2026-10-28). 크롤러가 오늘·어제치를
+//   data/dart/body/YYYY-MM-DD.json 에 미리 받아 둔다. 없으면 직접(main.do → viewer.do, EUC-KR — 앱은 네이티브, 웹은 프록시).
+const bodyFiles = new Map<string, Promise<Record<string, string>>>();
+export async function fetchDartBody(ymd: string, rcpNo: string): Promise<string> {
+  let p = bodyFiles.get(ymd);
+  if (!p) {
+    p = fetch(`${SERVER}/body/${ymd}.json?t=${Math.floor(Date.now() / 300_000)}`).then(r => r.ok ? r.json() : {}).catch(() => ({}));
+    bodyFiles.set(ymd, p);
+  }
+  const hit = (await p)[rcpNo];
+  if (hit) return hit;
+  try {
+    const main = await (await fetchProxied(`https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${rcpNo}`)).text();
+    const m = /viewDoc\("(\d+)",\s*"(\d+)",\s*"([^"]*)",\s*"([^"]*)",\s*"([^"]*)",\s*"([^"]*)"/.exec(main);
+    if (!m) return "";
+    const r = await fetchProxied(`https://dart.fss.or.kr/report/viewer.do?rcpNo=${m[1]}&dcmNo=${m[2]}&eleId=${m[3]}&offset=${m[4]}&length=${m[5]}&dtd=${m[6]}`);
+    if (!r.ok) return "";
+    const buf = await r.arrayBuffer();
+    const head = new TextDecoder("latin1").decode(buf.slice(0, 2000));
+    return dartBodyText(new TextDecoder(/charset=utf-8/i.test(head) ? "utf-8" : "euc-kr").decode(buf));
+  } catch { return ""; }
+}
+/** viewer.do HTML → 읽을 글(표는 칸을 | 로). 순수 함수 */
+export function dartBodyText(html: string, max = 3500): string {
+  const t = html.replace(/<script[\s\S]*?<\/script>|<style[\s\S]*?<\/style>/gi, "")
+    .replace(/<\/(tr|p|div|h\d|li)>|<br\s*\/?>/gi, "\n").replace(/<\/t[dh]>/gi, " | ").replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&lt;/g, "<").replace(/&gt;/g, ">");
+  return t.split("\n").map(l => l.replace(/[ \t|]+\|[ \t|]*/g, " | ").replace(/[ \t]+/g, " ").trim().replace(/^\|\s*|\s*\|$/g, ""))
+    .filter(Boolean).join("\n").slice(0, max);
+}
+
+/** 서버 날짜 목록의 날짜별 건수 — ◀ ▶ 가 0건 날(주말·휴장일)을 건너뛰는 데 쓴다. 못 받으면 빈 맵 */
+export async function fetchDartCounts(): Promise<Record<string, number>> {
+  try {
+    const r = await fetch(`${SERVER}/index.json?t=${Math.floor(Date.now() / 600_000)}`);
+    if (!r.ok) return {};
+    return ((await r.json()) as { counts?: Record<string, number> }).counts ?? {};
+  } catch { return {}; }
+}
 export async function fetchDartDayPreferServer(ymd: string): Promise<DartDay> {
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
   try {

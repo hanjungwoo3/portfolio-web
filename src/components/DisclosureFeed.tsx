@@ -5,12 +5,12 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTossPrices } from "../lib/api";
-import { fetchDartDayPreferServer, loadListedCorps, normCorp, type DartRow } from "../lib/dartDisclosures";
+import { fetchDartDayPreferServer, fetchDartCounts, fetchDartBody, loadListedCorps, normCorp, type DartRow } from "../lib/dartDisclosures";
 import { KrDaySparkline } from "./KrDaySparkline";
 import { openStockInfo } from "../lib/tickPopup";
 import { STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { classifyDisclosure, DISC_CATS, DISC_CAT_TONE, DEFAULT_DISC_CATS, loadDiscCats, saveDiscCats, type DiscCat } from "../lib/disclosureFilter";
-import { openGoogleAi, discAiQuery } from "../lib/googleAi";
+import { openGoogleAi, openGoogleAiLater, discAiQuery } from "../lib/googleAi";
 import type { ConsensusItem } from "./ConsensusTab";
 
 type Row = DartRow & { code?: string; name: string; groups: string[]; held: boolean; cat: DiscCat; noise: boolean; corrected: boolean };
@@ -61,6 +61,14 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
   const [day, setDay] = useState(today);   // 기본 = 오늘(사용자 요청 2026-10-28)
   const isToday = day === today;
   const minDay = shiftDay(today, -40);   // 서버(크롤러)가 최근 40일만 보관 — 그 앞은 고를 수 없게
+  // 0건 날(주말·휴장일)은 ◀ ▶ 로 건너뛴다 — 서버 날짜 목록의 건수, 없으면 토·일만(사용자 요청 2026-10-28)
+  const { data: counts = {} } = useQuery({ queryKey: ["dart-counts"], queryFn: fetchDartCounts, staleTime: 10 * 60_000 });
+  const emptyDay = (d: string) => d !== today && (d in counts ? counts[d] === 0 : [0, 6].includes(new Date(`${d}T00:00:00Z`).getUTCDay()));
+  const step = (from: string, dir: -1 | 1) => {
+    let d = shiftDay(from, dir);
+    while (d > minDay && d < today && emptyDay(d)) d = shiftDay(d, dir);
+    return d < minDay ? minDay : d > today ? today : d;
+  };
   const { data: dartDay, isLoading, isFetching, error, dataUpdatedAt, refetch } = useQuery({
     queryKey: ["dart-day", day], queryFn: () => fetchDartDayPreferServer(day),
     staleTime: isToday ? 5 * 60_000 : Infinity, refetchInterval: isToday ? 10 * 60_000 : false, refetchOnWindowFocus: false,
@@ -114,10 +122,10 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-1.5 px-1">
         {/* 날짜 하나씩 — 기본 오늘 */}
-        <button className={navBtn} onClick={() => setDay(d => shiftDay(d, -1))} disabled={day <= minDay} title="전날">◀</button>
+        <button className={navBtn} onClick={() => setDay(d => step(d, -1))} disabled={day <= minDay} title="전 거래일">◀</button>
         <input type="date" value={day} min={minDay} max={today} onChange={e => e.target.value && e.target.value >= minDay && setDay(e.target.value)} aria-label="날짜"
                className="border border-gray-300 rounded px-1.5 py-0.5 text-xs bg-white text-gray-700 focus:outline-none focus:border-blue-400" />
-        <button className={navBtn} onClick={() => setDay(d => shiftDay(d, 1))} disabled={isToday} title="다음날">▶</button>
+        <button className={navBtn} onClick={() => setDay(d => step(d, 1))} disabled={isToday} title="다음 거래일">▶</button>
         {!isToday && <button className={navBtn} onClick={() => setDay(today)}>오늘</button>}
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="종목명·코드·공시 제목 검색"
                className="border border-gray-300 rounded px-2 py-1 text-xs w-52 max-w-full focus:outline-none focus:border-blue-400" />
@@ -151,11 +159,17 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
             {c} <span className="opacity-70">{n}</span>
           </button>
         ); })}
-        <button className="text-[11px] text-gray-500 hover:underline ml-1" onClick={() => setCats(new Set(DISC_CATS))}>전체 보기</button>
+        {/* 전체 보기 ↔ 선택 해제 — 해제한 뒤 하나만 누르면 그 종류만(사용자 요청 2026-10-28 "하나만 볼려니 다 꺼야 하는데") */}
+        <button className="text-[11px] text-gray-500 hover:underline ml-1"
+                onClick={() => setCats(cats.size === DISC_CATS.length ? new Set() : new Set(DISC_CATS))}>
+          {cats.size === DISC_CATS.length ? "선택 해제" : "전체 보기"}
+        </button>
         <button className="text-[11px] text-gray-500 hover:underline" onClick={() => setCats(new Set(DEFAULT_DISC_CATS))}>기본값</button>
       </div>
       {isLoading ? <div className="p-3 text-xs text-gray-400">DART 공시 불러오는 중…</div>
         : error && !dart.length ? <div className="p-3 text-xs text-rose-600">⚠️ {(error as Error).message}</div>
+        : !dart.length && !isToday ? <div className="p-3 text-xs text-gray-400">휴장일이거나 공시가 없는 날입니다 — ◀ ▶ 는 이런 날을 건너뜁니다</div>
+        : !cats.size ? <div className="p-3 text-xs text-gray-400">위에서 공시 종류를 하나 이상 고르세요</div>
         : !stocks.length ? <div className="p-3 text-xs text-gray-400">{heldOnly ? "보유 종목의 공시가 없습니다" : "조건에 맞는 공시가 없습니다"}</div>
         : (
         // 종목 = 카드 한 장(왼쪽 시세 · 오른쪽 그날 공시), 넓은 화면 한 줄 3장
@@ -190,7 +204,14 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
                         {r.submitter && r.submitter !== r.corp && <span className="ml-1 text-[10px] text-gray-400">· {r.submitter}</span>}
                       </span>
                       <button type="button" title="이 공시를 구글 AI 로 요약"
-                              onClick={e => { e.preventDefault(); e.stopPropagation(); openGoogleAi(discAiQuery(r.name, r.code ?? r.corp, r.title, `${r.date} ${r.time}`, r.url)); }}
+                              onClick={e => {
+                                e.preventDefault(); e.stopPropagation();
+                                // 본문을 넣어 묻는다(서버 파일 → 없으면 직접). 4초 넘게 걸리면 본문 없이
+                                void openGoogleAiLater(async () => {
+                                  const body = await Promise.race([fetchDartBody(r.date, r.rcpNo), new Promise<string>(res => setTimeout(() => res(""), 4000))]);
+                                  return discAiQuery(r.name, r.code ?? r.corp, r.title, `${r.date} ${r.time}`, r.url, body);
+                                });
+                              }}
                               className="shrink-0 px-1 rounded border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold leading-[18px]">
                         🔍AI
                       </button>
