@@ -14,6 +14,7 @@ const ALLOWED_HOSTS = new Set<string>([
   "tossinvest.com",
   "finance.naver.com",
   "m.stock.naver.com",
+  "dart.fss.or.kr",          // DART 오늘의 공시 목록(최신공시 페이지, 2026-10-28)
   "stock.naver.com",
   "polling.finance.naver.com",
   "navercomp.wisereport.co.kr",
