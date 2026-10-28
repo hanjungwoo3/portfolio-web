@@ -1,0 +1,7 @@
+name = "dart-cron"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+# UTC — 평일 07:00~20:50 KST = 전날 22:00 ~ 당일 11:50 UTC. 요일·시각은 코드에서 한 번 더 거른다
+[triggers]
+crons = ["*/10 22-23 * * *", "*/10 0-11 * * *"]
