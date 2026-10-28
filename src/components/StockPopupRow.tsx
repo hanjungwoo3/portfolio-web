@@ -9,6 +9,13 @@ import {
 import type { Investor } from "../types";
 import { useLastRefresh } from "../lib/lastRefresh";
 import { TossPane, NaverPane } from "./CommunityDialog";
+import { openGoogleAi, aiNowStamp } from "../lib/googleAi";
+
+// 공시 한 건 AI 요약(사용자 요청 2026-10-28) — 카드의 🔍AI 처럼 구글 AI 모드로. 공시 원문 링크를 같이 넘겨 그 문서를 읽게 한다
+const discAiQuery = (name: string, code: string, title: string, when: string, url: string) =>
+  `[기준시각 ${aiNowStamp()}] ${name}(${code}) 공시 "${title}" (${when} 공시) 를 찾아 읽고 한국어로 요약하라. 원문: ${url} ` +
+  `[출력] 한 줄 요약 / 핵심 내용 불릿 3~5개 / 숫자(금액·비율·수량·일정·기준일)를 표로 / 이 공시가 주가에 주는 영향(긍정·부정·중립과 이유, 시가총액·과거 비슷한 공시 대비 규모) / ` +
+  `투자자가 더 확인할 점 / 정정공시면 무엇이 바뀌었는지. [규칙] 원문에 없는 숫자는 지어내지 말고 "확인 필요". 투자 자문 아님.`;
 
 const up = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500");
 const BOX = "pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 min-w-0";
@@ -299,6 +306,13 @@ export function FeedBox({ code, name, kind, className = "" }: { code: string; na
                   </span>
                   {x.kind === "news" && <span className="text-[10.5px] text-gray-400">{x.sub}</span>}
                 </span>
+                {x.kind === "disc" && (
+                  <button type="button" title="이 공시를 구글 AI 로 요약"
+                          onClick={e => { e.preventDefault(); e.stopPropagation(); openGoogleAi(discAiQuery(name, code, x.title, when(x.t), x.url)); }}
+                          className="self-start shrink-0 px-1 rounded border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold leading-[18px]">
+                    🔍AI
+                  </button>
+                )}
               </a>
             );
           })}
