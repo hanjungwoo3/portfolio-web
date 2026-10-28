@@ -129,11 +129,14 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
                                   className={`flex items-baseline gap-1 text-[12px] leading-tight rounded px-0.5 border-l-2 ${impact ? "border-rose-500 font-bold text-gray-900" : "border-transparent text-gray-600"} ${my ? "bg-yellow-100 font-bold" : ""}`}
                                   title={`${e.name} (${e.code}) · ${d} ${t || "시각 미정"} (한국 시간)${impact ? `\n한국 영향: ${impact}` : ""}`}>
                                 <span className="shrink-0 text-[10px]">{e.country === "US" ? "🇺🇸" : "🇰🇷"}</span>
+                                {e.logo && <img src={e.logo} alt="" loading="lazy" className="shrink-0 w-5 h-5 rounded-full self-center bg-white"
+                                                onError={ev => { (ev.currentTarget as HTMLImageElement).style.display = "none"; }} />}
                                 {e.country === "KR" && onOpenValuation
                                   ? <button onClick={() => onOpenValuation(e.code, e.name)} className="truncate text-left hover:text-blue-600">{my && "★"}{e.name}</button>
                                   : <span className="truncate">{my && "★"}{e.name}</span>}
                                 {impact && <span className="shrink-0 px-1 rounded text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 leading-tight">{impact}</span>}
-                                {t && <span className={`ml-auto shrink-0 text-[10px] font-normal ${e.session === "post" ? "text-violet-600" : "text-gray-500"}`}>{t}</span>}
+                                {e.reported && <span className="ml-auto shrink-0 text-[10px] font-normal text-emerald-600" title="발표함">✓</span>}
+                                {t && <span className={`${e.reported ? "" : "ml-auto "}shrink-0 text-[10px] font-normal ${e.session === "post" ? "text-violet-600" : "text-gray-500"}`}>{t}</span>}
                               </li>
                             );
                           })}

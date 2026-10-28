@@ -9,12 +9,14 @@ import {
   LineSeries,
   BaselineSeries,
   LineStyle,
+  createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
   type IPriceLine,
   type Time,
   type UTCTimestamp,
   type MouseEventParams,
+  type SeriesMarker,
 } from "lightweight-charts";
 import type { IntradayKey } from "../lib/intradayInvestor";
 import { INTRADAY_SERIES } from "../lib/intradayInvestor";
@@ -134,7 +136,7 @@ export function IntradayInvestorChart({
       },
       grid: { vertLines: { color: "#f3f4f6" }, horzLines: { color: "#f3f4f6" } },
       rightPriceScale: { borderColor: "#e5e7eb", scaleMargins: { top: 0.1, bottom: 0.1 } },
-      leftPriceScale: { visible: hasIndex, borderColor: "#e5e7eb", scaleMargins: { top: 0.05, bottom: 0.05 } },   // 배경 지수(코스피/코스닥)만 표시
+      leftPriceScale: { visible: hasIndex, borderColor: "#e5e7eb", scaleMargins: { top: 0.1, bottom: 0.1 } },   // 배경 지수(코스피/코스닥)만 표시 — 위아래 10% 여백: 최고·최저 글자가 잘리지 않게
       timeScale: { borderColor: "#e5e7eb", timeVisible, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
       // 드래그는 이동(팬)만 — 시간축 드래그 줌·끝단 스트레치 방지. 줌은 휠/핀치.
       // 손가락 가로 끌기는 화면 이동이 아니라 시각 고르기(아래 터치 처리) — 모바일에서 시간별 값을 볼 수 없었다(사용자 지적 2026-10-23)
@@ -155,6 +157,7 @@ export function IntradayInvestorChart({
 
     // 배경 지수(코스피/코스닥) — 전일 종가 기준 위=빨강/아래=파랑(한국식). 투자자 라인 뒤에 깔림.
     let idxApi: ISeriesApi<"Baseline"> | null = null;
+    let hiLo: { hi: { t: UTCTimestamp; value: number }; lo: { t: UTCTimestamp; value: number } } | null = null;
     if (indexSeries && indexSeries.length > 1) {
       const base = indexBaseline ?? indexSeries[0].value;
       const idx = chart.addSeries(BaselineSeries, {
@@ -170,6 +173,20 @@ export function IntradayInvestorChart({
       });
       idx.setData(indexSeries.map(p => ({ time: p.t as Time, value: p.value })));
       idxApi = idx;
+      // 당일 최고·최저 — 지수 선 위에 점과 값(사용자 요청 2026-10-28, 증권사 차트처럼 "최고 6,032.28" / "최저 5,745.61").
+      //   같은 값이 여러 번이면 처음 닿은 시각에 단다.
+      let hi = indexSeries[0], lo = indexSeries[0];
+      for (const p of indexSeries) { if (p.value > hi.value) hi = p; if (p.value < lo.value) lo = p; }
+      if (hi.value > lo.value) {
+        const marks: SeriesMarker<Time>[] = [
+          // 점만 라이브러리로 — 글자는 아래 오버레이(vlines)에서 직접 단다: 라이브러리 글자는 점 가운데 정렬이라
+          //   장 시작 첫 봉(왼쪽 끝)이 최저면 잘렸다("?47.86"). 직접 달면 칸 안쪽으로 밀어 넣을 수 있다
+          { time: hi.t as Time, position: "inBar", shape: "circle", size: 0.6, color: "#dc2626" },
+          { time: lo.t as Time, position: "inBar", shape: "circle", size: 0.6, color: "#2563eb" },
+        ];
+        hiLo = { hi, lo };
+        createSeriesMarkers(idx, marks.sort((a, b) => (a.time as number) - (b.time as number)));   // 시간순이어야 한다(라이브러리 요구)
+      }
     }
 
     // 0 기준선 — 순매수 부호 판독용. 눈에 띄게 진한 회색.
@@ -348,11 +365,34 @@ export function IntradayInvestorChart({
         vlEl.appendChild(line); vlEl.appendChild(tag);
         return { line, tag, t: c.pt.t };
       });
+      // 최고·최저 글자(점 바로 위·아래, 칸 밖으로 안 나가게)
+      const fmtIdx = (v: number) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+      const hiLoTags = hiLo ? ([["hi", hiLo.hi, "#dc2626", "최고"], ["lo", hiLo.lo, "#2563eb", "최저"]] as const).map(([k, pt, color, label]) => {
+        const tag = document.createElement("div");
+        tag.textContent = `${label} ${fmtIdx(pt.value)}`;
+        tag.style.cssText = `position:absolute;font-size:10px;font-weight:600;color:${color};white-space:nowrap;pointer-events:none;` +
+          `background:rgba(255,255,255,0.75);padding:0 2px;border-radius:2px;`;
+        vlEl.appendChild(tag);
+        return { k, pt, tag };
+      }) : [];
       reposition = () => {
         setGeomVer(v => v + 1);
         // timeToCoordinate 는 플롯(가격축 제외) 기준 → 왼쪽 지수축 폭만큼 더해 컨테이너 좌표로 보정.
         let lw = 0;
         try { lw = chart.priceScale("left").width(); } catch { /* 없으면 0 */ }
+        let rw = 0;
+        try { rw = chart.priceScale("right").width(); } catch { /* 없으면 0 */ }
+        const W = vlEl.clientWidth;
+        for (const h of hiLoTags) {
+          const x = chart.timeScale().timeToCoordinate(h.pt.t as Time);
+          const y = idxApi?.priceToCoordinate(h.pt.value);
+          if (x == null || y == null) { h.tag.style.display = "none"; continue; }
+          h.tag.style.display = "block";
+          const w = h.tag.offsetWidth;
+          const left = Math.min(Math.max(x + lw - w / 2, lw + 2), W - rw - w - 2);
+          h.tag.style.left = `${left}px`;
+          h.tag.style.top = `${h.k === "hi" ? y - 18 : y + 6}px`;
+        }
         for (const it of items) {
           const x = chart.timeScale().timeToCoordinate(it.t as Time);
           const show = x != null;

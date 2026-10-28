@@ -45,6 +45,8 @@ export interface EarningsEvent {
   kstTime: string | null;  // "05:00" — 시각을 모르면 null
   session: EarningsSession;
   marketCap: number;       // 정렬용(현지 통화)
+  reported?: boolean;      // 이미 발표함(최근 발표일로 잡힌 것)
+  logo?: string;           // 회사 로고 주소(TradingView logoid — 같은 스캔 응답, 추가 호출 0)
 }
 
 const KST = 9 * 3600_000;
@@ -65,7 +67,10 @@ export function toKst(ts: number, timeCode: number | null | undefined, country: 
 }
 
 interface ScanRow { s: string; d: unknown[] }
-const COLS = ["name", "description", "earnings_release_next_date", "earnings_release_next_time", "market_cap_basic", "is_primary", "typespecs", "type", "exchange"];
+// earnings_release_date/_time = **최근(이미 한) 발표**. 발표가 끝나면 next_date 는 다음 분기로 넘어가 이번 주 칸에서 사라졌다
+//   (사용자 2026-10-29 "오늘 마이크로소프트, 알파벳 실적 있었는데" — MSFT next 2027-01-26 / last 2026-10-28 20:08 UTC 실측).
+const COLS = ["name", "description", "earnings_release_next_date", "earnings_release_next_time", "market_cap_basic", "is_primary", "typespecs", "type", "exchange",
+  "earnings_release_date", "earnings_release_time", "logoid"];   // logoid → 로고(사용자 요청 2026-10-29 "기업로고 있으면 로고를")
 
 async function scan(endpoint: "america" | "korea", body: object): Promise<ScanRow[]> {
   const resp = await fetchProxied(`https://scanner.tradingview.com/${endpoint}/scan`, {
@@ -91,16 +96,21 @@ export function cleanUsName(s: string): string {
 function toEvents(rows: ScanRow[], country: "US" | "KR", fromYmd: string, toYmd: string, names: Map<string, string>): EarningsEvent[] {
   const out: EarningsEvent[] = [];
   for (const { d } of rows) {
-    const [code, desc, ts, tm, mc, primary, specs, type, exch] = d as [string, string, number | null, number | null, number | null, boolean, string[] | null, string, string];
+    const [code, desc, tsNext, tmNext, mc, primary, specs, type, exch, tsLast, tmLast, logoid] = d as [string, string, number | null, number | null, number | null, boolean, string[] | null, string, string, number | null, number | null, string | null];
     // 보통주(대표 상장) 또는 ADR — ADR(TSMC·ASML·SAP·SK하이닉스 ADR)은 type "dr" 에 is_primary false 로 와서 따로 허용
     //   장외(OTC) 비공식 ADR(중국 은행·일본 상사 등 "Unsponsored")은 뺀다 — 본국 발표일이 섞여 엉뚱한 날(토요일)에 몰린다
     const isStock = exch !== "OTC" && ((primary && (specs ?? []).includes("common")) || type === "dr");
-    if (typeof ts !== "number" || !isStock) continue;
-    const k = toKst(ts, tm, country);
-    if (k.kstDate < fromYmd || k.kstDate > toYmd) continue;
+    if (!isStock) continue;
+    // 범위 안에 드는 발표 — 다음 발표일 먼저, 아니면 최근(이미 한) 발표일
+    const pick = ([[tsNext, tmNext, false], [tsLast, tmLast, true]] as const)
+      .map(([ts, tm, done]) => typeof ts === "number" ? { k: toKst(ts, tm, country), done } : null)
+      .find(x => x && x.k.kstDate >= fromYmd && x.k.kstDate <= toYmd);
+    if (!pick) continue;
+    const k = pick.k;
     const local = names.get(code);
     const name = local || (country === "KR" ? String(desc).replace(/보통주$/, "") : cleanUsName(String(desc)));
-    out.push({ code, name, country, ...k, marketCap: mc ?? 0 });
+    out.push({ code, name, country, ...k, marketCap: mc ?? 0, ...(pick.done ? { reported: true } : {}),
+      ...(logoid ? { logo: `https://s3-symbol-logo.tradingview.com/${logoid}.svg` } : {}) });
   }
   return out;
 }
@@ -113,20 +123,26 @@ export async function fetchEarningsCalendar(
   const lo = Date.parse(`${fromYmd}T00:00:00Z`) / 1000 - 2 * 86400;
   const hi = Date.parse(`${toYmd}T23:59:59Z`) / 1000 + 86400;
   const inRange = { left: "earnings_release_next_date", operation: "in_range", right: [lo, hi] };
+  const lastInRange = { left: "earnings_release_date", operation: "in_range", right: [lo, hi] };
   const usWatch = watch.filter(t => !/^\d/.test(t) && /^[A-Z.]{1,6}$/.test(t));
   const krWatch = watch.filter(t => /^[\dA-Za-z]{6}$/.test(t) && /\d/.test(t));
-  const [usTop, krTop, usMine, krMine] = await Promise.all([
+  const [usTop, krTop, usMine, krMine, usDone, krDone] = await Promise.all([
     scan("america", { filter: [inRange, { left: "market_cap_basic", operation: "greater", right: 40e9 }],
       sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 300] }),
     scan("korea", { filter: [inRange, { left: "market_cap_basic", operation: "greater", right: 3e12 }],
       sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 200] }),
     usWatch.length ? scan("america", { symbols: { tickers: usWatch.flatMap(t => [`NASDAQ:${t}`, `NYSE:${t}`, `AMEX:${t}`]) } }) : Promise.resolve([]),
     krWatch.length ? scan("korea", { symbols: { tickers: krWatch.map(t => `KRX:${t}`) } }) : Promise.resolve([]),
+    // 이미 발표한 것(최근 발표일이 범위 안) — 같은 시총 기준. 실패해도 다음 발표 쪽은 살린다
+    scan("america", { filter: [lastInRange, { left: "market_cap_basic", operation: "greater", right: 40e9 }],
+      sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 300] }).catch(() => [] as ScanRow[]),
+    scan("korea", { filter: [lastInRange, { left: "market_cap_basic", operation: "greater", right: 3e12 }],
+      sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 200] }).catch(() => [] as ScanRow[]),
   ]);
   const seen = new Set<string>();
   const all = [
-    ...toEvents([...usTop, ...usMine], "US", fromYmd, toYmd, names),
-    ...toEvents([...krTop, ...krMine], "KR", fromYmd, toYmd, names),
+    ...toEvents([...usTop, ...usMine, ...usDone], "US", fromYmd, toYmd, names),
+    ...toEvents([...krTop, ...krMine, ...krDone], "KR", fromYmd, toYmd, names),
   ].filter(e => { const k = `${e.country}:${e.code}`; if (seen.has(k)) return false; seen.add(k); return true; });
   if (all.length === 0) throw new Error("실적 일정 0건");   // 일시 실패를 빈 결과로 캐시하지 않게
   return all;
