@@ -199,8 +199,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                     border-b border-gray-200 mb-3 px-1 pt-1">
       {leading && <span className="shrink-0">{leading}</span>}
       {/* 섹터~ETF 드롭다운 → 내자산 묶음(내주식·내거래) → 지수 순서 */}
-      {/* 투자도구 탭을 누르면 종목찾기(눌림목)로 바로 — 다른 도구는 마우스를 올려 메뉴에서 */}
-      {renderGroupDropdown(sysTabs, "📊", "투자도구(분석)", VALUATION_TAB_KEY)}   {/* 맨 위 = 종목찾기(섹터별) — 버튼 이름과 누르면 가는 곳이 같게 */}
+      {/* 투자도구 탭을 누르면 맨 위 최신공시로 바로(사용자 요청 2026-10-29 "클릭하면 공시나오게") — 다른 도구는 마우스를 올려 메뉴에서 */}
+      {renderGroupDropdown(sysTabs, "📊", "투자도구(분석)", DISCLOSURE_TAB_KEY)}
       {renderGroupDropdown(myTabs, "📦", "내자산")}
       {/* 증시 — 지수 왼쪽 별도 탭 */}
       {[marketMoneyTab].map(t => t && (
@@ -377,7 +377,12 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
     for (const p of DASHBOARD_PAGES) tabs.push({ key: keyOf[p.key], label: p.tab, emoji: p.emoji, count: 0 });
     tabs.push({ key: SEMI_DASH_TAB_KEY, label: "지수(반도체 수급)", emoji: "💾", count: 0 });   // 지수 묶음 끝 — UsMarketTab 페이지가 아니라 별도 화면
   }
-  // 종목찾기(섹터별) — 섹터를 골라 그 안의 종목을 한 표로(옛 '성적표'). 종목찾기 묶음 맨 위.
+  // 투자도구 묶음 맨 위 = 최신공시, 두 번째 = 실적 일정(사용자 요청 2026-10-29 "공시를 맨위에, 그다음 실적을 두번째로")
+  if (visibility?.disclosures ?? true) {
+    tabs.push({ key: DISCLOSURE_TAB_KEY, label: "최신공시", emoji: "📋", count: 0 });
+  }
+  if (visibility?.earnings ?? true) tabs.push({ key: EARNINGS_TAB_KEY, label: "실적 일정", emoji: "📅", count: 0 });
+  // 종목찾기(섹터별) — 섹터를 골라 그 안의 종목을 한 표로(옛 '성적표').
   if (visibility?.valuation ?? true) {
     tabs.push({ key: VALUATION_TAB_KEY, label: "종목찾기(섹터별)", emoji: "📊", count: 0 });
   }
@@ -393,7 +398,6 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   }
   // 섹터 (KODEX ETF 기반 4기간 ranking + 토스 핫 테마). 반도체는 지수 대시보드 그룹으로 통합됨.
   if (showSector) tabs.push({ key: SECTOR_RANK_TAB_KEY, label: "섹터별등락", emoji: "🧩", count: 0 });
-  if (visibility?.earnings ?? true) tabs.push({ key: EARNINGS_TAB_KEY, label: "실적 일정", emoji: "📅", count: 0 });
   // 내주식 (합산) — 보유 수량 있는 모든 ticker 의 가중평균. 종목 1개 이상일 때만 노출.
   if (showMy && uniqHeld.size > 0) {
     tabs.push({ key: MY_STOCKS_TAB_KEY, label: "내주식", emoji: "📦", count: uniqHeld.size });
@@ -413,10 +417,6 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 컨센서스 — 목표주가·연기금·변동폭·등락률. 설정 ON 이면 항상 노출(종목 없으면 빈 안내).
   if (showConsensus) {
     tabs.push({ key: CONSENSUS_TAB_KEY, label: "컨센서스(목표주가)", emoji: "🎯", count: 0 });
-  }
-  // 최신공시 — 컨센서스 바로 아래
-  if (visibility?.disclosures ?? true) {
-    tabs.push({ key: DISCLOSURE_TAB_KEY, label: "최신공시", emoji: "📋", count: 0 });
   }
   // ETF 역검색 — 다중 종목 교집합/합집합
   if (visibility?.etfReverse ?? true) {

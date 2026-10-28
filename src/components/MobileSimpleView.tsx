@@ -465,7 +465,10 @@ export function MobileSimpleView() {
       tabs.push({ key: SEMI_DASH_KEY, label: "💾지수(반도체 수급)", count: 0 });   // PC 와 같이 지수 묶음 끝
     }
     // 눌림목 — 시스템 묶음 첫 자리(섹터 위, PC buildTabs 와 같은 순서).
-    if (vis.valuation) {   // 종목찾기(섹터별) — 종목찾기 묶음 맨 위
+    // 투자도구 묶음 맨 위 = 최신공시, 두 번째 = 실적 일정(PC buildTabs 와 같은 순서, 사용자 요청 2026-10-29)
+    if (vis.disclosures) tabs.push({ key: DISC_KEY, label: "📋최신공시", count: 0 });
+    if (vis.earnings) tabs.push({ key: EARNINGS_KEY, label: "📅실적 일정", count: 0 });
+    if (vis.valuation) {   // 종목찾기(섹터별)
       tabs.push({ key: VALUATION_KEY, label: "📊종목찾기(섹터별)", count: 0 });
     }
     if (vis.screener) {
@@ -479,9 +482,6 @@ export function MobileSimpleView() {
     }
     if (vis.sectorRank) {
       tabs.push({ key: SECTOR_KEY, label: "🧩섹터별등락", count: 0 });
-    }
-    if (vis.earnings) {   // 실적 일정 — PC buildTabs 와 같은 자리(섹터별등락 뒤)
-      tabs.push({ key: EARNINGS_KEY, label: "📅실적 일정", count: 0 });
     }
     // 합산 그룹 — 보유 수량 있는 unique ticker 수
     const uniqHeld = new Set<string>();
@@ -505,9 +505,6 @@ export function MobileSimpleView() {
     }
     if (vis.consensus) {
       tabs.push({ key: CONSENSUS_KEY, label: "🎯컨센서스(목표주가)", count: 0 });
-    }
-    if (vis.disclosures) {   // 📋 최신공시 — 컨센서스 바로 아래(PC buildTabs 와 같은 자리)
-      tabs.push({ key: DISC_KEY, label: "📋최신공시", count: 0 });
     }
     if (vis.etfReverse) {
       tabs.push({ key: ETF_KEY, label: "🍱ETF", count: 0 });
