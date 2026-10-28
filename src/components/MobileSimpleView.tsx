@@ -468,6 +468,7 @@ export function MobileSimpleView() {
     // 투자도구 묶음 맨 위 = 최신공시, 두 번째 = 실적 일정(PC buildTabs 와 같은 순서, 사용자 요청 2026-10-29)
     if (vis.disclosures) tabs.push({ key: DISC_KEY, label: "📋최신공시", count: 0 });
     if (vis.earnings) tabs.push({ key: EARNINGS_KEY, label: "📅실적 일정", count: 0 });
+    if (vis.consensus) tabs.push({ key: CONSENSUS_KEY, label: "🎯컨센서스(목표주가)", count: 0 });   // 세 번째(실적 아래)
     if (vis.valuation) {   // 종목찾기(섹터별)
       tabs.push({ key: VALUATION_KEY, label: "📊종목찾기(섹터별)", count: 0 });
     }
@@ -502,9 +503,6 @@ export function MobileSimpleView() {
     // 자산추이 — 거래 기록으로 역산하므로 기록이 있을 때만 (데스크톱 buildTabs 와 동일 조건)
     if (vis.assetTrend && tradeCount > 0) {
       tabs.push({ key: ASSET_TREND_KEY, label: "📈자산추이", count: 0 });
-    }
-    if (vis.consensus) {
-      tabs.push({ key: CONSENSUS_KEY, label: "🎯컨센서스(목표주가)", count: 0 });
     }
     if (vis.etfReverse) {
       tabs.push({ key: ETF_KEY, label: "🍱ETF", count: 0 });

@@ -382,6 +382,8 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
     tabs.push({ key: DISCLOSURE_TAB_KEY, label: "최신공시", emoji: "📋", count: 0 });
   }
   if (visibility?.earnings ?? true) tabs.push({ key: EARNINGS_TAB_KEY, label: "실적 일정", emoji: "📅", count: 0 });
+  // 세 번째 = 컨센서스(사용자 요청 2026-10-29 "실적 아래 컨센서스"). 설정 ON 이면 항상 노출(종목 없으면 빈 안내)
+  if (showConsensus) tabs.push({ key: CONSENSUS_TAB_KEY, label: "컨센서스(목표주가)", emoji: "🎯", count: 0 });
   // 종목찾기(섹터별) — 섹터를 골라 그 안의 종목을 한 표로(옛 '성적표').
   if (visibility?.valuation ?? true) {
     tabs.push({ key: VALUATION_TAB_KEY, label: "종목찾기(섹터별)", emoji: "📊", count: 0 });
@@ -413,10 +415,6 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 자산추이 — 내자산 묶음(내주식·내거래)의 세 번째. 거래 기록이 있어야 역산이 되므로 그때만.
   if ((visibility?.assetTrend ?? true) && tradeCount > 0) {
     tabs.push({ key: ASSET_TREND_TAB_KEY, label: "자산추이", emoji: "📈", count: 0 });
-  }
-  // 컨센서스 — 목표주가·연기금·변동폭·등락률. 설정 ON 이면 항상 노출(종목 없으면 빈 안내).
-  if (showConsensus) {
-    tabs.push({ key: CONSENSUS_TAB_KEY, label: "컨센서스(목표주가)", emoji: "🎯", count: 0 });
   }
   // ETF 역검색 — 다중 종목 교집합/합집합
   if (visibility?.etfReverse ?? true) {
