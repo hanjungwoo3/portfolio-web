@@ -149,6 +149,8 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
           DART 유가·코스닥 {dart.length}건{isToday ? " · 10분마다" : ""}
           {dartDay?.source === "server" && dartDay.builtAt ? ` · 서버 ${new Date(Date.parse(dartDay.builtAt) + 9 * 3600_000).toISOString().slice(11, 16)} 갱신`
             : dataUpdatedAt ? ` · 직접 ${new Date(dataUpdatedAt + 9 * 3600_000).toISOString().slice(11, 16)}` : ""}
+          {dartDay?.source === "server" && isToday && dartDay.builtAt && Date.now() - Date.parse(dartDay.builtAt) > 30 * 60_000 &&
+            <span className="text-amber-600" title="서버(GitHub 예약 실행)가 늦어지고 있습니다 — 다음 실행 때 채워집니다"> · 갱신 지연</span>}
           <button onClick={() => void refetch()} disabled={isFetching} className="ml-1 text-blue-600 hover:underline disabled:opacity-40">{isFetching ? "받는 중…" : "새로고침"}</button>
         </span>
       </div>

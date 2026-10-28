@@ -4,6 +4,7 @@
 //   회사명→종목코드 표는 크롤러가 KIND 상장법인목록으로 매일 내보낸다(portfolio-etf-index data/listed-corps.json).
 //   브라우저에선 CORS 가 없어 프록시를 거친다(허용 목록에 dart.fss.or.kr — 프록시 8곳).
 import { fetchProxied } from "./api";
+import { isDirectApp } from "./nativeProxy";
 
 export type DartMarket = "유가" | "코스닥" | "코넥스" | "기타";
 export interface DartRow {
@@ -121,7 +122,9 @@ export async function fetchDartDayPreferServer(ymd: string): Promise<DartDay> {
       const j = await r.json() as { meta?: { builtAt?: string; final?: boolean }; rows?: Omit<DartRow, "date" | "url" | "corpCode">[] };
       const built = Date.parse(j.meta?.builtAt ?? "");
       const fresh = j.meta?.final || ymd !== today || (Number.isFinite(built) && Date.now() - built < STALE_MS);
-      if (fresh && Array.isArray(j.rows)) return {
+      // 묵었어도 웹은 서버 파일 그대로 — 직접 조회는 프록시가 DART 를 막아 403 이었다(2026-10-29, GitHub 예약 실행이 몇 시간씩 밀림).
+      //   직접 조회는 프록시가 필요 없는 앱(네이티브)에서만.
+      if (Array.isArray(j.rows) && (fresh || !isDirectApp())) return {
         source: "server", builtAt: j.meta?.builtAt,
         rows: j.rows.map(x => ({ ...x, date: ymd, corpCode: "", url: `https://dart.fss.or.kr/dsaf001/main.do?rcpNo=${x.rcpNo}` })),
       };
