@@ -353,7 +353,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
   // 검색기준 sub탭 (책갈피)
   const subTab = (v: View, label: string) => (
     <button onClick={() => setView(v)}
-            className={`px-3 py-1 text-xs font-bold rounded-t-md border-t border-l border-r -mb-px transition ${
+            className={`shrink-0 whitespace-nowrap px-2 sm:px-3 py-1 text-xs font-bold rounded-t-md border-t border-l border-r -mb-px transition ${
               view === v ? "bg-white text-gray-900 border-gray-300"
                          : "bg-gray-100 text-gray-500 border-transparent hover:bg-gray-200"}`}>
       {label}
@@ -423,7 +423,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
   return (
     <div className="space-y-2">
       {/* 책갈피 — 검색기준 (왼쪽 상단) */}
-      <div className="flex items-end gap-1 border-b border-gray-300 px-1">
+      <div className="flex items-end gap-1 border-b border-gray-300 px-1 overflow-x-auto">
         {subTabs}
         <span className="ml-2 mb-1 text-xs text-gray-500">{displayed.length}종목</span>
         {anyLoading && <span className="mb-1 text-xs text-gray-400">불러오는 중…</span>}

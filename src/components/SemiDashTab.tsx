@@ -656,7 +656,8 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
       </div>
       <div className="flex gap-2.5 tabular-nums">
         {LINES.map(l => (
-          <span key={l.k}><i className="inline-block w-2 h-0.5 mr-0.5 align-middle" style={{ background: l.color }} />{l.label} <b className={last ? up(val(last, l.k)) : "text-gray-300"}>{last ? (unit === "억" ? `${val(last, l.k) > 0 ? "+" : val(last, l.k) < 0 ? "−" : ""}${joEok(val(last, l.k))}` : eok(val(last, l.k))) : "-"}{last && unit === "계약" ? "계약" : ""}</b></span>
+          // 위 범례는 칸이 좁다 — 단위(억원·계약) 글자는 빼고 숫자만(사용자 요청 2026-10-28). 단위는 칸 제목·아래 막대 줄에 있다
+          <span key={l.k} className="whitespace-nowrap"><i className="inline-block w-2 h-0.5 mr-0.5 align-middle" style={{ background: l.color }} />{l.label} <b className={last ? up(val(last, l.k)) : "text-gray-300"}>{last ? (unit === "억" ? `${val(last, l.k) > 0 ? "+" : val(last, l.k) < 0 ? "−" : ""}${joEok(val(last, l.k)).replace(/억원$|원$/, "")}` : eok(val(last, l.k))) : "-"}</b></span>
         ))}
       </div>
       {/* 그래프 높이 고정 — 세 칸(현물·선물)이 같은 높이·같은 가로 위치 */}

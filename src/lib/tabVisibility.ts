@@ -21,6 +21,7 @@ export interface TabVisibility {
   valuation: boolean;
   earnings: boolean;
   assetTrend: boolean;
+  disclosures: boolean;   // 📋 최신공시 — 보유 종목 전체 공시 목록(컨센서스 바로 아래, 2026-10-28)
 }
 
 // 설정 화면의 '상단 탭 표시' 체크박스 목록 — **PC·모바일이 같은 배열을 쓴다.**
@@ -38,6 +39,7 @@ export const TAB_VIS_ITEMS: { key: keyof TabVisibility; label: string; sep?: boo
   { key: "closeBet",    label: "🌙 종가배팅" },
   { key: "accum",       label: "🧲 수급 매집" },
   { key: "consensus",   label: "🎯 컨센서스(목표주가)" },
+  { key: "disclosures", label: "📋 최신공시" },
   { key: "etfReverse",  label: "🍱 ETF검색" },
   { key: "etfRanking",  label: "🏅 ETF랭킹" },
   { key: "etfCompare",  label: "⚖️ ETF미국" },
@@ -66,6 +68,7 @@ const BASE_KEYS = {
   valuation:  "portfolio_tab_valuation",
   earnings:   "portfolio_tab_earnings",
   assetTrend: "portfolio_tab_asset_trend",
+  disclosures: "portfolio_tab_disclosures",
 } as const;
 
 // 디바이스 폼팩터 — App.tsx 의 useIsMobile 과 동일 기준(width < 768)
@@ -111,6 +114,7 @@ export function getTabVisibility(): TabVisibility {
     valuation:  read(BASE_KEYS.valuation),
     earnings:   read(BASE_KEYS.earnings),
     assetTrend: read(BASE_KEYS.assetTrend),
+    disclosures: read(BASE_KEYS.disclosures),
   };
 }
 
@@ -132,6 +136,7 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.valuation  !== undefined) write(BASE_KEYS.valuation,  patch.valuation);
   if (patch.earnings   !== undefined) write(BASE_KEYS.earnings,   patch.earnings);
   if (patch.assetTrend !== undefined) write(BASE_KEYS.assetTrend, patch.assetTrend);
+  if (patch.disclosures !== undefined) write(BASE_KEYS.disclosures, patch.disclosures);
 }
 
 // 종목 목록 시장 분리 보기 — 코스피/코스닥/ETF 섹션으로 나눠 표시. 기본 OFF(전체보기).

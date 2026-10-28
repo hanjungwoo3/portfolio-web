@@ -310,6 +310,8 @@ export const MY_TRADES_TAB_KEY = "__my-trades__";
 export const MY_TRADES_TOSS_TAB_KEY = "__my-trades-toss__";   // 내거래(토스) — 토스 연동 그룹 거래만(사용자 요청 2026-10-26)
 // 컨센서스 — 증권사 목표주가·연기금·변동폭·등락률 sub탭 (관심종목을 줄 세우는 화면들)
 export const CONSENSUS_TAB_KEY = "__consensus__";
+// 최신공시 — 보유 국내 종목 전체의 공시를 한 목록으로(검색·종류·'중요만' 필터). 종목찾기 묶음에서 컨센서스 바로 아래(2026-10-28)
+export const DISCLOSURE_TAB_KEY = "__disclosures__";
 // 눌림목 — RSI·볼린저·200일선·흑자·유동성 조건으로 코스피·코스닥 전 종목 스크리닝 (+ 백테스트)
 export const SCREENER_TAB_KEY = "__screener__";
 // 종가배팅 — 오늘 종가에 사서 다음 날 시가에 파는 후보(lib/closeBet)
@@ -333,7 +335,7 @@ export const ASSET_TREND_TAB_KEY = "__asset-trend__";
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
   "관심ETF", MARKET_MONEY_TAB_KEY, SEMI_DASH_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY, SEMI_CHECK_TAB_KEY,
-  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY,
+  SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, DISCLOSURE_TAB_KEY,
   ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
   SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY,
 ]);
@@ -341,7 +343,7 @@ const RESERVED = new Set<string>([
 // 묶기 대상 시스템 탭 — 드롭다운 하나로 합침. (증시·지수는 자주 써서 별도 고정 탭)
 export const SYSTEM_TAB_KEYS = new Set<string>([
   MARKET_MONEY_TAB_KEY, SEMI_DASH_TAB_KEY, US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
-  CONSENSUS_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
+  CONSENSUS_TAB_KEY, DISCLOSURE_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
   SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY,
 ]);
 
@@ -411,6 +413,10 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 컨센서스 — 목표주가·연기금·변동폭·등락률. 설정 ON 이면 항상 노출(종목 없으면 빈 안내).
   if (showConsensus) {
     tabs.push({ key: CONSENSUS_TAB_KEY, label: "컨센서스(목표주가)", emoji: "🎯", count: 0 });
+  }
+  // 최신공시 — 컨센서스 바로 아래
+  if (visibility?.disclosures ?? true) {
+    tabs.push({ key: DISCLOSURE_TAB_KEY, label: "최신공시", emoji: "📋", count: 0 });
   }
   // ETF 역검색 — 다중 종목 교집합/합집합
   if (visibility?.etfReverse ?? true) {

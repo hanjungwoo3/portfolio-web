@@ -5,6 +5,7 @@ import { KisLinkSection } from "./KisLinkSection";
 import { isLinkedGroup, linkedGroupOf, BROKER_FOLDER, ensureLinkedGroupsInFolder } from "../lib/linkedGroups";
 import { FolderIcon } from "./FolderIcon";
 import { FolderMembersEditor } from "./FolderMembersEditor";
+import { DisclosureFeed } from "./DisclosureFeed";
 import { SettingsTabBar } from "./SettingsTabBar";
 import { getLastSettingsTab, setLastSettingsTab, type SettingsTabKey } from "../lib/settingsTabs";
 import { TOSS_TRADE_ID_PREFIX } from "../lib/tossTrades";
@@ -92,7 +93,7 @@ import { SemiCheckTab } from "./SemiCheckTab";
 import { SemiDashTab } from "./SemiDashTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { filterByTab, realHoldingOf, CONSENSUS_TAB_KEY as CONSENSUS_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_ROT_TAB_KEY as IDX_ROT_KEY, INDEX_US_TAB_KEY as IDX_US_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, EARNINGS_TAB_KEY as EARNINGS_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY, SEMI_DASH_TAB_KEY as SEMI_DASH_KEY } from "./Tabs";
+import { filterByTab, realHoldingOf, CONSENSUS_TAB_KEY as CONSENSUS_KEY, DISCLOSURE_TAB_KEY as DISC_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_ROT_TAB_KEY as IDX_ROT_KEY, INDEX_US_TAB_KEY as IDX_US_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, EARNINGS_TAB_KEY as EARNINGS_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY, SEMI_DASH_TAB_KEY as SEMI_DASH_KEY } from "./Tabs";
 import { EtfReverseTab } from "./EtfReverseTab";
 import { EtfRankingTab } from "./EtfRankingTab";
 import { ScreenerTab } from "./ScreenerTab";
@@ -157,7 +158,7 @@ const ASSET_TREND_KEY = "__asset-trend__";  // 자산추이 — 일별 총자산
 //   빠졌다 → 드롭다운과 탭 줄에 **두 번** 뜨고, 스와이프가 그 탭을 **건너뛰었다**.
 //   새 시스템 탭은 여기에만 넣으면 된다. (탭 자체를 만드는 곳 — groupTabs 의 push — 은 별도)
 const SYS_DROPDOWN_KEYS = new Set<string>([    // '투자도구' 드롭다운에 묶이는 탭
-  SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY,
+  SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, DISC_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY,
   HEATMAP_KEY, SCREENER_KEY, CLOSE_BET_KEY, ACCUM_KEY, VALUATION_KEY, EARNINGS_KEY,
 ]);
 const MY_GROUP_KEYS_M = new Set<string>([MY_KEY, MY_TRADES_KEY, MY_TRADES_TOSS_KEY, ASSET_TREND_KEY]);   // '내자산' 드롭다운
@@ -504,6 +505,9 @@ export function MobileSimpleView() {
     }
     if (vis.consensus) {
       tabs.push({ key: CONSENSUS_KEY, label: "🎯컨센서스(목표주가)", count: 0 });
+    }
+    if (vis.disclosures) {   // 📋 최신공시 — 컨센서스 바로 아래(PC buildTabs 와 같은 자리)
+      tabs.push({ key: DISC_KEY, label: "📋최신공시", count: 0 });
     }
     if (vis.etfReverse) {
       tabs.push({ key: ETF_KEY, label: "🍱ETF", count: 0 });
@@ -1785,6 +1789,9 @@ export function MobileSimpleView() {
                             if (s) setEditing(s);
                           }} />
           </div>;
+        }
+        if (activeTab === DISC_KEY) {
+          return <div className="px-1 py-2"><DisclosureFeed items={consensusItems} onSelectGroup={setActiveTab} /></div>;
         }
         if (activeTab === SECTOR_KEY) {
           return <div className="px-2 py-2">
