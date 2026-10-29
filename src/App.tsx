@@ -56,8 +56,6 @@ import { UsMarketTab } from "./components/UsMarketTab";
 import { StockMarketTab } from "./components/StockMarketTab";
 import { SemiCheckTab } from "./components/SemiCheckTab";
 import { SemiDashTab } from "./components/SemiDashTab";
-import { MarketTickerBar } from "./components/MarketTickerBar";
-import { TICKER_BAR_H, useTickerBarOpen } from "./lib/tickerBar";
 import { RefreshIndicator } from "./components/RefreshIndicator";
 import { forceUpdate } from "./components/VersionBadge";
 import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast, AppInstallHint } from "./components/AppUpdateToast";
@@ -174,7 +172,6 @@ function Dashboard() {
   const usePersonalProxy = useMemo(() => !!getPersonalProxyUrl(), [reloadKey, extReady]);
   const adaptiveRefreshMs = useAdaptiveRefreshMs(BASE_REFRESH_MS);
   // 하단 지수 티커바 펼침 여부 — 합계 sticky 행을 그 높이만큼 위로 올리는 데 사용
-  const tickerBarOpen = useTickerBarOpen();
   // 하단 합계 바 접기 — 합계·손익 카드·오늘 매도·샀더라면을 **한 번에**. 바가 카드들을 가린다.
   //   접으면 바가 **아래로 내려가 숨고** 화면 아래 가장자리에 '합계 ▲' 책갈피만 남는다.
   //   모바일과 따로 기억한다(기기별로 원하는 게 다르다).
@@ -1247,7 +1244,7 @@ function Dashboard() {
             {/* 합계 바 — 접으면 **아래로 내려가 숨는다**(서랍). 바 위쪽 왼쪽에 붙은 '합계' 책갈피가 같이 내려와
                 화면 아래 가장자리에 걸린다 — 책갈피 하나로 접고 편다(사용자 요청 2026-10-23, 옛 ◀ / 합계 ▶).
                 clip-path — 내려간 바는 잘라 숨기되 위로 삐져나온 책갈피·'내꺼먼저' 배지는 보이게 위로 40px 여유. */}
-            <div style={{ bottom: tickerBarOpen ? TICKER_BAR_H : 0 }}
+            <div style={{ bottom: 0 }}
                  className="sticky z-40 mt-3 w-full [clip-path:inset(-40px_0_0_0)] pointer-events-none">
               <div className={`relative w-full flex flex-wrap items-start gap-2 pointer-events-auto
                                transition-transform duration-300 ease-out
@@ -1278,7 +1275,6 @@ function Dashboard() {
       </main>
 
       {/* 하단 고정 지수 티커바 (S&P500·선물·러셀·다우·필반·VIX) — 폴링 주기마다 자동 갱신 */}
-      <MarketTickerBar refreshMs={REFRESH_MS} />
 
       {/* 자동 동기화 충돌 — 양쪽 다 바뀌었을 때만 뜬다 */}
       <SyncConflictBar onChanged={() => setReloadKey(k => k + 1)} />

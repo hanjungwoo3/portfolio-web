@@ -68,8 +68,6 @@ function quoteUrl(symbol: string): string {
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
   return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
 }
-import { MarketTickerBar } from "./MarketTickerBar";
-import { TICKER_BAR_H, useTickerBarOpen } from "../lib/tickerBar";
 import { RefreshIndicator } from "./RefreshIndicator";
 import { forceUpdate } from "./VersionBadge";
 import { NewVersionToast } from "./NewVersionToast";
@@ -416,7 +414,6 @@ export function MobileSimpleView() {
   }, []);
 
   // 하단 지수 티커바 펼침 여부 — 합계바(fixed bottom)를 그 높이만큼 올리는 데 사용
-  const tickerBarOpen = useTickerBarOpen();
 
   // 보유 종목 로드 (그룹 탭 라벨 + 그룹 종목 표시)
   const { data: rawHoldings = [] } = useQuery({
@@ -1654,7 +1651,7 @@ export function MobileSimpleView() {
               관심종목만 있어 보유 0개면 TotalRow 가 null → 토글 불가. */}
           {groupHoldings.length > 0 && totalsHidden && (
             <button type="button" onClick={() => setTotalsHidden(false)}
-                    style={{ bottom: (tickerBarOpen ? TICKER_BAR_H : 0) + 8 }}
+                    style={{ bottom: 8 }}
                     title="합계 다시 보기"
                     className="fixed right-3 z-40 px-2.5 py-1 rounded-full bg-white/95
                                border border-gray-300 shadow text-[11px] font-bold text-gray-700">
@@ -1670,7 +1667,7 @@ export function MobileSimpleView() {
                   {todayPnLOpen && (
                     <div className="fixed inset-0 z-30" onClick={() => setTodayPnLOpen(false)} />
                   )}
-                  <div style={{ bottom: tickerBarOpen ? TICKER_BAR_H : 0 }}
+                  <div style={{ bottom: 0 }}
                        className="fixed left-0 right-0 z-40
                                    pb-2 px-3 flex flex-col items-center gap-2
                                    pointer-events-none">
@@ -1713,7 +1710,7 @@ export function MobileSimpleView() {
                   <div className="fixed inset-0 z-30"
                        onClick={() => setTodayPnLOpen(false)} />
                 )}
-                <div style={{ bottom: tickerBarOpen ? TICKER_BAR_H : 0 }}
+                <div style={{ bottom: 0 }}
                      className="fixed left-0 right-0 z-40
                                  pb-2 px-3 flex flex-col items-center gap-2
                                  pointer-events-none">
@@ -2496,7 +2493,6 @@ export function MobileSimpleView() {
       )}
 
       {/* 하단 고정 지수 티커바 — PC(App)와 동일 컴포넌트. 합계바는 이 높이만큼 위로 올라간다 */}
-      <MarketTickerBar refreshMs={REFRESH_MS} />
     </div>
   );
 }
