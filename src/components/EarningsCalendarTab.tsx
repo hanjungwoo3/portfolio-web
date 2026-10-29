@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEarningsCalendar, krImpactOf, type EarningsEvent } from "../lib/earnings";
+import { fetchDartDayPreferServer } from "../lib/dartDisclosures";
 import { US_PAIRS } from "../lib/usMarketData";
 import type { ConsensusItem } from "./ConsensusTab";
 
@@ -53,6 +54,31 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
     queryFn: () => fetchEarningsCalendar(monday, end, names, watch),
     staleTime: 6 * 3600_000, gcTime: 6 * 3600_000, refetchOnWindowFocus: false, retry: 2,
   });
+
+  // 발표한 것의 공시 링크(사용자 요청 2026-10-29 "발표한건 공시 링크 걸면?").
+  //   한국 = 그 날 DART 공시(서버가 10분마다 받아 둔 날짜별 파일 — 추가 호출 0)에서 그 종목의 실적 공시(영업(잠정)실적 등)
+  //   미국 = SEC EDGAR 그 회사 최근 공시 목록(실적 발표 보도자료 8-K·외국 기업 6-K 가 맨 위) — 주소만, 호출 없음
+  //   한국은 DART 에 실적 공시가 올라왔으면 TradingView 가 '발표함' 으로 바꾸기 전에도 ✓공시(삼성전자 10/29 실측 — 스캐너가 늦다)
+  const krDays = useMemo(() => [...new Set((q.data ?? []).filter(e => e.country === "KR" && e.kstDate <= today).map(e => e.kstDate))].sort(), [q.data, today]);
+  const dartQ = useQuery({
+    queryKey: ["earnings-dart", krDays.join(",")],
+    enabled: krDays.length > 0,
+    staleTime: 10 * 60_000, refetchOnWindowFocus: false,
+    queryFn: async () => {
+      const m = new Map<string, string>();
+      const days = await Promise.all(krDays.map(d => fetchDartDayPreferServer(d).catch(() => null)));
+      for (const day of days) for (const r of day?.rows ?? []) {
+        if (!r.code || !/실적/.test(r.title) || /증권발행실적/.test(r.title)) continue;
+        const k = `${r.date}:${r.code}`;
+        // 같은 날 여러 건이면 '잠정실적' 을 먼저(정정 공시·결산 실적보다 대표)
+        if (!m.has(k) || (/잠정\)?실적/.test(r.title) && !/정정/.test(r.title))) m.set(k, r.url);
+      }
+      return m;
+    },
+  });
+  const discUrl = (e: EarningsEvent): string | undefined => e.country === "KR"
+    ? dartQ.data?.get(`${e.kstDate}:${e.code}`)
+    : e.reported ? `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${encodeURIComponent(e.code)}&owner=include&count=20` : undefined;
 
   const byDay = useMemo(() => {
     const m = new Map<string, EarningsEvent[]>();
@@ -135,8 +161,16 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
                                   ? <button onClick={() => onOpenValuation(e.code, e.name)} className="truncate text-left hover:text-blue-600">{my && "★"}{e.name}</button>
                                   : <span className="truncate">{my && "★"}{e.name}</span>}
                                 {impact && <span className="shrink-0 px-1 rounded text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200 leading-tight">{impact}</span>}
-                                {e.reported && <span className="ml-auto shrink-0 text-[10px] font-normal text-emerald-600" title="발표함">✓</span>}
-                                {t && <span className={`${e.reported ? "" : "ml-auto "}shrink-0 text-[10px] font-normal ${e.session === "post" ? "text-violet-600" : "text-gray-500"}`}>{t}</span>}
+                                {(() => {
+                                  const url = discUrl(e);
+                                  if (!url && !e.reported) return null;
+                                  return url
+                                    ? <a href={url} target="_blank" rel="noopener noreferrer" onClick={ev => ev.stopPropagation()}
+                                         title={e.country === "US" ? "발표함 — SEC 공시 목록(실적 보도자료 8-K/6-K)" : "발표함 — DART 실적 공시 원문"}
+                                         className="ml-auto shrink-0 text-[10px] font-bold text-emerald-700 hover:underline">✓공시</a>
+                                    : <span className="ml-auto shrink-0 text-[10px] font-normal text-emerald-600" title="발표함">✓</span>;
+                                })()}
+                                {t && <span className={`${e.reported || discUrl(e) ? "" : "ml-auto "}shrink-0 text-[10px] font-normal ${e.session === "post" ? "text-violet-600" : "text-gray-500"}`}>{t}</span>}
                               </li>
                             );
                           })}
