@@ -78,3 +78,22 @@ describe("어제 기준선(그저께 종가) — 토스 오버나이트 봉의 b
     vi.useRealTimers();
   });
 });
+
+// 마이크론 10/28 20:45 ET(= 10/29 09:45 KST) — 토스는 20:00 ET 오버나이트부터 base 를 오늘 종가(983.23)로 바꾼다.
+//   오늘 칸 색 기준은 어제 종가(928.76) 그대로, 오늘 종가 983.23 은 카드 % 기준이라 종가 세로선부터 점선으로 더 긋는다
+//   (사용자 2026-10-29 "그제 종가, 어제 종가 가로 점선이 이상해").
+import mu from "./fixtures/toss_us_5m_mu_20261028_post.json";
+describe("토스 5분봉 — 정규장 끝난 뒤(MU 2026-10-28 20:45 ET)", () => {
+  beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(new Date("2026-10-29T00:46:00Z")); });
+  afterEach(() => { vi.useRealTimers(); });
+  it("오늘 기준 = 어제 종가, 새 기준 = 오늘 종가, 왼쪽 = 그저께 종가", () => {
+    const s = buildTwoDaySeries(mu, false)!;
+    expect(s.base).toBe(928.76);
+    expect(s.nextBase).toBe(983.23);
+    expect(s.prevBase).toBe(903.7);
+  });
+  it("한국은 새 기준을 만들지 않는다(20:00 까지 어제 종가 기준)", () => {
+    const s = buildTwoDaySeries(unison, true);
+    expect(s?.nextBase).toBeUndefined();
+  });
+});

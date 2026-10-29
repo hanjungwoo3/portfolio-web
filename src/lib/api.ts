@@ -433,7 +433,10 @@ export function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | n
   // 정규장 종가 봉 — 토스 봉 시각은 '끝나는 시각'이라 15:30(미국 16:00) 이하인 마지막 봉. 정규장이 끝난 뒤에만.
   const ended = latest.some(c => c.dt.slice(11, 16) >= closeHHMM);
   const ci = ended ? latest.map(c => c.dt.slice(11, 16) <= closeHHMM).lastIndexOf(true) : -1;
-  const base = latest[latest.length - 1].base;
+  // 오늘 칸 색 기준 = 오늘 정규장 봉의 base(어제 종가). 마지막 봉으로 잡으면 20:00 ET 오버나이트부터 토스가 base 를
+  //   '오늘 종가' 로 바꿔서 오늘 정규장 전체가 오늘 종가 기준으로 칠해졌다(사용자 2026-10-29 "그제·어제 종가 점선이 이상해").
+  const latestReg = latest.filter(inRegular);
+  const base = (latestReg.length ? latestReg[latestReg.length - 1] : latest[latest.length - 1]).base;
   // 어제의 기준(그저께 종가) — 왼쪽 기준선. **어제 정규장 봉의 base** 로 잡는다: 토스 미국 5분봉은 20:00 ET 오버나이트부터
   //   base 를 다음 거래일 기준(= 어제 종가)으로 바꿔서, 마지막 봉으로 잡으면 오늘 기준선과 같은 값이 되어 두 점선이 한 높이로
   //   겹쳤다(사용자 2026-10-27 "엇그제 종가와 어제 종가가 같아?" — NVDA 월 23:55 봉 base 216 = 월 종가, 정규장 봉은 210.96).
@@ -456,7 +459,13 @@ export function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | n
     todayClose: latestIsToday ? opened && nowMin >= hm2min(closeHHMM) : latest.some(inRegular) && latest.some(c => c.dt.slice(11, 16) >= closeHHMM),
     prevOpen: prev.some(inRegular), prevClose: prev.some(inRegular),
   };
+  // 미국 — 오늘 정규장이 끝나면 카드 % 는 오늘 종가 기준(애프터·오버나이트, 토스식)이라 그 값을 점선으로 오늘 종가 세로선부터 더 긋는다.
+  //   20:00 ET 뒤엔 토스가 마지막 봉 base 로 공식 종가를 주고, 그 전엔 16:00 봉 종가.
+  const lastBase = latest[latest.length - 1].base ?? 0;
+  const nextBase = !isKr && sess.todayClose
+    ? (lastBase > 0 && lastBase !== base ? lastBase : ci > 0 ? latest[ci].close : undefined) : undefined;
   return rollDay({
+    nextBase,
     closes: [...prev.map(c => c.close), ...latest.map(c => c.close)],
     volumes: [...prev.map(c => c.volume ?? 0), ...latest.map(c => c.volume ?? 0)],   // 카드 아래 거래량 막대
     xs: [...prev.map(c => frac(c.dt) * TWO_DAY_HALF), ...latest.map(c => twoDayTodayX(frac(c.dt)))],
@@ -475,7 +484,7 @@ export function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | n
 //   지수 카드(KrDaySparkline·야후 spark)와 같은 모양(어제 종가선 위 빨강·아래 파랑, 정규장 시작 세로선)으로 그리려고
 //   종가만 주던 걸 넓혔다(2026-10-21). 한국 = 08:00~20:00 KST(정규 09:00), 미국 = 00:00~24:00 ET(정규 09:30).
 //   오늘 봉이 1개라도 있으면 오늘(실시간 끝점과 이어 선이 된다), 없을 때만 직전 날. 값 단위는 한국 원·미국 **달러**(카드 원화와 다름 — 실시간 끝점은 priceUsd).
-export interface DaySeries { halted?: boolean; markXs?: MarkX[]; rolling?: boolean; closes: number[]; volumes?: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
+export interface DaySeries { nextBase?: number; halted?: boolean; markXs?: MarkX[]; rolling?: boolean; closes: number[]; volumes?: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; date?: string; twoDay?: boolean; breakIdx?: number; prevBase?: number; todayTimes?: string[] }   // prevBase = 어제(왼쪽) 기준선   // breakIdx = 오늘 첫 봉(어제와 선을 잇지 않는다)   // twoDay = 어제(왼쪽 절반)+오늘(오른쪽 절반)
 export async function fetchTossIntraday(ticker: string): Promise<DaySeries | null> {
   const isKr = /^[\dA-Za-z]{6}$/.test(ticker) && /\d/.test(ticker);
   const code = isKr ? `A${ticker}` : (TOSS_US_STOCK_CODE[ticker] ?? getTossCode(ticker));
@@ -4187,7 +4196,7 @@ async function fetchMemChart(symbol: string): Promise<number[]> {
 //   includePrePost 면 프리(04:00 ET)~애프터(20:00 ET)까지 들어 있다. 오버나잇(20:00~04:00)은 없다.
 const SPARK_CHUNK = 20;
 //   openIdx = 오늘 정규장 시작(09:30 ET) 첫 봉의 인덱스 — 카드 차트에 '시작가' 표시선(meta.currentTradingPeriod.regular.start).
-export interface DaySpark { markXs?: MarkX[]; rolling?: boolean; closes: number[]; xs?: number[]; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }   // prevBase = 어제 칸 기준선(그저께 종가 = 2d 범위의 chartPreviousClose)   // prevClose = 어제 정규장 종가(달러 — closes 와 같은 단위)
+export interface DaySpark { nextBase?: number; markXs?: MarkX[]; rolling?: boolean; closes: number[]; xs?: number[]; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; prevClose?: number; breakIdx?: number; prevBase?: number }   // prevBase = 어제 칸 기준선(그저께 종가 = 2d 범위의 chartPreviousClose)   // prevClose = 어제 정규장 종가(달러 — closes 와 같은 단위)
 export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string, DaySpark>> {
   const out = new Map<string, DaySpark>();
   const chunks: string[][] = [];
@@ -4301,6 +4310,8 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         out.set(x.symbol, rollDay({
           closes, openIdx: oi > 0 && !noToday ? oi : undefined, closeIdx: ci > 0 && !noToday ? ci : undefined, prevClose: pc && pc > 0 ? pc : undefined,
           breakIdx: bi > 0 ? bi : undefined, prevBase: noToday ? dropLast : bi > 0 && cpc && cpc > 0 ? cpc : undefined,
+          // 미국 주식 — 오늘 정규장이 끝났으면 그 종가(카드 % 기준, 토스식)를 점선으로 오늘 종가 세로선부터(토스 빌더와 같은 규칙)
+          nextBase: usEq && !noToday && ci > 0 && sess?.todayClose ? closes[ci] : undefined,
           prevOpenIdx: poi > 0 ? poi : undefined, prevCloseIdx: pci > 0 ? pci : undefined,
         }, times.map(fr), bi > 0 ? bi : 0, fNow, sess));
       }

@@ -51,10 +51,13 @@ interface Props {
   // 정규장 시작·종가 세로선을 **가로 위치(0~1)** 로 — 시장 시간표로 정한 자리(api.rollDay 의 markXs). 주면 markIndex·closeIndex·extraMarks 는 무시.
   //   같은 시장 카드는 봉이 어떻게 왔든 같은 x 에 선다(사용자 결정 2026-10-27).
   markXs?: { x: number; close?: boolean }[];
+  // 오늘 정규장이 끝난 뒤의 새 기준(미국 — 오늘 종가, 카드 % 기준). 주면 오늘 종가 세로선부터 오른쪽 끝까지 점선을 하나 더 긋고
+  //   오늘 기준선 점선은 그 세로선에서 멈춘다. 색칠은 그대로(사용자 2026-10-29 "그제·어제 종가 가로 점선이 이상해").
+  nextBaseline?: number;
 }
 
 export function Sparkline({
-  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs, breakIndex, prevBaseline, closeIndex, extraMarks, volumes, markXs,
+  data, width = 120, height = 32, className = "", color, target, avgPrice, entry, strokeWidth = 1.5, markIndex, baseline, xs, breakIndex, prevBaseline, closeIndex, extraMarks, volumes, markXs, nextBaseline,
   aboveColor = "#dc2626", belowColor = "#2563eb",
 }: Props) {
   const uid = useId().replace(/:/g, "");   // 위·아래 잘라내기(clipPath)·그라디언트 id — 카드마다 달라야 한다
@@ -81,6 +84,7 @@ export function Sparkline({
   if (entry !== undefined && entry > 0) allValues.push(entry);
   if (hasBase) allValues.push(baseline!);
   if (prevBaseline !== undefined && prevBaseline > 0) allValues.push(prevBaseline);
+  if (nextBaseline !== undefined && nextBaseline > 0) allValues.push(nextBaseline);
   const min = Math.min(...allValues);
   const max = Math.max(...allValues);
   const range = max - min || 1;
@@ -134,6 +138,13 @@ export function Sparkline({
   //   "가로 점선을 종가에서부터 이어서", "선만 추가하고 색은 지금처럼"). 어제 종가선이 창 밖이면 예전처럼 오늘 칸부터.
   const prevCloseX = parts.length === 2 && markXs
     ? markXs.filter(m => m.close).map(m => padX + Math.min(1, Math.max(0, m.x)) * innerW).find(x => x < splitX)
+    : undefined;
+  // 오늘 종가 세로선 — 새 기준(nextBaseline) 점선의 시작점. 마지막 구간 안에 있는 가장 오른쪽 종가선
+  const lastX0 = parts.length ? (parts.length === 2 && prevCloseX != null ? prevCloseX : parts[parts.length - 1].x0) : 0;
+  const todayCloseX = nextBaseline !== undefined && nextBaseline > 0 && parts.length
+    ? (markXs
+        ? markXs.filter(m => m.close).map(m => padX + Math.min(1, Math.max(0, m.x)) * innerW).filter(x => x > lastX0 + 2).pop()
+        : closeIndex != null && closeIndex > 0 && closeIndex < points.length ? points[closeIndex][0] : undefined)
     : undefined;
 
   return (
@@ -191,9 +202,14 @@ export function Sparkline({
       })()}
       {/* 기준선(전일 종가) — 회색 가로 점선 (24시간 차트). 어제·오늘 둘이면 좌우로 나눠 따로, 사이는 살짝 띄운다 */}
       {parts.map(({ by, x0, x1 }, k) => (
-        <line key={k} x1={k === 1 && prevCloseX != null ? prevCloseX : Math.max(padX, x0 + (k > 0 ? 2 : 0))} x2={Math.min(width - padX, x1 - (k < parts.length - 1 ? 2 : 0))} y1={by} y2={by}
+        <line key={k} x1={k === 1 && prevCloseX != null ? prevCloseX : Math.max(padX, x0 + (k > 0 ? 2 : 0))}
+              x2={k === parts.length - 1 && todayCloseX != null ? todayCloseX : Math.min(width - padX, x1 - (k < parts.length - 1 ? 2 : 0))} y1={by} y2={by}
               stroke="#475569" strokeWidth="1" strokeDasharray="4 3" opacity="0.8" />
       ))}
+      {todayCloseX != null && (
+        <line x1={todayCloseX} x2={width - padX} y1={yFor(nextBaseline!)} y2={yFor(nextBaseline!)}
+              stroke="#475569" strokeWidth="1" strokeDasharray="4 3" opacity="0.8" />
+      )}
       {/* 시간표 세로선 — 시작 = 점선, 종가 = 실선 */}
       {markXs?.map((m, k) => {
         const x = padX + Math.min(1, Math.max(0, m.x)) * innerW;

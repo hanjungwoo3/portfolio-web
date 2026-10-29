@@ -260,7 +260,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const tossUsSpark = (sym: string) => {
     const i = usSparkMissing.indexOf(sym);
     const d = i >= 0 ? tossUsDayQs[i]?.data : undefined;
-    return d && d.closes.length > 1 ? { markXs: d.markXs, rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase } : undefined;
+    return d && d.closes.length > 1 ? { markXs: d.markXs, rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase, nextBase: d.nextBase } : undefined;
   };
   // 코스피200·코스닥150 **주간**선물 — 낮엔 한경 1분봉 어제+오늘(야선은 당일 세션뿐). 야간장(18~05시)엔 야선 그대로.
   const krFutDayOn = chartRange === "day" && !isKrNightSession();
@@ -273,7 +273,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const krFutSpark = (sym: string) => {
     if (!krFutDayOn) return undefined;
     const d = (sym === "^KS200N" ? krFutDay[0] : sym === "^KQ150N" ? krFutDay[1] : undefined)?.data;
-    return d && d.closes.length > 1 ? { markXs: d.markXs, rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase } : undefined;
+    return d && d.closes.length > 1 ? { markXs: d.markXs, rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase, nextBase: d.nextBase } : undefined;
   };
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const marketAlerts = useMarketAlerts();   // 종목코드 → 투자주의·경고·위험
@@ -611,6 +611,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
 
                              breakIndex={breakIdx}
                              prevBaseline={breakIdx != null ? daySpark?.prevBase : undefined}
+                             nextBaseline={daySpark && chartArr === daySpark.closes ? daySpark.nextBase : undefined}
 
                              baseline={dayBase}
 

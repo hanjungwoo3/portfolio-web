@@ -217,7 +217,7 @@ export function MobileSimpleView() {
   const tossUsSpark = (sym: string) => {
     const i = usSparkMissing.indexOf(sym);
     const d = i >= 0 ? tossUsDayQs[i]?.data : undefined;
-    return d && d.closes.length > 1 ? { markXs: d.markXs, rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase } : undefined;
+    return d && d.closes.length > 1 ? { markXs: d.markXs, rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase, nextBase: d.nextBase } : undefined;
   };
   // 코스피200·코스닥150 **주간**선물 — 낮엔 한경 1분봉 어제+오늘(야선은 당일 세션뿐). 야간장(18~05시)엔 야선 그대로.
   const krFutDayOn = chartRange === "day" && !isKrNightSession();
@@ -230,7 +230,7 @@ export function MobileSimpleView() {
   const krFutSpark = (sym: string) => {
     if (!krFutDayOn) return undefined;
     const d = (sym === "^KS200N" ? krFutDay[0] : sym === "^KQ150N" ? krFutDay[1] : undefined)?.data;
-    return d && d.closes.length > 1 ? { markXs: d.markXs, rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase } : undefined;
+    return d && d.closes.length > 1 ? { markXs: d.markXs, rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase, nextBase: d.nextBase } : undefined;
   };
   // 로그인 redirect 복귀 — 저장/불러오기 대기 동작이 있으면 설정 자동 오픈 → 자동 재개
   // 증권사 연동 그룹이 폴더 밖에 있으면 '증권사연결' 폴더로(한 번) — PC 에서 연동했어도 Drive 로 온 뒤 여기서도 보정
@@ -2171,6 +2171,7 @@ export function MobileSimpleView() {
 
                              breakIndex={breakIdx}
                              prevBaseline={breakIdx != null ? daySpark?.prevBase : undefined}
+                             nextBaseline={daySpark && chartArr === daySpark.closes ? daySpark.nextBase : undefined}
 
                              baseline={dayBase}
 

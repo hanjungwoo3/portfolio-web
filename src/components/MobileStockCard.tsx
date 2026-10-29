@@ -587,6 +587,7 @@ export function MobileStockCard({
                        markXs={bgIsDay ? dayLive?.markXs : undefined}
                        breakIndex={bgIsDay ? dayLive?.breakIdx : undefined}
                        prevBaseline={bgIsDay ? dayLive?.prevBase : undefined}
+                       nextBaseline={bgIsDay ? dayLive?.nextBase : undefined}
                      target={bgIsDay ? undefined : consensus?.target}
                      avgPrice={!bgIsDay && hasPosition ? stock.avg_price : undefined}
                      entry={bgIsDay ? undefined : memo?.entryPrice}
