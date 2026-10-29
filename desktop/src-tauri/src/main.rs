@@ -238,6 +238,11 @@ const VIEWER_SCRIPT: &str = r##"
     document.documentElement.appendChild(b);
   };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", bar); else bar();
+  // Esc = 보기 창 닫기(사용자 2026-10-29 "AI검색은 esc로 창이 안 닫혀"). 한글 입력 조합 중의 Esc 는 조합 취소라 건너뛴다
+  window.addEventListener("keydown", (e) => {
+    if (e.key !== "Escape" || e.isComposing) return;
+    try { window.__TAURI_INTERNALS__.invoke("close_viewer"); } catch (err) {}
+  }, true);
 })();
 "##;
 
@@ -276,6 +281,14 @@ async fn open_viewer(app: tauri::AppHandle, url: String) -> Result<(), String> {
         .build()
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// 보기 창 닫기 — 보기 창의 Esc(VIEWER_SCRIPT)가 부른다. 웹뷰의 window.close() 는 바깥 사이트에서 막혀 앱 명령으로 닫는다
+#[tauri::command]
+fn close_viewer(app: tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("viewer") {
+        let _ = w.close();
+    }
 }
 
 // ─── 앱 업데이트 ─────────────────────────────────────────────────────
@@ -366,7 +379,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(client)
         .manage(broker::BrokerState::default())   // 증권사 연결 — 토큰 캐시·한도
-        .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, broker::broker_status, broker::broker_set, broker::broker_clear, broker::broker_fetch, google_login, google_refresh, app_update_check, app_update_install, app_dialog])
+        .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, close_viewer, broker::broker_status, broker::broker_set, broker::broker_clear, broker::broker_fetch, google_login, google_refresh, app_update_check, app_update_install, app_dialog])
         .setup(move |app| {
             let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse()?))
                 .title("포트폴리오")

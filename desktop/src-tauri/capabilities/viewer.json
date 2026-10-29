@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "viewer",
-  "description": "앱 안 보기 창(바깥 사이트) — '브라우저로 열기' 하나만. native_fetch 등 다른 앱 명령은 못 부른다",
+  "description": "앱 안 보기 창(바깥 사이트) — '브라우저로 열기'·Esc 닫기만. native_fetch 등 다른 앱 명령은 못 부른다",
   "windows": [
     "viewer"
   ],
@@ -12,6 +12,7 @@
     ]
   },
   "permissions": [
-    "allow-open-external"
+    "allow-open-external",
+    "allow-close-viewer"
   ]
 }

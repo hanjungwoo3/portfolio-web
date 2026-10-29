@@ -4,7 +4,7 @@ fn main() {
     // 앱 명령을 권한으로 등록 — 원격 사이트(github.io)에서 부르려면 capabilities 에 allow-* 로 열어야 한다
     //   (안 하면 "<명령> not allowed. Plugin not found")
     tauri_build::try_build(tauri_build::Attributes::new().app_manifest(
-        tauri_build::AppManifest::new().commands(&["native_fetch", "open_external", "open_viewer", "broker_status", "broker_set", "broker_clear", "broker_fetch", "google_login", "google_refresh", "app_update_check", "app_update_install", "app_dialog"]),
+        tauri_build::AppManifest::new().commands(&["native_fetch", "open_external", "open_viewer", "close_viewer", "broker_status", "broker_set", "broker_clear", "broker_fetch", "google_login", "google_refresh", "app_update_check", "app_update_install", "app_dialog"]),
     ))
     .expect("tauri build script");
 }
