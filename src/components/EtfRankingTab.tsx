@@ -1,7 +1,7 @@
 // ETF 랭킹 — 전체 ETF(색인 828종)를 등락률로 줄 세워 상위/하위를 보여준다.
 //
-// 조회는 6 프록시 콜이라 폴링하지 않는다. 캐시가 없을 때 1회 자동 조회하고,
-// 그 뒤로는 "새로고침" 버튼을 누를 때만 다시 받는다. (etfRanking.ts 주석 참고)
+// 웹은 서버 수집본이라 호출 비용이 없고, 앱·확장(직결)은 6콜이다.
+// 웹은 서버본(10분마다)을 열어 둔 동안 2분마다 다시 읽고(버튼 없음), 앱·확장은 들어올 때 직접 받고 그 뒤는 새로고침 버튼. (etfRanking.ts 주석 참고)
 //
 // 맨 위 '섹터별 흐름' 은 같은 조회 결과를 이름으로 묶은 것이라 추가 호출이 없다(etfSectors.ts).
 //   섹터를 누르면 아래 목록이 그 섹터의 대표 ETF(거래대금 순)로 바뀐다 —
@@ -275,12 +275,15 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
           ))}
         </div>
 
+        {/* 웹은 서버본을 2분마다 저절로 다시 읽어 버튼이 필요 없다(사용자 2026-10-29). 앱·확장은 들어올 때만 받으니 버튼을 둔다 */}
+        {!preferServer() && (
         <button onClick={refresh} disabled={loading}
-                title="전체 ETF 시세를 다시 조회합니다 (프록시 약 6콜)"
+                title="전체 ETF 시세를 다시 조회합니다 (약 6콜)"
                 className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300
                            bg-white text-gray-700 hover:bg-gray-100 disabled:opacity-50">
           {loading ? "조회 중…" : "🔄 새로고침"}
         </button>
+        )}
 
         <button onClick={() => { setHideLeverage(v => !v); setExpanded(false); }}
                 title="이름에 '레버리지' 가 든 ETF 를 목록에서 제외합니다"
@@ -451,7 +454,9 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
 
       <p className="text-[11px] text-gray-500 leading-relaxed">
         전체 ETF {ranking?.total.toLocaleString() ?? "—"}종의 시세를 한 번에 받아 등락률로 정렬합니다.
-        호출 비용이 커서 자동 갱신하지 않으니, 최신 값이 필요하면 새로고침을 눌러주세요.
+        {preferServer()
+          ? "서버가 장중 10분마다 받아 두고, 이 화면은 열어 둔 동안 저절로 새 값으로 바뀝니다."
+          : "들어올 때 새로 받습니다. 보는 중에 최신 값이 필요하면 새로고침을 눌러주세요."}
         섹터는 <b>ETF 이름</b>으로 나눕니다 — 이름과 실제 구성이 다르면 틀릴 수 있습니다.
         각 섹터의 대표는 <b>거래대금 1위</b>(현재가×거래량)로 고릅니다.
       </p>
