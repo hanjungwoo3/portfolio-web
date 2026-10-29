@@ -710,6 +710,33 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
             {hoverX != null && <line x1={hoverX} x2={hoverX} y1={0} y2={H} stroke="#475569" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
             {hovBg && <line x1={0} x2={W} y1={by(hovBg.v)} y2={by(hovBg.v)} stroke="#64748b" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
           </svg>
+          {/* 배경 지수 최고·최저·현재 — 점과 값(증시 탭 투자자 차트와 같은 모양, 사용자 요청 2026-10-29).
+              가장자리 가까이면 글자를 안쪽으로 붙여 칸 밖으로 안 나가게 */}
+          {bgp.length > 1 && (() => {
+            let hi = bgp[0], lo = bgp[0];
+            for (const b of bgp) { if (b.v > hi.v) hi = b; if (b.v < lo.v) lo = b; }
+            if (hi.v <= lo.v) return null;
+            const cur = bgp[bgp.length - 1];
+            const fmt = (v: number) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+            const tags = [
+              { k: "hi", b: hi, label: "최고", color: "#dc2626" },
+              { k: "lo", b: lo, label: "최저", color: "#2563eb" },
+              ...(cur !== hi && cur !== lo ? [{ k: "cur", b: cur, label: "현재", color: "#334155" }] : []),
+            ];
+            return tags.map(({ k, b, label, color }) => {
+              const px = (x(b.t) / W) * 100, py = (by(b.v) / H) * 100;
+              const tx = k === "cur" ? "calc(-100% - 5px)" : px < 15 ? "-4px" : px > 85 ? "calc(-100% + 4px)" : "-50%";
+              // 최고는 늘 위 끝·최저는 아래 끝이라 글자를 칸 안쪽(최고 = 점 아래, 최저 = 점 위)에
+              const ty = k === "hi" ? "4px" : k === "lo" ? "calc(-100% - 4px)" : "-50%";
+              return (
+                <span key={k} className="pointer-events-none">
+                  <span className="absolute w-1.5 h-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${px}%`, top: `${py}%`, background: color }} />
+                  <span className="absolute whitespace-nowrap rounded-sm bg-white/75 px-0.5 text-[9.5px] font-semibold leading-tight tabular-nums"
+                        style={{ left: `${px}%`, top: `${py}%`, transform: `translate(${tx}, ${ty})`, color }}>{label} {fmt(b.v)}</span>
+                </span>
+              );
+            });
+          })()}
           {/* 마우스 — 투자자 선마다 점(증시 탭 crosshair 점과 같은 크기). svg 가 가로세로로 늘어나 원이 찌그러지지 않게 HTML 로 */}
           {hovPt && LINES.map(l => (
             <span key={l.k} className="absolute w-2 h-2 -translate-x-1/2 -translate-y-1/2 rounded-full ring-2 ring-white pointer-events-none"
