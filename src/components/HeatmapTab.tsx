@@ -2,10 +2,10 @@
 //   섹터로 그룹핑 → 종목 타일(크기=시총/거래량, 색=등락률 한국식 빨강+/파랑−).
 //   scanner.tradingview.com 이 워커 화이트리스트에 없으면(403) 안내 + 원본 링크 폴백.
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   fetchHeatmapPreferServer, heatmapTradingViewUrl, heatmapLogoUrl, heatmapRegion, ProxyHostError,
-  HEATMAP_SOURCE_LABEL, type HeatmapSource, type HeatmapItem,
+  HEATMAP_SOURCE_LABEL, type HeatmapSource, type HeatmapItem, type HeatmapResult,
 } from "../lib/api";
 import { loadEtfWeights } from "../lib/etfWeights";
 import { squarify } from "../lib/treemap";
@@ -15,7 +15,7 @@ import { isMarketOpen } from "../lib/format";
 import { reportRefresh } from "../lib/lastRefresh";
 import { getEffectivePollMs } from "../lib/proxyConfig";
 import { takePendingHeatmap } from "../lib/heatmapNav";
-import { preferServer, fmtServerStamp } from "../lib/liveServer";
+import { preferServer, fmtServerStamp, fetchLiveIndex } from "../lib/liveServer";
 
 const KR_SOURCES: HeatmapSource[] = ["kospi200", "kospi", "kosdaq150", "kosdaq", "kr_valueup", "all"];
 const US_SOURCES: HeatmapSource[] = ["us_sp500", "us_ndx", "us_tech", "us_nasdaq", "us_dow", "us_dowcomp",
@@ -100,11 +100,20 @@ export function HeatmapTab() {
   const marketOpen = isMarketOpen(isKr ? "KR" : "US");   // 표시용(장중/장마감 라벨)
   // 폴링 주기는 전역과 동일(getEffectivePollMs) — 상단 시계 카운트다운과 맞아 '0초 멈춤' 방지.
   //   수동 모드(0)면 폴링 안 함. 보유탭처럼 장마감에도 폴링(refetchIntervalInBackground).
-  //   웹은 서버 수집본(10분마다)이라 2분마다 다시 읽기만 한다 — 화면엔 서버가 받은 시각을 보여준다.
-  const pollMs = preferServer() ? 120_000 : getEffectivePollMs();
+  //   웹은 서버 수집본 — 같은 주기마다 서버 갱신 시각(index.json, 작은 파일)만 보고 바뀌었을 때만 전체를 받는다
+  //   (사용자 2026-10-29 "히트맵(웹)도 시간체크해서 계속 업데이트"). 화면엔 서버가 받은 시각을 보여준다.
+  const pollMs = getEffectivePollMs();
+  const qc = useQueryClient();
   const q = useQuery({
     queryKey: ["kr-heatmap", source],
-    queryFn: () => fetchHeatmapPreferServer(source, SOURCE_LIMIT[source] ?? 400),
+    queryFn: async () => {
+      const limit = SOURCE_LIMIT[source] ?? 400;
+      if (!preferServer()) return fetchHeatmapPreferServer(source, limit);
+      const prev = qc.getQueryData<HeatmapResult>(["kr-heatmap", source]);
+      const v = (await fetchLiveIndex())?.[`heatmap/${source}`];
+      if (prev?.server && v && v === prev.fetchedAt) return prev;   // 서버 판이 그대로 — 다시 받지 않는다
+      return fetchHeatmapPreferServer(source, limit, v);
+    },
     staleTime: 0, refetchOnWindowFocus: false, retry: false,
     refetchInterval: pollMs > 0 ? pollMs : false,
     refetchIntervalInBackground: true,
@@ -313,7 +322,7 @@ export function HeatmapTab() {
         {q.data?.server ? (
           // 서버 수집본 — 서버가 받은 시각(사용자 요청 2026-10-29 "히트맵은 갱신시간을 표시")
           <span className="text-[10px] text-gray-500 flex items-center gap-1"
-                title="서버가 장중 10분마다 받아 둔 값입니다(앱은 실시간).">
+                title="서버가 장중 2분(대표 4개)~10분마다 받아 둔 값입니다. 서버 시각이 바뀌면 저절로 새로 받습니다(앱은 실시간).">
             <span className={marketOpen ? "text-emerald-500" : "text-gray-300"}>●</span>
             서버 갱신 <b className="text-gray-700">{fmtServerStamp(q.data.fetchedAt)}</b>
             <span className="text-gray-400">({Math.max(0, Math.round((Date.now() - q.data.fetchedAt) / 60_000))}분 전)</span>

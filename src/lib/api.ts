@@ -5145,9 +5145,10 @@ export async function fetchKrHeatmap(source: HeatmapSource, limit = 500): Promis
 // 웹은 서버 수집본(크롤러 live.js 가 10분마다 19개 소스 전부, lib/liveServer) 먼저 — 없으면 직접 조회. 앱은 직접(30초 폴링 그대로).
 //   서버본은 소스별 상한(SOURCE_LIMIT 과 같은 값)까지 담겨 있다.
 export interface HeatmapResult { items: HeatmapItem[]; fetchedAt: number; server: boolean }
-export async function fetchHeatmapPreferServer(source: HeatmapSource, limit = 500): Promise<HeatmapResult> {
+//   ver = 서버 갱신 시각(index.json) — 주면 그 판을 받는다(같은 판은 브라우저 캐시).
+export async function fetchHeatmapPreferServer(source: HeatmapSource, limit = 500, ver?: number): Promise<HeatmapResult> {
   if (preferServer()) {
-    const live = await fetchLive<{ fetchedAt: number; rows?: unknown[][] }>(`heatmap/${source}`);
+    const live = await fetchLive<{ fetchedAt: number; rows?: unknown[][] }>(`heatmap/${source}`, ver);
     if (live && Array.isArray(live.rows) && live.rows.length > 0)
       return { items: mapHeatRows(live.rows.map(d => ({ s: "", d }))).slice(0, limit), fetchedAt: live.fetchedAt, server: true };
   }
