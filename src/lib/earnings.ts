@@ -10,6 +10,7 @@
 //   ⚠️ scanner.tradingview.com 은 워커 화이트리스트 필요(히트맵과 같은 호스트라 이미 등록돼 있다).
 import { fetchProxied } from "./api";
 import { STAGES } from "./rotation";
+import { fetchLive, preferServer } from "./liveServer";
 
 export type EarningsSession = "pre" | "post" | "unknown";
 
@@ -126,19 +127,34 @@ export async function fetchEarningsCalendar(
   const lastInRange = { left: "earnings_release_date", operation: "in_range", right: [lo, hi] };
   const usWatch = watch.filter(t => !/^\d/.test(t) && /^[A-Z.]{1,6}$/.test(t));
   const krWatch = watch.filter(t => /^[\dA-Za-z]{6}$/.test(t) && /\d/.test(t));
-  const [usTop, krTop, usMine, krMine, usDone, krDone] = await Promise.all([
-    scan("america", { filter: [inRange, { left: "market_cap_basic", operation: "greater", right: 40e9 }],
-      sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 300] }),
-    scan("korea", { filter: [inRange, { left: "market_cap_basic", operation: "greater", right: 3e12 }],
-      sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 200] }),
+  const watchScans = () => Promise.all([
     usWatch.length ? scan("america", { symbols: { tickers: usWatch.flatMap(t => [`NASDAQ:${t}`, `NYSE:${t}`, `AMEX:${t}`]) } }) : Promise.resolve([]),
     krWatch.length ? scan("korea", { symbols: { tickers: krWatch.map(t => `KRX:${t}`) } }) : Promise.resolve([]),
-    // 이미 발표한 것(최근 발표일이 범위 안) — 같은 시총 기준. 실패해도 다음 발표 쪽은 살린다
-    scan("america", { filter: [lastInRange, { left: "market_cap_basic", operation: "greater", right: 40e9 }],
-      sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 300] }).catch(() => [] as ScanRow[]),
-    scan("korea", { filter: [lastInRange, { left: "market_cap_basic", operation: "greater", right: 3e12 }],
-      sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 200] }).catch(() => [] as ScanRow[]),
   ]);
+  // 웹은 시총 상위(다음·최근 발표)를 서버 수집본(1시간마다)에서 — 내 관심종목(시총이 작을 수 있다)만 직접 2콜.
+  //   서버본의 창(오늘-7 ~ +28일)이 요청 범위를 못 덮으면 전부 직접.
+  const live = preferServer()
+    ? await fetchLive<{ fetchedAt: number; from: string; to: string; us: unknown[][]; kr: unknown[][] }>("earnings")
+    : null;
+  let usTop: ScanRow[], krTop: ScanRow[], usMine: ScanRow[], krMine: ScanRow[], usDone: ScanRow[] = [], krDone: ScanRow[] = [];
+  if (live && live.from <= fromYmd && live.to >= toYmd && Array.isArray(live.us) && Array.isArray(live.kr)) {
+    usTop = live.us.map(d => ({ s: "", d }));
+    krTop = live.kr.map(d => ({ s: "", d }));
+    [usMine, krMine] = await watchScans();
+  } else {
+    [usTop, krTop, [usMine, krMine], usDone, krDone] = await Promise.all([
+      scan("america", { filter: [inRange, { left: "market_cap_basic", operation: "greater", right: 40e9 }],
+        sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 300] }),
+      scan("korea", { filter: [inRange, { left: "market_cap_basic", operation: "greater", right: 3e12 }],
+        sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 200] }),
+      watchScans(),
+      // 이미 발표한 것(최근 발표일이 범위 안) — 같은 시총 기준. 실패해도 다음 발표 쪽은 살린다
+      scan("america", { filter: [lastInRange, { left: "market_cap_basic", operation: "greater", right: 40e9 }],
+        sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 300] }).catch(() => [] as ScanRow[]),
+      scan("korea", { filter: [lastInRange, { left: "market_cap_basic", operation: "greater", right: 3e12 }],
+        sort: { sortBy: "market_cap_basic", sortOrder: "desc" }, range: [0, 200] }).catch(() => [] as ScanRow[]),
+    ]);
+  }
   const seen = new Set<string>();
   const all = [
     ...toEvents([...usTop, ...usMine, ...usDone], "US", fromYmd, toYmd, names),

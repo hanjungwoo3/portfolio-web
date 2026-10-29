@@ -22,6 +22,7 @@ import {
 import { EtfSectorFlow } from "./EtfSectorFlow";
 import { UsRankingPanel } from "./UsRankingPanel";
 import { useEtfReturns, PERIOD_LABEL, type ReturnPeriod } from "../lib/etfReturns";
+import { preferServer } from "../lib/liveServer";
 import { useEtfFlows, flowOf, FLOW_WINDOWS, FLOW_WHO_LABEL, FLOW_WINDOW_LABEL, type FlowWho, type FlowWindow } from "../lib/etfFlows";
 
 interface Props {
@@ -168,8 +169,8 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
   const [sectorOpen, setSectorOpen] = useState(true);
   const { ranking, loading, err } = state;
 
-  const run = (alive: () => boolean) =>
-    fetchEtfRanking()
+  const run = (alive: () => boolean, manual = false) =>
+    fetchEtfRanking({ manual })
       .then(r => { if (alive()) setState({ ranking: r, loading: false, err: null }); })
       .catch((e: unknown) => {
         if (!alive()) return;
@@ -179,12 +180,13 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
 
   const refresh = () => {
     setState(s => ({ ...s, loading: true, err: null }));
-    void run(() => true);
+    void run(() => true, true);
   };
 
   // 자동 조회는 캐시가 없을 때(=초기 loading) 단 1회. 이후엔 새로고침 버튼으로만.
+  //   웹은 서버 수집본이라 호출 비용이 없어 들어올 때마다 새로 읽는다(캐시는 먼저 그려 둔다).
   useEffect(() => {
-    if (!state.loading) return;
+    if (!state.loading && !preferServer()) return;
     let alive = true;
     void run(() => alive);
     return () => { alive = false; };
@@ -327,7 +329,7 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
             <button key={p}
                     onClick={() => { setPeriod(p); setExpanded(false); }}
                     title={p === "today"
-                      ? "오늘 등락률 (실시간 조회)"
+                      ? (preferServer() ? "오늘 등락률 (서버 10분마다 갱신)" : "오늘 등락률 (실시간 조회)")
                       : `${PERIOD_LABEL[p]} 수익률 (매일 06:00 갱신)`}
                     className={`px-3 py-1.5 text-sm font-medium transition-colors
                                 ${period === p
@@ -342,7 +344,7 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
           {ranking ? (
             <>
               <div>
-                기준 {fmtStamp(ranking.fetchedAt)}
+                {ranking.server ? "서버 갱신" : "기준"} {fmtStamp(ranking.fetchedAt)}
                 {ranking.tradeDate && <span className="ml-1">({ranking.tradeDate})</span>}
               </div>
               <div>{ranking.scanned.toLocaleString()} / {ranking.total.toLocaleString()}종</div>

@@ -17,6 +17,7 @@
 //   병목은 '볼린저 하단 이하 × 200일선 위'(전체 9종). 그래서 기본값을 '하단 +3% 이내' 로 완화했다.
 
 import { fetchProxied, ProxyHostError } from "./api";
+import { fetchLive, preferServer } from "./liveServer";
 
 export interface ScreenRow {
   code: string;
@@ -80,7 +81,7 @@ export function funnel(rows: ScreenRow[], c: ScreenCriteria): { label: string; l
 const COLUMNS = ["name", "description", "logoid", "close", "change", "volume", "Value.Traded",
   "market_cap_basic", "RSI", "BB.lower", "SMA200", "net_income", "price_52_week_high", "sector"];
 
-export interface ScreenSnapshot { fetchedAt: number; rows: ScreenRow[] }
+export interface ScreenSnapshot { fetchedAt: number; rows: ScreenRow[]; server?: boolean }
 const LS_KEY = "stock_screener_v1";
 
 export function loadCachedScreen(): ScreenSnapshot | null {
@@ -110,10 +111,14 @@ async function scanMarket(market: "코스피" | "코스닥"): Promise<ScreenRow[
     if (/host not allowed/i.test(j.error)) throw new ProxyHostError(j.error);
     throw new Error(j.error);
   }
+  return parseScreenRows((j.data ?? []).map(r => r.d), market);
+}
+
+/** 스캐너 행(d 배열, COLUMNS 순서) → ScreenRow. 직접 조회와 서버 수집본(live/screener.json)이 같이 쓴다. */
+export function parseScreenRows(data: unknown[][], market: "코스피" | "코스닥"): ScreenRow[] {
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
   const out: ScreenRow[] = [];
-  for (const row of j.data ?? []) {
-    const d = row.d;
+  for (const d of data) {
     const i = (k: string) => d[COLUMNS.indexOf(k)];
     const close = num(i("close")), rsi = num(i("RSI")), bb = num(i("BB.lower"));
     const sma = num(i("SMA200")), hi = num(i("price_52_week_high"));
@@ -141,10 +146,21 @@ async function scanMarket(market: "코스피" | "코스닥"): Promise<ScreenRow[
   return out;
 }
 
+// 웹은 서버 수집본(10분마다, 호출 0) 먼저 — 없으면 직접 2콜. 앱은 직접.
+async function fetchServerScreen(): Promise<ScreenSnapshot | null> {
+  const live = await fetchLive<{ fetchedAt: number; kospi?: unknown[][]; kosdaq?: unknown[][] }>("screener");
+  if (!live) return null;
+  const rows = [...parseScreenRows(live.kospi ?? [], "코스피"), ...parseScreenRows(live.kosdaq ?? [], "코스닥")];
+  return rows.length > 0 ? { fetchedAt: live.fetchedAt, rows, server: true } : null;
+}
+
 export async function fetchScreenerUniverse(): Promise<ScreenSnapshot> {
-  const [kospi, kosdaq] = await Promise.all([scanMarket("코스피"), scanMarket("코스닥")]);
-  const rows = [...kospi, ...kosdaq];
-  const snap: ScreenSnapshot = { fetchedAt: Date.now(), rows };
+  const server = preferServer() ? await fetchServerScreen() : null;
+  const snap: ScreenSnapshot = server ?? await (async () => {
+    const [kospi, kosdaq] = await Promise.all([scanMarket("코스피"), scanMarket("코스닥")]);
+    return { fetchedAt: Date.now(), rows: [...kospi, ...kosdaq] };
+  })();
+  const rows = snap.rows;
   if (rows.length > 0) {
     try { localStorage.setItem(LS_KEY, JSON.stringify(snap)); } catch { /* 용량 초과 — 캐시 없이 동작 */ }
   }

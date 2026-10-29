@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
-  fetchKrHeatmap, heatmapTradingViewUrl, heatmapLogoUrl, heatmapRegion, ProxyHostError,
+  fetchHeatmapPreferServer, heatmapTradingViewUrl, heatmapLogoUrl, heatmapRegion, ProxyHostError,
   HEATMAP_SOURCE_LABEL, type HeatmapSource, type HeatmapItem,
 } from "../lib/api";
 import { loadEtfWeights } from "../lib/etfWeights";
@@ -15,6 +15,7 @@ import { isMarketOpen } from "../lib/format";
 import { reportRefresh } from "../lib/lastRefresh";
 import { getEffectivePollMs } from "../lib/proxyConfig";
 import { takePendingHeatmap } from "../lib/heatmapNav";
+import { preferServer, fmtServerStamp } from "../lib/liveServer";
 
 const KR_SOURCES: HeatmapSource[] = ["kospi200", "kospi", "kosdaq150", "kosdaq", "kr_valueup", "all"];
 const US_SOURCES: HeatmapSource[] = ["us_sp500", "us_ndx", "us_tech", "us_nasdaq", "us_dow", "us_dowcomp",
@@ -99,10 +100,11 @@ export function HeatmapTab() {
   const marketOpen = isMarketOpen(isKr ? "KR" : "US");   // 표시용(장중/장마감 라벨)
   // 폴링 주기는 전역과 동일(getEffectivePollMs) — 상단 시계 카운트다운과 맞아 '0초 멈춤' 방지.
   //   수동 모드(0)면 폴링 안 함. 보유탭처럼 장마감에도 폴링(refetchIntervalInBackground).
-  const pollMs = getEffectivePollMs();
+  //   웹은 서버 수집본(10분마다)이라 2분마다 다시 읽기만 한다 — 화면엔 서버가 받은 시각을 보여준다.
+  const pollMs = preferServer() ? 120_000 : getEffectivePollMs();
   const q = useQuery({
     queryKey: ["kr-heatmap", source],
-    queryFn: () => fetchKrHeatmap(source, SOURCE_LIMIT[source] ?? 400),
+    queryFn: () => fetchHeatmapPreferServer(source, SOURCE_LIMIT[source] ?? 400),
     staleTime: 0, refetchOnWindowFocus: false, retry: false,
     refetchInterval: pollMs > 0 ? pollMs : false,
     refetchIntervalInBackground: true,
@@ -163,10 +165,10 @@ export function HeatmapTab() {
   const rows = useMemo(
     // 0.5%p 여유 — 상한가는 정확히 +30% 지만 (1300/1000-1)*100 이 부동소수점상
     //   30.000000000000004 로 나와 정상 상한가가 걸러질 수 있다.
-    () => (q.data ?? []).filter(it => !isKr || Math.abs(it.changePct) <= KR_DAILY_LIMIT_PCT + 0.5),
+    () => (q.data?.items ?? []).filter(it => !isKr || Math.abs(it.changePct) <= KR_DAILY_LIMIT_PCT + 0.5),
     [q.data, isKr],
   );
-  const dropped = (q.data?.length ?? 0) - rows.length;
+  const dropped = (q.data?.items.length ?? 0) - rows.length;
 
   // 등락률 변동폭 크기 모드의 허수 필터 — 거래량 1·거래대금 미미한데 ±100% 찍히는 호가는
   // 실제 자금 이동이 없는 허수라 크기 왜곡을 유발. 데이터셋 거래대금 중앙값의 2% 미만이면 제외.
@@ -308,7 +310,16 @@ export function HeatmapTab() {
             </span>
           )}
         </span>
-        {ago != null && (
+        {q.data?.server ? (
+          // 서버 수집본 — 서버가 받은 시각(사용자 요청 2026-10-29 "히트맵은 갱신시간을 표시")
+          <span className="text-[10px] text-gray-500 flex items-center gap-1"
+                title="서버가 장중 10분마다 받아 둔 값입니다(앱은 실시간).">
+            <span className={marketOpen ? "text-emerald-500" : "text-gray-300"}>●</span>
+            서버 갱신 <b className="text-gray-700">{fmtServerStamp(q.data.fetchedAt)}</b>
+            <span className="text-gray-400">({Math.max(0, Math.round((Date.now() - q.data.fetchedAt) / 60_000))}분 전)</span>
+            {marketOpen ? " · 장중" : " · 장마감"}
+          </span>
+        ) : ago != null && (
           <span className="text-[10px] text-gray-400 flex items-center gap-1">
             <span className={marketOpen ? "text-emerald-500" : "text-gray-300"}>●</span>
             {q.isFetching ? "갱신 중…" : `${ago}초 전`}{marketOpen ? " · 장중" : " · 장마감"}

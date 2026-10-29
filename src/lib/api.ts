@@ -1,4 +1,5 @@
 import type { Price, Investor, Consensus } from "../types";
+import { fetchLive, preferServer } from "./liveServer";
 import {
   reportProxySuccess, reportProxyFailure, isProxyDown,
   noteHostFailure, noteHostSuccess, isHostBlocked,
@@ -5130,6 +5131,18 @@ export async function fetchKrHeatmap(source: HeatmapSource, limit = 500): Promis
   return mapHeatRows(rows);
 }
 
+// 웹은 서버 수집본(크롤러 live.js 가 10분마다 19개 소스 전부, lib/liveServer) 먼저 — 없으면 직접 조회. 앱은 직접(30초 폴링 그대로).
+//   서버본은 소스별 상한(SOURCE_LIMIT 과 같은 값)까지 담겨 있다.
+export interface HeatmapResult { items: HeatmapItem[]; fetchedAt: number; server: boolean }
+export async function fetchHeatmapPreferServer(source: HeatmapSource, limit = 500): Promise<HeatmapResult> {
+  if (preferServer()) {
+    const live = await fetchLive<{ fetchedAt: number; rows?: unknown[][] }>(`heatmap/${source}`);
+    if (live && Array.isArray(live.rows) && live.rows.length > 0)
+      return { items: mapHeatRows(live.rows.map(d => ({ s: "", d }))).slice(0, limit), fetchedAt: live.fetchedAt, server: true };
+  }
+  return { items: await fetchKrHeatmap(source, limit), fetchedAt: Date.now(), server: false };
+}
+
 // ─── 장 운영 상태 (토스 dashboard overview trading-info) ──────────────────
 //   국내·해외의 **현재 구간**을 토스가 직접 알려준다 — 우리가 시계를 들고 추정할 필요가 없다.
 //   국내: 장 열림 08:30 · 정규장 09:00~15:30 · 시간외 15:30~16:00 · 애프터 16:00~20:00
@@ -5448,54 +5461,29 @@ export async function fetchHlPerpCandles(coin: string): Promise<number[]> {
   } catch { return []; }
 }
 
-// 구성종목 — 네이버 PC 금융 편입종목 표(finance.naver.com, EUC-KR HTML). 10페이지 = 100종목 전체.
-//   m.stock enrollStocks 는 대표 20개뿐이라, 100종목 전체는 이 PC 표를 페이지별로 스크래핑.
-//   표 컬럼: [종목명, 현재가, 전일비(상승/하락+숫자), 등락률(%), 거래량, 거래대금(백만), 시가총액(억)]
-const VALUEUP_PAGES = 10;
+// 구성종목 — m.stock enrollStocks JSON(100종). pageSize 50 까지(100 은 빈 응답) → 50 × 2쪽.
+//   PC 표(finance.naver entryJongmok, EUC-KR HTML)는 410 폐기(2026-10-29 실측). marketValue = 시가총액(억원)
 function valueupLogoUrl(code: string): string {
   return `https://ssl.pstatic.net/imgstock/fn/real/logo/png/stock/Stock${code}.png`;
 }
-function parseValueupPage(html: string): ValueupStock[] {
-  const out: ValueupStock[] = [];
-  for (const tr of html.match(/<tr[^>]*>[\s\S]*?<\/tr>/g) ?? []) {
-    const cm = /\/item\/main\.naver\?code=([\dA-Za-z]{6})/.exec(tr);
-    if (!cm) continue;
-    const code = cm[1];
-    const cells = [...tr.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/g)]
-      .map(m => m[1].replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/\s+/g, " ").trim())
-      .filter(c => c !== "");
-    if (cells.length < 7) continue;
-    const down = cells[2].includes("하락");   // 전일비 방향어(상승/하락/보합)
-    // 등락률 셀은 "+5.21%" 형태 — naverNum 은 % 를 못 벗겨 NaN→0 되므로 별도 파싱.
-    const pctMag = Math.abs(parseFloat(cells[3].replace(/[^\d.]/g, "")) || 0);
-    out.push({
-      code,
-      name: cells[0],
-      price: naverNum(cells[1]),
-      changePct: pctMag * (down ? -1 : 1),   // 등락률 크기 × 방향
-      marketCap: naverNum(cells[6]),   // 시가총액(억원)
-      logoUrl: valueupLogoUrl(code),
-    });
-  }
-  return out;
-}
+interface NaverEnrollStock { itemCode?: string; stockName?: string; closePrice?: string; fluctuationsRatio?: string; marketValue?: string }
 export async function fetchValueupConstituents(): Promise<ValueupStock[]> {
-  const pages = await Promise.all(
-    Array.from({ length: VALUEUP_PAGES }, (_, i) => i + 1).map(async page => {
-      try {
-        const resp = await fetchProxied(`https://finance.naver.com/sise/entryJongmok.naver?type=KVALUE&page=${page}`);
-        if (!resp.ok) return [];
-        const html = decodeHtmlBuf(await resp.arrayBuffer(), resp.headers.get("Content-Type") || "");
-        return parseValueupPage(html);
-      } catch { return []; }
-    })
-  );
-  // 페이지 경계 중복 제거(시총 내림차순 정렬은 표 순서 그대로 유지).
   const seen = new Set<string>();
   const all: ValueupStock[] = [];
-  for (const list of pages) for (const s of list) {
-    if (seen.has(s.code)) continue;
-    seen.add(s.code); all.push(s);
+  for (let page = 1; page <= 4; page++) {
+    let list: NaverEnrollStock[] = [];
+    try {
+      const resp = await fetchProxied(`https://m.stock.naver.com/api/index/KVALUE/enrollStocks?page=${page}&pageSize=50`);
+      if (resp.ok) list = await resp.json() as NaverEnrollStock[];
+    } catch { /* 이 쪽만 빠진다 */ }
+    if (!Array.isArray(list) || list.length === 0) break;
+    for (const s of list) {
+      const code = s.itemCode ?? "";
+      if (!/^[\dA-Za-z]{6}$/.test(code) || seen.has(code)) continue;
+      seen.add(code);
+      all.push({ code, name: s.stockName ?? code, price: naverNum(s.closePrice),
+        changePct: parseFloat(s.fluctuationsRatio ?? "") || 0, marketCap: naverNum(s.marketValue), logoUrl: valueupLogoUrl(code) });
+    }
   }
   return all;
 }

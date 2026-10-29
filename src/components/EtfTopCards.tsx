@@ -19,9 +19,8 @@ import { dayChangePct } from "../lib/format";
 import { requestTab, isTabVisible } from "../lib/tabNav";
 import { ETF_RANKING_TAB_KEY } from "./Tabs";
 import { Sparkline } from "./Sparkline";
-import { fetchEtfRanking, loadCachedRanking, isLeverageEtf, isFuturesEtf } from "../lib/etfRanking";
+import { fetchEtfRanking, loadCachedRanking, isLeverageEtf, isFuturesEtf, canAutoFetchRanking } from "../lib/etfRanking";
 import type { EtfRanking, EtfRankRow } from "../lib/etfRanking";
-import { hasDedicatedTransport } from "../lib/proxyConfig";
 import { signColor, formatVolume } from "../lib/format";
 
 // 배경 스파크라인 — 랭킹 탭의 그것과 같은 쿼리키라 캐시를 공유한다(같은 ETF 를 두 화면에서
@@ -233,14 +232,14 @@ export function EtfTopCards({ onOpenEtf }: {
 
   const refresh = useCallback(() => {
     setLoading(true);
-    fetchEtfRanking()
+    fetchEtfRanking({ manual: true })
       .then(setRank)
       .catch(() => { /* 실패하면 이전 캐시를 그대로 둔다 */ })
       .finally(() => setLoading(false));
   }, []);
 
   useEffect(() => {
-    if (!hasDedicatedTransport()) return;          // 공용은 캐시 + 수동
+    if (!canAutoFetchRanking()) return;            // 공개 프록시는 캐시 + 수동(웹 서버본은 자동)
     if (Date.now() - lastAutoAt < AUTO_MIN_GAP_MS) return;
     lastAutoAt = Date.now();
     inflight ??= fetchEtfRanking().finally(() => { inflight = null; });

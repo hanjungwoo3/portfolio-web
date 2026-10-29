@@ -20,6 +20,7 @@ import {
   fetchScreenerUniverse, loadCachedScreen, funnel, passCount, CONDS,
   DEFAULT_CRITERIA, type ScreenCriteria, type ScreenRow, type ScreenSnapshot,
 } from "../lib/stockScreener";
+import { preferServer } from "../lib/liveServer";
 
 interface Props {
   // 포트폴리오 추가 버튼은 두지 않는다 — 카드의 📊(기업가치) 안에서 추가할 수 있다.
@@ -180,8 +181,9 @@ export function ScreenerTab({ onOpenValuation }: Props) {
       });
 
   // 캐시가 없을 때만 마운트 직후 1회 자동 조회. 이후엔 새로고침 버튼으로만(스캐너 2콜).
+  //   웹은 서버 수집본이라 호출 비용이 없어 들어올 때마다 새로 읽는다(캐시는 먼저 그려 둔다).
   useEffect(() => {
-    if (!loading) return;
+    if (!loading && !preferServer()) return;
     let alive = true;
     void run(() => alive);
     return () => { alive = false; };
@@ -271,7 +273,7 @@ export function ScreenerTab({ onOpenValuation }: Props) {
         <div className="ml-auto text-[11px] text-gray-500 leading-tight text-right">
           {snap ? (
             <>
-              <div>기준 {fmtStamp(snap.fetchedAt)}</div>
+              <div>{snap.server ? "서버 갱신" : "기준"} {fmtStamp(snap.fetchedAt)}</div>
               <div>{rows.length.toLocaleString()}종 스캔</div>
             </>
           ) : loading ? <div>전 종목 지표 조회 중…</div> : null}

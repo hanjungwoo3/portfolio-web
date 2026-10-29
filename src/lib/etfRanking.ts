@@ -11,6 +11,7 @@ import { loadEtfData } from "./etfIndex";
 import { dayChangePct } from "./format";
 import { buildSectorStats, type EtfSectorStat } from "./etfSectors";
 import { hasDedicatedTransport } from "./proxyConfig";
+import { fetchLive, preferServer } from "./liveServer";
 
 export interface EtfRankRow {
   code: string;
@@ -31,6 +32,7 @@ export interface EtfRanking {
   // 섹터 요약 — 상·하위 100 이 아니라 '전수'로 집계해야 의미가 있어서 조회 시점에 만들어 둔다.
   //   (top/bottom 만 남기고 버리면 나중에 다시 계산할 수 없다 — 6콜을 또 쓸 수는 없다)
   sectors: EtfSectorStat[];
+  server?: boolean;      // 서버 수집본(10분마다)에서 만든 것 — 화면에 '서버 갱신' 으로 표시
 }
 
 // 저장 개수. 표시는 상위 50 이고 "더보기" 로 KEEP 까지 펼친다.
@@ -82,19 +84,15 @@ function dominantTradeDate(prices: Price[]): string {
   return best;
 }
 
-// 전체 ETF 시세 조회 → 등락률 정렬. 6콜 소모하므로 호출부에서 사용자 액션에만 묶을 것.
-export async function fetchEtfRanking(): Promise<EtfRanking> {
-  const data = await loadEtfData();
-  const codes = Object.keys(data.list);
-  const prices = await fetchTossPrices(codes);   // 내부에서 200개씩 청크 분할(토스 상한)
-
+// 시세 → 등락률 정렬·섹터 집계. 직접 조회와 서버 수집본이 같은 규칙을 쓴다.
+function buildRanking(prices: Price[], names: Record<string, { name: string }>, total: number, fetchedAt: number): EtfRanking {
   const rows: EtfRankRow[] = [];
   for (const p of prices) {
     const pct = dayChangePct(p);
     if (pct === undefined || !Number.isFinite(pct)) continue;
     rows.push({
       code: p.ticker,
-      name: data.list[p.ticker]?.name ?? p.ticker,
+      name: names[p.ticker]?.name ?? p.ticker,
       pct,
       price: p.price,
       base: p.base,
@@ -102,19 +100,56 @@ export async function fetchEtfRanking(): Promise<EtfRanking> {
     });
   }
   rows.sort((a, b) => b.pct - a.pct);
-
-  const ranking: EtfRanking = {
-    fetchedAt: Date.now(),
+  return {
+    fetchedAt,
     tradeDate: dominantTradeDate(prices),
     scanned: rows.length,
-    total: codes.length,
+    total,
     top: rows.slice(0, RANK_KEEP),
     // 하락 하위 — 뒤에서 KEEP 개를 떼어 "가장 많이 빠진 것" 부터 오게 뒤집는다
     bottom: rows.slice(Math.max(0, rows.length - RANK_KEEP)).reverse(),
     sectors: buildSectorStats(rows),   // ★ 전수(rows) 기준 — 상·하위만 보면 섹터가 왜곡된다
   };
+}
+
+// 서버 수집본 행 [코드, 현재가, 직전 거래일 종가, 거래량, 체결일(KST)] → Price.
+//   fetchTossPricesBatch 와 같은 규칙: 체결일이 오늘(KST)이 아니면 오늘 거래 없음 → 기준가 = 현재가·거래량 0
+//   (등락률은 dayChangePct 가 prevClose 로 직전 거래일 등락을 보여준다). 내보내는 건 테스트용.
+export type LiveEtfRow = [string, number, number, number, string];
+export function liveRowsToPrices(rows: LiveEtfRow[], todayKst: string): Price[] {
+  return rows.map(([ticker, close, base, volume, tradeDate]) => {
+    const traded = tradeDate === todayKst;
+    return { ticker, price: close, base: traded ? base : close, prevClose: base, open: 0,
+      volume: traded ? volume : 0, trade_date: tradeDate };
+  });
+}
+
+async function fetchServerRanking(): Promise<EtfRanking | null> {
+  const [live, data] = await Promise.all([fetchLive<{ fetchedAt: number; rows: LiveEtfRow[] }>("etf-ranking"), loadEtfData()]);
+  if (!live || !Array.isArray(live.rows) || live.rows.length === 0) return null;
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  return { ...buildRanking(liveRowsToPrices(live.rows, today), data.list, Object.keys(data.list).length, live.fetchedAt), server: true };
+}
+
+// 전체 ETF 시세 → 등락률 정렬. 웹은 서버 수집본(호출 0), 앱은 직접(6콜).
+//   서버본이 없으면 직접 조회로 넘어가는데, 공개 프록시만 쓰는 웹은 사용자가 누른 경우(manual)에만 — 자동으로 6콜을 태우지 않는다.
+export async function fetchEtfRanking(opts: { manual?: boolean } = {}): Promise<EtfRanking> {
+  if (preferServer()) {
+    const r = await fetchServerRanking();
+    if (r) { saveRanking(r); return r; }
+    if (!opts.manual && !hasDedicatedTransport()) throw new Error("서버 수집본을 받지 못했습니다");
+  }
+  const data = await loadEtfData();
+  const codes = Object.keys(data.list);
+  const prices = await fetchTossPrices(codes);   // 내부에서 200개씩 청크 분할(토스 상한)
+  const ranking = buildRanking(prices, data.list, codes.length, Date.now());
   saveRanking(ranking);
   return ranking;
+}
+
+/** 자동 조회해도 되는가 — 서버본(웹) 또는 전용 전송(앱·확장·개인 워커). 공개 프록시로 6콜을 자동으로 태우지 않는다. */
+export function canAutoFetchRanking(): boolean {
+  return preferServer() || hasDedicatedTransport();
 }
 
 // 지수 탭용 — 탭 진입 시 갱신하되, ★ 자동 조회는 전용 전송(확장·앱·개인 워커)에서만 한다.
@@ -143,7 +178,7 @@ export function useCachedSectorFlow(enabled: boolean): SectorFlowState {
   // 사용자가 누른 새로고침 — 진행 표시를 켠다.
   const refresh = useCallback(() => {
     setLoading(true);
-    void fetchEtfRanking()
+    void fetchEtfRanking({ manual: true })
       .then(setRanking)
       .catch(() => { /* 실패하면 이전 캐시를 그대로 둔다 */ })
       .finally(() => setLoading(false));
@@ -152,7 +187,7 @@ export function useCachedSectorFlow(enabled: boolean): SectorFlowState {
   // 탭 진입(마운트)마다 새로 받는다. 여기선 setState 를 동기로 부르지 않는다(이펙트 규칙).
   useEffect(() => {
     if (!enabled) return;
-    if (!hasDedicatedTransport()) return;                       // 공개 인프라는 자동 조회 안 함
+    if (!canAutoFetchRanking()) return;                         // 공개 프록시로는 자동 조회 안 함(서버본은 된다)
     if (Date.now() - lastAutoAt < AUTO_MIN_GAP_MS) return;      // 탭을 오가도 최소 간격은 지킨다
     lastAutoAt = Date.now();
     inFlight ??= fetchEtfRanking().finally(() => { inFlight = null; });
