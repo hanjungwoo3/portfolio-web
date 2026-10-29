@@ -131,7 +131,7 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
             //   글자는 제 칸 금액이 오른쪽 끝(다른 줄 금액과 같은 자리) — 매도 칸 "+매수 −매도", 매수 칸 "−매도 +매수"(사용자 2026-10-29)
             <span className="tabular-nums shrink-0">
               {k === "ask"
-                ? <><span className="text-rose-700">+{eokWon(bid)}</span><span className="ml-1 text-blue-700">−{eokWon(ask)}</span></>
+                ? <><span className="text-gray-400">+{eokWon(bid)}</span><span className="ml-1 text-blue-700">−{eokWon(ask)}</span></>
                 : <><span className="text-blue-700">−{eokWon(ask)}</span><span className="ml-1 text-rose-700">+{eokWon(bid)}</span></>}
             </span>
           ) : (
@@ -141,7 +141,8 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
         <div className="relative h-[10px] mt-0.5">
           {both ? (<>
             {(() => {
-              const [first, second] = k === "ask" ? [{ v: ask, c: "bg-blue-300" }, { v: bid, c: "bg-rose-400" }] : [{ v: bid, c: "bg-rose-400" }, { v: ask, c: "bg-blue-300" }];
+              // 매도 칸의 반대편(매수) 몫은 회색 — 막대·숫자 모두(사용자 2026-10-29 "매도는 빨간색 바와 숫자를 회색으로")
+              const [first, second] = k === "ask" ? [{ v: ask, c: "bg-blue-300" }, { v: bid, c: "bg-gray-300" }] : [{ v: bid, c: "bg-rose-400" }, { v: ask, c: "bg-blue-300" }];
               return <>
                 <span className={`absolute inset-y-0 left-0 rounded-l-sm ${first.c}`} style={{ width: w(first.v) }} />
                 <span className={`absolute inset-y-0 rounded-r-sm ${second.c}`} style={{ left: w(first.v), width: w(second.v) }} />
