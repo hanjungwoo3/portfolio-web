@@ -2,7 +2,8 @@
 //   GitHub 자체 예약(schedule)은 붐비면 몇 시간씩 밀리거나 건너뛰어(2026-10-28 10분 예약이 하루 2번), Cloudflare 가 대신 깨운다.
 //   토큰(GH_TOKEN)은 워커 비밀값으로만(wrangler secret put GH_TOKEN) — 저장소 하나·Actions 쓰기 권한만 준 fine-grained PAT.
 //   · dart.yml — DART 공시: 평일 07:00~20:50 KST
-//   · live.yml — ETF 랭킹·눌림목·실적 일정·히트맵(2026-10-29~): 국내 평일 08:00~20:20 KST 또는 미국 뉴욕 평일 04:00~20:20
+//   · live.yml — ETF 랭킹·눌림목·실적 일정·히트맵(2026-10-29~): 국내 평일 08:00~20:20 KST 또는 미국 뉴욕 평일 04:00~20:20, **2분마다**
+//     (사용자 2026-10-29 "2분으로" — 무엇을 매번 받을지는 live.js 가 정한다). DART 는 지금처럼 10분마다(분이 10의 배수일 때)
 //   cron 은 UTC 라 요일·시각을 여기서 한 번 더 거른다(서머타임은 Intl 이 맞춰 준다).
 const REPO = "hanjungwoo3/portfolio-etf-index";
 
@@ -36,11 +37,12 @@ async function dispatch(env, workflow) {
 }
 
 export default {
-  async scheduled(_event, env, ctx) {
+  async scheduled(event, env, ctx) {
     if (!env.GH_TOKEN) { console.error("GH_TOKEN 비밀값이 없다"); return; }
-    const w = windows();
+    const now = new Date(event.scheduledTime ?? Date.now());
+    const w = windows(now);
     const jobs = [];
-    if (w.dart) jobs.push(dispatch(env, "dart.yml"));
+    if (w.dart && now.getUTCMinutes() % 10 === 0) jobs.push(dispatch(env, "dart.yml"));
     if (w.live) jobs.push(dispatch(env, "live.yml"));
     if (jobs.length) ctx.waitUntil(Promise.all(jobs).then(s => console.log(s.join(" · "))));
   },
