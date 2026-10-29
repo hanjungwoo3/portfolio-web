@@ -128,7 +128,8 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
           {/* 양쪽에 다 든 증권사 — 이름 옆에 순매매, 금액은 막대 위 제 조각 자리(사용자 2026-10-29 "삼성증권(−4,449억), 그래프 위에 각 금액") */}
           <span className="truncate font-medium text-gray-800">{b.name}{b.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}
             {/* 한쪽에만 든 증권사도 같은 모양(사용자 2026-10-29) — 상대편을 몰라 순매매 = 제 금액(매수 +·매도 −) */}
-            <span className={`ml-1 text-[10.5px] font-bold tabular-nums ${up(net)}`}>({net > 0 ? "+" : net < 0 ? "−" : ""}{eokWon(Math.abs(net))})</span></span>
+            {/* 괄호(순매매)는 강조하지 않는다 — 강조는 막대 위 제 칸 금액(사용자 2026-10-29) */}
+            <span className="ml-1 text-[10.5px] font-normal text-gray-500 tabular-nums">({net > 0 ? "+" : net < 0 ? "−" : ""}{eokWon(Math.abs(net))})</span></span>
         </div>
         {(() => {
           // 막대 위 금액 — 앞 조각(제 칸 금액, 제 색)은 왼쪽 끝, 뒤 조각(반대편, 회색)은 막대 오른쪽 끝
@@ -136,7 +137,7 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
           const secondTxt = k === "ask" ? `+${eokWon(bid)}` : `−${eokWon(ask)}`;
           return (
             <div className="relative h-[14px] text-[10.5px] leading-[14px] tabular-nums">
-              <span className={`absolute left-0 ${k === "ask" ? "text-blue-700" : "text-rose-700"}`}>{firstTxt}</span>
+              <span className={`absolute left-0 font-bold text-[11.5px] ${k === "ask" ? "text-blue-700" : "text-rose-700"}`}>{firstTxt}</span>
               {both && <span className="absolute text-gray-400" style={{ right: `calc(100% - ${w(bid + ask)})` }}>{secondTxt}</span>}
             </div>
           );
