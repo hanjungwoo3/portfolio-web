@@ -106,8 +106,8 @@ export function OrderBookBox({ code }: { code: string }) {
 export function BrokerBox({ code, className = "" }: { code: string; className?: string }) {
   const { data: br, error } = useBroker(code);
   const mx = Math.max(1, ...(br ? br.rows.flatMap(r => [r.ask.val, r.bid.val]) : [1]));
-  // 같은 증권사가 매도·매수 상위 5에 다 들면(사용자 2026-10-27·10-29) 두 칸 막대 길이 = 큰 쪽. 큰 쪽 칸은 끝 순매매만 제 색,
-  //   작은 쪽 칸은 앞 제 금액만 제 색, 나머지 회색 — 두 칸 색이 맞물린다. 한쪽에만 든 곳은 제 막대 하나 그대로.
+  // 같은 증권사가 매도·매수 상위 5에 다 들면(사용자 2026-10-27·10-29) 두 칸 막대 길이 = 큰 쪽. 왼쪽부터 큰 쪽 칸은 순매매만큼,
+  //   작은 쪽 칸은 제 금액만큼 제 색, 나머지 회색. 한쪽에만 든 곳은 제 막대 하나 그대로.
   const askBy = new Map(br ? br.rows.map(r => [r.ask.name, r.ask.val]) : []);
   const bidBy = new Map(br ? br.rows.map(r => [r.bid.name, r.bid.val]) : []);
   const side = (b: { name: string; val: number; foreign: boolean }, k: "ask" | "bid") => {
@@ -117,12 +117,12 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
     const net = bid - ask;
     const w = (v: number) => `${(v / mx) * 100}%`;
     // 두 칸 막대 길이 = 큰 쪽(같게). 색칠은 서로 맞물리게(사용자 2026-10-29):
-    //   큰 쪽 칸 = 앞 작은 쪽만큼 회색 + 끝 순매매만큼 제 색 ("10,803억(−4,465억) 은 10,803 에서 4,465 만큼 파랗게")
+    //   큰 쪽 칸 = 앞 순매매만큼 제 색 + 나머지 회색 ("10,803억(−4,465억) 은 10,803 에서 4,465 만큼 파랗게", "파란색도 왼쪽에")
     //   작은 쪽 칸 = 앞 제 금액만큼 제 색 + 나머지 회색 ("6,338억 은 10,803 에서 6,338 만큼 빨갛게")
     const big = Math.max(bid, ask), small = Math.min(bid, ask);
     const ownCls = k === "ask" ? "bg-blue-300" : "bg-rose-400";
     const isBig = b.val >= (other ?? 0);
-    const [c0, c1] = isBig ? [small, big] : [0, b.val];   // 제 색 구간
+    const colored = isBig ? big - small : b.val;   // 왼쪽부터 제 색으로 칠할 양
     return (
       // 글자 줄 아래에 막대 줄을 따로(사용자 2026-10-27 "그래프를 글자아래에 별도로")
       <div className="px-1 pt-0.5 pb-1 text-[11.5px]"
@@ -137,7 +137,7 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
         <div className="relative h-[10px] mt-0.5">
           {both ? (<>
             <span className="absolute inset-y-0 left-0 rounded-sm bg-gray-200" style={{ width: w(big) }} />
-            <span className={`absolute inset-y-0 ${isBig ? "rounded-r-sm" : "rounded-l-sm"} ${ownCls}`} style={{ left: w(c0), width: w(c1 - c0) }} />
+            <span className={`absolute inset-y-0 left-0 rounded-l-sm ${ownCls}`} style={{ width: w(colored) }} />
           </>) : (
             <span className={`absolute inset-y-0 left-0 rounded-sm ${k === "ask" ? "bg-blue-300" : "bg-rose-400"}`} style={{ width: w(b.val) }} />
           )}
