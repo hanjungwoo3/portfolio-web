@@ -124,22 +124,23 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
       // 글자 줄 아래에 막대 줄을 따로(사용자 2026-10-27 "그래프를 글자아래에 별도로")
       <div className="px-1 pt-0.5 pb-1 text-[11.5px]"
            title={both ? `${b.name} — 매수 ${eokWon(bid)} · 매도 ${eokWon(ask)} · 순${net >= 0 ? "매수" : "매도"} ${eokWon(Math.abs(net))}` : undefined}>
-        {/* 순매매 합계 — 숫자 줄 바로 위, 오른쪽(사용자 2026-10-29 "각 숫자 위에 +- 합계금액") */}
-        {both && <div className={`text-right text-[10.5px] font-bold leading-none tabular-nums ${up(net)}`}>{net > 0 ? "+" : net < 0 ? "−" : ""}{eokWon(Math.abs(net))}</div>}
         <div className="flex items-center justify-between gap-1 leading-tight">
-          <span className="truncate font-medium text-gray-800">{b.name}{b.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}</span>
-          {both ? (
-            // 양쪽에 다 든 증권사 — 판 금액(−)·산 금액(+)을 둘 다(사용자 2026-10-29 "−10,804억 +6,347억 이걸 표시해야"). 막대도 같은 순서
-            //   글자는 제 칸 금액이 오른쪽 끝(다른 줄 금액과 같은 자리) — 매도 칸 "+매수 −매도", 매수 칸 "−매도 +매수"(사용자 2026-10-29)
-            <span className="tabular-nums shrink-0">
-              {k === "ask"
-                ? <><span className="text-gray-400">+{eokWon(bid)}</span><span className="ml-1 text-blue-700">−{eokWon(ask)}</span></>
-                : <><span className="text-gray-400">−{eokWon(ask)}</span><span className="ml-1 text-rose-700">+{eokWon(bid)}</span></>}
-            </span>
-          ) : (
-            <span className={`tabular-nums shrink-0 ${k === "ask" ? "text-blue-700" : "text-rose-700"}`}>{eokWon(b.val)}</span>
-          )}
+          {/* 양쪽에 다 든 증권사 — 이름 옆에 순매매, 금액은 막대 위 제 조각 자리(사용자 2026-10-29 "삼성증권(−4,449억), 그래프 위에 각 금액") */}
+          <span className="truncate font-medium text-gray-800">{b.name}{b.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}
+            {both && <span className={`ml-1 text-[10.5px] font-bold tabular-nums ${up(net)}`}>({net > 0 ? "+" : net < 0 ? "−" : ""}{eokWon(Math.abs(net))})</span>}</span>
+          {!both && <span className={`tabular-nums shrink-0 ${k === "ask" ? "text-blue-700" : "text-rose-700"}`}>{eokWon(b.val)}</span>}
         </div>
+        {both && (() => {
+          // 막대 위 금액 — 앞 조각(제 칸 금액, 제 색)은 왼쪽 끝, 뒤 조각(반대편, 회색)은 막대 오른쪽 끝
+          const firstTxt = k === "ask" ? `−${eokWon(ask)}` : `+${eokWon(bid)}`;
+          const secondTxt = k === "ask" ? `+${eokWon(bid)}` : `−${eokWon(ask)}`;
+          return (
+            <div className="relative h-[14px] text-[10.5px] leading-[14px] tabular-nums">
+              <span className={`absolute left-0 ${k === "ask" ? "text-blue-700" : "text-rose-700"}`}>{firstTxt}</span>
+              <span className="absolute text-gray-400" style={{ right: `calc(100% - ${w(bid + ask)})` }}>{secondTxt}</span>
+            </div>
+          );
+        })()}
         <div className="relative h-[10px] mt-0.5">
           {both ? (<>
             {(() => {
