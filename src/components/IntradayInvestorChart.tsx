@@ -9,14 +9,12 @@ import {
   LineSeries,
   BaselineSeries,
   LineStyle,
-  createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
   type IPriceLine,
   type Time,
   type UTCTimestamp,
   type MouseEventParams,
-  type SeriesMarker,
 } from "lightweight-charts";
 import type { IntradayKey } from "../lib/intradayInvestor";
 import { INTRADAY_SERIES } from "../lib/intradayInvestor";
@@ -159,7 +157,7 @@ export function IntradayInvestorChart({
 
     // 배경 지수(코스피/코스닥) — 전일 종가 기준 위=빨강/아래=파랑(한국식). 투자자 라인 뒤에 깔림.
     let idxApi: ISeriesApi<"Baseline"> | null = null;
-    let hiLo: { hi: { t: UTCTimestamp; value: number }; lo: { t: UTCTimestamp; value: number }; cur?: { t: UTCTimestamp; value: number } } | null = null;
+    let hiLo: { hi: { t: UTCTimestamp; value: number }; lo: { t: UTCTimestamp; value: number } } | null = null;
     if (indexSeries && indexSeries.length > 1) {
       const base = indexBaseline ?? indexSeries[0].value;
       const idx = chart.addSeries(BaselineSeries, {
@@ -171,7 +169,7 @@ export function IntradayInvestorChart({
         bottomLineColor: "rgba(37,99,235,0.7)",
         bottomFillColor1: "rgba(37,99,235,0.05)", bottomFillColor2: "rgba(37,99,235,0.28)",
         lineWidth: 1,
-        priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false,   // 현재 지수 = 오른쪽 축 끝 값
+        priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,   // 현재 지수 = setIdxHover 가격선(마우스 점선과 같은 모양)
       });
       idx.setData(indexSeries.map(p => ({ time: p.t as Time, value: p.value })));
       idxApi = idx;
@@ -179,20 +177,10 @@ export function IntradayInvestorChart({
       //   같은 값이 여러 번이면 처음 닿은 시각에 단다.
       let hi = indexSeries[0], lo = indexSeries[0];
       for (const p of indexSeries) { if (p.value > hi.value) hi = p; if (p.value < lo.value) lo = p; }
-      if (hi.value > lo.value) {
-        const marks: SeriesMarker<Time>[] = [
-          // 점만 라이브러리로 — 글자는 아래 오버레이(vlines)에서 직접 단다: 라이브러리 글자는 점 가운데 정렬이라
-          //   장 시작 첫 봉(왼쪽 끝)이 최저면 잘렸다("?47.86"). 직접 달면 칸 안쪽으로 밀어 넣을 수 있다
-          { time: hi.t as Time, position: "inBar", shape: "circle", size: 0.6, color: "#dc2626" },
-          { time: lo.t as Time, position: "inBar", shape: "circle", size: 0.6, color: "#2563eb" },
-        ];
-        // 현재(마지막 점) — 점만. 값은 오른쪽 지수 축 끝에(글자가 그래프를 가렸다, 사용자 2026-10-29). 최고·최저와 같은 점이면 생략
-        const last = indexSeries[indexSeries.length - 1];
-        const cur = last.t !== hi.t && last.t !== lo.t ? last : undefined;
-        if (cur) marks.push({ time: cur.t as Time, position: "inBar", shape: "circle", size: 0.6, color: "#334155" });
-        hiLo = { hi, lo, cur };
-        createSeriesMarkers(idx, marks.sort((a, b) => (a.time as number) - (b.time as number)));   // 시간순이어야 한다(라이브러리 요구)
-      }
+      // 최고 = 위에서 ▼, 최저 = 아래에서 ▲ (오버레이 vlines). 현재 = 마우스 점선과 같은 가격선(setIdxHover)
+      //   (사용자 2026-10-29 "포인트 원이 너무 커, 최고는 위에서 최저는 아래에서", "현재가도 hover 랑 동일한 디자인").
+      //   라이브러리 글자는 점 가운데 정렬이라 장 시작 첫 봉(왼쪽 끝)이 최저면 잘렸다 — 직접 달아 칸 안쪽으로 밀어 넣는다
+      if (hi.value > lo.value) hiLo = { hi, lo };
     }
 
     // 0 기준선 — 순매수 부호 판독용. 눈에 띄게 진한 회색.
@@ -265,17 +253,20 @@ export function IntradayInvestorChart({
 
     // 마우스 가로 점선 = 그 시각 지수 값 + 왼쪽 축에 지수 숫자(사용자 요청 2026-10-23).
     //   crosshair 가로선은 마우스 높이를 따라가 의미가 없어 끄고, 지수 시리즈 가격선으로 대신한다.
+    //   마우스가 없을 때는 같은 모양으로 **현재 지수**(마지막 값)를 보여 준다 — 둘이 겹치지 않게 하나만
+    //   (사용자 2026-10-29 "현재가도 마우스 hover 랑 동일한 디자인으로", "hover 일 때는 현재가 지우고")
     let idxHover: IPriceLine | null = null;
     const setIdxHover = (t: number | null) => {
       if (!idxApi || !indexSeries) return;
       if (idxHover) { idxApi.removePriceLine(idxHover); idxHover = null; }
-      if (t == null) return;
+      if (t == null) { const cur = indexSeries[indexSeries.length - 1]; if (cur) t = cur.t as number; else return; }
       let v: number | null = null;   // 그 시각 이하 마지막 지수 값(지수가 5분봉이어도)
       for (const p of indexSeries) { if ((p.t as number) <= t) v = p.value; else break; }
       if (v == null) return;
       idxHover = idxApi.createPriceLine({ price: v, color: "#64748b", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, axisLabelColor: "#475569", axisLabelTextColor: "#ffffff", title: "" });
     };
     const hide = () => { if (tooltipRef.current) tooltipRef.current.style.display = "none"; setHoverT(null); setIdxHover(null); };
+    setIdxHover(null);   // 처음엔 현재 지수
     const idxByT = new Map<number, number>();
     if (indexSeries) for (const p of indexSeries) idxByT.set(p.t as number, p.value);
     // 툴팁 렌더+위치 (onMove·동기화 hover 공용)
@@ -373,17 +364,14 @@ export function IntradayInvestorChart({
         vlEl.appendChild(line); vlEl.appendChild(tag);
         return { line, tag, t: c.pt.t };
       });
-      // 최고·최저 글자(점 바로 위·아래, 칸 밖으로 안 나가게)
+      // 최고·최저 화살표+글자(칸 밖으로 안 나가게). 현재는 마우스 점선과 같은 가격선(setIdxHover)
       const fmtIdx = (v: number) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const hiLoTags = hiLo ? ([["hi", hiLo.hi, "#dc2626", "최고"], ["lo", hiLo.lo, "#2563eb", "최저"]] as const)
-        .flatMap(([k, pt, color, label]) => pt ? [{ k, pt, color, label }] : []).map(({ k, pt, color, label }) => {
-        const tag = document.createElement("div");
-        tag.textContent = `${label} ${fmtIdx(pt.value)}`;
-        tag.style.cssText = `position:absolute;font-size:10px;font-weight:600;color:${color};white-space:nowrap;pointer-events:none;` +
-          `background:rgba(255,255,255,0.75);padding:0 2px;border-radius:2px;`;
-        vlEl.appendChild(tag);
-        return { k, pt, tag };
-      }) : [];
+      const mk = (css: string, text = "") => { const d = document.createElement("div"); d.textContent = text; d.style.cssText = `position:absolute;pointer-events:none;white-space:nowrap;${css}`; vlEl.appendChild(d); return d; };
+      const hiLoTags = hiLo ? ([["hi", hiLo.hi, "#dc2626", "최고", "▼"], ["lo", hiLo.lo, "#2563eb", "최저", "▲"]] as const).map(([k, pt, color, label, arrow]) => ({
+        k, pt,
+        arrow: mk(`font-size:9px;line-height:9px;color:${color};transform:translateX(-50%);`, arrow),
+        tag: mk(`font-size:10px;font-weight:600;color:${color};background:rgba(255,255,255,0.75);padding:0 2px;border-radius:2px;`, `${label} ${fmtIdx(pt.value)}`),
+      })) : [];
       reposition = () => {
         setGeomVer(v => v + 1);
         // timeToCoordinate 는 플롯(가격축 제외) 기준 → 왼쪽 지수축 폭만큼 더해 컨테이너 좌표로 보정.
@@ -395,12 +383,15 @@ export function IntradayInvestorChart({
         for (const h of hiLoTags) {
           const x = chart.timeScale().timeToCoordinate(h.pt.t as Time);
           const y = idxApi?.priceToCoordinate(h.pt.value);
-          if (x == null || y == null) { h.tag.style.display = "none"; continue; }
-          h.tag.style.display = "block";
+          const show = x != null && y != null;
+          h.tag.style.display = h.arrow.style.display = show ? "block" : "none";
+          if (!show) continue;
+          // 화살표 끝이 점에 닿게 — 최고는 점 위(▼), 최저는 점 아래(▲). 글자는 그 바깥
+          h.arrow.style.left = `${x + lw}px`;
+          h.arrow.style.top = `${h.k === "hi" ? y - 10 : y + 1}px`;
           const w = h.tag.offsetWidth;
-          const left = Math.min(Math.max(x + lw - w / 2, lw + 2), W - rw - w - 2);
-          h.tag.style.left = `${left}px`;
-          h.tag.style.top = `${h.k === "hi" ? y - 18 : y + 6}px`;
+          h.tag.style.left = `${Math.min(Math.max(x + lw - w / 2, lw + 2), W - rw - w - 2)}px`;
+          h.tag.style.top = `${h.k === "hi" ? y - 24 : y + 11}px`;
         }
         for (const it of items) {
           const x = chart.timeScale().timeToCoordinate(it.t as Time);
