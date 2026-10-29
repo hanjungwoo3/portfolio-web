@@ -105,24 +105,21 @@ export function OrderBookBox({ code }: { code: string }) {
 // ── 거래원 — 매도·매수 상위 5 증권사(금액) + 외국계 합계. 외국계는 이름 옆 🌐
 export function BrokerBox({ code, className = "" }: { code: string; className?: string }) {
   const { data: br, error } = useBroker(code);
-  const mx = Math.max(1, ...(br ? br.rows.flatMap(r => [r.ask.val, r.bid.val]) : [1]));
-  // 같은 증권사가 매도·매수 상위 5에 다 들면(사용자 2026-10-27·10-29) 두 칸 막대 길이 = 큰 쪽. 왼쪽부터 큰 쪽 칸은 순매매만큼,
-  //   작은 쪽 칸은 제 금액만큼 제 색, 나머지 회색. 한쪽에만 든 곳은 제 막대 하나 그대로.
+  const mx0 = Math.max(1, ...(br ? br.rows.flatMap(r => [r.ask.val, r.bid.val]) : [1]));
+  // 같은 증권사가 매도·매수 상위 5에 다 들면(사용자 2026-10-27·10-29) 두 칸 모두 총 거래액 막대 — 앞 매수(빨강)·뒤 매도(파랑).
+  //   한쪽에만 든 곳은 상대 금액을 몰라 제 막대 하나 그대로.
   const askBy = new Map(br ? br.rows.map(r => [r.ask.name, r.ask.val]) : []);
   const bidBy = new Map(br ? br.rows.map(r => [r.bid.name, r.bid.val]) : []);
+  // 막대 눈금 — 양쪽에 다 든 증권사는 총 거래액(매수 + 매도)이 막대라, 그 합까지 들어가게
+  const mx = Math.max(mx0, ...[...askBy].map(([n, a]) => a + (bidBy.get(n) ?? -a)));
   const side = (b: { name: string; val: number; foreign: boolean }, k: "ask" | "bid") => {
     const other = (k === "ask" ? bidBy : askBy).get(b.name);
     const both = other != null;
     const bid = k === "bid" ? b.val : other ?? 0, ask = k === "ask" ? b.val : other ?? 0;
     const net = bid - ask;
     const w = (v: number) => `${(v / mx) * 100}%`;
-    // 두 칸 막대 길이 = 큰 쪽(같게). 색칠은 서로 맞물리게(사용자 2026-10-29):
-    //   큰 쪽 칸 = 앞 순매매만큼 제 색 + 나머지 회색 ("10,803억(−4,465억) 은 10,803 에서 4,465 만큼 파랗게", "파란색도 왼쪽에")
-    //   작은 쪽 칸 = 앞 제 금액만큼 제 색 + 나머지 회색 ("6,338억 은 10,803 에서 6,338 만큼 빨갛게")
-    const big = Math.max(bid, ask), small = Math.min(bid, ask);
-    const ownCls = k === "ask" ? "bg-blue-300" : "bg-rose-400";
-    const isBig = b.val >= (other ?? 0);
-    const colored = isBig ? big - small : b.val;   // 왼쪽부터 제 색으로 칠할 양
+    // 두 칸 같은 막대 — 길이 = 총 거래액(매수 + 매도), 앞 = 산 금액 빨강·뒤 = 판 금액 파랑(사용자 2026-10-29 "총 거래액 17,141 아냐?").
+    //   빨강·파랑 길이 차이가 곧 순매매(괄호 숫자)
     return (
       // 글자 줄 아래에 막대 줄을 따로(사용자 2026-10-27 "그래프를 글자아래에 별도로")
       <div className="px-1 pt-0.5 pb-1 text-[11.5px]"
@@ -136,8 +133,8 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
         </div>
         <div className="relative h-[10px] mt-0.5">
           {both ? (<>
-            <span className="absolute inset-y-0 left-0 rounded-sm bg-gray-200" style={{ width: w(big) }} />
-            <span className={`absolute inset-y-0 left-0 rounded-l-sm ${ownCls}`} style={{ width: w(colored) }} />
+            <span className="absolute inset-y-0 left-0 rounded-l-sm bg-rose-400" style={{ width: w(bid) }} />
+            <span className="absolute inset-y-0 rounded-r-sm bg-blue-300" style={{ left: w(bid), width: w(ask) }} />
           </>) : (
             <span className={`absolute inset-y-0 left-0 rounded-sm ${k === "ask" ? "bg-blue-300" : "bg-rose-400"}`} style={{ width: w(b.val) }} />
           )}
