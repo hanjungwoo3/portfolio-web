@@ -47,7 +47,7 @@ const niceTicks = (lo: number, hi: number, n: number) => {
   for (let v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(Math.round(v / step) * step);
   return out;
 };
-const AX_L = 34, AX_R = 38;   // 수급 칸 왼쪽(지수)·오른쪽(순매수) 축 폭(px)
+const AX_L = 38, AX_R = 38;   // 수급 칸 왼쪽(순매수)·오른쪽(지수) 축 폭(px) — 증시 탭과 같은 배치(사용자 2026-10-29)
 const eok = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v).toLocaleString()}`;
 // 순매수 금액을 말로 — "순매수 −29억" 을 매수로 읽는 일이 있어(사용자 혼동 2026-10-21) 음수면 '순매도'로 쓴다
 const netWord = (won: number) => `${won >= 0 ? "순매수" : "순매도"} ${Math.abs(Math.round(won / 1e8)).toLocaleString()}억`;
@@ -622,7 +622,9 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
   const hasBgBase = !!bgBase && bgBase > 0;
   const bVals = [...bgp.map(b => b.v), ...(hasBgBase ? [bgBase!] : [])];   // 기준선(전일 종가)도 범위에 — 위·아래로 나눠 칠하려고
   const bMin = Math.min(...bVals), bMax = Math.max(...bVals), bR = bMax - bMin || 1;
-  const by = (v: number) => PY + (1 - (v - bMin) / bR) * (H - PY * 2);
+  // 지수는 위아래 10% 여백 — 최고·최저 화살표·글자가 칸 밖으로 안 나가게(증시 탭 지수 축과 같게)
+  const BPY = H * 0.1;
+  const by = (v: number) => BPY + (1 - (v - bMin) / bR) * (H - BPY * 2);
   // 마감 동시호가(일괄 체결) 구간 — 현물 15:20~15:30, 선물 15:35~15:45. 음영만 칠한다(글자는 그래프를 가려 뺐다)
   const aucFrom = endHM === "15:45" ? "15:35" : "15:20";   // 선물 칸 = 축 끝 15:45
   const y = (v: number) => H / 2 - (v / mx) * (H / 2 - PY);
@@ -639,6 +641,8 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
   const hoverX = hoverM != null && hoverM >= T0 && hoverM <= T1 ? PX + ((hoverM - T0) / span) * (W - PX * 2) : null;
   // 마우스 시각의 배경 지수 값(그 시각 이하 마지막 점)
   const hovBg = hoverX != null && hoverM != null && bgp.length > 1 ? [...bgp].reverse().find(b => tmin(b.t) <= hoverM) : undefined;
+  // 지수 가로 점선·오른쪽 값표 — 마우스가 있으면 그 시각, 없으면 현재(마지막) 값. 하나만 보여 겹치지 않는다(사용자 2026-10-29)
+  const idxMark = hovBg ?? (bgp.length > 1 ? bgp[bgp.length - 1] : undefined);
   return (
     <div className={`pg-card rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 min-w-0 ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
          title={dim ? "지금은 거래 시간이 아니거나 지난 거래일 자료입니다" : undefined}>
@@ -661,19 +665,16 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
         ))}
       </div>
       {/* 그래프 높이 고정 — 세 칸(현물·선물)이 같은 높이·같은 가로 위치 */}
-      {/* 축 — 왼쪽 = 배경 지수, 오른쪽 = 순매수, 아래 = 시각(증시 탭과 같게, 사용자 요청 2026-10-23).
+      {/* 축 — 왼쪽 = 순매수, 오른쪽 = 배경 지수, 아래 = 시각(증시 탭과 같게, 사용자 요청 2026-10-23·10-29 좌우 바꿈).
           아래 막대 줄도 같은 좌우 여백(AX_L·AX_R)을 둬 가로 위치가 맞는다 */}
       <div className="h-[190px] shrink-0 flex flex-col">
         {pts.length < 2 ? <div className="h-full flex items-center justify-center text-gray-400">{flow ? "장 시작 전" : "불러오는 중…"}</div> : (<>
           <div className="flex-1 min-h-0 flex">
-          <div className="relative shrink-0 text-[9px] text-gray-400 tabular-nums" style={{ width: AX_L }}>
-            {bgp.length > 1 && niceTicks(bMin, bMax, 5).map(v => (
-              <span key={v} className="absolute right-1 -translate-y-1/2" style={{ top: `${(by(v) / H) * 100}%` }}>{Math.round(v).toLocaleString()}</span>
+          {/* 왼쪽 = 순매수(청록 — 지수 현재값 점선과 구분, 증시 탭과 같게) */}
+          <div className="relative shrink-0 text-[9px] text-teal-700 tabular-nums" style={{ width: AX_L }}>
+            {niceTicks(-mx, mx, 5).map(v => (
+              <span key={v} className="absolute right-1 -translate-y-1/2" style={{ top: `${(y(v) / H) * 100}%` }}>{Math.round(v).toLocaleString()}</span>
             ))}
-            {hovBg && (
-              <span className="absolute right-0 -translate-y-1/2 rounded-sm bg-gray-600 px-0.5 text-[9.5px] leading-tight text-white"
-                    style={{ top: `${(by(hovBg.v) / H) * 100}%` }}>{Math.round(hovBg.v).toLocaleString()}</span>
-            )}
           </div>
           <div className="relative flex-1 min-w-0 border-x border-gray-200">
           <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full" onMouseMove={onMove} onMouseLeave={onHover ? () => onHover(null) : undefined}>
@@ -699,7 +700,7 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
                 </>
               );
             })()}
-            <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#94a3b8" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+            <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#0d9488" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
             {/* 마감 동시호가 구간 음영 */}
             <rect x={x(aucFrom)} width={Math.max(0, x(axisEnd) - x(aucFrom))} y={0} height={H} fill="#fde68a" fillOpacity={0.35} />
             {["10:00", "12:00", "14:00"].map(t => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H} stroke="#eef2f7" vectorEffect="non-scaling-stroke" />)}
@@ -708,31 +709,23 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
                     fill="none" stroke={l.color} strokeWidth={1.4} vectorEffect="non-scaling-stroke" />
             ))}
             {hoverX != null && <line x1={hoverX} x2={hoverX} y1={0} y2={H} stroke="#475569" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
-            {hovBg && <line x1={0} x2={W} y1={by(hovBg.v)} y2={by(hovBg.v)} stroke="#64748b" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
+            {idxMark && <line x1={0} x2={W} y1={by(idxMark.v)} y2={by(idxMark.v)} stroke="#64748b" strokeDasharray="3 2" vectorEffect="non-scaling-stroke" />}
           </svg>
-          {/* 배경 지수 최고·최저·현재 — 점과 값(증시 탭 투자자 차트와 같은 모양, 사용자 요청 2026-10-29).
-              가장자리 가까이면 글자를 안쪽으로 붙여 칸 밖으로 안 나가게 */}
+          {/* 배경 지수 최고·최저 — 최고 = 위에서 ▼, 최저 = 아래에서 ▲ 와 값(증시 탭과 같은 모양, 사용자 2026-10-29).
+              가장자리 가까이면 글자를 안쪽으로 붙여 칸 밖으로 안 나가게. 현재는 오른쪽 축 값표(idxMark) */}
           {bgp.length > 1 && (() => {
             let hi = bgp[0], lo = bgp[0];
             for (const b of bgp) { if (b.v > hi.v) hi = b; if (b.v < lo.v) lo = b; }
             if (hi.v <= lo.v) return null;
-            const cur = bgp[bgp.length - 1];
             const fmt = (v: number) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-            const tags = [
-              { k: "hi", b: hi, label: "최고", color: "#dc2626" },
-              { k: "lo", b: lo, label: "최저", color: "#2563eb" },
-              ...(cur !== hi && cur !== lo ? [{ k: "cur", b: cur, label: "현재", color: "#334155" }] : []),
-            ];
-            return tags.map(({ k, b, label, color }) => {
+            return ([["hi", hi, "최고", "#dc2626", "▼"], ["lo", lo, "최저", "#2563eb", "▲"]] as const).map(([k, b, label, color, arrow]) => {
               const px = (x(b.t) / W) * 100, py = (by(b.v) / H) * 100;
-              const tx = k === "cur" ? "calc(-100% - 5px)" : px < 15 ? "-4px" : px > 85 ? "calc(-100% + 4px)" : "-50%";
-              // 최고는 늘 위 끝·최저는 아래 끝이라 글자를 칸 안쪽(최고 = 점 아래, 최저 = 점 위)에
-              const ty = k === "hi" ? "4px" : k === "lo" ? "calc(-100% - 4px)" : "-50%";
+              const tx = px < 15 ? "-4px" : px > 85 ? "calc(-100% + 4px)" : "-50%";
               return (
                 <span key={k} className="pointer-events-none">
-                  <span className="absolute w-1.5 h-1.5 -translate-x-1/2 -translate-y-1/2 rounded-full" style={{ left: `${px}%`, top: `${py}%`, background: color }} />
+                  <span className="absolute text-[8px] leading-[8px] -translate-x-1/2" style={{ left: `${px}%`, top: `${py}%`, color, transform: `translate(-50%, ${k === "hi" ? "calc(-100% - 1px)" : "1px"})` }}>{arrow}</span>
                   <span className="absolute whitespace-nowrap rounded-sm bg-white/75 px-0.5 text-[9.5px] font-semibold leading-tight tabular-nums"
-                        style={{ left: `${px}%`, top: `${py}%`, transform: `translate(${tx}, ${ty})`, color }}>{label} {fmt(b.v)}</span>
+                        style={{ left: `${px}%`, top: `${py}%`, transform: `translate(${tx}, ${k === "hi" ? "calc(-100% - 10px)" : "10px"})`, color }}>{label} {fmt(b.v)}</span>
                 </span>
               );
             });
@@ -743,10 +736,15 @@ function FlowBox({ title, note, flow, unit, tabs, tab, onTab, bg, bgBase, endHM 
                   style={{ left: `${(x(hovPt.time) / W) * 100}%`, top: `${(y(val(hovPt, l.k)) / H) * 100}%`, background: l.color }} />
           ))}
           </div>
+          {/* 오른쪽 = 배경 지수. 값표 = 마우스 시각의 지수, 마우스가 없으면 현재 지수(같은 모양 — 증시 탭과 같게) */}
           <div className="relative shrink-0 text-[9px] text-gray-400 tabular-nums" style={{ width: AX_R }}>
-            {niceTicks(-mx, mx, 5).map(v => (
-              <span key={v} className="absolute left-1 -translate-y-1/2" style={{ top: `${(y(v) / H) * 100}%` }}>{Math.round(v).toLocaleString()}</span>
+            {bgp.length > 1 && niceTicks(bMin, bMax, 5).map(v => (
+              <span key={v} className="absolute left-1 -translate-y-1/2" style={{ top: `${(by(v) / H) * 100}%` }}>{Math.round(v).toLocaleString()}</span>
             ))}
+            {idxMark && (
+              <span className="absolute left-0 -translate-y-1/2 rounded-sm bg-gray-600 px-0.5 text-[9.5px] leading-tight text-white"
+                    style={{ top: `${(by(idxMark.v) / H) * 100}%` }}>{Math.round(idxMark.v).toLocaleString()}</span>
+            )}
           </div>
           </div>
           <div className="relative h-[13px] shrink-0 text-[9px] text-gray-400 tabular-nums" style={{ marginLeft: AX_L, marginRight: AX_R }}>
