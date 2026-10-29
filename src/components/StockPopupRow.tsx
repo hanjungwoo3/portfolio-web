@@ -118,7 +118,7 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
     const bid = k === "bid" ? b.val : other ?? 0, ask = k === "ask" ? b.val : other ?? 0;
     const net = bid - ask;
     const w = (v: number) => `${(v / mx) * 100}%`;
-    // 두 칸 같은 길이 — 총 거래액(매수 + 매도). 제 칸 색이 앞(매도 칸 = 파랑 먼저, 매수 칸 = 빨강 먼저), 글자도 같은 순서(
+    // 두 칸 같은 길이 — 총 거래액(매수 + 매도). 제 칸 색이 앞(매도 칸 = 파랑 먼저, 매수 칸 = 빨강 먼저), 글자는 제 칸 금액이 오른쪽 끝(
     //   사용자 2026-10-29 "총 거래액 17,141 아냐?"). 순매매는 마우스를 올리면(title)
     return (
       // 글자 줄 아래에 막대 줄을 따로(사용자 2026-10-27 "그래프를 글자아래에 별도로")
@@ -128,11 +128,11 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
           <span className="truncate font-medium text-gray-800">{b.name}{b.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}</span>
           {both ? (
             // 양쪽에 다 든 증권사 — 판 금액(−)·산 금액(+)을 둘 다(사용자 2026-10-29 "−10,804억 +6,347억 이걸 표시해야"). 막대도 같은 순서
-            //   매도 칸 = 파랑(판 금액) 먼저, 매수 칸 = 빨강(산 금액) 먼저 — 제 칸 색이 왼쪽(사용자 2026-10-29)
+            //   글자는 제 칸 금액이 오른쪽 끝(다른 줄 금액과 같은 자리) — 매도 칸 "+매수 −매도", 매수 칸 "−매도 +매수"(사용자 2026-10-29)
             <span className="tabular-nums shrink-0">
               {k === "ask"
-                ? <><span className="text-blue-700">−{eokWon(ask)}</span><span className="ml-1 text-rose-700">+{eokWon(bid)}</span></>
-                : <><span className="text-rose-700">+{eokWon(bid)}</span><span className="ml-1 text-blue-700">−{eokWon(ask)}</span></>}
+                ? <><span className="text-rose-700">+{eokWon(bid)}</span><span className="ml-1 text-blue-700">−{eokWon(ask)}</span></>
+                : <><span className="text-blue-700">−{eokWon(ask)}</span><span className="ml-1 text-rose-700">+{eokWon(bid)}</span></>}
             </span>
           ) : (
             <span className={`tabular-nums shrink-0 ${k === "ask" ? "text-blue-700" : "text-rose-700"}`}>{eokWon(b.val)}</span>
