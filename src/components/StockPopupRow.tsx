@@ -126,11 +126,11 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
            title={both ? `${b.name} — 매수 ${eokWon(bid)} · 매도 ${eokWon(ask)} · 순${net >= 0 ? "매수" : "매도"} ${eokWon(Math.abs(net))}` : undefined}>
         <div className="flex items-center justify-between gap-1 leading-tight">
           {/* 양쪽에 다 든 증권사 — 이름 옆에 순매매, 금액은 막대 위 제 조각 자리(사용자 2026-10-29 "삼성증권(−4,449억), 그래프 위에 각 금액") */}
-          {/* 순매수(+)면 이름·괄호 모두 빨강(사용자 2026-10-29) */}
-          <span className={`truncate font-medium ${net > 0 ? "text-rose-600" : "text-gray-800"}`}>{b.name}{b.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}
+          {/* 순매수(+)면 이름·괄호 모두 빨강, 순매도(−)면 파랑(사용자 2026-10-29) */}
+          <span className={`truncate font-medium ${net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-800"}`}>{b.name}{b.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}
             {/* 한쪽에만 든 증권사도 같은 모양(사용자 2026-10-29) — 상대편을 몰라 순매매 = 제 금액(매수 +·매도 −) */}
             {/* 괄호(순매매)는 강조하지 않는다 — 강조는 막대 위 제 칸 금액(사용자 2026-10-29) */}
-            <span className={`ml-1 text-[10.5px] font-normal tabular-nums ${net > 0 ? "text-rose-600" : "text-gray-500"}`}>({net > 0 ? "+" : net < 0 ? "−" : ""}{eokWon(Math.abs(net))})</span></span>
+            <span className={`ml-1 text-[10.5px] font-normal tabular-nums ${net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-500"}`}>({net > 0 ? "+" : net < 0 ? "−" : ""}{eokWon(Math.abs(net))})</span></span>
         </div>
         {(() => {
           // 막대 위 금액 — 앞 조각(제 칸 금액, 제 색)은 왼쪽 끝, 뒤 조각(반대편, 회색)은 막대 오른쪽 끝
