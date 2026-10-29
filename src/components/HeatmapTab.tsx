@@ -15,6 +15,8 @@ import { isMarketOpen } from "../lib/format";
 import { reportRefresh } from "../lib/lastRefresh";
 import { getEffectivePollMs, hasDirectTransport } from "../lib/proxyConfig";
 import { dayChangePct } from "../lib/format";
+import { HEAT_SIGN_OPTS, type HeatSign } from "../lib/holdingsHeat";
+import { SimplePriceCard } from "./SimplePriceCard";
 import { takePendingHeatmap } from "../lib/heatmapNav";
 import { preferServer, fmtServerStamp, fetchLiveIndex } from "../lib/liveServer";
 
@@ -194,6 +196,19 @@ export function HeatmapTab() {
     refetchInterval: useToss && getEffectivePollMs() > 0 ? getEffectivePollMs() : false,
     refetchIntervalInBackground: true,
   });
+  // 오늘 체결이 없는 종목(카드에서 흐린 것) — 토스 체결일로만 안다. 전부 그렇다면(휴장·장 전) 빈 집합으로(다 빠지지 않게)
+  const staleCodes = useMemo(() => {
+    if (!useToss || !tossQ.data?.length) return new Set<string>();
+    const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+    const stale = tossQ.data.filter(p => p.trade_date !== today).map(p => p.ticker);
+    return stale.length < tossQ.data.length ? new Set(stale) : new Set<string>();
+  }, [useToss, tossQ.data]);
+  // 상승만 / 하락만 · 흐린 종목 제외(심플 보기 히트맵과 같은 버튼, 사용자 2026-10-30) — 기준은 지금 고른 색 기준 값
+  const [sign, setSign] = useState<HeatSign>("all");
+  const [view, setView] = useState<"heat" | "card">("heat");
+  const cardView = isKr && view === "card";
+  const tossByCode = useMemo(() => new Map((useToss ? tossQ.data ?? [] : []).map(p => [p.ticker, p])), [useToss, tossQ.data]);
+  const [hideStale, setHideStale] = useState<boolean>(() => { try { return localStorage.getItem("heatmap_hide_stale") === "1"; } catch { return false; } });
   const liveItems = useMemo(() => {
     const items = q.data?.items ?? [];
     if (!useToss || !tossQ.data?.length) return items;
@@ -212,6 +227,11 @@ export function HeatmapTab() {
     () => liveItems.filter(it => !isKr || Math.abs(it.changePct) <= KR_DAILY_LIMIT_PCT + 0.5),
     [liveItems, isKr],
   );
+  const shown = useMemo(() => rows.filter(it => {
+    if (hideStale && staleCodes.has(it.code)) return false;
+    const v = colorDef.field(it);
+    return sign === "all" || (sign === "up" ? v > 0 : v < 0);
+  }), [rows, hideStale, staleCodes, sign, colorDef]);
   const dropped = (q.data?.items.length ?? 0) - rows.length;
 
   // 등락률 변동폭 크기 모드의 허수 필터 — 거래량 1·거래대금 미미한데 ±100% 찍히는 호가는
@@ -245,7 +265,7 @@ export function HeatmapTab() {
   // 트리맵 — 그룹=섹터/등락방향이면 2단계(그룹→종목), 그룹없음이면 종목만 1단계.
   const layout = useMemo(() => {
     // change 모드에선 유동성 미달(허수) 종목 제외 — liqFloor=0 이면 전체 통과
-    const items = rows.filter(it => liqFloor <= 0 || it.valueTraded >= liqFloor);
+    const items = shown.filter(it => liqFloor <= 0 || it.valueTraded >= liqFloor);
     const empty = { stocks: [] as { it: HeatmapItem; x: number; y: number; w: number; h: number }[], headers: [] as { sec: string; x: number; y: number; w: number }[] };
     if (!items.length || size.w < 40 || size.h < 40) return empty;
     const stocks: { it: HeatmapItem; x: number; y: number; w: number; h: number }[] = [];
@@ -302,7 +322,7 @@ export function HeatmapTab() {
     }
     return { stocks, headers };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [rows, size.w, size.h, sizeModeEff, groupMode, colorDef, liqFloor, weightMap]);
+  }, [shown, size.w, size.h, sizeModeEff, groupMode, colorDef, liqFloor, weightMap]);
 
   const isHostErr = q.error instanceof ProxyHostError;
 
@@ -310,6 +330,15 @@ export function HeatmapTab() {
     <div className="p-2">
       {/* 컨트롤 */}
       <div className="flex flex-wrap items-center gap-2 mb-2">
+        {/* 히트맵 | 카드 — 히트맵 팝업(SimpleViewModal)과 같은 버튼·같은 카드(사용자 2026-10-30 "이거도 동일하면"). 카드는 원화라 한국만 */}
+        {isKr && (
+          <span className="inline-flex rounded border border-gray-300 overflow-hidden text-[12px] font-bold">
+            {(["heat", "card"] as const).map(v => (
+              <button key={v} onClick={() => setView(v)}
+                      className={`px-2 py-1 ${view === v ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>{v === "heat" ? "히트맵" : "카드"}</button>
+            ))}
+          </span>
+        )}
         <label className="flex items-center gap-1 text-xs">
           <span className="text-gray-400">지수</span>
           <select value={source} onChange={e => setSource(e.target.value as HeatmapSource)}
@@ -357,8 +386,23 @@ export function HeatmapTab() {
             </select>
           </label>
         )}
+        <span className="inline-flex rounded border border-gray-300 overflow-hidden text-xs font-bold" title="색 기준 값이 +인 종목만 / −인 종목만">
+          {HEAT_SIGN_OPTS.map(o => (
+            <button key={o.key} onClick={() => setSign(o.key)}
+                    className={`px-2 py-1 ${sign === o.key
+                      ? (o.key === "up" ? "bg-rose-600 text-white" : o.key === "down" ? "bg-blue-600 text-white" : "bg-gray-800 text-white")
+                      : "bg-white text-gray-600 hover:bg-gray-100"}`}>{o.label}</button>
+          ))}
+        </span>
+        {useToss && (
+          <label className="inline-flex items-center gap-1 text-xs cursor-pointer select-none" title="오늘 체결이 없어 지난 거래일 값에 멈춘(카드에서 흐린) 종목을 뺀다 — 전부 안 열렸을 땐 그대로 둔다(토스 실시간일 때만)">
+            <input type="checkbox" checked={hideStale}
+                   onChange={e => { setHideStale(e.target.checked); try { localStorage.setItem("heatmap_hide_stale", e.target.checked ? "1" : "0"); } catch { /* 이번 화면만 */ } }} />
+            흐린 종목 제외
+          </label>
+        )}
         <span className="text-[10px] text-gray-400">
-          색: 빨강▲/파랑▼ · {rows.length}종목
+          색: 빨강▲/파랑▼ · {shown.length}종목
           {dropped > 0 && (
             <span className="text-gray-300"
                   title={`1일 등락률이 ±${KR_DAILY_LIMIT_PCT}% 를 벗어난 ${dropped}종목 제외.\n국내 가격제한폭상 불가능한 값 — 거래정지·액면병합 종목의 기준가 오류로 보고 걸러냅니다.`}>
@@ -390,8 +434,23 @@ export function HeatmapTab() {
            className="text-[10px] text-blue-600 hover:underline ml-auto">TradingView 원본 ↗</a>
       </div>
 
-      {/* 트리맵 캔버스 */}
-      <div ref={boxRef} className="relative w-full h-[72vh] min-h-[360px] bg-gray-100 rounded-lg overflow-hidden">
+      {/* 카드 — 지금 거른 종목(+만/−만·흐림 제외)을 색 기준 값 큰 순으로 */}
+      {cardView && (
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-2 gap-y-3.5 items-stretch">
+          {[...shown].sort((a, b) => colorDef.field(b) - colorDef.field(a)).map(it => {
+            const p = tossByCode.get(it.code);
+            const base = p ? (p.prevClose || p.base || p.price) : it.changePct > -100 ? it.close / (1 + it.changePct / 100) : it.close;
+            return (
+              <SimplePriceCard key={it.code} ticker={it.code} name={krName(it)}
+                               price={p?.price ?? it.close} base={base} high={p?.high} low={p?.low}
+                               chart={[]} dimmed={staleCodes.has(it.code)} />
+            );
+          })}
+        </div>
+      )}
+
+      {/* 트리맵 캔버스 — 카드 보기일 땐 숨겨만 둔다(크기 측정이 끊기지 않게) */}
+      <div ref={boxRef} className={`relative w-full h-[72vh] min-h-[360px] bg-gray-100 rounded-lg overflow-hidden ${cardView ? "hidden" : ""}`}>
         {q.isLoading && <div className="absolute inset-0 flex items-center justify-center text-sm text-gray-400">불러오는 중…</div>}
 
         {isHostErr && (
