@@ -11,14 +11,26 @@ export function preferServer(): boolean {
   return !isDirectApp();
 }
 
-/** live/<name>.json — 실패·형태 불량이면 null(호출측이 직접 조회로 폴백할지 정한다). */
-export async function fetchLive<T extends { fetchedAt: number }>(name: string): Promise<T | null> {
+/** live/<name>.json — 실패·형태 불량이면 null(호출측이 직접 조회로 폴백할지 정한다).
+ *  ver = 그 파일의 서버 갱신 시각(index.json) — 주면 주소 키로 써서 같은 판은 브라우저가 가진 걸 쓰고, 바뀌면 바로 새로 받는다. */
+export async function fetchLive<T extends { fetchedAt: number }>(name: string, ver?: number): Promise<T | null> {
   try {
-    // raw CDN 5분 캐시 — 2분 단위로 키를 바꿔 너무 묵지 않게(dartDisclosures 와 같은 방식)
-    const r = await fetch(`${LIVE}/${name}.json?t=${Math.floor(Date.now() / 120_000)}`);
+    // 판을 모르면 raw CDN 5분 캐시 — 2분 단위로 키를 바꿔 너무 묵지 않게(dartDisclosures 와 같은 방식)
+    const r = await fetch(`${LIVE}/${name}.json?t=${ver ?? Math.floor(Date.now() / 120_000)}`);
     if (!r.ok) return null;
     const j = await r.json() as T;
     return typeof j?.fetchedAt === "number" ? j : null;
+  } catch { return null; }
+}
+
+/** live/index.json — { 이름: 서버 갱신 시각 } 작은 파일. 설정 주기(5초 등)마다 이것만 보고 시각이 바뀐 것만 전체를 받는다
+ *  (사용자 제안 2026-10-29 "5초마다 시간만 가져오고 시간이 바뀌면 가져오던지"). 매번 새 주소라 CDN 캐시를 건너뛴다. */
+export async function fetchLiveIndex(): Promise<Record<string, number> | null> {
+  try {
+    const r = await fetch(`${LIVE}/index.json?t=${Date.now()}`, { cache: "no-store" });
+    if (!r.ok) return null;
+    const j = await r.json() as Record<string, number>;
+    return j && typeof j === "object" ? j : null;
   } catch { return null; }
 }
 

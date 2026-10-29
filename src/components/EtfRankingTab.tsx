@@ -22,7 +22,8 @@ import {
 import { EtfSectorFlow } from "./EtfSectorFlow";
 import { UsRankingPanel } from "./UsRankingPanel";
 import { useEtfReturns, PERIOD_LABEL, type ReturnPeriod } from "../lib/etfReturns";
-import { preferServer } from "../lib/liveServer";
+import { preferServer, fetchLiveIndex } from "../lib/liveServer";
+import { getEffectivePollMs } from "../lib/proxyConfig";
 import { useEtfFlows, flowOf, FLOW_WINDOWS, FLOW_WHO_LABEL, FLOW_WINDOW_LABEL, type FlowWho, type FlowWindow } from "../lib/etfFlows";
 
 interface Props {
@@ -168,9 +169,11 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
   const [sector, setSector] = useState<string | null>(null);  // 고른 섹터 — null 이면 전체 랭킹
   const [sectorOpen, setSectorOpen] = useState(true);
   const { ranking, loading, err } = state;
+  const shownAt = useRef(0);   // 지금 화면에 있는 판의 서버 갱신 시각 — 주기 확인에서 바뀐 것만 받으려고
+  shownAt.current = ranking?.fetchedAt ?? 0;
 
-  const run = (alive: () => boolean, manual = false) =>
-    fetchEtfRanking({ manual })
+  const run = (alive: () => boolean, manual = false, ver?: number) =>
+    fetchEtfRanking({ manual, ver })
       .then(r => { if (alive()) setState({ ranking: r, loading: false, err: null }); })
       .catch((e: unknown) => {
         if (!alive()) return;
@@ -189,10 +192,17 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
     if (!state.loading && !canAutoFetchRanking()) return;
     let alive = true;
     void run(() => alive);
-    // 웹은 탭을 열어 둔 동안 서버본을 2분마다 다시 읽는다 — 서버가 10분마다 올린 새 값이 머물러 있어도 바뀌게
-    //   (사용자 2026-10-29 "10분마다 받아두는 값을 자동으로 갱신"). 호출 0(raw 파일), 창이 가려져 있으면 건너뛴다.
-    const timer = preferServer()
-      ? window.setInterval(() => { if (document.visibilityState === "visible") void run(() => alive); }, 120_000)
+    // 웹은 탭을 열어 둔 동안 설정 주기(5초 등)마다 서버 갱신 시각(index.json, 작은 파일)만 보고,
+    //   바뀌었을 때만 전체를 받는다(사용자 제안 2026-10-29). 호출 0(raw 파일), 창이 가려져 있으면 건너뛴다. 수동 모드(0)면 안 본다.
+    const pollMs = getEffectivePollMs();
+    const timer = preferServer() && pollMs > 0
+      ? window.setInterval(() => {
+          if (document.visibilityState !== "visible") return;
+          void fetchLiveIndex().then(idx => {
+            const v = idx?.["etf-ranking"];
+            if (alive && v && v !== shownAt.current) void run(() => alive, false, v);
+          });
+        }, pollMs)
       : undefined;
     return () => { alive = false; if (timer) window.clearInterval(timer); };
     // 마운트 시 1회 — state.loading 을 deps 에 넣으면 새로고침마다 재실행된다
@@ -275,8 +285,9 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
           ))}
         </div>
 
-        {/* 웹은 서버본을 2분마다 저절로 다시 읽어 버튼이 필요 없다(사용자 2026-10-29). 앱·확장은 들어올 때만 받으니 버튼을 둔다 */}
-        {!preferServer() && (
+        {/* 웹은 설정 주기마다 서버 갱신 시각을 보고 저절로 바뀌어 버튼이 필요 없다(사용자 2026-10-29).
+            앱·확장(들어올 때만 받는다)과 수동 모드(주기 0)는 버튼을 둔다 */}
+        {(!preferServer() || getEffectivePollMs() === 0) && (
         <button onClick={refresh} disabled={loading}
                 title="전체 ETF 시세를 다시 조회합니다 (약 6콜)"
                 className="px-3 py-1.5 text-sm font-medium rounded-md border border-gray-300
@@ -455,7 +466,7 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
       <p className="text-[11px] text-gray-500 leading-relaxed">
         전체 ETF {ranking?.total.toLocaleString() ?? "—"}종의 시세를 한 번에 받아 등락률로 정렬합니다.
         {preferServer()
-          ? "서버가 장중 10분마다 받아 두고, 이 화면은 열어 둔 동안 저절로 새 값으로 바뀝니다."
+          ? "서버가 장중 10분마다 받아 두고, 이 화면은 열어 둔 동안 갱신 주기마다 서버 시각을 확인해 바뀌면 새 값으로 바꿉니다."
           : "들어올 때 새로 받습니다. 보는 중에 최신 값이 필요하면 새로고침을 눌러주세요."}
         섹터는 <b>ETF 이름</b>으로 나눕니다 — 이름과 실제 구성이 다르면 틀릴 수 있습니다.
         각 섹터의 대표는 <b>거래대금 1위</b>(현재가×거래량)로 고릅니다.

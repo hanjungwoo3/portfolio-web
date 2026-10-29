@@ -124,8 +124,8 @@ export function liveRowsToPrices(rows: LiveEtfRow[], todayKst: string): Price[] 
   });
 }
 
-async function fetchServerRanking(): Promise<EtfRanking | null> {
-  const [live, data] = await Promise.all([fetchLive<{ fetchedAt: number; rows: LiveEtfRow[] }>("etf-ranking"), loadEtfData()]);
+async function fetchServerRanking(ver?: number): Promise<EtfRanking | null> {
+  const [live, data] = await Promise.all([fetchLive<{ fetchedAt: number; rows: LiveEtfRow[] }>("etf-ranking", ver), loadEtfData()]);
   if (!live || !Array.isArray(live.rows) || live.rows.length === 0) return null;
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
   return { ...buildRanking(liveRowsToPrices(live.rows, today), data.list, Object.keys(data.list).length, live.fetchedAt), server: true };
@@ -133,9 +133,9 @@ async function fetchServerRanking(): Promise<EtfRanking | null> {
 
 // 전체 ETF 시세 → 등락률 정렬. 웹은 서버 수집본(호출 0), 앱은 직접(6콜).
 //   서버본이 없으면 직접 조회로 넘어가는데, 공개 프록시만 쓰는 웹은 사용자가 누른 경우(manual)에만 — 자동으로 6콜을 태우지 않는다.
-export async function fetchEtfRanking(opts: { manual?: boolean } = {}): Promise<EtfRanking> {
+export async function fetchEtfRanking(opts: { manual?: boolean; ver?: number } = {}): Promise<EtfRanking> {
   if (preferServer()) {
-    const r = await fetchServerRanking();
+    const r = await fetchServerRanking(opts.ver);
     if (r) { saveRanking(r); return r; }
     if (!opts.manual && !hasDedicatedTransport()) throw new Error("서버 수집본을 받지 못했습니다");
   }
