@@ -116,7 +116,7 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
     const bid = k === "bid" ? b.val : other ?? 0, ask = k === "ask" ? b.val : other ?? 0;
     const net = bid - ask;
     const w = (v: number) => `${(v / mx) * 100}%`;
-    // 큰 쪽 아래, 작은 쪽 위(같은 높이·같은 진하기 — 원래 매도 파랑·매수 빨강) → 덮이지 않은 꼬리 색이 부호(사용자 2026-10-27)
+    // 작은 쪽 = 왼쪽 연한 회색(상쇄분), 큰 쪽 = 그 뒤 꼬리(순매매)만 색 → 꼬리 색이 부호(사용자 2026-10-27·10-29)
     const big = bid >= ask ? { v: bid, cls: "bg-rose-400" } : { v: ask, cls: "bg-blue-300" };
     const small = bid >= ask ? { v: ask, cls: "bg-blue-300" } : { v: bid, cls: "bg-rose-400" };
     return (
@@ -132,8 +132,9 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
         </div>
         <div className="relative h-[10px] mt-0.5">
           {both ? (<>
-            <span className={`absolute inset-y-0 left-0 rounded-sm ${big.cls}`} style={{ width: w(big.v) }} />
-            <span className={`absolute inset-y-0 left-0 rounded-sm ${small.cls}`} style={{ width: w(small.v) }} />
+            {/* 겹친 왼쪽(작은 쪽 = 서로 상쇄된 양)은 연한 회색, 순매매 꼬리(오른쪽)만 색 — 빨강 = 순매수·파랑 = 순매도(사용자 2026-10-29) */}
+            <span className="absolute inset-y-0 left-0 rounded-l-sm bg-gray-200" style={{ width: w(small.v) }} />
+            <span className={`absolute inset-y-0 rounded-r-sm ${big.cls}`} style={{ left: w(small.v), width: `${((big.v - small.v) / mx) * 100}%` }} />
           </>) : (
             <span className={`absolute inset-y-0 left-0 rounded-sm ${k === "ask" ? "bg-blue-300" : "bg-rose-400"}`} style={{ width: w(b.val) }} />
           )}
