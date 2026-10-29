@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  fetchHeatmapPreferServer, heatmapTradingViewUrl, heatmapLogoUrl, heatmapRegion, ProxyHostError,
+  fetchHeatmapPreferServer, fetchTossPrices, heatmapTradingViewUrl, heatmapLogoUrl, heatmapRegion, ProxyHostError,
   HEATMAP_SOURCE_LABEL, type HeatmapSource, type HeatmapItem, type HeatmapResult,
 } from "../lib/api";
 import { loadEtfWeights } from "../lib/etfWeights";
@@ -13,7 +13,8 @@ import { heatColor, sectorKr } from "../lib/heatColor";   // 심플 보기 히�
 import { loadKrNameDict, getRuntimeNames, fetchMissingKrNames } from "../lib/krStockNames";
 import { isMarketOpen } from "../lib/format";
 import { reportRefresh } from "../lib/lastRefresh";
-import { getEffectivePollMs } from "../lib/proxyConfig";
+import { getEffectivePollMs, hasDirectTransport } from "../lib/proxyConfig";
+import { dayChangePct } from "../lib/format";
 import { takePendingHeatmap } from "../lib/heatmapNav";
 import { preferServer, fmtServerStamp, fetchLiveIndex } from "../lib/liveServer";
 
@@ -171,11 +172,45 @@ export function HeatmapTab() {
   //   1일 등락률에만 적용 — 기간 수익률(1주~1년)은 30% 를 넘는 게 정상이고,
   //   미국은 상하한가 제도가 없으므로 국내 소스에서만 적용한다.
   //   신규상장 첫날(공모가 대비 최대 +300%)도 같이 빠지지만, 트리맵을 삼키는 건 마찬가지라 감수.
+  // 시세 출처 옵션 — 한국 소스에서 '토스 실시간'(NXT 프리·애프터 포함)을 고르면 등락률·현재가·거래량을 토스로 덮어쓴다
+  //   (사용자 2026-10-30 "지금 트레이딩뷰는 느려", "옵션 넣자", "앱이나 extension 에서만 가능해도 괜찮아").
+  //   섹터·시총·로고는 스캐너 값 그대로. 종목 수 ÷ 200 콜(코스닥 전체 700 = 4콜)이라 직결(앱·확장)일 때만 보인다.
+  const canToss = isKr && hasDirectTransport();
+  //   기본 '자동' = 정규장(평일 09:00~15:30 KST) 밖이면 토스(사용자 2026-10-30 "정규장 시간이 아닐 때는 자동으로") — 스캐너는 장 밖에 멈춰 있다
+  type PriceSrc = "auto" | "tv" | "toss";
+  const [priceSrc, setPriceSrc] = useState<PriceSrc>(() => {
+    try { const v = localStorage.getItem("heatmap_price_src"); return v === "tv" || v === "toss" ? v : "auto"; } catch { return "auto"; }
+  });
+  const kstNow = new Date(Date.now() + 9 * 3600_000);
+  const kstMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes(), kstDow = kstNow.getUTCDay();
+  const krRegular = kstDow >= 1 && kstDow <= 5 && kstMin >= 9 * 60 && kstMin < 15 * 60 + 30;
+  const useToss = canToss && (priceSrc === "toss" || (priceSrc === "auto" && !krRegular));
+  const baseCodes = useMemo(() => (q.data?.items ?? []).map(it => it.code).filter(c => /^[\dA-Za-z]{6}$/.test(c)), [q.data]);
+  const tossQ = useQuery({
+    queryKey: ["heatmap-toss", source, baseCodes.join(",")],
+    queryFn: () => fetchTossPrices(baseCodes),
+    enabled: useToss && baseCodes.length > 0,
+    staleTime: 0, refetchOnWindowFocus: false, retry: false,
+    refetchInterval: useToss && getEffectivePollMs() > 0 ? getEffectivePollMs() : false,
+    refetchIntervalInBackground: true,
+  });
+  const liveItems = useMemo(() => {
+    const items = q.data?.items ?? [];
+    if (!useToss || !tossQ.data?.length) return items;
+    const by = new Map(tossQ.data.map(p => [p.ticker, p]));
+    return items.map(it => {
+      const p = by.get(it.code);
+      if (!p || !(p.price > 0)) return it;
+      const pct = dayChangePct(p);   // 카드와 같은 기준 — 어제 종가 대비, 오늘 체결 없으면 직전 거래일 등락
+      return { ...it, close: p.price, changePct: pct ?? it.changePct,
+        ...(p.volume > 0 ? { volume: p.volume, valueTraded: p.volume * p.price } : {}) };
+    });
+  }, [q.data, useToss, tossQ.data]);
   const rows = useMemo(
     // 0.5%p 여유 — 상한가는 정확히 +30% 지만 (1300/1000-1)*100 이 부동소수점상
     //   30.000000000000004 로 나와 정상 상한가가 걸러질 수 있다.
-    () => (q.data?.items ?? []).filter(it => !isKr || Math.abs(it.changePct) <= KR_DAILY_LIMIT_PCT + 0.5),
-    [q.data, isKr],
+    () => liveItems.filter(it => !isKr || Math.abs(it.changePct) <= KR_DAILY_LIMIT_PCT + 0.5),
+    [liveItems, isKr],
   );
   const dropped = (q.data?.items.length ?? 0) - rows.length;
 
@@ -310,6 +345,18 @@ export function HeatmapTab() {
             <option value="none">그룹없음</option>
           </select>
         </label>
+        {canToss && (
+          <label className="flex items-center gap-1 text-xs" title="토스 실시간 = 등락률·현재가·거래량을 토스(NXT 프리·애프터 포함)로 갱신 주기마다. 섹터·시총은 TradingView 그대로 — 앱·확장에서만.\n자동 = 정규장(평일 09:00~15:30) 밖이면 토스">
+            <span className="text-gray-400">시세</span>
+            <select value={priceSrc}
+                    onChange={e => { const v = e.target.value as PriceSrc; setPriceSrc(v); try { localStorage.setItem("heatmap_price_src", v); } catch { /* 이번 화면만 */ } }}
+                    className="border border-gray-300 rounded px-1.5 py-1 bg-white font-medium text-gray-700">
+              <option value="auto">자동({krRegular ? "지금 TradingView" : "지금 토스"})</option>
+              <option value="tv">TradingView</option>
+              <option value="toss">토스 실시간</option>
+            </select>
+          </label>
+        )}
         <span className="text-[10px] text-gray-400">
           색: 빨강▲/파랑▼ · {rows.length}종목
           {dropped > 0 && (
@@ -319,7 +366,12 @@ export function HeatmapTab() {
             </span>
           )}
         </span>
-        {q.data?.server ? (
+        {useToss && tossQ.dataUpdatedAt > 0 ? (
+          <span className="text-[10px] text-gray-500 flex items-center gap-1" title="등락률·현재가·거래량 = 토스(NXT 포함), 섹터·시총 = TradingView">
+            <span className="text-emerald-500">●</span>
+            토스 실시간 · {tossQ.isFetching ? "갱신 중…" : `${Math.max(0, Math.round((Date.now() - tossQ.dataUpdatedAt) / 1000))}초 전`}
+          </span>
+        ) : q.data?.server ? (
           // 서버 수집본 — 서버가 받은 시각(사용자 요청 2026-10-29 "히트맵은 갱신시간을 표시")
           <span className="text-[10px] text-gray-500 flex items-center gap-1"
                 title="서버가 장중 2분(대표 4개)~10분마다 받아 둔 값입니다. 서버 시각이 바뀌면 저절로 새로 받습니다(앱은 실시간).">
