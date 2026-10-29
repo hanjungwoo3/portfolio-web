@@ -157,7 +157,7 @@ export function IntradayInvestorChart({
 
     // 배경 지수(코스피/코스닥) — 전일 종가 기준 위=빨강/아래=파랑(한국식). 투자자 라인 뒤에 깔림.
     let idxApi: ISeriesApi<"Baseline"> | null = null;
-    let hiLo: { hi: { t: UTCTimestamp; value: number }; lo: { t: UTCTimestamp; value: number } } | null = null;
+    let hiLo: { hi: { t: UTCTimestamp; value: number }; lo: { t: UTCTimestamp; value: number }; cur?: { t: UTCTimestamp; value: number } } | null = null;
     if (indexSeries && indexSeries.length > 1) {
       const base = indexBaseline ?? indexSeries[0].value;
       const idx = chart.addSeries(BaselineSeries, {
@@ -184,7 +184,11 @@ export function IntradayInvestorChart({
           { time: hi.t as Time, position: "inBar", shape: "circle", size: 0.6, color: "#dc2626" },
           { time: lo.t as Time, position: "inBar", shape: "circle", size: 0.6, color: "#2563eb" },
         ];
-        hiLo = { hi, lo };
+        // 현재(마지막 점) — 최고·최저와 같은 점이면 따로 달지 않는다(사용자 요청 2026-10-29 "현재도 넣자")
+        const last = indexSeries[indexSeries.length - 1];
+        const cur = last.t !== hi.t && last.t !== lo.t ? last : undefined;
+        if (cur) marks.push({ time: cur.t as Time, position: "inBar", shape: "circle", size: 0.6, color: "#334155" });
+        hiLo = { hi, lo, cur };
         createSeriesMarkers(idx, marks.sort((a, b) => (a.time as number) - (b.time as number)));   // 시간순이어야 한다(라이브러리 요구)
       }
     }
@@ -367,7 +371,8 @@ export function IntradayInvestorChart({
       });
       // 최고·최저 글자(점 바로 위·아래, 칸 밖으로 안 나가게)
       const fmtIdx = (v: number) => v.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-      const hiLoTags = hiLo ? ([["hi", hiLo.hi, "#dc2626", "최고"], ["lo", hiLo.lo, "#2563eb", "최저"]] as const).map(([k, pt, color, label]) => {
+      const hiLoTags = hiLo ? ([["hi", hiLo.hi, "#dc2626", "최고"], ["lo", hiLo.lo, "#2563eb", "최저"], ["cur", hiLo.cur, "#334155", "현재"]] as const)
+        .flatMap(([k, pt, color, label]) => pt ? [{ k, pt, color, label }] : []).map(({ k, pt, color, label }) => {
         const tag = document.createElement("div");
         tag.textContent = `${label} ${fmtIdx(pt.value)}`;
         tag.style.cssText = `position:absolute;font-size:10px;font-weight:600;color:${color};white-space:nowrap;pointer-events:none;` +
@@ -389,9 +394,10 @@ export function IntradayInvestorChart({
           if (x == null || y == null) { h.tag.style.display = "none"; continue; }
           h.tag.style.display = "block";
           const w = h.tag.offsetWidth;
-          const left = Math.min(Math.max(x + lw - w / 2, lw + 2), W - rw - w - 2);
+          // 현재는 오른쪽 끝 점이라 점 왼쪽에 세로 가운데로, 최고·최저는 점 위·아래 가운데
+          const left = Math.min(Math.max(h.k === "cur" ? x + lw - w - 6 : x + lw - w / 2, lw + 2), W - rw - w - 2);
           h.tag.style.left = `${left}px`;
-          h.tag.style.top = `${h.k === "hi" ? y - 18 : y + 6}px`;
+          h.tag.style.top = `${h.k === "hi" ? y - 18 : h.k === "lo" ? y + 6 : y - 7}px`;
         }
         for (const it of items) {
           const x = chart.timeScale().timeToCoordinate(it.t as Time);
