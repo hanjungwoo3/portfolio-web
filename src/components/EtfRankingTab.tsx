@@ -189,7 +189,12 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
     if (!state.loading && !canAutoFetchRanking()) return;
     let alive = true;
     void run(() => alive);
-    return () => { alive = false; };
+    // 웹은 탭을 열어 둔 동안 서버본을 2분마다 다시 읽는다 — 서버가 10분마다 올린 새 값이 머물러 있어도 바뀌게
+    //   (사용자 2026-10-29 "10분마다 받아두는 값을 자동으로 갱신"). 호출 0(raw 파일), 창이 가려져 있으면 건너뛴다.
+    const timer = preferServer()
+      ? window.setInterval(() => { if (document.visibilityState === "visible") void run(() => alive); }, 120_000)
+      : undefined;
+    return () => { alive = false; if (timer) window.clearInterval(timer); };
     // 마운트 시 1회 — state.loading 을 deps 에 넣으면 새로고침마다 재실행된다
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
