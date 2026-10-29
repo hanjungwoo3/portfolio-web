@@ -16,7 +16,7 @@ import type { Price } from "../types";
 import { StockCard } from "./EtfCompositionDialog";
 import { EtfStatsBox } from "./EtfStatsBox";
 import {
-  fetchEtfRanking, loadCachedRanking, isLeverageEtf, isFuturesEtf, RANK_SHOW, RANK_KEEP,
+  fetchEtfRanking, loadCachedRanking, canAutoFetchRanking, isLeverageEtf, isFuturesEtf, RANK_SHOW, RANK_KEEP,
   type EtfRanking, type EtfRankRow,
 } from "../lib/etfRanking";
 import { EtfSectorFlow } from "./EtfSectorFlow";
@@ -183,10 +183,10 @@ export function EtfRankingTab({ onOpenEtfComposition }: Props) {
     void run(() => true, true);
   };
 
-  // 자동 조회는 캐시가 없을 때(=초기 loading) 단 1회. 이후엔 새로고침 버튼으로만.
-  //   웹은 서버 수집본이라 호출 비용이 없어 들어올 때마다 새로 읽는다(캐시는 먼저 그려 둔다).
+  // 들어올 때마다 새로 받는다(사용자 2026-10-29 "페이지 접속하면 새로고침 자동으로") — 캐시는 먼저 그려 둔다.
+  //   웹 = 서버 수집본(호출 0), 앱·확장 = 직결. 공개 프록시만 쓰는 경우는 캐시가 없을 때 1회만(6콜).
   useEffect(() => {
-    if (!state.loading && !preferServer()) return;
+    if (!state.loading && !canAutoFetchRanking()) return;
     let alive = true;
     void run(() => alive);
     return () => { alive = false; };

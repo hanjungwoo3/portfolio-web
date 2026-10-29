@@ -10,7 +10,7 @@ import { fetchTossPrices } from "./api";
 import { loadEtfData } from "./etfIndex";
 import { dayChangePct } from "./format";
 import { buildSectorStats, type EtfSectorStat } from "./etfSectors";
-import { hasDedicatedTransport } from "./proxyConfig";
+import { hasDedicatedTransport, hasDirectTransport } from "./proxyConfig";
 import { fetchLive, preferServer } from "./liveServer";
 
 export interface EtfRankRow {
@@ -147,9 +147,9 @@ export async function fetchEtfRanking(opts: { manual?: boolean } = {}): Promise<
   return ranking;
 }
 
-/** 자동 조회해도 되는가 — 서버본(웹) 또는 전용 전송(앱·확장·개인 워커). 공개 프록시로 6콜을 자동으로 태우지 않는다. */
+/** 자동 조회해도 되는가 — 서버본(웹) 또는 직결·전용 전송(앱·확장·개인 워커). 공개 프록시로 6콜을 자동으로 태우지 않는다. */
 export function canAutoFetchRanking(): boolean {
-  return preferServer() || hasDedicatedTransport();
+  return preferServer() || hasDirectTransport() || hasDedicatedTransport();
 }
 
 // 지수 탭용 — 탭 진입 시 갱신하되, ★ 자동 조회는 전용 전송(확장·앱·개인 워커)에서만 한다.
