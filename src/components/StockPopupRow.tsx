@@ -124,6 +124,8 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
       // 글자 줄 아래에 막대 줄을 따로(사용자 2026-10-27 "그래프를 글자아래에 별도로")
       <div className="px-1 pt-0.5 pb-1 text-[11.5px]"
            title={both ? `${b.name} — 매수 ${eokWon(bid)} · 매도 ${eokWon(ask)} · 순${net >= 0 ? "매수" : "매도"} ${eokWon(Math.abs(net))}` : undefined}>
+        {/* 순매매 합계 — 숫자 줄 바로 위, 오른쪽(사용자 2026-10-29 "각 숫자 위에 +- 합계금액") */}
+        {both && <div className={`text-right text-[10.5px] font-bold leading-none tabular-nums ${up(net)}`}>{net > 0 ? "+" : net < 0 ? "−" : ""}{eokWon(Math.abs(net))}</div>}
         <div className="flex items-center justify-between gap-1 leading-tight">
           <span className="truncate font-medium text-gray-800">{b.name}{b.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}</span>
           {both ? (
