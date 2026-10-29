@@ -135,7 +135,8 @@ export function IntradayInvestorChart({
       grid: { vertLines: { color: "#f3f4f6" }, horzLines: { color: "#f3f4f6" } },
       // 왼쪽 = 순매수, 오른쪽 = 배경 지수(사용자 요청 2026-10-29 "왼쪽·오른쪽 축을 바꾸고 현재 지수를 오른쪽 축에").
       //   지수 축은 위아래 10% 여백 — 최고·최저 글자가 잘리지 않게
-      leftPriceScale: { visible: true, borderColor: "#e5e7eb", scaleMargins: { top: 0.1, bottom: 0.1 } },
+      //   순매수 쪽(왼쪽 축 숫자·0원 점선)은 청록 — 지수 현재값·마우스 점선(회색)과 헷갈리지 않게(사용자 2026-10-29)
+      leftPriceScale: { visible: true, borderColor: "#e5e7eb", textColor: "#0f766e", scaleMargins: { top: 0.1, bottom: 0.1 } },
       rightPriceScale: { visible: hasIndex, borderColor: "#e5e7eb", scaleMargins: { top: 0.1, bottom: 0.1 } },
       timeScale: { borderColor: "#e5e7eb", timeVisible, secondsVisible: false, fixLeftEdge: true, fixRightEdge: true },
       // 드래그는 이동(팬)만 — 시간축 드래그 줌·끝단 스트레치 방지. 줌은 휠/핀치.
@@ -188,7 +189,7 @@ export function IntradayInvestorChart({
     //   세 차트가 같은 범위로 fit 되고, 선물 순매수 라인만 일찍 끝나 우측이 공백으로 남음.
     const zero = chart.addSeries(LineSeries, {
       priceScaleId: "left",
-      color: "#475569", lineWidth: 1, lineStyle: LineStyle.Dashed,   // slate-600
+      color: "#0d9488", lineWidth: 1, lineStyle: LineStyle.Dashed,   // teal-600 — 왼쪽 축 숫자와 같은 계열
       priceFormat: { type: "price", precision: 0, minMove: 1 },   // 순매수 축 정수(억원/계약)
       priceLineVisible: false, lastValueVisible: false, crosshairMarkerVisible: false,
     });
