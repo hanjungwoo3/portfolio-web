@@ -5084,15 +5084,15 @@ export type HeatmapRegion = "kr" | "us";
 interface HeatmapMeta { label: string; region: HeatmapRegion; symbolset: string | null; tvDs: string; sectorFilter?: string }
 const HEATMAP_META: Record<HeatmapSource, HeatmapMeta> = {
   kospi200:  { label: "KODEX 200",   region: "kr", symbolset: "SYML:KRX;KOSPI200",  tvDs: "KOSPI200" },
-  kospi:     { label: "코스피 전체",  region: "kr", symbolset: "SYML:KRX;KOSPI",     tvDs: "KOSPI" },
+  kospi:     { label: "코스피",  region: "kr", symbolset: "SYML:KRX;KOSPI",     tvDs: "KOSPI" },
   kosdaq150: { label: "KODEX 코스닥150", region: "kr", symbolset: "SYML:KRX;KOSDAQ150", tvDs: "KOSDAQ150" },
-  kosdaq:    { label: "코스닥 전체",  region: "kr", symbolset: "SYML:KRX;KOSDAQ",    tvDs: "KOSDAQ" },
-  all:       { label: "전체(한국)",   region: "kr", symbolset: null,                 tvDs: "allKR" },
+  kosdaq:    { label: "코스닥",  region: "kr", symbolset: "SYML:KRX;KOSDAQ",    tvDs: "KOSDAQ" },
+  all:       { label: "한국 전체",   region: "kr", symbolset: null,                 tvDs: "allKR" },
   // 코리아 밸류업 — symbolset 미지원. 네이버 편입종목 100코드를 런타임 tickers 로 조회(fetchKrHeatmap 분기).
   kr_valueup:{ label: "코리아 밸류업", region: "kr", symbolset: null,                 tvDs: "allKR" },
   us_sp500:    { label: "S&P 500",       region: "us", symbolset: "SYML:SP;SPX",       tvDs: "SPX500" },
   us_ndx:      { label: "나스닥 100",     region: "us", symbolset: "SYML:NASDAQ;NDX",   tvDs: "NASDAQ100" },
-  us_nasdaq:   { label: "나스닥 전체",    region: "us", symbolset: "SYML:NASDAQ;IXIC",  tvDs: "allNASDAQ" },
+  us_nasdaq:   { label: "나스닥",    region: "us", symbolset: "SYML:NASDAQ;IXIC",  tvDs: "allNASDAQ" },
   us_dow:      { label: "다우 30",        region: "us", symbolset: "SYML:DJ;DJI",       tvDs: "DJDJI" },
   us_dowcomp:  { label: "다우 컴포짓",    region: "us", symbolset: "SYML:DJ;DJA",       tvDs: "DJDJA" },
   us_dowtrans: { label: "다우 운송",      region: "us", symbolset: "SYML:DJ;DJT",       tvDs: "DJDJT" },
@@ -5101,7 +5101,7 @@ const HEATMAP_META: Record<HeatmapSource, HeatmapMeta> = {
   us_r1000:    { label: "러셀 1000",      region: "us", symbolset: "SYML:TVC;RUI",      tvDs: "RUSSELL1000" },
   us_r2000:    { label: "러셀 2000",      region: "us", symbolset: "SYML:TVC;RUT",      tvDs: "RUSSELL2000" },
   us_r3000:    { label: "러셀 3000",      region: "us", symbolset: "SYML:TVC;RUA",      tvDs: "RUSSELL3000" },
-  us_all:      { label: "전체(미국)",     region: "us", symbolset: null,                tvDs: "allUSA" },
+  us_all:      { label: "미국 전체",     region: "us", symbolset: null,                tvDs: "allUSA" },
   // 미국 전자기술(반도체·IT HW) — SK하이닉스 ADR(SKHY)·TSM 등 포함. sector 필터.
   us_tech:     { label: "미국 전자기술",   region: "us", symbolset: null,                tvDs: "allUSA", sectorFilter: "Electronic Technology" },
 };

@@ -26,9 +26,17 @@ const KR_SOURCES: HeatmapSource[] = ["kospi200", "kospi", "kosdaq150", "kosdaq",
 const US_SOURCES: HeatmapSource[] = ["us_sp500", "us_ndx", "us_tech", "us_nasdaq", "us_dow", "us_dowcomp",
   "us_dowtrans", "us_dowutil", "us_kbwbank", "us_r1000", "us_r2000", "us_r3000", "us_all"];
 // 종목 많은 소스는 상위 N만(트리맵 가독성·부하)
+//   S&P 500·러셀 1000 은 구성 전체가 들어가게(기본 400 에 걸려 일부만 나왔다). 상한보다 큰 소스는 이름에 '시총 상위 N'
+//   (사용자 2026-10-30 "전체가 아니라 상위 700 이라고 표시를 해야지") — 서버 live.js 의 HEAT 상한과 같은 값
 const SOURCE_LIMIT: Partial<Record<HeatmapSource, number>> = {
   all: 700, kosdaq: 700, us_tech: 500, us_nasdaq: 1000, us_r2000: 1000, us_r3000: 1000, us_all: 1000,
+  us_sp500: 510, us_r1000: 1010,
 };
+const CAPPED: Partial<Record<HeatmapSource, true>> = {
+  kospi: true, kosdaq: true, all: true, us_tech: true, us_nasdaq: true, us_r2000: true, us_r3000: true, us_all: true,
+};
+const sourceLabel = (s: HeatmapSource) =>
+  CAPPED[s] ? `${HEATMAP_SOURCE_LABEL[s]} (시총 상위 ${SOURCE_LIMIT[s] ?? 400})` : HEATMAP_SOURCE_LABEL[s];
 
 // 국내 주식 일일 가격제한폭(±30%). 이보다 큰 1일 등락률은 스캐너 기준가 오류로 본다.
 const KR_DAILY_LIMIT_PCT = 30;
@@ -348,10 +356,10 @@ export function HeatmapTab() {
           <select value={source} onChange={e => setSource(e.target.value as HeatmapSource)}
                   className="border border-gray-300 rounded px-1.5 py-1 bg-white font-semibold text-gray-800">
             <optgroup label="🇰🇷 한국">
-              {KR_SOURCES.map(s => <option key={s} value={s}>{HEATMAP_SOURCE_LABEL[s]}</option>)}
+              {KR_SOURCES.map(s => <option key={s} value={s}>{sourceLabel(s)}</option>)}
             </optgroup>
             <optgroup label="🇺🇸 미국">
-              {US_SOURCES.map(s => <option key={s} value={s}>{HEATMAP_SOURCE_LABEL[s]}</option>)}
+              {US_SOURCES.map(s => <option key={s} value={s}>{sourceLabel(s)}</option>)}
             </optgroup>
           </select>
         </label>
