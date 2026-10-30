@@ -85,7 +85,9 @@ import { TOSS_TRADE_ID_PREFIX } from "./lib/tossTrades";
 import { useTossAutoSync } from "./lib/tossSync";
 import { useKisAutoSync } from "./lib/kisSync";
 import { useExtensionProxyReady } from "./lib/extensionProxy";
-import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./components/HelpDialog";
+import { markHelpSeen, shouldShowHelpFirstTime } from "./components/HelpDialog";
+import { GuideTour } from "./components/GuideTour";
+import { startGuide } from "./lib/guide";
 import type { Stock, Memo } from "./types";
 
 // viewport 감지 — 폰 (≤ 640px) 자동 모바일 뷰
@@ -143,11 +145,10 @@ function Dashboard() {
   const [editAllStock, setEditAllStock] = useState<{ ticker: string; name: string } | null>(null);
   const [memoTicker, setMemoTicker] = useState<string | null>(null);
   const [donateOpen, setDonateOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [helpStep, setHelpStep] = useState(0);   // 사용법 열 때 시작 단계 (현재 탭 기준)
   // 첫 방문 순서 — 앱·프록시 안내(OnboardingDialog)가 먼저, 그 창이 끝나면 사용법(겹침 방지, 2026-10-23 바꿈).
   //   공용 프록시 사용자에게 가장 중요한 건 '앱을 받으면 직접 받는다'는 안내라서.
-  const onboardDone = () => { if (shouldShowHelpFirstTime()) setTimeout(() => setHelpOpen(true), 400); };
+  //   사용법 = 실제 화면에서 종목을 검색해 담아 보는 '따라 해 보기'(lib/guide, 사용자 2026-10-30) — 설명 슬라이드 대신
+  const onboardDone = () => { if (shouldShowHelpFirstTime()) { markHelpSeen(); setTimeout(startGuide, 400); } };
   const [simpleOpen, setSimpleOpen] = useState(false);
   const [codesCopied, setCodesCopied] = useState(false);
 
@@ -834,6 +835,7 @@ function Dashboard() {
             </button>
             {/* 모바일 헤더와 통일 — 아이콘 제거, 짧은 한글 라벨 */}
             <button
+              data-guide="search-btn"
               onClick={() => setSearchOpen(true)}
               title="종목 검색 / 추가 — 검색 결과에서 수량·평단 입력 시 보유로 등록"
               className="px-3 py-1.5 bg-blue-600 hover:bg-blue-700
@@ -841,8 +843,8 @@ function Dashboard() {
               검색
             </button>
             <button
-              onClick={() => { setHelpStep(HELP_STEP_BY_TAB[activeTab] ?? 0); setHelpOpen(true); }}
-              title="사용법 빠른 시작 — 현재 탭 설명으로 바로 이동"
+              onClick={() => startGuide()}
+              title="사용법 — 화면에서 직접 종목을 검색해 담아 보기"
               className="px-3 py-1.5 bg-gray-100 hover:bg-gray-200
                          text-gray-700 rounded text-sm">
               사용법
@@ -1281,11 +1283,7 @@ function Dashboard() {
 
       <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} onDone={onboardDone} />
 
-      <HelpDialog
-        isOpen={helpOpen}
-        initialStep={helpStep}
-        onClose={() => { markHelpSeen(); setHelpOpen(false); }}
-      />
+      <GuideTour />
 
       <SettingsDialog
         isOpen={settingsOpen}

@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { guideEvent, GUIDE_FILL_EVENT, isGuideActive } from "../lib/guide";
 import { useQuery } from "@tanstack/react-query";
 import {
   searchTossAutoComplete, searchNaverAutoComplete, fetchKrStockName, fetchTossPrices,
@@ -70,6 +71,16 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
   // 검색 input 포커스 ref — 열릴 때 자동 포커스
   const searchInputRef = useRef<HTMLTextAreaElement | null>(null);
   useEscClose(isOpen, onClose);
+
+  // 따라 해 보기(lib/guide) — 검색창 열림·결과·체크를 알리고, 안내 창의 [삼성전자 넣어 보기] 를 받는다
+  useEffect(() => { if (isOpen) guideEvent("search-open"); }, [isOpen]);
+  useEffect(() => { if (isOpen && results.length > 0) guideEvent("search-results"); }, [isOpen, results.length]);
+  useEffect(() => {
+    if (!isOpen) return;
+    const h = (e: Event) => { const t = (e as CustomEvent<string>).detail; if (t) setQuery(t); };
+    window.addEventListener(GUIDE_FILL_EVENT, h);
+    return () => window.removeEventListener(GUIDE_FILL_EVENT, h);
+  }, [isOpen]);
 
   // 창 닫힐 때 모든 상태 초기화
   useEffect(() => {
@@ -143,8 +154,9 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
           if (reqIdRef.current !== myId) return;
           setResults(stocks);
           setThemeMatches(themes);
-          // 선택은 종목 결과만 기본 체크(테마 종목은 사용자가 명시 선택)
-          setSelected(new Set(stocks.map(s => s.ticker)));
+          // 선택은 종목 결과만 기본 체크(테마 종목은 사용자가 명시 선택). 따라 해 보기 중엔 첫 종목만 — 예시(삼성전자)
+          //   검색에 ETF 9개까지 같이 담기지 않게(사용자 2026-10-30)
+          setSelected(new Set((isGuideActive() ? stocks.slice(0, 1) : stocks).map(s => s.ticker)));
           const total = stocks.length + themes.reduce((n, t) => n + t.stocks.length, 0);
           const themePart = themes.length > 0 ? ` · 테마 ${themes.length}건` : "";
           setStatusMsg(total === 0
@@ -260,7 +272,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       if (reqIdRef.current !== myId) return;
       setResults(stocks);
       setThemeMatches(themes);
-      setSelected(new Set(stocks.map(s => s.ticker)));
+      setSelected(new Set((isGuideActive() ? stocks.slice(0, 1) : stocks).map(s => s.ticker)));
       const total = stocks.length + themes.reduce((n, t) => n + t.stocks.length, 0);
       const themePart = themes.length > 0 ? ` · 테마 ${themes.length}건` : "";
       setStatusMsg(total === 0
@@ -443,7 +455,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
       : "⚠️ 적용된 항목 없음 — 그룹 마킹 확인");
     setReloadKey(k => k + 1);
     onAdded();
-    if (parts.length > 0) onClose();
+    if (parts.length > 0) { guideEvent("search-applied"); onClose(); }
   };
 
   // 행의 ✓그룹 배지 클릭 = 그 종목만 그 그룹에서 제거
@@ -515,6 +527,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
             </button>
           </div>
           <textarea
+            data-guide="search-input"
             ref={searchInputRef}
             value={query}
             onChange={e => setQuery(e.target.value)}
@@ -733,9 +746,10 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
                       </span>
                     </div>
                   )}
-                  {results.map(r => {
+                  {results.map((r, ri) => {
                     const isChecked = selected.has(r.ticker);
                     return (
+                      <div key={r.ticker} data-guide={ri === 0 ? "search-row" : undefined}>
                       <SearchResultRow
                         key={r.ticker}
                         item={r}
@@ -749,6 +763,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
                         onToggle={() => toggleOne(r.ticker)}
                         onRemoveGroup={g => void removeOneFromGroup(r.ticker, g)}
                         onOpenEtf={() => setEtfDialog({ ticker: r.ticker, name: r.name })} />
+                      </div>
                     );
                   })}
                 </div>
@@ -765,7 +780,7 @@ export function SearchDialog({ isOpen, onClose, onAdded, initialQuery }: Props) 
               마킹된 그룹{markedGroups.size > 0 && ` (${markedGroups.size}개)`}에만 0주(관심)로 추가
               <span className="ml-1 text-blue-700">— 이미 있는 종목은 건드리지 않아요 (수량 보존)</span>
             </span>
-            <button onClick={() => void bulkApply()}
+            <button data-guide="search-apply" onClick={() => void bulkApply()}
                     disabled={noneChecked}
                     className="ml-auto px-4 py-1.5 bg-rose-600 hover:bg-rose-700
                                text-white text-sm font-bold rounded

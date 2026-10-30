@@ -121,7 +121,9 @@ import { FeedbackDialog } from "./FeedbackDialog";
 import { DonateDialog } from "./DonateDialog";
 import { EditHoldingDialog } from "./EditHoldingDialog";
 import { MyStockEditDialog } from "./MyStockEditDialog";
-import { HelpDialog, markHelpSeen, shouldShowHelpFirstTime, HELP_STEP_BY_TAB } from "./HelpDialog";
+import { markHelpSeen, shouldShowHelpFirstTime } from "./HelpDialog";
+import { GuideTour } from "./GuideTour";
+import { startGuide } from "../lib/guide";
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
 import { ValuationModal } from "./ValuationModal";
@@ -300,11 +302,10 @@ export function MobileSimpleView() {
   };
   const [moreOpen, setMoreOpen] = useState(false);   // 상단 더보기 메뉴(사용법/질문/후원/설정)
   const [donateOpen, setDonateOpen] = useState(false);
-  const [helpOpen, setHelpOpen] = useState(false);
-  const [helpStep, setHelpStep] = useState(0);   // 사용법 열 때 시작 단계 (현재 탭 기준)
   // 첫 방문이면 사용법(빠른 시작)을 먼저 보여주고, 닫은 뒤에 프록시 안내를 노출(겹침 방지).
   // 첫 방문 순서 — 앱·프록시 안내가 먼저, 끝나면 사용법(PC 와 같다)
-  const onboardDone = () => { if (shouldShowHelpFirstTime()) setTimeout(() => setHelpOpen(true), 400); };
+  //   사용법 = 실제 화면에서 검색해 담아 보는 '따라 해 보기'(lib/guide) — 모바일은 얇은 띠로(PC 와 같은 단계)
+  const onboardDone = () => { if (shouldShowHelpFirstTime()) { markHelpSeen(); setTimeout(startGuide, 400); } };
   const [editing, setEditing] = useState<Stock | null>(null);
   const [editAllStock, setEditAllStock] = useState<{ ticker: string; name: string } | null>(null);
   const [memoTicker, setMemoTicker] = useState<string | null>(null);
@@ -1262,7 +1263,7 @@ export function MobileSimpleView() {
         </button>
         {/* 모바일 상단 액션 — PC 와 동일한 색상 체계, 폰트만 작게.
             모든 버튼에 명확한 박스(bg/border)로 클릭 가능 영역 표시 */}
-        <button onClick={() => setSearchOpen(true)}
+        <button data-guide="search-btn" onClick={() => setSearchOpen(true)}
                 title="종목 검색 / 추가 — 검색 결과에서 수량·평단 입력 시 보유로 등록"
                 className="px-2 py-1 rounded text-[11px] font-medium shrink-0
                            bg-blue-600 hover:bg-blue-700 text-white">
@@ -1283,7 +1284,7 @@ export function MobileSimpleView() {
               <div className="fixed inset-0 z-40" onClick={() => setMoreOpen(false)} />
               <div className="absolute right-0 top-full mt-1 z-50 min-w-[110px]
                               bg-white border border-gray-200 rounded-md shadow-lg py-1 text-[12px]">
-                <button onClick={() => { setHelpStep(HELP_STEP_BY_TAB[activeTab] ?? 0); setHelpOpen(true); setMoreOpen(false); }}
+                <button onClick={() => { startGuide(); setMoreOpen(false); }}
                         className="block w-full text-left px-3 py-1.5 text-gray-700 hover:bg-gray-100">사용법</button>
                 <button onClick={() => { setFeedbackOpen(true); setMoreOpen(false); }}
                         className="block w-full text-left px-3 py-1.5 text-emerald-700 hover:bg-emerald-50">질문하기</button>
@@ -2413,12 +2414,7 @@ export function MobileSimpleView() {
         />
       )}
 
-      <HelpDialog
-        isOpen={helpOpen}
-        initialStep={helpStep}
-        onClose={() => { markHelpSeen(); setHelpOpen(false); }}
-        variant="mobile"
-      />
+      <GuideTour mobile />
 
       {/* 기업가치 모달 — 📊 버튼으로 호출 */}
       {valuationTicker && (() => {
