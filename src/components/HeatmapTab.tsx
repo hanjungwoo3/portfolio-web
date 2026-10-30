@@ -218,7 +218,7 @@ export function HeatmapTab() {
   // 상승만 / 하락만 · 흐린 종목 제외(심플 보기 히트맵과 같은 버튼, 사용자 2026-10-30) — 기준은 지금 고른 색 기준 값
   const [sign, setSign] = useState<HeatSign>("all");
   const [view, setView] = useState<"heat" | "card">("heat");
-  const cardView = isKr && view === "card";
+  const cardView = view === "card";
   const tossByCode = useMemo(() => new Map((useToss ? tossQ.data ?? [] : []).map(p => [p.ticker, p])), [useToss, tossQ.data]);
   const [hideStale, setHideStale] = useState<boolean>(() => { try { return localStorage.getItem("heatmap_hide_stale") === "1"; } catch { return false; } });
   const liveItems = useMemo(() => {
@@ -346,8 +346,8 @@ export function HeatmapTab() {
     <div className="p-2">
       {/* 컨트롤 */}
       <div className="flex flex-wrap items-center gap-2 mb-2">
-        {/* 히트맵 | 카드 — 히트맵 팝업(SimpleViewModal)과 같은 버튼·같은 카드(사용자 2026-10-30 "이거도 동일하면"). 카드는 원화라 한국만 */}
-        {isKr && (
+        {/* 히트맵 | 카드 — 히트맵 팝업(SimpleViewModal)과 같은 버튼·같은 카드(사용자 2026-10-30 "이거도 동일하면"). 미국도(달러 카드) */}
+        {(
           <span className="inline-flex rounded border border-gray-300 overflow-hidden text-[12px] font-bold">
             {(["heat", "card"] as const).map(v => (
               <button key={v} onClick={() => setView(v)}

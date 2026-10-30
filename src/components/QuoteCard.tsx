@@ -2,8 +2,11 @@
 //   최신공시 왼쪽 카드(2026-10-28)와 히트맵 카드 보기(사용자 2026-10-30 "동일하게 다 넣자", "버튼들도 24시간 3개월도")가 같이 쓴다.
 //   두 곳이 각자 그리면 같은 종목이 다르게 보이기 시작한다 — 여기 한 벌만.
 //   24시간 = KrDaySparkline(보이는 카드만 받는다, 어제 종가 점선·시가·종가 세로선), 3개월 = 종목 카드와 같은 캐시의 일봉.
+//   미국 종목(사용자 2026-10-30 "히트맵/카드 보기는?") — 달러 표시, 24시간 = 토스 5분봉(지수 탭 미국 카드와 같은 캐시 키),
+//   3개월 = 종목 카드와 같은 야후 일봉, 종목정보 창엔 미국 자료가 없어 이름·버튼은 토스 페이지로.
 import { useQuery } from "@tanstack/react-query";
-import { fetchKrPriceHistory } from "../lib/api";
+import { fetchKrPriceHistory, fetchYahooPriceHistory, fetchTossIntraday } from "../lib/api";
+import { openTossStock } from "../lib/toss";
 import { useChartRange } from "../lib/chartRange";
 import { openStockInfo } from "../lib/tickPopup";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
@@ -18,36 +21,50 @@ export function QuoteCard({ code, name, sub, px, dim, className = "w-[132px] sm:
   className?: string;                           // 크기(공시 줄 = 고정 폭, 히트맵 격자 = 칸에 맞춤)
 }) {
   const range = useChartRange();
+  const isUs = !(/^[\dA-Za-z]{6}$/.test(code) && /\d/.test(code));
   const hist = useQuery({
-    queryKey: ["kr-price-history", code, "3mo"],   // 종목 카드(App chartQs)와 같은 키 — 이미 받은 종목은 다시 안 부른다
-    queryFn: () => fetchKrPriceHistory(code, "3mo"),
+    queryKey: [isUs ? "us-price-history" : "kr-price-history", code, "3mo"],   // 종목 카드(App chartQs·usChartQs)와 같은 키 — 이미 받은 종목은 다시 안 부른다
+    queryFn: () => isUs ? fetchYahooPriceHistory(code, "3mo") : fetchKrPriceHistory(code, "3mo"),
     staleTime: 60 * 60 * 1000, refetchOnWindowFocus: false,
     enabled: range === "all",   // 24시간이면 안 받는다(공시 줄처럼 카드가 많은 곳에서 호출을 늘리지 않게)
   });
+  const usDay = useQuery({
+    queryKey: ["toss-us-day", code],   // 지수 탭 미국 카드(UsMarketTab tossUsDayQs)와 같은 키
+    queryFn: () => fetchTossIntraday(code),
+    enabled: isUs && range === "day", staleTime: 4 * 60_000, refetchInterval: 5 * 60_000, refetchOnWindowFocus: false, retry: 1,
+  });
+  const open = () => isUs ? openTossStock(code) : openStockInfo(code, name);
+  const fmtPx = (v: number) => isUs ? `$${v.toFixed(2)}` : Math.round(v).toLocaleString();
   const closes = (hist.data ?? []).map(p => p.close);
   const pct = px?.pct;
   const tone = pct == null ? "bg-gray-50 border-gray-200" : pct > 0 ? "bg-rose-50 border-rose-200" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
   const col = pct == null ? "text-gray-700" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
   return (
     <div className={`relative overflow-hidden rounded-lg border ${tone} ${className} ${dim ? "opacity-60" : ""}`}>
-      {range === "day"
+      {range === "day" && isUs
+        ? (() => { const d = usDay.data; return d && d.closes.length > 1
+            ? <Sparkline data={d.closes} xs={d.xs} baseline={d.base} prevBaseline={d.prevBase} nextBaseline={d.nextBase}
+                         breakIndex={d.breakIdx} markXs={d.markXs} width={300} height={80}
+                         className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />
+            : null; })()
+        : range === "day"
         ? <KrDaySparkline code={code} fallback={closes} live={px?.price} width={300} height={80} dim={dim}
                           className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />
         : closes.length > 1 && <Sparkline data={closes} width={300} height={80}
                                           className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />}
       <div className="relative h-full flex flex-col px-2 py-1">
-        <button type="button" onClick={() => openStockInfo(code, name)} title="종목정보"
+        <button type="button" onClick={open} title={isUs ? "토스에서 보기" : "종목정보"}
                 className={`text-left truncate font-bold text-[13px] ${col} hover:underline`}>{name}</button>
         {sub && <div className="truncate text-[10.5px] text-gray-500 -mt-0.5">{sub}</div>}
         <div className="mt-auto flex items-baseline justify-between gap-1 tabular-nums">
-          <span className={`text-[12px] ${col}`}>{px ? Math.round(px.price).toLocaleString() : "—"}</span>
+          <span className={`text-[12px] ${col}`}>{px ? fmtPx(px.price) : "—"}</span>
           <span className={`font-bold text-[16px] sm:text-[18px] ${col}`}>{pct == null ? "" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
         </div>
         <div className="flex justify-end gap-0.5 -mb-0.5">
-          <button type="button" onClick={() => openStockInfo(code, name)}
-                  className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">📊종목정보</button>
+          <button type="button" onClick={open}
+                  className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">{isUs ? "🔗토스" : "📊종목정보"}</button>
           <button type="button" title="구글 AI에 현재상태 분석 요청"
-                  onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${name}(${code})${px ? `, 현재가 ${Math.round(px.price).toLocaleString()}원 (${pct! >= 0 ? "+" : ""}${pct!.toFixed(2)}%)` : ""}`)}
+                  onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${name}(${code})${px ? `, 현재가 ${isUs ? `$${px.price.toFixed(2)}` : `${Math.round(px.price).toLocaleString()}원`} (${pct! >= 0 ? "+" : ""}${pct!.toFixed(2)}%)` : ""}`)}
                   className="px-1 rounded border border-blue-300/70 bg-blue-50 text-blue-700 text-[9.5px] font-bold leading-[15px]">🔍AI</button>
         </div>
       </div>
