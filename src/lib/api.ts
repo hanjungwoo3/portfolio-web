@@ -4142,6 +4142,48 @@ async function fetchSinaMetalChart(symbol: string): Promise<number[]> {
   } catch { return []; }
 }
 
+// 24시간 카드 — 시나 분봉(리튬 = 광저우 5분봉, 니켈 = LME 당일 1분봉), 사용자 2026-10-30 "24시간 적용 안 되는 그래프?".
+//   지난 24시간만(마지막 봉이 24시간보다 오래면 그 봉에서 끝나는 24시간) 가로 위치 = 시각. 기준선 = 전일 정산가·종가(시세 hq 1콜).
+//   세로선(시가·종가)은 없다 — 거래소마다 세션이 여러 토막이라. 시나 시각은 베이징(UTC+8).
+const SINA_METAL_MIN: Record<string, string> = {
+  "LITHIUM=F": "https://stock2.finance.sina.com.cn/futures/api/jsonp.php/x=/InnerFuturesNewService.getFewMinLine?symbol=LC0&type=5",
+  "NICKEL=F": "https://stock2.finance.sina.com.cn/futures/api/jsonp.php/x=/GlobalFuturesService.getGlobalFuturesMinLine?symbol=NID",
+};
+export const SINA_DAY_SYMBOLS = Object.keys(SINA_METAL_MIN);
+/** 시나 분봉 응답 → [시각 ms, 가격]. 내보내는 건 테스트용. */
+export function parseSinaMinLine(text: string): [number, number][] {
+  const body = text.slice(text.indexOf("(") + 1, text.lastIndexOf(")"));
+  const j = JSON.parse(body) as unknown;
+  const out: [number, number][] = [];
+  const bj = (dt: string) => Date.parse(`${dt.replace(" ", "T")}+08:00`);
+  if (Array.isArray(j)) {   // 국내 선물 5분봉: [{ d:"YYYY-MM-DD HH:MM:SS", c }]
+    for (const r of j as { d?: string; c?: string }[]) { const t = bj(r.d ?? ""), c = Number(r.c); if (Number.isFinite(t) && c > 0) out.push([t, c]); }
+  } else {                  // 해외 선물 당일 1분봉: { minLine_1d: [[날짜·HH:MM…|HH:MM, 가격, …, "YYYY-MM-DD HH:MM:SS"]] }
+    for (const r of ((j as { minLine_1d?: unknown[][] }).minLine_1d ?? [])) {
+      const t = bj(String(r[r.length - 1] ?? "")), c = Number(r[1]);
+      if (Number.isFinite(t) && c > 0) out.push([t, c]);
+    }
+  }
+  return out.sort((a, b) => a[0] - b[0]);
+}
+export async function fetchSinaMetalDay(symbol: string): Promise<DaySeries | null> {
+  const url = SINA_METAL_MIN[symbol];
+  if (!url) return null;
+  try {
+    const [rm, quote] = await Promise.all([fetchProxied(url), fetchSinaMetals([{ symbol, name: symbol }])]);
+    if (!rm.ok) return null;
+    const pts = parseSinaMinLine(await rm.text());
+    if (pts.length < 2) return null;
+    const end = Math.max(pts[pts.length - 1][0], Math.min(Date.now(), pts[pts.length - 1][0] + 24 * 3600_000));
+    const start = end - 24 * 3600_000;
+    const win = pts.filter(([t]) => t >= start);
+    if (win.length < 2) return null;
+    const prev = quote[0]?.prev;
+    return { closes: win.map(p => p[1]), xs: win.map(([t]) => (t - start) / (24 * 3600_000)), rolling: true,
+      ...(prev && prev > 0 ? { base: prev } : {}) };
+  } catch { return null; }
+}
+
 // ─── 메모리 현물가 — 머니랜드 DRAM 대시보드 JSON (가상 심볼 *=ML) ─────────────
 //   https://moneyland.co.kr/moneyweb/api/dram_dashboard.json 한 콜에 DRAM 현물지수(2025-06-23=기준)·DDR5/DDR4 일별 이력(~300일)·
 //   RDIMM·GDDR6·NAND 웨이퍼 주간 이력이 다 있다(원 출처 DRAMeXchange — 거기선 이력이 유료라 못 받는다).

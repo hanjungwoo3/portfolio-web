@@ -534,7 +534,7 @@ const YASUN_VIRTUAL = new Set<string>(["^KS200N", "^KQ150N"]);
 // 24시간(어제+오늘 5분봉) 카드 차트를 야후 spark 로 받을 심볼 — PC·모바일이 같은 목록을 쓴다(한 벌).
 //   빼는 것: 한국 종목·ETF(.KS — 토스 분봉), 하이퍼리퀴드 무기한(-PERP), 야간선물(yasun), 그리고
 //   야후에 분봉이 없는 가상 심볼 — 메모리 현물(=ML, 일·주 단위)·CNN 공포탐욕·V-KOSPI(CNBC 일봉)·
-//   미 2년물·TIPS(토스 당일 봉)·리튬/니켈(시나 일봉). 점검 2026-10-21.
+//   미 2년물·TIPS(토스 당일 봉)·리튬/니켈(시나 분봉 — api.fetchSinaMetalDay). 점검 2026-10-21·10-30.
 const NO_INTRADAY = new Set(["CNNFG", "VKOSPI", "^US2Y", "^TIPS10", "LITHIUM=F", "NICKEL=F"]);
 export const DAY_SPARK_SYMBOLS: string[] = [...new Set(US_PAIRS.flatMap(p => [p.symbol, p.future ?? ""]))]
   .filter(s => s && !/\.KS$/.test(s) && !/-PERP$/.test(s) && !/=ML$/.test(s) && !YASUN_VIRTUAL.has(s) && !NO_INTRADAY.has(s));
