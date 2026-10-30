@@ -1377,6 +1377,46 @@ export async function fetchTossCodeInfo(code: string): Promise<{ symbol: string;
   }
 }
 
+// 미국 히트맵 토스 시세(사용자 2026-10-30 "미국장은? 프리장에서? 여기도 토스로") — 티커 → 토스 내부코드(기억된 것 먼저,
+//   없으면 code-or-symbol 1콜씩 찾아 기억) → 시세 200종목/콜. 처음 한 번만 코드를 찾고 그다음부터는 시세만(500종목 ≈ 3콜).
+//   토스에 없는 티커는 이번 실행 동안 다시 찾지 않는다. 돌려주는 Price 는 ticker = 티커, base·prevClose = 직전 정규장 종가.
+const tossUsMiss = new Set<string>();
+async function resolveTossUsCode(symbol: string): Promise<string | null> {
+  const known = getTossCode(symbol);
+  if (known) return known;
+  if (tossUsMiss.has(symbol)) return null;
+  try {
+    const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-infos/code-or-symbol/${encodeURIComponent(symbol)}`);
+    const j = r.ok ? await r.json() as { result?: { code?: string } } : null;
+    const code = j?.result?.code;
+    if (code && /^(US|NAS|NYS|AMX)/.test(code)) { rememberTossCode(symbol, code); return code; }
+  } catch { /* 아래에서 기억 */ }
+  tossUsMiss.add(symbol);
+  return null;
+}
+export async function fetchTossUsPricesBySymbol(symbols: string[]): Promise<Price[]> {
+  const codeOf = new Map<string, string>();
+  const todo = [...new Set(symbols)];
+  for (let i = 0; i < todo.length; i += 8) {   // 코드 찾기는 8개씩(처음 한 번만 많다)
+    const batch = todo.slice(i, i + 8);
+    const codes = await Promise.all(batch.map(resolveTossUsCode));
+    batch.forEach((s, k) => { if (codes[k]) codeOf.set(s, codes[k]!); });
+  }
+  const bySymbol = new Map([...codeOf].map(([s, c]) => [c, s]));
+  const codes = [...codeOf.values()];
+  const out: Price[] = [];
+  for (let i = 0; i < codes.length; i += 200) {
+    const m = await fetchTossUsPrices(codes.slice(i, i + 200));
+    for (const [code, p] of m) {
+      const ticker = bySymbol.get(code);
+      if (!ticker) continue;
+      out.push({ ticker, price: p.close, base: p.base, prevClose: p.base, open: 0, volume: 0,
+        trade_date: p.tradeDateTime ? toKstDateString(p.tradeDateTime) : "" });
+    }
+  }
+  return out;
+}
+
 // 종목명 재취득 — 토스 JSON(UTF-8, 인코딩 안전·시세와 같은 출처라 확실히 닿음) 우선, 실패 시 네이버 HTML.
 // 깨진 종목명 복구(repairBrokenNames)용 — 토스 stock-infos 의 name 필드 사용.
 export async function fetchKrStockName(ticker: string): Promise<string | null> {
