@@ -4,7 +4,7 @@
 import { useState, useRef, useEffect, useLayoutEffect, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  fetchHeatmapPreferServer, fetchTossPrices, fetchKrPriceHistory, heatmapTradingViewUrl, heatmapLogoUrl, heatmapRegion, ProxyHostError,
+  fetchHeatmapPreferServer, fetchTossPrices, heatmapTradingViewUrl, heatmapLogoUrl, heatmapRegion, ProxyHostError,
   HEATMAP_SOURCE_LABEL, type HeatmapSource, type HeatmapItem, type HeatmapResult,
 } from "../lib/api";
 import { loadEtfWeights } from "../lib/etfWeights";
@@ -16,7 +16,8 @@ import { reportRefresh } from "../lib/lastRefresh";
 import { getEffectivePollMs, hasDirectTransport } from "../lib/proxyConfig";
 import { dayChangePct } from "../lib/format";
 import { HEAT_SIGN_OPTS, type HeatSign } from "../lib/holdingsHeat";
-import { SimplePriceCard } from "./SimplePriceCard";
+import { QuoteCard } from "./QuoteCard";
+import { ChartRangeToggle } from "./ChartRangeToggle";
 import { useIncrementalRender } from "../lib/useIncrementalRender";
 import { takePendingHeatmap } from "../lib/heatmapNav";
 import { preferServer, fmtServerStamp, fetchLiveIndex } from "../lib/liveServer";
@@ -77,20 +78,6 @@ function fmtCapUsd(v: number): string {
   if (v >= 1e12) return `$${(v / 1e12).toFixed(2)}조`;
   if (v >= 1e8) return `$${Math.round(v / 1e8).toLocaleString()}억`;
   return `$${Math.round(v).toLocaleString()}`;
-}
-
-// 카드 보기 한 칸 — 배경 3개월 차트는 그려질 때 받는다(종목 카드와 같은 캐시 키라 이미 받은 종목은 다시 안 부른다).
-//   사용자 2026-10-30 "카드로 볼 때 그래프가 안 나오는데"
-function HeatPriceCard({ code, name, price, base, high, low, dimmed }: {
-  code: string; name: string; price: number; base: number; high?: number; low?: number; dimmed?: boolean;
-}) {
-  const hq = useQuery({
-    queryKey: ["kr-price-history", code, "3mo"],
-    queryFn: () => fetchKrPriceHistory(code, "3mo"),
-    staleTime: 60 * 60 * 1000, refetchOnWindowFocus: false,
-  });
-  return <SimplePriceCard ticker={code} name={name} price={price} base={base} high={high} low={low}
-                          chart={(hq.data ?? []).map(p => p.close)} dimmed={dimmed} />;
 }
 
 export function HeatmapTab() {
@@ -452,14 +439,13 @@ export function HeatmapTab() {
 
       {/* 카드 — 지금 거른 종목(+만/−만·흐림 제외)을 색 기준 값 큰 순으로 */}
       {cardView && (<>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-x-2 gap-y-3.5 items-stretch">
+        <div className="mb-1.5"><ChartRangeToggle /></div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 items-stretch">
           {cardItems.slice(0, cardCount).map(it => {
             const p = tossByCode.get(it.code);
-            const base = p ? (p.prevClose || p.base || p.price) : it.changePct > -100 ? it.close / (1 + it.changePct / 100) : it.close;
             return (
-              <HeatPriceCard key={it.code} code={it.code} name={krName(it)}
-                             price={p?.price ?? it.close} base={base} high={p?.high} low={p?.low}
-                             dimmed={staleCodes.has(it.code)} />
+              <QuoteCard key={it.code} code={it.code} name={krName(it)} sub={it.sector ? sectorKr(it.sector) : undefined}
+                         px={{ price: p?.price ?? it.close, pct: it.changePct }} dim={staleCodes.has(it.code)} className="h-[96px]" />
             );
           })}
         </div>

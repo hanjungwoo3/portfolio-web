@@ -6,11 +6,9 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTossPrices } from "../lib/api";
 import { fetchDartDayPreferServer, fetchDartCounts, fetchDartBody, loadListedCorps, normCorp, type DartRow } from "../lib/dartDisclosures";
-import { KrDaySparkline } from "./KrDaySparkline";
-import { openStockInfo } from "../lib/tickPopup";
-import { STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
+import { QuoteCard } from "./QuoteCard";
 import { classifyDisclosure, DISC_CATS, DISC_CAT_TONE, DEFAULT_DISC_CATS, loadDiscCats, saveDiscCats, type DiscCat } from "../lib/disclosureFilter";
-import { openGoogleAi, openGoogleAiLater, discAiQuery } from "../lib/googleAi";
+import { openGoogleAiLater, discAiQuery } from "../lib/googleAi";
 import type { ConsensusItem } from "./ConsensusTab";
 
 type Row = DartRow & { code?: string; name: string; groups: string[]; held: boolean; cat: DiscCat; noise: boolean; corrected: boolean };
@@ -18,32 +16,7 @@ const NEW_MIN = 60;
 const kstToday = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 const shiftDay = (ymd: string, d: number) => new Date(Date.parse(`${ymd}T00:00:00Z`) + d * 86400_000).toISOString().slice(0, 10);
 
-// 왼쪽 시세 카드 — 지수 탭 종목 카드와 같은 모양(24시간 그래프 배경 + 현재가·등락률 + 종목정보·AI), 사용자 요청 2026-10-28
-function MiniQuoteCard({ code, name, px }: { code: string; name: string; px?: { price: number; pct: number } }) {
-  const pct = px?.pct;
-  const tone = pct == null ? "bg-gray-50 border-gray-200" : pct > 0 ? "bg-rose-50/70 border-rose-200" : pct < 0 ? "bg-blue-50/70 border-blue-200" : "bg-gray-50 border-gray-200";
-  const col = pct == null ? "text-gray-700" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
-  return (
-    <div className={`relative overflow-hidden rounded-lg border ${tone} w-[132px] sm:w-[176px] h-[88px] shrink-0`}>
-      <KrDaySparkline code={code} fallback={[]} live={px?.price} width={300} height={80} className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />
-      <div className="relative h-full flex flex-col px-2 py-1">
-        <button type="button" onClick={() => openStockInfo(code, name)} title="종목정보"
-                className={`text-left truncate font-bold text-[13px] ${col} hover:underline`}>{name}</button>
-        <div className="mt-auto flex items-baseline justify-between gap-1 tabular-nums">
-          <span className={`text-[12px] ${col}`}>{px ? Math.round(px.price).toLocaleString() : "—"}</span>
-          <span className={`font-bold text-[16px] sm:text-[18px] ${col}`}>{pct == null ? "" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
-        </div>
-        <div className="flex justify-end gap-0.5 -mb-0.5">
-          <button type="button" onClick={() => openStockInfo(code, name)}
-                  className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">📊종목정보</button>
-          <button type="button" title="구글 AI에 현재상태 분석 요청"
-                  onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${name}(${code})${px ? `, 현재가 ${Math.round(px.price).toLocaleString()}원 (${pct! >= 0 ? "+" : ""}${pct!.toFixed(2)}%)` : ""}`)}
-                  className="px-1 rounded border border-blue-300/70 bg-blue-50 text-blue-700 text-[9.5px] font-bold leading-[15px]">🔍AI</button>
-        </div>
-      </div>
-    </div>
-  );
-}
+// 왼쪽 시세 카드 — components/QuoteCard(히트맵 카드 보기와 한 벌)
 
 // 종목 묶음 — 마지막 공시가 늦은 종목 먼저, 종목 안은 시간 역순
 function byStock(rows: Row[]): { key: string; code?: string; name: string; groups: string[]; rows: Row[] }[] {
@@ -178,7 +151,7 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
           {stocks.map(st => (
             <div key={st.key} className="pg-card rounded-lg border border-gray-200 bg-white p-1.5 flex gap-2">
-              {st.code ? <MiniQuoteCard code={st.code} name={st.name} px={pxOf(st.code)} />
+              {st.code ? <QuoteCard code={st.code} name={st.name} px={pxOf(st.code)} />
                 : <div className="w-[132px] sm:w-[176px] shrink-0 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-[13px] font-bold text-gray-700 truncate">{st.name}</div>}
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-1 min-w-0 mb-0.5">
