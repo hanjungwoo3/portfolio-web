@@ -37,7 +37,7 @@ export function ValueupMiniCard() {
   const dimNow = getDimSleepingEnabled() && !isMarketOpen("KR");
   const dimCls = dimNow ? "opacity-60" : "";
   const bg = dimNow ? "bg-gray-100 border-transparent"
-    : up ? "bg-rose-50 border-rose-200" : dn ? "bg-blue-50/70 border-blue-200" : "bg-white border-gray-200";
+    : up ? "bg-rose-50 border-rose-200" : dn ? "bg-blue-50 border-blue-200" : "bg-white border-gray-200";   // 불투명(야간 배경이 비치지 않게, 지수 카드와 같은 색)
   const sign = dimNow ? "text-gray-500" : pctColor(pct);
 
   return (

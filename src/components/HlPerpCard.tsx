@@ -47,7 +47,8 @@ export function HlPerpCard({ coin, name }: Props) {
   const pct = p?.changePct ?? 0;
   const up = pct > 0, dn = pct < 0;
   // 24시간 거래라 흐림(dim) 없음.
-  const bg = up ? "bg-rose-50 border-rose-200" : dn ? "bg-blue-50/70 border-blue-200" : "bg-white border-gray-200";
+  // 불투명 — 반투명(/70)이면 야간 배경이 비쳐 이 카드만 칙칙했다(사용자 지적 2026-10-30, 지수 카드와 같은 색)
+  const bg = up ? "bg-rose-50 border-rose-200" : dn ? "bg-blue-50 border-blue-200" : "bg-white border-gray-200";
   const sign = pctColor(pct);
   const url = `https://app.hyperliquid.xyz/trade/xyz:${coin}`;
 

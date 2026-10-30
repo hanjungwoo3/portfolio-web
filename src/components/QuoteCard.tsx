@@ -26,7 +26,7 @@ export function QuoteCard({ code, name, sub, px, dim, className = "w-[132px] sm:
   });
   const closes = (hist.data ?? []).map(p => p.close);
   const pct = px?.pct;
-  const tone = pct == null ? "bg-gray-50 border-gray-200" : pct > 0 ? "bg-rose-50/70 border-rose-200" : pct < 0 ? "bg-blue-50/70 border-blue-200" : "bg-gray-50 border-gray-200";
+  const tone = pct == null ? "bg-gray-50 border-gray-200" : pct > 0 ? "bg-rose-50 border-rose-200" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
   const col = pct == null ? "text-gray-700" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
   return (
     <div className={`relative overflow-hidden rounded-lg border ${tone} ${className} ${dim ? "opacity-60" : ""}`}>
