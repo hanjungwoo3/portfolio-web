@@ -178,24 +178,22 @@ export function HeatmapTab() {
   //   (사용자 2026-10-30 "지금 트레이딩뷰는 느려", "옵션 넣자", "앱이나 extension 에서만 가능해도 괜찮아").
   //   섹터·시총·로고는 스캐너 값 그대로. 종목 수 ÷ 200 콜(코스닥 전체 700 = 4콜)이라 직결(앱·확장)일 때만 보인다.
   const canToss = isKr && hasDirectTransport();
-  //   기본 '자동' = 정규장(평일 09:00~15:30 KST) 밖이면 토스(사용자 2026-10-30 "정규장 시간이 아닐 때는 자동으로") — 스캐너는 장 밖에 멈춰 있다
-  type PriceSrc = "auto" | "tv" | "toss";
+  //   앱·확장은 토스가 기본(사용자 2026-10-30 "앱이랑 extension 에서는 그냥 토스를 기본으로") — 스캐너는 장 밖에도, 9시가 지나도 한동안 어제 값이다
+  type PriceSrc = "tv" | "toss";
   const [priceSrc, setPriceSrc] = useState<PriceSrc>(() => {
-    try { const v = localStorage.getItem("heatmap_price_src"); return v === "tv" || v === "toss" ? v : "auto"; } catch { return "auto"; }
+    try { return localStorage.getItem("heatmap_price_src") === "tv" ? "tv" : "toss"; } catch { return "toss"; }
   });
-  const kstNow = new Date(Date.now() + 9 * 3600_000);
-  const kstMin = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes(), kstDow = kstNow.getUTCDay();
-  const krRegular = kstDow >= 1 && kstDow <= 5 && kstMin >= 9 * 60 && kstMin < 15 * 60 + 30;
-  const useToss = canToss && (priceSrc === "toss" || (priceSrc === "auto" && !krRegular));
+  const wantToss = canToss && priceSrc !== "tv";
   const baseCodes = useMemo(() => (q.data?.items ?? []).map(it => it.code).filter(c => /^[\dA-Za-z]{6}$/.test(c)), [q.data]);
   const tossQ = useQuery({
     queryKey: ["heatmap-toss", source, baseCodes.join(",")],
     queryFn: () => fetchTossPrices(baseCodes),
-    enabled: useToss && baseCodes.length > 0,
+    enabled: wantToss && baseCodes.length > 0,
     staleTime: 0, refetchOnWindowFocus: false, retry: false,
-    refetchInterval: useToss && getEffectivePollMs() > 0 ? getEffectivePollMs() : false,
+    refetchInterval: wantToss && getEffectivePollMs() > 0 ? getEffectivePollMs() : false,
     refetchIntervalInBackground: true,
   });
+  const useToss = wantToss;
   // 오늘 체결이 없는 종목(카드에서 흐린 것) — 토스 체결일로만 안다. 전부 그렇다면(휴장·장 전) 빈 집합으로(다 빠지지 않게)
   const staleCodes = useMemo(() => {
     if (!useToss || !tossQ.data?.length) return new Set<string>();
@@ -375,14 +373,13 @@ export function HeatmapTab() {
           </select>
         </label>
         {canToss && (
-          <label className="flex items-center gap-1 text-xs" title="토스 실시간 = 등락률·현재가·거래량을 토스(NXT 프리·애프터 포함)로 갱신 주기마다. 섹터·시총은 TradingView 그대로 — 앱·확장에서만.\n자동 = 정규장(평일 09:00~15:30) 밖이면 토스">
+          <label className="flex items-center gap-1 text-xs" title="토스 실시간 = 등락률·현재가·거래량을 토스(NXT 프리·애프터 포함)로 갱신 주기마다. 섹터·시총은 TradingView 그대로 — 앱·확장에서만">
             <span className="text-gray-400">시세</span>
             <select value={priceSrc}
                     onChange={e => { const v = e.target.value as PriceSrc; setPriceSrc(v); try { localStorage.setItem("heatmap_price_src", v); } catch { /* 이번 화면만 */ } }}
                     className="border border-gray-300 rounded px-1.5 py-1 bg-white font-medium text-gray-700">
-              <option value="auto">자동({krRegular ? "지금 TradingView" : "지금 토스"})</option>
-              <option value="tv">TradingView</option>
               <option value="toss">토스 실시간</option>
+              <option value="tv">TradingView</option>
             </select>
           </label>
         )}
