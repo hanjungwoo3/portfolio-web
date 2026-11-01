@@ -5,7 +5,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { dashboardCardDim } from "../lib/dashboardCardDim";
 import { IndexWarnTag } from "./IndexWarnTag";
-import { fetchYahooBatch, fetchKrFuturesMinute, fetchKrRegularPrices, daySparkPlan, fetchYahooSparkDay, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries, fetchTossIntraday, fetchSinaMetalDay, SINA_DAY_SYMBOLS, type DaySpark } from "../lib/api";
+import { fetchYahooBatch, fetchKrFuturesMinute, fetchKrRegularPrices, daySparkPlan, fetchYahooSparkDay, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries, fetchTossIntraday, fetchSinaMetalDay, SINA_DAY_SYMBOLS, fetchCnbcDay, CNBC_DAY_SYMBOLS, type DaySpark } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isKrAfterRegularClose, nowKstDateStr } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
@@ -271,14 +271,16 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
     })),
   });
   // 리튬·니켈 — 시나 분봉 24시간(fetchSinaMetalDay, 1분마다). 야후·토스엔 분봉이 없다(사용자 2026-10-30)
+  //   + CNBC 5일 분봉(미국 10년 실질금리 등 — api.fetchCnbcDay). 같은 모양이라 한 목록으로
+  const EXTRA_DAY_SYMBOLS = [...SINA_DAY_SYMBOLS, ...CNBC_DAY_SYMBOLS];
   const sinaDayQs = useQueries({
-    queries: SINA_DAY_SYMBOLS.map(sym => ({
-      queryKey: ["sina-metal-day", sym], queryFn: () => fetchSinaMetalDay(sym),
+    queries: EXTRA_DAY_SYMBOLS.map(sym => ({
+      queryKey: ["extra-day", sym], queryFn: () => SINA_DAY_SYMBOLS.includes(sym) ? fetchSinaMetalDay(sym) : fetchCnbcDay(sym),
       enabled: chartRange === "day", refetchInterval: chartRange === "day" ? 60_000 : (false as const), staleTime: 30_000, refetchOnWindowFocus: false,
     })),
   });
   const sinaSpark = (sym: string): DaySpark | undefined => {
-    const d = sinaDayQs[SINA_DAY_SYMBOLS.indexOf(sym)]?.data;
+    const d = sinaDayQs[EXTRA_DAY_SYMBOLS.indexOf(sym)]?.data;
     return d && d.closes.length > 1 ? { rolling: d.rolling, closes: d.closes, xs: d.xs, prevClose: d.base } : undefined;
   };
   const krFutSpark = (sym: string) => {

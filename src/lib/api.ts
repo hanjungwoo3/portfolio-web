@@ -3988,10 +3988,10 @@ interface CnbcBar {
   tradeTime?: string;        // "20260710000000" — 당일 미완성 봉도 항상 채워짐
   tradeTimeinMills?: string | null;   // 당일 미완성 봉은 null → 날짜 산출에 쓰면 안 됨
 }
-async function fetchCnbcBars(symbol: string): Promise<CnbcBar[]> {
+async function fetchCnbcBars(symbol: string, timeRange = "1M"): Promise<CnbcBar[]> {
   const cnbcSym = CNBC_SYMBOL[symbol];
   if (!cnbcSym) return [];
-  const variables = JSON.stringify({ symbol: cnbcSym, timeRange: "1M" });
+  const variables = JSON.stringify({ symbol: cnbcSym, timeRange });
   const extensions = JSON.stringify({ persistedQuery: { version: 1, sha256Hash: CNBC_CHART_HASH } });
   const url = "https://webql-redesign.cnbcfm.com/graphql?operationName=getQuoteChartData"
     + `&variables=${encodeURIComponent(variables)}`
@@ -4127,6 +4127,37 @@ async function fetchCnnFgChart(): Promise<number[]> {
   const d = await loadCnnFg();
   const pts = d?.fear_and_greed_historical?.data ?? [];
   return pts.map(p => p.y).filter(v => Number.isFinite(v)).slice(-63);
+}
+
+// 24시간 카드 — CNBC 5일 분봉(timeRange 5D, ~1,500개). 미국 10년 실질금리(^TIPS10) 처럼 야후·토스에 분봉이 없는 심볼
+//   (사용자 2026-11-02). tradeTime "YYYYMMDDHHMM…" 는 뉴욕 시각. 지난 24시간(마지막 봉이 24시간보다 오래면 그 봉에서 끝나는 24시간),
+//   기준선 = 카드 %와 같은 전일 종가(CNBC previous_day_closing).
+export const CNBC_DAY_SYMBOLS = ["^TIPS10"];
+function nyLocalToEpoch(y: number, mo: number, d: number, h: number, mi: number): number {
+  const guess = Date.UTC(y, mo - 1, d, h, mi);
+  // 그 시각의 뉴욕 오프셋(서머타임 자동) — 같은 순간을 뉴욕 벽시계로 다시 읽어 차이를 뺀다
+  const p = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" }).formatToParts(new Date(guess)).map(x => [x.type, x.value]));
+  const asNy = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour) % 24, Number(p.minute));
+  return guess + (guess - asNy);
+}
+export async function fetchCnbcDay(symbol: string): Promise<DaySeries | null> {
+  if (!CNBC_DAY_SYMBOLS.includes(symbol)) return null;
+  const [bars, quote] = await Promise.all([fetchCnbcBars(symbol, "5D"), fetchCnbcIndexPrice(symbol, symbol)]);
+  const pts: [number, number][] = [];
+  for (const b of bars) {
+    const t = b.tradeTime ?? "", c = cnbcNum(b.close);
+    if (t.length < 12 || c == null || !(c > 0)) continue;
+    pts.push([nyLocalToEpoch(+t.slice(0, 4), +t.slice(4, 6), +t.slice(6, 8), +t.slice(8, 10), +t.slice(10, 12)), c]);
+  }
+  pts.sort((a, b) => a[0] - b[0]);
+  if (pts.length < 2) return null;
+  const last = pts[pts.length - 1][0];
+  const end = Date.now() - last > 24 * 3600_000 ? last : Date.now(), start = end - 24 * 3600_000;
+  const win = pts.filter(([t]) => t >= start);
+  if (win.length < 2) return null;
+  return { closes: win.map(p => p[1]), xs: win.map(([t]) => (t - start) / (24 * 3600_000)), rolling: true,
+    ...(quote?.prevClose && quote.prevClose > 0 ? { base: quote.prevClose } : {}) };
 }
 
 // ─── 리튬·니켈 — 시나 금융 (가상 심볼 LITHIUM=F · NICKEL=F) ─────────────
