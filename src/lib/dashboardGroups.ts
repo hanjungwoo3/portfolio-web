@@ -144,7 +144,7 @@ function sectionMap(): Record<string, DashboardSection> {
       //   (0.23 vs 0.29, 2년 실측 2026-10-05).
       // 한 줄(PC 전체 폭 8칸) — 미국 지수 선물 셋 + 삼성·하이닉스 24h + 한국 주간선물 둘(맨 뒤 — 밤엔 빠지는 카드라 끝에 둬야 자리가 안 흔들린다)
       wide: true,
-      rows: [["NQ=F", "ES=F", "SOX=F", "SKHY-PERP", "SMSN-PERP", "KORU", "^KS200N", "^KQ150N"]],
+      rows: [["NQ=F", "ES=F", "SOXX", "SKHY-PERP", "SMSN-PERP", "KORU", "^KS200N", "^KQ150N"]],
     },
     {
       // ETF 등락 TOP10(상승·하락) — 지수(순환매) 탭, AI 순환매 바로 아래(오늘 실제로 돈이 간 테마). 레버리지·선물을 빼야 '오늘 실제로 오른 곳' 이 보인다.
@@ -360,7 +360,7 @@ function sectionMap(): Record<string, DashboardSection> {
       //   지수(순환매) 탭으로 옮겨 'AI 하드웨어 → 반도체' 줄(지수(미국))과 다른 탭이라 겹치지 않는다(2026-10-12).
       rowLabels: ["지수", "설계", "파운드리", "AI 칩"],
       rows: [
-        ["^SOX", "SOX=F"],                                // 필라델피아 반도체 지수 · 선물
+        ["^SOX", "SOXX"],                                 // 필라델피아 반도체 지수 · SOXX(필반 선물 대신 — SOX=F 는 하루 몇 번 거래라 그래프·% 가 깨졌다, 2026-11-02)
         ["ARM"],                                          // ARM(CPU 설계 — 삼성 다음 날 0.22)
         ["TSM"],                                          // TSMC ADR
         ["NVDA", "AVGO", "MPWR"],                         // 엔비디아 · 브로드컴(AI ASIC) · MPS(AI 서버 전원)
@@ -475,7 +475,8 @@ function sectionMap(): Record<string, DashboardSection> {
       label: "⏳ 선물 (미국 지수 · 한국 야간)",
       // 한 줄 — 밤엔 7장이라 PC 에선 전체 폭 8칸(wide)으로 한 줄에 다 들어간다(낮엔 야간선물 둘이 빠져 5장)
       wide: true,
-      rows: [["NQ=F", "ES=F", "SOX=F", "SKHY-PERP", "SMSN-PERP", "KORU", "^KS200N", "^KQ150N"]],
+      // SOXX(필반 선물 대신)는 이 페이지의 AI 하드웨어 줄에 이미 있어 여기선 뺀다(같은 탭 중복 금지, 2026-11-02)
+      rows: [["NQ=F", "ES=F", "SKHY-PERP", "SMSN-PERP", "KORU", "^KS200N", "^KQ150N"]],
     },
     {
       id: "spot", short: "현물",

@@ -2049,6 +2049,9 @@ export function MobileSimpleView() {
               // 어제 50%·오늘 50% 시간 축(야후·한경 자료에 xs 가 있을 때) — 끝에 붙인 지금 가격은 마지막 점 바로 뒤
               const dayXs = daySpark?.xs && chartArr === daySpark.closes
                 ? (liveChart.length > chartArr.length ? [...daySpark.xs, daySpark.rolling ? 1 : Math.min(1, daySpark.xs[daySpark.xs.length - 1] + 0.002)] : daySpark.xs) : undefined;
+              // 메모리 현물가(=ML) — 하루·주 단위 값이라 24시간 그래프가 없다. 대신 카드 %(직전 값 대비) 기준을 그래프에:
+              //   기준 점선 = 직전 값, 종가 세로선 = 직전 값이 찍힌 자리(사용자 2026-11-02 "메모리 카드들도")
+              const isMemSpot = /=ML$/.test(p.symbol);
               const dayBase = !isDayChart ? undefined
                 : daySpark && chartArr === daySpark.closes && marketOfSymbol(p.symbol) === "US" ? daySpark.prevClose   // 미국만 야후 값(달러 단위) — 한국·아시아 지수는 야후 전일 종가가 틀릴 때가 있어(^KQ11 이 그저께 값, 2026-10-21) 카드 값으로
                 : (q?.prevClose && q.prevClose > 0 ? q.prevClose : undefined);
@@ -2171,7 +2174,7 @@ export function MobileSimpleView() {
 
                              markIndex={markIdx}
 
-                             closeIndex={closeIdx}
+                             closeIndex={isMemSpot && chartArr.length > 2 ? chartArr.length - 2 : closeIdx}
 
                              extraMarks={prevMarks}
                              markXs={daySpark && chartArr === daySpark.closes ? daySpark.markXs : undefined}
@@ -2182,7 +2185,7 @@ export function MobileSimpleView() {
                              prevBaseline={breakIdx != null ? daySpark?.prevBase : undefined}
                              nextBaseline={daySpark && chartArr === daySpark.closes ? daySpark.nextBase : undefined}
 
-                             baseline={dayBase}
+                             baseline={isMemSpot ? (q?.prevClose && q.prevClose > 0 ? q.prevClose : undefined) : dayBase}
 
                              color={sparkColor}
 
