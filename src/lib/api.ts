@@ -4155,9 +4155,15 @@ export async function fetchCnbcDay(symbol: string): Promise<DaySeries | null> {
   const last = pts[pts.length - 1][0];
   const end = Date.now() - last > 24 * 3600_000 ? last : Date.now(), start = end - 24 * 3600_000;
   const win = pts.filter(([t]) => t >= start);
-  if (win.length < 2) return null;
-  return { closes: win.map(p => p[1]), xs: win.map(([t]) => (t - start) / (24 * 3600_000)), rolling: true,
-    ...(quote?.prevClose && quote.prevClose > 0 ? { base: quote.prevClose } : {}) };
+  const base = quote?.prevClose && quote.prevClose > 0 ? { base: quote.prevClose } : {};
+  // 새 세션이 막 열린 직후(월요일 아침 — 일요일 18:00 뒤 몇 분)는 24시간 창에 점이 몇 개뿐이라 그래프가 비었다(사용자 2026-11-02).
+  //   그땐 최근 봉 300개(약 하루치)를 시각 대신 차례대로 펼쳐 주말 공백 없이 보인다.
+  if (win.length < 50) {
+    const tail = pts.slice(-300);
+    if (tail.length < 2) return null;
+    return { closes: tail.map(p => p[1]), xs: tail.map((_, i) => i / (tail.length - 1)), ...base };
+  }
+  return { closes: win.map(p => p[1]), xs: win.map(([t]) => (t - start) / (24 * 3600_000)), rolling: true, ...base };
 }
 
 // ─── 리튬·니켈 — 시나 금융 (가상 심볼 LITHIUM=F · NICKEL=F) ─────────────
@@ -4412,8 +4418,14 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         // 미국 주식·ETF 는 04:00~20:00(뉴욕) 고정 — 자료로 정하면 프리·애프터 거래가 드문 종목(에퀴닉스는 09:30~19:45)만
         //   축이 좁아져 다른 카드와 세로선 자리가 어긋났다(사용자 지적 2026-10-23). 지수·선물·아시아는 자료대로.
         const usEq = off === -4 && /^[A-Z][A-Z.-]{0,5}$/.test(x.symbol);
-        const lo = usEq ? 4 * 3600 : Math.min(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
-        const hi = usEq ? 20 * 3600 : Math.max(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
+        let lo = usEq ? 4 * 3600 : Math.min(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
+        let hi = usEq ? 20 * 3600 : Math.max(...span.map(todS), ...times.slice(Math.max(0, bi)).map(todS));
+        // 미국 지수·금리·VIX·MOVE 처럼 정규장 동안만 값이 있는 지수 — 자료 폭 = 장 시간이라 시가·종가 세로선이 칸 양 끝에 붙어
+        //   안 보였다(사용자 2026-11-02 "미국채, vix, move 도"). 앞뒤로 30분씩 여유를 둬 선이 칸 안에 선다.
+        if (off === -4 && !usEq && reg?.start != null && sTod != null && eTod != null && eTod > sTod) {
+          lo = Math.min(lo, todS(reg.start) - 1800);
+          hi = Math.max(hi, todS(reg.start - sTod + eTod) + 1800);
+        }
         const fr = (t: number) => (hi > lo ? (todS(t) - lo) / (hi - lo) : 0);
         const nowS = Date.now() / 1000;
         const lastIsToday = times.length > 0 && etDay(nowS) === etDay(times[times.length - 1]);
