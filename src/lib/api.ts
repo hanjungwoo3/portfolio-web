@@ -5549,6 +5549,9 @@ export async function fetchHlPerpTwoDay(coin: string): Promise<DaySeries | null>
         if (t > start && t <= end) markXs.push({ x: (t - start) / (48 * 3600_000), ...(close ? { close: true } : {}) });
       }
     }
+    // 가운데 = 최근 24시간 시작(카드 % 기준 시각) — 시작선(점선) 하나 더(사용자 2026-11-02 "24시간에 시작 세로선")
+    markXs.push({ x: 0.5 });
+    markXs.sort((a, b) => a.x - b.x);
     return {
       closes: arr.map(k => k.c), xs: arr.map(k => Math.min(1, Math.max(0, (k.t - start) / (48 * 3600_000)))),
       ...(bi > 0 ? { breakIdx: bi, base: arr[bi].c, prevBase: arr[0].c } : { base: arr[0].c }),
