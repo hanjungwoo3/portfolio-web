@@ -189,7 +189,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "NOW", name: "서비스나우", desc: "ServiceNow — 기업 업무 자동화·AI 에이전트", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "DELL", name: "델", desc: "Dell Technologies — AI 서버·PC", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "TLT", name: "TLT", desc: "iShares 미국 장기국채 20년+ — 금리 하락·안전자산 수요", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "SOXX", name: "SOXX", desc: "iShares 미국 반도체 ETF — 토스 24시간 거래, 다음 정규장 미리 가늠", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "SOXX", name: "SOXX", desc: "iShares 미국 반도체 ETF — 반도체 전체 흐름", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "TQQQ", name: "TQQQ", desc: "나스닥100 3배 — 개인 투자자 위험 선호", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "SOXL", name: "SOXL", desc: "반도체 3배 — 서학개미 최다 보유권", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "JEPQ", name: "JEPQ", desc: "JPMorgan 나스닥 커버드콜 — 월배당·인컴 수요", tier: "T0", sector: "dashboard", direction: "direct" },
