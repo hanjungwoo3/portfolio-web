@@ -5523,14 +5523,12 @@ export async function fetchHlXyzPerps(): Promise<Map<string, HlPerp>> {
   return out;
 }
 // coin 은 "xyz:SKHY" 처럼 프리픽스 포함.
-// 24h 카드용 **어제+오늘** — 무기한선물은 끝없이 거래돼 '하루'가 없다. 그래서 최근 48시간을 반으로:
-//   왼쪽 = 48~24시간 전, 오른쪽 = 최근 24시간(시간 축). 기준선 = 각 반쪽의 시작 가격 — 오른쪽 기준은 24시간 전 가격이라
-//   카드 %(prevDayPx 대비)와 같은 기준이다.
 export async function fetchHlPerpTwoDay(coin: string): Promise<DaySeries | null> {
-  // 무기한선물은 끝없이 거래돼 '하루'가 없다 — 최근 24시간을 그대로(오른쪽 끝 = 지금, 다른 카드의 밀어 보기와 같은 모양).
-  //   기준선 = 24시간 전 가격 — 카드 %(prevDayPx 대비)와 같은 기준.
+  // 48시간 반반(사용자 2026-11-02 "24시간인 경우는 48시간 그래프 50%씩") — 왼쪽 = 48~24시간 전(기준 = 48시간 전 가격),
+  //   오른쪽 = 최근 24시간(기준 = 24시간 전 가격 = 카드 %(prevDayPx) 기준). 무기한선물은 '하루'가 없어 24시간으로 자른다.
+  //   주말이 끼어도 그 전 평일 장이 왼쪽에 보인다. 5분봉 576개 = 1콜(상한 5000).
   try {
-    const end = Date.now(), start = end - 24 * 3600_000;
+    const end = Date.now(), mid = end - 24 * 3600_000, start = end - 48 * 3600_000;
     const resp = await fetch("https://api.hyperliquid.xyz/info", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "candleSnapshot", req: { coin, interval: "5m", startTime: start, endTime: end } }),
@@ -5538,19 +5536,24 @@ export async function fetchHlPerpTwoDay(coin: string): Promise<DaySeries | null>
     if (!resp.ok) return null;
     const arr = (await resp.json() as { t?: number; c?: string }[]).flatMap(k => (k.t && Number(k.c) > 0 ? [{ t: k.t, c: Number(k.c) }] : []));
     if (arr.length < 2) return null;
+    const bi = arr.findIndex(k => k.t >= mid);
     // 세로선 = 한국 정규장 09:00 시가·15:30 종가(평일) — 따라가는 종목이 삼성전자·SK하이닉스라 다른 국내 카드와 같은 모양으로,
     //   한국장 동안과 장 밖 움직임이 갈라 보이게(사용자 2026-11-02 "24시간 선물은 24시간 그래프 안 돼?")
     const markXs: MarkX[] = [];
     const kstDay0 = Math.floor((start + 9 * 3600_000) / 86400_000);
-    for (let d = kstDay0; d <= kstDay0 + 1; d++) {
+    for (let d = kstDay0; d <= kstDay0 + 2; d++) {
       const dow = new Date(d * 86400_000).getUTCDay();
       if (dow === 0 || dow === 6) continue;
       for (const [min, close] of [[9 * 60, false], [15 * 60 + 30, true]] as const) {
         const t = d * 86400_000 + min * 60_000 - 9 * 3600_000;
-        if (t > start && t <= end) markXs.push({ x: (t - start) / (24 * 3600_000), ...(close ? { close: true } : {}) });
+        if (t > start && t <= end) markXs.push({ x: (t - start) / (48 * 3600_000), ...(close ? { close: true } : {}) });
       }
     }
-    return { closes: arr.map(k => k.c), xs: arr.map(k => Math.min(1, Math.max(0, (k.t - start) / (24 * 3600_000)))), base: arr[0].c, rolling: true, markXs };
+    return {
+      closes: arr.map(k => k.c), xs: arr.map(k => Math.min(1, Math.max(0, (k.t - start) / (48 * 3600_000)))),
+      ...(bi > 0 ? { breakIdx: bi, base: arr[bi].c, prevBase: arr[0].c } : { base: arr[0].c }),
+      markXs,
+    };
   } catch { return null; }
 }
 
