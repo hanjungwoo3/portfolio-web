@@ -4212,9 +4212,17 @@ export async function fetchSinaMetalDay(symbol: string): Promise<DaySeries | nul
   try {
     const [rm, quote] = await Promise.all([fetchProxied(url), fetchSinaMetals([{ symbol, name: symbol }])]);
     if (!rm.ok) return null;
-    const pts = parseSinaMinLine(await rm.text());
+    // 니켈(LME 당일 1분봉)은 새 날 장이 열리기 전(월요일 아침·휴장)엔 빈 배열 — 마지막으로 받은 봉을 기억해 두고 그걸 그린다
+    //   (여러 날 분봉 엔드포인트는 2024년 값만 준다, 2026-11-02 실측). 아래 창 계산이 마지막 봉에서 끝나는 24시간으로 맞춘다.
+    const KEY = `sina_min_${symbol}`;
+    let pts = parseSinaMinLine(await rm.text());
+    if (pts.length >= 2) { try { localStorage.setItem(KEY, JSON.stringify(pts)); } catch { /* 이번만 */ } }
+    else { try { const c = JSON.parse(localStorage.getItem(KEY) ?? "[]") as [number, number][]; if (Array.isArray(c)) pts = c; } catch { /* 없음 */ } }
     if (pts.length < 2) return null;
-    const end = Math.max(pts[pts.length - 1][0], Math.min(Date.now(), pts[pts.length - 1][0] + 24 * 3600_000));
+    // 지난 24시간 — 마지막 봉이 24시간보다 오래면(주말·휴장) 그 마지막 봉에서 끝나는 24시간. 예전엔 창을 '마지막 봉 뒤 24시간'으로
+    //   잡아 점이 하나만 남고 3개월로 떨어졌다(사용자 2026-11-02 월요일 아침).
+    const last = pts[pts.length - 1][0];
+    const end = Date.now() - last > 24 * 3600_000 ? last : Date.now();
     const start = end - 24 * 3600_000;
     const win = pts.filter(([t]) => t >= start);
     if (win.length < 2) return null;
