@@ -4389,8 +4389,18 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
             prevOpen: poi >= 0, prevClose: hasClose && pci >= 0,
           };
         }
+        // 지수·원자재 선물(=F) — CME 세션 = 뉴욕 18:00 시작 ~ 다음 날 17:00 마감. 날짜 경계(off=2)로 자른 하루가 곧 한 세션이라
+        //   세로선은 세션 시작(칸 맨 앞)·직전 세션 마감(어제 칸 마지막 봉 끝), 기준선 = 직전 세션 마감가 = 카드 %(토스 basePrice) 기준.
+        //   예전엔 야후 regular(주식 정규장 시각)로 그어 선도 기준선도 카드 %와 안 맞았다(사용자 2026-11-02).
+        let prevCloseBase = pc;
+        if (/=F$/.test(x.symbol) && bi > 0 && !noToday) {
+          prevCloseBase = closes[bi - 1];
+          const step = hi > lo ? 300 / (hi - lo) : 0;
+          sess = { open: 0, close: Math.min(1, fr(times[bi - 1]) + step),
+            todayOpen: true, todayClose: !lastIsToday, prevOpen: false, prevClose: true };
+        }
         out.set(x.symbol, rollDay({
-          closes, openIdx: oi > 0 && !noToday ? oi : undefined, closeIdx: ci > 0 && !noToday ? ci : undefined, prevClose: pc && pc > 0 ? pc : undefined,
+          closes, openIdx: oi > 0 && !noToday ? oi : undefined, closeIdx: ci > 0 && !noToday ? ci : undefined, prevClose: prevCloseBase && prevCloseBase > 0 ? prevCloseBase : undefined,
           breakIdx: bi > 0 ? bi : undefined, prevBase: noToday ? dropLast : bi > 0 && cpc && cpc > 0 ? cpc : undefined,
           // 미국 주식 — 오늘 정규장이 끝났으면 그 종가(카드 % 기준, 토스식)를 점선으로 오늘 종가 세로선부터(토스 빌더와 같은 규칙)
           nextBase: usEq && !noToday && ci > 0 && sess?.todayClose ? closes[ci] : undefined,

@@ -74,7 +74,7 @@ export function HlPerpCard({ coin, name }: Props) {
             24h
           </span>
         </div>
-        <div className="relative z-10 text-[11px] text-gray-500 truncate">하이퍼리퀴드 무기한선물 · 24시간</div>
+        <div className="relative z-10 text-[11px] text-gray-500 truncate">하이퍼리퀴드 무기한선물 · 24시간 전 대비</div>
         <div className="relative z-10 flex items-end mt-auto">
           <span className={`flex-1 text-left tabular-nums ${sign}`}>
             <span className="text-sm">
