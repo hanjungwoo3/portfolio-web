@@ -37,10 +37,10 @@ export function HlPerpCard({ coin, name }: Props) {
     enabled: day, refetchInterval: day ? 60_000 : false, staleTime: 30_000,
   });
   const { data: spark } = useQuery({
-    queryKey: ["hl-perp-candles", coin],
+    queryKey: ["hl-perp-daily", coin],   // 3개월 일봉 — 하루 몇 번이면 충분
     queryFn: () => fetchHlPerpCandles(`xyz:${coin}`),
-    refetchInterval: 60_000,
-    staleTime: 30_000,
+    enabled: !day, refetchInterval: !day ? 30 * 60_000 : false,
+    staleTime: 10 * 60_000,
   });
 
   const p = perps?.get(coin);
@@ -56,7 +56,7 @@ export function HlPerpCard({ coin, name }: Props) {
     <div className="pg-card relative h-full">
       <div className={`relative overflow-hidden h-full flex flex-col gap-0.5 rounded-lg border px-3 py-1.5 ${bg}`}>
         {day && two && two.closes.length > 1 ? (
-          <Sparkline data={two.closes} xs={two.xs} baseline={two.base} prevBaseline={two.prevBase} breakIndex={two.breakIdx}
+          <Sparkline data={two.closes} xs={two.xs} baseline={two.base} prevBaseline={two.prevBase} breakIndex={two.breakIdx} markXs={two.markXs}
                      width={400} height={80} className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />
         ) : spark && spark.length > 1 && (
           <Sparkline data={spark} width={400} height={80}
