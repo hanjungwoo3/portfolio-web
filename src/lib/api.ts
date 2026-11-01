@@ -4390,7 +4390,10 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         // 날짜(뉴욕)가 바뀌는 첫 봉 — 어제와 선을 잇지 않는다
         //   아시아 지수·종목은 한국 날짜로 — 뉴욕 날짜면 아시아 장중(한국 13:00)에 끊긴다
         //   선물(=F)은 거래일이 뉴욕 18:00 에 시작 — 그 시각을 날짜 경계로(UTC+2 로 보면 18:00 ET 가 자정)
-        const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : /=F$/.test(x.symbol) ? 2 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
+        //   달러 인덱스(DX-Y.NYB)도 ICE 선물식 세션(뉴욕 18:00~17:00)이라 선물과 같이 — 자정으로 자르면 월요일 아침엔 일요일 밤
+        //   몇 분짜리 칸만 남아 그래프가 비었다(사용자 2026-11-02)
+        const futLike = /=F$/.test(x.symbol) || x.symbol === "DX-Y.NYB";
+        const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : futLike ? 2 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
         const etDay = (t: number) => new Date((t + off * 3600) * 1000).toISOString().slice(0, 10);   // 대략 EDT/KST(일자 경계만 필요)
         let bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
         // 오늘 봉이 아직 없다(프리장 거래가 드문 종목 — 디지털리얼티·에퀴닉스 등, 지수) — 그대로면 '어제 하루 전체' 축으로 그려져
@@ -4432,7 +4435,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         //   세로선은 세션 시작(칸 맨 앞)·직전 세션 마감(어제 칸 마지막 봉 끝), 기준선 = 직전 세션 마감가 = 카드 %(토스 basePrice) 기준.
         //   예전엔 야후 regular(주식 정규장 시각)로 그어 선도 기준선도 카드 %와 안 맞았다(사용자 2026-11-02).
         let prevCloseBase = pc;
-        if (/=F$/.test(x.symbol) && bi > 0 && !noToday) {
+        if (futLike && bi > 0 && !noToday) {
           prevCloseBase = closes[bi - 1];
           const step = hi > lo ? 300 / (hi - lo) : 0;
           sess = { open: 0, close: Math.min(1, fr(times[bi - 1]) + step),
