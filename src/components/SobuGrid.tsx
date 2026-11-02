@@ -92,7 +92,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
     const q = quote(sym);
     const ct = kr ? lastContract.get(code) : undefined;
     return (
-      <div key={sym} className={`relative ${lead ? "rounded-lg ring-2 ring-indigo-400" : ""}`}>
+      <div key={sym} className={`relative rounded-lg transition ${hot === code ? "ring-4 ring-amber-400 shadow-lg scale-[1.03] z-20" : lead ? "ring-2 ring-indigo-400" : ""}`}>
         <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} dim={dimOf?.(sym)} className="w-full h-[84px]" />
         {ct && (
           <button onClick={() => openExternal(ct.url)} title={`${ct.date} ${ct.time} ${ct.title}${info.get(ct.rcpNo)?.amountEok ? ` — ${Math.round(info.get(ct.rcpNo)!.amountEok!).toLocaleString()}억` : ""} — 눌러서 DART 원문`}
@@ -104,6 +104,8 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
     );
   };
   const [open, setOpen] = useState<Record<string, boolean>>({});   // 칸별 '더 보기'
+  // 공시·뉴스 줄에 마우스를 올리면 그 종목 카드를 강조(사용자 2026-11-02)
+  const [hot, setHot] = useState<string | null>(null);
   const ndt = (dt: string) => `${+dt.slice(4, 6)}/${+dt.slice(6, 8)} ${dt.slice(8, 10)}:${dt.slice(10, 12)}`;
   return (
     <div className="space-y-2">
@@ -155,7 +157,8 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
                 : (more ? dList : dList.slice(0, 5)).map(r => {
                   const c = r.cat === "계약" ? info.get(r.rcpNo) : null;
                   return (
-                    <div key={r.rcpNo} className="flex items-baseline gap-1 leading-[18px] min-w-0">
+                    <div key={r.rcpNo} className="flex items-baseline gap-1 leading-[18px] min-w-0 rounded hover:bg-amber-50"
+                         onMouseEnter={() => setHot(r.code ?? null)} onMouseLeave={() => setHot(null)}>
                       <span className="text-gray-400 tabular-nums shrink-0">{md(r.date)}</span>
                       <button onClick={() => openStockInfo(r.code!, r.corp)} className="font-bold text-gray-800 hover:underline shrink-0 max-w-[6rem] truncate">{r.corp}</button>
                       <span className={`shrink-0 px-0.5 rounded text-[9.5px] font-bold ${DISC_CAT_TONE[r.cat].tag}`}>{r.cat}</span>
@@ -169,7 +172,8 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
               <div className="font-bold text-sky-800 pt-1">📰 뉴스</div>
               {!nList.length ? <div className="text-gray-400">{newsQs.some(q => q.isLoading) ? "불러오는 중…" : "없음"}</div>
                 : (more ? nList.slice(0, 15) : nList.slice(0, 5)).map(n => (
-                  <div key={n.id} className="flex items-baseline gap-1 leading-[18px] min-w-0">
+                  <div key={n.id} className="flex items-baseline gap-1 leading-[18px] min-w-0 rounded hover:bg-amber-50"
+                       onMouseEnter={() => setHot(n.code)} onMouseLeave={() => setHot(null)}>
                     <span className="text-gray-400 tabular-nums shrink-0">{ndt(n.dt)}</span>
                     <button onClick={() => openStockInfo(n.code, NAME.get(`${n.code}.KS`) ?? n.code)} className="font-bold text-gray-800 hover:underline shrink-0 max-w-[6rem] truncate">{NAME.get(`${n.code}.KS`) ?? n.code}</button>
                     <button onClick={() => openExternal(n.url)} title={`${n.title} — ${n.press}`} className="truncate text-gray-600 hover:underline text-left min-w-0">{n.title}</button>
