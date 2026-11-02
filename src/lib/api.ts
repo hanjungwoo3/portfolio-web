@@ -412,8 +412,9 @@ export function rollDay<T extends { closes: number[] } & RollIdx>(s: T, fr: numb
     rolling: true, markXs,
   };
 }
-export function buildTwoDaySeries(rows: TossBar[], isKr: boolean): DaySeries | null {
-  const [startMin, spanMin, openHHMM, closeHHMM] = isKr ? [8 * 60, 12 * 60, "09:00", "15:30"] : [0, 24 * 60, "09:30", "16:00"];
+export function buildTwoDaySeries(rows: TossBar[], isKr: boolean, axis?: [number, number]): DaySeries | null {
+  // axis = [시작 분, 폭 분] — 지수·ETF 처럼 정규장만 거래되는 것은 좁혀 준다(08:00~20:00 이면 가운데가 거의 비었다, 사용자 2026-11-02)
+  const [startMin, spanMin, openHHMM, closeHHMM] = isKr ? [axis?.[0] ?? 8 * 60, axis?.[1] ?? 12 * 60, "09:00", "15:30"] : [0, 24 * 60, "09:30", "16:00"];
   const frac = (dt: string) => Math.min(1, Math.max(0, (Number(dt.slice(11, 13)) * 60 + Number(dt.slice(14, 16)) - startMin) / spanMin));
   const days = [...new Set(rows.map(c => c.dt.slice(0, 10)))];         // 최신 날짜 먼저
   const barsOf = (d?: string) => d ? rows.filter(c => c.dt.slice(0, 10) === d && c.close > 0).reverse() : [];
@@ -4189,13 +4190,15 @@ export async function fetchCnbcDay(symbol: string): Promise<DaySeries | null> {
 
 // 코스피·코스닥 지수 24시간 — 토스 5분봉(kr-s/KGG01P·QGG01P, 종목과 같은 경로). 야후 ^KS11 은 장이 열려도 한동안 지난 거래일에
 //   머물러 오늘 시가선이 안 나왔다(사용자 2026-11-02 "종가만 있고 시가가 안 나와"). 종목 카드와 같은 어제+오늘 빌더.
+// 국내 정규장 축 08:30~16:00(09:00~15:30 앞뒤 30분) — 지수·ETF·NXT 미상장 종목
+const KR_REGULAR_AXIS: [number, number] = [8 * 60 + 30, 7.5 * 60];
 const KR_INDEX_TOSS: Record<string, string> = { "^KS11": "KGG01P", "^KQ11": "QGG01P" };
 export const KR_INDEX_DAY_SYMBOLS = Object.keys(KR_INDEX_TOSS);
 export async function fetchKrIndexDay(symbol: string): Promise<DaySeries | null> {
   const code = KR_INDEX_TOSS[symbol];
   if (!code) return null;
   const rows = await fetchTossMinuteBars(`kr-s/${code}`, 1);
-  return rows.length ? buildTwoDaySeries(rows, true) : null;
+  return rows.length ? buildTwoDaySeries(rows, true, KR_REGULAR_AXIS) : null;
 }
 
 // ─── 리튬·니켈 — 시나 금융 (가상 심볼 LITHIUM=F · NICKEL=F) ─────────────
@@ -4511,7 +4514,9 @@ export async function fetchKrDayCandles(code: string): Promise<KrDayCandles | nu
     const cs = await fetchTossMinuteBars(`kr-s/A${code}`, 1);
     // 이틀 내내 체결 0(거래정지 등) — 토스는 빈 봉을 채워 보낸다. 24시간 대신 3개월 그래프로(정지 책갈피는 시장경보 목록이 단다)
     if (cs.length && !cs.some(c => (c.volume ?? 1) > 0)) return { closes: [], halted: true };
-    return cs.length ? buildTwoDaySeries(cs, true) : null;
+    // NXT 거래가 없는 종목(ETF·NXT 미상장)은 정규장 축 — 체결 봉이 09:00~15:30 밖에 하나도 없으면
+    const ext = cs.some(c => (c.volume ?? 1) > 0 && (c.dt.slice(11, 16) < "09:00" || c.dt.slice(11, 16) > "15:35"));
+    return cs.length ? buildTwoDaySeries(cs, true, ext ? undefined : KR_REGULAR_AXIS) : null;
   } catch { return null; }
 }
 
