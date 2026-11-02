@@ -134,7 +134,7 @@ describe("지수 탭 페이지 구성", () => {
 
   it("카드 그룹에 넣은 심볼은 전부 등록돼 있다 (없으면 카드가 소리 없이 안 그려진다)", () => {
     const known = new Set(US_PAIRS.filter(p => p.tier === "T0").map(p => p.symbol));
-    const special = new Set(["KVALUE", "SKHY-PERP", "SMSN-PERP"]);   // 전용 카드로 그린다
+    const special = new Set(["KVALUE", "SKHY-PERP", "SMSN-PERP", "SKHY-KF", "SMSN-KF"]);   // 전용 카드로 그린다(KF = 한국투자 주식선물)
     const missing: string[] = [];
     for (const p of PAGES) {
       for (const s of buildDashboardPage(p)) {
@@ -224,5 +224,16 @@ describe("sortedRows — 흐린(장 안 열린) 카드는 줄 뒤로", () => {
     const dim = new Set(["A", "C"]);   // 프리장에 체결 없는 종목(대덕전자·원익IPS 같은)
     expect(sortedRows(s, "pct", x => pct[x], x => dim.has(x))[0]).toEqual(["LEAD", "B", "D", "A", "C"]);
     expect(sortedRows(s, "pct", x => pct[x])[0]).toEqual(["LEAD", "A", "C", "B", "D"]);   // dimOf 없으면 예전 그대로
+  });
+});
+
+// 국내 주식선물 근월물 코드 — 한투 종목마스터 실측(삼성전자 A11611, SK하이닉스 A50611), 만기 = 둘째 목요일
+import { frontMonthCode } from "../kisFutures";
+describe("주식선물 근월물 코드", () => {
+  it("만기(둘째 목요일) 전엔 이번 달, 지나면 다음 달", () => {
+    expect(frontMonthCode("11", "2026-11-02")).toBe("A11611");
+    expect(frontMonthCode("50", "2026-11-12")).toBe("A50611");   // 11/12 = 둘째 목요일(만기일 당일)
+    expect(frontMonthCode("50", "2026-11-13")).toBe("A50612");
+    expect(frontMonthCode("11", "2026-12-11")).toBe("A11701");   // 12/10 만기 뒤 → 2027년 1월물
   });
 });

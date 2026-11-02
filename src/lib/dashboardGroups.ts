@@ -144,7 +144,8 @@ function sectionMap(): Record<string, DashboardSection> {
       //   (0.23 vs 0.29, 2년 실측 2026-10-05).
       // 한 줄(PC 전체 폭 8칸) — 미국 지수 선물 셋 + 삼성·하이닉스 24h + 한국 주간선물 둘(맨 뒤 — 밤엔 빠지는 카드라 끝에 둬야 자리가 안 흔들린다)
       wide: true,
-      rows: [["NQ=F", "ES=F", "SKHY-PERP", "SMSN-PERP", "KORU", "^KS200N", "^KQ150N"]],
+      // SKHY-KF·SMSN-KF = 국내 주식선물(한국투자, 앱에서 연동 켰을 때만 보인다 — 2026-11-02)
+      rows: [["NQ=F", "ES=F", "SKHY-PERP", "SMSN-PERP", "SKHY-KF", "SMSN-KF", "KORU", "^KS200N", "^KQ150N"]],
     },
     {
       // ETF 등락 TOP10(상승·하락) — 지수(순환매) 탭, AI 순환매 바로 아래(오늘 실제로 돈이 간 테마). 레버리지·선물을 빼야 '오늘 실제로 오른 곳' 이 보인다.
