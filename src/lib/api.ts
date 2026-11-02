@@ -4369,14 +4369,17 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
   //   직전 세션(금요일)이 없어 왼쪽 칸 기준선이 오늘 기준선과 같은 높이로 그어졌다(사용자 2026-11-02 "여기도 가로 점선이 동일해").
   //   받은 뒤 아래에서 마지막 두 세션만 남긴다.
   const isFutLike = (sym: string) => /=F$/.test(sym) || sym === "DX-Y.NYB" || /=X$/.test(sym);
+  // 지수(^…)도 5일 — 야후 chartPreviousClose 가 지수에선 엉뚱한 날 값이다(^VIX 2d 범위 = 금·월인데 cpc 가 금요일 종가 19.42 →
+  //   왼쪽 기준선이 오늘 기준선과 같은 높이, 사용자 2026-11-02 "vix move 는 가로선이 일치해"). 5일로 받아 잘라낸 날의 마지막 값을 쓴다.
+  const wide = (sym: string) => isFutLike(sym) || sym.startsWith("^");
   const chunks: string[][] = [];
-  for (const grp of [symbols.filter(x => !isFutLike(x)), symbols.filter(isFutLike)])
+  for (const grp of [symbols.filter(x => !wide(x)), symbols.filter(wide)])
     for (let i = 0; i < grp.length; i += SPARK_CHUNK) chunks.push(grp.slice(i, i + SPARK_CHUNK));
   await Promise.all(chunks.map(async c => {
     try {
       // 묶음 하나가 가끔 실패한다(야후 429 등) — 그러면 그 묶음 종목만 세로선 없는 다른 그래프로 그려져
       //   줄마다 시작 점선이 있다 없다 했다(사용자 지적 2026-10-23). 한 번 더 묻고, 그래도 안 되면 지난번 성공분으로
-      const url = `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(c.join(","))}&range=${isFutLike(c[0]) ? "5d" : "2d"}&interval=5m&includePrePost=true`;   // 어제+오늘, 토스 카드와 같은 5분봉
+      const url = `https://query1.finance.yahoo.com/v7/finance/spark?symbols=${encodeURIComponent(c.join(","))}&range=${wide(c[0]) ? "5d" : "2d"}&interval=5m&includePrePost=true`;   // 어제+오늘, 토스 카드와 같은 5분봉
       let r = yahooCoolingDown() ? null : await fetchProxied(url).catch(() => null);
       if (r) noteYahooStatus(r.status);
       if (r && !r.ok && r.status !== 429) { await new Promise(res => setTimeout(res, 1500)); r = await fetchProxied(url).catch(() => null); }   // 429 면 다시 묻지 않는다
