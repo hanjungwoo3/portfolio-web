@@ -4399,6 +4399,11 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         {
           const off0 = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : isFutLike(x.symbol) ? 2 : -4;
           const dk = (t: number) => Math.floor((t + off0 * 3600) / 86400);
+          // 선물·환율 — 금요일 마감 봉(17:00 ET 정각)이 날짜 경계(UTC+2 자정)를 넘어 **토요일 봉 1개**로 떨어져, 월요일엔 그 1개가
+          //   '직전 세션'이 됐다(달러환율 실측 2026-11-02). 토요일 봉은 버린다.
+          if (isFutLike(x.symbol)) {
+            for (let i = times.length - 1; i >= 0; i--) if (new Date((times[i] + off0 * 3600) * 1000).getUTCDay() === 6) { times.splice(i, 1); closes.splice(i, 1); }
+          }
           const days = [...new Set(times.map(dk))];
           if (days.length > 2) {
             const keepFrom = times.findIndex(t => dk(t) === days[days.length - 2]);
