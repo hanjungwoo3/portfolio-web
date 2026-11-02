@@ -293,6 +293,7 @@ export const US_MARKET_TAB_KEY = "__us-market__";   // 지수(한국, 옛 주간
 // 지수(미국, 옛 야간) — 메뉴의 '📈 지수' 드롭다운에 주간과 같이 묶인다
 export const INDEX_NIGHT_TAB_KEY = "__idx-night__";
 export const INDEX_ROT_TAB_KEY = "__idx-rot__";   // 지수(순환매) — 반도체 지수·일본 반도체·AI 순환매 (2026-10-12)
+export const INDEX_SOBU_TAB_KEY = "__idx-sobu__";   // 지수(소부장) — 단계별 소부장(2026-11-02)
 export const INDEX_US_TAB_KEY = "__idx-us__";   // 폐지 — 지수(미국)에 합침(2026-10-12). 옛 저장값 이동용으로만 남긴다
 export const INDEX_SEMI_TAB_KEY = "__idx-semi__";   // 폐지 — 지금은 지수(순환매)로(2026-10-12). 옛 저장값 이동용으로만 남긴다
 export const INDEX_LEADERS_TAB_KEY = "__idx-leaders__";   // 폐지 — 주간에 합침(2026-10-08). 옛 저장값 이동용으로만 남긴다
@@ -336,7 +337,7 @@ export const ASSET_TREND_TAB_KEY = "__asset-trend__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
-  "관심ETF", MARKET_MONEY_TAB_KEY, SEMI_DASH_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY, SEMI_CHECK_TAB_KEY,
+  "관심ETF", MARKET_MONEY_TAB_KEY, SEMI_DASH_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_SOBU_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY, SEMI_CHECK_TAB_KEY,
   SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, DISCLOSURE_TAB_KEY,
   ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
   SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, VALUEUP_TAB_KEY,
@@ -375,7 +376,7 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   if (visibility?.stockMarket ?? true) tabs.push({ key: MARKET_MONEY_TAB_KEY, label: "증시", emoji: "💰", count: 0 });
   // 지수 — 한국·미국·순환매 세 탭(메뉴의 '📈 지수' 드롭다운). 라벨은 lib 한 벌(DASHBOARD_PAGES).
   if (showUs) {
-    const keyOf: Record<DashboardPage, string> = { day: US_MARKET_TAB_KEY, night: INDEX_NIGHT_TAB_KEY, rot: INDEX_ROT_TAB_KEY };
+    const keyOf: Record<DashboardPage, string> = { day: US_MARKET_TAB_KEY, night: INDEX_NIGHT_TAB_KEY, rot: INDEX_ROT_TAB_KEY, sobu: INDEX_SOBU_TAB_KEY };
     for (const p of DASHBOARD_PAGES) tabs.push({ key: keyOf[p.key], label: p.tab, emoji: p.emoji, count: 0 });
     tabs.push({ key: SEMI_DASH_TAB_KEY, label: "지수(반도체 수급)", emoji: "💾", count: 0 });   // 지수 묶음 끝 — UsMarketTab 페이지가 아니라 별도 화면
   }

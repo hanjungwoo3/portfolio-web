@@ -262,6 +262,10 @@ export const US_PAIRS: Pair[] = [
   { symbol: "371460.KS", name: "TIGER 차이나전기차", desc: "중국 전기차·배터리 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },
   // 지수(대장주) 페이지 — 섹터 ETF ➜ 대장주(최근 3개월 거래대금 순, 2026-10-06)
   { symbol: "011070.KS", name: "LG이노텍", desc: "카메라모듈·기판", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "356860.KS", name: "티엘비", desc: "메모리 모듈 기판(DDR5·SSD)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "058470.KS", name: "리노공업", desc: "테스트 소켓·핀(리노핀)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "102710.KS", name: "이엔에프테크놀로지", desc: "식각액·신너 등 공정 소재", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "074600.KS", name: "원익QnC", desc: "쿼츠 웨어 — 장비 소모 부품", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "222800.KS", name: "심텍", desc: "메모리 기판", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "403870.KS", name: "HPSP", desc: "고압 수소 어닐링", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "095610.KS", name: "테스", desc: "증착·식각 장비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },

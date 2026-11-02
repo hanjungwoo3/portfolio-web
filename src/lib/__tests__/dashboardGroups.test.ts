@@ -1,12 +1,12 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { buildDashboardPage, defaultDashboardPage, sortedRows, PAGE_IDS, DASHBOARD_PAGES, INDEX_GROUP_KEYS, indexPageOf, type DashboardPage } from "../dashboardGroups";
-import { US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY } from "../../components/Tabs";
+import { US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_SOBU_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY } from "../../components/Tabs";
 import { US_PAIRS } from "../usMarketData";
 import { STAGES } from "../rotation";
 
 // 지수 탭 — 나라가 아니라 **지금 움직이는 시장** 으로 나눈 세 페이지.
 //   ⚠️ 기대값을 코드에 맞춰 베끼지 말 것. 각 테스트 이름의 **의도**가 먼저다.
-const PAGES: DashboardPage[] = ["day", "night", "rot"];
+const PAGES: DashboardPage[] = ["day", "night", "rot", "sobu"];
 const ids = (p: DashboardPage) => buildDashboardPage(p).map(s => s.id);
 
 describe("지수 탭 페이지 구성", () => {
@@ -161,7 +161,7 @@ describe("대장주 줄 정렬", () => {
 
 describe("지수 탭 키 ↔ 페이지", () => {
   it("lib 의 키 문자열이 Tabs.tsx 상수와 같다 (어긋나면 탭을 눌러도 엉뚱한 페이지가 뜬다)", () => {
-    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY].sort());
+    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_SOBU_TAB_KEY].sort());
     expect(indexPageOf(INDEX_LEADERS_TAB_KEY)).toBe("day");   // 폐지된 대장주 탭 — 주간으로
     expect(indexPageOf(US_MARKET_TAB_KEY)).toBe("day");
     expect(indexPageOf(INDEX_NIGHT_TAB_KEY)).toBe("night");

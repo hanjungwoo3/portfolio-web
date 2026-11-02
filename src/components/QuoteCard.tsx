@@ -6,7 +6,7 @@
 //   3개월 = 종목 카드와 같은 야후 일봉, 종목정보 창엔 미국 자료가 없어 이름·버튼은 토스 페이지로.
 import { useQuery } from "@tanstack/react-query";
 import { fetchKrPriceHistory, fetchYahooPriceHistory, fetchTossIntraday } from "../lib/api";
-import { openTossStock } from "../lib/toss";
+import { openTossStock, openExternal } from "../lib/toss";
 import { useChartRange, historyRange } from "../lib/chartRange";
 import { openStockInfo } from "../lib/tickPopup";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
@@ -34,8 +34,10 @@ export function QuoteCard({ code, name, sub, px, dim, className = "w-[132px] sm:
     queryFn: () => fetchTossIntraday(code),
     enabled: isUs && range === "day", staleTime: 4 * 60_000, refetchInterval: 5 * 60_000, refetchOnWindowFocus: false, retry: 1,
   });
-  const open = () => isUs ? openTossStock(code) : openStockInfo(code, name);
-  const fmtPx = (v: number) => isUs ? `$${v.toFixed(2)}` : Math.round(v).toLocaleString();
+  // 일본(.T) — 엔화로, 누르면 야후(토스엔 일본 종목이 없다). 지수(소부장) 칸의 이비덴·도쿄일렉트론 등(2026-11-02)
+  const isJp = /\.T$/.test(code);
+  const open = () => isJp ? openExternal(`https://finance.yahoo.com/quote/${encodeURIComponent(code)}`) : isUs ? openTossStock(code) : openStockInfo(code, name);
+  const fmtPx = (v: number) => isJp ? `¥${Math.round(v).toLocaleString()}` : isUs ? `$${v.toFixed(2)}` : Math.round(v).toLocaleString();
   const closes = (hist.data ?? []).map(p => p.close);
   const pct = px?.pct;
   const tone = pct == null ? "bg-gray-50 border-gray-200" : pct > 0 ? "bg-rose-50 border-rose-200" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
@@ -54,7 +56,7 @@ export function QuoteCard({ code, name, sub, px, dim, className = "w-[132px] sm:
         : closes.length > 1 && <Sparkline data={closes} width={300} height={80}
                                           className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />}
       <div className="relative h-full flex flex-col px-2 py-1">
-        <button type="button" onClick={open} title={isUs ? "토스에서 보기" : "종목정보"}
+        <button type="button" onClick={open} title={isJp ? "야후 파이낸스에서 보기" : isUs ? "토스에서 보기" : "종목정보"}
                 className={`text-left truncate font-bold text-[13px] ${col} hover:underline`}>{name}</button>
         {sub && <div className="truncate text-[10.5px] text-gray-500 -mt-0.5">{sub}</div>}
         <div className="mt-auto flex items-baseline justify-between gap-1 tabular-nums">
@@ -64,8 +66,8 @@ export function QuoteCard({ code, name, sub, px, dim, className = "w-[132px] sm:
         <div className="flex justify-end items-center gap-0.5 -mb-0.5">
           {/* 밸류업 꼬리표(저PBR·고배당·밸류업★) — 지수 탭 카드와 같은 아래 줄 맨 앞(사용자 2026-11-02 "여기도") */}
           {!isUs && <span className="mr-auto flex gap-0.5 min-w-0 overflow-hidden"><ValueupTags code={code} flat /></span>}
-          <button type="button" onClick={open} title={isUs ? "토스에서 보기" : "종목정보 — 실시간 체결·호가·거래원 / 기업가치"}
-                  className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">{isUs ? "🔗" : "📊"}</button>
+          <button type="button" onClick={open} title={isJp ? "야후 파이낸스에서 보기" : isUs ? "토스에서 보기" : "종목정보 — 실시간 체결·호가·거래원 / 기업가치"}
+                  className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">{isJp ? "🔗" : isUs ? "🔗" : "📊"}</button>
           <button type="button" title="구글 AI에 현재상태 분석 요청"
                   onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${name}(${code})${px ? `, 현재가 ${isUs ? `$${px.price.toFixed(2)}` : `${Math.round(px.price).toLocaleString()}원`} (${pct! >= 0 ? "+" : ""}${pct!.toFixed(2)}%)` : ""}`)}
                   className="px-1 rounded border border-blue-300/70 bg-blue-50 text-blue-700 text-[9.5px] font-bold leading-[15px]">AI</button>

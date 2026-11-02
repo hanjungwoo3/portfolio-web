@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
+import { SobuGrid } from "./SobuGrid";
 import { KisExpRankBox } from "./KisExpRankBox";
 import { ValueupTags } from "./ValueupTags";
 import { tagsFor, useValueupFile } from "../lib/valueupTags";
@@ -357,6 +358,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 {section.render === "rotation" && (
               <RotationTab embedded extrasOnly onOpenValuation={(t, n) => onOpenValuation?.(t, n ?? "")} />
             )}
+                {section.render === "sobuGrid" && (
+                  <SobuGrid rows={section.rows} labels={section.rowLabels ?? []} leadByRow={section.leadByRow ?? []}
+                            quote={sym => { const q = usMap.get(sym); return q ? { price: q.price, pct: q.pct } : undefined; }} />
+                )}
                 {section.render === "sectorFlow" && (
               <TicsSectorBoard onOpenValuation={onOpenValuation}
                                 krClosed={page === "night" || page === "rot"} />

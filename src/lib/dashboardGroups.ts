@@ -36,7 +36,7 @@ export interface DashboardSection {
   note?: string;
   // 카드 대신 다른 블록으로 그리는 섹션. "sectorFlow" 면 ETF 랭킹의 '섹터별 흐름' 을 넣는다.
   //   랭킹 스냅샷이 없으면(캐시 없음·조회 실패) rows 의 고정 카드로 폴백한다.
-  render?: "sectorFlow" | "etfTop" | "rotation";
+  render?: "sectorFlow" | "etfTop" | "rotation" | "sobuGrid";
   // 카드 오른쪽 아래 책갈피 — "이 종목이 이 그룹에서 무슨 역할인지". 심볼 → 짧은 라벨.
   //   **그룹별**로 둔다: 마이크론은 반도체 그룹에선 태그가 없고 AI 단계 줄에서만 '반도체' 다.
   tags?: Record<string, string>;
@@ -484,16 +484,36 @@ function sectionMap(): Record<string, DashboardSection> {
       wide: true,
       rows: [["GC=F", "SI=F", "HG=F", "CL=F", "BZ=F", "NG=F"]],   // 리튬·니켈은 뺐다(사용자 2026-11-02)
     },
+    {
+      // 소부장 — 단계별(기판 → 전공정 → 후공정 → 소재 → 부품). 줄마다 해외 대장주(굵은 카드 ➜) 다음에 국내 종목(사용자 2026-11-02
+      //   "지수(반도체 수급)처럼 소부장도 페이지 하나", "기판·전공정·후공정 등으로"). 해외 대장주는 순환매 실측 그대로 —
+      //   국내 소부장은 미국 전공정 장비(램리서치·AMAT)에 가장 강하게 붙는다(+0.35~0.43), 일본은 같은 시간대 장중 비교용.
+      id: "sobuflow", short: "소부장",
+      label: "🛠 소부장 — 단계별 해외 대장주 ➜ 국내",
+      render: "sobuGrid",   // 한 줄씩이 아니라 4칸(기판·전공정·후공정·소재·부품) — components/SobuGrid
+      note: "칸마다 테두리 카드 = 해외 대장주(미국은 간밤, 일본은 지금 장중). 칸 제목 옆 = 국내 종목 평균 등락률.",
+      lead: 1,
+      leadByRow: [1, 3, 2, 2, 1],
+      rowLabels: ["기판", "전공정", "후공정", "소재", "부품"],
+      rows: [
+        ["4062.T", "009150.KS", "353200.KS", "222800.KS", "007660.KS", "011070.KS", "195870.KS", "356860.KS"],   // 이비덴 ➜ 삼성전기·대덕전자·심텍·이수페타시스·LG이노텍·해성디에스·티엘비
+        ["LRCX", "AMAT", "8035.T", "240810.KS", "036930.KS", "319660.KS", "084370.KS", "403870.KS"],           // 램리서치·AMAT·도쿄일렉트론 ➜ 원익IPS·주성·피에스케이·유진테크·HPSP
+        ["ONTO", "6857.T", "042700.KS", "095340.KS", "089030.KS", "067310.KS", "058470.KS"],                   // 온투·어드반테스트 ➜ 한미반도체·ISC·테크윙·하나마이크론·리노공업
+        ["ENTG", "4186.T", "357780.KS", "005290.KS", "102710.KS"],                                             // 엔테그리스·도쿄오카 ➜ 솔브레인·동진쎄미켐·이엔에프
+        ["UCTT", "064760.KS", "166090.KS", "074600.KS"],                                                       // 울트라클린 ➜ 티씨케이·하나머티리얼즈·원익QnC
+      ],
+    },
   ];
   return Object.fromEntries(sections.map(s => [s.id, s]));
 }
 
-export type DashboardPage = "day" | "night" | "rot";
+export type DashboardPage = "day" | "night" | "rot" | "sobu";
 // 지수 탭 셋 — 메뉴의 '📈 지수' 드롭다운에 들어간다. PC·모바일이 이 라벨 한 벌을 쓴다.
 export const DASHBOARD_PAGES: { key: DashboardPage; emoji: string; tab: string; hint: string }[] = [
   { key: "day",   emoji: "🇰🇷", tab: "지수(한국/주간)", hint: "한국장 · 섹터 대장주 + 미국 지수선물" },
   { key: "night", emoji: "🇺🇸", tab: "지수(미국/야간)", hint: "미국장 · AI 하드/소프트 · 빅테크·방어 + 한국 야간선물" },
   { key: "rot",   emoji: "🔄", tab: "지수(순환매)", hint: "간밤 미국 ➜ 오늘 한국 — 반도체 지수·일본 반도체·AI 순환매(반도체·전력·원자력·2차전지·방산·로봇)" },
+  { key: "sobu",  emoji: "🛠", tab: "지수(소부장)", hint: "반도체 소부장 — 기판·전공정·후공정·소재·부품 단계별 해외 대장주 ➜ 국내 종목" },
 ];
 
 // 페이지별 구성 — **그 시간에 필요한 걸 다**. 중복 허용(한 페이지만 봐도 되게).
@@ -514,6 +534,8 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   //   한·미 섹터도 한국·미국 탭에서 옮겨 와 ETF TOP 아래에 — 둘 다 '어느 분야로 돈이 가나'(2026-10-12).
   //   환율·금리·투심과 선물은 뺐다 — 한국·미국 탭 위쪽에 있다(사용자 결정 2026-10-12).
   rot:   ["semi", "jpsemi", "rotflow", "etftop", "sector"],
+  // 소부장 — 단계별 한 블록(사용자 2026-11-02). 주간 시장 줄을 위에 둬 오늘 시장과 같이 본다.
+  sobu:  ["kr", "sobuflow"],
   // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
   //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)
@@ -545,9 +567,9 @@ function isKrNightNow(): boolean {
 // PC 지수 탭 키 — Tabs.tsx 의 US_MARKET_TAB_KEY · INDEX_NIGHT_TAB_KEY · INDEX_ROT_TAB_KEY 와 **같은 문자열**.
 //   (lib 이 컴포넌트를 import 하지 않게 문자열로 둔다 — 어긋나지 않게 테스트가 대조한다)
 //   폐지된 탭(미국순환 → 미국, 반도체 → 순환매, 대장주 → 한국)은 합쳐진 페이지로 보낸다.
-export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-rot__"]);
+export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-rot__", "__idx-sobu__"]);
 export function indexPageOf(key: string): DashboardPage {
-  return key === "__idx-night__" || key === "__idx-us__" ? "night" : key === "__idx-rot__" || key === "__idx-semi__" ? "rot" : "day";
+  return key === "__idx-night__" || key === "__idx-us__" ? "night" : key === "__idx-rot__" || key === "__idx-semi__" ? "rot" : key === "__idx-sobu__" ? "sobu" : "day";
 }
 
 // 처음 열 때·탭 클릭 시 페이지 — 시간으로. 한국 07~20시(NXT 애프터 끝까지)는 주간, 그 외는 야간(사용자 요청 2026-10-22, 옛 18시).
