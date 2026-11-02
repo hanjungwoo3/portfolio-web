@@ -4175,14 +4175,16 @@ export async function fetchCnbcDay(symbol: string): Promise<DaySeries | null> {
   const cur = tagged.filter(x => x.key === curKey), prev = prevKey ? tagged.filter(x => x.key === prevKey) : [];
   if (cur.length + prev.length < 2) return null;
   const prev2Last = prev2Key ? tagged.filter(x => x.key === prev2Key).pop()?.c : undefined;
-  const markXs: MarkX[] = prev.length ? [{ x: TWO_DAY_HALF, close: true }, { x: twoDayTodayX(0) }] : [];
-  return {
+  // 환율·달러 인덱스 카드와 같은 '밀어 보기'(rollDay) — 오른쪽 끝 = 지금, 직전 세션 마감선·지금 세션 시작선(사용자 2026-11-02
+  //   "달러 환율이나 인덱스처럼"). 고정 반반이면 월요일 아침 오른쪽 칸이 거의 비었다.
+  const nowSess = sessOf(Date.now());
+  const fNow = nowSess.key === curKey ? nowSess.f : 1;
+  const sess: SessionMarks = { open: 0, close: 1, todayOpen: true, todayClose: fNow >= 1, prevOpen: false, prevClose: prev.length > 0 };
+  return rollDay({
     closes: [...prev.map(x => x.c), ...cur.map(x => x.c)],
-    xs: [...prev.map(x => x.f * TWO_DAY_HALF), ...cur.map(x => twoDayTodayX(x.f))],
     ...(prev.length ? { breakIdx: prev.length, prevBase: prev2Last ?? prev[0].c } : {}),
     ...(quote?.prevClose && quote.prevClose > 0 ? { base: quote.prevClose } : {}),
-    markXs, twoDay: true,
-  };
+  }, [...prev.map(x => x.f), ...cur.map(x => x.f)], prev.length, fNow, sess);
 }
 
 // ─── 리튬·니켈 — 시나 금융 (가상 심볼 LITHIUM=F · NICKEL=F) ─────────────
