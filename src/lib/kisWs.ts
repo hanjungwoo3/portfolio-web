@@ -59,7 +59,9 @@ async function poll() {
     }
     for (const [c, ts] of by) subs.get(c)?.forEach(cb => cb(ts));
   } catch (e) {
-    status = `error: ${(e as Error).message ?? e}`;
+    const m = String((e as Error)?.message ?? e);
+    // 웹소켓이 없는 옛 앱(0.1.10 이하) — 명령이 없다고 나온다
+    status = `error: ${/not allowed|not found|unknown command/i.test(m) ? "앱을 새 버전으로 업데이트해 주세요" : m}`;
   }
 }
 
