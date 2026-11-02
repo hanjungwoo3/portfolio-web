@@ -83,3 +83,27 @@ export async function fetchKisInvestorEstimate(stockCode: string): Promise<KisIn
     return { seq, ...(Number.isFinite(frgn) ? { frgn } : {}), ...(Number.isFinite(orgn) ? { orgn } : {}) };
   }).filter(x => x.frgn != null || x.orgn != null);
 }
+
+// ─── VI(변동성 완화장치) 발동 현황 — 오늘 이 종목(사용자 2026-11-02 순서 2번). 급등·급락 시 2분 단일가로 넘어간 시각·종류.
+//   FHPST01390000 inquire-vi-status. 응답 필드 이름이 문서에 없어 시각·종류·가격을 키 꼴로 찾는다.
+export interface KisViEvent { time: string; kind: string; dir: string; price?: number }
+export async function fetchKisViToday(stockCode: string): Promise<KisViEvent[]> {
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
+  const { body } = await kisGet<{ rt_cd?: string; output?: Record<string, string>[] }>(
+    "/uapi/domestic-stock/v1/quotations/inquire-vi-status", "FHPST01390000",
+    { FID_DIV_CLS_CODE: "0", FID_COND_SCR_DIV_CODE: "20139", FID_MRKT_CLS_CODE: "0", FID_INPUT_ISCD: stockCode,
+      FID_RANK_SORT_CLS_CODE: "0", FID_INPUT_DATE_1: today, FID_TRGT_CLS_CODE: "", FID_TRGT_EXLS_CLS_CODE: "" });
+  const val = (r: Record<string, string>, re: RegExp) => { const k = Object.keys(r).find(x => re.test(x)); return k ? String(r[k] ?? "") : ""; };
+  return (body.output ?? [])
+    .filter(r => !r.mksc_shrn_iscd || r.mksc_shrn_iscd === stockCode)
+    .map(r => {
+      const t = val(r, /cntg_vi_hour|vi_hour|hour/i).replace(/\D/g, "");
+      const kindRaw = val(r, /vi_kind|vi_cls/i);
+      const kind = /1|정적/.test(kindRaw) ? "정적" : /2|동적/.test(kindRaw) ? "동적" : kindRaw;
+      const dirRaw = val(r, /prdy_vrss_sign|vi_dir|div_cls/i);
+      const dir = /[12]|상승/.test(dirRaw) ? "상승" : /[45]|하락/.test(dirRaw) ? "하락" : "";
+      const price = num(val(r, /vi_prc|vi_stnd_prc|stck_prpr/i));
+      return { time: t.length >= 4 ? `${t.slice(0, 2)}:${t.slice(2, 4)}` : "", kind, dir, ...(price > 0 ? { price } : {}) };
+    })
+    .filter(e => e.time);
+}

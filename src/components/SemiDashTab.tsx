@@ -5,7 +5,7 @@
 //     · 코스피 투자자(네이버) 1분 / 선물 투자자(네이버) **20분 지연** / 선물 시세·옵션(한경) 실시간
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
-import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable } from "../lib/kisFutures";
+import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday } from "../lib/kisFutures";
 import { useId, useState } from "react";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
@@ -361,6 +361,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
                   chart={spark?.get(sym) && <SparkBg sp={spark.get(sym)!} base={q(sym)?.prevClose} />} />
           ))}
         </div>
+        {kisFutAvailable() && <KisViStrip code={s0.code} />}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[360px]">   {/* 체결 · 신호 반반(사용자 요청) */}
           <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} />
           {signalBox}
@@ -439,6 +440,24 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         <ChipBox title="메모리 현물" items={MEM_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.pct }))} />
         <ChipBox title="미국 반도체 (간밤)" items={US_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.regularPct ?? x.pct }))} />
       </div>
+    </div>
+  );
+}
+
+// VI 발동(오늘, 한국투자) — 있을 때만 한 줄(사용자 2026-11-02). 1분마다
+function KisViStrip({ code }: { code: string }) {
+  const q = useQuery({ queryKey: ["kis-vi", code], queryFn: () => fetchKisViToday(code), refetchInterval: 60_000, staleTime: 30_000, retry: 1 });
+  const ev = q.data ?? [];
+  if (!ev.length) return null;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-2 py-1 text-[11.5px]">
+      <b className="text-amber-800">⚡ VI 발동 {ev.length}회</b>
+      {ev.map((e, i) => (
+        <span key={i} className={`px-1.5 rounded tabular-nums ${e.dir === "상승" ? "bg-rose-100 text-rose-700" : e.dir === "하락" ? "bg-blue-100 text-blue-700" : "bg-white text-gray-700"}`}>
+          {e.time} {e.kind}{e.dir ? `·${e.dir}` : ""}{e.price ? ` ${e.price.toLocaleString()}` : ""}
+        </span>
+      ))}
+      <span className="text-[10px] text-gray-400 ml-auto">변동성 완화장치 — 2분간 단일가 · 한투</span>
     </div>
   );
 }
