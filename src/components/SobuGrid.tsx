@@ -145,7 +145,8 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
             )}
             <div className="grid grid-cols-2 gap-1.5">
               {b.lead.map(s => card(s, true))}
-              {b.kr.map(s => card(s, false))}
+              {/* 국내 종목은 오늘 등락률 높은 순(사용자 2026-11-02) — 값 없는 종목은 뒤로. 해외 대장주는 앞에 고정 */}
+              {[...b.kr].sort((x, y) => (quote(y)?.pct ?? -Infinity) - (quote(x)?.pct ?? -Infinity)).map(s => card(s, false))}
             </div>
             {/* 이 단계 종목의 공시(5거래일)·뉴스 — 계약은 금액·매출 대비 */}
             <div className="mt-2 pt-1.5 border-t border-gray-200 space-y-0.5 text-[11px]">
