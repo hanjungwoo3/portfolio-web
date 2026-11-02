@@ -503,17 +503,36 @@ function sectionMap(): Record<string, DashboardSection> {
         ["UCTT", "064760.KS", "166090.KS", "074600.KS", "059090.KS", "183300.KS", "101160.KS", "146320.KS"],                                                       // 울트라클린 ➜ 티씨케이·하나머티리얼즈·원익QnC
       ],
     },
+    {
+      // 2차전지·ESS — 소부장 페이지와 같은 4칸(사용자 2026-11-03 "소부장처럼 이차전지 ESS 도"). 줄마다 해외 대장주 ➜ 국내.
+      //   셀·ESS = 테슬라(ESS 메가팩)·플루언스(ESS 1위) ➜ 셀 3사 + ESS 함체·냉각 / 양극재 = 앨버말(리튬) ➜ 양극재·전구체
+      //   소재 = SQM·LIT(리튬 ETF) ➜ 분리막·동박·전해액·음극 / 장비·부품 = 국내만(해외 대장 없음)
+      id: "battflow", short: "2차전지",
+      label: "🔋 2차전지·ESS — 단계별 해외 대장주 ➜ 국내",
+      render: "sobuGrid",
+      note: "칸마다 테두리 카드 = 해외 대장주(미국은 간밤). 칸 제목 옆 = 국내 종목 평균 등락률(흐린 종목 제외).",
+      lead: 1,
+      leadByRow: [2, 1, 2, 0],
+      rowLabels: ["셀·ESS", "양극재", "소재", "장비·부품"],
+      rows: [
+        ["TSLA", "FLNC", "373220.KS", "006400.KS", "096770.KS", "178320.KS", "416180.KS", "107640.KS"],                 // 테슬라·플루언스 ➜ LG엔솔·삼성SDI·SK이노·서진시스템·신성에스티·한중엔시에스
+        ["ALB", "247540.KS", "086520.KS", "003670.KS", "066970.KS", "051910.KS", "005070.KS", "450080.KS"],              // 앨버말 ➜ 에코프로비엠·에코프로·포스코퓨처엠·엘앤에프·LG화학·코스모신소재·에코프로머티
+        ["SQM", "LIT", "361610.KS", "336370.KS", "020150.KS", "348370.KS", "278280.KS", "078600.KS", "393890.KS", "006110.KS"],   // SQM·LIT ➜ SKIET·솔루스·롯데에너지머티·엔켐·천보·대주전자재료·더블유씨피·삼아알미늄
+        ["137400.KS", "299030.KS", "222080.KS", "259630.KS", "217820.KS", "091580.KS", "243840.KS"],                      // 피엔티·하나기술·SFA넥셀·엠플러스·원익피앤이·상신이디피·신흥에스이씨
+      ],
+    },
   ];
   return Object.fromEntries(sections.map(s => [s.id, s]));
 }
 
-export type DashboardPage = "day" | "night" | "rot" | "sobu";
+export type DashboardPage = "day" | "night" | "rot" | "sobu" | "batt";
 // 지수 탭 셋 — 메뉴의 '📈 지수' 드롭다운에 들어간다. PC·모바일이 이 라벨 한 벌을 쓴다.
 export const DASHBOARD_PAGES: { key: DashboardPage; emoji: string; tab: string; hint: string }[] = [
   { key: "day",   emoji: "🇰🇷", tab: "지수(한국/주간)", hint: "한국장 · 섹터 대장주 + 미국 지수선물" },
   { key: "night", emoji: "🇺🇸", tab: "지수(미국/야간)", hint: "미국장 · AI 하드/소프트 · 빅테크·방어 + 한국 야간선물" },
   { key: "rot",   emoji: "🔄", tab: "지수(순환매)", hint: "간밤 미국 ➜ 오늘 한국 — 반도체 지수·일본 반도체·AI 순환매(반도체·전력·원자력·2차전지·방산·로봇)" },
   { key: "sobu",  emoji: "🛠", tab: "지수(소부장)", hint: "반도체 소부장 — 기판·전공정·후공정·소재·부품 단계별 해외 대장주 ➜ 국내 종목" },
+  { key: "batt",  emoji: "🔋", tab: "지수(2차전지·ESS)", hint: "2차전지·ESS — 셀·ESS·양극재·소재·장비 단계별 해외 대장주 ➜ 국내 종목" },
 ];
 
 // 페이지별 구성 — **그 시간에 필요한 걸 다**. 중복 허용(한 페이지만 봐도 되게).
@@ -536,6 +555,8 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   rot:   ["semi", "jpsemi", "rotflow", "etftop", "sector"],
   // 소부장 — 단계별 한 블록만(사용자 2026-11-02, 주간 시장 줄은 뺐다 "빼도 될 거 같아")
   sobu:  ["sobuflow"],
+  // 2차전지·ESS — 소부장과 같은 4칸(2026-11-03)
+  batt:  ["battflow"],
   // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
   //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)
@@ -567,9 +588,9 @@ function isKrNightNow(): boolean {
 // PC 지수 탭 키 — Tabs.tsx 의 US_MARKET_TAB_KEY · INDEX_NIGHT_TAB_KEY · INDEX_ROT_TAB_KEY 와 **같은 문자열**.
 //   (lib 이 컴포넌트를 import 하지 않게 문자열로 둔다 — 어긋나지 않게 테스트가 대조한다)
 //   폐지된 탭(미국순환 → 미국, 반도체 → 순환매, 대장주 → 한국)은 합쳐진 페이지로 보낸다.
-export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-rot__", "__idx-sobu__"]);
+export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-rot__", "__idx-sobu__", "__idx-batt__"]);
 export function indexPageOf(key: string): DashboardPage {
-  return key === "__idx-night__" || key === "__idx-us__" ? "night" : key === "__idx-rot__" || key === "__idx-semi__" ? "rot" : key === "__idx-sobu__" ? "sobu" : "day";
+  return key === "__idx-night__" || key === "__idx-us__" ? "night" : key === "__idx-rot__" || key === "__idx-semi__" ? "rot" : key === "__idx-sobu__" ? "sobu" : key === "__idx-batt__" ? "batt" : "day";
 }
 
 // 처음 열 때·탭 클릭 시 페이지 — 시간으로. 한국 07~20시(NXT 애프터 끝까지)는 주간, 그 외는 야간(사용자 요청 2026-10-22, 옛 18시).
