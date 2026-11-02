@@ -281,7 +281,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   });
   const sinaSpark = (sym: string): DaySpark | undefined => {
     const d = sinaDayQs[EXTRA_DAY_SYMBOLS.indexOf(sym)]?.data;
-    return d && d.closes.length > 1 ? { rolling: d.rolling, closes: d.closes, xs: d.xs, prevClose: d.base } : undefined;
+    return d && d.closes.length > 1 ? { rolling: d.rolling, closes: d.closes, xs: d.xs, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase, markXs: d.markXs } : undefined;
   };
   const krFutSpark = (sym: string) => {
     if (!krFutDayOn) return undefined;

@@ -3778,7 +3778,11 @@ function mapTossOverview(data: TossOverviewResp | null): Map<string, UsIndex> {
         const sparkline = Array.isArray(candles)
           ? candles.map(c => c.price).filter((v): v is number => typeof v === "number" && Number.isFinite(v))
           : [];
+        // 마지막 캔들 끝 시각 = 토스 실측 갱신 시각 — 카드 흐림(90분 정체) 판정용. 없으면 야후 시각이 남아, 장이 막 열린 월요일 아침
+        //   야후가 아직 금요일 시각이라 코스피·코스닥이 흐렸다(사용자 2026-11-02 "장 열렸는데 흐림?")
+        const lastEnd = Array.isArray(candles) && candles.length ? Date.parse((candles[candles.length - 1] as { endDate?: string }).endDate ?? "") : NaN;
         out.set(sym, {
+          ...(Number.isFinite(lastEnd) ? { freshTime: Math.floor(lastEnd / 1000) } : {}),
           symbol: sym, name: sym === "KRW=X" ? "USD/KRW" : sym,  // name 은 merge 시 pairs(야후) 쪽 우선
           price: close, prev: base, prevClose: base,
           diff, pct, currency: "KRW",
@@ -4155,18 +4159,29 @@ export async function fetchCnbcDay(symbol: string): Promise<DaySeries | null> {
   }
   pts.sort((a, b) => a[0] - b[0]);
   if (pts.length < 2) return null;
-  const last = pts[pts.length - 1][0];
-  const end = Date.now() - last > 24 * 3600_000 ? last : Date.now(), start = end - 24 * 3600_000;
-  const win = pts.filter(([t]) => t >= start);
-  const base = quote?.prevClose && quote.prevClose > 0 ? { base: quote.prevClose } : {};
-  // 새 세션이 막 열린 직후(월요일 아침 — 일요일 18:00 뒤 몇 분)는 24시간 창에 점이 몇 개뿐이라 그래프가 비었다(사용자 2026-11-02).
-  //   그땐 최근 봉 300개(약 하루치)를 시각 대신 차례대로 펼쳐 주말 공백 없이 보인다.
-  if (win.length < 50) {
-    const tail = pts.slice(-300);
-    if (tail.length < 2) return null;
-    return { closes: tail.map(p => p[1]), xs: tail.map((_, i) => i / (tail.length - 1)), ...base };
-  }
-  return { closes: win.map(p => p[1]), xs: win.map(([t]) => (t - start) / (24 * 3600_000)), rolling: true, ...base };
+  // 세션 반반(사용자 2026-11-02 "세션이나 48시간 적용") — 미국 국채는 선물처럼 뉴욕 18:00 개장 ~ 다음 날 17:00 마감.
+  //   왼쪽 = 직전 세션, 오른쪽 = 지금(최근) 세션. 각 칸 안 = 세션 시작(18:00)부터의 시각(23시간 폭).
+  //   세로선: 직전 세션 마감(실선)·지금 세션 시작(점선). 기준선: 오른쪽 = 전일 종가(카드 % 기준), 왼쪽 = 그 전 세션 마감가.
+  const nyFmt = new Intl.DateTimeFormat("en-CA", { timeZone: "America/New_York", hour12: false, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit" });
+  const sessOf = (t: number) => {   // 세션 날짜(18:00 뒤는 다음 날) + 세션 안 위치(0~1)
+    const p = Object.fromEntries(nyFmt.formatToParts(new Date(t + 6 * 3600_000)).map(x => [x.type, x.value]));
+    const min = (Number(p.hour) % 24) * 60 + Number(p.minute);   // 18:00 → 0
+    return { key: `${p.year}-${p.month}-${p.day}`, f: Math.min(1, min / (23 * 60)) };
+  };
+  const tagged = pts.map(([t, c]) => ({ c, ...sessOf(t) }));
+  const keys = [...new Set(tagged.map(x => x.key))];
+  const curKey = keys[keys.length - 1], prevKey = keys[keys.length - 2], prev2Key = keys[keys.length - 3];
+  const cur = tagged.filter(x => x.key === curKey), prev = prevKey ? tagged.filter(x => x.key === prevKey) : [];
+  if (cur.length + prev.length < 2) return null;
+  const prev2Last = prev2Key ? tagged.filter(x => x.key === prev2Key).pop()?.c : undefined;
+  const markXs: MarkX[] = prev.length ? [{ x: TWO_DAY_HALF, close: true }, { x: twoDayTodayX(0) }] : [];
+  return {
+    closes: [...prev.map(x => x.c), ...cur.map(x => x.c)],
+    xs: [...prev.map(x => x.f * TWO_DAY_HALF), ...cur.map(x => twoDayTodayX(x.f))],
+    ...(prev.length ? { breakIdx: prev.length, prevBase: prev2Last ?? prev[0].c } : {}),
+    ...(quote?.prevClose && quote.prevClose > 0 ? { base: quote.prevClose } : {}),
+    markXs, twoDay: true,
+  };
 }
 
 // ─── 리튬·니켈 — 시나 금융 (가상 심볼 LITHIUM=F · NICKEL=F) ─────────────
@@ -4401,7 +4416,8 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         //   선물(=F)은 거래일이 뉴욕 18:00 에 시작 — 그 시각을 날짜 경계로(UTC+2 로 보면 18:00 ET 가 자정)
         //   달러 인덱스(DX-Y.NYB)도 ICE 선물식 세션(뉴욕 18:00~17:00)이라 선물과 같이 — 자정으로 자르면 월요일 아침엔 일요일 밤
         //   몇 분짜리 칸만 남아 그래프가 비었다(사용자 2026-11-02)
-        const futLike = /=F$/.test(x.symbol) || x.symbol === "DX-Y.NYB";
+        //   환율(=X)도 — 외환은 뉴욕 일 17:00 개장 ~ 금 17:00, 하루 경계 17:00(서머타임 끝난 지금 UTC+2 자정과 같다). 월요일 아침 달러환율·엔화 그래프가 비었다
+        const futLike = /=F$/.test(x.symbol) || x.symbol === "DX-Y.NYB" || /=X$/.test(x.symbol);
         const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : futLike ? 2 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
         const etDay = (t: number) => new Date((t + off * 3600) * 1000).toISOString().slice(0, 10);   // 대략 EDT/KST(일자 경계만 필요)
         let bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
