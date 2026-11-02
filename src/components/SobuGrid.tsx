@@ -132,10 +132,10 @@ export function SobuGrid({ rows, labels, leadByRow, quote }: {
               <span className="ml-auto text-[10px] text-gray-400" title="테두리 카드 = 해외 대장주(미국은 간밤, 일본은 지금 장중)">테두리 = 해외</span>
             </div>
             {hasFlow && (
-              <div className="flex flex-wrap gap-x-3 text-[11px] tabular-nums -mt-1 mb-1.5"
+              <div className="flex flex-col text-[11px] tabular-nums leading-4 -mt-1 mb-1.5"   /* 5일·20일 늘 두 줄 — 숫자 길이에 따라 칸마다 줄 수가 달라 높이가 어긋났다(사용자 2026-11-02) */
                    title={`국내 종목 누적 순매수 합 — 기관은 금융투자 제외(ETF·차익거래가 섞여 방향이 흐려진다). ${flows.data?.meta.asOf ?? ""} 기준`}>
                 {(["5", "20"] as const).map(w => (
-                  <span key={w}><span className="text-gray-400">{w}일</span>{" "}
+                  <span key={w} className="whitespace-nowrap truncate"><span className="text-gray-400 inline-block w-7">{w}일</span>
                     외국인 <b className={tone(fsum(w, "fo"))}>{eok(fsum(w, "fo"))}</b>{" · "}
                     기관 <b className={tone(fsum(w, "in"))}>{eok(fsum(w, "in"))}</b>
                   </span>
