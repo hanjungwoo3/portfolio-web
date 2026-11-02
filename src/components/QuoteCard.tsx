@@ -12,6 +12,7 @@ import { openStockInfo } from "../lib/tickPopup";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { KrDaySparkline } from "./KrDaySparkline";
 import { Sparkline } from "./Sparkline";
+import { ValueupTags } from "./ValueupTags";
 
 export function QuoteCard({ code, name, sub, px, dim, className = "w-[132px] sm:w-[176px] h-[88px] shrink-0" }: {
   code: string; name: string;
@@ -60,7 +61,9 @@ export function QuoteCard({ code, name, sub, px, dim, className = "w-[132px] sm:
           <span className={`text-[12px] ${col}`}>{px ? fmtPx(px.price) : "—"}</span>
           <span className={`font-bold text-[16px] sm:text-[18px] ${col}`}>{pct == null ? "" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
         </div>
-        <div className="flex justify-end gap-0.5 -mb-0.5">
+        <div className="flex justify-end items-center gap-0.5 -mb-0.5">
+          {/* 밸류업 꼬리표(저PBR·고배당·밸류업★) — 지수 탭 카드와 같은 아래 줄 맨 앞(사용자 2026-11-02 "여기도") */}
+          {!isUs && <span className="mr-auto flex gap-0.5 min-w-0 overflow-hidden"><ValueupTags code={code} flat /></span>}
           <button type="button" onClick={open} title={isUs ? "토스에서 보기" : "종목정보 — 실시간 체결·호가·거래원 / 기업가치"}
                   className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">{isUs ? "🔗" : "📊"}</button>
           <button type="button" title="구글 AI에 현재상태 분석 요청"
