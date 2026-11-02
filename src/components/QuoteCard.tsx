@@ -14,12 +14,13 @@ import { KrDaySparkline } from "./KrDaySparkline";
 import { Sparkline } from "./Sparkline";
 import { ValueupTags } from "./ValueupTags";
 
-export function QuoteCard({ code, name, sub, px, dim, className = "w-[132px] sm:w-[176px] h-[88px] shrink-0" }: {
+export function QuoteCard({ code, name, sub, px, dim, badge, className = "w-[132px] sm:w-[176px] h-[88px] shrink-0" }: {
   code: string; name: string;
   sub?: string;                                 // 이름 아래 한 줄(섹터 등)
   px?: { price: number; pct: number };
   dim?: boolean;                                // 오늘 체결 없음(지난 거래일 값) — 흐리게
   className?: string;                           // 크기(공시 줄 = 고정 폭, 히트맵 격자 = 칸에 맞춤)
+  badge?: import("react").ReactNode;            // 아래 줄 맨 왼쪽(지수 소부장 — 공시·뉴스 개수)
 }) {
   const range = useChartRange();
   const isUs = !(/^[\dA-Za-z]{6}$/.test(code) && /\d/.test(code));
@@ -65,7 +66,7 @@ export function QuoteCard({ code, name, sub, px, dim, className = "w-[132px] sm:
         </div>
         <div className="flex justify-end items-center gap-0.5 -mb-0.5">
           {/* 밸류업 꼬리표(저PBR·고배당·밸류업★) — 지수 탭 카드와 같은 아래 줄 맨 앞(사용자 2026-11-02 "여기도") */}
-          {!isUs && <span className="mr-auto flex gap-0.5 min-w-0 overflow-hidden"><ValueupTags code={code} flat /></span>}
+          {(badge || !isUs) && <span className="mr-auto flex gap-0.5 min-w-0 overflow-hidden">{badge}{!isUs && <ValueupTags code={code} flat />}</span>}
           <button type="button" onClick={open} title={isJp ? "야후 파이낸스에서 보기" : isUs ? "토스에서 보기" : "종목정보 — 실시간 체결·호가·거래원 / 기업가치"}
                   className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">{isJp ? "🔗" : isUs ? "🔗" : "📊"}</button>
           <button type="button" title="구글 AI에 현재상태 분석 요청"
