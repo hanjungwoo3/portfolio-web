@@ -2,6 +2,7 @@
 //   호가 / 거래원(증권사·외국계) / 프로그램+투자자 오늘·5일 / 새 소식(뉴스+공시) / 토스·네이버 커뮤니티
 //   + useStockLiveSignals: 위 칸들의 숫자로 '지금 신호' 줄을 만든다(쿼리키가 같아 추가 호출 없음).
 //   팝업이 열려 있을 때만 받는다(= 이 칸들이 마운트된 동안). 호가 3초 · 거래원·프로그램 30초 · 뉴스·공시 1분.
+import { fetchKisInvestorEstimate, kisFutAvailable } from "../lib/kisFutures";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchNaverNews, fetchNaverRecentDisclosures, fetchTossOrderBook, fetchInvestorHistory, fetchTossBrokerRanking, fetchTossProgramRecent,
@@ -193,6 +194,28 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
 }
 
 // ── 프로그램 + 투자자 — 오늘·5일·20일 한 표(억원). 프로그램은 주 → 현재가로 환산
+// 장중 추정(한국투자) — 외국인·기관 가집계 누계(주 × 현재가 = 억원). 입력 차수(1~4차)별 마지막 값을 '오늘 장중' 으로
+function KisEstimateRows({ code, price }: { code: string; price?: number }) {
+  const q = useQuery({ queryKey: ["kis-inv-est", code], queryFn: () => fetchKisInvestorEstimate(code), refetchInterval: 5 * 60_000, staleTime: 2 * 60_000, retry: 1 });
+  if (q.error) return <div className="text-[10.5px] text-amber-700 mt-1">⚠️ 장중 추정: {(q.error as Error).message}</div>;
+  const rows = q.data ?? [];
+  if (!rows.length) return null;
+  const last = rows[rows.length - 1];
+  const eok = (qty?: number) => qty == null || !price ? null : (qty * price) / 1e8;
+  const f = (v: number | null) => v == null ? "—" : `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v)).toLocaleString()}억`;
+  const fe = eok(last.frgn), oe = eok(last.orgn);
+  return (
+    <div className="mt-1 rounded border border-emerald-200 bg-emerald-50/50 px-1.5 py-1 text-[11px] tabular-nums"
+         title={"한국투자 장중 추정(증권사 집계 누계) — 외국인 09:30·11:20·13:20·14:30 / 기관 10:00·11:20·13:20·14:30 입력. 확정치와 다를 수 있다\n" +
+           rows.map(r => `${r.seq}차 외국인 ${r.frgn?.toLocaleString() ?? "-"}주 · 기관 ${r.orgn?.toLocaleString() ?? "-"}주`).join("\n")}>
+      <span className="font-bold text-emerald-800">장중 추정</span>
+      <span className="text-[10px] text-gray-400 ml-1">{rows.length}차 · 한투</span>
+      <span className="ml-2">외국인 <b className={up(fe ?? 0)}>{f(fe)}</b></span>
+      <span className="ml-2">기관 <b className={up(oe ?? 0)}>{f(oe)}</b></span>
+    </div>
+  );
+}
+
 export function ProgramInvestorBox({ code, price }: { code: string; price?: number }) {
   const { data: hist = [] } = useInvestors(code);
   const { data: prog = [] } = useProgram(code);
@@ -208,6 +231,7 @@ export function ProgramInvestorBox({ code, price }: { code: string; price?: numb
   const fmt = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v)).toLocaleString()}`;
   const cell = (v: number) => <td className={`text-right ${up(v)}`}>{fmt(v)}</td>;
   const today = hist[0];
+  const kisOn = kisFutAvailable();   // 한국투자 연동(앱) — 장중 추정 줄
   return (
     <div className={BOX}>
       <div className="flex items-baseline gap-2">
@@ -231,6 +255,7 @@ export function ProgramInvestorBox({ code, price }: { code: string; price?: numb
           ))}
         </tbody>
       </table>
+      {kisOn && <KisEstimateRows code={code} price={price} />}
       {prog.length > 0 && (
         <div className="text-[10.5px] text-gray-500 mt-1">
           프로그램 오늘 — 비차익 <b className={up(prog[0].nonArbNet)}>{fmt(prog[0].nonArbNet)}주</b> · 차익 <b className={up(prog[0].arbNet)}>{fmt(prog[0].arbNet)}주</b>

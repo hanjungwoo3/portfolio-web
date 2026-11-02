@@ -68,3 +68,18 @@ export async function fetchKisFutDay(stockCode: string): Promise<DaySeries | nul
   const markXs: MarkX[] = [{ x: 15 / SPAN }, { x: 1, close: true }];
   return { closes: rows.map(r => r.c), xs: rows.map(r => r.f), markXs, ...(prevClose > 0 ? { base: prevClose } : {}) };
 }
+
+// ─── 장중 투자자 추정(외국인·기관 가집계) — 한투 MTS '투자자동향 > 추정(주)' 와 같은 자료(사용자 2026-11-02) ───
+//   증권사 직원이 장중에 집계해 넣는 누계: 외국인 09:30·11:20·13:20·14:30 / 기관 10:00·11:20·13:20·14:30(사정에 따라 변동).
+//   무료 출처엔 종목별 장중 투자자가 없다(일별만). 응답 필드 이름은 공식 문서에 없어 '…frgn…ntby…'·'…orgn…ntby…' 꼴로 찾는다.
+export interface KisInvEstimate { seq: string; frgn?: number; orgn?: number }
+export async function fetchKisInvestorEstimate(stockCode: string): Promise<KisInvEstimate[]> {
+  const { body } = await kisGet<{ rt_cd?: string; output2?: Record<string, string>[] }>(
+    "/uapi/domestic-stock/v1/quotations/investor-trend-estimate", "HHPTJ04160200", { MKSC_SHRN_ISCD: stockCode });
+  const pick = (r: Record<string, string>, re: RegExp) => { const k = Object.keys(r).find(x => re.test(x)); return k ? num(r[k]) : NaN; };
+  return (body.output2 ?? []).map((r, i) => {
+    const frgn = pick(r, /frgn.*ntby.*qty/i), orgn = pick(r, /orgn.*ntby.*qty/i);
+    const seq = String(r.bsop_hour_gb ?? r.bsop_hour ?? i + 1);
+    return { seq, ...(Number.isFinite(frgn) ? { frgn } : {}), ...(Number.isFinite(orgn) ? { orgn } : {}) };
+  }).filter(x => x.frgn != null || x.orgn != null);
+}
