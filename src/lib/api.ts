@@ -4356,6 +4356,23 @@ async function fetchMemChart(symbol: string, n = 63): Promise<number[]> {
   return (s?.v ?? []).filter(x => x > 0).slice(-n);   // 다른 카드와 같은 기간(3개월 = 일별 품목 기준 63점)
 }
 
+// 시간대의 그 시각 시차(초) — 서머타임 경계를 넘는 이틀치 봉을 한 시차로 계산하면 지난 날 봉이 1시간 어긋난다. 시간 단위로 메모.
+const tzOffMemo = new Map<string, number>();
+export function tzOffSec(tz: string, t: number): number {
+  const key = `${tz}|${Math.floor(t / 3600)}`;
+  const hit = tzOffMemo.get(key);
+  if (hit != null) return hit;
+  let v = 0;
+  try {
+    const p = new Intl.DateTimeFormat("en-US", { timeZone: tz, hourCycle: "h23", year: "numeric", month: "numeric", day: "numeric", hour: "numeric", minute: "numeric", second: "numeric" })
+      .formatToParts(new Date(t * 1000)).reduce<Record<string, string>>((a, x) => { a[x.type] = x.value; return a; }, {});
+    v = Math.round((Date.UTC(+p.year, +p.month - 1, +p.day, +p.hour % 24, +p.minute, +p.second) / 1000 - t) / 60) * 60;
+  } catch { /* 모르는 시간대 — 0 */ }
+  if (tzOffMemo.size > 20000) tzOffMemo.clear();
+  tzOffMemo.set(key, v);
+  return v;
+}
+
 // ─── 미국 종목 24시간(당일) 차트 — 야후 spark 배치 ─────────────
 //   카드 배경 차트 '24시간' 용. 지수·원자재는 토스 overview 의 당일 봉(sparkline)이 있지만 미국 개별 종목·ETF 는
 //   당일 시계열이 없어 3개월로 그려졌다(2026-10-20 지적). 야후 v7 spark 는 **20종목 1콜**로 5분봉(이틀)을 주고
@@ -4388,7 +4405,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         return;
       }
       const j = await r.json() as { spark?: { result?: { symbol?: string; response?: {
-        timestamp?: number[]; meta?: { currentTradingPeriod?: { regular?: { start?: number; end?: number } }; gmtoffset?: number; previousClose?: number; chartPreviousClose?: number };
+        timestamp?: number[]; meta?: { currentTradingPeriod?: { regular?: { start?: number; end?: number } }; gmtoffset?: number; exchangeTimezoneName?: string; previousClose?: number; chartPreviousClose?: number };
         indicators?: { quote?: { close?: (number | null)[] }[] } }[] }[] } };
       for (const x of j.spark?.result ?? []) {
         const resp = x.response?.[0];
@@ -4401,11 +4418,12 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         //   셋째 날 점이 '오늘' 칸 앞쪽으로 되돌아가 긴 직선이 그어졌다(2026-10-22 USD/KRW 실측).
         {
           const off0 = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : isFutLike(x.symbol) ? 2 : -4;
-          const dk = (t: number) => Math.floor((t + off0 * 3600) / 86400);
+          const o0 = (t: number) => (off0 === -4 ? tzOffSec("America/New_York", t) : off0 * 3600);   // 미국은 그날 실제 시차(서머타임)
+          const dk = (t: number) => Math.floor((t + o0(t)) / 86400);
           // 선물·환율 — 금요일 마감 봉(17:00 ET 정각)이 날짜 경계(UTC+2 자정)를 넘어 **토요일 봉 1개**로 떨어져, 월요일엔 그 1개가
           //   '직전 세션'이 됐다(달러환율 실측 2026-11-02). 토요일 봉은 버린다.
           if (isFutLike(x.symbol)) {
-            for (let i = times.length - 1; i >= 0; i--) if (new Date((times[i] + off0 * 3600) * 1000).getUTCDay() === 6) { times.splice(i, 1); closes.splice(i, 1); }
+            for (let i = times.length - 1; i >= 0; i--) if (new Date((times[i] + o0(times[i])) * 1000).getUTCDay() === 6) { times.splice(i, 1); closes.splice(i, 1); }
           }
           const days = [...new Set(times.map(dk))];
           if (days.length > 2) {
@@ -4416,7 +4434,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
           // 오늘 봉이 아직 없다(평일) — 마지막 하루만 남겨 '어제'로 쓴다. 이틀을 남긴 채 어제로 보면 그저께 끝 → 어제 시작으로
           //   되돌아가는 사선이 카드를 가로질렀다(지수·금리, 2026-10-23)
           const nowS0 = Date.now() / 1000;
-          const wd = new Date((nowS0 + off0 * 3600) * 1000).getUTCDay();
+          const wd = new Date((nowS0 + o0(nowS0)) * 1000).getUTCDay();
           if (times.length && dk(nowS0) > dk(times[times.length - 1]) && wd >= 1 && wd <= 5) {
             noToday = true;
             const keepFrom = times.findIndex(t => dk(t) === dk(times[times.length - 1]));
@@ -4426,9 +4444,12 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         }
         // 정규장 시작·종가 봉 — currentTradingPeriod 는 '지금 기준 다음/현재' 세션이라, 장이 끝난 뒤엔
         //   차트의 마지막 날과 날짜가 어긋나 선이 사라졌다. 그래서 하루 중 시각(거래소 현지)만 뽑아 마지막 날에 적용한다.
-        const reg = resp?.meta?.currentTradingPeriod?.regular, gmt = resp?.meta?.gmtoffset ?? 0;
-        const tod = (t: number) => (((t + gmt) % 86400) + 86400) % 86400;   // 거래소 현지 하루 중 초
-        const dayOf = (t: number) => Math.floor((t + gmt) / 86400);
+        const reg = resp?.meta?.currentTradingPeriod?.regular, gmt0 = resp?.meta?.gmtoffset ?? 0, tzName = resp?.meta?.exchangeTimezoneName;
+        // 거래소 시차는 **봉마다 그날 값** — gmtoffset 은 '지금' 시차라, 서머타임이 끝난 주엔 지난 금요일 봉이 1시간 어긋나
+        //   어제 그래프가 종가 세로선 앞에서 끊겼다(VIX, 사용자 2026-11-02)
+        const gmt = (t: number) => (tzName ? tzOffSec(tzName, t) : gmt0);
+        const tod = (t: number) => (((t + gmt(t)) % 86400) + 86400) % 86400;   // 거래소 현지 하루 중 초
+        const dayOf = (t: number) => Math.floor((t + gmt(t)) / 86400);
         const lastDay = times.length ? dayOf(times[times.length - 1]) : 0;
         // 한국은 야후가 마감을 아직 15:00 으로 준다(실제 15:30 — 2026-10-21 실측). 한국 지수·종목은 15:30 으로 고정하고,
         //   15:30 봉(종가 단일가 체결)까지가 정규장이라 그 봉을 종가로 친다(<= 로).
@@ -4454,12 +4475,19 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         //   환율(=X)도 — 외환은 뉴욕 일 17:00 개장 ~ 금 17:00, 하루 경계 17:00(서머타임 끝난 지금 UTC+2 자정과 같다). 월요일 아침 달러환율·엔화 그래프가 비었다
         const futLike = /=F$/.test(x.symbol) || x.symbol === "DX-Y.NYB" || /=X$/.test(x.symbol);
         const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : futLike ? 2 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
-        const etDay = (t: number) => new Date((t + off * 3600) * 1000).toISOString().slice(0, 10);   // 대략 EDT/KST(일자 경계만 필요)
+        const offS = (t: number) => (off === -4 ? tzOffSec("America/New_York", t) : off * 3600);   // 미국은 그날 실제 시차(EDT/EST)
+        const etDay = (t: number) => new Date((t + offS(t)) * 1000).toISOString().slice(0, 10);
         let bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
         // 오늘 봉이 아직 없다(프리장 거래가 드문 종목 — 디지털리얼티·에퀴닉스 등, 지수) — 그대로면 '어제 하루 전체' 축으로 그려져
         //   다른 카드(지금 기준 24시간)와 가로 위치·세로선 자리가 어긋났다(사용자 지적 2026-10-23).
         //   평일이면 남긴 하루(위에서 자름)를 '어제'로 보고 오늘 칸은 비운다 → 같은 24시간 축. (주말엔 그대로 — 금요일 하루 전체)
         if (noToday) bi = times.length;
+        // 어제 칸 끝을 **종가 세로선까지** 잇는다 — 야후 분봉이 마감보다 일찍 끝나는 지수(VIX 는 16:00 봉이 끝인데 마감 16:15)는
+        //   선이 세로선 앞에서 끊겼다(사용자 2026-11-02 "어제 그래프가 종가까지 이어지지 않아?"). 마지막 값으로 마감 시각에 점 하나.
+        if (bi > 0 && sTod != null && eTod != null && eTod > sTod) {
+          const lt = times[bi - 1], gap = eTod - tod(lt);
+          if (gap >= 60 && gap <= 3600) { times.splice(bi, 0, lt + gap); closes.splice(bi, 0, closes[bi - 1]); bi++; }
+        }
         // 어제 구간의 정규장 시작·종가 봉(세로선 — 사용자 요청) + 어제 정규장 종가 = 오늘 기준선
         const inPrev = (i: number) => bi > 0 && i < bi;
         const poi = sTod != null ? times.findIndex((t, i) => inPrev(i) && tod(t) >= sTod) : -1;
@@ -4467,7 +4495,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         const pc = pci >= 0 ? closes[pci] : metaPc;
         // 가로축 — 어제 50%·오늘 50% 고정, 각 칸 안은 시간 축(사용자 요청: 봉 개수로 나누면 어제가 78% 를 차지했다).
         //   하루 안 시각은 날짜 경계(off)로 민 시각 — 미국 주식 04:00~20:00, 한국 09:00~15:30, 선물 18:00~17:00
-        const todS = (t: number) => (((t + off * 3600) % 86400) + 86400) % 86400;
+        const todS = (t: number) => (((t + offS(t)) % 86400) + 86400) % 86400;
         const span = bi > 0 ? times.slice(0, bi) : times;   // 어제(완결된 하루)의 시각 폭을 기준으로
         // 미국 주식·ETF 는 04:00~20:00(뉴욕) 고정 — 자료로 정하면 프리·애프터 거래가 드문 종목(에퀴닉스는 09:30~19:45)만
         //   축이 좁아져 다른 카드와 세로선 자리가 어긋났다(사용자 지적 2026-10-23). 지수·선물·아시아는 자료대로.
