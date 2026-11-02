@@ -515,6 +515,13 @@ export function HeatmapTab() {
           const codeFs = s >= 190 ? 30 : s >= 140 ? 24 : s >= 100 ? 18 : s >= 66 ? 13 : s >= 42 ? 10 : (t.w > 30 && t.h > 18 ? 8 : 0);
           const nameFs = s >= 190 ? 18 : s >= 140 ? 15 : s >= 95 ? 12 : 0;   // 회사명은 공간 넉넉할 때만
           const pctFs = Math.max(7, Math.round(codeFs * 0.82));
+          // 한국은 **종목명이 주인공**(사용자 2026-11-02 "코드보다 종목명이 더 중요") — 코드 자리에 이름을, 칸 폭에 맞춰 글자 크기를 줄인다.
+          //   한글 1글자 ≈ 1em, 영숫자 ≈ 0.6em. 코드는 칸이 넉넉할 때만 작게. 미국은 티커가 곧 이름이라 그대로.
+          const nm = krName(t.it);
+          const em = [...nm].reduce((a, ch) => a + (/[\u3131-\uD79D]/.test(ch) ? 1 : 0.6), 0) || 1;
+          const mainFs = isKr ? Math.min(codeFs, Math.floor((t.w - 6) / em)) : codeFs;
+          const mainTxt = isKr ? nm : t.it.code;
+          const subFs = isKr ? (s >= 95 ? Math.max(9, Math.round(codeFs * 0.5)) : 0) : nameFs;
           return (
             // 칸 누르면 한국 = 📊종목정보 창, 미국 = 토스 종목 페이지(종목정보 창엔 미국 자료가 없다, 없으면 야후)
             //   사용자 2026-10-30 "클릭도 안 되는데", "바로 연결 말고 종목정보창", "미장은 정보가 없으니 바로 연결"
@@ -535,17 +542,22 @@ export function HeatmapTab() {
                      className="rounded-full bg-white/90 object-contain pointer-events-none"
                      style={{ width: logoSize, height: logoSize, padding: 1 }} />
               )}
-              {nameFs > 0 && (
+              {!isKr && subFs > 0 && (
                 <span className="font-semibold leading-tight text-center max-w-full px-1 pointer-events-none line-clamp-2"
-                      style={{ fontSize: nameFs }}>
-                  {krName(t.it)}
+                      style={{ fontSize: subFs }}>
+                  {nm}
                 </span>
               )}
               {codeFs > 0 && (
                 <>
-                  <span className="font-semibold leading-none truncate max-w-full px-0.5 pointer-events-none" style={{ fontSize: codeFs }}>
-                    {t.it.code}
-                  </span>
+                  {mainFs >= 7 && (
+                    <span className="font-semibold leading-none truncate max-w-full px-0.5 pointer-events-none" style={{ fontSize: mainFs }}>
+                      {mainTxt}
+                    </span>
+                  )}
+                  {isKr && subFs > 0 && (
+                    <span className="leading-none opacity-70 pointer-events-none" style={{ fontSize: subFs }}>{t.it.code}</span>
+                  )}
                   <span className="leading-none pointer-events-none" style={{ fontSize: pctFs }}>{fmtPct(colorDef.field(t.it))}</span>
                   {weightOf(t.it.code) != null && (
                     <span className="leading-none font-bold pointer-events-none bg-black/25 rounded px-1"
