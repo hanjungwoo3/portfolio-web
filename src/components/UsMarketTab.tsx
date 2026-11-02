@@ -753,7 +753,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                                     + (mainPct != null ? ` (${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""))}
                                   title="구글 AI에 현재상태 분석 요청 (팝업)"
                                   className={`${pill} text-blue-700 bg-blue-50 border border-blue-300/70 hover:bg-blue-100`}>
-                            🔍
+                            AI
                           </button>
                         )}
                       </div>

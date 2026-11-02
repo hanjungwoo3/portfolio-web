@@ -348,7 +348,7 @@ export function FeedBox({ code, name, kind, className = "" }: { code: string; na
                   <button type="button" title="이 공시를 구글 AI 로 요약"
                           onClick={e => { e.preventDefault(); e.stopPropagation(); openGoogleAi(discAiQuery(name, code, x.title, when(x.t), x.url)); }}
                           className="self-start shrink-0 px-1 rounded border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold leading-[18px]">
-                    🔍AI
+                    AI
                   </button>
                 )}
               </a>

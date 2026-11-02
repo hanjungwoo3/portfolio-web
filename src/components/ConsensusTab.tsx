@@ -656,7 +656,7 @@ export function ConsensusTab({ items, onOpenValuation, onSelectGroup, onEdit }: 
                             }}
                             className="inline-flex items-center px-1 py-0.5 rounded text-[10px] font-bold leading-none
                                        border border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100">
-                      🔍AI
+                      AI
                     </button>
                   </span>
                 </div>

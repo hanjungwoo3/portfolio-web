@@ -970,7 +970,7 @@ export function StockCard({
                   title="현재가·등락률·컨센서스로 구글 AI에 현재상태 분석 요청 (팝업)"
                   className="inline-flex items-center px-1.5 py-0.5 rounded-t-md text-[10px] font-bold leading-none
                              border-t border-l border-r border-blue-300 text-blue-700 bg-blue-50 hover:bg-blue-100 transition">
-            🔍AI
+            AI
           </button>
         </div>
       </div>

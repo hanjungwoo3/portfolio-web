@@ -335,7 +335,7 @@ export function MobileStockCard({
                   title="현재가·등락률·컨센서스로 구글 AI에 현재상태 분석 요청 (팝업)"
                   className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold leading-none
                              border border-blue-300 text-blue-700 bg-blue-50 active:bg-blue-100">
-            <span className="text-[8px]">🔍</span>AI
+            AI
           </button>
         </div>
       </div>

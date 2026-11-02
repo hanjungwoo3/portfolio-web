@@ -243,7 +243,7 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
                       </button>
                       <button onClick={() => openAi(r)} title="구글 AI 분석"
                               className="shrink-0 inline-flex items-center px-1 rounded text-[9px] font-bold leading-none
-                                         border border-blue-300 text-blue-700 bg-blue-50/90 hover:bg-blue-100">🔍AI</button>
+                                         border border-blue-300 text-blue-700 bg-blue-50/90 hover:bg-blue-100">AI</button>
                     </div>
                     <div className="text-[10px] text-gray-400 leading-tight truncate">{r.issuer ?? (r.loading ? "…" : r.code)}</div>
                     {r.price != null && (
@@ -290,7 +290,7 @@ export function EtfCompareTab({ onOpenValuation }: Props = {}) {
         </div>
       </div>
       <p className="text-[11px] text-gray-400">
-        종목명 클릭=기업가치 상세, 🔍AI=구글 AI 분석. 헤더 클릭 정렬(기본 1주 수익률순). 기간수익률=일봉 종가(1h 캐시), 총보수·분배율 30분 캐시, 현재가 실시간. 초록=최저보수·최고분배율·기간별 최고수익. 2·3년은 상장기간 부족 시 "—". (신생 ETF는 10·20년 데이터 없음)
+        종목명 클릭=기업가치 상세, AI=구글 AI 분석. 헤더 클릭 정렬(기본 1주 수익률순). 기간수익률=일봉 종가(1h 캐시), 총보수·분배율 30분 캐시, 현재가 실시간. 초록=최저보수·최고분배율·기간별 최고수익. 2·3년은 상장기간 부족 시 "—". (신생 ETF는 10·20년 데이터 없음)
       </p>
 
       {/* 용어 설명 — 표 아래 */}

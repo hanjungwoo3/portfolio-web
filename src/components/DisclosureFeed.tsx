@@ -188,7 +188,7 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
                                 });
                               }}
                               className="shrink-0 px-1 rounded border border-blue-200 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[10px] font-bold leading-[18px]">
-                        🔍AI
+                        AI
                       </button>
                     </a>
                   );
