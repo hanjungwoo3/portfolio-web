@@ -36,6 +36,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "^KS11",    name: "KOSPI",       desc: "코스피 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KS200N",  name: "코스피200 야간선물", desc: "yasun.gg · 18:00~05:00 KST", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "069500.KS", name: "KODEX 200",  desc: "KOSPI 200 추종 ETF — 실물 매매 가능", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "252650.KS", name: "KODEX 200동일가중", desc: "코스피200 200종목 같은 비중(삼성·하이닉스도 0.5%) — KODEX 200 보다 약하면 반도체 두 종목만 오르는 장", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "229200.KS", name: "KODEX 코스닥150", desc: "코스닥150 추종 ETF — 실물 매매 가능", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KQ11",    name: "KOSDAQ",      desc: "코스닥 종합 지수", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^KQ150N",  name: "코스닥150 야간선물", desc: "yasun.gg · 18:00~05:00 KST", tier: "T0", sector: "dashboard", direction: "direct" },
