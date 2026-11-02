@@ -3946,8 +3946,8 @@ interface CnbcQuote {
   last_time?: string;
 }
 // 현재가 — 가볍다(~1KB). 폴링 주기마다 호출되는 경로라 차트(43KB) 대신 이쪽을 쓴다.
-async function fetchCnbcIndexPrice(symbol: string, name: string): Promise<UsIndex | null> {
-  const cnbcSym = CNBC_SYMBOL[symbol];
+async function fetchCnbcIndexPrice(symbol: string, name: string, cnbcOverride?: string): Promise<UsIndex | null> {
+  const cnbcSym = cnbcOverride ?? CNBC_SYMBOL[symbol];
   if (!cnbcSym) return null;
   const url = "https://quote.cnbc.com/quote-html-webservice/restQuote/symbolType/symbol"
     + `?symbols=${encodeURIComponent(cnbcSym)}`
@@ -3988,8 +3988,8 @@ interface CnbcBar {
   tradeTime?: string;        // "20260710000000" — 당일 미완성 봉도 항상 채워짐
   tradeTimeinMills?: string | null;   // 당일 미완성 봉은 null → 날짜 산출에 쓰면 안 됨
 }
-async function fetchCnbcBars(symbol: string, timeRange = "1M"): Promise<CnbcBar[]> {
-  const cnbcSym = CNBC_SYMBOL[symbol];
+async function fetchCnbcBars(symbol: string, timeRange = "1M", cnbcOverride?: string): Promise<CnbcBar[]> {
+  const cnbcSym = cnbcOverride ?? CNBC_SYMBOL[symbol];
   if (!cnbcSym) return [];
   const variables = JSON.stringify({ symbol: cnbcSym, timeRange });
   const extensions = JSON.stringify({ persistedQuery: { version: 1, sha256Hash: CNBC_CHART_HASH } });
@@ -4132,7 +4132,9 @@ async function fetchCnnFgChart(): Promise<number[]> {
 // 24시간 카드 — CNBC 5일 분봉(timeRange 5D, ~1,500개). 미국 10년 실질금리(^TIPS10) 처럼 야후·토스에 분봉이 없는 심볼
 //   (사용자 2026-11-02). tradeTime "YYYYMMDDHHMM…" 는 뉴욕 시각. 지난 24시간(마지막 봉이 24시간보다 오래면 그 봉에서 끝나는 24시간),
 //   기준선 = 카드 %와 같은 전일 종가(CNBC previous_day_closing).
-export const CNBC_DAY_SYMBOLS = ["^TIPS10"];
+//   미국 2년물(^US2Y)도 — 값은 토스지만 토스는 당일 10분봉뿐이라 월요일 아침엔 그래프가 평평했다(2026-11-02). V-KOSPI 는 5D 가 빈 응답.
+const CNBC_DAY_SYM: Record<string, string> = { "^TIPS10": "US10YTIP", "^US2Y": "US2Y" };
+export const CNBC_DAY_SYMBOLS = Object.keys(CNBC_DAY_SYM);
 function nyLocalToEpoch(y: number, mo: number, d: number, h: number, mi: number): number {
   const guess = Date.UTC(y, mo - 1, d, h, mi);
   // 그 시각의 뉴욕 오프셋(서머타임 자동) — 같은 순간을 뉴욕 벽시계로 다시 읽어 차이를 뺀다
@@ -4143,7 +4145,8 @@ function nyLocalToEpoch(y: number, mo: number, d: number, h: number, mi: number)
 }
 export async function fetchCnbcDay(symbol: string): Promise<DaySeries | null> {
   if (!CNBC_DAY_SYMBOLS.includes(symbol)) return null;
-  const [bars, quote] = await Promise.all([fetchCnbcBars(symbol, "5D"), fetchCnbcIndexPrice(symbol, symbol)]);
+  const cs = CNBC_DAY_SYM[symbol];
+  const [bars, quote] = await Promise.all([fetchCnbcBars(symbol, "5D", cs), fetchCnbcIndexPrice(symbol, symbol, cs)]);
   const pts: [number, number][] = [];
   for (const b of bars) {
     const t = b.tradeTime ?? "", c = cnbcNum(b.close);
