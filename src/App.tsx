@@ -12,13 +12,14 @@ import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { useIncrementalRender } from "./lib/useIncrementalRender";
-import { Tabs, buildTabs, filterByTab, realHoldingOf, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SEMI_DASH_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, DISCLOSURE_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, realHoldingOf, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SEMI_DASH_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, DISCLOSURE_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, VALUEUP_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
 import { DisclosureFeed } from "./components/DisclosureFeed";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
 import { EtfRankingTab } from "./components/EtfRankingTab";
 import { ScreenerTab } from "./components/ScreenerTab";
 import { CloseBetTab } from "./components/CloseBetTab";
+import { ValueupTab } from "./components/ValueupTab";
 import { AccumTab } from "./components/AccumTab";
 import { defaultDashboardPage, INDEX_GROUP_KEYS, indexPageOf } from "./lib/dashboardGroups";
 import { EtfCompareTab } from "./components/EtfCompareTab";
@@ -983,6 +984,8 @@ function Dashboard() {
           <EtfCompareTab onOpenValuation={(code, n) => { setValuationName(n); setValuationTicker(code); }} />
         ) : activeTab === SCREENER_TAB_KEY ? (
           <ScreenerTab onOpenValuation={setValuationTicker} />
+        ) : activeTab === VALUEUP_TAB_KEY ? (
+          <ValueupTab />
         ) : activeTab === CLOSE_BET_TAB_KEY ? (
           <CloseBetTab onOpenValuation={(code, n) => { setValuationName(n ?? null); setValuationTicker(code); }} />
         ) : activeTab === ACCUM_TAB_KEY ? (

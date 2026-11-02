@@ -94,11 +94,12 @@ import { SemiCheckTab } from "./SemiCheckTab";
 import { SemiDashTab } from "./SemiDashTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { filterByTab, realHoldingOf, CONSENSUS_TAB_KEY as CONSENSUS_KEY, DISCLOSURE_TAB_KEY as DISC_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_ROT_TAB_KEY as IDX_ROT_KEY, INDEX_US_TAB_KEY as IDX_US_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, EARNINGS_TAB_KEY as EARNINGS_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY, SEMI_DASH_TAB_KEY as SEMI_DASH_KEY } from "./Tabs";
+import { filterByTab, realHoldingOf, CONSENSUS_TAB_KEY as CONSENSUS_KEY, DISCLOSURE_TAB_KEY as DISC_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, VALUEUP_TAB_KEY as VALUEUP_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_ROT_TAB_KEY as IDX_ROT_KEY, INDEX_US_TAB_KEY as IDX_US_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, EARNINGS_TAB_KEY as EARNINGS_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY, SEMI_DASH_TAB_KEY as SEMI_DASH_KEY } from "./Tabs";
 import { EtfReverseTab } from "./EtfReverseTab";
 import { EtfRankingTab } from "./EtfRankingTab";
 import { ScreenerTab } from "./ScreenerTab";
 import { CloseBetTab } from "./CloseBetTab";
+import { ValueupTab } from "./ValueupTab";
 import { AccumTab } from "./AccumTab";
 import { RotationTab } from "./RotationTab";
 import { EtfCompareTab } from "./EtfCompareTab";
@@ -162,7 +163,7 @@ const ASSET_TREND_KEY = "__asset-trend__";  // 자산추이 — 일별 총자산
 //   새 시스템 탭은 여기에만 넣으면 된다. (탭 자체를 만드는 곳 — groupTabs 의 push — 은 별도)
 const SYS_DROPDOWN_KEYS = new Set<string>([    // '투자도구' 드롭다운에 묶이는 탭
   SECTOR_KEY, SEMI_KEY, CONSENSUS_KEY, DISC_KEY, ETF_KEY, ETF_RANK_KEY, ETF_COMPARE_KEY,
-  HEATMAP_KEY, SCREENER_KEY, CLOSE_BET_KEY, ACCUM_KEY, VALUATION_KEY, EARNINGS_KEY,
+  HEATMAP_KEY, SCREENER_KEY, CLOSE_BET_KEY, VALUEUP_KEY, ACCUM_KEY, VALUATION_KEY, EARNINGS_KEY,
 ]);
 const MY_GROUP_KEYS_M = new Set<string>([MY_KEY, MY_TRADES_KEY, MY_TRADES_TOSS_KEY, ASSET_TREND_KEY]);   // '내자산' 드롭다운
 // '지수' 드롭다운 — 주간(옛 지수 키 KR_KEY 를 그대로 써서 저장된 마지막 탭이 이어진다)·야간·반도체
@@ -490,6 +491,9 @@ export function MobileSimpleView() {
     }
     if (vis.screener) {
       tabs.push({ key: SCREENER_KEY, label: "🔎종목찾기(눌림목)", count: 0 });
+    }
+    if (vis.valueup) {
+      tabs.push({ key: VALUEUP_KEY, label: "🏷️밸류업 명단", count: 0 });
     }
     if (vis.closeBet) {
       tabs.push({ key: CLOSE_BET_KEY, label: "🌙종가배팅", count: 0 });
@@ -1838,6 +1842,9 @@ export function MobileSimpleView() {
           return <div className="px-2 py-2 pb-32">
             <AccumTab onOpenValuation={(code, n) => { setValuationName(n ?? null); setValuationTicker(code); }} />
           </div>;
+        }
+        if (activeTab === VALUEUP_KEY) {
+          return <div className="px-2 py-2 pb-32"><ValueupTab /></div>;
         }
         if (activeTab === CLOSE_BET_KEY) {
           return <div className="px-2 py-2 pb-32">

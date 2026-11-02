@@ -21,6 +21,7 @@ export interface TabVisibility {
   valuation: boolean;
   earnings: boolean;
   assetTrend: boolean;
+  valueup: boolean;       // 🏷️ 밸류업 명단 — 저PBR·고배당·밸류업 우수(2026-11-02)
   disclosures: boolean;   // 📋 최신공시 — 보유 종목 전체 공시 목록(컨센서스 바로 아래, 2026-10-28)
 }
 
@@ -36,6 +37,7 @@ export const TAB_VIS_ITEMS: { key: keyof TabVisibility; label: string; sep?: boo
   { key: "semiCheck",   label: "반도체" },          // 아이콘(Cpu)은 렌더 쪽에서 붙인다
   { key: "valuation",   label: "📊 종목찾기(섹터별)" },
   { key: "screener",    label: "🔎 종목찾기(눌림목)" },
+  { key: "valueup",     label: "🏷️ 밸류업 명단" },
   { key: "closeBet",    label: "🌙 종가배팅" },
   { key: "accum",       label: "🧲 수급 매집" },
   { key: "consensus",   label: "🎯 컨센서스(목표주가)" },
@@ -64,6 +66,7 @@ const BASE_KEYS = {
   heatmap:    "portfolio_tab_heatmap",
   screener:   "portfolio_tab_screener",
   closeBet:   "portfolio_tab_close_bet",
+  valueup:    "portfolio_tab_valueup",
   accum:      "portfolio_tab_accum",
   valuation:  "portfolio_tab_valuation",
   earnings:   "portfolio_tab_earnings",
@@ -110,6 +113,7 @@ export function getTabVisibility(): TabVisibility {
     heatmap:    read(BASE_KEYS.heatmap),
     screener:   read(BASE_KEYS.screener),
     closeBet:   read(BASE_KEYS.closeBet),
+    valueup:    read(BASE_KEYS.valueup),
     accum:      read(BASE_KEYS.accum),
     valuation:  read(BASE_KEYS.valuation),
     earnings:   read(BASE_KEYS.earnings),
@@ -132,6 +136,7 @@ export function setTabVisibility(patch: Partial<TabVisibility>): void {
   if (patch.heatmap    !== undefined) write(BASE_KEYS.heatmap,    patch.heatmap);
   if (patch.screener   !== undefined) write(BASE_KEYS.screener,   patch.screener);
   if (patch.closeBet   !== undefined) write(BASE_KEYS.closeBet,   patch.closeBet);
+  if (patch.valueup    !== undefined) write(BASE_KEYS.valueup,    patch.valueup);
   if (patch.accum      !== undefined) write(BASE_KEYS.accum,      patch.accum);
   if (patch.valuation  !== undefined) write(BASE_KEYS.valuation,  patch.valuation);
   if (patch.earnings   !== undefined) write(BASE_KEYS.earnings,   patch.earnings);
