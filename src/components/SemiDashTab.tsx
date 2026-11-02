@@ -5,7 +5,7 @@
 //     · 코스피 투자자(네이버) 1분 / 선물 투자자(네이버) **20분 지연** / 선물 시세·옵션(한경) 실시간
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
-import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday } from "../lib/kisFutures";
+import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { useId, useState } from "react";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
@@ -87,10 +87,16 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     staleTime: 60 * 60 * 1000, refetchOnWindowFocus: false,
   });
   const ks200 = fut?.price ?? 0;
-  const { data: opt } = useQuery({
+  const { data: hkOpt } = useQuery({
     queryKey: ["hk-option-summary", Math.round(ks200 / 2.5)], queryFn: () => fetchKospi200OptionSummary(ks200),
     enabled: ks200 > 0, refetchInterval: FLOW_MS, staleTime: 30_000, placeholderData: p => p,
   });
+  // 한국투자 연동(앱)이면 근월물 전 행사가 전광판으로 대체 — 실패하면 한경 그대로(사용자 2026-11-02)
+  const { data: kisOpt } = useQuery({
+    queryKey: ["kis-option-board"], queryFn: fetchKisKospi200Options,
+    enabled: kisFutAvailable(), refetchInterval: 60_000, staleTime: 30_000, retry: 1,
+  });
+  const opt = kisOpt ?? hkOpt;
   const { data: perps } = useQuery({
     queryKey: ["hl-xyz-perps"], queryFn: fetchHlXyzPerps, refetchInterval: useAdaptiveRefreshMs(15_000), staleTime: 5_000,
   });
@@ -853,7 +859,7 @@ const OPTION_GUIDE: [string, string][] = [
   ["V-KOSPI", "옵션 가격으로 계산한 공포지수. 오르면 하락 보험 수요↑. 20↑ 경계 · 30↑ 공포."],
   ["한계", "근월물·현재가 ±37pt 행사가만 합산(주간 옵션 제외) · 누가 샀는지(외국인·개인)는 모른다."],
 ];
-function OptionBox({ opt, vk, dim: dimIn }: { opt?: Awaited<ReturnType<typeof fetchKospi200OptionSummary>>; vk?: UsIndex; dim?: boolean }) {
+function OptionBox({ opt, vk, dim: dimIn }: { opt?: Awaited<ReturnType<typeof fetchKospi200OptionSummary>> | KisOptionSummary; vk?: UsIndex; dim?: boolean }) {
   const dim = dimIn && getDimSleepingEnabled();   // 설정 "장 마감 시 종목 흐리게" 를 따른다(사용자 지적 2026-10-23)
   const [guide, setGuide] = useState(false);
   const pcr = opt && opt.callVol > 0 ? opt.putVol / opt.callVol : undefined;
@@ -863,7 +869,7 @@ function OptionBox({ opt, vk, dim: dimIn }: { opt?: Awaited<ReturnType<typeof fe
     <div className={`pg-card relative rounded-lg border border-gray-200 p-2 flex flex-col min-h-0 tabular-nums ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}>
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800 shrink-0 whitespace-nowrap">옵션 · 코스피200</span>
-        <span className="text-[11px] text-gray-400 truncate">{opt ? `${opt.month.slice(4, 6)}/${opt.month.slice(6)} 만기 · ${opt.time.slice(0, 5)}` : "한경 실시간"}</span>
+        <span className="text-[11px] text-gray-400 truncate">{opt ? `${opt.month.slice(4, 6)}/${opt.month.slice(6)} 만기 · ${opt.time.slice(0, 5)}${"src" in opt ? " · 한투 전 행사가" : ""}` : "한경 실시간"}</span>
         <button onClick={() => setGuide(g => !g)}
                 className={`ml-auto shrink-0 px-1.5 rounded border text-[10.5px] ${guide ? "bg-gray-700 text-white border-gray-700" : "text-gray-500 border-gray-300 hover:bg-gray-100"}`}>
           {guide ? "닫기" : "읽는 법"}
@@ -880,7 +886,7 @@ function OptionBox({ opt, vk, dim: dimIn }: { opt?: Awaited<ReturnType<typeof fe
           <span className="text-gray-500">V-KOSPI</span><b className={vk ? up(vk.pct) : "text-gray-300"}>{vk ? `${vk.price.toFixed(2)} (${sgn(vk.pct)}%)` : "-"}{vk ? tag(vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정") : null}</b>
         </div>
       )}
-      {opt && <div className="mt-auto text-[10px] text-gray-400 truncate">행사가 {opt.range[0]}~{opt.range[1]} 합계(현재가 근처)</div>}
+      {opt && <div className="mt-auto text-[10px] text-gray-400 truncate">행사가 {opt.range[0]}~{opt.range[1]} 합계{"src" in opt ? "(근월물 전체 · 한국투자)" : "(현재가 근처)"}</div>}
       {guide && (
         <div className="absolute inset-x-0 top-7 bottom-0 z-10 bg-white rounded-b-lg px-2 pb-2 overflow-auto text-[11px] leading-snug border-t">
           {OPTION_GUIDE.map(([k, v]) => (

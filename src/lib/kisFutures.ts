@@ -107,3 +107,42 @@ export async function fetchKisViToday(stockCode: string): Promise<KisViEvent[]> 
     })
     .filter(e => e.time);
 }
+
+// ─── 코스피200 옵션 전광판(콜·풋, 근월물 전 행사가) — 한국투자(사용자 2026-11-02 순서 3번). 한경은 현재가 ±37pt 만 합산했다.
+//   FHPIF05030100 display-board-callput(각 100행까지, 1초에 1번 권장 → 1분마다). 모양은 한경 요약(fetchKospi200OptionSummary)과 같게.
+//   필드 이름이 문서에 없어 행사가·거래량·미결제·미결제 증감을 키 꼴로 찾는다.
+export interface KisOptionSummary {
+  month: string; atm?: number; callVol: number; putVol: number; callOi: number; putOi: number; callOiChg: number; putOiChg: number;
+  maxCallOi?: number; maxPutOi?: number; range: [number, number]; time: string; src: "한투";
+}
+export async function fetchKisKospi200Options(): Promise<KisOptionSummary | null> {
+  const todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  let y = Number(todayKst.slice(0, 4)), m = Number(todayKst.slice(5, 7));
+  if (todayKst > secondThursday(y, m)) { m += 1; if (m > 12) { m = 1; y += 1; } }
+  const exp = secondThursday(y, m);
+  const { body } = await kisGet<{ rt_cd?: string; output1?: Record<string, string>[]; output2?: Record<string, string>[] }>(
+    "/uapi/domestic-futureoption/v1/quotations/display-board-callput", "FHPIF05030100",
+    { FID_COND_MRKT_DIV_CODE: "O", FID_COND_SCR_DIV_CODE: "20503", FID_MRKT_CLS_CODE: "CO",
+      FID_MTRT_CNT: `${y}${String(m).padStart(2, "0")}`, FID_MRKT_CLS_CODE1: "PO", FID_COND_MRKT_CLS_CODE: "" });
+  const val = (r: Record<string, string>, re: RegExp) => { const k = Object.keys(r).find(x => re.test(x)); return k ? num(r[k]) : NaN; };
+  const sum = (rows: Record<string, string>[]) => {
+    let vol = 0, oi = 0, chg = 0, max = { k: 0, oi: -1 }, lo = Infinity, hi = 0;
+    for (const r of rows) {
+      const k = val(r, /^acpr$|optn_acpr|stck_acpr|acpr/i);
+      const o = val(r, /otst_stpl_qty$|hts_otst_stpl_qty/i), c = val(r, /otst_stpl_qty_icdc/i), v = val(r, /acml_vol/i);
+      if (!(k > 0)) continue;
+      lo = Math.min(lo, k); hi = Math.max(hi, k);
+      if (v > 0) vol += v;
+      if (o > 0) { oi += o; if (o > max.oi) max = { k, oi: o }; }
+      if (Number.isFinite(c)) chg += c;
+    }
+    return { vol, oi, chg, max: max.oi > 0 ? max.k : undefined, lo, hi };
+  };
+  const c = sum(body.output1 ?? []), p = sum(body.output2 ?? []);
+  if (!(c.oi + p.oi > 0)) return null;
+  const k = new Date(Date.now() + 9 * 3600_000).toISOString();
+  return {
+    month: exp.replace(/-/g, ""), callVol: c.vol, putVol: p.vol, callOi: c.oi, putOi: p.oi, callOiChg: c.chg, putOiChg: p.chg,
+    maxCallOi: c.max, maxPutOi: p.max, range: [Math.min(c.lo, p.lo), Math.max(c.hi, p.hi)], time: `${k.slice(11, 16)}:00`, src: "한투",
+  };
+}
