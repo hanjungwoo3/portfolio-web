@@ -4373,6 +4373,12 @@ export function tzOffSec(tz: string, t: number): number {
   return v;
 }
 
+// 선물·환율 세션 경계 — 뉴욕 **18:00**(CME·ICE, 환율은 17:00)을 자정으로 미는 시차(초). 예전엔 UTC+2 고정이라 서머타임이 바뀐 주엔
+//   지난 금요일 세션 끝과 이번 세션 시작 사이가 한 시간 더 벌어졌다(사용자 2026-11-02 "선물 현물도 섬머타임 이슈?")
+function futSessOff(sym: string, t: number): number {
+  return tzOffSec("America/New_York", t) + (/=X$/.test(sym) ? 7 : 6) * 3600;
+}
+
 // ─── 미국 종목 24시간(당일) 차트 — 야후 spark 배치 ─────────────
 //   카드 배경 차트 '24시간' 용. 지수·원자재는 토스 overview 의 당일 봉(sparkline)이 있지만 미국 개별 종목·ETF 는
 //   당일 시계열이 없어 3개월로 그려졌다(2026-10-20 지적). 야후 v7 spark 는 **20종목 1콜**로 5분봉(이틀)을 주고
@@ -4418,7 +4424,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         //   셋째 날 점이 '오늘' 칸 앞쪽으로 되돌아가 긴 직선이 그어졌다(2026-10-22 USD/KRW 실측).
         {
           const off0 = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : isFutLike(x.symbol) ? 2 : -4;
-          const o0 = (t: number) => (off0 === -4 ? tzOffSec("America/New_York", t) : off0 * 3600);   // 미국은 그날 실제 시차(서머타임)
+          const o0 = (t: number) => (off0 === -4 ? tzOffSec("America/New_York", t) : isFutLike(x.symbol ?? "") ? futSessOff(x.symbol ?? "", t) : off0 * 3600);   // 미국·선물은 그날 실제 시차(서머타임)
           const dk = (t: number) => Math.floor((t + o0(t)) / 86400);
           // 선물·환율 — 금요일 마감 봉(17:00 ET 정각)이 날짜 경계(UTC+2 자정)를 넘어 **토요일 봉 1개**로 떨어져, 월요일엔 그 1개가
           //   '직전 세션'이 됐다(달러환율 실측 2026-11-02). 토요일 봉은 버린다.
@@ -4475,7 +4481,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         //   환율(=X)도 — 외환은 뉴욕 일 17:00 개장 ~ 금 17:00, 하루 경계 17:00(서머타임 끝난 지금 UTC+2 자정과 같다). 월요일 아침 달러환율·엔화 그래프가 비었다
         const futLike = /=F$/.test(x.symbol) || x.symbol === "DX-Y.NYB" || /=X$/.test(x.symbol);
         const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : futLike ? 2 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
-        const offS = (t: number) => (off === -4 ? tzOffSec("America/New_York", t) : off * 3600);   // 미국은 그날 실제 시차(EDT/EST)
+        const offS = (t: number) => (off === -4 ? tzOffSec("America/New_York", t) : futLike ? futSessOff(x.symbol ?? "", t) : off * 3600);   // 미국·선물은 그날 실제 시차(EDT/EST)
         const etDay = (t: number) => new Date((t + offS(t)) * 1000).toISOString().slice(0, 10);
         let bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
         // 오늘 봉이 아직 없다(프리장 거래가 드문 종목 — 디지털리얼티·에퀴닉스 등, 지수) — 그대로면 '어제 하루 전체' 축으로 그려져
