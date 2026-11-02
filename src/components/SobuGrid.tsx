@@ -163,10 +163,9 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
               {[...b.kr].sort((x, y) => (quote(y)?.pct ?? -Infinity) - (quote(x)?.pct ?? -Infinity)).map(s => card(s, false))}
             </div>
             {/* 이 단계 종목의 공시(5거래일)·뉴스 — 계약은 금액·매출 대비 */}
-            <div className="mt-2 pt-1.5 border-t border-gray-200 space-y-0.5 text-[11px]">
-              <div className="font-bold text-violet-800">📑 공시 <span className="font-normal text-gray-400">5거래일 {dList.length}건</span></div>
-              {disc.isLoading ? <div className="text-gray-400">불러오는 중…</div> : !dList.length ? <div className="text-gray-400">없음</div>
-                : (more ? dList : dList.slice(0, 5)).map(r => {
+            {(dList.length > 0 || nList.length > 0) && <div className="mt-2 pt-1.5 border-t border-gray-200 space-y-0.5 text-[11px]">
+              {dList.length > 0 && <div className="font-bold text-violet-800">📑 공시 <span className="font-normal text-gray-400">5거래일 {dList.length}건</span></div>}
+              {(more ? dList : dList.slice(0, 5)).map(r => {
                   const c = r.cat === "계약" ? info.get(r.rcpNo) : null;
                   return (
                     <div key={r.rcpNo} className="flex items-baseline gap-1 leading-[18px] min-w-0 rounded hover:bg-amber-50"
@@ -184,9 +183,8 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
               {dList.length > 5 && (
                 <button onClick={() => setOpen(o => ({ ...o, [b.label]: !o[b.label] }))} className="text-violet-700 hover:underline">{more ? "접기" : `공시 더 보기 (${dList.length - 5}건)`}</button>
               )}
-              <div className="font-bold text-sky-800 pt-1">📰 뉴스</div>
-              {!nList.length ? <div className="text-gray-400">{newsQs.some(q => q.isLoading) ? "불러오는 중…" : "없음"}</div>
-                : nList.slice(0, 20).map(n => (   // 뉴스는 접지 않고 펼쳐 둔다(사용자 2026-11-02) — 칸당 최근 20건
+              {nList.length > 0 && <div className="font-bold text-sky-800 pt-1">📰 뉴스</div>}
+              {nList.slice(0, 20).map(n => (   // 뉴스는 접지 않고 펼쳐 둔다(사용자 2026-11-02) — 칸당 최근 20건
                   <div key={n.id} className="flex items-baseline gap-1 leading-[18px] min-w-0 rounded hover:bg-amber-50"
                        onMouseEnter={() => setHot(n.code)} onMouseLeave={() => setHot(null)}>
                     <span className="text-gray-400 tabular-nums shrink-0">{ndt(n.dt)}</span>
@@ -194,7 +192,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
                     <button onClick={() => openExternal(n.url)} title={`${n.title} — ${n.press}`} className="truncate text-gray-600 hover:underline text-left min-w-0">{n.title}</button>
                   </div>
                 ))}
-            </div>
+            </div>}
           </div>
         );
       })}
@@ -202,14 +200,15 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
     {peek && (() => {
       const ds = (disc.data ?? []).filter(r => r.code === peek.code);
       const ns = news.filter(n => n.code === peek.code).slice(0, 10);
+      if (!ds.length && !ns.length) return null;   // 공시·뉴스 둘 다 없으면 창을 띄우지 않는다(사용자 2026-11-02 "없는 건 표시하지 말자")
       const top = Math.max(8, Math.min(peek.y, window.innerHeight - 380));
       return (
         <div className="fixed z-[60] w-[330px] max-h-[370px] overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-xl p-2 text-[11px] pg-card"
              style={{ top, ...(peek.left ? { right: window.innerWidth - peek.x } : { left: peek.x }) }}
              onMouseEnter={keepPeek} onMouseLeave={dropPeek}>
           <div className="font-bold text-[12px] text-gray-800 mb-1">{peek.name}</div>
-          <div className="font-bold text-violet-800">📑 공시 <span className="font-normal text-gray-400">5거래일 {ds.length}건</span></div>
-          {!ds.length ? <div className="text-gray-400">없음</div> : ds.map(r => {
+          {ds.length > 0 && <div className="font-bold text-violet-800">📑 공시 <span className="font-normal text-gray-400">5거래일 {ds.length}건</span></div>}
+          {ds.map(r => {
             const c = r.cat === "계약" ? info.get(r.rcpNo) : null;
             return (
               <button key={r.rcpNo} onClick={() => openExternal(r.url)} title={r.title} className="flex items-baseline gap-1 w-full text-left leading-[18px] hover:bg-violet-50 rounded min-w-0">
@@ -222,8 +221,8 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
               </button>
             );
           })}
-          <div className="font-bold text-sky-800 pt-1">📰 뉴스</div>
-          {!ns.length ? <div className="text-gray-400">없음</div> : ns.map(n => (
+          {ns.length > 0 && <div className="font-bold text-sky-800 pt-1">📰 뉴스</div>}
+          {ns.map(n => (
             <button key={n.id} onClick={() => openExternal(n.url)} title={`${n.title} — ${n.press}`} className="flex items-baseline gap-1 w-full text-left leading-[18px] hover:bg-sky-50 rounded min-w-0">
               <span className="text-gray-400 tabular-nums shrink-0">{ndt(n.dt)}</span>
               <span className="truncate text-gray-700">{n.title}</span>
