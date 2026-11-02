@@ -451,7 +451,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               // 미국 종목이 정규장 밖(애프터·데이마켓·프리)이면 기준 = **최근 정규장 종가**(토스·내 주식 카드와 같은 규칙).
               //   야후 prevClose 는 다음 날 프리장(04:00 ET)이 열려야 넘어가, 그 사이(정규장 마감~다음 프리) 큰 % 가
               //   이틀치 누적으로 떴다(NVDA 데이마켓 토스 −2.00% ↔ 우리 +0.49%, 사용자 지적 2026-10-22).
-              const usOffBase = marketOfSymbol(p.symbol) === "US" && !isMarketOpen("US_INDEX") && q?.regularPrice && q.regularPrice > 0
+              // 미 국채(^US2Y·^TNX·^TYX·^TIPS10)는 빼다 — 토스 지표라 regularPrice = 지금 값이라 기준이 되면 % 가 0 으로 사라졌다(사용자 2026-11-02 "채권 % 가 없어?")
+              const usOffBase = marketOfSymbol(p.symbol) === "US" && !isUsRateSymbol(p.symbol) && !isMarketOpen("US_INDEX") && q?.regularPrice && q.regularPrice > 0
                 ? q.regularPrice : undefined;
               const effBase = usOffBase ?? q?.prevClose;
               const pct = (q?.marketState === "REGULAR" && q.regularPct != null)
