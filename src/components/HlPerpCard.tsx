@@ -29,7 +29,8 @@ export function HlPerpCard({ coin, name }: Props) {
     refetchInterval: refreshMs,
     staleTime: 5_000,
   });
-  const day = useChartRange() === "day";
+  const range = useChartRange();
+  const day = range === "day";
   // 24시간 설정이면 어제+오늘(48시간 반반) — 기준선·끊김·위아래 색을 다른 카드와 같게
   const { data: two } = useQuery({
     queryKey: ["hl-perp-2day", coin],
@@ -37,8 +38,8 @@ export function HlPerpCard({ coin, name }: Props) {
     enabled: day, refetchInterval: day ? 60_000 : false, staleTime: 30_000,
   });
   const { data: spark } = useQuery({
-    queryKey: ["hl-perp-daily", coin],   // 3개월 일봉 — 하루 몇 번이면 충분
-    queryFn: () => fetchHlPerpCandles(`xyz:${coin}`),
+    queryKey: ["hl-perp-daily", coin, range],   // 3개월 | 1년 일봉(상장이 짧으면 있는 만큼) — 하루 몇 번이면 충분
+    queryFn: () => fetchHlPerpCandles(`xyz:${coin}`, range === "year" ? 366 : 92),
     enabled: !day, refetchInterval: !day ? 30 * 60_000 : false,
     staleTime: 10 * 60_000,
   });

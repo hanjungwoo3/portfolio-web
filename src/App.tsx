@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { useChartRange, historyRange } from "./lib/chartRange";
 import { QueryClient, QueryClientProvider, useQueries, useQuery } from "@tanstack/react-query";
 import {
   fetchTossPrices, fetchInvestorHistory, pickTodayInvestor, fetchKrRegularPrices, verifyKrMarkets,
@@ -497,10 +498,11 @@ function Dashboard() {
 
   // 일봉 차트 (3개월) 항상 fetch — 1시간 캐시, 카드 가격 박스 배경 sparkline
   // 장 중엔 옅게, 비거래일엔 진하게 (CSS opacity)
+  const chartRange = useChartRange();   // 카드 배경 3개월 | 1년 | 24시간(앱 설정) — 일봉 기간은 historyRange
   const chartQs = useQueries({
     queries: krxTickers.map(t => ({
-      queryKey: ["kr-price-history", t, "3mo"],
-      queryFn: () => fetchKrPriceHistory(t, "3mo"),
+      queryKey: ["kr-price-history", t, historyRange(chartRange)],   // 카드 배경 3개월 | 1년(앱 설정)
+      queryFn: () => fetchKrPriceHistory(t, historyRange(chartRange)),
       enabled: activeTickers.has(t),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
@@ -509,8 +511,8 @@ function Dashboard() {
   // 미국 종목 일봉(3개월) — 배경 sparkline + AuxIndicators 기간수익률용. 야후, 1시간 캐시.
   const usChartQs = useQueries({
     queries: usTickers.map(t => ({
-      queryKey: ["us-price-history", t, "3mo"],
-      queryFn: () => fetchYahooPriceHistory(t, "3mo"),
+      queryKey: ["us-price-history", t, historyRange(chartRange)],
+      queryFn: () => fetchYahooPriceHistory(t, historyRange(chartRange)),
       enabled: activeTickers.has(t),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,

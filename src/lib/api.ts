@@ -4013,29 +4013,30 @@ async function fetchCnbcBars(symbol: string, timeRange = "1M", cnbcOverride?: st
 //   받는 함수도 하나여야 캐시가 어긋나지 않는다(예전엔 PC 는 CNBC 지수를 CNBC 로, 모바일은 같은 키를
 //   야후로 채워 먼저 부른 쪽이 이겼다).
 //   한국 6자리(.KS)는 토스 일봉 — 야후는 코스닥이 .KQ 라 '240810.KS' 로는 빈 차트가 온다.
-export async function fetchDashboardChart(sym: string): Promise<number[]> {
-  const r = await fetchDashboardChartRaw(sym);
+export async function fetchDashboardChart(sym: string, range: "3mo" | "1y" = "3mo"): Promise<number[]> {
+  const r = await fetchDashboardChartRaw(sym, range);
   // 빈 결과는 던진다 — 캐시(staleTime 1시간)에 '빈 차트'가 굳지 않고 바로 다시 받게(빈 캐시 금지).
   //   APK 에서 리튬·니켈 시세는 고쳐진 뒤 살아났는데 배경 그래프는 빈 값이 1시간 남아 안 나왔다(2026-10-22).
   if (!r.length) throw new Error(`빈 차트: ${sym}`);
   return r;
 }
-async function fetchDashboardChartRaw(sym: string): Promise<number[]> {
+async function fetchDashboardChartRaw(sym: string, range: "3mo" | "1y" = "3mo"): Promise<number[]> {
   const kr = /^([\dA-Za-z]{6})\.KS$/.exec(sym);
-  if (kr) return (await fetchKrPriceHistory(kr[1], "3mo")).map(p => p.close);
-  if (isCnbcIndex(sym)) return fetchCnbcChart(sym);
+  const n = range === "1y" ? 252 : 63;   // 거래일 수 — 일봉을 직접 자르는 출처(CNBC·CNN·머니랜드)용
+  if (kr) return (await fetchKrPriceHistory(kr[1], range)).map(p => p.close);
+  if (isCnbcIndex(sym)) return (await fetchCnbcChart(sym, 252)).slice(-n);
   // 미국 2년물 — 야후에 일봉이 없어 토스 당일 10분봉(몇 개)이 3개월 칸에 그려져 이상했다(사용자 2026-11-02). CNBC 일봉 3개월로
-  if (sym === "^US2Y") return (await fetchCnbcBars(sym, "1M", "US2Y")).map(b => cnbcNum(b.close)).filter((v): v is number => v !== null && v > 0).slice(-63);
-  if (sym === CNN_FG_SYMBOL) return fetchCnnFgChart();
+  if (sym === "^US2Y") return (await fetchCnbcBars(sym, "1M", "US2Y")).map(b => cnbcNum(b.close)).filter((v): v is number => v !== null && v > 0).slice(-n);
+  if (sym === CNN_FG_SYMBOL) return (await fetchCnnFgChart(252)).slice(-n);
   if (isSinaMetal(sym)) return fetchSinaMetalChart(sym);
-  if (isMemPrice(sym)) return fetchMemChart(sym);
-  return fetchYahooChart(sym, "3mo");
+  if (isMemPrice(sym)) return (await fetchMemChart(sym, 252)).slice(-n);
+  return fetchYahooChart(sym, range);
 }
 
 // 카드 3개월 그래프 — CNBC 1M 범위는 실제로 약 1년(244봉)이라 다른 카드(63거래일)·반도체 수급 칸과 기간이 달랐다(사용자 2026-11-02)
-export async function fetchCnbcChart(symbol: string): Promise<number[]> {
+export async function fetchCnbcChart(symbol: string, n = 63): Promise<number[]> {
   const bars = await fetchCnbcBars(symbol);
-  return bars.map(b => cnbcNum(b.close)).filter((v): v is number => v !== null).slice(-63);
+  return bars.map(b => cnbcNum(b.close)).filter((v): v is number => v !== null).slice(-n);
 }
 
 // 일자 정렬용 종가 시계열 (PricePoint[]) — VKOSPI 등 오버레이용.
@@ -4131,10 +4132,10 @@ async function fetchCnnFgIndex(name: string): Promise<UsIndex | null> {
   };
 }
 // 스파크라인 — 다른 카드와 같은 3개월(약 63거래일). CNN 은 1년치 일별을 준다.
-async function fetchCnnFgChart(): Promise<number[]> {
+async function fetchCnnFgChart(n = 63): Promise<number[]> {
   const d = await loadCnnFg();
   const pts = d?.fear_and_greed_historical?.data ?? [];
-  return pts.map(p => p.y).filter(v => Number.isFinite(v)).slice(-63);
+  return pts.map(p => p.y).filter(v => Number.isFinite(v)).slice(-n);
 }
 
 // 24시간 카드 — CNBC 5일 분봉(timeRange 5D, ~1,500개). 미국 10년 실질금리(^TIPS10) 처럼 야후·토스에 분봉이 없는 심볼
@@ -4350,9 +4351,9 @@ async function fetchMemPrices(pairs: { symbol: string; name: string }[]): Promis
   }
   return out;
 }
-async function fetchMemChart(symbol: string): Promise<number[]> {
+async function fetchMemChart(symbol: string, n = 63): Promise<number[]> {
   const s = (await loadMemSeries())?.[MEM_SERIES[symbol]];
-  return (s?.v ?? []).filter(x => x > 0).slice(-63);   // 다른 카드와 같은 3개월(일별 품목 기준 63점)
+  return (s?.v ?? []).filter(x => x > 0).slice(-n);   // 다른 카드와 같은 기간(3개월 = 일별 품목 기준 63점)
 }
 
 // ─── 미국 종목 24시간(당일) 차트 — 야후 spark 배치 ─────────────
@@ -5667,9 +5668,9 @@ export async function fetchHlPerpTwoDay(coin: string): Promise<DaySeries | null>
 
 // 3개월 카드용 — 일봉 3개월(약 63거래일, 다른 카드와 같은 길이). 예전엔 최근 24시간 15분봉이라 3개월을 골라도
 //   24시간과 같은 그래프였다(사용자 2026-11-02). 상장이 짧으면 있는 만큼.
-export async function fetchHlPerpCandles(coin: string): Promise<number[]> {
+export async function fetchHlPerpCandles(coin: string, days = 92): Promise<number[]> {
   try {
-    const end = Date.now(), start = end - 92 * 86400_000;
+    const end = Date.now(), start = end - days * 86400_000;
     const resp = await fetch("https://api.hyperliquid.xyz/info", {
       method: "POST", headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ type: "candleSnapshot", req: { coin, interval: "1d", startTime: start, endTime: end } }),

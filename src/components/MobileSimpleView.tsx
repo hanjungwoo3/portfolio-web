@@ -33,7 +33,7 @@ import { getPersonalProxies, setPersonalProxies, type PersonalProxy, fetchProxyU
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
-import { useChartRange, pickCardChart } from "../lib/chartRange";
+import { useChartRange, pickCardChart, historyRange } from "../lib/chartRange";
 import { ChartRangeToggle } from "./ChartRangeToggle";
 import { useIntradayCharts } from "../lib/useIntradayCharts";
 import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage } from "../lib/dashboardGroups";
@@ -821,8 +821,8 @@ export function MobileSimpleView() {
   // 비거래일에만 일봉 차트 fetch — 카드 가격 박스 sparkline (PC 와 캐시 키 공유)
   const groupChartQs = useQueries({
     queries: groupTickers.map(t => ({
-      queryKey: ["kr-price-history", t, "3mo"],
-      queryFn: () => fetchKrPriceHistory(t, "3mo"),
+      queryKey: ["kr-price-history", t, historyRange(chartRange)],
+      queryFn: () => fetchKrPriceHistory(t, historyRange(chartRange)),
       staleTime: 60 * 60 * 1000,    // 1시간 캐시 (장중 fetch 부담 최소화)
       refetchOnWindowFocus: false,
       enabled: !isSystemTab,  // 장중에도 fetch — AuxIndicators 의 3개월/변동성 표시
@@ -831,8 +831,8 @@ export function MobileSimpleView() {
   // 미국 종목 일봉(3개월) — 배경 sparkline + AuxIndicators 기간수익률용. 야후, 1시간 캐시.
   const usGroupChartQs = useQueries({
     queries: usGroupTickers.map(t => ({
-      queryKey: ["us-price-history", t, "3mo"],
-      queryFn: () => fetchYahooPriceHistory(t, "3mo"),
+      queryKey: ["us-price-history", t, historyRange(chartRange)],
+      queryFn: () => fetchYahooPriceHistory(t, historyRange(chartRange)),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
       enabled: !isSystemTab,
@@ -1076,8 +1076,8 @@ export function MobileSimpleView() {
   }, [onIndexTab, activeTab]);
   const t0ChartQs = useQueries({
     queries: t0ChartSyms.map(sym => ({
-      queryKey: ["yahoo-chart", sym, "3mo"],
-      queryFn: () => fetchDashboardChart(sym),
+      queryKey: ["yahoo-chart", sym, historyRange(chartRange)],   // 3개월 | 1년(앱 설정)
+      queryFn: () => fetchDashboardChart(sym, historyRange(chartRange)),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
       // 빈 차트는 던진다(fetchDashboardChart) — 실패면 5분 뒤 다시(원래 차트가 없는 심볼이 매분 부르지 않게 1번만 재시도)
@@ -1088,8 +1088,8 @@ export function MobileSimpleView() {
   const TOSS_CHART_SYMBOLS = ["SKHY"];
   const tossStockChartQs = useQueries({
     queries: TOSS_CHART_SYMBOLS.map(sym => ({
-      queryKey: ["toss-us-candles", sym],
-      queryFn: () => fetchTossUsStockCandles(sym),
+      queryKey: ["toss-us-candles", sym, historyRange(chartRange)],
+      queryFn: () => fetchTossUsStockCandles(sym, historyRange(chartRange) === "1y" ? 252 : 120),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -1105,8 +1105,8 @@ export function MobileSimpleView() {
   const krBondSyms = Object.keys(KR_BOND_CODE);
   const krBondQs = useQueries({
     queries: krBondSyms.map(sym => ({
-      queryKey: ["kr-bond-series", sym],
-      queryFn: () => fetchKrBondYieldSeries(KR_BOND_CODE[sym], 60),
+      queryKey: ["kr-bond-series", sym, historyRange(chartRange)],
+      queryFn: () => fetchKrBondYieldSeries(KR_BOND_CODE[sym], historyRange(chartRange) === "1y" ? 252 : 60),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),

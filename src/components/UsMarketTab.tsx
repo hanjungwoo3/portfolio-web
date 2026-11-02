@@ -9,7 +9,7 @@ import { fetchYahooBatch, fetchKrFuturesMinute, fetchKrRegularPrices, daySparkPl
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isKrAfterRegularClose, nowKstDateStr } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
-import { useChartRange, pickCardChart } from "../lib/chartRange";
+import { useChartRange, pickCardChart, historyRange } from "../lib/chartRange";
 import { ChartRangeToggle } from "./ChartRangeToggle";
 import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
@@ -157,10 +157,11 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
     }
   }
   const allYahooForCharts = [...chartSet];
+  const chartHist = historyRange(useChartRange());   // 3개월 | 1년 — 아래 chartRange 선언보다 먼저 쓰여 따로 읽는다
   const yahooChartQs = useQueries({
     queries: allYahooForCharts.map(sym => ({
-      queryKey: ["yahoo-chart", sym, "3mo"],
-      queryFn: () => fetchDashboardChart(sym),
+      queryKey: ["yahoo-chart", sym, chartHist],   // 3개월 | 1년(앱 설정)
+      queryFn: () => fetchDashboardChart(sym, chartHist),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
       // 빈 차트는 던진다(fetchDashboardChart) — 실패면 5분 뒤 다시(원래 차트가 없는 심볼이 매분 부르지 않게 1번만 재시도)
@@ -175,8 +176,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const TOSS_CHART_SYMBOLS = ["SKHY"];
   const tossStockChartQs = useQueries({
     queries: TOSS_CHART_SYMBOLS.map(sym => ({
-      queryKey: ["toss-us-candles", sym],
-      queryFn: () => fetchTossUsStockCandles(sym),
+      queryKey: ["toss-us-candles", sym, chartHist],
+      queryFn: () => fetchTossUsStockCandles(sym, chartHist === "1y" ? 252 : 120),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -193,8 +194,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const krBondSyms = Object.keys(KR_BOND_CODE);
   const krBondQs = useQueries({
     queries: krBondSyms.map(sym => ({
-      queryKey: ["kr-bond-series", sym],
-      queryFn: () => fetchKrBondYieldSeries(KR_BOND_CODE[sym], 60),
+      queryKey: ["kr-bond-series", sym, chartHist],
+      queryFn: () => fetchKrBondYieldSeries(KR_BOND_CODE[sym], chartHist === "1y" ? 252 : 60),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -232,7 +233,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const dimOf = (sym: string) => { const tp = tier0.find(x => x.symbol === sym); return !!tp && dashboardCardDim(tp, usMap.get(sym), dimEnabled); };
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
   const [leaderSort, setLeaderSort] = useState<LeaderSort>(loadLeaderSort);   // 대장주 줄 정렬(등락률순 기본)
-  const chartRange = useChartRange();   // 카드 배경 차트 3개월 | 24시간 — 앱 전체 설정
+  const chartRange = useChartRange();   // 카드 배경 차트 3개월 | 1년 | 24시간 — 앱 전체 설정
   // 미국 종목·ETF 24시간 차트 — 야후 spark(20종목 1콜). '24시간' 을 골랐을 때만 받는다(5분마다).
   const sparkPlan = useMemo(() => daySparkPlan(US_SPARK_SYMBOLS), []);   // 앱=토스 1순위, 웹=야후 1순위(api.daySparkPlan)
   const { data: usSpark, isFetched: usSparkFetched } = useQuery({

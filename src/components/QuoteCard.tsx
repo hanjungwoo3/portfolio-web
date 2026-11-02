@@ -7,7 +7,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchKrPriceHistory, fetchYahooPriceHistory, fetchTossIntraday } from "../lib/api";
 import { openTossStock } from "../lib/toss";
-import { useChartRange } from "../lib/chartRange";
+import { useChartRange, historyRange } from "../lib/chartRange";
 import { openStockInfo } from "../lib/tickPopup";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { KrDaySparkline } from "./KrDaySparkline";
@@ -23,10 +23,10 @@ export function QuoteCard({ code, name, sub, px, dim, className = "w-[132px] sm:
   const range = useChartRange();
   const isUs = !(/^[\dA-Za-z]{6}$/.test(code) && /\d/.test(code));
   const hist = useQuery({
-    queryKey: [isUs ? "us-price-history" : "kr-price-history", code, "3mo"],   // 종목 카드(App chartQs·usChartQs)와 같은 키 — 이미 받은 종목은 다시 안 부른다
-    queryFn: () => isUs ? fetchYahooPriceHistory(code, "3mo") : fetchKrPriceHistory(code, "3mo"),
+    queryKey: [isUs ? "us-price-history" : "kr-price-history", code, historyRange(range)],   // 종목 카드(App chartQs·usChartQs)와 같은 키 — 이미 받은 종목은 다시 안 부른다
+    queryFn: () => isUs ? fetchYahooPriceHistory(code, historyRange(range)) : fetchKrPriceHistory(code, historyRange(range)),
     staleTime: 60 * 60 * 1000, refetchOnWindowFocus: false,
-    enabled: range === "all",   // 24시간이면 안 받는다(공시 줄처럼 카드가 많은 곳에서 호출을 늘리지 않게)
+    enabled: range !== "day",   // 24시간이면 안 받는다(공시 줄처럼 카드가 많은 곳에서 호출을 늘리지 않게)
   });
   const usDay = useQuery({
     queryKey: ["toss-us-day", code],   // 지수 탭 미국 카드(UsMarketTab tossUsDayQs)와 같은 키
