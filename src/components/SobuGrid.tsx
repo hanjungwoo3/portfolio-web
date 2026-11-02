@@ -169,9 +169,12 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
                     </div>
                   );
                 })}
+              {dList.length > 5 && (
+                <button onClick={() => setOpen(o => ({ ...o, [b.label]: !o[b.label] }))} className="text-violet-700 hover:underline">{more ? "접기" : `공시 더 보기 (${dList.length - 5}건)`}</button>
+              )}
               <div className="font-bold text-sky-800 pt-1">📰 뉴스</div>
               {!nList.length ? <div className="text-gray-400">{newsQs.some(q => q.isLoading) ? "불러오는 중…" : "없음"}</div>
-                : (more ? nList.slice(0, 15) : nList.slice(0, 5)).map(n => (
+                : nList.slice(0, 20).map(n => (   // 뉴스는 접지 않고 펼쳐 둔다(사용자 2026-11-02) — 칸당 최근 20건
                   <div key={n.id} className="flex items-baseline gap-1 leading-[18px] min-w-0 rounded hover:bg-amber-50"
                        onMouseEnter={() => setHot(n.code)} onMouseLeave={() => setHot(null)}>
                     <span className="text-gray-400 tabular-nums shrink-0">{ndt(n.dt)}</span>
@@ -179,9 +182,6 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
                     <button onClick={() => openExternal(n.url)} title={`${n.title} — ${n.press}`} className="truncate text-gray-600 hover:underline text-left min-w-0">{n.title}</button>
                   </div>
                 ))}
-              {(dList.length > 5 || nList.length > 5) && (
-                <button onClick={() => setOpen(o => ({ ...o, [b.label]: !o[b.label] }))} className="text-violet-700 hover:underline">{more ? "접기" : "더 보기"}</button>
-              )}
             </div>
           </div>
         );
