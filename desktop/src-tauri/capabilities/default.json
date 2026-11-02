@@ -24,6 +24,7 @@
     "allow-broker-status",
     "allow-broker-set",
     "allow-broker-clear",
-    "allow-broker-fetch"
+    "allow-broker-fetch",
+    "allow-kis-ws-poll"
   ]
 }

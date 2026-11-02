@@ -7,8 +7,9 @@
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { ValueupTags } from "./ValueupTags";
+import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
-import { useId, useState } from "react";
+import { useEffect, useId, useState } from "react";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
@@ -550,6 +551,7 @@ function TickPanel({ name, flow, day, onTitle }: { name: string; flow: TickFlow;
           ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
           : <span className="font-bold text-gray-800">{name} 실시간 체결</span>}
         <span className="text-[11px] text-gray-400">{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
+        <KisWsBadge />
       </div>
       <div className="flex gap-3 tabular-nums my-1">
         <Stat label="체결강도 1분" v={st1} />
@@ -985,4 +987,15 @@ function ValueupStrip({ code }: { code: string }) {
       <span>거래소 밸류업</span><ValueupTags code={code} />
     </div>
   );
+}
+
+// 체결 출처 표시 — 한국투자 웹소켓이 살아 있으면 "한투 실시간", 실패면 사유(토스 5초가 이어받는다). 앱+한투 연동일 때만(사용자 2026-11-02)
+function KisWsBadge() {
+  const [, setT] = useState(0);
+  useEffect(() => { if (!kisWsAvailable()) return; const id = setInterval(() => setT(t => t + 1), 2_000); return () => clearInterval(id); }, []);
+  if (!kisWsAvailable()) return null;
+  const st = kisWsStatus();
+  if (kisWsLive()) return <span className="ml-auto text-[10px] px-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-300" title="한국투자 웹소켓 — 체결이 나는 즉시(1초마다 화면 반영)">● 한투 실시간</span>;
+  if (st.startsWith("error")) return <span className="ml-auto text-[10px] text-amber-700 truncate max-w-[50%]" title={st}>한투 실시간 실패 — 토스 5초로 · {st.slice(7)}</span>;
+  return <span className="ml-auto text-[10px] text-gray-400">한투 연결 중…</span>;
 }

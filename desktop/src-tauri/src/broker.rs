@@ -162,6 +162,13 @@ pub struct BrokerState {
     last_call: Mutex<HashMap<String, Instant>>,
 }
 
+impl BrokerState {
+    /// 한국투자 (앱키, 시크릿, 모드) — 웹소켓 접속키 발급용(kis_ws.rs). 웹으로는 절대 안 넘긴다
+    pub(crate) fn kis_creds(&self) -> Result<Option<(String, String, Option<String>)>, String> {
+        Ok(creds_of(self, "kis")?.map(|c| (c.client_id, c.client_secret, c.mode)))
+    }
+}
+
 #[derive(serde::Serialize)]
 pub struct BrokerStatus {
     configured: bool,

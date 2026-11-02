@@ -16,6 +16,7 @@ use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent}
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 
 mod broker;
+mod kis_ws;
 
 const SITE_URL: &str = "https://hanjungwoo3.github.io/portfolio-web/";
 
@@ -379,7 +380,8 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(client)
         .manage(broker::BrokerState::default())   // 증권사 연결 — 토큰 캐시·한도
-        .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, close_viewer, broker::broker_status, broker::broker_set, broker::broker_clear, broker::broker_fetch, google_login, google_refresh, app_update_check, app_update_install, app_dialog])
+        .manage(kis_ws::KisWsState::default())     // 한국투자 실시간 체결 웹소켓
+        .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, close_viewer, broker::broker_status, broker::broker_set, broker::broker_clear, broker::broker_fetch, kis_ws::kis_ws_poll, google_login, google_refresh, app_update_check, app_update_install, app_dialog])
         .setup(move |app| {
             let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse()?))
                 .title("포트폴리오")

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
+import { KisExpRankBox } from "./KisExpRankBox";
 import { ValueupTags } from "./ValueupTags";
 import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { BrokerLinkSection } from "./BrokerLinkSection";
@@ -1866,6 +1867,7 @@ export function MobileSimpleView() {
           <div className="px-3 py-2 space-y-3">
             <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
                          stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />
+            <KisExpRankBox compact />
             {sections.map(section => {
               // keepRows — 줄마다 첫 카드를 새 줄 1열에서 시작(col-start-1)해 PC 처럼 줄이 유지된다
               const rowHeads = new Set(section.keepRows ? section.rows.map(r => r[0]) : []);

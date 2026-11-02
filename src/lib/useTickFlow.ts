@@ -1,10 +1,13 @@
+// 한국투자 연동(앱)이면 웹소켓 체결을 1초마다 받아 같은 통에 넣는다(lib/kisWs, 사용자 2026-11-02) — 그동안 토스 폴링은 쉰다.
+//   웹소켓이 끊기거나 실패하면(kisWsLive false) 토스 5초 폴링이 그대로 이어받는다. 둘 다 누적 거래량(cum)으로 중복을 거른다.
 // 종목 실시간 체결 누적 — 토스 ticks(최근 300건 ≈ 수십 초)를 5초마다 받아 **이 화면이 켜진 동안** 1분 단위로 쌓는다.
 //   과거 체결을 거슬러 받는 API 가 없다 → **오늘치를 이 브라우저(localStorage)에 저장**해 새로고침·재방문에도 잇는다
 //   (사용자 요청 2026-10-21). 날짜(KST)가 바뀌면 버린다. 꺼져 있던 동안은 못 받으니 빈 구간으로 센다.
 //   중복 제거: 체결마다 붙는 누적 거래량(cum)이 단조 증가라 마지막 cum 보다 큰 것만 새 체결로 본다.
 //   두 번 받는 사이 300건을 넘게 체결되면 빈 구간이 생긴다 → gaps 로 세어 화면에 알린다.
 import { useEffect, useRef, useState } from "react";
-import { fetchTossTicks } from "./api";
+import { fetchTossTicks, type TossTick } from "./api";
+import { kisWsLive, subscribeKisTicks } from "./kisWs";
 
 export interface MinuteFlow {
   t: string;          // "HH:MM"
@@ -49,18 +52,19 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
-    const tick = async () => {
-      if (document.hidden) return;
-      try {
-        const ts = await fetchTossTicks(code);
-        if (!alive) return;
-        setError(undefined);
+    // 누적 거래량은 출처마다 기준이 다르다(토스는 NXT 포함일 수 있고 한투 H0STCNT0 은 KRX) — 중복 거르기는 출처별로.
+    //   한투 웹소켓은 등록 뒤 새 체결만 밀어 주므로 그 자체로 중복이 없다(메모리 기준만).
+    let lastKis = 0, lastKisTime = "";   // 웹소켓이 끊겨 토스가 이어받을 때, 웹소켓으로 이미 센 시각까지는 다시 안 센다
+    const ingest = (ts: TossTick[], src: "toss" | "kis") => {
         const s = store.current;
-        const fresh = ts.filter(t => t.cum > s.lastCum).sort((a, b) => a.cum - b.cum);   // 응답은 최신 → 과거
+        const last = src === "kis" ? lastKis : s.lastCum;
+        const fresh = ts.filter(t => t.cum > last).sort((a, b) => a.cum - b.cum);   // 응답은 최신 → 과거
         if (!fresh.length) return;
-        // 이전에 받은 것과 이어지는가 — 첫 새 체결의 (cum - volume) 가 직전 마지막 cum 이면 빈틈 없음
-        if (s.lastCum && fresh[0].cum - fresh[0].volume > s.lastCum) s.gaps++;
+        if (src === "kis") { lastKis = fresh[fresh.length - 1].cum; lastKisTime = fresh[fresh.length - 1].time; }
+        // 이전에 받은 것과 이어지는가 — 첫 새 체결의 (cum - volume) 가 직전 마지막 cum 이면 빈틈 없음(토스만)
+        if (src === "toss" && s.lastCum && fresh[0].cum - fresh[0].volume > s.lastCum) s.gaps++;
         for (const t of fresh) {
+          if (src === "toss" && lastKisTime && t.time <= lastKisTime) continue;
           const m = t.time.slice(0, 5);
           let b = s.minutes.get(m);
           if (!b) { b = { t: m, buyVol: 0, sellVol: 0, buyAmt: 0, sellAmt: 0, close: t.price }; s.minutes.set(m, b); }
@@ -70,7 +74,7 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
           if (amt >= BIG_MIN) s.big.unshift({ time: t.time, side: t.side, amt, price: t.price, volume: t.volume });
         }
         s.big = s.big.slice(0, 200);   // 낮은 단계까지 모으니 넉넉히
-        s.lastCum = fresh[fresh.length - 1].cum;
+        if (src === "toss") s.lastCum = fresh[fresh.length - 1].cum;
         s.since ??= fresh[0].time;
         s.last = fresh[fresh.length - 1].time;
         try {
@@ -78,13 +82,22 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
           localStorage.setItem(storeKey(code), JSON.stringify(sv));
         } catch { /* 저장 실패(사생활 모드·용량) — 화면은 그대로 */ }
         setVer(v => v + 1);
+    };
+    const tick = async () => {
+      if (document.hidden || kisWsLive()) return;   // 웹소켓이 살아 있으면 토스는 쉰다
+      try {
+        const ts = await fetchTossTicks(code);
+        if (!alive) return;
+        setError(undefined);
+        ingest(ts, "toss");
       } catch (e) {
         if (alive) setError((e as Error).message);
       }
     };
+    const unsub = subscribeKisTicks(code, ts => { if (alive) { setError(undefined); ingest(ts, "kis"); } });
     void tick();
     const id = setInterval(tick, POLL_MS);
-    return () => { alive = false; clearInterval(id); };
+    return () => { alive = false; clearInterval(id); unsub(); };
   }, [code, enabled]);
   const s = store.current;
   return { minutes: [...s.minutes.values()].sort((a, b) => a.t.localeCompare(b.t)), big: s.big, gaps: s.gaps, since: s.since, last: s.last, error };
