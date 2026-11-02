@@ -13,7 +13,7 @@ function stub(from: number, to: number) {
   }));
 }
 describe("fetchHlPerpSession", () => {
-  it("월 21시 — 기준 = 오늘 15:30, 직전 세션 = 금 15:30~월 15:30", async () => {
+  it("월 21시 — 기준 = 오늘 15:30", async () => {
     vi.useFakeTimers(); vi.setSystemTime(kst("2026-11-02T21:00:00"));
     stub(kst("2026-10-28T00:00:00"), kst("2026-11-02T21:00:00"));
     const r = await fetchHlPerpSession("xyz:SKHY");
@@ -22,10 +22,10 @@ describe("fetchHlPerpSession", () => {
     expect(r?.sessionBase).toBe(100 + (kst("2026-11-02T15:25:00") - kst("2026-10-28T00:00:00")) / 60_000);
     expect(r?.markXs?.some(m => m.close)).toBe(true);
   });
-  it("월 11시(한국 장중) — 기준 = 금 15:30", async () => {
+  it("월 11시(한국 장중) — 기준 = 어제(일) 15:30 — 매일 24시간 세션", async () => {
     vi.useFakeTimers(); vi.setSystemTime(kst("2026-11-02T11:00:00"));
     stub(kst("2026-10-28T00:00:00"), kst("2026-11-02T11:00:00"));
     const r = await fetchHlPerpSession("xyz:SKHY");
-    expect(r?.sessionStart).toBe(kst("2026-10-30T15:30:00"));
+    expect(r?.sessionStart).toBe(kst("2026-11-01T15:30:00"));
   });
 });

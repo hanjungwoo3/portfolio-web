@@ -5630,20 +5630,18 @@ export async function fetchHlXyzPerps(): Promise<Map<string, HlPerp>> {
 }
 // coin 은 "xyz:SKHY" 처럼 프리픽스 포함.
 // ─── 하이퍼리퀴드 무기한선물 '세션' 그래프 — 다른 선물 카드처럼(사용자 2026-11-02 "48시간 말고 세션으로") ───
-//   세션 = **평일 한국 장 마감(15:30 KST) ~ 다음 평일 15:30**. 따라가는 종목이 삼성전자·SK하이닉스라 한국 장 마감이 하루의 경계다.
+//   세션 = **매일 한국 장 마감 시각(15:30 KST) ~ 다음 날 15:30**(24시간, 주말도). 따라가는 종목이 삼성전자·SK하이닉스라 한국 장 마감이 하루의 경계다.
 //   · 한국 장중(09:00~15:30) — 기준 = 전 거래일 15:30 가격 → 카드 % 가 그 종목의 오늘 등락과 같은 뜻
-//   · 장 마감 뒤·밤·주말 — 기준 = 오늘(금요일) 15:30 가격 → 카드 % = **한국 장 마감 뒤 시간외 움직임**(이 카드의 쓰임새)
-//   그림은 rollDay(다른 선물과 같은 굴러가는 창: 직전 세션 끝 + 지금 세션), 세로선 = 한국 09:00 시가·15:30 종가(시간표).
-//   주말을 낀 세션(금 15:30 ~ 월 15:30)은 72시간이라 칸 안 시간 축이 그만큼 눌린다.
+//   · 장 마감 뒤·밤 — 기준 = 오늘 15:30 가격 → 카드 % = **한국 장 마감 뒤 시간외 움직임**(이 카드의 쓰임새). 주말은 그날 15:30 기준
+//   그림은 rollDay(다른 선물과 같은 굴러가는 창: 직전 세션 끝 + 지금 세션), 세로선 = 세션 경계(한국 15:30) 하나.
 const KR_CLOSE_MS = (15 * 60 + 30) * 60_000;
+// 매일 15:30 KST 경계(주말 포함) — 24시간 거래라 세션도 늘 24시간. 평일만 경계로 잡으면 주말을 낀 세션이 72시간이 돼
+//   '24시간 그래프'가 아니게 됐다(사용자 2026-11-02 "24시간 그래프인데?")
 function krCloseSessions(now: number): { s0: number; s1: number; s2: number } {
   const at = (d: number) => d * 86400_000 + KR_CLOSE_MS - 9 * 3600_000;
-  const wd = (d: number) => { const w = new Date(d * 86400_000).getUTCDay(); return w !== 0 && w !== 6; };
   let d = Math.floor((now + 9 * 3600_000) / 86400_000);
-  while (!(wd(d) && at(d) <= now)) d--;
-  let d0 = d - 1; while (!wd(d0)) d0--;
-  let d2 = d + 1; while (!wd(d2)) d2++;
-  return { s0: at(d0), s1: at(d), s2: at(d2) };
+  if (at(d) > now) d--;
+  return { s0: at(d - 1), s1: at(d), s2: at(d + 1) };
 }
 export interface HlPerpSession extends DaySeries { sessionBase: number; sessionStart: number }
 export async function fetchHlPerpSession(coin: string): Promise<HlPerpSession | null> {
@@ -5666,14 +5664,12 @@ export async function fetchHlPerpSession(coin: string): Promise<HlPerpSession | 
     const fr = arr.map(k => { const e = k.t + STEP; return e <= s1 ? (e - s0) / (s1 - s0) : (e - s1) / (s2 - s1); });
     const fNow = Math.min(1, (now - s1) / (s2 - s1));
     const r = rollDay({ closes: arr.map(k => k.c), breakIdx: bi > 0 ? bi : undefined }, fr, bi > 0 ? bi : 0, fNow);
-    // 세로선 — 세션마다 길이가 달라(주말) SessionMarks 의 공통 비율을 못 쓴다 → 세션별로 직접. 위치 공식은 rollDay 와 같다.
+    // 세로선 위치 공식은 rollDay 와 같다.
     const full = fNow >= 1, start = full ? 1 + ROLL_GAP : fNow, W = full ? 1 : 1 + ROLL_GAP;
     const marks: MarkX[] = [];
     const put = (g: number, close?: boolean) => { const x = (g - start) / W; if (x > 0.002 && x <= 1 + 1e-9) marks.push({ x: Math.min(1, x), ...(close ? { close: true } : {}) }); };
-    const OPEN_BEFORE = 6.5 * 3600_000;   // 09:00 = 그 날 15:30 의 6시간 30분 전
-    put((s1 - OPEN_BEFORE - s0) / (s1 - s0));             // 직전 세션 안의 한국 09:00
-    put(1, true);                                          // 직전 세션 끝 = 한국 15:30 마감(지금 % 기준)
-    if (now >= s2 - OPEN_BEFORE) put(1 + ROLL_GAP + (s2 - OPEN_BEFORE - s1) / (s2 - s1));   // 이번 세션 한국 09:00(지났으면)
+    // 세로선은 **세션 경계 하나**(직전 세션 끝 = 한국 15:30 마감 = 지금 % 기준) — 세션으로 바꿨으니 09:00 선은 뺐다(사용자 2026-11-02 "선이 하나만 있어야")
+    put(1, true);
     return { ...r, markXs: marks, base, ...(prevBase ? { prevBase } : {}), sessionBase: base, sessionStart: s1 };
   } catch { return null; }
 }

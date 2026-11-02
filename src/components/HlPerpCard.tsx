@@ -79,7 +79,7 @@ export function HlPerpCard({ coin, name }: Props) {
           </span>
         </div>
         <div className="relative z-10 text-[11px] text-gray-500 truncate"
-             title={sBase ? `기준 = ${new Date(two!.sessionStart).toLocaleString("ko-KR", { month: "numeric", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit" })} 가격 $${sBase.toFixed(2)} — 한국 장중엔 전 거래일 마감 대비, 장 마감 뒤엔 오늘 마감 대비(시간외 움직임)` : undefined}>
+             title={sBase ? `기준 = ${new Date(two!.sessionStart).toLocaleString("ko-KR", { month: "numeric", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit" })} 가격 $${sBase.toFixed(2)} — 매일 15:30 경계 24시간 세션 — 15:30 뒤엔 오늘 한국 장 마감 대비(시간외 움직임), 그 전엔 어제 15:30 대비` : undefined}>
           하이퍼리퀴드 무기한선물 · {baseLabel}</div>
         <div className="relative z-10 flex items-end mt-auto">
           <span className={`flex-1 text-left tabular-nums ${sign}`}>
