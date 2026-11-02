@@ -6,12 +6,12 @@ export function ValueupTags({ code, size = "sm", bookmark, flat }: {
   code: string | undefined;
   size?: "xs" | "sm";
   bookmark?: boolean;   // PC 종목 카드 책갈피 줄 — 위만 둥글게
-  flat?: boolean;       // 지수 탭 카드 위 책갈피 줄(ETF·투자경고 칩과 같은 높이)
+  flat?: boolean;       // 지수 탭 카드 아래 책갈피 줄(📊·🔍 칩과 같은 높이)
 }) {
   const t = useValueupTags(code);
   if (!t) return null;
   const base = flat
-    ? "px-1.5 py-0 rounded text-[10px] font-bold leading-tight border whitespace-nowrap hover:brightness-95"
+    ? "px-1.5 py-0 rounded text-[9px] font-bold leading-tight border whitespace-nowrap hover:brightness-95"
     : `inline-flex items-center px-1.5 py-0.5 ${bookmark ? "rounded-t-md" : "rounded"} border font-bold leading-none whitespace-nowrap
                 hover:brightness-95 ${size === "xs" ? "text-[9px]" : "text-[10px]"}`;
   const out = [];

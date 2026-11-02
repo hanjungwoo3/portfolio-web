@@ -2114,8 +2114,7 @@ export function MobileSimpleView() {
                     const krTk = krEtfTicker(p.symbol);                         // 한국 6자리(.KS) — 종목·ETF 모두
                     const isKrEtf = !!krTk && !p.krStock;
                     const lv = krTk ? marketAlerts.get(krTk) : undefined;
-                    const vu = p.krStock ? tagsFor(valueupFile, krTk) : undefined;
-                    if (!krTk || (!isKrEtf && !lv && !vu)) return null;
+                    if (!krTk || (!isKrEtf && !lv)) return null;
                     const tag = "px-1.5 py-0 rounded text-[10px] font-bold leading-tight border";
                     return (
                       <div className="absolute -top-2 left-1 z-30 flex items-center gap-0.5">   {/* 마감 책갈피(z-20)가 길어도 위로 */}
@@ -2127,7 +2126,6 @@ export function MobileSimpleView() {
                         </button>
                         )}
                         {lv && <IndexWarnTag inline ticker={krTk!} name={p.name} level={lv} />}
-                        {vu && <ValueupTags code={krTk!} flat />}
                       </div>
                     );
                   })()}
@@ -2271,9 +2269,12 @@ export function MobileSimpleView() {
                     const isUsStock = /^[A-Z][A-Z.]{0,5}$/.test(p.symbol) && marketOfSymbol(p.symbol) === "US" && p.symbol !== "CNNFG";
                     const tag = section.tags?.[p.symbol];
                     const pill = "px-1.5 py-0 rounded text-[9px] leading-tight whitespace-nowrap font-bold transition";
-                    if (!tag && !CARD_HEATMAP_LINK[p.symbol] && !isKrStock && !isUsStock) return null;
+                    // 밸류업 꼬리표(저PBR·고배당·밸류업★)는 아래 줄 맨 앞(사용자 2026-11-02 "아래로 내리자")
+                    const vu = isKrStock ? tagsFor(valueupFile, krCode) : undefined;
+                    if (!tag && !CARD_HEATMAP_LINK[p.symbol] && !isKrStock && !isUsStock && !vu) return null;
                     return (
                       <div className="absolute -bottom-1 right-1 z-20 flex items-center gap-0.5">
+                        {vu && <ValueupTags code={krCode} flat />}
                         {tag && <span className={`${pill} border ${dashboardTagTone(tag)}`}>{tag}</span>}
                         {CARD_HEATMAP_LINK[p.symbol] && (
                           <button onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
@@ -2286,7 +2287,7 @@ export function MobileSimpleView() {
                           <button onClick={() => openStockInfo(krCode, p.name)}
                                   title="종목정보 — 실시간 체결·호가·거래원 / 기업가치 (팝업)"
                                   className={`${pill} text-amber-700 bg-amber-50 border border-amber-300/70 active:bg-amber-100`}>
-                            📊종목정보
+                            📊
                           </button>
                         )}
                         {(isKrStock || isUsStock) && (
@@ -2295,7 +2296,7 @@ export function MobileSimpleView() {
                                     + (mainPct != null ? ` (${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}%)` : ""))}
                                   title="구글 AI에 현재상태 분석 요청 (팝업)"
                                   className={`${pill} text-blue-700 bg-blue-50 border border-blue-300/70 active:bg-blue-100`}>
-                            🔍AI
+                            🔍
                           </button>
                         )}
                       </div>

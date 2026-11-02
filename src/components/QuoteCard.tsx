@@ -61,11 +61,11 @@ export function QuoteCard({ code, name, sub, px, dim, className = "w-[132px] sm:
           <span className={`font-bold text-[16px] sm:text-[18px] ${col}`}>{pct == null ? "" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
         </div>
         <div className="flex justify-end gap-0.5 -mb-0.5">
-          <button type="button" onClick={open}
-                  className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">{isUs ? "🔗토스" : "📊종목정보"}</button>
+          <button type="button" onClick={open} title={isUs ? "토스에서 보기" : "종목정보 — 실시간 체결·호가·거래원 / 기업가치"}
+                  className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">{isUs ? "🔗" : "📊"}</button>
           <button type="button" title="구글 AI에 현재상태 분석 요청"
                   onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${name}(${code})${px ? `, 현재가 ${isUs ? `$${px.price.toFixed(2)}` : `${Math.round(px.price).toLocaleString()}원`} (${pct! >= 0 ? "+" : ""}${pct!.toFixed(2)}%)` : ""}`)}
-                  className="px-1 rounded border border-blue-300/70 bg-blue-50 text-blue-700 text-[9.5px] font-bold leading-[15px]">🔍AI</button>
+                  className="px-1 rounded border border-blue-300/70 bg-blue-50 text-blue-700 text-[9.5px] font-bold leading-[15px]">🔍</button>
         </div>
       </div>
     </div>
