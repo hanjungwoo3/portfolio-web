@@ -5,6 +5,8 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchEarningsCalendar, krImpactOf, type EarningsEvent } from "../lib/earnings";
 import { fetchDartDayPreferServer } from "../lib/dartDisclosures";
 import { US_PAIRS } from "../lib/usMarketData";
+import { openExternal } from "../lib/toss";
+import { openGoogleAi, aiNowStamp } from "../lib/googleAi";
 import type { ConsensusItem } from "./ConsensusTab";
 
 const WEEKS = 3;
@@ -164,10 +166,19 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
                                 {(() => {
                                   const url = discUrl(e);
                                   if (!url && !e.reported) return null;
+                                  // 앱에선 stopPropagation 만 하면 창 전체 링크 가로채기까지 막혀 아무것도 안 열렸다(사용자 2026-11-03 "앱에서 공시 클릭이 안 돼")
+                                  //   → 직접 openExternal(앱 = 앱 안 보기 창, 웹 = 새 탭)
+                                  const aiQ = () => `${aiNowStamp()} 기준. ${e.name}(${e.code}) ${e.kstDate} 실적 발표 내용을 요약해 줘 — 매출·영업이익(미국은 매출·EPS)의 컨센서스 대비 서프라이즈 여부, 가이던스, 발표 뒤 주가 반응, 핵심 포인트 3줄.${url ? ` 공시: ${url}` : ""}`;
                                   return url
-                                    ? <a href={url} target="_blank" rel="noopener noreferrer" onClick={ev => ev.stopPropagation()}
-                                         title={e.country === "US" ? "발표함 — SEC 공시 목록(실적 보도자료 8-K/6-K)" : "발표함 — DART 실적 공시 원문"}
-                                         className="ml-auto shrink-0 text-[10px] font-bold text-emerald-700 hover:underline">✓공시</a>
+                                    ? <span className="ml-auto shrink-0 flex items-center gap-0.5">
+                                        <a href={url} target="_blank" rel="noopener noreferrer"
+                                           onClick={ev => { ev.preventDefault(); ev.stopPropagation(); openExternal(url); }}
+                                           title={e.country === "US" ? "발표함 — SEC 공시 목록(실적 보도자료 8-K/6-K)" : "발표함 — DART 실적 공시 원문"}
+                                           className="text-[10px] font-bold text-emerald-700 hover:underline">✓공시</a>
+                                        <button onClick={ev => { ev.stopPropagation(); openGoogleAi(aiQ()); }}
+                                                title="구글 AI에 이 실적 발표 요약 요청"
+                                                className="px-1 rounded border border-blue-300/70 bg-blue-50 text-blue-700 text-[9.5px] font-bold leading-[14px] hover:bg-blue-100">AI</button>
+                                      </span>
                                     : <span className="ml-auto shrink-0 text-[10px] font-normal text-emerald-600" title="발표함">✓</span>;
                                 })()}
                                 {t && <span className={`${e.reported || discUrl(e) ? "" : "ml-auto "}shrink-0 text-[10px] font-normal ${e.session === "post" ? "text-violet-600" : "text-gray-500"}`}>{t}</span>}
