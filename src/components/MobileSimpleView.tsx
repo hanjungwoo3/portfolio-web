@@ -2052,8 +2052,8 @@ export function MobileSimpleView() {
               // 어제 50%·오늘 50% 시간 축(야후·한경 자료에 xs 가 있을 때) — 끝에 붙인 지금 가격은 마지막 점 바로 뒤
               const dayXs = daySpark?.xs && chartArr === daySpark.closes
                 ? (liveChart.length > chartArr.length ? [...daySpark.xs, daySpark.rolling ? 1 : Math.min(1, daySpark.xs[daySpark.xs.length - 1] + 0.002)] : daySpark.xs) : undefined;
-              // 메모리 현물가(=ML) — 하루·주 단위 값이라 24시간 그래프가 없다. 대신 카드 %(직전 값 대비) 기준을 그래프에:
-              //   기준 점선 = 직전 값, 종가 세로선 = 직전 값이 찍힌 자리(사용자 2026-11-02 "메모리 카드들도")
+              // 메모리 현물가(=ML) — 하루·주 단위 값이라 24시간 그래프가 없다. 직전 값이 찍힌 자리에 종가 세로선만(사용자 2026-11-02).
+              //   기준선 색칠은 하지 않는다 — 몇 달 치 일봉을 오늘 기준 위·아래로 칠하면 지난 구간 색이 가짜다(사용자 "붉은 부분은 가짜 아냐?")
               //   CNN 공포·탐욕(CNNFG)도 하루 한 번 점수라 같은 방식(사용자 2026-11-02)
               const isMemSpot = /=ML$/.test(p.symbol) || p.symbol === "CNNFG" || p.symbol === "VKOSPI";   // V-KOSPI 도 분봉 출처가 없다(CNBC 일봉뿐, 2026-11-02)
               const dayBase = !isDayChart ? undefined
@@ -2189,7 +2189,7 @@ export function MobileSimpleView() {
                              prevBaseline={breakIdx != null ? daySpark?.prevBase : undefined}
                              nextBaseline={daySpark && chartArr === daySpark.closes ? daySpark.nextBase : undefined}
 
-                             baseline={isMemSpot ? (q?.prevClose && q.prevClose > 0 ? q.prevClose : undefined) : dayBase}
+                             baseline={isMemSpot ? undefined : dayBase}
 
                              color={sparkColor}
 
