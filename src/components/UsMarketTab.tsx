@@ -630,7 +630,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
 
                              markIndex={markIdx}
 
-                             closeIndex={isMemSpot && chartArr.length > 2 ? chartArr.length - 2 : closeIdx}
+                             closeIndex={p.symbol === "CNNFG" ? undefined : isMemSpot && chartArr.length > 2 ? chartArr.length - 2 : closeIdx}   /* 공포·탐욕은 장 마감이 없는 점수라 세로선 뺌(사용자 2026-11-02) */
 
                              extraMarks={prevMarks}
                              markXs={daySpark && chartArr === daySpark.closes ? daySpark.markXs : undefined}
