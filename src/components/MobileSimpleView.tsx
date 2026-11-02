@@ -24,7 +24,7 @@ import {
 } from "../lib/sortHoldings";
 import { getHeldFirst, setHeldFirst } from "../lib/heldFirst";
 import { SortSelector, makeSortHandlers } from "./SortSelector";
-import { fetchYahooBatch, fetchKrFuturesMinute, fetchTossIntraday, daySparkPlan, fetchYahooSparkDay, fetchTossPrices, fetchNaverPrices, fetchNaverInfoLight, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures, fetchKrRegularPrices, verifyKrMarkets, fetchDashboardChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices, fetchTossUsStockCandles, fetchKrBondYieldSeries, fetchSinaMetalDay, SINA_DAY_SYMBOLS, fetchCnbcDay, CNBC_DAY_SYMBOLS, fetchKrIndexDay, KR_INDEX_DAY_SYMBOLS, type DaySpark } from "../lib/api";
+import { fetchYahooBatch, fetchKrFuturesMinute, fetchKrFuturesNightSession, fetchTossIntraday, daySparkPlan, fetchYahooSparkDay, fetchTossPrices, fetchNaverPrices, fetchNaverInfoLight, fetchWarning, fetchInvestorHistory, fetchYasunNightFutures, fetchKrRegularPrices, verifyKrMarkets, fetchDashboardChart, fetchKrPriceHistory, fetchYahooPriceHistory, fetchUsHoldingPrices, fetchTossUsStockCandles, fetchKrBondYieldSeries, fetchSinaMetalDay, SINA_DAY_SYMBOLS, fetchCnbcDay, CNBC_DAY_SYMBOLS, fetchKrIndexDay, KR_INDEX_DAY_SYMBOLS, type DaySpark } from "../lib/api";
 import {
   US_PAIRS, DAY_SPARK_SYMBOLS,
 } from "../lib/usMarketData";
@@ -224,10 +224,12 @@ export function MobileSimpleView() {
     return d && d.closes.length > 1 ? { markXs: d.markXs, rolling: d.rolling, closes: d.closes, xs: d.xs, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, prevClose: d.base, breakIdx: d.breakIdx, prevBase: d.prevBase, nextBase: d.nextBase } : undefined;
   };
   // 코스피200·코스닥150 **주간**선물 — 낮엔 한경 1분봉 어제+오늘(야선은 당일 세션뿐). 야간장(18~05시)엔 야선 그대로.
-  const krFutDayOn = chartRange === "day" && !isKrNightSession();
+  // 야간장 동안엔 주간(한경)+야간(yasun) 세션 그래프 — 다른 선물처럼(사용자 2026-11-02)
+  const krNight = isKrNightSession();
+  const krFutDayOn = chartRange === "day";
   const krFutDay = useQueries({
     queries: (["kospi200", "kosdaq150"] as const).map(k => ({
-      queryKey: ["hk-futures-min", k], queryFn: () => fetchKrFuturesMinute(k),
+      queryKey: krNight ? ["kr-fut-night-sess", k] : ["hk-futures-min", k], queryFn: () => krNight ? fetchKrFuturesNightSession(k) : fetchKrFuturesMinute(k),
       enabled: krFutDayOn, refetchInterval: krFutDayOn ? 60_000 : (false as const), staleTime: 30_000, refetchOnWindowFocus: false,
     })),
   });

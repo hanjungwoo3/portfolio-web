@@ -6171,6 +6171,43 @@ export async function fetchKrFuturesMinute(kind: "kospi200" | "kosdaq150" = "kos
   }, [...prev.map(x => frac(x.mtime)), ...cur.map(x => frac(x.mtime))], prev.length, fNow, sess);
 }
 
+// 코스피200·코스닥150 **야간장 동안** 24시간 카드 — 다른 선물처럼 세션 그래프(사용자 2026-11-02 "여기는?").
+//   직전 세션 = 주간장(한경 1분봉, 08:45~15:45) · 지금 세션 = 야간장(yasun 1분봉, 18:00~05:00). 굴러가는 창(rollDay), 세로선 = 세션 경계 하나.
+//   기준선: 야간 = yasun 기준(카드 %와 같은 값 = 주간 종가 쪽), 주간 = 한경 전일 대비 역산.
+export async function fetchKrFuturesNightSession(kind: "kospi200" | "kosdaq150"): Promise<DaySeries | null> {
+  const real = kind === "kospi200" ? "^KS200" : "^KQ150";
+  const [hk, night, quote] = await Promise.all([
+    fetchProxied(`https://markets.hankyung.com/api/v2/future/${kind}/min`).then(r => (r.ok ? r.json() : [])).catch(() => []),
+    fetchYasunCandles(real, "night").catch(() => [] as YasunCandle[]),
+    fetchYasunQuote(real),
+  ]) as [{ mdate?: string; mtime?: string; close?: number; chg_net?: number }[], YasunCandle[], YasunPrice | null];
+  // 야간 — 마지막 세션만(30분 넘는 빈틈 뒤)
+  let ns = 0;
+  for (let i = night.length - 1; i > 0; i--) if (night[i].time - night[i - 1].time > 30 * 60) { ns = i; break; }
+  const cur = night.slice(ns).filter(c => c.close > 0);
+  if (cur.length < 2) return null;
+  // 야간 세션 시작 = 첫 봉의 18:00 KST(자정 넘어 시작한 봉이면 전날 18:00)
+  const k0 = new Date(cur[0].time * 1000 + 9 * 3600_000);
+  const day0 = Math.floor(k0.getTime() / 86400_000) - (k0.getUTCHours() < 12 ? 1 : 0);
+  const nStart = day0 * 86400_000 + 18 * 3600_000 - 9 * 3600_000, N_SPAN = 11 * 3600_000;
+  // 주간 — 한경의 가장 최근 날(야간 세션 시작일과 같은 날이어야 이어진다)
+  const rows = Array.isArray(hk) ? hk.filter(x => (x.close ?? 0) > 0) : [];
+  const dayKey = new Date(nStart + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
+  const prev = rows.filter(x => (x.mdate ?? "").replace(/-/g, "") === dayKey);
+  const D_START = 8 * 60 + 45, D_SPAN = 7 * 60;
+  const dFrac = (t = "") => Math.min(1, Math.max(0, (Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5)) - D_START) / D_SPAN));
+  const fr = [...prev.map(x => dFrac(x.mtime)), ...cur.map(c => Math.min(1, Math.max(0, (c.time * 1000 - nStart) / N_SPAN)))];
+  const fNow = Math.min(1, Math.max(0, (Date.now() - nStart) / N_SPAN));
+  const nBase = quote ? quote.price - quote.change : undefined;
+  const lp = prev[prev.length - 1];
+  const dBase = lp ? (lp.close ?? 0) - (lp.chg_net ?? 0) : undefined;
+  const bi = prev.length;
+  const r = rollDay({ closes: [...prev.map(x => x.close!), ...cur.map(c => c.close)], breakIdx: bi > 0 ? bi : undefined }, fr, bi, fNow);
+  const full = fNow >= 1, start = full ? 1 + ROLL_GAP : fNow, W = full ? 1 : 1 + ROLL_GAP;
+  const x = (1 - start) / W;   // 세션 경계(주간 15:45 마감 = 직전 세션 끝)
+  return { ...r, markXs: bi > 0 && x > 0.002 && x <= 1 ? [{ x, close: true }] : [], ...(nBase ? { base: nBase } : {}), ...(dBase && dBase > 0 ? { prevBase: dBase } : {}) };
+}
+
 // 오늘 하루 전체 체결강도(토스) — 시세 상세의 tradingStrength(매수 체결량 ÷ 매도 체결량 × 100, 장 시작부터 누적)·거래량·거래대금.
 //   반도체 대시보드 '오늘 전체' 순매수 근사: 대금 × (S−100)/(S+100). 동시호가처럼 방향 없는 체결도 대금에 섞여 있어 근사다.
 export interface DayStrength { strength: number; volume: number; value: number; netAmt: number }
