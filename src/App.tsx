@@ -24,6 +24,7 @@ import { AccumTab } from "./components/AccumTab";
 import { defaultDashboardPage, INDEX_GROUP_KEYS, indexPageOf } from "./lib/dashboardGroups";
 import { EtfCompareTab } from "./components/EtfCompareTab";
 import { HeatmapTab } from "./components/HeatmapTab";
+import { FindBar } from "./components/FindBar";
 import { ValuationTableTab } from "./components/ValuationTableTab";
 import { EarningsCalendarTab } from "./components/EarningsCalendarTab";
 import { ConsensusTab, type ConsensusItem } from "./components/ConsensusTab";
@@ -1437,7 +1438,7 @@ function AppRoot() {
   }, []);
 
   if (!ready) return null;
-  return <>{isMobile ? <MobileSimpleView /> : <Dashboard />}<HeatmapPopupHost /></>;   // 🗺️ 히트맵 팝업(카드 딥링크)
+  return <>{isMobile ? <MobileSimpleView /> : <Dashboard />}<HeatmapPopupHost /><FindBar /></>;   // FindBar = 데스크톱 앱 Ctrl+F·⌘F 찾기   // 🗺️ 히트맵 팝업(카드 딥링크)
 }
 
 function App() {
