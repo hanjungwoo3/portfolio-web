@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
+import { ValueupTags } from "./ValueupTags";
+import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
@@ -292,6 +294,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   };
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const marketAlerts = useMarketAlerts();   // 종목코드 → 투자주의·경고·위험
+  const valueupFile = useValueupFile();   // 종목코드 → 저PBR·고배당·밸류업 우수(거래소 KIND)
   // 야간선물(yasun.gg)은 프록시를 타므로 구버전 개인 워커면 값이 빈다 → 그때만 업데이트 안내.
   //   "값이 없다"만으로 워커를 탓하면 업스트림 차단(예: investing.com Cloudflare 챌린지)까지
   //   워커 탓으로 오진한다. 반드시 실제 화이트리스트 검사 결과("outdated")로만 띄운다.
@@ -552,7 +555,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     const krTk = krEtfTicker(p.symbol);                         // 한국 6자리(.KS) — 종목·ETF 모두
                     const isKrEtf = !!krTk && !p.krStock;
                     const lv = krTk ? marketAlerts.get(krTk) : undefined;
-                    if (!krTk || (!isKrEtf && !lv)) return null;
+                    const vu = p.krStock ? tagsFor(valueupFile, krTk) : undefined;
+                    if (!krTk || (!isKrEtf && !lv && !vu)) return null;
                     const tag = "px-1.5 py-0 rounded text-[10px] font-bold leading-tight border";
                     return (
                       <div className="absolute -top-2 left-1 z-30 flex items-center gap-0.5">   {/* 마감 책갈피(z-20)가 길어도 위로 */}
@@ -564,6 +568,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                         </button>
                         )}
                         {lv && <IndexWarnTag inline ticker={krTk!} name={p.name} level={lv} />}
+                        {vu && <ValueupTags code={krTk!} flat />}
                       </div>
                     );
                   })()}

@@ -6,6 +6,8 @@
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
+import { ValueupTags } from "./ValueupTags";
+import { useValueupTags } from "../lib/valueupTags";
 import { useId, useState } from "react";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
@@ -367,6 +369,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
                   chart={spark?.get(sym) && <SparkBg sp={spark.get(sym)!} base={q(sym)?.prevClose} />} />
           ))}
         </div>
+        <ValueupStrip code={s0.code} />
         {kisFutAvailable() && <KisViStrip code={s0.code} />}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[360px]">   {/* 체결 · 신호 반반(사용자 요청) */}
           <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} />
@@ -970,6 +973,16 @@ function ChipBox({ title, items }: { title: string; items: { k: string; name: st
           <span className="text-gray-600">{x.name}</span> <b className={x.pct == null ? "text-gray-300" : up(x.pct)}>{x.pct == null ? "-" : `${sgn(x.pct)}%`}</b>
         </span>
       ))}
+    </div>
+  );
+}
+
+// 기업 밸류업 꼬리표 줄 — 저PBR·고배당·밸류업 우수 중 해당하는 게 있을 때만(사용자 2026-11-02)
+function ValueupStrip({ code }: { code: string }) {
+  if (!useValueupTags(code)) return null;
+  return (
+    <div className="flex items-center gap-1 shrink-0 text-[11px] text-gray-500">
+      <span>거래소 밸류업</span><ValueupTags code={code} />
     </div>
   );
 }

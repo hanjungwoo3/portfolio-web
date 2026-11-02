@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
+import { ValueupTags } from "./ValueupTags";
+import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { BrokerLinkSection } from "./BrokerLinkSection";
 import { KisLinkSection } from "./KisLinkSection";
 import { isLinkedGroup, linkedGroupOf, BROKER_FOLDER, ensureLinkedGroupsInFolder } from "../lib/linkedGroups";
@@ -258,6 +260,7 @@ export function MobileSimpleView() {
   const [searchInitQuery, setSearchInitQuery] = useState("");
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const marketAlerts = useMarketAlerts();   // 종목코드 → 투자주의·경고·위험
+  const valueupFile = useValueupFile();   // 종목코드 → 저PBR·고배당·밸류업 우수(거래소 KIND)
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // 상단 헤더 접기/펼치기 (PC 와 동일 키)
@@ -2109,7 +2112,8 @@ export function MobileSimpleView() {
                     const krTk = krEtfTicker(p.symbol);                         // 한국 6자리(.KS) — 종목·ETF 모두
                     const isKrEtf = !!krTk && !p.krStock;
                     const lv = krTk ? marketAlerts.get(krTk) : undefined;
-                    if (!krTk || (!isKrEtf && !lv)) return null;
+                    const vu = p.krStock ? tagsFor(valueupFile, krTk) : undefined;
+                    if (!krTk || (!isKrEtf && !lv && !vu)) return null;
                     const tag = "px-1.5 py-0 rounded text-[10px] font-bold leading-tight border";
                     return (
                       <div className="absolute -top-2 left-1 z-30 flex items-center gap-0.5">   {/* 마감 책갈피(z-20)가 길어도 위로 */}
@@ -2121,6 +2125,7 @@ export function MobileSimpleView() {
                         </button>
                         )}
                         {lv && <IndexWarnTag inline ticker={krTk!} name={p.name} level={lv} />}
+                        {vu && <ValueupTags code={krTk!} flat />}
                       </div>
                     );
                   })()}
