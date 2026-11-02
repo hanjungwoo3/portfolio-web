@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
+import { DiscTags } from "./DiscTags";
 import { ValueupTags } from "./ValueupTags";
 import { isSyncedHolding } from "../lib/linkedGroups";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
@@ -284,6 +285,7 @@ export function MobileStockCard({
             </Tooltip>
           )}
           <ValueupTags code={stock.ticker} size="xs" />
+          <DiscTags code={stock.ticker} name={stock.name} />
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {(() => {

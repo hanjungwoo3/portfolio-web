@@ -4,10 +4,11 @@
 //   + 카드 왼쪽 아래 공시·뉴스 개수 — 누르면 떠 있는 창(칸 아래 목록은 뺐다, 사용자 2026-11-02). 공시 = 최근 5거래일 DART(최신공시와 같은 서버 파일) · 칸별 외국인·기관(금융투자 제외) 5·20일 순매수
 //     (크롤러 investor-flows.json — 수급 매집 탭과 같은 파일, 추가 호출 0). 사용자 2026-11-02 "1, 2번 진행".
 import { useEffect, useRef, useState } from "react";
+import { useRecentDisc } from "../lib/recentDisclosures";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { US_PAIRS } from "../lib/usMarketData";
-import { fetchDartBody, fetchDartCounts, fetchDartDayPreferServer, loadListedCorps, normCorp, parseContract, type DartRow } from "../lib/dartDisclosures";
-import { classifyDisclosure, DEFAULT_DISC_CATS, DISC_CAT_TONE, type DiscCat } from "../lib/disclosureFilter";
+import { fetchDartBody, parseContract, type DartRow } from "../lib/dartDisclosures";
+import { DISC_CAT_TONE } from "../lib/disclosureFilter";
 import { openStockInfo } from "../lib/tickPopup";
 import { fetchNaverNews } from "../lib/api";
 import { loadInvestorFlows, type FlowStock } from "../lib/investorFlows";
@@ -16,28 +17,6 @@ import { QuoteCard } from "./QuoteCard";
 
 const NAME = new Map(US_PAIRS.map(p => [p.symbol, p.name]));
 
-// 최근 5거래일 공시(이 페이지 국내 종목만, 잡음 뺀 주요 종류) — 날짜별 서버 파일. 0건 날(주말·휴장)은 건너뛴다
-type DiscRow = DartRow & { cat: DiscCat };
-async function loadRecentDisc(codes: Set<string>): Promise<DiscRow[]> {
-  const counts = await fetchDartCounts();
-  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-  const days = Object.keys(counts).filter(d => d <= today && counts[d] > 0).sort().slice(-5);
-  if (!days.includes(today)) days.push(today);
-  const [lists, corps] = await Promise.all([
-    Promise.all(days.map(d => fetchDartDayPreferServer(d).then(x => x.rows).catch(() => [] as DartRow[]))),
-    loadListedCorps().catch(() => new Map<string, string>()),
-  ]);
-  const out: DiscRow[] = [];
-  const keep = new Set<DiscCat>(DEFAULT_DISC_CATS);
-  for (const r of lists.flat()) {
-    const code = r.code ?? corps.get(normCorp(r.corp));
-    if (!code || !codes.has(code)) continue;
-    const c = classifyDisclosure(r.title);
-    if (c.noise || !keep.has(c.cat)) continue;
-    out.push({ ...r, code, cat: c.cat });
-  }
-  return out.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
-}
 const eok = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v) >= 100 ? Math.round(Math.abs(v)).toLocaleString() : Math.abs(v).toFixed(1)}억`;
 const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500");
 
@@ -55,10 +34,9 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
     else boxes.push({ label: labels[i], lead: [...lead], kr: [...kr] });
   });
   const krCodes = new Set(rows.flat().filter(s => /\.KS$/.test(s)).map(s => s.slice(0, 6)));
-  const disc = useQuery({
-    queryKey: ["sobu-disc", [...krCodes].sort().join(",")], queryFn: () => loadRecentDisc(krCodes),
-    staleTime: 5 * 60_000, refetchInterval: 10 * 60_000, retry: 1,
-  });
+  // 공시 = 전 종목 공통 자료(lib/recentDisclosures — 지수·내 종목 카드와 같은 한 번 받기)
+  const discMap = useRecentDisc();
+  const disc = { data: [...krCodes].flatMap(c => discMap.get(c) ?? []).sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)), isLoading: false };
   const contractRows = (disc.data ?? []).filter(r => r.cat === "계약");
   // 계약 공시 본문 → 금액·매출액 대비·상대(오늘·어제치는 서버 파일, 그 전은 직접 — 웹에선 프록시가 막으면 빈칸)
   const bodyQs = useQueries({
@@ -104,21 +82,13 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
       const next = { code, name: NAME.get(sym) ?? code, x: left ? r.left - 8 : r.right + 8, y: r.top, left };
       setPeek(p => (e.type === "click" && p?.code === code ? null : next));
     };
-    // 카드 왼쪽 아래 — 공시 **종류** 꼬리표(실적·합병·분할·계약…, 색은 최신공시와 같음). 뉴스 개수는 뺐다(사용자 2026-11-03)
-    const cats = kr ? [...new Set((disc.data ?? []).filter(r => r.code === code).map(r => r.cat))] : [];
-    const badge = cats.length ? (
-      <span className="flex gap-0.5 shrink-0 min-w-0 overflow-hidden" data-sobu-peek>
-        {cats.slice(0, 3).map(c => (
-          <button key={c} onClick={openPeek} className={`px-1 rounded border text-[9px] font-bold leading-tight whitespace-nowrap ${DISC_CAT_TONE[c].tag}`} title="공시(5거래일) — 마우스를 올리면 목록">{c}</button>
-        ))}
-      </span>
-    ) : undefined;
+    // 카드 왼쪽 아래 공시 종류 꼬리표는 QuoteCard 가 직접 붙인다(DiscTags — 지수·내 종목 카드와 같은 부품)
     return (
       <div key={sym} className={`relative rounded-lg transition ${peek?.code === code ? "ring-4 ring-amber-400 shadow-lg z-20" : lead ? "ring-2 ring-indigo-400" : ""}`}
            data-sobu-card
            onMouseEnter={kr && (dN || nN) ? openPeek : undefined}
            onMouseLeave={kr && (dN || nN) ? dropPeek : undefined}>   {/* 종목 카드에 마우스 → 공시·뉴스 창(사용자 2026-11-03 "버튼 말고 종목에 hover") */}
-        <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} dim={dimOf?.(sym)} badge={badge} className="w-full h-[84px]" />
+        <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} dim={dimOf?.(sym)} className="w-full h-[84px]" />
         {ct && (
           <button onClick={() => openExternal(ct.url)} title={`${ct.date} ${ct.time} ${ct.title}${info.get(ct.rcpNo)?.amountEok ? ` — ${Math.round(info.get(ct.rcpNo)!.amountEok!).toLocaleString()}억` : ""} — 눌러서 DART 원문`}
                   className="absolute -top-1.5 right-1 z-10 px-1 rounded border border-violet-300 bg-violet-50 text-violet-700 text-[9px] font-bold leading-tight hover:bg-violet-100">

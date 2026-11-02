@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
+import { DiscTags } from "./DiscTags";
 import { ValueupTags } from "./ValueupTags";
 import { isSyncedHolding, linkedGroupByName } from "../lib/linkedGroups";
 const fmtSyncedAt = (iso?: string) => iso ? new Date(iso).toLocaleString("ko-KR", { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit" }) : "";
@@ -772,6 +773,8 @@ export function StockCard({
           </Tooltip>
           {/* 기업 밸류업 꼬리표(저PBR·고배당·밸류업 우수) — 거래소 KIND 명단 */}
           <ValueupTags code={stock.ticker} bookmark />
+          {/* 최근 5거래일 공시 종류(실적·계약·합병·분할…) — 누르면 목록(사용자 2026-11-03) */}
+          <span className="inline-flex items-end gap-0.5"><DiscTags code={stock.ticker} name={stock.name} size="sm" /></span>
           {/* 메모 태그 칩 — 태그 있을 때만, 클릭 시 메모 다이얼로그 열기 */}
           {memo?.tag && onOpenMemo && (
             <Tooltip content={

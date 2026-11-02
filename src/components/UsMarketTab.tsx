@@ -1,5 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
+import { useRecentDisc } from "../lib/recentDisclosures";
+import { DiscTags } from "./DiscTags";
 import { SobuGrid } from "./SobuGrid";
 import { KisExpRankBox } from "./KisExpRankBox";
 import { ValueupTags } from "./ValueupTags";
@@ -298,6 +300,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   };
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const marketAlerts = useMarketAlerts();   // 종목코드 → 투자주의·경고·위험
+  const discMap = useRecentDisc();   // 종목코드 → 최근 5거래일 공시(카드 공시 종류 꼬리표)
   const valueupFile = useValueupFile();   // 종목코드 → 저PBR·고배당·밸류업 우수(거래소 KIND)
   // 야간선물(yasun.gg)은 프록시를 타므로 구버전 개인 워커면 값이 빈다 → 그때만 업데이트 안내.
   //   "값이 없다"만으로 워커를 탓하면 업스트림 차단(예: investing.com Cloudflare 챌린지)까지
@@ -735,9 +738,11 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     const pill = "px-1.5 py-0 rounded text-[9px] leading-tight whitespace-nowrap font-bold transition";
                     // 밸류업 꼬리표(저PBR·고배당·밸류업★)는 아래 줄 맨 앞(사용자 2026-11-02 "아래로 내리자")
                     const vu = isKrStock ? tagsFor(valueupFile, krCode) : undefined;
-                    if (!tag && !CARD_HEATMAP_LINK[p.symbol] && !isKrStock && !isUsStock && !vu) return null;
+                    const hasDisc = isKrStock && !!discMap.get(krCode)?.length;   // 공시 종류 꼬리표(사용자 2026-11-03)
+                    if (!tag && !CARD_HEATMAP_LINK[p.symbol] && !isKrStock && !isUsStock && !vu && !hasDisc) return null;
                     return (
                       <div className="absolute -bottom-1 right-1 z-20 flex items-center gap-0.5">
+                        {hasDisc && <DiscTags code={krCode} name={p.name} max={2} />}
                         {vu && <ValueupTags code={krCode} flat />}
                         {tag && <span className={`${pill} border ${dashboardTagTone(tag)}`}>{tag}</span>}
                         {CARD_HEATMAP_LINK[p.symbol] && (

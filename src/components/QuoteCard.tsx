@@ -5,6 +5,7 @@
 //   미국 종목(사용자 2026-10-30 "히트맵/카드 보기는?") — 달러 표시, 24시간 = 토스 5분봉(지수 탭 미국 카드와 같은 캐시 키),
 //   3개월 = 종목 카드와 같은 야후 일봉, 종목정보 창엔 미국 자료가 없어 이름·버튼은 토스 페이지로.
 import { useQuery } from "@tanstack/react-query";
+import { DiscTags } from "./DiscTags";
 import { fetchKrPriceHistory, fetchYahooPriceHistory, fetchTossIntraday } from "../lib/api";
 import { openTossStock, openExternal } from "../lib/toss";
 import { useChartRange, historyRange } from "../lib/chartRange";
@@ -66,7 +67,7 @@ export function QuoteCard({ code, name, sub, px, dim, badge, className = "w-[132
         </div>
         <div className="flex justify-end items-center gap-0.5 -mb-0.5">
           {/* 밸류업 꼬리표(저PBR·고배당·밸류업★) — 지수 탭 카드와 같은 아래 줄 맨 앞(사용자 2026-11-02 "여기도") */}
-          {(badge || !isUs) && <span className="mr-auto flex gap-0.5 min-w-0 overflow-hidden">{badge}{!isUs && <ValueupTags code={code} flat />}</span>}
+          {(badge || !isUs) && <span className="mr-auto flex gap-0.5 min-w-0 overflow-hidden">{badge}{!isUs && <DiscTags code={code} name={name} max={2} />}{!isUs && <ValueupTags code={code} flat />}</span>}
           <button type="button" onClick={open} title={isJp ? "야후 파이낸스에서 보기" : isUs ? "토스에서 보기" : "종목정보 — 실시간 체결·호가·거래원 / 기업가치"}
                   className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">{isJp ? "🔗" : isUs ? "🔗" : "📊"}</button>
           <button type="button" title="구글 AI에 현재상태 분석 요청"
