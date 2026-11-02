@@ -142,3 +142,23 @@ export async function loadListedCorps(): Promise<Map<string, string>> {
   const j = await r.json() as { corps?: Record<string, string> };
   return new Map(Object.entries(j.corps ?? {}).map(([n, c]) => [normCorp(n), c]));
 }
+
+// 단일판매ㆍ공급계약 본문 → 핵심(계약명·금액·매출액 대비·상대·기간). 본문은 '항목 줄 / 값 줄' 꼴(서버 body 파일, 2026-10-30 실측).
+//   정정 공시는 앞에 정정 전·후 표가 붙어 있어 **마지막** 값을 쓴다. 지수(소부장) 공시 목록용(사용자 2026-11-02).
+export interface ContractInfo { name?: string; amountEok?: number; ratio?: number; party?: string; from?: string; to?: string }
+export function parseContract(body: string): ContractInfo | null {
+  if (!body) return null;
+  const last = (re: RegExp) => { let m: RegExpExecArray | null, v: string | undefined; const g = new RegExp(re.source, "g"); while ((m = g.exec(body))) v = m[1]; return v?.trim(); };
+  const amt = last(/계약금액\s*\(원\)\s*\n\s*([\d,]+)/);
+  const ratio = last(/매출액\s*대비\s*\(%\)\s*\n\s*([\d.]+)/);
+  const out: ContractInfo = {
+    name: last(/체결계약명\s*\n\s*([^\n]+)/),
+    amountEok: amt ? Number(amt.replace(/,/g, "")) / 1e8 : undefined,
+    ratio: ratio ? Number(ratio) : undefined,
+    party: last(/\d\.\s*계약상대(?:방)?\s*\n\s*([^\n]+)/),
+    from: last(/시작일\s*\n\s*(\d{4}-\d{2}-\d{2})/),
+    to: last(/종료일\s*\n\s*(\d{4}-\d{2}-\d{2})/),
+  };
+  if (out.party === "-") out.party = undefined;
+  return out.amountEok != null || out.name ? out : null;
+}
