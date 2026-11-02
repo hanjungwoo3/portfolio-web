@@ -360,7 +360,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             )}
                 {section.render === "sobuGrid" && (
                   <SobuGrid rows={section.rows} labels={section.rowLabels ?? []} leadByRow={section.leadByRow ?? []}
-                            quote={sym => { const q = usMap.get(sym); return q ? { price: q.price, pct: q.pct } : undefined; }} dimOf={dimOf} />
+                            quote={sym => { const q = usMap.get(sym); return q ? { price: q.price, pct: displayPctOf(sym, q) ?? q.pct } : undefined; }}   /* 장 전·마감 뒤엔 마지막 정규장 % — 다른 지수 카드와 같은 규칙(자정 지나 0.00% 였다) */ dimOf={dimOf} />
                 )}
                 {section.render === "sectorFlow" && (
               <TicsSectorBoard onOpenValuation={onOpenValuation}
