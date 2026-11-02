@@ -4137,7 +4137,8 @@ async function fetchCnnFgChart(): Promise<number[]> {
 //   (사용자 2026-11-02). tradeTime "YYYYMMDDHHMM…" 는 뉴욕 시각. 지난 24시간(마지막 봉이 24시간보다 오래면 그 봉에서 끝나는 24시간),
 //   기준선 = 카드 %와 같은 전일 종가(CNBC previous_day_closing).
 //   미국 2년물(^US2Y)도 — 값은 토스지만 토스는 당일 10분봉뿐이라 월요일 아침엔 그래프가 평평했다(2026-11-02). V-KOSPI 는 5D 가 빈 응답.
-const CNBC_DAY_SYM: Record<string, string> = { "^TIPS10": "US10YTIP", "^US2Y": "US2Y" };
+//   10·30년물(^TNX·^TYX)도 같은 세션 그래프로 — 야후는 정규장 시간만 줘서 2년물과 모양이 달랐다(사용자 2026-11-02)
+const CNBC_DAY_SYM: Record<string, string> = { "^TIPS10": "US10YTIP", "^US2Y": "US2Y", "^TNX": "US10Y", "^TYX": "US30Y" };
 export const CNBC_DAY_SYMBOLS = Object.keys(CNBC_DAY_SYM);
 function nyLocalToEpoch(y: number, mo: number, d: number, h: number, mi: number): number {
   const guess = Date.UTC(y, mo - 1, d, h, mi);

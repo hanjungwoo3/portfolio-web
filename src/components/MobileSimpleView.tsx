@@ -2034,10 +2034,10 @@ export function MobileSimpleView() {
               const isInverse = false;   // 색 반전 없음 — 모든 카드 오르면 빨강·내리면 파랑(사용자 결정 2026-10-21). direction 은 설명용으로만 남긴다
               const effUp = isInverse ? (mainPct != null && mainPct < 0) : (mainPct != null && mainPct > 0);
               const effDn = isInverse ? (mainPct != null && mainPct > 0) : (mainPct != null && mainPct < 0);
-              const dayArr = krFutSpark(p.symbol)?.closes ?? nightClosesMap.get(p.symbol) ?? usSpark?.get(p.symbol)?.closes ?? tossUsSpark(p.symbol)?.closes ?? sinaSpark(p.symbol)?.closes ?? usMap?.get(p.symbol)?.sparkline;   // 야후 어제+오늘이 있으면 그걸 먼저, 없으면 토스 5분봉(세로선 포함)
+              const dayArr = krFutSpark(p.symbol)?.closes ?? nightClosesMap.get(p.symbol) ?? sinaSpark(p.symbol)?.closes ?? usSpark?.get(p.symbol)?.closes ?? tossUsSpark(p.symbol)?.closes ?? usMap?.get(p.symbol)?.sparkline;   // 야후 어제+오늘이 있으면 그걸 먼저, 없으면 토스 5분봉(세로선 포함)
               const chartArr = pickCardChart(chartRange, t0ChartMap.get(p.symbol) ?? [], dayArr);
               // 24시간 차트가 야후 spark 에서 왔으면 '오늘 정규장 시작' 위치를 표시
-              const daySpark = chartRange === "day" ? (krFutSpark(p.symbol) ?? (!nightClosesMap.get(p.symbol) ? (usSpark?.get(p.symbol) ?? tossUsSpark(p.symbol) ?? sinaSpark(p.symbol)) : undefined)) : undefined;
+              const daySpark = chartRange === "day" ? (krFutSpark(p.symbol) ?? (!nightClosesMap.get(p.symbol) ? (sinaSpark(p.symbol) ?? usSpark?.get(p.symbol) ?? tossUsSpark(p.symbol)) : undefined)) : undefined;
               const markIdx = daySpark && chartArr === daySpark.closes ? daySpark.openIdx : undefined;
               const closeIdx = daySpark && chartArr === daySpark.closes ? daySpark.closeIdx : undefined;   // 오늘 정규장 종가 세로선
               const prevMarks = daySpark && chartArr === daySpark.closes ? [daySpark.prevOpenIdx, daySpark.prevCloseIdx] : undefined;   // 어제 정규장 시작·종가 세로선
