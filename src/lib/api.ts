@@ -4030,9 +4030,10 @@ async function fetchDashboardChartRaw(sym: string): Promise<number[]> {
   return fetchYahooChart(sym, "3mo");
 }
 
+// 카드 3개월 그래프 — CNBC 1M 범위는 실제로 약 1년(244봉)이라 다른 카드(63거래일)·반도체 수급 칸과 기간이 달랐다(사용자 2026-11-02)
 export async function fetchCnbcChart(symbol: string): Promise<number[]> {
   const bars = await fetchCnbcBars(symbol);
-  return bars.map(b => cnbcNum(b.close)).filter((v): v is number => v !== null);
+  return bars.map(b => cnbcNum(b.close)).filter((v): v is number => v !== null).slice(-63);
 }
 
 // 일자 정렬용 종가 시계열 (PricePoint[]) — VKOSPI 등 오버레이용.

@@ -306,7 +306,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         </>}
         <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} dim={!openIndex}
               sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
-              chart={vkChart && vkChart.length > 1 && <Sparkline data={vkChart.slice(-60)} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
+              chart={vkChart && vkChart.length > 1 && <Sparkline data={vkChart} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
                                                                color={vk && vk.pct > 0 ? "#dc2626" : "#2563eb"} />} />
   </>);
 
