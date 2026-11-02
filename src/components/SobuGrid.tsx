@@ -169,7 +169,8 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
             <div className="grid grid-cols-2 gap-1.5">
               {b.lead.map(s => card(s, true))}
               {/* 국내 종목은 오늘 등락률 높은 순(사용자 2026-11-02) — 값 없는 종목은 뒤로. 해외 대장주는 앞에 고정 */}
-              {[...b.kr].sort((x, y) => (quote(y)?.pct ?? -Infinity) - (quote(x)?.pct ?? -Infinity)).map(s => card(s, false))}
+              {/* 흐린 종목(장 안 열림·체결 없음)은 아래로(사용자 2026-11-03), 그 안에서 등락률 순 */}
+              {[...b.kr].sort((x, y) => (Number(!!dimOf?.(x)) - Number(!!dimOf?.(y))) || (quote(y)?.pct ?? -Infinity) - (quote(x)?.pct ?? -Infinity)).map(s => card(s, false))}
             </div>
           </div>
         );
