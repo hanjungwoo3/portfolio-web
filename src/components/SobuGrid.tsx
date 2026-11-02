@@ -41,9 +41,10 @@ async function loadRecentDisc(codes: Set<string>): Promise<DiscRow[]> {
 const eok = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v) >= 100 ? Math.round(Math.abs(v)).toLocaleString() : Math.abs(v).toFixed(1)}억`;
 const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500");
 
-export function SobuGrid({ rows, labels, leadByRow, quote }: {
+export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
   rows: string[][]; labels: string[]; leadByRow: number[];
   quote: (sym: string) => { price: number; pct: number } | undefined;
+  dimOf?: (sym: string) => boolean;   // 장 마감 흐림 — 지수 탭 카드와 같은 판정(dashboardCardDim, 설정 따름)
 }) {
   // 다섯 단계 → 네 칸: 소재·부품을 한 칸으로
   const boxes: { label: string; lead: string[]; kr: string[] }[] = [];
@@ -92,7 +93,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote }: {
     const ct = kr ? lastContract.get(code) : undefined;
     return (
       <div key={sym} className={`relative ${lead ? "rounded-lg ring-2 ring-indigo-400" : ""}`}>
-        <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} className="w-full h-[84px]" />
+        <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} dim={dimOf?.(sym)} className="w-full h-[84px]" />
         {ct && (
           <button onClick={() => openExternal(ct.url)} title={`${ct.date} ${ct.time} ${ct.title}${info.get(ct.rcpNo)?.amountEok ? ` — ${Math.round(info.get(ct.rcpNo)!.amountEok!).toLocaleString()}억` : ""} — 눌러서 DART 원문`}
                   className="absolute -top-1.5 right-1 z-10 px-1 rounded border border-violet-300 bg-violet-50 text-violet-700 text-[9px] font-bold leading-tight hover:bg-violet-100">

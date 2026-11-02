@@ -1921,7 +1921,7 @@ export function MobileSimpleView() {
                 )}
                 {section.render === "sobuGrid" && (
                   <SobuGrid rows={section.rows} labels={section.rowLabels ?? []} leadByRow={section.leadByRow ?? []}
-                            quote={sym => { const q = usMap.get(sym); return q ? { price: q.price, pct: q.pct } : undefined; }} />
+                            quote={sym => { const q = usMap.get(sym); return q ? { price: q.price, pct: q.pct } : undefined; }} dimOf={dimOf} />
                 )}
                 {section.render === "sectorFlow" && (
                   <TicsSectorBoard onOpenValuation={setValuationTicker}

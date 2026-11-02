@@ -360,7 +360,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             )}
                 {section.render === "sobuGrid" && (
                   <SobuGrid rows={section.rows} labels={section.rowLabels ?? []} leadByRow={section.leadByRow ?? []}
-                            quote={sym => { const q = usMap.get(sym); return q ? { price: q.price, pct: q.pct } : undefined; }} />
+                            quote={sym => { const q = usMap.get(sym); return q ? { price: q.price, pct: q.pct } : undefined; }} dimOf={dimOf} />
                 )}
                 {section.render === "sectorFlow" && (
               <TicsSectorBoard onOpenValuation={onOpenValuation}
