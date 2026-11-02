@@ -265,9 +265,11 @@ function sectionMap(): Record<string, DashboardSection> {
       id: "usaihw", short: "AI 하드웨어", label: "🔧 AI 하드웨어·인프라",
       sortable: true,
       lead: 1, extras: [],
-      rowLabels: ["반도체", "HBM메모리", "AI전력", "광통신", "데이터센터", "원자력"],
+      rowLabels: ["반도체", "CPU", "HBM메모리", "AI전력", "광통신", "데이터센터", "원자력"],
       rows: [
-        ["381180.KS", "NVDA", "AVGO", "TSM", "AMD", "ASML", "LRCX", "SOXX"],   // SOXX = 옛 '미국 대표 ETF'. 어플라이드는 순환매 전공정 줄에
+        ["381180.KS", "NVDA", "AVGO", "TSM", "ASML", "LRCX", "SOXX"],   // SOXX = 옛 '미국 대표 ETF'. 어플라이드는 순환매 전공정 줄에
+        // CPU 줄(사용자 2026-11-02) — 국내 상장 미국 CPU ETF ➜ AMD·인텔·ARM(설계)·퀄컴. AMD 는 반도체 줄에서 옮겼다(한 탭 중복 금지)
+        ["0225V0.KS", "AMD", "INTC", "ARM", "QCOM"],
         ["442580.KS", "MU", "SNDK", "SKHY", "WDC"],
         ["487230.KS", "GEV", "VRT", "ETN", "PWR", "CEG"],
         ["0173Y0.KS", "LITE", "MRVL", "COHR", "CIEN", "ANET", "CRDO"],   // 마벨 = 루멘텀 인수 발표(2026-11-02) — 루멘텀 바로 옆
