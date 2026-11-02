@@ -3,7 +3,7 @@
 //   칸 제목 옆 = 국내 종목 평균 등락률(동일가중) — 오늘 어느 단계가 강한지. PC 2×2, 모바일 세로로 한 칸씩.
 //   + 수주·공급계약 공시(최근 5거래일, DART — 최신공시와 같은 서버 파일) · 칸별 외국인·기관(금융투자 제외) 5·20일 순매수
 //     (크롤러 investor-flows.json — 수급 매집 탭과 같은 파일, 추가 호출 0). 사용자 2026-11-02 "1, 2번 진행".
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { US_PAIRS } from "../lib/usMarketData";
 import { fetchDartBody, fetchDartCounts, fetchDartDayPreferServer, loadListedCorps, normCorp, parseContract, type DartRow } from "../lib/dartDisclosures";
@@ -92,7 +92,14 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
     const q = quote(sym);
     const ct = kr ? lastContract.get(code) : undefined;
     return (
-      <div key={sym} className={`relative rounded-lg transition ${hot === code ? "ring-4 ring-amber-400 shadow-lg scale-[1.03] z-20" : lead ? "ring-2 ring-indigo-400" : ""}`}>
+      <div key={sym} className={`relative rounded-lg transition ${hot === code ? "ring-4 ring-amber-400 shadow-lg scale-[1.03] z-20" : lead ? "ring-2 ring-indigo-400" : ""}`}
+           onMouseEnter={kr ? (e => {
+             keepPeek();
+             const r = (e.currentTarget as HTMLElement).getBoundingClientRect();
+             const left = r.right + 340 > window.innerWidth;   // 오른쪽 자리가 없으면 카드 왼쪽에
+             setPeek({ code, name: NAME.get(sym) ?? code, x: left ? r.left - 8 : r.right + 8, y: r.top, left });
+           }) : undefined}
+           onMouseLeave={kr ? dropPeek : undefined}>
         <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} dim={dimOf?.(sym)} className="w-full h-[84px]" />
         {ct && (
           <button onClick={() => openExternal(ct.url)} title={`${ct.date} ${ct.time} ${ct.title}${info.get(ct.rcpNo)?.amountEok ? ` — ${Math.round(info.get(ct.rcpNo)!.amountEok!).toLocaleString()}억` : ""} — 눌러서 DART 원문`}
@@ -106,6 +113,11 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
   const [open, setOpen] = useState<Record<string, boolean>>({});   // 칸별 '더 보기'
   // 공시·뉴스 줄에 마우스를 올리면 그 종목 카드를 강조(사용자 2026-11-02)
   const [hot, setHot] = useState<string | null>(null);
+  // 카드에 마우스를 올리면 그 종목 공시·뉴스를 카드 옆 떠 있는 창으로(사용자 2026-11-02). 창으로 옮겨 가도 안 닫히게 잠깐 늦춰 닫는다
+  const [peek, setPeek] = useState<{ code: string; name: string; x: number; y: number; left: boolean } | null>(null);
+  const closeT = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const keepPeek = () => { if (closeT.current) { clearTimeout(closeT.current); closeT.current = null; } };
+  const dropPeek = () => { keepPeek(); closeT.current = setTimeout(() => setPeek(null), 180); };
   const ndt = (dt: string) => `${+dt.slice(4, 6)}/${+dt.slice(6, 8)} ${dt.slice(8, 10)}:${dt.slice(10, 12)}`;
   return (
     <div className="space-y-2">
@@ -187,6 +199,39 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
         );
       })}
     </div>
+    {peek && (() => {
+      const ds = (disc.data ?? []).filter(r => r.code === peek.code);
+      const ns = news.filter(n => n.code === peek.code).slice(0, 10);
+      const top = Math.max(8, Math.min(peek.y, window.innerHeight - 380));
+      return (
+        <div className="fixed z-[60] w-[330px] max-h-[370px] overflow-y-auto rounded-lg border border-gray-300 bg-white shadow-xl p-2 text-[11px] pg-card"
+             style={{ top, ...(peek.left ? { right: window.innerWidth - peek.x } : { left: peek.x }) }}
+             onMouseEnter={keepPeek} onMouseLeave={dropPeek}>
+          <div className="font-bold text-[12px] text-gray-800 mb-1">{peek.name}</div>
+          <div className="font-bold text-violet-800">📑 공시 <span className="font-normal text-gray-400">5거래일 {ds.length}건</span></div>
+          {!ds.length ? <div className="text-gray-400">없음</div> : ds.map(r => {
+            const c = r.cat === "계약" ? info.get(r.rcpNo) : null;
+            return (
+              <button key={r.rcpNo} onClick={() => openExternal(r.url)} title={r.title} className="flex items-baseline gap-1 w-full text-left leading-[18px] hover:bg-violet-50 rounded min-w-0">
+                <span className="text-gray-400 tabular-nums shrink-0">{md(r.date)} {r.time}</span>
+                <span className={`shrink-0 px-0.5 rounded text-[9.5px] font-bold ${DISC_CAT_TONE[r.cat].tag}`}>{r.cat}</span>
+                <span className="truncate text-gray-700">
+                  {c?.amountEok != null ? <b className="text-violet-800">{Math.round(c.amountEok).toLocaleString()}억{c.ratio != null ? `(${c.ratio}%)` : ""} </b> : null}
+                  {c?.name ?? r.title.replace(/\s+/g, " ")}
+                </span>
+              </button>
+            );
+          })}
+          <div className="font-bold text-sky-800 pt-1">📰 뉴스</div>
+          {!ns.length ? <div className="text-gray-400">없음</div> : ns.map(n => (
+            <button key={n.id} onClick={() => openExternal(n.url)} title={`${n.title} — ${n.press}`} className="flex items-baseline gap-1 w-full text-left leading-[18px] hover:bg-sky-50 rounded min-w-0">
+              <span className="text-gray-400 tabular-nums shrink-0">{ndt(n.dt)}</span>
+              <span className="truncate text-gray-700">{n.title}</span>
+            </button>
+          ))}
+        </div>
+      );
+    })()}
     </div>
   );
 }
