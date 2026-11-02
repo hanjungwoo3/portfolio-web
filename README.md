@@ -8,6 +8,11 @@
 - CORS 프록시: 4-way 라운드 로빈 자동 페일오버 — Cloudflare · Vercel · Deno · Render
 - 사용자 데이터: 브라우저 IndexedDB (per-user 로컬, Google Drive 동기화 옵션)
 
+## 데스크톱 앱 · 증권사 연결
+
+- 맥·윈도우 앱: [앱 받기](https://github.com/hanjungwoo3/portfolio-web/releases/tag/apps)
+- 토스증권·한국투자증권 계좌 연결(조회 전용, 키는 내 PC 에만): **[연결 방법](docs/BROKER-CONNECT.md)**
+
 ## 아키텍처
 
 ```

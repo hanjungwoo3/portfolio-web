@@ -14,6 +14,7 @@ import { syncTossHoldingsSafe, TOSS_SOURCE } from "../lib/tossSync";
 import { unlockSyncedHoldingsOfGroup } from "../lib/db";
 
 const APPS_RELEASE = "https://github.com/hanjungwoo3/portfolio-web/releases/tag/apps";
+const BROKER_GUIDE = "https://github.com/hanjungwoo3/portfolio-web/blob/main/docs/BROKER-CONNECT.md";
 
 export function BrokerLinkSection({ compact }: { compact?: boolean }) {
   const available = isBrokerAvailable();
@@ -157,7 +158,9 @@ export function BrokerLinkSection({ compact }: { compact?: boolean }) {
   };
 
   const box = "border border-gray-200 rounded p-2.5 bg-violet-50/30 space-y-1.5";
-  const title = <div className="text-xs font-bold text-gray-700">🏦 증권사 연결 — 토스증권 Open API <span className="ml-1 text-[10px] font-normal text-violet-700">조회 전용</span></div>;
+  // 연결 방법 설명서(GitHub docs/BROKER-CONNECT.md) — 키 발급부터 연동 그룹까지(사용자 2026-11-02)
+  const title = <div className="text-xs font-bold text-gray-700">🏦 증권사 연결 — 토스증권 Open API <span className="ml-1 text-[10px] font-normal text-violet-700">조회 전용</span>
+    <a href={BROKER_GUIDE} target="_blank" rel="noopener noreferrer" className="ml-2 text-[11px] font-normal text-blue-600 underline">연결 방법 설명 ↗</a></div>;
 
   if (!available) {
     return (
