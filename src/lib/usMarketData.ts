@@ -73,8 +73,6 @@ export const US_PAIRS: Pair[] = [
   { symbol: "GDDR6=ML", name: "GDDR6 8Gb",   desc: "GDDR6 8Gb 그래픽 메모리 현물가(USD) — GPU 수요, 주 1회 갱신", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "NAND=ML",  name: "NAND 웨이퍼", desc: "NAND 512Gb TLC 웨이퍼 현물가(USD) — 낸드 업황, 주 1회 갱신", tier: "T0", sector: "dashboard", direction: "direct" },
   // 리튬·니켈 — 시나 금융 가상 심볼(api.ts SINA_METALS). 오르면 국내 양극재 판가↑ → 2차전지에 우호 = direct
-  { symbol: "LITHIUM=F", name: "리튬",       desc: "탄산리튬 선물(광저우, CNY/톤) — 2차전지·ESS 공통 원료. 양극재 판가가 따라간다. 시나 금융", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "NICKEL=F", name: "니켈",        desc: "LME 니켈(USD/톤) — 하이니켈(NCM) 양극재 원료, ESS(LFP)엔 거의 안 씀. 시나 금융", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ZW=F",     name: "밀",          desc: "시카고 소맥 선물 — 사료·식품 원가. 토스 원자재에 같이 온다", tier: "T0", sector: "dashboard", direction: "inverse" },
   // 암호화폐 — 토스가 **원화(VWAP.KRW-*)** 로 준다. 심볼은 야후식(-USD)이지만 값은 원이다.
   { symbol: "BTC-USD",  name: "비트코인",    desc: "위험자산 — 한국 IT/플랫폼 상관", tier: "T0", sector: "dashboard", direction: "direct" },
@@ -535,7 +533,7 @@ const YASUN_VIRTUAL = new Set<string>(["^KS200N", "^KQ150N"]);
 //   빼는 것: 한국 종목·ETF(.KS — 토스 분봉), 하이퍼리퀴드 무기한(-PERP), 야간선물(yasun), 그리고
 //   야후에 분봉이 없는 가상 심볼 — 메모리 현물(=ML, 일·주 단위)·CNN 공포탐욕·V-KOSPI(CNBC 일봉)·
 //   미 2년물·TIPS(토스 당일 봉)·리튬/니켈(시나 분봉 — api.fetchSinaMetalDay). 점검 2026-10-21·10-30.
-const NO_INTRADAY = new Set(["CNNFG", "VKOSPI", "^US2Y", "^TIPS10", "LITHIUM=F", "NICKEL=F"]);
+const NO_INTRADAY = new Set(["CNNFG", "VKOSPI", "^US2Y", "^TIPS10"]);
 export const DAY_SPARK_SYMBOLS: string[] = [...new Set(US_PAIRS.flatMap(p => [p.symbol, p.future ?? ""]))]
   .filter(s => s && !/\.KS$/.test(s) && !/-PERP$/.test(s) && !/=ML$/.test(s) && !YASUN_VIRTUAL.has(s) && !NO_INTRADAY.has(s));
 

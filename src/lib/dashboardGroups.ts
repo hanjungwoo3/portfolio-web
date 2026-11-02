@@ -485,7 +485,7 @@ function sectionMap(): Record<string, DashboardSection> {
       //   리튬·니켈(2차전지 원료)을 넣고 밀을 뺐다(사용자 결정 2026-10-19). 시세는 시나 금융 — 리튬 = 광저우 탄산리튬 선물,
       //   니켈 = LME(Trading Economics 와 같은 시장). 야후는 둘 다 일봉이 1개뿐이고, 광산 ETF(LITP·NIKL)는 금속 가격이 아니었다.
       wide: true,
-      rows: [["GC=F", "SI=F", "HG=F", "LITHIUM=F", "NICKEL=F", "CL=F", "BZ=F", "NG=F"]],
+      rows: [["GC=F", "SI=F", "HG=F", "CL=F", "BZ=F", "NG=F"]],   // 리튬·니켈은 뺐다(사용자 2026-11-02)
     },
   ];
   return Object.fromEntries(sections.map(s => [s.id, s]));

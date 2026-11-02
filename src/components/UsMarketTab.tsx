@@ -273,7 +273,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   // 리튬·니켈 — 시나 분봉 24시간(fetchSinaMetalDay, 1분마다). 야후·토스엔 분봉이 없다(사용자 2026-10-30)
   //   + CNBC 5일 분봉(미국 10년 실질금리 등 — api.fetchCnbcDay). 같은 모양이라 한 목록으로
   //   + 코스피·코스닥 지수(토스 5분봉 — api.fetchKrIndexDay)
-  const EXTRA_DAY_SYMBOLS = [...SINA_DAY_SYMBOLS, ...CNBC_DAY_SYMBOLS, ...KR_INDEX_DAY_SYMBOLS];
+  const EXTRA_DAY_SYMBOLS = [...CNBC_DAY_SYMBOLS, ...KR_INDEX_DAY_SYMBOLS];   // 리튬·니켈(시나)은 카드를 뺐다(2026-11-02)
   const sinaDayQs = useQueries({
     queries: EXTRA_DAY_SYMBOLS.map(sym => ({
       queryKey: ["extra-day", sym], queryFn: () => SINA_DAY_SYMBOLS.includes(sym) ? fetchSinaMetalDay(sym) : KR_INDEX_DAY_SYMBOLS.includes(sym) ? fetchKrIndexDay(sym) : fetchCnbcDay(sym),
