@@ -798,8 +798,14 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   //   '어제 종가' 다(closeIsLive → regClose = base). 그래서 한 칸 물러난 봉을 써야 날짜·%가 맞는다.
   const regIdx = (() => {
     if (!isForeignCode || !usHist || usHist.length === 0) return -1;
-    const last = usHist.length - 1;
-    return usHist[last].date === etTodayStr() && usSessionLabel() === "정규장" ? last - 1 : last;
+    // 오늘(ET) 정규장이 아직 안 끝났으면 오늘·그 뒤 날짜 봉은 미완성 — 오버나잇·프리장에도 일봉 출처(앱 = 토스 일봉)가 새 날 봉을
+    //   미리 연다. 그걸 '마감'으로 잡아 월요일 새벽 MU 가 "마감 11/2 (+3.22%)"(= 오버나잇 움직임)로 찍혔다 — 진짜 마감은 금 10/30 −5.3%
+    //   라서 구성종목은 다 + 인데 ETF 만 − 인 이유가 안 보였다(사용자 2026-11-02).
+    const today = etTodayStr();
+    const etHour = Number(new Intl.DateTimeFormat("en-US", { timeZone: "America/New_York", hour: "2-digit", hour12: false }).format(new Date())) % 24;
+    let i = usHist.length - 1;
+    while (i >= 0 && (usHist[i].date > today || (usHist[i].date === today && etHour < 16))) i--;
+    return i;
   })();
   const regDate = regIdx >= 0 ? (usHist?.[regIdx]?.date ?? null) : null;
   // ★ 정규장 등락률. 토스는 **오버나잇·프리장엔 이 값을 안 준다**(전전일 종가가 없어 계산 불가) →
@@ -955,8 +961,9 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                 </div>
               );
             })()
-          ) : fxSym && price?.trade_date ? (
+          ) : fxSym && price?.trade_date && price.foreignOpen !== true ? (
             // 일본 — 연휴가 길어 한국 ETF 와 며칠씩 어긋난다. **언제 마감값인지**를 반드시 적는다.
+            //   현지 장이 열려 있으면 안 띄운다 — 도쿄 장중(~15:30)에 키옥시아가 "마감 11/2" 로 찍혔다(사용자 2026-11-02)
             (() => {
               const d = price.trade_date;
               const pct = dayChangePct(price) ?? 0;
