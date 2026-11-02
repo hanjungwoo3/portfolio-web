@@ -4024,6 +4024,8 @@ async function fetchDashboardChartRaw(sym: string): Promise<number[]> {
   const kr = /^([\dA-Za-z]{6})\.KS$/.exec(sym);
   if (kr) return (await fetchKrPriceHistory(kr[1], "3mo")).map(p => p.close);
   if (isCnbcIndex(sym)) return fetchCnbcChart(sym);
+  // 미국 2년물 — 야후에 일봉이 없어 토스 당일 10분봉(몇 개)이 3개월 칸에 그려져 이상했다(사용자 2026-11-02). CNBC 일봉 3개월로
+  if (sym === "^US2Y") return (await fetchCnbcBars(sym, "1M", "US2Y")).map(b => cnbcNum(b.close)).filter((v): v is number => v !== null && v > 0).slice(-63);
   if (sym === CNN_FG_SYMBOL) return fetchCnnFgChart();
   if (isSinaMetal(sym)) return fetchSinaMetalChart(sym);
   if (isMemPrice(sym)) return fetchMemChart(sym);
