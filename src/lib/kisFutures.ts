@@ -52,10 +52,28 @@ export async function fetchKisFutDay(stockCode: string): Promise<DaySeries | nul
   if (!under) return null;
   const code = frontMonthCode(under);
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
-  const { body } = await kisGet<{ rt_cd?: string; output1?: Record<string, string>; output2?: Record<string, string>[] }>(
-    "/uapi/domestic-futureoption/v1/quotations/inquire-time-fuopchartprice", "FHKIF03020200",
-    { FID_COND_MRKT_DIV_CODE: "JF", FID_INPUT_ISCD: code, FID_HOUR_CLS_CODE: "60", FID_PW_DATA_INCU_YN: "N",
-      FID_FAKE_TICK_INCU_YN: "N", FID_INPUT_DATE_1: today, FID_INPUT_HOUR_1: "160000" });
+  // 한 번에 100봉 남짓만 온다(입력 시각부터 거꾸로) — 그래프가 오른쪽 1/4 만 그려졌다(사용자 2026-11-02 실측).
+  //   가장 이른 봉 1분 전으로 이어서 08:45 까지 받는다(하루 420분 → 최대 5콜).
+  type Body = { rt_cd?: string; output1?: Record<string, string>; output2?: Record<string, string>[] };
+  let hour = "160000", out1: Record<string, string> | undefined;
+  const all: Record<string, string>[] = [];
+  for (let page = 0; page < 6; page++) {
+    const { body } = await kisGet<Body>(
+      "/uapi/domestic-futureoption/v1/quotations/inquire-time-fuopchartprice", "FHKIF03020200",
+      { FID_COND_MRKT_DIV_CODE: "JF", FID_INPUT_ISCD: code, FID_HOUR_CLS_CODE: "60", FID_PW_DATA_INCU_YN: "N",
+        FID_FAKE_TICK_INCU_YN: "N", FID_INPUT_DATE_1: today, FID_INPUT_HOUR_1: hour });
+    out1 ??= body.output1;
+    const rs = (body.output2 ?? []).filter(r => String(r.stck_cntg_hour ?? "").length >= 4 && (!r.stck_bsop_date || r.stck_bsop_date === today));
+    if (!rs.length) break;
+    all.push(...rs);
+    const earliest = rs.map(r => String(r.stck_cntg_hour).padEnd(6, "0")).sort()[0];
+    if (earliest <= "084600") break;
+    const m = Number(earliest.slice(0, 2)) * 60 + Number(earliest.slice(2, 4)) - 1;
+    const next = `${String(Math.floor(m / 60)).padStart(2, "0")}${String(m % 60).padStart(2, "0")}00`;
+    if (next >= hour) break;
+    hour = next;
+  }
+  const body = { output1: out1, output2: [...new Map(all.map(r => [String(r.stck_cntg_hour), r])).values()] };
   const START = 8 * 60 + 45, SPAN = 7 * 60;
   const rows = (body.output2 ?? [])
     .map(r => ({ hm: String(r.stck_cntg_hour ?? ""), c: num(r.futs_prpr ?? r.stck_prpr) }))

@@ -359,16 +359,13 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {/* 종목 카드 + 시장 카드(반도체 탭과 같은 그래프 카드 — 칩 한 줄보다 낫다, 사용자 요청 2026-10-23) */}
         {/* 종목 1.4칸 + 시장 카드 8장 — 반도체 수급 탭 첫 줄(코스피·KODEX 200·코스닥·KODEX 코스닥150·선물 둘·V-KOSPI) + 환율.
             나스닥 선물·반도체 선물은 뺐다(사용자 2026-10-27) */}
+        {/* 원달러 환율 카드는 뺐다 — 선물 칸이 좁아 가격이 줄넘김(사용자 2026-11-02 "좁으면 원달러 환율 삭제") */}
         {/* 선물 칸 — 주식선물이 걸린 종목(201개)이고 앱에서 한국투자 연동이 켜졌을 때만, 종목 카드 바로 옆(사용자 2026-11-02) */}
-        <div className={`grid grid-cols-3 gap-1.5 auto-rows-[118px] shrink-0 ${futOn ? "lg:grid-cols-[1.4fr_repeat(9,minmax(0,1fr))]" : "lg:grid-cols-[1.4fr_repeat(8,minmax(0,1fr))]"}`}>
+        <div className={`grid grid-cols-3 gap-1.5 auto-rows-[118px] shrink-0 ${futOn ? "lg:grid-cols-[1.4fr_repeat(8,minmax(0,1fr))]" : "lg:grid-cols-[1.4fr_repeat(7,minmax(0,1fr))]"}`}>
           <Card title={s0.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
                 chart={<KrDaySparkline code={s0.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />
           {futOn && <StockFutCard code={s0.code} spot={qq?.price} dim={!openStock} />}
           {marketCards}
-          {([["KRW=X", "원달러 환율"]] as const).map(([sym, t]) => (
-            <Card key={sym} title={t} price={q(sym)?.price} pct={q(sym)?.pct}
-                  chart={spark?.get(sym) && <SparkBg sp={spark.get(sym)!} base={q(sym)?.prevClose} />} />
-          ))}
         </div>
         <ValueupStrip code={s0.code} />
         {kisFutAvailable() && <KisViStrip code={s0.code} />}
@@ -484,7 +481,9 @@ function StockFutCard({ code, spot, dim }: { code: string; spot?: number; dim?: 
            f.oi != null ? `미결제 ${f.oi.toLocaleString()}${f.oiChg ? `(${f.oiChg > 0 ? "+" : ""}${f.oiChg.toLocaleString()})` : ""}` : ""].filter(Boolean).join(" · ")
     : undefined;
   const s = d.data;
-  return <Card title={`선물 ${f?.code ?? ""}`} price={f?.price} pct={f?.pct} unit="원" sub={sub} dim={dim}
+  // 제목 = "선물 11월물"(코드 끝 두 자리 = 만기 월) — 코드(A50611)만으론 무엇인지 몰랐다. (사용자 2026-11-02)
+  const month = f?.code ? `${Number(f.code.slice(-2))}월물` : "";
+  return <Card title={`선물 ${month}`} price={f?.price} pct={f?.pct} unit="원" sub={sub} dim={dim}
                chart={s && s.closes.length > 1 && <Sparkline data={s.closes} xs={s.xs} baseline={s.base ?? f?.base} markXs={s.markXs}
                                                             width={300} height={70} className="w-full h-full" strokeWidth={1.2} />} />;
 }
