@@ -4187,6 +4187,17 @@ export async function fetchCnbcDay(symbol: string): Promise<DaySeries | null> {
   }, [...prev.map(x => x.f), ...cur.map(x => x.f)], prev.length, fNow, sess);
 }
 
+// 코스피·코스닥 지수 24시간 — 토스 5분봉(kr-s/KGG01P·QGG01P, 종목과 같은 경로). 야후 ^KS11 은 장이 열려도 한동안 지난 거래일에
+//   머물러 오늘 시가선이 안 나왔다(사용자 2026-11-02 "종가만 있고 시가가 안 나와"). 종목 카드와 같은 어제+오늘 빌더.
+const KR_INDEX_TOSS: Record<string, string> = { "^KS11": "KGG01P", "^KQ11": "QGG01P" };
+export const KR_INDEX_DAY_SYMBOLS = Object.keys(KR_INDEX_TOSS);
+export async function fetchKrIndexDay(symbol: string): Promise<DaySeries | null> {
+  const code = KR_INDEX_TOSS[symbol];
+  if (!code) return null;
+  const rows = await fetchTossMinuteBars(`kr-s/${code}`, 1);
+  return rows.length ? buildTwoDaySeries(rows, true) : null;
+}
+
 // ─── 리튬·니켈 — 시나 금융 (가상 심볼 LITHIUM=F · NICKEL=F) ─────────────
 //   리튬 = 광저우선물거래소 **탄산리튬 연결물**(CNY/톤), 니켈 = **LME 니켈**(USD/톤) — Trading Economics 가 보여주는 그 시장들.
 //   야후엔 리튬 선물(LTH=F)·니켈 지수(^SPGSIK)가 일봉 1개뿐이라 차트를 못 그리고, 광산 ETF(LITP·NIKL)는 금속 가격이 아니다.
