@@ -104,10 +104,13 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
       const next = { code, name: NAME.get(sym) ?? code, x: left ? r.left - 8 : r.right + 8, y: r.top, left };
       setPeek(p => (e.type === "click" && p?.code === code ? null : next));
     };
-    const badge = dN || nN ? (
-      <span className="flex gap-0.5 shrink-0" data-sobu-peek>
-        {dN > 0 && <button onClick={openPeek} className="px-1 rounded border border-violet-300 bg-violet-50 text-violet-700 text-[9px] font-bold leading-tight hover:bg-violet-100" title="공시(5거래일)">공시 {dN}</button>}
-        {nN > 0 && <button onClick={openPeek} className="px-1 rounded border border-sky-300 bg-sky-50 text-sky-700 text-[9px] font-bold leading-tight hover:bg-sky-100" title="뉴스(최근 2일)">뉴스 {nN}</button>}
+    // 카드 왼쪽 아래 — 공시 **종류** 꼬리표(실적·합병·분할·계약…, 색은 최신공시와 같음). 뉴스 개수는 뺐다(사용자 2026-11-03)
+    const cats = kr ? [...new Set((disc.data ?? []).filter(r => r.code === code).map(r => r.cat))] : [];
+    const badge = cats.length ? (
+      <span className="flex gap-0.5 shrink-0 min-w-0 overflow-hidden" data-sobu-peek>
+        {cats.slice(0, 3).map(c => (
+          <button key={c} onClick={openPeek} className={`px-1 rounded border text-[9px] font-bold leading-tight whitespace-nowrap ${DISC_CAT_TONE[c].tag}`} title="공시(5거래일) — 마우스를 올리면 목록">{c}</button>
+        ))}
       </span>
     ) : undefined;
     return (
