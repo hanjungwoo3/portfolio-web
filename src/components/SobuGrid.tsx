@@ -136,7 +136,9 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
     <div className="space-y-2">
     <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
       {boxes.map(b => {
-        const ps = b.kr.map(s => quote(s)?.pct).filter((v): v is number => v != null && Number.isFinite(v));
+        // 평균·▲▼ 은 흐린 종목(장 안 열림·체결 없음 — 값이 지난 정규장) 빼고(사용자 2026-11-03). 다 흐리면(장 마감 뒤) 전부로
+        const live = b.kr.filter(s => !dimOf?.(s));
+        const ps = (live.length ? live : b.kr).map(s => quote(s)?.pct).filter((v): v is number => v != null && Number.isFinite(v));
         const avg = ps.length ? ps.reduce((a, v) => a + v, 0) / ps.length : null;
         const up = ps.filter(v => v > 0).length;
         // 칸 수급 — 국내 종목 외국인·기관(금융투자 제외) 누적 순매수 합(억원). 크롤러 기준일(전 거래일)까지
@@ -148,7 +150,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
               <span className="font-bold text-gray-800">{b.label}</span>
               {avg != null && (
                 <span className={`text-sm font-bold tabular-nums ${avg > 0 ? "text-rose-600" : avg < 0 ? "text-blue-600" : "text-gray-600"}`}
-                      title="국내 종목 평균 등락률(동일가중)">
+                      title={live.length && live.length < b.kr.length ? `국내 종목 평균 등락률(동일가중) — 흐린 ${b.kr.length - live.length}종목 제외` : "국내 종목 평균 등락률(동일가중)"}>
                   평균 {avg > 0 ? "+" : ""}{avg.toFixed(2)}%
                 </span>
               )}
