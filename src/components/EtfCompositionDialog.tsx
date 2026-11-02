@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, fetchYahooPriceHistory, fetchEtfKeyIndicator, fetchWarning, type KrRegularPrice } from "../lib/api";
+import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, fetchYahooPriceHistory, fetchTossIntraday, fetchEtfKeyIndicator, fetchWarning, type KrRegularPrice } from "../lib/api";
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
+import { useChartRange } from "../lib/chartRange";
+import { KrDaySparkline } from "./KrDaySparkline";
 import { Tooltip } from "./Tooltip";
 import { formatSigned, signColor, isEtfByName, etfActiveType, dayChangePct, dayChangeDiff, isKrHoldingClosed, tradeSecOf } from "../lib/format";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
@@ -782,6 +784,13 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   //   usChart(부모가 시세와 함께 받아 둔 일봉)를 먼저 본다.
   const chartData = usChart?.length ? usChart
     : isForeignCode ? (usHist ?? []).map(p => p.close) : chart;
+  // 24시간 설정이면 다른 카드와 같은 24시간 그래프(사용자 2026-11-02) — 한국 = 토스 5분봉(KrDaySparkline), 미국 = 토스 5분봉(지수 탭과 같은 캐시)
+  const dayMode = useChartRange() === "day";
+  const { data: usDay } = useQuery({
+    queryKey: ["toss-us-day", fSymbol],
+    queryFn: () => fetchTossIntraday(fSymbol!),
+    enabled: dayMode && !!fSymbol, staleTime: 4 * 60_000, refetchInterval: 5 * 60_000, refetchOnWindowFocus: false, retry: 1,
+  });
   // 마감 책갈피에 붙일 **그 마감이 언제인지**. 이미 받아 둔 US 일봉의 마지막 봉 날짜를 쓴다.
   //   토스 usRegClose 는 "직전(또는 오늘) 정규장 종가" 이고, 야후 일봉의 마지막 봉이 정확히 그 세션이다.
   //   (오버나잇·프리마켓엔 오늘 봉이 아직 없어 직전 거래일이 마지막 봉 = 그 정규장)
@@ -987,7 +996,14 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
                           bg-gray-50/60 px-2 py-1 space-y-0.5 flex-1 min-w-0 ${boxMinH}
                           flex flex-col justify-center
                           ${closedDim ? "border-transparent" : "border-gray-200"}`}>
-            {chartData.length > 1 && (
+            {dayMode && krCode
+              ? <KrDaySparkline code={tNum} fallback={chartData} live={price?.price} width={300} height={120}
+                                className="absolute inset-0 w-full h-full opacity-30 pointer-events-none" />
+              : dayMode && usDay && usDay.closes.length > 1
+              ? <Sparkline data={usDay.closes} xs={usDay.xs} baseline={usDay.base} prevBaseline={usDay.prevBase} nextBaseline={usDay.nextBase}
+                           breakIndex={usDay.breakIdx} markXs={usDay.markXs} width={300} height={120}
+                           className="absolute inset-0 w-full h-full opacity-30 pointer-events-none" />
+              : chartData.length > 1 && (
               <Sparkline data={chartData} width={300} height={120}
                          className="absolute inset-0 w-full h-full opacity-20 pointer-events-none" />
             )}
