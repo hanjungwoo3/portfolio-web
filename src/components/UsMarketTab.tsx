@@ -492,7 +492,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               // 메모리 현물가(=ML) — 하루·주 단위 값이라 24시간 그래프가 없다. 대신 카드 %(직전 값 대비) 기준을 그래프에:
               //   기준 점선 = 직전 값, 종가 세로선 = 직전 값이 찍힌 자리(사용자 2026-11-02 "메모리 카드들도")
               //   CNN 공포·탐욕(CNNFG)도 하루 한 번 점수라 같은 방식(사용자 2026-11-02)
-              const isMemSpot = /=ML$/.test(p.symbol) || p.symbol === "CNNFG";
+              const isMemSpot = /=ML$/.test(p.symbol) || p.symbol === "CNNFG" || p.symbol === "VKOSPI";   // V-KOSPI 도 분봉 출처가 없다(CNBC 일봉뿐, 2026-11-02)
               const dayBase = !isDayChart ? undefined
                 : daySpark && chartArr === daySpark.closes && marketOfSymbol(p.symbol) === "US" ? daySpark.prevClose   // 미국만 야후 값(달러 단위) — 한국·아시아 지수는 야후 전일 종가가 틀릴 때가 있어(^KQ11 이 그저께 값, 2026-10-21) 카드 값으로
                 : (q?.prevClose && q.prevClose > 0 ? q.prevClose : undefined);
