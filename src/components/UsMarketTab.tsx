@@ -28,8 +28,6 @@ import { RealRateNote } from "./RealRateNote";
 import { EtfTopCards } from "./EtfTopCards";
 import { ValueupMiniCard } from "./ValueupCard";
 import { HlPerpCard } from "./HlPerpCard";
-import { KisFutCard } from "./KisFutCard";
-import { isKisFutSymbol, kisFutAvailable } from "../lib/kisFutures";
 import { CnnFearGreedTag } from "./CnnFearGreedTag";
 import { TickArrow } from "./TickArrow";
 import { requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
@@ -407,8 +405,6 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               if (symbol === "KVALUE") return <ValueupMiniCard key="KVALUE" />;
               if (symbol === "SKHY-PERP") return <HlPerpCard key="SKHY-PERP" coin="SKHY" name="SK하이닉스 24h" />;
               if (symbol === "SMSN-PERP") return <HlPerpCard key="SMSN-PERP" coin="SMSN" name="삼성전자 24h" />;
-              // 국내 주식선물(한국투자, 앱 전용) — 한투 연동이 꺼져 있으면 카드가 없다(null)
-              if (isKisFutSymbol(symbol)) return kisFutAvailable() ? <KisFutCard key={symbol} symbol={symbol} /> : null;
               const rawP = tier0.find(x => x.symbol === symbol);
               if (!rawP) return null;
               // 한국 선물(^KS200N/^KQ150N)은 현재 KST 세션에 따라 주간/야간선물로 표시명 변경

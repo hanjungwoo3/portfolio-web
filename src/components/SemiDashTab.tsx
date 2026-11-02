@@ -5,6 +5,7 @@
 //     · 코스피 투자자(네이버) 1분 / 선물 투자자(네이버) **20분 지연** / 선물 시세·옵션(한경) 실시간
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
+import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable } from "../lib/kisFutures";
 import { useId, useState } from "react";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
@@ -343,14 +344,17 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   //   ① 종목 카드 + 시장 맥락 칩 ② 체결(크게) + 신호 ③ 호가 | 거래원 | 프로그램·투자자 ④ 새 소식 | 커뮤니티
   if (popup) {
     const s0 = stocks[0], qq = sq(s0.code);
+    const futOn = kisFutAvailable() && hasStockFutures(s0.code);
     return (
       <div className="flex flex-col gap-1.5 p-2 text-[12px] bg-gray-50 pg-bg">
         {/* 종목 카드 + 시장 카드(반도체 탭과 같은 그래프 카드 — 칩 한 줄보다 낫다, 사용자 요청 2026-10-23) */}
         {/* 종목 1.4칸 + 시장 카드 8장 — 반도체 수급 탭 첫 줄(코스피·KODEX 200·코스닥·KODEX 코스닥150·선물 둘·V-KOSPI) + 환율.
             나스닥 선물·반도체 선물은 뺐다(사용자 2026-10-27) */}
-        <div className="grid grid-cols-3 lg:grid-cols-[1.4fr_repeat(8,minmax(0,1fr))] gap-1.5 auto-rows-[118px] shrink-0">
+        {/* 선물 칸 — 주식선물이 걸린 종목(201개)이고 앱에서 한국투자 연동이 켜졌을 때만, 종목 카드 바로 옆(사용자 2026-11-02) */}
+        <div className={`grid grid-cols-3 gap-1.5 auto-rows-[118px] shrink-0 ${futOn ? "lg:grid-cols-[1.4fr_repeat(9,minmax(0,1fr))]" : "lg:grid-cols-[1.4fr_repeat(8,minmax(0,1fr))]"}`}>
           <Card title={s0.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
                 chart={<KrDaySparkline code={s0.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />
+          {futOn && <StockFutCard code={s0.code} spot={qq?.price} dim={!openStock} />}
           {marketCards}
           {([["KRW=X", "원달러 환율"]] as const).map(([sym, t]) => (
             <Card key={sym} title={t} price={q(sym)?.price} pct={q(sym)?.pct}
@@ -437,6 +441,23 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       </div>
     </div>
   );
+}
+
+// 주식선물 근월물 카드(종목정보 창) — 한국투자 Open API(lib/kisFutures). 현물과 등락이 거의 같아 현물에 없는 것을 아래 줄에:
+//   베이시스(선물 − 현물, 현물 대비 %) · 미결제약정(증감). % = 선물 전일 종가 대비.
+function StockFutCard({ code, spot, dim }: { code: string; spot?: number; dim?: boolean }) {
+  const q = useQuery({ queryKey: ["kis-fut-quote", code], queryFn: () => fetchKisFutQuote(code), refetchInterval: 10_000, staleTime: 5_000, retry: 1 });
+  const d = useQuery({ queryKey: ["kis-fut-day", code], queryFn: () => fetchKisFutDay(code), refetchInterval: 60_000, staleTime: 30_000, retry: 1 });
+  const f = q.data;
+  const basis = f && spot && spot > 0 ? (f.price / spot - 1) * 100 : undefined;
+  const sub = q.error ? `⚠️ ${(q.error as Error).message}`
+    : f ? [basis != null ? `베이시스 ${basis >= 0 ? "+" : ""}${basis.toFixed(2)}%` : "",
+           f.oi != null ? `미결제 ${f.oi.toLocaleString()}${f.oiChg ? `(${f.oiChg > 0 ? "+" : ""}${f.oiChg.toLocaleString()})` : ""}` : ""].filter(Boolean).join(" · ")
+    : undefined;
+  const s = d.data;
+  return <Card title={`선물 ${f?.code ?? ""}`} price={f?.price} pct={f?.pct} unit="원" sub={sub} dim={dim}
+               chart={s && s.closes.length > 1 && <Sparkline data={s.closes} xs={s.xs} baseline={s.base ?? f?.base} markXs={s.markXs}
+                                                            width={300} height={70} className="w-full h-full" strokeWidth={1.2} />} />;
 }
 
 function Card({ title, price, pct, sub, chart, unit, dim: dimIn }: {

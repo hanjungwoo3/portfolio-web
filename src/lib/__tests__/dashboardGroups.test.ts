@@ -134,7 +134,7 @@ describe("지수 탭 페이지 구성", () => {
 
   it("카드 그룹에 넣은 심볼은 전부 등록돼 있다 (없으면 카드가 소리 없이 안 그려진다)", () => {
     const known = new Set(US_PAIRS.filter(p => p.tier === "T0").map(p => p.symbol));
-    const special = new Set(["KVALUE", "SKHY-PERP", "SMSN-PERP", "SKHY-KF", "SMSN-KF"]);   // 전용 카드로 그린다(KF = 한국투자 주식선물)
+    const special = new Set(["KVALUE", "SKHY-PERP", "SMSN-PERP"]);   // 전용 카드로 그린다
     const missing: string[] = [];
     for (const p of PAGES) {
       for (const s of buildDashboardPage(p)) {
