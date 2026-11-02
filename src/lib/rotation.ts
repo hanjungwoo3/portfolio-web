@@ -62,15 +62,16 @@ export const STAGES: Stage[] = [
   { key: "cpu", label: "CPU·기판", family: "chip",
     members: [{ code: "471760", name: "TIGER AI반도체핵심공정" }, { code: "367760", name: "RISE 네트워크인프라" },
               { code: "009150", name: "삼성전기" }, { code: "007660", name: "이수페타시스" }],
-    // 3위 마벨 — 맞춤형 AI 칩·고속 네트워크 칩. 이 줄 최근 6개월 1위(0.40), 2년 0.27(2026-10-05). ARM 은 0.26/0.27 로 약했다.
-    us: { symbol: "AMD", name: "AMD" }, us2: { symbol: "INTC", name: "인텔" }, us3: { symbol: "MRVL", name: "마벨" } },
+    // (3위였던 마벨은 광통신 줄로 옮겼다 — 2026-11-02 루멘텀 인수 발표. 한 탭에 같은 카드 두 번 금지)
+    us: { symbol: "AMD", name: "AMD" }, us2: { symbol: "INTC", name: "인텔" } },
   // 광통신 — AI 데이터센터 광 트랜시버·부품. 미국 루멘텀(최근 6개월 한국 광통신 다음 날 상관 0.48)·시에나(1년 0.34, 6개월 0.45).
   //   한국 = KoAct 광통신&위성네트워크액티브(광통신주 묶음과 상관 0.92) + 주도주 셋(국내 광통신 ETF 가 하나뿐이라).
   { key: "optic", label: "광통신", family: "chip",
     members: [{ code: "0219B0", name: "KoAct 광통신&위성네트워크액티브" }, { code: "327260", name: "RF머트리얼즈" },
               { code: "010170", name: "대한광통신" }, { code: "138080", name: "오이솔루션" }],
-    // 3위 코히런트 — 최근 6개월 2위(0.46). 1년 기준으론 3~5위가 0.32~0.33 으로 비슷하다.
-    us: { symbol: "LITE", name: "루멘텀" }, us2: { symbol: "CIEN", name: "시에나" }, us3: { symbol: "COHR", name: "코히런트" } },
+    // 3위 마벨 — 2026-11-02 루멘텀을 1,150억 달러에 인수 발표(주식 교환, 완료 전까지 둘 다 상장). 합병 뒤 광통신 대장이 될 회사라
+    //   루멘텀 옆에 둔다(사용자 2026-11-02 "광통신 섹터에 루멘텀·마벨 둘 다"). 상관 순위로 고른 자리가 아니다 — 예전 3위는 코히런트(6개월 0.46).
+    us: { symbol: "LITE", name: "루멘텀" }, us2: { symbol: "CIEN", name: "시에나" }, us3: { symbol: "MRVL", name: "마벨" } },
   { key: "power", label: "전력기기", family: "energy",
     members: [{ code: "487240", name: "KODEX AI전력핵심설비" }, { code: "267260", name: "HD현대일렉트릭" },
               { code: "0117V0", name: "TIGER 코리아AI전력기기TOP3플러스" }, { code: "0209Z0", name: "ACE 코리아AI전력TOP10" }],

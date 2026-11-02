@@ -270,7 +270,7 @@ function sectionMap(): Record<string, DashboardSection> {
         ["381180.KS", "NVDA", "AVGO", "TSM", "AMD", "ASML", "LRCX", "SOXX"],   // SOXX = 옛 '미국 대표 ETF'. 어플라이드는 순환매 전공정 줄에
         ["442580.KS", "MU", "SNDK", "SKHY", "WDC"],
         ["487230.KS", "GEV", "VRT", "ETN", "PWR", "CEG"],
-        ["0173Y0.KS", "LITE", "COHR", "CIEN", "ANET", "CRDO"],
+        ["0173Y0.KS", "LITE", "MRVL", "COHR", "CIEN", "ANET", "CRDO"],   // 마벨 = 루멘텀 인수 발표(2026-11-02) — 루멘텀 바로 옆
         ["0142D0.KS", "EQIX", "DLR", "CRWV", "NBIS", "DELL"],   // 네비우스·델 = 옛 '미국 빅테크'(AI 클라우드·기기)
         ["442320.KS", "CCJ", "OKLO", "SMR", "BWXT"],
       ],
@@ -426,8 +426,8 @@ function sectionMap(): Record<string, DashboardSection> {
       label: "🔄 AI 순환매 — 간밤 🇺🇸 → 오늘 🇰🇷",
       note: "간밤 🇺🇸 미국 대장주(굵은 카드)가 움직이면 → 오늘 🇰🇷 같은 분야 한국 종목도 같은 방향으로 가는 경향이 있어요. 예측은 아닙니다.",
       lead: 2,
-      // 반도체(하이닉스 ADR)·전공정(ASML)·CPU·기판(마벨)·광통신(코히런트)만 3번째 대장주 — 3번째도 연동이 강한 줄만(데이터 우선)
-      leadByRow: [3, 3, 3, 3, 3, 2, 2, 2, 1, 2, 2],
+      // 반도체(하이닉스 ADR)·전공정(ASML)·후공정(앰코)·광통신(마벨 — 루멘텀 인수 2026-11-02)만 3번째 대장주
+      leadByRow: [3, 3, 3, 2, 3, 2, 2, 2, 1, 2, 2],
       rowLabels: ["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "2차전지", "방산", "로봇"],
       // 줄 = [미국 대장주 2개, 한국 섹터 ETF(모자라면 주도주)…, (국내 상장 해외 테마 ETF)].
       //   앞 두 칸 + 한국 쪽은 lib/rotation STAGES 와 같아야 한다(테스트가 대조). 맨 뒤 extras 는 참고용 —
@@ -436,8 +436,8 @@ function sectionMap(): Record<string, DashboardSection> {
         ["SNDK", "MU", "SKHY", "396500.KS", "091160.KS", "005930.KS", "000660.KS", "381180.KS"],
         ["LRCX", "AMAT", "ASML", "475300.KS", "471990.KS", "476260.KS", "0239Y0.KS", "464920.KS"],
         ["KLAC", "ONTO", "AMKR", "475310.KS", "455850.KS", "042700.KS", "095340.KS", "465660.KS"],   // 3번째 앰코 → 일본 ETF 하나(ACE, 거래대금 절반) 뺐다
-        ["AMD", "INTC", "MRVL", "471760.KS", "367760.KS", "009150.KS", "007660.KS", "0225V0.KS"],
-        ["LITE", "CIEN", "COHR", "0219B0.KS", "327260.KS", "010170.KS", "138080.KS", "0173Y0.KS"],
+        ["AMD", "INTC", "471760.KS", "367760.KS", "009150.KS", "007660.KS", "0225V0.KS"],   // 마벨은 광통신 줄로(루멘텀 인수, 2026-11-02)
+        ["LITE", "CIEN", "MRVL", "0219B0.KS", "327260.KS", "010170.KS", "138080.KS", "0173Y0.KS"],
         ["PWR", "GEV", "487240.KS", "267260.KS", "0117V0.KS", "0209Z0.KS", "487230.KS", "491010.KS"],
         ["CCJ", "OKLO", "433500.KS", "0098F0.KS", "0091P0.KS", "034020.KS", "0051G0.KS", "0132H0.KS"],
         ["BE", "FSLR", "377990.KS", "009830.KS", "112610.KS", "457990.KS", "419420.KS", "419650.KS"],
