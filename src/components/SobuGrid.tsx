@@ -9,6 +9,7 @@ import { US_PAIRS } from "../lib/usMarketData";
 import { fetchDartBody, fetchDartCounts, fetchDartDayPreferServer, loadListedCorps, normCorp, parseContract, type DartRow } from "../lib/dartDisclosures";
 import { classifyDisclosure, DEFAULT_DISC_CATS, DISC_CAT_TONE, type DiscCat } from "../lib/disclosureFilter";
 import { openStockInfo } from "../lib/tickPopup";
+import { fetchNaverNews } from "../lib/api";
 import { loadInvestorFlows, type FlowStock } from "../lib/investorFlows";
 import { openExternal } from "../lib/toss";
 import { QuoteCard } from "./QuoteCard";
@@ -66,8 +67,19 @@ export function SobuGrid({ rows, labels, leadByRow, quote }: {
     })),
   });
   const info = new Map(contractRows.map((r, i) => [r.rcpNo, bodyQs[i]?.data ?? null]));
-  const [onlyContract, setOnlyContract] = useState(false);
-  const [showAll, setShowAll] = useState(false);
+  // 뉴스 — 종목마다 1콜(네이버, 10분마다). 칸마다 그 단계 종목 기사(사용자 2026-11-02 "각각 안에서 공시/뉴스도")
+  const krList = [...krCodes];
+  const newsQs = useQueries({
+    queries: krList.map(c => ({
+      queryKey: ["sobu-news", c], queryFn: () => fetchNaverNews(c, 6),
+      staleTime: 5 * 60_000, refetchInterval: 10 * 60_000, retry: 0,
+    })),
+  });
+  const news = (() => {
+    const seen = new Set<string>(), out: { code: string; id: string; title: string; press: string; dt: string; url: string }[] = [];
+    newsQs.forEach((q, i) => (q.data ?? []).forEach(n => { if (seen.has(n.id)) return; seen.add(n.id); out.push({ code: krList[i], id: n.id, title: n.title, press: n.press, dt: n.datetime, url: n.url }); }));
+    return out.sort((a, b) => b.dt.localeCompare(a.dt));
+  })();
   const flows = useQuery({ queryKey: ["investor-flows"], queryFn: loadInvestorFlows, staleTime: 3 * 3600_000, retry: 1 });
   const flowBy = new Map<string, FlowStock>((flows.data?.stocks ?? []).map(x => [x.code, x]));
   const lastContract = new Map<string, DartRow>();
@@ -90,58 +102,16 @@ export function SobuGrid({ rows, labels, leadByRow, quote }: {
       </div>
     );
   };
-  const recent = (disc.data ?? []).filter(r => !onlyContract || r.cat === "계약");
-  const shown = showAll ? recent : recent.slice(0, 10);
+  const [open, setOpen] = useState<Record<string, boolean>>({});   // 칸별 '더 보기'
+  const ndt = (dt: string) => `${+dt.slice(4, 6)}/${+dt.slice(6, 8)} ${dt.slice(8, 10)}:${dt.slice(10, 12)}`;
   return (
     <div className="space-y-2">
-    {/* 최근 공시 한눈에 — 이 페이지 국내 종목, 5거래일. 계약은 금액·매출액 대비·상대까지(사용자 2026-11-02 "최근 계약이나 공시를 한눈에") */}
-    <div className="rounded-lg border border-violet-200 bg-violet-50/30 p-2">
-      <div className="flex items-center gap-2 mb-1 text-[12px]">
-        <span className="font-bold text-violet-800">📑 최근 공시 · 이 페이지 종목 (5거래일)</span>
-        <span className="inline-flex rounded border border-violet-300 overflow-hidden text-[11px]">
-          {([false, true] as const).map(v => (
-            <button key={String(v)} onClick={() => setOnlyContract(v)}
-                    className={`px-1.5 ${onlyContract === v ? "bg-violet-600 text-white" : "bg-white text-gray-600 hover:bg-violet-100"}`}>
-              {v ? `계약만 ${contractRows.length}` : `전체 ${(disc.data ?? []).length}`}
-            </button>
-          ))}
-        </span>
-        <span className="ml-auto text-[10px] text-gray-400">제목 = DART 원문 · 종목 = 종목정보</span>
-      </div>
-      {disc.isLoading ? <div className="text-[11px] text-gray-400">불러오는 중…</div>
-        : !recent.length ? <div className="text-[11px] text-gray-400">없음</div>
-        : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-x-4">
-            {shown.map(r => {
-              const c = r.cat === "계약" ? info.get(r.rcpNo) : null;
-              return (
-                <div key={r.rcpNo} className="flex items-baseline gap-1.5 text-[11.5px] leading-5 min-w-0">
-                  <span className="text-gray-400 tabular-nums shrink-0">{md(r.date)} {r.time}</span>
-                  <button onClick={() => openStockInfo(r.code!, r.corp)} className="font-bold text-gray-800 hover:underline shrink-0">{r.corp}</button>
-                  <span className={`shrink-0 px-1 rounded text-[10px] font-bold ${DISC_CAT_TONE[r.cat].tag}`}>{r.cat}</span>
-                  <button onClick={() => openExternal(r.url)} title={r.title} className="truncate text-gray-600 hover:underline text-left min-w-0">
-                    {c?.name ?? r.title.replace(/\s+/g, " ")}
-                  </button>
-                  {c?.amountEok != null && (
-                    <span className="shrink-0 tabular-nums text-violet-800 font-bold"
-                          title={[c.party && `상대 ${c.party}`, c.from && `기간 ${c.from} ~ ${c.to ?? ""}`].filter(Boolean).join(" · ")}>
-                      {Math.round(c.amountEok).toLocaleString()}억{c.ratio != null ? <span className="font-normal text-gray-500"> (매출 {c.ratio}%)</span> : null}
-                      {c.party && <span className="font-normal text-gray-500"> · {c.party.slice(0, 12)}</span>}
-                    </span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      {recent.length > 10 && (
-        <button onClick={() => setShowAll(v => !v)} className="mt-0.5 text-[11px] text-violet-700 hover:underline">
-          {showAll ? "접기" : `더 보기 (${recent.length - 10}건)`}
-        </button>
-      )}
-    </div>
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-2">
+    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
       {boxes.map(b => {
+        const codes = new Set(b.kr.map(s => s.slice(0, 6)));
+        const dList = (disc.data ?? []).filter(r => r.code && codes.has(r.code));
+        const nList = news.filter(n => codes.has(n.code));
+        const more = open[b.label];
         const ps = b.kr.map(s => quote(s)?.pct).filter((v): v is number => v != null && Number.isFinite(v));
         const avg = ps.length ? ps.reduce((a, v) => a + v, 0) / ps.length : null;
         const up = ps.filter(v => v > 0).length;
@@ -159,7 +129,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote }: {
                 </span>
               )}
               {ps.length > 0 && <span className="text-[11px] text-gray-500">▲{up} · ▼{ps.length - up}</span>}
-              <span className="ml-auto text-[10px] text-gray-400">테두리 = 해외 대장주</span>
+              <span className="ml-auto text-[10px] text-gray-400" title="테두리 카드 = 해외 대장주(미국은 간밤, 일본은 지금 장중)">테두리 = 해외</span>
             </div>
             {hasFlow && (
               <div className="flex flex-wrap gap-x-3 text-[11px] tabular-nums -mt-1 mb-1.5"
@@ -172,9 +142,40 @@ export function SobuGrid({ rows, labels, leadByRow, quote }: {
                 ))}
               </div>
             )}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+            <div className="grid grid-cols-2 gap-1.5">
               {b.lead.map(s => card(s, true))}
               {b.kr.map(s => card(s, false))}
+            </div>
+            {/* 이 단계 종목의 공시(5거래일)·뉴스 — 계약은 금액·매출 대비 */}
+            <div className="mt-2 pt-1.5 border-t border-gray-200 space-y-0.5 text-[11px]">
+              <div className="font-bold text-violet-800">📑 공시 <span className="font-normal text-gray-400">5거래일 {dList.length}건</span></div>
+              {disc.isLoading ? <div className="text-gray-400">불러오는 중…</div> : !dList.length ? <div className="text-gray-400">없음</div>
+                : (more ? dList : dList.slice(0, 5)).map(r => {
+                  const c = r.cat === "계약" ? info.get(r.rcpNo) : null;
+                  return (
+                    <div key={r.rcpNo} className="flex items-baseline gap-1 leading-[18px] min-w-0">
+                      <span className="text-gray-400 tabular-nums shrink-0">{md(r.date)}</span>
+                      <button onClick={() => openStockInfo(r.code!, r.corp)} className="font-bold text-gray-800 hover:underline shrink-0 max-w-[6rem] truncate">{r.corp}</button>
+                      <span className={`shrink-0 px-0.5 rounded text-[9.5px] font-bold ${DISC_CAT_TONE[r.cat].tag}`}>{r.cat}</span>
+                      <button onClick={() => openExternal(r.url)} title={`${r.date} ${r.time} ${r.title}${c?.party ? ` · 상대 ${c.party}` : ""}`} className="truncate text-gray-600 hover:underline text-left min-w-0">
+                        {c?.amountEok != null ? <b className="text-violet-800">{Math.round(c.amountEok).toLocaleString()}억{c.ratio != null ? `(${c.ratio}%)` : ""} </b> : null}
+                        {c?.name ?? r.title.replace(/\s+/g, " ")}
+                      </button>
+                    </div>
+                  );
+                })}
+              <div className="font-bold text-sky-800 pt-1">📰 뉴스</div>
+              {!nList.length ? <div className="text-gray-400">{newsQs.some(q => q.isLoading) ? "불러오는 중…" : "없음"}</div>
+                : (more ? nList.slice(0, 15) : nList.slice(0, 5)).map(n => (
+                  <div key={n.id} className="flex items-baseline gap-1 leading-[18px] min-w-0">
+                    <span className="text-gray-400 tabular-nums shrink-0">{ndt(n.dt)}</span>
+                    <button onClick={() => openStockInfo(n.code, NAME.get(`${n.code}.KS`) ?? n.code)} className="font-bold text-gray-800 hover:underline shrink-0 max-w-[6rem] truncate">{NAME.get(`${n.code}.KS`) ?? n.code}</button>
+                    <button onClick={() => openExternal(n.url)} title={`${n.title} — ${n.press}`} className="truncate text-gray-600 hover:underline text-left min-w-0">{n.title}</button>
+                  </div>
+                ))}
+              {(dList.length > 5 || nList.length > 5) && (
+                <button onClick={() => setOpen(o => ({ ...o, [b.label]: !o[b.label] }))} className="text-violet-700 hover:underline">{more ? "접기" : "더 보기"}</button>
+              )}
             </div>
           </div>
         );
