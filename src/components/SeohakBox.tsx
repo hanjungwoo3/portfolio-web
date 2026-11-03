@@ -2,7 +2,9 @@
 //   PC·모바일 지수(미국) 페이지 맨 아래가 같이 쓴다. 자료는 하루 한 번(lib/seohak).
 import { useEffect, useRef, useState } from "react";
 import { squarify } from "../lib/treemap";
-import { heatColor } from "../lib/heatColor";
+import { heatColor, sectorKr } from "../lib/heatColor";
+import { useQuery } from "@tanstack/react-query";
+import { fetchHeatmapForTickers } from "../lib/api";
 import { createPortal } from "react-dom";
 import { bearShare, bullShare, fmtUsdKr, mdOf, netSellers, seohakOf, useSeohak, type SeohakRow, type SeohakHold, type LevKind } from "../lib/seohak";
 import { useHoverLayer, layerStyle } from "../lib/useHoverLayer";
@@ -46,37 +48,103 @@ function useWidth<T extends HTMLElement>() {
   return [ref, w] as const;
 }
 
-/** 💼 보유 비중 트리맵 — 면적 = 보관 금액, 색 = 이번 주 순매수(빨강)·순매도(파랑)가 보유액의 몇 % 인가 / 또는 평가액 1주 변화 */
-function HoldTreemap({ hold, flow, height }: { hold: SeohakHold[]; flow: Map<string, number>; height: number }) {
+/** 💼 보유 비중 트리맵 — 히트맵 탭처럼 크기·색·그룹을 고른다(사용자 2026-11-03 "히트맵처럼").
+ *  시세(1일·1주·1개월 등락률)와 섹터는 TradingView 스캐너 1콜(fetchHeatmapForTickers, 히트맵과 같은 길) */
+type SizeBy = "hold" | "trade" | "net";
+type ColorBy = "d1" | "w1" | "m1" | "flow" | "chg";
+type GroupBy = "none" | "sector" | "kind";
+const SIZE_OPTS: [SizeBy, string][] = [["hold", "보유액"], ["trade", "이번 주 거래액(매수+매도)"], ["net", "이번 주 순매매 크기"]];
+const COLOR_OPTS: [ColorBy, string][] = [["d1", "1일 등락률"], ["w1", "1주 등락률"], ["m1", "1개월 등락률"], ["flow", "이번 주 순매매(보유 대비)"], ["chg", "보유 평가액 1주 변화"]];
+const GROUP_OPTS: [GroupBy, string][] = [["sector", "섹터"], ["kind", "종류(주식·ETF·레버리지)"], ["none", "그룹 없음"]];
+const SEL = "rounded border border-gray-300 bg-white text-[11px] px-1 py-0.5";
+const HEAD = 15;
+
+function HoldTreemap({ hold, week, height }: { hold: SeohakHold[]; week: { net: SeohakRow[]; sell: SeohakRow[] }; height: number }) {
   const [ref, w] = useWidth<HTMLDivElement>();
-  const [mode, setMode] = useState<"flow" | "chg">("flow");
+  const [sizeBy, setSizeBy] = useState<SizeBy>("hold");
+  const [colorBy, setColorBy] = useState<ColorBy>("d1");
+  const [groupBy, setGroupBy] = useState<GroupBy>("sector");
+  const tickers = hold.map(r => r.t).filter((t): t is string => !!t);
+  const quotes = useQuery({
+    queryKey: ["seohak-quotes", tickers.join(",")], queryFn: () => fetchHeatmapForTickers(tickers),
+    enabled: tickers.length > 0, staleTime: 60_000, refetchInterval: 120_000, retry: 1,
+  });
+  const q = (r: SeohakHold) => (r.t ? quotes.data?.get(r.t) : undefined);
+  const wk = new Map<string, SeohakRow>();
+  for (const r of [...week.sell, ...week.net]) wk.set(r.isin, r);
   const total = hold.reduce((a, r) => a + r.amt, 0);
-  const tiles = w > 0 ? squarify(hold.map(r => ({ item: r, value: r.amt })), { x: 0, y: 0, w, h: height }) : [];
-  const pctOf = (r: SeohakHold) => mode === "flow"
-    ? (flow.has(r.isin) ? flow.get(r.isin)! / r.amt * 100 : undefined)
-    : (r.prevAmt ? (r.amt / r.prevAmt - 1) * 100 : undefined);
+  const sizeOf = (r: SeohakHold) => sizeBy === "hold" ? r.amt
+    : sizeBy === "trade" ? (wk.get(r.isin) ? wk.get(r.isin)!.buy + wk.get(r.isin)!.sell : 0)
+    : Math.abs(wk.get(r.isin)?.net ?? 0);
+  const pctOf = (r: SeohakHold): number | undefined => {
+    const x = q(r);
+    if (colorBy === "d1") return x ? x.changePct : undefined;
+    if (colorBy === "w1") return x ? x.perfW : undefined;
+    if (colorBy === "m1") return x ? x.perf1M : undefined;
+    if (colorBy === "flow") return wk.has(r.isin) ? wk.get(r.isin)!.net / r.amt * 100 : undefined;
+    return r.prevAmt ? (r.amt / r.prevAmt - 1) * 100 : undefined;
+  };
+  const sat = colorBy === "d1" ? 3 : colorBy === "w1" ? 6 : colorBy === "m1" ? 12 : colorBy === "flow" ? 3 : 6;
+  const groupOf = (r: SeohakHold) => {
+    const etf = !!r.lev || /\bETF\b|TRUST|SPDR|ISHARES|VANGUARD|INVESCO|PROSHARES|DIREX|SCHWAB|JPM|GLOBAL X|ROUNDHILL/i.test(`${r.n} ${r.fn ?? ""}`)
+      || (q(r)?.sector ?? "") === "Miscellaneous";
+    if (groupBy === "kind") return r.lev === "bull" ? "레버리지" : r.lev === "bear" ? "인버스" : etf ? "ETF" : "개별 주식";
+    if (etf) return r.lev ? "레버리지·인버스 ETF" : "ETF";
+    return sectorKr(q(r)?.sector ?? "기타");
+  };
+  type T = { r: SeohakHold; x: number; y: number; w: number; h: number };
+  const tiles: T[] = [], heads: { name: string; x: number; y: number; w: number; h: number; sum: number }[] = [];
+  const items = hold.filter(r => sizeOf(r) > 0);
+  const sumSize = items.reduce((a, r) => a + sizeOf(r), 0);
+  if (w > 0) {
+    if (groupBy === "none") {
+      for (const c of squarify(items.map(r => ({ item: r, value: sizeOf(r) })), { x: 0, y: 0, w, h: height })) tiles.push({ r: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
+    } else {
+      const groups = new Map<string, SeohakHold[]>();
+      for (const r of items) { const g = groupOf(r); (groups.get(g) ?? groups.set(g, []).get(g)!).push(r); }
+      const gt = squarify([...groups].map(([name, list]) => ({ item: { name, list }, value: list.reduce((a, r) => a + sizeOf(r), 0) })), { x: 0, y: 0, w, h: height });
+      for (const g of gt) {
+        const sum = g.item.list.reduce((a, r) => a + sizeOf(r), 0);
+        const head = g.h > 40 && g.w > 50 ? HEAD : 0;
+        heads.push({ name: g.item.name, x: g.x, y: g.y, w: g.w, h: g.h, sum });
+        for (const c of squarify(g.item.list.map(r => ({ item: r, value: sizeOf(r) })), { x: g.x + 1, y: g.y + head, w: g.w - 2, h: g.h - head - 1 }))
+          tiles.push({ r: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
+      }
+    }
+  }
   return (
     <div className="min-w-0">
-      <div className="flex items-center gap-1.5 mb-1">
-        <span className="text-xs font-bold text-slate-700">💼 보유 비중</span>
-        <span className="text-[10px] text-gray-400">상위 50 · 합계 {fmtUsdKr(total)}</span>
-        <span className="ml-auto inline-flex rounded border border-gray-300 overflow-hidden text-[10px]">
-          {([["flow", "색=이번 주 매매"], ["chg", "색=평가액 변화"]] as const).map(([v, l]) => (
-            <button key={v} onClick={() => setMode(v)} className={`px-1.5 ${mode === v ? "bg-slate-700 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>{l}</button>
-          ))}
+      <div className="flex items-center gap-1.5 mb-1 flex-wrap">
+        <span className="text-xs font-bold text-slate-700">💼 서학개미 보유 상위 50</span>
+        <span className="text-[10px] text-gray-400">합계 {fmtUsdKr(total)}</span>
+        <span className="ml-auto flex items-center gap-1 text-[10.5px] text-gray-500">
+          크기 <select className={SEL} value={sizeBy} onChange={e => setSizeBy(e.target.value as SizeBy)}>{SIZE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          색 <select className={SEL} value={colorBy} onChange={e => setColorBy(e.target.value as ColorBy)}>{COLOR_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          그룹 <select className={SEL} value={groupBy} onChange={e => setGroupBy(e.target.value as GroupBy)}>{GROUP_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
         </span>
       </div>
-      <div ref={ref} className="relative w-full rounded-md overflow-hidden bg-slate-200" style={{ height }}>
-        {tiles.map(({ item: r, x, y, w: tw, h: th }) => {
+      <div ref={ref} className="relative w-full rounded-md overflow-hidden bg-slate-100" style={{ height }}>
+        {heads.map(g => (
+          <div key={g.name} className="absolute rounded-sm border border-slate-400/60 bg-slate-300/40" style={{ left: g.x, top: g.y, width: g.w, height: g.h }}>
+            {g.h > 40 && g.w > 50 && (
+              <div className="h-[15px] px-1 text-[10.5px] font-bold text-slate-700 truncate leading-[15px]">
+                {g.name} <span className="font-normal text-slate-500">{(g.sum / sumSize * 100).toFixed(0)}%</span>
+              </div>
+            )}
+          </div>
+        ))}
+        {tiles.map(({ r, x, y, w: tw, h: th }) => {
           const p = pctOf(r);
           const huge = tw > 120 && th > 95, big = tw > 76 && th > 58, mid = tw > 40 && th > 30;
           const name = koOf(r);
+          const x0 = q(r);
           return (
             <div key={r.isin} className="absolute border border-white/70 text-white overflow-hidden flex flex-col items-center justify-center text-center leading-tight px-0.5"
-                 style={{ left: x, top: y, width: tw, height: th, background: p == null ? "#94a3b8" : heatColor(p, mode === "flow" ? 3 : 6) }}
-                 title={`${r.t ?? r.n}${r.ko ? ` ${r.ko}` : ""} — ${r.n}\n보유 ${r.rank}위 · ${fmtUsdKr(r.amt)} (비중 ${(r.amt / total * 100).toFixed(1)}%)${r.prevRank ? ` · 전주 ${r.prevRank}위` : ""}\n` +
-                        (flow.has(r.isin) ? `이번 주 순매매 ${fmtUsdKr(flow.get(r.isin)!, true)}` : "이번 주 순매매 상위 50 밖") +
-                        (r.prevAmt ? ` · 평가액 ${((r.amt / r.prevAmt - 1) * 100).toFixed(1)}%` : "")}>
+                 style={{ left: x, top: y, width: tw, height: th, background: p == null ? "#94a3b8" : heatColor(p, sat) }}
+                 title={`${r.t ?? r.n}${r.ko ? ` ${r.ko}` : ""} — ${r.n}${x0?.sector ? ` · ${sectorKr(x0.sector)}` : ""}\n` +
+                        `보유 ${r.rank}위 · ${fmtUsdKr(r.amt)} (비중 ${(r.amt / total * 100).toFixed(1)}%)${r.prevRank ? ` · 전주 ${r.prevRank}위` : ""}\n` +
+                        (wk.has(r.isin) ? `이번 주 매수 ${fmtUsdKr(wk.get(r.isin)!.buy)} · 매도 ${fmtUsdKr(wk.get(r.isin)!.sell)} · 순 ${fmtUsdKr(wk.get(r.isin)!.net, true)}` : "이번 주 매매 상위 50 밖") +
+                        (x0 ? `\n1일 ${x0.changePct.toFixed(2)}% · 1주 ${x0.perfW.toFixed(1)}% · 1개월 ${x0.perf1M.toFixed(1)}%` : "")}>
               {mid && <Logo r={r} size={huge ? 34 : big ? 24 : 16} />}
               {big && name && <span className={`mt-0.5 font-bold truncate max-w-full ${huge ? "text-[15px]" : "text-[12px]"}`}>{name}</span>}
               {(mid || tw > 26) && th > 16 && (
@@ -84,15 +152,17 @@ function HoldTreemap({ hold, flow, height }: { hold: SeohakHold[]; flow: Map<str
                   {r.t ?? r.n.split(" ")[0]}{r.lev && big && <span className="ml-0.5 text-[8px] px-0.5 rounded bg-white/25">{r.lev === "bull" ? "레버" : "인버스"}</span>}
                 </span>
               )}
-              {big && <span className={`tabular-nums opacity-95 ${huge ? "text-[12px]" : "text-[10px]"}`}>{fmtUsdKr(r.amt)} · {(r.amt / total * 100).toFixed(1)}%</span>}
-              {big && p != null && <span className={`tabular-nums font-bold ${huge ? "text-[13px]" : "text-[10.5px]"}`}>{p > 0 ? "+" : ""}{p.toFixed(1)}%</span>}
+              {big && <span className={`tabular-nums font-black ${huge ? "text-[19px]" : "text-[14px]"}`}>{fmtUsdKr(sizeBy === "hold" ? r.amt : sizeOf(r))}</span>}
+              {mid && !big && th > 52 && <span className="tabular-nums font-bold text-[11px]">{fmtUsdKr(sizeBy === "hold" ? r.amt : sizeOf(r))}</span>}
+              {(big || (mid && th > 44)) && p != null && <span className={`tabular-nums font-bold ${huge ? "text-[14px]" : "text-[10.5px]"}`}>{p > 0 ? "+" : ""}{p.toFixed(colorBy === "d1" ? 2 : 1)}%</span>}
             </div>
           );
         })}
       </div>
       <div className="text-[9.5px] text-gray-400 mt-0.5 leading-snug">
-        {mode === "flow" ? "색 = 이번 주 순매수(빨강)·순매도(파랑)가 보유액의 몇 %인가 · 회색 = 순매매 상위 50 밖"
-                         : "색 = 평가액 1주 변화(주가 등락 + 매매) · 회색 = 전주 상위 50 밖(새로 들어옴)"}
+        {colorBy === "flow" ? "색 = 이번 주 순매수(빨강)·순매도(파랑)가 보유액의 몇 %인가 · 회색 = 순매매 상위 50 밖"
+          : colorBy === "chg" ? "색 = 보유 평가액 1주 변화(주가 등락 + 매매) · 회색 = 전주 상위 50 밖(새로 들어옴)"
+          : `색 = ${COLOR_OPTS.find(o => o[0] === colorBy)![1]}(TradingView 시세${quotes.isError ? " — 불러오기 실패" : ""}) · 크기 = ${SIZE_OPTS.find(o => o[0] === sizeBy)![1]}`}
       </div>
     </div>
   );
@@ -171,7 +241,11 @@ function LevPanel({ compact }: { compact?: boolean }) {
   const maxBull = Math.max(0.3, ...shares), maxBear = Math.max(0.05, ...days.map(bearShare));
   return (
     <div className="min-w-0">
-      <div className="text-xs font-bold mb-0.5 text-amber-700">🎢 레버리지 쏠림</div>
+      <div className="text-xs font-bold text-amber-700">🎢 레버리지 쏠림</div>
+      {/* 무엇을 그린 그래프인지 먼저(사용자 2026-11-03 "그래프 설명?") */}
+      <div className="text-[10.5px] text-gray-600 leading-snug mb-1">
+        서학개미가 그날 산 돈 가운데 <b>2·3배 레버리지 ETF</b>(TQQQ·SOXL 등)에 들어간 비율입니다. 높을수록 개인이 빚내듯 크게 베팅한 날이에요.
+      </div>
       <div className="flex items-baseline gap-1.5 flex-wrap">
         <span className="text-xl font-black tabular-nums text-amber-700">{Math.round(now * 100)}%</span>
         <span className={`px-1 rounded border text-[10.5px] font-bold ${verdict.c}`}>{verdict.t}</span>
@@ -198,7 +272,13 @@ function LevPanel({ compact }: { compact?: boolean }) {
       {last.top.length > 0 && (
         <div className="text-[10.5px] text-gray-500 leading-snug">그날 많이 거래: {last.top.map(t => `${t.t} ${fmtUsdKr(t.net, true)}`).join(" · ")}</div>
       )}
-      <div className="text-[9.5px] text-gray-400 leading-snug">막대 위=레버리지 매수 비중 · 아래=인버스 · 점선=평소</div>
+      <div className="flex flex-wrap gap-x-2.5 gap-y-0.5 text-[10px] text-gray-500 leading-snug mt-0.5">
+        <span><i className="inline-block w-2 h-2 mr-0.5 align-middle bg-amber-400" />위 막대 = 하루 레버리지 매수 비중</span>
+        <span><i className="inline-block w-2 h-2 mr-0.5 align-middle bg-amber-600" />진한 막대 = 가장 최근 결제일</span>
+        <span><i className="inline-block w-2 h-2 mr-0.5 align-middle bg-sky-400" />아래 막대 = 인버스(하락 베팅) 매수 비중</span>
+        <span><i className="inline-block w-3 border-t border-dashed border-amber-500 mr-0.5 align-middle" />점선 = 30일 평균</span>
+      </div>
+      <div className="text-[9.5px] text-gray-400 leading-snug">판정은 최근 30결제일 중 오늘이 몇 번째로 높은가 — 상위 10% 과열 · 30% 높음 · 하위 20% 식음. 막대에 마우스를 올리면 그날 숫자</div>
     </div>
   );
 }
@@ -211,8 +291,6 @@ export function SeohakPage({ compact }: { compact?: boolean }) {
   const src = per === "week" ? f.week : f.day;
   const n = compact ? 12 : 12;
   // 트리맵 색 — 이번 주(1주) 순매매. 순매수 상위·매도 상위 두 목록을 합친다(둘 다 50위까지라 빠진 종목은 회색)
-  const flow = new Map<string, number>();
-  for (const r of [...f.week.sell, ...f.week.net]) flow.set(r.isin, r.net);
   const buys = src.net.filter(r => r.net > 0), sells = netSellers(src.sell);
   const perLabel = per === "week" ? `${mdOf(f.meta.weekFrom)}~${mdOf(f.meta.setlDate)}` : mdOf(f.meta.setlDate);
   const card = "pg-box relative rounded-xl border border-gray-300 bg-white p-2.5";
@@ -221,7 +299,7 @@ export function SeohakPage({ compact }: { compact?: boolean }) {
       {/* PC: 왼쪽 = 보유 트리맵 한 화면 가득, 오른쪽 = 순매수·순매도 + 레버리지 쏠림 위아래(사용자 2026-11-03) */}
       <div className={`grid gap-3 items-start ${compact ? "grid-cols-1" : "grid-cols-1 lg:grid-cols-[minmax(0,1fr)_440px]"}`}>
         <div className={card}>
-          <HoldTreemap hold={f.hold} flow={flow} height={compact ? 360 : Math.max(560, (typeof window !== "undefined" ? window.innerHeight : 900) - 200)} />
+          <HoldTreemap hold={f.hold} week={f.week} height={compact ? 360 : Math.max(560, (typeof window !== "undefined" ? window.innerHeight : 900) - 200)} />
           <div className="text-[10px] text-gray-400 mt-0.5">보유 {mdOf(f.meta.holdDate)} 기준 · 전주 {mdOf(f.meta.holdPrevDate)} 대비</div>
         </div>
         <div className="space-y-3 min-w-0">
