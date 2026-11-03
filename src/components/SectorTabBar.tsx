@@ -40,7 +40,11 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
 }) {
   return (
     <div className={vertical ? "flex flex-col gap-1" : `flex items-center gap-1 overflow-x-auto ${compact ? "pb-0.5" : ""}`}>
-      {sections.map(s => {
+      {/* 업종 탭은 평균 등락률 높은 순(사용자 2026-11-03) — '한눈에' 는 맨 앞 고정, 값 없는 탭은 뒤로 */}
+      {(() => {
+        const st = new Map(sections.map(x => [x.id, avgOf?.(x)?.avg ?? null]));
+        return [...sections].sort((a, b) => (a.id === OVERVIEW ? -1 : b.id === OVERVIEW ? 1 : (st.get(b.id) ?? -Infinity) - (st.get(a.id) ?? -Infinity)));
+      })().map(s => {
         const on = s.id === active;
         const emoji = s.label.split(" ")[0];
         const st = avgOf?.(s);
