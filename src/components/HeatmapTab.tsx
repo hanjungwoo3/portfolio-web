@@ -291,7 +291,7 @@ export function HeatmapTab() {
     const headers: { sec: string; x: number; y: number; w: number; h: number; avg?: number }[] = [];
     const dividers: { x: number; y: number; w: number; h: number }[] = [];   // 섹터+상승/하락 — 섹터 안 경계선
     // 그룹 칸 — 머리 18px(글자 크게) + 칸 사이 3px 틈 + 테두리(사용자 2026-11-03 "그룹을 잘 확인 가능하게, 그룹명 키우고 경계 명확히")
-    const HEAD = 19, GAP = 5;   // 테두리 4px + 안쪽 틈(사용자 2026-11-03 "테두리 폭 더 넓게")
+    const HEAD = 18, GAP = 3;   // 테두리 2px + 안쪽 틈(사용자 2026-11-03 — 4px 은 굵어 "더 가늘게")
     const M = 0.5;               // 그룹 사이 바깥 간격(양쪽 0.5px = 1px — 사용자 2026-11-03 "너무 띄웠어" → "더 좁게")
     const shrink = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x + M, y: r.y + M, w: Math.max(0, r.w - 2 * M), h: Math.max(0, r.h - 2 * M) });
     const avgOf = (list: HeatmapItem[]) => list.length ? list.reduce((a, it) => a + colorDef.field(it), 0) / list.length : undefined;
@@ -534,13 +534,13 @@ export function HeatmapTab() {
         {/* 그룹마다 색을 다르게(사용자 2026-11-03) — 테두리·머리 띠. 이름으로 색을 고정해 새로고침해도 같은 섹터는 같은 색 */}
         {layout.headers.map(h => { const gc = GROUP_COLORS[hashStr(h.sec) % GROUP_COLORS.length]; return (
           <div key={`h-${h.sec}-${Math.round(h.x)}-${Math.round(h.y)}`}
-               className="absolute pointer-events-none rounded border-4"
-               style={{ left: h.x + 0.5, top: h.y + 0.5, width: Math.max(0, h.w - 1), height: Math.max(0, h.h - 1), borderColor: gc, background: `${gc}12` }}>   {/* 섹터 칸 배경은 아주 연하게(약 7%, 사용자 2026-11-03 "투명하고 연하게") */}
+               className="absolute pointer-events-none rounded border-2"
+               style={{ left: h.x + 0.5, top: h.y + 0.5, width: Math.max(0, h.w - 1), height: Math.max(0, h.h - 1), borderColor: `${gc}66`, background: `${gc}12` }}>   {/* 테두리도 연하게(40%, 사용자 2026-11-03) */}   {/* 섹터 칸 배경은 아주 연하게(약 7%, 사용자 2026-11-03 "투명하고 연하게") */}
             {h.h > 40 && h.w > 46 && (
-              <div className="flex items-baseline gap-1.5 px-1.5 truncate" style={{ height: 16, lineHeight: "16px", background: gc }}>
-                <span className="text-[12px] font-bold text-white truncate">{sectorKr(h.sec)}</span>
+              <div className="flex items-baseline gap-1.5 px-1.5 truncate" style={{ height: 16, lineHeight: "16px", background: `${gc}2e` }}>   {/* 머리 띠도 연하게, 글자를 섹터 색으로(사용자 2026-11-03) */}
+                <span className="text-[12px] font-bold truncate" style={{ color: gc }}>{sectorKr(h.sec)}</span>
                 {h.avg != null && h.w > 110 && (
-                  <span className="text-[11px] font-bold tabular-nums text-white/90">
+                  <span className={`text-[11px] font-bold tabular-nums ${h.avg > 0 ? "text-rose-600" : h.avg < 0 ? "text-blue-600" : "text-gray-500"}`}>
                     {h.avg > 0 ? "▲" : h.avg < 0 ? "▼" : ""}{h.avg > 0 ? "+" : ""}{h.avg.toFixed(2)}%
                   </span>
                 )}
