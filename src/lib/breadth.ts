@@ -1,7 +1,8 @@
 // KODEX 200(시총가중) ↔ KODEX 200동일가중 한 줄 해석 — 오늘 오름·내림이 몇 종목(대형주) 탓인지 고른 흐름인지(사용자 2026-11-03 "금리 읽기처럼").
 //   차이(동일가중 − 시총가중) 0.5%p 이상이면 쏠림으로 본다. 삼성전자·SK하이닉스가 코스피200 의 절반 가까이라 차이 = 대개 두 종목.
 export type BreadthTone = "good" | "warn" | "bad" | "calm" | "flat";
-export function readBreadth(k: number, ew: number): { text: string; tone: BreadthTone } {
+//   big = 대형주를 부르는 말 — 한국 "대형주(반도체)", 미국 "빅테크"(S&P 500 ↔ RSP, 사용자 2026-11-03 "미장도 동일가중")
+export function readBreadth(k: number, ew: number, big = "대형주(반도체)"): { text: string; tone: BreadthTone } {
   const gap = ew - k;
   const G = 0.5;
   if (Math.abs(k) < 0.15 && Math.abs(ew) < 0.15) return { text: "오늘은 대형주·중소형주 모두 거의 그대로입니다.", tone: "flat" };
@@ -10,14 +11,14 @@ export function readBreadth(k: number, ew: number): { text: string; tone: Breadt
                   : { text: "대부분 종목이 고르게 내리는 장입니다.", tone: "bad" };
   }
   if (gap <= -G) {   // 시총가중이 더 좋다 = 대형주가 지수를 끌어올림(또는 덜 빠짐)
-    return k >= 0 && ew < 0 ? { text: "대형주(반도체)만 오르고 나머지는 내리는 쏠림 장입니다.", tone: "warn" }
-         : k >= 0 ? { text: "대형주(반도체)가 지수를 끌어올리는 장입니다 — 나머지는 덜 올랐습니다.", tone: "warn" }
-         : { text: "대형주는 덜 빠지고 나머지 종목이 더 많이 내렸습니다.", tone: "bad" };
+    return k >= 0 && ew < 0 ? { text: `${big}만 오르고 나머지는 내리는 쏠림 장입니다.`, tone: "warn" }
+         : k >= 0 ? { text: `${big}가 지수를 끌어올리는 장입니다 — 나머지는 덜 올랐습니다.`, tone: "warn" }
+         : { text: `${big}는 덜 빠지고 나머지 종목이 더 많이 내렸습니다.`, tone: "bad" };
   }
   // 동일가중이 더 좋다 = 대형주가 약하고 나머지가 버팀
-  return k < 0 && ew >= 0 ? { text: "대형주(반도체)만 빠지고 나머지 종목은 오르는 장입니다.", tone: "calm" }
-       : k < 0 ? { text: "대형주(반도체)가 지수를 끌어내리는 장입니다 — 나머지는 덜 빠졌습니다.", tone: "calm" }
-       : { text: "중소형주가 대형주보다 더 고르게 오르는 장입니다.", tone: "good" };
+  return k < 0 && ew >= 0 ? { text: `${big}만 빠지고 나머지 종목은 오르는 장입니다.`, tone: "calm" }
+       : k < 0 ? { text: `${big}가 지수를 끌어내리는 장입니다 — 나머지는 덜 빠졌습니다.`, tone: "calm" }
+       : { text: `나머지 종목이 ${big}보다 더 고르게 오르는 장입니다.`, tone: "good" };
 }
 
 // V-KOSPI(코스피200 변동성 지수, '한국판 공포지수') 한 줄 — 수준 + 오늘 변화. 기준은 한국 시장 관행(20 아래 안정, 30 넘으면 불안, 40 넘으면 공포).

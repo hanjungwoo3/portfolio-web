@@ -44,3 +44,17 @@ export function BreadthNote({ usMap, small = false }: { usMap: Map<string, UsInd
     </div>
   );
 }
+
+// 미국 시장 폭 — S&P 500(시총가중, 빅테크 7개가 30%대) ↔ RSP(같은 500종목 동일가중). 미국 지수 그룹 아래(사용자 2026-11-03 "미장도 동일가중")
+export function UsBreadthNote({ usMap, small = false }: { usMap: Map<string, UsIndex>; small?: boolean }) {
+  const k = displayPctOf("^GSPC", usMap.get("^GSPC")), ew = displayPctOf("RSP", usMap.get("RSP"));
+  if (k == null || ew == null) return null;
+  const t = readBreadth(k, ew, "빅테크");
+  return (
+    <div className={`${small ? "text-[10px]" : "text-[11px]"} text-gray-600 leading-snug rounded-md bg-gray-50 border border-gray-200 px-2 py-1 pg-note flex flex-wrap items-center gap-x-4 gap-y-0.5`}>
+      <span title="S&P 500 = 큰 회사일수록 비중이 큰 지수(엔비디아·애플·마이크로소프트 등 빅테크 7개가 30%대). RSP = 같은 500종목을 0.2%씩 같은 비중으로. 둘의 차이가 0.5%p 이상이면 몇몇 빅테크 쏠림으로 봅니다.">
+        <span className={`inline-block font-bold px-1.5 rounded border ${TONE[t.tone]}`}>{t.text}</span>
+      </span>
+    </div>
+  );
+}

@@ -33,7 +33,7 @@ import { MarketFlowModal } from "./MarketFlowModal";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
 import { TicsSectorBoard } from "./TicsSectorBoard";
 import { RealRateNote } from "./RealRateNote";
-import { BreadthNote } from "./BreadthNote";
+import { BreadthNote, UsBreadthNote } from "./BreadthNote";
 import { EtfTopCards } from "./EtfTopCards";
 import { ValueupMiniCard } from "./ValueupCard";
 import { HlPerpCard } from "./HlPerpCard";
@@ -382,6 +382,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 {section.note && <div className="text-[11px] text-gray-500 leading-snug">{section.note}</div>}
                 {section.id === "krfx" && <RealRateNote usMap={usMap} />}
                 {section.id === "kr" && <BreadthNote usMap={usMap} />}
+                {section.id === "macro" && <UsBreadthNote usMap={usMap} />}
                 {section.render === "rotation" && (
               <RotationTab embedded extrasOnly onOpenValuation={(t, n) => onOpenValuation?.(t, n ?? "")} />
             )}

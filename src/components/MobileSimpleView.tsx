@@ -148,7 +148,7 @@ import { splitByMarket, splitHeldAndMarket, type MarketSection } from "../lib/ma
 import { EtfTopCards } from "./EtfTopCards";
 import { TicsSectorBoard } from "./TicsSectorBoard";
 import { RealRateNote } from "./RealRateNote";
-import { BreadthNote } from "./BreadthNote";
+import { BreadthNote, UsBreadthNote } from "./BreadthNote";
 import { ProxyStatusBadge } from "./ProxyStatusBadge";
 import {
   getGroupFolders, setGroupFolders, type GroupFolder,
@@ -1934,6 +1934,7 @@ export function MobileSimpleView() {
                 {section.note && <div className="text-[10px] text-gray-500 leading-snug">{section.note}</div>}
                 {section.id === "krfx" && <RealRateNote usMap={usMap} small />}
                 {section.id === "kr" && <BreadthNote usMap={usMap} small />}
+                {section.id === "macro" && <UsBreadthNote usMap={usMap} small />}
                 {section.render === "rotation" && (
                   <RotationTab embedded extrasOnly onOpenValuation={t => setValuationTicker(t)} />
                 )}
