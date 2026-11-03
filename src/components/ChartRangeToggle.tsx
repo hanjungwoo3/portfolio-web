@@ -5,11 +5,11 @@ export function ChartRangeToggle({ small = false, className = "" }: { small?: bo
   const range = useChartRange();
   return (
     <span className={`inline-flex rounded border border-gray-300 overflow-hidden align-middle font-bold
-                      ${small ? "text-[10px]" : "text-[11px]"} ${className}`}
+                      ${small ? "text-[9px]" : "text-[11px]"} ${className}`}
           title="카드 배경 차트 기간 (전체 설정)">
       {(["all", "year", "day"] as const).map(v => (
         <button key={v} onClick={() => setChartRange(v)}
-                className={`${small ? "px-1" : "px-1.5"} py-0
+                className={`${small ? "px-[3px] whitespace-nowrap" : "px-1.5"} py-0
                             ${range === v ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}>
           {v === "all" ? "3개월" : v === "year" ? "1년" : "24시간"}
         </button>

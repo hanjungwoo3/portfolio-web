@@ -323,13 +323,12 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
     <div className="space-y-3">
       {/* 차트 기간(3개월|24시간)은 그룹 칩 줄 끝에 — 스크롤해도 늘 보이는 자리(사용자 결정 2026-10-20) */}
       {page === "sobu"
-        ? <div className="sticky z-30 bg-gray-50 pg-bg py-1.5" style={{ top: navStickyTop }}>
+        ? <div className="lg:hidden sticky z-30 bg-gray-50 pg-bg py-1.5" style={{ top: navStickyTop }}>
             {/* 좁은 화면은 가로 탭, 넓은 화면(lg)은 아래 왼쪽 세로 탭(사용자 2026-11-03 "탭을 왼쪽에") — 여기엔 차트 기간만 */}
             <div className="lg:hidden">
               <SectorTabBar sections={PAGE_SECTIONS} active={sectorTab} onChange={setSectorTab} trailing={<ChartRangeToggle />}
                             avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
             </div>
-            <div className="hidden lg:flex justify-end"><ChartRangeToggle /></div>
           </div>
         : <GroupNavBar items={navItems} idPrefix="usidx-"
                    stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin}
@@ -338,7 +337,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       {/* 다른 탭과 같은 전체 폭 — 예전엔 lg 에서 75% 로 줄여 PC 에서만 좁아 보였다 */}
       <div className={page === "sobu" ? "lg:flex lg:items-start lg:gap-2" : ""}>
       {page === "sobu" && (
-        <aside className="hidden lg:block sticky shrink-0 w-[68px]" style={{ top: navStickyTop + 44 }}>
+        <aside className="hidden lg:flex lg:flex-col lg:gap-2 sticky shrink-0 w-[88px]" style={{ top: navStickyTop + 8 }}>   {/* 위 빈 줄 없이 — 차트 기간 단추도 왼쪽 줄 맨 위(사용자 2026-11-03) */}
+          <ChartRangeToggle small />
           <SectorTabBar vertical sections={PAGE_SECTIONS} active={sectorTab} onChange={setSectorTab}
                         avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
         </aside>
