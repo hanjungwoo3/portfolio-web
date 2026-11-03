@@ -55,7 +55,7 @@ type ColorBy = "d1" | "w1" | "m1" | "flow" | "chg";
 type GroupBy = "none" | "sector" | "kind";
 const SIZE_OPTS: [SizeBy, string][] = [["hold", "보유액"], ["trade", "이번 주 거래액(매수+매도)"], ["net", "이번 주 순매매 크기"]];
 const COLOR_OPTS: [ColorBy, string][] = [["d1", "1일 등락률"], ["w1", "1주 등락률"], ["m1", "1개월 등락률"], ["flow", "이번 주 순매매(보유 대비)"], ["chg", "보유 평가액 1주 변화"]];
-const GROUP_OPTS: [GroupBy, string][] = [["sector", "섹터"], ["kind", "종류(주식·ETF·레버리지)"], ["none", "그룹 없음"]];
+const GROUP_OPTS: [GroupBy, string][] = [["kind", "종류(주식·ETF·레버리지)"], ["sector", "섹터"], ["none", "그룹 없음"]];   // 기본 = 종류(사용자 2026-11-03)
 const SEL = "rounded border border-gray-300 bg-white text-[11px] px-1 py-0.5";
 const HEAD = 15;
 
@@ -63,7 +63,7 @@ function HoldTreemap({ hold, week, height }: { hold: SeohakHold[]; week: { net: 
   const [ref, w] = useWidth<HTMLDivElement>();
   const [sizeBy, setSizeBy] = useState<SizeBy>("hold");
   const [colorBy, setColorBy] = useState<ColorBy>("d1");
-  const [groupBy, setGroupBy] = useState<GroupBy>("sector");
+  const [groupBy, setGroupBy] = useState<GroupBy>("kind");
   const tickers = hold.map(r => r.t).filter((t): t is string => !!t);
   const quotes = useQuery({
     queryKey: ["seohak-quotes", tickers.join(",")], queryFn: () => fetchHeatmapForTickers(tickers),
