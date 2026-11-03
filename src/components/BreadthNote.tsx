@@ -33,9 +33,9 @@ export function BreadthNote({ usMap, small = false }: { usMap: Map<string, UsInd
         <b>공포 읽기</b> · V-KOSPI <b>{v.price.toFixed(2)}</b> ({pct(vc)}). {chip(readVkospi(v.price, vc))}
       </div>);
   }
-  if (ks != null) rows.push(
+  if (ks != null && (nk != null || sh != null)) rows.push(   // 오늘 열린 아시아 장이 없으면 줄째 숨김(사용자 2026-11-03)
     <div key="a" title="같은 시간에 열리는 일본·중국 장과 비교 — 같이 움직이면 바깥(미국·글로벌) 요인, 코스피만 1%p 이상 따로 가면 한국 요인으로 봅니다.">
-      <b>아시아 읽기</b> · 코스피 {pct(ks)} · 닛케이 {nk != null ? pct(nk) : "휴장·개장 전"} · 상해 {sh != null ? pct(sh) : "휴장·개장 전"}. {nk == null && sh == null ? <span className="text-gray-400">오늘 열린 아시아 장이 아직 없어 비교하지 않습니다.</span> : chip(readAsia(ks, [nk ?? NaN, sh ?? NaN]))}
+      <b>아시아 읽기</b> · 코스피 {pct(ks)} · {nk != null ? `닛케이 ${pct(nk)}` : ""}{nk != null && sh != null ? " · " : ""}{sh != null ? `상해 ${pct(sh)}` : ""}. {chip(readAsia(ks, [nk ?? NaN, sh ?? NaN]))}
     </div>);
   if (!rows.length) return null;
   return (
