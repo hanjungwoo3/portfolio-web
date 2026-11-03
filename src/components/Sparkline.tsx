@@ -130,9 +130,16 @@ export function Sparkline({
   const baseY = hasBase ? yFor(baseline!) : null;
   // 기준선 구간 — 어제 기준선이 있으면 끊는 곳 가운데(splitX)에서 좌우로 나눈다(색칠은 이 구간대로)
   const splitX = segs.length === 2 ? (segs[0][segs[0].length - 1][0] + segs[1][0][0]) / 2 : width;
+  // 오늘 칸이 아직 비었을 때(미국 프리장 전·한국 장 시작 전) — 어제 칸만 있어도 어제는 어제 기준선(그저께 종가)으로,
+  //   오늘 기준선(어제 종가)은 어제 마지막 점부터 오른쪽으로. 예전엔 둘 다 오늘 기준선 한 줄이라 가로선이 하나로 보였다(KORU, 사용자 2026-11-03)
+  //   (breakIndex 가 데이터 끝 이상 = 오늘 봉이 하나도 없다는 뜻 — api 의 noToday 경로)
+  const onlyPrev = segs.length === 1 && prevBaseline !== undefined && prevBaseline > 0 && baseY !== null
+    && (breakIndex === undefined || breakIndex >= data.length) && Math.abs(prevBaseline - baseline!) > 1e-9 && segs[0].length > 0;
   const parts: { ss: typeof segs; by: number; x0: number; x1: number }[] = baseY === null ? []
     : segs.length === 2 && prevBaseline !== undefined && prevBaseline > 0
       ? [{ ss: [segs[0]], by: yFor(prevBaseline), x0: 0, x1: splitX }, { ss: [segs[1]], by: baseY, x0: splitX, x1: width }]
+      : onlyPrev
+      ? [{ ss: segs, by: yFor(prevBaseline!), x0: 0, x1: segs[0][segs[0].length - 1][0] + 2 }, { ss: [], by: baseY, x0: segs[0][segs[0].length - 1][0] + 2, x1: width }]
       : [{ ss: segs, by: baseY, x0: 0, x1: width }];
   // 오늘 기준선(= 어제 종가) **점선만** 어제 종가 세로선부터 이어 긋는다 — 색칠은 위 구간 그대로(사용자 2026-10-27:
   //   "가로 점선을 종가에서부터 이어서", "선만 추가하고 색은 지금처럼"). 어제 종가선이 창 밖이면 예전처럼 오늘 칸부터.
