@@ -71,3 +71,47 @@ export function CnnFearGreedTag() {
     </Tooltip>
   );
 }
+
+// 공포·탐욕 카드 오른쪽 빈 칸 — 구성 지표 7개를 레이어와 같은 내용 그대로(이름(재는 방법)·점수·등급).
+//   사용자 2026-11-03 "오른쪽 빈곳에", "내용 다 표시하자", "옆으로 길어져야지", "세로는 그대로", "카드 2개로 나눠 넣자".
+//   PC(split): 카드 높이 그대로 상자 둘(4개 + 3개)을 옆으로 / 모바일: 카드 아래 한 상자에 한 열(폭이 좁아 이름을 자르지 않게).
+export function CnnFgPanel({ small, split, className = "" }: { small?: boolean; split?: boolean; className?: string }) {
+  const { data: fg } = useQuery({
+    queryKey: ["cnn-fear-greed"], queryFn: fetchCnnFearGreed,
+    staleTime: 5 * 60_000, refetchInterval: 5 * 60_000, refetchOnWindowFocus: false,
+  });
+  if (!fg?.parts.length) return null;
+  const fs = small ? "text-[10px]" : "text-[11px]";
+  // 한 항목 = 첫 줄 이름·점수·등급, 둘째 줄 재는 방법(작게) — 카드 한 장 폭에 다 들어가게(사용자 2026-11-03 "넓이 다른 카드와 동일하게")
+  const box = (parts: typeof fg.parts, head: React.ReactNode, key: string) => (
+    <div key={key} className="min-w-0 rounded-lg border border-gray-200 bg-gray-50 pg-note px-1.5 py-1">
+      {head && <div className={`${small ? "text-[9.5px]" : "text-[10px]"} font-bold text-gray-600 mb-[1px] truncate`}>{head}</div>}
+      <div className="space-y-[2px]">
+        {parts.map(p => {
+          const b = band(p.score);
+          const m = p.label.match(/^(.*?)\((.*)\)$/);
+          const name = m ? m[1] : p.label, how = m?.[2];
+          return (
+            <div key={p.label} className="min-w-0 leading-[1.15]" title={p.label}>
+              <div className={`flex items-center gap-1 ${fs}`}>
+                <span className="truncate flex-1 font-semibold text-gray-800">{name}</span>
+                {/* 점수·등급 칸 폭 고정 — 세로줄이 맞게(사용자 2026-11-03) */}
+                <span className="shrink-0 w-5 text-right tabular-nums font-bold text-gray-800">{Math.round(p.score)}</span>
+                <span className={`shrink-0 w-[30px] text-center rounded text-[9px] font-bold leading-tight ${b.cls}`}>{b.label}</span>
+              </div>
+              {how && <div className={`truncate ${small ? "text-[8.5px]" : "text-[9px]"} text-gray-500`}>{how}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+  const head = null;   // 제목 줄은 뺐다(사용자 2026-11-03 "설명 삭제") — 마우스를 올리면 전체 이름
+  if (!split) return <div className={className}>{box(fg.parts, head, "all")}</div>;
+  return (
+    <div className={`grid grid-cols-2 gap-2 ${className}`}>
+      {box(fg.parts.slice(0, 4), head, "a")}
+      {box(fg.parts.slice(4), null, "b")}
+    </div>
+  );
+}

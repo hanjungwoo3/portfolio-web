@@ -119,7 +119,7 @@ import { startAutoSync, SYNC_PULLED_EVENT } from "../lib/syncManager";
 import { SyncConflictBar } from "./SyncConflictBar";
 import { MyTradesTab } from "./MyTradesTab";
 import { AssetTrendTab } from "./AssetTrendTab";
-import { CnnFearGreedTag } from "./CnnFearGreedTag";
+import { CnnFearGreedTag, CnnFgPanel } from "./CnnFearGreedTag";
 import { DriveRestorePanel } from "./DriveRestorePanel";
 import { TickArrow } from "./TickArrow";
 import { EtfCompositionDialog } from "./EtfCompositionDialog";
@@ -2348,6 +2348,8 @@ export function MobileSimpleView() {
                 </div>
               );
                   })}
+                  {/* 공포·탐욕 카드(마지막 카드) 옆 빈 칸 — 구성 지표 7개(사용자 2026-11-03) */}
+                  {section.id === "krfx" && <CnnFgPanel small split className="!contents" />}   {/* PC 처럼 카드 한 장 크기 상자 둘 — contents 로 그리드 칸에 바로 들어간다 */}
                 </div>
               </div>
             ); })}

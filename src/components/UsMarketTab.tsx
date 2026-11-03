@@ -37,7 +37,7 @@ import { BreadthNote, UsBreadthNote } from "./BreadthNote";
 import { EtfTopCards } from "./EtfTopCards";
 import { ValueupMiniCard } from "./ValueupCard";
 import { HlPerpCard } from "./HlPerpCard";
-import { CnnFearGreedTag } from "./CnnFearGreedTag";
+import { CnnFearGreedTag, CnnFgPanel } from "./CnnFearGreedTag";
 import { TickArrow } from "./TickArrow";
 import { requestHeatmap, CARD_HEATMAP_LINK } from "../lib/heatmapNav";
 
@@ -809,8 +809,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 });
                 if (!section.extras) return (
                   <div style={section.pairRows ? { gridTemplateColumns: `repeat(${group.length}, minmax(0, 1fr))` } : undefined}
-                       className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 ${section.pairRows ? "" : section.wide ? "lg:grid-cols-8" : `lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}`}>
+                       className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 ${section.pairRows ? "" : section.wide || group.includes("CNNFG") ? "lg:grid-cols-8" : `lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}`}>
                     {cards}
+                    {/* 공포·탐욕 카드 오른쪽 빈 칸 — 구성 지표 7개(사용자 2026-11-03 "오른쪽 빈곳에") */}
+                    {group.includes("CNNFG") && <CnnFgPanel split className="col-span-full sm:col-span-2 lg:col-span-2" />}
                   </div>
                 );
                 // 순환매 줄 — 블록 셋: [미국 대장주] ➜ [한국] [국내 상장 미국 ETF(참고, 따로 상자)].
