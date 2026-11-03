@@ -144,6 +144,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     if (t && t.prevClose > 0) return { price: t.price, pct: ((t.price - t.prevClose) / t.prevClose) * 100 };
     return q(`${code}.KS`);
   };
+  // 어제 종가 = 지금 가격 ÷ (1 + 등락률) — 실시간 체결 가격 글자 옆 % 용
+  const baseOf = (code: string) => { const x = sq(code); return x?.price && x.pct != null ? x.price / (1 + x.pct / 100) : undefined; };
   const [rightTab, setRightTab] = useState<"sig" | "hyp">("sig");
   // 프리장(NXT 08:00~09:00) 결과 — 정규장이 열리면 현물 수급은 KRX 로 바뀌어 프리장이 안 보인다 → 따로 한 줄(사용자 요청)
   const [{ data: kospiNxt }, { data: kosdaqNxt }] = useQueries({
@@ -372,7 +374,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         <ValueupStrip code={s0.code} />
         {kisFutAvailable() && <KisViStrip code={s0.code} />}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[360px]">   {/* 체결 · 신호 반반(사용자 요청) */}
-          <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} />
+          <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} />
           {signalBox}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[430px] shrink-0">
@@ -418,7 +420,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       <ProgramTapePanel />
       {/* ② 실시간 체결 + 신호 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_600px] gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]">
-        {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />)}
+        {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />)}
         {signalBox}
       </div>
 
@@ -533,7 +535,7 @@ function SparkBg({ sp, base }: { sp: { nextBase?: number; markXs?: { x: number; 
 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
 //   onTitle — 제목을 누르면 ⚡ 종목 체결 팝업(같은 화면을 이 종목 하나로)
-function TickPanel({ name, flow, day, onTitle }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void }) {
+function TickPanel({ name, flow, day, onTitle, base }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number }) {   // base = 어제 종가(가격 글자 옆 등락률)
   const ms = flow.minutes.slice(-90);   // 최근 90분
   const W = 600, H = 220, PAD = 4;
   const nets = ms.map(m => m.buyAmt - m.sellAmt);
@@ -599,10 +601,11 @@ function TickPanel({ name, flow, day, onTitle }: { name: string; flow: TickFlow;
               const hiI = prices.indexOf(hi), loI = prices.indexOf(lo);
               const lab = "absolute pointer-events-none text-[10px] tabular-nums px-0.5 rounded bg-white/80 whitespace-nowrap";
               const lx = (xOf(prices.length - 1) / W) * 100;
+              const pc = (p: number) => base && base > 0 ? ` ${p >= base ? "+" : ""}${((p / base - 1) * 100).toFixed(2)}%` : "";   // 어제 종가 대비(사용자 2026-11-04 "%등락율도 같이")
               return (<>
-                {hi > lo && <span className={`${lab} text-rose-600`} style={{ left: `${Math.max(7, Math.min(85, (xOf(hiI) / W) * 100))}%`, top: `${yp(hi)}%`, transform: "translate(-50%, -110%)" }}>고 {hi.toLocaleString()}</span>}
-                {hi > lo && <span className={`${lab} text-blue-600`} style={{ left: `${Math.max(7, Math.min(85, (xOf(loI) / W) * 100))}%`, top: `${yp(lo)}%`, transform: "translate(-50%, 10%)" }}>저 {lo.toLocaleString()}</span>}
-                <span className={`${lab} font-bold text-slate-800 border border-slate-300`} style={{ left: `${Math.min(lx, 88)}%`, top: `${Math.max(6, Math.min(90, yp(last)))}%`, transform: lx > 88 ? "translate(-100%, -50%)" : "translate(4px, -50%)" }}>{last.toLocaleString()}</span>
+                {hi > lo && <span className={`${lab} text-rose-600`} style={{ left: `${Math.max(7, Math.min(85, (xOf(hiI) / W) * 100))}%`, top: `${yp(hi)}%`, transform: "translate(-50%, -110%)" }}>고 {hi.toLocaleString()}{pc(hi)}</span>}
+                {hi > lo && <span className={`${lab} text-blue-600`} style={{ left: `${Math.max(7, Math.min(85, (xOf(loI) / W) * 100))}%`, top: `${yp(lo)}%`, transform: "translate(-50%, 10%)" }}>저 {lo.toLocaleString()}{pc(lo)}</span>}
+                <span className={`${lab} font-bold text-slate-800 border border-slate-300`} style={{ left: `${Math.min(lx, 88)}%`, top: `${Math.max(6, Math.min(90, yp(last)))}%`, transform: lx > 88 ? "translate(-100%, -50%)" : "translate(4px, -50%)" }}>{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span></span>
               </>);
             })()}
             {/* 누적 끝값 — 막대(1분)와 축이 달라 선만으론 크기를 모른다. svg 가 늘어나므로 글자는 HTML 로 */}
