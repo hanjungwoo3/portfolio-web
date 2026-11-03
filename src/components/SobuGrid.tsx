@@ -116,7 +116,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
   const ndt = (dt: string) => `${+dt.slice(4, 6)}/${+dt.slice(6, 8)} ${dt.slice(8, 10)}:${dt.slice(10, 12)}`;
   return (
     <div className="space-y-2">
-    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2">
+    <div className={`grid grid-cols-1 md:grid-cols-2 ${boxes.length === 3 ? "xl:grid-cols-3" : "xl:grid-cols-4"} gap-2`}>   {/* 칸 수만큼 화면을 나눈다(3단계 업종은 3등분) */}
       {boxes.map(b => {
         // 평균·▲▼ 은 흐린 종목(장 안 열림·체결 없음 — 값이 지난 정규장) 빼고(사용자 2026-11-03). 다 흐리면(장 마감 뒤) 전부로
         const live = b.kr.filter(s => !dimOf?.(s));

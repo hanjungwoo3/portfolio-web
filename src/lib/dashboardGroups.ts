@@ -521,18 +521,62 @@ function sectionMap(): Record<string, DashboardSection> {
         ["137400.KS", "299030.KS", "222080.KS", "259630.KS", "217820.KS", "091580.KS", "243840.KS"],                      // 피엔티·하나기술·SFA넥셀·엠플러스·원익피앤이·상신이디피·신흥에스이씨
       ],
     },
+    // ── 지수(업종) 탭의 나머지 업종 — 소부장·2차전지와 같은 4칸(사용자 2026-11-03 "조선/방산/원전·화장품도"). 해외 대장주 ➜ 국내
+    {
+      id: "shipflow", short: "조선", label: "🚢 조선 — 단계별 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 미국 해군 조선(헌팅턴잉걸스, 간밤). 칸 제목 옆 = 국내 종목 평균 등락률(흐린 종목 제외).",
+      lead: 1, leadByRow: [1, 0, 0],
+      rowLabels: ["조선사", "엔진·기자재", "보냉·배관"],
+      rows: [
+        ["HII", "009540.KS", "329180.KS", "010140.KS", "042660.KS"],
+        ["082740.KS", "071970.KS", "443060.KS", "077970.KS", "075580.KS"],
+        ["033500.KS", "017960.KS", "014620.KS", "023160.KS", "013030.KS"],
+      ],
+    },
+    {
+      id: "defflow", short: "방산", label: "🛡 방산 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 미국 방산 대장(록히드마틴·RTX·노스롭, 간밤).",
+      lead: 1, leadByRow: [2, 1, 0],
+      rowLabels: ["체계(완성품)", "전자·항공", "탄약·부품"],
+      rows: [
+        ["LMT", "RTX", "012450.KS", "079550.KS", "064350.KS", "047810.KS"],
+        ["NOC", "272210.KS", "214430.KS", "005870.KS", "065450.KS"],
+        ["103140.KS", "010820.KS", "013810.KS", "003570.KS"],
+      ],
+    },
+    {
+      id: "nucflow", short: "원전", label: "⚛️ 원전 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 미국 원전 대장(컨스텔레이션·BWXT·카메코·SMR, 간밤).",
+      lead: 1, leadByRow: [1, 1, 3],
+      rowLabels: ["주기기·건설", "설계·정비", "부품·SMR"],
+      rows: [
+        ["CEG", "034020.KS", "000720.KS", "015760.KS"],
+        ["BWXT", "052690.KS", "051600.KS", "094820.KS", "126720.KS"],
+        ["CCJ", "SMR", "OKLO", "083650.KS", "105840.KS", "032820.KS", "006910.KS", "019990.KS", "189860.KS"],
+      ],
+    },
+    {
+      id: "beautyflow", short: "화장품", label: "💄 화장품 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 해외 화장품(e.l.f.·에스티로더 간밤, 시세이도 장중).",
+      lead: 1, leadByRow: [3, 0, 0],
+      rowLabels: ["브랜드", "ODM(제조)", "유통·용기"],
+      rows: [
+        ["ELF", "EL", "4911.T", "090430.KS", "051900.KS", "278470.KS", "483650.KS", "018290.KS", "237880.KS", "214420.KS", "002790.KS"],
+        ["192820.KS", "161890.KS", "241710.KS", "352480.KS"],
+        ["257720.KS", "251970.KS"],
+      ],
+    },
   ];
   return Object.fromEntries(sections.map(s => [s.id, s]));
 }
 
-export type DashboardPage = "day" | "night" | "rot" | "sobu" | "batt";
+export type DashboardPage = "day" | "night" | "rot" | "sobu";
 // 지수 탭 셋 — 메뉴의 '📈 지수' 드롭다운에 들어간다. PC·모바일이 이 라벨 한 벌을 쓴다.
 export const DASHBOARD_PAGES: { key: DashboardPage; emoji: string; tab: string; hint: string }[] = [
   { key: "day",   emoji: "🇰🇷", tab: "지수(한국/주간)", hint: "한국장 · 섹터 대장주 + 미국 지수선물" },
   { key: "night", emoji: "🇺🇸", tab: "지수(미국/야간)", hint: "미국장 · AI 하드/소프트 · 빅테크·방어 + 한국 야간선물" },
   { key: "rot",   emoji: "🔄", tab: "지수(순환매)", hint: "간밤 미국 ➜ 오늘 한국 — 반도체 지수·일본 반도체·AI 순환매(반도체·전력·원자력·2차전지·방산·로봇)" },
-  { key: "sobu",  emoji: "🛠", tab: "지수(소부장)", hint: "반도체 소부장 — 기판·전공정·후공정·소재·부품 단계별 해외 대장주 ➜ 국내 종목" },
-  { key: "batt",  emoji: "🔋", tab: "지수(2차전지·ESS)", hint: "2차전지·ESS — 셀·ESS·양극재·소재·장비 단계별 해외 대장주 ➜ 국내 종목" },
+  { key: "sobu",  emoji: "🏭", tab: "지수(업종)", hint: "업종별 단계 — 소부장·2차전지·ESS·조선·방산·원전·화장품(안에서 탭으로)" },
 ];
 
 // 페이지별 구성 — **그 시간에 필요한 걸 다**. 중복 허용(한 페이지만 봐도 되게).
@@ -554,9 +598,8 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   //   환율·금리·투심과 선물은 뺐다 — 한국·미국 탭 위쪽에 있다(사용자 결정 2026-10-12).
   rot:   ["semi", "jpsemi", "rotflow", "etftop", "sector"],
   // 소부장 — 단계별 한 블록만(사용자 2026-11-02, 주간 시장 줄은 뺐다 "빼도 될 거 같아")
-  sobu:  ["sobuflow"],
-  // 2차전지·ESS — 소부장과 같은 4칸(2026-11-03)
-  batt:  ["battflow"],
+  // 지수(업종) — 업종마다 한 블록, 페이지 안 탭으로 하나씩(사용자 2026-11-03 "소부장·ESS 를 내부 탭으로")
+  sobu:  ["sobuflow", "battflow", "shipflow", "defflow", "nucflow", "beautyflow"],
   // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
   //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)
@@ -588,9 +631,9 @@ function isKrNightNow(): boolean {
 // PC 지수 탭 키 — Tabs.tsx 의 US_MARKET_TAB_KEY · INDEX_NIGHT_TAB_KEY · INDEX_ROT_TAB_KEY 와 **같은 문자열**.
 //   (lib 이 컴포넌트를 import 하지 않게 문자열로 둔다 — 어긋나지 않게 테스트가 대조한다)
 //   폐지된 탭(미국순환 → 미국, 반도체 → 순환매, 대장주 → 한국)은 합쳐진 페이지로 보낸다.
-export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-rot__", "__idx-sobu__", "__idx-batt__"]);
+export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-rot__", "__idx-sobu__"]);
 export function indexPageOf(key: string): DashboardPage {
-  return key === "__idx-night__" || key === "__idx-us__" ? "night" : key === "__idx-rot__" || key === "__idx-semi__" ? "rot" : key === "__idx-sobu__" ? "sobu" : key === "__idx-batt__" ? "batt" : "day";
+  return key === "__idx-night__" || key === "__idx-us__" ? "night" : key === "__idx-rot__" || key === "__idx-semi__" ? "rot" : key === "__idx-sobu__" || key === "__idx-batt__" ? "sobu" : "day";   // 옛 2차전지 페이지 → 업종
 }
 
 // 처음 열 때·탭 클릭 시 페이지 — 시간으로. 한국 07~20시(NXT 애프터 끝까지)는 주간, 그 외는 야간(사용자 요청 2026-10-22, 옛 18시).

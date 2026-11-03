@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
+import { SectorTabBar, useSectorTab } from "./SectorTabBar";
 import { useRecentDisc } from "../lib/recentDisclosures";
 import { DiscTags } from "./DiscTags";
 import { SobuGrid } from "./SobuGrid";
@@ -171,8 +172,8 @@ const SYS_DROPDOWN_KEYS = new Set<string>([    // '투자도구' 드롭다운에
 ]);
 const MY_GROUP_KEYS_M = new Set<string>([MY_KEY, MY_TRADES_KEY, MY_TRADES_TOSS_KEY, ASSET_TREND_KEY]);   // '내자산' 드롭다운
 // '지수' 드롭다운 — 주간(옛 지수 키 KR_KEY 를 그대로 써서 저장된 마지막 탭이 이어진다)·야간·반도체
-const INDEX_KEYS_M = new Set<string>([KR_KEY, IDX_NIGHT_KEY, IDX_ROT_KEY, IDX_SOBU_KEY, IDX_BATT_KEY]);
-const indexPageOfM = (k: string): DashboardPage => k === IDX_NIGHT_KEY ? "night" : k === IDX_ROT_KEY ? "rot" : k === IDX_SOBU_KEY ? "sobu" : k === IDX_BATT_KEY ? "batt" : "day";
+const INDEX_KEYS_M = new Set<string>([KR_KEY, IDX_NIGHT_KEY, IDX_ROT_KEY, IDX_SOBU_KEY]);
+const indexPageOfM = (k: string): DashboardPage => k === IDX_NIGHT_KEY ? "night" : k === IDX_ROT_KEY ? "rot" : k === IDX_SOBU_KEY ? "sobu" : "day";
 const SYS_ALL_KEYS = new Set<string>([MONEY_KEY, SEMI_DASH_KEY, ...INDEX_KEYS_M, ...SYS_DROPDOWN_KEYS, ...MY_GROUP_KEYS_M]);
 // 일부 심볼 sparkline 은 Yahoo 가 historical 안 줌 → 가까운 현물 차트로 폴백 (차트 목록 계산에도 쓴다)
 const SPARKLINE_FALLBACK_M: Record<string, string> = { "SOX=F": "^SOX" };
@@ -269,7 +270,8 @@ export function MobileSimpleView() {
   const [etfDialog, setEtfDialog] = useState<{ ticker: string; name: string } | null>(null);
   const marketAlerts = useMarketAlerts();   // 종목코드 → 투자주의·경고·위험
   const discMap = useRecentDisc();   // 종목코드 → 최근 5거래일 공시(카드 공시 종류 꼬리표)
-  const valueupFile = useValueupFile();   // 종목코드 → 저PBR·고배당·밸류업 우수(거래소 KIND)
+  const valueupFile = useValueupFile();
+  const [sectorTabM, setSectorTabM] = useSectorTab(buildDashboardPage("sobu"));   // 지수(업종) 안 탭   // 종목코드 → 저PBR·고배당·밸류업 우수(거래소 KIND)
   const [etfReverseDialog, setEtfReverseDialog] = useState<{ ticker: string; name: string } | null>(null);
   const [feedbackOpen, setFeedbackOpen] = useState(false);
   // 상단 헤더 접기/펼치기 (PC 와 동일 키)
@@ -351,6 +353,7 @@ export function MobileSimpleView() {
     if (typeof localStorage === "undefined") return byTime;
     const saved = localStorage.getItem(TAB_KEY);
     // 옛 '지수(반도체)' 는 야간에(2026-10-07), '지수(대장주)' 는 주간에(2026-10-08) 합쳤다 — 저장돼 있으면 합친 쪽으로
+    if (saved === IDX_BATT_KEY) return IDX_SOBU_KEY;    // 옛 지수(2차전지·ESS) → 지수(업종) 안 탭(2026-11-03)
     if (saved === IDX_SEMI_KEY) return IDX_ROT_KEY;     // 옛 반도체 → 지금은 지수(순환매)(2026-10-12)
     if (saved === IDX_US_KEY) return IDX_NIGHT_KEY;     // 옛 미국순환 → 지수(미국)
     if (saved === IDX_LEADERS_KEY) return KR_KEY;
@@ -484,7 +487,7 @@ export function MobileSimpleView() {
     }
     if (vis.usMarket) {
       // 지수 — 한국·미국·순환매 세 탭('지수' 드롭다운). 라벨은 PC 와 같은 한 벌(DASHBOARD_PAGES).
-      const keyOf: Record<DashboardPage, string> = { day: KR_KEY, night: IDX_NIGHT_KEY, rot: IDX_ROT_KEY, sobu: IDX_SOBU_KEY, batt: IDX_BATT_KEY };
+      const keyOf: Record<DashboardPage, string> = { day: KR_KEY, night: IDX_NIGHT_KEY, rot: IDX_ROT_KEY, sobu: IDX_SOBU_KEY };
       for (const p of DASHBOARD_PAGES) tabs.push({ key: keyOf[p.key], label: `${p.emoji}${p.tab}`, count: 0 });
       tabs.push({ key: SEMI_DASH_KEY, label: "💾지수(반도체 수급)", count: 0 });   // PC 와 같이 지수 묶음 끝
     }
@@ -1874,13 +1877,17 @@ export function MobileSimpleView() {
         // 지수 — PC(UsMarketTab)와 동일한 공용 그룹 정의를 그룹 헤더 + 2열 카드로 렌더 (단일 통합 뷰)
         //   한·미 섹터 판도 그대로 넣는다 — TicsSectorBoard 는 lg 미만에서 좌우 2판이
         //   **위아래 1판씩으로 알아서 접힌다**(grid-cols-1 lg:grid-cols-2). 폭 걱정은 없다.
-        const sections = buildDashboardPage(indexPageOfM(activeTab));
+        const pageSecs = buildDashboardPage(indexPageOfM(activeTab));
+        const isSectorPage = indexPageOfM(activeTab) === "sobu";
+        const sections = isSectorPage ? pageSecs.filter(s => s.id === sectorTabM) : pageSecs;
         const idxStickyTop = (headerCollapsed ? 0 : 44) + navH;   // 헤더(44) + 메인 탭바 아래
         const idxScrollMargin = idxStickyTop + 38;                // + 색인바 높이 만큼 더 내려 착지
         return (
           <div className="px-3 py-2 space-y-3">
-            <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
-                         stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />
+            {isSectorPage
+              ? <SectorTabBar sections={pageSecs} active={sectorTabM} onChange={setSectorTabM} compact />
+              : <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
+                             stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />}
             <KisExpRankBox compact />
             {sections.map(section => {
               // keepRows — 줄마다 첫 카드를 새 줄 1열에서 시작(col-start-1)해 PC 처럼 줄이 유지된다
@@ -1890,7 +1897,7 @@ export function MobileSimpleView() {
                    style={{ scrollMarginTop: idxScrollMargin }}
                    className={`relative space-y-1.5 rounded-xl border border-gray-300 bg-white ${section.render === "rotation" ? "" : section.render ? "pg-box pg-render" : "pg-box"} p-2 pt-3.5 mt-1.5`}>
                 {/* 섹터명 책갈피 — 카드 상단에 겹치게 */}
-                <span className="pg-title absolute -top-2.5 left-2.5 z-10 px-1.5 py-0.5 rounded-md border border-gray-300 bg-gray-50
+                <span hidden={section.render === "sobuGrid"} className="pg-title absolute -top-2.5 left-2.5 z-10 px-1.5 py-0.5 rounded-md border border-gray-300 bg-gray-50
                                  text-[11px] font-bold text-gray-700 whitespace-nowrap">
                   {section.label}
                   {section.link && isTabVisible(section.link.vis) && (

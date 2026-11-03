@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
+import { SectorTabBar, useSectorTab } from "./SectorTabBar";
 import { useRecentDisc } from "../lib/recentDisclosures";
 import { DiscTags } from "./DiscTags";
 import { SobuGrid } from "./SobuGrid";
@@ -143,7 +144,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
   // 지수 대시보드 그룹 — 데스크톱·모바일 공용 정의(lib/dashboardGroups).
   //   주간·야간·반도체 중 어느 페이지인지는 메뉴 탭이 정한다(page).
-  const T0_SECTIONS = buildDashboardPage(page);
+  const PAGE_SECTIONS = buildDashboardPage(page);
+  // 지수(업종) — 업종 블록 중 하나만(페이지 안 탭, 사용자 2026-11-03)
+  const [sectorTab, setSectorTab] = useSectorTab(page === "sobu" ? PAGE_SECTIONS : []);
+  const T0_SECTIONS = page === "sobu" ? PAGE_SECTIONS.filter(s => s.id === sectorTab) : PAGE_SECTIONS;
 
   // T0 카드 sparkline — 일부 심볼 (SOX=F) 은 Yahoo 가 historical 안 줌 → 가장 가까운 현물 차트로 폴백
   const SPARKLINE_FALLBACK: Record<string, string> = {
@@ -318,9 +322,13 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   return (
     <div className="space-y-3">
       {/* 차트 기간(3개월|24시간)은 그룹 칩 줄 끝에 — 스크롤해도 늘 보이는 자리(사용자 결정 2026-10-20) */}
-      <GroupNavBar items={navItems} idPrefix="usidx-"
+      {page === "sobu"
+        ? <div className="sticky z-30 bg-gray-50 pg-bg py-1.5" style={{ top: navStickyTop }}>
+            <SectorTabBar sections={PAGE_SECTIONS} active={sectorTab} onChange={setSectorTab} trailing={<ChartRangeToggle />} />
+          </div>
+        : <GroupNavBar items={navItems} idPrefix="usidx-"
                    stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin}
-                   trailing={<ChartRangeToggle />} />
+                   trailing={<ChartRangeToggle />} />}
       {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
       {/* 다른 탭과 같은 전체 폭 — 예전엔 lg 에서 75% 로 줄여 PC 에서만 좁아 보였다 */}
       <div className="space-y-4">
@@ -331,7 +339,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                style={{ scrollMarginTop: idxScrollMargin }}
                className={`relative space-y-2 rounded-xl border border-gray-300 bg-white ${section.render === "rotation" ? "" : section.render ? "pg-box pg-render" : "pg-box"} p-2.5 pt-4 mt-1.5`}>
             {/* 섹터명 책갈피 — 카드 상단에 겹치게 */}
-            <span className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
+            <span hidden={section.render === "sobuGrid"} className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
                              text-sm font-bold text-gray-700 whitespace-nowrap">
               {section.label}
               {section.link && isTabVisible(section.link.vis) && (
