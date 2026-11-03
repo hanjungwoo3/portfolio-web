@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { squarify } from "../lib/treemap";
 import { heatColor, sectorKr } from "../lib/heatColor";
 import { useQuery } from "@tanstack/react-query";
-import { fetchHeatmapForTickers } from "../lib/api";
+import { fetchHeatmapForTickers, fetchTossUsPrices } from "../lib/api";
 import { createPortal } from "react-dom";
 import { bearShare, bullShare, fmtUsdKr, openSeohakToss, mdOf, netSellers, seohakOf, useSeohak, type SeohakRow, type SeohakHold, type LevKind } from "../lib/seohak";
 import { useHoverLayer, layerStyle } from "../lib/useHoverLayer";
@@ -70,6 +70,18 @@ function HoldTreemap({ hold, week, height }: { hold: SeohakHold[]; week: { net: 
     enabled: tickers.length > 0, staleTime: 60_000, refetchInterval: 120_000, retry: 1,
   });
   const q = (r: SeohakHold) => (r.t ? quotes.data?.get(r.t) : undefined);
+  // 1일 등락률은 토스 실시간 — TradingView 스캐너는 비로그인이면 15분 지연(update_mode delayed_streaming_900, 실측 2026-11-03 09:38 ET 에
+  //   아직 어제 등락률). 크롤러가 받아 둔 토스 코드로 50종목 1콜, 1분마다. 1주·1개월 등락률·섹터는 스캐너 그대로(지연 영향 작음)
+  const tossCodes = hold.map(r => r.toss).filter((c): c is string => !!c);
+  const live = useQuery({
+    queryKey: ["seohak-toss", tossCodes.join(",")], queryFn: () => fetchTossUsPrices(tossCodes),
+    enabled: tossCodes.length > 0, staleTime: 30_000, refetchInterval: 60_000, retry: 1,
+  });
+  const d1Of = (r: SeohakHold): number | undefined => {
+    const t = r.toss ? live.data?.get(r.toss) : undefined;
+    if (t && t.base > 0 && t.close > 0) return (t.close / t.base - 1) * 100;
+    return q(r)?.changePct;   // 토스에 없으면 스캐너(15분 지연)
+  };
   const wk = new Map<string, SeohakRow>();
   for (const r of [...week.sell, ...week.net]) wk.set(r.isin, r);
   const total = hold.reduce((a, r) => a + r.amt, 0);
@@ -78,7 +90,7 @@ function HoldTreemap({ hold, week, height }: { hold: SeohakHold[]; week: { net: 
     : Math.abs(wk.get(r.isin)?.net ?? 0);
   const pctOf = (r: SeohakHold): number | undefined => {
     const x = q(r);
-    if (colorBy === "d1") return x ? x.changePct : undefined;
+    if (colorBy === "d1") return d1Of(r);
     if (colorBy === "w1") return x ? x.perfW : undefined;
     if (colorBy === "m1") return x ? x.perf1M : undefined;
     if (colorBy === "flow") return wk.has(r.isin) ? wk.get(r.isin)!.net / r.amt * 100 : undefined;
@@ -145,7 +157,7 @@ function HoldTreemap({ hold, week, height }: { hold: SeohakHold[]; week: { net: 
                  title={`${r.t ?? r.n}${r.ko ? ` ${r.ko}` : ""} — ${r.n}${x0?.sector ? ` · ${sectorKr(x0.sector)}` : ""}\n` +
                         `보유 ${r.rank}위 · ${fmtUsdKr(r.amt)} (비중 ${(r.amt / total * 100).toFixed(1)}%)${r.prevRank ? ` · 전주 ${r.prevRank}위` : ""}\n` +
                         (wk.has(r.isin) ? `이번 주 매수 ${fmtUsdKr(wk.get(r.isin)!.buy)} · 매도 ${fmtUsdKr(wk.get(r.isin)!.sell)} · 순 ${fmtUsdKr(wk.get(r.isin)!.net, true)}` : "이번 주 매매 상위 50 밖") +
-                        (x0 ? `\n1일 ${x0.changePct.toFixed(2)}% · 1주 ${x0.perfW.toFixed(1)}% · 1개월 ${x0.perf1M.toFixed(1)}%` : "") + "\n눌러서 토스에서 보기"}>
+                        (x0 || d1Of(r) != null ? `\n1일 ${(d1Of(r) ?? 0).toFixed(2)}%(토스 실시간) · 1주 ${x0?.perfW.toFixed(1) ?? "—"}% · 1개월 ${x0?.perf1M.toFixed(1) ?? "—"}%` : "") + "\n눌러서 토스에서 보기"}>
               {mid && <Logo r={r} size={huge ? 34 : big ? 24 : 16} />}
               {big && name && <span className={`mt-0.5 font-bold truncate max-w-full ${huge ? "text-[15px]" : "text-[12px]"}`}>{name}</span>}
               {(mid || tw > 26) && th > 16 && (
@@ -163,7 +175,7 @@ function HoldTreemap({ hold, week, height }: { hold: SeohakHold[]; week: { net: 
       <div className="text-[9.5px] text-gray-400 mt-0.5 leading-snug">
         {colorBy === "flow" ? "색 = 이번 주 순매수(빨강)·순매도(파랑)가 보유액의 몇 %인가 · 회색 = 순매매 상위 50 밖"
           : colorBy === "chg" ? "색 = 보유 평가액 1주 변화(주가 등락 + 매매) · 회색 = 전주 상위 50 밖(새로 들어옴)"
-          : `색 = ${COLOR_OPTS.find(o => o[0] === colorBy)![1]}(TradingView 시세${quotes.isError ? " — 불러오기 실패" : ""}) · 크기 = ${SIZE_OPTS.find(o => o[0] === sizeBy)![1]}`}
+          : `색 = ${COLOR_OPTS.find(o => o[0] === colorBy)![1]}(${colorBy === "d1" ? "토스 실시간, 1분마다" : `TradingView 시세 — 15분 지연${quotes.isError ? " · 불러오기 실패" : ""}`}) · 크기 = ${SIZE_OPTS.find(o => o[0] === sizeBy)![1]}`}
       </div>
     </div>
   );
