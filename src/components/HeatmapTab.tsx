@@ -290,7 +290,9 @@ export function HeatmapTab() {
     const stocks: { it: HeatmapItem; x: number; y: number; w: number; h: number }[] = [];
     const headers: { sec: string; x: number; y: number; w: number; h: number; avg?: number }[] = [];
     // 그룹 칸 — 머리 18px(글자 크게) + 칸 사이 3px 틈 + 테두리(사용자 2026-11-03 "그룹을 잘 확인 가능하게, 그룹명 키우고 경계 명확히")
-    const HEAD = 18, GAP = 3;
+    const HEAD = 19, GAP = 5;   // 테두리 4px + 안쪽 틈(사용자 2026-11-03 "테두리 폭 더 넓게")
+    const M = 1;                 // 그룹 사이 바깥 간격(양쪽 1px = 2px — 사용자 2026-11-03 "너무 띄웠어", "조금 더 좁게")
+    const shrink = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x + M, y: r.y + M, w: Math.max(0, r.w - 2 * M), h: Math.max(0, r.h - 2 * M) });
     const avgOf = (list: HeatmapItem[]) => list.length ? list.reduce((a, it) => a + colorDef.field(it), 0) / list.length : undefined;
     if (groupMode === "none") {
       const cells = squarify(items.map(it => ({ item: it, value: sizeVal(it) })), { x: 0, y: 0, w: size.w, h: size.h });
@@ -319,11 +321,12 @@ export function HeatmapTab() {
       blocks.forEach((g, i) => {
         // 마지막 블록은 남은 폭을 다 써서 반올림 오차로 빈 틈이 생기지 않게 한다
         const w = i === blocks.length - 1 ? size.w - x : (size.w * g.total) / sum;
-        const head = size.h > 40 && w > 46 ? HEAD : 0;
-        headers.push({ sec: `${g.k} ${g.list.length}`, x, y: 0, w, h: size.h, avg: avgOf(g.list) });
+        const b = shrink({ x, y: 0, w, h: size.h });
+        const head = b.h > 40 && b.w > 46 ? HEAD : 0;
+        headers.push({ sec: `${g.k} ${g.list.length}`, ...b, avg: avgOf(g.list) });
         const cells = squarify(
           g.list.map(it => ({ item: it, value: sizeVal(it) })),
-          { x: x + GAP, y: head + GAP / 2, w: Math.max(0, w - GAP * 2), h: Math.max(0, size.h - head - GAP * 1.5) },
+          { x: b.x + GAP, y: b.y + head + GAP / 2, w: Math.max(0, b.w - GAP * 2), h: Math.max(0, b.h - head - GAP * 1.5) },
         );
         for (const c of cells) stocks.push({ it: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
         x += w;
@@ -336,9 +339,10 @@ export function HeatmapTab() {
     }));
     const sectorTiles = squarify(sectorInputs, { x: 0, y: 0, w: size.w, h: size.h });
     for (const st of sectorTiles) {
-      const head = st.h > 40 && st.w > 46 ? HEAD : 0;
-      headers.push({ sec: st.item.sec, x: st.x, y: st.y, w: st.w, h: st.h, avg: avgOf(st.item.list) });
-      const inner = { x: st.x + GAP, y: st.y + head + GAP / 2, w: Math.max(0, st.w - GAP * 2), h: Math.max(0, st.h - head - GAP * 1.5) };
+      const b = shrink(st);
+      const head = b.h > 40 && b.w > 46 ? HEAD : 0;
+      headers.push({ sec: st.item.sec, ...b, avg: avgOf(st.item.list) });
+      const inner = { x: b.x + GAP, y: b.y + head + GAP / 2, w: Math.max(0, b.w - GAP * 2), h: Math.max(0, b.h - head - GAP * 1.5) };
       const cells = squarify(st.item.list.map(it => ({ item: it, value: sizeVal(it) })), inner);
       for (const c of cells) stocks.push({ it: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
     }
@@ -510,7 +514,7 @@ export function HeatmapTab() {
         {/* 그룹마다 색을 다르게(사용자 2026-11-03) — 테두리·머리 띠. 이름으로 색을 고정해 새로고침해도 같은 섹터는 같은 색 */}
         {layout.headers.map(h => { const gc = GROUP_COLORS[hashStr(h.sec) % GROUP_COLORS.length]; return (
           <div key={`h-${h.sec}-${Math.round(h.x)}-${Math.round(h.y)}`}
-               className="absolute pointer-events-none rounded-sm border-2"
+               className="absolute pointer-events-none rounded border-4"
                style={{ left: h.x + 0.5, top: h.y + 0.5, width: Math.max(0, h.w - 1), height: Math.max(0, h.h - 1), borderColor: gc, background: `${gc}22` }}>
             {h.h > 40 && h.w > 46 && (
               <div className="flex items-baseline gap-1.5 px-1.5 truncate" style={{ height: 16, lineHeight: "16px", background: gc }}>
