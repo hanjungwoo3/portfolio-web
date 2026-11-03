@@ -535,7 +535,7 @@ export function HeatmapTab() {
         {layout.headers.map(h => { const gc = GROUP_COLORS[hashStr(h.sec) % GROUP_COLORS.length]; return (
           <div key={`h-${h.sec}-${Math.round(h.x)}-${Math.round(h.y)}`}
                className="absolute pointer-events-none rounded border-4"
-               style={{ left: h.x + 0.5, top: h.y + 0.5, width: Math.max(0, h.w - 1), height: Math.max(0, h.h - 1), borderColor: gc, background: `${gc}22` }}>
+               style={{ left: h.x + 0.5, top: h.y + 0.5, width: Math.max(0, h.w - 1), height: Math.max(0, h.h - 1), borderColor: gc, background: "transparent" }}>   {/* 섹터 칸 배경은 투명(사용자 2026-11-03) — 테두리·머리 띠만 색 */}
             {h.h > 40 && h.w > 46 && (
               <div className="flex items-baseline gap-1.5 px-1.5 truncate" style={{ height: 16, lineHeight: "16px", background: gc }}>
                 <span className="text-[12px] font-bold text-white truncate">{sectorKr(h.sec)}</span>
