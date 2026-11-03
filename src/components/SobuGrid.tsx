@@ -118,11 +118,12 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs }: {
   return (
     <div className="space-y-2">
     {etfs && etfs.length > 0 && (
-      <div className="flex items-center gap-1.5 overflow-x-auto">
-        <span className="shrink-0 text-[11px] font-bold text-violet-700 px-1">ETF</span>
+      // ETF 카드 크기를 아래 종목 카드와 같게(사용자 2026-11-03 "ETF 카드만 크기가 달라") — 칸 수×2 열 격자, 칸 안쪽 여백만큼 양옆을 띄운다
+      <div className={`grid grid-cols-2 sm:grid-cols-4 ${boxes.length === 3 ? "xl:grid-cols-6" : "xl:grid-cols-8"} gap-x-3.5 gap-y-1.5 px-2`}>
         {etfs.map(sym => { const q = quote(sym); return (
-          <div key={sym} className="shrink-0 w-[150px] sm:w-[170px]">
-            <QuoteCard code={sym.slice(0, 6)} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} dim={dimOf?.(sym)} className="w-full h-[72px]" />
+          <div key={sym} className="relative rounded-lg ring-1 ring-violet-300">
+            <span className="absolute -top-1.5 left-1 z-10 px-1 rounded bg-violet-600 text-white text-[9px] font-bold leading-tight">ETF</span>
+            <QuoteCard code={sym.slice(0, 6)} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} dim={dimOf?.(sym)} className="w-full h-[84px]" />
           </div>
         ); })}
       </div>
