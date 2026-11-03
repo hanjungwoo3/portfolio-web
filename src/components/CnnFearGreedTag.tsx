@@ -30,6 +30,8 @@ export function CnnFearGreedTag() {
         CNN 공포·탐욕 <span className="tabular-nums">{Math.round(fg.score)}</span>{" "}
         <span className={`px-1 rounded text-[10px] ${b.cls}`}>{b.label}</span>
       </div>
+      {/* 숫자는 모두 CNN 실제 점수 — 괄호 안 글은 '무엇으로 재나' 설명(사용자 2026-11-03 "현재 값이야? 설명이야?") */}
+      <div className="text-gray-500 pt-0.5">총점 추이 (지금 {Math.round(fg.score)}점과 비교)</div>
       <table className="text-[11px] w-full">
         <tbody>
           {past.map(([k, v]) => v != null && (
@@ -43,7 +45,7 @@ export function CnnFearGreedTag() {
       </table>
       {fg.parts.length > 0 && (
         <>
-          <div className="text-gray-500 pt-0.5">구성 지표 (각 0~100)</div>
+          <div className="text-gray-500 pt-0.5">구성 지표 7개 — <b>지금 점수</b> (0 극공포 ~ 100 극탐욕 · 괄호는 재는 방법)</div>
           <table className="text-[11px] w-full">
             <tbody>
               {fg.parts.map(p => (
