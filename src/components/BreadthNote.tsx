@@ -10,7 +10,6 @@ const TONE: Record<BreadthTone, string> = {
   calm: "bg-sky-50 text-sky-800 border-sky-300",
   flat: "bg-gray-100 text-gray-600 border-gray-300",
 };
-const pct = (v: number) => `${v >= 0 ? "+" : ""}${v.toFixed(2)}%`;
 
 // 주간 시장 읽기 — 시장 폭(KODEX 200 vs 동일가중) · V-KOSPI · 아시아(닛케이·상해) 세 줄(사용자 2026-11-03 "v-kospi 와 닛케이, 상해도")
 export function BreadthNote({ usMap, small = false }: { usMap: Map<string, UsIndex>; small?: boolean }) {
@@ -24,7 +23,7 @@ export function BreadthNote({ usMap, small = false }: { usMap: Map<string, UsInd
   const rows: React.ReactNode[] = [];
   if (k != null && ew != null) rows.push(
     <span key="b" title="KODEX 200 = 큰 회사일수록 비중이 큰 지수(삼성전자·SK하이닉스가 절반 가까이). 200동일가중 = 200종목을 같은 비중으로. 둘의 차이가 0.5%p 이상이면 몇몇 대형주 쏠림으로 봅니다.">
-      <b>시장 폭 읽기</b> · KODEX 200 {pct(k)} vs 200동일가중 {pct(ew)} = 차이 <b>{(ew - k >= 0 ? "+" : "")}{(ew - k).toFixed(2)}%p</b>. {chip(readBreadth(k, ew))}
+      {chip(readBreadth(k, ew))}   {/* 숫자는 카드에 있다 — 해석만(사용자 2026-11-03 "그냥 요약으로") */}
     </span>);
   if (v && v.price > 0) {
     const vc = v.prevClose > 0 ? (v.price / v.prevClose - 1) * 100 : 0;
@@ -36,7 +35,7 @@ export function BreadthNote({ usMap, small = false }: { usMap: Map<string, UsInd
   }
   if (ks != null && (nk != null || sh != null)) rows.push(   // 오늘 열린 아시아 장이 없으면 줄째 숨김(사용자 2026-11-03)
     <span key="a" title="같은 시간에 열리는 일본·중국 장과 비교 — 같이 움직이면 바깥(미국·글로벌) 요인, 코스피만 1%p 이상 따로 가면 한국 요인으로 봅니다.">
-      <b>아시아 읽기</b> · 코스피 {pct(ks)} · {nk != null ? `닛케이 ${pct(nk)}` : ""}{nk != null && sh != null ? " · " : ""}{sh != null ? `상해 ${pct(sh)}` : ""}. {chip(readAsia(ks, [nk ?? NaN, sh ?? NaN]))}
+      {chip(readAsia(ks, [nk ?? NaN, sh ?? NaN]))}
     </span>);
   if (!rows.length) return null;
   return (

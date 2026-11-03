@@ -22,11 +22,12 @@ export function readBreadth(k: number, ew: number): { text: string; tone: Breadt
 
 // V-KOSPI(코스피200 변동성 지수, '한국판 공포지수') 한 줄 — 수준 + 오늘 변화. 기준은 한국 시장 관행(20 아래 안정, 30 넘으면 불안, 40 넘으면 공포).
 export function readVkospi(level: number, chgPct: number): { text: string; tone: BreadthTone } {
-  const dir = chgPct >= 3 ? "오늘 불안이 커졌습니다" : chgPct <= -3 ? "오늘 불안이 줄었습니다" : "오늘은 큰 변화가 없습니다";
-  if (level >= 40) return { text: `공포 구간(40 이상)입니다 — ${dir}.`, tone: "bad" };
-  if (level >= 30) return { text: `불안이 큰 편(30 이상)입니다 — ${dir}.`, tone: "warn" };
-  if (level >= 20) return { text: `보통 수준입니다 — ${dir}.`, tone: "flat" };
-  return { text: `안정 구간(20 아래)입니다 — ${dir}.`, tone: "good" };
+  // 변화가 작으면 꼬리말을 붙이지 않는다(사용자 2026-11-03 "변화가 없으면 표시 안 해도")
+  const dir = chgPct >= 3 ? " — 오늘 불안이 커졌습니다" : chgPct <= -3 ? " — 오늘 불안이 줄었습니다" : "";
+  if (level >= 40) return { text: `공포 구간(40 이상)입니다${dir}.`, tone: "bad" };
+  if (level >= 30) return { text: `불안이 큰 편(30 이상)입니다${dir}.`, tone: "warn" };
+  if (level >= 20) return { text: `보통 수준입니다${dir}.`, tone: "flat" };
+  return { text: `안정 구간(20 아래)입니다${dir}.`, tone: "good" };
 }
 
 // 코스피 ↔ 닛케이·상해 — 같은 시간에 열리는 아시아 장과 같이 움직이나(바깥 요인) 한국만 따로 움직이나(한국 요인).
