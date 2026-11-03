@@ -47,6 +47,10 @@ html.night-bg .pg-rowlabel { filter: brightness(0.75); }
 /* 그룹 상자 안 안내 줄(금리 읽기 등) — 어두운 바탕 + 밝은 글자, 판정 배지는 톤만 낮춤 */
 html.night-bg .pg-note { background-color: #30353c !important; border-color: #454b55 !important; color: #d1d5db !important; }
 html.night-bg .pg-note > span { filter: brightness(0.85); }
+/* 설명 상자 안 회색 글자 — 상자만 어두워지고 글자는 진회색 그대로라 안 보였다(사용자 2026-11-04 공포·탐욕 구성 지표) */
+html.night-bg .pg-note :is(.text-gray-500, .text-gray-600, .text-gray-700, .text-gray-800, .text-gray-900) { color: #d1d5db !important; }
+html.night-bg .pg-note .text-gray-400 { color: #9ca3af !important; }
+html.night-bg .pg-note .border-gray-200 { border-color: #454b55 !important; }
 /* 선택된 탭(연파랑 바탕) — 어두운 메뉴 안에서 짙은 회색 + 밝은 파랑 글자 */
 html.night-bg .pg-menu .bg-blue-50 { background-color: #3d4654 !important; }
 html.night-bg .pg-menu .text-blue-700 { color: #93c5fd !important; }
