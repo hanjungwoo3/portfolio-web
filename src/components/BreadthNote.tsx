@@ -23,23 +23,24 @@ export function BreadthNote({ usMap, small = false }: { usMap: Map<string, UsInd
   const chip = (t: { text: string; tone: BreadthTone }) => <span className={`inline-block font-bold px-1.5 rounded border ${TONE[t.tone]}`}>{t.text}</span>;
   const rows: React.ReactNode[] = [];
   if (k != null && ew != null) rows.push(
-    <div key="b" title="KODEX 200 = 큰 회사일수록 비중이 큰 지수(삼성전자·SK하이닉스가 절반 가까이). 200동일가중 = 200종목을 같은 비중으로. 둘의 차이가 0.5%p 이상이면 몇몇 대형주 쏠림으로 봅니다.">
+    <span key="b" title="KODEX 200 = 큰 회사일수록 비중이 큰 지수(삼성전자·SK하이닉스가 절반 가까이). 200동일가중 = 200종목을 같은 비중으로. 둘의 차이가 0.5%p 이상이면 몇몇 대형주 쏠림으로 봅니다.">
       <b>시장 폭 읽기</b> · KODEX 200 {pct(k)} vs 200동일가중 {pct(ew)} = 차이 <b>{(ew - k >= 0 ? "+" : "")}{(ew - k).toFixed(2)}%p</b>. {chip(readBreadth(k, ew))}
-    </div>);
+    </span>);
   if (v && v.price > 0) {
     const vc = v.prevClose > 0 ? (v.price / v.prevClose - 1) * 100 : 0;
     rows.push(
-      <div key="v" title="V-KOSPI = 코스피200 옵션 가격으로 계산한 앞으로 한 달 예상 변동폭(한국판 공포지수). 20 아래 안정 · 30 이상 불안 · 40 이상 공포.">
-        <b>공포 읽기</b> · V-KOSPI <b>{v.price.toFixed(2)}</b> ({pct(vc)}). {chip(readVkospi(v.price, vc))}
-      </div>);
+      <span key="v" title="V-KOSPI = 코스피200 옵션 가격으로 계산한 앞으로 한 달 예상 변동폭(한국판 공포지수). 20 아래 안정 · 30 이상 불안 · 40 이상 공포.">
+        {/* 앞 설명은 뺐다 — 카드에 값이 있다(사용자 2026-11-03). 해석만 */}
+        {chip((r => ({ ...r, text: `V-KOSPI ${r.text}` }))(readVkospi(v.price, vc)))}
+      </span>);
   }
   if (ks != null && (nk != null || sh != null)) rows.push(   // 오늘 열린 아시아 장이 없으면 줄째 숨김(사용자 2026-11-03)
-    <div key="a" title="같은 시간에 열리는 일본·중국 장과 비교 — 같이 움직이면 바깥(미국·글로벌) 요인, 코스피만 1%p 이상 따로 가면 한국 요인으로 봅니다.">
+    <span key="a" title="같은 시간에 열리는 일본·중국 장과 비교 — 같이 움직이면 바깥(미국·글로벌) 요인, 코스피만 1%p 이상 따로 가면 한국 요인으로 봅니다.">
       <b>아시아 읽기</b> · 코스피 {pct(ks)} · {nk != null ? `닛케이 ${pct(nk)}` : ""}{nk != null && sh != null ? " · " : ""}{sh != null ? `상해 ${pct(sh)}` : ""}. {chip(readAsia(ks, [nk ?? NaN, sh ?? NaN]))}
-    </div>);
+    </span>);
   if (!rows.length) return null;
   return (
-    <div className={`${small ? "text-[10px]" : "text-[11px]"} text-gray-600 leading-snug rounded-md bg-gray-50 border border-gray-200 px-2 py-1 pg-note space-y-0.5`}>
+    <div className={`${small ? "text-[10px]" : "text-[11px]"} text-gray-600 leading-snug rounded-md bg-gray-50 border border-gray-200 px-2 py-1 pg-note flex flex-wrap items-center gap-x-4 gap-y-0.5`}>   {/* 한 줄로 이어 쓰고, 좁으면 줄바꿈(사용자 2026-11-03) */}
       {rows}
     </div>
   );
