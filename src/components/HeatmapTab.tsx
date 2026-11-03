@@ -77,6 +77,9 @@ const COLOR_OPTS: { key: ColorMode; label: string; sat: number; usOnly?: boolean
 type GroupMode = "sector" | "dir" | "none";
 
 
+// 그룹 색 — 빨강·파랑(등락 색)과 겹치지 않는 차분한 색 10개
+const GROUP_COLORS = ["#0f766e", "#7c3aed", "#b45309", "#0369a1", "#be185d", "#4d7c0f", "#6d28d9", "#c2410c", "#155e75", "#a16207"];
+const hashStr = (t: string) => { let h = 0; for (const ch of t) h = (h * 31 + ch.charCodeAt(0)) >>> 0; return h; };
 const fmtPct = (p: number) => `${p >= 0 ? "+" : ""}${p.toFixed(2)}%`;
 // 금액 축약 — 한국은 원(조/억), 미국은 달러(T/B/M)
 function fmtCap(v: number): string {
@@ -282,10 +285,13 @@ export function HeatmapTab() {
   const layout = useMemo(() => {
     // change 모드에선 유동성 미달(허수) 종목 제외 — liqFloor=0 이면 전체 통과
     const items = shown.filter(it => liqFloor <= 0 || it.valueTraded >= liqFloor);
-    const empty = { stocks: [] as { it: HeatmapItem; x: number; y: number; w: number; h: number }[], headers: [] as { sec: string; x: number; y: number; w: number }[] };
+    const empty = { stocks: [] as { it: HeatmapItem; x: number; y: number; w: number; h: number }[], headers: [] as { sec: string; x: number; y: number; w: number; h: number; avg?: number }[] };
     if (!items.length || size.w < 40 || size.h < 40) return empty;
     const stocks: { it: HeatmapItem; x: number; y: number; w: number; h: number }[] = [];
-    const headers: { sec: string; x: number; y: number; w: number }[] = [];
+    const headers: { sec: string; x: number; y: number; w: number; h: number; avg?: number }[] = [];
+    // 그룹 칸 — 머리 18px(글자 크게) + 칸 사이 3px 틈 + 테두리(사용자 2026-11-03 "그룹을 잘 확인 가능하게, 그룹명 키우고 경계 명확히")
+    const HEAD = 18, GAP = 3;
+    const avgOf = (list: HeatmapItem[]) => list.length ? list.reduce((a, it) => a + colorDef.field(it), 0) / list.length : undefined;
     if (groupMode === "none") {
       const cells = squarify(items.map(it => ({ item: it, value: sizeVal(it) })), { x: 0, y: 0, w: size.w, h: size.h });
       for (const c of cells) stocks.push({ it: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
@@ -313,11 +319,11 @@ export function HeatmapTab() {
       blocks.forEach((g, i) => {
         // 마지막 블록은 남은 폭을 다 써서 반올림 오차로 빈 틈이 생기지 않게 한다
         const w = i === blocks.length - 1 ? size.w - x : (size.w * g.total) / sum;
-        const head = size.h > 34 && w > 46 ? 13 : 0;
-        if (head) headers.push({ sec: `${g.k} ${g.list.length}`, x, y: 0, w });
+        const head = size.h > 40 && w > 46 ? HEAD : 0;
+        headers.push({ sec: `${g.k} ${g.list.length}`, x, y: 0, w, h: size.h, avg: avgOf(g.list) });
         const cells = squarify(
           g.list.map(it => ({ item: it, value: sizeVal(it) })),
-          { x, y: head, w, h: size.h - head },
+          { x: x + GAP, y: head + GAP / 2, w: Math.max(0, w - GAP * 2), h: Math.max(0, size.h - head - GAP * 1.5) },
         );
         for (const c of cells) stocks.push({ it: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
         x += w;
@@ -330,9 +336,9 @@ export function HeatmapTab() {
     }));
     const sectorTiles = squarify(sectorInputs, { x: 0, y: 0, w: size.w, h: size.h });
     for (const st of sectorTiles) {
-      const head = st.h > 34 && st.w > 46 ? 13 : 0;
-      if (head) headers.push({ sec: st.item.sec, x: st.x, y: st.y, w: st.w });
-      const inner = { x: st.x, y: st.y + head, w: st.w, h: st.h - head };
+      const head = st.h > 40 && st.w > 46 ? HEAD : 0;
+      headers.push({ sec: st.item.sec, x: st.x, y: st.y, w: st.w, h: st.h, avg: avgOf(st.item.list) });
+      const inner = { x: st.x + GAP, y: st.y + head + GAP / 2, w: Math.max(0, st.w - GAP * 2), h: Math.max(0, st.h - head - GAP * 1.5) };
       const cells = squarify(st.item.list.map(it => ({ item: it, value: sizeVal(it) })), inner);
       for (const c of cells) stocks.push({ it: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
     }
@@ -500,13 +506,24 @@ export function HeatmapTab() {
         )}
 
         {/* 섹터 헤더 */}
-        {layout.headers.map(h => (
+        {/* 그룹 칸 — 바깥 테두리 + 머리(그룹명 크게 · 종목 평균 등락) */}
+        {/* 그룹마다 색을 다르게(사용자 2026-11-03) — 테두리·머리 띠. 이름으로 색을 고정해 새로고침해도 같은 섹터는 같은 색 */}
+        {layout.headers.map(h => { const gc = GROUP_COLORS[hashStr(h.sec) % GROUP_COLORS.length]; return (
           <div key={`h-${h.sec}-${Math.round(h.x)}-${Math.round(h.y)}`}
-               className="absolute text-[9px] font-semibold text-gray-500 px-1 truncate pointer-events-none"
-               style={{ left: h.x, top: h.y, width: h.w, height: 13, lineHeight: "13px" }}>
-            {sectorKr(h.sec)}
+               className="absolute pointer-events-none rounded-sm border-2"
+               style={{ left: h.x + 0.5, top: h.y + 0.5, width: Math.max(0, h.w - 1), height: Math.max(0, h.h - 1), borderColor: gc, background: `${gc}22` }}>
+            {h.h > 40 && h.w > 46 && (
+              <div className="flex items-baseline gap-1.5 px-1.5 truncate" style={{ height: 16, lineHeight: "16px", background: gc }}>
+                <span className="text-[12px] font-bold text-white truncate">{sectorKr(h.sec)}</span>
+                {h.avg != null && h.w > 110 && (
+                  <span className="text-[11px] font-bold tabular-nums text-white/90">
+                    {h.avg > 0 ? "▲" : h.avg < 0 ? "▼" : ""}{h.avg > 0 ? "+" : ""}{h.avg.toFixed(2)}%
+                  </span>
+                )}
+              </div>
+            )}
           </div>
-        ))}
+        ); })}
 
         {/* 종목 타일 — 로고 + (회사명) + 코드 + 등락%. 폰트·로고는 타일 크기에 비례. hover 강조+툴팁. */}
         {layout.stocks.map(t => {
