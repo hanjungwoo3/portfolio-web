@@ -1,6 +1,7 @@
 // 카드의 공시 종류 꼬리표(실적·계약·합병·분할…, 최근 5거래일) — 누르면 그 종목 공시 목록 창(계약은 금액·매출 대비).
 //   지수 탭 카드·내 종목 카드(PC·모바일)·시세 카드가 같이 쓴다(사용자 2026-11-03). 자료 = lib/recentDisclosures(전 종목 한 번).
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useHoverLayer, layerStyle } from "../lib/useHoverLayer";
 import { createPortal } from "react-dom";
 import { useQueries } from "@tanstack/react-query";
 import { useRecentDisc, type DiscRow } from "../lib/recentDisclosures";
@@ -13,44 +14,39 @@ export function DiscTags({ code, name, size = "xs", max = 3 }: { code: string | 
   const map = useRecentDisc(!!code);
   const k = (code ?? "").replace(/^A/, "").replace(/\.(KS|KQ)$/, "");
   const rows = k ? map.get(k) ?? [] : [];
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const hl = useHoverLayer();   // 마우스를 올리면 목록(사용자 2026-11-03), 누르기도 그대로
   if (!rows.length) return null;
   const cats = [...new Set(rows.map(r => r.cat))].slice(0, max);
   const fs = size === "xs" ? "text-[9px]" : "text-[10px]";
   return (
     <>
       {cats.map(c => (
-        <button key={c} type="button"
-                onClick={e => { e.preventDefault(); e.stopPropagation(); const r = (e.currentTarget as HTMLElement).getBoundingClientRect(); setPos(p => (p ? null : { x: r.left, y: r.bottom + 4 })); }}
-                title={`최근 5거래일 공시 — ${rows.filter(r => r.cat === c).map(r => r.title.replace(/\s+/g, " ")).slice(0, 3).join(" / ")}`}
+        <button key={c} type="button" data-disc-popup
+                onClick={e => { e.preventDefault(); e.stopPropagation(); if (hl.pos) hl.close(); else hl.enter(e); }}
+                onMouseEnter={hl.enter} onMouseLeave={hl.leave}
                 className={`px-1 py-0 rounded border font-bold leading-tight whitespace-nowrap hover:brightness-95 ${fs} ${DISC_CAT_TONE[c].tag}`}>
           {c}
         </button>
       ))}
       {/* 카드 안(쌓임 맥락·transform)에 그리면 옆 카드 책갈피가 창을 덮는다 → body 로 */}
-      {pos && createPortal(<DiscPopup rows={rows} name={name ?? rows[0].corp} x={pos.x} y={pos.y} onClose={() => setPos(null)} />, document.body)}
+      {hl.pos && createPortal(<DiscPopup rows={rows} name={name ?? rows[0].corp} style={layerStyle(hl.pos, 340, 250)} onClose={hl.close} onEnter={hl.keep} onLeave={hl.leave} />, document.body)}
     </>
   );
 }
 
-function DiscPopup({ rows, name, x, y, onClose }: { rows: DiscRow[]; name: string; x: number; y: number; onClose: () => void }) {
+function DiscPopup({ rows, name, style, onClose, onEnter, onLeave }: { rows: DiscRow[]; name: string; style: { left: number; top: number; width: number }; onClose: () => void; onEnter: () => void; onLeave: () => void }) {
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
     const onDown = (e: MouseEvent) => { if (!(e.target as Element | null)?.closest?.("[data-disc-popup]")) onClose(); };
-    const onScroll = (e: Event) => { if (e.target === document || e.target === document.documentElement) onClose(); };
-    window.addEventListener("keydown", onKey); window.addEventListener("mousedown", onDown); window.addEventListener("scroll", onScroll, true);
-    return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("mousedown", onDown); window.removeEventListener("scroll", onScroll, true); };
+    window.addEventListener("mousedown", onDown);
+    return () => window.removeEventListener("mousedown", onDown);
   }, [onClose]);
   const contracts = rows.filter(r => r.cat === "계약");
   const qs = useQueries({ queries: contracts.map(r => ({ queryKey: ["dart-contract", r.rcpNo], queryFn: async () => parseContract(await fetchDartBody(r.date, r.rcpNo)), staleTime: 24 * 3600_000, retry: 0 })) });
   const info = new Map(contracts.map((r, i) => [r.rcpNo, qs[i]?.data ?? null]));
-  const W = 340;
-  const left = Math.max(8, Math.min(x, window.innerWidth - W - 8));
-  const top = y + 260 > window.innerHeight ? Math.max(8, y - 270) : y;
   const md = (d: string) => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
   return (
     <div data-disc-popup className="fixed z-[1000] rounded-lg border border-gray-300 bg-white shadow-xl p-2 text-[11px] max-h-[250px] overflow-y-auto pg-card"
-         style={{ left, top, width: W }} onClick={e => e.stopPropagation()}>
+         style={style} onClick={e => e.stopPropagation()} onMouseEnter={onEnter} onMouseLeave={onLeave}>
       <div className="flex items-center mb-1">
         <span className="font-bold text-[12px] text-gray-800">{name} · 공시 <span className="font-normal text-gray-400">5거래일 {rows.length}건</span></span>
         <button onClick={onClose} className="ml-auto px-1 text-gray-400 hover:text-gray-700" title="닫기 (Esc)">✕</button>
