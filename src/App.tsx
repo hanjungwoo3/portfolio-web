@@ -12,7 +12,7 @@ import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { useIncrementalRender } from "./lib/useIncrementalRender";
-import { Tabs, buildTabs, filterByTab, realHoldingOf, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SEMI_DASH_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, DISCLOSURE_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, VALUEUP_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, realHoldingOf, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SEMI_DASH_TAB_KEY, SEOHAK_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, DISCLOSURE_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, VALUEUP_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
 import { DisclosureFeed } from "./components/DisclosureFeed";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
@@ -20,6 +20,7 @@ import { EtfRankingTab } from "./components/EtfRankingTab";
 import { ScreenerTab } from "./components/ScreenerTab";
 import { CloseBetTab } from "./components/CloseBetTab";
 import { ValueupTab } from "./components/ValueupTab";
+import { SeohakPage } from "./components/SeohakBox";
 import { AccumTab } from "./components/AccumTab";
 import { defaultDashboardPage, INDEX_GROUP_KEYS, indexPageOf } from "./lib/dashboardGroups";
 import { EtfCompareTab } from "./components/EtfCompareTab";
@@ -231,10 +232,10 @@ function Dashboard() {
   // PC 좌우 화살표로 넘기는 순서 — 탭 줄에 **보이는 순서 그대로**(모바일 스와이프와 같은 역할).
   //   투자도구 묶음 → 내자산 묶음 → 증시 → 지수 묶음 → 사용자 그룹. 폴더 '전체' 가상 탭은 뺀다.
   const navKeys = useMemo(() => {
-    const sys = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key) && t.key !== US_MARKET_TAB_KEY && t.key !== MARKET_MONEY_TAB_KEY && t.key !== SEMI_DASH_TAB_KEY);
+    const sys = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key) && t.key !== US_MARKET_TAB_KEY && t.key !== MARKET_MONEY_TAB_KEY && t.key !== SEMI_DASH_TAB_KEY && t.key !== SEOHAK_TAB_KEY);
     const my = tabs.filter(t => MY_GROUP_KEYS.has(t.key));
     const money = tabs.filter(t => t.key === MARKET_MONEY_TAB_KEY);
-    const idx = tabs.filter(t => INDEX_GROUP_KEYS.has(t.key) || t.key === SEMI_DASH_TAB_KEY);
+    const idx = tabs.filter(t => INDEX_GROUP_KEYS.has(t.key) || t.key === SEMI_DASH_TAB_KEY || t.key === SEOHAK_TAB_KEY);
     const rest = tabs.filter(t => !SYSTEM_TAB_KEYS.has(t.key) && !MY_GROUP_KEYS.has(t.key)
       && !INDEX_GROUP_KEYS.has(t.key) && !isFolderAllKey(t.key));
     // 탭 줄과 같은 자리 — 증권사연결 폴더는 지수 바로 오른쪽, 폴더 밖 그룹, 그다음 나머지 폴더(폴더 안은 가나다).
@@ -959,6 +960,8 @@ function Dashboard() {
           }} />
         ) : activeTab === SEMI_DASH_TAB_KEY ? (
           <SemiDashTab />
+        ) : activeTab === SEOHAK_TAB_KEY ? (
+          <SeohakPage />
         ) : activeTab === SEMI_CHECK_TAB_KEY ? (
           <SemiCheckTab />
         ) : activeTab === MY_TRADES_TAB_KEY ? (

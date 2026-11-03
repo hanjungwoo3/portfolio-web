@@ -6,8 +6,9 @@ import { useQuery } from "@tanstack/react-query";
 const URL_SEOHAK = "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/main/data/seohak.json";
 
 export type LevKind = "bull" | "bear";
-export interface SeohakRow { isin: string; t?: string; n: string; buy: number; sell: number; net: number; lev?: LevKind }
-export interface SeohakHold { isin: string; t?: string; n: string; amt: number; rank: number; prevRank?: number; prevAmt?: number; lev?: LevKind }
+export interface SeohakMeta { ko?: string; logo?: string; fn?: string }
+export interface SeohakRow extends SeohakMeta { isin: string; t?: string; n: string; buy: number; sell: number; net: number; lev?: LevKind }
+export interface SeohakHold extends SeohakMeta { isin: string; t?: string; n: string; amt: number; rank: number; prevRank?: number; prevAmt?: number; lev?: LevKind }
 export interface SeohakLevDay {
   date: string; buy: number; sell: number; bullBuy: number; bullSell: number; bearBuy: number; bearSell: number;
   top: { t: string; net: number; kind?: LevKind }[];
@@ -37,12 +38,11 @@ export const netSellers = (rows: SeohakRow[]) => rows.filter(r => r.net < 0).sor
 /** '20261102' → '11/2' */
 export const mdOf = (d?: string) => d ? `${Number(d.slice(4, 6))}/${Number(d.slice(6, 8))}` : "";
 
-/** 달러 금액 — 1억 달러 이상은 '억$', 그 밑은 '만$' */
+/** 달러 금액 — 억$ 로 통일(작은 값은 소수 둘째 자리) */
 export function fmtUsdKr(v: number, sign = false): string {
   const s = sign && v > 0 ? "+" : v < 0 ? "−" : "";
-  const a = Math.abs(v);
-  if (a >= 1e8) return `${s}${(a / 1e8).toFixed(a >= 1e10 ? 0 : 1)}억$`;
-  return `${s}${Math.round(a / 1e4).toLocaleString()}만$`;
+  const a = Math.abs(v) / 1e8;
+  return `${s}${a.toFixed(a >= 100 ? 0 : a >= 1 ? 1 : 2)}억$`;
 }
 
 export interface SeohakInfo {

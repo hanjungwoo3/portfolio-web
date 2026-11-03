@@ -56,8 +56,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
 
   // 시스템 탭 묶기 — 섹터~ETF 를 드롭다운 하나로 (증시·지수는 자주 써서 별도 고정 탭으로 분리)
   const sysTabs = tabs.filter(t => SYSTEM_TAB_KEYS.has(t.key)
-    && t.key !== US_MARKET_TAB_KEY && t.key !== MARKET_MONEY_TAB_KEY && t.key !== SEMI_DASH_TAB_KEY);
-  const indexTabs = tabs.filter(t => INDEX_GROUP_KEYS.has(t.key) || t.key === SEMI_DASH_TAB_KEY);   // 반도체 대시보드도 지수 묶음 끝에   // 지수 드롭다운(주간·야간·반도체)
+    && t.key !== US_MARKET_TAB_KEY && t.key !== MARKET_MONEY_TAB_KEY && t.key !== SEMI_DASH_TAB_KEY && t.key !== SEOHAK_TAB_KEY);
+  const indexTabs = tabs.filter(t => INDEX_GROUP_KEYS.has(t.key) || t.key === SEMI_DASH_TAB_KEY || t.key === SEOHAK_TAB_KEY);   // 반도체 대시보드도 지수 묶음 끝에   // 지수 드롭다운(주간·야간·반도체)
   const marketMoneyTab = tabs.find(t => t.key === MARKET_MONEY_TAB_KEY);
   // 내자산 묶기 — 내주식 + 내거래 드롭다운 하나로
   const myTabs = tabs.filter(t => MY_GROUP_KEYS.has(t.key));
@@ -303,6 +303,8 @@ export const INDEX_LEADERS_TAB_KEY = "__idx-leaders__";   // 폐지 — 주간�
 export const SEMI_CHECK_TAB_KEY = "__semi-check__";
 // 반도체 한눈에 — 삼성·하이닉스 실시간 체결 + 현물·선물·옵션 수급(증시 옆 별도 탭, 2026-10-21)
 export const SEMI_DASH_TAB_KEY = "__semi-dash__";
+// 서학개미 — 한국 개인의 미국 주식 결제·보유(예탁결제원, 지수 묶음 끝, 2026-11-03)
+export const SEOHAK_TAB_KEY = "__seohak__";
 // 한국 섹터 순위 — 토스 TICS depth1 기반, 돈의 흐름 시각화
 export const SECTOR_RANK_TAB_KEY = "__sector-rank__";
 // 가상 합산 그룹 — 모든 그룹의 동일 ticker 를 합쳐 표시 (수량/평단 통합 뷰)
@@ -338,7 +340,7 @@ export const ASSET_TREND_TAB_KEY = "__asset-trend__";
 
 // 시스템 reserved — 이름 변경/삭제 불가
 const RESERVED = new Set<string>([
-  "관심ETF", MARKET_MONEY_TAB_KEY, SEMI_DASH_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_SOBU_TAB_KEY, INDEX_BATT_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY, SEMI_CHECK_TAB_KEY,
+  "관심ETF", MARKET_MONEY_TAB_KEY, SEMI_DASH_TAB_KEY, SEOHAK_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_SOBU_TAB_KEY, INDEX_BATT_TAB_KEY, INDEX_US_TAB_KEY, INDEX_SEMI_TAB_KEY, INDEX_LEADERS_TAB_KEY, SEMI_CHECK_TAB_KEY,
   SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, DISCLOSURE_TAB_KEY,
   ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
   SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, VALUEUP_TAB_KEY,
@@ -346,7 +348,7 @@ const RESERVED = new Set<string>([
 
 // 묶기 대상 시스템 탭 — 드롭다운 하나로 합침. (증시·지수는 자주 써서 별도 고정 탭)
 export const SYSTEM_TAB_KEYS = new Set<string>([
-  MARKET_MONEY_TAB_KEY, SEMI_DASH_TAB_KEY, US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
+  MARKET_MONEY_TAB_KEY, SEMI_DASH_TAB_KEY, SEOHAK_TAB_KEY, US_MARKET_TAB_KEY, SECTOR_RANK_TAB_KEY, SEMI_CHECK_TAB_KEY,
   CONSENSUS_TAB_KEY, DISCLOSURE_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY,
   SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, VALUEUP_TAB_KEY,
 ]);
@@ -379,7 +381,8 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   if (showUs) {
     const keyOf: Record<DashboardPage, string> = { day: US_MARKET_TAB_KEY, night: INDEX_NIGHT_TAB_KEY, sobu: INDEX_SOBU_TAB_KEY };
     for (const p of DASHBOARD_PAGES) tabs.push({ key: keyOf[p.key], label: p.tab, emoji: p.emoji, count: 0 });
-    tabs.push({ key: SEMI_DASH_TAB_KEY, label: "지수(반도체 수급)", emoji: "💾", count: 0 });   // 지수 묶음 끝 — UsMarketTab 페이지가 아니라 별도 화면
+    tabs.push({ key: SEMI_DASH_TAB_KEY, label: "지수(반도체 수급)", emoji: "💾", count: 0 });
+    tabs.push({ key: SEOHAK_TAB_KEY, label: "지수(서학개미)", emoji: "🐜", count: 0 });   // 한국 개인의 미국 주식(2026-11-03)   // 지수 묶음 끝 — UsMarketTab 페이지가 아니라 별도 화면
   }
   // 투자도구 묶음 맨 위 = 최신공시, 두 번째 = 실적 일정(사용자 요청 2026-10-29 "공시를 맨위에, 그다음 실적을 두번째로")
   if (visibility?.disclosures ?? true) {

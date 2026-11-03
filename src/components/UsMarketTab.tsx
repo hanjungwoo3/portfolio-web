@@ -6,7 +6,7 @@ import { DiscTags } from "./DiscTags";
 import { SobuGrid } from "./SobuGrid";
 import { KisExpRankBox } from "./KisExpRankBox";
 import { ValueupTags } from "./ValueupTags";
-import { SeohakBox, SeohakTag } from "./SeohakBox";
+import { SeohakTag } from "./SeohakBox";
 import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -846,8 +846,6 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             )))}
           </div>
         ))}
-        {/* 🐜 서학개미 — 미국 페이지 맨 아래(사용자 2026-11-03) */}
-        {page === "night" && <SeohakBox />}
       </div>
       </div>
 
