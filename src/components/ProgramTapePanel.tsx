@@ -7,7 +7,7 @@ import { kisFutAvailable } from "../lib/kisFutures";
 
 const COLORS = ["#4f46e5", "#e11d48"];   // 삼성 남색 · 하이닉스 빨강(선 구분용 — 오르내림 색 아님)
 const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-const OPEN = 9 * 60, CLOSE = 15 * 60 + 30;
+
 const fmt = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v)).toLocaleString()}억`;
 const tone = (v: number) => v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-600";
 
@@ -22,7 +22,9 @@ export function ProgramTapePanel() {
   const all = tapes.flat();
   const W = 600, H = 120, P = 4;
   const vmax = Math.max(50, ...all.map(p => Math.abs(p.v)));
-  const x = (t: string) => P + ((toMin(t) - OPEN) / (CLOSE - OPEN)) * (W - 2 * P);
+  // 가로축 = 정규장(09:00~15:30)을 기본으로, 프리(08:00~)·애프터(~20:00) 점이 있으면 그만큼 넓힌다
+  const OPEN = Math.min(9 * 60, ...all.map(p => toMin(p.t))), CLOSE = Math.max(15 * 60 + 30, ...all.map(p => toMin(p.t)));
+  const x = (t: string) => P + ((toMin(t) - OPEN) / Math.max(1, CLOSE - OPEN)) * (W - 2 * P);
   const y = (v: number) => H / 2 - (v / vmax) * (H / 2 - P);
   const chg15 = (pts: ProgPt[]) => {
     const last = pts[pts.length - 1];
@@ -34,15 +36,15 @@ export function ProgramTapePanel() {
     <div className="rounded-lg border border-gray-200 bg-white pg-card p-2 shrink-0">
       <div className="flex items-baseline gap-2 flex-wrap">
         <span className="font-bold text-gray-800 text-sm">⚙️ 반도체 프로그램 매매 <span className="text-[11px] font-normal text-emerald-700">● 한투 실시간</span></span>
-        <span className="text-[11px] text-gray-500">오늘 누적 순매수 · 1분마다 · 프로그램 = 기관·외국인의 묶음 기계 주문이라 방향이 반도체를 끌고 가는 경우가 많습니다</span>
+        <span className="text-[11px] text-gray-500">오늘 누적 순매수(KRX+NXT 통합) · 1분마다 · 프로그램 = 기관·외국인의 묶음 기계 주문이라 방향이 반도체를 끌고 가는 경우가 많습니다</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-2 mt-1 items-center">
         {all.length < 2 ? (
-          <div className="text-[11px] text-gray-400 py-6 text-center">장중(09:00~15:30)에 1분마다 쌓입니다 — 앱을 켜 두면 곡선이 이어집니다</div>
+          <div className="text-[11px] text-gray-400 py-6 text-center">프리장(08:00)부터 애프터(20:00)까지 1분마다 쌓입니다 — 앱을 켜 두면 곡선이 이어집니다</div>
         ) : (
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[120px]" preserveAspectRatio="none">
             <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#9ca3af" strokeWidth={0.8} strokeDasharray="3 3" />
-            {[10, 11, 12, 13, 14, 15].map(h => <line key={h} x1={x(`${h}:00`)} x2={x(`${h}:00`)} y1={0} y2={H} stroke="#e5e7eb" strokeWidth={0.6} />)}
+            {[9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].filter(h => h * 60 > OPEN && h * 60 < CLOSE).map(h => <line key={h} x1={x(`${h}:00`)} x2={x(`${h}:00`)} y1={0} y2={H} stroke="#e5e7eb" strokeWidth={0.6} />)}
             {tapes.map((pts, i) => pts.length > 1 && (
               <polyline key={i} fill="none" stroke={COLORS[i]} strokeWidth={1.6} vectorEffect="non-scaling-stroke"
                         points={pts.map(p => `${x(p.t)},${y(p.v)}`).join(" ")} />

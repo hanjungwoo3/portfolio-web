@@ -82,9 +82,12 @@ export function CnnFgPanel({ small, split, className = "" }: { small?: boolean; 
   });
   if (!fg?.parts.length) return null;
   const fs = small ? "text-[10px]" : "text-[11px]";
+  // 바탕 = 공포·탐욕 카드와 같은 색(전일 대비 점수가 오르면 빨강, 내리면 파랑 — 지수 카드 규칙, 사용자 2026-11-04)
+  const d = fg.prevClose != null ? fg.score - fg.prevClose : 0;
+  const tone = d > 0 ? "bg-rose-50 border-rose-200" : d < 0 ? "bg-blue-50 border-blue-200" : "bg-white border-gray-200";
   // 한 항목 = 첫 줄 이름·점수·등급, 둘째 줄 재는 방법(작게) — 카드 한 장 폭에 다 들어가게(사용자 2026-11-03 "넓이 다른 카드와 동일하게")
   const box = (parts: typeof fg.parts, head: React.ReactNode, key: string) => (
-    <div key={key} className="min-w-0 rounded-lg border border-gray-200 bg-white pg-card px-1.5 py-1">
+    <div key={key} className={`min-w-0 rounded-lg border ${tone} pg-card px-1.5 py-1`}>
       {head && <div className={`${small ? "text-[9.5px]" : "text-[10px]"} font-bold text-gray-600 mb-[1px] truncate`}>{head}</div>}
       <div className="space-y-[2px]">
         {parts.map(p => {

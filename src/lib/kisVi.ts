@@ -54,7 +54,7 @@ async function fetchPart(div: "1" | "2", mkt: "K" | "Q") {
 async function tick() {
   if (!isKisLinkOn()) return;
   const k = kst(), d = k.getUTCDay(), m = k.getUTCHours() * 60 + k.getUTCMinutes();
-  if (d === 0 || d === 6 || m < 8 * 60 + 30 || m > 20 * 60 + 5) return;
+  if (d === 0 || d === 6 || m < 8 * 60 || m > 20 * 60 + 5) return;   // NXT 프리 08:00 ~ 애프터 20:00(어제 19:59 발동도 실측)
   restore();
   let changed = false;
   for (const [div, mkt] of [["1", "K"], ["1", "Q"], ["2", "K"], ["2", "Q"]] as const) {

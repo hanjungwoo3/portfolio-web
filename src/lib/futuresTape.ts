@@ -30,14 +30,14 @@ export const loadProgTape = (code: string) => load<ProgPt>(progKey(code));
 interface ProgRow { bsop_hour?: string; whol_smtn_ntby_tr_pbmn?: string }
 async function recordProgram(code: string): Promise<boolean> {
   const { body } = await kisGet<{ rt_cd?: string; output?: ProgRow[] }>(
-    "/uapi/domestic-stock/v1/quotations/program-trade-by-stock", "FHPPG04650101", { FID_COND_MRKT_DIV_CODE: "J", FID_INPUT_ISCD: code });
+    "/uapi/domestic-stock/v1/quotations/program-trade-by-stock", "FHPPG04650101", { FID_COND_MRKT_DIV_CODE: "UN", FID_INPUT_ISCD: code });   // UN = 통합(KRX+NXT) — 프리·애프터도(실측 2026-11-04 08:05 삼성 −137억)
   const rows = (body.output ?? []).filter(r => r.bsop_hour && r.whol_smtn_ntby_tr_pbmn != null);
   if (!rows.length) return false;
-  // 시각 오름차순 → 분마다 마지막 값. 정규장(09:00~15:30) 안의 것만
+  // 시각 오름차순 → 분마다 마지막 값. 프리 08:00 ~ 애프터 20:00
   const byMin = new Map<string, number>();
   for (const r of [...rows].sort((a, b) => a.bsop_hour!.localeCompare(b.bsop_hour!))) {
     const h = r.bsop_hour!, t = `${h.slice(0, 2)}:${h.slice(2, 4)}`;
-    if (t < "09:00" || t > "15:30") continue;
+    if (t < "08:00" || t > "20:00") continue;
     byMin.set(t, Number(r.whol_smtn_ntby_tr_pbmn) / 1e8);
   }
   if (!byMin.size) return false;
@@ -55,20 +55,21 @@ export function startFuturesTape(): void {
   const tick = async () => {
     const k = new Date(Date.now() + 9 * 3600_000);
     const dow = k.getUTCDay(), m = k.getUTCHours() * 60 + k.getUTCMinutes();
-    if (dow === 0 || dow === 6 || m < 8 * 60 + 45 || m > 15 * 60 + 46) return;
+    if (dow === 0 || dow === 6 || m < 8 * 60 || m > 20 * 60 + 2) return;
+    const futOpen = m >= 8 * 60 + 45 && m <= 15 * 60 + 46;   // 주간 선물장 — 미결제·외국인 선물은 이 안에서만
     const t = `${String(k.getUTCHours()).padStart(2, "0")}:${String(k.getUTCMinutes()).padStart(2, "0")}`;
     let changed = false;
-    try {
+    if (futOpen) try {
       const f = await fetchKrFuturesLive("kospi200");
       if (f && f.oi > 0 && f.price > 0) { push<OiPt>(OI_KEY, { t, oi: f.oi, p: f.price }); changed = true; }
     } catch { /* 다음 분에 */ }
-    if (kisFutAvailable()) {
+    if (futOpen && kisFutAvailable()) {
       try {
         const r = await fetchKisK200FutInvestor();
         if (r) { push<FrgnPt>(FR_KEY, { t, c: r.frgnQty }); changed = true; }
       } catch { /* 다음 분에 */ }
     }
-    if (kisFutAvailable() && m >= 9 * 60 && m <= 15 * 60 + 35) {
+    if (kisFutAvailable()) {   // 프로그램 매매 — 프리 08:00 ~ 애프터 20:00(통합)
       for (const [code] of PROG_CODES) {
         try { if (await recordProgram(code)) changed = true; } catch { /* 다음 분에 */ }
       }
