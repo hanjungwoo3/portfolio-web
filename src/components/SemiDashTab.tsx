@@ -592,6 +592,19 @@ function TickPanel({ name, flow, day, onTitle }: { name: string; flow: TickFlow;
             {ms.map((m, i) => (m.t.endsWith("0") ? (
               <span key={m.t} className="absolute bottom-0 -translate-x-1/2 text-[10px] text-gray-400 pointer-events-none" style={{ left: `${(xOf(i) / W) * 100}%` }}>{m.t}</span>
             ) : null))}
+            {/* 가격 글자(사용자 2026-11-04 "가격 그래프에 금액") — 최고·최저는 그 높이 왼쪽에, 지금 가격은 선 끝에. svg 가 늘어나므로 HTML 로 */}
+            {prices.length > 1 && (() => {
+              const yp = (p: number) => ((PAD + (1 - (p - pMin) / pR) * (H - PAD * 2)) / H) * 100;
+              const hi = Math.max(...prices), lo = Math.min(...prices), last = prices[prices.length - 1];
+              const hiI = prices.indexOf(hi), loI = prices.indexOf(lo);
+              const lab = "absolute pointer-events-none text-[10px] tabular-nums px-0.5 rounded bg-white/80 whitespace-nowrap";
+              const lx = (xOf(prices.length - 1) / W) * 100;
+              return (<>
+                {hi > lo && <span className={`${lab} text-rose-600`} style={{ left: `${Math.max(7, Math.min(85, (xOf(hiI) / W) * 100))}%`, top: `${yp(hi)}%`, transform: "translate(-50%, -110%)" }}>고 {hi.toLocaleString()}</span>}
+                {hi > lo && <span className={`${lab} text-blue-600`} style={{ left: `${Math.max(7, Math.min(85, (xOf(loI) / W) * 100))}%`, top: `${yp(lo)}%`, transform: "translate(-50%, 10%)" }}>저 {lo.toLocaleString()}</span>}
+                <span className={`${lab} font-bold text-slate-800 border border-slate-300`} style={{ left: `${Math.min(lx, 88)}%`, top: `${Math.max(6, Math.min(90, yp(last)))}%`, transform: lx > 88 ? "translate(-100%, -50%)" : "translate(4px, -50%)" }}>{last.toLocaleString()}</span>
+              </>);
+            })()}
             {/* 누적 끝값 — 막대(1분)와 축이 달라 선만으론 크기를 모른다. svg 가 늘어나므로 글자는 HTML 로 */}
             {cum.length > 0 && (() => {
               const lx = (xOf(cum.length - 1) / W) * 100, ly = ((mid - (cum[cum.length - 1] / mxCum) * (mid - PAD)) / H) * 100;
