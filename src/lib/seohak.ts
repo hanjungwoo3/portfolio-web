@@ -2,11 +2,18 @@
 //   크롤러(portfolio-etf-index/scripts/seohak.js)가 매일 06:00 KST 에 받아 둔다(0콜, 프록시 화이트리스트 변경 없음).
 //   금액은 모두 달러. 결제는 미국 T+1 이라 하루 이틀 늦고, 보관은 직전 영업일까지 — 장중 지표가 아니라 '지난주 무엇을 샀나'.
 import { useQuery } from "@tanstack/react-query";
+import { openExternal, openTossStock } from "./toss";
 
 const URL_SEOHAK = "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/main/data/seohak.json";
 
 export type LevKind = "bull" | "bear";
-export interface SeohakMeta { ko?: string; logo?: string; fn?: string }
+export interface SeohakMeta { ko?: string; logo?: string; fn?: string; toss?: string }
+
+/** 토스 종목 페이지 — 크롤러가 받아 둔 토스 코드로 바로, 없으면 공용 openTossStock(코드표 → 야후) */
+export function openSeohakToss(r: { t?: string; toss?: string }): void {
+  if (r.toss) { openExternal(`https://www.tossinvest.com/stocks/${r.toss}`); return; }
+  if (r.t) openTossStock(r.t);
+}
 export interface SeohakRow extends SeohakMeta { isin: string; t?: string; n: string; buy: number; sell: number; net: number; lev?: LevKind }
 export interface SeohakHold extends SeohakMeta { isin: string; t?: string; n: string; amt: number; rank: number; prevRank?: number; prevAmt?: number; lev?: LevKind }
 export interface SeohakLevDay {

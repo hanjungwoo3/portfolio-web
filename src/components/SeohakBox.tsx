@@ -6,7 +6,7 @@ import { heatColor, sectorKr } from "../lib/heatColor";
 import { useQuery } from "@tanstack/react-query";
 import { fetchHeatmapForTickers } from "../lib/api";
 import { createPortal } from "react-dom";
-import { bearShare, bullShare, fmtUsdKr, mdOf, netSellers, seohakOf, useSeohak, type SeohakRow, type SeohakHold, type LevKind } from "../lib/seohak";
+import { bearShare, bullShare, fmtUsdKr, openSeohakToss, mdOf, netSellers, seohakOf, useSeohak, type SeohakRow, type SeohakHold, type LevKind } from "../lib/seohak";
 import { useHoverLayer, layerStyle } from "../lib/useHoverLayer";
 import { US_PAIRS } from "../lib/usMarketData";
 
@@ -139,12 +139,13 @@ function HoldTreemap({ hold, week, height }: { hold: SeohakHold[]; week: { net: 
           const name = koOf(r);
           const x0 = q(r);
           return (
-            <div key={r.isin} className="absolute border border-white/70 text-white overflow-hidden flex flex-col items-center justify-center text-center leading-tight px-0.5"
+            <div key={r.isin} onClick={() => openSeohakToss(r)}
+                 className="absolute border border-white/70 text-white overflow-hidden flex flex-col items-center justify-center text-center leading-tight px-0.5 cursor-pointer hover:brightness-110 hover:z-10 hover:outline hover:outline-2 hover:outline-white"
                  style={{ left: x, top: y, width: tw, height: th, background: p == null ? "#94a3b8" : heatColor(p, sat) }}
                  title={`${r.t ?? r.n}${r.ko ? ` ${r.ko}` : ""} — ${r.n}${x0?.sector ? ` · ${sectorKr(x0.sector)}` : ""}\n` +
                         `보유 ${r.rank}위 · ${fmtUsdKr(r.amt)} (비중 ${(r.amt / total * 100).toFixed(1)}%)${r.prevRank ? ` · 전주 ${r.prevRank}위` : ""}\n` +
                         (wk.has(r.isin) ? `이번 주 매수 ${fmtUsdKr(wk.get(r.isin)!.buy)} · 매도 ${fmtUsdKr(wk.get(r.isin)!.sell)} · 순 ${fmtUsdKr(wk.get(r.isin)!.net, true)}` : "이번 주 매매 상위 50 밖") +
-                        (x0 ? `\n1일 ${x0.changePct.toFixed(2)}% · 1주 ${x0.perfW.toFixed(1)}% · 1개월 ${x0.perf1M.toFixed(1)}%` : "")}>
+                        (x0 ? `\n1일 ${x0.changePct.toFixed(2)}% · 1주 ${x0.perfW.toFixed(1)}% · 1개월 ${x0.perf1M.toFixed(1)}%` : "") + "\n눌러서 토스에서 보기"}>
               {mid && <Logo r={r} size={huge ? 34 : big ? 24 : 16} />}
               {big && name && <span className={`mt-0.5 font-bold truncate max-w-full ${huge ? "text-[15px]" : "text-[12px]"}`}>{name}</span>}
               {(mid || tw > 26) && th > 16 && (
@@ -193,7 +194,7 @@ function FlowButterfly({ buys, sells, n }: { buys: SeohakRow[]; sells: SeohakRow
         {Array.from({ length: Math.max(b.length, s.length) }, (_, i) => (
           <div key={i} className="grid grid-cols-2 gap-1 items-center text-[11px] tabular-nums">
             {/* 왼쪽 — 막대가 가운데에서 왼쪽으로 */}
-            <div className="flex items-center justify-end gap-1 min-w-0" title={s[i] ? tip(s[i]) : undefined}>
+            <div className="flex items-center justify-end gap-1 min-w-0 cursor-pointer rounded hover:bg-blue-50" title={s[i] ? tip(s[i]) + "\n눌러서 토스에서 보기" : undefined} onClick={() => s[i] && openSeohakToss(s[i])} role="button">
               {s[i] && <>
                 <span className="w-[92px] shrink-0">{label(s[i])}</span>
                 <span className="relative flex-1 h-5 min-w-[30px]">
@@ -205,7 +206,7 @@ function FlowButterfly({ buys, sells, n }: { buys: SeohakRow[]; sells: SeohakRow
               </>}
             </div>
             {/* 오른쪽 — 가운데에서 오른쪽으로 */}
-            <div className="flex items-center gap-1 min-w-0" title={b[i] ? tip(b[i]) : undefined}>
+            <div className="flex items-center gap-1 min-w-0 cursor-pointer rounded hover:bg-rose-50" title={b[i] ? tip(b[i]) + "\n눌러서 토스에서 보기" : undefined} onClick={() => b[i] && openSeohakToss(b[i])} role="button">
               {b[i] && <>
                 <span className="relative flex-1 h-5 min-w-[30px]">
                   <span className="absolute left-0 top-0 h-full rounded-r bg-rose-500/75" style={{ width: `${(b[i].net / max) * 100}%` }} />
