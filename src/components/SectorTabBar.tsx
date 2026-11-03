@@ -56,8 +56,10 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
                               ${on ? "bg-indigo-50 text-indigo-900 border-indigo-600 ring-2 ring-indigo-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>
             <span className="inline-flex items-center gap-1"><span>{emoji}</span>{s.short}</span>
             {avg != null && <span className={`tabular-nums ${vertical ? "text-[12px]" : compact ? "text-[10px]" : "text-[11px]"} ${tone}`}>{avg > 0 ? "+" : ""}{avg.toFixed(2)}%</span>}
-            {st && <span className={`tabular-nums font-normal ${vertical ? "text-[11px]" : compact ? "text-[9.5px]" : "text-[10px]"} text-gray-500`}>
-              <span className="text-rose-600">▲{st.up}</span> <span className="text-blue-600">▼{st.down}</span>
+            {st && <span className={`tabular-nums font-normal whitespace-nowrap ${vertical ? "text-[11px]" : compact ? "text-[9.5px]" : "text-[10px]"} text-gray-500`}>
+              {vertical   /* 세로 탭은 폭이 넉넉해 글자로(사용자 2026-11-03 "상승·하락 글자도") */
+                ? <><span className="text-rose-600">상승 {st.up}</span> · <span className="text-blue-600">하락 {st.down}</span></>
+                : <><span className="text-rose-600">▲{st.up}</span> <span className="text-blue-600">▼{st.down}</span></>}
             </span>}
           </button>
         );

@@ -19,7 +19,7 @@ import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTra
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
 import { useChartRange, pickCardChart, historyRange } from "../lib/chartRange";
 import { ChartRangeToggle } from "./ChartRangeToggle";
-import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage } from "../lib/dashboardGroups";
+import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage, type DashboardSection } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
 import { requestTab, isTabVisible } from "../lib/tabNav";
 import { GroupNavBar } from "./GroupNavBar";
@@ -321,127 +321,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const navItems = dashboardGroupNav(T0_SECTIONS);
   const idxScrollMargin = navStickyTop + 44;
 
-  return (
-    <div className="space-y-3">
-      {/* 차트 기간(3개월|24시간)은 그룹 칩 줄 끝에 — 스크롤해도 늘 보이는 자리(사용자 결정 2026-10-20) */}
-      {page === "sobu"
-        ? <div className="lg:hidden sticky z-30 bg-gray-50 pg-bg py-1.5" style={{ top: navStickyTop }}>
-            {/* 좁은 화면은 가로 탭, 넓은 화면(lg)은 아래 왼쪽 세로 탭(사용자 2026-11-03 "탭을 왼쪽에") — 여기엔 차트 기간만 */}
-            <div className="lg:hidden">
-              <SectorTabBar sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab} trailing={<ChartRangeToggle />}
-                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
-            </div>
-          </div>
-        : <GroupNavBar items={navItems} idPrefix="usidx-"
-                   stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin}
-                   trailing={<ChartRangeToggle />} />}
-      {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
-      {/* 다른 탭과 같은 전체 폭 — 예전엔 lg 에서 75% 로 줄여 PC 에서만 좁아 보였다 */}
-      <div className={page === "sobu" ? "lg:flex lg:items-start lg:gap-2" : ""}>
-      {page === "sobu" && (
-        <aside className="hidden lg:flex lg:flex-col lg:gap-2 sticky shrink-0 w-[88px]" style={{ top: navStickyTop + 8 }}>   {/* 위 빈 줄 없이 — 차트 기간 단추도 왼쪽 줄 맨 위(사용자 2026-11-03) */}
-          <ChartRangeToggle small />
-          <SectorTabBar vertical sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab}
-                        avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
-        </aside>
-      )}
-      <div className={`space-y-4 ${page === "sobu" ? "lg:flex-1 lg:min-w-0" : ""}`}>
-        {/* 동시호가 예상 순위 — 앱+한국투자, 동시호가 동안만(사용자 2026-11-02) */}
-        <KisExpRankBox />
-        {T0_SECTIONS.map((section) => (
-          <div key={section.label} id={`usidx-${section.id}`}
-               style={{ scrollMarginTop: idxScrollMargin }}
-               className={`relative space-y-2 rounded-xl border border-gray-300 bg-white ${section.render === "rotation" ? "" : section.render ? "pg-box pg-render" : "pg-box"} p-2.5 pt-4 mt-1.5`}>
-            {/* 섹터명 책갈피 — 카드 상단에 겹치게 */}
-            <span hidden={section.render === "sobuGrid"} className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
-                             text-sm font-bold text-gray-700 whitespace-nowrap">
-              {section.label}
-              {section.link && isTabVisible(section.link.vis) && (
-                <button onClick={() => requestTab(section.link!.tab)}
-                        className="ml-1.5 text-[11px] font-bold text-indigo-600 hover:underline">
-                  자세히 →
-                </button>
-              )}
-              {/* 정렬 버튼은 페이지에 하나 — 첫 정렬 그룹 제목에만(누르면 페이지 전체가 바뀐다) */}
-{section.sortable && section.id === T0_SECTIONS.find(x => x.sortable)?.id && (
-                <span className="ml-2 inline-flex rounded border border-gray-300 overflow-hidden align-middle text-[11px] font-bold">
-                  {(["pct", "value"] as const).map(v => (
-                    <button key={v} onClick={() => { setLeaderSort(v); saveLeaderSort(v); }}
-                            className={`px-1.5 py-0 ${leaderSort === v ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}>
-                      {v === "pct" ? "등락률순" : "거래대금순"}
-                    </button>
-                  ))}
-                </span>
-              )}
-            </span>
-            {/* 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장)는 오늘 등락률(%) 내림차순 정렬 (6개씩 줄바꿈) */}
-            {/* 한국 섹터 — 토스 TICS 분류. 미국 블록과 **같은 한글 분류**라 이름으로 맞출 수 있다. */}
-            {section.render === "etfTop" && (
-                  <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
-                )}
-                {section.note && <div className="text-[11px] text-gray-500 leading-snug">{section.note}</div>}
-                {section.id === "krfx" && <RealRateNote usMap={usMap} />}
-                {section.id === "kr" && <BreadthNote usMap={usMap} />}
-                {section.id === "macro" && <UsBreadthNote usMap={usMap} />}
-                {section.render === "rotation" && (
-              <RotationTab embedded extrasOnly onOpenValuation={(t, n) => onOpenValuation?.(t, n ?? "")} />
-            )}
-                {section.render === "sobuGrid" && (
-                  <SobuGrid rows={section.rows} labels={section.rowLabels ?? []} leadByRow={section.leadByRow ?? []} etfs={section.etfs}
-                            quote={sym => { const q = usMap.get(sym); return q ? { price: q.price, pct: displayPctOf(sym, q) ?? q.pct } : undefined; }}   /* 장 전·마감 뒤엔 마지막 정규장 % — 다른 지수 카드와 같은 규칙(자정 지나 0.00% 였다) */ dimOf={dimOf} />
-                )}
-                {section.render === "sectorFlow" && (
-              <TicsSectorBoard onOpenValuation={onOpenValuation}
-                                krClosed={page !== "day"} />
-            )}
-            {(arr => !section.pairRows ? arr : (
-              // 짝 줄 — 상자 둘을 좌우로 **붙여서**. 상자 폭은 카드 수에 비례(flex-grow), 남는 자리는 오른쪽 빈칸(한 줄 8장 기준)
-              <div className="space-y-0">
-                {(() => {
-                  // 줄마다 상자 묶음 — boxLines([2,3]) 가 있으면 그대로, 없으면 boxesPerLine(기본 2)씩
-                  const per = section.boxesPerLine ?? 2;
-                  const sizes = section.boxLines ?? Array.from({ length: Math.ceil(arr.length / per) }, () => per);
-                  let at = 0;
-                  return sizes.map(n => { const idx = Array.from({ length: n }, (_, j) => at + j).filter(i => i < arr.length); at += n; return idx; });
-                })().map((idx, k, lines) => {
-                  // 상자 폭 = 카드 n장 + 카드 사이 틈 + 상자 안쪽 여백(왼쪽 책갈피 36 + 오른쪽 8 + 테두리 2).
-                  //   카드 한 장 = 전체 폭 8칸 카드((100% - 7×8px)/8)와 같게 맞춘다 — 상자가 몇 개든 카드 크기가 다른 그룹과 같다.
-                  //   단, 상자 여백 때문에 한 줄에 다 안 들어가는 줄이 있으면 **그룹 전체** 카드 폭을 그 줄에 맞춰 줄인다
-                  //   (줄마다 따로 눌리면 상자가 하나뿐인 줄만 카드가 커 보인다). 줄 하나(C장·B상자) 필요 폭 = C·w + 8C + 46B − 8.
-                  const fits = lines.map(l => {
-                    const c = l.reduce((s, i) => s + section.rows[i].length, 0);
-                    return `(100% - ${8 * c + 46 * l.length - 8}px) / ${c}`;
-                  });
-                  const card = `min((100% - 56px) / 8, ${fits.join(", ")})`;
-                  const boxW = (n: number) => `calc(${n} * ${card} + ${(n - 1) * 8}px + 46px)`;
-                  return (
-                    <div key={k} className="flex gap-2">
-                      {idx.map(i => <div key={i} className="min-w-0" style={{ flex: `0 1 ${boxW(section.rows[i].length)}` }}>{arr[i]}</div>)}
-                    </div>
-                  );
-                })}
-              </div>
-            ))((section.render ? []
-              : section.id === "sector"
-              ? chunk(
-                  section.rows.flat().sort((a, b) => Number(dimOf(a)) - Number(dimOf(b)) ||
-                    (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity)),
-                  6)
-              : sortedRows(section, leaderSort, sym => displayPctOf(sym, usMap.get(sym)), dimOf)
-            ).map((group, gi) => (
-              // 6열 그리드 — 화면은 전체 폭이지만 카드 줄만 lg 75% 로 묶어 카드 크기는 예전 그대로(왼쪽 정렬)
-              <div key={gi} className={section.rowLabels ? `relative ${section.pairRows ? "" : "-mr-[9px]"} rounded-lg border border-gray-200 bg-gray-50/50 pg-row pl-9 pr-2 pb-2 pt-4 mt-2` : ""}>
-                {/* 줄 책갈피 — 이 줄이 어느 단계인지(반도체·전공정…). 위에 얹으면 카드 위 가격 띠와 겹쳐
-                    안 보여서, 상자 **왼쪽에 세로 띠**로 따로 뺐다(글자는 위→아래로 세워 쓴다). */}
-                {section.rowLabels?.[gi] && (
-                  <span className={`pg-rowlabel absolute left-0 inset-y-0 w-7 flex items-center justify-center border-0 border-r rounded-l-lg
-                                    text-xs font-bold tracking-widest [writing-mode:vertical-rl] [text-orientation:upright]
-                                    ${dashboardRowLabelTone(section, section.rowLabels[gi])}`}>
-                    {section.rowLabels[gi]}
-                  </span>
-                )}
-              {(() => {
-                const cards = group.map(symbol => {
+  // 지수 탭 종목 카드 한 장 — 그룹 줄과 업종(SobuGrid) 칸이 같이 쓴다(사용자 2026-11-03 "지수에 있는 종목 카드와 동일하게, 똑같은 기능으로")
+  const renderIdxCard = (section: DashboardSection, symbol: string): React.ReactNode => {
               // 코리아 밸류업 — 네이버 KVALUE 전용 카드(Yahoo 미제공). 다른 지수 카드와 동일 크기 셀.
               if (symbol === "KVALUE") return <ValueupMiniCard key="KVALUE" />;
               if (symbol === "SKHY-PERP") return <HlPerpCard key="SKHY-PERP" coin="SKHY" name="SK하이닉스 24h" />;
@@ -806,7 +687,134 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   )}
                 </div>
               );
-                });
+  };
+
+  return (
+    <div className="space-y-3">
+      {/* 차트 기간(3개월|24시간)은 그룹 칩 줄 끝에 — 스크롤해도 늘 보이는 자리(사용자 결정 2026-10-20) */}
+      {page === "sobu"
+        ? <div className="lg:hidden sticky z-30 bg-gray-50 pg-bg py-1.5" style={{ top: navStickyTop }}>
+            {/* 좁은 화면은 가로 탭, 넓은 화면(lg)은 아래 왼쪽 세로 탭(사용자 2026-11-03 "탭을 왼쪽에") — 여기엔 차트 기간만 */}
+            <div className="lg:hidden">
+              <SectorTabBar sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab} trailing={<ChartRangeToggle />}
+                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
+            </div>
+          </div>
+        : <GroupNavBar items={navItems} idPrefix="usidx-"
+                   stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin}
+                   trailing={<ChartRangeToggle />} />}
+      {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
+      {/* 다른 탭과 같은 전체 폭 — 예전엔 lg 에서 75% 로 줄여 PC 에서만 좁아 보였다 */}
+      <div className={page === "sobu" ? "lg:flex lg:items-start lg:gap-2" : ""}>
+      {page === "sobu" && (
+        <aside className="hidden lg:flex lg:flex-col lg:gap-2 sticky shrink-0 w-[116px]" style={{ top: navStickyTop + 8 }}>   {/* 위 빈 줄 없이 — 차트 기간 단추도 왼쪽 줄 맨 위(사용자 2026-11-03) */}
+          <ChartRangeToggle small />
+          <SectorTabBar vertical sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab}
+                        avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
+        </aside>
+      )}
+      <div className={`space-y-4 ${page === "sobu" ? "lg:flex-1 lg:min-w-0" : ""}`}>
+        {/* 동시호가 예상 순위 — 앱+한국투자, 동시호가 동안만(사용자 2026-11-02) */}
+        <KisExpRankBox />
+        {T0_SECTIONS.map((section) => (
+          <div key={section.label} id={`usidx-${section.id}`}
+               style={{ scrollMarginTop: idxScrollMargin }}
+               className={`relative space-y-2 rounded-xl border border-gray-300 bg-white ${section.render === "rotation" ? "" : section.render ? "pg-box pg-render" : "pg-box"} p-2.5 pt-4 mt-1.5`}>
+            {/* 섹터명 책갈피 — 카드 상단에 겹치게 */}
+            <span hidden={section.render === "sobuGrid"} className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
+                             text-sm font-bold text-gray-700 whitespace-nowrap">
+              {section.label}
+              {section.link && isTabVisible(section.link.vis) && (
+                <button onClick={() => requestTab(section.link!.tab)}
+                        className="ml-1.5 text-[11px] font-bold text-indigo-600 hover:underline">
+                  자세히 →
+                </button>
+              )}
+              {/* 정렬 버튼은 페이지에 하나 — 첫 정렬 그룹 제목에만(누르면 페이지 전체가 바뀐다) */}
+{section.sortable && section.id === T0_SECTIONS.find(x => x.sortable)?.id && (
+                <span className="ml-2 inline-flex rounded border border-gray-300 overflow-hidden align-middle text-[11px] font-bold">
+                  {(["pct", "value"] as const).map(v => (
+                    <button key={v} onClick={() => { setLeaderSort(v); saveLeaderSort(v); }}
+                            className={`px-1.5 py-0 ${leaderSort === v ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}>
+                      {v === "pct" ? "등락률순" : "거래대금순"}
+                    </button>
+                  ))}
+                </span>
+              )}
+            </span>
+            {/* 폴백 고정 카드(한국 섹터·반도체 TOP2+·소부장)는 오늘 등락률(%) 내림차순 정렬 (6개씩 줄바꿈) */}
+            {/* 한국 섹터 — 토스 TICS 분류. 미국 블록과 **같은 한글 분류**라 이름으로 맞출 수 있다. */}
+            {section.render === "etfTop" && (
+                  <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
+                )}
+                {section.note && <div className="text-[11px] text-gray-500 leading-snug">{section.note}</div>}
+                {section.id === "krfx" && <RealRateNote usMap={usMap} />}
+                {section.id === "kr" && <BreadthNote usMap={usMap} />}
+                {section.id === "macro" && <UsBreadthNote usMap={usMap} />}
+                {section.render === "rotation" && (
+              <RotationTab embedded extrasOnly onOpenValuation={(t, n) => onOpenValuation?.(t, n ?? "")} />
+            )}
+                {section.render === "sobuGrid" && (
+                  <SobuGrid rows={section.rows} labels={section.rowLabels ?? []} leadByRow={section.leadByRow ?? []} etfs={section.etfs}
+                            quote={sym => {
+                              const q = usMap.get(sym); if (!q) return undefined;
+                              // 한국 개별 종목 — 15:30 뒤엔 오늘 정규장 종가 책갈피(야후로 확인된 값만, 지수 탭 카드와 같은 규칙). ETF 는 애프터가 없어 뺀다
+                              const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
+                              return { price: q.price, pct: displayPctOf(sym, q) ?? q.pct, reg: r?.fromYahoo ? { price: r.regularPrice, pct: r.regularPct } : undefined };
+                            }}   /* 장 전·마감 뒤엔 마지막 정규장 % — 다른 지수 카드와 같은 규칙(자정 지나 0.00% 였다) */ dimOf={dimOf} renderCard={sym => renderIdxCard(section, sym)} />
+                )}
+                {section.render === "sectorFlow" && (
+              <TicsSectorBoard onOpenValuation={onOpenValuation}
+                                krClosed={page !== "day"} />
+            )}
+            {(arr => !section.pairRows ? arr : (
+              // 짝 줄 — 상자 둘을 좌우로 **붙여서**. 상자 폭은 카드 수에 비례(flex-grow), 남는 자리는 오른쪽 빈칸(한 줄 8장 기준)
+              <div className="space-y-0">
+                {(() => {
+                  // 줄마다 상자 묶음 — boxLines([2,3]) 가 있으면 그대로, 없으면 boxesPerLine(기본 2)씩
+                  const per = section.boxesPerLine ?? 2;
+                  const sizes = section.boxLines ?? Array.from({ length: Math.ceil(arr.length / per) }, () => per);
+                  let at = 0;
+                  return sizes.map(n => { const idx = Array.from({ length: n }, (_, j) => at + j).filter(i => i < arr.length); at += n; return idx; });
+                })().map((idx, k, lines) => {
+                  // 상자 폭 = 카드 n장 + 카드 사이 틈 + 상자 안쪽 여백(왼쪽 책갈피 36 + 오른쪽 8 + 테두리 2).
+                  //   카드 한 장 = 전체 폭 8칸 카드((100% - 7×8px)/8)와 같게 맞춘다 — 상자가 몇 개든 카드 크기가 다른 그룹과 같다.
+                  //   단, 상자 여백 때문에 한 줄에 다 안 들어가는 줄이 있으면 **그룹 전체** 카드 폭을 그 줄에 맞춰 줄인다
+                  //   (줄마다 따로 눌리면 상자가 하나뿐인 줄만 카드가 커 보인다). 줄 하나(C장·B상자) 필요 폭 = C·w + 8C + 46B − 8.
+                  const fits = lines.map(l => {
+                    const c = l.reduce((s, i) => s + section.rows[i].length, 0);
+                    return `(100% - ${8 * c + 46 * l.length - 8}px) / ${c}`;
+                  });
+                  const card = `min((100% - 56px) / 8, ${fits.join(", ")})`;
+                  const boxW = (n: number) => `calc(${n} * ${card} + ${(n - 1) * 8}px + 46px)`;
+                  return (
+                    <div key={k} className="flex gap-2">
+                      {idx.map(i => <div key={i} className="min-w-0" style={{ flex: `0 1 ${boxW(section.rows[i].length)}` }}>{arr[i]}</div>)}
+                    </div>
+                  );
+                })}
+              </div>
+            ))((section.render ? []
+              : section.id === "sector"
+              ? chunk(
+                  section.rows.flat().sort((a, b) => Number(dimOf(a)) - Number(dimOf(b)) ||
+                    (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity)),
+                  6)
+              : sortedRows(section, leaderSort, sym => displayPctOf(sym, usMap.get(sym)), dimOf)
+            ).map((group, gi) => (
+              // 6열 그리드 — 화면은 전체 폭이지만 카드 줄만 lg 75% 로 묶어 카드 크기는 예전 그대로(왼쪽 정렬)
+              <div key={gi} className={section.rowLabels ? `relative ${section.pairRows ? "" : "-mr-[9px]"} rounded-lg border border-gray-200 bg-gray-50/50 pg-row pl-9 pr-2 pb-2 pt-4 mt-2` : ""}>
+                {/* 줄 책갈피 — 이 줄이 어느 단계인지(반도체·전공정…). 위에 얹으면 카드 위 가격 띠와 겹쳐
+                    안 보여서, 상자 **왼쪽에 세로 띠**로 따로 뺐다(글자는 위→아래로 세워 쓴다). */}
+                {section.rowLabels?.[gi] && (
+                  <span className={`pg-rowlabel absolute left-0 inset-y-0 w-7 flex items-center justify-center border-0 border-r rounded-l-lg
+                                    text-xs font-bold tracking-widest [writing-mode:vertical-rl] [text-orientation:upright]
+                                    ${dashboardRowLabelTone(section, section.rowLabels[gi])}`}>
+                    {section.rowLabels[gi]}
+                  </span>
+                )}
+              {(() => {
+                const cards = group.map(symbol => renderIdxCard(section, symbol));
                 if (!section.extras) return (
                   <div style={section.pairRows ? { gridTemplateColumns: `repeat(${group.length}, minmax(0, 1fr))` } : undefined}
                        className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 ${section.pairRows ? "" : section.wide || group.includes("CNNFG") ? "lg:grid-cols-8" : `lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}`}>

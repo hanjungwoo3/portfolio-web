@@ -16,13 +16,15 @@ import { Sparkline } from "./Sparkline";
 import { ValueupTags } from "./ValueupTags";
 import { SeohakTag } from "./SeohakBox";
 
-export function QuoteCard({ code, name, sub, px, dim, badge, className = "w-[132px] sm:w-[176px] h-[88px] shrink-0" }: {
+export function QuoteCard({ code, name, sub, px, dim, badge, reg, className = "w-[132px] sm:w-[176px] h-[88px] shrink-0" }: {
   code: string; name: string;
   sub?: string;                                 // 이름 아래 한 줄(섹터 등)
   px?: { price: number; pct: number };
   dim?: boolean;                                // 오늘 체결 없음(지난 거래일 값) — 흐리게
   className?: string;                           // 크기(공시 줄 = 고정 폭, 히트맵 격자 = 칸에 맞춤)
   badge?: import("react").ReactNode;            // 아래 줄 맨 왼쪽(지수 소부장 — 공시·뉴스 개수)
+  // 오늘 정규장 종가(15:30) — 애프터(NXT) 중·마감 뒤 노란 책갈피: 종가 (등락%) + 그 뒤 움직임 배지. 지수 탭 카드와 같은 모양(사용자 2026-11-03)
+  reg?: { price: number; pct: number };
 }) {
   const range = useChartRange();
   const isUs = !(/^[\dA-Za-z]{6}$/.test(code) && /\d/.test(code));
@@ -47,7 +49,25 @@ export function QuoteCard({ code, name, sub, px, dim, badge, className = "w-[132
   const tone = pct == null ? "bg-gray-50 border-gray-200" : pct > 0 ? "bg-rose-50 border-rose-200" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
   const col = pct == null ? "text-gray-700" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
   return (
-    <div className={`relative overflow-hidden rounded-lg border ${tone} ${className} ${dim ? "opacity-60" : ""}`}>
+    <div className={`relative ${className}`}>
+      {/* 정규장 종가 책갈피 — 카드 위로 걸치고 흐림 제외(지수 탭 카드와 같은 규칙) */}
+      {reg && reg.price > 0 && (() => {
+        const rc = reg.pct > 0 ? "text-rose-600" : reg.pct < 0 ? "text-blue-600" : "text-gray-700";
+        const gap = px ? (px.price / reg.price - 1) * 100 : 0;
+        return (
+          <div className="absolute -top-2 right-1 z-20 px-1.5 py-0 border rounded bg-yellow-50 border-yellow-400/60 text-[10px] font-medium leading-tight whitespace-nowrap"
+               title="오늘 정규장(15:30) 종가 · 오른쪽 배지 = 그 뒤(애프터) 움직임">
+            <span className={`tabular-nums ${rc}`}>{fmtPx(reg.price)}</span>
+            <span className={`tabular-nums ml-1 font-bold text-[11px] ${rc}`}>({reg.pct >= 0 ? "+" : ""}{reg.pct.toFixed(2)}%)</span>
+            {Math.abs(gap) >= 0.005 && (
+              <span className={`tabular-nums ml-1 font-bold text-[11px] text-white px-1 rounded ${gap > 0 ? "bg-rose-600/60" : "bg-blue-600/60"}`}>
+                {gap > 0 ? "+" : "−"}{Math.abs(gap).toFixed(2)}%
+              </span>
+            )}
+          </div>
+        );
+      })()}
+    <div className={`relative overflow-hidden rounded-lg border ${tone} w-full h-full ${dim ? "opacity-60" : ""}`}>
       {range === "day" && isUs
         ? (() => { const d = usDay.data; return d && d.closes.length > 1
             ? <Sparkline data={d.closes} xs={d.xs} baseline={d.base} prevBaseline={d.prevBase} nextBaseline={d.nextBase}
@@ -77,6 +97,7 @@ export function QuoteCard({ code, name, sub, px, dim, badge, className = "w-[132
                   className="px-1 rounded border border-blue-300/70 bg-blue-50 text-blue-700 text-[9.5px] font-bold leading-[15px]">AI</button>
         </div>
       </div>
+    </div>
     </div>
   );
 }

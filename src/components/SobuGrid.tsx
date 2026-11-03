@@ -20,10 +20,12 @@ const NAME = new Map(US_PAIRS.map(p => [p.symbol, p.name]));
 const eok = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v) >= 100 ? Math.round(Math.abs(v)).toLocaleString() : Math.abs(v).toFixed(1)}억`;
 const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500");
 
-export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs }: {
+export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCard }: {
   rows: string[][]; labels: string[]; leadByRow: number[];
   etfs?: string[];   // 업종 ETF — 칸들 위 한 줄
-  quote: (sym: string) => { price: number; pct: number } | undefined;
+  quote: (sym: string) => { price: number; pct: number; reg?: { price: number; pct: number } } | undefined;
+  // 지수 탭 종목 카드 그대로(사용자 2026-11-03 "지수에 있는 종목 카드와 동일하게, 똑같은 기능으로") — 주면 QuoteCard 대신 이걸 그린다
+  renderCard?: (sym: string) => import("react").ReactNode;
   dimOf?: (sym: string) => boolean;   // 장 마감 흐림 — 지수 탭 카드와 같은 판정(dashboardCardDim, 설정 따름)
 }) {
   // 다섯 단계 → 네 칸: 소재·부품을 한 칸으로
@@ -89,10 +91,11 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs }: {
            data-sobu-card
            onMouseEnter={kr && (dN || nN) ? openPeek : undefined}
            onMouseLeave={kr && (dN || nN) ? dropPeek : undefined}>   {/* 종목 카드에 마우스 → 공시·뉴스 창(사용자 2026-11-03 "버튼 말고 종목에 hover") */}
-        <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} dim={dimOf?.(sym)} className="w-full h-[84px]" />
+        {renderCard ? renderCard(sym)
+          : <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} reg={q?.reg} dim={dimOf?.(sym)} className="w-full h-[84px]" />}
         {ct && (
           <button onClick={() => openExternal(ct.url)} title={`${ct.date} ${ct.time} ${ct.title}${info.get(ct.rcpNo)?.amountEok ? ` — ${Math.round(info.get(ct.rcpNo)!.amountEok!).toLocaleString()}억` : ""} — 눌러서 DART 원문`}
-                  className="absolute -top-1.5 right-1 z-10 px-1 rounded border border-violet-300 bg-violet-50 text-violet-700 text-[9px] font-bold leading-tight hover:bg-violet-100">
+                  className={`absolute -top-1.5 ${renderCard ? "left-1 z-30" : "right-1 z-10"} px-1 rounded border border-violet-300 bg-violet-50 text-violet-700 text-[9px] font-bold leading-tight hover:bg-violet-100`}>   {/* 지수 카드는 오른쪽 위에 정규장 종가 책갈피가 있어 왼쪽으로 */}
             📑수주 {md(ct.date)}
           </button>
         )}
@@ -115,21 +118,52 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs }: {
     return () => { window.removeEventListener("keydown", onKey); window.removeEventListener("scroll", onScroll, true); window.removeEventListener("mousedown", onDown); };
   }, [peek]);
   const ndt = (dt: string) => `${+dt.slice(4, 6)}/${+dt.slice(6, 8)} ${dt.slice(8, 10)}:${dt.slice(10, 12)}`;
+  // 카드 폭 = 지수 탭 카드와 같게(사용자 2026-11-03 "지수(업종) 카드 넓이가 더 넓은데") — 지수 탭 카드 = (그룹 폭 − 56)/8,
+  //   업종 페이지는 왼쪽 세로 탭(116+8)만큼 좁아 +124. 칸이 4개면 칸 테두리·여백 때문에 다 못 들어가 그만큼만 줄인다(지수 탭 짝 줄과 같은 규칙).
+  //   넓은 화면(xl)에서만 — 그보다 좁으면 예전처럼 칸을 화면에 나눠 채운다.
+  const nb = boxes.length;
+  // 칸마다 열 수 — 한 줄 8장(지수 탭과 같은 눈금)을 칸에 나눈다. 기본 2열, 남는 열은 종목이 많은 칸부터(사용자 2026-11-03 "이런 경우 브랜드를 4개씩").
+  //   종목 수보다 많은 열은 주지 않는다.
+  const TOTAL = Math.max(8, nb * 2);
+  const nOf = (b: (typeof boxes)[number]) => b.lead.length + b.kr.length;
+  const cols = boxes.map(b => Math.min(2, Math.max(1, nOf(b))));
+  for (let left = TOTAL - cols.reduce((a, c) => a + c, 0); left > 0; left--) {
+    // 열 하나 늘렸을 때 줄 수가 가장 많이 주는(= 지금 줄 수가 가장 많은) 칸에
+    let best = -1, bestRows = 1;
+    boxes.forEach((b, i) => { const r = Math.ceil(nOf(b) / cols[i]); if (cols[i] < nOf(b) && r > bestRows) { best = i; bestRows = r; } });
+    if (best < 0) break;
+    cols[best]++;
+  }
+  const T = cols.reduce((a, c) => a + c, 0);
+  // 칸 테두리 2 + 안쪽 여백 16, 칸 안 카드 사이 8, 칸 사이 8 — 이만큼 빼고 T 장으로 나눈다(지수 탭 카드 폭을 넘지는 않게)
+  const chrome = nb * 18 + (T - nb) * 8 + (nb - 1) * 8;
+  const cw = renderCard ? `min(calc((100cqw + 68px) / 8), calc((100cqw - ${chrome}px) / ${T}))` : undefined;
   return (
-    <div className="space-y-2">
-    {etfs && etfs.length > 0 && (
+    <div className="space-y-2 [container-type:inline-size]" style={cw ? ({ "--cw": cw } as import("react").CSSProperties) : undefined}>
+    {etfs && etfs.length > 0 && renderCard && (
+      // ETF 줄도 아래 칸의 카드 세로줄에 맞춘다(사용자 2026-11-03 "ETF도 같이 줄을 맞춰야지") — 두 장씩 칸 폭(테두리 1 + 여백 8)만큼 안쪽으로
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-4 pt-1.5 xl:flex xl:flex-wrap">
+        {/* 칸마다 그 칸 열 수만큼 — 아래 칸의 카드 세로줄과 맞는다 */}
+        {(() => { const g: string[][] = []; let at = 0; for (const c of cols) { if (at >= etfs.length) break; g.push(etfs.slice(at, at + c)); at += c; } if (at < etfs.length) g.push(etfs.slice(at)); return g; })().map((pair, i) => (
+          <div key={i} className="contents xl:flex xl:gap-2 xl:px-[9px]">
+            {pair.map(sym => <div key={sym} className="relative xl:w-[var(--cw)]">{renderCard(sym)}</div>)}
+          </div>
+        ))}
+      </div>
+    )}
+    {etfs && etfs.length > 0 && !renderCard && (
       // ETF 카드 크기를 아래 종목 카드와 같게(사용자 2026-11-03 "ETF 카드만 크기가 달라") — 칸 수×2 열 격자, 칸 안쪽 여백만큼 양옆을 띄운다
       <div className={`grid grid-cols-2 sm:grid-cols-4 ${boxes.length === 3 ? "xl:grid-cols-6" : "xl:grid-cols-8"} gap-x-3.5 gap-y-1.5 px-2`}>
         {etfs.map(sym => { const q = quote(sym); return (
           <div key={sym} className="relative rounded-lg ring-1 ring-violet-300">
             <span className="absolute -top-1.5 left-1 z-10 px-1 rounded bg-violet-600 text-white text-[9px] font-bold leading-tight">ETF</span>
-            <QuoteCard code={sym.slice(0, 6)} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} dim={dimOf?.(sym)} className="w-full h-[84px]" />
+            <QuoteCard code={sym.slice(0, 6)} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} reg={q?.reg} dim={dimOf?.(sym)} className="w-full h-[84px]" />
           </div>
         ); })}
       </div>
     )}
-    <div className={`grid grid-cols-1 md:grid-cols-2 ${boxes.length === 3 ? "xl:grid-cols-3" : "xl:grid-cols-4"} gap-2`}>   {/* 칸 수만큼 화면을 나눈다(3단계 업종은 3등분) */}
-      {boxes.map(b => {
+    <div className={renderCard ? "grid grid-cols-1 md:grid-cols-2 xl:flex xl:items-start gap-2" : `grid grid-cols-1 md:grid-cols-2 ${boxes.length === 3 ? "xl:grid-cols-3" : "xl:grid-cols-4"} gap-2`}>   {/* 칸 수만큼 화면을 나눈다(3단계 업종은 3등분) */}
+      {boxes.map((b, bi) => {
         // 평균·▲▼ 은 흐린 종목(장 안 열림·체결 없음 — 값이 지난 정규장) 빼고(사용자 2026-11-03). 다 흐리면(장 마감 뒤) 전부로
         const live = b.kr.filter(s => !dimOf?.(s));
         const ps = (live.length ? live : b.kr).map(s => quote(s)?.pct).filter((v): v is number => v != null && Number.isFinite(v));
@@ -139,7 +173,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs }: {
         const fsum = (w: "5" | "20", k: "fo" | "in") => b.kr.reduce((a, s) => a + (flowBy.get(s.slice(0, 6))?.w[w]?.[k] ?? 0), 0);
         const hasFlow = b.kr.some(s => flowBy.has(s.slice(0, 6)));
         return (
-          <div key={b.label} className="rounded-lg border border-gray-200 bg-gray-50/50 pg-row p-2">
+          <div key={b.label} className={`rounded-lg border border-gray-200 bg-gray-50/50 pg-row p-2 ${renderCard ? "xl:shrink-0 min-w-0" : ""}`}>
             <div className="flex items-baseline gap-2 mb-1.5">
               <span className="font-bold text-gray-800">{b.label}</span>
               {avg != null && (
@@ -162,7 +196,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs }: {
                 ))}
               </div>
             )}
-            <div className="grid grid-cols-2 gap-1.5">
+            <div className={`grid grid-cols-2 ${renderCard ? "gap-x-2 gap-y-4 pt-1.5 xl:[grid-template-columns:repeat(var(--cols),var(--cw))]" : "gap-1.5"}`} style={renderCard ? ({ "--cols": cols[bi] } as import("react").CSSProperties) : undefined}>   {/* 지수 카드는 아래 책갈피가 걸쳐 줄 간격을 지수 탭과 같게 */}
               {b.lead.map(s => card(s, true))}
               {/* 국내 종목은 오늘 등락률 높은 순(사용자 2026-11-02) — 값 없는 종목은 뒤로. 해외 대장주는 앞에 고정 */}
               {/* 흐린 종목(장 안 열림·체결 없음)은 아래로(사용자 2026-11-03), 그 안에서 등락률 순 */}
