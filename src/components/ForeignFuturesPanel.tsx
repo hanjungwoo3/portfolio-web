@@ -5,33 +5,19 @@
 //   2단계(앱+한국투자)에서 외국인 곡선을 실시간·미결제를 장 시작부터로 바꾼다.
 import { useEffect, useMemo, useState } from "react";
 import type { IntradayFlow, KrFuturesLive } from "../lib/api";
+import { TAPE_EVENT, loadFrgnTape, loadOiTape } from "../lib/futuresTape";
 
 const MULT = 250_000;   // 코스피200 선물 1포인트 = 25만 원
 const hm2m = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
 const eok = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v)).toLocaleString()}억`;
 const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-600");
 const kstDate = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-const OI_KEY = "k200_oi_intraday";
 
-interface OiPt { t: string; oi: number; p: number }
-function useOiSeries(fut?: KrFuturesLive | null): OiPt[] {
-  const [pts, setPts] = useState<OiPt[]>(() => {
-    try { const v = JSON.parse(localStorage.getItem(OI_KEY) ?? "null"); return v?.date === kstDate() ? v.pts : []; } catch { return []; }
-  });
-  useEffect(() => {
-    if (!fut || !(fut.oi > 0) || !(fut.price > 0)) return;
-    const k = new Date(Date.now() + 9 * 3600_000);
-    const m = k.getUTCHours() * 60 + k.getUTCMinutes();
-    if (m < 8 * 60 + 45 || m > 15 * 60 + 46) return;   // 주간 선물장만
-    const t = `${String(k.getUTCHours()).padStart(2, "0")}:${String(k.getUTCMinutes()).padStart(2, "0")}`;
-    setPts(prev => {
-      const base = prev.length && (() => { try { return JSON.parse(localStorage.getItem(OI_KEY) ?? "null")?.date === kstDate(); } catch { return false; } })() ? prev : [];
-      const next = base.length && base[base.length - 1].t === t ? [...base.slice(0, -1), { t, oi: fut.oi, p: fut.price }] : [...base, { t, oi: fut.oi, p: fut.price }];
-      try { localStorage.setItem(OI_KEY, JSON.stringify({ date: kstDate(), pts: next })); } catch { /* 저장 실패 — 화면만 */ }
-      return next;
-    });
-  }, [fut?.oi, fut?.price]);   // eslint-disable-line react-hooks/exhaustive-deps
-  return pts;
+// 장중 기록(lib/futuresTape — 앱이 켜진 동안 어느 탭이든 1분마다)을 읽는다
+function useTape() {
+  const [v, setV] = useState(0);
+  useEffect(() => { const h = () => setV(x => x + 1); window.addEventListener(TAPE_EVENT, h); const id = setInterval(h, 60_000); return () => { window.removeEventListener(TAPE_EVENT, h); clearInterval(id); }; }, []);
+  return useMemo(() => ({ oi: loadOiTape(), fr: loadFrgnTape() }), [v]);   // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 const X0 = 8 * 60 + 45, X1 = 15 * 60 + 45;
@@ -71,10 +57,19 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
     return (t: string) => m.get(t) ?? fut?.price ?? 0;
   }, [price, fut?.price]);
   // 외국인 누적(억원) — 오늘 행만
-  const fs = useMemo(() => (flow?.date === today ? flow.points : [])
+  const tape = useTape();
+  // 네이버 시간별(20분 지연) 뒤를 한국투자 실시간 기록으로 잇는다 — 앱+한투 연동일 때만 기록이 있다
+  const naver = useMemo(() => (flow?.date === today ? flow.points : [])
     .filter(p => hm2m(p.time) >= X0 && hm2m(p.time) <= X1)
-    .map(p => ({ t: p.time, c: p.foreigners, v: (p.foreigners * pxAt(p.time) * MULT) / 1e8 })), [flow, today, pxAt]);
-  const oi = useOiSeries(fut);
+    .map(p => ({ t: p.time, c: p.foreigners, v: (p.foreigners * pxAt(p.time) * MULT) / 1e8, src: "naver" as const })), [flow, today, pxAt]);
+  const fs = useMemo(() => {
+    const lastT = naver.length ? naver[naver.length - 1].t : "00:00";
+    const kis = tape.fr.filter(p => p.t > lastT).map(p => ({ t: p.t, c: p.c, v: (p.c * pxAt(p.t) * MULT) / 1e8, src: "kis" as const }));
+    // 네이버가 하나도 없으면(장 초반) 한투 기록만으로
+    return [...naver, ...kis];
+  }, [naver, tape.fr, pxAt]);
+  const live = fs.length > 0 && fs[fs.length - 1].src === "kis";
+  const oi = tape.oi;
   const last = fs[fs.length - 1];
   // 장중 극값 — 지금이 음수면 최저, 양수면 최고(되돌린 비율 = 정리율)
   const ext = useMemo(() => {
@@ -110,7 +105,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
           <span className="font-bold text-gray-800">🌐 외국인 K200 선물</span>
-          <span className="text-[11px] text-gray-400">근월물 {fut?.month ?? ""} · 네이버 20분 지연 · 계약×선물가×25만</span>
+          <span className="text-[11px] text-gray-400">근월물 {fut?.month ?? ""} · {live ? <b className="text-emerald-600">● 한투 실시간(1분)</b> : "네이버 20분 지연"} · 계약×선물가×25만</span>
         </div>
         {!last ? <div className="text-gray-400 text-[12px] py-6 text-center">오늘 수급이 아직 없습니다(장 전·휴장).</div> : (<>
           <div className="mt-1 grid grid-cols-4 gap-1.5 text-center">
@@ -142,10 +137,10 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
       <div className="min-w-0">
         <div className="flex items-baseline gap-2">
           <span className="font-bold text-gray-800">📊 시장 미결제약정</span>
-          <span className="text-[11px] text-gray-400">근월물 전체(외국인만 아님) · 이 화면을 켜 둔 동안 1분마다 쌓음</span>
+          <span className="text-[11px] text-gray-400">근월물 전체(외국인만 아님) · 앱이 켜진 동안 1분마다 기록</span>
           {fut && fut.oi > 0 && <span className="ml-auto font-bold tabular-nums text-gray-800">{fut.oi.toLocaleString()} <span className={`text-[11px] ${tone(fut.oiChg)}`}>({fut.oiChg > 0 ? "+" : ""}{fut.oiChg.toLocaleString()})</span></span>}
         </div>
-        {oi.length < 2 ? <div className="text-gray-400 text-[12px] py-6 text-center">쌓는 중… (주간 선물장 08:45~15:45 동안, 켜 둔 시간부터)</div> : (<>
+        {oi.length < 2 ? <div className="text-gray-400 text-[12px] py-6 text-center">기록 중… (주간 선물장 08:45~15:45, 앱을 켜 둔 시간부터 — 아침에 켜 두면 장 시작부터 채워집니다)</div> : (<>
           <Chart series={oi.map(p => ({ t: p.t, v: p.oi }))} color="#7c3aed" height={120} />
           <Chart series={oi.map(p => ({ t: p.t, v: p.p }))} color="#9ca3af" height={60} />
           <svg viewBox="0 0 600 40" className="w-full" style={{ height: 40 }} preserveAspectRatio="none">

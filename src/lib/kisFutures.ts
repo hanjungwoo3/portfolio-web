@@ -164,3 +164,28 @@ export async function fetchKisKospi200Options(): Promise<KisOptionSummary | null
     maxCallOi: c.max, maxPutOi: p.max, range: [Math.min(c.lo, p.lo), Math.max(c.hi, p.hi)], time: `${k.slice(11, 16)}:00`, src: "한투",
   };
 }
+
+// ─── 코스피200 선물 외국인 순매수 — 한국투자 '시장별 투자자매매동향(시세)' FHPTJ04030000(HTS 0403 상단 표, 조회 시점 누적만) ───
+//   시간별 이력이 없어 앱이 1분마다 받아 쌓는다(lib/futuresTape). 네이버 시간별(20분 지연)의 뒤를 이 값으로 잇는다(사용자 2026-11-03 2단계).
+//   ⚠️ 선물 시장 코드가 공식 예제에 없다 — 후보를 차례로 물어 '선물다운' 응답(외국인 매도 수량이 계약 단위 = 수백만 미만)을 고르고 기억한다.
+const FUT_MKT_KEY = "kis_fut_investor_mkt";
+const FUT_MKT_CANDIDATES: [string, string][] = [["K2I", "F001"], ["999", "F001"], ["K2I", "S001"], ["101", "F001"], ["F", "F001"]];
+export interface KisFutInvestor { frgnQty: number; frgnAmtEok?: number; mkt: string }
+export async function fetchKisK200FutInvestor(): Promise<KisFutInvestor | null> {
+  let saved: string | null = null;
+  try { saved = localStorage.getItem(FUT_MKT_KEY); } catch { /* noop */ }
+  const order = saved ? [saved.split("|") as [string, string], ...FUT_MKT_CANDIDATES.filter(c => c.join("|") !== saved)] : FUT_MKT_CANDIDATES;
+  for (const [a, b] of order) {
+    try {
+      const { body } = await kisGet<{ rt_cd?: string; output?: Record<string, string>[] | Record<string, string> }>(
+        "/uapi/domestic-stock/v1/quotations/inquire-investor-time-by-market", "FHPTJ04030000", { FID_INPUT_ISCD: a, FID_INPUT_ISCD_2: b });
+      const row = Array.isArray(body.output) ? body.output[0] : body.output;
+      if (!row) continue;
+      const sell = num(row.frgn_seln_vol), qty = num(row.frgn_ntby_qty), amt = num(row.frgn_ntby_tr_pbmn);
+      if (!(sell > 0) || sell > 3_000_000 || !Number.isFinite(qty)) continue;   // 주식(수억 주)이 아니라 선물(계약)이어야
+      try { localStorage.setItem(FUT_MKT_KEY, `${a}|${b}`); } catch { /* noop */ }
+      return { frgnQty: qty, frgnAmtEok: Number.isFinite(amt) ? amt / 100 : undefined, mkt: `${a}|${b}` };   // 거래대금 단위 백만원 → 억원
+    } catch { /* 다음 후보 */ }
+  }
+  return null;
+}
