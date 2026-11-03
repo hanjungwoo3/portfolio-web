@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
-import { SectorTabBar, useSectorTab } from "./SectorTabBar";
+import { SectorTabBar, sectorAvg, useSectorTab } from "./SectorTabBar";
 import { useRecentDisc } from "../lib/recentDisclosures";
 import { DiscTags } from "./DiscTags";
 import { SobuGrid } from "./SobuGrid";
@@ -324,14 +324,26 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       {/* 차트 기간(3개월|24시간)은 그룹 칩 줄 끝에 — 스크롤해도 늘 보이는 자리(사용자 결정 2026-10-20) */}
       {page === "sobu"
         ? <div className="sticky z-30 bg-gray-50 pg-bg py-1.5" style={{ top: navStickyTop }}>
-            <SectorTabBar sections={PAGE_SECTIONS} active={sectorTab} onChange={setSectorTab} trailing={<ChartRangeToggle />} />
+            {/* 좁은 화면은 가로 탭, 넓은 화면(lg)은 아래 왼쪽 세로 탭(사용자 2026-11-03 "탭을 왼쪽에") — 여기엔 차트 기간만 */}
+            <div className="lg:hidden">
+              <SectorTabBar sections={PAGE_SECTIONS} active={sectorTab} onChange={setSectorTab} trailing={<ChartRangeToggle />}
+                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
+            </div>
+            <div className="hidden lg:flex justify-end"><ChartRangeToggle /></div>
           </div>
         : <GroupNavBar items={navItems} idPrefix="usidx-"
                    stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin}
                    trailing={<ChartRangeToggle />} />}
       {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
       {/* 다른 탭과 같은 전체 폭 — 예전엔 lg 에서 75% 로 줄여 PC 에서만 좁아 보였다 */}
-      <div className="space-y-4">
+      <div className={page === "sobu" ? "lg:flex lg:items-start lg:gap-2" : ""}>
+      {page === "sobu" && (
+        <aside className="hidden lg:block sticky shrink-0 w-[68px]" style={{ top: navStickyTop + 44 }}>
+          <SectorTabBar vertical sections={PAGE_SECTIONS} active={sectorTab} onChange={setSectorTab}
+                        avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
+        </aside>
+      )}
+      <div className={`space-y-4 ${page === "sobu" ? "lg:flex-1 lg:min-w-0" : ""}`}>
         {/* 동시호가 예상 순위 — 앱+한국투자, 동시호가 동안만(사용자 2026-11-02) */}
         <KisExpRankBox />
         {T0_SECTIONS.map((section) => (
@@ -372,7 +384,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               <RotationTab embedded extrasOnly onOpenValuation={(t, n) => onOpenValuation?.(t, n ?? "")} />
             )}
                 {section.render === "sobuGrid" && (
-                  <SobuGrid rows={section.rows} labels={section.rowLabels ?? []} leadByRow={section.leadByRow ?? []}
+                  <SobuGrid rows={section.rows} labels={section.rowLabels ?? []} leadByRow={section.leadByRow ?? []} etfs={section.etfs}
                             quote={sym => { const q = usMap.get(sym); return q ? { price: q.price, pct: displayPctOf(sym, q) ?? q.pct } : undefined; }}   /* 장 전·마감 뒤엔 마지막 정규장 % — 다른 지수 카드와 같은 규칙(자정 지나 0.00% 였다) */ dimOf={dimOf} />
                 )}
                 {section.render === "sectorFlow" && (
@@ -831,6 +843,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             )))}
           </div>
         ))}
+      </div>
       </div>
 
       {/* 시장 매매동향 모달 — KOSPI/KOSDAQ 카드 📊 클릭 시 */}

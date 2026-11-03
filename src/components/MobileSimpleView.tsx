@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
-import { SectorTabBar, useSectorTab } from "./SectorTabBar";
+import { SectorTabBar, sectorAvg, useSectorTab } from "./SectorTabBar";
 import { useRecentDisc } from "../lib/recentDisclosures";
 import { DiscTags } from "./DiscTags";
 import { SobuGrid } from "./SobuGrid";
@@ -1885,7 +1885,8 @@ export function MobileSimpleView() {
         return (
           <div className="px-3 py-2 space-y-3">
             {isSectorPage
-              ? <SectorTabBar sections={pageSecs} active={sectorTabM} onChange={setSectorTabM} compact />
+              ? <SectorTabBar sections={pageSecs} active={sectorTabM} onChange={setSectorTabM} compact
+                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
               : <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
                              stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />}
             <KisExpRankBox compact />
@@ -1932,7 +1933,7 @@ export function MobileSimpleView() {
                   <RotationTab embedded extrasOnly onOpenValuation={t => setValuationTicker(t)} />
                 )}
                 {section.render === "sobuGrid" && (
-                  <SobuGrid rows={section.rows} labels={section.rowLabels ?? []} leadByRow={section.leadByRow ?? []}
+                  <SobuGrid rows={section.rows} labels={section.rowLabels ?? []} leadByRow={section.leadByRow ?? []} etfs={section.etfs}
                             quote={sym => { const q = usMap.get(sym); return q ? { price: q.price, pct: displayPctOf(sym, q) ?? q.pct } : undefined; }}   /* 장 전·마감 뒤엔 마지막 정규장 % — 다른 지수 카드와 같은 규칙(자정 지나 0.00% 였다) */ dimOf={dimOf} />
                 )}
                 {section.render === "sectorFlow" && (

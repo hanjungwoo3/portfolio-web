@@ -20,8 +20,9 @@ const NAME = new Map(US_PAIRS.map(p => [p.symbol, p.name]));
 const eok = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v) >= 100 ? Math.round(Math.abs(v)).toLocaleString() : Math.abs(v).toFixed(1)}억`;
 const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500");
 
-export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
+export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs }: {
   rows: string[][]; labels: string[]; leadByRow: number[];
+  etfs?: string[];   // 업종 ETF — 칸들 위 한 줄
   quote: (sym: string) => { price: number; pct: number } | undefined;
   dimOf?: (sym: string) => boolean;   // 장 마감 흐림 — 지수 탭 카드와 같은 판정(dashboardCardDim, 설정 따름)
 }) {
@@ -116,6 +117,16 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf }: {
   const ndt = (dt: string) => `${+dt.slice(4, 6)}/${+dt.slice(6, 8)} ${dt.slice(8, 10)}:${dt.slice(10, 12)}`;
   return (
     <div className="space-y-2">
+    {etfs && etfs.length > 0 && (
+      <div className="flex items-center gap-1.5 overflow-x-auto">
+        <span className="shrink-0 text-[11px] font-bold text-violet-700 px-1">ETF</span>
+        {etfs.map(sym => { const q = quote(sym); return (
+          <div key={sym} className="shrink-0 w-[150px] sm:w-[170px]">
+            <QuoteCard code={sym.slice(0, 6)} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} dim={dimOf?.(sym)} className="w-full h-[72px]" />
+          </div>
+        ); })}
+      </div>
+    )}
     <div className={`grid grid-cols-1 md:grid-cols-2 ${boxes.length === 3 ? "xl:grid-cols-3" : "xl:grid-cols-4"} gap-2`}>   {/* 칸 수만큼 화면을 나눈다(3단계 업종은 3등분) */}
       {boxes.map(b => {
         // 평균·▲▼ 은 흐린 종목(장 안 열림·체결 없음 — 값이 지난 정규장) 빼고(사용자 2026-11-03). 다 흐리면(장 마감 뒤) 전부로

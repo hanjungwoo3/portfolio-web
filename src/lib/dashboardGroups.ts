@@ -37,6 +37,7 @@ export interface DashboardSection {
   // 카드 대신 다른 블록으로 그리는 섹션. "sectorFlow" 면 ETF 랭킹의 '섹터별 흐름' 을 넣는다.
   //   랭킹 스냅샷이 없으면(캐시 없음·조회 실패) rows 의 고정 카드로 폴백한다.
   render?: "sectorFlow" | "etfTop" | "rotation" | "sobuGrid";
+  etfs?: string[];   // 업종 페이지 위쪽 국내 업종 ETF 카드(sobuGrid, 사용자 2026-11-03)
   // 카드 오른쪽 아래 책갈피 — "이 종목이 이 그룹에서 무슨 역할인지". 심볼 → 짧은 라벨.
   //   **그룹별**로 둔다: 마이크론은 반도체 그룹에선 태그가 없고 AI 단계 줄에서만 '반도체' 다.
   tags?: Record<string, string>;
@@ -488,7 +489,7 @@ function sectionMap(): Record<string, DashboardSection> {
       // 소부장 — 단계별(기판 → 전공정 → 후공정 → 소재 → 부품). 줄마다 해외 대장주(굵은 카드 ➜) 다음에 국내 종목(사용자 2026-11-02
       //   "지수(반도체 수급)처럼 소부장도 페이지 하나", "기판·전공정·후공정 등으로"). 해외 대장주는 순환매 실측 그대로 —
       //   국내 소부장은 미국 전공정 장비(램리서치·AMAT)에 가장 강하게 붙는다(+0.35~0.43), 일본은 같은 시간대 장중 비교용.
-      id: "sobuflow", short: "소부장",
+      id: "sobuflow", etfs: ["455850.KS", "471990.KS", "0239Z0.KS", "0254H0.KS"], short: "소부장",
       label: "🛠 소부장 — 단계별 해외 대장주 ➜ 국내",
       render: "sobuGrid",   // 한 줄씩이 아니라 4칸(기판·전공정·후공정·소재·부품) — components/SobuGrid
       note: "칸마다 테두리 카드 = 해외 대장주(미국은 간밤, 일본은 지금 장중). 칸 제목 옆 = 국내 종목 평균 등락률.",
@@ -507,7 +508,7 @@ function sectionMap(): Record<string, DashboardSection> {
       // 2차전지·ESS — 소부장 페이지와 같은 4칸(사용자 2026-11-03 "소부장처럼 이차전지 ESS 도"). 줄마다 해외 대장주 ➜ 국내.
       //   셀·ESS = 테슬라(ESS 메가팩)·플루언스(ESS 1위) ➜ 셀 3사 + ESS 함체·냉각 / 양극재 = 앨버말(리튬) ➜ 양극재·전구체
       //   소재 = SQM·LIT(리튬 ETF) ➜ 분리막·동박·전해액·음극 / 장비·부품 = 국내만(해외 대장 없음)
-      id: "battflow", short: "2차전지",
+      id: "battflow", etfs: ["305720.KS", "364980.KS", "461950.KS", "457990.KS"], short: "2차전지",
       label: "🔋 2차전지·ESS — 단계별 해외 대장주 ➜ 국내",
       render: "sobuGrid",
       note: "칸마다 테두리 카드 = 해외 대장주(미국은 간밤). 칸 제목 옆 = 국내 종목 평균 등락률(흐린 종목 제외).",
@@ -523,7 +524,7 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     // ── 지수(업종) 탭의 나머지 업종 — 소부장·2차전지와 같은 4칸(사용자 2026-11-03 "조선/방산/원전·화장품도"). 해외 대장주 ➜ 국내
     {
-      id: "shipflow", short: "조선", label: "🚢 조선 — 단계별 ➜ 국내", render: "sobuGrid",
+      id: "shipflow", etfs: ["466920.KS", "494670.KS", "0115D0.KS", "0141S0.KS"], short: "조선", label: "🚢 조선 — 단계별 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 미국 해군 조선(헌팅턴잉걸스, 간밤). 칸 제목 옆 = 국내 종목 평균 등락률(흐린 종목 제외).",
       lead: 1, leadByRow: [1, 0, 0],
       rowLabels: ["조선사", "엔진·기자재", "보냉·배관"],
@@ -534,7 +535,7 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     {
-      id: "defflow", short: "방산", label: "🛡 방산 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "defflow", etfs: ["449450.KS", "0080G0.KS", "463250.KS", "490480.KS"], short: "방산", label: "🛡 방산 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 미국 방산 대장(록히드마틴·RTX·노스롭, 간밤).",
       lead: 1, leadByRow: [2, 1, 0],
       rowLabels: ["체계(완성품)", "전자·항공", "탄약·부품"],
@@ -545,7 +546,7 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     {
-      id: "nucflow", short: "원전", label: "⚛️ 원전 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "nucflow", etfs: ["433500.KS", "0098F0.KS", "0091P0.KS", "434730.KS"], short: "원전", label: "⚛️ 원전 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 미국 원전 대장(컨스텔레이션·BWXT·카메코·SMR, 간밤).",
       lead: 1, leadByRow: [1, 1, 3],
       rowLabels: ["주기기·건설", "설계·정비", "부품·SMR"],
@@ -556,7 +557,7 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     {
-      id: "beautyflow", short: "화장품", label: "💄 화장품 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "beautyflow", etfs: ["228790.KS", "479850.KS", "0008T0.KS"], short: "화장품", label: "💄 화장품 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 해외 화장품(e.l.f.·에스티로더 간밤, 시세이도 장중).",
       lead: 1, leadByRow: [3, 0, 0],
       rowLabels: ["브랜드", "ODM(제조)", "유통·용기"],
