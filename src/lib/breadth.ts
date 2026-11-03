@@ -42,3 +42,31 @@ export function readAsia(k: number, others: number[]): { text: string; tone: Bre
   return k >= 0 ? { text: "아시아가 함께 오릅니다 — 바깥(미국·글로벌) 영향이 큽니다.", tone: "good" }
                 : { text: "아시아가 함께 내립니다 — 바깥(미국·글로벌) 영향이 큽니다.", tone: "bad" };
 }
+
+// 미국 투심 셋 — 수준 구간 + 크게 움직인 날만 꼬리말(사용자 2026-11-03 "공포/탐욕·VIX·MOVE 설명도, 요약만")
+//   VIX(S&P500 옵션 변동성, 미국판 공포지수): 15 아래 안정 · 20 이상 불안 · 30 이상 공포 — 하루 ±10% 이상이면 꼬리말
+export function readVix(level: number, chgPct: number): { text: string; tone: BreadthTone } {
+  const dir = chgPct >= 10 ? " — 오늘 급등" : chgPct <= -10 ? " — 오늘 급락" : "";
+  if (level >= 30) return { text: `VIX 공포 구간(30 이상)${dir}`, tone: "bad" };
+  if (level >= 20) return { text: `VIX 불안(20 이상)${dir}`, tone: "warn" };
+  if (level >= 15) return { text: `VIX 보통${dir}`, tone: "flat" };
+  return { text: `VIX 안정(15 아래)${dir}`, tone: "good" };
+}
+//   MOVE(미 국채 옵션 변동성, 채권판 공포지수): 80 아래 안정 · 100 이상 불안 · 120 이상 공포 — 하루 ±5% 이상이면 꼬리말
+export function readMove(level: number, chgPct: number): { text: string; tone: BreadthTone } {
+  const dir = chgPct >= 5 ? " — 오늘 급등" : chgPct <= -5 ? " — 오늘 급락" : "";
+  if (level >= 120) return { text: `채권 변동성(MOVE) 공포 구간${dir}`, tone: "bad" };
+  if (level >= 100) return { text: `채권 변동성(MOVE) 불안${dir}`, tone: "warn" };
+  if (level >= 80) return { text: `채권 변동성(MOVE) 보통${dir}`, tone: "flat" };
+  return { text: `채권 변동성(MOVE) 안정${dir}`, tone: "good" };
+}
+//   CNN 공포·탐욕(0~100): 25 아래 극단적 공포 · 45 아래 공포 · 55 이하 중립 · 75 이하 탐욕 · 그 위 극단적 탐욕 — 하루 ±5점 이상이면 꼬리말.
+//   극단적 공포는 역발상으로 '바닥 신호' 로 읽기도 해 tone 은 calm(하늘)
+export function readFearGreed(score: number, chg: number): { text: string; tone: BreadthTone } {
+  const dir = chg >= 5 ? " — 오늘 탐욕 쪽으로" : chg <= -5 ? " — 오늘 공포 쪽으로" : "";
+  if (score < 25) return { text: `시장 심리 극단적 공포${dir}`, tone: "calm" };
+  if (score < 45) return { text: `시장 심리 공포${dir}`, tone: "bad" };
+  if (score <= 55) return { text: `시장 심리 중립${dir}`, tone: "flat" };
+  if (score <= 75) return { text: `시장 심리 탐욕${dir}`, tone: "good" };
+  return { text: `시장 심리 극단적 탐욕${dir}`, tone: "warn" };
+}
