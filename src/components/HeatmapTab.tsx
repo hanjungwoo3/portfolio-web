@@ -291,7 +291,7 @@ export function HeatmapTab() {
     const headers: { sec: string; x: number; y: number; w: number; h: number; avg?: number }[] = [];
     // 그룹 칸 — 머리 18px(글자 크게) + 칸 사이 3px 틈 + 테두리(사용자 2026-11-03 "그룹을 잘 확인 가능하게, 그룹명 키우고 경계 명확히")
     const HEAD = 19, GAP = 5;   // 테두리 4px + 안쪽 틈(사용자 2026-11-03 "테두리 폭 더 넓게")
-    const M = 1;                 // 그룹 사이 바깥 간격(양쪽 1px = 2px — 사용자 2026-11-03 "너무 띄웠어", "조금 더 좁게")
+    const M = 0.5;               // 그룹 사이 바깥 간격(양쪽 0.5px = 1px — 사용자 2026-11-03 "너무 띄웠어" → "더 좁게")
     const shrink = (r: { x: number; y: number; w: number; h: number }) => ({ x: r.x + M, y: r.y + M, w: Math.max(0, r.w - 2 * M), h: Math.max(0, r.h - 2 * M) });
     const avgOf = (list: HeatmapItem[]) => list.length ? list.reduce((a, it) => a + colorDef.field(it), 0) / list.length : undefined;
     if (groupMode === "none") {
