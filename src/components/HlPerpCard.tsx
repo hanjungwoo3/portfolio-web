@@ -42,7 +42,11 @@ export function HlPerpCard({ coin, name }: Props) {
   //   오른쪽 절반 기준선 = 24시간 전 가격, 왼쪽 = 48시간 전. 위 세션 자료는 '15:30 후 %' 한 줄에만 쓴다
   const { data: two48 } = useQuery({
     queryKey: ["hl-perp-48h", coin],
-    queryFn: async () => { const d = await fetchHlPerpTwoDay(`xyz:${coin}`); return d ? { ...d, markXs: (d.markXs ?? []).filter(m => m.close || m.x === 0.5) } : d; },   // 24시간 전(점선) + 한국 정규장 종가 15:30(실선, 사용자 2026-11-03)
+    queryFn: async () => { const d = await fetchHlPerpTwoDay(`xyz:${coin}`); if (!d) return d;
+      // 종가 실선은 가장 최근 한국 정규장 마감(15:30) 하나만(사용자 2026-11-03 "오늘 것만")
+      const closes = (d.markXs ?? []).filter(m => m.close);
+      const lastClose = closes.length ? closes.reduce((a, m) => (m.x > a.x ? m : a)) : undefined;
+      return { ...d, markXs: [{ x: 0.5 }, ...(lastClose ? [lastClose] : [])] }; },   // 24시간 전(점선) + 한국 정규장 종가 15:30(실선, 사용자 2026-11-03)
     enabled: day, refetchInterval: day ? 60_000 : false, staleTime: 30_000,
   });
   const { data: spark } = useQuery({
