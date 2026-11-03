@@ -394,6 +394,15 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
 
   return (
     <div className="flex flex-col gap-1.5 p-2 lg:min-h-[calc(100vh-150px)] text-[12px] bg-gray-50 pg-bg">
+      {/* 해외 선물·메모리 현물·미국 반도체 — 맨 위(사용자 2026-11-04) */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 shrink-0">
+        <ChipBox title="해외 선물 (24h)" items={[
+          ...(["SOX=F", "NQ=F"].map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.symbol === "SOX=F" ? "SOX선물" : "나스닥선물", pct: x.pct }))),
+          ...PERPS.map(([c, n]) => ({ k: c, name: n, pct: (perps?.get(c) as HlPerp | undefined)?.changePct })),
+        ]} />
+        <ChipBox title="메모리 현물" items={MEM_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.pct }))} />
+        <ChipBox title="미국 반도체 (간밤)" items={US_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.regularPct ?? x.pct }))} />
+      </div>
       {/* ① 시세 */}
       <div className="grid grid-cols-2 lg:grid-cols-9 gap-1.5 auto-rows-[118px] shrink-0">
         {stocks.map(s => {
@@ -445,15 +454,6 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       {/* 외국인 K200 선물 — 누적 순매수·정리율·15분 변화 + 시장 미결제약정(사용자 2026-11-03) */}
       <ForeignFuturesPanel flow={ff} fut={fut} spotFlow={kf} price={futToday} />
 
-      {/* ④ 해외 선물·현물·미국 반도체 */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 shrink-0">
-        <ChipBox title="해외 선물 (24h)" items={[
-          ...(["SOX=F", "NQ=F"].map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.symbol === "SOX=F" ? "SOX선물" : "나스닥선물", pct: x.pct }))),
-          ...PERPS.map(([c, n]) => ({ k: c, name: n, pct: (perps?.get(c) as HlPerp | undefined)?.changePct })),
-        ]} />
-        <ChipBox title="메모리 현물" items={MEM_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.pct }))} />
-        <ChipBox title="미국 반도체 (간밤)" items={US_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.regularPct ?? x.pct }))} />
-      </div>
     </div>
   );
 }
