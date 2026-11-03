@@ -604,13 +604,12 @@ function sectionMap(): Record<string, DashboardSection> {
   return Object.fromEntries(sections.map(s => [s.id, s]));
 }
 
-export type DashboardPage = "day" | "night" | "rot" | "sobu";
+export type DashboardPage = "day" | "night" | "sobu";
 // 지수 탭 셋 — 메뉴의 '📈 지수' 드롭다운에 들어간다. PC·모바일이 이 라벨 한 벌을 쓴다.
 export const DASHBOARD_PAGES: { key: DashboardPage; emoji: string; tab: string; hint: string }[] = [
   { key: "day",   emoji: "🇰🇷", tab: "지수(한국/주간)", hint: "한국장 · 섹터 대장주 + 미국 지수선물" },
   { key: "night", emoji: "🇺🇸", tab: "지수(미국/야간)", hint: "미국장 · AI 하드/소프트 · 빅테크·방어 + 한국 야간선물" },
-  { key: "rot",   emoji: "🔄", tab: "지수(순환매)", hint: "간밤 미국 ➜ 오늘 한국 — 반도체 지수·일본 반도체·AI 순환매(반도체·전력·원자력·2차전지·방산·로봇)" },
-  { key: "sobu",  emoji: "🏭", tab: "지수(업종)", hint: "업종별 단계 — 소부장·2차전지·조선·방산·원전·바이오·로봇·금융·화장품(안에서 탭으로)" },
+  { key: "sobu",  emoji: "🏭", tab: "지수(업종)", hint: "한눈에(간밤 미국 ➜ 오늘 한국 순환매·반도체 지수·ETF TOP·한미 섹터) + 업종별 단계 — 소부장·2차전지·조선·방산·원전·바이오·로봇·금융·화장품" },
 ];
 
 // 페이지별 구성 — **그 시간에 필요한 걸 다**. 중복 허용(한 페이지만 봐도 되게).
@@ -630,10 +629,10 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   //   ETF 등락 TOP10 은 한국 탭에서 옮겨 와 AI 순환매 바로 아래에 — 위 = 간밤 미국으로 본 예상, 아래 = 오늘 실제로 돈이 간 테마(2026-10-12).
   //   한·미 섹터도 한국·미국 탭에서 옮겨 와 ETF TOP 아래에 — 둘 다 '어느 분야로 돈이 가나'(2026-10-12).
   //   환율·금리·투심과 선물은 뺐다 — 한국·미국 탭 위쪽에 있다(사용자 결정 2026-10-12).
-  rot:   ["semi", "jpsemi", "rotflow", "etftop", "sector"],
   // 소부장 — 단계별 한 블록만(사용자 2026-11-02, 주간 시장 줄은 뺐다 "빼도 될 거 같아")
   // 지수(업종) — 업종마다 한 블록, 페이지 안 탭으로 하나씩(사용자 2026-11-03 "소부장·ESS 를 내부 탭으로")
-  sobu:  ["sobuflow", "battflow", "shipflow", "defflow", "nucflow", "bioflow", "robotflow", "finflow", "beautyflow"],
+  //   + 옛 지수(순환매) 페이지를 '한눈에' 탭으로 합쳤다(사용자 2026-11-03 "순환매와 업종이 비슷" → 1안) — 아래 SECTOR_OVERVIEW_IDS
+  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "bioflow", "robotflow", "finflow", "beautyflow"],
   // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
   //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)
@@ -665,9 +664,11 @@ function isKrNightNow(): boolean {
 // PC 지수 탭 키 — Tabs.tsx 의 US_MARKET_TAB_KEY · INDEX_NIGHT_TAB_KEY · INDEX_ROT_TAB_KEY 와 **같은 문자열**.
 //   (lib 이 컴포넌트를 import 하지 않게 문자열로 둔다 — 어긋나지 않게 테스트가 대조한다)
 //   폐지된 탭(미국순환 → 미국, 반도체 → 순환매, 대장주 → 한국)은 합쳐진 페이지로 보낸다.
-export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-rot__", "__idx-sobu__"]);
+export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-sobu__"]);
+// 지수(업종) 의 '한눈에' 탭에 함께 보이는 블록(옛 순환매 페이지)
+export const SECTOR_OVERVIEW_IDS = new Set<string>(["semi", "jpsemi", "rotflow", "etftop", "sector"]);
 export function indexPageOf(key: string): DashboardPage {
-  return key === "__idx-night__" || key === "__idx-us__" ? "night" : key === "__idx-rot__" || key === "__idx-semi__" ? "rot" : key === "__idx-sobu__" || key === "__idx-batt__" ? "sobu" : "day";   // 옛 2차전지 페이지 → 업종
+  return key === "__idx-night__" || key === "__idx-us__" ? "night" : key === "__idx-rot__" || key === "__idx-semi__" || key === "__idx-sobu__" || key === "__idx-batt__" ? "sobu" : "day";   // 옛 순환매·반도체·2차전지 → 업종   // 옛 2차전지 페이지 → 업종
 }
 
 // 처음 열 때·탭 클릭 시 페이지 — 시간으로. 한국 07~20시(NXT 애프터 끝까지)는 주간, 그 외는 야간(사용자 요청 2026-10-22, 옛 18시).

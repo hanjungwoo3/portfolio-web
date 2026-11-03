@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
-import { SectorTabBar, sectorAvg, useSectorTab } from "./SectorTabBar";
+import { SectorTabBar, sectorAvg, sectionsForTab, sectorTabsOf, useSectorTab } from "./SectorTabBar";
 import { useRecentDisc } from "../lib/recentDisclosures";
 import { DiscTags } from "./DiscTags";
 import { SobuGrid } from "./SobuGrid";
@@ -146,8 +146,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   //   주간·야간·반도체 중 어느 페이지인지는 메뉴 탭이 정한다(page).
   const PAGE_SECTIONS = buildDashboardPage(page);
   // 지수(업종) — 업종 블록 중 하나만(페이지 안 탭, 사용자 2026-11-03)
-  const [sectorTab, setSectorTab] = useSectorTab(page === "sobu" ? PAGE_SECTIONS : []);
-  const T0_SECTIONS = page === "sobu" ? PAGE_SECTIONS.filter(s => s.id === sectorTab) : PAGE_SECTIONS;
+  const SECTOR_TABS = page === "sobu" ? sectorTabsOf(PAGE_SECTIONS) : [];
+  const [sectorTab, setSectorTab] = useSectorTab(SECTOR_TABS);
+  const T0_SECTIONS = page === "sobu" ? sectionsForTab(PAGE_SECTIONS, sectorTab) : PAGE_SECTIONS;
 
   // T0 카드 sparkline — 일부 심볼 (SOX=F) 은 Yahoo 가 historical 안 줌 → 가장 가까운 현물 차트로 폴백
   const SPARKLINE_FALLBACK: Record<string, string> = {
@@ -326,7 +327,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
         ? <div className="lg:hidden sticky z-30 bg-gray-50 pg-bg py-1.5" style={{ top: navStickyTop }}>
             {/* 좁은 화면은 가로 탭, 넓은 화면(lg)은 아래 왼쪽 세로 탭(사용자 2026-11-03 "탭을 왼쪽에") — 여기엔 차트 기간만 */}
             <div className="lg:hidden">
-              <SectorTabBar sections={PAGE_SECTIONS} active={sectorTab} onChange={setSectorTab} trailing={<ChartRangeToggle />}
+              <SectorTabBar sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab} trailing={<ChartRangeToggle />}
                             avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
             </div>
           </div>
@@ -339,7 +340,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       {page === "sobu" && (
         <aside className="hidden lg:flex lg:flex-col lg:gap-2 sticky shrink-0 w-[88px]" style={{ top: navStickyTop + 8 }}>   {/* 위 빈 줄 없이 — 차트 기간 단추도 왼쪽 줄 맨 위(사용자 2026-11-03) */}
           <ChartRangeToggle small />
-          <SectorTabBar vertical sections={PAGE_SECTIONS} active={sectorTab} onChange={setSectorTab}
+          <SectorTabBar vertical sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab}
                         avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
         </aside>
       )}
@@ -389,7 +390,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 )}
                 {section.render === "sectorFlow" && (
               <TicsSectorBoard onOpenValuation={onOpenValuation}
-                                krClosed={page === "night" || page === "rot"} />
+                                krClosed={page !== "day"} />
             )}
             {(arr => !section.pairRows ? arr : (
               // 짝 줄 — 상자 둘을 좌우로 **붙여서**. 상자 폭은 카드 수에 비례(flex-grow), 남는 자리는 오른쪽 빈칸(한 줄 8장 기준)

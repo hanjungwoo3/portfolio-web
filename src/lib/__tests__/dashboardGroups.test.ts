@@ -6,7 +6,7 @@ import { STAGES } from "../rotation";
 
 // 지수 탭 — 나라가 아니라 **지금 움직이는 시장** 으로 나눈 세 페이지.
 //   ⚠️ 기대값을 코드에 맞춰 베끼지 말 것. 각 테스트 이름의 **의도**가 먼저다.
-const PAGES: DashboardPage[] = ["day", "night", "rot", "sobu"];
+const PAGES: DashboardPage[] = ["day", "night", "sobu"];
 const ids = (p: DashboardPage) => buildDashboardPage(p).map(s => s.id);
 
 describe("지수 탭 페이지 구성", () => {
@@ -66,11 +66,11 @@ describe("지수 탭 페이지 구성", () => {
   });
 
   it("순환매 = 반도체 지수 → 일본 반도체 → AI 순환매 → ETF TOP → 한·미 섹터 — 환율·선물은 한국·미국 탭에 (2026-10-12)", () => {
-    expect(ids("rot")).toEqual(["semi", "jpsemi", "rotflow", "etftop", "sector"]);
+    expect(ids("sobu").slice(0, 5)).toEqual(["semi", "jpsemi", "rotflow", "etftop", "sector"]);   // 옛 순환매 = 업종의 한눈에
   });
 
   it("순환매 = 큰 블록 하나에 단계별 줄 11개(AI 8 + 2차전지 + 방산 + 로봇) — 줄마다 책갈피 이름, 앞 2~3칸 미국 대장주, 나머지 한국 쪽", () => {
-    const g = buildDashboardPage("rot").find(s => s.id === "rotflow")!;
+    const g = buildDashboardPage("sobu").find(s => s.id === "rotflow")!;
     expect(g.note).toBeTruthy();                                  // 미국→한국 영향이라는 설명 한 줄
     expect(g.rows).toHaveLength(11);
     expect(g.rowLabels).toEqual(["반도체", "전공정", "후공정", "CPU·기판", "광통신", "전력기기", "원자력", "친환경", "2차전지", "방산", "로봇"]);
@@ -87,7 +87,7 @@ describe("지수 탭 페이지 구성", () => {
   });
 
   it("순환매 카드 줄과 순환매 통계(lib/rotation STAGES)가 같은 단계·같은 대장주·같은 종목이다 (어긋나면 카드와 통계가 딴소리)", () => {
-    const g = buildDashboardPage("rot").find(s => s.id === "rotflow")!;
+    const g = buildDashboardPage("sobu").find(s => s.id === "rotflow")!;
     expect(g.rowLabels).toEqual(STAGES.map(st => st.label));
     g.rows.forEach((row, i) => {
       const n = g.leadByRow?.[i] ?? g.lead!;
@@ -103,7 +103,7 @@ describe("지수 탭 페이지 구성", () => {
   });
 
   it("반도체 그룹엔 순환매 블록에 있는 종목이 없다 (같은 카드가 한 화면에 두 번 나오지 않게)", () => {
-    const page = buildDashboardPage("rot");
+    const page = buildDashboardPage("sobu");
     const rot = new Set(page.find(s => s.id === "rotflow")!.rows.flat());
     for (const id of ["semi", "jpsemi"]) expect(page.find(s => s.id === id)!.rows.flat().filter(x => rot.has(x))).toEqual([]);
   });
@@ -161,13 +161,13 @@ describe("대장주 줄 정렬", () => {
 
 describe("지수 탭 키 ↔ 페이지", () => {
   it("lib 의 키 문자열이 Tabs.tsx 상수와 같다 (어긋나면 탭을 눌러도 엉뚱한 페이지가 뜬다)", () => {
-    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_ROT_TAB_KEY, INDEX_SOBU_TAB_KEY].sort());
+    expect([...INDEX_GROUP_KEYS].sort()).toEqual([US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, INDEX_SOBU_TAB_KEY].sort());
     expect(indexPageOf(INDEX_LEADERS_TAB_KEY)).toBe("day");   // 폐지된 대장주 탭 — 주간으로
     expect(indexPageOf(US_MARKET_TAB_KEY)).toBe("day");
     expect(indexPageOf(INDEX_NIGHT_TAB_KEY)).toBe("night");
     expect(indexPageOf(INDEX_US_TAB_KEY)).toBe("night");   // 폐지된 미국순환 탭 — 미국(옛 야간)으로
-    expect(indexPageOf(INDEX_SEMI_TAB_KEY)).toBe("rot");     // 폐지된 반도체 탭 — 지금은 순환매로
-    expect(indexPageOf(INDEX_ROT_TAB_KEY)).toBe("rot");
+    expect(indexPageOf(INDEX_SEMI_TAB_KEY)).toBe("sobu");     // 폐지된 반도체 탭 — 지금은 순환매로
+    expect(indexPageOf(INDEX_ROT_TAB_KEY)).toBe("sobu");
   });
 });
 
@@ -195,7 +195,7 @@ describe("지수(미국) — 옛 야간 + 미국순환 (2026-10-12)", () => {
     expect(n).not.toContain("usetf");
   });
   it("뺀 블록의 종목은 미국순환 줄로 옮겼다 — 빠진 카드가 없다", () => {
-    const all = new Set([...buildDashboardPage("night"), ...buildDashboardPage("rot")].flatMap(s => s.rows.flat()));
+    const all = new Set([...buildDashboardPage("night"), ...buildDashboardPage("sobu")].flatMap(s => s.rows.flat()));
     for (const sym of ["GOOGL", "META", "AMZN", "NFLX", "NVDA", "AVGO", "CRWV", "NBIS", "MSFT", "ORCL", "PLTR", "CRM", "TSLA", "SPCX", "AAPL", "DELL",
                        "TLT", "SOXX", "TQQQ", "SOXL", "SCHD", "JEPQ"]) expect(all.has(sym)).toBe(true);
   });

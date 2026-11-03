@@ -1,9 +1,20 @@
 // 지수(업종) 페이지 안 탭 — 소부장·2차전지·조선·방산·원전·화장품 중 하나만 보여 준다(사용자 2026-11-03 "내부 탭으로").
 //   PC·모바일이 같이 쓴다. 고른 탭은 이 기기에 기억(localStorage).
 import { useState } from "react";
-import type { DashboardSection } from "../lib/dashboardGroups";
+import { SECTOR_OVERVIEW_IDS, type DashboardSection } from "../lib/dashboardGroups";
 
 const KEY = "portfolio_sector_page_tab";
+const OVERVIEW = "overview";
+/** 탭 목록 — 맨 앞 '한눈에'(옛 순환매 페이지, 평균은 순환매 줄 종목) + 업종(sobuGrid) */
+export function sectorTabsOf(page: DashboardSection[]): DashboardSection[] {
+  const rot = page.find(s => s.id === "rotflow");
+  const ov = rot ? [{ ...rot, id: OVERVIEW, short: "한눈에", label: "🔄 한눈에" }] : [];
+  return [...ov, ...page.filter(s => s.render === "sobuGrid")];
+}
+/** 고른 탭에 보일 블록 */
+export function sectionsForTab(page: DashboardSection[], tab: string): DashboardSection[] {
+  return tab === OVERVIEW ? page.filter(s => SECTOR_OVERVIEW_IDS.has(s.id)) : page.filter(s => s.id === tab);
+}
 export function useSectorTab(sections: DashboardSection[]): [string, (id: string) => void] {
   const [id, setId] = useState<string>(() => { try { return localStorage.getItem(KEY) ?? ""; } catch { return ""; } });
   const cur = sections.some(s => s.id === id) ? id : sections[0]?.id ?? "";
