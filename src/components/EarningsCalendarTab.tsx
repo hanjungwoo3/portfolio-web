@@ -168,7 +168,7 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
                                   if (!url && !e.reported) return null;
                                   // 앱에선 stopPropagation 만 하면 창 전체 링크 가로채기까지 막혀 아무것도 안 열렸다(사용자 2026-11-03 "앱에서 공시 클릭이 안 돼")
                                   //   → 직접 openExternal(앱 = 앱 안 보기 창, 웹 = 새 탭)
-                                  const aiQ = () => `${aiNowStamp()} 기준. ${e.name}(${e.code}) ${e.kstDate} 실적 발표 내용을 요약해 줘 — 매출·영업이익(미국은 매출·EPS)의 컨센서스 대비 서프라이즈 여부, 가이던스, 발표 뒤 주가 반응, 핵심 포인트 3줄.${url ? ` 공시: ${url}` : ""}`;
+                                  const aiQ = () => `${aiNowStamp()} 기준. ${e.name}(${e.code}) ${e.kstDate} 실적 발표 — ① 결론 한 줄(어닝 서프라이즈·쇼크·부합) ② 매출·영업이익(미국은 매출·EPS)의 컨센서스 대비 한 줄 ③ 가이던스 한 줄 ④ 발표 뒤 주가 반응 한 줄.${url ? ` 공시: ${url}` : ""}`;
                                   return url
                                     ? <span className="ml-auto shrink-0 flex items-center gap-0.5">
                                         <a href={url} target="_blank" rel="noopener noreferrer"

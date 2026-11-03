@@ -8,7 +8,7 @@ import { useRecentDisc, type DiscRow } from "../lib/recentDisclosures";
 import { DISC_CAT_TONE } from "../lib/disclosureFilter";
 import { fetchDartBody, parseContract } from "../lib/dartDisclosures";
 import { openExternal } from "../lib/toss";
-import { openGoogleAi, aiNowStamp } from "../lib/googleAi";
+import { openGoogleAi, discAiQuery } from "../lib/googleAi";
 
 export function DiscTags({ code, name, size = "xs", max = 3 }: { code: string | null | undefined; name?: string; size?: "xs" | "sm"; max?: number }) {
   const map = useRecentDisc(!!code);
@@ -61,7 +61,7 @@ function DiscPopup({ rows, name, style, onClose, onEnter, onLeave }: { rows: Dis
               {c?.amountEok != null ? <b className="text-violet-800">{Math.round(c.amountEok).toLocaleString()}억{c.ratio != null ? `(${c.ratio}%)` : ""} </b> : null}
               {c?.name ?? r.title.replace(/\s+/g, " ")}
             </button>
-            <button onClick={() => openGoogleAi(`${aiNowStamp()} 기준. ${r.corp} ${r.date} 공시 "${r.title}" 의 핵심 내용과 주가에 미칠 영향을 요약해 줘. 원문: ${r.url}`)}
+            <button onClick={() => openGoogleAi(discAiQuery(r.corp, r.code, r.title, `${r.date} ${r.time}`, r.url))}
                     title="구글 AI에 이 공시 요약 요청"
                     className="shrink-0 px-1 rounded border border-blue-300/70 bg-blue-50 text-blue-700 text-[9px] font-bold leading-[14px] hover:bg-blue-100">AI</button>
           </div>
