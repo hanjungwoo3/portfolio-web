@@ -405,6 +405,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {/* 필라델피아 반도체(지수) 카드는 뺐다 — 한국 장중엔 간밤 미국 종가라 안 움직인다(사용자 요청). SOX 선물은 아래 해외 선물 줄 */}
       </div>
 
+      {/* 반도체 프로그램 매매 실시간 — 앱+한국투자(사용자 2026-11-03), 실시간 체결 바로 위(사용자 2026-11-04) */}
+      <ProgramTapePanel />
       {/* ② 실시간 체결 + 신호 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_600px] gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]">
         {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />)}
@@ -442,8 +444,6 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
 
       {/* 외국인 K200 선물 — 누적 순매수·정리율·15분 변화 + 시장 미결제약정(사용자 2026-11-03) */}
       <ForeignFuturesPanel flow={ff} fut={fut} spotFlow={kf} price={futToday} />
-      {/* 반도체 프로그램 매매 실시간 — 앱+한국투자(사용자 2026-11-03) */}
-      <ProgramTapePanel />
 
       {/* ④ 해외 선물·현물·미국 반도체 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 shrink-0">
