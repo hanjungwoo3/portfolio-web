@@ -3,6 +3,7 @@
 //   둘 다 무료 출처에 장중 이력이 없어 직접 쌓는다. 날짜(KST)가 바뀌면 버린다. 주간 선물장 08:45~15:46 만.
 import { fetchKrFuturesLive } from "./api";
 import { fetchKisK200FutInvestor, kisFutAvailable } from "./kisFutures";
+import { kisGet } from "./broker";
 
 export interface OiPt { t: string; oi: number; p: number }
 export interface FrgnPt { t: string; c: number }   // 외국인 누적 순매수(계약)
@@ -19,6 +20,33 @@ function push<T extends { t: string }>(key: string, pt: T) {
 }
 export const loadOiTape = () => load<OiPt>(OI_KEY);
 export const loadFrgnTape = () => load<FrgnPt>(FR_KEY);
+
+// ── 반도체 프로그램 매매(한국투자 종목별 프로그램매매추이 FHPPG04650101 — 실측 2026-11-03 실전 키) ──
+//   삼성전자·SK하이닉스 프로그램 누적 순매수(원 → 억원)를 1분마다. 응답이 최근 30건(체결 시각별)이라 처음엔 그걸로 앞을 메운다.
+export interface ProgPt { t: string; v: number }   // v = 누적 순매수 억원
+export const PROG_CODES = [["005930", "삼성전자"], ["000660", "SK하이닉스"]] as const;
+const progKey = (code: string) => `prog_kis_${code}`;
+export const loadProgTape = (code: string) => load<ProgPt>(progKey(code));
+interface ProgRow { bsop_hour?: string; whol_smtn_ntby_tr_pbmn?: string }
+async function recordProgram(code: string): Promise<boolean> {
+  const { body } = await kisGet<{ rt_cd?: string; output?: ProgRow[] }>(
+    "/uapi/domestic-stock/v1/quotations/program-trade-by-stock", "FHPPG04650101", { FID_COND_MRKT_DIV_CODE: "J", FID_INPUT_ISCD: code });
+  const rows = (body.output ?? []).filter(r => r.bsop_hour && r.whol_smtn_ntby_tr_pbmn != null);
+  if (!rows.length) return false;
+  // 시각 오름차순 → 분마다 마지막 값. 정규장(09:00~15:30) 안의 것만
+  const byMin = new Map<string, number>();
+  for (const r of [...rows].sort((a, b) => a.bsop_hour!.localeCompare(b.bsop_hour!))) {
+    const h = r.bsop_hour!, t = `${h.slice(0, 2)}:${h.slice(2, 4)}`;
+    if (t < "09:00" || t > "15:30") continue;
+    byMin.set(t, Number(r.whol_smtn_ntby_tr_pbmn) / 1e8);
+  }
+  if (!byMin.size) return false;
+  const have = new Map(load<ProgPt>(progKey(code)).map(p => [p.t, p.v]));
+  for (const [t, v] of byMin) have.set(t, v);
+  const pts = [...have].sort((a, b) => a[0].localeCompare(b[0])).map(([t, v]) => ({ t, v }));
+  try { localStorage.setItem(progKey(code), JSON.stringify({ date: kstDate(), pts })); } catch { /* 용량 */ }
+  return true;
+}
 
 let started = false;
 export function startFuturesTape(): void {
@@ -39,6 +67,11 @@ export function startFuturesTape(): void {
         const r = await fetchKisK200FutInvestor();
         if (r) { push<FrgnPt>(FR_KEY, { t, c: r.frgnQty }); changed = true; }
       } catch { /* 다음 분에 */ }
+    }
+    if (kisFutAvailable() && m >= 9 * 60 && m <= 15 * 60 + 35) {
+      for (const [code] of PROG_CODES) {
+        try { if (await recordProgram(code)) changed = true; } catch { /* 다음 분에 */ }
+      }
     }
     if (changed) window.dispatchEvent(new Event(TAPE_EVENT));
   };

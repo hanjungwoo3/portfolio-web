@@ -7,6 +7,7 @@
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { ForeignFuturesPanel } from "./ForeignFuturesPanel";
+import { ProgramTapePanel } from "./ProgramTapePanel";
 import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
@@ -441,6 +442,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
 
       {/* 외국인 K200 선물 — 누적 순매수·정리율·15분 변화 + 시장 미결제약정(사용자 2026-11-03) */}
       <ForeignFuturesPanel flow={ff} fut={fut} spotFlow={kf} price={futToday} />
+      {/* 반도체 프로그램 매매 실시간 — 앱+한국투자(사용자 2026-11-03) */}
+      <ProgramTapePanel />
 
       {/* ④ 해외 선물·현물·미국 반도체 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 shrink-0">

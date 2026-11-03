@@ -20,12 +20,13 @@ const NAME = new Map(US_PAIRS.map(p => [p.symbol, p.name]));
 const eok = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v) >= 100 ? Math.round(Math.abs(v)).toLocaleString() : Math.abs(v).toFixed(1)}억`;
 const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500");
 
-export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCard }: {
+export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCard, hotOf }: {
   rows: string[][]; labels: string[]; leadByRow: number[];
   etfs?: string[];   // 업종 ETF — 칸들 위 한 줄
   quote: (sym: string) => { price: number; pct: number; reg?: { price: number; pct: number } } | undefined;
   // 지수 탭 종목 카드 그대로(사용자 2026-11-03 "지수에 있는 종목 카드와 동일하게, 똑같은 기능으로") — 주면 QuoteCard 대신 이걸 그린다
   renderCard?: (sym: string) => import("react").ReactNode;
+  hotOf?: (sym: string) => number;   // 거래대금 급증 배수(한국투자 레이더) — 0 이 아니면 칸 맨 앞으로
   dimOf?: (sym: string) => boolean;   // 장 마감 흐림 — 지수 탭 카드와 같은 판정(dashboardCardDim, 설정 따름)
 }) {
   // 다섯 단계 → 네 칸: 소재·부품을 한 칸으로
@@ -200,7 +201,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
               {b.lead.map(s => card(s, true))}
               {/* 국내 종목은 오늘 등락률 높은 순(사용자 2026-11-02) — 값 없는 종목은 뒤로. 해외 대장주는 앞에 고정 */}
               {/* 흐린 종목(장 안 열림·체결 없음)은 아래로(사용자 2026-11-03), 그 안에서 등락률 순 */}
-              {[...b.kr].sort((x, y) => (Number(!!dimOf?.(x)) - Number(!!dimOf?.(y))) || (quote(y)?.pct ?? -Infinity) - (quote(x)?.pct ?? -Infinity)).map(s => card(s, false))}
+              {[...b.kr].sort((x, y) => ((hotOf?.(y) ?? 0) - (hotOf?.(x) ?? 0)) || (Number(!!dimOf?.(x)) - Number(!!dimOf?.(y))) || (quote(y)?.pct ?? -Infinity) - (quote(x)?.pct ?? -Infinity)).map(s => card(s, false))}   {/* 거래대금 급증 종목은 맨 앞(사용자 2026-11-03) */}
             </div>
           </div>
         );

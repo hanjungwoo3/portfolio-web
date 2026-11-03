@@ -141,9 +141,26 @@ export function kisTrId(real: string): string {
 
 interface KisEnvelope { rt_cd?: string; msg_cd?: string; msg1?: string }
 /** 한국투자 GET — params 는 쿼리로, trId 는 실전 기준(모의면 자동 V). 업무 오류(rt_cd≠0)도 BrokerError */
+// 한국투자 호출 줄 세우기 — 실측(2026-11-03, 실전 키): 0.12초 간격 연속 호출에 EGW00201(초당 거래건수 초과), 1.1초 간격은 통과.
+//   앱 네이티브 간격(60ms)은 공식 한도(20/초) 기준이라 부족하다 → 웹에서 한 줄로 세워 최소 KIS_GAP 띄우고, EGW00201 이면 잠시 뒤 한 번 더.
+//   (레이더·VI·프로그램·선물 기록기가 같은 분에 겹쳐도 서로 막지 않게)
+const KIS_GAP = 350;
+let kisChain: Promise<unknown> = Promise.resolve();
+let kisLast = 0;
+function kisQueued<R>(f: () => Promise<R>): Promise<R> {
+  const run = kisChain.then(async () => {
+    const wait = kisLast + KIS_GAP - Date.now();
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    try { return await f(); } finally { kisLast = Date.now(); }
+  });
+  kisChain = run.catch(() => {});
+  return run;
+}
 export async function kisGet<T extends KisEnvelope>(path: string, trIdReal: string, params: Record<string, string>, trCont = ""): Promise<{ body: T; trCont: string }> {
   const q = Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
-  const r = await brokerRequest("kis", `${path}?${q}`, { trId: kisTrId(trIdReal), trCont });
+  const call = () => kisQueued(() => brokerRequest("kis", `${path}?${q}`, { trId: kisTrId(trIdReal), trCont }));
+  let r = await call();
+  if (r.body.includes("EGW00201")) { await new Promise(res => setTimeout(res, 1200)); r = await call(); }   // 초당 한도 — 한 번만 다시
   const env = (r.json ?? {}) as KisEnvelope;
   if (r.status < 200 || r.status >= 300 || (env.rt_cd && env.rt_cd !== "0")) {
     const code = env.msg_cd ?? String(r.status);

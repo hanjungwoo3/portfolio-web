@@ -8,6 +8,8 @@ import { installInAppBrowser } from './lib/inAppBrowser'
 import { pruneMarketCache } from './lib/marketCache'
 import { installSystemBars } from './lib/systemBars'
 import { startFuturesTape } from './lib/futuresTape'
+import { startKisRadar } from './lib/kisRadar'
+import { startKisVi } from './lib/kisVi'
 
 // 야간 배경 — 첫 그림 전에 적용(깜빡임 방지)
 applyNightBg()
@@ -19,6 +21,8 @@ installSystemBars()
 pruneMarketCache()
 // 코스피200 선물 장중 기록(미결제약정·외국인) — 어느 탭이든 앱이 켜져 있으면 1분마다(외국인 K200 선물 패널용)
 startFuturesTape()
+startKisRadar()   // 거래대금 급증 레이더 — 앱+한국투자일 때만 실제로 부른다
+startKisVi()      // VI 발동 꼬리표 — 앱+한국투자일 때만
 
 // 앱(네이티브)에서는 서비스워커를 쓰지 않는다.
 //   앱은 배포된 웹을 원격으로 불러온다(capacitor.config server.url). 그런데 그 웹에는 PWA

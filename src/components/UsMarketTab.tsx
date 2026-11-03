@@ -6,6 +6,8 @@ import { DiscTags } from "./DiscTags";
 import { SobuGrid } from "./SobuGrid";
 import { KisExpRankBox } from "./KisExpRankBox";
 import { ValueupTags } from "./ValueupTags";
+import { useKisRadar, radarLabel } from "../lib/kisRadar";
+import { useKisVi, viLabel, viActive } from "../lib/kisVi";
 import { SeohakTag } from "./SeohakBox";
 import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
@@ -244,6 +246,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const dimEnabled = getDimSleepingEnabled();
   // 흐린(장 안 열린) 카드는 줄 뒤로 — 카드 반복문과 같은 판정(dashboardCardDim)
   const dimOf = (sym: string) => { const tp = tier0.find(x => x.symbol === sym); return !!tp && dashboardCardDim(tp, usMap.get(sym), dimEnabled); };
+  const radar = useKisRadar();   // 거래대금 급증(앱+한국투자) — 카드 꼬리표·업종 칸 정렬
+  const viMap = useKisVi();      // VI 발동(앱+한국투자) — 카드 꼬리표
   const [marketFlowFor, setMarketFlowFor] = useState<MarketIndexKey | null>(null);
   const [leaderSort, setLeaderSort] = useState<LeaderSort>(loadLeaderSort);   // 대장주 줄 정렬(등락률순 기본)
   const chartRange = useChartRange();   // 카드 배경 차트 3개월 | 1년 | 24시간 — 앱 전체 설정
@@ -648,6 +652,11 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     if (!tag && !CARD_HEATMAP_LINK[p.symbol] && !isKrStock && !isUsStock && !vu && !hasDisc) return null;
                     return (
                       <div className="absolute -bottom-1 right-1 z-20 flex items-center gap-0.5">
+                        {/* 거래대금 급증(한국투자 1분 레이더, 사용자 2026-11-03) — 맨 앞에 */}
+                        {isKrStock && radar.get(krCode) && (() => { const l = radarLabel(radar.get(krCode)!); return (
+                          <span title={l.title} className="px-1 py-0 rounded text-[9px] leading-tight whitespace-nowrap font-bold border border-orange-400 bg-orange-500 text-white animate-pulse">{l.text}</span>); })()}
+                        {isKrStock && viMap.get(krCode) && (() => { const v = viMap.get(krCode)!, l = viLabel(v); return (
+                          <span title={l.title} className={`px-1 py-0 rounded text-[9px] leading-tight whitespace-nowrap font-bold border ${v.dir === "up" ? "border-rose-400" : "border-blue-400"} ${viActive(v) ? `${v.dir === "up" ? "bg-rose-600" : "bg-blue-600"} text-white animate-pulse` : v.dir === "up" ? "bg-rose-50 text-rose-700" : "bg-blue-50 text-blue-700"}`}>{l.text}</span>); })()}
                         {hasDisc && <DiscTags code={krCode} name={p.name} max={2} />}
                         {vu && <ValueupTags code={krCode} flat />}
                         {isUsStock && <SeohakTag symbol={p.symbol} flat />}
@@ -761,7 +770,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                               // 한국 개별 종목 — 15:30 뒤엔 오늘 정규장 종가 책갈피(야후로 확인된 값만, 지수 탭 카드와 같은 규칙). ETF 는 애프터가 없어 뺀다
                               const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
                               return { price: q.price, pct: displayPctOf(sym, q) ?? q.pct, reg: r?.fromYahoo ? { price: r.regularPrice, pct: r.regularPct } : undefined };
-                            }}   /* 장 전·마감 뒤엔 마지막 정규장 % — 다른 지수 카드와 같은 규칙(자정 지나 0.00% 였다) */ dimOf={dimOf} renderCard={sym => renderIdxCard(section, sym)} />
+                            }}   /* 장 전·마감 뒤엔 마지막 정규장 % — 다른 지수 카드와 같은 규칙(자정 지나 0.00% 였다) */ dimOf={dimOf} renderCard={sym => renderIdxCard(section, sym)} hotOf={sym => radar.get(sym.slice(0, 6))?.ratio ?? 0} />
                 )}
                 {section.render === "sectorFlow" && (
               <TicsSectorBoard onOpenValuation={onOpenValuation}

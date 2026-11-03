@@ -1,0 +1,69 @@
+// 반도체 프로그램 매매 실시간 — 삼성전자·SK하이닉스 프로그램 누적 순매수(억원) 장중 곡선(사용자 2026-11-03 "순서대로" ②).
+//   앱 + 한국투자 연동일 때만 — lib/futuresTape 가 1분마다 기록(한국투자 FHPPG04650101). 네이버 일별 값보다 빠르다.
+//   프로그램 = 차익·비차익 묶음 주문(대부분 외국인·기관 기계 주문) — 방향이 지수와 반도체를 끌고 가는 경우가 많다.
+import { useEffect, useState } from "react";
+import { loadProgTape, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/futuresTape";
+import { kisFutAvailable } from "../lib/kisFutures";
+
+const COLORS = ["#4f46e5", "#e11d48"];   // 삼성 남색 · 하이닉스 빨강(선 구분용 — 오르내림 색 아님)
+const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+const OPEN = 9 * 60, CLOSE = 15 * 60 + 30;
+const fmt = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v)).toLocaleString()}억`;
+const tone = (v: number) => v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-600";
+
+export function ProgramTapePanel() {
+  const [tapes, setTapes] = useState<ProgPt[][]>(() => PROG_CODES.map(([c]) => loadProgTape(c)));
+  useEffect(() => {
+    const on = () => setTapes(PROG_CODES.map(([c]) => loadProgTape(c)));
+    window.addEventListener(TAPE_EVENT, on);
+    return () => window.removeEventListener(TAPE_EVENT, on);
+  }, []);
+  if (!kisFutAvailable()) return null;
+  const all = tapes.flat();
+  const W = 600, H = 120, P = 4;
+  const vmax = Math.max(50, ...all.map(p => Math.abs(p.v)));
+  const x = (t: string) => P + ((toMin(t) - OPEN) / (CLOSE - OPEN)) * (W - 2 * P);
+  const y = (v: number) => H / 2 - (v / vmax) * (H / 2 - P);
+  const chg15 = (pts: ProgPt[]) => {
+    const last = pts[pts.length - 1];
+    if (!last) return null;
+    const ago = [...pts].reverse().find(p => toMin(last.t) - toMin(p.t) >= 15);
+    return ago ? last.v - ago.v : null;
+  };
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white pg-card p-2 shrink-0">
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span className="font-bold text-gray-800 text-sm">⚙️ 반도체 프로그램 매매 <span className="text-[11px] font-normal text-emerald-700">● 한투 실시간</span></span>
+        <span className="text-[11px] text-gray-500">오늘 누적 순매수 · 1분마다 · 프로그램 = 기관·외국인의 묶음 기계 주문이라 방향이 반도체를 끌고 가는 경우가 많습니다</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-2 mt-1 items-center">
+        {all.length < 2 ? (
+          <div className="text-[11px] text-gray-400 py-6 text-center">장중(09:00~15:30)에 1분마다 쌓입니다 — 앱을 켜 두면 곡선이 이어집니다</div>
+        ) : (
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[120px]" preserveAspectRatio="none">
+            <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#9ca3af" strokeWidth={0.8} strokeDasharray="3 3" />
+            {[10, 11, 12, 13, 14, 15].map(h => <line key={h} x1={x(`${h}:00`)} x2={x(`${h}:00`)} y1={0} y2={H} stroke="#e5e7eb" strokeWidth={0.6} />)}
+            {tapes.map((pts, i) => pts.length > 1 && (
+              <polyline key={i} fill="none" stroke={COLORS[i]} strokeWidth={1.6} vectorEffect="non-scaling-stroke"
+                        points={pts.map(p => `${x(p.t)},${y(p.v)}`).join(" ")} />
+            ))}
+          </svg>
+        )}
+        <div className="space-y-1.5">
+          {PROG_CODES.map(([code, name], i) => {
+            const pts = tapes[i], last = pts[pts.length - 1], c15 = chg15(pts);
+            return (
+              <div key={code} className="flex items-baseline gap-1.5 text-[12px] tabular-nums">
+                <i className="inline-block w-3 h-0.5 self-center" style={{ background: COLORS[i] }} />
+                <span className="font-bold text-gray-800 w-[68px]">{name}</span>
+                <span className={`font-bold text-[14px] ${last ? tone(last.v) : "text-gray-400"}`}>{last ? fmt(last.v) : "—"}</span>
+                {c15 != null && <span className={`text-[10.5px] ${tone(c15)}`} title="최근 15분 변화">15분 {fmt(c15)}</span>}
+              </div>
+            );
+          })}
+          <div className="text-[10px] text-gray-400">{tapes[0].length ? `마지막 ${tapes[0][tapes[0].length - 1].t}` : ""} · 위 0선 = 순매수, 아래 = 순매도</div>
+        </div>
+      </div>
+    </div>
+  );
+}
