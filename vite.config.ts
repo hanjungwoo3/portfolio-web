@@ -81,6 +81,8 @@ export default defineConfig({
         // version.json 은 precache 에서 제외 — 항상 네트워크에서 직접 fetch 해야
         // 새 버전 토스트가 동작 (cache-first 로 옛 hash 응답하면 안 됨)
         globIgnores: ["**/version.json"],
+        // 본 번들이 2 MiB 를 넘었다(2026-11-03 업종 페이지·외국인 선물 패널) — 기본 한도면 빌드가 멈춘다. 4 MiB 까지 precache
+        maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         // /app/ 은 APK·release.json 이 사는 실제 파일 경로다. SPA 폴백이 여기를 가로채면
         //   APK 주소로 들어와도 index.html(앱 화면)이 뜬다 — 실제로 그렇게 났다.
         //   /extension/ 도 같다 — 확장 zip '내려받기'를 누르면 새 창에 앱 화면만 뜨고 받아지지 않았다(2026-10-21 제보).

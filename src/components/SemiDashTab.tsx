@@ -6,6 +6,7 @@
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
+import { ForeignFuturesPanel } from "./ForeignFuturesPanel";
 import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
@@ -437,6 +438,9 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
         </div>
       </div>
+
+      {/* 외국인 K200 선물 — 누적 순매수·정리율·15분 변화 + 시장 미결제약정(사용자 2026-11-03) */}
+      <ForeignFuturesPanel flow={ff} fut={fut} spotFlow={kf} price={futToday} />
 
       {/* ④ 해외 선물·현물·미국 반도체 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 shrink-0">
@@ -902,7 +906,7 @@ function OptionBox({ opt, vk, dim: dimIn }: { opt?: Awaited<ReturnType<typeof fe
   );
 }
 
-function StockFlowTable({ rows, fLast, markets }: {
+function StockFlowTable({ rows, markets }: {
   rows: { code: string; name: string; hist: Investor[]; price?: number }[];
   fLast?: IntradayFlow["points"][number];
   // 시장 줄(코스피·코스닥) — 오늘은 1분 단위 누적(네이버), 5·20일·연속은 일별
@@ -953,9 +957,7 @@ function StockFlowTable({ rows, fLast, markets }: {
               </tr>
             );
           })}
-          <tr>
-            <td className="py-1 font-bold">선물<span className="text-[10px] font-normal text-gray-400"> 계약·20분</span></td><N v={fLast?.foreigners} /><td /><td /><td />
-          </tr>
+          {/* 선물 줄은 뺐다 — 아래 '외국인 K200 선물' 패널에 곡선·정리율로 있다(사용자 2026-11-03) */}
         </tbody>
       </table>
     </div>
