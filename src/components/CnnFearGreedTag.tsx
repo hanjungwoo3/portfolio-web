@@ -84,7 +84,7 @@ export function CnnFgPanel({ small, split, className = "" }: { small?: boolean; 
   const fs = small ? "text-[10px]" : "text-[11px]";
   // 한 항목 = 첫 줄 이름·점수·등급, 둘째 줄 재는 방법(작게) — 카드 한 장 폭에 다 들어가게(사용자 2026-11-03 "넓이 다른 카드와 동일하게")
   const box = (parts: typeof fg.parts, head: React.ReactNode, key: string) => (
-    <div key={key} className="min-w-0 rounded-lg border border-gray-200 bg-gray-50 pg-note px-1.5 py-1">
+    <div key={key} className="min-w-0 rounded-lg border border-gray-200 bg-white pg-card px-1.5 py-1">
       {head && <div className={`${small ? "text-[9.5px]" : "text-[10px]"} font-bold text-gray-600 mb-[1px] truncate`}>{head}</div>}
       <div className="space-y-[2px]">
         {parts.map(p => {
