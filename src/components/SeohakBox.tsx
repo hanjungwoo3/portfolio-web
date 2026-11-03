@@ -74,13 +74,17 @@ function HoldTreemap({ hold, week, height }: { hold: SeohakHold[]; week: { net: 
   // 1일 등락률은 토스 실시간 — TradingView 스캐너는 비로그인이면 15분 지연(update_mode delayed_streaming_900, 실측 2026-11-03 09:38 ET 에
   //   아직 어제 등락률). 크롤러가 받아 둔 토스 코드로 50종목 1콜, 1분마다. 1주·1개월 등락률·섹터는 스캐너 그대로(지연 영향 작음)
   const tossCodes = hold.map(r => r.toss).filter((c): c is string => !!c);
+  // 시세 출처 고르기 — 히트맵 탭과 같은 '시세' 옵션(사용자 2026-11-03 "서학개미에도 넣어줘"). 앱·확장에서만 보이고 기본은 토스.
+  const canToss = hasDirectTransport();
+  const [priceSrc, setPriceSrc] = useState<"toss" | "tv">(() => { try { return localStorage.getItem("seohak_price_src") === "tv" ? "tv" : "toss"; } catch { return "toss"; } });
+  const wantToss = canToss && priceSrc === "toss";
   //   토스는 앱·확장(직결)에서만 — 일반 웹은 프록시가 토스에 막혀(Akamai) 스캐너 값으로(히트맵 탭 '시세' 옵션과 같은 규칙)
   const live = useQuery({
     queryKey: ["seohak-toss", tossCodes.join(",")], queryFn: () => fetchTossUsPrices(tossCodes),
-    enabled: tossCodes.length > 0 && hasDirectTransport(), staleTime: 30_000, refetchInterval: 60_000, retry: 1,
+    enabled: tossCodes.length > 0 && wantToss, staleTime: 30_000, refetchInterval: 60_000, retry: 1,
   });
   const d1Of = (r: SeohakHold): number | undefined => {
-    const t = r.toss ? live.data?.get(r.toss) : undefined;
+    const t = wantToss && r.toss ? live.data?.get(r.toss) : undefined;
     if (t && t.base > 0 && t.close > 0) return (t.close / t.base - 1) * 100;
     return q(r)?.changePct;   // 토스에 없으면 스캐너(15분 지연)
   };
@@ -135,6 +139,20 @@ function HoldTreemap({ hold, week, height }: { hold: SeohakHold[]; week: { net: 
           크기 <select className={SEL} value={sizeBy} onChange={e => setSizeBy(e.target.value as SizeBy)}>{SIZE_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           색 <select className={SEL} value={colorBy} onChange={e => setColorBy(e.target.value as ColorBy)}>{COLOR_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
           그룹 <select className={SEL} value={groupBy} onChange={e => setGroupBy(e.target.value as GroupBy)}>{GROUP_OPTS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select>
+          {canToss && (
+            <span className="contents" title="토스 실시간 = 1일 등락률을 토스(프리·애프터·오버나이트 포함)로 1분마다. 1주·1개월·섹터는 TradingView 그대로 — 앱·확장에서만">
+              시세 <select className={SEL} value={priceSrc}
+                          onChange={e => { const v = e.target.value as "toss" | "tv"; setPriceSrc(v); try { localStorage.setItem("seohak_price_src", v); } catch { /* 이번 화면만 */ } }}>
+                <option value="toss">토스 실시간</option>
+                <option value="tv">TradingView</option>
+              </select>
+            </span>
+          )}
+          {wantToss && live.dataUpdatedAt > 0 && (
+            <span className="text-[10px] text-gray-500 inline-flex items-center gap-1" title="1일 등락률 = 토스, 1주·1개월·섹터 = TradingView">
+              <span className="text-emerald-500">●</span>토스 실시간 · {live.isFetching ? "갱신 중…" : `${Math.max(0, Math.round((Date.now() - live.dataUpdatedAt) / 1000))}초 전`}
+            </span>
+          )}
         </span>
       </div>
       <div ref={ref} className="relative w-full rounded-md overflow-hidden bg-slate-100" style={{ height }}>
