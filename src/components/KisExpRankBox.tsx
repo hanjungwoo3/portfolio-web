@@ -12,10 +12,12 @@ export function KisExpRankBox({ compact }: { compact?: boolean }) {
   useEffect(() => { const id = setInterval(() => setPhase(expPhaseNow()), 20_000); return () => clearInterval(id); }, []);
   const [mkt, setMkt] = useState<(typeof MARKETS)[number][0]>("0000");
   const on = expRankAvailable() && !!phase;
-  const opt = { enabled: on, refetchInterval: 5_000, staleTime: 3_000, retry: 1 } as const;
+  const opt = { enabled: on, refetchInterval: 5_000, staleTime: 3_000, retry: 1, placeholderData: (prev: ExpRankRow[] | undefined) => prev } as const;   // 시장 단추를 바꿀 때 상자가 깜빡 사라지지 않게
   const up = useQuery({ queryKey: ["kis-exp-rank", "up", phase, mkt], queryFn: () => fetchKisExpRank("up", phase!, mkt), ...opt });
   const dn = useQuery({ queryKey: ["kis-exp-rank", "down", phase, mkt], queryFn: () => fetchKisExpRank("down", phase!, mkt), ...opt });
   if (!on) return null;
+  // 값이 있을 때만(사용자 2026-11-04) — 동시호가 초반엔 예상 체결이 아직 없어 "아직 없음" 두 칸만 떠 있었다
+  if (!up.data?.length && !dn.data?.length) return null;
   const n = compact ? 10 : 15;
   const list = (rows: ExpRankRow[] | undefined, err: unknown, title: string, cls: string) => (
     <div className="min-w-0">
