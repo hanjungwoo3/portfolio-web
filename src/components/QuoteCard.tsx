@@ -14,6 +14,7 @@ import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi
 import { KrDaySparkline } from "./KrDaySparkline";
 import { Sparkline } from "./Sparkline";
 import { ValueupTags } from "./ValueupTags";
+import { SeohakTag } from "./SeohakBox";
 
 export function QuoteCard({ code, name, sub, px, dim, badge, className = "w-[132px] sm:w-[176px] h-[88px] shrink-0" }: {
   code: string; name: string;
@@ -25,6 +26,7 @@ export function QuoteCard({ code, name, sub, px, dim, badge, className = "w-[132
 }) {
   const range = useChartRange();
   const isUs = !(/^[\dA-Za-z]{6}$/.test(code) && /\d/.test(code));
+  const seohak = isUs && /^[A-Z][A-Z.]{0,5}$/.test(code);   // 미국 티커만 — 서학개미 꼬리표(사용자 2026-11-03)
   const hist = useQuery({
     queryKey: [isUs ? "us-price-history" : "kr-price-history", code, historyRange(range)],   // 종목 카드(App chartQs·usChartQs)와 같은 키 — 이미 받은 종목은 다시 안 부른다
     queryFn: () => isUs ? fetchYahooPriceHistory(code, historyRange(range)) : fetchKrPriceHistory(code, historyRange(range)),
@@ -67,7 +69,7 @@ export function QuoteCard({ code, name, sub, px, dim, badge, className = "w-[132
         </div>
         <div className="flex justify-end items-center gap-0.5 -mb-0.5">
           {/* 밸류업 꼬리표(저PBR·고배당·밸류업★) — 지수 탭 카드와 같은 아래 줄 맨 앞(사용자 2026-11-02 "여기도") */}
-          {(badge || !isUs) && <span className="mr-auto flex gap-0.5 min-w-0 overflow-hidden">{badge}{!isUs && <DiscTags code={code} name={name} max={2} />}{!isUs && <ValueupTags code={code} flat />}</span>}
+          {(badge || !isUs || seohak) && <span className="mr-auto flex gap-0.5 min-w-0 overflow-hidden">{badge}{!isUs && <DiscTags code={code} name={name} max={2} />}{!isUs && <ValueupTags code={code} flat />}{seohak && <SeohakTag symbol={code} flat />}</span>}
           <button type="button" onClick={open} title={isJp ? "야후 파이낸스에서 보기" : isUs ? "토스에서 보기" : "종목정보 — 실시간 체결·호가·거래원 / 기업가치"}
                   className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">{isJp ? "🔗" : isUs ? "🔗" : "📊"}</button>
           <button type="button" title="구글 AI에 현재상태 분석 요청"

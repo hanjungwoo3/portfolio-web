@@ -6,6 +6,7 @@ import { DiscTags } from "./DiscTags";
 import { SobuGrid } from "./SobuGrid";
 import { KisExpRankBox } from "./KisExpRankBox";
 import { ValueupTags } from "./ValueupTags";
+import { SeohakBox, SeohakTag } from "./SeohakBox";
 import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { BrokerLinkSection } from "./BrokerLinkSection";
 import { KisLinkSection } from "./KisLinkSection";
@@ -2304,6 +2305,7 @@ export function MobileSimpleView() {
                       <div className="absolute -bottom-1 right-1 z-20 flex items-center gap-0.5">
                         {hasDisc && <DiscTags code={krCode} name={p.name} max={2} />}
                         {vu && <ValueupTags code={krCode} flat />}
+                        {isUsStock && <SeohakTag symbol={p.symbol} flat />}
                         {tag && <span className={`${pill} border ${dashboardTagTone(tag)}`}>{tag}</span>}
                         {CARD_HEATMAP_LINK[p.symbol] && (
                           <button onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
@@ -2344,6 +2346,7 @@ export function MobileSimpleView() {
                 </div>
               </div>
             ); })}
+            {indexPageOfM(activeTab) === "night" && <SeohakBox compact />}
             <div className="text-[10px] text-gray-400 text-center mt-1 mb-2">
               {Math.round(REFRESH_MS / 1000)}초마다 자동 갱신
             </div>

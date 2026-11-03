@@ -6,6 +6,7 @@ import { DiscTags } from "./DiscTags";
 import { SobuGrid } from "./SobuGrid";
 import { KisExpRankBox } from "./KisExpRankBox";
 import { ValueupTags } from "./ValueupTags";
+import { SeohakBox, SeohakTag } from "./SeohakBox";
 import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -767,6 +768,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                       <div className="absolute -bottom-1 right-1 z-20 flex items-center gap-0.5">
                         {hasDisc && <DiscTags code={krCode} name={p.name} max={2} />}
                         {vu && <ValueupTags code={krCode} flat />}
+                        {isUsStock && <SeohakTag symbol={p.symbol} flat />}
                         {tag && <span className={`${pill} border ${dashboardTagTone(tag)}`}>{tag}</span>}
                         {CARD_HEATMAP_LINK[p.symbol] && (
                           <button onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
@@ -844,6 +846,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             )))}
           </div>
         ))}
+        {/* 🐜 서학개미 — 미국 페이지 맨 아래(사용자 2026-11-03) */}
+        {page === "night" && <SeohakBox />}
       </div>
       </div>
 

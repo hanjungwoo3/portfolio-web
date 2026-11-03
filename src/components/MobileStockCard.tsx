@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Settings, StickyNote } from "lucide-react";
 import { DiscTags } from "./DiscTags";
 import { ValueupTags } from "./ValueupTags";
+import { SeohakTag } from "./SeohakBox";
 import { isSyncedHolding } from "../lib/linkedGroups";
 import type { Stock, Price, Consensus, Investor, Memo } from "../types";
 import { formatSigned, signColor, formatVolume, isKrHoldingClosed, isEtfByName, etfActiveType, krCloseTimeLabel, krCloseImminentMin, krFinalCloseHHMM, krSinglePriceSession, fmtAgo, holdingYesterdayBaseSum, marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, tradeSecOf, isEtfOrEtnByName, isKrAfterRegularClose } from "../lib/format";
@@ -285,6 +286,7 @@ export function MobileStockCard({
             </Tooltip>
           )}
           <ValueupTags code={stock.ticker} size="xs" />
+          {isUsHolding && <SeohakTag symbol={stock.ticker} size="xs" />}
           <DiscTags code={stock.ticker} name={stock.name} />
         </div>
         <div className="flex items-center gap-1 shrink-0">
