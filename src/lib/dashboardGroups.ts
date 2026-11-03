@@ -567,6 +567,39 @@ function sectionMap(): Record<string, DashboardSection> {
         ["257720.KS", "251970.KS"],
       ],
     },
+    {
+      id: "bioflow", short: "바이오", etfs: ["244580.KS", "143860.KS", "364970.KS", "0168K0.KS"], label: "💊 바이오 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 글로벌 제약 대장(일라이릴리·노보노디스크, 간밤).",
+      lead: 1, leadByRow: [2, 0, 0],
+      rowLabels: ["대형·CDMO", "신약·기술수출", "미용·의료기기"],
+      rows: [
+        ["LLY", "NVO", "207940.KS", "068270.KS", "000100.KS", "128940.KS", "326030.KS", "302440.KS", "237690.KS"],
+        ["196170.KS", "141080.KS", "298380.KS", "028300.KS", "950160.KS", "087010.KS", "310210.KS"],
+        ["214450.KS", "214150.KS", "145020.KS", "145720.KS"],
+      ],
+    },
+    {
+      id: "finflow", short: "금융", etfs: ["091170.KS", "091220.KS", "102970.KS", "140700.KS"], label: "🏦 금융 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 미국 금융 대장(JP모건·골드만삭스, 간밤). 저PBR·고배당 꼬리표와 함께 보면 좋습니다.",
+      lead: 1, leadByRow: [1, 1, 0],
+      rowLabels: ["은행·지주", "증권", "보험"],
+      rows: [
+        ["JPM", "105560.KS", "055550.KS", "086790.KS", "316140.KS", "024110.KS"],
+        ["GS", "006800.KS", "071050.KS", "039490.KS", "005940.KS", "016360.KS"],
+        ["032830.KS", "000810.KS", "005830.KS", "088350.KS", "001450.KS"],
+      ],
+    },
+    {
+      id: "robotflow", short: "로봇", etfs: ["445290.KS", "0148J0.KS", "0177X0.KS"], label: "🤖 로봇 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 테슬라(옵티머스, 간밤)·인튜이티브서지컬(간밤)·화낙·야스카와(일본 장중).",
+      lead: 1, leadByRow: [2, 2, 0],
+      rowLabels: ["완성 로봇", "부품·구동기", "자동화·서비스"],
+      rows: [
+        ["TSLA", "ISRG", "277810.KS", "454910.KS", "348340.KS", "466100.KS", "270660.KS"],
+        ["6954.T", "6506.T", "108490.KS", "058610.KS", "160190.KS", "437730.KS"],
+        ["090360.KS", "388720.KS", "117730.KS", "090710.KS"],
+      ],
+    },
   ];
   return Object.fromEntries(sections.map(s => [s.id, s]));
 }
@@ -577,7 +610,7 @@ export const DASHBOARD_PAGES: { key: DashboardPage; emoji: string; tab: string; 
   { key: "day",   emoji: "🇰🇷", tab: "지수(한국/주간)", hint: "한국장 · 섹터 대장주 + 미국 지수선물" },
   { key: "night", emoji: "🇺🇸", tab: "지수(미국/야간)", hint: "미국장 · AI 하드/소프트 · 빅테크·방어 + 한국 야간선물" },
   { key: "rot",   emoji: "🔄", tab: "지수(순환매)", hint: "간밤 미국 ➜ 오늘 한국 — 반도체 지수·일본 반도체·AI 순환매(반도체·전력·원자력·2차전지·방산·로봇)" },
-  { key: "sobu",  emoji: "🏭", tab: "지수(업종)", hint: "업종별 단계 — 소부장·2차전지·ESS·조선·방산·원전·화장품(안에서 탭으로)" },
+  { key: "sobu",  emoji: "🏭", tab: "지수(업종)", hint: "업종별 단계 — 소부장·2차전지·조선·방산·원전·바이오·로봇·금융·화장품(안에서 탭으로)" },
 ];
 
 // 페이지별 구성 — **그 시간에 필요한 걸 다**. 중복 허용(한 페이지만 봐도 되게).
@@ -600,7 +633,7 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   rot:   ["semi", "jpsemi", "rotflow", "etftop", "sector"],
   // 소부장 — 단계별 한 블록만(사용자 2026-11-02, 주간 시장 줄은 뺐다 "빼도 될 거 같아")
   // 지수(업종) — 업종마다 한 블록, 페이지 안 탭으로 하나씩(사용자 2026-11-03 "소부장·ESS 를 내부 탭으로")
-  sobu:  ["sobuflow", "battflow", "shipflow", "defflow", "nucflow", "beautyflow"],
+  sobu:  ["sobuflow", "battflow", "shipflow", "defflow", "nucflow", "bioflow", "robotflow", "finflow", "beautyflow"],
   // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
   //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)
