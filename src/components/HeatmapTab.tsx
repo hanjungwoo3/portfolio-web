@@ -74,7 +74,7 @@ const COLOR_OPTS: { key: ColorMode; label: string; sat: number; usOnly?: boolean
   { key: "y", label: "1년 수익률", sat: 40, field: it => it.perfY },
 ];
 // 그룹 기준
-type GroupMode = "sector" | "dir" | "none";
+type GroupMode = "sector" | "secdir" | "dir" | "none";
 
 
 // 그룹 색 — 빨강·파랑(등락 색)과 겹치지 않는 차분한 색 10개
@@ -285,10 +285,11 @@ export function HeatmapTab() {
   const layout = useMemo(() => {
     // change 모드에선 유동성 미달(허수) 종목 제외 — liqFloor=0 이면 전체 통과
     const items = shown.filter(it => liqFloor <= 0 || it.valueTraded >= liqFloor);
-    const empty = { stocks: [] as { it: HeatmapItem; x: number; y: number; w: number; h: number }[], headers: [] as { sec: string; x: number; y: number; w: number; h: number; avg?: number }[] };
+    const empty = { stocks: [] as { it: HeatmapItem; x: number; y: number; w: number; h: number }[], headers: [] as { sec: string; x: number; y: number; w: number; h: number; avg?: number }[], dividers: [] as { x: number; y: number; w: number; h: number }[] };
     if (!items.length || size.w < 40 || size.h < 40) return empty;
     const stocks: { it: HeatmapItem; x: number; y: number; w: number; h: number }[] = [];
     const headers: { sec: string; x: number; y: number; w: number; h: number; avg?: number }[] = [];
+    const dividers: { x: number; y: number; w: number; h: number }[] = [];   // 섹터+상승/하락 — 섹터 안 경계선
     // 그룹 칸 — 머리 18px(글자 크게) + 칸 사이 3px 틈 + 테두리(사용자 2026-11-03 "그룹을 잘 확인 가능하게, 그룹명 키우고 경계 명확히")
     const HEAD = 19, GAP = 5;   // 테두리 4px + 안쪽 틈(사용자 2026-11-03 "테두리 폭 더 넓게")
     const M = 0.5;               // 그룹 사이 바깥 간격(양쪽 0.5px = 1px — 사용자 2026-11-03 "너무 띄웠어" → "더 좁게")
@@ -297,10 +298,11 @@ export function HeatmapTab() {
     if (groupMode === "none") {
       const cells = squarify(items.map(it => ({ item: it, value: sizeVal(it) })), { x: 0, y: 0, w: size.w, h: size.h });
       for (const c of cells) stocks.push({ it: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
-      return { stocks, headers };
+      return { stocks, headers, dividers };
     }
     // 그룹 키 — 섹터 또는 등락 방향. 방향은 '색 기준'과 같은 값으로 나눈다.
     //   1일 등락으로 나누고 색은 1개월 수익률이면 상승 블록에 파란 타일이 섞여 읽기 어렵다.
+    const dirOf = (it: HeatmapItem) => { const v = colorDef.field(it); return v > 0 ? 0 : v < 0 ? 2 : 1; };   // 상승·보합·하락
     const groupKey = groupMode === "dir"
       ? (it: HeatmapItem) => { const v = colorDef.field(it); return v > 0 ? "상승" : v < 0 ? "하락" : "보합"; }
       : (it: HeatmapItem) => it.sector;
@@ -331,7 +333,7 @@ export function HeatmapTab() {
         for (const c of cells) stocks.push({ it: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
         x += w;
       });
-      return { stocks, headers };
+      return { stocks, headers, dividers };
     }
 
     const sectorInputs = [...byGroup].map(([sec, list]) => ({
@@ -343,10 +345,27 @@ export function HeatmapTab() {
       const head = b.h > 40 && b.w > 46 ? HEAD : 0;
       headers.push({ sec: st.item.sec, ...b, avg: avgOf(st.item.list) });
       const inner = { x: b.x + GAP, y: b.y + head + GAP / 2, w: Math.max(0, b.w - GAP * 2), h: Math.max(0, b.h - head - GAP * 1.5) };
+      if (groupMode === "secdir") {
+        // 섹터 안을 상승 | 보합 | 하락으로 나눈다(사용자 2026-11-03 "섹터 안에 상승·하락을 반반씩") — 폭은 크기 합에 비례,
+        //   넓은 칸은 좌→우(상승 왼쪽), 좁고 긴 칸은 위→아래(상승 위). 순서 고정이라 섹터끼리 비교가 된다
+        const parts = [0, 1, 2].map(d => st.item.list.filter(it => dirOf(it) === d)).filter(l => l.length);
+        const tot = parts.reduce((a, l) => a + l.reduce((b, it) => b + sizeVal(it), 0), 0) || 1;
+        const horiz = inner.w >= inner.h;
+        let off = 0;
+        parts.forEach((l, i) => {
+          const share = l.reduce((b, it) => b + sizeVal(it), 0) / tot;
+          const span = i === parts.length - 1 ? (horiz ? inner.w : inner.h) - off : (horiz ? inner.w : inner.h) * share;
+          const r = horiz ? { x: inner.x + off, y: inner.y, w: span, h: inner.h } : { x: inner.x, y: inner.y + off, w: inner.w, h: span };
+          for (const c of squarify(l.map(it => ({ item: it, value: sizeVal(it) })), r)) stocks.push({ it: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
+          if (i < parts.length - 1) dividers.push(horiz ? { x: r.x + r.w - 1, y: r.y, w: 2, h: r.h } : { x: r.x, y: r.y + r.h - 1, w: r.w, h: 2 });
+          off += span;
+        });
+        continue;
+      }
       const cells = squarify(st.item.list.map(it => ({ item: it, value: sizeVal(it) })), inner);
       for (const c of cells) stocks.push({ it: c.item, x: c.x, y: c.y, w: c.w, h: c.h });
     }
-    return { stocks, headers };
+    return { stocks, headers, dividers };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [shown, size.w, size.h, sizeModeEff, groupMode, colorDef, liqFloor, weightMap]);
 
@@ -396,6 +415,7 @@ export function HeatmapTab() {
           <select value={groupMode} onChange={e => setGroupMode(e.target.value as GroupMode)}
                   className="border border-gray-300 rounded px-1.5 py-1 bg-white font-medium text-gray-700">
             <option value="sector">섹터</option>
+            <option value="secdir">섹터+상승/하락</option>
             <option value="dir">상승/하락</option>
             <option value="none">그룹없음</option>
           </select>
@@ -528,6 +548,10 @@ export function HeatmapTab() {
             )}
           </div>
         ); })}
+        {/* 섹터 안 상승 | 하락 경계선 — 종목 칸 위에 그린다 */}
+        {layout.dividers.map((d, i) => (
+          <div key={`d-${i}`} className="absolute z-[5] bg-white/90 pointer-events-none" style={{ left: d.x, top: d.y, width: d.w, height: d.h }} />
+        ))}
 
         {/* 종목 타일 — 로고 + (회사명) + 코드 + 등락%. 폰트·로고는 타일 크기에 비례. hover 강조+툴팁. */}
         {layout.stocks.map(t => {
@@ -618,6 +642,7 @@ export function HeatmapTab() {
           <div className="font-bold text-gray-700 mb-1">🗂️ 그룹 (배치 방식)</div>
           <ul className="space-y-0.5 leading-relaxed">
             <li><b>섹터</b> — 업종(전자기술·금융·생산자제조 등)별로 묶어 배치. 어느 업종이 강한지 한눈에</li>
+            <li><b>섹터+상승/하락</b> — 업종 안을 다시 상승(왼쪽·위) | 하락(오른쪽·아래)으로 나눔. 폭은 크기 합에 비례 — 업종 안에서 오른 쪽이 얼마나 되는지</li>
             <li><b>상승/하락</b> — 왼쪽 상승 · 오른쪽 하락으로 갈라 배치(자리 고정). 블록 폭이 곧 비중이고, 헤더 숫자가 각 블록 종목 수(기준은 위에서 고른 <b>색</b> 기준과 동일)</li>
             <li><b>그룹없음</b> — 업종 구분 없이 전체를 크기순으로 배치</li>
           </ul>
