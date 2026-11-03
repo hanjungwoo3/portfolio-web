@@ -5,6 +5,7 @@ import { squarify } from "../lib/treemap";
 import { heatColor, sectorKr } from "../lib/heatColor";
 import { useQuery } from "@tanstack/react-query";
 import { fetchHeatmapForTickers, fetchTossUsPrices } from "../lib/api";
+import { hasDirectTransport } from "../lib/proxyConfig";
 import { createPortal } from "react-dom";
 import { bearShare, bullShare, fmtUsdKr, openSeohakToss, mdOf, netSellers, seohakOf, useSeohak, type SeohakRow, type SeohakHold, type LevKind } from "../lib/seohak";
 import { useHoverLayer, layerStyle } from "../lib/useHoverLayer";
@@ -73,9 +74,10 @@ function HoldTreemap({ hold, week, height }: { hold: SeohakHold[]; week: { net: 
   // 1일 등락률은 토스 실시간 — TradingView 스캐너는 비로그인이면 15분 지연(update_mode delayed_streaming_900, 실측 2026-11-03 09:38 ET 에
   //   아직 어제 등락률). 크롤러가 받아 둔 토스 코드로 50종목 1콜, 1분마다. 1주·1개월 등락률·섹터는 스캐너 그대로(지연 영향 작음)
   const tossCodes = hold.map(r => r.toss).filter((c): c is string => !!c);
+  //   토스는 앱·확장(직결)에서만 — 일반 웹은 프록시가 토스에 막혀(Akamai) 스캐너 값으로(히트맵 탭 '시세' 옵션과 같은 규칙)
   const live = useQuery({
     queryKey: ["seohak-toss", tossCodes.join(",")], queryFn: () => fetchTossUsPrices(tossCodes),
-    enabled: tossCodes.length > 0, staleTime: 30_000, refetchInterval: 60_000, retry: 1,
+    enabled: tossCodes.length > 0 && hasDirectTransport(), staleTime: 30_000, refetchInterval: 60_000, retry: 1,
   });
   const d1Of = (r: SeohakHold): number | undefined => {
     const t = r.toss ? live.data?.get(r.toss) : undefined;
@@ -175,7 +177,7 @@ function HoldTreemap({ hold, week, height }: { hold: SeohakHold[]; week: { net: 
       <div className="text-[9.5px] text-gray-400 mt-0.5 leading-snug">
         {colorBy === "flow" ? "색 = 이번 주 순매수(빨강)·순매도(파랑)가 보유액의 몇 %인가 · 회색 = 순매매 상위 50 밖"
           : colorBy === "chg" ? "색 = 보유 평가액 1주 변화(주가 등락 + 매매) · 회색 = 전주 상위 50 밖(새로 들어옴)"
-          : `색 = ${COLOR_OPTS.find(o => o[0] === colorBy)![1]}(${colorBy === "d1" ? "토스 실시간, 1분마다" : `TradingView 시세 — 15분 지연${quotes.isError ? " · 불러오기 실패" : ""}`}) · 크기 = ${SIZE_OPTS.find(o => o[0] === sizeBy)![1]}`}
+          : `색 = ${COLOR_OPTS.find(o => o[0] === colorBy)![1]}(${colorBy === "d1" && live.data?.size ? "토스 실시간, 1분마다" : `TradingView 시세 — 15분 지연${quotes.isError ? " · 불러오기 실패" : ""}`}) · 크기 = ${SIZE_OPTS.find(o => o[0] === sizeBy)![1]}`}
       </div>
     </div>
   );
