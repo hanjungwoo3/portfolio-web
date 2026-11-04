@@ -42,7 +42,8 @@ export function ProgramTapePanel() {
         {all.length < 2 ? (
           <div className="text-[11px] text-gray-400 py-6 text-center">프리장(08:00)부터 애프터(20:00)까지 1분마다 쌓입니다 — 앱을 켜 두면 곡선이 이어집니다</div>
         ) : (
-          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[120px]" preserveAspectRatio="none">
+          <div className="relative w-full h-[120px]">
+          <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
             <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#9ca3af" strokeWidth={0.8} strokeDasharray="3 3" />
             {[9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19].filter(h => h * 60 > OPEN && h * 60 < CLOSE).map(h => <line key={h} x1={x(`${h}:00`)} x2={x(`${h}:00`)} y1={0} y2={H} stroke="#e5e7eb" strokeWidth={0.6} />)}
             {tapes.map((pts, i) => pts.length > 1 && (
@@ -50,6 +51,25 @@ export function ProgramTapePanel() {
                         points={pts.map(p => `${x(p.t)},${y(p.v)}`).join(" ")} />
             ))}
           </svg>
+          {/* 선 끝에 종목·값(사용자 2026-11-04 "그래프 끝에 종목이랑 숫자") — svg 가 늘어나 글자가 찌그러지므로 HTML 로 */}
+          {tapes.map((pts, i) => {
+            const last = pts[pts.length - 1];
+            if (!last) return null;
+            const lx = (x(last.t) / W) * 100, ly = Math.max(8, Math.min(92, (y(last.v) / H) * 100));
+            const other = tapes[1 - i]?.[tapes[1 - i].length - 1];
+            // 두 끝이 붙으면 위·아래로 벌린다
+            const near = other && Math.abs(y(other.v) - y(last.v)) < 14;
+            const dy = near ? (last.v >= other!.v ? -9 : 9) : 0;
+            return (
+              <div key={i} className="absolute pointer-events-none flex items-center gap-1 whitespace-nowrap"
+                   style={{ left: `${Math.min(lx, 80)}%`, top: `calc(${ly}% + ${dy}px)`, transform: lx > 80 ? "translate(-100%, -50%)" : "translate(6px, -50%)" }}>
+                <span className="w-2 h-2 rounded-full" style={{ background: COLORS[i] }} />
+                <span className="text-[11px] font-bold px-0.5 rounded bg-white/85" style={{ color: COLORS[i] }}>{PROG_CODES[i][1]}</span>
+                <span className={`text-[12px] font-black tabular-nums px-0.5 rounded bg-white/85 ${tone(last.v)}`}>{fmt(last.v)}</span>
+              </div>
+            );
+          })}
+          </div>
         )}
         <div className="space-y-1.5">
           {PROG_CODES.map(([code, name], i) => {
