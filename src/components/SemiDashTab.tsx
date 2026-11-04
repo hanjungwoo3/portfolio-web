@@ -329,7 +329,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
 
   // 지금 신호 칸 — 반도체 탭과 팝업이 같은 칸을 쓴다
   const signalBox = (
-        <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
+        <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden w-full">
           {/* 지금 신호 — 가설 검증 탭은 뺐다(사용자 2026-11-04 "가설검증은 삭제") */}
           <div className="flex items-baseline gap-1 mb-1 border-b">
             <span className="px-2 pb-1 -mb-px border-b-2 border-blue-500 font-bold text-gray-900">지금 신호</span>
@@ -415,10 +415,11 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       {/* 반도체 프로그램 매매 실시간 — 앱+한국투자(사용자 2026-11-03), 실시간 체결 바로 위(사용자 2026-11-04) */}
       <ProgramTapePanel />
       {/* ② 실시간 체결 + 신호 */}
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_600px] gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]">
+      {/* 체결 두 칸은 위 프로그램 매매처럼 반반 전체 폭(사용자 2026-11-04 "그래프가 넓어야"), 신호는 아래 한 줄 */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[340px] lg:auto-rows-[360px]">
         {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />)}
-        {signalBox}
       </div>
+      <div className="h-[210px] shrink-0 min-h-0 flex">{signalBox}</div>
 
       {/* 수급 칸 투자자 선택 — 증시 탭과 같은 체크박스(세 칸 공통) */}
       <div className="pg-card rounded-lg border border-gray-200 bg-white px-2 py-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 shrink-0">
