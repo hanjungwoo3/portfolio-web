@@ -550,7 +550,6 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
   const VIS = vis == null ? ALL : Math.min(vis, ALL);
   const sc = Math.max(1, ms.length / VIS);              // 그래프 폭 배율(1 = 한 화면)
   const W = 600 * sc, H = 220, PAD = 4;
-  const lim = (p: number) => 100 - (100 - p) / sc;      // 글자 위치 한도 — 보이는 칸 기준 p% 를 넓어진 그래프 기준으로
   const scRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
   const drag = useRef<{ x: number; left: number } | null>(null);   // 마우스로 끌기 시작점                           // 오른쪽 끝(지금)에 붙어 있나 — 사용자가 지난 쪽을 보는 중이면 새 분이 와도 안 끌고 간다
@@ -612,7 +611,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
   const prices = ms.map(m => m.close);
   // 가격 축은 최소 ±0.2% 폭 — 켠 직후 한 호가(0.1%)만 움직여도 위아래 끝까지 그어져 세로선처럼 보였다
   const pMid = (Math.min(...prices) + Math.max(...prices)) / 2;
-  const pR = Math.max(Math.max(...prices) - Math.min(...prices), pMid * 0.004) * 1.1, pMin = pMid - pR / 2;
+  const pR = Math.max(Math.max(...prices) - Math.min(...prices), pMid * 0.004) * 1.45, pMin = pMid - pR / 2;
   // 오른쪽 여백 — 선 끝 글자(지금 가격·누적)가 선 **오른쪽**에 붙을 자리(사용자 2026-11-04 "금액이 선 오른쪽에, 오른쪽을 여유 있게")
   const RP = 150;   // 한 화면(600) 기준 25%
   const bw = (W - PAD - RP) / Math.max(VIS * sc, ms.length);
@@ -746,20 +745,22 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
               const hiI = prices.indexOf(hi), loI = prices.indexOf(lo);
               const lab = "absolute pointer-events-none text-[10px] tabular-nums px-0.5 rounded bg-white/80 whitespace-nowrap";
               const lx = (xOf(prices.length - 1) / W) * 100;
-              // 프로그램 끝값 글자 자리 — 최고·최저 글자가 그 근처(세로 8%·가로 30% 안)면 생략(겹침 방지)
-              const pli = progLine.length - 1 - [...progLine].reverse().findIndex(v => v != null);
-              const pv = pli >= 0 && pli < progLine.length ? progLine[pli] : null;
-              const pY = pv != null ? ((mid - (pv / mxProg) * (mid - PAD)) / H) * 100 : -99, pX = pv != null ? (xOf(pli) / W) * 100 : -99;
-              const nearProg = (i: number, p: number) => Math.abs(yp(p) - pY) < 8 && Math.abs((xOf(i) / W) * 100 - pX) < 30 / sc;
               const pc = (p: number) => base && base > 0 ? ` ${p >= base ? "+" : ""}${((p / base - 1) * 100).toFixed(2)}%` : "";   // 어제 종가 대비(사용자 2026-11-04 "%등락율도 같이")
               return (<>
-                {/* 최고·최저가 방금(끝 3분 안)이면 지금 가격 글자와 겹치므로 생략 */}
-                {hi > lo && hiI < prices.length - 3 && !nearProg(hiI, hi) && <span className={`${lab} text-rose-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(hiI) / W) * 100))}%`, top: `${yp(hi)}%`, transform: "translate(-50%, -110%)" }}>고 {hi.toLocaleString()}{pc(hi)}</span>}
-                {hi > lo && loI < prices.length - 3 && !nearProg(loI, lo) && <span className={`${lab} text-blue-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(loI) / W) * 100))}%`, top: `${yp(lo)}%`, transform: "translate(-50%, 10%)" }}>저 {lo.toLocaleString()}{pc(lo)}</span>}
+                {/* 최고·최저는 그 자리에 — 고: 점 위 ▼ 위에 글자, 저: 점 아래 ▲ 아래 글자(현물 그래프와 같은 모양, 사용자 2026-11-04).
+                    화살표는 점에 정확히, 글자는 화면 끝에서 안 잘리게(왼쪽 끝이면 오른쪽으로, 끝 쪽이면 왼쪽으로) */}
+                {hi > lo && [{ i: hiI, v: hi, up: true }, { i: loI, v: lo, up: false }].map(({ i, v, up: isHi }) => {
+                  const xp = (xOf(i) / W) * 100, y = yp(v);
+                  const tx = xp < 12 / sc ? "-6px" : i >= prices.length - 8 ? "calc(-100% + 6px)" : "-50%";
+                  const col = isHi ? "text-rose-600" : "text-blue-600";
+                  return (
+                    <span key={isHi ? "hi" : "lo"}>
+                      <span className={`absolute pointer-events-none text-[8px] leading-none ${col}`} style={{ left: `${xp}%`, top: `${y}%`, transform: isHi ? "translate(-50%, -115%)" : "translate(-50%, 15%)" }}>{isHi ? "▼" : "▲"}</span>
+                      <span className={`${lab} ${col}`} style={{ left: `${xp}%`, top: `${y}%`, transform: `translate(${tx}, ${isHi ? "calc(-100% - 9px)" : "9px"})` }}>{isHi ? "최고" : "최저"} {v.toLocaleString()}{pc(v)}</span>
+                    </span>
+                  );
+                })}
                 <span className={`${lab} font-bold text-slate-800 border border-slate-300`} style={{ left: `${lx}%`, top: `${endTop.price ?? 50}%`, transform: "translate(6px, -50%)" }}>{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span>
-                  {/* 최고·최저가 방금(끝 3분 안)이거나 프로그램 점에 가려 따로 못 단 경우 — 여기 같이(사용자 2026-11-04 "저가가 없고") */}
-                  {hi > lo && (hiI >= prices.length - 3 || nearProg(hiI, hi)) && <span className="ml-1 font-normal text-rose-600">고 {hi.toLocaleString()}{pc(hi)}</span>}
-                  {hi > lo && (loI >= prices.length - 3 || nearProg(loI, lo)) && <span className="ml-1 font-normal text-blue-600">저 {lo.toLocaleString()}{pc(lo)}</span>}
                 </span>
               </>);
             })()}
