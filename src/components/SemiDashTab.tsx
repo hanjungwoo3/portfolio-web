@@ -601,7 +601,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
                     fill="none" stroke="#ea580c" strokeWidth={2.2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
               {progLine.some(v => v != null) && (
                 <path d={progLine.map((v, i) => v == null ? "" : `${progLine.slice(0, i).some(x => x != null) ? "L" : "M"} ${xOf(i)} ${mid - (v / mxCum) * (mid - PAD)}`).join(" ")}
-                      fill="none" stroke="#7c3aed" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+                      fill="none" stroke="#7c3aed" strokeWidth={1.2} vectorEffect="non-scaling-stroke" />
               )}
 
             </svg>
