@@ -132,6 +132,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return q(`${code}.KS`);
   };
   // 어제 종가 = 지금 가격 ÷ (1 + 등락률) — 실시간 체결 가격 글자 옆 % 용
+  const [tickVis, setTickVis] = useState<number | null>(null);   // 두 체결 칸 공통 확대 상태
+  const tickLink = { vis: tickVis, setVis: setTickVis };
   // 종목 수급 오늘 잠정치(토스 — KRX 장중 잠정, 외국인·기관·연기금. 개인은 장 마감 뒤) — 실시간 체결 칸 한 줄(사용자 2026-11-04)
   const todayInv = useQueries({
     queries: stocks.map(s => ({
@@ -418,7 +420,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {stocks.map((s, i) => (
           <div key={s.code} className="flex flex-col gap-1.5 min-w-0">
             <div className="h-[340px] lg:h-[360px] grid min-h-0">
-              <TickPanel name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
+              <TickPanel name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} link={tickLink} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
             </div>
             {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "max-h-[150px]")}   {/* 내용만큼 — 신호가 한두 줄이면 빈 칸이 컸다(사용자 2026-11-04) */}
           </div>
@@ -530,14 +532,20 @@ function SparkBg({ sp, base }: { sp: { nextBase?: number; markXs?: { x: number; 
                     baseline={base && base > 0 ? base : sp.prevClose} markIndex={sp.openIdx} closeIndex={sp.closeIdx} extraMarks={[sp.prevOpenIdx, sp.prevCloseIdx]} markXs={sp.markXs} breakIndex={sp.breakIdx} prevBaseline={sp.prevBase} nextBaseline={sp.nextBase} />;
 }
 
+const TICK_SCROLL = "semi-tick-scroll";   // 종목 칸끼리 좌우 위치 맞추기
+interface TickLink { vis: number | null; setVis: React.Dispatch<React.SetStateAction<number | null>> }
+
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
 //   onTitle — 제목을 누르면 ⚡ 종목 체결 팝업(같은 화면을 이 종목 하나로)
-function TickPanel({ name, flow, day, onTitle, base, prog, inv, price }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[]; inv?: Investor; price?: number }) {   // inv = 오늘 투자자 잠정치(토스)   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
+function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[]; inv?: Investor; price?: number; link?: TickLink }) {   // inv = 오늘 투자자 잠정치(토스)   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
   // 최근 1시간만 한 화면 폭에, 그 전은 왼쪽으로 스크롤(사용자 2026-11-04 "1시간으로, 지난 건 스크롤로") — 오늘 켠 뒤 전부 그린다
   const ms = flow.minutes;
   // 한 화면 분 수 — 기본 1시간, 마우스 휠로 확대(10분까지)·축소(켠 뒤 전부까지)(사용자 2026-11-04 "휠로 확대 축소")
   //   기본 = 켠 뒤 전부 한 화면(사용자 2026-11-04 "전체를 보여주는 걸 기본으로") — null 이면 전체
-  const [vis, setVis] = useState<number | null>(null);
+  //   두 종목 칸은 확대·축소와 좌우 위치가 같이 움직인다(사용자 2026-11-04 "두 개가 같이 연동") — 부모가 vis 를 쥐면 그걸 쓴다
+  const [visLocal, setVisLocal] = useState<number | null>(null);
+  const vis = link ? link.vis : visLocal;
+  const setVis = link ? link.setVis : setVisLocal;
   const ALL = Math.max(60, ms.length);
   const VIS = vis == null ? ALL : Math.min(vis, ALL);
   const sc = Math.max(1, ms.length / VIS);              // 그래프 폭 배율(1 = 한 화면)
@@ -550,6 +558,19 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price }: { name:
   // 휠 — 마우스 자리를 기준점으로 확대·축소(오른쪽 끝에 붙어 있었으면 계속 끝에). 가로 휠(트랙패드 좌우)은 그대로 스크롤.
   //   React onWheel 은 passive 라 페이지 스크롤을 못 막는다 → 직접 등록
   const zoomAt = useRef<{ fx: number; px: number } | null>(null);
+  const syncing = useRef(false);
+  useEffect(() => {
+    const on = (e: Event) => {
+      const d = (e as CustomEvent<{ from: string; gap: number }>).detail, el = scRef.current;
+      if (!el || d.from === name) return;
+      const left = Math.max(0, el.scrollWidth - el.clientWidth - d.gap * el.scrollWidth);
+      if (Math.abs(el.scrollLeft - left) < 1) return;
+      syncing.current = true;
+      el.scrollLeft = left;
+    };
+    window.addEventListener(TICK_SCROLL, on);
+    return () => window.removeEventListener(TICK_SCROLL, on);
+  }, [name]);
   const msLen = useRef(ms.length); msLen.current = ms.length;
   const hasChart = ms.length > 0;
   useEffect(() => {
@@ -571,6 +592,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price }: { name:
   }, [hasChart]);
   useLayoutEffect(() => {
     const el = scRef.current, z = zoomAt.current;
+    if (el && !z && stick.current) { el.scrollLeft = el.scrollWidth; return; }   // 옆 칸이 확대했을 때 — 끝에 붙어 있었으면 계속 끝
     if (!el || !z) return;
     zoomAt.current = null;
     el.scrollLeft = stick.current ? el.scrollWidth : z.fx * el.scrollWidth - z.px;
@@ -651,7 +673,13 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price }: { name:
           {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div ref={scRef}
                  // 스크롤바는 숨기고 마우스로 끌어서 옮긴다(사용자 2026-11-04 "스크롤바가 아니라 마우스로 클릭해서 이동") — 터치는 그냥 밀면 된다
                  className={`w-full h-full overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden select-none ${sc > 1 ? "cursor-grab active:cursor-grabbing" : ""}`}
-                 onScroll={e => { const el = e.currentTarget; stick.current = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8; }}
+                 onScroll={e => {
+                   const el = e.currentTarget;
+                   stick.current = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8;
+                   // 남이 옮겨 준 스크롤이면 다시 알리지 않는다(되먹임 방지). 오른쪽 끝에서 몇 % 떨어졌나로 맞춘다 — 두 칸 길이가 조금 달라도 같은 시각대
+                   if (syncing.current) { syncing.current = false; return; }
+                   window.dispatchEvent(new CustomEvent(TICK_SCROLL, { detail: { from: name, gap: (el.scrollWidth - el.clientWidth - el.scrollLeft) / el.scrollWidth } }));
+                 }}
                  onPointerDown={e => { if (sc <= 1 || e.pointerType !== "mouse") return; drag.current = { x: e.clientX, left: e.currentTarget.scrollLeft }; e.currentTarget.setPointerCapture(e.pointerId); }}
                  onPointerMove={e => { if (!drag.current) return; e.currentTarget.scrollLeft = drag.current.left - (e.clientX - drag.current.x); }}
                  onPointerUp={e => { drag.current = null; e.currentTarget.releasePointerCapture(e.pointerId); }}>
