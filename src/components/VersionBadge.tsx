@@ -20,8 +20,8 @@ export function PreviewSwitch() {
   );
   if (!info || !(Date.parse(info.buildTime) > Date.parse(__BUILD_TIME__))) return null;
   return (
-    <button onClick={() => void (async () => { if (await appConfirm(`배포 전 미리보기(${info.commit ?? ""})로 바꿀까요?\n\n• 지금 쓰는 데이터(오늘 기록·보유·설정)를 그대로 씁니다\n• 헤더의 '🧪 미리보기 · 원래대로'로 언제든 돌아옵니다`)) enterPreview(); })()}
-            title="배포 전 수정을 지금 앱 그대로 써 보기"
+    <button onClick={enterPreview}   /* 확인 창 없이 바로 — 맥 앱에서 눌러도 넘어가지 않았다(사용자 2026-11-04 "눌렀는데 그대로"). 원래대로 단추로 언제든 복귀 */
+            title={`배포 전 미리보기(${info.commit ?? ""}) — 지금 쓰는 데이터 그대로, 헤더의 원래대로 단추로 복귀`}
             className="px-1 rounded border border-amber-400 bg-amber-50 text-amber-800 font-bold text-[10px] leading-[15px] hover:bg-amber-100">🧪 미리보기</button>
   );
 }
