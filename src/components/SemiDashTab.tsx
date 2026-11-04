@@ -584,7 +584,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price }: { name:
   const progAt = (t: string) => { if (!prog?.length) return null; let v: number | null = null; for (const p of prog) { if (p.t <= t) v = p.v; else break; } return v; };
   const p0 = ms.length ? (progAt(ms[0].t) ?? prog?.[0]?.v ?? null) : null;
   const progLine = p0 == null ? [] : ms.map(m => { const v = progAt(m.t); return v == null ? null : (v - p0) * 1e8; });
-  const mxCum = Math.max(1, ...cum.map(Math.abs), ...progLine.map(v => Math.abs(v ?? 0)));
+  // 누적(주황)·프로그램(보라)은 **축 따로** — 프로그램이 수천억이라 같은 축이면 켠 뒤 누적(수백억)이 0선에 붙어 안 움직였다(사용자 2026-11-04)
+  const mxCum = Math.max(1, ...cum.map(Math.abs));
+  const mxProg = Math.max(1, ...progLine.map(v => Math.abs(v ?? 0)));
   const prices = ms.map(m => m.close);
   // 가격 축은 최소 ±0.2% 폭 — 켠 직후 한 호가(0.1%)만 움직여도 위아래 끝까지 그어져 세로선처럼 보였다
   const pMid = (Math.min(...prices) + Math.max(...prices)) / 2;
@@ -666,7 +668,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price }: { name:
               <path d={cum.map((c, i) => `${i ? "L" : "M"} ${xOf(i)} ${mid - (c / mxCum) * (mid - PAD)}`).join(" ")}
                     fill="none" stroke="#ea580c" strokeWidth={2.2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
               {progLine.some(v => v != null) && (
-                <path d={progLine.map((v, i) => v == null ? "" : `${progLine.slice(0, i).some(x => x != null) ? "L" : "M"} ${xOf(i)} ${mid - (v / mxCum) * (mid - PAD)}`).join(" ")}
+                <path d={progLine.map((v, i) => v == null ? "" : `${progLine.slice(0, i).some(x => x != null) ? "L" : "M"} ${xOf(i)} ${mid - (v / mxProg) * (mid - PAD)}`).join(" ")}
                       fill="none" stroke="#7c3aed" strokeWidth={1.2} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
               )}
 
@@ -679,7 +681,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price }: { name:
             {(() => {
               const li = progLine.length - 1 - [...progLine].reverse().findIndex(v => v != null);
               if (li < 0 || li >= progLine.length || progLine[li] == null) return null;
-              const v = progLine[li]!, lx = (xOf(li) / W) * 100, ly = ((mid - (v / mxCum) * (mid - PAD)) / H) * 100;
+              const v = progLine[li]!, lx = (xOf(li) / W) * 100, ly = ((mid - (v / mxProg) * (mid - PAD)) / H) * 100;
               const cl = cum.length ? ((mid - (cum[cum.length - 1] / mxCum) * (mid - PAD)) / H) * 100 : -99;
               const dy = Math.abs(cl - ly) < 7 ? (ly < cl ? -7 : 7) : 0;   // 주황 누적 글자와 붙으면 벌린다
               // 지금 가격 글자(선 끝)와도 붙으면 반대쪽으로 더 벌린다
@@ -703,7 +705,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price }: { name:
               // 프로그램 끝값 글자 자리 — 최고·최저 글자가 그 근처(세로 8%·가로 30% 안)면 생략(겹침 방지)
               const pli = progLine.length - 1 - [...progLine].reverse().findIndex(v => v != null);
               const pv = pli >= 0 && pli < progLine.length ? progLine[pli] : null;
-              const pY = pv != null ? ((mid - (pv / mxCum) * (mid - PAD)) / H) * 100 : -99, pX = pv != null ? (xOf(pli) / W) * 100 : -99;
+              const pY = pv != null ? ((mid - (pv / mxProg) * (mid - PAD)) / H) * 100 : -99, pX = pv != null ? (xOf(pli) / W) * 100 : -99;
               const nearProg = (i: number, p: number) => Math.abs(yp(p) - pY) < 8 && Math.abs((xOf(i) / W) * 100 - pX) < 30 / sc;
               const pc = (p: number) => base && base > 0 ? ` ${p >= base ? "+" : ""}${((p / base - 1) * 100).toFixed(2)}%` : "";   // 어제 종가 대비(사용자 2026-11-04 "%등락율도 같이")
               return (<>
@@ -744,8 +746,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price }: { name:
         <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" />1분 순매수</span>
         <span><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />1분 순매도</span>
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
-        <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dashed border-orange-600" />누적 순매수(켠 뒤)</span>
-        {prog && prog.length > 0 && <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-violet-600" />프로그램(누적과 같은 축, 한투)</span>}
+        <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dashed border-orange-600" />누적 순매수(켠 뒤, 축 따로)</span>
+        {prog && prog.length > 0 && <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-violet-600" />프로그램(축 따로, 한투)</span>}
       </div>
     </div>
   );
