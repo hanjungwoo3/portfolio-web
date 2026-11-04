@@ -328,6 +328,12 @@ export const US_PAIRS: Pair[] = [
   { symbol: "019990.KS", name: "에너토크", desc: "원전 밸브 구동기", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "189860.KS", name: "서전기전", desc: "원전 배전반", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "126720.KS", name: "수산인더스트리", desc: "원전 정비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "130660.KS", name: "한전산업", desc: "원전 운전·정비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 원전 탭(사용자 2026-11-05 "다 넣자")
+  { symbol: "457550.KS", name: "우진엔텍", desc: "원전 계측·정비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 원전 탭(사용자 2026-11-05 "다 넣자")
+  { symbol: "046120.KS", name: "오르비텍", desc: "방사선 관리·원전 해체", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 원전 탭(사용자 2026-11-05 "다 넣자")
+  { symbol: "036190.KS", name: "금화피에스시", desc: "발전소 정비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 원전 탭(사용자 2026-11-05 "다 넣자")
+  { symbol: "011700.KS", name: "한신기계", desc: "원전 공기압축기", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 원전 탭(사용자 2026-11-05 "다 넣자")
+  { symbol: "028260.KS", name: "삼성물산", desc: "원전 시공·SMR 투자", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 원전 탭(사용자 2026-11-05 "다 넣자")
   { symbol: "018290.KS", name: "브이티", desc: "화장품 브랜드(리들샷)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "241710.KS", name: "코스메카코리아", desc: "화장품 ODM", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "352480.KS", name: "씨앤씨인터내셔널", desc: "색조 ODM", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
