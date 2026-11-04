@@ -117,6 +117,8 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
 
   // 한 패널·한 그래프(사용자 2026-11-04 "외국인 선물 그래프까지 포함해 패널 전체를 하나로") —
   //   남색 = 외국인 누적(억원, 0선), 보라 = 시장 미결제(근월물 전체, 축 따로), 회색 = 선물가(축 따로), 아래 막대 = 15분 미결제 변화 성격
+  // 장중 최저·최고가 방금(끝 10분 안)이면 표시를 따로 달지 않고 선 끝 '외국인' 글자에 붙인다 — 끝 글자들과 겹쳤다(사용자 2026-11-04)
+  const extAtEnd = !!(ext && last && hm2m(last.t) - hm2m(ext.t) <= 10);
   const H = 240, CW = 1200;   // 그래프 내부 폭 — 패널 전체 폭이라 600 이면 글자가 가로로 늘어났다(viewBox 비율)
   const oiLayer = (sx: (t: string) => number) => {
     const scale = (vals: number[]) => { const lo = Math.min(...vals), hi = Math.max(...vals), pad = (hi - lo) * 0.08 || 0.5; return (v: number) => 8 + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * (H - 8 - 14); };
@@ -159,7 +161,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
           </>)}
           <div className="flex-1 min-w-0">
             <Chart series={fs.map(p => ({ t: p.t, v: p.v }))} baseZero color="#1e3a8a" height={H} width={CW}
-                   markers={ext ? [{ t: ext.t, v: ext.v, label: `${ext.v < 0 ? "최저" : "최고"} ${ext.t}`, color: "#2563eb" }] : []}>
+                   markers={ext && !extAtEnd ? [{ t: ext.t, v: ext.v, label: `${ext.v < 0 ? "최저" : "최고"} ${ext.t}`, color: "#2563eb" }] : []}>
               {(sx, sy) => (<>
                 {oiLayer(sx)}
                 {/* 선 끝 이름·값 — 무슨 선인지 바로(사용자 2026-11-04 "무슨 선인지, 선에 숫자도"). 겹치면 순서대로 쌓는다 */}
@@ -168,7 +170,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
                   const lo = oi[oi.length - 1], lf = fs[fs.length - 1];
                   const oiv = oi.map(p => p.oi).filter(v => v > 0), ps = oi.map(p => p.p).filter(v => v > 0);
                   const items: { x: number; y: number; t: string; c: string }[] = [];
-                  if (lf) items.push({ x: sx(lf.t), y: sy(lf.v), t: `외국인 ${eok(lf.v)}`, c: lf.v >= 0 ? "#e11d48" : "#1e3a8a" });
+                  if (lf) items.push({ x: sx(lf.t), y: sy(lf.v), t: `외국인 ${eok(lf.v)}${extAtEnd && ext ? ` (장중 ${ext.v < 0 ? "최저" : "최고"})` : ""}`, c: lf.v >= 0 ? "#e11d48" : "#1e3a8a" });
                   if (lo && oiv.length > 1) items.push({ x: sx(lo.t), y: scale(oiv)(lo.oi), t: `미결제 ${lo.oi.toLocaleString()}`, c: "#7c3aed" });
                   if (lo && ps.length > 1) items.push({ x: sx(lo.t), y: scale(ps)(lo.p), t: `선물 ${lo.p.toFixed(2)}`, c: "#6b7280" });
                   items.sort((a, b) => a.y - b.y);
