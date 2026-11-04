@@ -36,9 +36,9 @@ export function ProgramTapePanel() {
     <div className="rounded-lg border border-gray-200 bg-white pg-card p-2 shrink-0">
       <div className="flex items-baseline gap-2 flex-wrap">
         <span className="font-bold text-gray-800 text-sm">⚙️ 반도체 프로그램 매매 <span className="text-[11px] font-normal text-emerald-700">● 한투 실시간</span></span>
-        <span className="text-[11px] text-gray-500">오늘 누적 순매수(KRX+NXT 통합) · 1분마다 · 프로그램 = 기관·외국인의 묶음 기계 주문이라 방향이 반도체를 끌고 가는 경우가 많습니다</span>
+        <span className="text-[11px] text-gray-500">{tapes[0].length ? `${tapes[0][tapes[0].length - 1].t} 기준 · ` : ""}오늘 누적 순매수(KRX+NXT 통합) · 0선 위 = 순매수 · 1분마다 · 프로그램 = 기관·외국인의 묶음 기계 주문이라 방향이 반도체를 끌고 가는 경우가 많습니다</span>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_220px] gap-2 mt-1 items-center">
+      <div className="mt-1">   {/* 오른쪽 목록은 없애고 값은 선 끝에(사용자 2026-11-04 "그래프로 다 옮기면") */}
         {all.length < 2 ? (
           <div className="text-[11px] text-gray-400 py-6 text-center">프리장(08:00)부터 애프터(20:00)까지 1분마다 쌓입니다 — 앱을 켜 두면 곡선이 이어집니다</div>
         ) : (
@@ -62,29 +62,16 @@ export function ProgramTapePanel() {
             const dy = near ? (last.v >= other!.v ? -9 : 9) : 0;
             return (
               <div key={i} className="absolute pointer-events-none flex items-center gap-1 whitespace-nowrap"
-                   style={{ left: `${Math.min(lx, 80)}%`, top: `calc(${ly}% + ${dy}px)`, transform: lx > 80 ? "translate(-100%, -50%)" : "translate(6px, -50%)" }}>
+                   style={{ left: `${Math.min(lx, 72)}%`, top: `calc(${ly}% + ${dy}px)`, transform: lx > 72 ? "translate(-100%, -50%)" : "translate(6px, -50%)" }}>
                 <span className="w-2 h-2 rounded-full" style={{ background: COLORS[i] }} />
                 <span className="text-[11px] font-bold px-0.5 rounded bg-white/85" style={{ color: COLORS[i] }}>{PROG_CODES[i][1]}</span>
                 <span className={`text-[12px] font-black tabular-nums px-0.5 rounded bg-white/85 ${tone(last.v)}`}>{fmt(last.v)}</span>
+                {(() => { const c = chg15(pts); return c == null ? null : <span className={`text-[10.5px] tabular-nums px-0.5 rounded bg-white/85 ${tone(c)}`} title="최근 15분 변화">15분 {fmt(c)}</span>; })()}
               </div>
             );
           })}
           </div>
         )}
-        <div className="space-y-1.5">
-          {PROG_CODES.map(([code, name], i) => {
-            const pts = tapes[i], last = pts[pts.length - 1], c15 = chg15(pts);
-            return (
-              <div key={code} className="flex items-baseline gap-1.5 text-[12px] tabular-nums">
-                <i className="inline-block w-3 h-0.5 self-center" style={{ background: COLORS[i] }} />
-                <span className="font-bold text-gray-800 w-[68px]">{name}</span>
-                <span className={`font-bold text-[14px] ${last ? tone(last.v) : "text-gray-400"}`}>{last ? fmt(last.v) : "—"}</span>
-                {c15 != null && <span className={`text-[10.5px] ${tone(c15)}`} title="최근 15분 변화">15분 {fmt(c15)}</span>}
-              </div>
-            );
-          })}
-          <div className="text-[10px] text-gray-400">{tapes[0].length ? `마지막 ${tapes[0][tapes[0].length - 1].t}` : ""} · 위 0선 = 순매수, 아래 = 순매도</div>
-        </div>
       </div>
     </div>
   );
