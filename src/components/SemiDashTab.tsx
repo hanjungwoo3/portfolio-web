@@ -617,6 +617,22 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
   const RP = 150;   // 한 화면(600) 기준 25%
   const bw = (W - PAD - RP) / Math.max(VIS * sc, ms.length);
   const xOf = (i: number) => PAD + i * bw + bw / 2;
+  // 선 끝 글자 셋(지금 가격·누적·프로그램) — 각자 선 높이를 따르되 겹치면 순서대로 쌓는다(사용자 2026-11-04 "안 겹치게 순서대로")
+  const endTop = (() => {
+    const out: Record<"price" | "cum" | "prog", number | null> = { price: null, cum: null, prog: null };
+    const want: { k: keyof typeof out; y: number }[] = [];
+    if (prices.length) want.push({ k: "price", y: ((PAD + (1 - (prices[prices.length - 1] - pMin) / pR) * (H - PAD * 2)) / H) * 100 });
+    if (cum.length) want.push({ k: "cum", y: (((H / 2) - (cum[cum.length - 1] / mxCum) * ((H / 2) - PAD)) / H) * 100 });
+    const pl = [...progLine].reverse().find(v => v != null);
+    if (pl != null) want.push({ k: "prog", y: (((H / 2) - (pl / mxProg) * ((H / 2) - PAD)) / H) * 100 });
+    const GAP = 9, LO = 5, HI = 93;
+    want.sort((a, b) => a.y - b.y);
+    const ys = want.map(w => Math.max(LO, Math.min(HI, w.y)));
+    for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] + GAP);           // 아래로 밀고
+    for (let i = ys.length - 1; i >= 0; i--) { if (ys[i] > HI) ys[i] = HI; if (i > 0 && ys[i - 1] > ys[i] - GAP) ys[i - 1] = ys[i] - GAP; }   // 바닥을 넘으면 위로
+    want.forEach((w, i) => { out[w.k] = ys[i]; });
+    return out;
+  })();
   const mid = H / 2;
   const st1 = strength(ms, 1), st5 = strength(ms, 5), stAll = strength(ms);
   const bigThr = bigThreshold(flow.big);
@@ -715,13 +731,13 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
               // 지금 가격 글자(선 끝)와도 붙으면 반대쪽으로 더 벌린다
               const lp = prices.length ? ((PAD + (1 - (prices[prices.length - 1] - pMin) / pR) * (H - PAD * 2)) / H) * 100 : -99;
               // 실제로 놓일 자리(위·아래 끝에서 잘리는 값)로 비교 — 둘 다 바닥에 붙으면 위로 올린다
-              void lp; const top = Math.max(2, Math.min(96, ly + dy));   // 점만 — 값은 위 수치 줄(사용자 2026-11-04 "겹치는데")
-              return (
-                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${lx}%`, top: `${top}%`, transform: "translateY(-50%)" }}>
-                  <span className="w-2 h-2 rounded-full bg-violet-600 shrink-0" style={{ marginLeft: -4 }} />
-
-                </div>
-              );
+              void lp; void dy;
+              return (<>
+                {/* 점은 선 끝 그대로, 글자는 쌓인 자리(endTop) — 프로그램 값도 선 끝에(사용자 2026-11-04 "프로그램도 가격 있지 않아?") */}
+                <span className="absolute w-2 h-2 rounded-full bg-violet-600 pointer-events-none" style={{ left: `${lx}%`, top: `${Math.max(2, Math.min(96, ly))}%`, transform: "translate(-50%, -50%)" }} />
+                <span className="absolute pointer-events-none text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap text-violet-700"
+                      style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(8px, -50%)" }}>프로그램 {netWord((prog?.[prog.length - 1]?.v ?? 0) * 1e8)}</span>
+              </>);
             })()}
             {/* 가격 글자(사용자 2026-11-04 "가격 그래프에 금액") — 최고·최저는 그 높이 왼쪽에, 지금 가격은 선 끝에. svg 가 늘어나므로 HTML 로 */}
             {prices.length > 1 && (() => {
@@ -740,7 +756,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
                 {/* 최고·최저가 방금(끝 3분 안)이면 지금 가격 글자와 겹치므로 생략 */}
                 {hi > lo && hiI < prices.length - 3 && !nearProg(hiI, hi) && <span className={`${lab} text-rose-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(hiI) / W) * 100))}%`, top: `${yp(hi)}%`, transform: "translate(-50%, -110%)" }}>고 {hi.toLocaleString()}{pc(hi)}</span>}
                 {hi > lo && loI < prices.length - 3 && !nearProg(loI, lo) && <span className={`${lab} text-blue-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(loI) / W) * 100))}%`, top: `${yp(lo)}%`, transform: "translate(-50%, 10%)" }}>저 {lo.toLocaleString()}{pc(lo)}</span>}
-                <span className={`${lab} font-bold text-slate-800 border border-slate-300`} style={{ left: `${lx}%`, top: `${Math.max(6, Math.min(90, yp(last)))}%`, transform: "translate(6px, -50%)" }}>{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span>
+                <span className={`${lab} font-bold text-slate-800 border border-slate-300`} style={{ left: `${lx}%`, top: `${endTop.price ?? 50}%`, transform: "translate(6px, -50%)" }}>{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span>
                   {/* 최고·최저가 방금(끝 3분 안)이거나 프로그램 점에 가려 따로 못 단 경우 — 여기 같이(사용자 2026-11-04 "저가가 없고") */}
                   {hi > lo && (hiI >= prices.length - 3 || nearProg(hiI, hi)) && <span className="ml-1 font-normal text-rose-600">고 {hi.toLocaleString()}{pc(hi)}</span>}
                   {hi > lo && (loI >= prices.length - 3 || nearProg(loI, lo)) && <span className="ml-1 font-normal text-blue-600">저 {lo.toLocaleString()}{pc(lo)}</span>}
@@ -754,7 +770,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
               const lpC = prices.length ? Math.max(6, Math.min(90, ((PAD + (1 - (prices[prices.length - 1] - pMin) / pR) * (H - PAD * 2)) / H) * 100)) : -99;
               const ly = Math.abs(Math.max(4, Math.min(92, ly0)) - lpC) < 9 ? (lpC >= 50 ? lpC - 11 : lpC + 11) : ly0;
               return (
-                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${lx}%`, top: `${Math.max(4, Math.min(92, ly))}%`, transform: "translateY(-50%)" }}>
+                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${lx}%`, top: `${endTop.cum ?? ly}%`, transform: "translateY(-50%)" }}>
                   {/* 글자 색 = 선과 같은 주황(사용자 2026-11-04 "그래프처럼 오렌지색으로") — 방향은 '순매수/순매도' 글자로 */}
                   <span className="w-2 h-2 rounded-full bg-orange-600 shrink-0" style={{ marginLeft: -4 }} />
                   <span className="text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap text-orange-600">누적 {netWord(cum[cum.length - 1])}</span>
