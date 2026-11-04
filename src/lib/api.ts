@@ -4609,21 +4609,21 @@ export async function fetchTossExchangeRate(): Promise<UsIndex | null> {
 //   (토스는 일본 종목이 없고, 한국투자 해외 현재가도 장 초반 거래량 0 = 지연. 실측 2026-11-04 09:12~09:18)
 //   polling.finance.naver.com 은 프록시 허용 목록에 이미 있다. 코드는 로이터 코드(285A.T·8035.T) 그대로.
 export interface NaverWorldQuote { code: string; name: string; price: number; prev: number; pct: number; tradedAt: number; open: boolean; date: string }
-export async function fetchNaverWorld(codes: string[]): Promise<Map<string, NaverWorldQuote>> {
+export async function fetchNaverWorld(codes: string[], kind: "stock" | "index" = "stock"): Promise<Map<string, NaverWorldQuote>> {
   const out = new Map<string, NaverWorldQuote>();
   const num = (v: unknown) => Number(String(v ?? "").replace(/,/g, ""));
   for (let i = 0; i < codes.length; i += 20) {
     const chunk = codes.slice(i, i + 20);
     try {
-      const r = await fetchProxied(`https://polling.finance.naver.com/api/realtime/worldstock/stock/${chunk.map(encodeURIComponent).join(",")}`);
+      const r = await fetchProxied(`https://polling.finance.naver.com/api/realtime/worldstock/${kind}/${chunk.map(encodeURIComponent).join(",")}`);
       if (!r.ok) continue;
-      const j = await r.json() as { datas?: { reutersCode?: string; stockName?: string; closePrice?: string; compareToPreviousClosePrice?: string; fluctuationsRatio?: string; localTradedAt?: string; marketStatus?: string }[] };
+      const j = await r.json() as { datas?: { reutersCode?: string; stockName?: string; indexName?: string; closePrice?: string; compareToPreviousClosePrice?: string; fluctuationsRatio?: string; localTradedAt?: string; marketStatus?: string }[] };
       for (const d of j.datas ?? []) {
         const price = num(d.closePrice), chg = num(d.compareToPreviousClosePrice);
         if (!d.reutersCode || !(price > 0)) continue;
         const ms = d.localTradedAt ? Date.parse(d.localTradedAt) : NaN;
         out.set(d.reutersCode, {
-          code: d.reutersCode, name: d.stockName ?? d.reutersCode, price, prev: price - chg, pct: num(d.fluctuationsRatio),
+          code: d.reutersCode, name: d.stockName ?? d.indexName ?? d.reutersCode, price, prev: price - chg, pct: num(d.fluctuationsRatio),
           tradedAt: Number.isFinite(ms) ? Math.floor(ms / 1000) : 0, open: d.marketStatus === "OPEN",
           date: (d.localTradedAt ?? "").slice(0, 10),   // 현지 날짜(+09:00 등 현지 오프셋이 붙어 온다)
         });
@@ -4633,6 +4633,8 @@ export async function fetchNaverWorld(codes: string[]): Promise<Map<string, Nave
   return out;
 }
 const isNaverWorldSym = (s: string) => /^[0-9A-Z]{4}\.T$/.test(s);   // 도쿄 상장(8035.T·285A.T) — 다른 거래소는 아직 야후
+// 지수 — 야후 심볼 → 네이버 로이터 코드(사용자 2026-11-04 "닛케이도 네이버로", 15분 지연·장 상태 포함)
+const NAVER_WORLD_INDEX: Record<string, string> = { "^N225": ".N225" };
 
 export async function fetchYahooBatch(
   pairs: { symbol: string; name: string }[]
@@ -4646,8 +4648,10 @@ export async function fetchYahooBatch(
   const investItems = pairs.filter(p => isCnbcIndex(p.symbol));
   const cnnFg = pairs.find(p => p.symbol === CNN_FG_SYMBOL);
   const jpItems = pairs.filter(p => isNaverWorldSym(p.symbol));
+  const jpIdxItems = pairs.filter(p => NAVER_WORLD_INDEX[p.symbol]);
 
   const jpPromise = jpItems.length ? fetchNaverWorld(jpItems.map(p => p.symbol)).catch(() => new Map<string, NaverWorldQuote>()) : Promise.resolve(new Map<string, NaverWorldQuote>());
+  const jpIdxPromise = jpIdxItems.length ? fetchNaverWorld(jpIdxItems.map(p => NAVER_WORLD_INDEX[p.symbol]), "index").catch(() => new Map<string, NaverWorldQuote>()) : Promise.resolve(new Map<string, NaverWorldQuote>());
   const [ksMap, overviewMap, usMap, investResults, yahooResults, cnnFgIdx, sinaMetals, memPrices] = await Promise.all([
     ksItems.length > 0
       ? fetchTossPrices(ksItems.map(p => ksRegex.exec(p.symbol)![1]))
@@ -4749,13 +4753,13 @@ export async function fetchYahooBatch(
   for (const m of memPrices) applyToss(m.symbol, m);
   // 도쿄 상장 — 네이버(15분 지연, 장 상태 포함)로 현재가·등락률·체결 시각을 덮는다. 오늘 체결이 아직 없으면 체결 시각이 지난 거래일이라
   //   카드 흐림(정체 판정)이 그대로 걸린다(야후 20분 지연·휴장 다음 날 09시에 지난 값이 밝게 뜨던 문제, 2026-11-04)
-  const jpMap = await jpPromise;
-  for (const p of jpItems) {
-    const n = jpMap.get(p.symbol);
+  const jpMap = await jpPromise, jpIdxMap = await jpIdxPromise;
+  for (const p of [...jpItems, ...jpIdxItems]) {
+    const n = jpMap.get(p.symbol) ?? jpIdxMap.get(NAVER_WORLD_INDEX[p.symbol] ?? "");
     if (!n) continue;
     applyToss(p.symbol, {
       symbol: p.symbol, name: p.name, price: n.price, prev: n.prev, prevClose: n.prev, diff: n.price - n.prev, pct: n.pct,
-      currency: "JPY", tradeDate: n.date, freshTime: n.tradedAt || undefined, regularMarketTime: n.tradedAt || undefined, marketState: "",
+      currency: NAVER_WORLD_INDEX[p.symbol] ? undefined : "JPY", tradeDate: n.date, freshTime: n.tradedAt || undefined, regularMarketTime: n.tradedAt || undefined, marketState: "",
     });
   }
 
