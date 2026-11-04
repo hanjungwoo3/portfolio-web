@@ -4,6 +4,7 @@
 //   그래서 상승(1)·하락(2) × 코스피(K)·코스닥(Q) 네 번으로 나눠 120건까지 보고, 1분마다 쌓는다(앱을 켜 둔 동안은 빠짐없이). 날짜가 바뀌면 버린다.
 import { useSyncExternalStore } from "react";
 import { kisGet, isKisLinkOn } from "./broker";
+import { US_PAIRS } from "./usMarketData";
 
 export interface ViInfo {
   count: number;          // 오늘 발동 횟수(거래소 집계 vi_count)
@@ -24,12 +25,15 @@ const ymd = () => kst().toISOString().slice(0, 10).replace(/-/g, "");
 const hms = (h?: string) => (h && h.length >= 6 ? `${h.slice(0, 2)}:${h.slice(2, 4)}:${h.slice(4, 6)}` : "");
 
 let map = new Map<string, ViInfo>();
+const filled = new Set<string>();   // 종목별 전체 발동을 이미 받아 온 종목(오늘)
+// 카드가 있는 국내 종목 — 지수·업종 화면(종목 지정 조회는 이 종목들만)
+const CARD_CODES = new Set(US_PAIRS.filter(p => p.krStock && /^[\dA-Za-z]{6}\.KS$/.test(p.symbol)).map(p => p.symbol.slice(0, 6)));
 let loadedDate = "";
 const listeners = new Set<() => void>();
 const emit = () => listeners.forEach(f => f());
 function restore() {
   if (loadedDate === ymd()) return;
-  loadedDate = ymd(); map = new Map();
+  loadedDate = ymd(); map = new Map(); filled.clear();
   try { const v = JSON.parse(localStorage.getItem(KEY) ?? "null"); if (v?.date === loadedDate) map = new Map(v.items); } catch { /* 없음 */ }
 }
 function save() { try { localStorage.setItem(KEY, JSON.stringify({ date: loadedDate, items: [...map] })); } catch { /* 용량 */ } }
@@ -74,6 +78,21 @@ async function tick() {
       else if (prev.count < info.count || (prev.times?.length ?? 0) !== times.length) { map.set(c, { ...prev, count: Math.max(prev.count, info.count), times }); changed = true; }
     }
   }
+  // 횟수보다 아는 시각이 적은 종목(앱 켜기 전 발동) — 종목을 지정해 물으면 그 종목 오늘 발동이 전부 온다(실측 2026-11-04: 한국특강 4회 → 4건).
+  //   카드가 있는 종목만, 한 번에 5개씩(초당 한도)
+  const need = [...map].filter(([c, v]) => CARD_CODES.has(c) && v.count > (v.times?.length ?? 1) && !filled.has(c)).slice(0, 5);
+  for (const [c, v] of need) {
+    try {
+      const { body } = await kisGet<{ rt_cd?: string; output?: ViRow[] }>("/uapi/domestic-stock/v1/quotations/inquire-vi-status", "FHPST01390000", {
+        FID_DIV_CLS_CODE: "0", FID_COND_SCR_DIV_CODE: "20139", FID_MRKT_CLS_CODE: "0", FID_INPUT_ISCD: c,
+        FID_RANK_SORT_CLS_CODE: "0", FID_INPUT_DATE_1: ymd(), FID_TRGT_CLS_CODE: "", FID_TRGT_EXLS_CLS_CODE: "",
+      });
+      const ts = (body.output ?? []).filter(r => !r.bsop_date || r.bsop_date === loadedDate).map(toInfo).filter((x): x is ViInfo => !!x)
+        .map(x => ({ at: x.at, dir: x.dir })).sort((x, y) => x.at.localeCompare(y.at));
+      filled.add(c);
+      if (ts.length) { map.set(c, { ...v, times: ts }); changed = true; }
+    } catch { /* 다음 분에 */ }
+  }
   if (changed) { save(); map = new Map(map); emit(); }
 }
 
@@ -104,7 +123,7 @@ export function viLabel(v: ViInfo): { text: string; title: string } {
     title: (() => {
       const ts = v.times?.length ? v.times : [{ at: v.at, dir: v.dir }];
       const list = ts.map(t => `${t.at.slice(0, 5)}${t.dir === "up" ? "↑" : "↓"}`).join(" · ");
-      const miss = v.count > ts.length ? ` (오늘 ${v.count}회 중 ${ts.length}회)` : "";
+      const miss = v.count > ts.length ? ` (오늘 ${v.count}회 — 나머지 불러오는 중)` : "";
       return `VI ${list}${miss}${a ? " · 지금 단일가 중" : ""}`;
     })(),
   };
