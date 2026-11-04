@@ -35,6 +35,7 @@ function Chart({ series, baseZero, markers, height = 150, width = 600, color, ch
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full" style={{ height: H }} preserveAspectRatio="none">
       {baseZero && <line x1={PL} x2={W - PR} y1={sy(0)} y2={sy(0)} stroke="#9ca3af" strokeDasharray="3 3" strokeWidth={1} />}
+      {baseZero && <text x={PL + 2} y={sy(0) - 3} fontSize={9} fill="#9ca3af">외국인 0</text>}
       {["09:00", "12:00", "15:30"].map(t => (
         <g key={t}><line x1={sx(t)} x2={sx(t)} y1={PT} y2={H - PB} stroke="#e5e7eb" strokeWidth={1} />
           <text x={sx(t)} y={H - 2} fontSize={9} textAnchor="middle" fill="#9ca3af">{t}</text></g>
@@ -122,11 +123,9 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
     const oiv = oi.map(p => p.oi).filter(v => v > 0), ps = oi.map(p => p.p).filter(v => v > 0);
     const oy = oiv.length > 1 ? scale(oiv) : null, py = ps.length > 1 ? scale(ps) : null;
     const path = (f: (v: number) => number, k: "oi" | "p") => oi.filter(p => p[k] > 0).map((p, i) => `${i ? "L" : "M"}${sx(p.t).toFixed(1)},${f(p[k]).toFixed(1)}`).join(" ");
-    const lastOi = oi[oi.length - 1];
     return (<>
       {py && <path d={path(py, "p")} fill="none" stroke="#9ca3af" strokeWidth={1.3} />}
       {oy && <path d={path(oy, "oi")} fill="none" stroke="#7c3aed" strokeWidth={1.6} />}
-      {oy && lastOi && <text x={Math.min(sx(lastOi.t) + 4, CW - 52)} y={oy(lastOi.oi) - 4} fontSize={9.5} fill="#7c3aed" fontWeight={700}>미결제 {lastOi.oi.toLocaleString()}</text>}
       {py && <><text x={CW - 50} y={py(Math.max(...ps)) + 3} fontSize={9} fill="#9ca3af">{Math.max(...ps).toFixed(1)}</text>
         <text x={CW - 50} y={py(Math.min(...ps)) + 3} fontSize={9} fill="#9ca3af">{Math.min(...ps).toFixed(1)}</text></>}
     </>);
@@ -163,6 +162,26 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
                    markers={ext ? [{ t: ext.t, v: ext.v, label: `${ext.v < 0 ? "최저" : "최고"} ${ext.t}`, color: "#2563eb" }] : []}>
               {(sx, sy) => (<>
                 {oiLayer(sx)}
+                {/* 선 끝 이름·값 — 무슨 선인지 바로(사용자 2026-11-04 "무슨 선인지, 선에 숫자도"). 겹치면 순서대로 쌓는다 */}
+                {(() => {
+                  const scale = (vals: number[]) => { const lo = Math.min(...vals), hi = Math.max(...vals), pad = (hi - lo) * 0.08 || 0.5; return (v: number) => 8 + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * (H - 8 - 14); };
+                  const lo = oi[oi.length - 1], lf = fs[fs.length - 1];
+                  const oiv = oi.map(p => p.oi).filter(v => v > 0), ps = oi.map(p => p.p).filter(v => v > 0);
+                  const items: { x: number; y: number; t: string; c: string }[] = [];
+                  if (lf) items.push({ x: sx(lf.t), y: sy(lf.v), t: `외국인 ${eok(lf.v)}`, c: lf.v >= 0 ? "#e11d48" : "#1e3a8a" });
+                  if (lo && oiv.length > 1) items.push({ x: sx(lo.t), y: scale(oiv)(lo.oi), t: `미결제 ${lo.oi.toLocaleString()}`, c: "#7c3aed" });
+                  if (lo && ps.length > 1) items.push({ x: sx(lo.t), y: scale(ps)(lo.p), t: `선물 ${lo.p.toFixed(2)}`, c: "#6b7280" });
+                  items.sort((a, b) => a.y - b.y);
+                  const GAP = 13;
+                  for (let i = 1; i < items.length; i++) items[i].y = Math.max(items[i].y, items[i - 1].y + GAP);
+                  for (let i = items.length - 1; i >= 0; i--) { if (items[i].y > H - 16) items[i].y = H - 16; if (i > 0) items[i - 1].y = Math.min(items[i - 1].y, items[i].y - GAP); }
+                  return items.map(it => (
+                    <g key={it.t}>
+                      <circle cx={it.x} cy={it.y} r={0} />
+                      <text x={Math.min(it.x + 6, CW - 150)} y={Math.max(10, it.y) + 3} fontSize={10.5} fontWeight={700} fill={it.c} paintOrder="stroke" stroke="white" strokeWidth={3}>{it.t}</text>
+                    </g>
+                  ));
+                })()}
                 {ext && ext.v !== 0 && [0.5, 0.2].map(r => <g key={r}><line x1={sx(ext.t)} x2={CW - 52} y1={sy(ext.v * (1 - r))} y2={sy(ext.v * (1 - r))} stroke="#f43f5e" strokeDasharray="2 3" strokeWidth={1} />
                   <text x={CW - 50} y={sy(ext.v * (1 - r)) + 3} fontSize={9} fill="#f43f5e">{r * 100}%</text></g>)}
               </>)}
