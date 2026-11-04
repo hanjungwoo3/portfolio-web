@@ -694,7 +694,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
               <path d={prices.map((p, i) => `${i ? "L" : "M"} ${xOf(i)} ${PAD + (1 - (p - pMin) / pR) * (H - PAD * 2)}`).join(" ")}
                     fill="none" stroke="#334155" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
               <path d={cum.map((c, i) => `${i ? "L" : "M"} ${xOf(i)} ${mid - (c / mxCum) * (mid - PAD)}`).join(" ")}
-                    fill="none" stroke="#ea580c" strokeWidth={2.2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
+                    fill="none" stroke="#ea580c" strokeWidth={1.2} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
               {progLine.some(v => v != null) && (
                 <path d={progLine.map((v, i) => v == null ? "" : `${progLine.slice(0, i).some(x => x != null) ? "L" : "M"} ${xOf(i)} ${mid - (v / mxProg) * (mid - PAD)}`).join(" ")}
                       fill="none" stroke="#7c3aed" strokeWidth={1.2} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
@@ -774,7 +774,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
         <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" />1분 순매수</span>
         <span><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />1분 순매도</span>
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
-        <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dashed border-orange-600" />누적 순매수(켠 뒤, 축 따로)</span>
+        <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />누적 순매수(켠 뒤, 축 따로)</span>
         {prog && prog.length > 0 && <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-violet-600" />프로그램(축 따로, 한투)</span>}
       </div>
     </div>
