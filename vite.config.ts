@@ -14,6 +14,10 @@ const isProd = process.env.NODE_ENV === "production";
 //   (SW 가 남으면 옛 번들을 잡고 있어 앱 업데이트가 안 먹는 사고가 난다)
 const isNative = process.env.BUILD_TARGET === "native";
 
+// 미리보기(배포 전 확인) 빌드 — `npm run deploy:preview` → 같은 사이트의 /portfolio-web/preview/ 에 올린다(사용자 2026-11-04
+//   "실제로 사용 중인 앱에서 수정한 걸 써 보고 싶다"). 주소(출처)가 같아 앱의 오늘 기록(localStorage)을 그대로 쓴다. 서비스워커는 끈다.
+const isPreview = process.env.PREVIEW === "1";
+
 // 빌드 시각 — 헤더 버전 표시 + 강제 갱신 비교용
 const BUILD_TIME = new Date().toISOString();
 
@@ -25,10 +29,12 @@ try {
 } catch { /* git 없거나 repo 아닌 환경 — 그대로 unknown */ }
 
 export default defineConfig({
-  base: isNative ? "" : isProd ? "/portfolio-web/" : "/",
+  base: isNative ? "" : isPreview ? "/portfolio-web/preview/" : isProd ? "/portfolio-web/" : "/",
+  ...(isPreview ? { build: { outDir: "dist-preview" } } : {}),
   define: {
     __BUILD_TIME__: JSON.stringify(BUILD_TIME),
     __COMMIT_HASH__: JSON.stringify(COMMIT_HASH),
+    __IS_PREVIEW__: JSON.stringify(isPreview),
   },
   plugins: [
     react(),
@@ -47,7 +53,7 @@ export default defineConfig({
       },
       closeBundle() {
         // build 완료 시 dist 에도 한번 더 (PWA precache 안에 들어가도록)
-        const outDir = resolve(__dirname, "dist");
+        const outDir = resolve(__dirname, isPreview ? "dist-preview" : "dist");
         mkdirSync(outDir, { recursive: true });
         writeFileSync(
           resolve(outDir, "version.json"),
@@ -55,7 +61,7 @@ export default defineConfig({
         );
       },
     },
-    ...(isNative ? [] : [VitePWA({
+    ...(isNative || isPreview ? [] : [VitePWA({
       // prompt: 새 SW 를 자동 적용/리로드하지 않고 대기시킴 → 커스텀 NewVersionToast 가
       //   version.json 폴링으로 감지해 "새로고침" 팝업을 띄우는 게 유일한 갱신 경로.
       //   (autoUpdate 면 SW 가 조용히 skipWaiting+리로드 해서 팝업 전에 적용돼 버림 — 모바일에서 특히)
@@ -86,7 +92,7 @@ export default defineConfig({
         // /app/ 은 APK·release.json 이 사는 실제 파일 경로다. SPA 폴백이 여기를 가로채면
         //   APK 주소로 들어와도 index.html(앱 화면)이 뜬다 — 실제로 그렇게 났다.
         //   /extension/ 도 같다 — 확장 zip '내려받기'를 누르면 새 창에 앱 화면만 뜨고 받아지지 않았다(2026-10-21 제보).
-        navigateFallbackDenylist: [/^\/portfolio-web\/app\//, /^\/portfolio-web\/extension\//, /^\/portfolio-web\/privacy\.html/],   // privacy.html — 개인정보 안내(정적), SPA 가 가로채지 않게
+        navigateFallbackDenylist: [/^\/portfolio-web\/preview\//, /^\/portfolio-web\/app\//, /^\/portfolio-web\/extension\//, /^\/portfolio-web\/privacy\.html/],   // privacy.html — 개인정보 안내(정적), SPA 가 가로채지 않게
         // 프록시 응답 + version.json 은 NetworkFirst (짧은 TTL)
         runtimeCaching: [
           {

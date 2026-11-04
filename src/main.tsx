@@ -10,6 +10,7 @@ import { installSystemBars } from './lib/systemBars'
 import { startFuturesTape } from './lib/futuresTape'
 import { startKisRadar } from './lib/kisRadar'
 import { startKisVi } from './lib/kisVi'
+import { routePreview } from './lib/previewMode'
 
 // 야간 배경 — 첫 그림 전에 적용(깜빡임 방지)
 applyNightBg()
@@ -39,6 +40,8 @@ if (isDirectApp() && 'serviceWorker' in navigator) {
       : undefined))
     .catch(() => { /* 지우기 실패해도 앱 동작에는 지장 없음 */ })
 }
+
+routePreview()   // 미리보기 모드면 /preview/ 로(같은 사이트라 오늘 기록 그대로)
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

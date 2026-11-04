@@ -18,3 +18,4 @@ dist/
 workers/netlify-proxy/deno.lock
 workers/supabase-proxy/supabase/.temp/
 dist-extension/
+dist-preview/
