@@ -11,7 +11,7 @@ import { loadProgTape, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/future
 import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
@@ -411,7 +411,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
             <div className="h-[340px] lg:h-[360px] grid min-h-0">
               <TickPanel name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
             </div>
-            {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "h-[150px]")}
+            {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "max-h-[150px]")}   {/* 내용만큼 — 신호가 한두 줄이면 빈 칸이 컸다(사용자 2026-11-04) */}
           </div>
         ))}
       </div>
@@ -524,8 +524,15 @@ function SparkBg({ sp, base }: { sp: { nextBase?: number; markXs?: { x: number; 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
 //   onTitle — 제목을 누르면 ⚡ 종목 체결 팝업(같은 화면을 이 종목 하나로)
 function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[] }) {   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
-  const ms = flow.minutes.slice(-90);   // 최근 90분
-  const W = 600, H = 220, PAD = 4;
+  // 최근 1시간만 한 화면 폭에, 그 전은 왼쪽으로 스크롤(사용자 2026-11-04 "1시간으로, 지난 건 스크롤로") — 오늘 켠 뒤 전부 그린다
+  const ms = flow.minutes;
+  const VIS = 60;
+  const sc = Math.max(1, ms.length / VIS);              // 그래프 폭 배율(1 = 한 화면)
+  const W = 600 * sc, H = 220, PAD = 4;
+  const lim = (p: number) => 100 - (100 - p) / sc;      // 글자 위치 한도 — 보이는 칸 기준 p% 를 넓어진 그래프 기준으로
+  const scRef = useRef<HTMLDivElement>(null);
+  const stick = useRef(true);                           // 오른쪽 끝(지금)에 붙어 있나 — 사용자가 지난 쪽을 보는 중이면 새 분이 와도 안 끌고 간다
+  useEffect(() => { const el = scRef.current; if (el && stick.current) el.scrollLeft = el.scrollWidth; }, [ms.length]);
   const nets = ms.map(m => m.buyAmt - m.sellAmt);
   const mxBar = Math.max(1, ...nets.map(Math.abs));
   let acc = 0;
@@ -569,7 +576,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
       )}
       <div className="flex-1 min-h-0 flex gap-2">
         <div className="flex-1 min-w-0">
-          {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div className="relative w-full h-full">
+          {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div ref={scRef} className="w-full h-full overflow-x-auto overflow-y-hidden"
+                 onScroll={e => { const el = e.currentTarget; stick.current = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8; }}>
+            <div className="relative h-full" style={{ width: `${sc * 100}%` }}>
             {ms.length < 5 && <div className="absolute inset-x-0 bottom-1 text-center text-[11px] text-gray-400">켠 뒤 {ms.length}분째 — 10분쯤 지나면 흐름이 보입니다</div>}
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
               <line x1={0} x2={W} y1={mid} y2={mid} stroke="#cbd5e1" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
@@ -599,8 +608,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
               const cl = cum.length ? ((mid - (cum[cum.length - 1] / mxCum) * (mid - PAD)) / H) * 100 : -99;
               const dy = Math.abs(cl - ly) < 7 ? (ly < cl ? -7 : 7) : 0;   // 주황 누적 글자와 붙으면 벌린다
               return (
-                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${Math.min(lx, 70)}%`, top: `${Math.max(4, Math.min(92, ly + dy))}%`, transform: "translateY(-50%)" }}>
-                  <span className="w-2 h-2 rounded-full bg-violet-600 shrink-0" style={{ marginLeft: lx > 70 ? 0 : -4 }} />
+                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${Math.min(lx, lim(70))}%`, top: `${Math.max(4, Math.min(92, ly + dy))}%`, transform: "translateY(-50%)" }}>
+                  <span className="w-2 h-2 rounded-full bg-violet-600 shrink-0" style={{ marginLeft: lx > lim(70) ? 0 : -4 }} />
                   <span className={`text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap ${v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-600"}`}>프로그램 {netWord(v)}</span>
                 </div>
               );
@@ -614,22 +623,23 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
               const lx = (xOf(prices.length - 1) / W) * 100;
               const pc = (p: number) => base && base > 0 ? ` ${p >= base ? "+" : ""}${((p / base - 1) * 100).toFixed(2)}%` : "";   // 어제 종가 대비(사용자 2026-11-04 "%등락율도 같이")
               return (<>
-                {hi > lo && <span className={`${lab} text-rose-600`} style={{ left: `${Math.max(7, Math.min(85, (xOf(hiI) / W) * 100))}%`, top: `${yp(hi)}%`, transform: "translate(-50%, -110%)" }}>고 {hi.toLocaleString()}{pc(hi)}</span>}
-                {hi > lo && <span className={`${lab} text-blue-600`} style={{ left: `${Math.max(7, Math.min(85, (xOf(loI) / W) * 100))}%`, top: `${yp(lo)}%`, transform: "translate(-50%, 10%)" }}>저 {lo.toLocaleString()}{pc(lo)}</span>}
-                <span className={`${lab} font-bold text-slate-800 border border-slate-300`} style={{ left: `${Math.min(lx, 88)}%`, top: `${Math.max(6, Math.min(90, yp(last)))}%`, transform: lx > 88 ? "translate(-100%, -50%)" : "translate(4px, -50%)" }}>{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span></span>
+                {hi > lo && <span className={`${lab} text-rose-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(hiI) / W) * 100))}%`, top: `${yp(hi)}%`, transform: "translate(-50%, -110%)" }}>고 {hi.toLocaleString()}{pc(hi)}</span>}
+                {hi > lo && <span className={`${lab} text-blue-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(loI) / W) * 100))}%`, top: `${yp(lo)}%`, transform: "translate(-50%, 10%)" }}>저 {lo.toLocaleString()}{pc(lo)}</span>}
+                <span className={`${lab} font-bold text-slate-800 border border-slate-300`} style={{ left: `${Math.min(lx, lim(88))}%`, top: `${Math.max(6, Math.min(90, yp(last)))}%`, transform: lx > lim(88) ? "translate(-100%, -50%)" : "translate(4px, -50%)" }}>{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span></span>
               </>);
             })()}
             {/* 누적 끝값 — 막대(1분)와 축이 달라 선만으론 크기를 모른다. svg 가 늘어나므로 글자는 HTML 로 */}
             {cum.length > 0 && (() => {
               const lx = (xOf(cum.length - 1) / W) * 100, ly = ((mid - (cum[cum.length - 1] / mxCum) * (mid - PAD)) / H) * 100;
               return (
-                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${Math.min(lx, 70)}%`, top: `${Math.max(4, Math.min(92, ly))}%`, transform: "translateY(-50%)" }}>
+                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${Math.min(lx, lim(70))}%`, top: `${Math.max(4, Math.min(92, ly))}%`, transform: "translateY(-50%)" }}>
                   {/* 글자 색 = 방향(순매수 빨강·순매도 파랑, 사용자 2026-11-04) — 점은 선과 같은 주황 그대로 */}
-                  <span className="w-2 h-2 rounded-full bg-orange-600 shrink-0" style={{ marginLeft: lx > 70 ? 0 : -4 }} />
+                  <span className="w-2 h-2 rounded-full bg-orange-600 shrink-0" style={{ marginLeft: lx > lim(70) ? 0 : -4 }} />
                   <span className={`text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap ${cum[cum.length - 1] > 0 ? "text-rose-600" : cum[cum.length - 1] < 0 ? "text-blue-600" : "text-gray-600"}`}>누적 {netWord(cum[cum.length - 1])}</span>
                 </div>
               );
             })()}
+          </div>
           </div>
           )}
         </div>
