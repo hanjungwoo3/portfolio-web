@@ -12,10 +12,11 @@ import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import type { Investor } from "../types";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
-  fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow,
+  fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchInvestorHistory,
   fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
 } from "../lib/api";
@@ -131,6 +132,14 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return q(`${code}.KS`);
   };
   // 어제 종가 = 지금 가격 ÷ (1 + 등락률) — 실시간 체결 가격 글자 옆 % 용
+  // 종목 수급 오늘 잠정치(토스 — KRX 장중 잠정, 외국인·기관·연기금. 개인은 장 마감 뒤) — 실시간 체결 칸 한 줄(사용자 2026-11-04)
+  const todayInv = useQueries({
+    queries: stocks.map(s => ({
+      queryKey: ["semi-today-inv", s.code], queryFn: () => fetchInvestorHistory(s.code, 2),
+      refetchInterval: 60_000, staleTime: 30_000, retry: 1,
+    })),
+  });
+  const invOf = (i: number) => { const r = todayInv[i]?.data?.[0]; return r && r.date === new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10) ? r : undefined; };
   // 프로그램 누적 기록(한투, lib/futuresTape — 삼성·하이닉스만) — 기록기가 1분마다 새로 쓰면 다시 읽는다
   const [progTick, setProgTick] = useState(0);
   useEffect(() => { const on = () => setProgTick(t => t + 1); window.addEventListener(TAPE_EVENT, on); return () => window.removeEventListener(TAPE_EVENT, on); }, []);
@@ -362,7 +371,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         <ValueupStrip code={s0.code} />
         {kisFutAvailable() && <KisViStrip code={s0.code} />}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[360px]">   {/* 체결 · 신호 반반(사용자 요청) */}
-          <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} prog={progOf(s0.code)} />
+          <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} prog={progOf(s0.code)} inv={invOf(0)} price={sq(s0.code)?.price} />
           {signalBox}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[430px] shrink-0">
@@ -409,7 +418,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {stocks.map((s, i) => (
           <div key={s.code} className="flex flex-col gap-1.5 min-w-0">
             <div className="h-[340px] lg:h-[360px] grid min-h-0">
-              <TickPanel name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
+              <TickPanel name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
             </div>
             {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "max-h-[150px]")}   {/* 내용만큼 — 신호가 한두 줄이면 빈 칸이 컸다(사용자 2026-11-04) */}
           </div>
@@ -523,7 +532,7 @@ function SparkBg({ sp, base }: { sp: { nextBase?: number; markXs?: { x: number; 
 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
 //   onTitle — 제목을 누르면 ⚡ 종목 체결 팝업(같은 화면을 이 종목 하나로)
-function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[] }) {   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
+function TickPanel({ name, flow, day, onTitle, base, prog, inv, price }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[]; inv?: Investor; price?: number }) {   // inv = 오늘 투자자 잠정치(토스)   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
   // 최근 1시간만 한 화면 폭에, 그 전은 왼쪽으로 스크롤(사용자 2026-11-04 "1시간으로, 지난 건 스크롤로") — 오늘 켠 뒤 전부 그린다
   const ms = flow.minutes;
   // 한 화면 분 수 — 기본 1시간, 마우스 휠로 확대(10분까지)·축소(켠 뒤 전부까지)(사용자 2026-11-04 "휠로 확대 축소")
@@ -612,6 +621,29 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
           <span className="text-gray-500">오늘 전체 <b className={up(day.netAmt)}>{netWord(day.netAmt)}</b> <span className="text-[10px] text-gray-400">(체결강도·거래대금 {Math.round(day.value / 1e8).toLocaleString()}억 역산)</span></span>
         </div>
       )}
+      {/* 투자자 수급(오늘) — 토스 KRX 잠정치: 외국인·기관·연기금. 개인은 장중엔 안 나와 −(외국인+기관)으로 추정(사용자 2026-11-04) */}
+      {inv && (inv.외국인 || inv.기관) ? (() => {
+        const px = price ?? inv.종가 ?? 0;
+        // 억원(주 × 지금 가격)으로 — 한 줄에 들어가게. 주 수는 마우스를 올리면
+        const cell = (label: string, q: number, est?: boolean) => {
+          const e = px > 0 ? (q * px) / 1e8 : null;
+          return (
+            <span className="whitespace-nowrap" title={`${label}${est ? "(추정)" : ""} ${q > 0 ? "+" : ""}${Math.round(q).toLocaleString()}주`}>
+              <span className="text-gray-500">{label}{est ? "(추정)" : ""}</span>{" "}
+              <b className={up(q)}>{e != null ? `${e > 0 ? "+" : e < 0 ? "−" : ""}${Math.abs(Math.round(e)).toLocaleString()}억` : `${q > 0 ? "+" : ""}${Math.round(q / 1000).toLocaleString()}천주`}</b>
+            </span>
+          );
+        };
+        const est = !inv.개인있음;
+        const indiv = est ? -(inv.외국인 + inv.기관) : inv.개인;
+        return (
+          <div className="flex flex-wrap gap-x-3 tabular-nums -mt-0.5 mb-1 text-[11.5px]"
+               title={`토스(KRX 잠정치) ${inv.갱신 ? inv.갱신.slice(11, 16) + " 갱신" : ""} — 장중엔 하루 몇 번 갱신되는 잠정치. 개인은 장 마감 뒤에 나와 그 전엔 −(외국인+기관)으로 추정. 억원 = 주 × 지금 가격`}>
+            <span className="text-gray-500">수급{inv.갱신 ? ` ${inv.갱신.slice(11, 16)}` : ""}</span>
+            {cell("외국인", inv.외국인)}{cell("기관", inv.기관)}{cell("연기금", inv.연기금)}{cell("개인", indiv, est)}
+          </div>
+        );
+      })() : null}
       <div className="flex-1 min-h-0 flex gap-2">
         <div className="flex-1 min-w-0">
           {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div ref={scRef}

@@ -60,6 +60,8 @@ export interface Investor {
   기타금융: number;
   기타법인: number;
   외국인비율: number;    // 보유율 %
+  갱신?: string;         // 토스 updatedAt — 오늘 행은 장중 KRX 잠정치(하루 몇 번 갱신)
+  개인있음?: boolean;    // 토스 hasIndividual — 장중엔 false(개인은 장 마감 뒤에만)
   // 그 날 종가 — 토스가 수량만 주므로 금액(억원) 표시는 이걸로 환산한다(수량 × 종가).
   종가?: number;
   // 개인·외국인·기관 [매수 수량, 매도 수량] — 토스만 준다(나머지 투자자는 매도 칸이 없다). 순매수만으론 안 보이는

@@ -1724,6 +1724,8 @@ function mapInvestorItem(item: TossInvestorItem): Investor {
     기타금융: Number(item.netOtherFinancialInstitutionsBuyVolume || 0),
     기타법인: Number(item.netOtherCorporationBuyVolume || 0),
     외국인비율: Number(item.foreignerRatio || 0),
+    갱신: (item as { updatedAt?: string }).updatedAt,
+    개인있음: (item as { hasIndividual?: boolean }).hasIndividual,
     종가: Number(item.close || 0) || undefined,
     매수매도: {
       개인: [Number(item.individualsBuyVolume || 0), Number(item.individualsSellVolume || 0)],
