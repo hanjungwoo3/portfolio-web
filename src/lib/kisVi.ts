@@ -12,6 +12,7 @@ export interface ViInfo {
   at: string;             // 마지막 발동 "HH:MM:SS"
   until: string;          // 해제 "HH:MM:SS"
   pct: number;            // 기준가 대비 괴리율(%)
+  times?: { at: string; dir: "up" | "down" }[];   // 오늘 본 발동들(1분마다 모은다 — 한투는 종목당 마지막 한 건만 준다)
 }
 export interface ViRow {
   mksc_shrn_iscd?: string; cntg_vi_hour?: string; vi_cncl_hour?: string; vi_count?: string; vi_kind_code?: string;
@@ -66,8 +67,11 @@ async function tick() {
       if (!c || !info) continue;
       const prev = map.get(c);
       // 종목마다 가장 늦은 발동을 남기고, 횟수는 큰 쪽(거래소 집계 vi_count)
-      if (!prev || prev.at < info.at) { map.set(c, { ...info, count: Math.max(info.count, prev?.count ?? 0) }); changed = true; }
-      else if (prev.count < info.count) { map.set(c, { ...prev, count: info.count }); changed = true; }
+      const times = [...(prev?.times ?? (prev ? [{ at: prev.at, dir: prev.dir }] : []))];
+      if (!times.some(t => t.at === info.at)) times.push({ at: info.at, dir: info.dir });
+      times.sort((x, y) => x.at.localeCompare(y.at));
+      if (!prev || prev.at < info.at) { map.set(c, { ...info, count: Math.max(info.count, prev?.count ?? 0), times }); changed = true; }
+      else if (prev.count < info.count || (prev.times?.length ?? 0) !== times.length) { map.set(c, { ...prev, count: Math.max(prev.count, info.count), times }); changed = true; }
     }
   }
   if (changed) { save(); map = new Map(map); emit(); }
@@ -96,6 +100,12 @@ export function viLabel(v: ViInfo): { text: string; title: string } {
   return {
     text: `VI${v.dir === "up" ? "↑" : "↓"}${v.count > 1 ? `${v.count}` : ""}${a ? " 발동중" : ""}`,
     // 요약 — 언제였는지만(사용자 2026-11-04 "문구가 너무 길어, 언제 있었는지만")
-    title: `VI ${v.dir === "up" ? "급등" : "급락"} ${v.at.slice(0, 5)}${v.count > 1 ? ` · 오늘 ${v.count}회` : ""}${a ? " · 지금 단일가 중" : ""}`,
+    // 발동 시각을 하나씩(사용자 2026-11-04 "각각 발동 시간") — 앱을 켜기 전 발동은 한투가 마지막 한 건만 줘서 빠질 수 있다
+    title: (() => {
+      const ts = v.times?.length ? v.times : [{ at: v.at, dir: v.dir }];
+      const list = ts.map(t => `${t.at.slice(0, 5)}${t.dir === "up" ? "↑" : "↓"}`).join(" · ");
+      const miss = v.count > ts.length ? ` (오늘 ${v.count}회 중 ${ts.length}회)` : "";
+      return `VI ${list}${miss}${a ? " · 지금 단일가 중" : ""}`;
+    })(),
   };
 }
