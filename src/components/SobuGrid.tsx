@@ -79,6 +79,8 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
     const nN = kr ? news.filter(n => n.code === code && n.dt >= since).length : 0;
     // 누르면 그 종목 공시·뉴스를 카드 옆 떠 있는 창으로(사용자 2026-11-02 "클릭하면 레이어로, 마우스 hover 는 빼고")
     const openPeek = (e: import("react").MouseEvent) => {
+      // 카드 아래 꼬리표 줄(VI·실적·고배당·📊·AI)로 들어왔으면 공시·뉴스 창을 띄우지 않는다 — 꼬리표 자기 설명이 먼저(사용자 2026-11-04)
+      if ((e.target as Element | null)?.closest?.("[data-no-peek]")) return;
       e.stopPropagation(); keepPeek();
       const el = (e.currentTarget as HTMLElement).closest("[data-sobu-card]") as HTMLElement | null;
       const r = (el ?? (e.currentTarget as HTMLElement)).getBoundingClientRect();
@@ -91,7 +93,12 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
       <div key={sym} className={`relative rounded-lg transition ${peek?.code === code ? "ring-4 ring-amber-400 shadow-lg z-20" : lead ? "ring-2 ring-indigo-400" : ""}`}
            data-sobu-card
            onMouseEnter={kr && (dN || nN) ? openPeek : undefined}
-           onMouseLeave={kr && (dN || nN) ? dropPeek : undefined}>   {/* 종목 카드에 마우스 → 공시·뉴스 창(사용자 2026-11-03 "버튼 말고 종목에 hover") */}
+           onMouseLeave={kr && (dN || nN) ? dropPeek : undefined}
+           onMouseOver={kr && (dN || nN) ? (e => {
+             // 카드 안에서 꼬리표로 옮겨 가면 창을 닫고, 카드 본문으로 돌아오면 다시 연다
+             if ((e.target as Element | null)?.closest?.("[data-no-peek]")) { if (peek?.code === code) setPeek(null); }
+             else if (peek?.code !== code) openPeek(e);
+           }) : undefined}>   {/* 종목 카드에 마우스 → 공시·뉴스 창(사용자 2026-11-03 "버튼 말고 종목에 hover") */}
         {renderCard ? renderCard(sym)
           : <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} reg={q?.reg} dim={dimOf?.(sym)} className="w-full h-[84px]" />}
         {ct && (

@@ -652,7 +652,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     const hasDisc = isKrStock && !!discMap.get(krCode)?.length;   // 공시 종류 꼬리표(사용자 2026-11-03)
                     if (!tag && !CARD_HEATMAP_LINK[p.symbol] && !isKrStock && !isUsStock && !vu && !hasDisc) return null;
                     return (
-                      <div className="absolute -bottom-1 right-1 z-20 flex items-center gap-0.5">
+                      <div data-no-peek className="absolute -bottom-1 right-1 z-20 flex items-center gap-0.5">
                         {/* 거래대금 급증(한국투자 1분 레이더, 사용자 2026-11-03) — 맨 앞에 */}
                         {isKrStock && radar.get(krCode) && (() => { const l = radarLabel(radar.get(krCode)!); return (
                           <HoverTip tip={l.title}><span className="px-1 py-0 rounded text-[9px] leading-tight whitespace-nowrap font-bold border border-orange-400 bg-orange-500 text-white animate-pulse">{l.text}</span></HoverTip>); })()}
