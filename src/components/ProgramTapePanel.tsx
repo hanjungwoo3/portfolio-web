@@ -12,7 +12,7 @@ const fmt = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.r
 const tone = (v: number) => v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-600";
 
 function ProgChart({ name, pts, open, close }: { name: string; pts: ProgPt[]; open: number; close: number }) {
-  const W = 600, H = 130, P = 4;
+  const W = 600, H = 70, P = 3;   // 하루 전체 요약 — 낮게(종목 흐름은 아래 실시간 체결 그래프의 보라 선, 사용자 2026-11-04)
   const last = pts[pts.length - 1];
   const vmax = Math.max(50, ...pts.map(p => Math.abs(p.v)));
   const x = (t: string) => P + ((toMin(t) - open) / Math.max(1, close - open)) * (W - 2 * P);
@@ -29,9 +29,9 @@ function ProgChart({ name, pts, open, close }: { name: string; pts: ProgPt[]; op
         <span className="text-[10px] text-gray-400">오늘 누적</span>
       </div>
       {pts.length < 2 ? (
-        <div className="h-[130px] flex items-center justify-center text-[11px] text-gray-400">1분마다 쌓입니다</div>
+        <div className="h-[70px] flex items-center justify-center text-[11px] text-gray-400">1분마다 쌓입니다</div>
       ) : (
-        <div className="relative w-full h-[130px]">
+        <div className="relative w-full h-[70px]">
           <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
             <line x1={0} x2={W} y1={H / 2} y2={H / 2} stroke="#9ca3af" strokeWidth={0.8} strokeDasharray="3 3" vectorEffect="non-scaling-stroke" />
             {hours.map(h => <line key={h} x1={x(hhmm(h))} x2={x(hhmm(h))} y1={0} y2={H} stroke="#e5e7eb" strokeWidth={0.6} vectorEffect="non-scaling-stroke" />)}

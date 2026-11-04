@@ -8,6 +8,7 @@
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { ForeignFuturesPanel } from "./ForeignFuturesPanel";
 import { ProgramTapePanel } from "./ProgramTapePanel";
+import { loadProgTape, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/futuresTape";
 import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
@@ -144,6 +145,10 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return q(`${code}.KS`);
   };
   // 어제 종가 = 지금 가격 ÷ (1 + 등락률) — 실시간 체결 가격 글자 옆 % 용
+  // 프로그램 누적 기록(한투, lib/futuresTape — 삼성·하이닉스만) — 기록기가 1분마다 새로 쓰면 다시 읽는다
+  const [progTick, setProgTick] = useState(0);
+  useEffect(() => { const on = () => setProgTick(t => t + 1); window.addEventListener(TAPE_EVENT, on); return () => window.removeEventListener(TAPE_EVENT, on); }, []);
+  const progOf = (code: string) => { void progTick; return kisFutAvailable() && PROG_CODES.some(([c]) => c === code) ? loadProgTape(code) : undefined; };
   const baseOf = (code: string) => { const x = sq(code); return x?.price && x.pct != null ? x.price / (1 + x.pct / 100) : undefined; };
   // 프리장(NXT 08:00~09:00) 결과 — 정규장이 열리면 현물 수급은 KRX 로 바뀌어 프리장이 안 보인다 → 따로 한 줄(사용자 요청)
   const [{ data: kospiNxt }, { data: kosdaqNxt }] = useQueries({
@@ -365,7 +370,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         <ValueupStrip code={s0.code} />
         {kisFutAvailable() && <KisViStrip code={s0.code} />}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[360px]">   {/* 체결 · 신호 반반(사용자 요청) */}
-          <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} />
+          <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} prog={progOf(s0.code)} />
           {signalBox}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[430px] shrink-0">
@@ -411,7 +416,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       <ProgramTapePanel />
       {/* ② 실시간 체결 + 신호 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_600px] gap-1.5 min-h-0 auto-rows-[320px] lg:auto-rows-[330px]">
-        {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />)}
+        {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />)}
         {signalBox}
       </div>
 
@@ -526,14 +531,19 @@ function SparkBg({ sp, base }: { sp: { nextBase?: number; markXs?: { x: number; 
 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
 //   onTitle — 제목을 누르면 ⚡ 종목 체결 팝업(같은 화면을 이 종목 하나로)
-function TickPanel({ name, flow, day, onTitle, base }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number }) {   // base = 어제 종가(가격 글자 옆 등락률)
+function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[] }) {   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
   const ms = flow.minutes.slice(-90);   // 최근 90분
   const W = 600, H = 220, PAD = 4;
   const nets = ms.map(m => m.buyAmt - m.sellAmt);
   const mxBar = Math.max(1, ...nets.map(Math.abs));
   let acc = 0;
   const cum = nets.map(v => (acc += v));
-  const mxCum = Math.max(1, ...cum.map(Math.abs));
+  // 프로그램 순매수(한투, 사용자 2026-11-04 "실시간 체결 그래프에 프로그램 매매도") — 그래프 왼쪽 끝 분을 0으로 맞춰 주황 누적(켠 뒤 합계)과 **같은 축**(원)에.
+  //   둘이 같이 가면 프로그램이 끄는 흐름, 엇갈리면 다른 주체(개인·일반 외국인)가 반대로 사는 흐름
+  const progAt = (t: string) => { if (!prog?.length) return null; let v: number | null = null; for (const p of prog) { if (p.t <= t) v = p.v; else break; } return v; };
+  const p0 = ms.length ? (progAt(ms[0].t) ?? prog?.[0]?.v ?? null) : null;
+  const progLine = p0 == null ? [] : ms.map(m => { const v = progAt(m.t); return v == null ? null : (v - p0) * 1e8; });
+  const mxCum = Math.max(1, ...cum.map(Math.abs), ...progLine.map(v => Math.abs(v ?? 0)));
   const prices = ms.map(m => m.close);
   // 가격 축은 최소 ±0.2% 폭 — 켠 직후 한 호가(0.1%)만 움직여도 위아래 끝까지 그어져 세로선처럼 보였다
   const pMid = (Math.min(...prices) + Math.max(...prices)) / 2;
@@ -579,12 +589,30 @@ function TickPanel({ name, flow, day, onTitle, base }: { name: string; flow: Tic
                     fill="none" stroke="#334155" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
               <path d={cum.map((c, i) => `${i ? "L" : "M"} ${xOf(i)} ${mid - (c / mxCum) * (mid - PAD)}`).join(" ")}
                     fill="none" stroke="#ea580c" strokeWidth={2.2} strokeDasharray="6 4" vectorEffect="non-scaling-stroke" />
+              {progLine.some(v => v != null) && (
+                <path d={progLine.map((v, i) => v == null ? "" : `${progLine.slice(0, i).some(x => x != null) ? "L" : "M"} ${xOf(i)} ${mid - (v / mxCum) * (mid - PAD)}`).join(" ")}
+                      fill="none" stroke="#7c3aed" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+              )}
 
             </svg>
             {/* 시각 글자 — svg 는 칸 크기로 늘어나(preserveAspectRatio none) 글자가 찌그러진다 → HTML 로(팝업에서 크게 깨졌다) */}
             {ms.map((m, i) => (m.t.endsWith("0") ? (
               <span key={m.t} className="absolute bottom-0 -translate-x-1/2 text-[10px] text-gray-400 pointer-events-none" style={{ left: `${(xOf(i) / W) * 100}%` }}>{m.t}</span>
             ) : null))}
+            {/* 프로그램 끝값 — 보라 */}
+            {(() => {
+              const li = progLine.length - 1 - [...progLine].reverse().findIndex(v => v != null);
+              if (li < 0 || li >= progLine.length || progLine[li] == null) return null;
+              const v = progLine[li]!, lx = (xOf(li) / W) * 100, ly = ((mid - (v / mxCum) * (mid - PAD)) / H) * 100;
+              const cl = cum.length ? ((mid - (cum[cum.length - 1] / mxCum) * (mid - PAD)) / H) * 100 : -99;
+              const dy = Math.abs(cl - ly) < 7 ? (ly < cl ? -7 : 7) : 0;   // 주황 누적 글자와 붙으면 벌린다
+              return (
+                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${Math.min(lx, 70)}%`, top: `${Math.max(4, Math.min(92, ly + dy))}%`, transform: "translateY(-50%)" }}>
+                  <span className="w-2 h-2 rounded-full bg-violet-600 shrink-0" style={{ marginLeft: lx > 70 ? 0 : -4 }} />
+                  <span className={`text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap ${v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-600"}`}>프로그램 {netWord(v)}</span>
+                </div>
+              );
+            })()}
             {/* 가격 글자(사용자 2026-11-04 "가격 그래프에 금액") — 최고·최저는 그 높이 왼쪽에, 지금 가격은 선 끝에. svg 가 늘어나므로 HTML 로 */}
             {prices.length > 1 && (() => {
               const yp = (p: number) => ((PAD + (1 - (p - pMin) / pR) * (H - PAD * 2)) / H) * 100;
@@ -622,11 +650,12 @@ function TickPanel({ name, flow, day, onTitle, base }: { name: string; flow: Tic
           ))}
         </div>
       </div>
-      <div className="flex gap-3 text-[10.5px] text-gray-500 mt-0.5">
+      <div className="flex flex-wrap gap-x-3 gap-y-0 text-[10.5px] text-gray-500 mt-0.5 [&>span]:whitespace-nowrap">
         <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" />1분 순매수</span>
         <span><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />1분 순매도</span>
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
-        <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dashed border-orange-600" />누적 순매수(켠 뒤 합계 · 축 별도)</span>
+        <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dashed border-orange-600" />누적 순매수(켠 뒤)</span>
+        {prog && prog.length > 0 && <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-violet-600" />프로그램(누적과 같은 축, 한투)</span>}
       </div>
     </div>
   );
