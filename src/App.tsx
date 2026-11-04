@@ -61,7 +61,7 @@ import { StockMarketTab } from "./components/StockMarketTab";
 import { SemiCheckTab } from "./components/SemiCheckTab";
 import { SemiDashTab } from "./components/SemiDashTab";
 import { RefreshIndicator } from "./components/RefreshIndicator";
-import { forceUpdate } from "./components/VersionBadge";
+import { forceUpdate, PreviewSwitch } from "./components/VersionBadge";
 import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast, AppInstallHint } from "./components/AppUpdateToast";
 import { NewVersionToast } from "./components/NewVersionToast";
 import { ProxyStatusBadge } from "./components/ProxyStatusBadge";
@@ -829,6 +829,7 @@ function Dashboard() {
           <ProxyStatusBadge baseRefreshMs={BASE_REFRESH_MS}
                             usePersonalProxy={usePersonalProxy}
                             onOpenSettings={() => setSettingsOpen(true)} />
+          <PreviewSwitch />   {/* 🧪 미리보기 — 배포 전 수정이 올라가 있을 때만(사용자 2026-11-04) */}
           <div className="flex items-center gap-3 ml-auto">
             <button
               onClick={() => void forceUpdate()}

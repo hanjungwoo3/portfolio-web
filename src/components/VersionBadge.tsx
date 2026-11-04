@@ -5,7 +5,7 @@ import { appConfirm } from "../lib/appDialog";
 import { isPreviewBuild, fetchPreviewInfo, enterPreview, leavePreview } from "../lib/previewMode";
 
 // 🧪 미리보기 — 미리보기 화면이면 '원래대로', 본 화면이면 더 새 미리보기가 올라가 있을 때만 '미리보기' 단추(사용자 2026-11-04)
-function PreviewSwitch() {
+export function PreviewSwitch() {
   const [info, setInfo] = useState<{ buildTime: string; commit?: string } | null>(null);
   useEffect(() => {
     if (isPreviewBuild || location.hostname !== "hanjungwoo3.github.io") return;

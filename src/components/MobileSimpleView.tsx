@@ -79,7 +79,7 @@ function quoteUrl(symbol: string): string {
   return worldQuoteUrl(symbol);   // 도쿄 상장·닛케이 = 네이버, 그 밖 = 야후
 }
 import { RefreshIndicator } from "./RefreshIndicator";
-import { forceUpdate } from "./VersionBadge";
+import { forceUpdate, PreviewSwitch } from "./VersionBadge";
 import { NewVersionToast } from "./NewVersionToast";
 import { AppUpdateToast, ExtensionUpdateToast, DesktopUpdateToast, AppInstallHint } from "./AppUpdateToast";
 import { appConfirm, appPrompt } from "../lib/appDialog";
@@ -1656,6 +1656,7 @@ export function MobileSimpleView() {
         <ProxyStatusBadge baseRefreshMs={BASE_REFRESH_MS} compact
                           usePersonalProxy={!!getPersonalProxyUrl()}
                           onOpenSettings={() => setSettingsOpen(true)} />
+        <PreviewSwitch />   {/* 🧪 미리보기 — 배포 전 수정이 올라가 있을 때만(사용자 2026-11-04) */}
         </div>
         <button onClick={handleRefresh}
                 disabled={isFetching}
