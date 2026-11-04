@@ -4604,6 +4604,36 @@ export async function fetchTossExchangeRate(): Promise<UsIndex | null> {
 //     regularPrice/regularPct 는 Yahoo 값 유지 → 장 마감 후 "마감가 책갈피" 표시 가능
 //   - 토스 실패 시 Yahoo 전체 entry 가 그대로 남아 자동 fallback
 // 라우팅: .KS 6자리(KODEX 등)·KOSPI/KOSDAQ/필반·미국지수/선물·미국ETF → 토스 현재가
+// 일본 등 해외 종목 시세 — 네이버 해외주식 polling(여러 종목 1콜, 사용자 2026-11-04 "m.stock.naver.com worldstock").
+//   도쿄 15분 지연 — 야후·TradingView(비로그인) 20분보다 빠르고, marketStatus(OPEN/CLOSE)·체결 시각(localTradedAt)을 직접 준다.
+//   (토스는 일본 종목이 없고, 한국투자 해외 현재가도 장 초반 거래량 0 = 지연. 실측 2026-11-04 09:12~09:18)
+//   polling.finance.naver.com 은 프록시 허용 목록에 이미 있다. 코드는 로이터 코드(285A.T·8035.T) 그대로.
+export interface NaverWorldQuote { code: string; name: string; price: number; prev: number; pct: number; tradedAt: number; open: boolean; date: string }
+export async function fetchNaverWorld(codes: string[]): Promise<Map<string, NaverWorldQuote>> {
+  const out = new Map<string, NaverWorldQuote>();
+  const num = (v: unknown) => Number(String(v ?? "").replace(/,/g, ""));
+  for (let i = 0; i < codes.length; i += 20) {
+    const chunk = codes.slice(i, i + 20);
+    try {
+      const r = await fetchProxied(`https://polling.finance.naver.com/api/realtime/worldstock/stock/${chunk.map(encodeURIComponent).join(",")}`);
+      if (!r.ok) continue;
+      const j = await r.json() as { datas?: { reutersCode?: string; stockName?: string; closePrice?: string; compareToPreviousClosePrice?: string; fluctuationsRatio?: string; localTradedAt?: string; marketStatus?: string }[] };
+      for (const d of j.datas ?? []) {
+        const price = num(d.closePrice), chg = num(d.compareToPreviousClosePrice);
+        if (!d.reutersCode || !(price > 0)) continue;
+        const ms = d.localTradedAt ? Date.parse(d.localTradedAt) : NaN;
+        out.set(d.reutersCode, {
+          code: d.reutersCode, name: d.stockName ?? d.reutersCode, price, prev: price - chg, pct: num(d.fluctuationsRatio),
+          tradedAt: Number.isFinite(ms) ? Math.floor(ms / 1000) : 0, open: d.marketStatus === "OPEN",
+          date: (d.localTradedAt ?? "").slice(0, 10),   // 현지 날짜(+09:00 등 현지 오프셋이 붙어 온다)
+        });
+      }
+    } catch { /* 한 묶음 실패는 야후 값으로 */ }
+  }
+  return out;
+}
+const isNaverWorldSym = (s: string) => /^[0-9A-Z]{4}\.T$/.test(s);   // 도쿄 상장(8035.T·285A.T) — 다른 거래소는 아직 야후
+
 export async function fetchYahooBatch(
   pairs: { symbol: string; name: string }[]
 ): Promise<Map<string, UsIndex>> {
@@ -4615,7 +4645,9 @@ export async function fetchYahooBatch(
     .map(p => ({ ...p, code: TOSS_US_STOCK_CODE[p.symbol] }));
   const investItems = pairs.filter(p => isCnbcIndex(p.symbol));
   const cnnFg = pairs.find(p => p.symbol === CNN_FG_SYMBOL);
+  const jpItems = pairs.filter(p => isNaverWorldSym(p.symbol));
 
+  const jpPromise = jpItems.length ? fetchNaverWorld(jpItems.map(p => p.symbol)).catch(() => new Map<string, NaverWorldQuote>()) : Promise.resolve(new Map<string, NaverWorldQuote>());
   const [ksMap, overviewMap, usMap, investResults, yahooResults, cnnFgIdx, sinaMetals, memPrices] = await Promise.all([
     ksItems.length > 0
       ? fetchTossPrices(ksItems.map(p => ksRegex.exec(p.symbol)![1]))
@@ -4715,6 +4747,17 @@ export async function fetchYahooBatch(
   if (cnnFgIdx) applyToss(cnnFgIdx.symbol, cnnFgIdx);
   for (const m of sinaMetals) applyToss(m.symbol, m);
   for (const m of memPrices) applyToss(m.symbol, m);
+  // 도쿄 상장 — 네이버(15분 지연, 장 상태 포함)로 현재가·등락률·체결 시각을 덮는다. 오늘 체결이 아직 없으면 체결 시각이 지난 거래일이라
+  //   카드 흐림(정체 판정)이 그대로 걸린다(야후 20분 지연·휴장 다음 날 09시에 지난 값이 밝게 뜨던 문제, 2026-11-04)
+  const jpMap = await jpPromise;
+  for (const p of jpItems) {
+    const n = jpMap.get(p.symbol);
+    if (!n) continue;
+    applyToss(p.symbol, {
+      symbol: p.symbol, name: p.name, price: n.price, prev: n.prev, prevClose: n.prev, diff: n.price - n.prev, pct: n.pct,
+      currency: "JPY", tradeDate: n.date, freshTime: n.tradedAt || undefined, regularMarketTime: n.tradedAt || undefined, marketState: "",
+    });
+  }
 
   return merged;
 }
