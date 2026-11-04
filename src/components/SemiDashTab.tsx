@@ -527,8 +527,10 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
   // 최근 1시간만 한 화면 폭에, 그 전은 왼쪽으로 스크롤(사용자 2026-11-04 "1시간으로, 지난 건 스크롤로") — 오늘 켠 뒤 전부 그린다
   const ms = flow.minutes;
   // 한 화면 분 수 — 기본 1시간, 마우스 휠로 확대(10분까지)·축소(켠 뒤 전부까지)(사용자 2026-11-04 "휠로 확대 축소")
-  const [vis, setVis] = useState(60);
-  const VIS = Math.min(vis, Math.max(60, ms.length));
+  //   기본 = 켠 뒤 전부 한 화면(사용자 2026-11-04 "전체를 보여주는 걸 기본으로") — null 이면 전체
+  const [vis, setVis] = useState<number | null>(null);
+  const ALL = Math.max(60, ms.length);
+  const VIS = vis == null ? ALL : Math.min(vis, ALL);
   const sc = Math.max(1, ms.length / VIS);              // 그래프 폭 배율(1 = 한 화면)
   const W = 600 * sc, H = 220, PAD = 4;
   const lim = (p: number) => 100 - (100 - p) / sc;      // 글자 위치 한도 — 보이는 칸 기준 p% 를 넓어진 그래프 기준으로
@@ -549,7 +551,11 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
       e.preventDefault();
       const r = el.getBoundingClientRect(), px = e.clientX - r.left;
       zoomAt.current = { fx: (px + el.scrollLeft) / el.scrollWidth, px };
-      setVis(v => Math.max(10, Math.min(Math.max(60, msLen.current), Math.round(v * (e.deltaY > 0 ? 1.2 : 1 / 1.2)))));
+      setVis(v => {
+        const all = Math.max(60, msLen.current);
+        const n = Math.max(10, Math.round((v ?? all) * (e.deltaY > 0 ? 1.2 : 1 / 1.2)));
+        return n >= all ? null : n;   // 끝까지 줄이면 다시 '전체'(새 분이 와도 계속 전체)
+      });
     };
     el.addEventListener("wheel", on, { passive: false });
     return () => el.removeEventListener("wheel", on);
@@ -588,7 +594,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
           ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
           : <span className="font-bold text-gray-800">{name} 실시간 체결</span>}
         <span className="text-[11px] text-gray-400">{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
-        {vis !== 60 && <button onClick={() => { stick.current = true; setVis(60); }} title="한 화면 1시간으로 되돌리기" className="text-[10.5px] text-gray-500 border border-gray-300 rounded px-1 hover:bg-gray-50">{vis}분 보기 · 되돌리기</button>}
+        {vis != null && <button onClick={() => { stick.current = true; setVis(null); }} title="켠 뒤 전부를 한 화면으로 되돌리기" className="text-[10.5px] text-gray-500 border border-gray-300 rounded px-1 hover:bg-gray-50">{vis}분 보기 · 전체로</button>}
         <KisWsBadge />
       </div>
       <div className="flex gap-3 tabular-nums my-1">
