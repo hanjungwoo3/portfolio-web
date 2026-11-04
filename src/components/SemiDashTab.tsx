@@ -7,7 +7,6 @@
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { ForeignFuturesPanel } from "./ForeignFuturesPanel";
-import { ProgStockPanel } from "./ProgramTapePanel";
 import { loadProgTape, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/futuresTape";
 import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
@@ -418,11 +417,10 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {/* 필라델피아 반도체(지수) 카드는 뺐다 — 한국 장중엔 간밤 미국 종가라 안 움직인다(사용자 요청). SOX 선물은 아래 해외 선물 줄 */}
       </div>
 
-      {/* ② 종목별 묶음 — 왼쪽 삼성·오른쪽 하이닉스: 프로그램 매매(한투) → 실시간 체결 → 그 종목 신호(사용자 2026-11-04 "3개를 하나로 묶어서 좌우로") */}
+      {/* ② 종목별 묶음 — 왼쪽 삼성·오른쪽 하이닉스: 실시간 체결(프로그램 보라 선 포함) → 그 종목 신호(사용자 2026-11-04). 따로 있던 프로그램 매매 그래프는 뺐다("실시간 체결에 들어가서 삭제해도") */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 shrink-0">
         {stocks.map((s, i) => (
           <div key={s.code} className="flex flex-col gap-1.5 min-w-0">
-            <ProgStockPanel code={s.code} name={s.name} />
             <div className="h-[340px] lg:h-[360px] grid min-h-0">
               <TickPanel name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
             </div>
