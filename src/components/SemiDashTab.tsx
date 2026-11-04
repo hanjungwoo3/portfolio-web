@@ -28,7 +28,6 @@ import { OrderBookBox, BrokerBox, ProgramInvestorBox, FeedBox, CommunityPane, us
 import { useTickFlow, strength, netAmt, bigThreshold, wonStep, type TickFlow } from "../lib/useTickFlow";
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
-import { HypothesisBox } from "./HypothesisBox";
 import { BuySellBars, joEok } from "./BuySellBars";
 
 const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }] as const;
@@ -146,7 +145,6 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   };
   // 어제 종가 = 지금 가격 ÷ (1 + 등락률) — 실시간 체결 가격 글자 옆 % 용
   const baseOf = (code: string) => { const x = sq(code); return x?.price && x.pct != null ? x.price / (1 + x.pct / 100) : undefined; };
-  const [rightTab, setRightTab] = useState<"sig" | "hyp">("sig");
   // 프리장(NXT 08:00~09:00) 결과 — 정규장이 열리면 현물 수급은 KRX 로 바뀌어 프리장이 안 보인다 → 따로 한 줄(사용자 요청)
   const [{ data: kospiNxt }, { data: kosdaqNxt }] = useQueries({
     queries: (["kospi", "kosdaq"] as const).map(m => ({
@@ -324,20 +322,14 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
                                                                color={vk && vk.pct > 0 ? "#dc2626" : "#2563eb"} />} />
   </>);
 
-  // 지금 신호 / 가설 검증 칸 — 반도체 탭과 팝업이 같은 칸을 쓴다
+  // 지금 신호 칸 — 반도체 탭과 팝업이 같은 칸을 쓴다
   const signalBox = (
         <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden">
-          {/* 지금 신호 / 가설 검증 — 탭(사용자 요청) */}
+          {/* 지금 신호 — 가설 검증 탭은 뺐다(사용자 2026-11-04 "가설검증은 삭제") */}
           <div className="flex items-baseline gap-1 mb-1 border-b">
-            {(["sig", "hyp"] as const).map(k => (
-              <button key={k} onClick={() => setRightTab(k)}
-                      className={`px-2 pb-1 -mb-px border-b-2 font-bold ${rightTab === k ? "border-blue-500 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-600"}`}>
-                {k === "sig" ? "지금 신호" : "가설 검증"}
-              </button>
-            ))}
-            <span className="ml-1 text-[11px] text-gray-400">{rightTab === "sig" ? "숫자로 확인되는 것만" : "같이 일어났는지만(인과 아님)"}</span>
+            <span className="px-2 pb-1 -mb-px border-b-2 border-blue-500 font-bold text-gray-900">지금 신호</span>
+            <span className="ml-1 text-[11px] text-gray-400">숫자로 확인되는 것만</span>
           </div>
-          {rightTab === "hyp" ? <HypothesisBox ff={ff} futMin={futMin ?? undefined} embedded /> : <>
           <div className="space-y-1 overflow-auto">
             {sig.length ? sig.map((n, i) => (
               <div key={i} className="leading-snug">
@@ -349,7 +341,6 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           <div className="mt-auto pt-2 border-t text-[11px] text-gray-500 leading-snug">
             체결강도 = 매수 체결량 ÷ 매도 체결량 × 100 (100 위 = 사는 쪽 우위). 큰 체결 = 1억 원 이상(5건이 안 되면 5천만 · 3천만 · 1천만으로 낮춤).
           </div>
-          </>}
         </div>
   );
 
