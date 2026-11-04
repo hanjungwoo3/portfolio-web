@@ -9,6 +9,7 @@ import { ValueupTags } from "./ValueupTags";
 import { SeohakPage, SeohakTag } from "./SeohakBox";
 import { useKisRadar, radarLabel } from "../lib/kisRadar";
 import { useKisVi, viLabel, viActive } from "../lib/kisVi";
+import { HoverTip } from "./HoverTip";
 import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { BrokerLinkSection } from "./BrokerLinkSection";
 import { KisLinkSection } from "./KisLinkSection";
@@ -1556,9 +1557,9 @@ export function MobileSimpleView() {
                       <div className="absolute -bottom-1 right-1 z-20 flex items-center gap-0.5">
                         {/* 거래대금 급증(한국투자 1분 레이더, 사용자 2026-11-03) — 맨 앞에 */}
                         {isKrStock && radar.get(krCode) && (() => { const l = radarLabel(radar.get(krCode)!); return (
-                          <span title={l.title} className="px-1 py-0 rounded text-[9px] leading-tight whitespace-nowrap font-bold border border-orange-400 bg-orange-500 text-white animate-pulse">{l.text}</span>); })()}
+                          <HoverTip tip={l.title}><span className="px-1 py-0 rounded text-[9px] leading-tight whitespace-nowrap font-bold border border-orange-400 bg-orange-500 text-white animate-pulse">{l.text}</span></HoverTip>); })()}
                         {isKrStock && viMap.get(krCode) && (() => { const v = viMap.get(krCode)!, l = viLabel(v); return (
-                          <span title={l.title} className={`px-1 py-0 rounded text-[9px] leading-tight whitespace-nowrap font-bold border ${v.dir === "up" ? "border-rose-400" : "border-blue-400"} ${viActive(v) ? `${v.dir === "up" ? "bg-rose-600" : "bg-blue-600"} text-white animate-pulse` : v.dir === "up" ? "bg-rose-50 text-rose-700" : "bg-blue-50 text-blue-700"}`}>{l.text}</span>); })()}
+                          <HoverTip tip={l.title}><span className={`px-1 py-0 rounded text-[9px] leading-tight whitespace-nowrap font-bold border ${v.dir === "up" ? "border-rose-400" : "border-blue-400"} ${viActive(v) ? `${v.dir === "up" ? "bg-rose-600" : "bg-blue-600"} text-white animate-pulse` : v.dir === "up" ? "bg-rose-50 text-rose-700" : "bg-blue-50 text-blue-700"}`}>{l.text}</span></HoverTip>); })()}
                         {hasDisc && <DiscTags code={krCode} name={p.name} max={2} />}
                         {vu && <ValueupTags code={krCode} flat />}
                         {isUsStock && <SeohakTag symbol={p.symbol} flat />}

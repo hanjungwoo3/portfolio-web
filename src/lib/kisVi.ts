@@ -95,6 +95,6 @@ export function viLabel(v: ViInfo): { text: string; title: string } {
   const a = viActive(v);
   return {
     text: `VI${v.dir === "up" ? "↑" : "↓"}${v.count > 1 ? `${v.count}` : ""}${a ? " 발동중" : ""}`,
-    title: `변동성 완화장치(VI) — 오늘 ${v.count}회, 마지막 ${v.at} ${v.kind} VI(${v.dir === "up" ? "급등" : "급락"} ${v.pct.toFixed(1)}%), ${v.until ? `${v.until} 해제` : ""}\n발동되면 2분간 단일가 매매로 식힌다 — 장중 테마가 터지는 신호 · 한국투자 1분마다`,
+    title: `변동성 완화장치(VI) ${v.dir === "up" ? "급등" : "급락"} — 오늘 ${v.count}회\n마지막 ${v.at} ${v.kind} VI · 기준가 대비 ${v.pct.toFixed(1)}%${v.until ? ` · ${v.until} 해제` : ""}${a ? " · 지금 단일가 중" : ""}\n발동되면 2분간 단일가 매매로 식힙니다 — 장중 테마가 터지는 신호\n한국투자 · 1분마다`,
   };
 }

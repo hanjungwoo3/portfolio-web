@@ -107,6 +107,6 @@ export function radarLabel(h: RadarHit): { text: string; title: string } {
   const eok = h.perMin / 1e8;
   return {
     text: `🔥거래 ×${h.ratio >= 10 ? Math.round(h.ratio) : h.ratio.toFixed(1)}`,
-    title: `거래대금 급증 — 최근 ${h.windowMin}분 페이스가 이번 장 구간(프리·정규·애프터) 평균의 ${h.ratio.toFixed(1)}배 (분당 ${eok >= 10 ? Math.round(eok) : eok.toFixed(1)}억 원) · 한국투자 1분마다`,
+    title: `거래대금 급증 — 평소의 ${h.ratio.toFixed(1)}배\n최근 ${h.windowMin}분 분당 ${eok >= 10 ? Math.round(eok) : eok.toFixed(1)}억 원 · 이번 장 구간(프리·정규·애프터) 평균과 비교\n한국투자 · 1분마다`,
   };
 }
