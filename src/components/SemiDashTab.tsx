@@ -453,7 +453,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       </div>
 
       {/* 외국인 K200 선물 — 누적 순매수·정리율·15분 변화 + 시장 미결제약정(사용자 2026-11-03) */}
-      <ForeignFuturesPanel flow={ff} fut={fut} spotFlow={kf} price={futToday} />
+      <ForeignFuturesPanel flow={ff} fut={fut} spotFlow={kf} price={futToday} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} />
 
     </div>
   );

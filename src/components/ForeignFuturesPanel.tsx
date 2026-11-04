@@ -50,8 +50,9 @@ function Chart({ series, baseZero, markers, height = 150, width = 600, color, ch
   );
 }
 
-export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
+export function ForeignFuturesPanel({ flow, fut, spotFlow, price, kospi, kospiBase }: {
   flow?: IntradayFlow; fut?: KrFuturesLive | null; spotFlow?: IntradayFlow; price?: { t: string; v: number }[];
+  kospi?: { t: string; v: number }[]; kospiBase?: number;   // 배경 코스피(1분) · 전일 종가 — 위 빨강·아래 파랑 면(현물 칸과 같은 모양, 사용자 2026-11-04)
 }) {
   const today = kstDate();
   const pxAt = useMemo(() => {
@@ -120,6 +121,32 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
   // 장중 최저·최고가 방금(끝 10분 안)이면 표시를 따로 달지 않고 선 끝 '외국인' 글자에 붙인다 — 끝 글자들과 겹쳤다(사용자 2026-11-04)
   const extAtEnd = !!(ext && last && hm2m(last.t) - hm2m(ext.t) <= 10);
   const H = 240, CW = 1200;   // 그래프 내부 폭 — 패널 전체 폭이라 600 이면 글자가 가로로 늘어났다(viewBox 비율)
+  // 배경 코스피 면 — 전일 종가 위 빨강·아래 파랑(축 따로, 위아래 10% 여백). 최고·최저 ▼▲ 와 오른쪽 현재값
+  const kospiLayer = (sx: (t: string) => number) => {
+    const ks = (kospi ?? []).filter(p => hm2m(p.t) >= X0 && hm2m(p.t) <= X1 && p.v > 0);
+    if (ks.length < 2) return null;
+    const vals = [...ks.map(p => p.v), ...(kospiBase && kospiBase > 0 ? [kospiBase] : [])];
+    const lo = Math.min(...vals), hi = Math.max(...vals), r = hi - lo || 1, PY = H * 0.1;
+    const ky = (v: number) => PY + (1 - (v - lo) / r) * (H - 14 - PY * 2);
+    const baseY = ky(kospiBase && kospiBase > 0 ? kospiBase : ks[0].v);
+    const line = ks.map((p, i) => `${i ? "L" : "M"}${sx(p.t).toFixed(1)},${ky(p.v).toFixed(1)}`).join(" ");
+    const band = `${line} L${sx(ks[ks.length - 1].t).toFixed(1)},${baseY.toFixed(1)} L${sx(ks[0].t).toFixed(1)},${baseY.toFixed(1)} Z`;
+    const hiP = ks.reduce((a, p) => (p.v > a.v ? p : a)), loP = ks.reduce((a, p) => (p.v < a.v ? p : a)), lastK = ks[ks.length - 1];
+    return (<>
+      <defs>
+        <clipPath id="ffp-ku"><rect x={0} y={0} width={CW} height={baseY} /></clipPath>
+        <clipPath id="ffp-kd"><rect x={0} y={baseY} width={CW} height={Math.max(0, H - baseY)} /></clipPath>
+      </defs>
+      <g clipPath="url(#ffp-ku)"><path d={band} fill="#fecdd3" fillOpacity={0.45} /><path d={line} fill="none" stroke="#fb7185" strokeOpacity={0.55} strokeWidth={1} /></g>
+      <g clipPath="url(#ffp-kd)"><path d={band} fill="#bfdbfe" fillOpacity={0.45} /><path d={line} fill="none" stroke="#60a5fa" strokeOpacity={0.55} strokeWidth={1} /></g>
+      {kospiBase && kospiBase > 0 && <line x1={4} x2={CW - 52} y1={baseY} y2={baseY} stroke="#9ca3af" strokeOpacity={0.5} strokeDasharray="2 3" />}
+      <text x={sx(hiP.t)} y={ky(hiP.v) - 3} fontSize={9} textAnchor="middle" fill="#e11d48">▼</text>
+      <text x={Math.max(40, Math.min(CW - 120, sx(hiP.t)))} y={ky(hiP.v) - 12} fontSize={9.5} textAnchor="middle" fill="#e11d48">코스피 최고 {hiP.v.toLocaleString(undefined, { maximumFractionDigits: 2 })}</text>
+      <text x={sx(loP.t)} y={ky(loP.v) + 10} fontSize={9} textAnchor="middle" fill="#2563eb">▲</text>
+      <text x={Math.max(40, Math.min(CW - 120, sx(loP.t)))} y={ky(loP.v) + 20} fontSize={9.5} textAnchor="middle" fill="#2563eb">코스피 최저 {loP.v.toLocaleString(undefined, { maximumFractionDigits: 2 })}</text>
+      <g><rect x={CW - 50} y={ky(lastK.v) - 7} width={46} height={14} rx={2} fill="#374151" /><text x={CW - 27} y={ky(lastK.v) + 3.5} fontSize={9.5} textAnchor="middle" fill="white">{Math.round(lastK.v).toLocaleString()}</text></g>
+    </>);
+  };
   const oiLayer = (sx: (t: string) => number) => {
     const scale = (vals: number[]) => { const lo = Math.min(...vals), hi = Math.max(...vals), pad = (hi - lo) * 0.08 || 0.5; return (v: number) => 8 + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * (H - 8 - 14); };
     const oiv = oi.map(p => p.oi).filter(v => v > 0), ps = oi.map(p => p.p).filter(v => v > 0);
@@ -163,6 +190,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
             <Chart series={fs.map(p => ({ t: p.t, v: p.v }))} baseZero color="#1e3a8a" height={H} width={CW}
                    markers={ext && !extAtEnd ? [{ t: ext.t, v: ext.v, label: `${ext.v < 0 ? "최저" : "최고"} ${ext.t}`, color: "#2563eb" }] : []}>
               {(sx, sy) => (<>
+                {kospiLayer(sx)}
                 {oiLayer(sx)}
                 {/* 선 끝 이름·값 — 무슨 선인지 바로(사용자 2026-11-04 "무슨 선인지, 선에 숫자도"). 겹치면 순서대로 쌓는다 */}
                 {(() => {
@@ -201,6 +229,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
             </svg>
             <div className="flex flex-wrap gap-x-2 text-[10px] text-gray-500">
               <span><b className="text-blue-900">—</b> 외국인 누적(억원)</span><span><span className="text-rose-500">┈</span> 정리율 20·50%</span>
+              {kospi && kospi.length > 1 && <span><span className="inline-block w-3 h-2 mr-0.5 align-middle bg-rose-200" /><span className="inline-block w-3 h-2 mr-0.5 align-middle bg-blue-200" />코스피(전일 종가 위·아래, 축 따로)</span>}
               <span><b className="text-violet-700">—</b> 미결제(축 따로)</span><span><b className="text-gray-400">—</b> 선물가(축 따로)</span>
               <span className="text-gray-400">15분 막대:</span>
               {Object.values(BAR).map(b => <span key={b.l}><span className="inline-block w-2 h-2 rounded-sm mr-0.5 align-middle" style={{ background: b.c }} />{b.l}</span>)}
