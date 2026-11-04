@@ -15,11 +15,10 @@ import { useEffect, useId, useState } from "react";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
-  fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchInvestorHistory,
+  fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow,
   fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
 } from "../lib/api";
-import type { Investor } from "../types";
 import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
 import { allYahooSymbols } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
@@ -108,18 +107,6 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     queries: (["kospi", "futures", "kosdaq"] as const).map(m => ({
       queryKey: ["semi-dash-flow", m], queryFn: () => fetchKrIntradayInvestorFlow(m),
       refetchInterval: FLOW_MS, staleTime: 30_000,
-    })),
-  });
-  const [{ data: kospiDaily }, { data: kosdaqDaily }] = useQueries({
-    queries: (["kospi", "kosdaq"] as const).map(m => ({
-      queryKey: ["semi-dash-daily", m], queryFn: () => fetchKrDailyInvestorFlow(m, 20),
-      staleTime: 10 * 60_000, refetchOnWindowFocus: false,
-    })),
-  });
-  const stockInv = useQueries({
-    queries: stocks.map(s => ({
-      queryKey: ["semi-dash-inv", s.code], queryFn: () => fetchInvestorHistory(s.code, 20),
-      refetchInterval: 5 * 60_000, staleTime: 60_000,
     })),
   });
   // 훅 개수는 고정(2) — 한 종목이면 두 번째는 꺼 둔다
@@ -447,13 +434,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
                  bg={futToday} bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
         <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgBase={q("^KQ11")?.prevClose} />
         {/* 옵션·종목 수급은 한 칸에 세로로 — 남는 폭을 수급 그래프 세 칸에(사용자 요청 2026-10-23) */}
-        <div className="grid grid-rows-[auto_auto_1fr] gap-1.5 min-h-0">   {/* 위 = 종목 수급, 가운데 = 옵션, 아래 = 시장 공통 신호(사용자 2026-11-04) */}
-        <StockFlowTable rows={stocks.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: sq(s.code)?.price }))}
-                        fLast={fLast}
-                        markets={[
-                          { name: "코스피", last: kLast, daily: kospiDaily?.points ?? [] },
-                          { name: "코스닥", last: kqFlow?.points[kqFlow.points.length - 1], daily: kosdaqDaily?.points ?? [] },
-                        ]} />
+        <div className="grid grid-rows-[auto_1fr] gap-1.5 min-h-0">   {/* 위 = 옵션, 아래 = 시장 공통 신호(사용자 2026-11-04) */}
+        {/* 종목 수급 표는 뺐다(사용자 2026-11-04 "삭제") */}
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
         {sigBox("시장 신호", sig.filter(n => !n.code), "아직 없음 — 코스피 외국인·선물·옵션 신호가 여기에", false, "max-h-[300px]")}   {/* 길어지면 안에서 스크롤 — 줄 높이를 밀어 올리지 않게 */}
         </div>
@@ -954,67 +936,6 @@ function OptionBox({ opt, vk, dim: dimIn }: { opt?: Awaited<ReturnType<typeof fe
       )}
     </div>
   );
-}
-
-function StockFlowTable({ rows, markets }: {
-  rows: { code: string; name: string; hist: Investor[]; price?: number }[];
-  fLast?: IntradayFlow["points"][number];
-  // 시장 줄(코스피·코스닥) — 오늘은 1분 단위 누적(네이버), 5·20일·연속은 일별
-  markets: { name: string; last?: IntradayFlow["points"][number]; daily: { foreigners: number }[] }[];
-}) {
-  const calc = (hist: Investor[], price?: number) => {
-    const won = (r: Investor, v: number) => (v * (r.종가 || price || 0)) / 1e8;
-    const today = hist[0];
-    const sum = (n: number) => hist.slice(0, n).reduce((a, r) => a + won(r, r.외국인), 0);
-    let streak = 0;
-    for (const r of hist) { const sg = Math.sign(r.외국인); if (!sg || (streak && Math.sign(streak) !== sg)) break; streak += sg; }
-    return { f: today ? won(today, today.외국인) : undefined, f5: sum(5), f20: sum(20), streak };
-  };
-  const dsum = (daily: { foreigners: number }[], n: number) => daily.slice(-n).reduce((a, p) => a + p.foreigners, 0);
-  const dstreak = (daily: { foreigners: number }[]) => {   // 최신부터 외국인 같은 방향 연속 일수
-    let st = 0;
-    for (const p of [...daily].reverse()) { const sg = Math.sign(p.foreigners); if (!sg || (st && Math.sign(st) !== sg)) break; st += sg; }
-    return st;
-  };
-  return (
-    <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
-      <div className="flex items-baseline gap-2">
-        <span className="font-bold text-gray-800">종목 수급</span>
-        <span className="text-[11px] text-gray-400">억원 · 오늘은 KRX 잠정치(하루 몇 번 갱신)</span>
-      </div>
-      <table className="w-full tabular-nums mt-1">
-        <thead><tr className="text-gray-500 text-[11px] border-b">
-          <th className="text-left font-normal"></th><th className="text-right font-normal">외국인</th>
-          <th className="text-right font-normal">외인5일</th><th className="text-right font-normal">외인20일</th><th className="text-right font-normal">연속</th>
-        </tr></thead>
-        <tbody>
-          {rows.map(r => {
-            const c = calc(r.hist, r.price);
-            return (
-              <tr key={r.code} className="border-b border-gray-100">
-                <td className="py-1 font-bold">{r.name}</td><N v={c.f} /><N v={c.f5} /><N v={c.f20} />
-                <td className={`text-right ${up(c.streak)}`}>{c.streak ? `${Math.abs(c.streak)}일${c.streak > 0 ? "↑" : "↓"}` : "-"}</td>
-              </tr>
-            );
-          })}
-          {markets.map(m => {
-            const st = m.daily.length ? dstreak(m.daily) : 0;
-            return (
-              <tr key={m.name} className="border-b border-gray-100">
-                <td className="py-1 font-bold">{m.name}</td><N v={m.last?.foreigners} />
-                <N v={m.daily.length ? dsum(m.daily, 5) : undefined} /><N v={m.daily.length ? dsum(m.daily, 20) : undefined} />
-                <td className={`text-right ${up(st)}`}>{st ? `${Math.abs(st)}일${st > 0 ? "↑" : "↓"}` : "-"}</td>
-              </tr>
-            );
-          })}
-          {/* 선물 줄은 뺐다 — 아래 '외국인 K200 선물' 패널에 곡선·정리율로 있다(사용자 2026-11-03) */}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-function N({ v }: { v?: number }) {
-  return <td className={`text-right ${v == null ? "text-gray-300" : up(v)}`}>{v == null ? "-" : eok(v)}</td>;
 }
 
 function ChipBox({ title, items }: { title: string; items: { k: string; name: string; pct?: number }[] }) {
