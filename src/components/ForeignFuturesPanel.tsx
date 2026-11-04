@@ -188,7 +188,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
           </div>
           {/* 읽기 — 결론 먼저, 근거 한 줄씩(사용자 2026-11-04 "이 그래프 분석을 오른쪽에") */}
           {read && (
-            <div className="hidden lg:flex flex-col w-[280px] shrink-0 rounded border border-gray-200 bg-gray-50/60 p-2 text-[11.5px] leading-snug">
+            <div className="hidden lg:flex flex-col w-[400px] shrink-0 rounded border border-gray-200 bg-gray-50/60 p-2 text-[11.5px] leading-snug">
               <div className="text-[10.5px] text-gray-400 mb-0.5">그래프 읽기</div>
               <div className={`font-bold text-[12.5px] ${RT[read.head.tone]}`}>{read.head.text}</div>
               <div className="mt-1.5 space-y-1">
