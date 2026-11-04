@@ -6,6 +6,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { IntradayFlow, KrFuturesLive } from "../lib/api";
 import { TAPE_EVENT, loadFrgnTape, loadOiTape } from "../lib/futuresTape";
+import { readFutures } from "../lib/futuresRead";
 
 const MULT = 250_000;   // 코스피200 선물 1포인트 = 25만 원
 const hm2m = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
@@ -100,6 +101,19 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
     newBuy: { c: "#f43f5e", l: "신규매수" }, newSell: { c: "#3b82f6", l: "신규매도" }, cover: { c: "#fda4af", l: "숏커버" }, liq: { c: "#93c5fd", l: "청산매도" }, flat: { c: "#d1d5db", l: "중립" },
   };
 
+  // 그래프 읽기(오른쪽 칸) — 최근 30분 미결제·선물가 변화로 성격을 본다
+  const read = useMemo(() => {
+    if (!last && oi.length < 2) return null;
+    const lo = oi[oi.length - 1];
+    const base = lo ? [...oi].reverse().find(p => hm2m(lo.t) - hm2m(p.t) >= 30) ?? oi[0] : undefined;
+    return readFutures({
+      cum: last?.v ?? 0, ext: ext ? { v: ext.v, t: ext.t } : null, recov, d15,
+      oi: lo && base && lo !== base ? { doi: lo.oi - base.oi, dp: lo.p - base.p, min: hm2m(lo.t) - hm2m(base.t) } : null,
+      spot: spot ?? null,
+    });
+  }, [last, oi, ext, recov, d15, spot]);
+  const RT: Record<string, string> = { up: "text-rose-600", down: "text-blue-600", flat: "text-gray-600", warn: "text-amber-700" };
+
   // 한 패널·한 그래프(사용자 2026-11-04 "외국인 선물 그래프까지 포함해 패널 전체를 하나로") —
   //   남색 = 외국인 누적(억원, 0선), 보라 = 시장 미결제(근월물 전체, 축 따로), 회색 = 선물가(축 따로), 아래 막대 = 15분 미결제 변화 성격
   const H = 240, CW = 1200;   // 그래프 내부 폭 — 패널 전체 폭이라 600 이면 글자가 가로로 늘어났다(viewBox 비율)
@@ -172,6 +186,19 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
               {fut?.basis != null && <span className="ml-auto">베이시스 <b>{fut.basis.toFixed(2)}</b></span>}
             </div>
           </div>
+          {/* 읽기 — 결론 먼저, 근거 한 줄씩(사용자 2026-11-04 "이 그래프 분석을 오른쪽에") */}
+          {read && (
+            <div className="hidden lg:flex flex-col w-[280px] shrink-0 rounded border border-gray-200 bg-gray-50/60 p-2 text-[11.5px] leading-snug">
+              <div className="text-[10.5px] text-gray-400 mb-0.5">그래프 읽기</div>
+              <div className={`font-bold text-[12.5px] ${RT[read.head.tone]}`}>{read.head.text}</div>
+              <div className="mt-1.5 space-y-1">
+                {read.lines.map(l => (
+                  <div key={l.label}><b className="text-gray-700">{l.label}:</b> <span className={RT[l.tone]}>{l.text}</span></div>
+                ))}
+              </div>
+              <div className="mt-auto pt-1 text-[10px] text-gray-400">숫자를 규칙으로 읽은 지금 상태 · 예측 아님</div>
+            </div>
+          )}
         </div>
       )}
     </div>
