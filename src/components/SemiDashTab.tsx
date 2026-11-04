@@ -531,7 +531,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
   const W = 600 * sc, H = 220, PAD = 4;
   const lim = (p: number) => 100 - (100 - p) / sc;      // 글자 위치 한도 — 보이는 칸 기준 p% 를 넓어진 그래프 기준으로
   const scRef = useRef<HTMLDivElement>(null);
-  const stick = useRef(true);                           // 오른쪽 끝(지금)에 붙어 있나 — 사용자가 지난 쪽을 보는 중이면 새 분이 와도 안 끌고 간다
+  const stick = useRef(true);
+  const drag = useRef<{ x: number; left: number } | null>(null);   // 마우스로 끌기 시작점                           // 오른쪽 끝(지금)에 붙어 있나 — 사용자가 지난 쪽을 보는 중이면 새 분이 와도 안 끌고 간다
   useEffect(() => { const el = scRef.current; if (el && stick.current) el.scrollLeft = el.scrollWidth; }, [ms.length]);
   const nets = ms.map(m => m.buyAmt - m.sellAmt);
   const mxBar = Math.max(1, ...nets.map(Math.abs));
@@ -576,8 +577,13 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
       )}
       <div className="flex-1 min-h-0 flex gap-2">
         <div className="flex-1 min-w-0">
-          {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div ref={scRef} className="w-full h-full overflow-x-auto overflow-y-hidden"
-                 onScroll={e => { const el = e.currentTarget; stick.current = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8; }}>
+          {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div ref={scRef}
+                 // 스크롤바는 숨기고 마우스로 끌어서 옮긴다(사용자 2026-11-04 "스크롤바가 아니라 마우스로 클릭해서 이동") — 터치는 그냥 밀면 된다
+                 className={`w-full h-full overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden select-none ${sc > 1 ? "cursor-grab active:cursor-grabbing" : ""}`}
+                 onScroll={e => { const el = e.currentTarget; stick.current = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8; }}
+                 onPointerDown={e => { if (sc <= 1 || e.pointerType !== "mouse") return; drag.current = { x: e.clientX, left: e.currentTarget.scrollLeft }; e.currentTarget.setPointerCapture(e.pointerId); }}
+                 onPointerMove={e => { if (!drag.current) return; e.currentTarget.scrollLeft = drag.current.left - (e.clientX - drag.current.x); }}
+                 onPointerUp={e => { drag.current = null; e.currentTarget.releasePointerCapture(e.pointerId); }}>
             <div className="relative h-full" style={{ width: `${sc * 100}%` }}>
             {ms.length < 5 && <div className="absolute inset-x-0 bottom-1 text-center text-[11px] text-gray-400">켠 뒤 {ms.length}분째 — 10분쯤 지나면 흐름이 보입니다</div>}
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">

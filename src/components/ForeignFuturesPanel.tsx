@@ -21,11 +21,11 @@ function useTape() {
 }
 
 const X0 = 8 * 60 + 45, X1 = 15 * 60 + 45;
-function Chart({ series, baseZero, markers, height = 150, color, children }: {
+function Chart({ series, baseZero, markers, height = 150, width = 600, color, children }: {
   series: { t: string; v: number }[]; baseZero?: boolean; markers?: { t: string; v: number; label: string; color: string }[];
-  height?: number; color: string; children?: (sx: (t: string) => number, sy: (v: number) => number) => React.ReactNode;
+  height?: number; width?: number; color: string; children?: (sx: (t: string) => number, sy: (v: number) => number) => React.ReactNode;
 }) {
-  const W = 600, H = height, PL = 4, PR = 52, PT = 8, PB = 14;
+  const W = width, H = height, PL = 4, PR = 52, PT = 8, PB = 14;
   const vs = series.map(p => p.v).concat(baseZero ? [0] : []);
   const lo = Math.min(...vs), hi = Math.max(...vs), pad = (hi - lo) * 0.08 || 1;
   const sx = (t: string) => PL + ((hm2m(t) - X0) / (X1 - X0)) * (W - PL - PR);
@@ -100,16 +100,33 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
     newBuy: { c: "#f43f5e", l: "신규매수" }, newSell: { c: "#3b82f6", l: "신규매도" }, cover: { c: "#fda4af", l: "숏커버" }, liq: { c: "#93c5fd", l: "청산매도" }, flat: { c: "#d1d5db", l: "중립" },
   };
 
+  // 한 패널·한 그래프(사용자 2026-11-04 "외국인 선물 그래프까지 포함해 패널 전체를 하나로") —
+  //   남색 = 외국인 누적(억원, 0선), 보라 = 시장 미결제(근월물 전체, 축 따로), 회색 = 선물가(축 따로), 아래 막대 = 15분 미결제 변화 성격
+  const H = 240, CW = 1200;   // 그래프 내부 폭 — 패널 전체 폭이라 600 이면 글자가 가로로 늘어났다(viewBox 비율)
+  const oiLayer = (sx: (t: string) => number) => {
+    const scale = (vals: number[]) => { const lo = Math.min(...vals), hi = Math.max(...vals), pad = (hi - lo) * 0.08 || 0.5; return (v: number) => 8 + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * (H - 8 - 14); };
+    const oiv = oi.map(p => p.oi).filter(v => v > 0), ps = oi.map(p => p.p).filter(v => v > 0);
+    const oy = oiv.length > 1 ? scale(oiv) : null, py = ps.length > 1 ? scale(ps) : null;
+    const path = (f: (v: number) => number, k: "oi" | "p") => oi.filter(p => p[k] > 0).map((p, i) => `${i ? "L" : "M"}${sx(p.t).toFixed(1)},${f(p[k]).toFixed(1)}`).join(" ");
+    const lastOi = oi[oi.length - 1];
+    return (<>
+      {py && <path d={path(py, "p")} fill="none" stroke="#9ca3af" strokeWidth={1.3} />}
+      {oy && <path d={path(oy, "oi")} fill="none" stroke="#7c3aed" strokeWidth={1.6} />}
+      {oy && lastOi && <text x={Math.min(sx(lastOi.t) + 4, CW - 52)} y={oy(lastOi.oi) - 4} fontSize={9.5} fill="#7c3aed" fontWeight={700}>미결제 {lastOi.oi.toLocaleString()}</text>}
+      {py && <><text x={CW - 50} y={py(Math.max(...ps)) + 3} fontSize={9} fill="#9ca3af">{Math.max(...ps).toFixed(1)}</text>
+        <text x={CW - 50} y={py(Math.min(...ps)) + 3} fontSize={9} fill="#9ca3af">{Math.min(...ps).toFixed(1)}</text></>}
+    </>);
+  };
   return (
-    <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 grid grid-cols-1 lg:grid-cols-2 gap-3">
-      <div className="min-w-0">
-        <div className="flex items-baseline gap-2">
-          <span className="font-bold text-gray-800">🌐 외국인 K200 선물</span>
-          <span className="text-[11px] text-gray-400">근월물 {fut?.month ?? ""} · {live ? <b className="text-emerald-600">● 한투 실시간(1분)</b> : "네이버 20분 지연"} · 계약×선물가×25만</span>
-        </div>
-        {!last ? <div className="text-gray-400 text-[12px] py-6 text-center">오늘 수급이 아직 없습니다(장 전·휴장).</div> : (<>
-          {/* 수치 4칸은 그래프 왼쪽 세로로, 그래프는 오른쪽 미결제 그래프 셋(120+60+40)과 같은 높이(사용자 2026-11-04) */}
-          <div className="mt-1 flex gap-2">
+    <div className="pg-card rounded-lg border border-gray-200 bg-white p-2">
+      <div className="flex items-baseline gap-2 flex-wrap">
+        <span className="font-bold text-gray-800">🌐 외국인 K200 선물 · 시장 미결제약정</span>
+        <span className="text-[11px] text-gray-400">근월물 {fut?.month ?? ""} · 외국인 {live ? <b className="text-emerald-600">● 한투 실시간(1분)</b> : "네이버 20분 지연"} · 계약×선물가×25만 · 미결제는 근월물 전체(외국인만 아님), 앱이 켜진 동안 1분마다 기록</span>
+        {fut && fut.oi > 0 && <span className="ml-auto font-bold tabular-nums text-gray-800">미결제 {fut.oi.toLocaleString()} <span className={`text-[11px] ${tone(fut.oiChg)}`}>({fut.oiChg > 0 ? "+" : ""}{fut.oiChg.toLocaleString()})</span></span>}
+      </div>
+      {!last && oi.length < 2 ? <div className="text-gray-400 text-[12px] py-6 text-center">오늘 수급이 아직 없습니다(장 전·휴장) — 주간 선물장 08:45~15:45, 앱을 켜 둔 시간부터 기록합니다.</div> : (
+        <div className="mt-1 flex gap-2">
+          {last && (<>
           <div className="w-[124px] shrink-0 flex flex-col gap-1 text-center">
             <div className="rounded border border-gray-200 py-1"><div className="text-[10.5px] text-gray-500">외국인 누적</div>
               <div className={`font-bold tabular-nums ${tone(last.v)}`}>{eok(last.v)}</div><div className="text-[10px] text-gray-400 tabular-nums">{last.c > 0 ? "+" : ""}{last.c.toLocaleString()}계약 · {last.t}</div></div>
@@ -126,59 +143,37 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
               </div>
             )}
           </div>
+          </>)}
           <div className="flex-1 min-w-0">
-          <Chart series={fs.map(p => ({ t: p.t, v: p.v }))} baseZero color="#1e3a8a" height={232}
-                 markers={ext ? [{ t: ext.t, v: ext.v, label: `${ext.v < 0 ? "최저" : "최고"} ${ext.t}`, color: "#2563eb" }] : []}>
-            {(sx, sy) => ext && ext.v !== 0 ? (<>
-              {/* 정리율 기준선 — 최저(최고)에서 20%·50% 되돌린 자리 */}
-              {[0.5, 0.2].map(r => <g key={r}><line x1={sx(ext.t)} x2={600 - 52} y1={sy(ext.v * (1 - r))} y2={sy(ext.v * (1 - r))} stroke="#f43f5e" strokeDasharray="2 3" strokeWidth={1} />
-                <text x={600 - 50} y={sy(ext.v * (1 - r)) + 3} fontSize={9} fill="#f43f5e">{r * 100}%</text></g>)}
-            </>) : null}
-          </Chart>
+            <Chart series={fs.map(p => ({ t: p.t, v: p.v }))} baseZero color="#1e3a8a" height={H} width={CW}
+                   markers={ext ? [{ t: ext.t, v: ext.v, label: `${ext.v < 0 ? "최저" : "최고"} ${ext.t}`, color: "#2563eb" }] : []}>
+              {(sx, sy) => (<>
+                {oiLayer(sx)}
+                {ext && ext.v !== 0 && [0.5, 0.2].map(r => <g key={r}><line x1={sx(ext.t)} x2={CW - 52} y1={sy(ext.v * (1 - r))} y2={sy(ext.v * (1 - r))} stroke="#f43f5e" strokeDasharray="2 3" strokeWidth={1} />
+                  <text x={CW - 50} y={sy(ext.v * (1 - r)) + 3} fontSize={9} fill="#f43f5e">{r * 100}%</text></g>)}
+              </>)}
+            </Chart>
+            <svg viewBox={`0 0 ${CW} 40`} className="w-full" style={{ height: 40 }} preserveAspectRatio="none">
+              {(() => {
+                const mx = Math.max(1, ...bars.map(b => Math.abs(b.d)));
+                const sx = (t: string) => 4 + ((hm2m(t) - X0) / (X1 - X0)) * (CW - 56);
+                return bars.map(b => { const h = (Math.abs(b.d) / mx) * 18; return (
+                  <rect key={b.t} x={sx(b.t)} width={Math.max(2, (15 / (X1 - X0)) * (CW - 56) - 2)} y={b.d >= 0 ? 20 - h : 20} height={Math.max(1, h)} fill={BAR[b.kind].c}>
+                    <title>{`${b.t}~ 미결제 ${b.d > 0 ? "+" : ""}${b.d.toLocaleString()} · ${BAR[b.kind].l}`}</title>
+                  </rect>); });
+              })()}
+              <line x1={4} x2={CW - 52} y1={20} y2={20} stroke="#e5e7eb" />
+            </svg>
+            <div className="flex flex-wrap gap-x-2 text-[10px] text-gray-500">
+              <span><b className="text-blue-900">—</b> 외국인 누적(억원)</span><span><span className="text-rose-500">┈</span> 정리율 20·50%</span>
+              <span><b className="text-violet-700">—</b> 미결제(축 따로)</span><span><b className="text-gray-400">—</b> 선물가(축 따로)</span>
+              <span className="text-gray-400">15분 막대:</span>
+              {Object.values(BAR).map(b => <span key={b.l}><span className="inline-block w-2 h-2 rounded-sm mr-0.5 align-middle" style={{ background: b.c }} />{b.l}</span>)}
+              {fut?.basis != null && <span className="ml-auto">베이시스 <b>{fut.basis.toFixed(2)}</b></span>}
+            </div>
           </div>
-          </div>
-        </>)}
-      </div>
-      <div className="min-w-0">
-        <div className="flex items-baseline gap-2">
-          <span className="font-bold text-gray-800">📊 시장 미결제약정</span>
-          <span className="text-[11px] text-gray-400">근월물 전체(외국인만 아님) · 앱이 켜진 동안 1분마다 기록</span>
-          {fut && fut.oi > 0 && <span className="ml-auto font-bold tabular-nums text-gray-800">{fut.oi.toLocaleString()} <span className={`text-[11px] ${tone(fut.oiChg)}`}>({fut.oiChg > 0 ? "+" : ""}{fut.oiChg.toLocaleString()})</span></span>}
         </div>
-        {oi.length < 2 ? <div className="text-gray-400 text-[12px] py-6 text-center">기록 중… (주간 선물장 08:45~15:45, 앱을 켜 둔 시간부터 — 아침에 켜 두면 장 시작부터 채워집니다)</div> : (<>
-          {/* 미결제(보라)·선물가(회색)를 한 그래프에 — 축은 따로, 가격은 같은 높이 안에서 자기 범위로(사용자 2026-11-04 "하나로 합칠 수 없나") */}
-          <Chart series={oi.map(p => ({ t: p.t, v: p.oi }))} color="#7c3aed" height={180}>
-            {(sx) => {
-              const ps = oi.map(p => p.p).filter(v => v > 0);
-              if (ps.length < 2) return null;
-              const lo = Math.min(...ps), hi = Math.max(...ps), pad = (hi - lo) * 0.08 || 0.5;
-              const py = (v: number) => 8 + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * (180 - 8 - 14);
-              const d = oi.filter(p => p.p > 0).map((p, i) => `${i ? "L" : "M"}${sx(p.t).toFixed(1)},${py(p.p).toFixed(1)}`).join(" ");
-              return (<>
-                <path d={d} fill="none" stroke="#9ca3af" strokeWidth={1.4} />
-                <text x={600 - 50} y={py(hi) + 3} fontSize={9} fill="#9ca3af">{hi.toFixed(1)}</text>
-                <text x={600 - 50} y={py(lo) + 3} fontSize={9} fill="#9ca3af">{lo.toFixed(1)}</text>
-              </>);
-            }}
-          </Chart>
-          <svg viewBox="0 0 600 40" className="w-full" style={{ height: 40 }} preserveAspectRatio="none">
-            {(() => {
-              const mx = Math.max(1, ...bars.map(b => Math.abs(b.d)));
-              const sx = (t: string) => 4 + ((hm2m(t) - X0) / (X1 - X0)) * (600 - 56);
-              return bars.map(b => { const h = (Math.abs(b.d) / mx) * 18; return (
-                <rect key={b.t} x={sx(b.t)} width={Math.max(2, (15 / (X1 - X0)) * 544 - 2)} y={b.d >= 0 ? 20 - h : 20} height={Math.max(1, h)} fill={BAR[b.kind].c}>
-                  <title>{`${b.t}~ 미결제 ${b.d > 0 ? "+" : ""}${b.d.toLocaleString()} · ${BAR[b.kind].l}`}</title>
-                </rect>); });
-            })()}
-            <line x1={4} x2={548} y1={20} y2={20} stroke="#e5e7eb" />
-          </svg>
-          <div className="flex flex-wrap gap-x-2 text-[10px] text-gray-500">
-            <span><b className="text-violet-700">—</b> 미결제</span><span><b className="text-gray-400">—</b> 선물가</span>
-            {Object.values(BAR).map(b => <span key={b.l}><span className="inline-block w-2 h-2 rounded-sm mr-0.5 align-middle" style={{ background: b.c }} />{b.l}</span>)}
-            {fut?.basis != null && <span className="ml-auto">베이시스 <b>{fut.basis.toFixed(2)}</b></span>}
-          </div>
-        </>)}
-      </div>
+      )}
     </div>
   );
 }
