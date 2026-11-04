@@ -740,7 +740,11 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
                 {/* 최고·최저가 방금(끝 3분 안)이면 지금 가격 글자와 겹치므로 생략 */}
                 {hi > lo && hiI < prices.length - 3 && !nearProg(hiI, hi) && <span className={`${lab} text-rose-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(hiI) / W) * 100))}%`, top: `${yp(hi)}%`, transform: "translate(-50%, -110%)" }}>고 {hi.toLocaleString()}{pc(hi)}</span>}
                 {hi > lo && loI < prices.length - 3 && !nearProg(loI, lo) && <span className={`${lab} text-blue-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(loI) / W) * 100))}%`, top: `${yp(lo)}%`, transform: "translate(-50%, 10%)" }}>저 {lo.toLocaleString()}{pc(lo)}</span>}
-                <span className={`${lab} font-bold text-slate-800 border border-slate-300`} style={{ left: `${lx}%`, top: `${Math.max(6, Math.min(90, yp(last)))}%`, transform: "translate(6px, -50%)" }}>{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span></span>
+                <span className={`${lab} font-bold text-slate-800 border border-slate-300`} style={{ left: `${lx}%`, top: `${Math.max(6, Math.min(90, yp(last)))}%`, transform: "translate(6px, -50%)" }}>{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span>
+                  {/* 최고·최저가 방금(끝 3분 안)이거나 프로그램 점에 가려 따로 못 단 경우 — 여기 같이(사용자 2026-11-04 "저가가 없고") */}
+                  {hi > lo && (hiI >= prices.length - 3 || nearProg(hiI, hi)) && <span className="ml-1 font-normal text-rose-600">고 {hi.toLocaleString()}{pc(hi)}</span>}
+                  {hi > lo && (loI >= prices.length - 3 || nearProg(loI, lo)) && <span className="ml-1 font-normal text-blue-600">저 {lo.toLocaleString()}{pc(lo)}</span>}
+                </span>
               </>);
             })()}
             {/* 누적 끝값 — 막대(1분)와 축이 달라 선만으론 크기를 모른다. svg 가 늘어나므로 글자는 HTML 로 */}
@@ -751,9 +755,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
               const ly = Math.abs(Math.max(4, Math.min(92, ly0)) - lpC) < 9 ? (lpC >= 50 ? lpC - 11 : lpC + 11) : ly0;
               return (
                 <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${lx}%`, top: `${Math.max(4, Math.min(92, ly))}%`, transform: "translateY(-50%)" }}>
-                  {/* 글자 색 = 방향(순매수 빨강·순매도 파랑, 사용자 2026-11-04) — 점은 선과 같은 주황 그대로 */}
+                  {/* 글자 색 = 선과 같은 주황(사용자 2026-11-04 "그래프처럼 오렌지색으로") — 방향은 '순매수/순매도' 글자로 */}
                   <span className="w-2 h-2 rounded-full bg-orange-600 shrink-0" style={{ marginLeft: -4 }} />
-                  <span className={`text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap ${cum[cum.length - 1] > 0 ? "text-rose-600" : cum[cum.length - 1] < 0 ? "text-blue-600" : "text-gray-600"}`}>누적 {netWord(cum[cum.length - 1])}</span>
+                  <span className="text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap text-orange-600">누적 {netWord(cum[cum.length - 1])}</span>
                 </div>
               );
             })()}
