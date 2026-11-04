@@ -328,6 +328,15 @@ export const US_PAIRS: Pair[] = [
   { symbol: "019990.KS", name: "에너토크", desc: "원전 밸브 구동기", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "189860.KS", name: "서전기전", desc: "원전 배전반", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "126720.KS", name: "수산인더스트리", desc: "원전 정비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "046970.KS", name: "우리로", desc: "광 수동부품(광분배기)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 광통신 탭(사용자 2026-11-05)
+  { symbol: "069540.KS", name: "빛과전자", desc: "광 트랜시버", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 광통신 탭(사용자 2026-11-05)
+  { symbol: "388790.KS", name: "라이콤", desc: "광 증폭기·모듈", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 광통신 탭(사용자 2026-11-05)
+  { symbol: "380540.KS", name: "옵티코어", desc: "광 트랜시버", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 광통신 탭(사용자 2026-11-05)
+  { symbol: "056360.KS", name: "코위버", desc: "광 전송장비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 광통신 탭(사용자 2026-11-05)
+  { symbol: "039560.KS", name: "다산네트웍스", desc: "유선 네트워크 장비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 광통신 탭(사용자 2026-11-05)
+  { symbol: "230240.KS", name: "에치에프알", desc: "유무선 전송장비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 광통신 탭(사용자 2026-11-05)
+  { symbol: "050890.KS", name: "쏠리드", desc: "광중계기·네트워크", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 광통신 탭(사용자 2026-11-05)
+  { symbol: "100590.KS", name: "머큐리", desc: "통신 장비(AP·광단말)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 광통신 탭(사용자 2026-11-05)
   { symbol: "404120.KS", name: "TIME K신재생에너지액티브", desc: "국내 신재생에너지 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "011930.KS", name: "신성이엔지", desc: "태양광 장비·클린룸", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 친환경 탭(사용자 2026-11-05)
   { symbol: "100090.KS", name: "SK오션플랜트", desc: "해상풍력 하부구조", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 친환경 탭(사용자 2026-11-05)
