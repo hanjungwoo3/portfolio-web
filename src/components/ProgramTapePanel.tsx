@@ -90,3 +90,26 @@ export function ProgramTapePanel() {
     </div>
   );
 }
+
+/** 종목 하나 — 반도체 수급 탭의 종목별 묶음 맨 위(사용자 2026-11-04 "실시간 체결·프로그램 매매·지금 신호를 하나로 묶어 좌우로").
+ *  삼성·하이닉스 말고는(또는 한투 연동이 아니면) 안 그린다. 가로축은 그 종목 기록 기준 */
+export function ProgStockPanel({ code, name }: { code: string; name: string }) {
+  const [pts, setPts] = useState<ProgPt[]>(() => loadProgTape(code));
+  useEffect(() => {
+    const on = () => setPts(loadProgTape(code));
+    window.addEventListener(TAPE_EVENT, on);
+    return () => window.removeEventListener(TAPE_EVENT, on);
+  }, [code]);
+  if (!kisFutAvailable() || !PROG_CODES.some(([c]) => c === code)) return null;
+  const OPEN = Math.min(9 * 60, ...pts.map(p => toMin(p.t))), CLOSE = Math.max(15 * 60 + 30, ...pts.map(p => toMin(p.t)));
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white pg-card p-2 shrink-0" title="선 = 오늘 누적 순매수(KRX+NXT 통합) · 막대 = 1분마다 순매수(빨강 매수·파랑 매도, 축 따로) · 프로그램 = 기관·외국인의 묶음 기계 주문">
+      <div className="flex items-baseline gap-1.5 mb-0.5">
+        <span className="font-bold text-gray-800 text-[12.5px]">⚙️ 프로그램 매매</span>
+        <span className="text-[11px] font-normal text-emerald-700">● 한투 실시간</span>
+        <span className="text-[10.5px] text-gray-400">{pts.length ? `${pts[pts.length - 1].t} 기준 · ` : ""}선 = 오늘 누적 · 막대 = 1분</span>
+      </div>
+      <ProgChart name={name} pts={pts} open={OPEN} close={CLOSE} />
+    </div>
+  );
+}

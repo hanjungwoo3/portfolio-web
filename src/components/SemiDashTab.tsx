@@ -7,7 +7,7 @@
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { ForeignFuturesPanel } from "./ForeignFuturesPanel";
-import { ProgramTapePanel } from "./ProgramTapePanel";
+import { ProgStockPanel } from "./ProgramTapePanel";
 import { loadProgTape, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/futuresTape";
 import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
@@ -211,7 +211,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
 
   // ── 신호(숫자로 확인되는 것만) ──
   // d = 그 줄 아래 회색 설명(사용자 요청 — 숫자만으론 뜻을 모른다)
-  const sig: { t: string; c: string; d?: string }[] = [];
+  const sig: { t: string; c: string; d?: string; code?: string }[] = [];   // code = 그 종목 신호(없으면 시장 공통)
   // 오늘 자료인가 — 장 시작 전엔 수급(네이버)이 어제 행을, 한경 선물은 미결제 0 을 준다. 그런 건 신호에 안 쓴다(사용자 지적 2026-10-22)
   const todayIso = kstNow.toISOString().slice(0, 10);
   const kfToday = kf?.date === todayIso, ffToday = ff?.date === todayIso;
@@ -232,11 +232,11 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     const ms = ticks[i].minutes;
     const st5 = strength(ms, 5), n5 = netAmt(ms, 5);
     if (st5 != null && ms.length >= 3) {
-      sig.push({ t: `${s.name} 5분 ${sideWord(st5)} — 체결강도 ${st5.toFixed(0)} · ${netWord(n5)}`, c: st5 >= 120 ? "text-rose-600" : st5 <= 80 ? "text-blue-600" : "text-gray-700",
+      sig.push({ code: s.code, t: `${s.name} 5분 ${sideWord(st5)} — 체결강도 ${st5.toFixed(0)} · ${netWord(n5)}`, c: st5 >= 120 ? "text-rose-600" : st5 <= 80 ? "text-blue-600" : "text-gray-700",
         d: `최근 5분 시장가로 사고 들어온 양이 팔고 나간 양의 ${(st5 / 100).toFixed(1)}배${st5 >= 100 ? " — 사는 쪽이 급하다" : " — 파는 쪽이 급하다"}. 120↑ 매수 우위 · 80↓ 매도 우위.` });
       const p0 = ms[Math.max(0, ms.length - 6)].close, p1 = ms[ms.length - 1].close;
-      if (p1 > p0 && n5 < 0) sig.push({ t: `${s.name} 가격↑ 인데 체결은 매도 우위 (엇갈림)`, c: "text-amber-600", d: "오르는데 파는 체결이 더 많다 — 오름세 힘이 빠지는 신호일 수 있다." });
-      if (p1 < p0 && n5 > 0) sig.push({ t: `${s.name} 가격↓ 인데 체결은 매수 우위 (엇갈림)`, c: "text-amber-600", d: "내리는데 사는 체결이 더 많다 — 저가 매수가 받치는 중일 수 있다." });
+      if (p1 > p0 && n5 < 0) sig.push({ code: s.code, t: `${s.name} 가격↑ 인데 체결은 매도 우위 (엇갈림)`, c: "text-amber-600", d: "오르는데 파는 체결이 더 많다 — 오름세 힘이 빠지는 신호일 수 있다." });
+      if (p1 < p0 && n5 > 0) sig.push({ code: s.code, t: `${s.name} 가격↓ 인데 체결은 매수 우위 (엇갈림)`, c: "text-amber-600", d: "내리는데 사는 체결이 더 많다 — 저가 매수가 받치는 중일 수 있다." });
     }
   });
   if (popup) sig.push(...liveSig);
@@ -327,27 +327,33 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
                                                                color={vk && vk.pct > 0 ? "#dc2626" : "#2563eb"} />} />
   </>);
 
-  // 지금 신호 칸 — 반도체 탭과 팝업이 같은 칸을 쓴다
-  const signalBox = (
-        <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden w-full">
+  // 지금 신호 칸 — 팝업은 한 칸에 전부, 반도체 탭은 종목별 칸(그 종목 체결 아래)과 시장 공통(옵션 칸 아래)으로 나눈다(사용자 2026-11-04)
+  const sigList = (items: typeof sig, empty: string) => (
+    <div className="space-y-1 overflow-auto min-h-0">
+      {items.length ? items.map((n, i) => (
+        <div key={i} className="leading-snug">
+          <div className={`font-semibold ${n.c}`}>• {n.t}</div>
+          {n.d && <div className="pl-2.5 text-[11px] text-gray-500">{n.d}</div>}
+        </div>))
+        : <div className="text-gray-400 text-[11.5px]">{empty}</div>}
+    </div>
+  );
+  const sigBox = (title: string, items: typeof sig, empty: string, foot?: boolean, cls = "") => (
+        <div className={`pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden w-full ${cls}`}>
           {/* 지금 신호 — 가설 검증 탭은 뺐다(사용자 2026-11-04 "가설검증은 삭제") */}
           <div className="flex items-baseline gap-1 mb-1 border-b">
-            <span className="px-2 pb-1 -mb-px border-b-2 border-blue-500 font-bold text-gray-900">지금 신호</span>
+            <span className="px-2 pb-1 -mb-px border-b-2 border-blue-500 font-bold text-gray-900">{title}</span>
             <span className="ml-1 text-[11px] text-gray-400">숫자로 확인되는 것만</span>
           </div>
-          <div className="space-y-1 overflow-auto">
-            {sig.length ? sig.map((n, i) => (
-              <div key={i} className="leading-snug">
-                <div className={`font-semibold ${n.c}`}>• {n.t}</div>
-                {n.d && <div className="pl-2.5 text-[11px] text-gray-500">{n.d}</div>}
-              </div>))
-              : <div className="text-gray-400">체결을 모으는 중… (1~2분)</div>}
-          </div>
-          <div className="mt-auto pt-2 border-t text-[11px] text-gray-500 leading-snug">
-            체결강도 = 매수 체결량 ÷ 매도 체결량 × 100 (100 위 = 사는 쪽 우위). 큰 체결 = 1억 원 이상(5건이 안 되면 5천만 · 3천만 · 1천만으로 낮춤).
-          </div>
+          {sigList(items, empty)}
+          {foot && (
+            <div className="mt-auto pt-2 border-t text-[11px] text-gray-500 leading-snug">
+              체결강도 = 매수 체결량 ÷ 매도 체결량 × 100 (100 위 = 사는 쪽 우위). 큰 체결 = 1억 원 이상(5건이 안 되면 5천만 · 3천만 · 1천만으로 낮춤).
+            </div>
+          )}
         </div>
   );
+  const signalBox = sigBox("지금 신호", sig, "체결을 모으는 중… (1~2분)", true);
 
   // ⚡ 종목정보 실시간 탭(한 종목) — 시장 수급 칸 대신 **이 종목** 것만(사용자 요청 2026-10-23 재설계):
   //   ① 종목 카드 + 시장 맥락 칩 ② 체결(크게) + 신호 ③ 호가 | 거래원 | 프로그램·투자자 ④ 새 소식 | 커뮤니티
@@ -412,14 +418,18 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {/* 필라델피아 반도체(지수) 카드는 뺐다 — 한국 장중엔 간밤 미국 종가라 안 움직인다(사용자 요청). SOX 선물은 아래 해외 선물 줄 */}
       </div>
 
-      {/* 반도체 프로그램 매매 실시간 — 앱+한국투자(사용자 2026-11-03), 실시간 체결 바로 위(사용자 2026-11-04) */}
-      <ProgramTapePanel />
-      {/* ② 실시간 체결 + 신호 */}
-      {/* 체결 두 칸은 위 프로그램 매매처럼 반반 전체 폭(사용자 2026-11-04 "그래프가 넓어야"), 신호는 아래 한 줄 */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[340px] lg:auto-rows-[360px]">
-        {stocks.map((s, i) => <TickPanel key={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />)}
+      {/* ② 종목별 묶음 — 왼쪽 삼성·오른쪽 하이닉스: 프로그램 매매(한투) → 실시간 체결 → 그 종목 신호(사용자 2026-11-04 "3개를 하나로 묶어서 좌우로") */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 shrink-0">
+        {stocks.map((s, i) => (
+          <div key={s.code} className="flex flex-col gap-1.5 min-w-0">
+            <ProgStockPanel code={s.code} name={s.name} />
+            <div className="h-[340px] lg:h-[360px] grid min-h-0">
+              <TickPanel name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
+            </div>
+            {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "h-[150px]")}
+          </div>
+        ))}
       </div>
-      <div className="h-[210px] shrink-0 min-h-0 flex">{signalBox}</div>
 
       {/* 수급 칸 투자자 선택 — 증시 탭과 같은 체크박스(세 칸 공통) */}
       <div className="pg-card rounded-lg border border-gray-200 bg-white px-2 py-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 shrink-0">
@@ -439,7 +449,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
                  bg={futToday} bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
         <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgBase={q("^KQ11")?.prevClose} />
         {/* 옵션·종목 수급은 한 칸에 세로로 — 남는 폭을 수급 그래프 세 칸에(사용자 요청 2026-10-23) */}
-        <div className="grid grid-rows-[auto_1fr] gap-1.5 min-h-0">   {/* 위 = 종목 수급, 아래 = 옵션(사용자 요청) */}
+        <div className="grid grid-rows-[auto_auto_1fr] gap-1.5 min-h-0">   {/* 위 = 종목 수급, 가운데 = 옵션, 아래 = 시장 공통 신호(사용자 2026-11-04) */}
         <StockFlowTable rows={stocks.map((s, i) => ({ ...s, hist: stockInv[i].data ?? [], price: sq(s.code)?.price }))}
                         fLast={fLast}
                         markets={[
@@ -447,6 +457,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
                           { name: "코스닥", last: kqFlow?.points[kqFlow.points.length - 1], daily: kosdaqDaily?.points ?? [] },
                         ]} />
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
+        {sigBox("시장 신호", sig.filter(n => !n.code), "아직 없음 — 코스피 외국인·선물·옵션 신호가 여기에", false, "max-h-[300px]")}   {/* 길어지면 안에서 스크롤 — 줄 높이를 밀어 올리지 않게 */}
         </div>
       </div>
 
