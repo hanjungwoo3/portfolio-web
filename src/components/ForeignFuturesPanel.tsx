@@ -146,8 +146,21 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
           {fut && fut.oi > 0 && <span className="ml-auto font-bold tabular-nums text-gray-800">{fut.oi.toLocaleString()} <span className={`text-[11px] ${tone(fut.oiChg)}`}>({fut.oiChg > 0 ? "+" : ""}{fut.oiChg.toLocaleString()})</span></span>}
         </div>
         {oi.length < 2 ? <div className="text-gray-400 text-[12px] py-6 text-center">기록 중… (주간 선물장 08:45~15:45, 앱을 켜 둔 시간부터 — 아침에 켜 두면 장 시작부터 채워집니다)</div> : (<>
-          <Chart series={oi.map(p => ({ t: p.t, v: p.oi }))} color="#7c3aed" height={120} />
-          <Chart series={oi.map(p => ({ t: p.t, v: p.p }))} color="#9ca3af" height={60} />
+          {/* 미결제(보라)·선물가(회색)를 한 그래프에 — 축은 따로, 가격은 같은 높이 안에서 자기 범위로(사용자 2026-11-04 "하나로 합칠 수 없나") */}
+          <Chart series={oi.map(p => ({ t: p.t, v: p.oi }))} color="#7c3aed" height={180}>
+            {(sx) => {
+              const ps = oi.map(p => p.p).filter(v => v > 0);
+              if (ps.length < 2) return null;
+              const lo = Math.min(...ps), hi = Math.max(...ps), pad = (hi - lo) * 0.08 || 0.5;
+              const py = (v: number) => 8 + (1 - (v - (lo - pad)) / (hi - lo + 2 * pad)) * (180 - 8 - 14);
+              const d = oi.filter(p => p.p > 0).map((p, i) => `${i ? "L" : "M"}${sx(p.t).toFixed(1)},${py(p.p).toFixed(1)}`).join(" ");
+              return (<>
+                <path d={d} fill="none" stroke="#9ca3af" strokeWidth={1.4} />
+                <text x={600 - 50} y={py(hi) + 3} fontSize={9} fill="#9ca3af">{hi.toFixed(1)}</text>
+                <text x={600 - 50} y={py(lo) + 3} fontSize={9} fill="#9ca3af">{lo.toFixed(1)}</text>
+              </>);
+            }}
+          </Chart>
           <svg viewBox="0 0 600 40" className="w-full" style={{ height: 40 }} preserveAspectRatio="none">
             {(() => {
               const mx = Math.max(1, ...bars.map(b => Math.abs(b.d)));
