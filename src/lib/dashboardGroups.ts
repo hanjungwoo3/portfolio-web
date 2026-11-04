@@ -600,6 +600,18 @@ function sectionMap(): Record<string, DashboardSection> {
         ["090360.KS", "388720.KS", "117730.KS", "090710.KS"],
       ],
     },
+    {
+      // 친환경 — 태양광·풍력·수소(사용자 2026-11-05 "친환경, 태양광 등도 추가")
+      id: "greenflow", short: "친환경", etfs: ["385510.KS", "404120.KS", "377990.KS"], label: "🌱 친환경 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 퍼스트솔라(태양광)·GE버노바(풍력)·블룸에너지(연료전지), 간밤.",
+      lead: 1, leadByRow: [1, 1, 1],
+      rowLabels: ["태양광", "풍력", "수소"],
+      rows: [
+        ["FSLR", "009830.KS", "010060.KS", "322000.KS", "011930.KS"],
+        ["GEV", "112610.KS", "100090.KS", "018000.KS", "389260.KS", "297090.KS"],
+        ["BE", "336260.KS", "382900.KS", "089980.KS"],
+      ],
+    },
   ];
   return Object.fromEntries(sections.map(s => [s.id, s]));
 }
@@ -632,7 +644,7 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 소부장 — 단계별 한 블록만(사용자 2026-11-02, 주간 시장 줄은 뺐다 "빼도 될 거 같아")
   // 지수(업종) — 업종마다 한 블록, 페이지 안 탭으로 하나씩(사용자 2026-11-03 "소부장·ESS 를 내부 탭으로")
   //   + 옛 지수(순환매) 페이지를 '한눈에' 탭으로 합쳤다(사용자 2026-11-03 "순환매와 업종이 비슷" → 1안) — 아래 SECTOR_OVERVIEW_IDS
-  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "bioflow", "robotflow", "finflow", "beautyflow"],
+  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "greenflow", "bioflow", "robotflow", "finflow", "beautyflow"],
   // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
   //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)

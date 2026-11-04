@@ -328,6 +328,12 @@ export const US_PAIRS: Pair[] = [
   { symbol: "019990.KS", name: "에너토크", desc: "원전 밸브 구동기", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "189860.KS", name: "서전기전", desc: "원전 배전반", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "126720.KS", name: "수산인더스트리", desc: "원전 정비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "404120.KS", name: "TIME K신재생에너지액티브", desc: "국내 신재생에너지 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "011930.KS", name: "신성이엔지", desc: "태양광 장비·클린룸", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 친환경 탭(사용자 2026-11-05)
+  { symbol: "100090.KS", name: "SK오션플랜트", desc: "해상풍력 하부구조", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 친환경 탭(사용자 2026-11-05)
+  { symbol: "297090.KS", name: "씨에스베어링", desc: "풍력 베어링", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 친환경 탭(사용자 2026-11-05)
+  { symbol: "382900.KS", name: "범한퓨얼셀", desc: "수소 연료전지", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 친환경 탭(사용자 2026-11-05)
+  { symbol: "089980.KS", name: "상아프론테크", desc: "수소 연료전지 소재", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 친환경 탭(사용자 2026-11-05)
   { symbol: "130660.KS", name: "한전산업", desc: "원전 운전·정비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 원전 탭(사용자 2026-11-05 "다 넣자")
   { symbol: "457550.KS", name: "우진엔텍", desc: "원전 계측·정비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 원전 탭(사용자 2026-11-05 "다 넣자")
   { symbol: "046120.KS", name: "오르비텍", desc: "방사선 관리·원전 해체", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 원전 탭(사용자 2026-11-05 "다 넣자")
