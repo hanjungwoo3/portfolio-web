@@ -11,7 +11,7 @@ import { loadProgTape, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/future
 import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import {
@@ -526,7 +526,9 @@ function SparkBg({ sp, base }: { sp: { nextBase?: number; markXs?: { x: number; 
 function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[] }) {   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
   // 최근 1시간만 한 화면 폭에, 그 전은 왼쪽으로 스크롤(사용자 2026-11-04 "1시간으로, 지난 건 스크롤로") — 오늘 켠 뒤 전부 그린다
   const ms = flow.minutes;
-  const VIS = 60;   // 최근 1시간이 한 화면(사용자 2026-11-04 — 30분 → 오른쪽 여백을 두고 다시 1시간) — 그 전은 끌어서
+  // 한 화면 분 수 — 기본 1시간, 마우스 휠로 확대(10분까지)·축소(켠 뒤 전부까지)(사용자 2026-11-04 "휠로 확대 축소")
+  const [vis, setVis] = useState(60);
+  const VIS = Math.min(vis, Math.max(60, ms.length));
   const sc = Math.max(1, ms.length / VIS);              // 그래프 폭 배율(1 = 한 화면)
   const W = 600 * sc, H = 220, PAD = 4;
   const lim = (p: number) => 100 - (100 - p) / sc;      // 글자 위치 한도 — 보이는 칸 기준 p% 를 넓어진 그래프 기준으로
@@ -534,6 +536,30 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
   const stick = useRef(true);
   const drag = useRef<{ x: number; left: number } | null>(null);   // 마우스로 끌기 시작점                           // 오른쪽 끝(지금)에 붙어 있나 — 사용자가 지난 쪽을 보는 중이면 새 분이 와도 안 끌고 간다
   useEffect(() => { const el = scRef.current; if (el && stick.current) el.scrollLeft = el.scrollWidth; }, [ms.length]);
+  // 휠 — 마우스 자리를 기준점으로 확대·축소(오른쪽 끝에 붙어 있었으면 계속 끝에). 가로 휠(트랙패드 좌우)은 그대로 스크롤.
+  //   React onWheel 은 passive 라 페이지 스크롤을 못 막는다 → 직접 등록
+  const zoomAt = useRef<{ fx: number; px: number } | null>(null);
+  const msLen = useRef(ms.length); msLen.current = ms.length;
+  const hasChart = ms.length > 0;
+  useEffect(() => {
+    const el = scRef.current;
+    if (!el) return;
+    const on = (e: WheelEvent) => {
+      if (Math.abs(e.deltaY) <= Math.abs(e.deltaX)) return;
+      e.preventDefault();
+      const r = el.getBoundingClientRect(), px = e.clientX - r.left;
+      zoomAt.current = { fx: (px + el.scrollLeft) / el.scrollWidth, px };
+      setVis(v => Math.max(10, Math.min(Math.max(60, msLen.current), Math.round(v * (e.deltaY > 0 ? 1.2 : 1 / 1.2)))));
+    };
+    el.addEventListener("wheel", on, { passive: false });
+    return () => el.removeEventListener("wheel", on);
+  }, [hasChart]);
+  useLayoutEffect(() => {
+    const el = scRef.current, z = zoomAt.current;
+    if (!el || !z) return;
+    zoomAt.current = null;
+    el.scrollLeft = stick.current ? el.scrollWidth : z.fx * el.scrollWidth - z.px;
+  }, [vis]);
   const nets = ms.map(m => m.buyAmt - m.sellAmt);
   const mxBar = Math.max(1, ...nets.map(Math.abs));
   let acc = 0;
@@ -562,6 +588,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
           ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
           : <span className="font-bold text-gray-800">{name} 실시간 체결</span>}
         <span className="text-[11px] text-gray-400">{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
+        {vis !== 60 && <button onClick={() => { stick.current = true; setVis(60); }} title="한 화면 1시간으로 되돌리기" className="text-[10.5px] text-gray-500 border border-gray-300 rounded px-1 hover:bg-gray-50">{vis}분 보기 · 되돌리기</button>}
         <KisWsBadge />
       </div>
       <div className="flex gap-3 tabular-nums my-1">
@@ -607,7 +634,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
 
             </svg>
             {/* 시각 글자 — svg 는 칸 크기로 늘어나(preserveAspectRatio none) 글자가 찌그러진다 → HTML 로(팝업에서 크게 깨졌다) */}
-            {ms.map((m, i) => (m.t.endsWith("0") ? (
+            {ms.map((m, i) => (Number(m.t.slice(3, 5)) % (VIS > 150 ? 60 : VIS > 90 ? 30 : VIS < 25 ? 5 : 10) === 0 ? (   /* 시각 글자 간격 — 확대·축소에 맞춰 */
               <span key={m.t} className="absolute bottom-0 -translate-x-1/2 text-[10px] text-gray-400 pointer-events-none" style={{ left: `${(xOf(i) / W) * 100}%` }}>{m.t}</span>
             ) : null))}
             {/* 프로그램 끝값 — 보라 */}
