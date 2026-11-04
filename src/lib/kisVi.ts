@@ -40,7 +40,7 @@ export function toInfo(r: ViRow): ViInfo | null {
   return {
     count: Number(r.vi_count) || 1, dir: prc >= base ? "up" : "down",
     kind: kc === "1" ? "정적" : kc === "2" ? "동적" : "정적·동적",
-    at: hms(r.cntg_vi_hour), until: hms(r.vi_cncl_hour), pct: Math.abs(Number(kc === "1" ? r.vi_dprt : r.vi_dmc_dprt) || (prc / base - 1) * 100),
+    at: hms(r.cntg_vi_hour), until: r.vi_cncl_hour && Number(r.vi_cncl_hour) > 0 ? hms(r.vi_cncl_hour) : "", pct: Math.abs(Number(kc === "1" ? r.vi_dprt : r.vi_dmc_dprt) || (prc / base - 1) * 100),
   };
 }
 
@@ -95,6 +95,7 @@ export function viLabel(v: ViInfo): { text: string; title: string } {
   const a = viActive(v);
   return {
     text: `VI${v.dir === "up" ? "↑" : "↓"}${v.count > 1 ? `${v.count}` : ""}${a ? " 발동중" : ""}`,
-    title: `변동성 완화장치(VI) ${v.dir === "up" ? "급등" : "급락"} — 오늘 ${v.count}회\n마지막 ${v.at} ${v.kind} VI · 기준가 대비 ${v.pct.toFixed(1)}%${v.until ? ` · ${v.until} 해제` : ""}${a ? " · 지금 단일가 중" : ""}\n발동되면 2분간 단일가 매매로 식힙니다 — 장중 테마가 터지는 신호\n한국투자 · 1분마다`,
+    // 요약 — 언제였는지만(사용자 2026-11-04 "문구가 너무 길어, 언제 있었는지만")
+    title: `VI ${v.dir === "up" ? "급등" : "급락"} ${v.at.slice(0, 5)}${v.count > 1 ? ` · 오늘 ${v.count}회` : ""}${a ? " · 지금 단일가 중" : ""}`,
   };
 }
