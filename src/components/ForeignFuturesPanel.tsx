@@ -108,7 +108,9 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
           <span className="text-[11px] text-gray-400">근월물 {fut?.month ?? ""} · {live ? <b className="text-emerald-600">● 한투 실시간(1분)</b> : "네이버 20분 지연"} · 계약×선물가×25만</span>
         </div>
         {!last ? <div className="text-gray-400 text-[12px] py-6 text-center">오늘 수급이 아직 없습니다(장 전·휴장).</div> : (<>
-          <div className="mt-1 grid grid-cols-4 gap-1.5 text-center">
+          {/* 수치 4칸은 그래프 왼쪽 세로로, 그래프는 오른쪽 미결제 그래프 셋(120+60+40)과 같은 높이(사용자 2026-11-04) */}
+          <div className="mt-1 flex gap-2">
+          <div className="w-[124px] shrink-0 flex flex-col gap-1 text-center">
             <div className="rounded border border-gray-200 py-1"><div className="text-[10.5px] text-gray-500">외국인 누적</div>
               <div className={`font-bold tabular-nums ${tone(last.v)}`}>{eok(last.v)}</div><div className="text-[10px] text-gray-400 tabular-nums">{last.c > 0 ? "+" : ""}{last.c.toLocaleString()}계약 · {last.t}</div></div>
             <div className="rounded border border-gray-200 py-1" title="장중 가장 많이 판(산) 지점에서 얼마나 되돌렸나 — 100% 면 0 까지 되사(되판) 것">
@@ -118,13 +120,14 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
               <div className={`font-bold tabular-nums ${tone(d15 ?? 0)}`}>{d15 != null ? eok(d15) : "—"}</div><div className="text-[10px] text-gray-400 tabular-nums">{d15c != null ? `${d15c > 0 ? "+" : ""}${d15c.toLocaleString()}계약` : ""}</div></div>
             <div className="rounded border border-gray-200 py-1"><div className="text-[10.5px] text-gray-500">장중 {ext && ext.v < 0 ? "최저" : "최고"}</div>
               <div className={`font-bold tabular-nums ${tone(ext?.v ?? 0)}`}>{ext ? eok(ext.v) : "—"}</div><div className="text-[10px] text-gray-400">{ext?.t ?? ""}</div></div>
+            {spot != null && (
+              <div className="text-[10.5px] text-gray-600 leading-tight">현물(코스피) 외국인<br /><b className={tone(spot)}>{eok(spot)}</b>
+                {together && <span className={`ml-1 px-1 rounded border text-[10px] font-bold ${together === "동반매도" ? "border-blue-300 bg-blue-50 text-blue-700" : together === "동반매수" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-gray-300 bg-gray-50 text-gray-600"}`}>{together}</span>}
+              </div>
+            )}
           </div>
-          {spot != null && (
-            <div className="mt-1 text-[11px] text-gray-600">현물(코스피) 외국인 <b className={tone(spot)}>{eok(spot)}</b>
-              {together && <span className={`ml-1.5 px-1 rounded border text-[10px] font-bold ${together === "동반매도" ? "border-blue-300 bg-blue-50 text-blue-700" : together === "동반매수" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-gray-300 bg-gray-50 text-gray-600"}`}>{together}</span>}
-            </div>
-          )}
-          <Chart series={fs.map(p => ({ t: p.t, v: p.v }))} baseZero color="#1e3a8a"
+          <div className="flex-1 min-w-0">
+          <Chart series={fs.map(p => ({ t: p.t, v: p.v }))} baseZero color="#1e3a8a" height={232}
                  markers={ext ? [{ t: ext.t, v: ext.v, label: `${ext.v < 0 ? "최저" : "최고"} ${ext.t}`, color: "#2563eb" }] : []}>
             {(sx, sy) => ext && ext.v !== 0 ? (<>
               {/* 정리율 기준선 — 최저(최고)에서 20%·50% 되돌린 자리 */}
@@ -132,6 +135,8 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price }: {
                 <text x={600 - 50} y={sy(ext.v * (1 - r)) + 3} fontSize={9} fill="#f43f5e">{r * 100}%</text></g>)}
             </>) : null}
           </Chart>
+          </div>
+          </div>
         </>)}
       </div>
       <div className="min-w-0">
