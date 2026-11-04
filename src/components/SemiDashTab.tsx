@@ -526,7 +526,7 @@ function SparkBg({ sp, base }: { sp: { nextBase?: number; markXs?: { x: number; 
 function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[] }) {   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
   // 최근 1시간만 한 화면 폭에, 그 전은 왼쪽으로 스크롤(사용자 2026-11-04 "1시간으로, 지난 건 스크롤로") — 오늘 켠 뒤 전부 그린다
   const ms = flow.minutes;
-  const VIS = 60;
+  const VIS = 30;   // 최근 30분이 한 화면(사용자 2026-11-04 "현재가가 겹치는데 30분만") — 그 전은 끌어서
   const sc = Math.max(1, ms.length / VIS);              // 그래프 폭 배율(1 = 한 화면)
   const W = 600 * sc, H = 220, PAD = 4;
   const lim = (p: number) => 100 - (100 - p) / sc;      // 글자 위치 한도 — 보이는 칸 기준 p% 를 넓어진 그래프 기준으로
@@ -566,7 +566,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
         <Stat label="체결강도 1분" v={st1} />
         <Stat label="5분" v={st5} />
         <Stat label="켠 뒤 전체" v={stAll} />
-        <span className="ml-auto">5분 <b className={up(netAmt(ms, 5))}>{netWord(netAmt(ms, 5))}</b> · 켠 뒤 <b className={up(netAmt(ms))}>{netWord(netAmt(ms))}</b></span>
+        <span className="ml-auto">5분 <b className={up(netAmt(ms, 5))}>{netWord(netAmt(ms, 5))}</b> · 켠 뒤 <b className={up(netAmt(ms))}>{netWord(netAmt(ms))}</b>
+          {(() => { const pl = prog?.[prog.length - 1]; return pl ? <> · <span className="text-violet-700">프로그램</span> <b className={up(pl.v)} title="오늘 프로그램 누적 순매수(한투) — 그래프의 보라 점선은 화면 시작 시각부터">{netWord(pl.v * 1e8)}</b></> : null; })()}
+        </span>
       </div>
       {/* 오늘 하루 전체 — 토스 체결강도(장 시작부터 누적)로 역산. 켜기 전 구간까지 포함된 유일한 값 */}
       {day && (
@@ -613,10 +615,14 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
               const v = progLine[li]!, lx = (xOf(li) / W) * 100, ly = ((mid - (v / mxCum) * (mid - PAD)) / H) * 100;
               const cl = cum.length ? ((mid - (cum[cum.length - 1] / mxCum) * (mid - PAD)) / H) * 100 : -99;
               const dy = Math.abs(cl - ly) < 7 ? (ly < cl ? -7 : 7) : 0;   // 주황 누적 글자와 붙으면 벌린다
+              // 지금 가격 글자(선 끝)와도 붙으면 반대쪽으로 더 벌린다
+              const lp = prices.length ? ((PAD + (1 - (prices[prices.length - 1] - pMin) / pR) * (H - PAD * 2)) / H) * 100 : -99;
+              // 실제로 놓일 자리(위·아래 끝에서 잘리는 값)로 비교 — 둘 다 바닥에 붙으면 위로 올린다
+              void lp; const top = Math.max(2, Math.min(96, ly + dy));   // 점만 — 값은 위 수치 줄(사용자 2026-11-04 "겹치는데")
               return (
-                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${Math.min(lx, lim(70))}%`, top: `${Math.max(4, Math.min(92, ly + dy))}%`, transform: "translateY(-50%)" }}>
+                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${Math.min(lx, lim(70))}%`, top: `${top}%`, transform: "translateY(-50%)" }}>
                   <span className="w-2 h-2 rounded-full bg-violet-600 shrink-0" style={{ marginLeft: lx > lim(70) ? 0 : -4 }} />
-                  <span className={`text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap ${v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-600"}`}>프로그램 {netWord(v)}</span>
+
                 </div>
               );
             })()}
@@ -627,16 +633,25 @@ function TickPanel({ name, flow, day, onTitle, base, prog }: { name: string; flo
               const hiI = prices.indexOf(hi), loI = prices.indexOf(lo);
               const lab = "absolute pointer-events-none text-[10px] tabular-nums px-0.5 rounded bg-white/80 whitespace-nowrap";
               const lx = (xOf(prices.length - 1) / W) * 100;
+              // 프로그램 끝값 글자 자리 — 최고·최저 글자가 그 근처(세로 8%·가로 30% 안)면 생략(겹침 방지)
+              const pli = progLine.length - 1 - [...progLine].reverse().findIndex(v => v != null);
+              const pv = pli >= 0 && pli < progLine.length ? progLine[pli] : null;
+              const pY = pv != null ? ((mid - (pv / mxCum) * (mid - PAD)) / H) * 100 : -99, pX = pv != null ? (xOf(pli) / W) * 100 : -99;
+              const nearProg = (i: number, p: number) => Math.abs(yp(p) - pY) < 8 && Math.abs((xOf(i) / W) * 100 - pX) < 30 / sc;
               const pc = (p: number) => base && base > 0 ? ` ${p >= base ? "+" : ""}${((p / base - 1) * 100).toFixed(2)}%` : "";   // 어제 종가 대비(사용자 2026-11-04 "%등락율도 같이")
               return (<>
-                {hi > lo && <span className={`${lab} text-rose-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(hiI) / W) * 100))}%`, top: `${yp(hi)}%`, transform: "translate(-50%, -110%)" }}>고 {hi.toLocaleString()}{pc(hi)}</span>}
-                {hi > lo && <span className={`${lab} text-blue-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(loI) / W) * 100))}%`, top: `${yp(lo)}%`, transform: "translate(-50%, 10%)" }}>저 {lo.toLocaleString()}{pc(lo)}</span>}
+                {/* 최고·최저가 방금(끝 3분 안)이면 지금 가격 글자와 겹치므로 생략 */}
+                {hi > lo && hiI < prices.length - 3 && !nearProg(hiI, hi) && <span className={`${lab} text-rose-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(hiI) / W) * 100))}%`, top: `${yp(hi)}%`, transform: "translate(-50%, -110%)" }}>고 {hi.toLocaleString()}{pc(hi)}</span>}
+                {hi > lo && loI < prices.length - 3 && !nearProg(loI, lo) && <span className={`${lab} text-blue-600`} style={{ left: `${Math.max(7 / sc, Math.min(lim(85), (xOf(loI) / W) * 100))}%`, top: `${yp(lo)}%`, transform: "translate(-50%, 10%)" }}>저 {lo.toLocaleString()}{pc(lo)}</span>}
                 <span className={`${lab} font-bold text-slate-800 border border-slate-300`} style={{ left: `${Math.min(lx, lim(88))}%`, top: `${Math.max(6, Math.min(90, yp(last)))}%`, transform: lx > lim(88) ? "translate(-100%, -50%)" : "translate(4px, -50%)" }}>{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span></span>
               </>);
             })()}
             {/* 누적 끝값 — 막대(1분)와 축이 달라 선만으론 크기를 모른다. svg 가 늘어나므로 글자는 HTML 로 */}
             {cum.length > 0 && (() => {
-              const lx = (xOf(cum.length - 1) / W) * 100, ly = ((mid - (cum[cum.length - 1] / mxCum) * (mid - PAD)) / H) * 100;
+              const lx = (xOf(cum.length - 1) / W) * 100, ly0 = ((mid - (cum[cum.length - 1] / mxCum) * (mid - PAD)) / H) * 100;
+              // 지금 가격 글자와 붙으면(세로 9% 안) 비켜 선다 — 위쪽이 넓으면 위로, 아니면 아래로(사용자 2026-11-04 "현재가가 겹치는데")
+              const lpC = prices.length ? Math.max(6, Math.min(90, ((PAD + (1 - (prices[prices.length - 1] - pMin) / pR) * (H - PAD * 2)) / H) * 100)) : -99;
+              const ly = Math.abs(Math.max(4, Math.min(92, ly0)) - lpC) < 9 ? (lpC >= 50 ? lpC - 11 : lpC + 11) : ly0;
               return (
                 <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${Math.min(lx, lim(70))}%`, top: `${Math.max(4, Math.min(92, ly))}%`, transform: "translateY(-50%)" }}>
                   {/* 글자 색 = 방향(순매수 빨강·순매도 파랑, 사용자 2026-11-04) — 점은 선과 같은 주황 그대로 */}
