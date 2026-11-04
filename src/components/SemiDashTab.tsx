@@ -613,8 +613,9 @@ function TickPanel({ name, flow, day, onTitle, base }: { name: string; flow: Tic
               const lx = (xOf(cum.length - 1) / W) * 100, ly = ((mid - (cum[cum.length - 1] / mxCum) * (mid - PAD)) / H) * 100;
               return (
                 <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${Math.min(lx, 70)}%`, top: `${Math.max(4, Math.min(92, ly))}%`, transform: "translateY(-50%)" }}>
+                  {/* 글자 색 = 방향(순매수 빨강·순매도 파랑, 사용자 2026-11-04) — 점은 선과 같은 주황 그대로 */}
                   <span className="w-2 h-2 rounded-full bg-orange-600 shrink-0" style={{ marginLeft: lx > 70 ? 0 : -4 }} />
-                  <span className="text-[11px] font-bold text-orange-600 bg-white/80 px-0.5 rounded whitespace-nowrap">누적 {netWord(cum[cum.length - 1])}</span>
+                  <span className={`text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap ${cum[cum.length - 1] > 0 ? "text-rose-600" : cum[cum.length - 1] < 0 ? "text-blue-600" : "text-gray-600"}`}>누적 {netWord(cum[cum.length - 1])}</span>
                 </div>
               );
             })()}
