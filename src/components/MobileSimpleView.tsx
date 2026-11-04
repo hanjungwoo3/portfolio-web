@@ -76,7 +76,7 @@ function quoteUrl(symbol: string): string {
   // 한국 보유 종목 (6자리) 또는 KODEX/.KS ETF (6자리.KS) — 모두 토스
   const krMatch = /^([\dA-Za-z]{6})(?:\.KS)?$/.exec(symbol);
   if (krMatch) return `https://tossinvest.com/stocks/A${krMatch[1]}`;
-  return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+  return worldQuoteUrl(symbol);   // 도쿄 상장·닛케이 = 네이버, 그 밖 = 야후
 }
 import { RefreshIndicator } from "./RefreshIndicator";
 import { forceUpdate } from "./VersionBadge";
@@ -93,7 +93,7 @@ import {
   deleteAllRowsForTicker, removeHolding, renameGroup, deleteGroup, applyImportedSettings, replaceAllMemos, replaceAllTrades,
 } from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
-import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
+import { handleTossLinkClick, TOSS_SYMBOL_URL, worldQuoteUrl } from "../lib/toss";
 import { MobileStockCard } from "./MobileStockCard";
 import { MemoDialog } from "./MemoDialog";
 import { TotalRow } from "./TotalRow";

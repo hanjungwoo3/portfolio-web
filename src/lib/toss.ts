@@ -191,6 +191,13 @@ export function tossStockUrl(ticker: string): string | null {
 // 종목 클릭 → 토스 stocks 페이지. KR/US 자동 (US는 기억된 내부코드 사용).
 //   토스에 없는 종목(내부코드를 아직 못 받은 미국 티커 등)은 **야후로 보낸다**.
 //   예전엔 url 이 null 이면 조용히 아무 일도 안 일어났다 — 누르는 사람은 고장인 줄 안다.
+/** 토스에 없는 해외 종목 링크 — 도쿄 상장·닛케이는 네이버 해외주식(시세 출처와 같게, 사용자 2026-11-04 "링크는 야후로 되어 있는데"), 그 밖은 야후 */
+export function worldQuoteUrl(symbol: string): string {
+  if (/^[0-9A-Z]{4}\.T$/.test(symbol)) return `https://m.stock.naver.com/worldstock/stock/${symbol}/total`;
+  if (symbol === "^N225") return "https://m.stock.naver.com/worldstock/index/.N225/total";
+  return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+}
+
 export function openTossStock(ticker: string): void {
   const url = tossStockUrl(ticker);
   if (url) { openExternal(url); return; }

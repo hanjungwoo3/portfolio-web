@@ -8,7 +8,7 @@ import { allYahooSymbols, US_PAIRS } from "../lib/usMarketData";
 import { Sparkline } from "./Sparkline";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
-import { handleTossLinkClick, TOSS_SYMBOL_URL } from "../lib/toss";
+import { handleTossLinkClick, TOSS_SYMBOL_URL, worldQuoteUrl } from "../lib/toss";
 import { getDimSleepingEnabled, getEffectivePollMs } from "../lib/proxyConfig";
 import { isSymbolSleeping, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, isQuoteStale } from "../lib/format";
 import type { UsIndex } from "../lib/api";
@@ -19,7 +19,7 @@ function quoteUrl(symbol: string): string {
   // 지수/환율/미국 ETF 토스 매핑 (lib/toss.ts 공통 맵)
   if (TOSS_SYMBOL_URL[symbol]) return TOSS_SYMBOL_URL[symbol];
   // 그 외 미국 종목은 Yahoo Finance
-  return `https://finance.yahoo.com/quote/${encodeURIComponent(symbol)}`;
+  return worldQuoteUrl(symbol);   // 도쿄 상장·닛케이 = 네이버, 그 밖 = 야후
 }
 
 type Mood = "good" | "warn" | "bad" | "neutral";

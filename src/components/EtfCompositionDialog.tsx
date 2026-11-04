@@ -10,7 +10,7 @@ import { formatSigned, signColor, isEtfByName, etfActiveType, dayChangePct, dayC
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { usSessionLabel, etTodayStr } from "../lib/usSectorFlow";
 import { fetchForeignHoldingPrices, looksLikeForeignName } from "../lib/foreignStocks";
-import { openExternal } from "../lib/toss";
+import { openExternal, worldQuoteUrl } from "../lib/toss";
 import { EtfCompareChartDialog } from "./EtfCompareChartDialog";
 import { MarketAlertDialog } from "./MarketAlertDialog";
 import { EtfReturnsTag } from "./EtfStatsBox";
@@ -865,11 +865,11 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
       <div className="flex items-end justify-between gap-1 mx-1">
         <div className="flex items-end gap-0.5 flex-wrap min-w-0">
           {/* 종목명 탭 = 외부 링크. 토스에 있는 종목은 토스로, 일본 종목은 토스가 취급하지 않으므로
-              야후 파이낸스로 보낸다(심볼은 우리가 이름으로 찾아낸 6857.T 같은 JPX 코드). */}
+              네이버 해외주식(도쿄)·야후(그 밖)로 보낸다(심볼은 우리가 이름으로 찾아낸 6857.T 같은 JPX 코드). */}
           <button onClick={isStandard
                     ? () => openExternal(`https://www.tossinvest.com/stocks/${item.stockCode}`)
                     : fxSym
-                    ? () => openExternal(`https://finance.yahoo.com/quote/${encodeURIComponent(fxSym)}`)
+                    ? () => openExternal(worldQuoteUrl(fxSym))
                     : undefined}
                   disabled={!isStandard && !fxSym}
                   className={`inline-flex items-center px-2 py-0.5 rounded-t-md min-w-0 max-w-full
