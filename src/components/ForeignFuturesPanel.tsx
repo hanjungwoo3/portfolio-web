@@ -188,7 +188,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price, kospi, kospiBa
                   const oiv = oi.map(p => p.oi).filter(v => v > 0), ps = oi.map(p => p.p).filter(v => v > 0);
                   const items: { x: number; y: number; t: string; c: string }[] = [];
                   if (lf) items.push({ x: sx(lf.t), y: sy(lf.v), t: `외국인 누적 ${eok(lf.v)} (${lf.c > 0 ? "+" : ""}${lf.c.toLocaleString()}계약 · ${lf.t})${extAtEnd && ext ? ` 장중 ${ext.v < 0 ? "최저" : "최고"}` : ""}`, c: lf.v >= 0 ? "#e11d48" : "#1e3a8a" });
-                  if (lo && oiv.length > 1) items.push({ x: sx(lo.t), y: scale(oiv)(lo.oi), t: `미결제 ${lo.oi.toLocaleString()}`, c: "#7c3aed" });
+                  if (lo && oiv.length > 1) items.push({ x: sx(lo.t), y: scale(oiv)(lo.oi), t: `미결제 ${lo.oi.toLocaleString()}${fut && fut.oi > 0 && Number.isFinite(fut.oiChg) ? ` (오늘 ${lo.oi - (fut.oi - fut.oiChg) > 0 ? "+" : ""}${(lo.oi - (fut.oi - fut.oiChg)).toLocaleString()})` : ""}`, c: "#7c3aed" });
                   if (lo && ps.length > 1) items.push({ x: sx(lo.t), y: scale(ps)(lo.p), t: `선물 ${lo.p.toFixed(2)}`, c: "#6b7280" });
                   items.sort((a, b) => a.y - b.y);
                   const GAP = 13;
@@ -219,7 +219,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price, kospi, kospiBa
             <div className="flex flex-wrap gap-x-2 text-[10px] text-gray-500">
               <span><b className="text-blue-900">—</b> 외국인 누적(억원)</span><span><span className="text-rose-500">┈</span> 정리율 20·50%</span>
               {kospi && kospi.length > 1 && <span><span className="inline-block w-3 h-2 mr-0.5 align-middle bg-rose-200" /><span className="inline-block w-3 h-2 mr-0.5 align-middle bg-blue-200" />코스피(전일 종가 위·아래, 축 따로)</span>}
-              <span><b className="text-violet-700">—</b> 미결제(축 따로)</span><span><b className="text-gray-400">—</b> 선물가(축 따로)</span>
+              <span><b className="text-violet-700">—</b> 미결제(남은 계약 총수, 축 따로 · 괄호 = 어제 마감 대비)</span><span><b className="text-gray-400">—</b> 선물가(축 따로)</span>
               <span className="text-gray-400">15분 막대:</span>
               {Object.values(BAR).map(b => <span key={b.l}><span className="inline-block w-2 h-2 rounded-sm mr-0.5 align-middle" style={{ background: b.c }} />{b.l}</span>)}
               {fut?.basis != null && <span className="ml-auto">베이시스 <b>{fut.basis.toFixed(2)}</b></span>}
