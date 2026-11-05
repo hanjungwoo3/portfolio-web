@@ -830,7 +830,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                   );
                 })}
                 {/* '현재가' 이름표 — 체결(주황)·프로그램(보라)과 같은 꼴, 바탕은 가격선 색(사용자 2026-11-05 "현재가, 체결, 프로그램") */}
-                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-slate-100 text-slate-700 border border-slate-300 px-1 py-px rounded-sm whitespace-nowrap tabular-nums" style={{ left: `${lx}%`, top: `${endTop.price ?? 50}%`, transform: "translate(6px, -50%)" }}>현재가<span className="ml-1 px-0.5 rounded-[2px] bg-white text-slate-800">{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span></span>
+                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-slate-100 text-slate-700 border border-slate-300 px-1 py-px rounded-sm whitespace-nowrap tabular-nums" style={{ left: `${lx}%`, top: `${endTop.price ?? 50}%`, transform: "translate(6px, -50%)" }}>현재가<span className={`ml-1 px-0.5 rounded-[2px] bg-white ${base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : "text-slate-800"}`}>{last.toLocaleString()}{pc(last)}</span>
                 </span>
               </>);
             })()}
