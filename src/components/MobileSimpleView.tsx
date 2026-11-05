@@ -46,6 +46,7 @@ import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMai
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { useChartRange, pickCardChart, historyRange } from "../lib/chartRange";
 import { ChartRangeToggle, AvgMarketToggle } from "./ChartRangeToggle";
+import { usRegExtOf } from "../lib/avgMarket";
 import { useIntradayCharts } from "../lib/useIntradayCharts";
 import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage, type DashboardSection } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
@@ -2273,7 +2274,7 @@ export function MobileSimpleView() {
           <div className="px-3 py-2 space-y-3">
             {isSectorPage
               ? <SectorTabBar sections={sectorTabsOf(pageSecs)} active={sectorTabM} onChange={setSectorTabM} compact trailing={<AvgMarketToggle />}
-                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, sym => { const q = usMap.get(sym); const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined; return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : null; })} />
+                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, sym => { const q = usMap.get(sym); const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined; return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : usRegExtOf(sym, q); })} />
               : <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
                              stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />}
             <KisExpRankBox compact />
@@ -2326,7 +2327,8 @@ export function MobileSimpleView() {
                               const q = usMap.get(sym); if (!q) return undefined;
                               // 한국 개별 종목 — 15:30 뒤엔 오늘 정규장 종가 책갈피(야후로 확인된 값만, 지수 탭 카드와 같은 규칙). ETF 는 애프터가 없어 뺀다
                               const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
-                              return { price: q.price, pct: displayPctOf(sym, q) ?? q.pct, reg: r?.fromYahoo ? { price: r.regularPrice, pct: r.regularPct } : undefined };
+                              const ux = usRegExtOf(sym, q);   // 미국 대장주 장 밖 — 정규장 종가·등락(칸 제목 해외 "정규장%(프리·애프터%)")
+                              return { price: ux?.price ?? q.price, pct: displayPctOf(sym, q) ?? q.pct, reg: r?.fromYahoo ? { price: r.regularPrice, pct: r.regularPct } : ux ? { price: ux.regPrice, pct: ux.reg } : undefined };
                             }}   /* 장 전·마감 뒤엔 마지막 정규장 % — 다른 지수 카드와 같은 규칙(자정 지나 0.00% 였다) */ dimOf={dimOf} renderCard={sym => renderIdxCardM(section, sym)} hotOf={sym => radar.get(sym.slice(0, 6))?.ratio ?? 0} />
                 )}
                 {section.render === "sectorFlow" && (

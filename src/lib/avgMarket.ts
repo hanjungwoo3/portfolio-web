@@ -3,6 +3,7 @@
 //   기본 = 시간 자동: 평일 08:00~20:00(KST, NXT 애프터까지) 한국, 그 밖·주말 미국.
 //   직접 고르면 그 시간대(자동값이 바뀌기 전)까지만 유지 — 다음 날 아침엔 다시 한국으로 돌아온다.
 import { useSyncExternalStore } from "react";
+import { isMarketOpen } from "./format";
 
 export type AvgMarket = "KR" | "US";
 const KEY = "avg_market_pick";
@@ -36,3 +37,13 @@ export function useAvgMarket(): AvgMarket {
 }
 /** 해외 대장주(미국·일본) — 국내 .KS/.KQ·지수(^) 빼고(사용자 2026-11-05 "국내/해외") */
 export const isOverseasTicker = (s: string) => !/\.(KS|KQ)$/.test(s) && !s.startsWith("^");
+
+/** 미국 대장주가 정규장 밖(프리·애프터·데이)일 때 — 정규장 등락(책갈피)과 그 뒤 움직임(본문 큰 %).
+ *  지수 탭 미국 카드와 같은 규칙: 장 밖 현재가 = postPrice(있으면), 기준 = 최근 정규장 종가(사용자 2026-11-05 "해외 미국도 정규장/프리장 구분") */
+export function usRegExtOf(sym: string, q?: { price: number; postPrice?: number | null; regularPrice?: number | null; regularPct?: number | null; marketState?: string | null }): { reg: number; aft: number; price: number; regPrice: number } | null {
+  if (!q || !isOverseasTicker(sym) || /\.T$/.test(sym) || isMarketOpen("US_INDEX")) return null;
+  if (!(q.regularPrice && q.regularPrice > 0) || q.regularPct == null) return null;
+  const off = ["PRE", "POST", "POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState ?? "");
+  const p = off && q.postPrice ? q.postPrice : q.price;
+  return { reg: q.regularPct, aft: (p / q.regularPrice - 1) * 100, price: p, regPrice: q.regularPrice };
+}

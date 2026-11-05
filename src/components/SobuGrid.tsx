@@ -176,8 +176,12 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
       {boxes.map((b, bi) => {
         // 평균·▲▼ 은 흐린 종목(장 안 열림·체결 없음 — 값이 지난 정규장) 빼고(사용자 2026-11-03). 다 흐리면(장 마감 뒤) 전부로
         // 해외 평균 — 이 칸의 해외 대장주(미국·일본)(사용자 2026-11-05 "국내·해외 평균 둘 다")
-        const ovPs = b.lead.filter(isOverseasTicker).map(s => quote(s)?.pct).filter((v): v is number => v != null && Number.isFinite(v));
+        //   미국이 장 밖이면 정규장 등락(reg)으로 평균, 꼬리표 = 프리·애프터(정규장 종가 대비) — 국내와 같은 꼴(사용자 2026-11-05)
+        const ovQ = b.lead.filter(isOverseasTicker).map(s => quote(s));
+        const ovPs = ovQ.map(q => q?.reg?.pct ?? q?.pct).filter((v): v is number => v != null && Number.isFinite(v));
         const ovAvg = ovPs.length ? ovPs.reduce((a, v) => a + v, 0) / ovPs.length : null;
+        const ovEx = ovQ.flatMap(q => q?.reg && q.reg.price > 0 && q.price > 0 ? [(q.price / q.reg.price - 1) * 100] : []);
+        const ovAft = ovEx.length ? ovEx.reduce((a, v) => a + v, 0) / ovEx.length : null;
         const live = b.kr.filter(s => !dimOf?.(s));
         const ps = (live.length ? live : b.kr).map(s => quote(s)?.pct).filter((v): v is number => v != null && Number.isFinite(v));
         const avg = ps.length ? ps.reduce((a, v) => a + v, 0) / ps.length : null;
@@ -196,20 +200,28 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
         return (
           <div key={b.label} className={`rounded-lg border border-gray-200 bg-gray-50/50 pg-row p-2 ${renderCard ? "xl:shrink-0 min-w-0" : ""}`}>
             <div className="flex items-baseline gap-2 mb-1.5">
-              <span className="font-bold text-gray-800">{b.label}</span>
-              {avgShown != null && (
-                <span className={`text-sm font-bold tabular-nums ${avgShown > 0 ? "text-rose-600" : avgShown < 0 ? "text-blue-600" : "text-gray-600"}`}
-                      title={live.length && live.length < b.kr.length ? `국내 종목 평균 등락률(동일가중) — 흐린 ${b.kr.length - live.length}종목 제외` : "국내 종목 평균 등락률(동일가중)"}>
-                  국내 {avgShown > 0 ? "+" : ""}{avgShown.toFixed(2)}%{aft != null && <AftPill v={aft} n={as.length} />}
-                </span>
-              )}
-              {nShown > 0 && <span className="text-[11px] text-gray-500">▲{upShown} · ▼{nShown - upShown}</span>}
-              {ovAvg != null && (
-                <span className="text-[12px] font-bold tabular-nums whitespace-nowrap" title={`해외 대장주(테두리 카드, 미국은 간밤·일본은 지금 장중) ${ovPs.length}종목 평균`}>
-                  <span className="text-gray-500 font-normal">해외</span> <span className={ovAvg > 0 ? "text-rose-600" : ovAvg < 0 ? "text-blue-600" : "text-gray-600"}>{ovAvg > 0 ? "+" : ""}{ovAvg.toFixed(2)}%</span>
-                  {ovPs.length > 1 && <span className="ml-1 text-[11px] font-normal text-gray-500">▲{ovPs.filter(v => v > 0).length} · ▼{ovPs.filter(v => v < 0).length}</span>}
-                </span>
-              )}
+              <span className="font-bold text-gray-800 shrink-0">{b.label}</span>
+              {/* 국내 · 해외 두 줄, 같은 위치에 같은 꼴(사용자 2026-11-05 "해외 한 줄 내려 국내와 동일한 위치로") */}
+              <div className="flex flex-col gap-0.5 min-w-0">
+                {avgShown != null && (
+                  <div className="flex items-baseline gap-2 whitespace-nowrap">
+                    <span className={`text-sm font-bold tabular-nums ${avgShown > 0 ? "text-rose-600" : avgShown < 0 ? "text-blue-600" : "text-gray-600"}`}
+                          title={live.length && live.length < b.kr.length ? `국내 종목 평균 등락률(동일가중) — 흐린 ${b.kr.length - live.length}종목 제외` : "국내 종목 평균 등락률(동일가중)"}>
+                      국내 {avgShown > 0 ? "+" : ""}{avgShown.toFixed(2)}%{aft != null && <AftPill v={aft} n={as.length} />}
+                    </span>
+                    {nShown > 0 && <span className="text-[11px] text-gray-500">▲{upShown} · ▼{nShown - upShown}</span>}
+                  </div>
+                )}
+                {ovAvg != null && (
+                  <div className="flex items-baseline gap-2 whitespace-nowrap">
+                    <span className={`text-sm font-bold tabular-nums ${ovAvg > 0 ? "text-rose-600" : ovAvg < 0 ? "text-blue-600" : "text-gray-600"}`}
+                          title={`해외 대장주(테두리 카드, 미국은 장 밖이면 정규장 등락 + 꼬리표 = 프리·애프터, 일본은 지금 장중) ${ovPs.length}종목 평균`}>
+                      해외 {ovAvg > 0 ? "+" : ""}{ovAvg.toFixed(2)}%{ovAft != null && <AftPill v={ovAft} n={ovEx.length} />}
+                    </span>
+                    {ovPs.length > 0 && <span className="text-[11px] text-gray-500">▲{ovPs.filter(v => v > 0).length} · ▼{ovPs.filter(v => v < 0).length}</span>}
+                  </div>
+                )}
+              </div>
               <span className="ml-auto text-[10px] text-gray-400" title="테두리 카드 = 해외 대장주(미국은 간밤, 일본은 지금 장중)">테두리 = 해외</span>
             </div>
             {hasFlow && (

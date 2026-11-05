@@ -30,8 +30,12 @@ export function sectorAvg(s: DashboardSection, pctOf: (sym: string) => number | 
   // 미국 모드 — 칸의 미국 대장주로(간밤·지금 미국장), 애프터 꼬리표 없음(사용자 2026-11-05)
   if (avgMarketNow() === "US") {
     const us = s.rows.flat().filter(isOverseasTicker);
-    const up = us.map(pctOf).filter((v): v is number => v != null && Number.isFinite(v));
-    return up.length ? { avg: up.reduce((a, v) => a + v, 0) / up.length, up: up.filter(v => v > 0).length, down: up.filter(v => v < 0).length } : null;
+    // 미국 장 밖이면 평균 = 정규장 등락, 꼬리표 = 프리·애프터(정규장 종가 대비) — 국내 "정규장%(애프터%)"와 같은 꼴
+    const ext = us.map(x => afterOf?.(x) ?? null);
+    const up = us.map((x, i) => ext[i]?.reg ?? pctOf(x)).filter((v): v is number => v != null && Number.isFinite(v));
+    const ea = ext.filter((v): v is { reg: number; aft: number } => !!v && Number.isFinite(v.aft));
+    return up.length ? { avg: up.reduce((a, v) => a + v, 0) / up.length, up: up.filter(v => v > 0).length, down: up.filter(v => v < 0).length,
+      ...(ea.length ? { aft: ea.reduce((a, v) => a + v.aft, 0) / ea.length, aftN: ea.length } : {}) } : null;
   }
   const kr = s.rows.flat().filter(x => /\.KS$/.test(x));
   const live = kr.filter(x => !dimOf?.(x));
