@@ -82,12 +82,12 @@ function ShotAiButton({ target, prompt }: { target: React.RefObject<HTMLDivEleme
   return (
     <span data-noshot className="ml-auto order-last inline-flex items-center gap-1.5 whitespace-nowrap">
       {msg && <span className="text-[11px] text-gray-500">{msg}</span>}
-      <button type="button" title="아래 수급·옵션·신호·외국인 선물 화면을 그림으로 복사하고 구글 AI 를 엽니다 — 열린 창에서 Cmd+V(윈도우 Ctrl+V)로 붙여넣으세요"
+      <button type="button" title="이 줄부터 맨 아래 외국인 선물 그래프까지(현물·선물·코스닥 수급, 옵션, 시장 신호, 외국인 선물 — 위쪽 실시간 체결은 빠짐)를 그림으로 복사하고 구글 AI 를 엽니다. 열린 창에서 Cmd+V(윈도우 Ctrl+V)로 붙여넣으세요"
               onClick={() => {
                 const el = target.current; if (!el) return;
                 setMsg("그림 만드는 중…");
                 void copyNodeImage(el).then(r => {
-                  if (r.ok) { setMsg(`복사됨(${Math.round(r.bytes / 1024)}KB · ${(r.ms / 1000).toFixed(1)}초) — AI 창에서 붙여넣기`); openGoogleAi(prompt()); }
+                  if (r.ok) { setMsg(r.via === "file" ? `클립보드가 막혀 그림 파일로 받았습니다 — AI 창에 끌어다 놓으세요` : `복사됨(${Math.round(r.bytes / 1024)}KB · ${(r.ms / 1000).toFixed(1)}초) — AI 창에서 붙여넣기`); openGoogleAi(prompt()); }
                   else setMsg(`복사 실패: ${r.reason}`);
                 });
               }}

@@ -201,6 +201,30 @@ async fn app_dialog(kind: String, msg: String, def: String) -> Result<String, St
     tauri::async_runtime::spawn_blocking(move || mac_dialog(&kind, &msg, &def)).await.map_err(|e| e.to_string())
 }
 
+// 📷 AI — PNG(base64)를 OS 클립보드에 그림으로(사용자 2026-11-05). 웹뷰 navigator.clipboard.write 는 클릭 직후만 허락돼
+//   그림을 만드는 동안(2초+) 시간이 지나 "not allowed by the user agent" 로 거절됐다 → 앱이 직접 넣는다(시간 제한 없음)
+#[tauri::command]
+async fn copy_image(png_b64: String) -> Result<(), String> {
+    let bytes = STANDARD.decode(png_b64).map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
+        let mut dec = png::Decoder::new(std::io::Cursor::new(bytes));
+        dec.set_transformations(png::Transformations::EXPAND | png::Transformations::STRIP_16);
+        let mut reader = dec.read_info().map_err(|e| e.to_string())?;
+        let mut buf = vec![0; reader.output_buffer_size()];
+        let info = reader.next_frame(&mut buf).map_err(|e| e.to_string())?;
+        let data = &buf[..info.buffer_size()];
+        let rgba: Vec<u8> = match info.color_type {
+            png::ColorType::Rgba => data.to_vec(),
+            png::ColorType::Rgb => data.chunks(3).flat_map(|p| [p[0], p[1], p[2], 255]).collect(),
+            png::ColorType::GrayscaleAlpha => data.chunks(2).flat_map(|p| [p[0], p[0], p[0], p[1]]).collect(),
+            png::ColorType::Grayscale => data.iter().flat_map(|&g| [g, g, g, 255]).collect(),
+            c => return Err(format!("지원하지 않는 PNG 색 형식 {c:?}")),
+        };
+        let mut cb = arboard::Clipboard::new().map_err(|e| e.to_string())?;
+        cb.set_image(arboard::ImageData { width: info.width as usize, height: info.height as usize, bytes: rgba.into() }).map_err(|e| e.to_string())
+    }).await.map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 fn open_external(url: String) -> Result<(), String> {
     if !(url.starts_with("https://") || url.starts_with("http://")) {
@@ -374,7 +398,7 @@ fn main() {
         .manage(client)
         .manage(broker::BrokerState::default())   // 증권사 연결 — 토큰 캐시·한도
         .manage(kis_ws::KisWsState::default())     // 한국투자 실시간 체결 웹소켓
-        .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, close_viewer, broker::broker_status, broker::broker_set, broker::broker_clear, broker::broker_fetch, kis_ws::kis_ws_poll, google_login, google_refresh, app_update_check, app_update_install, app_dialog])
+        .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, close_viewer, broker::broker_status, broker::broker_set, broker::broker_clear, broker::broker_fetch, kis_ws::kis_ws_poll, google_login, google_refresh, app_update_check, app_update_install, app_dialog, copy_image])
         .setup(move |app| {
             let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse()?))
                 .title("포트폴리오")

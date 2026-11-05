@@ -21,6 +21,7 @@
     "allow-app-update-check",
     "allow-app-update-install",
     "allow-app-dialog",
+    "allow-copy-image",
     "allow-broker-status",
     "allow-broker-set",
     "allow-broker-clear",

@@ -1,6 +1,6 @@
 [package]
 name = "portfolio"
-version = "0.1.12"
+version = "0.1.13"
 description = "포트폴리오 데스크톱 앱"
 edition = "2021"
 
@@ -23,6 +23,9 @@ tokio = { version = "1", features = ["time", "net", "macros", "sync"] }
 # 한국투자 실시간 체결 웹소켓(src/kis_ws.rs) — ws:// 평문이라 TLS 기능은 안 켠다
 tokio-tungstenite = { version = "0.24", default-features = false, features = ["connect", "handshake"] }
 futures-util = { version = "0.3", default-features = false, features = ["sink", "std"] }
+# 그림 클립보드(📷 AI, src/main.rs copy_image) — 웹뷰 clipboard.write 는 누른 직후만 허락돼 그림 만드는 2초+ 뒤엔 거절됐다
+arboard = { version = "3.4", default-features = false, features = ["image-data"] }
+png = "0.17"
 
 [profile.release]
 strip = true
