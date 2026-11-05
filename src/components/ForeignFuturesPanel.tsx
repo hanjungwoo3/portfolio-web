@@ -44,7 +44,7 @@ function Chart({ series, baseZero, markers, height = 150, width = 600, color, ch
       {series.length > 1 && <path d={d} fill="none" stroke={color} strokeWidth={1.8} />}
       {markers?.map(m => (
         <g key={m.label}><circle cx={sx(m.t)} cy={sy(m.v)} r={3.5} fill="white" stroke={m.color} strokeWidth={2} />
-          <text x={Math.min(sx(m.t) + 5, W - PR - 2)} y={sy(m.v) + (m.v <= 0 ? 12 : -5)} fontSize={10} fill={m.color} fontWeight={700}>{m.label}</text></g>
+          <text x={Math.min(sx(m.t) + 5, W - 280)} y={Math.max(12, sy(m.v) + (m.v <= 0 ? 12 : -5))} paintOrder="stroke" stroke="white" strokeWidth={3} fontSize={10} fill={m.color} fontWeight={700}>{m.label}</text></g>
       ))}
     </svg>
   );
@@ -164,31 +164,20 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price, kospi, kospiBa
       <div className="flex items-baseline gap-2 flex-wrap">
         <span className="font-bold text-gray-800">🌐 외국인 K200 선물 · 시장 미결제약정</span>
         <span className="text-[11px] text-gray-400">근월물 {fut?.month ?? ""} · 외국인 {live ? <b className="text-emerald-600">● 한투 실시간(1분)</b> : "네이버 20분 지연"} · 계약×선물가×25만 · 미결제는 근월물 전체(외국인만 아님), 앱이 켜진 동안 1분마다 기록</span>
+        {/* 정리율·15분 변화·현물은 제목 줄에 — 왼쪽 칸은 없애고 그래프를 넓게(사용자 2026-11-04) */}
+        {last && (
+          <span className="flex items-baseline gap-3 text-[12px] tabular-nums">
+            <span title="장중 가장 많이 판(산) 지점에서 얼마나 되돌렸나 — 100% 면 0 까지 되사(되판) 것"><span className="text-gray-500">정리율</span> <b className="text-gray-800">{recov != null ? `${Math.round(recov)}%` : "—"}</b></span>
+            <span><span className="text-gray-500">15분</span> <b className={tone(d15 ?? 0)}>{d15 != null ? eok(d15) : "—"}</b>{d15c != null && <span className="text-[10.5px] text-gray-400"> ({d15c > 0 ? "+" : ""}{d15c.toLocaleString()}계약)</span>}</span>
+          </span>
+        )}
         {fut && fut.oi > 0 && <span className="ml-auto font-bold tabular-nums text-gray-800">미결제 {fut.oi.toLocaleString()} <span className={`text-[11px] ${tone(fut.oiChg)}`}>({fut.oiChg > 0 ? "+" : ""}{fut.oiChg.toLocaleString()})</span></span>}
       </div>
       {!last && oi.length < 2 ? <div className="text-gray-400 text-[12px] py-6 text-center">오늘 수급이 아직 없습니다(장 전·휴장) — 주간 선물장 08:45~15:45, 앱을 켜 둔 시간부터 기록합니다.</div> : (
         <div className="mt-1 flex gap-2">
-          {last && (<>
-          <div className="w-[124px] shrink-0 flex flex-col gap-1 text-center">
-            <div className="rounded border border-gray-200 py-1"><div className="text-[10.5px] text-gray-500">외국인 누적</div>
-              <div className={`font-bold tabular-nums ${tone(last.v)}`}>{eok(last.v)}</div><div className="text-[10px] text-gray-400 tabular-nums">{last.c > 0 ? "+" : ""}{last.c.toLocaleString()}계약 · {last.t}</div></div>
-            <div className="rounded border border-gray-200 py-1" title="장중 가장 많이 판(산) 지점에서 얼마나 되돌렸나 — 100% 면 0 까지 되사(되판) 것">
-              <div className="text-[10.5px] text-gray-500">정리율</div>
-              <div className="font-bold tabular-nums text-gray-800">{recov != null ? `${Math.round(recov)}%` : "—"}</div><div className="text-[10px] text-gray-400">{ext ? `장중 ${ext.v < 0 ? "최저" : "최고"} 대비` : ""}</div></div>
-            <div className="rounded border border-gray-200 py-1"><div className="text-[10.5px] text-gray-500">15분 변화</div>
-              <div className={`font-bold tabular-nums ${tone(d15 ?? 0)}`}>{d15 != null ? eok(d15) : "—"}</div><div className="text-[10px] text-gray-400 tabular-nums">{d15c != null ? `${d15c > 0 ? "+" : ""}${d15c.toLocaleString()}계약` : ""}</div></div>
-            <div className="rounded border border-gray-200 py-1"><div className="text-[10.5px] text-gray-500">장중 {ext && ext.v < 0 ? "최저" : "최고"}</div>
-              <div className={`font-bold tabular-nums ${tone(ext?.v ?? 0)}`}>{ext ? eok(ext.v) : "—"}</div><div className="text-[10px] text-gray-400">{ext?.t ?? ""}</div></div>
-            {spot != null && (
-              <div className="text-[10.5px] text-gray-600 leading-tight">현물(코스피) 외국인<br /><b className={tone(spot)}>{eok(spot)}</b>
-                {together && <span className={`ml-1 px-1 rounded border text-[10px] font-bold ${together === "동반매도" ? "border-blue-300 bg-blue-50 text-blue-700" : together === "동반매수" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-gray-300 bg-gray-50 text-gray-600"}`}>{together}</span>}
-              </div>
-            )}
-          </div>
-          </>)}
           <div className="flex-1 min-w-0">
             <Chart series={fs.map(p => ({ t: p.t, v: p.v }))} baseZero color="#1e3a8a" height={H} width={CW}
-                   markers={ext && !extAtEnd ? [{ t: ext.t, v: ext.v, label: `${ext.v < 0 ? "최저" : "최고"} ${ext.t}`, color: "#2563eb" }] : []}>
+                   markers={ext && !extAtEnd ? [{ t: ext.t, v: ext.v, label: `장중 ${ext.v < 0 ? "최저" : "최고"} ${ext.t} ${eok(ext.v)} (${ext.c > 0 ? "+" : ""}${ext.c.toLocaleString()}계약)`, color: "#2563eb" }] : []}>
               {(sx, sy) => (<>
                 {kospiLayer(sx)}
                 {oiLayer(sx)}
@@ -198,7 +187,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price, kospi, kospiBa
                   const lo = oi[oi.length - 1], lf = fs[fs.length - 1];
                   const oiv = oi.map(p => p.oi).filter(v => v > 0), ps = oi.map(p => p.p).filter(v => v > 0);
                   const items: { x: number; y: number; t: string; c: string }[] = [];
-                  if (lf) items.push({ x: sx(lf.t), y: sy(lf.v), t: `외국인 ${eok(lf.v)}${extAtEnd && ext ? ` (장중 ${ext.v < 0 ? "최저" : "최고"})` : ""}`, c: lf.v >= 0 ? "#e11d48" : "#1e3a8a" });
+                  if (lf) items.push({ x: sx(lf.t), y: sy(lf.v), t: `외국인 누적 ${eok(lf.v)} (${lf.c > 0 ? "+" : ""}${lf.c.toLocaleString()}계약 · ${lf.t})${extAtEnd && ext ? ` 장중 ${ext.v < 0 ? "최저" : "최고"}` : ""}`, c: lf.v >= 0 ? "#e11d48" : "#1e3a8a" });
                   if (lo && oiv.length > 1) items.push({ x: sx(lo.t), y: scale(oiv)(lo.oi), t: `미결제 ${lo.oi.toLocaleString()}`, c: "#7c3aed" });
                   if (lo && ps.length > 1) items.push({ x: sx(lo.t), y: scale(ps)(lo.p), t: `선물 ${lo.p.toFixed(2)}`, c: "#6b7280" });
                   items.sort((a, b) => a.y - b.y);
@@ -208,7 +197,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price, kospi, kospiBa
                   return items.map(it => (
                     <g key={it.t}>
                       <circle cx={it.x} cy={it.y} r={0} />
-                      <text x={Math.min(it.x + 6, CW - 150)} y={Math.max(10, it.y) + 3} fontSize={10.5} fontWeight={700} fill={it.c} paintOrder="stroke" stroke="white" strokeWidth={3}>{it.t}</text>
+                      <text x={Math.min(it.x + 6, CW - 290)} y={Math.max(10, it.y) + 3} fontSize={10.5} fontWeight={700} fill={it.c} paintOrder="stroke" stroke="white" strokeWidth={3}>{it.t}</text>
                     </g>
                   ));
                 })()}
@@ -239,7 +228,12 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price, kospi, kospiBa
           {/* 읽기 — 결론 먼저, 근거 한 줄씩(사용자 2026-11-04 "이 그래프 분석을 오른쪽에") */}
           {read && (
             <div className="hidden lg:flex flex-col w-[400px] shrink-0 rounded border border-gray-200 bg-gray-50/60 p-2 text-[11.5px] leading-snug">
-              <div className="text-[10.5px] text-gray-400 mb-0.5">그래프 읽기</div>
+              <div className="flex items-baseline gap-2 mb-0.5">
+                <span className="text-[10.5px] text-gray-400">그래프 읽기</span>
+                {/* 현물(코스피) 외국인 — 읽기 칸 머리에(사용자 2026-11-04) */}
+                {spot != null && <span className="ml-auto text-[11px] tabular-nums"><span className="text-gray-500">현물(코스피) 외국인</span> <b className={tone(spot)}>{eok(spot)}</b>
+                  {together && <span className={`ml-1 px-1 rounded border text-[10px] font-bold ${together === "동반매도" ? "border-blue-300 bg-blue-50 text-blue-700" : together === "동반매수" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-gray-300 bg-gray-50 text-gray-600"}`}>{together}</span>}</span>}
+              </div>
               <div className={`font-bold text-[12.5px] ${RT[read.head.tone]}`}>{read.head.text}</div>
               <div className="mt-1.5 space-y-1">
                 {read.lines.map(l => (
