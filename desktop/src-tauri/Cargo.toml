@@ -1,6 +1,6 @@
 [package]
 name = "portfolio"
-version = "0.1.11"
+version = "0.1.12"
 description = "포트폴리오 데스크톱 앱"
 edition = "2021"
 
@@ -8,7 +8,7 @@ edition = "2021"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = [] }
 serde = { version = "1", features = ["derive"] }
 reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "cookies", "gzip", "brotli", "deflate"] }
 base64 = "0.22"

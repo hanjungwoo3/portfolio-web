@@ -13,6 +13,7 @@ import { startKisVi } from './lib/kisVi'
 import { routePreview } from './lib/previewMode'
 import { startGlobalTips } from './lib/globalTips'
 import { MarketHaltBanner } from './components/MarketHaltBanner'
+import { startAndroidBack } from './lib/androidBack'
 
 // 야간 배경 — 첫 그림 전에 적용(깜빡임 방지)
 applyNightBg()
@@ -44,6 +45,7 @@ if (isDirectApp() && 'serviceWorker' in navigator) {
 }
 
 startGlobalTips()   // 마우스 설명을 흰 레이어로(앱 전체)
+startAndroidBack()   // 안드로이드 뒤로 키 두 번 = 종료
 routePreview()   // 미리보기 모드면 /preview/ 로(같은 사이트라 오늘 기록 그대로)
 
 createRoot(document.getElementById('root')!).render(

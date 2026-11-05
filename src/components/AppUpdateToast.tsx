@@ -130,7 +130,7 @@ export function DesktopUpdateToast() {
         <div className="flex-1 min-w-0">
           <div className="font-bold">데스크톱 앱 새 버전 v{u.latest}</div>
           <div className="text-emerald-800 leading-relaxed">
-            지금 v{u.current} 입니다. {u.canInstall ? "업데이트하면 받아서 바꾸고 다시 시작합니다." : "실행형은 새 portfolio.exe 를 받아 바꿔 쓰세요."}
+            지금 v{u.current} 입니다. {u.canInstall ? "업데이트하면 받아서 바꾸고 다시 시작합니다." : "실행형은 다운로드 페이지를 열고 앱을 끕니다 — 새 portfolio.exe 로 바꿔 실행하세요."}
           </div>
           {err && <div className="text-rose-600">⚠️ {err}</div>}
           <button disabled={busy}
