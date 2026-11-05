@@ -653,6 +653,14 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
   const bw = (W - PAD - RP) / Math.max(VIS * sc, ms.length);
   const xOf = (i: number) => PAD + i * bw + bw / 2;
   // 선 끝 글자 셋(지금 가격·누적·프로그램) — 각자 선 높이를 따르되 겹치면 순서대로 쌓는다(사용자 2026-11-04 "안 겹치게 순서대로")
+  // 그래프 칸 실제 높이(px) — 선 끝 글자 간격을 %가 아니라 글자 높이(px)로 잡으려고. 띠가 늘면 칸이 줄어 9%로는 겹쳤다(사용자 2026-11-05)
+  const plotRef = useRef<HTMLDivElement>(null);
+  const [plotH, setPlotH] = useState(0);
+  useEffect(() => {
+    const el = plotRef.current; if (!el) return;
+    const ro = new ResizeObserver(() => setPlotH(el.clientHeight)); ro.observe(el); setPlotH(el.clientHeight);
+    return () => ro.disconnect();
+  }, [ms.length > 0]);
   const endTop = (() => {
     const out: Record<"price" | "cum" | "prog", number | null> = { price: null, cum: null, prog: null };
     const want: { k: keyof typeof out; y: number }[] = [];
@@ -660,7 +668,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
     if (cum.length) want.push({ k: "cum", y: (((H / 2) - (cum[cum.length - 1] / mxCum) * ((H / 2) - PAD)) / H) * 100 });
     const pl = [...progLine].reverse().find(v => v != null);
     if (pl != null) want.push({ k: "prog", y: (((H / 2) - (pl / mxProg) * ((H / 2) - PAD)) / H) * 100 });
-    const GAP = 9, LO = 5, HI = 93;
+    const GAP = plotH > 0 ? Math.max(9, (22 / plotH) * 100) : 9;   // 이름표 높이 ~20px + 틈
+    const LO = plotH > 0 ? Math.max(5, (12 / plotH) * 100) : 5, HI = 100 - LO - 2;
     want.sort((a, b) => a.y - b.y);
     const ys = want.map(w => Math.max(LO, Math.min(HI, w.y)));
     for (let i = 1; i < ys.length; i++) ys[i] = Math.max(ys[i], ys[i - 1] + GAP);           // 아래로 밀고
@@ -754,7 +763,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                    style={{ left: `${(xOf(hov.i) / W) * 100}%`, transform: "translateX(-50%)" }}>
                 {m.t} · {m.close.toLocaleString()}{base && base > 0 ? ` (${m.close >= base ? "+" : ""}${((m.close / base - 1) * 100).toFixed(2)}%)` : ""}
               </div>); })()}
-            <div className="relative flex-1 min-h-0">
+            <div ref={plotRef} className="relative flex-1 min-h-0">
             {ms.length < 5 && <div className="absolute inset-x-0 bottom-1 text-center text-[11px] text-gray-400">켠 뒤 {ms.length}분째 — 10분쯤 지나면 흐름이 보입니다</div>}
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
               {/* 배경 코스피 — 같은 분에 맞춰 연한 면(전일 종가 위 빨강·아래 파랑, 축 따로)(사용자 2026-11-05) */}
