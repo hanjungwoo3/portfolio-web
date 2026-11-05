@@ -546,7 +546,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
   const [visLocal, setVisLocal] = useState<number | null>(null);
   const vis = link ? link.vis : visLocal;
   const setVis = link ? link.setVis : setVisLocal;
-  const ALL = Math.max(60, ms.length);
+  const ALL = Math.max(10, ms.length);   // 전체 = 켠 뒤 분 수 그대로 폭을 채운다(처음엔 넓게, 쌓이면서 좁아짐 — 사용자 2026-11-05)
   const VIS = vis == null ? ALL : Math.min(vis, ALL);
   const sc = Math.max(1, ms.length / VIS);              // 그래프 폭 배율(1 = 한 화면)
   const W = 600 * sc, H = 220, PAD = 4;
@@ -581,7 +581,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
       const r = el.getBoundingClientRect(), px = e.clientX - r.left;
       zoomAt.current = { fx: (px + el.scrollLeft) / el.scrollWidth, px };
       setVis(v => {
-        const all = Math.max(60, msLen.current);
+        const all = Math.max(10, msLen.current);
         const n = Math.max(10, Math.round((v ?? all) * (e.deltaY > 0 ? 1.2 : 1 / 1.2)));
         return n >= all ? null : n;   // 끝까지 줄이면 다시 '전체'(새 분이 와도 계속 전체)
       });
