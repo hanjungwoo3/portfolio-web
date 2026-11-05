@@ -855,7 +855,10 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
               ...(hasProgMin ? [{ k: "prog", label: "프로그램", col: "#e11d48", colDn: "#2563eb", rows: progMin }] : []),
             ].map(st => {
               // 기본 = 누적(띠 구간 합), 마우스를 올리면 그 분 값(사용자 2026-11-05 "기본은 누적, hover 시 각 분봉 값")
-              const hx = hov ? st.rows[hov.i] : null;
+              // 마우스 전엔 가장 최근 1분(사용자 2026-11-05 "hover 전에는 최근걸로")
+              const li = (() => { for (let k = st.rows.length - 1; k >= 0; k--) if (st.rows[k]) return k; return -1; })();
+              const hi = hov ? hov.i : li;
+              const hx = hi >= 0 ? st.rows[hi] : null;
               // 프로그램 기본값 = 오늘 장 시작부터(한투 하루 누적) — 띠 구간 합으로 하면 위 '프로그램(오늘)'과 숫자가 달라 헷갈렸다(사용자 2026-11-05)
               const pl = st.k === "prog" ? prog?.[prog.length - 1] : undefined;
               const progDay = !hx && pl?.b != null && pl?.s != null;
@@ -868,7 +871,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                   {/* 제목·합계는 오른쪽 빈칸(선 끝 글자 자리)에 — 사용자 2026-11-05 */}
                   <div className="absolute right-1 top-[2px] text-right tabular-nums leading-tight pointer-events-none z-10">
                     {/* 띠 합계 = 막대가 있는 구간만(언제부터인지 같이) — 위 '프로그램(오늘)'은 장 시작부터라 다를 수 있다(사용자 2026-11-05) */}
-                    <div className="text-[10.5px] font-bold" style={{ color: st.k === "prog" ? "#6d28d9" : "#374151" }}>{st.label} <span className="font-normal text-gray-400">{hov ? (hx ? `${ms[hov.i].t} 1분` : `${ms[hov.i].t} 기록 없음`) : (progDay ? "오늘 누적" : (() => { const fi = st.rows.findIndex(x => x); return fi >= 0 ? `${ms[fi].t}~ 누적` : ""; })())}</span></div>
+                    <div className="text-[10.5px] font-bold" style={{ color: st.k === "prog" ? "#6d28d9" : "#374151" }}>{st.label} <span className="font-normal text-gray-400">{hi >= 0 ? (hx ? `${ms[hi].t} 1분` : `${ms[hi].t} 기록 없음`) : ""}</span></div>
                     {/* "-208억" 처럼 부호로(사용자 2026-11-05) — 1분 값은 작아서 10억 밑이면 소수 한 자리 */}
                     <div className={`text-[11px] font-bold ${up(tb - ts)}`}>{(() => { const e = (tb - ts) / 1e8, r = hx && Math.abs(e) < 10 ? Math.round(e * 10) / 10 : Math.round(e); return `${r > 0 ? "+" : ""}${r.toLocaleString()}억`; })()}</div>
                     <div className="text-[10px] text-gray-500"><span className="text-rose-500">+{(tb / 1e8).toLocaleString(undefined, { maximumFractionDigits: hx ? 1 : 0 })}</span> <span className="text-blue-500">−{(ts / 1e8).toLocaleString(undefined, { maximumFractionDigits: hx ? 1 : 0 })}억</span></div>
