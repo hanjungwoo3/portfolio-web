@@ -613,6 +613,19 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     {
+      // 반도체(칩 회사) — 메모리·파운드리·팹리스·디자인하우스(사용자 2026-11-05 "반도체도 넣자"). 장비·소재는 소부장 탭.
+      id: "semiflow", short: "반도체", etfs: ["091160.KS", "091230.KS", "396500.KS", "0239Y0.KS"], label: "🧠 반도체 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 마이크론(메모리)·TSMC(파운드리)·퀄컴(팹리스)·ARM(설계 IP), 간밤. 장비·소재는 소부장 탭.",
+      lead: 1, leadByRow: [1, 1, 1, 1],
+      rowLabels: ["메모리", "파운드리", "팹리스", "디자인하우스·IP"],
+      rows: [
+        ["MU", "005930.KS", "000660.KS", "080220.KS"],                                                 // 마이크론 ➜ 삼성전자·SK하이닉스·제주반도체(피델릭스는 거래정지라 뺐다 2026-11-05)
+        ["TSM", "000990.KS"],                                                                          // TSMC ➜ DB하이텍
+        ["QCOM", "108320.KS", "054450.KS", "102120.KS", "440110.KS", "396270.KS", "432720.KS"],        // 퀄컴 ➜ LX세미콘·텔레칩스·어보브·파두·넥스트칩·퀄리타스
+        ["ARM", "399720.KS", "200710.KS", "445090.KS", "094360.KS", "394280.KS"],                      // ARM ➜ 가온칩스·에이디테크·에이직랜드·칩스앤미디어·오픈엣지
+      ],
+    },
+    {
       // 친환경 — 태양광·풍력·수소(사용자 2026-11-05 "친환경, 태양광 등도 추가")
       id: "greenflow", short: "친환경", etfs: ["385510.KS", "404120.KS", "377990.KS"], label: "🌱 친환경 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 퍼스트솔라(태양광)·GE버노바(풍력)·블룸에너지(연료전지), 간밤.",
@@ -656,7 +669,7 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 소부장 — 단계별 한 블록만(사용자 2026-11-02, 주간 시장 줄은 뺐다 "빼도 될 거 같아")
   // 지수(업종) — 업종마다 한 블록, 페이지 안 탭으로 하나씩(사용자 2026-11-03 "소부장·ESS 를 내부 탭으로")
   //   + 옛 지수(순환매) 페이지를 '한눈에' 탭으로 합쳤다(사용자 2026-11-03 "순환매와 업종이 비슷" → 1안) — 아래 SECTOR_OVERVIEW_IDS
-  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "greenflow", "opticflow", "bioflow", "robotflow", "finflow", "beautyflow"],
+  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "semiflow", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "greenflow", "opticflow", "bioflow", "robotflow", "finflow", "beautyflow"],
   // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
   //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)
