@@ -771,7 +771,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                 {/* 점은 선 끝 그대로, 글자는 쌓인 자리(endTop) — 프로그램 값도 선 끝에(사용자 2026-11-04 "프로그램도 가격 있지 않아?") */}
                 <span className="absolute w-2 h-2 rounded-full bg-violet-600 pointer-events-none" style={{ left: `${lx}%`, top: `${Math.max(2, Math.min(96, ly))}%`, transform: "translate(-50%, -50%)" }} />
                 <span className="absolute pointer-events-none text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap text-violet-700"
-                      style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(8px, -50%)" }}>프로그램 {netWord((prog?.[prog.length - 1]?.v ?? 0) * 1e8)}</span>
+                      style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(8px, -50%)" }}>프로그램(오늘) {netWord((prog?.[prog.length - 1]?.v ?? 0) * 1e8)}</span>
               </>);
             })()}
             {/* 가격 글자(사용자 2026-11-04 "가격 그래프에 금액") — 최고·최저는 그 높이 왼쪽에, 지금 가격은 선 끝에. svg 가 늘어나므로 HTML 로 */}
@@ -829,7 +829,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                 <div key={st.k} className="relative shrink-0 border-t border-gray-100" style={{ height: SH + 6 }}>
                   {/* 제목·합계는 오른쪽 빈칸(선 끝 글자 자리)에 — 사용자 2026-11-05 */}
                   <div className="absolute right-1 top-[2px] text-right tabular-nums leading-tight pointer-events-none z-10">
-                    <div className="text-[10.5px] font-bold" style={{ color: st.k === "prog" ? "#6d28d9" : "#374151" }}>{st.label} 1분</div>
+                    {/* 띠 합계 = 막대가 있는 구간만(언제부터인지 같이) — 위 '프로그램(오늘)'은 장 시작부터라 다를 수 있다(사용자 2026-11-05) */}
+                    <div className="text-[10.5px] font-bold" style={{ color: st.k === "prog" ? "#6d28d9" : "#374151" }}>{st.label} 1분 <span className="font-normal text-gray-400">{(() => { const fi = st.rows.findIndex(x => x); return fi >= 0 ? `${ms[fi].t}~` : ""; })()}</span></div>
                     <div className={`text-[11px] font-bold ${up(tb - ts)}`}>{netWord(tb - ts)}</div>
                     <div className="text-[10px] text-gray-500"><span className="text-rose-500">+{(tb / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> <span className="text-blue-500">−{(ts / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}억</span></div>
                   </div>
