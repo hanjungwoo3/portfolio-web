@@ -803,7 +803,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
               return (<>
                 {/* 점은 선 끝 그대로, 글자는 쌓인 자리(endTop) — 프로그램 값도 선 끝에(사용자 2026-11-04 "프로그램도 가격 있지 않아?") */}
                 {/* 동그라미 점은 뺐다(사용자 2026-11-05 "포인트 위치가 이상해") — 가격 글자처럼 네모, 바탕은 선 색(보라) */}
-                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-violet-600 text-white px-1 py-px rounded-sm whitespace-nowrap tabular-nums"
+                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-violet-100 text-violet-700 border border-violet-300 px-1 py-px rounded-sm whitespace-nowrap tabular-nums"
                       style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(6px, -50%)" }}>프로그램<EndNum won={(prog?.[prog.length - 1]?.v ?? 0) * 1e8} /></span>
               </>);
             })()}
@@ -830,7 +830,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                   );
                 })}
                 {/* '현재가' 이름표 — 체결(주황)·프로그램(보라)과 같은 꼴, 바탕은 가격선 색(사용자 2026-11-05 "현재가, 체결, 프로그램") */}
-                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-slate-700 text-white px-1 py-px rounded-sm whitespace-nowrap tabular-nums" style={{ left: `${lx}%`, top: `${endTop.price ?? 50}%`, transform: "translate(6px, -50%)" }}>현재가<span className="ml-1 px-0.5 rounded-[2px] bg-white text-slate-800">{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span></span>
+                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-slate-100 text-slate-700 border border-slate-300 px-1 py-px rounded-sm whitespace-nowrap tabular-nums" style={{ left: `${lx}%`, top: `${endTop.price ?? 50}%`, transform: "translate(6px, -50%)" }}>현재가<span className="ml-1 px-0.5 rounded-[2px] bg-white text-slate-800">{last.toLocaleString()}<span className={base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}>{pc(last)}</span></span>
                 </span>
               </>);
             })()}
@@ -842,7 +842,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
               const ly = Math.abs(Math.max(4, Math.min(92, ly0)) - lpC) < 9 ? (lpC >= 50 ? lpC - 11 : lpC + 11) : ly0;
               return (
                 // 점 없이 네모, 바탕 = 선 색(주황) — 가격 글자와 같은 모양(사용자 2026-11-05)
-                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-orange-500 text-white px-1 py-px rounded-sm whitespace-nowrap tabular-nums"
+                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-orange-100 text-orange-700 border border-orange-300 px-1 py-px rounded-sm whitespace-nowrap tabular-nums"
                       style={{ left: `${lx}%`, top: `${endTop.cum ?? ly}%`, transform: "translate(6px, -50%)" }}>체결<EndNum won={cum[cum.length - 1]} /></span>
               );
             })()}
