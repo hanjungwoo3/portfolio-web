@@ -127,8 +127,12 @@ function Dashboard() {
   const [tradeCount, setTradeCount] = useState(0);
   const [allTrades, setAllTrades] = useState<Trade[]>([]);   // 오늘 매도(실현) 집계용 — 무영속, 로드시 갱신
   // 기본 페이지 = 지수 — 시간으로 주간/야간(한국 07~18시 = 주간)
-  const [activeTab, setActiveTab] = useState<string>(
-    () => defaultDashboardPage() === "night" ? INDEX_NIGHT_TAB_KEY : US_MARKET_TAB_KEY);
+  // 새로고침해도 보던 탭 그대로(사용자 2026-11-05) — sessionStorage 라 창을 새로 열면 다시 시간 기준 기본값
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    try { const v = sessionStorage.getItem("pc_active_tab"); if (v) return v; } catch { /* 없음 */ }
+    return defaultDashboardPage() === "night" ? INDEX_NIGHT_TAB_KEY : US_MARKET_TAB_KEY;
+  });
+  useEffect(() => { try { sessionStorage.setItem("pc_active_tab", activeTab); } catch { /* noop */ } }, [activeTab]);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchInitQuery, setSearchInitQuery] = useState("");
@@ -141,7 +145,8 @@ function Dashboard() {
   useDimSleeping();   // 흐림 설정이 바뀌면 화면 전체를 다시 그린다(헤더 💤 토글)
   // 데모 모드 — 켜져 있으면 하단에 '데모 데이터' 배너를 띄워 실제 보유와 헷갈리지 않게 한다.
   const [demoOn, setDemoOn] = useState(isDemoActive);
-  const [pendingTab, setPendingTab] = useState<string | null>(null);
+  // 새로고침으로 되살린 탭이 그룹 탭이면 목록이 늦게 와서 첫 탭으로 튕긴다 → 목록에 나타날 때까지 기다린다
+  const [pendingTab, setPendingTab] = useState<string | null>(() => { try { return sessionStorage.getItem("pc_active_tab"); } catch { return null; } });
   const [valuationTicker, setValuationTicker] = useState<string | null>(null);
   const [valuationName, setValuationName] = useState<string | null>(null);   // 비보유 종목(ETF비교 등) 이름 폴백
   const [valuationSec, setValuationSec] = useState<"live" | "summary" | undefined>();   // 종목정보 처음 자리
@@ -270,6 +275,8 @@ function Dashboard() {
   //   pendingTab 은 '아직 없는 탭으로 가고 싶다'는 예약 — 데모 시작처럼 그룹을 만들고
   //   그리로 가는 경우, 아래 가드가 없는 탭을 첫 탭으로 되돌려 버리므로
   //   탭 목록에 실제로 나타난 뒤에 선택해야 한다. (가드보다 먼저 검사)
+  // 기다리던 탭이 끝내 안 나타나면(지운 그룹 등) 5초 뒤 포기 — 아래 가드가 첫 탭으로 돌린다
+  useEffect(() => { if (!pendingTab) return; const id = setTimeout(() => setPendingTab(p => (p === pendingTab ? null : p)), 5000); return () => clearTimeout(id); }, [pendingTab]);
   useEffect(() => {
     if (pendingTab) {
       if (tabs.find(t => t.key === pendingTab)) {
