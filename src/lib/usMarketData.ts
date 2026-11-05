@@ -237,6 +237,8 @@ export const US_PAIRS: Pair[] = [
   { symbol: "490470.KS", name: "세미파이브", desc: "맞춤 칩 설계 플랫폼·삼성 파운드리 디자인하우스", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "045970.KS", name: "코아시아", desc: "삼성 파운드리 디자인하우스", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "117670.KS", name: "알파칩스", desc: "디자인하우스(옛 알파홀딩스)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "005935.KS", name: "삼성전자우", desc: "삼성전자 우선주", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "402340.KS", name: "SK스퀘어", desc: "SK하이닉스 최대주주(지주) — 하이닉스 주가를 따라간다", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "009830.KS", name: "한화솔루션", desc: "태양광(큐셀)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "112610.KS", name: "씨에스윈드", desc: "풍력 타워", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "336260.KS", name: "두산퓨얼셀", desc: "연료전지", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
@@ -247,6 +249,9 @@ export const US_PAIRS: Pair[] = [
   { symbol: "AVGO",     name: "브로드컴",     desc: "Broadcom — AI 네트워킹·커스텀 실리콘(ASIC). NVDA 다음 AI 핵심", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ORCL",     name: "오라클",       desc: "Oracle — 클라우드(OCI)·AI 캐펙스 수혜", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "INTC",     name: "인텔",         desc: "Intel — CPU·파운드리. 미국 반도체 심리 게이지", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "GFS",      name: "글로벌파운드리스", desc: "GlobalFoundries — 미국 파운드리(성숙 공정·차량·통신). DB하이텍과 같은 결", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "UMC",      name: "UMC(ADR)",     desc: "UMC — 대만 2위 파운드리(성숙 공정)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "SNPS",     name: "시놉시스",     desc: "Synopsys — 반도체 설계 도구(EDA)·설계 IP 1위", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "QCOM",     name: "퀄컴",         desc: "Qualcomm — 모바일 AP(스냅드래곤)·모뎀 팹리스. 스마트폰 수요·온디바이스 AI 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "TSM",      name: "TSMC(ADR)",   desc: "TSMC ADR(뉴욕 상장) — 세계 최대 파운드리(NVDA·AMD·애플 칩 위탁생산). 반도체 전방수요·삼성 파운드리 경쟁 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
   // 일본 반도체 — 한국과 같은 시간에 열리는 도쿄 본주(야후). 한국 반도체와 당일 상관 0.5~0.69.
