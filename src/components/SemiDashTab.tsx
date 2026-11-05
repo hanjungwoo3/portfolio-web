@@ -876,8 +876,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                       return (
                         <g key={i}>
                           {/* 매수 = 빨강(위) · 매도 = 파랑(아래) 그대로 — 순은 머리 줄 숫자로(사용자 2026-11-05) */}
-                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM - hb} height={hb} fill="#f43f5e" opacity={0.8} />
-                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM} height={hs} fill="#3b82f6" opacity={0.8} />
+                          {/* 그 분에 더 큰 쪽만 진하게, 작은 쪽은 연하게 — 증시 탭 투자자 막대와 같은 규칙(사용자 2026-11-05) */}
+                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM - hb} height={hb} fill="#e11d48" opacity={x.b >= x.s ? 0.9 : 0.28} />
+                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM} height={hs} fill="#2563eb" opacity={x.s > x.b ? 0.9 : 0.28} />
                         </g>
                       );
                     })}
@@ -899,7 +900,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
         </div>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-0 text-[10.5px] text-gray-500 mt-0.5 [&>span]:whitespace-nowrap">
-        <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />아래 띠: 1분 매수(빨강 위)·매도(파랑 아래)</span>
+        <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />아래 띠: 1분 매수(빨강 위)·매도(파랑 아래) — 큰 쪽만 진하게</span>
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
         {kospi && kospi.length > 1 && <span><i className="inline-block w-2 h-2 bg-rose-100 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-100 mr-0.5" />배경 코스피</span>}
         <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />누적(켠 뒤, 축 따로)</span>
