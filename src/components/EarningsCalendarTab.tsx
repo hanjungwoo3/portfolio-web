@@ -4,8 +4,6 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEarningsCalendar, krImpactOf, type EarningsEvent } from "../lib/earnings";
 import { fetchDartDayPreferServer } from "../lib/dartDisclosures";
-import { fetchTossPrices, fetchTossUsPricesBySymbol } from "../lib/api";
-import { QuoteCard } from "./QuoteCard";
 import { US_PAIRS } from "../lib/usMarketData";
 import { openExternal } from "../lib/toss";
 import { openGoogleAi, aiNowStamp } from "../lib/googleAi";
@@ -38,9 +36,6 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
   const [country, setCountry] = useState<"all" | "US" | "KR">("all");
   const [mineOnly, setMineOnly] = useState(false);
   const [impactOnly, setImpactOnly] = useState(false);   // 🇰🇷 한국 증시 영향 큰 것만
-  // 카드 보기(기본) — 최신공시처럼 종목마다 시세 카드(사용자 2026-11-05 "실적 일정도 종목 카드 넣자"). 목록 보기 = 예전 한 줄
-  const [cardView, setCardViewRaw] = useState<boolean>(() => { try { return localStorage.getItem("earnings_card_view") !== "0"; } catch { return true; } });
-  const setCardView = (v: boolean) => { setCardViewRaw(v); try { localStorage.setItem("earnings_card_view", v ? "1" : "0"); } catch { /* 이번만 */ } };
   const today = kstToday();
   // 이번 주 월요일(한국). 토·일엔 지난 주가 다 끝났으니 다음 주 월요일부터
   const dow = dowOf(today);
@@ -103,17 +98,6 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
     return m;
   }, [q.data, country, mineOnly, impactOnly, mine]);
 
-  // 카드 시세 — 보이는 종목만 국내·미국 각각 한 번에(토스, 1분마다)
-  const shown = useMemo(() => [...byDay.values()].flat(), [byDay]);
-  const krCodes = useMemo(() => [...new Set(shown.filter(e => e.country === "KR").map(e => e.code))].sort().slice(0, 200), [shown]);
-  const usCodes = useMemo(() => [...new Set(shown.filter(e => e.country === "US").map(e => e.code))].sort().slice(0, 200), [shown]);
-  const krPx = useQuery({ queryKey: ["earn-kr-px", krCodes.join(",")], queryFn: () => fetchTossPrices(krCodes), enabled: cardView && krCodes.length > 0, refetchInterval: 60_000, staleTime: 30_000 });
-  const usPx = useQuery({ queryKey: ["earn-us-px", usCodes.join(",")], queryFn: () => fetchTossUsPricesBySymbol(usCodes), enabled: cardView && usCodes.length > 0, refetchInterval: 60_000, staleTime: 30_000 });
-  const pxOf = (e: EarningsEvent) => {
-    const t = (e.country === "KR" ? krPx.data : usPx.data)?.find(p => p.ticker === e.code);
-    return t && t.prevClose > 0 ? { price: t.price, pct: ((t.price - t.prevClose) / t.prevClose) * 100 } : undefined;
-  };
-
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 px-1">
@@ -135,12 +119,6 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
                             ${impactOnly ? "bg-rose-600 text-white border-rose-600" : "bg-white text-rose-700 border-rose-300 hover:bg-rose-50"}`}>
           🇰🇷 영향 큰 것만
         </button>
-        <span className="inline-flex rounded border border-gray-300 overflow-hidden text-[12px] font-bold">
-          {([[true, "카드"], [false, "목록"]] as const).map(([v, l]) => (
-            <button key={l} onClick={() => setCardView(v)}
-                    className={`px-2 py-0.5 ${cardView === v ? "bg-gray-900 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>{l}</button>
-          ))}
-        </span>
         <span className="text-[11px] text-gray-500">
           {q.isLoading ? "불러오는 중…" : q.isError ? "불러오기 실패 — 잠시 뒤 다시" : `${q.data?.length ?? 0}건`}
           {" · 한국 시간 · 미국 시총 400억달러↑ · 한국 시총 3조↑ · 내 관심종목"}
@@ -169,34 +147,11 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
                     </div>
                     {list.length === 0
                       ? <div className="text-[11px] text-gray-300">—</div>
-                      : <ul className={cardView ? "grid grid-cols-2 gap-x-1 gap-y-1.5" : "space-y-0.5"}>
+                      : <ul className="space-y-0.5">
                           {list.map(e => {
                             const my = mine.has(e.code);
                             const impact = krImpactOf(e);
                             const t = timeLabel(e);
-                            if (cardView) {
-                              const url = discUrl(e);
-                              const aiQ = () => `${aiNowStamp()} 기준. ${e.name}(${e.code}) ${e.kstDate} 실적 발표 — ① 결론 한 줄(어닝 서프라이즈·쇼크·부합) ② 매출·영업이익(미국은 매출·EPS)의 컨센서스 대비 한 줄 ③ 가이던스 한 줄 ④ 발표 뒤 주가 반응 한 줄.${url ? ` 공시: ${url}` : ""}`;
-                              return (
-                                <li key={`${e.country}:${e.code}`} className={`rounded-lg ${my ? "ring-2 ring-amber-400" : ""} ${impact ? "border-l-4 border-rose-500 pl-0.5" : ""}`}
-                                    title={`${e.name} (${e.code}) · ${d} ${t || "시각 미정"} (한국 시간)${impact ? `\n한국 영향: ${impact}` : ""}`}>
-                                  <div className="flex items-center gap-0.5 text-[9.5px] leading-tight px-0.5 mb-px min-w-0 overflow-hidden whitespace-nowrap">
-                                    <span className="shrink-0">{e.country === "US" ? "🇺🇸" : "🇰🇷"}</span>
-                                    {my && <span className="shrink-0 text-amber-600 font-bold">★</span>}
-                                    {impact && <span className="min-w-0 truncate px-0.5 rounded text-[8.5px] font-bold text-rose-700 bg-rose-50 border border-rose-200">{impact}</span>}
-                                    <span className="ml-auto shrink-0 flex items-center gap-1">
-                                      {url ? <a href={url} target="_blank" rel="noopener noreferrer" onClick={ev => { ev.preventDefault(); ev.stopPropagation(); openExternal(url); }}
-                                                className="font-bold text-emerald-700 hover:underline" title={e.country === "US" ? "발표함 — SEC 공시 목록" : "발표함 — DART 실적 공시 원문"}>✓공시</a>
-                                        : e.reported ? <span className="text-emerald-600" title="발표함">✓</span> : null}
-                                      {(url || e.reported) && <button onClick={ev => { ev.stopPropagation(); openGoogleAi(aiQ()); }} title="구글 AI에 이 실적 발표 요약 요청"
-                                                className="px-1 rounded border border-blue-300/70 bg-blue-50 text-blue-700 text-[9.5px] font-bold leading-[14px] hover:bg-blue-100">AI</button>}
-                                      {t && <span className={e.session === "post" ? "text-violet-600" : "text-gray-500"}>{t}</span>}
-                                    </span>
-                                  </div>
-                                  <QuoteCard code={e.code} name={e.name} px={pxOf(e)} className="w-full h-[70px]" />   {/* 두 장씩·낮게(사용자 2026-11-05 "카드가 너무 큰데") */}
-                                </li>
-                              );
-                            }
                             return (
                               <li key={`${e.country}:${e.code}`}
                                   className={`flex items-baseline gap-1 text-[12px] leading-tight rounded px-0.5 border-l-2 ${impact ? "border-rose-500 font-bold text-gray-900" : "border-transparent text-gray-600"} ${my ? "bg-yellow-100 font-bold" : ""}`}
