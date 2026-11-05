@@ -799,7 +799,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                 {/* 점은 선 끝 그대로, 글자는 쌓인 자리(endTop) — 프로그램 값도 선 끝에(사용자 2026-11-04 "프로그램도 가격 있지 않아?") */}
                 <span className="absolute w-2 h-2 rounded-full bg-violet-600 pointer-events-none" style={{ left: `${lx}%`, top: `${Math.max(2, Math.min(96, ly))}%`, transform: "translate(-50%, -50%)" }} />
                 <span className="absolute pointer-events-none text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap text-violet-700"
-                      style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(8px, -50%)" }}>프로그램(오늘) {netWord((prog?.[prog.length - 1]?.v ?? 0) * 1e8)}</span>
+                      style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(8px, -50%)" }}>프로그램 {netWord((prog?.[prog.length - 1]?.v ?? 0) * 1e8)}</span>
               </>);
             })()}
             {/* 가격 글자(사용자 2026-11-04 "가격 그래프에 금액") — 최고·최저는 그 높이 왼쪽에, 지금 가격은 선 끝에. svg 가 늘어나므로 HTML 로 */}
