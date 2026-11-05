@@ -13,6 +13,8 @@ import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { fetchKisCredit } from "../lib/kisCredit";
+import { copyNodeImage } from "../lib/copyImage";
+import { openGoogleAi, aiNowStamp } from "../lib/googleAi";
 import { isKisLinkOn } from "../lib/broker";
 import type { Investor } from "../types";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
@@ -74,9 +76,30 @@ const netWord = (won: number) => `${won >= 0 ? "순매수" : "순매도"} ${wonA
 const sideWord = (st: number) => (st >= 120 ? "매수 우위" : st <= 80 ? "매도 우위" : "팽팽");
 
 // stocks — 종목 칸. 기본 삼성전자·SK하이닉스. ⚡ 종목 체결 팝업은 같은 화면을 **한 종목**으로 띄운다(사용자 요청 2026-10-22)
+// 📷AI — 아래 수급 화면을 그림으로 클립보드에 복사하고 구글 AI 를 연다(붙여넣기 Cmd/Ctrl+V). 시험 단계(사용자 2026-11-05)
+function ShotAiButton({ target, prompt }: { target: React.RefObject<HTMLDivElement | null>; prompt: () => string }) {
+  const [msg, setMsg] = useState<string | null>(null);
+  return (
+    <span data-noshot className="ml-auto order-last inline-flex items-center gap-1.5 whitespace-nowrap">
+      {msg && <span className="text-[11px] text-gray-500">{msg}</span>}
+      <button type="button" title="아래 수급·옵션·신호·외국인 선물 화면을 그림으로 복사하고 구글 AI 를 엽니다 — 열린 창에서 Cmd+V(윈도우 Ctrl+V)로 붙여넣으세요"
+              onClick={() => {
+                const el = target.current; if (!el) return;
+                setMsg("그림 만드는 중…");
+                void copyNodeImage(el).then(r => {
+                  if (r.ok) { setMsg(`복사됨(${Math.round(r.bytes / 1024)}KB · ${(r.ms / 1000).toFixed(1)}초) — AI 창에서 붙여넣기`); openGoogleAi(prompt()); }
+                  else setMsg(`복사 실패: ${r.reason}`);
+                });
+              }}
+              className="px-1.5 rounded border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 text-[11px] font-bold leading-[20px]">📷 AI</button>
+    </span>
+  );
+}
+
 export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { code: string; name: string }[]; popup?: boolean } = {}) {
   const yahooSymbols = allYahooSymbols();
   const REFRESH_MS = useAdaptiveRefreshMs(5_000);
+  const shotRef = useRef<HTMLDivElement>(null);   // 📷 AI — 수급·옵션·신호·외국인 선물을 한 그림으로
   const { data: quotes } = useQuery({
     queryKey: ["yahoo-batch", yahooSymbols.length],   // 지수 탭과 같은 키 — 캐시 공유
     queryFn: () => fetchYahooBatch(yahooSymbols),
@@ -476,9 +499,12 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         ))}
       </div>
 
+      {/* 아래 수급·옵션·신호·외국인 선물을 한 그림으로 찍는 범위(AI 붙여넣기용) */}
+      <div ref={shotRef} className="flex flex-col gap-1.5">
       {/* 수급 칸 투자자 선택 — 증시 탭과 같은 체크박스(세 칸 공통) */}
       <div className="pg-card rounded-lg border border-gray-200 bg-white px-2 py-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 shrink-0">
         <span className="font-bold text-gray-700">수급</span>
+        <ShotAiButton target={shotRef} prompt={() => `${aiNowStamp()} 기준 한국 증시 수급 화면이다(첨부 그림 = 코스피·코스닥 현물, 코스피200 선물 투자자별 수급, 옵션, 외국인 선물 누적·미결제). 그림을 보고 ① 결론 한 줄 ② 외국인·기관·개인 흐름 ③ 선물·옵션이 말하는 방향 ④ 내일 볼 점을 짧게.${mktSummary ? ` 앱 요약: ${mktSummary.verdict} — ${mktSummary.text}` : ""}`} />
         {INTRADAY_SERIES.map(x => (
           <label key={x.key} className="inline-flex items-center gap-1 cursor-pointer select-none">
             <input type="checkbox" checked={flowKeys.includes(x.key)} onChange={() => toggleFlowKey(x.key)} className="w-3.5 h-3.5" style={{ accentColor: x.color }} />
@@ -509,6 +535,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
 
       {/* 외국인 K200 선물 — 누적 순매수·정리율·15분 변화 + 시장 미결제약정(사용자 2026-11-03) */}
       <ForeignFuturesPanel flow={ff} fut={fut} spotFlow={kf} price={futToday} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} />
+      </div>
 
     </div>
   );
