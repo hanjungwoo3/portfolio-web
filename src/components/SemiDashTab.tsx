@@ -842,7 +842,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
               return (
                 // 점 없이 네모, 바탕 = 선 색(주황) — 가격 글자와 같은 모양(사용자 2026-11-05)
                 <span className="absolute pointer-events-none text-[10.5px] font-bold bg-orange-500 text-white px-1 py-px rounded-sm whitespace-nowrap tabular-nums"
-                      style={{ left: `${lx}%`, top: `${endTop.cum ?? ly}%`, transform: "translate(6px, -50%)" }}>누적<EndNum won={cum[cum.length - 1]} /></span>
+                      style={{ left: `${lx}%`, top: `${endTop.cum ?? ly}%`, transform: "translate(6px, -50%)" }}>체결<EndNum won={cum[cum.length - 1]} /></span>
               );
             })()}
           </div>
@@ -907,7 +907,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
         <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />아래 띠: 1분 매수(빨강 위)·매도(파랑 아래) — 큰 쪽만 진하게</span>
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
         {kospi && kospi.length > 1 && <span><i className="inline-block w-2 h-2 bg-rose-100 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-100 mr-0.5" />배경 코스피</span>}
-        <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />누적(켠 뒤, 축 따로)</span>
+        <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />체결(켠 뒤 누적, 축 따로)</span>
         {prog && prog.length > 0 && <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-violet-600" />프로그램 누적(축 따로, 한투)</span>}
       </div>
     </div>
