@@ -45,11 +45,13 @@ export const netSellers = (rows: SeohakRow[]) => rows.filter(r => r.net < 0).sor
 /** '20261102' → '11/2' */
 export const mdOf = (d?: string) => d ? `${Number(d.slice(4, 6))}/${Number(d.slice(6, 8))}` : "";
 
-/** 달러 금액 — 억$ 로 통일(작은 값은 소수 둘째 자리) */
+/** 달러 금액 — 1억$ 이상은 억$, 그 밑은 $ 그대로 */
 export function fmtUsdKr(v: number, sign = false): string {
   const s = sign && v > 0 ? "+" : v < 0 ? "−" : "";
   const a = Math.abs(v) / 1e8;
-  return `${s}${a.toFixed(a >= 100 ? 0 : a >= 1 ? 1 : 2)}억$`;
+  // 1억$ 밑은 소수 억이 아니라 그냥 달러로 — "+0.07억$" → "+$7,123,456"(사용자 2026-11-05)
+  if (a < 1) return `${s}$${Math.round(Math.abs(v)).toLocaleString()}`;
+  return `${s}${a.toFixed(a >= 100 ? 0 : 1)}억$`;
 }
 
 export interface SeohakInfo {
