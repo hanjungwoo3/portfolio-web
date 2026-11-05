@@ -1,3 +1,4 @@
+import { isDirectApp } from "../lib/nativeProxy";
 import { useState, useEffect } from "react";
 import { useQueries } from "@tanstack/react-query";
 import { fetchTossNews, fetchTossNewsLink, type TossNewsItem, type TossNewsStock, type TossNewsCategory } from "../lib/api";
@@ -38,6 +39,12 @@ function ago(iso: string): string {
 
 // 클릭 → 상세에서 원문 URL 조회 후 팝업 창(넓게)으로 이동. 팝업 차단 방지 위해 빈 창 먼저 동기로 open.
 function openOriginal(newsId: string) {
+  // 앱(맥·윈도우·안드로이드) — 빈 창(about:blank)은 앱이 바깥 링크로 안 보고 그냥 막혀 '클릭이 안 됨'이었다(사용자 2026-11-05).
+  //   앱엔 팝업 차단이 없으니 원문 주소를 먼저 받고 그 주소로 연다 → 앱이 보기 창(데스크톱)·앱 안 브라우저(안드로이드)로 넘긴다
+  if (isDirectApp()) {
+    void fetchTossNewsLink(newsId).then(url => { if (url) window.open(url, "_blank"); }).catch(() => { /* 못 받으면 그대로 */ });
+    return;
+  }
   const w = Math.min(1440, Math.max(480, window.screen.width - 80)), h = 800;
   const left = Math.max(0, Math.round((window.screen.width - w) / 2));
   const top = Math.max(0, Math.round((window.screen.height - h) / 2));
