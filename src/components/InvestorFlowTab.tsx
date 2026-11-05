@@ -328,23 +328,26 @@ export function InvestorFlowTab({ onOpenValuation }: {
       const [kospi, kosdaq] = await Promise.all(
         MARKETS.map(m => fetchInvestorRankingsByMarket(m.key, period, trade, ROWS)),
       );
-      // 앱 + 한국투자 — 하루치·KRX 일 때 기관 칸을 한투 오늘 잠정으로(네이버 기관은 하루~이틀 늦다, 사용자 2026-11-05)
-      if (period === "DAY" && trade === "KRX" && isKisLinkOn()) {
-        const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
-        for (const [m, r] of [["KOSPI", kospi], ["KOSDAQ", kosdaq]] as const) {
-          if (r.groups[1]?.basedAt === today) continue;   // 네이버가 이미 오늘 값이면 그대로
-          try {
-            const k = await fetchKisOrgRanking(m);
-            if (k.buy.length || k.sell.length) r.groups[1] = { ...r.groups[1], basedAt: today, src: "한투", buy: k.buy, sell: k.sell };
-          } catch { /* 한투 실패 — 네이버 값 그대로 */ }
-        }
-      }
       return { kospi, kosdaq };
     },
     refetchInterval: 60 * 1000,
     staleTime: 30 * 1000,
     placeholderData: keepPreviousData,   // 기간을 바꿀 때 목록이 사라졌다 나타나지 않게
   });
+  // 앱 + 한국투자 — 하루치·KRX 일 때 기관 칸을 한투 오늘 잠정으로(네이버 기관은 하루~이틀 늦다, 사용자 2026-11-05).
+  //   네이버 목록을 먼저 보여 주고 이건 따로 받아 덮는다(한 쿼리에 묶으니 로딩이 길어졌다)
+  const kisOrgOn = period === "DAY" && trade === "KRX" && isKisLinkOn();
+  const { data: kisOrg } = useQuery({
+    queryKey: ["kis-org-rank"],
+    queryFn: async () => ({ KOSPI: await fetchKisOrgRanking("KOSPI").catch(() => null), KOSDAQ: await fetchKisOrgRanking("KOSDAQ").catch(() => null) }),
+    enabled: kisOrgOn, refetchInterval: 60_000, staleTime: 30_000,
+  });
+  const today8 = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
+  const orgOf = (m: "KOSPI" | "KOSDAQ", g: InvestorFlowGroup): InvestorFlowGroup => {
+    const k = kisOrgOn ? kisOrg?.[m] : null;
+    if (!g || !k || g.basedAt === today8 || !(k.buy.length || k.sell.length)) return g;   // 네이버가 이미 오늘이면 그대로
+    return { ...g, basedAt: today8, src: "한투", buy: k.buy, sell: k.sell };
+  };
 
   // 시장으로 먼저 묶고 그 아래에 외국인·기관을 나란히 둔다.
   //   실제로 보는 순서가 "코스피에서 외국인과 기관이 어떻게 갈렸나" 라서,
@@ -352,11 +355,11 @@ export function InvestorFlowTab({ onOpenValuation }: {
   const sections = res ? [
     { id: "kospi",  label: "코스피", cols: [
       { investor: "외국인", group: res.kospi.groups[0] },
-      { investor: "기관",   group: res.kospi.groups[1] },
+      { investor: "기관",   group: orgOf("KOSPI", res.kospi.groups[1]) },
     ] },
     { id: "kosdaq", label: "코스닥", cols: [
       { investor: "외국인", group: res.kosdaq.groups[0] },
-      { investor: "기관",   group: res.kosdaq.groups[1] },
+      { investor: "기관",   group: orgOf("KOSDAQ", res.kosdaq.groups[1]) },
     ] },
   ].filter(s => s.cols.every(c => !!c.group)) : [];
   const data = sections.flatMap(s => s.cols.map(c => c.group));
@@ -449,7 +452,7 @@ export function InvestorFlowTab({ onOpenValuation }: {
           <button onClick={() => void refetch()}
                   className="ml-2 px-2 py-0.5 rounded bg-gray-800 text-white text-xs">다시 시도</button>
         </div>
-      ) : isLoading && !data ? (
+      ) : isLoading && !res ? (   /* data 는 로딩 중에도 빈 배열이라 '데이터 없음'으로 갈렸다(사용자 2026-11-05 "로딩중 아냐?") */
         <div className="py-10 text-center text-sm text-gray-400">불러오는 중…</div>
       ) : !data || data.length === 0 ? (
         <div className="py-10 text-center text-sm text-gray-400">데이터가 없습니다.</div>
