@@ -23,14 +23,32 @@ export function useSectorTab(sections: DashboardSection[]): [string, (id: string
 }
 
 // 업종 평균 — 국내 종목(.KS) 등락률 단순 평균, 흐린 종목(장 안 열림)은 빼고(다 흐리면 전부). 탭 아래 작게(사용자 2026-11-03)
-export interface SectorStat { avg: number; up: number; down: number }
-export function sectorAvg(s: DashboardSection, pctOf: (sym: string) => number | null, dimOf?: (sym: string) => boolean): SectorStat | null {
+//   aft = 정규장 마감 뒤(NXT 애프터) 등락률 평균 — 정규장 종가 대비 지금 값(사용자 2026-11-05 "정규장 이후 등락율 평균도"). 애프터 값 있는 종목만
+export interface SectorStat { avg: number; up: number; down: number; aft?: number; aftN?: number }
+export function sectorAvg(s: DashboardSection, pctOf: (sym: string) => number | null, dimOf?: (sym: string) => boolean, afterOf?: (sym: string) => { reg: number; aft: number } | null): SectorStat | null {
   const kr = s.rows.flat().filter(x => /\.KS$/.test(x));
   const live = kr.filter(x => !dimOf?.(x));
   const ps = (live.length ? live : kr).map(pctOf).filter((v): v is number => v != null && Number.isFinite(v));
   if (!ps.length) return null;
   // ▲▼ 종목 수도 같이(사용자 2026-11-03 "+- 개수도 탭에")
+  // 정규장 마감 뒤 — 평균은 정규장 등락률로, 애프터는 따로(사용자 2026-11-05 "정규장%(애프터%) 이렇게")
+  const ra = afterOf ? kr.map(afterOf).filter((v): v is { reg: number; aft: number } => !!v && Number.isFinite(v.reg) && Number.isFinite(v.aft)) : [];
+  if (ra.length) {
+    const rp = ra.map(v => v.reg);
+    return { avg: rp.reduce((a, v) => a + v, 0) / rp.length, up: rp.filter(v => v > 0).length, down: rp.filter(v => v < 0).length,
+      aft: ra.reduce((a, v) => a + v.aft, 0) / ra.length, aftN: ra.length };
+  }
   return { avg: ps.reduce((a, v) => a + v, 0) / ps.length, up: ps.filter(v => v > 0).length, down: ps.filter(v => v < 0).length };
+}
+
+/** 애프터 꼬리표 — 카드 오른쪽 위 배지와 같은 꼴(정규장 종가 대비 지금, 사용자 2026-11-05) */
+export function AftPill({ v, n }: { v: number; n?: number }) {
+  return (
+    <span className={`tabular-nums ml-1 font-bold text-white px-1 rounded ${v > 0 ? "bg-rose-600/60" : v < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`}
+          title={`정규장 마감 뒤(NXT 애프터) 등락률 평균 — 정규장 종가 대비 지금 값${n ? `, ${n}종목` : ""}`}>
+      {v > 0 ? "+" : v < 0 ? "−" : ""}{Math.abs(v).toFixed(2)}%
+    </span>
+  );
 }
 
 export function SectorTabBar({ sections, active, onChange, trailing, compact, avgOf, vertical }: {
@@ -55,7 +73,7 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
                   className={`shrink-0 inline-flex flex-col ${vertical ? "items-center text-center w-full px-1.5 py-1" : "items-center"} leading-tight rounded-xl border ${vertical ? "text-[13px]" : compact ? "px-2 py-0.5 text-[12px]" : "px-3 py-1 text-sm"} font-bold transition
                               ${on ? "bg-indigo-50 text-indigo-900 border-indigo-600 ring-2 ring-indigo-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>
             <span className="inline-flex items-center gap-1"><span>{emoji}</span>{s.short}</span>
-            {avg != null && <span className={`tabular-nums ${vertical ? "text-[12px]" : compact ? "text-[10px]" : "text-[11px]"} ${tone}`}>{avg > 0 ? "+" : ""}{avg.toFixed(2)}%</span>}
+            {avg != null && <span className={`tabular-nums whitespace-nowrap ${vertical ? "text-[12px]" : compact ? "text-[10px]" : "text-[11px]"} ${tone}`}>{avg > 0 ? "+" : ""}{avg.toFixed(2)}%{st?.aft != null && <AftPill v={st.aft} n={st.aftN} />}</span>}
             {st && <span className={`tabular-nums font-normal whitespace-nowrap ${vertical ? "text-[11px]" : compact ? "text-[9.5px]" : "text-[10px]"} text-gray-500`}>
               {vertical   /* 세로 탭은 폭이 넉넉해 글자로(사용자 2026-11-03 "상승·하락 글자도") */
                 ? <><span className="text-rose-600">상승 {st.up}</span> · <span className="text-blue-600">하락 {st.down}</span></>

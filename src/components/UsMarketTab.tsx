@@ -707,7 +707,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             {/* 좁은 화면은 가로 탭, 넓은 화면(lg)은 아래 왼쪽 세로 탭(사용자 2026-11-03 "탭을 왼쪽에") — 여기엔 차트 기간만 */}
             <div className="lg:hidden">
               <SectorTabBar sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab} trailing={<ChartRangeToggle />}
-                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
+                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, sym => { const q = usMap.get(sym); const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined; return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : null; })} />
             </div>
           </div>
         : <GroupNavBar items={navItems} idPrefix="usidx-"
@@ -720,7 +720,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
         <aside className="hidden lg:flex lg:flex-col lg:gap-2 sticky shrink-0 w-[116px]" style={{ top: navStickyTop + 8 }}>   {/* 위 빈 줄 없이 — 차트 기간 단추도 왼쪽 줄 맨 위(사용자 2026-11-03) */}
           <ChartRangeToggle small />
           <SectorTabBar vertical sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab}
-                        avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
+                        avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, sym => { const q = usMap.get(sym); const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined; return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : null; })} />
         </aside>
       )}
       <div className={`space-y-4 ${page === "sobu" ? "lg:flex-1 lg:min-w-0" : ""}`}>

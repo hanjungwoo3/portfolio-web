@@ -2273,7 +2273,7 @@ export function MobileSimpleView() {
           <div className="px-3 py-2 space-y-3">
             {isSectorPage
               ? <SectorTabBar sections={sectorTabsOf(pageSecs)} active={sectorTabM} onChange={setSectorTabM} compact
-                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf)} />
+                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, sym => { const q = usMap.get(sym); const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined; return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : null; })} />
               : <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
                              stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />}
             <KisExpRankBox compact />
