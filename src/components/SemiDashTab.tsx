@@ -797,9 +797,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
               void lp; void dy;
               return (<>
                 {/* 점은 선 끝 그대로, 글자는 쌓인 자리(endTop) — 프로그램 값도 선 끝에(사용자 2026-11-04 "프로그램도 가격 있지 않아?") */}
-                <span className="absolute w-2 h-2 rounded-full bg-violet-600 pointer-events-none" style={{ left: `${lx}%`, top: `${Math.max(2, Math.min(96, ly))}%`, transform: "translate(-50%, -50%)" }} />
-                <span className="absolute pointer-events-none text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap text-violet-700"
-                      style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(8px, -50%)" }}>프로그램 {netWord((prog?.[prog.length - 1]?.v ?? 0) * 1e8)}</span>
+                {/* 동그라미 점은 뺐다(사용자 2026-11-05 "포인트 위치가 이상해") — 가격 글자처럼 네모, 바탕은 선 색(보라) */}
+                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-violet-600 text-white px-1 rounded-sm whitespace-nowrap tabular-nums"
+                      style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(6px, -50%)" }}>프로그램 {netWord((prog?.[prog.length - 1]?.v ?? 0) * 1e8)}</span>
               </>);
             })()}
             {/* 가격 글자(사용자 2026-11-04 "가격 그래프에 금액") — 최고·최저는 그 높이 왼쪽에, 지금 가격은 선 끝에. svg 가 늘어나므로 HTML 로 */}
@@ -835,11 +835,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
               const lpC = prices.length ? Math.max(6, Math.min(90, ((PAD + (1 - (prices[prices.length - 1] - pMin) / pR) * (H - PAD * 2)) / H) * 100)) : -99;
               const ly = Math.abs(Math.max(4, Math.min(92, ly0)) - lpC) < 9 ? (lpC >= 50 ? lpC - 11 : lpC + 11) : ly0;
               return (
-                <div className="absolute pointer-events-none flex items-center gap-1" style={{ left: `${lx}%`, top: `${endTop.cum ?? ly}%`, transform: "translateY(-50%)" }}>
-                  {/* 글자 색 = 선과 같은 주황(사용자 2026-11-04 "그래프처럼 오렌지색으로") — 방향은 '순매수/순매도' 글자로 */}
-                  <span className="w-2 h-2 rounded-full bg-orange-600 shrink-0" style={{ marginLeft: -4 }} />
-                  <span className="text-[11px] font-bold bg-white/80 px-0.5 rounded whitespace-nowrap text-orange-600">누적 {netWord(cum[cum.length - 1])}</span>
-                </div>
+                // 점 없이 네모, 바탕 = 선 색(주황) — 가격 글자와 같은 모양(사용자 2026-11-05)
+                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-orange-500 text-white px-1 rounded-sm whitespace-nowrap tabular-nums"
+                      style={{ left: `${lx}%`, top: `${endTop.cum ?? ly}%`, transform: "translate(6px, -50%)" }}>누적 {netWord(cum[cum.length - 1])}</span>
               );
             })()}
           </div>
