@@ -23,27 +23,27 @@ export const loadFrgnTape = () => load<FrgnPt>(FR_KEY);
 
 // ── 반도체 프로그램 매매(한국투자 종목별 프로그램매매추이 FHPPG04650101 — 실측 2026-11-03 실전 키) ──
 //   삼성전자·SK하이닉스 프로그램 누적 순매수(원 → 억원)를 1분마다. 응답이 최근 30건(체결 시각별)이라 처음엔 그걸로 앞을 메운다.
-export interface ProgPt { t: string; v: number }   // v = 누적 순매수 억원
+export interface ProgPt { t: string; v: number; b?: number; s?: number }   // v = 누적 순매수, b·s = 누적 매수·매도(억원, 사용자 2026-11-05 "매수/매도 같이")
 export const PROG_CODES = [["005930", "삼성전자"], ["000660", "SK하이닉스"]] as const;
 const progKey = (code: string) => `prog_kis_${code}`;
 export const loadProgTape = (code: string) => load<ProgPt>(progKey(code));
-interface ProgRow { bsop_hour?: string; whol_smtn_ntby_tr_pbmn?: string }
+interface ProgRow { bsop_hour?: string; whol_smtn_ntby_tr_pbmn?: string; whol_smtn_shnu_tr_pbmn?: string; whol_smtn_seln_tr_pbmn?: string }
 async function recordProgram(code: string): Promise<boolean> {
   const { body } = await kisGet<{ rt_cd?: string; output?: ProgRow[] }>(
     "/uapi/domestic-stock/v1/quotations/program-trade-by-stock", "FHPPG04650101", { FID_COND_MRKT_DIV_CODE: "UN", FID_INPUT_ISCD: code });   // UN = 통합(KRX+NXT) — 프리·애프터도(실측 2026-11-04 08:05 삼성 −137억)
   const rows = (body.output ?? []).filter(r => r.bsop_hour && r.whol_smtn_ntby_tr_pbmn != null);
   if (!rows.length) return false;
   // 시각 오름차순 → 분마다 마지막 값. 프리 08:00 ~ 애프터 20:00
-  const byMin = new Map<string, number>();
+  const byMin = new Map<string, ProgPt>();
   for (const r of [...rows].sort((a, b) => a.bsop_hour!.localeCompare(b.bsop_hour!))) {
     const h = r.bsop_hour!, t = `${h.slice(0, 2)}:${h.slice(2, 4)}`;
     if (t < "08:00" || t > "20:00") continue;
-    byMin.set(t, Number(r.whol_smtn_ntby_tr_pbmn) / 1e8);
+    byMin.set(t, { t, v: Number(r.whol_smtn_ntby_tr_pbmn) / 1e8, b: Number(r.whol_smtn_shnu_tr_pbmn) / 1e8 || undefined, s: Number(r.whol_smtn_seln_tr_pbmn) / 1e8 || undefined });
   }
   if (!byMin.size) return false;
-  const have = new Map(load<ProgPt>(progKey(code)).map(p => [p.t, p.v]));
-  for (const [t, v] of byMin) have.set(t, v);
-  const pts = [...have].sort((a, b) => a[0].localeCompare(b[0])).map(([t, v]) => ({ t, v }));
+  const have = new Map(load<ProgPt>(progKey(code)).map(p => [p.t, p]));
+  for (const [t, p] of byMin) have.set(t, p);
+  const pts = [...have].sort((a, b) => a[0].localeCompare(b[0])).map(([, p]) => p);
   try { localStorage.setItem(progKey(code), JSON.stringify({ date: kstDate(), pts })); } catch { /* 용량 */ }
   return true;
 }

@@ -607,7 +607,15 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
   const progLine = p0 == null ? [] : ms.map(m => { const v = progAt(m.t); return v == null ? null : (v - p0) * 1e8; });
   // 누적(주황)·프로그램(보라)은 **축 따로** — 프로그램이 수천억이라 같은 축이면 켠 뒤 누적(수백억)이 0선에 붙어 안 움직였다(사용자 2026-11-04)
   const mxCum = Math.max(1, ...cum.map(Math.abs));
-  const mxProg = Math.max(1, ...progLine.map(v => Math.abs(v ?? 0)));
+  // 프로그램 매수(위)·매도(아래) — 화면 시작 시각부터 늘어난 양(원). 순매수(보라)와 같은 축(사용자 2026-11-05 "매수/매도 같이")
+  const progBS = (k: "b" | "s") => {
+    if (!prog?.some(p => p[k] != null)) return [] as (number | null)[];
+    const at = (t: string) => { let v: number | null = null; for (const p of prog) { if (p.t <= t) v = p[k] ?? v; else break; } return v; };
+    const z = ms.length ? (at(ms[0].t) ?? prog.find(p => p[k] != null)?.[k] ?? null) : null;
+    return z == null ? [] : ms.map(m => { const v = at(m.t); return v == null ? null : (v - z) * 1e8; });
+  };
+  const progBuy = progBS("b"), progSell = progBS("s");
+  const mxProg = Math.max(1, ...progLine.map(v => Math.abs(v ?? 0)), ...progBuy.map(v => v ?? 0), ...progSell.map(v => v ?? 0));
   const prices = ms.map(m => m.close);
   // 가격 축은 최소 ±0.2% 폭 — 켠 직후 한 호가(0.1%)만 움직여도 위아래 끝까지 그어져 세로선처럼 보였다
   const pMid = (Math.min(...prices) + Math.max(...prices)) / 2;
@@ -650,7 +658,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
         <Stat label="5분" v={st5} />
         <Stat label="켠 뒤 전체" v={stAll} />
         <span className="ml-auto">5분 <b className={up(netAmt(ms, 5))}>{netWord(netAmt(ms, 5))}</b> · 켠 뒤 <b className={up(netAmt(ms))}>{netWord(netAmt(ms))}</b>
-          {(() => { const pl = prog?.[prog.length - 1]; return pl ? <> · <span className="text-violet-700">프로그램</span> <b className={up(pl.v)} title="오늘 프로그램 누적 순매수(한투) — 그래프의 보라 점선은 화면 시작 시각부터">{netWord(pl.v * 1e8)}</b></> : null; })()}
+          {(() => { const pl = prog?.[prog.length - 1]; return pl ? <> · <span className="text-violet-700">프로그램</span> <b className={up(pl.v)} title="오늘 프로그램 누적 순매수(한투) — 그래프의 보라 점선은 화면 시작 시각부터">{netWord(pl.v * 1e8)}</b>
+            {pl.b != null && pl.s != null && <span className="text-[10.5px] text-gray-500" title="오늘 프로그램 누적 매수·매도(한투)"> (매수 <b className="text-rose-600">{Math.round(pl.b).toLocaleString()}</b> · 매도 <b className="text-blue-600">{Math.round(pl.s).toLocaleString()}</b>억)</span>}</> : null; })()}
         </span>
       </div>
       {/* 오늘 하루 전체 — 토스 체결강도(장 시작부터 누적)로 역산. 켜기 전 구간까지 포함된 유일한 값 */}
@@ -710,6 +719,11 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
                     fill="none" stroke="#334155" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
               <path d={cum.map((c, i) => `${i ? "L" : "M"} ${xOf(i)} ${mid - (c / mxCum) * (mid - PAD)}`).join(" ")}
                     fill="none" stroke="#ea580c" strokeWidth={1.2} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
+              {/* 프로그램 매수(빨강, 0선 위)·매도(파랑, 0선 아래) — 화면 시작부터 쌓인 양 */}
+              {[[progBuy, 1, "#e11d48"], [progSell, -1, "#2563eb"]].map(([arr, sgn, col]) => (arr as (number | null)[]).some(v => v != null) && (
+                <path key={col as string} d={(arr as (number | null)[]).map((v, i) => v == null ? "" : `${(arr as (number | null)[]).slice(0, i).some(x => x != null) ? "L" : "M"} ${xOf(i)} ${mid - ((sgn as number) * v / mxProg) * (mid - PAD)}`).join(" ")}
+                      fill="none" stroke={col as string} strokeOpacity={0.6} strokeWidth={1} strokeDasharray="1 2" vectorEffect="non-scaling-stroke" />
+              ))}
               {progLine.some(v => v != null) && (
                 <path d={progLine.map((v, i) => v == null ? "" : `${progLine.slice(0, i).some(x => x != null) ? "L" : "M"} ${xOf(i)} ${mid - (v / mxProg) * (mid - PAD)}`).join(" ")}
                       fill="none" stroke="#7c3aed" strokeWidth={1.2} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
@@ -797,6 +811,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
         <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />누적(켠 뒤, 축 따로)</span>
         {prog && prog.length > 0 && <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-violet-600" />프로그램 누적(축 따로, 한투)</span>}
+        {prog?.some(p => p.b != null) && <span><i className="inline-block w-4 mr-0.5 align-middle border-t border-dotted border-rose-500" /><i className="inline-block w-4 mr-0.5 align-middle border-t border-dotted border-blue-500" />프로그램 매수(위)·매도(아래)</span>}
       </div>
     </div>
   );
