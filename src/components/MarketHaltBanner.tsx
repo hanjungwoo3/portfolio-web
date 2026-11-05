@@ -88,7 +88,7 @@ export function MarketHaltBanner() {
   return (
     <div className="fixed top-1 left-1/2 -translate-x-1/2 z-[3000] flex flex-col gap-1 w-[min(640px,96vw)]">
       {show.map(a => (
-        <div key={a.key} className={`flex items-start gap-2 rounded-lg shadow-xl px-3 py-2 text-white ${a.level === "cb" ? "bg-red-700" : a.down ? "bg-blue-700" : "bg-rose-600"} animate-pulse`}>
+        <div key={a.key} className={`flex items-start gap-2 rounded-lg shadow-xl px-3 py-2 text-white ${a.level === "cb" ? "bg-red-800" : "bg-red-600"} animate-pulse`}>
           <span className="text-lg leading-none">⚠️</span>
           <div className="min-w-0 flex-1">
             <div className="font-black text-[14px]">{a.text}</div>
