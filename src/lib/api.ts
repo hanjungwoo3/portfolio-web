@@ -5891,6 +5891,7 @@ export interface InvestorFlowGroup {
   key: "foreigner" | "institution" | "individual";
   type: string;        // 외국인 / 기관 / 개인
   basedAt: string;     // ISO (UTC)
+  src?: "한투";         // 한투 오늘 잠정(가집계)으로 바꿔 넣은 칸(앱 전용)
   buy: InvestorFlowRow[];
   sell: InvestorFlowRow[];
 }

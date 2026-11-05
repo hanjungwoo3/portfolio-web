@@ -11,6 +11,8 @@
 //    실측(2026-09-11 코스피 기관): 전체 −12,184억 vs 상위 100 합 −18,064억.
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useQuery, keepPreviousData } from "@tanstack/react-query";
+import { isKisLinkOn } from "../lib/broker";
+import { fetchKisOrgRanking } from "../lib/kisInvestorRank";
 import {
   fetchInvestorRankingsByMarket, FLOW_RANK_MAX, fetchInvestorHistorySafe,
   type InvestorFlowGroup, type InvestorFlowRow, type FlowRankMarket, type FlowRankPeriod,
@@ -246,6 +248,11 @@ function FlowColumn({ group, investor, selected, onSelect, bothBuy, bothSell, on
         {group.basedAt && (
           <span className="text-[10px] tabular-nums text-gray-400">{ymd(group.basedAt)}</span>
         )}
+        {group.src === "한투" && (
+          <span className="text-[10px] text-emerald-700" title="네이버 기관 순위는 하루~이틀 늦어, 앱에선 한국투자 오늘 잠정치(증권사 장중 집계)로 바꿔 보여 줍니다. 다음 날 확정치와 조금 다를 수 있고, 시장·방향마다 30종목까지입니다.">
+            한투 잠정
+          </span>
+        )}
         {group.buy.some(r => r.estimated) && (
           <span className="text-[10px] text-amber-600"
                 title="장중에는 네이버가 금액을 안 줘서 순매수 수량 × 현재가로 어림합니다. 목록에 담을 100종목은 서버가 수량 기준으로 고릅니다.">
@@ -321,6 +328,17 @@ export function InvestorFlowTab({ onOpenValuation }: {
       const [kospi, kosdaq] = await Promise.all(
         MARKETS.map(m => fetchInvestorRankingsByMarket(m.key, period, trade, ROWS)),
       );
+      // 앱 + 한국투자 — 하루치·KRX 일 때 기관 칸을 한투 오늘 잠정으로(네이버 기관은 하루~이틀 늦다, 사용자 2026-11-05)
+      if (period === "DAY" && trade === "KRX" && isKisLinkOn()) {
+        const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10).replace(/-/g, "");
+        for (const [m, r] of [["KOSPI", kospi], ["KOSDAQ", kosdaq]] as const) {
+          if (r.groups[1]?.basedAt === today) continue;   // 네이버가 이미 오늘 값이면 그대로
+          try {
+            const k = await fetchKisOrgRanking(m);
+            if (k.buy.length || k.sell.length) r.groups[1] = { ...r.groups[1], basedAt: today, src: "한투", buy: k.buy, sell: k.sell };
+          } catch { /* 한투 실패 — 네이버 값 그대로 */ }
+        }
+      }
       return { kospi, kosdaq };
     },
     refetchInterval: 60 * 1000,
