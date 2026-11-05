@@ -815,13 +815,13 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
                     <line x1={0} x2={W} y1={SM} y2={SM} stroke="#e5e7eb" vectorEffect="non-scaling-stroke" />
                     {st.rows.map((x, i) => {
                       if (!x) return null;
-                      const hb = (x.b / mx) * (SM - 1), hs = (x.s / mx) * (SM - 1), n = x.b - x.s, hn = (Math.abs(n) / mx) * (SM - 1);
+                      const hb = (x.b / mx) * (SM - 1), hs = (x.s / mx) * (SM - 1), n = x.b - x.s;
                       return (
                         <g key={i}>
                           <title>{`${ms[i].t} ${st.label} 매수 ${(x.b / 1e8).toFixed(1)}억 · 매도 ${(x.s / 1e8).toFixed(1)}억 · ${netWord(n)}`}</title>
-                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM - hb} height={hb} fill="#fda4af" opacity={0.45} />
-                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM} height={hs} fill="#93c5fd" opacity={0.45} />
-                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={n >= 0 ? SM - hn : SM} height={Math.max(0.5, hn)} fill={n >= 0 ? st.col : st.colDn} opacity={0.9} />
+                          {/* 매수 = 빨강(위) · 매도 = 파랑(아래) 그대로 — 순은 머리 줄 숫자로(사용자 2026-11-05) */}
+                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM - hb} height={hb} fill="#f43f5e" opacity={0.8} />
+                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM} height={hs} fill="#3b82f6" opacity={0.8} />
                         </g>
                       );
                     })}
@@ -843,7 +843,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
         </div>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-0 text-[10.5px] text-gray-500 mt-0.5 [&>span]:whitespace-nowrap">
-        <span><i className="inline-block w-2 h-2 bg-rose-200 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-200 mr-0.5" />아래 띠: 1분 매수·매도(연하게)·순(진하게)</span>
+        <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />아래 띠: 1분 매수(빨강 위)·매도(파랑 아래)</span>
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
         <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />누적(켠 뒤, 축 따로)</span>
         {prog && prog.length > 0 && <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-violet-600" />프로그램 누적(축 따로, 한투)</span>}
