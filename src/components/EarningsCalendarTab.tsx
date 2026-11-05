@@ -169,7 +169,7 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
                     </div>
                     {list.length === 0
                       ? <div className="text-[11px] text-gray-300">—</div>
-                      : <ul className={cardView ? "space-y-2" : "space-y-0.5"}>
+                      : <ul className={cardView ? "grid grid-cols-2 gap-x-1 gap-y-1.5" : "space-y-0.5"}>
                           {list.map(e => {
                             const my = mine.has(e.code);
                             const impact = krImpactOf(e);
@@ -180,10 +180,10 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
                               return (
                                 <li key={`${e.country}:${e.code}`} className={`rounded-lg ${my ? "ring-2 ring-amber-400" : ""} ${impact ? "border-l-4 border-rose-500 pl-0.5" : ""}`}
                                     title={`${e.name} (${e.code}) · ${d} ${t || "시각 미정"} (한국 시간)${impact ? `\n한국 영향: ${impact}` : ""}`}>
-                                  <div className="flex items-center gap-1 text-[10.5px] leading-tight px-0.5 mb-0.5 min-w-0">
+                                  <div className="flex items-center gap-0.5 text-[9.5px] leading-tight px-0.5 mb-px min-w-0 overflow-hidden whitespace-nowrap">
                                     <span className="shrink-0">{e.country === "US" ? "🇺🇸" : "🇰🇷"}</span>
-                                    {my && <span className="shrink-0 text-amber-600 font-bold">★ 내 종목</span>}
-                                    {impact && <span className="shrink-0 px-1 rounded text-[9px] font-bold text-rose-700 bg-rose-50 border border-rose-200">{impact}</span>}
+                                    {my && <span className="shrink-0 text-amber-600 font-bold">★</span>}
+                                    {impact && <span className="min-w-0 truncate px-0.5 rounded text-[8.5px] font-bold text-rose-700 bg-rose-50 border border-rose-200">{impact}</span>}
                                     <span className="ml-auto shrink-0 flex items-center gap-1">
                                       {url ? <a href={url} target="_blank" rel="noopener noreferrer" onClick={ev => { ev.preventDefault(); ev.stopPropagation(); openExternal(url); }}
                                                 className="font-bold text-emerald-700 hover:underline" title={e.country === "US" ? "발표함 — SEC 공시 목록" : "발표함 — DART 실적 공시 원문"}>✓공시</a>
@@ -193,7 +193,7 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
                                       {t && <span className={e.session === "post" ? "text-violet-600" : "text-gray-500"}>{t}</span>}
                                     </span>
                                   </div>
-                                  <QuoteCard code={e.code} name={e.name} px={pxOf(e)} className="w-full h-[84px]" />
+                                  <QuoteCard code={e.code} name={e.name} px={pxOf(e)} className="w-full h-[70px]" />   {/* 두 장씩·낮게(사용자 2026-11-05 "카드가 너무 큰데") */}
                                 </li>
                               );
                             }
