@@ -56,11 +56,19 @@ const AX_L = 38, AX_R = 38;   // 수급 칸 왼쪽(순매수)·오른쪽(지수)
 const eok = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v).toLocaleString()}`;
 // 순매수 금액을 말로 — "순매수 −29억" 을 매수로 읽는 일이 있어(사용자 혼동 2026-10-21) 음수면 '순매도'로 쓴다
 // 선 끝 꼬리표 숫자 — "누적 -213억"(매도 파랑·매수 빨강, 사용자 2026-11-05). 주황·보라 바탕 위라 숫자만 흰 칸에
-const EndNum = ({ won }: { won: number }) => {
-  const e = Math.round(won / 1e8);
-  return <span className={`ml-1 px-0.5 rounded-[2px] bg-white ${e > 0 ? "text-rose-600" : e < 0 ? "text-blue-600" : "text-gray-600"}`}>{e > 0 ? "+" : ""}{e.toLocaleString()}억</span>;
+// 금액 글자 — 1억 이상은 억(10억 밑은 소수 한 자리), 1억 미만은 만원·원(사용자 2026-11-05 "1억 미만은 원으로" — 작은 종목이 '-0억'으로 보였다)
+const wonAmt = (v: number) => {
+  const a = Math.abs(v);
+  if (a >= 1e8) return `${(a < 1e9 ? Math.round(a / 1e7) / 10 : Math.round(a / 1e8)).toLocaleString()}억`;
+  if (a >= 1e4) return `${Math.round(a / 1e4).toLocaleString()}만원`;
+  return `${Math.round(a).toLocaleString()}원`;
 };
-const netWord = (won: number) => `${won >= 0 ? "순매수" : "순매도"} ${Math.abs(Math.round(won / 1e8)).toLocaleString()}억`;
+const wonSigned = (v: number) => `${Math.round(v) > 0 ? "+" : Math.round(v) < 0 ? "-" : ""}${wonAmt(v)}`;
+const EndNum = ({ won }: { won: number }) => {
+  const e = Math.round(won);
+  return <span className={`ml-1 px-0.5 rounded-[2px] bg-white ${e > 0 ? "text-rose-600" : e < 0 ? "text-blue-600" : "text-gray-600"}`}>{wonSigned(won)}</span>;
+};
+const netWord = (won: number) => `${won >= 0 ? "순매수" : "순매도"} ${wonAmt(won)}`;
 const sideWord = (st: number) => (st >= 120 ? "매수 우위" : st <= 80 ? "매도 우위" : "팽팽");
 
 // stocks — 종목 칸. 기본 삼성전자·SK하이닉스. ⚡ 종목 체결 팝업은 같은 화면을 **한 종목**으로 띄운다(사용자 요청 2026-10-22)
@@ -874,8 +882,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                     {/* 띠 합계 = 막대가 있는 구간만(언제부터인지 같이) — 위 '프로그램(오늘)'은 장 시작부터라 다를 수 있다(사용자 2026-11-05) */}
                     <div className="text-[10.5px] font-bold" style={{ color: st.k === "prog" ? "#6d28d9" : "#374151" }}>{st.label} <span className="font-normal text-gray-400">{hi >= 0 ? (hx ? `${ms[hi].t} 1분` : `${ms[hi].t} 기록 없음`) : ""}</span></div>
                     {/* "-208억" 처럼 부호로(사용자 2026-11-05) — 1분 값은 작아서 10억 밑이면 소수 한 자리 */}
-                    <div className={`text-[11px] font-bold ${up(tb - ts)}`}>{(() => { const e = (tb - ts) / 1e8, r = hx && Math.abs(e) < 10 ? Math.round(e * 10) / 10 : Math.round(e); return `${r > 0 ? "+" : ""}${r.toLocaleString()}억`; })()}</div>
-                    <div className="text-[10px] text-gray-500"><span className="text-rose-500">+{(tb / 1e8).toLocaleString(undefined, { maximumFractionDigits: hx ? 1 : 0 })}</span> <span className="text-blue-500">−{(ts / 1e8).toLocaleString(undefined, { maximumFractionDigits: hx ? 1 : 0 })}억</span></div>
+                    <div className={`text-[11px] font-bold ${up(tb - ts)}`}>{wonSigned(tb - ts)}</div>
+                    <div className="text-[10px] text-gray-500"><span className="text-rose-500">+{wonAmt(tb)}</span> <span className="text-blue-500">−{wonAmt(ts)}</span></div>
                   </div>
                   <svg viewBox={`0 0 ${W} ${SH}`} preserveAspectRatio="none" className="w-full mt-[3px]" style={{ height: SH }}>
                     <line x1={0} x2={W} y1={SM} y2={SM} stroke="#e5e7eb" vectorEffect="non-scaling-stroke" />
