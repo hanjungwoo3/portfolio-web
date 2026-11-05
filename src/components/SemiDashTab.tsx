@@ -373,7 +373,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         <ValueupStrip code={s0.code} />
         {kisFutAvailable() && <KisViStrip code={s0.code} />}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[360px]">   {/* 체결 · 신호 반반(사용자 요청) */}
-          <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} prog={progOf(s0.code)} inv={invOf(0)} price={sq(s0.code)?.price} />
+          <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} prog={progOf(s0.code)} inv={invOf(0)} price={sq(s0.code)?.price} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} />
           {signalBox}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[430px] shrink-0">
@@ -420,7 +420,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {stocks.map((s, i) => (
           <div key={s.code} className="flex flex-col gap-1.5 min-w-0">
             <div className="h-[440px] lg:h-[470px] grid min-h-0">   {/* + 아래 1분 띠 둘(체결·프로그램) */}
-              <TickPanel name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} link={tickLink} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
+              <TickPanel name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} link={tickLink} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
             </div>
             {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "max-h-[150px]")}   {/* 내용만큼 — 신호가 한두 줄이면 빈 칸이 컸다(사용자 2026-11-04) */}
           </div>
@@ -537,7 +537,7 @@ interface TickLink { vis: number | null; setVis: React.Dispatch<React.SetStateAc
 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
 //   onTitle — 제목을 누르면 ⚡ 종목 체결 팝업(같은 화면을 이 종목 하나로)
-function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[]; inv?: Investor; price?: number; link?: TickLink }) {   // inv = 오늘 투자자 잠정치(토스)   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
+function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kospi, kospiBase }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[]; inv?: Investor; price?: number; link?: TickLink; kospi?: { t: string; v: number }[]; kospiBase?: number }) {   // kospi = 배경 코스피 1분   // inv = 오늘 투자자 잠정치(토스)   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
   // 최근 1시간만 한 화면 폭에, 그 전은 왼쪽으로 스크롤(사용자 2026-11-04 "1시간으로, 지난 건 스크롤로") — 오늘 켠 뒤 전부 그린다
   const ms = flow.minutes;
   // 한 화면 분 수 — 기본 1시간, 마우스 휠로 확대(10분까지)·축소(켠 뒤 전부까지)(사용자 2026-11-04 "휠로 확대 축소")
@@ -719,6 +719,28 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
             <div className="relative flex-1 min-h-0">
             {ms.length < 5 && <div className="absolute inset-x-0 bottom-1 text-center text-[11px] text-gray-400">켠 뒤 {ms.length}분째 — 10분쯤 지나면 흐름이 보입니다</div>}
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
+              {/* 배경 코스피 — 같은 분에 맞춰 연한 면(전일 종가 위 빨강·아래 파랑, 축 따로)(사용자 2026-11-05) */}
+              {(() => {
+                if (!kospi?.length) return null;
+                const km = new Map(kospi.map(p => [p.t.slice(0, 5), p.v]));
+                const pts = ms.map((m, i) => ({ i, v: km.get(m.t) })).filter((p): p is { i: number; v: number } => p.v != null && p.v > 0);
+                if (pts.length < 2) return null;
+                const vals = [...pts.map(p => p.v), ...(kospiBase && kospiBase > 0 ? [kospiBase] : [])];
+                const lo = Math.min(...vals), hi = Math.max(...vals), r = hi - lo || 1;
+                const ky = (v: number) => H * 0.08 + (1 - (v - lo) / r) * H * 0.84;
+                const baseY = ky(kospiBase && kospiBase > 0 ? kospiBase : pts[0].v);
+                const line = pts.map((p, k) => `${k ? "L" : "M"} ${xOf(p.i)} ${ky(p.v)}`).join(" ");
+                const band = `${line} L ${xOf(pts[pts.length - 1].i)} ${baseY} L ${xOf(pts[0].i)} ${baseY} Z`;
+                const cid = `tk-${name}`;
+                return (<>
+                  <defs>
+                    <clipPath id={`${cid}u`}><rect x={0} y={0} width={W} height={baseY} /></clipPath>
+                    <clipPath id={`${cid}d`}><rect x={0} y={baseY} width={W} height={Math.max(0, H - baseY)} /></clipPath>
+                  </defs>
+                  <path d={band} clipPath={`url(#${cid}u)`} fill="#fecdd3" fillOpacity={0.35} />
+                  <path d={band} clipPath={`url(#${cid}d)`} fill="#bfdbfe" fillOpacity={0.35} />
+                </>);
+              })()}
               <line x1={0} x2={W} y1={mid} y2={mid} stroke="#cbd5e1" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
               <path d={prices.map((p, i) => `${i ? "L" : "M"} ${xOf(i)} ${PAD + (1 - (p - pMin) / pR) * (H - PAD * 2)}`).join(" ")}
                     fill="none" stroke="#334155" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
@@ -847,6 +869,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
       <div className="flex flex-wrap gap-x-3 gap-y-0 text-[10.5px] text-gray-500 mt-0.5 [&>span]:whitespace-nowrap">
         <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />아래 띠: 1분 매수(빨강 위)·매도(파랑 아래)</span>
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
+        {kospi && kospi.length > 1 && <span><i className="inline-block w-2 h-2 bg-rose-100 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-100 mr-0.5" />배경 코스피</span>}
         <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />누적(켠 뒤, 축 따로)</span>
         {prog && prog.length > 0 && <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-violet-600" />프로그램 누적(축 따로, 한투)</span>}
       </div>
