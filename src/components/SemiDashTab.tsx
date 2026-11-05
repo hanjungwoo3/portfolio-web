@@ -739,6 +739,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                   </defs>
                   <path d={band} clipPath={`url(#${cid}u)`} fill="#fecdd3" fillOpacity={0.35} />
                   <path d={band} clipPath={`url(#${cid}d)`} fill="#bfdbfe" fillOpacity={0.35} />
+                  {/* 테두리 선 — 현물 칸 배경과 같게(사용자 2026-11-05 "배경 그래프 아래처럼 라인도") */}
+                  <path d={line} clipPath={`url(#${cid}u)`} fill="none" stroke="#fb7185" strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                  <path d={line} clipPath={`url(#${cid}d)`} fill="none" stroke="#60a5fa" strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
                 </>);
               })()}
               <line x1={0} x2={W} y1={mid} y2={mid} stroke="#cbd5e1" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
