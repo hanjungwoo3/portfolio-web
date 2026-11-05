@@ -12,6 +12,8 @@ import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { fetchKisCredit } from "../lib/kisCredit";
+import { isKisLinkOn } from "../lib/broker";
 import type { Investor } from "../types";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
@@ -387,7 +389,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         <ValueupStrip code={s0.code} />
         {kisFutAvailable() && <KisViStrip code={s0.code} />}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[360px]">   {/* 체결 · 신호 반반(사용자 요청) */}
-          <TickPanel name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} prog={progOf(s0.code)} inv={invOf(0)} price={sq(s0.code)?.price} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} />
+          <TickPanel code={s0.code} name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} prog={progOf(s0.code)} inv={invOf(0)} price={sq(s0.code)?.price} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} />
           {signalBox}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[430px] shrink-0">
@@ -434,7 +436,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {stocks.map((s, i) => (
           <div key={s.code} className="flex flex-col gap-1.5 min-w-0">
             <div className="h-[440px] lg:h-[470px] grid min-h-0">   {/* + 아래 1분 띠 둘(체결·프로그램) */}
-              <TickPanel name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} link={tickLink} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
+              <TickPanel code={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} link={tickLink} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
             </div>
             {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "max-h-[150px]")}   {/* 내용만큼 — 신호가 한두 줄이면 빈 칸이 컸다(사용자 2026-11-04) */}
           </div>
@@ -551,7 +553,25 @@ interface TickLink { vis: number | null; setVis: React.Dispatch<React.SetStateAc
 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
 //   onTitle — 제목을 누르면 ⚡ 종목 체결 팝업(같은 화면을 이 종목 하나로)
-function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kospi, kospiBase }: { name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[]; inv?: Investor; price?: number; link?: TickLink; kospi?: { t: string; v: number }[]; kospiBase?: number }) {   // kospi = 배경 코스피 1분   // inv = 오늘 투자자 잠정치(토스)   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
+// 신용(개인 빚투) 한 줄 — 한투 신용잔고 일별(2거래일쯤 늦다). 앱 + 한국투자 연동일 때만(사용자 2026-11-05 "개인이 신용으로 사는지")
+function CreditLine({ code }: { code: string }) {
+  const { data } = useQuery({ queryKey: ["kis-credit", code], queryFn: () => fetchKisCredit(code), enabled: isKisLinkOn(), staleTime: 3_600_000, refetchInterval: 3_600_000, retry: 1 });
+  const d = data?.[0], p = data?.[1];
+  if (!d) return null;
+  const net = d.newAmt - d.rdmpAmt;
+  const dg = p ? d.gvrt - p.gvrt : null;
+  return (
+    <div className="flex flex-wrap gap-x-3 tabular-nums -mt-0.5 mb-1 text-[11.5px]"
+         title={`한국투자 신용잔고 일별 — 결제 뒤 집계라 실시간이 아니다(2거래일쯤 늦다).\n신용 비중 = 그날 거래량 중 신용 매수 몫, 신용 순증 = 새로 빌려 산 금액 − 갚은 금액, 잔고율 = 상장 주식 중 신용으로 산 몫.\n신용 매수는 거의 개인이라 '개인이 빚내서 사는 정도'로 읽는다`}>
+      <span className="text-gray-500">신용 {d.date.slice(4, 6)}/{d.date.slice(6, 8)}</span>
+      <span className="whitespace-nowrap"><span className="text-gray-500">비중</span> <b className="text-gray-800">{d.gvrt.toFixed(2)}%</b>{dg != null && <span className={`text-[10.5px] ${up(dg)}`}> ({dg > 0 ? "+" : ""}{dg.toFixed(2)})</span>}</span>
+      <span className="whitespace-nowrap"><span className="text-gray-500">순증</span> <b className={up(net)}>{wonSigned(net)}</b></span>
+      <span className="whitespace-nowrap"><span className="text-gray-500">잔고</span> <b className="text-gray-800">{wonAmt(d.rmndAmt)}</b> <span className="text-[10.5px] text-gray-400">({d.rmndRate.toFixed(2)}%)</span></span>
+    </div>
+  );
+}
+
+function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kospi, kospiBase, code }: { code?: string; name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[]; inv?: Investor; price?: number; link?: TickLink; kospi?: { t: string; v: number }[]; kospiBase?: number }) {   // kospi = 배경 코스피 1분   // inv = 오늘 투자자 잠정치(토스)   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
   // 최근 1시간만 한 화면 폭에, 그 전은 왼쪽으로 스크롤(사용자 2026-11-04 "1시간으로, 지난 건 스크롤로") — 오늘 켠 뒤 전부 그린다
   const ms = flow.minutes;
   // 한 화면 분 수 — 기본 1시간, 마우스 휠로 확대(10분까지)·축소(켠 뒤 전부까지)(사용자 2026-11-04 "휠로 확대 축소")
@@ -729,6 +749,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
           </div>
         );
       })() : null}
+      {code && <CreditLine code={code} />}
       <div className="flex-1 min-h-0 flex gap-2">
         <div className="flex-1 min-w-0">
           {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div ref={scRef}
