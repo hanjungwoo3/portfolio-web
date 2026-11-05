@@ -895,6 +895,32 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                 </div>
               );
             })}
+            {/* 거래량 띠 — 1분 체결 주식 수(매수+매도), 위로만 회색. 그 분이 평소보다 붐볐는지(사용자 2026-11-05 "거래량도 넣을 수 있을까") */}
+            {(() => {
+              const vs = ms.map(m => m.buyVol + m.sellVol);
+              const li = (() => { for (let k = vs.length - 1; k >= 0; k--) if (vs[k] > 0) return k; return -1; })();
+              const hi = hov ? hov.i : li;
+              const mx = Math.max(1, ...vs), SH = 30;
+              const avg = vs.length ? vs.reduce((a, v) => a + v, 0) / vs.length : 0;
+              const fmt = (v: number) => v >= 1e4 ? `${(v / 1e4).toLocaleString(undefined, { maximumFractionDigits: v >= 1e5 ? 0 : 1 })}만주` : `${Math.round(v).toLocaleString()}주`;
+              const v = hi >= 0 ? vs[hi] : 0;
+              return (
+                <div className="relative shrink-0 border-t border-gray-100" style={{ height: SH + 6 }}>
+                  <div className="absolute right-1 top-[2px] text-right tabular-nums leading-tight pointer-events-none z-10">
+                    <div className="text-[10.5px] font-bold text-gray-700">거래량 <span className="font-normal text-gray-400">{hi >= 0 ? `${ms[hi].t} 1분` : ""}</span></div>
+                    <div className="text-[11px] font-bold text-gray-700">{fmt(v)}{avg > 0 && v > 0 && <span className="ml-1 text-[10px] font-normal text-gray-500">평균 ×{(v / avg).toFixed(1)}</span>}</div>
+                  </div>
+                  <svg viewBox={`0 0 ${W} ${SH}`} preserveAspectRatio="none" className="w-full mt-[3px]" style={{ height: SH }}>
+                    {vs.map((x, i) => {
+                      if (!x) return null;
+                      const h = (x / mx) * (SH - 1);
+                      // 평균의 2배 넘는 분만 진하게 — 붐빈 분이 눈에 띄게
+                      return <rect key={i} x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SH - h} height={h} fill="#64748b" opacity={avg > 0 && x >= avg * 2 ? 0.85 : 0.35} />;
+                    })}
+                  </svg>
+                </div>
+              );
+            })()}
           </div>
           </div>
           )}
@@ -909,7 +935,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
         </div>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-0 text-[10.5px] text-gray-500 mt-0.5 [&>span]:whitespace-nowrap">
-        <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />아래 띠: 1분 매수(빨강 위)·매도(파랑 아래) — 큰 쪽만 진하게</span>
+        <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />아래 띠: 1분 매수(빨강 위)·매도(파랑 아래) — 큰 쪽만 진하게 · 거래량(평균 2배↑ 진하게)</span>
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
         {kospi && kospi.length > 1 && <span><i className="inline-block w-2 h-2 bg-rose-100 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-100 mr-0.5" />배경 코스피</span>}
         <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />체결(켠 뒤 누적, 축 따로)</span>
