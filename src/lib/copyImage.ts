@@ -24,7 +24,7 @@ const b64 = (b: Blob) => new Promise<string>((res, rej) => { const r = new FileR
 function download(b: Blob) {
   const a = document.createElement("a");
   a.href = URL.createObjectURL(b);
-  a.download = `수급-${new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 16).replace(/[-:T]/g, "")}.png`;
+  a.download = `수급-${new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 16).replace(/\D/g, "")}.png`;
   document.body.appendChild(a); a.click(); a.remove();
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
