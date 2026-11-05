@@ -856,7 +856,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
             ].map(st => {
               // 기본 = 누적(띠 구간 합), 마우스를 올리면 그 분 값(사용자 2026-11-05 "기본은 누적, hover 시 각 분봉 값")
               // 마우스 전엔 가장 최근 1분(사용자 2026-11-05 "hover 전에는 최근걸로")
-              const li = (() => { for (let k = st.rows.length - 1; k >= 0; k--) if (st.rows[k]) return k; return -1; })();
+              //   값이 0인 분은 건너뛴다 — 프로그램은 한투 값이 조금 늦어 마지막 분이 0원으로 비는 일이 많다(사용자 2026-11-05)
+              const li = (() => { for (let k = st.rows.length - 1; k >= 0; k--) { const r = st.rows[k]; if (r && (r.b || r.s)) return k; } return -1; })();
               const hi = hov ? hov.i : li;
               const hx = hi >= 0 ? st.rows[hi] : null;
               // 프로그램 기본값 = 오늘 장 시작부터(한투 하루 누적) — 띠 구간 합으로 하면 위 '프로그램(오늘)'과 숫자가 달라 헷갈렸다(사용자 2026-11-05)
