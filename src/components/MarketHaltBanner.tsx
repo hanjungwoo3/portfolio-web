@@ -32,8 +32,9 @@ async function check(): Promise<Alert[]> {
     if (pct == null || !Number.isFinite(pct) || Math.abs(pct) < th || m > 14 * 60 + 50) return;
     const down = pct < 0;
     out.push({ key: `side-${name}-${down ? "d" : "u"}`, level: "side", down,
-      text: `${name} ${down ? "매도" : "매수"} 사이드카 발동 수준`,
-      detail: `${name === "코스피" ? "코스피200" : "코스닥150"} 선물 ${pct > 0 ? "+" : ""}${pct.toFixed(2)}% (기준 ±${th}%) — 프로그램 ${down ? "매도" : "매수"} 호가가 5분간 멈춥니다` });
+      text: `${name} ${down ? "매도" : "매수"} 사이드카 기준선 넘음`,
+      // 단정 금지 — 숫자 비교일 뿐, 실제 발동은 거래소가 정한다(1분 지속·하루 한 번)(사용자 2026-11-05 "공식이 아닌데 멈춘다는게 뭔 말이야")
+      detail: `${name === "코스피" ? "코스피200" : "코스닥150"} 선물 ${pct > 0 ? "+" : ""}${pct.toFixed(2)}% (기준 ±${th}%) — 1분 이어지면 거래소가 프로그램 ${down ? "매도" : "매수"} 주문만 5분 정지(일반 매매는 그대로, 하루 한 번만 — 오늘 이미 걸렸으면 다시 안 걸림)` });
   };
   side("코스피", k2?.pct, 5);
   side("코스닥", kq?.pct, 6);
@@ -42,8 +43,8 @@ async function check(): Promise<Alert[]> {
     if (p == null || !Number.isFinite(p)) continue;
     const stage = p <= -20 ? 3 : p <= -15 ? 2 : p <= -8 ? 1 : 0;
     if (stage) out.push({ key: `cb-${code}-${stage}`, level: "cb", down: true,
-      text: `${name} 서킷브레이커 ${stage}단계 발동 수준`,
-      detail: `${name} 지수 ${p.toFixed(2)}% (기준 −${[8, 15, 20][stage - 1]}%) — ${stage === 3 ? "그날 장이 끝납니다" : "모든 매매가 20분간 멈춥니다"}` });
+      text: `${name} 서킷브레이커 ${stage}단계 기준선 넘음`,
+      detail: `${name} 지수 ${p.toFixed(2)}% (기준 −${[8, 15, 20][stage - 1]}%) — 1분 이어지면 거래소가 ${stage === 3 ? "그날 장을 끝냄" : "모든 매매를 20분 정지(단계마다 하루 한 번)"}` });
   }
   return out;
 }
@@ -93,7 +94,7 @@ export function MarketHaltBanner() {
           <div className="min-w-0 flex-1">
             <div className="font-black text-[14px]">{a.text}</div>
             <div className="text-[12px] opacity-95">{a.detail}</div>
-            <div className="text-[10.5px] opacity-75">숫자로 본 발동 수준(거래소 공식 신호 아님) · 30초마다 확인</div>
+            <div className="text-[10.5px] opacity-75">앱이 숫자로 본 것 — 실제 발동 여부는 거래소 공지로 확인 · 30초마다</div>
           </div>
           <button onClick={() => { const s = new Set(closed); s.add(a.key); setClosed(s); saveDismissed(s); }}
                   className="px-1.5 rounded hover:bg-white/20 font-bold" title="오늘 이 경고는 다시 띄우지 않기">✕</button>
