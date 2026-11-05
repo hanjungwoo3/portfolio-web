@@ -133,7 +133,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   };
   // 어제 종가 = 지금 가격 ÷ (1 + 등락률) — 실시간 체결 가격 글자 옆 % 용
   const [tickVis, setTickVis] = useState<number | null>(null);   // 두 체결 칸 공통 확대 상태
-  const tickLink = { vis: tickVis, setVis: setTickVis };
+  const [tickHovT, setTickHovT] = useState<string | null>(null);   // 두 체결 칸 공통 마우스 분
+  const tickLink = { vis: tickVis, setVis: setTickVis, hovT: tickHovT, setHovT: setTickHovT };
   // 종목 수급 오늘 잠정치(토스 — KRX 장중 잠정, 외국인·기관·연기금. 개인은 장 마감 뒤) — 실시간 체결 칸 한 줄(사용자 2026-11-04)
   const todayInv = useQueries({
     queries: stocks.map(s => ({
@@ -533,7 +534,7 @@ function SparkBg({ sp, base }: { sp: { nextBase?: number; markXs?: { x: number; 
 }
 
 const TICK_SCROLL = "semi-tick-scroll";   // 종목 칸끼리 좌우 위치 맞추기
-interface TickLink { vis: number | null; setVis: React.Dispatch<React.SetStateAction<number | null>> }
+interface TickLink { vis: number | null; setVis: React.Dispatch<React.SetStateAction<number | null>>; hovT: string | null; setHovT: (t: string | null) => void }
 
 // 종목 실시간 체결 — 1분 막대(순매수 체결 금액, 위 빨강·아래 파랑) + 가격 선(회색) + 누적 순매수 선(주황)
 //   onTitle — 제목을 누르면 ⚡ 종목 체결 팝업(같은 화면을 이 종목 하나로)
@@ -552,7 +553,13 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
   const W = 600 * sc, H = 220, PAD = 4;
   const scRef = useRef<HTMLDivElement>(null);
   const stick = useRef(true);
-  const drag = useRef<{ x: number; left: number } | null>(null);   // 마우스로 끌기 시작점                           // 오른쪽 끝(지금)에 붙어 있나 — 사용자가 지난 쪽을 보는 중이면 새 분이 와도 안 끌고 간다
+  const drag = useRef<{ x: number; left: number } | null>(null);
+  // 마우스 분 — 두 종목 칸이 같은 시각으로 같이 움직인다(사용자 2026-11-05 "삼전 하닉 같이"). 분 시각(HH:MM)으로 나눠 쓴다
+  const [hovLocal, setHovLocal] = useState<string | null>(null);
+  const hovT = link ? link.hovT : hovLocal;
+  const setHovT = link ? link.setHovT : setHovLocal;
+  const hovI = hovT ? ms.findIndex(m => m.t === hovT) : -1;
+  const hov = hovI >= 0 ? { i: hovI } : null;   // 마우스로 끌기 시작점                           // 오른쪽 끝(지금)에 붙어 있나 — 사용자가 지난 쪽을 보는 중이면 새 분이 와도 안 끌고 간다
   useEffect(() => { const el = scRef.current; if (el && stick.current) el.scrollLeft = el.scrollWidth; }, [ms.length]);
   // 휠 — 마우스 자리를 기준점으로 확대·축소(오른쪽 끝에 붙어 있었으면 계속 끝에). 가로 휠(트랙패드 좌우)은 그대로 스크롤.
   //   React onWheel 은 passive 라 페이지 스크롤을 못 막는다 → 직접 등록
@@ -713,9 +720,27 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                    window.dispatchEvent(new CustomEvent(TICK_SCROLL, { detail: { from: name, gap: (el.scrollWidth - el.clientWidth - el.scrollLeft) / el.scrollWidth } }));
                  }}
                  onPointerDown={e => { if (sc <= 1 || e.pointerType !== "mouse") return; drag.current = { x: e.clientX, left: e.currentTarget.scrollLeft }; e.currentTarget.setPointerCapture(e.pointerId); }}
-                 onPointerMove={e => { if (!drag.current) return; e.currentTarget.scrollLeft = drag.current.left - (e.clientX - drag.current.x); }}
+                 onPointerMove={e => {
+                   const el = e.currentTarget;
+                   if (drag.current) { el.scrollLeft = drag.current.left - (e.clientX - drag.current.x); setHovT(null); return; }
+                   if (e.pointerType !== "mouse") return;
+                   // 마우스 x → 그래프 내부 좌표 → 가장 가까운 분
+                   const r = el.getBoundingClientRect();
+                   const gx = ((e.clientX - r.left + el.scrollLeft) / el.scrollWidth) * W;
+                   const i = Math.round((gx - PAD - bw / 2) / bw);
+                   setHovT(i >= 0 && i < ms.length ? ms[i].t : null);
+                 }}
+                 onPointerLeave={() => setHovT(null)}
                  onPointerUp={e => { drag.current = null; e.currentTarget.releasePointerCapture(e.pointerId); }}>
-            <div className="h-full flex flex-col" style={{ width: `${sc * 100}%` }}>
+            <div className="h-full flex flex-col relative" style={{ width: `${sc * 100}%` }}>
+            {/* 마우스 분 세로선 + 정보 상자 */}
+            {hov && <div className="absolute top-0 bottom-0 w-px bg-gray-500/60 pointer-events-none z-20" style={{ left: `${(xOf(hov.i) / W) * 100}%` }} />}
+            {/* 마우스 분 — 세로선 위에 시각·가격 */}
+            {hov && (() => { const m = ms[hov.i]; return (
+              <div className="absolute top-0 z-30 pointer-events-none text-[10.5px] tabular-nums px-1 rounded bg-gray-800 text-white whitespace-nowrap"
+                   style={{ left: `${(xOf(hov.i) / W) * 100}%`, transform: "translateX(-50%)" }}>
+                {m.t} · {m.close.toLocaleString()}{base && base > 0 ? ` (${m.close >= base ? "+" : ""}${((m.close / base - 1) * 100).toFixed(2)}%)` : ""}
+              </div>); })()}
             <div className="relative flex-1 min-h-0">
             {ms.length < 5 && <div className="absolute inset-x-0 bottom-1 text-center text-[11px] text-gray-400">켠 뒤 {ms.length}분째 — 10분쯤 지나면 흐름이 보입니다</div>}
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
@@ -825,7 +850,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                 rows: ms.map(m => ({ b: m.buyAmt, s: m.sellAmt })) as ({ b: number; s: number } | null)[] },
               ...(hasProgMin ? [{ k: "prog", label: "프로그램", col: "#e11d48", colDn: "#2563eb", rows: progMin }] : []),
             ].map(st => {
-              const tb = st.rows.reduce((a, x) => a + (x?.b ?? 0), 0), ts = st.rows.reduce((a, x) => a + (x?.s ?? 0), 0);
+              // 기본 = 누적(띠 구간 합), 마우스를 올리면 그 분 값(사용자 2026-11-05 "기본은 누적, hover 시 각 분봉 값")
+              const hx = hov ? st.rows[hov.i] : null;
+              const tb = hx ? hx.b : st.rows.reduce((a, x) => a + (x?.b ?? 0), 0), ts = hx ? hx.s : st.rows.reduce((a, x) => a + (x?.s ?? 0), 0);
               const mx = Math.max(1, ...st.rows.map(x => (x ? Math.max(x.b, x.s) : 0)));
               const SH = 46, SM = SH / 2;
               return (
@@ -833,18 +860,17 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                   {/* 제목·합계는 오른쪽 빈칸(선 끝 글자 자리)에 — 사용자 2026-11-05 */}
                   <div className="absolute right-1 top-[2px] text-right tabular-nums leading-tight pointer-events-none z-10">
                     {/* 띠 합계 = 막대가 있는 구간만(언제부터인지 같이) — 위 '프로그램(오늘)'은 장 시작부터라 다를 수 있다(사용자 2026-11-05) */}
-                    <div className="text-[10.5px] font-bold" style={{ color: st.k === "prog" ? "#6d28d9" : "#374151" }}>{st.label} <span className="font-normal text-gray-400">{(() => { const fi = st.rows.findIndex(x => x); return fi >= 0 ? `${ms[fi].t}~` : ""; })()}</span></div>
+                    <div className="text-[10.5px] font-bold" style={{ color: st.k === "prog" ? "#6d28d9" : "#374151" }}>{st.label} <span className="font-normal text-gray-400">{hov ? (hx ? `${ms[hov.i].t} 1분` : `${ms[hov.i].t} 기록 없음`) : (() => { const fi = st.rows.findIndex(x => x); return fi >= 0 ? `${ms[fi].t}~ 누적` : ""; })()}</span></div>
                     <div className={`text-[11px] font-bold ${up(tb - ts)}`}>{netWord(tb - ts)}</div>
-                    <div className="text-[10px] text-gray-500"><span className="text-rose-500">+{(tb / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> <span className="text-blue-500">−{(ts / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}억</span></div>
+                    <div className="text-[10px] text-gray-500"><span className="text-rose-500">+{(tb / 1e8).toLocaleString(undefined, { maximumFractionDigits: hx ? 1 : 0 })}</span> <span className="text-blue-500">−{(ts / 1e8).toLocaleString(undefined, { maximumFractionDigits: hx ? 1 : 0 })}억</span></div>
                   </div>
                   <svg viewBox={`0 0 ${W} ${SH}`} preserveAspectRatio="none" className="w-full mt-[3px]" style={{ height: SH }}>
                     <line x1={0} x2={W} y1={SM} y2={SM} stroke="#e5e7eb" vectorEffect="non-scaling-stroke" />
                     {st.rows.map((x, i) => {
                       if (!x) return null;
-                      const hb = (x.b / mx) * (SM - 1), hs = (x.s / mx) * (SM - 1), n = x.b - x.s;
+                      const hb = (x.b / mx) * (SM - 1), hs = (x.s / mx) * (SM - 1);
                       return (
                         <g key={i}>
-                          <title>{`${ms[i].t} ${st.label} 매수 ${(x.b / 1e8).toFixed(1)}억 · 매도 ${(x.s / 1e8).toFixed(1)}억 · ${netWord(n)}`}</title>
                           {/* 매수 = 빨강(위) · 매도 = 파랑(아래) 그대로 — 순은 머리 줄 숫자로(사용자 2026-11-05) */}
                           <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM - hb} height={hb} fill="#f43f5e" opacity={0.8} />
                           <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM} height={hs} fill="#3b82f6" opacity={0.8} />
