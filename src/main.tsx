@@ -12,6 +12,7 @@ import { startKisRadar } from './lib/kisRadar'
 import { startKisVi } from './lib/kisVi'
 import { routePreview } from './lib/previewMode'
 import { startGlobalTips } from './lib/globalTips'
+import { MarketHaltBanner } from './components/MarketHaltBanner'
 
 // 야간 배경 — 첫 그림 전에 적용(깜빡임 방지)
 applyNightBg()
@@ -48,5 +49,6 @@ routePreview()   // 미리보기 모드면 /preview/ 로(같은 사이트라 오
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
+    <MarketHaltBanner />   {/* 사이드카·서킷브레이커 경고(모든 화면) */}
   </StrictMode>,
 )
