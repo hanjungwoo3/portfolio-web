@@ -55,6 +55,11 @@ const niceTicks = (lo: number, hi: number, n: number) => {
 const AX_L = 38, AX_R = 38;   // 수급 칸 왼쪽(순매수)·오른쪽(지수) 축 폭(px) — 증시 탭과 같은 배치(사용자 2026-10-29)
 const eok = (v: number) => `${v > 0 ? "+" : ""}${Math.round(v).toLocaleString()}`;
 // 순매수 금액을 말로 — "순매수 −29억" 을 매수로 읽는 일이 있어(사용자 혼동 2026-10-21) 음수면 '순매도'로 쓴다
+// 선 끝 꼬리표 숫자 — "누적 -213억"(매도 파랑·매수 빨강, 사용자 2026-11-05). 주황·보라 바탕 위라 숫자만 흰 칸에
+const EndNum = ({ won }: { won: number }) => {
+  const e = Math.round(won / 1e8);
+  return <span className={`ml-1 px-0.5 rounded-[2px] bg-white ${e > 0 ? "text-rose-600" : e < 0 ? "text-blue-600" : "text-gray-600"}`}>{e > 0 ? "+" : ""}{e.toLocaleString()}억</span>;
+};
 const netWord = (won: number) => `${won >= 0 ? "순매수" : "순매도"} ${Math.abs(Math.round(won / 1e8)).toLocaleString()}억`;
 const sideWord = (st: number) => (st >= 120 ? "매수 우위" : st <= 80 ? "매도 우위" : "팽팽");
 
@@ -798,8 +803,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
               return (<>
                 {/* 점은 선 끝 그대로, 글자는 쌓인 자리(endTop) — 프로그램 값도 선 끝에(사용자 2026-11-04 "프로그램도 가격 있지 않아?") */}
                 {/* 동그라미 점은 뺐다(사용자 2026-11-05 "포인트 위치가 이상해") — 가격 글자처럼 네모, 바탕은 선 색(보라) */}
-                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-violet-600 text-white px-1 rounded-sm whitespace-nowrap tabular-nums"
-                      style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(6px, -50%)" }}>프로그램 {netWord((prog?.[prog.length - 1]?.v ?? 0) * 1e8)}</span>
+                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-violet-600 text-white px-1 py-px rounded-sm whitespace-nowrap tabular-nums"
+                      style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(6px, -50%)" }}>프로그램<EndNum won={(prog?.[prog.length - 1]?.v ?? 0) * 1e8} /></span>
               </>);
             })()}
             {/* 가격 글자(사용자 2026-11-04 "가격 그래프에 금액") — 최고·최저는 그 높이 왼쪽에, 지금 가격은 선 끝에. svg 가 늘어나므로 HTML 로 */}
@@ -836,8 +841,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
               const ly = Math.abs(Math.max(4, Math.min(92, ly0)) - lpC) < 9 ? (lpC >= 50 ? lpC - 11 : lpC + 11) : ly0;
               return (
                 // 점 없이 네모, 바탕 = 선 색(주황) — 가격 글자와 같은 모양(사용자 2026-11-05)
-                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-orange-500 text-white px-1 rounded-sm whitespace-nowrap tabular-nums"
-                      style={{ left: `${lx}%`, top: `${endTop.cum ?? ly}%`, transform: "translate(6px, -50%)" }}>누적 {netWord(cum[cum.length - 1])}</span>
+                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-orange-500 text-white px-1 py-px rounded-sm whitespace-nowrap tabular-nums"
+                      style={{ left: `${lx}%`, top: `${endTop.cum ?? ly}%`, transform: "translate(6px, -50%)" }}>누적<EndNum won={cum[cum.length - 1]} /></span>
               );
             })()}
           </div>
@@ -863,7 +868,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                   <div className="absolute right-1 top-[2px] text-right tabular-nums leading-tight pointer-events-none z-10">
                     {/* 띠 합계 = 막대가 있는 구간만(언제부터인지 같이) — 위 '프로그램(오늘)'은 장 시작부터라 다를 수 있다(사용자 2026-11-05) */}
                     <div className="text-[10.5px] font-bold" style={{ color: st.k === "prog" ? "#6d28d9" : "#374151" }}>{st.label} <span className="font-normal text-gray-400">{hov ? (hx ? `${ms[hov.i].t} 1분` : `${ms[hov.i].t} 기록 없음`) : (progDay ? "오늘 누적" : (() => { const fi = st.rows.findIndex(x => x); return fi >= 0 ? `${ms[fi].t}~ 누적` : ""; })())}</span></div>
-                    <div className={`text-[11px] font-bold ${up(tb - ts)}`}>{netWord(tb - ts)}</div>
+                    {/* "-208억" 처럼 부호로(사용자 2026-11-05) — 1분 값은 작아서 10억 밑이면 소수 한 자리 */}
+                    <div className={`text-[11px] font-bold ${up(tb - ts)}`}>{(() => { const e = (tb - ts) / 1e8, r = hx && Math.abs(e) < 10 ? Math.round(e * 10) / 10 : Math.round(e); return `${r > 0 ? "+" : ""}${r.toLocaleString()}억`; })()}</div>
                     <div className="text-[10px] text-gray-500"><span className="text-rose-500">+{(tb / 1e8).toLocaleString(undefined, { maximumFractionDigits: hx ? 1 : 0 })}</span> <span className="text-blue-500">−{(ts / 1e8).toLocaleString(undefined, { maximumFractionDigits: hx ? 1 : 0 })}억</span></div>
                   </div>
                   <svg viewBox={`0 0 ${W} ${SH}`} preserveAspectRatio="none" className="w-full mt-[3px]" style={{ height: SH }}>
