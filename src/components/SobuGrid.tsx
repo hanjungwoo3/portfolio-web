@@ -222,7 +222,6 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
                   </div>
                 )}
               </div>
-              <span className="ml-auto text-[10px] text-gray-400" title="테두리 카드 = 해외 대장주(미국은 간밤, 일본은 지금 장중)">테두리 = 해외</span>
             </div>
             {hasFlow && (
               <div className="flex flex-col text-[11px] tabular-nums leading-4 -mt-1 mb-1.5"   /* 5일·20일 늘 두 줄 — 숫자 길이에 따라 칸마다 줄 수가 달라 높이가 어긋났다(사용자 2026-11-02) */
