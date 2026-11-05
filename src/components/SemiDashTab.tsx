@@ -419,7 +419,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 shrink-0">
         {stocks.map((s, i) => (
           <div key={s.code} className="flex flex-col gap-1.5 min-w-0">
-            <div className="h-[340px] lg:h-[360px] grid min-h-0">
+            <div className="h-[440px] lg:h-[470px] grid min-h-0">   {/* + 아래 1분 띠 둘(체결·프로그램) */}
               <TickPanel name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} link={tickLink} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
             </div>
             {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "max-h-[150px]")}   {/* 내용만큼 — 신호가 한두 줄이면 빈 칸이 컸다(사용자 2026-11-04) */}
@@ -597,7 +597,6 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
     el.scrollLeft = stick.current ? el.scrollWidth : z.fx * el.scrollWidth - z.px;
   }, [vis]);
   const nets = ms.map(m => m.buyAmt - m.sellAmt);
-  const mxBar = Math.max(1, ...nets.map(Math.abs));
   let acc = 0;
   const cum = nets.map(v => (acc += v));
   // 프로그램 순매수(한투, 사용자 2026-11-04 "실시간 체결 그래프에 프로그램 매매도") — 그래프 왼쪽 끝 분을 0으로 맞춰 주황 누적(켠 뒤 합계)과 **같은 축**(원)에.
@@ -615,7 +614,16 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
     return z == null ? [] : ms.map(m => { const v = at(m.t); return v == null ? null : (v - z) * 1e8; });
   };
   const progBuy = progBS("b"), progSell = progBS("s");
-  const mxProg = Math.max(1, ...progLine.map(v => Math.abs(v ?? 0)), ...progBuy.map(v => v ?? 0), ...progSell.map(v => v ?? 0));
+  // 프로그램 1분 막대 — 분마다 늘어난 매수·매도(원)(사용자 2026-11-05 "프로그램 매도/매수도 1분봉으로"). 앞 분 값이 없으면 비운다
+  const progMin = ms.map((_, i) => {
+    if (i === 0) return null;
+    const b1 = progBuy[i], b0 = progBuy[i - 1], s1 = progSell[i], s0 = progSell[i - 1];
+    if (b1 == null || b0 == null || s1 == null || s0 == null) return null;
+    return { b: Math.max(0, b1 - b0), s: Math.max(0, s1 - s0) };
+  });
+  const hasProgMin = progMin.some(x => x && (x.b || x.s));
+
+  const mxProg = Math.max(1, ...progLine.map(v => Math.abs(v ?? 0)));
   const prices = ms.map(m => m.close);
   // 가격 축은 최소 ±0.2% 폭 — 켠 직후 한 호가(0.1%)만 움직여도 위아래 끝까지 그어져 세로선처럼 보였다
   const pMid = (Math.min(...prices) + Math.max(...prices)) / 2;
@@ -707,23 +715,15 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
                  onPointerDown={e => { if (sc <= 1 || e.pointerType !== "mouse") return; drag.current = { x: e.clientX, left: e.currentTarget.scrollLeft }; e.currentTarget.setPointerCapture(e.pointerId); }}
                  onPointerMove={e => { if (!drag.current) return; e.currentTarget.scrollLeft = drag.current.left - (e.clientX - drag.current.x); }}
                  onPointerUp={e => { drag.current = null; e.currentTarget.releasePointerCapture(e.pointerId); }}>
-            <div className="relative h-full" style={{ width: `${sc * 100}%` }}>
+            <div className="h-full flex flex-col" style={{ width: `${sc * 100}%` }}>
+            <div className="relative flex-1 min-h-0">
             {ms.length < 5 && <div className="absolute inset-x-0 bottom-1 text-center text-[11px] text-gray-400">켠 뒤 {ms.length}분째 — 10분쯤 지나면 흐름이 보입니다</div>}
             <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none" className="w-full h-full">
               <line x1={0} x2={W} y1={mid} y2={mid} stroke="#cbd5e1" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
-              {nets.map((v, i) => {
-                const h = (Math.abs(v) / mxBar) * (mid - PAD);
-                return <rect key={i} x={xOf(i) - bw * 0.4} width={bw * 0.8} y={v >= 0 ? mid - h : mid} height={Math.max(0.5, h)} fill={v >= 0 ? "#f43f5e" : "#3b82f6"} opacity={0.75} />;
-              })}
               <path d={prices.map((p, i) => `${i ? "L" : "M"} ${xOf(i)} ${PAD + (1 - (p - pMin) / pR) * (H - PAD * 2)}`).join(" ")}
                     fill="none" stroke="#334155" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
               <path d={cum.map((c, i) => `${i ? "L" : "M"} ${xOf(i)} ${mid - (c / mxCum) * (mid - PAD)}`).join(" ")}
                     fill="none" stroke="#ea580c" strokeWidth={1.2} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
-              {/* 프로그램 매수(빨강, 0선 위)·매도(파랑, 0선 아래) — 화면 시작부터 쌓인 양 */}
-              {[[progBuy, 1, "#e11d48"], [progSell, -1, "#2563eb"]].map(([arr, sgn, col]) => (arr as (number | null)[]).some(v => v != null) && (
-                <path key={col as string} d={(arr as (number | null)[]).map((v, i) => v == null ? "" : `${(arr as (number | null)[]).slice(0, i).some(x => x != null) ? "L" : "M"} ${xOf(i)} ${mid - ((sgn as number) * v / mxProg) * (mid - PAD)}`).join(" ")}
-                      fill="none" stroke={col as string} strokeOpacity={0.6} strokeWidth={1} strokeDasharray="1 2" vectorEffect="non-scaling-stroke" />
-              ))}
               {progLine.some(v => v != null) && (
                 <path d={progLine.map((v, i) => v == null ? "" : `${progLine.slice(0, i).some(x => x != null) ? "L" : "M"} ${xOf(i)} ${mid - (v / mxProg) * (mid - PAD)}`).join(" ")}
                       fill="none" stroke="#7c3aed" strokeWidth={1.2} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
@@ -793,6 +793,43 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
               );
             })()}
           </div>
+            {/* 1분 막대 띠 — 체결·프로그램을 증시 탭 투자자 줄처럼 한 번에: 이름 · (+매수 −매도) 순 + 막대(매수 위·매도 아래 연하게, 순 진하게)
+                (사용자 2026-11-05 "1분 매도/매수, 프로그램 매도/매수를 다 1분봉으로, 이런 식으로 한 번에") */}
+            {[
+              { k: "tick", label: "체결", col: "#e11d48", colDn: "#2563eb",
+                rows: ms.map(m => ({ b: m.buyAmt, s: m.sellAmt })) as ({ b: number; s: number } | null)[] },
+              ...(hasProgMin ? [{ k: "prog", label: "프로그램", col: "#7c3aed", colDn: "#7c3aed", rows: progMin }] : []),
+            ].map(st => {
+              const tb = st.rows.reduce((a, x) => a + (x?.b ?? 0), 0), ts = st.rows.reduce((a, x) => a + (x?.s ?? 0), 0);
+              const mx = Math.max(1, ...st.rows.map(x => (x ? Math.max(x.b, x.s) : 0)));
+              const SH = 46, SM = SH / 2;
+              return (
+                <div key={st.k} className="relative shrink-0 border-t border-gray-100" style={{ height: SH + 14 }}>
+                  <div className="sticky left-0 flex items-baseline gap-1.5 text-[10.5px] leading-[14px] tabular-nums w-max pl-0.5 bg-white/80 z-10">
+                    <b style={{ color: st.k === "prog" ? "#6d28d9" : "#374151" }}>{st.label}</b>
+                    <span className="text-gray-400">(<span className="text-rose-500">+{(tb / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}억</span> <span className="text-blue-500">−{(ts / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}억</span>)</span>
+                    <b className={up(tb - ts)}>{netWord(tb - ts)}</b>
+                    <span className="text-gray-400">· 화면 구간</span>
+                  </div>
+                  <svg viewBox={`0 0 ${W} ${SH}`} preserveAspectRatio="none" className="w-full" style={{ height: SH }}>
+                    <line x1={0} x2={W} y1={SM} y2={SM} stroke="#e5e7eb" vectorEffect="non-scaling-stroke" />
+                    {st.rows.map((x, i) => {
+                      if (!x) return null;
+                      const hb = (x.b / mx) * (SM - 1), hs = (x.s / mx) * (SM - 1), n = x.b - x.s, hn = (Math.abs(n) / mx) * (SM - 1);
+                      return (
+                        <g key={i}>
+                          <title>{`${ms[i].t} ${st.label} 매수 ${(x.b / 1e8).toFixed(1)}억 · 매도 ${(x.s / 1e8).toFixed(1)}억 · ${netWord(n)}`}</title>
+                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM - hb} height={hb} fill="#fda4af" opacity={0.45} />
+                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={SM} height={hs} fill="#93c5fd" opacity={0.45} />
+                          <rect x={xOf(i) - bw * 0.4} width={bw * 0.8} y={n >= 0 ? SM - hn : SM} height={Math.max(0.5, hn)} fill={n >= 0 ? st.col : st.colDn} opacity={0.9} />
+                        </g>
+                      );
+                    })}
+                  </svg>
+                </div>
+              );
+            })}
+          </div>
           </div>
           )}
         </div>
@@ -806,12 +843,10 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
         </div>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-0 text-[10.5px] text-gray-500 mt-0.5 [&>span]:whitespace-nowrap">
-        <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" />1분 순매수</span>
-        <span><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />1분 순매도</span>
+        <span><i className="inline-block w-2 h-2 bg-rose-200 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-200 mr-0.5" />아래 띠: 1분 매수·매도(연하게)·순(진하게)</span>
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
         <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />누적(켠 뒤, 축 따로)</span>
         {prog && prog.length > 0 && <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-violet-600" />프로그램 누적(축 따로, 한투)</span>}
-        {prog?.some(p => p.b != null) && <span><i className="inline-block w-4 mr-0.5 align-middle border-t border-dotted border-rose-500" /><i className="inline-block w-4 mr-0.5 align-middle border-t border-dotted border-blue-500" />프로그램 매수(위)·매도(아래)</span>}
       </div>
     </div>
   );
