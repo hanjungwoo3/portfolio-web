@@ -805,11 +805,13 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
               const SH = 46, SM = SH / 2;
               return (
                 <div key={st.k} className="relative shrink-0 border-t border-gray-100" style={{ height: SH + 14 }}>
-                  <div className="sticky left-0 flex items-baseline gap-1.5 text-[10.5px] leading-[14px] tabular-nums w-max pl-0.5 bg-white/80 z-10">
-                    <b style={{ color: st.k === "prog" ? "#6d28d9" : "#374151" }}>{st.label}</b>
-                    <span className="text-gray-400">(<span className="text-rose-500">+{(tb / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}억</span> <span className="text-blue-500">−{(ts / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}억</span>)</span>
-                    <b className={up(tb - ts)}>{netWord(tb - ts)}</b>
-                    <span className="text-gray-400">· 화면 구간</span>
+                  <div className="sticky left-0 text-[10.5px] leading-[14px] w-max pl-0.5 bg-white/80 z-10">
+                    <b style={{ color: st.k === "prog" ? "#6d28d9" : "#374151" }}>{st.label} 1분</b>
+                  </div>
+                  {/* 합계는 오른쪽 빈칸(선 끝 글자 자리)에 — 사용자 2026-11-05 */}
+                  <div className="absolute right-1 top-[16px] text-right tabular-nums leading-tight pointer-events-none z-10">
+                    <div className={`text-[11px] font-bold ${up(tb - ts)}`}>{netWord(tb - ts)}</div>
+                    <div className="text-[10px] text-gray-500"><span className="text-rose-500">+{(tb / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}</span> <span className="text-blue-500">−{(ts / 1e8).toLocaleString(undefined, { maximumFractionDigits: 0 })}억</span></div>
                   </div>
                   <svg viewBox={`0 0 ${W} ${SH}`} preserveAspectRatio="none" className="w-full" style={{ height: SH }}>
                     <line x1={0} x2={W} y1={SM} y2={SM} stroke="#e5e7eb" vectorEffect="non-scaling-stroke" />
