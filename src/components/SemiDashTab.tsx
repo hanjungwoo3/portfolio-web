@@ -798,7 +798,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link }: {
             {[
               { k: "tick", label: "체결", col: "#e11d48", colDn: "#2563eb",
                 rows: ms.map(m => ({ b: m.buyAmt, s: m.sellAmt })) as ({ b: number; s: number } | null)[] },
-              ...(hasProgMin ? [{ k: "prog", label: "프로그램", col: "#7c3aed", colDn: "#7c3aed", rows: progMin }] : []),
+              ...(hasProgMin ? [{ k: "prog", label: "프로그램", col: "#e11d48", colDn: "#2563eb", rows: progMin }] : []),
             ].map(st => {
               const tb = st.rows.reduce((a, x) => a + (x?.b ?? 0), 0), ts = st.rows.reduce((a, x) => a + (x?.s ?? 0), 0);
               const mx = Math.max(1, ...st.rows.map(x => (x ? Math.max(x.b, x.s) : 0)));
