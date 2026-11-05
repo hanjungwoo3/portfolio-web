@@ -115,7 +115,10 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     queryKey: ["kis-option-board"], queryFn: fetchKisKospi200Options,
     enabled: kisFutAvailable(), refetchInterval: 60_000, staleTime: 30_000, retry: 1,
   });
-  const opt = kisOpt ?? hkOpt;
+  // 한투 전광판은 행사가 높은 쪽부터 100줄만 준다(다음 쪽 요청도 같은 100줄 — 실측 2026-11-05: 1595~1347.5, 지수는 845).
+  //   지금 지수가 그 범위 밖이면 등가격 근처가 통째로 빠진 것 → 풋/콜 0·최대 행사가 1595 같은 엉터리가 나왔다. 그땐 한경으로
+  const kisOk = !!kisOpt && ks200 > 0 && ks200 >= kisOpt.range[0] && ks200 <= kisOpt.range[1];
+  const opt = kisOk ? kisOpt : hkOpt;
   const { data: perps } = useQuery({
     queryKey: ["hl-xyz-perps"], queryFn: fetchHlXyzPerps, refetchInterval: useAdaptiveRefreshMs(15_000), staleTime: 5_000,
   });
