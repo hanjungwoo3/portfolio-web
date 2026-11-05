@@ -2,6 +2,7 @@
 //   PC·모바일이 같이 쓴다. 고른 탭은 이 기기에 기억(localStorage).
 import { useState } from "react";
 import { SECTOR_OVERVIEW_IDS, type DashboardSection } from "../lib/dashboardGroups";
+import { avgMarketNow, isOverseasTicker, useAvgMarket } from "../lib/avgMarket";
 
 const KEY = "portfolio_sector_page_tab";
 const OVERVIEW = "overview";
@@ -26,6 +27,12 @@ export function useSectorTab(sections: DashboardSection[]): [string, (id: string
 //   aft = 정규장 마감 뒤(NXT 애프터) 등락률 평균 — 정규장 종가 대비 지금 값(사용자 2026-11-05 "정규장 이후 등락율 평균도"). 애프터 값 있는 종목만
 export interface SectorStat { avg: number; up: number; down: number; aft?: number; aftN?: number }
 export function sectorAvg(s: DashboardSection, pctOf: (sym: string) => number | null, dimOf?: (sym: string) => boolean, afterOf?: (sym: string) => { reg: number; aft: number } | null): SectorStat | null {
+  // 미국 모드 — 칸의 미국 대장주로(간밤·지금 미국장), 애프터 꼬리표 없음(사용자 2026-11-05)
+  if (avgMarketNow() === "US") {
+    const us = s.rows.flat().filter(isOverseasTicker);
+    const up = us.map(pctOf).filter((v): v is number => v != null && Number.isFinite(v));
+    return up.length ? { avg: up.reduce((a, v) => a + v, 0) / up.length, up: up.filter(v => v > 0).length, down: up.filter(v => v < 0).length } : null;
+  }
   const kr = s.rows.flat().filter(x => /\.KS$/.test(x));
   const live = kr.filter(x => !dimOf?.(x));
   const ps = (live.length ? live : kr).map(pctOf).filter((v): v is number => v != null && Number.isFinite(v));
@@ -56,6 +63,7 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
   avgOf?: (s: DashboardSection) => SectorStat | null;
   vertical?: boolean;   // PC 왼쪽 세로 탭
 }) {
+  useAvgMarket();   // 한국/미국 전환에 다시 그리기(평균은 avgOf → sectorAvg 가 avgMarketNow 로 읽는다)
   return (
     <div className={vertical ? "flex flex-col gap-1" : `flex items-center gap-1 overflow-x-auto ${compact ? "pb-0.5" : ""}`}>
       {/* 업종 탭은 평균 등락률 높은 순(사용자 2026-11-03) — '한눈에' 는 맨 앞 고정, 값 없는 탭은 뒤로 */}

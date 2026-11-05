@@ -45,7 +45,7 @@ import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMaintenance";
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { useChartRange, pickCardChart, historyRange } from "../lib/chartRange";
-import { ChartRangeToggle } from "./ChartRangeToggle";
+import { ChartRangeToggle, AvgMarketToggle } from "./ChartRangeToggle";
 import { useIntradayCharts } from "../lib/useIntradayCharts";
 import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage, type DashboardSection } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
@@ -2272,7 +2272,7 @@ export function MobileSimpleView() {
         return (
           <div className="px-3 py-2 space-y-3">
             {isSectorPage
-              ? <SectorTabBar sections={sectorTabsOf(pageSecs)} active={sectorTabM} onChange={setSectorTabM} compact
+              ? <SectorTabBar sections={sectorTabsOf(pageSecs)} active={sectorTabM} onChange={setSectorTabM} compact trailing={<AvgMarketToggle />}
                             avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, sym => { const q = usMap.get(sym); const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined; return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : null; })} />
               : <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
                              stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />}

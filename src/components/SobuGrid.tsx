@@ -4,6 +4,7 @@
 //   + 카드 왼쪽 아래 공시·뉴스 개수 — 누르면 떠 있는 창(칸 아래 목록은 뺐다, 사용자 2026-11-02). 공시 = 최근 5거래일 DART(최신공시와 같은 서버 파일) · 칸별 외국인·기관(금융투자 제외) 5·20일 순매수
 //     (크롤러 investor-flows.json — 수급 매집 탭과 같은 파일, 추가 호출 0). 사용자 2026-11-02 "1, 2번 진행".
 import { AftPill } from "./SectorTabBar";
+import { isOverseasTicker } from "../lib/avgMarket";
 import { useEffect, useRef, useState } from "react";
 import { useRecentDisc } from "../lib/recentDisclosures";
 import { useQueries, useQuery } from "@tanstack/react-query";
@@ -174,6 +175,9 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
     <div className={renderCard ? "grid grid-cols-1 md:grid-cols-2 xl:flex xl:items-start gap-2" : `grid grid-cols-1 md:grid-cols-2 ${boxes.length === 3 ? "xl:grid-cols-3" : "xl:grid-cols-4"} gap-2`}>   {/* 칸 수만큼 화면을 나눈다(3단계 업종은 3등분) */}
       {boxes.map((b, bi) => {
         // 평균·▲▼ 은 흐린 종목(장 안 열림·체결 없음 — 값이 지난 정규장) 빼고(사용자 2026-11-03). 다 흐리면(장 마감 뒤) 전부로
+        // 해외 평균 — 이 칸의 해외 대장주(미국·일본)(사용자 2026-11-05 "국내·해외 평균 둘 다")
+        const ovPs = b.lead.filter(isOverseasTicker).map(s => quote(s)?.pct).filter((v): v is number => v != null && Number.isFinite(v));
+        const ovAvg = ovPs.length ? ovPs.reduce((a, v) => a + v, 0) / ovPs.length : null;
         const live = b.kr.filter(s => !dimOf?.(s));
         const ps = (live.length ? live : b.kr).map(s => quote(s)?.pct).filter((v): v is number => v != null && Number.isFinite(v));
         const avg = ps.length ? ps.reduce((a, v) => a + v, 0) / ps.length : null;
@@ -184,7 +188,8 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
         // 마감 뒤엔 평균을 정규장 등락률로(애프터는 옆 꼬리표) — "정규장%(애프터%)"(사용자 2026-11-05)
         const rps = b.kr.map(s => quote(s)?.reg?.pct).filter((v): v is number => v != null && Number.isFinite(v));
         const avgShown = aft != null && rps.length ? rps.reduce((a, v) => a + v, 0) / rps.length : avg;
-        const upShown = aft != null && rps.length ? rps.filter(v => v > 0).length : up, nShown = aft != null && rps.length ? rps.length : ps.length;
+        const upShown = aft != null && rps.length ? rps.filter(v => v > 0).length : up;
+        const nShown = aft != null && rps.length ? rps.length : ps.length;
         // 칸 수급 — 국내 종목 외국인·기관(금융투자 제외) 누적 순매수 합(억원). 크롤러 기준일(전 거래일)까지
         const fsum = (w: "5" | "20", k: "fo" | "in") => b.kr.reduce((a, s) => a + (flowBy.get(s.slice(0, 6))?.w[w]?.[k] ?? 0), 0);
         const hasFlow = b.kr.some(s => flowBy.has(s.slice(0, 6)));
@@ -195,10 +200,16 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
               {avgShown != null && (
                 <span className={`text-sm font-bold tabular-nums ${avgShown > 0 ? "text-rose-600" : avgShown < 0 ? "text-blue-600" : "text-gray-600"}`}
                       title={live.length && live.length < b.kr.length ? `국내 종목 평균 등락률(동일가중) — 흐린 ${b.kr.length - live.length}종목 제외` : "국내 종목 평균 등락률(동일가중)"}>
-                  평균 {avgShown > 0 ? "+" : ""}{avgShown.toFixed(2)}%{aft != null && <AftPill v={aft} n={as.length} />}
+                  국내 {avgShown > 0 ? "+" : ""}{avgShown.toFixed(2)}%{aft != null && <AftPill v={aft} n={as.length} />}
                 </span>
               )}
               {nShown > 0 && <span className="text-[11px] text-gray-500">▲{upShown} · ▼{nShown - upShown}</span>}
+              {ovAvg != null && (
+                <span className="text-[12px] font-bold tabular-nums whitespace-nowrap" title={`해외 대장주(테두리 카드, 미국은 간밤·일본은 지금 장중) ${ovPs.length}종목 평균`}>
+                  <span className="text-gray-500 font-normal">해외</span> <span className={ovAvg > 0 ? "text-rose-600" : ovAvg < 0 ? "text-blue-600" : "text-gray-600"}>{ovAvg > 0 ? "+" : ""}{ovAvg.toFixed(2)}%</span>
+                  {ovPs.length > 1 && <span className="ml-1 text-[11px] font-normal text-gray-500">▲{ovPs.filter(v => v > 0).length} · ▼{ovPs.filter(v => v < 0).length}</span>}
+                </span>
+              )}
               <span className="ml-auto text-[10px] text-gray-400" title="테두리 카드 = 해외 대장주(미국은 간밤, 일본은 지금 장중)">테두리 = 해외</span>
             </div>
             {hasFlow && (
