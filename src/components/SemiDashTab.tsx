@@ -307,6 +307,35 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       })() });
   }
 
+  // 시장 한 줄 요약 — 위 신호들을 묶어 결론만(사용자 2026-11-05 "요약은 못해?"). AI 아님, 숫자 규칙.
+  //   현물 외국인 · 외국인 선물(남긴 방향) · 선물 가격×미결제 · 옵션 풋/콜 → 하락 쪽·상승 쪽 신호 수
+  const mktSummary = (() => {
+    const parts: string[] = []; let bear = 0, bull = 0;
+    const spot = kfToday && kLast ? kLast.foreigners : null;
+    const fnet = fg && ffToday ? fg.fBuy - fg.fSell : null;
+    const won = (v: number) => (Math.abs(v) >= 10000 ? `${(Math.abs(v) / 10000).toFixed(1)}조` : `${Math.abs(Math.round(v)).toLocaleString()}억`);
+    if (spot != null && spot !== 0) { spot < 0 ? bear++ : bull++; }
+    if (fnet != null && fnet !== 0) { fnet < 0 ? bear++ : bull++; }
+    if (spot != null && fnet != null && spot !== 0 && fnet !== 0) {
+      parts.push(Math.sign(spot) === Math.sign(fnet)
+        ? `외국인이 현물(${spot < 0 ? "−" : "+"}${won(spot)})·선물 모두 ${spot < 0 ? "팔고" : "사고"} 있다`
+        : `외국인은 현물을 ${spot < 0 ? "팔고" : "사고"}(${spot < 0 ? "−" : "+"}${won(spot)}) 선물은 ${fnet > 0 ? "사는" : "파는"} 엇갈림 — 헤지(위험 상쇄)일 수 있다`);
+    } else if (spot != null && spot !== 0) parts.push(`외국인 현물 ${spot < 0 ? "순매도 " : "순매수 "}${won(spot)}`);
+    if (fut && fut.oi > 0 && fut.volume > 0) {
+      const oiUp = fut.oiChg > 0;
+      if (fut.chg < 0) { bear++; parts.push(oiUp ? "선물은 새 매도가 들어오며 하락" : "선물 하락은 매수 정리 성격"); }
+      else if (fut.chg > 0) { bull++; parts.push(oiUp ? "선물은 새 매수가 들어오며 상승" : "선물 상승은 숏 청산 성격"); }
+    }
+    if (opt && opt.callVol > 0) {
+      const pcr = opt.putVol / opt.callVol;
+      if (pcr >= 1.2) { bear++; parts.push(`옵션은 하락 대비(풋)가 콜의 ${pcr.toFixed(1)}배`); }
+      else if (pcr <= 0.8) { bull++; parts.push("옵션은 상승 기대(콜) 우세"); }
+    }
+    if (!parts.length) return null;
+    const verdict = bear >= bull + 2 ? "하락 쪽 신호가 우세" : bull >= bear + 2 ? "상승 쪽 신호가 우세" : "신호가 엇갈린다";
+    return { text: `${parts.join(". ")}.`, verdict, bear, bull, tone: bear > bull ? "text-blue-700" : bull > bear ? "text-rose-700" : "text-gray-700" };
+  })();
+
   // 시장 카드(코스피·코스닥·선물(야간엔 야간선물)·V-KOSPI) — 반도체 탭 첫 줄과 종목정보 팝업이 같이 쓴다
   // 시장 대표 ETF 카드 — 팝업엔 넣지 않는다. 순서: 코스피 · 코스피200(KODEX 200) · 코스닥 · 코스닥150(사용자 요청 2026-10-23)
   const etfCard = (i: 0 | 1) => {
@@ -354,13 +383,14 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         : <div className="text-gray-400 text-[11.5px]">{empty}</div>}
     </div>
   );
-  const sigBox = (title: string, items: typeof sig, empty: string, foot?: boolean, cls = "") => (
+  const sigBox = (title: string, items: typeof sig, empty: string, foot?: boolean, cls = "", head?: React.ReactNode) => (
         <div className={`pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 overflow-hidden w-full ${cls}`}>
           {/* 지금 신호 — 가설 검증 탭은 뺐다(사용자 2026-11-04 "가설검증은 삭제") */}
           <div className="flex items-baseline gap-1 mb-1 border-b">
             <span className="px-2 pb-1 -mb-px border-b-2 border-blue-500 font-bold text-gray-900">{title}</span>
             <span className="ml-1 text-[11px] text-gray-400">숫자로 확인되는 것만</span>
           </div>
+          {head}
           {sigList(items, empty)}
           {foot && (
             <div className="mt-auto pt-2 border-t text-[11px] text-gray-500 leading-snug">
@@ -467,7 +497,13 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         <div className="grid grid-rows-[auto_1fr] gap-1.5 min-h-0">   {/* 위 = 옵션, 아래 = 시장 공통 신호(사용자 2026-11-04) */}
         {/* 종목 수급 표는 뺐다(사용자 2026-11-04 "삭제") */}
         <OptionBox opt={opt} vk={vk} dim={!openFut} />
-        {sigBox("시장 신호", sig.filter(n => !n.code), "아직 없음 — 코스피 외국인·선물·옵션 신호가 여기에", false, "max-h-[300px]")}   {/* 길어지면 안에서 스크롤 — 줄 높이를 밀어 올리지 않게 */}
+        {sigBox("시장 신호", sig.filter(n => !n.code), "아직 없음 — 코스피 외국인·선물·옵션 신호가 여기에", false, "max-h-[300px]",
+          mktSummary && (
+            <div className="mb-1.5 px-2 py-1.5 rounded bg-gray-50 border border-gray-200 text-[12.5px] leading-snug" title="아래 신호들을 숫자 규칙으로 묶은 것(AI 아님) — 하락·상승 쪽 신호 수로 결론">
+              <b className={mktSummary.tone}>요약: {mktSummary.verdict}</b> <span className="text-[11px] text-gray-400">(하락 {mktSummary.bear} · 상승 {mktSummary.bull})</span>
+              <div className="text-gray-700">{mktSummary.text}</div>
+            </div>
+          ))}   {/* 길어지면 안에서 스크롤 — 줄 높이를 밀어 올리지 않게 */}
         </div>
       </div>
 
