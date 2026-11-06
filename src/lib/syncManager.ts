@@ -117,6 +117,7 @@ export function clearPendingSyncAction(): void {
 
 // 내용 정규화 — exported_at 같은 noise 제외, 정렬로 결정적 직렬화
 // 주의: 새 동기화 필드 추가 시 반드시 여기에 포함시켜야 함 (안 그러면 변경이 silent skip 됨)
+import { describeNormDiff } from "./syncDiff";
 export function normalize(p: ExportPayload): string {
   const holdings = [...(p.holdings ?? [])]
     .map(s => ({
@@ -299,6 +300,16 @@ const PULL_CHECK_MS = 5 * 60_000;
 
 let conflictPending = false;   // 배너가 떠 있는 동안 또 쏘지 않는다
 
+// 충돌 때 '무엇이 바뀌었나' — 배너가 읽는다(사용자 2026-11-07 "아무것도 안 했는데 갱신됐다고 뜬다")
+export interface ConflictInfo { local: string[]; remote: string[] | null }
+let lastConflictInfo: ConflictInfo | null = null;
+export const getConflictInfo = () => lastConflictInfo;
+function setConflictInfo(localNorm: string, remoteNorm: string | null): void {
+  const base = getLastSyncedHash();
+  lastConflictInfo = { local: describeNormDiff(base, localNorm), remote: remoteNorm == null ? null : describeNormDiff(base, remoteNorm) };
+  try { console.info("[sync] 충돌 — 이 기기:", lastConflictInfo.local, " / Drive:", lastConflictInfo.remote); } catch { /* noop */ }
+}
+
 function emitConflict(): void {
   if (conflictPending) return;
   conflictPending = true;
@@ -326,9 +337,13 @@ export async function autoPush(): Promise<"pushed" | "none" | "conflict" | "skip
   // ★ 기준 시각이 없는데(이 기기는 Drive 와 한 번도 맞춘 적 없음 — 새 설치) Drive 에 파일이 있으면 **올리지 않는다**.
   //   예전엔 `lastTs &&` 조건 때문에 이 경우 검사를 건너뛰고 그대로 올려 남의(=다른 기기의) 데이터를 덮었다.
   if (meta && (!lastTs || meta.modifiedTime > lastTs)) {
+    let rn: string | null = null;
+    try { const r = await downloadFile<ExportPayload>(); rn = r ? normalize(r.data) : null; } catch { /* 이유만 못 보여 준다 */ }
+    setConflictInfo(h, rn);
     emitConflict();                                      // Drive 도 앞섰다 — 내가 올리면 저쪽이 사라진다
     return "conflict";
   }
+  try { const why = describeNormDiff(getLastSyncedHash(), h); localStorage.setItem("gdrive_last_push_reason", JSON.stringify({ at: new Date().toISOString(), why })); console.info("[sync] 자동 올림 —", why); } catch { /* noop */ }
   const ts = await guardedUpload(local);
   setLastSynced(ts, h);
   return "pushed";
@@ -353,6 +368,7 @@ export async function autoPull(): Promise<"applied" | "none" | "conflict" | "ski
   }
   const lastHash = getLastSyncedHash();
   if (lastHash == null || localNorm !== lastHash) {
+    setConflictInfo(localNorm, remoteNorm);
     emitConflict();                                      // 양쪽 다 바뀜 — 손대지 않는다
     return "conflict";
   }

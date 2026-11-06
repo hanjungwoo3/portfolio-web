@@ -4,7 +4,7 @@
 //   기계가 고르지 않고 여기서 사람에게 묻는다. 닫기(나중에)를 눌러도 데이터는 그대로 두고,
 //   다음 검사 때 다시 뜬다 — 해결할 때까지 자동 올리기·받기가 둘 다 멈춰 있기 때문이다.
 import { useEffect, useState } from "react";
-import { SYNC_CONFLICT_EVENT, resolveConflict, clearConflictFlag } from "../lib/syncManager";
+import { SYNC_CONFLICT_EVENT, resolveConflict, clearConflictFlag, getConflictInfo } from "../lib/syncManager";
 
 export function SyncConflictBar({ onChanged }: { onChanged: () => void }) {
   const [open, setOpen] = useState(false);
@@ -33,6 +33,13 @@ export function SyncConflictBar({ onChanged }: { onChanged: () => void }) {
     <div className="fixed bottom-3 left-1/2 -translate-x-1/2 z-[60] w-[min(92vw,520px)]
                     rounded-xl border border-amber-300 bg-amber-50 shadow-lg px-3 py-2.5">
       <div className="text-xs font-bold text-amber-900 mb-0.5">⚠️ 이 기기와 Drive 가 모두 바뀌었습니다</div>
+      {/* 무엇이 바뀌었나 — 아무것도 안 했는데 뜨면 여기 적힌 게 저절로 바뀐 값이다(사용자 2026-11-07) */}
+      {(() => { const ci = getConflictInfo(); return ci && (
+        <div className="text-[10.5px] text-amber-900 leading-snug mb-1.5 space-y-0.5 max-h-28 overflow-auto">
+          <div><b>이 기기:</b> {ci.local.length ? ci.local.join(" · ") : "바뀐 내용 없음"}</div>
+          <div><b>Drive:</b> {ci.remote == null ? "확인 못 함" : ci.remote.length ? ci.remote.join(" · ") : "바뀐 내용 없음"}</div>
+        </div>
+      ); })()}
       <div className="text-[11px] text-amber-800 leading-snug mb-2">
         한쪽을 고르면 다른 쪽 변경은 사라집니다. 어느 쪽이 최신인지 모르겠으면
         <b> 나중에</b> 를 누르고 설정에서 ↑↓ 로 직접 확인하세요.
