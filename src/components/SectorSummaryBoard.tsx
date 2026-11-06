@@ -94,7 +94,13 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
               <div className="px-2.5 pb-1.5 divide-y divide-gray-100">
                 {boxes.map(b => (
                   <div key={b.lb} className={`${G} py-1`}>
-                    <span className="text-[12.5px] font-bold text-gray-600 truncate" title={b.lb}>{b.lb}</span>
+                    <span className="min-w-0">
+                      <span className="block text-[12.5px] font-bold text-gray-600 truncate" title={b.lb}>{b.lb}</span>
+                      {/* 칸도 상승·하락 수(국내/해외 단추 기준, 사용자 2026-11-07 "여기도") */}
+                      {(() => { const v = mkt === "US" ? b.ov : b.kr; return v && (
+                        <span className="block text-[10.5px] tabular-nums whitespace-nowrap"><span className="text-rose-600">상승 {v.up}</span><span className="text-gray-400"> · </span><span className="text-blue-600">하락 {v.n - v.up}</span></span>
+                      ); })()}
+                    </span>
                     <Pair ov={b.ov} kr={b.kr} />
                   </div>
                 ))}
