@@ -381,6 +381,13 @@ export function isKrAfterRegularClose(): boolean {
   const t = nowInTz("Asia/Seoul");
   return t.weekday >= 1 && t.weekday <= 5 && t.hour * 60 + t.minute >= 15 * 60 + 30;
 }
+/** 국내 '정규장 뒤' 구간을 다음 장 전까지 늘린 것 — 평일 15:30~ · 다음 평일 08:00(NXT 프리) 전 · 주말 내내.
+ *  업종 평균의 애프터 꼬리표용(사용자 2026-11-07 "프리/애프터는 안 나오는데" — 자정·주말이면 금요일 애프터가 사라졌다). 휴장일은 따지지 않는다 */
+export function isKrAfterWindow(): boolean {
+  const t = nowInTz("Asia/Seoul"), m = t.hour * 60 + t.minute;
+  if (t.weekday === 0 || t.weekday === 6) return true;
+  return m >= 15 * 60 + 30 || m < 8 * 60;
+}
 
 // 단일가 세션 종류 — 09:00 이전이면 프리장(장전 동시호가/단일가),
 // 그 외(주로 15:30~18:00) 시간외 단일가. 카드 라벨 분기용.

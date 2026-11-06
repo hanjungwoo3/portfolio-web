@@ -15,13 +15,13 @@ const fmt = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 
 /** 한 칸 값 — 위 = 정규장 평균, 아래 = 프리·애프터·데이 꼬리표(정규장 종가 대비, 카드 배지와 같은 꼴)
  *  — 둘 다 늘 보이게, 같은 세로줄(사용자 2026-11-07 "정규장과 프리/애프터 둘 다, 해외·국내 둘 다, 꼬리표처럼") */
-function Val({ label, v, strong }: { label: string; v: RowAvg | null; strong?: boolean }) {
+function Val({ label, v, strong, big }: { label: string; v: RowAvg | null; strong?: boolean; big?: boolean }) {
   return (
     <span className="flex flex-col items-end whitespace-nowrap tabular-nums leading-[17px] min-w-0"
           title={v ? `${label} — 정규장 ${fmt(v.avg)}${v.aft != null ? ` · ${v.ses ?? "장외"} ${fmt(v.aft)}(정규장 종가 대비)` : ""} · ▲${v.up}·▼${v.n - v.up}` : undefined}>
       {!v ? <span className="text-gray-300 text-[12px]">—</span> : (
         <>
-          <b className={`${tone(v.avg)} ${strong ? "text-[13px]" : "text-[12px]"}`}>{fmt(v.avg)}</b>
+          <b className={`${tone(v.avg)} ${big ? "text-[15px]" : strong ? "text-[13px]" : "text-[12.5px]"}`}>{fmt(v.avg)}</b>
           {v.aft != null && (
             <span className={`text-[10px] font-bold text-white px-1 rounded leading-[14px] ${v.aft > 0 ? "bg-rose-600/60" : v.aft < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`}>
               {v.aft > 0 ? "+" : v.aft < 0 ? "−" : ""}{Math.abs(v.aft).toFixed(2)}%
@@ -40,11 +40,6 @@ function Pair({ ov, kr, strong }: { ov: RowAvg | null; kr: RowAvg | null; strong
     </>
   );
 }
-// 칸 안 격자 — [이름 | 해외 | 국내], 같은 열의 칸 폭이 같아 줄마다 숫자가 같은 세로선에 선다
-const CELL = "grid grid-cols-[minmax(0,1fr)_3.9rem_3.9rem] items-start gap-x-1";
-// 칸(기판·전공정…) — 한 줄 [이름 | 해외 | 국내](사용자 2026-11-07 "주기기/건설 해외 국내처럼 다 한 줄로").
-//   숫자 칸 폭 고정·오른쪽 정렬 → 줄마다 같은 세로선. 칸이 좁아 프리·애프터 꼬리표는 ● 점 + 마우스 설명으로
-const BOX = "grid grid-cols-[minmax(0,1fr)_3.7rem_3.7rem] items-start gap-x-1";
 
 export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact }: {
   sections: DashboardSection[];                 // 업종 탭(한눈에 제외)
@@ -68,53 +63,41 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
     const k = (r: typeof a) => (mkt === "US" ? r.ov?.avg : r.kr?.avg) ?? -Infinity;
     return k(b) - k(a);
   });
-  const maxBoxes = Math.max(1, ...rows.map(r => r.boxes.length));
-
+  // 업종마다 카드 하나(사용자 2026-11-07 "업종별로 레이어를 분리") — 맨 위 업종 이름·해외·국내(크게), 아래 칸마다 한 줄씩.
+  //   카드 안은 [이름 | 해외 | 국내] 고정 격자라 칸 줄끼리 세로줄이 맞는다. 카드 순서 = 고른 국내/해외 평균 큰 순.
+  const G = "grid grid-cols-[minmax(0,1fr)_4.2rem_4.2rem] items-start gap-x-1.5";
   return (
-    <div className="space-y-1">
-      <div className="px-1 text-[10.5px] text-gray-400">숫자 = 정규장 평균 · 아래 꼬리표 = 그 뒤({isMarketOpen("US_INDEX") ? "미국은 지금 정규장 중" : `미국 지금 '${usSessionLabel()}'`} · 국내 NXT 애프터) 정규장 종가 대비 — 장중이면 꼬리표 없음</div>
-      {/* 표 머리 — 해외 · 국내(칸마다 같은 자리) */}
-      {!compact && (
-        <div className="grid sticky top-0 z-10 bg-white/95 text-[11px] font-bold text-gray-500 border-b border-gray-200" style={{ gridTemplateColumns: `250px repeat(${maxBoxes}, minmax(0, 1fr))` }}>
-          <div className={`px-2 py-0.5 ${CELL}`}><span>업종</span><span className="text-right">해외</span><span className="text-right">국내</span></div>
-          {Array.from({ length: maxBoxes }, (_, i) => (
-            <div key={i} className={`px-1.5 py-0.5 ${BOX} ${i > 0 ? "border-l border-gray-100" : ""}`}><span /><span className="text-right">해외</span><span className="text-right">국내</span></div>
-          ))}
-        </div>
-      )}
-      {rows.map(({ s, ov, kr, boxes }) => {
-        const emoji = s.label.split(" ")[0];
-        return (
-          <div key={s.id} className={`rounded-lg border border-gray-200 bg-white ${compact ? "p-1.5 space-y-1" : "grid items-stretch"}`}
-               style={compact ? undefined : { gridTemplateColumns: `250px repeat(${maxBoxes}, minmax(0, 1fr))` }}>
-            {/* 업종 칸 — 이름 + 업종 전체 해외·국내 */}
-            <div className={`px-2 py-1 ${CELL} ${compact ? "" : "border-r border-gray-200 bg-gray-50/70 rounded-l-lg"}`}>   {/* 이름·해외·국내 한 줄(사용자 2026-11-07) */}
-              <button onClick={() => onOpen(s.id)} className="font-bold text-[13px] text-gray-800 hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-left" title={`${s.short} 탭으로 — 종목 카드 보기`}>
-                {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
-              </button>
-              <Pair ov={ov} kr={kr} strong={mkt} />
-            </div>
-            {/* 칸들 — 이름 + 해외·국내 */}
-            {compact
-              ? <div className="grid grid-cols-1 gap-0.5">
-                  {boxes.map(b => (
-                    <div key={b.lb} className={`rounded border border-gray-100 px-1.5 py-0.5 ${CELL}`}>
-                      <span className="text-[11px] font-bold text-gray-600 truncate">{b.lb}</span>
-                      <Pair ov={b.ov} kr={b.kr} />
-                    </div>
-                  ))}
-                </div>
-              : boxes.map((b, i) => (
-                  <div key={b.lb} className={`px-1.5 py-1 min-w-0 ${BOX} ${i > 0 ? "border-l border-gray-100" : ""}`}>
-                    <span className="text-[11.5px] font-bold text-gray-600 truncate tracking-tight" title={b.lb}>{b.lb}</span>
+    <div className="space-y-1.5">
+      <div className="px-1 text-[10.5px] text-gray-400">숫자 = 정규장 평균 · 아래 꼬리표 = 그 뒤({isMarketOpen("US_INDEX") ? "미국은 지금 정규장 중" : `미국 지금 '${usSessionLabel()}'`} · 국내 NXT 애프터) 정규장 종가 대비 — 장중이면 꼬리표 없음 · 숫자에 마우스 = ▲▼ 개수</div>
+      <div className={`grid gap-2 ${compact ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"}`}>
+        {rows.map(({ s, ov, kr, boxes }) => {
+          const emoji = s.label.split(" ")[0];
+          return (
+            <div key={s.id} className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
+              {/* 머리 — 업종 이름·해외·국내 크게 */}
+              <div className={`${G} px-2.5 py-1.5 bg-gray-50 border-b border-gray-200`}>
+                <button onClick={() => onOpen(s.id)} className="font-bold text-[15px] text-gray-900 hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-left" title={`${s.short} 탭으로 — 종목 카드 보기`}>
+                  {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
+                </button>
+                <Val label="해외" v={ov} big /><Val label="국내" v={kr} big />
+              </div>
+              {/* 열 이름 */}
+              <div className={`${G} px-2.5 pt-1 text-[10px] text-gray-400`}><span /><span className="text-right">해외</span><span className="text-right">국내</span></div>
+              {/* 칸 줄 */}
+              <div className="px-2.5 pb-1.5 divide-y divide-gray-100">
+                {boxes.map(b => (
+                  <div key={b.lb} className={`${G} py-1`}>
+                    <span className="text-[12.5px] font-bold text-gray-600 truncate" title={b.lb}>{b.lb}</span>
                     <Pair ov={b.ov} kr={b.kr} />
                   </div>
                 ))}
-          </div>
-        );
-      })}
+              </div>
+            </div>
+          );
+        })}
+      </div>
       <div className="px-1 text-[10.5px] text-gray-400">
-        해외 = 해외 대장주 평균(미국·일본) · 국내 = 국내 종목 평균 · 숫자에 마우스를 올리면 정규장·장외 둘 다와 ▲▼ 개수 · 업종 이름을 누르면 그 탭(카드) · 순서 = {mkt === "US" ? "해외" : "국내"} 평균 큰 순(왼쪽 국내/해외 단추)
+        해외 = 해외 대장주 평균(미국·일본) · 국내 = 국내 종목 평균 · 업종 이름을 누르면 그 탭(카드) · 카드 순서 = {mkt === "US" ? "해외" : "국내"} 평균 큰 순(왼쪽 국내/해외 단추)
       </div>
     </div>
   );
