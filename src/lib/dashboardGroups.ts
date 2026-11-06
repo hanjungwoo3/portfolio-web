@@ -704,7 +704,10 @@ function isKrNightNow(): boolean {
 //   폐지된 탭(미국순환 → 미국, 반도체 → 순환매, 대장주 → 한국)은 합쳐진 페이지로 보낸다.
 export const INDEX_GROUP_KEYS = new Set<string>(["__us-market__", "__idx-night__", "__idx-sobu__"]);
 // 지수(업종) 의 '한눈에' 탭에 함께 보이는 블록(옛 순환매 페이지)
-export const SECTOR_OVERVIEW_IDS = new Set<string>(["semi", "jpsemi", "rotflow", "etftop", "sector"]);
+// 한눈에 = 업종 요약판(rotflow 자리)만(사용자 2026-11-07 "다른 곳에서 볼 수 있는 정보") — 빼낸 것의 다른 자리:
+//   필반 지수·ARM·TSMC·엔비디아·브로드컴 → 반도체 탭·지수(미국), 일본 반도체 → 반도체·소부장 탭 대장주·닛케이는 지수(한국),
+//   ETF 등락 TOP10 → ETF 전체 순위 탭, 한·미 섹터 → 섹터 순위(TICS) 탭
+export const SECTOR_OVERVIEW_IDS = new Set<string>(["rotflow"]);
 export function indexPageOf(key: string): DashboardPage {
   return key === "__idx-night__" || key === "__idx-us__" ? "night" : key === "__idx-rot__" || key === "__idx-semi__" || key === "__idx-sobu__" || key === "__idx-batt__" ? "sobu" : "day";   // 옛 순환매·반도체·2차전지 → 업종   // 옛 2차전지 페이지 → 업종
 }

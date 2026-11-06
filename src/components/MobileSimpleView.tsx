@@ -48,6 +48,7 @@ import { useChartRange, pickCardChart, historyRange } from "../lib/chartRange";
 import { ChartRangeToggle, AvgMarketToggle } from "./ChartRangeToggle";
 import { usRegExtOf, rotRowAvg, rotRowOrder } from "../lib/avgMarket";
 import { AftPill } from "./SectorTabBar";
+import { SectorSummaryBoard } from "./SectorSummaryBoard";
 import { useIntradayCharts } from "../lib/useIntradayCharts";
 import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage, type DashboardSection } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
@@ -1081,10 +1082,10 @@ export function MobileSimpleView() {
   // ─── Tier 0 (대시보드 4개) ───
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
   // 종목 하나의 정규장 등락 + 그 뒤(애프터·프리) — PC(UsMarketTab regExtOf)와 같은 규칙
-  const regExtOfM = (sym: string): { reg: number; aft: number } | null => {
+  const regExtOfM = (sym: string): { reg: number; aft: number; ses?: "프리" | "애프터" | "데이" } | null => {
     const q = usMap.get(sym);
     const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
-    return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : usRegExtOf(sym, q);
+    return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100, ses: "애프터" as const } : usRegExtOf(sym, q);
   };
   const pctOfM = (sym: string) => displayPctOf(sym, usMap.get(sym));
 
@@ -2299,6 +2300,14 @@ export function MobileSimpleView() {
                              stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />}
             <KisExpRankBox compact />
             {sections.map(section => {
+              // 한눈에 — AI 순환매 카드 줄 대신 업종 요약판(PC 와 같은 컴포넌트, 사용자 2026-11-07)
+              if (isSectorPage && section.id === "rotflow") return (
+                <div key="sector-summary" className="relative rounded-xl border border-gray-300 bg-white pg-box p-2 pt-3.5 mt-1.5">
+                  <span className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-[13px] font-bold text-gray-700 whitespace-nowrap">📋 업종 한눈에 — 해외 ➜ 국내</span>
+                  <SectorSummaryBoard compact sections={sectorTabsOf(pageSecs).filter(x => x.id !== "overview")} pctOf={pctOfM} regExtOf={regExtOfM}
+                                      nameOf={sym => tier0.find(x => x.symbol === sym)?.name ?? sym} onOpen={id => { setSectorTabM(id); window.scrollTo({ top: 0 }); }} />
+                </div>
+              );
               // keepRows — 줄마다 첫 카드를 새 줄 1열에서 시작(col-start-1)해 PC 처럼 줄이 유지된다
               const rowHeads = new Set(section.keepRows ? section.rows.map(r => r[0]) : []);
               return (

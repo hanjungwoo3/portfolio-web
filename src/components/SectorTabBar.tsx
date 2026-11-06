@@ -53,11 +53,11 @@ export function sectorAvg(s: DashboardSection, pctOf: (sym: string) => number | 
 }
 
 /** 애프터 꼬리표 — 카드 오른쪽 위 배지와 같은 꼴(정규장 종가 대비 지금, 사용자 2026-11-05) */
-export function AftPill({ v, n }: { v: number; n?: number }) {
+export function AftPill({ v, n, label }: { v: number; n?: number; label?: string }) {
   return (
     <span className={`tabular-nums ml-1 font-bold text-white px-1 rounded ${v > 0 ? "bg-rose-600/60" : v < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`}
-          title={`정규장 마감 뒤(NXT 애프터) 등락률 평균 — 정규장 종가 대비 지금 값${n ? `, ${n}종목` : ""}`}>
-      {v > 0 ? "+" : v < 0 ? "−" : ""}{Math.abs(v).toFixed(2)}%
+          title={`정규장 마감 뒤(${label ?? "애프터"}) 등락률 평균 — 정규장 종가 대비 지금 값${n ? `, ${n}종목` : ""}`}>
+      {label && <span className="font-normal mr-0.5 opacity-90">{label}</span>}{v > 0 ? "+" : v < 0 ? "−" : ""}{Math.abs(v).toFixed(2)}%
     </span>
   );
 }

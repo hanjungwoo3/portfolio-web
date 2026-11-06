@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo } from "react";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { SectorTabBar, sectorAvg, sectionsForTab, sectorTabsOf, useSectorTab } from "./SectorTabBar";
+import { SectorSummaryBoard } from "./SectorSummaryBoard";
 import { useRecentDisc } from "../lib/recentDisclosures";
 import { DiscTags } from "./DiscTags";
 import { SobuGrid } from "./SobuGrid";
@@ -149,10 +150,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
 
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
   // 종목 하나의 '정규장 등락 + 그 뒤(애프터·프리) 움직임' — 국내는 15:30 뒤 정규장 종가 책갈피, 미국은 장 밖이면 최근 정규장 종가 기준
-  const regExtOf = (sym: string): { reg: number; aft: number } | null => {
+  const regExtOf = (sym: string): { reg: number; aft: number; ses?: "프리" | "애프터" | "데이" } | null => {
     const q = usMap.get(sym);
     const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
-    return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : usRegExtOf(sym, q);
+    return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100, ses: "애프터" as const } : usRegExtOf(sym, q);
   };
   const pctOfSym = (sym: string) => displayPctOf(sym, usMap.get(sym));
   const rotAvg = (section: DashboardSection, gi: number) => rotRowAvg(section, gi, pctOfSym, regExtOf);
@@ -737,7 +738,15 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       <div className={`space-y-4 ${page === "sobu" ? "lg:flex-1 lg:min-w-0" : ""}`}>
         {/* 동시호가 예상 순위 — 앱+한국투자, 동시호가 동안만(사용자 2026-11-02) */}
         <KisExpRankBox />
-        {T0_SECTIONS.map((section) => (
+        {T0_SECTIONS.map((section) => page === "sobu" && section.id === "rotflow" ? (
+          // 한눈에 — AI 순환매 카드 줄 대신 업종 요약판(사용자 2026-11-07 "한눈에는 요약만, 카드는 섹터별로")
+          <div key="sector-summary" id="usidx-sector-summary" style={{ scrollMarginTop: idxScrollMargin }}
+               className="relative rounded-xl border border-gray-300 bg-white pg-box p-2.5 pt-4 mt-1.5">
+            <span className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700 whitespace-nowrap">📋 업종 한눈에 — 해외 ➜ 국내</span>
+            <SectorSummaryBoard sections={SECTOR_TABS.filter(x => x.id !== "overview")} pctOf={pctOfSym} regExtOf={regExtOf}
+                                nameOf={sym => tier0.find(x => x.symbol === sym)?.name ?? sym} onOpen={id => { setSectorTab(id); window.scrollTo({ top: 0 }); }} />
+          </div>
+        ) : (
           <div key={section.label} id={`usidx-${section.id}`}
                style={{ scrollMarginTop: idxScrollMargin }}
                className={`relative space-y-2 rounded-xl border border-gray-300 bg-white ${section.render === "rotation" ? "" : section.render ? "pg-box pg-render" : "pg-box"} p-2.5 pt-4 mt-1.5`}>
