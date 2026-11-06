@@ -22,13 +22,14 @@ const NAME = new Map(US_PAIRS.map(p => [p.symbol, p.name]));
 const eok = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v) >= 100 ? Math.round(Math.abs(v)).toLocaleString() : Math.abs(v).toFixed(1)}억`;
 const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500");
 
-export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCard, hotOf }: {
+export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCard, hotOf, headersOnly }: {
   rows: string[][]; labels: string[]; leadByRow: number[];
   etfs?: string[];   // 업종 ETF — 칸들 위 한 줄
   quote: (sym: string) => { price: number; pct: number; reg?: { price: number; pct: number } } | undefined;
   // 지수 탭 종목 카드 그대로(사용자 2026-11-03 "지수에 있는 종목 카드와 동일하게, 똑같은 기능으로") — 주면 QuoteCard 대신 이걸 그린다
   renderCard?: (sym: string) => import("react").ReactNode;
   hotOf?: (sym: string) => number;   // 거래대금 급증 배수(한국투자 레이더) — 0 이 아니면 칸 맨 앞으로
+  headersOnly?: boolean;   // 칸 제목(국내·해외 평균·5일/20일 수급)만 — 지수(업종) 한눈에(사용자 2026-11-07 "한눈에 이거 다 넣으면")
   dimOf?: (sym: string) => boolean;   // 장 마감 흐림 — 지수 탭 카드와 같은 판정(dashboardCardDim, 설정 따름)
 }) {
   // 다섯 단계 → 네 칸: 소재·부품을 한 칸으로
@@ -150,7 +151,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
   const cw = renderCard ? `min(calc((100cqw + 68px) / 8), calc((100cqw - ${chrome}px) / ${T}))` : undefined;
   return (
     <div className="space-y-2 [container-type:inline-size]" style={cw ? ({ "--cw": cw } as import("react").CSSProperties) : undefined}>
-    {etfs && etfs.length > 0 && renderCard && (
+    {!headersOnly && etfs && etfs.length > 0 && renderCard && (
       // ETF 줄도 아래 칸의 카드 세로줄에 맞춘다(사용자 2026-11-03 "ETF도 같이 줄을 맞춰야지") — 두 장씩 칸 폭(테두리 1 + 여백 8)만큼 안쪽으로
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-x-2 gap-y-4 pt-1.5 xl:flex xl:flex-wrap">
         {/* 칸마다 그 칸 열 수만큼 — 아래 칸의 카드 세로줄과 맞는다 */}
@@ -161,7 +162,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
         ))}
       </div>
     )}
-    {etfs && etfs.length > 0 && !renderCard && (
+    {!headersOnly && etfs && etfs.length > 0 && !renderCard && (
       // ETF 카드 크기를 아래 종목 카드와 같게(사용자 2026-11-03 "ETF 카드만 크기가 달라") — 칸 수×2 열 격자, 칸 안쪽 여백만큼 양옆을 띄운다
       <div className={`grid grid-cols-2 sm:grid-cols-4 ${boxes.length === 3 ? "xl:grid-cols-6" : "xl:grid-cols-8"} gap-x-3.5 gap-y-1.5 px-2`}>
         {etfs.map(sym => { const q = quote(sym); return (
@@ -234,12 +235,12 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
                 ))}
               </div>
             )}
-            <div className={`grid grid-cols-2 ${renderCard ? "gap-x-2 gap-y-4 pt-1.5 xl:[grid-template-columns:repeat(var(--cols),var(--cw))]" : "gap-1.5"}`} style={renderCard ? ({ "--cols": cols[bi] } as import("react").CSSProperties) : undefined}>   {/* 지수 카드는 아래 책갈피가 걸쳐 줄 간격을 지수 탭과 같게 */}
+            {!headersOnly && <div className={`grid grid-cols-2 ${renderCard ? "gap-x-2 gap-y-4 pt-1.5 xl:[grid-template-columns:repeat(var(--cols),var(--cw))]" : "gap-1.5"}`} style={renderCard ? ({ "--cols": cols[bi] } as import("react").CSSProperties) : undefined}>   {/* 지수 카드는 아래 책갈피가 걸쳐 줄 간격을 지수 탭과 같게 */}
               {b.lead.map(s => card(s, true))}
               {/* 국내 종목은 오늘 등락률 높은 순(사용자 2026-11-02) — 값 없는 종목은 뒤로. 해외 대장주는 앞에 고정 */}
               {/* 흐린 종목(장 안 열림·체결 없음)은 아래로(사용자 2026-11-03), 그 안에서 등락률 순 */}
               {[...b.kr].sort((x, y) => ((hotOf?.(y) ?? 0) - (hotOf?.(x) ?? 0)) || (Number(!!dimOf?.(x)) - Number(!!dimOf?.(y))) || (quote(y)?.pct ?? -Infinity) - (quote(x)?.pct ?? -Infinity)).map(s => card(s, false))}   {/* 거래대금 급증 종목은 맨 앞(사용자 2026-11-03) */}
-            </div>
+            </div>}
           </div>
         );
       })}

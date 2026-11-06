@@ -1088,6 +1088,14 @@ export function MobileSimpleView() {
     return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100, ses: "애프터" as const } : usRegExtOf(sym, q);
   };
   const pctOfM = (sym: string) => displayPctOf(sym, usMap.get(sym));
+  // 업종 칸(SobuGrid) 시세 — 업종 탭과 한눈에 요약판이 같이 쓴다. 국내는 15:30 뒤 정규장 종가 책갈피(야후 확인분), 미국 대장주는 장 밖이면 최근 정규장
+  const sobuQuote = (sym: string) => {
+    const q = usMap.get(sym); if (!q) return undefined;
+    const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
+    const ux = usRegExtOf(sym, q);
+    return { price: ux?.price ?? q.price, pct: displayPctOf(sym, q) ?? q.pct, reg: r?.fromYahoo ? { price: r.regularPrice, pct: r.regularPct } : ux ? { price: ux.regPrice, pct: ux.reg } : undefined };
+  };
+
 
   // T0 3개월 추이 — 일봉, 1시간 캐시 (PC 와 동일 쿼리키·**동일 함수** — 캐시 공유)
   //   지수 탭일 때, **지금 페이지의 카드만** 받는다(예전엔 탭과 무관하게 tier0 전체를 받았다).
@@ -2305,7 +2313,7 @@ export function MobileSimpleView() {
                 <div key="sector-summary" className="relative rounded-xl border border-gray-300 bg-white pg-box p-2 pt-3.5 mt-1.5">
                   <span className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-[13px] font-bold text-gray-700 whitespace-nowrap">📋 업종 한눈에 — 해외 ➜ 국내</span>
                   <SectorSummaryBoard compact sections={sectorTabsOf(pageSecs).filter(x => x.id !== "overview")} pctOf={pctOfM} regExtOf={regExtOfM}
-                                      nameOf={sym => tier0.find(x => x.symbol === sym)?.name ?? sym} onOpen={id => { setSectorTabM(id); window.scrollTo({ top: 0 }); }} />
+                                      nameOf={sym => tier0.find(x => x.symbol === sym)?.name ?? sym} onOpen={id => { setSectorTabM(id); window.scrollTo({ top: 0 }); }}  renderDetail={(sec: DashboardSection) => <SobuGrid headersOnly rows={sec.rows} labels={sec.rowLabels ?? []} leadByRow={sec.leadByRow ?? []} quote={sobuQuote} dimOf={dimOf} />} />
                 </div>
               );
               // keepRows — 줄마다 첫 카드를 새 줄 1열에서 시작(col-start-1)해 PC 처럼 줄이 유지된다
@@ -2352,13 +2360,7 @@ export function MobileSimpleView() {
                 )}
                 {section.render === "sobuGrid" && (
                   <SobuGrid rows={section.rows} labels={section.rowLabels ?? []} leadByRow={section.leadByRow ?? []} etfs={section.etfs}
-                            quote={sym => {
-                              const q = usMap.get(sym); if (!q) return undefined;
-                              // 한국 개별 종목 — 15:30 뒤엔 오늘 정규장 종가 책갈피(야후로 확인된 값만, 지수 탭 카드와 같은 규칙). ETF 는 애프터가 없어 뺀다
-                              const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
-                              const ux = usRegExtOf(sym, q);   // 미국 대장주 장 밖 — 정규장 종가·등락(칸 제목 해외 "정규장%(프리·애프터%)")
-                              return { price: ux?.price ?? q.price, pct: displayPctOf(sym, q) ?? q.pct, reg: r?.fromYahoo ? { price: r.regularPrice, pct: r.regularPct } : ux ? { price: ux.regPrice, pct: ux.reg } : undefined };
-                            }}   /* 장 전·마감 뒤엔 마지막 정규장 % — 다른 지수 카드와 같은 규칙(자정 지나 0.00% 였다) */ dimOf={dimOf} renderCard={sym => renderIdxCardM(section, sym)} hotOf={sym => radar.get(sym.slice(0, 6))?.ratio ?? 0} />
+                            quote={sobuQuote}   /* 장 전·마감 뒤엔 마지막 정규장 % — 다른 지수 카드와 같은 규칙(자정 지나 0.00% 였다) */ dimOf={dimOf} renderCard={sym => renderIdxCardM(section, sym)} hotOf={sym => radar.get(sym.slice(0, 6))?.ratio ?? 0} />
                 )}
                 {section.render === "sectorFlow" && (
                   <TicsSectorBoard onOpenValuation={setValuationTicker}
