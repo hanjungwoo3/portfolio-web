@@ -68,7 +68,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
   const G = "grid grid-cols-[minmax(0,1fr)_4.2rem_4.2rem] items-start gap-x-1.5";
   return (
     <div className="space-y-1.5">
-      <div className="px-1 text-[10.5px] text-gray-400">숫자 = 정규장 평균 · 아래 꼬리표 = 그 뒤({isMarketOpen("US_INDEX") ? "미국은 지금 정규장 중" : `미국 지금 '${usSessionLabel()}'`} · 국내 NXT 애프터) 정규장 종가 대비 — 장중이면 꼬리표 없음 · 숫자에 마우스 = ▲▼ 개수</div>
+      <div className="px-1 text-[10.5px] text-gray-400">숫자 = 정규장 평균 · 아래 꼬리표 = 그 뒤({isMarketOpen("US_INDEX") ? "미국은 지금 정규장 중" : `미국 지금 '${usSessionLabel()}'`} · 국내 NXT 애프터) 정규장 종가 대비 — 장중이면 꼬리표 없음 </div>
       <div className={`grid gap-2 ${compact ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"}`}>
         {rows.map(({ s, ov, kr, boxes }) => {
           const emoji = s.label.split(" ")[0];
@@ -76,9 +76,15 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
             <div key={s.id} className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
               {/* 머리 — 업종 이름·해외·국내 크게 */}
               <div className={`${G} px-2.5 py-1.5 bg-gray-50 border-b border-gray-200`}>
-                <button onClick={() => onOpen(s.id)} className="font-bold text-[15px] text-gray-900 hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-left" title={`${s.short} 탭으로 — 종목 카드 보기`}>
-                  {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
-                </button>
+                <div className="min-w-0">
+                  <button onClick={() => onOpen(s.id)} className="block font-bold text-[15px] text-gray-900 hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-left" title={`${s.short} 탭으로 — 종목 카드 보기`}>
+                    {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
+                  </button>
+                  {/* 상승·하락 종목 수 — 왼쪽 탭과 같은 기준(국내/해외 단추)(사용자 2026-11-07 "아래에 넣어도") */}
+                  {(() => { const v = mkt === "US" ? ov : kr; return v && (
+                    <div className="text-[11px] tabular-nums whitespace-nowrap"><span className="text-rose-600">상승 {v.up}</span><span className="text-gray-400"> · </span><span className="text-blue-600">하락 {v.n - v.up}</span></div>
+                  ); })()}
+                </div>
                 <Val label="해외" v={ov} big /><Val label="국내" v={kr} big />
               </div>
               {/* 열 이름 */}
