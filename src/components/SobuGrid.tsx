@@ -29,7 +29,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
   // 지수 탭 종목 카드 그대로(사용자 2026-11-03 "지수에 있는 종목 카드와 동일하게, 똑같은 기능으로") — 주면 QuoteCard 대신 이걸 그린다
   renderCard?: (sym: string) => import("react").ReactNode;
   hotOf?: (sym: string) => number;   // 거래대금 급증 배수(한국투자 레이더) — 0 이 아니면 칸 맨 앞으로
-  headersOnly?: boolean;   // 칸 제목(국내·해외 평균·5일/20일 수급)만 — 지수(업종) 한눈에(사용자 2026-11-07 "한눈에 이거 다 넣으면")
+  headersOnly?: boolean;   // 칸 제목(국내·해외 평균)만 — 5일/20일 수급 줄도 뺀다 — 지수(업종) 한눈에(사용자 2026-11-07 "한눈에 이거 다 넣으면")
   dimOf?: (sym: string) => boolean;   // 장 마감 흐림 — 지수 탭 카드와 같은 판정(dashboardCardDim, 설정 따름)
 }) {
   // 다섯 단계 → 네 칸: 소재·부품을 한 칸으로
@@ -224,7 +224,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
                 )}
               </div>
             </div>
-            {hasFlow && (
+            {hasFlow && !headersOnly && (   /* 한눈에(제목만)에선 수급 줄 뺌(사용자 2026-11-07 "여긴 제외") */
               <div className="flex flex-col text-[11px] tabular-nums leading-4 -mt-1 mb-1.5"   /* 5일·20일 늘 두 줄 — 숫자 길이에 따라 칸마다 줄 수가 달라 높이가 어긋났다(사용자 2026-11-02) */
                    title={`국내 종목 누적 순매수 합 — 기관은 금융투자 제외(ETF·차익거래가 섞여 방향이 흐려진다). ${flows.data?.meta.asOf ?? ""} 기준`}>
                 {(["5", "20"] as const).map(w => (
