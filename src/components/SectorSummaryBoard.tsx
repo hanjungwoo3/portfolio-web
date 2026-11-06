@@ -15,9 +15,9 @@ const fmt = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 
 /** 한 칸 값 — 위 = 정규장 평균, 아래 = 프리·애프터·데이 꼬리표(정규장 종가 대비, 카드 배지와 같은 꼴)
  *  — 둘 다 늘 보이게, 같은 세로줄(사용자 2026-11-07 "정규장과 프리/애프터 둘 다, 해외·국내 둘 다, 꼬리표처럼") */
-function Val({ label, v, strong, big }: { label: string; v: RowAvg | null; strong?: boolean; big?: boolean }) {
+function Val({ label, v, strong, big, dim }: { label: string; v: RowAvg | null; strong?: boolean; big?: boolean; dim?: boolean }) {
   return (
-    <span className="flex flex-col items-end whitespace-nowrap tabular-nums leading-[17px] min-w-0"
+    <span className={`flex flex-col items-end whitespace-nowrap tabular-nums leading-[17px] min-w-0 ${dim ? "opacity-40" : ""}`}
           title={v ? `${label} — 정규장 ${fmt(v.avg)}${v.aft != null ? ` · ${v.ses ?? "장외"} ${fmt(v.aft)}(정규장 종가 대비)` : ""} · ▲${v.up}·▼${v.n - v.up}` : undefined}>
       {!v ? <span className="text-gray-300 text-[12px]">—</span> : (
         <>
@@ -36,7 +36,7 @@ function Val({ label, v, strong, big }: { label: string; v: RowAvg | null; stron
 function Pair({ ov, kr, strong }: { ov: RowAvg | null; kr: RowAvg | null; strong?: "US" | "KR" }) {
   return (
     <>
-      <Val label="해외" v={ov} strong={strong === "US"} /><Val label="국내" v={kr} strong={strong === "KR"} />
+      <Val label="해외" v={ov} strong={strong === "US"} dim={strong === "KR"} /><Val label="국내" v={kr} strong={strong === "KR"} dim={strong === "US"} />
     </>
   );
 }
@@ -86,7 +86,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
                   ); })()}
                 </div>
                 {/* 정렬 기준(국내/해외 단추) 숫자만 크게(사용자 2026-11-07) */}
-                <Val label="해외" v={ov} big={mkt === "US"} strong /><Val label="국내" v={kr} big={mkt === "KR"} strong />
+                <Val label="해외" v={ov} big={mkt === "US"} strong dim={mkt === "KR"} /><Val label="국내" v={kr} big={mkt === "KR"} strong dim={mkt === "US"} />   {/* 고르지 않은 쪽은 흐리게(사용자 2026-11-07) */}
               </div>
               {/* 열 이름 */}
               <div className={`${G} px-2.5 pt-1 text-[10px] text-gray-400`}><span /><span className="text-right">해외</span><span className="text-right">국내</span></div>
@@ -101,7 +101,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
                         <span className="block text-[10.5px] tabular-nums whitespace-nowrap"><span className="text-rose-600">상승 {v.up}</span><span className="text-gray-400"> · </span><span className="text-blue-600">하락 {v.n - v.up}</span></span>
                       ); })()}
                     </span>
-                    <Pair ov={b.ov} kr={b.kr} />
+                    <Pair ov={b.ov} kr={b.kr} strong={mkt} />
                   </div>
                 ))}
               </div>
