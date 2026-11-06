@@ -21,7 +21,7 @@ function Val({ label, v, strong, big }: { label: string; v: RowAvg | null; stron
           title={v ? `${label} — 정규장 ${fmt(v.avg)}${v.aft != null ? ` · ${v.ses ?? "장외"} ${fmt(v.aft)}(정규장 종가 대비)` : ""} · ▲${v.up}·▼${v.n - v.up}` : undefined}>
       {!v ? <span className="text-gray-300 text-[12px]">—</span> : (
         <>
-          <b className={`${tone(v.avg)} ${big ? "text-[15px]" : strong ? "text-[13px]" : "text-[12.5px]"}`}>{fmt(v.avg)}</b>
+          <b className={`${tone(v.avg)} ${big ? "text-[19px] leading-[22px]" : strong ? "text-[13px]" : "text-[12.5px]"}`}>{fmt(v.avg)}</b>
           {v.aft != null && (
             <span className={`text-[10px] font-bold text-white px-1 rounded leading-[14px] ${v.aft > 0 ? "bg-rose-600/60" : v.aft < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`}>
               {v.aft > 0 ? "+" : v.aft < 0 ? "−" : ""}{Math.abs(v.aft).toFixed(2)}%
@@ -85,7 +85,8 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
                     <div className="text-[11px] tabular-nums whitespace-nowrap"><span className="text-rose-600">상승 {v.up}</span><span className="text-gray-400"> · </span><span className="text-blue-600">하락 {v.n - v.up}</span></div>
                   ); })()}
                 </div>
-                <Val label="해외" v={ov} big /><Val label="국내" v={kr} big />
+                {/* 정렬 기준(국내/해외 단추) 숫자만 크게(사용자 2026-11-07) */}
+                <Val label="해외" v={ov} big={mkt === "US"} strong /><Val label="국내" v={kr} big={mkt === "KR"} strong />
               </div>
               {/* 열 이름 */}
               <div className={`${G} px-2.5 pt-1 text-[10px] text-gray-400`}><span /><span className="text-right">해외</span><span className="text-right">국내</span></div>
