@@ -4,6 +4,7 @@
 //   직접 고르면 그 시간대(자동값이 바뀌기 전)까지만 유지 — 다음 날 아침엔 다시 한국으로 돌아온다.
 import { useSyncExternalStore } from "react";
 import { isMarketOpen } from "./format";
+import { rowLead, type DashboardSection } from "./dashboardGroups";
 
 export type AvgMarket = "KR" | "US";
 const KEY = "avg_market_pick";
@@ -46,4 +47,23 @@ export function usRegExtOf(sym: string, q?: { price: number; postPrice?: number 
   const off = ["PRE", "POST", "POSTPOST", "PREPRE", "CLOSED"].includes(q.marketState ?? "");
   const p = off && q.postPrice ? q.postPrice : q.price;
   return { reg: q.regularPct, aft: (p / q.regularPrice - 1) * 100, price: p, regPrice: q.regularPrice };
+}
+
+// 순환매(한눈에) 줄 요약 — 해외(미국 대장주)·국내(한국 종목, 참고 ETF 제외) 평균. PC·모바일 한 벌(사용자 2026-11-07 "한눈에 1·2번")
+//   pctOf = 카드 본문 %, regExtOf = 정규장 등락 + 그 뒤(애프터·프리) — 있으면 평균은 정규장, 꼬리표는 그 뒤
+export type RowAvg = { avg: number; aft: number | null; up: number; n: number };
+export function avgOfSyms(syms: string[], pctOf: (s: string) => number | null, regExtOf: (s: string) => { reg: number; aft: number } | null): RowAvg | null {
+  const v = syms.map(x => { const e = regExtOf(x); return { p: e?.reg ?? pctOf(x), a: e?.aft ?? null }; }).filter(x => x.p != null && Number.isFinite(x.p));
+  if (!v.length) return null;
+  const as = v.flatMap(x => x.a != null && Number.isFinite(x.a) ? [x.a] : []);
+  return { avg: v.reduce((t, x) => t + x.p!, 0) / v.length, aft: as.length ? as.reduce((t, x) => t + x, 0) / as.length : null, up: v.filter(x => x.p! > 0).length, n: v.length };
+}
+export function rotRowAvg(section: DashboardSection, ri: number, pctOf: (s: string) => number | null, regExtOf: (s: string) => { reg: number; aft: number } | null): { ov: RowAvg | null; kr: RowAvg | null } {
+  const row = section.rows[ri] ?? [], n = rowLead(section, ri);
+  return { ov: avgOfSyms(row.slice(0, n), pctOf, regExtOf), kr: avgOfSyms(row.slice(n).filter(x => !(section.extras ?? []).includes(x)), pctOf, regExtOf) };
+}
+/** 순환매 줄 순서 — 해외 평균 큰 순(값 없는 줄 뒤, 같으면 원래 순서) */
+export function rotRowOrder(section: DashboardSection, pctOf: (s: string) => number | null, regExtOf: (s: string) => { reg: number; aft: number } | null): number[] {
+  const ov = section.rows.map((_, i) => rotRowAvg(section, i, pctOf, regExtOf).ov?.avg ?? -Infinity);
+  return section.rows.map((_, i) => i).sort((a, b) => (ov[b] - ov[a]) || a - b);
 }

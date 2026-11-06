@@ -46,7 +46,8 @@ import { useTossMaintenance, fmtUntil, getTossMaintenance } from "../lib/tossMai
 import { getIndependentGroupsMode } from "../lib/groupMode";
 import { useChartRange, pickCardChart, historyRange } from "../lib/chartRange";
 import { ChartRangeToggle, AvgMarketToggle } from "./ChartRangeToggle";
-import { usRegExtOf } from "../lib/avgMarket";
+import { usRegExtOf, rotRowAvg, rotRowOrder } from "../lib/avgMarket";
+import { AftPill } from "./SectorTabBar";
 import { useIntradayCharts } from "../lib/useIntradayCharts";
 import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage, type DashboardSection } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
@@ -1079,6 +1080,13 @@ export function MobileSimpleView() {
 
   // ─── Tier 0 (대시보드 4개) ───
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
+  // 종목 하나의 정규장 등락 + 그 뒤(애프터·프리) — PC(UsMarketTab regExtOf)와 같은 규칙
+  const regExtOfM = (sym: string): { reg: number; aft: number } | null => {
+    const q = usMap.get(sym);
+    const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
+    return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : usRegExtOf(sym, q);
+  };
+  const pctOfM = (sym: string) => displayPctOf(sym, usMap.get(sym));
 
   // T0 3개월 추이 — 일봉, 1시간 캐시 (PC 와 동일 쿼리키·**동일 함수** — 캐시 공유)
   //   지수 탭일 때, **지금 페이지의 카드만** 받는다(예전엔 탭과 무관하게 tier0 전체를 받았다).
@@ -1250,6 +1258,18 @@ export function MobileSimpleView() {
                     <span className={`pg-rowlabel inline-block px-1.5 py-0.5 rounded-md border text-[11px] font-bold ${dashboardRowLabelTone(section, lbl)}`}>
                       {lbl}
                     </span>
+                    {section.id === "rotflow" && (() => {
+                      // 줄 요약 — 해외 → 국내(PC 와 같은 값)
+                      const { ov, kr } = rotRowAvg(section, ri, pctOfM, regExtOfM);
+                      const part = (lb: string, v: typeof ov) => v && (
+                        <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
+                          <span className="text-gray-500">{lb}</span>
+                          <b className={v.avg > 0 ? "text-rose-600" : v.avg < 0 ? "text-blue-600" : "text-gray-600"}>{v.avg > 0 ? "+" : ""}{v.avg.toFixed(2)}%</b>
+                          {v.aft != null && <AftPill v={v.aft} />}
+                        </span>
+                      );
+                      return (ov || kr) ? <span className="ml-1.5 inline-flex items-baseline gap-1.5 text-[11px] tabular-nums">{part("해외", ov)}{ov && kr && <span className="text-gray-300">➜</span>}{part("국내", kr)}</span> : null;
+                    })()}
                   </div>
                 );
               }
@@ -2274,7 +2294,7 @@ export function MobileSimpleView() {
           <div className="px-3 py-2 space-y-3">
             {isSectorPage
               ? <SectorTabBar sections={sectorTabsOf(pageSecs)} active={sectorTabM} onChange={setSectorTabM} compact trailing={<AvgMarketToggle />}
-                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, sym => { const q = usMap.get(sym); const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined; return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : usRegExtOf(sym, q); })} />
+                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, regExtOfM)} />
               : <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
                              stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />}
             <KisExpRankBox compact />
@@ -2360,6 +2380,11 @@ export function MobileSimpleView() {
                     ? (() => {
                         const out: string[] = [];
                         const rows = sortedRows(section, leaderSort, sym => displayPctOf(sym, usMap.get(sym)), dimOf);
+                        // 순환매(한눈에)는 해외 평균 큰 순으로 줄을 세운다 — PC 와 같은 순서(사용자 2026-11-07)
+                        if (section.id === "rotflow") {
+                          for (const ri of rotRowOrder(section, pctOfM, regExtOfM)) out.push(`__row__:${ri}`, ...rows[ri]);
+                          return out;
+                        }
                         for (let ri = 0; ri < rows.length; ri++) {
                           const row = rows[ri], next = rows[ri + 1];
                           if (row.length === 1 && next?.length === 1) { out.push(`__pair__:${ri}`, row[0], next[0]); ri++; continue; }

@@ -22,7 +22,8 @@ import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTra
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
 import { useChartRange, pickCardChart, historyRange } from "../lib/chartRange";
 import { ChartRangeToggle, AvgMarketToggle } from "./ChartRangeToggle";
-import { usRegExtOf } from "../lib/avgMarket";
+import { AftPill } from "./SectorTabBar";
+import { usRegExtOf, rotRowAvg } from "../lib/avgMarket";
 import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage, type DashboardSection } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
 import { requestTab, isTabVisible } from "../lib/tabNav";
@@ -147,6 +148,14 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   useEffect(() => { if (usUpdatedAt > 0) reportRefresh(usUpdatedAt); }, [usUpdatedAt]);
 
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
+  // 종목 하나의 '정규장 등락 + 그 뒤(애프터·프리) 움직임' — 국내는 15:30 뒤 정규장 종가 책갈피, 미국은 장 밖이면 최근 정규장 종가 기준
+  const regExtOf = (sym: string): { reg: number; aft: number } | null => {
+    const q = usMap.get(sym);
+    const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
+    return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : usRegExtOf(sym, q);
+  };
+  const pctOfSym = (sym: string) => displayPctOf(sym, usMap.get(sym));
+  const rotAvg = (section: DashboardSection, gi: number) => rotRowAvg(section, gi, pctOfSym, regExtOf);
   // 지수 대시보드 그룹 — 데스크톱·모바일 공용 정의(lib/dashboardGroups).
   //   주간·야간·반도체 중 어느 페이지인지는 메뉴 탭이 정한다(page).
   const PAGE_SECTIONS = buildDashboardPage(page);
@@ -708,7 +717,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             {/* 좁은 화면은 가로 탭, 넓은 화면(lg)은 아래 왼쪽 세로 탭(사용자 2026-11-03 "탭을 왼쪽에") — 여기엔 차트 기간만 */}
             <div className="lg:hidden">
               <SectorTabBar sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab} trailing={<span className="inline-flex gap-1"><ChartRangeToggle /><AvgMarketToggle /></span>}
-                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, sym => { const q = usMap.get(sym); const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined; return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : usRegExtOf(sym, q); })} />
+                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, regExtOf)} />
             </div>
           </div>
         : <GroupNavBar items={navItems} idPrefix="usidx-"
@@ -722,7 +731,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
           <ChartRangeToggle small />
           <AvgMarketToggle className="self-start" />
           <SectorTabBar vertical sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab}
-                        avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, sym => { const q = usMap.get(sym); const r = isKrAfterRegularClose() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined; return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100 } : usRegExtOf(sym, q); })} />
+                        avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, regExtOf)} />
         </aside>
       )}
       <div className={`space-y-4 ${page === "sobu" ? "lg:flex-1 lg:min-w-0" : ""}`}>
@@ -814,7 +823,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     (displayPctOf(b, usMap.get(b)) ?? -Infinity) - (displayPctOf(a, usMap.get(a)) ?? -Infinity)),
                   6)
               : sortedRows(section, leaderSort, sym => displayPctOf(sym, usMap.get(sym)), dimOf)
-            ).map((group, gi) => (
+            ).map((group, gi) => [group, gi] as const)
+              // 순환매 줄은 해외(간밤 미국) 평균이 큰 순 — 간밤 가장 강했던 분야가 맨 위(사용자 2026-11-07). 값 없는 줄은 뒤로, 같으면 원래 순서
+              .sort((x, y) => section.id !== "rotflow" ? 0 : ((rotAvg(section, y[1]).ov?.avg ?? -Infinity) - (rotAvg(section, x[1]).ov?.avg ?? -Infinity)) || x[1] - y[1])
+              .map(([group, gi]) => (
               // 6열 그리드 — 화면은 전체 폭이지만 카드 줄만 lg 75% 로 묶어 카드 크기는 예전 그대로(왼쪽 정렬)
               <div key={gi} className={section.rowLabels ? `relative ${section.pairRows ? "" : "-mr-[9px]"} rounded-lg border border-gray-200 bg-gray-50/50 pg-row pl-9 pr-2 pb-2 pt-4 mt-2` : ""}>
                 {/* 줄 책갈피 — 이 줄이 어느 단계인지(반도체·전공정…). 위에 얹으면 카드 위 가격 띠와 겹쳐
@@ -826,6 +838,25 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     {section.rowLabels[gi]}
                   </span>
                 )}
+                {section.id === "rotflow" && (() => {
+                  // 줄 요약 — 해외 → 국내, 각각 정규장%(애프터·프리%) · ▲▼(사용자 2026-11-07)
+                  const { ov, kr } = rotAvg(section, gi);
+                  const part = (lb: string, v: ReturnType<typeof rotAvg>["ov"]) => v && (
+                    <span className="inline-flex items-baseline gap-1 whitespace-nowrap">
+                      <span className="text-gray-500 font-normal">{lb}</span>
+                      <b className={v.avg > 0 ? "text-rose-600" : v.avg < 0 ? "text-blue-600" : "text-gray-600"}>{v.avg > 0 ? "+" : ""}{v.avg.toFixed(2)}%</b>
+                      {v.aft != null && <AftPill v={v.aft} />}
+                      <span className="text-[10px] text-gray-500 font-normal">▲{v.up}·▼{v.n - v.up}</span>
+                    </span>
+                  );
+                  if (!ov && !kr) return null;
+                  return (
+                    <span className="absolute -top-2.5 left-9 z-10 inline-flex items-baseline gap-2 px-1.5 rounded border border-gray-200 bg-white text-[11.5px] tabular-nums leading-[18px]"
+                          title="해외 = 이 줄 미국 대장주 평균(장 밖이면 정규장 등락 + 꼬리표 = 프리·애프터), 국내 = 한국 종목 평균(참고 ETF 제외, 마감 뒤면 정규장 + 애프터 꼬리표)">
+                      {part("해외", ov)}{ov && kr && <span className="text-gray-300">➜</span>}{part("국내", kr)}
+                    </span>
+                  );
+                })()}
               {(() => {
                 const cards = group.map(symbol => renderIdxCard(section, symbol));
                 if (!section.extras) return (
