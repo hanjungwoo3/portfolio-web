@@ -16,8 +16,8 @@ const fmt = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 /** 한 줄 값 — 라벨 · 평균(정규) · 꼬리표 · ▲▼ */
 function Val({ label, v, strong }: { label: string; v: RowAvg | null; strong?: boolean }) {
   return (
-    <span className="inline-flex items-baseline gap-1 whitespace-nowrap tabular-nums leading-[18px]">
-      <span className="text-[10.5px] text-gray-400">{label}</span>
+    <span className="inline-flex items-baseline gap-1 whitespace-nowrap tabular-nums leading-[18px] min-w-0 overflow-hidden">
+      <span className="sr-only">{label}</span>   {/* 글자는 표 머리(맨 위 한 줄)에 — 사용자 2026-11-07 "해외 국내 글자는 위에 테이블 표처럼" */}
       {!v ? <span className="text-gray-300 text-[12px]">—</span> : (
         <>
           <b className={`${tone(v.avg)} ${strong ? "text-[13px]" : "text-[12px]"}`}>{fmt(v.avg)}</b>
@@ -27,14 +27,18 @@ function Val({ label, v, strong }: { label: string; v: RowAvg | null; strong?: b
     </span>
   );
 }
-/** 해외 · 국내 한 줄(사용자 2026-11-07 "해외 국내를 한 줄로, 상승·하락 종목 수 빼고") */
+/** 해외 · 국내 — 부모 격자의 두 칸에 하나씩(세로줄 맞춤, 사용자 2026-11-07 "세로 줄 맞추자") */
 function Pair({ ov, kr, strong }: { ov: RowAvg | null; kr: RowAvg | null; strong?: "US" | "KR" }) {
   return (
-    <div className="flex flex-wrap items-baseline gap-x-2.5">
+    <>
       <Val label="해외" v={ov} strong={strong === "US"} /><Val label="국내" v={kr} strong={strong === "KR"} />
-    </div>
+    </>
   );
 }
+// 칸 안 격자 — [이름 | 해외 | 국내], 같은 열의 칸 폭이 같아 줄마다 숫자가 같은 세로선에 선다
+const CELL = "grid grid-cols-[6.5rem_minmax(0,1fr)_minmax(0,1fr)] items-baseline gap-x-1.5";
+// 칸(기판·전공정…) — 이름은 위 줄, 아래 줄 [해외 | 국내] 두 칸(좁은 칸에서 겹치지 않게)
+const BOX = "grid grid-cols-2 items-baseline gap-x-1.5";
 
 export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact }: {
   sections: DashboardSection[];                 // 업종 탭(한눈에 제외)
@@ -62,32 +66,41 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
 
   return (
     <div className="space-y-1">
+      {/* 표 머리 — 해외 · 국내(칸마다 같은 자리) */}
+      {!compact && (
+        <div className="grid sticky top-0 z-10 bg-white/95 text-[11px] font-bold text-gray-500 border-b border-gray-200" style={{ gridTemplateColumns: `300px repeat(${maxBoxes}, minmax(0, 1fr))` }}>
+          <div className={`px-2 py-0.5 ${CELL}`}><span>업종</span><span>해외</span><span>국내</span></div>
+          {Array.from({ length: maxBoxes }, (_, i) => (
+            <div key={i} className={`px-2 py-0.5 ${BOX} ${i > 0 ? "border-l border-gray-100" : ""}`}><span>해외</span><span>국내</span></div>
+          ))}
+        </div>
+      )}
       {rows.map(({ s, ov, kr, boxes }) => {
         const emoji = s.label.split(" ")[0];
         return (
           <div key={s.id} className={`rounded-lg border border-gray-200 bg-white ${compact ? "p-1.5 space-y-1" : "grid items-stretch"}`}
                style={compact ? undefined : { gridTemplateColumns: `300px repeat(${maxBoxes}, minmax(0, 1fr))` }}>
             {/* 업종 칸 — 이름 + 업종 전체 해외·국내 */}
-            <div className={`px-2 py-1 flex flex-wrap items-baseline gap-x-2 ${compact ? "" : "border-r border-gray-200 bg-gray-50/70 rounded-l-lg"}`}>   {/* 이름·해외·국내 한 줄(사용자 2026-11-07) */}
-              <button onClick={() => onOpen(s.id)} className="font-bold text-[13px] text-gray-800 hover:text-indigo-700 hover:underline whitespace-nowrap" title={`${s.short} 탭으로 — 종목 카드 보기`}>
+            <div className={`px-2 py-1 ${CELL} ${compact ? "" : "border-r border-gray-200 bg-gray-50/70 rounded-l-lg"}`}>   {/* 이름·해외·국내 한 줄(사용자 2026-11-07) */}
+              <button onClick={() => onOpen(s.id)} className="font-bold text-[13px] text-gray-800 hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-left" title={`${s.short} 탭으로 — 종목 카드 보기`}>
                 {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
               </button>
               <Pair ov={ov} kr={kr} strong={mkt} />
             </div>
             {/* 칸들 — 이름 + 해외·국내 */}
             {compact
-              ? <div className="grid grid-cols-2 gap-1">
+              ? <div className="grid grid-cols-1 gap-0.5">
                   {boxes.map(b => (
-                    <div key={b.lb} className="rounded border border-gray-100 px-1.5 py-0.5 flex flex-wrap items-baseline gap-x-2">
-                      <span className="text-[11px] font-bold text-gray-600">{b.lb}</span>
+                    <div key={b.lb} className={`rounded border border-gray-100 px-1.5 py-0.5 ${CELL}`}>
+                      <span className="text-[11px] font-bold text-gray-600 truncate">{b.lb}</span>
                       <Pair ov={b.ov} kr={b.kr} />
                     </div>
                   ))}
                 </div>
               : boxes.map((b, i) => (
-                  <div key={b.lb} className={`px-2 py-1 min-w-0 flex flex-wrap items-baseline gap-x-2 ${i > 0 ? "border-l border-gray-100" : ""}`}>
-                    <span className="text-[12px] font-bold text-gray-600 whitespace-nowrap">{b.lb}</span>
-                    <Pair ov={b.ov} kr={b.kr} />
+                  <div key={b.lb} className={`px-2 py-1 min-w-0 ${i > 0 ? "border-l border-gray-100" : ""}`}>
+                    <div className="text-[12px] font-bold text-gray-600 truncate" title={b.lb}>{b.lb}</div>
+                    <div className={BOX}><Pair ov={b.ov} kr={b.kr} /></div>
                   </div>
                 ))}
           </div>
