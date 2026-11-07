@@ -94,19 +94,19 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
     // 카드 왼쪽 아래 공시 종류 꼬리표는 QuoteCard 가 직접 붙인다(DiscTags — 지수·내 종목 카드와 같은 부품)
     return (
       <div key={sym} className={`relative rounded-lg transition ${peek?.code === code ? "ring-4 ring-amber-400 shadow-lg z-20" : lead ? "ring-2 ring-indigo-400" : ""}`}
-           data-sobu-card
-           onMouseEnter={kr && (dN || nN) ? openPeek : undefined}
-           onMouseLeave={kr && (dN || nN) ? dropPeek : undefined}
-           onMouseOver={kr && (dN || nN) ? (e => {
-             // 카드 안에서 꼬리표로 옮겨 가면 창을 닫고, 카드 본문으로 돌아오면 다시 연다
-             if ((e.target as Element | null)?.closest?.("[data-no-peek]")) { if (peek?.code === code) setPeek(null); }
-             else if (peek?.code !== code) openPeek(e);
-           }) : undefined}>   {/* 종목 카드에 마우스 → 공시·뉴스 창(사용자 2026-11-03 "버튼 말고 종목에 hover") */}
+           data-sobu-card>   {/* 카드 전체 hover 는 뺐다 — 아래 📰 버튼에만(사용자 2026-11-07 "카드에 올리면 나오는 레이어 없애고, 뉴스도 버튼으로, hover 는 버튼에만") */}
         {renderCard ? renderCard(sym)
           : <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} reg={q?.reg} dim={dimOf?.(sym)} className="w-full h-[84px]" />}
+        {kr && (dN || nN) > 0 && (
+          // 공시·뉴스 창 버튼 — 왼쪽 위(아래는 공시 종류 꼬리표 자리라 겹쳤다). 숫자 = 뉴스+공시. 올리거나 누르면 창
+          <button type="button" onMouseEnter={openPeek} onMouseLeave={dropPeek} onClick={openPeek}
+                  className={`absolute -top-1.5 left-1 z-30 px-1 rounded border text-[9.5px] font-bold leading-tight ${peek?.code === code ? "border-amber-400 bg-amber-100 text-amber-800" : "border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100"}`}>
+            📰 {nN + dN}
+          </button>
+        )}
         {ct && (
           <button onClick={() => openExternal(ct.url)} title={`${ct.date} ${ct.time} ${ct.title}${info.get(ct.rcpNo)?.amountEok ? ` — ${Math.round(info.get(ct.rcpNo)!.amountEok!).toLocaleString()}억` : ""} — 눌러서 DART 원문`}
-                  className={`absolute -top-1.5 ${renderCard ? "left-1 z-30" : "right-1 z-10"} px-1 rounded border border-violet-300 bg-violet-50 text-violet-700 text-[9px] font-bold leading-tight hover:bg-violet-100`}>   {/* 지수 카드는 오른쪽 위에 정규장 종가 책갈피가 있어 왼쪽으로 */}
+                  className={`absolute -top-1.5 ${renderCard ? `${kr && (dN || nN) ? "left-10" : "left-1"} z-30` : "right-1 z-10"} px-1 rounded border border-violet-300 bg-violet-50 text-violet-700 text-[9px] font-bold leading-tight hover:bg-violet-100`}>   {/* 지수 카드는 오른쪽 위에 정규장 종가 책갈피가 있어 왼쪽으로 */}
             📑수주 {md(ct.date)}
           </button>
         )}
