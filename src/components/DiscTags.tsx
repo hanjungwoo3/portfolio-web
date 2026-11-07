@@ -34,7 +34,7 @@ export function DiscTags({ code, name, size = "xs", max = 3 }: { code: string | 
   );
 }
 
-function DiscPopup({ rows, name, style, onClose, onEnter, onLeave }: { rows: DiscRow[]; name: string; style: { left: number; top: number; width: number }; onClose: () => void; onEnter: () => void; onLeave: () => void }) {
+function DiscPopup({ rows, name, style, onClose, onEnter, onLeave }: { rows: DiscRow[]; name: string; style: { left: number; top?: number; bottom?: number; width: number; maxHeight?: number }; onClose: () => void; onEnter: () => void; onLeave: () => void }) {
   useEffect(() => {
     const onDown = (e: MouseEvent) => { if (!(e.target as Element | null)?.closest?.("[data-disc-popup]")) onClose(); };
     window.addEventListener("mousedown", onDown);

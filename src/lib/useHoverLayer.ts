@@ -26,8 +26,10 @@ export function useHoverLayer() {
   return { pos, enter, leave, keep, close };
 }
 /** 레이어 위치 — 폭 w, 높이 h 를 화면 안에 */
-export function layerStyle(p: HoverPos, w: number, h: number): { left: number; top: number; width: number } {
+/** 레이어 자리 — 아래 공간이 모자라면 버튼 **바로 위**에 붙인다(bottom 기준).
+ *  예전엔 최대 높이 h 만큼 위로 올려(top = 버튼 위 − h), 내용이 짧으면 레이어가 버튼에서 멀리 떴다(사용자 2026-11-07 "레이어가 저 멀리") */
+export function layerStyle(p: HoverPos, w: number, h: number): { left: number; top?: number; bottom?: number; width: number; maxHeight?: number } {
   const left = Math.max(8, Math.min(p.x, window.innerWidth - w - 8));
-  const top = p.y + h > window.innerHeight ? Math.max(8, p.top - h - 4) : p.y;
-  return { left, top, width: w };
+  if (p.y + h <= window.innerHeight) return { left, top: p.y, width: w };
+  return { left, bottom: Math.max(8, window.innerHeight - p.top + 4), width: w, maxHeight: Math.max(80, p.top - 12) };
 }
