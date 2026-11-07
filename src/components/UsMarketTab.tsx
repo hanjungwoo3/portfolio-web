@@ -66,7 +66,8 @@ function fmtPrice(symbol: string, price: number): string {
   // 원엔은 한국 관행대로 100엔 기준 표기 (Yahoo 는 1엔당 원 = 8.6원 꼴)
   if (symbol === "JPYKRW=X") return (price * 100).toFixed(2);
   if (symbol.includes("KRW")) return price.toFixed(2);
-  if (symbol === "CNNFG") return Math.round(price).toString();   // CNN 공포·탐욕 — 0~100 점수, CNN 표기처럼 정수
+  if (symbol === "CNNFG") return Math.round(price).toString();
+  if (symbol === "HYSPREAD") return `${price.toFixed(2)}%`;   // 하이일드 스프레드 — 국채 대비 가산금리(%)   // CNN 공포·탐욕 — 0~100 점수, CNN 표기처럼 정수
   if (symbol === "^TIPS10" || symbol === "^MOVE" || symbol === "^VIX" || symbol === "^TNX" || symbol === "^TYX" || symbol === "^US2Y") return price.toFixed(2);
   if (price >= 1000) return Math.round(price).toLocaleString();
   return price.toFixed(2);
@@ -438,7 +439,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               // 메모리 현물가(=ML) — 하루·주 단위 값이라 24시간 그래프가 없다. 직전 값이 찍힌 자리에 종가 세로선만(사용자 2026-11-02).
               //   기준선 색칠은 하지 않는다 — 몇 달 치 일봉을 오늘 기준 위·아래로 칠하면 지난 구간 색이 가짜다(사용자 "붉은 부분은 가짜 아냐?")
               //   CNN 공포·탐욕(CNNFG)도 하루 한 번 점수라 같은 방식(사용자 2026-11-02)
-              const isMemSpot = /=ML$/.test(p.symbol) || p.symbol === "CNNFG" || p.symbol === "VKOSPI";   // V-KOSPI 도 분봉 출처가 없다(CNBC 일봉뿐, 2026-11-02)
+              const isMemSpot = /=ML$/.test(p.symbol) || p.symbol === "CNNFG" || p.symbol === "HYSPREAD" || p.symbol === "VKOSPI";   // V-KOSPI 도 분봉 출처가 없다(CNBC 일봉뿐, 2026-11-02)
               const dayBase = !isDayChart ? undefined
                 : daySpark && chartArr === daySpark.closes && marketOfSymbol(p.symbol) === "US" ? daySpark.prevClose   // 미국만 야후 값(달러 단위) — 한국·아시아 지수는 야후 전일 종가가 틀릴 때가 있어(^KQ11 이 그저께 값, 2026-10-21) 카드 값으로
                 : (q?.prevClose && q.prevClose > 0 ? q.prevClose : undefined);
@@ -475,7 +476,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               // 야후로 확인된 값만 — 확인 못 했으면(야후 실패) 토스 meta 는 NXT 현재가라 정규장 종가로 보여주면 안 된다
               const krRegHere = p.krStock ? idxKrReg?.get(p.symbol.slice(0, 6)) : undefined;
               const krAfterTag = !!krRegHere?.fromYahoo && isKrAfterRegularClose();
-              const showCloseTag = (sleeping || usOffRegular || krAfterTag) && effPrice != null && p.symbol !== "CNNFG";
+              const showCloseTag = (sleeping || usOffRegular || krAfterTag) && effPrice != null && p.symbol !== "CNNFG" && p.symbol !== "HYSPREAD";   // 하이일드는 일별 지표라 마감 책갈피 없음
               const krRegOk = krRegHere?.fromYahoo ? krRegHere : undefined;
               const closeVal = krRegOk?.regularPrice ?? q?.regularPrice ?? effPrice;
               const regPct = krRegOk?.regularPct ?? q?.regularPct ?? (usOffBase ? null : pct);   // 미국 장 밖이면 pct 는 정규장 종가 대비라 정규장 등락이 아니다 — 모르면 비운다
@@ -643,6 +644,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                       {p.symbol === "CNNFG" && effPrice != null && effBase != null
                         // 0~100 점수라 % 가 아니라 점수 차(전일 대비). 31→18 이 "−43%" 로 찍히면 과장돼 보인다
                         ? (() => { const d = Math.round(effPrice - effBase); return `${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d)}점`; })()
+                        // 하이일드 스프레드 — 이미 % 인 값이라 변화율 대신 %p 변화(3.32→3.48 = +0.16%p)(사용자 2026-11-07)
+                        : p.symbol === "HYSPREAD" && effPrice != null && effBase != null
+                        ? (() => { const d = effPrice - effBase; return `${d > 0 ? "+" : d < 0 ? "−" : "±"}${Math.abs(d).toFixed(2)}%p`; })()
                         : showPct != null && Math.abs(showPct) >= 0.005
                         ? `${showPct >= 0 ? "+" : ""}${showPct.toFixed(2)}%`
                         : ""}

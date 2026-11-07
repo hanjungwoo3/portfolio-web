@@ -54,6 +54,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "^MOVE",    name: "MOVE",        desc: "채권 공포지수 — 미 국채 변동성. 100↑ 경계, 120↑ 불안", tier: "T0", sector: "dashboard", direction: "inverse" },
   // CNN 공포·탐욕 — 가상 심볼(api.ts fetchCnnFgIndex). 탐욕(↑)이 위험선호라 direct. 0~25 극공포·75~100 극탐욕
   { symbol: "CNNFG",    name: "공포·탐욕",    desc: "CNN Fear & Greed — 미국 투자심리 0~100 (25↓ 극공포·45↓ 공포·55↑ 탐욕·75↑ 극탐욕). 극단은 역발상 신호. CNN", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "HYSPREAD", name: "하이일드 스프레드", desc: "미국 하이일드(투기등급) 회사채 금리 − 국채 금리(ICE BofA OAS, FRED). 오르면 신용 경계 = 위험 회피. 3%대 안심 · 5%↑ 경계 · 8%↑ 위기. 일별·하루 늦음", tier: "T0", sector: "dashboard", direction: "inverse" },
   { symbol: "VKOSPI",   name: "V-KOSPI",     desc: "코스피200 변동성지수 — 한국 공포지수 (20↑ 경계, 30↑ 공포). CNBC", tier: "T0", sector: "dashboard", direction: "inverse" },
   // 행 2 — 원자재 + 위험자산
   //   색은 '한국 주가에 유리한가' 기준(사용자 결정 2026-10-08): 원자재 수입국이라 유가·가스·곡물 상승은 원가·물가 부담,
@@ -817,7 +818,7 @@ const YASUN_VIRTUAL = new Set<string>(["^KS200N", "^KQ150N"]);
 //   빼는 것: 한국 종목·ETF(.KS — 토스 분봉), 하이퍼리퀴드 무기한(-PERP), 야간선물(yasun), 그리고
 //   야후에 분봉이 없는 가상 심볼 — 메모리 현물(=ML, 일·주 단위)·CNN 공포탐욕·V-KOSPI(CNBC 일봉)·
 //   미 2년물·TIPS(토스 당일 봉)·리튬/니켈(시나 분봉 — api.fetchSinaMetalDay). 점검 2026-10-21·10-30.
-const NO_INTRADAY = new Set(["CNNFG", "VKOSPI", "^US2Y", "^TIPS10"]);
+const NO_INTRADAY = new Set(["CNNFG", "HYSPREAD", "VKOSPI", "^US2Y", "^TIPS10"]);
 export const DAY_SPARK_SYMBOLS: string[] = [...new Set(US_PAIRS.flatMap(p => [p.symbol, p.future ?? ""]))]
   .filter(s => s && !/\.KS$/.test(s) && !/-PERP$/.test(s) && !/=ML$/.test(s) && !YASUN_VIRTUAL.has(s) && !NO_INTRADAY.has(s));
 

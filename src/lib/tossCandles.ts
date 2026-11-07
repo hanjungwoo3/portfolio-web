@@ -15,7 +15,7 @@ export interface TossCandle {
 interface CandlePage { candles?: TossCandle[]; nextBefore?: string | null }
 
 /** 야후 심볼 → 토스 심볼. 못 바꾸면 null(야후로). 국내 6자리(.KS/.KQ 떼고)·미국 티커(AAPL, BRK-B)만 */
-const NOT_TOSS = new Set(["CNNFG"]);   // 앱 안 가상 심볼(미국 티커 모양이지만 토스에 없다)
+const NOT_TOSS = new Set(["CNNFG", "HYSPREAD"]);   // 앱 안 가상 심볼(미국 티커 모양이지만 토스에 없다)
 export function tossCandleSymbol(symbol: string): string | null {
   if (NOT_TOSS.has(symbol)) return null;
   const kr = /^([\dA-Za-z]{6})\.(KS|KQ)$/.exec(symbol);

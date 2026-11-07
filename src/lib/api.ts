@@ -4046,6 +4046,7 @@ async function fetchDashboardChartRaw(sym: string, range: "3mo" | "1y" = "3mo"):
   // 미국 2년물 — 야후에 일봉이 없어 토스 당일 10분봉(몇 개)이 3개월 칸에 그려져 이상했다(사용자 2026-11-02). CNBC 일봉 3개월로
   if (sym === "^US2Y") return (await fetchCnbcBars(sym, "1M", "US2Y")).map(b => cnbcNum(b.close)).filter((v): v is number => v !== null && v > 0).slice(-n);
   if (sym === CNN_FG_SYMBOL) return (await fetchCnnFgChart(252)).slice(-n);
+  if (sym === HY_SPREAD_SYMBOL) return ((await loadHySpread()) ?? []).map(p => p[1]).slice(-n);
   if (isSinaMetal(sym)) return fetchSinaMetalChart(sym);
   if (isMemPrice(sym)) return (await fetchMemChart(sym, 252)).slice(-n);
   return fetchYahooChart(sym, range);
@@ -4149,6 +4150,35 @@ async function fetchCnnFgIndex(name: string): Promise<UsIndex | null> {
     marketState: "",
   };
 }
+// ─── 미국 하이일드 스프레드(ICE BofA US HY OAS, FRED BAMLH0A0HYM2) ───────────
+//   크롤러(portfolio-etf-index/scripts/hy-spread.js)가 매일 받아 둔 파일 — 0콜, 프록시 허용 목록 변경 없음(사용자 2026-11-07 "하이일드 스프레드?").
+//   값 = %(국채 대비 가산금리). 일별·하루 늦다. 카드 %는 스프레드 자체의 변화율이 아니라 **%p 변화**(diff)를 쓰게 pct 에도 diff 를 넣는다.
+export const HY_SPREAD_SYMBOL = "HYSPREAD";
+const HY_SPREAD_URL = "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/main/data/hy-spread.json";
+let hyMemo: { at: number; p: Promise<[string, number][] | null> } | null = null;
+function loadHySpread(): Promise<[string, number][] | null> {
+  if (hyMemo && Date.now() - hyMemo.at < 30 * 60_000) return hyMemo.p;
+  const p = fetch(HY_SPREAD_URL, { cache: "no-cache" })
+    .then(r => (r.ok ? r.json() as Promise<{ points?: [string, number][] }> : null))
+    .then(j => (j?.points?.length ? j.points : null))
+    .catch(() => null);
+  hyMemo = { at: Date.now(), p };
+  p.then(v => { if (!v) hyMemo = null; });   // 실패·빈 값은 메모하지 않는다
+  return p;
+}
+async function fetchHySpreadIndex(name: string): Promise<UsIndex | null> {
+  const pts = await loadHySpread();
+  if (!pts || pts.length < 2) return null;
+  const [d, v] = pts[pts.length - 1], prev = pts[pts.length - 2][1];
+  const diff = v - prev;
+  const ms = Date.parse(`${d}T21:00:00Z`);   // 미국 장 마감 무렵
+  return {
+    symbol: HY_SPREAD_SYMBOL, name, price: v, prev, prevClose: prev,
+    diff, pct: diff,   // 카드 큰 % = %p 변화(스프레드 자체 변화율은 읽기 어렵다)
+    currency: "", tradeDate: d, regularMarketTime: Math.floor(ms / 1000), marketState: "",
+  };
+}
+
 // 스파크라인 — 다른 카드와 같은 3개월(약 63거래일). CNN 은 1년치 일별을 준다.
 async function fetchCnnFgChart(n = 63): Promise<number[]> {
   const d = await loadCnnFg();
@@ -4665,12 +4695,13 @@ export async function fetchYahooBatch(
     .map(p => ({ ...p, code: TOSS_US_STOCK_CODE[p.symbol] }));
   const investItems = pairs.filter(p => isCnbcIndex(p.symbol));
   const cnnFg = pairs.find(p => p.symbol === CNN_FG_SYMBOL);
+  const hySp = pairs.find(p => p.symbol === HY_SPREAD_SYMBOL);
   const jpItems = pairs.filter(p => isNaverWorldSym(p.symbol));
   const jpIdxItems = pairs.filter(p => NAVER_WORLD_INDEX[p.symbol]);
 
   const jpPromise = jpItems.length ? fetchNaverWorld(jpItems.map(p => p.symbol)).catch(() => new Map<string, NaverWorldQuote>()) : Promise.resolve(new Map<string, NaverWorldQuote>());
   const jpIdxPromise = jpIdxItems.length ? fetchNaverWorld(jpIdxItems.map(p => NAVER_WORLD_INDEX[p.symbol]), "index").catch(() => new Map<string, NaverWorldQuote>()) : Promise.resolve(new Map<string, NaverWorldQuote>());
-  const [ksMap, overviewMap, usMap, investResults, yahooResults, cnnFgIdx, sinaMetals, memPrices] = await Promise.all([
+  const [ksMap, overviewMap, usMap, investResults, yahooResults, cnnFgIdx, sinaMetals, memPrices, hySpIdx] = await Promise.all([
     ksItems.length > 0
       ? fetchTossPrices(ksItems.map(p => ksRegex.exec(p.symbol)![1]))
           .then(prices => {
@@ -4702,10 +4733,11 @@ export async function fetchYahooBatch(
     fetchTossUsIndexMap(tossUsItems),
     Promise.all(investItems.map(p => fetchCnbcIndexPrice(p.symbol, p.name))),
     // 모든 심볼 Yahoo 베이스 — v7 배치(~2콜). marketState/prevClose + 토스 실패 시 fallback
-    fetchYahooBatchQuote(pairs.filter(p => p.symbol !== CNN_FG_SYMBOL && !isSinaMetal(p.symbol) && !isMemPrice(p.symbol))),   // 가상 심볼 — 야후엔 없다
+    fetchYahooBatchQuote(pairs.filter(p => p.symbol !== CNN_FG_SYMBOL && p.symbol !== HY_SPREAD_SYMBOL && !isSinaMetal(p.symbol) && !isMemPrice(p.symbol))),   // 가상 심볼 — 야후엔 없다
     cnnFg ? fetchCnnFgIndex(cnnFg.name) : Promise.resolve(null),
     fetchSinaMetals(pairs),
     fetchMemPrices(pairs),
+    hySp ? fetchHySpreadIndex(hySp.name) : Promise.resolve(null),
   ]);
 
   // 1) Yahoo 결과를 베이스로
@@ -4767,6 +4799,7 @@ export async function fetchYahooBatch(
   }
   for (const r of investResults) { if (r) applyToss(r.symbol, r); }
   if (cnnFgIdx) applyToss(cnnFgIdx.symbol, cnnFgIdx);
+  if (hySpIdx) applyToss(hySpIdx.symbol, hySpIdx);
   for (const m of sinaMetals) applyToss(m.symbol, m);
   for (const m of memPrices) applyToss(m.symbol, m);
   // 도쿄 상장 — 네이버(15분 지연, 장 상태 포함)로 현재가·등락률·체결 시각을 덮는다. 오늘 체결이 아직 없으면 체결 시각이 지난 거래일이라
