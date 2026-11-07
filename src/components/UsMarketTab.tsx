@@ -10,6 +10,7 @@ import { ValueupTags } from "./ValueupTags";
 import { useKisRadar, radarLabel } from "../lib/kisRadar";
 import { useKisVi, viLabel, viActive } from "../lib/kisVi";
 import { HoverTip } from "./HoverTip";
+import { indicatorHelp, indicatorNow } from "../lib/indicatorHelp";
 import { SeohakTag } from "./SeohakBox";
 import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
@@ -604,6 +605,12 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                       {p.name}
                     </a>
                     {p.symbol === "CNNFG" && <CnnFearGreedTag />}
+                    {/* 지표 설명 ? — 마우스를 올리면 레이어(사용자 2026-11-07) */}
+                    {indicatorHelp(p.symbol) && (
+                      <HoverTip tip={[indicatorHelp(p.symbol), indicatorNow(p.symbol, effPrice, (() => { const c = p.symbol === "HYSPREAD" ? q?.diff : (mainPct != null && Math.abs(mainPct) >= 0.005 ? mainPct : q?.regularPct ?? mainPct); return c != null && Number.isFinite(c) ? `${c >= 0 ? "+" : ""}${c.toFixed(2)}${p.symbol === "HYSPREAD" ? "%p" : "%"}` : undefined; })())].filter(Boolean).join("\n")} width={300}>
+                        <span className="shrink-0 w-4 h-4 inline-flex items-center justify-center rounded-full border border-gray-300 bg-white text-[10px] font-bold text-gray-500 cursor-help leading-none">?</span>
+                      </HoverTip>
+                    )}
                     {/* 매매동향 모달 버튼 — KOSPI/KOSDAQ 만 */}
                     {hasFlow && indexKey && (
                       <button onClick={() => setMarketFlowFor(indexKey)}
@@ -695,6 +702,14 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                                   title="종목정보 — 실시간 체결·호가·거래원 / 기업가치 (팝업)"
                                   className={`${pill} text-amber-700 bg-amber-50 border border-amber-300/70 hover:bg-amber-100`}>
                             📊
+                          </button>
+                        )}
+                        {/* 지표 카드(EWY·VIX·MOVE·하이일드 등) AI — 지금 값이 무슨 뜻인지(사용자 2026-11-07) */}
+                        {indicatorHelp(p.symbol) && !isKrStock && !(isUsStock && p.symbol !== "EWY") && (
+                          <button onClick={() => openGoogleAi(`${aiNowStamp()} 기준. ${p.name}(${p.symbol}) 지금 ${effPrice != null ? fmtPrice(p.symbol, effPrice) : "?"}${mainPct != null ? ` (전일 대비 ${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}${p.symbol === "HYSPREAD" ? "%p" : "%"})` : ""}. ① 이 수준이 역사적으로 어느 구간인지(평온·경계·위기) ② 최근 며칠 흐름이 말하는 것 ③ 한국 증시(코스피·반도체)에 주는 의미를 각각 한 줄로.`)}
+                                  title="구글 AI에 이 지표가 지금 무슨 뜻인지 묻기 (팝업)"
+                                  className={`${pill} text-blue-700 bg-blue-50 border border-blue-300/70 hover:bg-blue-100`}>
+                            AI
                           </button>
                         )}
                         {(isKrStock || isUsStock) && (
