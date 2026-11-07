@@ -62,7 +62,8 @@ export type RowAvg = { avg: number; aft: number | null; up: number; n: number; s
 export function avgOfSyms(syms: string[], pctOf: (s: string) => number | null, regExtOf: (s: string) => { reg: number; aft: number; ses?: Ses } | null): RowAvg | null {
   const v = syms.map(x => { const e = regExtOf(x); return { p: e?.reg ?? pctOf(x), a: e?.aft ?? null, ses: e?.ses ?? null }; }).filter(x => x.p != null && Number.isFinite(x.p));
   if (!v.length) return null;
-  const as = v.flatMap(x => x.a != null && Number.isFinite(x.a) ? [x.a] : []);
+  // 정확히 0 = 그 뒤 체결이 없어 정규장 종가를 그대로 쓴 것(값 없음) — 평균에서 빼고 꼬리표도 안 단다(사용자 2026-11-07 "해외 상황인데 0.00%?")
+  const as = v.flatMap(x => x.a != null && Number.isFinite(x.a) && Math.abs(x.a) >= 0.005 ? [x.a] : []);
   return { avg: v.reduce((t, x) => t + x.p!, 0) / v.length, aft: as.length ? as.reduce((t, x) => t + x, 0) / as.length : null, up: v.filter(x => x.p! > 0).length, n: v.length,
     ses: v.find(x => x.ses)?.ses ?? null };
 }

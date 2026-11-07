@@ -181,14 +181,14 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
         const ovQ = b.lead.filter(isOverseasTicker).map(s => quote(s));
         const ovPs = ovQ.map(q => q?.reg?.pct ?? q?.pct).filter((v): v is number => v != null && Number.isFinite(v));
         const ovAvg = ovPs.length ? ovPs.reduce((a, v) => a + v, 0) / ovPs.length : null;
-        const ovEx = ovQ.flatMap(q => q?.reg && q.reg.price > 0 && q.price > 0 ? [(q.price / q.reg.price - 1) * 100] : []);
+        const ovEx = ovQ.flatMap(q => q?.reg && q.reg.price > 0 && q.price > 0 ? [(q.price / q.reg.price - 1) * 100] : []).filter(v => Math.abs(v) >= 0.005);   // 0 = 값 없음
         const ovAft = ovEx.length ? ovEx.reduce((a, v) => a + v, 0) / ovEx.length : null;
         const live = b.kr.filter(s => !dimOf?.(s));
         const ps = (live.length ? live : b.kr).map(s => quote(s)?.pct).filter((v): v is number => v != null && Number.isFinite(v));
         const avg = ps.length ? ps.reduce((a, v) => a + v, 0) / ps.length : null;
         const up = ps.filter(v => v > 0).length;
         // 정규장 마감 뒤(NXT 애프터) 평균 — 정규장 종가 대비 지금 값(카드 오른쪽 위 빨강·파랑 꼬리표의 평균, 사용자 2026-11-05)
-        const as = b.kr.map(s => { const q = quote(s); return q?.reg && q.reg.price > 0 && q.price > 0 ? (q.price / q.reg.price - 1) * 100 : null; }).filter((v): v is number => v != null && Number.isFinite(v));
+        const as = b.kr.map(s => { const q = quote(s); return q?.reg && q.reg.price > 0 && q.price > 0 ? (q.price / q.reg.price - 1) * 100 : null; }).filter((v): v is number => v != null && Number.isFinite(v) && Math.abs(v) >= 0.005);
         const aft = as.length ? as.reduce((a, v) => a + v, 0) / as.length : null;
         // 마감 뒤엔 평균을 정규장 등락률로(애프터는 옆 꼬리표) — "정규장%(애프터%)"(사용자 2026-11-05)
         const rps = b.kr.map(s => quote(s)?.reg?.pct).filter((v): v is number => v != null && Number.isFinite(v));

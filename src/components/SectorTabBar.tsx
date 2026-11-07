@@ -33,7 +33,7 @@ export function sectorAvg(s: DashboardSection, pctOf: (sym: string) => number | 
     // 미국 장 밖이면 평균 = 정규장 등락, 꼬리표 = 프리·애프터(정규장 종가 대비) — 국내 "정규장%(애프터%)"와 같은 꼴
     const ext = us.map(x => afterOf?.(x) ?? null);
     const up = us.map((x, i) => ext[i]?.reg ?? pctOf(x)).filter((v): v is number => v != null && Number.isFinite(v));
-    const ea = ext.filter((v): v is { reg: number; aft: number } => !!v && Number.isFinite(v.aft));
+    const ea = ext.filter((v): v is { reg: number; aft: number } => !!v && Number.isFinite(v.aft) && Math.abs(v.aft) >= 0.005);   // 0 = 값 없음
     return up.length ? { avg: up.reduce((a, v) => a + v, 0) / up.length, up: up.filter(v => v > 0).length, down: up.filter(v => v < 0).length,
       ...(ea.length ? { aft: ea.reduce((a, v) => a + v.aft, 0) / ea.length, aftN: ea.length } : {}) } : null;
   }
@@ -47,7 +47,7 @@ export function sectorAvg(s: DashboardSection, pctOf: (sym: string) => number | 
   if (ra.length) {
     const rp = ra.map(v => v.reg);
     return { avg: rp.reduce((a, v) => a + v, 0) / rp.length, up: rp.filter(v => v > 0).length, down: rp.filter(v => v < 0).length,
-      aft: ra.reduce((a, v) => a + v.aft, 0) / ra.length, aftN: ra.length };
+      ...(() => { const nz = ra.filter(v => Math.abs(v.aft) >= 0.005); return nz.length ? { aft: nz.reduce((a, v) => a + v.aft, 0) / nz.length, aftN: nz.length } : {}; })() };
   }
   return { avg: ps.reduce((a, v) => a + v, 0) / ps.length, up: ps.filter(v => v > 0).length, down: ps.filter(v => v < 0).length };
 }
