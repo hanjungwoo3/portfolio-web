@@ -308,6 +308,8 @@ function setConflictInfo(localNorm: string, remoteNorm: string | null): void {
   const base = getLastSyncedHash();
   lastConflictInfo = { local: describeNormDiff(base, localNorm), remote: remoteNorm == null ? null : describeNormDiff(base, remoteNorm) };
   try { console.info("[sync] 충돌 — 이 기기:", lastConflictInfo.local, " / Drive:", lastConflictInfo.remote); } catch { /* noop */ }
+  // 알림을 넘겨도 다시 볼 수 있게 저장 — 설정 Drive 칸에 '최근 충돌'(사용자 2026-11-07 "눌러 버려서 지나갔는데 log 는 없어")
+  try { localStorage.setItem("gdrive_last_conflict", JSON.stringify({ at: new Date().toISOString(), ...lastConflictInfo })); } catch { /* noop */ }
 }
 
 function emitConflict(): void {

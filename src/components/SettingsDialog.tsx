@@ -547,6 +547,19 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               </span>
             </label>
             <div className="space-y-1.5">
+              {/* 최근 충돌 — 알림을 넘겨도 무엇이 바뀌었었는지 */}
+              {(() => {
+                try {
+                  const c = JSON.parse(localStorage.getItem("gdrive_last_conflict") ?? "null") as { at: string; local: string[]; remote: string[] | null } | null;
+                  return c && (
+                    <div className="text-[11px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-1.5 py-1 leading-snug">
+                      최근 충돌 {new Date(c.at).toLocaleString("ko-KR")}<br />
+                      이 기기: {c.local.length ? c.local.join(" · ") : "바뀐 내용 없음"}<br />
+                      Drive: {c.remote == null ? "확인 못 함" : c.remote.length ? c.remote.join(" · ") : "바뀐 내용 없음"}
+                    </div>
+                  );
+                } catch { return null; }
+              })()}
               {/* 최근 자동 올림 이유 — 아무것도 안 했는데 갱신 알림이 뜰 때 원인 확인용(사용자 2026-11-07 "log 있어?") */}
               {(() => {
                 try {
