@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>포트폴리오 — 개인정보·안전 안내</title>
+<style>
+  :root { --fg:#1f2937; --muted:#6b7280; --line:#e5e7eb; --bg:#f9fafb; --card:#fff; --accent:#4f46e5; --ok:#047857; }
+  @media (prefers-color-scheme: dark) { :root { --fg:#e5e7eb; --muted:#9ca3af; --line:#374151; --bg:#1f2328; --card:#2b2f35; --accent:#a5b4fc; --ok:#6ee7b7; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.7 -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 24px 16px 64px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 17px; margin: 32px 0 8px; padding-top: 8px; border-top: 1px solid var(--line); }
+  .muted { color: var(--muted); font-size: 13px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; margin: 12px 0; }
+  ul { padding-left: 20px; margin: 6px 0; }
+  li { margin: 4px 0; }
+  b.ok { color: var(--ok); }
+  a { color: var(--accent); }
+  code { font-size: 13px; background: var(--line); padding: 1px 5px; border-radius: 4px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  td, th { border-top: 1px solid var(--line); padding: 8px 6px; text-align: left; vertical-align: top; }
+  th { color: var(--muted); font-weight: 600; width: 30%; }
+</style>
+</head>
+<body>
+<main>
+  <h1>포트폴리오 — 개인정보·안전 안내</h1>
+  <p class="muted">개인이 만들어 무료로 공개한 주식 시세·포트폴리오 화면입니다(웹·맥·윈도우·안드로이드 앱 공통). 시행일 2026-10-23.</p>
+
+  <div class="card">
+    <b>한 줄 요약</b>
+    <ul>
+      <li>내 보유 종목·거래 기록은 <b class="ok">내 기기 안에만</b> 저장됩니다. 운영자 서버로 보내지 않습니다.</li>
+      <li>증권사 계좌·비밀번호·공동인증서를 <b class="ok">받지도, 묻지도 않습니다</b>. 매매 기능도 없습니다.</li>
+      <li>광고·방문 분석·추적 도구를 <b class="ok">쓰지 않습니다</b>.</li>
+      <li>구글 로그인은 <b>켠 경우에만</b>, 내 구글 드라이브의 이 앱 전용 숨김 공간에만 저장합니다.</li>
+    </ul>
+  </div>
+
+  <h2>1. 어떤 정보를 어디에 두나요</h2>
+  <table>
+    <tr><th>보유 종목·수량·평단·거래 기록·그룹·설정</th><td>지금 쓰는 브라우저(또는 앱)의 저장 공간(IndexedDB·localStorage)에만 둡니다. 다른 기기와 나누려면 아래 구글 드라이브 동기화나 파일 백업을 직접 켜야 합니다.</td></tr>
+    <tr><th>구글 드라이브 동기화 (선택)</th><td>로그인한 본인 드라이브의 <b>앱 전용 숨김 공간</b>(<code>drive.appdata</code>)에만 저장합니다. 이 권한으로는 드라이브의 다른 파일을 <b>볼 수도 바꿀 수도 없습니다</b>. 운영자는 그 파일에 접근할 수 없습니다.</td></tr>
+    <tr><th>파일 백업 (선택)</th><td>설정 → 파일로 저장하기 를 누르면 내 컴퓨터에 .json 파일로 내려받습니다. 어디에도 올리지 않습니다.</td></tr>
+  </table>
+
+  <h2>2. 시세는 어떻게 가져오나요</h2>
+  <ul>
+    <li>토스증권·네이버 금융·야후 파이낸스·다음 금융·한국경제 등 <b>누구나 볼 수 있는 공개 시세</b>를 가져옵니다. 요청에는 종목 코드만 담기고, 내 보유 수량·평단은 담기지 않습니다.</li>
+    <li><b>앱(맥·윈도우·안드로이드)·크롬 확장</b>: 내 기기가 그 사이트에 직접 요청합니다. 중간 서버를 거치지 않습니다.</li>
+    <li><b>웹 브라우저(중계 서버)</b>: 브라우저 보안 규칙(CORS) 때문에 중계 서버가 공개 시세 주소를 대신 불러옵니다. 중계 서버는 시세를 전달만 하고 저장하지 않습니다. 서버를 운영하는 클라우드 회사(Deno·Cloudflare·Render 등)는 일반적인 접속 기록(IP·시각)을 남길 수 있습니다. 직접 중계 서버를 만들어 등록하면 그 서버만 씁니다.</li>
+  </ul>
+
+  <h2>3. 밖으로 나가는 것 — 직접 누를 때만</h2>
+  <ul>
+    <li><b>질문하기</b>: Padlet(외부 게시판)이 열립니다. 쓰는 내용은 Padlet 에 저장됩니다.</li>
+    <li><b>후원하기</b>: 카카오페이 송금 화면으로 이동합니다.</li>
+    <li><b>🔍AI</b>: 종목 이름·현재가로 만든 질문을 구글 검색(AI 모드)으로 엽니다.</li>
+    <li><b>토스·네이버 링크</b>: 해당 사이트로 이동합니다.</li>
+  </ul>
+
+  <h2>4. 앱은 안전한가요</h2>
+  <div class="card">
+    <ul>
+      <li><b>소스 코드가 전부 공개</b>되어 있습니다 — <a href="https://github.com/hanjungwoo3/portfolio-web">github.com/hanjungwoo3/portfolio-web</a></li>
+      <li>맥·윈도우 앱은 <b>GitHub 서버가 공개 코드로 자동 빌드</b>한 파일입니다 — 빌드 기록: <a href="https://github.com/hanjungwoo3/portfolio-web/actions/workflows/desktop.yml">Actions → desktop</a>. 누가 손으로 만든 파일이 아닙니다.</li>
+      <li>앱이 하는 일은 <b>이 사이트를 띄우고 공개 시세를 직접 받아오는 것</b>뿐입니다. 파일·사진·연락처에 손대지 않고, 컴퓨터 설정을 바꾸지 않습니다.</li>
+      <li>앱 안 업데이트는 <b>운영자 서명을 확인한 파일만</b> 설치합니다. 서명이 맞지 않으면 설치하지 않습니다.</li>
+    </ul>
+  </div>
+  <p><b>처음 실행할 때 경고가 뜨는 이유</b> — 애플·마이크로소프트의 유료 개발자 인증서(연 수십만 원)를 쓰지 않아서입니다. 위험하다는 뜻이 아니라 "누가 만든지 운영체제가 확인하지 못했다"는 뜻입니다. 처음 한 번만 이렇게 여세요.</p>
+  <ul>
+    <li><b>맥</b>: 압축을 풀고 <code>포트폴리오.app</code> 을 <b>우클릭 → 열기 → 열기</b>. "손상되었기 때문에 열 수 없습니다" 가 뜨면 터미널에서 <code>xattr -cr ~/Downloads/포트폴리오.app</code> (앱이 있는 위치로) 한 번.</li>
+    <li><b>윈도우</b>: "Windows의 PC 보호" 창에서 <b>추가 정보 → 실행</b>.</li>
+    <li><b>안드로이드</b>: 설치할 때 "출처를 알 수 없는 앱" 허용이 필요합니다.</li>
+  </ul>
+
+  <h2>5. 지우는 방법</h2>
+  <ul>
+    <li><b>기기에 저장된 것</b>: 브라우저의 사이트 데이터 지우기, 또는 앱 삭제.</li>
+    <li><b>구글 드라이브 연결</b>: 설정 → 로그아웃. 권한까지 끊으려면 <a href="https://myaccount.google.com/connections">구글 계정 → 서드파티 연결</a>에서 이 앱을 삭제하세요. 숨김 공간 파일은 구글 드라이브 → ⚙️ 설정 → 앱 관리 → 이 앱의 <b>숨겨진 앱 데이터 삭제</b>로 지웁니다.</li>
+  </ul>
+
+  <h2>6. 문의</h2>
+  <p>앱 화면의 <b>질문하기</b>(Padlet) 또는 <a href="https://github.com/hanjungwoo3/portfolio-web/issues">GitHub 이슈</a>로 남겨 주세요.</p>
+  <p class="muted">이 화면은 투자 권유가 아니며, 시세는 출처 사정에 따라 늦거나 틀릴 수 있습니다. 투자 판단과 책임은 본인에게 있습니다.</p>
+</main>
+</body>
+</html>
