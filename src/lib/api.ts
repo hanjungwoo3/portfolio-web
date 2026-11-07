@@ -3725,11 +3725,14 @@ async function fetchTossUsIndexMap(
   const priceByCode = await fetchTossUsPrices(items.map(i => i.code));
   const afterOpen = isUsAfterMarketOpen();
   const closeIsLive = isUsExtendedTradingOpen() && !afterOpen;   // 오버나잇·프리마켓 — close 가 라이브
+  const allClosed = !isUsExtendedTradingOpen() && !isMarketOpen("US_INDEX");   // 정규·애프터·오버나잇·프리 다 닫힘(주말·휴장)
   for (const it of items) {
     const tp = priceByCode.get(it.code);
     if (!tp) continue;
     const regClose = closeIsLive ? tp.base : tp.close;            // 정규장 종가(마감 책갈피)
-    const useAfter = afterOpen && tp.afterClose > 0;
+    // 애프터가 끝난 뒤 장이 다 닫힌 동안(주말 등)도 애프터 마감가 — 정규장 종가로 돌아가 금요일 애프터 결과가 주말 내내 안 보였다
+    //   (사용자 2026-11-07 "미국 종목 애프터 마감 가격"). 실측 토요일 낮 TSLA: close 358.22 · afterMarketClose 359.40
+    const useAfter = (afterOpen || allClosed) && tp.afterClose > 0;
     const price = useAfter ? tp.afterClose : tp.close;
     const base = tp.base;                                         // 어제 종가(오버나잇은 머지에서 다시 맞춘다)
     const diff = price - base;
