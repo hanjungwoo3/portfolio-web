@@ -337,10 +337,10 @@ function sectionMap(): Record<string, DashboardSection> {
       rows: [
         // 첫 줄 = 환율·달러 + 투심(EWY·VIX·MOVE), 둘째 줄 = 미 국채(2·10·30Y) + 10Y 실질금리(TIPS = DFII10).
         //   KORU(한국 3배)는 선물 그룹으로 옮겼다.
-        ["KRW=X", "JPYKRW=X", "DX-Y.NYB", "EWY", "^VIX", "^MOVE"],   // MOVE = 채권판 VIX(야후)
+        ["KRW=X", "JPYKRW=X", "DX-Y.NYB", "EWY", "^VIX", "^MOVE", "HYSPREAD"],   // + 하이일드 스프레드 = 신용판 VIX(MOVE 옆 빈자리, 사용자 2026-11-07)   // MOVE = 채권판 VIX(야후)
         // CNN 공포·탐욕 = VIX·풋콜·정크본드 등 7개 지표 합성 심리 점수(사용자 요청 2026-10-17).
         //   첫 줄은 6장으로 꽉 차 7장째가 혼자 다음 줄로 떨어져서, 자리가 남는 둘째 줄 끝에 둔다.
-        ["^US2Y", "^TNX", "^TYX", "^TIPS10", "HYSPREAD", "CNNFG"],   // + 하이일드 스프레드(신용 위험, 사용자 2026-11-07)             // 명목 2·10·30Y 옆에 실질 10Y(CNBC) — 둘을 나란히 봐야 물가 탓인지 구분된다
+        ["^US2Y", "^TNX", "^TYX", "^TIPS10", "CNNFG"],             // 명목 2·10·30Y 옆에 실질 10Y(CNBC) — 둘을 나란히 봐야 물가 탓인지 구분된다
       ],
     },
     {

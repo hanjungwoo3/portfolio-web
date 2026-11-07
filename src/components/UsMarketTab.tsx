@@ -868,7 +868,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 const cards = group.map(symbol => renderIdxCard(section, symbol));
                 if (!section.extras) return (
                   <div style={section.pairRows ? { gridTemplateColumns: `repeat(${group.length}, minmax(0, 1fr))` } : undefined}
-                       className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 ${section.pairRows ? "" : section.wide || group.includes("CNNFG") ? "lg:grid-cols-8" : `lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}`}>
+                       className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 ${section.pairRows ? "" : section.wide || group.includes("CNNFG") || group.includes("HYSPREAD") ? "lg:grid-cols-8" : `lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}`}>
                     {cards}
                     {/* 공포·탐욕 카드 오른쪽 빈 칸 — 구성 지표 7개(사용자 2026-11-03 "오른쪽 빈곳에") */}
                     {group.includes("CNNFG") && <CnnFgPanel split className="col-span-full sm:col-span-2 lg:col-span-2" />}
