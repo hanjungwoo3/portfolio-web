@@ -547,6 +547,17 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               </span>
             </label>
             <div className="space-y-1.5">
+              {/* 최근 자동 올림 이유 — 아무것도 안 했는데 갱신 알림이 뜰 때 원인 확인용(사용자 2026-11-07 "log 있어?") */}
+              {(() => {
+                try {
+                  const r = JSON.parse(localStorage.getItem("gdrive_last_push_reason") ?? "null") as { at: string; why: string[] } | null;
+                  return r && (
+                    <div className="text-[11px] text-gray-500 leading-snug">
+                      최근 자동 올림 {new Date(r.at).toLocaleString("ko-KR")} — {r.why.length ? r.why.join(" · ") : "바뀐 항목 없음(기준이 비어 있었음)"}
+                    </div>
+                  );
+                } catch { return null; }
+              })()}
               {signedIn && lastSyncedAt && (
                 <div className="text-[11px] text-gray-500">
                   마지막 동기화: {new Date(lastSyncedAt).toLocaleString("ko-KR")}
