@@ -98,15 +98,15 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
         {renderCard ? renderCard(sym)
           : <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} reg={q?.reg} dim={dimOf?.(sym)} className="w-full h-[84px]" />}
         {kr && (dN || nN) > 0 && (
-          // 공시·뉴스 창 버튼 — 왼쪽 위(아래는 공시 종류 꼬리표 자리라 겹쳤다). 숫자 = 뉴스+공시. 올리거나 누르면 창
+          // 공시·뉴스 창 버튼 — 카드 안 오른쪽 위(위 가장자리는 가격 책갈피·수주 꼬리표, 아래는 공시 종류 꼬리표라 겹쳤다, 사용자 2026-11-07). 숫자 = 뉴스+공시. 올리거나 누르면 창
           <button type="button" onMouseEnter={openPeek} onMouseLeave={dropPeek} onClick={openPeek}
-                  className={`absolute -top-1.5 left-1 z-30 px-1 rounded border text-[9.5px] font-bold leading-tight ${peek?.code === code ? "border-amber-400 bg-amber-100 text-amber-800" : "border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100"}`}>
+                  className={`absolute top-[14px] right-1 z-30 px-1 rounded border text-[9.5px] font-bold leading-tight ${peek?.code === code ? "border-amber-400 bg-amber-100 text-amber-800" : "border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100"}`}>
             📰 {nN + dN}
           </button>
         )}
         {ct && (
           <button onClick={() => openExternal(ct.url)} title={`${ct.date} ${ct.time} ${ct.title}${info.get(ct.rcpNo)?.amountEok ? ` — ${Math.round(info.get(ct.rcpNo)!.amountEok!).toLocaleString()}억` : ""} — 눌러서 DART 원문`}
-                  className={`absolute -top-1.5 ${renderCard ? `${kr && (dN || nN) ? "left-10" : "left-1"} z-30` : "right-1 z-10"} px-1 rounded border border-violet-300 bg-violet-50 text-violet-700 text-[9px] font-bold leading-tight hover:bg-violet-100`}>   {/* 지수 카드는 오른쪽 위에 정규장 종가 책갈피가 있어 왼쪽으로 */}
+                  className={`absolute -top-1.5 ${renderCard ? "left-1 z-30" : "right-1 z-10"} px-1 rounded border border-violet-300 bg-violet-50 text-violet-700 text-[9px] font-bold leading-tight hover:bg-violet-100`}>   {/* 지수 카드는 오른쪽 위에 정규장 종가 책갈피가 있어 왼쪽으로 */}
             📑수주 {md(ct.date)}
           </button>
         )}
