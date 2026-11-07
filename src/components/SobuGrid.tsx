@@ -77,7 +77,6 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
     const q = quote(sym);
     const ct = kr ? lastContract.get(code) : undefined;
     // 카드 왼쪽 아래 — 공시(5거래일)·뉴스(최근 2일) 개수(사용자 2026-11-02). 없으면 안 붙인다
-    const dN = kr ? (disc.data ?? []).filter(r => r.code === code).length : 0;
     const since = new Date(Date.now() + 9 * 3600_000 - 2 * 86400_000).toISOString().replace(/\D/g, "").slice(0, 12);
     const nN = kr ? news.filter(n => n.code === code && n.dt >= since).length : 0;
     // 누르면 그 종목 공시·뉴스를 카드 옆 떠 있는 창으로(사용자 2026-11-02 "클릭하면 레이어로, 마우스 hover 는 빼고")
@@ -97,11 +96,11 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
            data-sobu-card>   {/* 카드 전체 hover 는 뺐다 — 아래 📰 버튼에만(사용자 2026-11-07 "카드에 올리면 나오는 레이어 없애고, 뉴스도 버튼으로, hover 는 버튼에만") */}
         {renderCard ? renderCard(sym)
           : <QuoteCard code={code} name={NAME.get(sym) ?? sym} px={q && q.price > 0 ? q : undefined} reg={q?.reg} dim={dimOf?.(sym)} className="w-full h-[84px]" />}
-        {kr && (dN || nN) > 0 && (
+        {kr && nN > 0 && (   /* 뉴스만 — 공시는 카드 아래 공시 꼬리표 버튼이 따로 있다(사용자 2026-11-07) */
           // 공시·뉴스 창 버튼 — 카드 안 오른쪽 위(위 가장자리는 가격 책갈피·수주 꼬리표, 아래는 공시 종류 꼬리표라 겹쳤다, 사용자 2026-11-07). 숫자 = 뉴스+공시. 올리거나 누르면 창
           <button type="button" onMouseEnter={openPeek} onMouseLeave={dropPeek} onClick={openPeek}
                   className={`absolute top-[14px] right-1 z-30 px-1 rounded border text-[9.5px] font-bold leading-tight ${peek?.code === code ? "border-amber-400 bg-amber-100 text-amber-800" : "border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100"}`}>
-            📰 {nN + dN}
+            뉴스 {nN}
           </button>
         )}
         {ct && (
@@ -246,7 +245,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
       })}
     </div>
     {peek && (() => {
-      const ds = (disc.data ?? []).filter(r => r.code === peek.code);
+      const ds: typeof disc.data & object = [];   // 창은 뉴스만(공시는 카드 아래 꼬리표 버튼) — 사용자 2026-11-07
       // 버튼 숫자와 같은 기준 — 공시 5거래일 + 뉴스 최근 2일(사용자 2026-11-07 "숫자 3 이면 내용도 3개만")
       const since2d = new Date(Date.now() + 9 * 3600_000 - 2 * 86400_000).toISOString().replace(/\D/g, "").slice(0, 12);
       const ns = news.filter(n => n.code === peek.code && n.dt >= since2d).slice(0, 10);
