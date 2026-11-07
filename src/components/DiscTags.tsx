@@ -1,6 +1,6 @@
 // 카드의 공시 종류 꼬리표(실적·계약·합병·분할…, 최근 5거래일) — 누르면 그 종목 공시 목록 창(계약은 금액·매출 대비).
 //   지수 탭 카드·내 종목 카드(PC·모바일)·시세 카드가 같이 쓴다(사용자 2026-11-03). 자료 = lib/recentDisclosures(전 종목 한 번).
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useHoverLayer, layerStyle } from "../lib/useHoverLayer";
 import { createPortal } from "react-dom";
 import { useQueries } from "@tanstack/react-query";
@@ -15,6 +15,8 @@ export function DiscTags({ code, name, size = "xs", max = 3 }: { code: string | 
   const k = (code ?? "").replace(/^A/, "").replace(/\.(KS|KQ)$/, "");
   const rows = k ? map.get(k) ?? [] : [];
   const hl = useHoverLayer();   // 마우스를 올리면 목록(사용자 2026-11-03), 누르기도 그대로
+  // 꼬리표마다 그 종류 공시만(사용자 2026-11-07 "합병분할·증자CB 를 각각 내용만") — 마지막으로 올린 꼬리표의 종류
+  const [cat, setCat] = useState<string | null>(null);
   if (!rows.length) return null;
   const cats = [...new Set(rows.map(r => r.cat))].slice(0, max);
   const fs = size === "xs" ? "text-[9px]" : "text-[10px]";
@@ -22,14 +24,14 @@ export function DiscTags({ code, name, size = "xs", max = 3 }: { code: string | 
     <>
       {cats.map(c => (
         <button key={c} type="button" data-disc-popup
-                onClick={e => { e.preventDefault(); e.stopPropagation(); if (hl.pos) hl.close(); else hl.enter(e); }}
-                onMouseEnter={hl.enter} onMouseLeave={hl.leave}
+                onClick={e => { e.preventDefault(); e.stopPropagation(); setCat(c); if (hl.pos && cat === c) hl.close(); else hl.enter(e); }}
+                onMouseEnter={e => { setCat(c); hl.enter(e); }} onMouseLeave={hl.leave}
                 className={`px-1 py-0 rounded border font-bold leading-tight whitespace-nowrap hover:brightness-95 ${fs} ${DISC_CAT_TONE[c].tag}`}>
           {c}
         </button>
       ))}
       {/* 카드 안(쌓임 맥락·transform)에 그리면 옆 카드 책갈피가 창을 덮는다 → body 로 */}
-      {hl.pos && createPortal(<DiscPopup rows={rows} name={name ?? rows[0].corp} style={layerStyle(hl.pos, 340, 250)} onClose={hl.close} onEnter={hl.keep} onLeave={hl.leave} />, document.body)}
+      {hl.pos && createPortal(<DiscPopup rows={cat ? rows.filter(r => r.cat === cat) : rows} name={`${name ?? rows[0].corp}${cat ? ` · ${cat}` : ""}`} style={layerStyle(hl.pos, 340, 250)} onClose={hl.close} onEnter={hl.keep} onLeave={hl.leave} />, document.body)}
     </>
   );
 }
