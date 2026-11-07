@@ -10,7 +10,7 @@ import { ValueupTags } from "./ValueupTags";
 import { useKisRadar, radarLabel } from "../lib/kisRadar";
 import { useKisVi, viLabel, viActive } from "../lib/kisVi";
 import { HoverTip } from "./HoverTip";
-import { indicatorHelp, indicatorNow } from "../lib/indicatorHelp";
+import { indicatorHelp, indicatorNow, indicatorBand } from "../lib/indicatorHelp";
 import { SeohakTag } from "./SeohakBox";
 import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
@@ -605,6 +605,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                       {p.name}
                     </a>
                     {p.symbol === "CNNFG" && <CnnFearGreedTag />}
+                    {/* 지금 구간 꼬리표 — 오른쪽 위에 잘 보이게(사용자 2026-11-07 "평온을 카드 오른쪽 위에") */}
+                    {p.symbol !== "CNNFG" && (() => { const bd = indicatorBand(p.symbol, effPrice); return bd && (
+                      <span className={`ml-auto shrink-0 px-1 rounded border text-[10px] font-bold leading-tight ${bd.level === 0 ? "border-emerald-300 bg-emerald-50 text-emerald-700" : bd.level === 1 ? "border-gray-300 bg-gray-50 text-gray-600" : bd.level === 2 ? "border-amber-300 bg-amber-50 text-amber-700" : "border-rose-400 bg-rose-600 text-white"}`}>{bd.name}</span>
+                    ); })()}
                     {/* 지표 설명 ? — 마우스를 올리면 레이어(사용자 2026-11-07) */}
                     {indicatorHelp(p.symbol) && (
                       <HoverTip tip={[indicatorHelp(p.symbol), indicatorNow(p.symbol, effPrice, (() => { const c = p.symbol === "HYSPREAD" ? q?.diff : (mainPct != null && Math.abs(mainPct) >= 0.005 ? mainPct : q?.regularPct ?? mainPct); return c != null && Number.isFinite(c) ? `${c >= 0 ? "+" : ""}${c.toFixed(2)}${p.symbol === "HYSPREAD" ? "%p" : "%"}` : undefined; })())].filter(Boolean).join("\n")} width={300}>
@@ -678,7 +682,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     // 밸류업 꼬리표(저PBR·고배당·밸류업★)는 아래 줄 맨 앞(사용자 2026-11-02 "아래로 내리자")
                     const vu = isKrStock ? tagsFor(valueupFile, krCode) : undefined;
                     const hasDisc = isKrStock && !!discMap.get(krCode)?.length;   // 공시 종류 꼬리표(사용자 2026-11-03)
-                    if (!tag && !CARD_HEATMAP_LINK[p.symbol] && !isKrStock && !isUsStock && !vu && !hasDisc) return null;
+                    if (!tag && !CARD_HEATMAP_LINK[p.symbol] && !isKrStock && !isUsStock && !vu && !hasDisc && !indicatorHelp(p.symbol)) return null;   // 지표 카드(VIX·MOVE 등)는 AI 버튼 줄이 있어야 한다
                     return (
                       <div data-no-peek className="absolute -bottom-1 right-1 z-20 flex items-center gap-0.5">
                         {/* 거래대금 급증(한국투자 1분 레이더, 사용자 2026-11-03) — 맨 앞에 */}
@@ -705,7 +709,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                           </button>
                         )}
                         {/* 지표 카드(EWY·VIX·MOVE·하이일드 등) AI — 지금 값이 무슨 뜻인지(사용자 2026-11-07) */}
-                        {indicatorHelp(p.symbol) && !isKrStock && !(isUsStock && p.symbol !== "EWY") && (
+                        {indicatorHelp(p.symbol) && !isKrStock && !isUsStock && (
                           <button onClick={() => openGoogleAi(`${aiNowStamp()} 기준. ${p.name}(${p.symbol}) 지금 ${effPrice != null ? fmtPrice(p.symbol, effPrice) : "?"}${mainPct != null ? ` (전일 대비 ${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}${p.symbol === "HYSPREAD" ? "%p" : "%"})` : ""}. ① 이 수준이 역사적으로 어느 구간인지(평온·경계·위기) ② 최근 며칠 흐름이 말하는 것 ③ 한국 증시(코스피·반도체)에 주는 의미를 각각 한 줄로.`)}
                                   title="구글 AI에 이 지표가 지금 무슨 뜻인지 묻기 (팝업)"
                                   className={`${pill} text-blue-700 bg-blue-50 border border-blue-300/70 hover:bg-blue-100`}>

@@ -41,3 +41,14 @@ export function indicatorNow(sym: string, v: number | null | undefined, chg?: st
   for (const [th, n] of b.bands) if (v >= th) name = n;
   return `▶ 지금 ${val} → ${name}${chg ? ` (전일 대비 ${chg})` : ""}`;
 }
+
+/** 지금 구간 이름만(카드 오른쪽 위 꼬리표) — 기준 없는 지표는 null */
+export function indicatorBand(sym: string, v: number | null | undefined): { name: string; level: number } | null {
+  const b = BANDS[sym];
+  if (!b || v == null || !Number.isFinite(v)) return null;
+  let i = 0;
+  b.bands.forEach(([th], k) => { if (v >= th) i = k; });
+  // 공포·탐욕은 가운데가 중립 — 극단일수록 강하게
+  const level = sym === "CNNFG" ? Math.abs(i - 2) : i;
+  return { name: b.bands[i][1], level };
+}
