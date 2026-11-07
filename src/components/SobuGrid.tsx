@@ -247,7 +247,9 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
     </div>
     {peek && (() => {
       const ds = (disc.data ?? []).filter(r => r.code === peek.code);
-      const ns = news.filter(n => n.code === peek.code).slice(0, 10);
+      // 버튼 숫자와 같은 기준 — 공시 5거래일 + 뉴스 최근 2일(사용자 2026-11-07 "숫자 3 이면 내용도 3개만")
+      const since2d = new Date(Date.now() + 9 * 3600_000 - 2 * 86400_000).toISOString().replace(/\D/g, "").slice(0, 12);
+      const ns = news.filter(n => n.code === peek.code && n.dt >= since2d).slice(0, 10);
       if (!ds.length && !ns.length) return null;   // 공시·뉴스 둘 다 없으면 창을 띄우지 않는다(사용자 2026-11-02 "없는 건 표시하지 말자")
       const top = Math.max(8, Math.min(peek.y, window.innerHeight - 380));
       return (
@@ -273,7 +275,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
               </button>
             );
           })}
-          {ns.length > 0 && <div className="font-bold text-sky-800 pt-1">📰 뉴스</div>}
+          {ns.length > 0 && <div className="font-bold text-sky-800 pt-1">📰 뉴스 <span className="font-normal text-gray-400">최근 2일 {ns.length}건</span></div>}
           {ns.map(n => (
             <button key={n.id} onClick={() => openExternal(n.url)} title={`${n.title} — ${n.press}`} className="flex items-baseline gap-1 w-full text-left leading-[18px] hover:bg-sky-50 rounded min-w-0">
               <span className="text-gray-400 tabular-nums shrink-0">{ndt(n.dt)}</span>
