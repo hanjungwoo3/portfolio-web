@@ -19,7 +19,7 @@ import { dashboardCardDim } from "../lib/dashboardCardDim";
 import { IndexWarnTag } from "./IndexWarnTag";
 import { fetchYahooBatch, fetchKrFuturesMinute, fetchKrFuturesNightSession, fetchKrRegularPrices, daySparkPlan, fetchYahooSparkDay, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries, fetchTossIntraday, fetchSinaMetalDay, SINA_DAY_SYMBOLS, fetchCnbcDay, CNBC_DAY_SYMBOLS, fetchKrIndexDay, KR_INDEX_DAY_SYMBOLS, type DaySpark } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
-import { isSymbolSleeping, isMarketOpen, marketOfSymbol, fmtAgo, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isKrAfterRegularClose, isKrAfterWindow, nowKstDateStr } from "../lib/format";
+import { isSymbolSleeping, isMarketOpen, marketOfSymbol, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isKrAfterRegularClose, isKrAfterWindow, nowKstDateStr } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
 import { useChartRange, pickCardChart, historyRange } from "../lib/chartRange";
 import { ChartRangeToggle, AvgMarketToggle } from "./ChartRangeToggle";
@@ -380,11 +380,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 || (marketOfSymbol(p.symbol) === "US" && isUsExtendedTradingOpen());
               // 한국 야간선물(KR_NIGHT) — 거래중(REGULAR)이면 inSession 으로 흐림 제외,
               //   개장 대기·마감 구간(marketState CLOSED + sleeping)이면 다른 종목과 동일하게 흐림.
-              const isNightFut = marketOfSymbol(p.symbol) === "KR_NIGHT";
               // 갱신 정체(흐림) — 24h 거래(시각창) 중에도 '진짜 멈춘' 종목(VIX·데이터 끊김)을 freshTime 90분+ 정체로 잡음.
               //   미국 종목/ETF 는 토스 실측 체결시각이 24h 갱신돼 통과(밝게), 주말·VIX 마감은 정체/시각창으로 흐림.
               // 국채 yield(2Y/10Y 등)는 출처(토스·Yahoo)가 섞여도 표현 통일 — 흐림 제외.
-              const isRate = isUsRateSymbol(p.symbol);
               // 24h 시장(외환·선물·달러인덱스)의 주말 휴장 — isMarketOpen("OTHER") 이 늘 true 라
               //   sleeping/isClosed 로는 안 잡힌다. 암호화폐는 진짜 24/7 이라 제외된다.
               // 미 국채 yield 는 **미국 정규장에만 움직이는 게 아니다** — 아시아·런던 세션에도
@@ -707,13 +705,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                       </div>
                     );
                   })()}
-                  {sleeping && !isRate && fmtAgo(q?.regularMarketTime) && (
-                    <div className="absolute -bottom-1 left-1 z-20 px-1.5 py-0 rounded
-                                    text-[9px] leading-tight whitespace-nowrap
-                                    text-gray-500 bg-gray-100 border border-gray-300/60">
-                      {fmtAgo(q?.regularMarketTime, isNightFut ? (isKrNightSession() ? "야간 마감" : "주간 마감") : "정규장 마감")}
-                    </div>
-                  )}
+                  {/* 마감 경과 꼬리표("17시간전 정규장 마감")는 뺐다 — 아래 버튼을 덮고 카드마다 필요 없다(사용자 2026-11-07). 흐림(zZ)이 이미 마감을 알린다 */}
                 </div>
               );
   };
