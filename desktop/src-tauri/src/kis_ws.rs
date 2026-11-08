@@ -15,7 +15,9 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 use tokio_tungstenite::tungstenite::Message;
 
-const TR_ID: &str = "H0STCNT0";
+// 실전 = H0UNCNT0(통합 KRX+NXT 체결 — NXT 프리 08:00·애프터 ~20:00 도, 사용자 2026-11-09 "한투 통합 체결도"), 모의 = H0STCNT0(KRX — 모의엔 통합이 없다)
+const TR_ID_REAL: &str = "H0UNCNT0";
+const TR_ID_PAPER: &str = "H0STCNT0";
 const MAX_CODES: usize = 20;
 const MAX_BUF: usize = 5000;
 const IDLE: Duration = Duration::from_secs(30);
@@ -38,10 +40,10 @@ pub struct WsPoll {
     data: Vec<String>,   // 데이터 메시지 원문("0|H0STCNT0|건수|필드^…") — 웹이 나눈다
 }
 
-fn sub_msg(key: &str, code: &str, on: bool) -> String {
+fn sub_msg(key: &str, code: &str, on: bool, paper: bool) -> String {
     serde_json::json!({
         "header": { "approval_key": key, "custtype": "P", "tr_type": if on { "1" } else { "2" }, "content-type": "utf-8" },
-        "body": { "input": { "tr_id": TR_ID, "tr_key": code } }
+        "body": { "input": { "tr_id": if paper { TR_ID_PAPER } else { TR_ID_REAL }, "tr_key": code } }
     }).to_string()
 }
 
@@ -102,6 +104,7 @@ async fn approval(client: &reqwest::Client, broker: &BrokerState) -> Result<(Str
 }
 
 async fn run(st: Arc<Mutex<Shared>>, key: String, url: String) {
+    let paper = url.contains(":31000");   // 모의 서버면 통합 체결이 없어 KRX(H0STCNT0)
     let set_status = |s: &str| { if let Ok(mut g) = st.lock() { g.status = s.to_string(); } };
     let mut fails = 0u32;
     'outer: loop {
@@ -153,16 +156,16 @@ async fn run(st: Arc<Mutex<Shared>>, key: String, url: String) {
                         Err(_) => break 'outer,
                     };
                     if idle || want.is_empty() {
-                        for c in &subscribed { let _ = tx.send(Message::Text(sub_msg(&key, c, false).into())).await; }
+                        for c in &subscribed { let _ = tx.send(Message::Text(sub_msg(&key, c, false, paper).into())).await; }
                         let _ = tx.send(Message::Close(None)).await;
                         break 'outer;
                     }
                     for c in subscribed.difference(&want).cloned().collect::<Vec<_>>() {
-                        let _ = tx.send(Message::Text(sub_msg(&key, &c, false).into())).await;
+                        let _ = tx.send(Message::Text(sub_msg(&key, &c, false, paper).into())).await;
                         subscribed.remove(&c);
                     }
                     for c in want.difference(&subscribed).cloned().collect::<Vec<_>>() {
-                        if tx.send(Message::Text(sub_msg(&key, &c, true).into())).await.is_ok() { subscribed.insert(c); }
+                        if tx.send(Message::Text(sub_msg(&key, &c, true, paper).into())).await.is_ok() { subscribed.insert(c); }
                     }
                 }
             }

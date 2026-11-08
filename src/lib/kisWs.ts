@@ -30,10 +30,13 @@ export function kisWsStatus(): KisWsStatus { return status; }
 /** "0|H0STCNT0|003|f^f^…" → 체결들(토스 체결과 같은 모양: 시각 HH:MM:SS·가격·수량·매수/매도·누적 거래량) */
 export function parseKisTicks(raw: string): { code: string; tick: TossTick }[] {
   const p = raw.split("|");
-  if (p.length < 4 || p[1] !== "H0STCNT0") return [];
+  // H0STCNT0(KRX) · H0UNCNT0(통합 KRX+NXT, 0.1.14+) — 앞쪽 필드 순서가 같다. 한 건 필드 수는 '전체 ÷ 건수'로(통합이 몇 개 다를 수 있다)
+  if (p.length < 4 || (p[1] !== "H0STCNT0" && p[1] !== "H0UNCNT0")) return [];
   const f = p[3].split("^");
+  const n = Number(p[2]) || 1;
+  const step = f.length % n === 0 && f.length / n > F.DVSN ? f.length / n : NFIELD;
   const out: { code: string; tick: TossTick }[] = [];
-  for (let i = 0; i + F.DVSN < f.length; i += NFIELD) {
+  for (let i = 0; i + F.DVSN < f.length; i += step) {
     const h = f[i + F.HOUR] ?? "";
     const price = Number(f[i + F.PRICE]), volume = Number(f[i + F.VOL]), cum = Number(f[i + F.CUM]);
     const dv = f[i + F.DVSN];
