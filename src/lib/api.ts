@@ -6179,6 +6179,29 @@ export async function fetchTossBrokerRanking(code: string): Promise<BrokerRankin
   };
 }
 
+/** 오늘 1분봉(국내, 토스) — 실시간 체결을 켜기 전 구간을 가격·거래량으로 채운다(사용자 2026-11-09 "빈 값에서 시작해서").
+ *  최신 → 과거 450개씩, 오늘 것만(08:00 NXT 프리부터 최대 2콜). 반환은 시각 오름차순 */
+export async function fetchTossMinuteToday(code: string): Promise<{ t: string; close: number; volume: number }[]> {
+  const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+  const out: { t: string; close: number; volume: number }[] = [];
+  let from: string | undefined;
+  for (let page = 0; page < 2; page++) {
+    const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/c-chart/kr-s/A${code}/min:1?count=450${from ? `&from=${encodeURIComponent(from)}` : ""}`);
+    if (!r.ok) break;
+    const res = ((await r.json()) as { result?: { candles?: { dt?: string; close?: number; volume?: number }[]; nextDateTime?: string } }).result;
+    const cs = res?.candles ?? [];
+    let older = false;
+    for (const c of cs) {
+      if (!c.dt || !(c.close! > 0)) continue;
+      if (c.dt.slice(0, 10) !== today) { older = true; continue; }
+      out.push({ t: c.dt.slice(11, 16), close: c.close!, volume: c.volume ?? 0 });
+    }
+    if (older || !cs.length || !res?.nextDateTime) break;
+    from = res.nextDateTime;
+  }
+  return out.sort((a, b) => a.t.localeCompare(b.t));
+}
+
 export async function fetchTossTicks(code: string, count = 300): Promise<TossTick[]> {
   const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-prices/A${code}/ticks?count=${Math.min(300, count)}`);
   if (!r.ok) throw new Error(`체결 조회 실패 (HTTP ${r.status})`);

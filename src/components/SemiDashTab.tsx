@@ -1001,7 +1001,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
             })}
             {/* 거래량 띠 — 1분 체결 주식 수(매수+매도), 위로만 회색. 그 분이 평소보다 붐볐는지(사용자 2026-11-05 "거래량도 넣을 수 있을까") */}
             {(() => {
-              const vs = ms.map(m => m.buyVol + m.sellVol);
+              const vs = ms.map(m => m.vol ?? (m.buyVol + m.sellVol));   // 1분봉으로 채운 분은 vol
               const li = (() => { for (let k = vs.length - 1; k >= 0; k--) if (vs[k] > 0) return k; return -1; })();
               const hi = hov ? hov.i : li;
               const mx = Math.max(1, ...vs), SH = 30;
@@ -1039,7 +1039,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
         </div>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-0 text-[10.5px] text-gray-500 mt-0.5 [&>span]:whitespace-nowrap">
-        <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />아래 띠: 1분 매수(빨강 위)·매도(파랑 아래) — 큰 쪽만 진하게 · 거래량(평균 2배↑ 진하게)</span>
+        <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />아래 띠: 1분 매수(빨강 위)·매도(파랑 아래) — 큰 쪽만 진하게 · 거래량(평균 2배↑ 진하게) · 실시간 체결 전 구간은 1분봉(가격·거래량만)</span>
         <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
         {kospi && kospi.length > 1 && <span><i className="inline-block w-2 h-2 bg-rose-100 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-100 mr-0.5" />배경 코스피</span>}
         <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />체결(켠 뒤 누적, 축 따로)</span>

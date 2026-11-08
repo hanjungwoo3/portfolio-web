@@ -6,7 +6,7 @@
 //   중복 제거: 체결마다 붙는 누적 거래량(cum)이 단조 증가라 마지막 cum 보다 큰 것만 새 체결로 본다.
 //   두 번 받는 사이 300건을 넘게 체결되면 빈 구간이 생긴다 → gaps 로 세어 화면에 알린다.
 import { useEffect, useRef, useState } from "react";
-import { fetchTossTicks, type TossTick } from "./api";
+import { fetchTossTicks, fetchTossMinuteToday, type TossTick } from "./api";
 import { kisWsLive, subscribeKisTicks } from "./kisWs";
 
 export interface MinuteFlow {
@@ -14,6 +14,8 @@ export interface MinuteFlow {
   buyVol: number; sellVol: number;
   buyAmt: number; sellAmt: number;   // 원
   close: number;
+  vol?: number;       // 1분봉으로 채운 분(체결을 켜기 전·창을 닫았던 구간)의 거래량 — 매수·매도는 모른다
+  est?: boolean;      // 1분봉으로 채운 분(실시간 체결 아님)
 }
 export interface BigTrade { time: string; side: "BUY" | "SELL"; amt: number; price: number; volume: number }
 export interface TickFlow { minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; error?: string }
@@ -48,6 +50,19 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
       : { lastCum: 0, minutes: new Map(), big: [], gaps: 0 };
   }
   const [, setVer] = useState(0);
+  // 실시간 체결이 없는 분은 1분봉(가격·거래량)으로 — 켜기 전·창을 닫았던 구간이 빈칸으로 시작하지 않게(사용자 2026-11-09)
+  const [fill, setFill] = useState<Map<string, MinuteFlow>>(new Map());
+  useEffect(() => {
+    if (!enabled || !/^[\dA-Za-z]{6}$/.test(code)) return;
+    let alive = true;
+    const load = () => fetchTossMinuteToday(code).then(cs => {
+      if (!alive) return;
+      setFill(new Map(cs.map(c => [c.t, { t: c.t, buyVol: 0, sellVol: 0, buyAmt: 0, sellAmt: 0, close: c.close, vol: c.volume, est: true }])));
+    }).catch(() => { /* 없으면 지금처럼 빈칸 */ });
+    void load();
+    const id = setInterval(load, 5 * 60_000);   // 창을 닫았다 다시 연 사이의 빈칸도 메운다
+    return () => { alive = false; clearInterval(id); };
+  }, [code, enabled]);
   const [error, setError] = useState<string>();
   useEffect(() => {
     if (!enabled) return;
@@ -100,7 +115,11 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
     return () => { alive = false; clearInterval(id); unsub(); };
   }, [code, enabled]);
   const s = store.current;
-  return { minutes: [...s.minutes.values()].sort((a, b) => a.t.localeCompare(b.t)), big: s.big, gaps: s.gaps, since: s.since, last: s.last, error };
+  // 실시간 분이 있으면 그것, 없는 분만 1분봉으로. 맨 마지막 실시간 분 뒤의 1분봉은 버린다(진행 중인 분을 덮지 않게)
+  const merged = new Map(s.minutes);
+  const lastReal = s.last?.slice(0, 5);
+  for (const [t, m] of fill) if (!merged.has(t) && (!lastReal || t < lastReal)) merged.set(t, m);
+  return { minutes: [...merged.values()].sort((a, b) => a.t.localeCompare(b.t)), big: s.big, gaps: s.gaps, since: s.since, last: s.last, error };
 }
 
 /** 최근 n분의 체결강도(매수 체결량 ÷ 매도 체결량 × 100) */
