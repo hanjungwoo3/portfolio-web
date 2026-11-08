@@ -51,7 +51,7 @@ export function parseKisTicks(raw: string): { code: string; tick: TossTick }[] {
 async function poll() {
   const inv = invoke();
   if (!inv) return;
-  const codes = [...subs.keys()];
+  const codes = [...subs.keys(), ...[...qsubs.keys()].map(c => `Q${c}`)];
   try {
     const r = await inv("kis_ws_poll", { codes }) as { status: string; data: string[] };
     status = (r.status || "") as KisWsStatus;
@@ -61,6 +61,10 @@ async function poll() {
       for (const { code: c, tick } of parseKisTicks(raw)) (by.get(c) ?? by.set(c, []).get(c)!).push(tick);
     }
     for (const [c, ts] of by) subs.get(c)?.forEach(cb => cb(ts));
+    // 호가 — 종목마다 가장 최근 것 하나만
+    const lastQ = new Map<string, KisQuote>();
+    for (const raw of r.data) for (const q of parseKisQuotes(raw)) lastQ.set(q.code, q);
+    for (const [c, q] of lastQ) qsubs.get(c)?.forEach(cb => cb(q));
   } catch (e) {
     const m = String((e as Error)?.message ?? e);
     // 웹소켓이 없는 옛 앱(0.1.10 이하) — 명령이 없다고 나온다
@@ -68,15 +72,47 @@ async function poll() {
   }
 }
 
+function ensureTimer() { if (!timer) { timer = setInterval(() => { void poll(); }, 1_000); void poll(); } }
+function stopIfIdle() { if (!subs.size && !qsubs.size && timer) { clearInterval(timer); timer = null; status = ""; void invoke()?.("kis_ws_poll", { codes: [] }).catch(() => {}); } }
+
 /** 종목 체결 구독 — 돌려준 함수로 해제. 앱·한국투자 연동이 아니면 아무것도 안 한다 */
 export function subscribeKisTicks(code: string, cb: Cb): () => void {
   if (!kisWsAvailable() || !/^[\dA-Za-z]{6}$/.test(code)) return () => {};
   (subs.get(code) ?? subs.set(code, new Set()).get(code)!).add(cb);
-  if (!timer) { timer = setInterval(() => { void poll(); }, 1_000); void poll(); }
+  ensureTimer();
   return () => {
     const s = subs.get(code);
     s?.delete(cb);
     if (s && !s.size) subs.delete(code);
-    if (!subs.size && timer) { clearInterval(timer); timer = null; status = ""; void invoke()?.("kis_ws_poll", { codes: [] }).catch(() => {}); }
+    stopIfIdle();
   };
+}
+
+
+// ─── 실시간 호가(H0UNASP0 통합 · H0STASP0 KRX) — 0.1.15+ 앱. 키 'Q'+코드로 구독(체결과 같은 연결) ───
+//   필드(공식 예제 asking_price_total): 0 코드 · 1 시각 · 3~12 매도호가1~10 · 13~22 매수호가1~10 · 23~32 매도잔량 · 33~42 매수잔량 · 43·44 총잔량 · 47 예상체결가
+export interface KisQuote { code: string; time: string; sell: { price: number; qty: number }[]; buy: { price: number; qty: number }[]; sumSell: number; sumBuy: number; est: number }
+type QCb = (q: KisQuote) => void;
+const qsubs = new Map<string, Set<QCb>>();
+export function parseKisQuotes(raw: string): KisQuote[] {
+  const p = raw.split("|");
+  if (p.length < 4 || (p[1] !== "H0UNASP0" && p[1] !== "H0STASP0")) return [];
+  const f = p[3].split("^"), n = Number(p[2]) || 1;
+  const step = f.length % n === 0 ? f.length / n : 66;
+  const out: KisQuote[] = [];
+  for (let i = 0; i + 44 < f.length; i += step) {
+    const g = (k: number) => Number(f[i + k]) || 0;
+    const sell = Array.from({ length: 10 }, (_, k) => ({ price: g(3 + k), qty: g(23 + k) })).filter(x => x.price > 0).sort((a, b) => a.price - b.price);
+    const buy = Array.from({ length: 10 }, (_, k) => ({ price: g(13 + k), qty: g(33 + k) })).filter(x => x.price > 0).sort((a, b) => b.price - a.price);
+    if (sell.length && buy.length) out.push({ code: f[i], time: f[i + 1] ?? "", sell, buy, sumSell: g(43), sumBuy: g(44), est: g(47) });
+  }
+  return out;
+}
+/** 실시간 호가 구독 — 앱 + 한국투자일 때만(없으면 아무 일도 안 한다). 해제 함수 반환 */
+export function subscribeKisQuotes(code: string, cb: QCb): () => void {
+  if (!kisWsAvailable()) return () => {};
+  const set = qsubs.get(code) ?? qsubs.set(code, new Set()).get(code)!;
+  set.add(cb);
+  ensureTimer();
+  return () => { set.delete(cb); if (!set.size) qsubs.delete(code); stopIfIdle(); };
 }

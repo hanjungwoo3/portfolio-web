@@ -18,6 +18,9 @@ use tokio_tungstenite::tungstenite::Message;
 // 실전 = H0UNCNT0(통합 KRX+NXT 체결 — NXT 프리 08:00·애프터 ~20:00 도, 사용자 2026-11-09 "한투 통합 체결도"), 모의 = H0STCNT0(KRX — 모의엔 통합이 없다)
 const TR_ID_REAL: &str = "H0UNCNT0";
 const TR_ID_PAPER: &str = "H0STCNT0";
+// 호가 — 키가 'Q'+종목코드면 실시간 호가(실전 H0UNASP0 통합 · 모의 H0STASP0)(사용자 2026-11-09 "호가도 소켓으로")
+const ASP_REAL: &str = "H0UNASP0";
+const ASP_PAPER: &str = "H0STASP0";
 const MAX_CODES: usize = 20;
 const MAX_BUF: usize = 5000;
 const IDLE: Duration = Duration::from_secs(30);
@@ -43,7 +46,8 @@ pub struct WsPoll {
 fn sub_msg(key: &str, code: &str, on: bool, paper: bool) -> String {
     serde_json::json!({
         "header": { "approval_key": key, "custtype": "P", "tr_type": if on { "1" } else { "2" }, "content-type": "utf-8" },
-        "body": { "input": { "tr_id": if paper { TR_ID_PAPER } else { TR_ID_REAL }, "tr_key": code } }
+        "body": { "input": { "tr_id": match (code.starts_with('Q'), paper) { (true, true) => ASP_PAPER, (true, false) => ASP_REAL, (false, true) => TR_ID_PAPER, (false, false) => TR_ID_REAL },
+                             "tr_key": code.trim_start_matches('Q') } }
     }).to_string()
 }
 
@@ -55,7 +59,7 @@ pub async fn kis_ws_poll(
     codes: Vec<String>,
 ) -> Result<WsPoll, String> {
     let codes: HashSet<String> = codes.into_iter()
-        .filter(|c| c.len() == 6 && c.chars().all(|ch| ch.is_ascii_alphanumeric()))
+        .filter(|c| { let k = c.strip_prefix('Q').unwrap_or(c); k.len() == 6 && k.chars().all(|ch| ch.is_ascii_alphanumeric()) })
         .take(MAX_CODES).collect();
     let start = {
         let mut s = ws.inner.lock().map_err(|_| "lock")?;

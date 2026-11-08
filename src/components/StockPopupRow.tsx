@@ -4,6 +4,8 @@
 //   팝업이 열려 있을 때만 받는다(= 이 칸들이 마운트된 동안). 호가 3초 · 거래원·프로그램 30초 · 뉴스·공시 1분.
 import { fetchKisInvestorEstimate, kisFutAvailable } from "../lib/kisFutures";
 import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
+import { subscribeKisQuotes, type KisQuote } from "../lib/kisWs";
 import {
   fetchNaverNews, fetchNaverRecentDisclosures, fetchTossOrderBook, fetchTossPrices, fetchTossTicks, fetchInvestorHistory, fetchTossBrokerRanking, fetchTossProgramRecent,
 } from "../lib/api";
@@ -69,7 +71,12 @@ export function useStockLiveSignals(code: string, on: boolean, price?: number): 
 //   빈 칸 — 오른쪽 위 = 최고·최저·거래량·어제보다, 왼쪽 아래 = 체결강도 + 최근 체결. 맨 아래 = 판매대기 · 구매대기.
 //   값 = 토스 v3 통합(KRX+NXT) 호가 3초 · 시세·체결 5초
 export function OrderBookBox({ code }: { code: string }) {
-  const { data: ob, error } = useOrderBook(code);
+  const { data: tossOb, error } = useOrderBook(code);
+  // 앱 + 한국투자(0.1.15+) — 웹소켓 실시간 호가가 들어오면 그것을(토스 3초 대신), 10초 넘게 안 오면 토스로 돌아간다(사용자 2026-11-09 "소켓으로 실시간 안 돼?")
+  const [kq, setKq] = useState<{ q: KisQuote; at: number } | null>(null);
+  useEffect(() => subscribeKisQuotes(code, q => setKq({ q, at: Date.now() })), [code]);
+  const live = !!kq && Date.now() - kq.at < 10_000;
+  const ob = live && kq ? { close: tossOb?.close ?? 0, sell: kq.q.sell, buy: kq.q.buy, sumSell: kq.q.sumSell, sumBuy: kq.q.sumBuy, single: !!tossOb?.single, estPrice: tossOb?.estPrice } : tossOb;
   const { data: px } = useQuery({ queryKey: ["popup-ob-px", code], queryFn: () => fetchTossPrices([code]).then(r => r[0] ?? null), refetchInterval: 5_000, staleTime: 3_000 });
   const { data: ticks } = useQuery({ queryKey: ["popup-ob-ticks", code], queryFn: () => fetchTossTicks(code, 60), refetchInterval: 5_000, staleTime: 3_000 });
   const base = px?.prevClose || px?.base || 0;
@@ -93,7 +100,7 @@ export function OrderBookBox({ code }: { code: string }) {
     <div className={BOX}>
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800">호가</span>
-        <span className="text-[11px] text-gray-400">3초마다 · KRX+NXT{ob?.single ? ` · 단일가(예상 ${ob.estPrice?.toLocaleString() ?? "-"})` : ""}</span>
+        <span className="text-[11px] text-gray-400">{live ? <b className="text-emerald-600">● 한투 실시간</b> : "3초마다"} · KRX+NXT{ob?.single ? ` · 단일가(예상 ${ob.estPrice?.toLocaleString() ?? "-"})` : ""}</span>
       </div>
       {!ob ? <div className="text-gray-400 text-[12px] mt-2">{error ? `⚠️ ${(error as Error).message}` : "불러오는 중…"}</div> : (<>
         <div className="flex-1 min-h-0 overflow-y-auto mt-1 text-[11px]">
