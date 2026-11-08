@@ -506,11 +506,12 @@ export function ValuationModal({
         throw e;
       }
     },
-    enabled: isOpen && curPrice == null && /^[\dA-Za-z]{6}$/.test(ticker),
-    staleTime: 60_000,
+    // 창이 열려 있는 동안 5초마다(사용자 2026-11-09 "종목정보의 가격이 자동 갱신 안 되는 거 같아" — 한 번만 받고 멈춰 있었다)
+    enabled: isOpen && /^[\dA-Za-z]{6}$/.test(ticker),
+    staleTime: 3_000, refetchInterval: 5_000,
     refetchOnWindowFocus: false,
   });
-  const effCurPrice = curPrice ?? livePrices?.[0]?.price;
+  const effCurPrice = livePrices?.[0]?.price ?? curPrice;   // 새로 받은 값이 우선(부모가 넘긴 값은 연 순간 값이라 멈춰 있다)
 
   // 헤더 등락 — 아래 차트가 받는 일봉과 **같은 쿼리키**라 추가 호출이 없다(캐시 공유).
   //   현재가만 있고 기준(전일 종가)이 없으면 "얼마인지" 는 알아도 "오르는 중인지" 를 모른다.

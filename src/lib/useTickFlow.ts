@@ -69,13 +69,14 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
     let alive = true;
     // 누적 거래량은 출처마다 기준이 다르다(토스는 NXT 포함일 수 있고 한투 H0STCNT0 은 KRX) — 중복 거르기는 출처별로.
     //   한투 웹소켓은 등록 뒤 새 체결만 밀어 주므로 그 자체로 중복이 없다(메모리 기준만).
-    let lastKis = 0, lastKisTime = "";   // 웹소켓이 끊겨 토스가 이어받을 때, 웹소켓으로 이미 센 시각까지는 다시 안 센다
+    let lastKis = 0, lastKisTime = "";
+    let kisLastAt = 0;   // 한투 체결이 마지막으로 들어온 때(ms)   // 웹소켓이 끊겨 토스가 이어받을 때, 웹소켓으로 이미 센 시각까지는 다시 안 센다
     const ingest = (ts: TossTick[], src: "toss" | "kis") => {
         const s = store.current;
         const last = src === "kis" ? lastKis : s.lastCum;
         const fresh = ts.filter(t => t.cum > last).sort((a, b) => a.cum - b.cum);   // 응답은 최신 → 과거
         if (!fresh.length) return;
-        if (src === "kis") { lastKis = fresh[fresh.length - 1].cum; lastKisTime = fresh[fresh.length - 1].time; }
+        if (src === "kis") { lastKis = fresh[fresh.length - 1].cum; lastKisTime = fresh[fresh.length - 1].time; kisLastAt = Date.now(); }
         // 이전에 받은 것과 이어지는가 — 첫 새 체결의 (cum - volume) 가 직전 마지막 cum 이면 빈틈 없음(토스만)
         if (src === "toss" && s.lastCum && fresh[0].cum - fresh[0].volume > s.lastCum) s.gaps++;
         for (const t of fresh) {
@@ -99,7 +100,9 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
         setVer(v => v + 1);
     };
     const tick = async () => {
-      if (document.hidden || kisWsLive()) return;   // 웹소켓이 살아 있으면 토스는 쉰다
+      // 웹소켓이 살아 있고 **실제로 체결이 들어오는 중**일 때만 토스는 쉰다. 한투 H0STCNT0 은 KRX 체결만이라
+      //   NXT 프리(08:00~08:50)·애프터(15:30~20:00)엔 조용해 화면이 멈춰 있었다(사용자 2026-11-09 "한투 실시간 체결도 움직임이 없어")
+      if (document.hidden || (kisWsLive() && Date.now() - kisLastAt < 20_000)) return;
       try {
         const ts = await fetchTossTicks(code);
         if (!alive) return;

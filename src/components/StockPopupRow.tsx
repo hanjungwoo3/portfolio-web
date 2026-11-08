@@ -5,7 +5,7 @@
 import { fetchKisInvestorEstimate, kisFutAvailable } from "../lib/kisFutures";
 import { useQuery } from "@tanstack/react-query";
 import {
-  fetchNaverNews, fetchNaverRecentDisclosures, fetchTossOrderBook, fetchInvestorHistory, fetchTossBrokerRanking, fetchTossProgramRecent,
+  fetchNaverNews, fetchNaverRecentDisclosures, fetchTossOrderBook, fetchTossPrices, fetchTossTicks, fetchInvestorHistory, fetchTossBrokerRanking, fetchTossProgramRecent,
 } from "../lib/api";
 import type { Investor } from "../types";
 import { useLastRefresh } from "../lib/lastRefresh";
@@ -64,39 +64,79 @@ export function useStockLiveSignals(code: string, on: boolean, price?: number): 
   return out;
 }
 
-// ── 호가창 — 매도 10(위, 높은 값이 위) · 매수 10(아래). 잔량 막대 + 총잔량 비율
+// ── 호가창 — 토스 모양(사용자 2026-11-09 "이거 그대로 구현 못하나"):
+//   가운데 = 가격(전일 대비 % 아래), 매도 잔량은 왼쪽(파랑 막대), 매수 잔량은 오른쪽(빨강 막대), 현재가 칸 테두리.
+//   빈 칸 — 오른쪽 위 = 최고·최저·거래량·어제보다, 왼쪽 아래 = 체결강도 + 최근 체결. 맨 아래 = 판매대기 · 구매대기.
+//   값 = 토스 v3 통합(KRX+NXT) 호가 3초 · 시세·체결 5초
 export function OrderBookBox({ code }: { code: string }) {
   const { data: ob, error } = useOrderBook(code);
+  const { data: px } = useQuery({ queryKey: ["popup-ob-px", code], queryFn: () => fetchTossPrices([code]).then(r => r[0] ?? null), refetchInterval: 5_000, staleTime: 3_000 });
+  const { data: ticks } = useQuery({ queryKey: ["popup-ob-ticks", code], queryFn: () => fetchTossTicks(code, 60), refetchInterval: 5_000, staleTime: 3_000 });
+  const base = px?.prevClose || px?.base || 0;
   const mx = Math.max(1, ...(ob ? [...ob.sell, ...ob.buy].map(x => x.qty) : [1]));
-  const tot = ob ? ob.sumSell + ob.sumBuy : 0;
-  const buyPct = tot > 0 ? (ob!.sumBuy / tot) * 100 : 50;
-  const row = (x: { price: number; qty: number }, side: "s" | "b") => (
-    <div key={side + x.price} className={`relative flex items-center h-[15px] text-[10.5px] tabular-nums ${x.price === ob!.close ? "outline outline-1 outline-gray-700 rounded-sm" : ""}`}>
-      {side === "s"
-        ? <span className="absolute inset-y-0 right-1/2 bg-blue-200/70" style={{ width: `${(x.qty / mx) * 48}%` }} />
-        : <span className="absolute inset-y-0 left-1/2 bg-rose-200/70" style={{ width: `${(x.qty / mx) * 48}%` }} />}
-      <span className="relative w-1/2 text-right pr-[52px] text-blue-700">{side === "s" ? x.qty.toLocaleString() : ""}</span>
-      <span className="relative w-1/2 pl-[52px] text-rose-700">{side === "b" ? x.qty.toLocaleString() : ""}</span>
-      <span className="absolute left-1/2 -translate-x-1/2 font-bold text-gray-800 bg-white/70 px-0.5 rounded">{x.price.toLocaleString()}</span>
-    </div>
-  );
+  const pct = (p: number) => (base > 0 ? ((p / base - 1) * 100) : null);
+  const tone = (p: number) => (base > 0 ? (p > base ? "text-rose-600" : p < base ? "text-blue-600" : "text-gray-700") : "text-gray-800");
+  const bs = (ticks ?? []).reduce((a, t) => { if (t.side === "BUY") a.b += t.volume; else a.s += t.volume; return a; }, { b: 0, s: 0 });
+  const strength = bs.s > 0 ? (bs.b / bs.s) * 100 : null;
+  const cur = ob?.close || px?.price || 0;
+  const priceCell = (p: number) => {
+    const c = pct(p);
+    return (
+      <div className={`flex flex-col items-center justify-center leading-[13px] px-1 ${p === cur ? "outline outline-1 outline-gray-800 rounded bg-white" : ""}`}>
+        <span className={`text-[12px] font-bold tabular-nums ${tone(p)}`}>{p.toLocaleString()}</span>
+        {c != null && <span className={`text-[9.5px] tabular-nums ${tone(p)}`}>{c >= 0 ? "+" : ""}{c.toFixed(2)}%</span>}
+      </div>
+    );
+  };
+  const R = "grid grid-cols-[1fr_minmax(0,1.1fr)_1fr] items-stretch h-[28px] border-b border-white";
   return (
     <div className={BOX}>
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800">호가</span>
-        <span className="text-[11px] text-gray-400">3초마다{ob?.single ? ` · 단일가(예상 ${ob.estPrice?.toLocaleString() ?? "-"})` : ""}</span>
+        <span className="text-[11px] text-gray-400">3초마다 · KRX+NXT{ob?.single ? ` · 단일가(예상 ${ob.estPrice?.toLocaleString() ?? "-"})` : ""}</span>
       </div>
       {!ob ? <div className="text-gray-400 text-[12px] mt-2">{error ? `⚠️ ${(error as Error).message}` : "불러오는 중…"}</div> : (<>
-        {/* 총잔량 — 매수 쪽이 두꺼우면 받치는 힘, 매도 쪽이 두꺼우면 누르는 벽 */}
-        <div className="mt-1 text-[11px] tabular-nums">
-          <div className="flex justify-between"><span className="text-blue-700">매도 {ob.sumSell.toLocaleString()}</span><span className="text-rose-700">매수 {ob.sumBuy.toLocaleString()}</span></div>
-          <div className="h-1.5 rounded bg-blue-300 overflow-hidden flex justify-end"><div className="h-full bg-rose-400" style={{ width: `${buyPct}%` }} /></div>
-          <div className="text-center text-gray-500">매수 잔량 {buyPct.toFixed(0)}% — {buyPct >= 60 ? "매수벽 두꺼움" : buyPct <= 40 ? "매도벽 두꺼움" : "팽팽"}</div>
+        <div className="flex-1 min-h-0 overflow-y-auto mt-1 text-[11px]">
+          {/* 매도 10 — 높은 값이 위. 오른쪽 칸 = 시세 정보 */}
+          {[...ob.sell].reverse().map((x, i) => (
+            <div key={"s" + x.price} className={R}>
+              <div className="relative bg-blue-50/60 flex items-center justify-end pr-1.5">
+                <span className="absolute inset-y-[3px] right-0 bg-blue-200/80 rounded-l" style={{ width: `${(x.qty / mx) * 100}%` }} />
+                <span className="relative tabular-nums text-blue-800">{x.qty.toLocaleString()}</span>
+              </div>
+              <div className="bg-blue-50/30">{priceCell(x.price)}</div>
+              <div className="flex items-center justify-between px-1.5 text-[10.5px] tabular-nums text-gray-500">
+                {i === 0 && px && <><span>최고</span><b className="text-rose-600">{px.high?.toLocaleString?.() ?? "-"}</b></>}
+                {i === 1 && px && <><span>최저</span><b className="text-blue-600">{px.low?.toLocaleString?.() ?? "-"}</b></>}
+                {i === 3 && px && <><span>거래량</span><b className="text-gray-800">{px.volume?.toLocaleString?.() ?? "-"}</b></>}
+                {i === 5 && base > 0 && px && <><span>어제보다</span><b className={tone(px.price)}>{(((px.price / base) - 1) * 100).toFixed(2)}%</b></>}
+              </div>
+            </div>
+          ))}
+          {/* 매수 10 — 왼쪽 칸 = 체결강도 + 최근 체결 */}
+          {ob.buy.map((x, i) => {
+            const t = (ticks ?? [])[i - 1];
+            return (
+              <div key={"b" + x.price} className={R}>
+                <div className="flex items-center justify-between px-1.5 text-[10.5px] tabular-nums">
+                  {i === 0
+                    ? <><span className="text-gray-500">체결강도</span><b className={strength != null && strength >= 100 ? "text-rose-600" : "text-blue-600"}>{strength != null ? `${strength.toFixed(2)}%` : "-"}</b></>
+                    : t ? <><span className="text-gray-700">{t.price.toLocaleString()}</span><span className={t.side === "BUY" ? "text-rose-600" : "text-blue-600"}>{t.volume.toLocaleString()}</span></> : null}
+                </div>
+                <div className="bg-rose-50/30">{priceCell(x.price)}</div>
+                <div className="relative bg-rose-50/60 flex items-center pl-1.5">
+                  <span className="absolute inset-y-[3px] left-0 bg-rose-200/80 rounded-r" style={{ width: `${(x.qty / mx) * 100}%` }} />
+                  <span className="relative tabular-nums text-rose-800">{x.qty.toLocaleString()}</span>
+                </div>
+              </div>
+            );
+          })}
         </div>
-        <div className="flex-1 min-h-0 overflow-hidden mt-1 flex flex-col justify-center gap-px">
-          {[...ob.sell].reverse().map(x => row(x, "s"))}
-          <div className="h-px bg-gray-300 my-0.5" />
-          {ob.buy.map(x => row(x, "b"))}
+        {/* 판매대기 · 구매대기 */}
+        <div className="mt-1 grid grid-cols-[1fr_auto_1fr] items-center text-[11px] tabular-nums">
+          <span className="border-t-2 border-blue-500 pt-0.5"><span className="text-gray-500">판매대기</span> <b className="text-gray-800">{ob.sumSell.toLocaleString()}</b></span>
+          <span className="px-2 text-gray-400 text-[10px]">총잔량</span>
+          <span className="border-t-2 border-rose-500 pt-0.5 text-right"><b className="text-gray-800">{ob.sumBuy.toLocaleString()}</b> <span className="text-gray-500">구매대기</span></span>
         </div>
       </>)}
     </div>

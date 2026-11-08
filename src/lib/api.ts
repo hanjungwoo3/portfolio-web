@@ -6121,6 +6121,21 @@ export interface OrderBook {
   single: boolean; estPrice?: number;
 }
 export async function fetchTossOrderBook(code: string): Promise<OrderBook | null> {
+  // v3 = 통합(KRX+NXT) 호가 — 토스 화면과 같다. v2 는 KRX 만이라 NXT 프리·애프터엔 어제 마감 호가에 멈춰 있었다
+  //   (사용자 2026-11-09 "호가가 3초인데 변하지 않아" — 실측 08:24 삼성 v2 189,700/188,700 · v3 192,300/192,200 = 토스 화면)
+  try {
+    const r3 = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v3/stock-prices/A${code}/quotes`);
+    if (r3.ok) {
+      const j = (await r3.json() as { result?: { close?: number; offerPrices?: number[]; offerVolumes?: number[]; bidPrices?: number[]; bidVolumes?: number[];
+        offerVolume?: number; bidVolume?: number; singlePrice?: boolean; estimatedPrice?: number } }).result;
+      if (j?.offerPrices?.length && j.bidPrices?.length) {
+        const sell = j.offerPrices.map((p, i) => ({ price: p, qty: j.offerVolumes?.[i] ?? 0 })).filter(x => x.price > 0).sort((a, b) => a.price - b.price);
+        const buy = j.bidPrices.map((p, i) => ({ price: p, qty: j.bidVolumes?.[i] ?? 0 })).filter(x => x.price > 0).sort((a, b) => b.price - a.price);
+        if (sell.length && buy.length) return { close: j.close ?? 0, sell, buy, sumSell: j.offerVolume ?? 0, sumBuy: j.bidVolume ?? 0,
+          single: !!j.singlePrice, estPrice: j.singlePrice && j.estimatedPrice ? j.estimatedPrice : undefined };
+      }
+    }
+  } catch { /* v2 로 */ }
   const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-prices/A${code}/quotes`);
   if (!r.ok) throw new Error(`호가 조회 실패 (HTTP ${r.status})`);
   const j = (await r.json() as { result?: { close?: number; sellPrices?: number[]; sellQuantities?: number[]; buyPrices?: number[]; buyQuantities?: number[];
