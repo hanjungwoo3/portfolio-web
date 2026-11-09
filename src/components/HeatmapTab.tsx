@@ -220,8 +220,11 @@ export function HeatmapTab() {
   }, [useToss, isKr, tossQ.data]);
   // 상승만 / 하락만 · 흐린 종목 제외(심플 보기 히트맵과 같은 버튼, 사용자 2026-10-30) — 기준은 지금 고른 색 기준 값
   const [sign, setSign] = useState<HeatSign>("all");
-  const [view, setView] = useState<"heat" | "card">("heat");
-  const cardView = view === "card";
+  const [view, setView] = useState<"heat" | "card" | "tile">("heat");
+  const cardView = view === "card" || view === "tile";   // 트리맵 캔버스를 숨기는 보기들
+  const tileView = view === "tile";
+  // 타일 — 작은 칸에 로고·이름·등락률·값·시총(kospimap 증시 전광판처럼, 사용자 2026-11-09 "둘 다 해 보자"). 시총순 | 등락순
+  const [tileSort, setTileSort] = useState<"cap" | "pct">("cap");
   const tossByCode = useMemo(() => new Map((useToss ? tossQ.data ?? [] : []).map(p => [p.ticker, p])), [useToss, tossQ.data]);
   const [hideStale, setHideStale] = useState<boolean>(() => { try { return localStorage.getItem("heatmap_hide_stale") === "1"; } catch { return false; } });
   const liveItems = useMemo(() => {
@@ -249,8 +252,9 @@ export function HeatmapTab() {
   }), [rows, hideStale, staleCodes, sign, colorDef]);
   // 카드 — 색 기준 값 큰 순. 40개씩 그리고 내려가면 더(종목 수백 개 — 차트를 한 번에 다 부르지 않게)
   const cardItems = useMemo(() => [...shown].sort((a, b) => colorDef.field(b) - colorDef.field(a)), [shown, colorDef]);
+  const tileItems = useMemo(() => [...shown].sort((a, b) => tileSort === "cap" ? (b.marketCap || b.aum) - (a.marketCap || a.aum) : colorDef.field(b) - colorDef.field(a)), [shown, tileSort, colorDef]);
   const { count: cardCount, sentinelRef: cardSentinel, hasMore: cardHasMore } =
-    useIncrementalRender<HTMLDivElement>(cardView ? cardItems.length : 0, 40, `${source}|${sign}|${colorMode}|${hideStale}`);
+    useIncrementalRender<HTMLDivElement>(cardView ? cardItems.length : 0, tileView ? 120 : 40, `${source}|${sign}|${colorMode}|${hideStale}|${view}|${tileSort}`);
   const dropped = (q.data?.items.length ?? 0) - rows.length;
 
   // 등락률 변동폭 크기 모드의 허수 필터 — 거래량 1·거래대금 미미한데 ±100% 찍히는 호가는
@@ -378,9 +382,9 @@ export function HeatmapTab() {
         {/* 히트맵 | 카드 — 히트맵 팝업(SimpleViewModal)과 같은 버튼·같은 카드(사용자 2026-10-30 "이거도 동일하면"). 미국도(달러 카드) */}
         {(
           <span className="inline-flex rounded border border-gray-300 overflow-hidden text-[12px] font-bold">
-            {(["heat", "card"] as const).map(v => (
+            {(["heat", "tile", "card"] as const).map(v => (
               <button key={v} onClick={() => setView(v)}
-                      className={`px-2 py-1 ${view === v ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>{v === "heat" ? "히트맵" : "카드"}</button>
+                      className={`px-2 py-1 ${view === v ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>{v === "heat" ? "히트맵" : v === "tile" ? "타일" : "카드"}</button>
             ))}
           </span>
         )}
@@ -480,7 +484,51 @@ export function HeatmapTab() {
       </div>
 
       {/* 카드 — 지금 거른 종목(+만/−만·흐림 제외)을 색 기준 값 큰 순으로 */}
-      {cardView && (<>
+      {tileView && (() => {
+        const up = shown.filter(it => it.changePct > 0).length, dn = shown.filter(it => it.changePct < 0).length, fl = shown.length - up - dn;
+        const cap = (v: number) => !v ? "" : isKr ? (v >= 1e12 ? `${(v / 1e12).toFixed(v >= 1e14 ? 0 : 1)}조` : `${Math.round(v / 1e8).toLocaleString()}억`) : (v >= 1e12 ? `$${(v / 1e12).toFixed(1)}T` : `$${Math.round(v / 1e9)}B`);
+        return (<>
+          {/* 오른 종목·내린 종목 수 막대 — 지금 거른 종목 기준 */}
+          <div className="flex items-center gap-2 mb-1.5 text-[12px] font-bold tabular-nums">
+            <span className="text-rose-600">▲ {up}</span>
+            <div className="flex-1 h-2 rounded-full overflow-hidden flex bg-gray-200" title={`오른 종목 ${up} · 그대로 ${fl} · 내린 종목 ${dn}`}>
+              <div className="bg-rose-500" style={{ width: `${(up / Math.max(1, shown.length)) * 100}%` }} />
+              <div className="bg-gray-300" style={{ width: `${(fl / Math.max(1, shown.length)) * 100}%` }} />
+              <div className="bg-blue-500" style={{ width: `${(dn / Math.max(1, shown.length)) * 100}%` }} />
+            </div>
+            <span className="text-blue-600">▼ {dn}</span>
+            <span className="inline-flex rounded border border-gray-300 overflow-hidden text-[11px]">
+              {(["cap", "pct"] as const).map(k => (
+                <button key={k} onClick={() => setTileSort(k)} className={`px-2 py-0.5 ${tileSort === k ? "bg-gray-800 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>{k === "cap" ? "시총순" : "등락순"}</button>
+              ))}
+            </span>
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 2xl:grid-cols-10 gap-1.5">
+            {tileItems.slice(0, cardCount).map(it => {
+              const p = tossByCode.get(it.code);
+              const pct = it.changePct, px = p?.price ?? it.close;
+              const bg = pct >= 3 ? "bg-rose-100 border-rose-300" : pct > 0 ? "bg-rose-50 border-rose-200" : pct <= -3 ? "bg-blue-100 border-blue-300" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
+              return (
+                <button key={it.code} type="button" title={`${krName(it)} ${pct > 0 ? "+" : ""}${pct.toFixed(2)}% · 누르면 ${isKr ? "종목정보" : "토스"}`}
+                        onClick={() => (isKr ? openStockInfo(it.code, krName(it)) : openTossStock(it.code))}
+                        className={`pg-card text-left rounded-md border px-1.5 py-1 hover:brightness-95 ${bg} ${staleCodes.has(it.code) ? "opacity-50" : ""}`}>
+                  <div className="flex items-center gap-1 min-w-0">
+                    {it.logoid && <img src={heatmapLogoUrl(it.logoid)} alt="" loading="lazy" className="w-4 h-4 rounded-full bg-white object-contain shrink-0" />}
+                    <b className="truncate text-[12px] text-gray-900">{krName(it)}</b>
+                    <span className={`ml-auto shrink-0 text-[12px] font-bold tabular-nums ${pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-500"}`}>{pct > 0 ? "+" : ""}{pct.toFixed(2)}%</span>
+                  </div>
+                  <div className="flex items-baseline justify-between text-[10.5px] text-gray-500 tabular-nums">
+                    <span>{isKr ? px.toLocaleString() : `$${px.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</span>
+                    <span>{cap(it.marketCap || it.aum)}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          {cardHasMore && <div ref={cardSentinel} className="h-8" />}
+        </>);
+      })()}
+      {cardView && !tileView && (<>
         <div className="mb-1.5"><ChartRangeToggle /></div>
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 items-stretch">
           {cardItems.slice(0, cardCount).map(it => {

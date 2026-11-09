@@ -1,5 +1,7 @@
 // 시장 폭 읽기 — 주간 시장 그룹 아래. KODEX 200 ↔ 200동일가중 카드의 **실제 등락률**로(금리 읽기와 같은 모양, 사용자 2026-11-03).
+import { useQuery } from "@tanstack/react-query";
 import type { UsIndex } from "../lib/api";
+import { fetchUpDown, type UpDown } from "../lib/upDown";
 import { displayPctOf } from "../lib/format";
 import { readAsia, readBreadth, readVkospi, type BreadthTone } from "../lib/breadth";
 
@@ -12,7 +14,26 @@ const TONE: Record<BreadthTone, string> = {
 };
 
 // 주간 시장 읽기 — 시장 폭(KODEX 200 vs 동일가중) · V-KOSPI · 아시아(닛케이·상해) 세 줄(사용자 2026-11-03 "v-kospi 와 닛케이, 상해도")
+// 오른·내린 종목 수 막대(코스피·코스닥 전체) — 빨강(오름)·회색(그대로)·파랑(내림) 길이로(사용자 2026-11-09)
+function UpDownBar({ label, u, small }: { label: string; u: UpDown; small: boolean }) {
+  const tot = Math.max(1, u.rise + u.flat + u.fall);
+  return (
+    <span className="inline-flex items-center gap-1 tabular-nums font-bold"
+          title={`${label} 오른 종목 ${u.rise}${u.upper ? `(상한가 ${u.upper})` : ""} · 그대로 ${u.flat} · 내린 종목 ${u.fall}${u.lower ? `(하한가 ${u.lower})` : ""} — 지수는 큰 회사가 끌지만, 이 막대는 종목 하나하나를 한 표씩 셉니다`}>
+      <span className="text-gray-700">{label}</span>
+      <span className="text-rose-600">▲{u.rise}</span>
+      <span className={`inline-flex ${small ? "w-14" : "w-24"} h-1.5 rounded-full overflow-hidden bg-gray-200`}>
+        <span className="bg-rose-500" style={{ width: `${(u.rise / tot) * 100}%` }} />
+        <span className="bg-gray-300" style={{ width: `${(u.flat / tot) * 100}%` }} />
+        <span className="bg-blue-500" style={{ width: `${(u.fall / tot) * 100}%` }} />
+      </span>
+      <span className="text-blue-600">▼{u.fall}</span>
+    </span>
+  );
+}
+
 export function BreadthNote({ usMap, small = false }: { usMap: Map<string, UsIndex>; small?: boolean }) {
+  const ud = useQuery({ queryKey: ["updown"], queryFn: fetchUpDown, refetchInterval: 120_000, staleTime: 60_000, retry: 1 }).data;
   const p = (sym: string) => displayPctOf(sym, usMap.get(sym));
   // 아시아 비교는 **오늘 열린 장만** — 일본 휴장(11/3 문화의 날)·상해 개장 전(10:30 KST 전)엔 어제 값이라 비교하면 틀린다
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
@@ -21,6 +42,8 @@ export function BreadthNote({ usMap, small = false }: { usMap: Map<string, UsInd
   const v = usMap.get("VKOSPI");
   const chip = (t: { text: string; tone: BreadthTone }) => <span className={`inline-block font-bold px-1.5 rounded border ${TONE[t.tone]}`}>{t.text}</span>;
   const rows: React.ReactNode[] = [];
+  if (ud?.kospi) rows.push(<UpDownBar key="udk" label="코스피" u={ud.kospi} small={small} />);
+  if (ud?.kosdaq) rows.push(<UpDownBar key="udq" label="코스닥" u={ud.kosdaq} small={small} />);
   if (k != null && ew != null) rows.push(
     <span key="b" title="KODEX 200 = 큰 회사일수록 비중이 큰 지수(삼성전자·SK하이닉스가 절반 가까이). 200동일가중 = 200종목을 같은 비중으로. 둘의 차이가 0.5%p 이상이면 몇몇 대형주 쏠림으로 봅니다.">
       {chip(readBreadth(k, ew))}   {/* 숫자는 카드에 있다 — 해석만(사용자 2026-11-03 "그냥 요약으로") */}
