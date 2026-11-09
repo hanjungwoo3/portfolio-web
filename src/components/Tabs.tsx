@@ -95,7 +95,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
       );
     }
     // "지수(업종별)" → "업종별" — 묶음 이름(지수)이 이미 메뉴 제목이라 겹친다(사용자 2026-11-09)
-    const shortLabel = (l: string) => (l.startsWith(`${menuTitle}(`) && l.endsWith(")") ? l.slice(menuTitle.length + 1, -1) : l);
+    const shortLabel = (l: string) => { const m = new RegExp(`^(?:${menuTitle}|지수)\\((.*)\\)$`).exec(l); return m ? m[1] : l; };
     const activeOne = groupTabs.find(t => t.key === activeKey);
     const current = activeOne ? activeKey : groupTabs[0].key;
     const curTab = groupTabs.find(t => t.key === current);
@@ -219,7 +219,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
       {/* 지수 — 주간·야간·반도체 드롭다운(투자도구·내자산과 같은 모양) */}
       {/* 지수 탭을 누르면 시간에 맞는 페이지로 — 한국 07~20시(NXT 애프터까지)는 주간, 그 외는 야간 */}
       {/* 지수 탭을 누르면 업종별로(사용자 2026-11-09 "클릭 시 업종별로") — 한국·미국 지수는 오른쪽 📈 서랍으로 옮겨 갔다 */}
-      {renderGroupDropdown(indexTabs, "📈", "지수", INDEX_SOBU_TAB_KEY)}
+      {renderGroupDropdown(indexTabs, "📈", "시장", INDEX_SOBU_TAB_KEY)}   {/* 목록 제목 '시장'(사용자 2026-11-09) — '지수'는 오른쪽 📈 서랍 이름으로만 */}
       {/* 🏦 증권사연결 폴더 — 지수 바로 오른쪽 고정 */}
       {brokerFolder && renderFolder(brokerFolder)}
       {tabs.map(t => {

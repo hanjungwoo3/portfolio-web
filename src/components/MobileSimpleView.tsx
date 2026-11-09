@@ -1875,7 +1875,7 @@ export function MobileSimpleView() {
                       className={`bg-transparent text-[11px] py-1 pl-1 pr-1 rounded-md focus:outline-none
                                   ${on ? "text-white" : "text-gray-700"}`}>
                 {!on && <option value="" disabled hidden className="text-gray-800">{curTab?.label}</option>}
-                <optgroup label="지수">
+                <optgroup label="시장">
                   {idx.map(t => (
                     <option key={t.key} value={t.key} className="text-gray-800">{t.label}</option>
                   ))}
