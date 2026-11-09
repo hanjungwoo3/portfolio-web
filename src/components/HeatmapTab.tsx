@@ -16,8 +16,6 @@ import { reportRefresh } from "../lib/lastRefresh";
 import { getEffectivePollMs, hasDirectTransport } from "../lib/proxyConfig";
 import { dayChangePct } from "../lib/format";
 import { HEAT_SIGN_OPTS, type HeatSign } from "../lib/holdingsHeat";
-import { QuoteCard } from "./QuoteCard";
-import { ChartRangeToggle } from "./ChartRangeToggle";
 import { useIncrementalRender } from "../lib/useIncrementalRender";
 import { takePendingHeatmap } from "../lib/heatmapNav";
 import { preferServer, fmtServerStamp, fetchLiveIndex } from "../lib/liveServer";
@@ -220,9 +218,10 @@ export function HeatmapTab() {
   }, [useToss, isKr, tossQ.data]);
   // 상승만 / 하락만 · 흐린 종목 제외(심플 보기 히트맵과 같은 버튼, 사용자 2026-10-30) — 기준은 지금 고른 색 기준 값
   const [sign, setSign] = useState<HeatSign>("all");
-  const [view, setView] = useState<"heat" | "card" | "tile">("heat");
-  const cardView = view === "card" || view === "tile";   // 트리맵 캔버스를 숨기는 보기들
+  // 히트맵 | 타일 — 카드 보기는 뺐다(사용자 2026-11-09 "히트맵에 카드는 삭제")
+  const [view, setView] = useState<"heat" | "tile">("heat");
   const tileView = view === "tile";
+  const cardView = tileView;   // 트리맵 캔버스를 숨기는 보기
   // 타일 — 작은 칸에 로고·이름·등락률·값·시총(kospimap 증시 전광판처럼, 사용자 2026-11-09 "둘 다 해 보자"). 시총순 | 등락순
   const [tileSort, setTileSort] = useState<"cap" | "pct">("cap");
   const tossByCode = useMemo(() => new Map((useToss ? tossQ.data ?? [] : []).map(p => [p.ticker, p])), [useToss, tossQ.data]);
@@ -250,11 +249,9 @@ export function HeatmapTab() {
     const v = colorDef.field(it);
     return sign === "all" || (sign === "up" ? v > 0 : v < 0);
   }), [rows, hideStale, staleCodes, sign, colorDef]);
-  // 카드 — 색 기준 값 큰 순. 40개씩 그리고 내려가면 더(종목 수백 개 — 차트를 한 번에 다 부르지 않게)
-  const cardItems = useMemo(() => [...shown].sort((a, b) => colorDef.field(b) - colorDef.field(a)), [shown, colorDef]);
   const tileItems = useMemo(() => [...shown].sort((a, b) => tileSort === "cap" ? (b.marketCap || b.aum) - (a.marketCap || a.aum) : colorDef.field(b) - colorDef.field(a)), [shown, tileSort, colorDef]);
   const { count: cardCount, sentinelRef: cardSentinel, hasMore: cardHasMore } =
-    useIncrementalRender<HTMLDivElement>(cardView ? cardItems.length : 0, tileView ? 120 : 40, `${source}|${sign}|${colorMode}|${hideStale}|${view}|${tileSort}`);
+    useIncrementalRender<HTMLDivElement>(tileView ? tileItems.length : 0, 120, `${source}|${sign}|${colorMode}|${hideStale}|${view}|${tileSort}`);
   const dropped = (q.data?.items.length ?? 0) - rows.length;
 
   // 등락률 변동폭 크기 모드의 허수 필터 — 거래량 1·거래대금 미미한데 ±100% 찍히는 호가는
@@ -382,9 +379,9 @@ export function HeatmapTab() {
         {/* 히트맵 | 카드 — 히트맵 팝업(SimpleViewModal)과 같은 버튼·같은 카드(사용자 2026-10-30 "이거도 동일하면"). 미국도(달러 카드) */}
         {(
           <span className="inline-flex rounded border border-gray-300 overflow-hidden text-[12px] font-bold">
-            {(["heat", "tile", "card"] as const).map(v => (
-              <button key={v} onClick={() => setView(v)}
-                      className={`px-2 py-1 ${view === v ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>{v === "heat" ? "히트맵" : v === "tile" ? "타일" : "카드"}</button>
+            {(["heat", "tile"] as const).map(v => (
+              <button key={v} onClick={() => { setView(v); if (v === "tile") setColorMode("change"); }}
+                      className={`px-2 py-1 ${view === v ? "bg-indigo-600 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>{v === "heat" ? "히트맵" : "타일"}</button>
             ))}
           </span>
         )}
@@ -400,6 +397,8 @@ export function HeatmapTab() {
             </optgroup>
           </select>
         </label>
+        {/* 타일 보기에선 크기·색·그룹이 안 쓰인다 — 숨김(사용자 2026-11-09 "타일일 때 안 되는 건 숨김") */}
+        {!tileView && (<>
         <label className="flex items-center gap-1 text-xs">
           <span className="text-gray-400">크기</span>
           <select value={sizeModeEff} onChange={e => setSizeMode(e.target.value as SizeMode)}
@@ -424,6 +423,7 @@ export function HeatmapTab() {
             <option value="none">그룹없음</option>
           </select>
         </label>
+        </>)}
         {canToss && (
           <label className="flex items-center gap-1 text-xs" title="토스 실시간 = 등락률·현재가·거래량을 토스(NXT 프리·애프터 포함)로 갱신 주기마다. 섹터·시총은 TradingView 그대로 — 앱·확장에서만">
             <span className="text-gray-400">시세</span>
@@ -528,19 +528,6 @@ export function HeatmapTab() {
           {cardHasMore && <div ref={cardSentinel} className="h-8" />}
         </>);
       })()}
-      {cardView && !tileView && (<>
-        <div className="mb-1.5"><ChartRangeToggle /></div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6 gap-2 items-stretch">
-          {cardItems.slice(0, cardCount).map(it => {
-            const p = tossByCode.get(it.code);
-            return (
-              <QuoteCard key={it.code} code={it.code} name={krName(it)} sub={it.sector ? sectorKr(it.sector) : undefined}
-                         px={{ price: p?.price ?? it.close, pct: it.changePct }} dim={staleCodes.has(it.code)} className="h-[96px]" />
-            );
-          })}
-        </div>
-        {cardHasMore && <div ref={cardSentinel} className="h-8" />}
-      </>)}
 
       {/* 트리맵 캔버스 — 카드 보기일 땐 숨겨만 둔다(크기 측정이 끊기지 않게) */}
       <div ref={boxRef} className={`relative w-full h-[72vh] min-h-[360px] bg-gray-100 rounded-lg overflow-hidden ${cardView ? "hidden" : ""}`}>
