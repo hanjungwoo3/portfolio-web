@@ -14,7 +14,7 @@ interface Props {
 
 // 탭 키 → 사용법 단계 인덱스 (처음0·지수1·증시2·종목찾기3). App/Mobile 헤더에서 사용.
 export const HELP_STEP_BY_TAB: Record<string, number> = {
-  "__us-market__": 1, "__idx-night__": 1, "__idx-rot__": 1, "__idx-sobu__": 1, "__semi-dash__": 1, "__seohak__": 1, "__semi-check__": 1,   // 지수
+  "__us-market__": 1, "__idx-night__": 1, "__idx-rot__": 1, "__idx-sobu__": 1, "__semi-dash__": 1, "__seohak__": 1, "__hot-now__": 1, "__semi-check__": 1,   // 지수
   "__market-money__": 2,                                                                                // 증시
   "__valuation__": 3, "__screener__": 3, "__close-bet__": 3, "__accum__": 3, "__sector-rank__": 3,      // 종목찾기
   "__earnings__": 3, "__consensus__": 3, "__etf-reverse__": 3, "__etf-ranking__": 3, "__etf-compare__": 3, "__heatmap__": 3,

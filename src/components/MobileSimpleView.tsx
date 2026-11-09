@@ -7,6 +7,7 @@ import { SobuGrid } from "./SobuGrid";
 import { KisExpRankBox } from "./KisExpRankBox";
 import { ValueupTags } from "./ValueupTags";
 import { SeohakPage, SeohakTag } from "./SeohakBox";
+import { HotNowTab } from "./HotNowTab";
 import { useKisRadar, radarLabel } from "../lib/kisRadar";
 import { useKisVi, viLabel, viActive } from "../lib/kisVi";
 import { HoverTip } from "./HoverTip";
@@ -106,7 +107,7 @@ import { SemiCheckTab } from "./SemiCheckTab";
 import { SemiDashTab } from "./SemiDashTab";
 import { SectorRankingTab } from "./SectorRankingTab";
 import { ConsensusTab, type ConsensusItem } from "./ConsensusTab";
-import { filterByTab, realHoldingOf, CONSENSUS_TAB_KEY as CONSENSUS_KEY, DISCLOSURE_TAB_KEY as DISC_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, VALUEUP_TAB_KEY as VALUEUP_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_ROT_TAB_KEY as IDX_ROT_KEY, INDEX_SOBU_TAB_KEY as IDX_SOBU_KEY, INDEX_BATT_TAB_KEY as IDX_BATT_KEY, INDEX_US_TAB_KEY as IDX_US_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, EARNINGS_TAB_KEY as EARNINGS_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY, SEMI_DASH_TAB_KEY as SEMI_DASH_KEY, SEOHAK_TAB_KEY as SEOHAK_KEY } from "./Tabs";
+import { filterByTab, realHoldingOf, CONSENSUS_TAB_KEY as CONSENSUS_KEY, DISCLOSURE_TAB_KEY as DISC_KEY, ETF_REVERSE_TAB_KEY as ETF_KEY, ETF_RANKING_TAB_KEY as ETF_RANK_KEY, ETF_COMPARE_TAB_KEY as ETF_COMPARE_KEY, HEATMAP_TAB_KEY as HEATMAP_KEY, SCREENER_TAB_KEY as SCREENER_KEY, CLOSE_BET_TAB_KEY as CLOSE_BET_KEY, VALUEUP_TAB_KEY as VALUEUP_KEY, ACCUM_TAB_KEY as ACCUM_KEY, INDEX_NIGHT_TAB_KEY as IDX_NIGHT_KEY, INDEX_ROT_TAB_KEY as IDX_ROT_KEY, INDEX_SOBU_TAB_KEY as IDX_SOBU_KEY, INDEX_BATT_TAB_KEY as IDX_BATT_KEY, INDEX_US_TAB_KEY as IDX_US_KEY, INDEX_SEMI_TAB_KEY as IDX_SEMI_KEY, INDEX_LEADERS_TAB_KEY as IDX_LEADERS_KEY, VALUATION_TAB_KEY as VALUATION_KEY, EARNINGS_TAB_KEY as EARNINGS_KEY, MARKET_MONEY_TAB_KEY as MONEY_KEY, SEMI_DASH_TAB_KEY as SEMI_DASH_KEY, SEOHAK_TAB_KEY as SEOHAK_KEY, HOT_TAB_KEY as HOT_KEY } from "./Tabs";
 import { EtfReverseTab } from "./EtfReverseTab";
 import { EtfRankingTab } from "./EtfRankingTab";
 import { ScreenerTab } from "./ScreenerTab";
@@ -182,7 +183,7 @@ const MY_GROUP_KEYS_M = new Set<string>([MY_KEY, MY_TRADES_KEY, MY_TRADES_TOSS_K
 // '지수' 드롭다운 — 주간(옛 지수 키 KR_KEY 를 그대로 써서 저장된 마지막 탭이 이어진다)·야간·반도체
 const INDEX_KEYS_M = new Set<string>([KR_KEY, IDX_NIGHT_KEY, IDX_SOBU_KEY]);
 const indexPageOfM = (k: string): DashboardPage => k === IDX_NIGHT_KEY ? "night" : k === IDX_SOBU_KEY ? "sobu" : "day";
-const SYS_ALL_KEYS = new Set<string>([MONEY_KEY, SEMI_DASH_KEY, SEOHAK_KEY, ...INDEX_KEYS_M, ...SYS_DROPDOWN_KEYS, ...MY_GROUP_KEYS_M]);
+const SYS_ALL_KEYS = new Set<string>([MONEY_KEY, SEMI_DASH_KEY, SEOHAK_KEY, HOT_KEY, ...INDEX_KEYS_M, ...SYS_DROPDOWN_KEYS, ...MY_GROUP_KEYS_M]);
 // 일부 심볼 sparkline 은 Yahoo 가 historical 안 줌 → 가까운 현물 차트로 폴백 (차트 목록 계산에도 쓴다)
 const SPARKLINE_FALLBACK_M: Record<string, string> = { "SOX=F": "^SOX" };
 const TAB_KEY = "portfolio-mobile-active-tab";  // 마지막 활성 탭 기억
@@ -500,6 +501,7 @@ export function MobileSimpleView() {
       // PC 와 같은 순서 — 업종별 · 반도체 수급 · 서학개미 · 한국/주간 · 미국/야간(사용자 2026-11-09)
       const pg = (k: DashboardPage) => DASHBOARD_PAGES.find(p => p.key === k)!;
       tabs.push({ key: keyOf.sobu, label: `${pg("sobu").emoji}${pg("sobu").tab}`, count: 0 });
+      tabs.push({ key: HOT_KEY, label: "🔔지수(지금 시끄러운 종목)", count: 0 });
       tabs.push({ key: SEMI_DASH_KEY, label: "💾지수(반도체 수급)", count: 0 });
       tabs.push({ key: SEOHAK_KEY, label: "🐜지수(서학개미)", count: 0 });
       for (const k of ["day", "night"] as const) tabs.push({ key: keyOf[k], label: `${pg(k).emoji}${pg(k).tab}`, count: 0 });
@@ -626,7 +628,7 @@ export function MobileSimpleView() {
     for (const t of groupTabs) if (SYS_DROPDOWN_KEYS.has(t.key)) keys.push(t.key);   // 투자도구 묶음
     for (const t of groupTabs) if (MY_GROUP_KEYS_M.has(t.key)) keys.push(t.key);     // 내자산 묶음
     if (has(MONEY_KEY)) keys.push(MONEY_KEY);                            // 증시(별도 탭)
-    for (const t of groupTabs) if (INDEX_KEYS_M.has(t.key) || t.key === SEMI_DASH_KEY || t.key === SEOHAK_KEY) keys.push(t.key);   // 지수 묶음(주간·야간·순환매·반도체 수급)
+    for (const t of groupTabs) if (INDEX_KEYS_M.has(t.key) || t.key === SEMI_DASH_KEY || t.key === SEOHAK_KEY || t.key === HOT_KEY) keys.push(t.key);   // 지수 묶음(주간·야간·순환매·반도체 수급)
     const pushFolder = (f: GroupFolder) => {
       const ms = f.groups.filter(g => presentGroups.has(g)).sort((a, b) => a.localeCompare(b, "ko"));
       // 전체보기는 폴더의 **첫자리**(칩 순서와 같게 — 사용자 결정 2026-10-26)
@@ -1862,7 +1864,7 @@ export function MobileSimpleView() {
         })}
         {/* 지수 — 주간·야간·반도체 드롭다운 (투자도구·내자산과 같은 모양) */}
         {(() => {
-          const idx = groupTabs.filter(t => INDEX_KEYS_M.has(t.key) || t.key === SEMI_DASH_KEY || t.key === SEOHAK_KEY);
+          const idx = groupTabs.filter(t => INDEX_KEYS_M.has(t.key) || t.key === SEMI_DASH_KEY || t.key === SEOHAK_KEY || t.key === HOT_KEY);
           if (idx.length === 0) return null;
           const on = idx.some(t => t.key === activeTab);
           const current = on ? activeTab : idx[0].key;
@@ -2222,6 +2224,9 @@ export function MobileSimpleView() {
         }
         if (activeTab === SEMI_DASH_KEY) {
           return <div className="pb-32"><SemiDashTab /></div>;
+        }
+        if (activeTab === HOT_KEY) {
+          return <div className="px-2 py-2 pb-32"><HotNowTab compact /></div>;
         }
         if (activeTab === SEOHAK_KEY) {
           return <div className="px-2 py-2 pb-32"><SeohakPage compact /></div>;
