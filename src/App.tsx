@@ -22,6 +22,7 @@ import { CloseBetTab } from "./components/CloseBetTab";
 import { ValueupTab } from "./components/ValueupTab";
 import { SeohakPage } from "./components/SeohakBox";
 import { HotNowTab } from "./components/HotNowTab";
+import { CompareHost } from "./components/CompareHost";
 import { AccumTab } from "./components/AccumTab";
 import { defaultDashboardPage, INDEX_GROUP_KEYS, indexPageOf } from "./lib/dashboardGroups";
 import { EtfCompareTab } from "./components/EtfCompareTab";
@@ -1392,6 +1393,7 @@ function Dashboard() {
                               }} />
       )}
 
+      <CompareHost />
       {valuationTicker && (() => {
         // 보유종목이면 평단/이름 사용, 비보유(예: ETF비교에서 연 ETF)면 전달받은 이름 폴백.
         const s = holdings.find(h => h.ticker === valuationTicker);

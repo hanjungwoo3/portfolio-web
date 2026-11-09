@@ -5,7 +5,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useEscClose } from "../lib/useEscClose";
 import { createPortal } from "react-dom";
-import { useQueries } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 import {
   createChart,
   ColorType,
@@ -25,6 +25,8 @@ import {
   fetchYahooIntraday,
   type PricePoint,
   type IntradayBar,
+  searchTossAutoComplete,
+  searchNaverAutoComplete,
 } from "../lib/api";
 
 interface StockRef { ticker: string; name: string; }
@@ -33,6 +35,8 @@ interface Props {
   isOpen: boolean;
   onClose: () => void;
   seed: StockRef[];   // 초기 종목 (ETF 검색결과 전체 or 단일 ETF). 열릴 때 이걸로 초기화.
+  title?: string;     // 머리 제목(기본 'ETF 등락률 비교')
+  initialMode?: "min" | "day" | "week" | "month";   // 처음 봉(기본 분봉)
 }
 
 const KST_OFFSET = 9 * 3600;                  // 분봉 UTC epoch → KST 벽시계 보정(초)
@@ -139,19 +143,31 @@ const hexA = (hex: string, a: number): string => {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 };
 
-export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
+export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMode = "min" }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const bandRef = useRef<HTMLCanvasElement>(null);   // 배경 밴드(일/주 음영 + 요일 라벨)
-  const [mode, setMode] = useState<Mode>("min");
-  const [range, setRange] = useState<string>(DEFAULT_RANGE.min);
+  const [mode, setMode] = useState<Mode>(initialMode);
+  const [range, setRange] = useState<string>(DEFAULT_RANGE[initialMode]);
   // 모드 전환 시 그 모드의 기본 기간으로 (현재 range 가 새 모드에 없으면 기본값).
   const pickMode = (m: Mode) => {
     setMode(m);
     setRange(r => (PERIODS[m].some(p => p.range === r) ? r : DEFAULT_RANGE[m]));
   };
-  // seed 로 고정 (다이얼로그는 열 때마다 remount → seed 반영). 추가검색 없음.
-  const [items] = useState<StockRef[]>(seed);
+  // seed 로 시작(다이얼로그는 열 때마다 remount → seed 반영). 검색으로 하나씩 더하고 칩 ✕ 로 뺀다
+  //   (사용자 2026-11-10 "검색해서 종목을 하나씩 추가하면서 비교")
+  const [items, setItems] = useState<StockRef[]>(seed);
+  const [q, setQ] = useState("");
+  const [dq, setDq] = useState("");
+  useEffect(() => { const t = setTimeout(() => setDq(q.trim()), 250); return () => clearTimeout(t); }, [q]);
+  const { data: found } = useQuery({
+    queryKey: ["compare-chart-search", dq],
+    queryFn: async () => { const a = await searchTossAutoComplete(dq, 12); return a.length ? a : searchNaverAutoComplete(dq, 12); },
+    enabled: isOpen && dq.length > 0,
+    staleTime: 30_000,
+  });
+  const addItem = (r: StockRef) => { setItems(xs => (xs.some(x => x.ticker === r.ticker) ? xs : [...xs, { ticker: r.ticker, name: r.name }])); setQ(""); setDq(""); };
+  const removeItem = (t: string) => setItems(xs => xs.filter(x => x.ticker !== t));
 
   const stocks = items;
   const colorMap = useMemo(() => {
@@ -525,7 +541,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
            onClick={e => e.stopPropagation()}>
         {/* 헤더 */}
         <header className="px-4 py-2 border-b bg-gray-50 flex items-center gap-2 flex-wrap">
-          <span className="text-base font-bold">📊 ETF 등락률 비교</span>
+          <span className="text-base font-bold">📊 {title ?? "ETF 등락률 비교"}</span>
           <span className="text-[11px] text-gray-500">시작점=0% 정규화</span>
 
           {/* 분봉 / 주봉 토글 */}
@@ -570,8 +586,27 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed }: Props) {
                   className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[12px] font-bold text-white"
                   style={{ background: colorOf(s.ticker) }}>
               {s.name} <span className="opacity-80 font-normal">{s.ticker}</span>
+              <button type="button" onClick={() => removeItem(s.ticker)} title="이 종목 빼기"
+                      className="ml-0.5 opacity-70 hover:opacity-100 leading-none">✕</button>
             </span>
           ))}
+          {/* 종목 더하기 — 이름·코드로 검색 */}
+          <span className="relative">
+            <input value={q} onChange={e => setQ(e.target.value)} placeholder="+ 종목 추가 (이름·코드)"
+                   onKeyDown={e => { if (e.key === "Enter" && found?.[0]) addItem(found[0]); }}
+                   className="w-44 px-2 py-1 rounded border border-gray-300 text-[12px] focus:outline-none focus:border-indigo-400" />
+            {dq && found && found.length > 0 && (
+              <div className="absolute left-0 top-full mt-1 z-30 w-64 max-h-64 overflow-y-auto rounded border border-gray-200 bg-white shadow-lg">
+                {found.filter(r => !items.some(x => x.ticker === r.ticker)).map(r => (
+                  <button key={r.ticker} type="button" onClick={() => addItem(r)}
+                          className="w-full text-left px-2 py-1 text-[12px] hover:bg-indigo-50 flex items-baseline gap-1.5">
+                    <b className="text-gray-800 truncate">{r.name}</b>
+                    <span className="text-[10.5px] text-gray-400 shrink-0">{r.ticker} · {r.market}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </span>
         </div>
 
         {/* 차트 */}

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { openCompare } from "../lib/compareNav";
 import { useQuery } from "@tanstack/react-query";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { useCrosshairSync } from "../lib/useCrosshairSync";
@@ -92,6 +93,9 @@ function ExternalLinks({ ticker, name, onDraw, aiQuery }: { ticker: string; name
       <a href={`https://navercomp.wisereport.co.kr/v2/company/c1010001.aspx?cmp_cd=${ticker}`}
          target="_blank" rel="noopener noreferrer"
          title={`${name} Wisereport`} className={cls}>🔗 Wisereport</a>
+      {/* 📈 비교 — 이 종목으로 시작해 검색으로 더해 가며 등락률을 한 그래프로(사용자 2026-11-10) */}
+      <button type="button" onClick={() => openCompare(`${name} 등락률 비교`, [{ ticker, name }])}
+              title={`${name} 으로 시작하는 등락률 비교 차트 — 검색으로 종목을 하나씩 더해 비교`} className={cls}>📈 비교</button>
       {onDraw && (
         <button type="button" onClick={onDraw} title={`${name} 차트에 선 그리기`} className={cls}>
           ✏️ 그리기

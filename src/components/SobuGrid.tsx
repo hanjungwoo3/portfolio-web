@@ -3,6 +3,7 @@
 //   칸 제목 옆 = 국내 종목 평균 등락률(동일가중) — 오늘 어느 단계가 강한지. PC 2×2, 모바일 세로로 한 칸씩.
 //   + 카드 왼쪽 아래 공시·뉴스 개수 — 누르면 떠 있는 창(칸 아래 목록은 뺐다, 사용자 2026-11-02). 공시 = 최근 5거래일 DART(최신공시와 같은 서버 파일) · 칸별 외국인·기관(금융투자 제외) 5·20일 순매수
 //     (크롤러 investor-flows.json — 수급 매집 탭과 같은 파일, 추가 호출 0). 사용자 2026-11-02 "1, 2번 진행".
+import { openCompare, compareTicker } from "../lib/compareNav";
 import { AftPill } from "./SectorTabBar";
 import { isOverseasTicker } from "../lib/avgMarket";
 import { useEffect, useRef, useState } from "react";
@@ -201,6 +202,10 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
           <div key={b.label} className={`rounded-lg border border-gray-200 bg-gray-50/50 pg-row p-2 ${renderCard ? "xl:shrink-0 min-w-0" : ""}`}>
             <div className="flex items-baseline gap-2 mb-1.5">
               <span className="font-bold text-gray-800 shrink-0">{b.label}</span>
+              {/* 이 칸 종목들 등락률을 한 그래프로(사용자 2026-11-10 "소부장의 기판에 있는 종목들 일괄 비교") */}
+              <button type="button" title={`${b.label} 종목들의 등락률을 한 그래프로 비교 — 일봉·주봉·월봉, 검색으로 더 추가`}
+                      onClick={() => openCompare(`${b.label} 등락률 비교`, [...b.lead, ...b.kr].map(s => ({ ticker: compareTicker(s), name: NAME.get(s) ?? s })))}
+                      className="shrink-0 self-center px-1.5 py-0 rounded border border-indigo-200 bg-indigo-50 text-indigo-700 text-[11px] font-bold hover:bg-indigo-100">📈 비교</button>
               {/* 국내 · 해외 두 줄, 같은 위치에 같은 꼴(사용자 2026-11-05 "해외 한 줄 내려 국내와 동일한 위치로") */}
               <div className="flex flex-col gap-0.5 min-w-0">
                 {avgShown != null && (

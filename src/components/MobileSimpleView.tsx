@@ -8,6 +8,7 @@ import { KisExpRankBox } from "./KisExpRankBox";
 import { ValueupTags } from "./ValueupTags";
 import { SeohakPage, SeohakTag } from "./SeohakBox";
 import { HotNowTab } from "./HotNowTab";
+import { CompareHost } from "./CompareHost";
 import { useKisRadar, radarLabel } from "../lib/kisRadar";
 import { useKisVi, viLabel, viActive } from "../lib/kisVi";
 import { HoverTip } from "./HoverTip";
@@ -2549,6 +2550,7 @@ export function MobileSimpleView() {
       )}
 
       <GuideTour mobile />
+      <CompareHost />
 
       {/* 기업가치 모달 — 📊 버튼으로 호출 */}
       {valuationTicker && (() => {

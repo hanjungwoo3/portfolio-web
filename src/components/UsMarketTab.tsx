@@ -188,8 +188,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const pairBySym = new Map(US_PAIRS.map(p => [p.symbol, p]));
   const chartSet = new Set<string>();
   for (const sec of T0_SECTIONS) {
-    if (sec.render) continue;
-    for (const sym of sec.rows.flat()) {
+    // 업종 칸(sobuGrid)도 같은 지수 카드를 그린다 — 예전엔 render 가 있는 블록을 다 건너뛰어 업종별 3개월·1년 그래프가 비었다
+    //   (24시간은 다른 경로라 보였다, 사용자 2026-11-10 "종목별은 되는데 업종별에 3개월/1년 안 나와")
+    if (sec.render && sec.render !== "sobuGrid") continue;
+    for (const sym of [...sec.rows.flat(), ...(sec.etfs ?? [])]) {
       const p = pairBySym.get(sym);
       if (!p) continue;
       chartSet.add(sym);
