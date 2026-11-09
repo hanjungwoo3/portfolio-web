@@ -80,6 +80,7 @@ import { OPEN_VALUATION_EVENT, type ValuationRequest } from "./lib/valuationNav"
 import { TRADES_CHANGED_EVENT } from "./lib/tradeEvents";
 import { startAutoSync, SYNC_PULLED_EVENT } from "./lib/syncManager";
 import { SyncConflictBar } from "./components/SyncConflictBar";
+import { IndexSideDrawer } from "./components/IndexSideDrawer";
 import { ValuationModal } from "./components/ValuationModal";
 import { MobileSimpleView } from "./components/MobileSimpleView";
 import { NightToggle } from "./components/NightToggle";
@@ -1297,6 +1298,8 @@ function Dashboard() {
 
       {/* 자동 동기화 충돌 — 양쪽 다 바뀌었을 때만 뜬다 */}
       <SyncConflictBar onChanged={() => setReloadKey(k => k + 1)} />
+      {/* 지수 서랍 — 어느 탭에서든 지금 탭을 둔 채 오른쪽에서 꺼내 본다(사용자 2026-11-09) */}
+      <IndexSideDrawer />
 
       <OnboardingDialog onOpenSettings={() => setSettingsOpen(true)} onDone={onboardDone} />
 
