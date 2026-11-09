@@ -101,9 +101,11 @@ interface UsMarketTabProps {
   page?: DashboardPage;   // 주간·야간·반도체 — 메뉴의 지수 탭 셋 중 어느 것인지
   // 그룹 색인바 sticky 고정 위치(px) — App 의 헤더+탭바 아래. 미지정 시 0.
   navStickyTop?: number;
+  // 지수 서랍(IndexSideDrawer) — 이 묶음들만 그대로 카드로(색인바·동시호가 칸 없이)(사용자 2026-11-09 "지금 있는 카드를 그대로")
+  sectionsOverride?: DashboardSection[];
 }
 
-export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0, page = "day" }: UsMarketTabProps = {}) {
+export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0, page = "day", sectionsOverride }: UsMarketTabProps = {}) {
   const yahooSymbols = allYahooSymbols();
   const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
 
@@ -169,7 +171,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const rotAvg = (section: DashboardSection, gi: number) => rotRowAvg(section, gi, pctOfSym, regExtOf);
   // 지수 대시보드 그룹 — 데스크톱·모바일 공용 정의(lib/dashboardGroups).
   //   주간·야간·반도체 중 어느 페이지인지는 메뉴 탭이 정한다(page).
-  const PAGE_SECTIONS = buildDashboardPage(page);
+  const PAGE_SECTIONS = sectionsOverride ?? buildDashboardPage(page);
   // 지수(업종) — 업종 블록 중 하나만(페이지 안 탭, 사용자 2026-11-03)
   const SECTOR_TABS = page === "sobu" ? sectorTabsOf(PAGE_SECTIONS) : [];
   const [sectorTab, setSectorTab] = useSectorTab(SECTOR_TABS);
@@ -744,7 +746,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                             avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, regExtOf)} />
             </div>
           </div>
-        : <GroupNavBar items={navItems} idPrefix="usidx-"
+        : sectionsOverride ? null : <GroupNavBar items={navItems} idPrefix="usidx-"
                    stickyTop={navStickyTop} scrollMarginTop={idxScrollMargin}
                    trailing={<ChartRangeToggle />} />}
       {/* ─── Tier 0 — 한국시장 영향 관계 기준 그룹 (라벨 헤더 + 한 화면 표시) ─── */}
@@ -760,7 +762,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       )}
       <div className={`space-y-4 ${page === "sobu" ? "lg:flex-1 lg:min-w-0" : ""}`}>
         {/* 동시호가 예상 순위 — 앱+한국투자, 동시호가 동안만(사용자 2026-11-02) */}
-        <KisExpRankBox />
+        {!sectionsOverride && <KisExpRankBox />}
         {T0_SECTIONS.map((section) => page === "sobu" && section.id === "rotflow" ? (
           // 한눈에 — AI 순환매 카드 줄 대신 업종 요약판(사용자 2026-11-07 "한눈에는 요약만, 카드는 섹터별로")
           <div key="sector-summary" id="usidx-sector-summary" style={{ scrollMarginTop: idxScrollMargin }}
