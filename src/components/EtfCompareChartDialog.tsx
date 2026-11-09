@@ -38,6 +38,7 @@ interface Props {
   seed: StockRef[];   // 초기 종목 (ETF 검색결과 전체 or 단일 ETF). 열릴 때 이걸로 초기화.
   title?: string;     // 머리 제목(기본 'ETF 등락률 비교')
   initialMode?: "min" | "day" | "week" | "month";   // 처음 봉(기본 분봉)
+  startUnchecked?: boolean;   // 처음에 모두 체크 해제(흐림)
 }
 
 const KST_OFFSET = 9 * 3600;                  // 분봉 UTC epoch → KST 벽시계 보정(초)
@@ -147,7 +148,7 @@ const hexA = (hex: string, a: number): string => {
   return `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},${a})`;
 };
 
-export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMode = "min" }: Props) {
+export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMode = "min", startUnchecked = false }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const bandRef = useRef<HTMLCanvasElement>(null);   // 배경 밴드(일/주 음영 + 요일 라벨)
@@ -175,8 +176,12 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
   // 칩·범례에 마우스를 올리면 그 종목 선만 진하게, 나머지는 흐리게(사용자 2026-11-10)
   const [hot, setHot] = useState<string | null>(null);
   // 체크 해제한 종목 — 선을 흐리게(값 꼬리표도 숨김). 고른 종목만 또렷이 비교(사용자 2026-11-10 "체크 안 되면 흐리게, 일괄 선택·해제")
-  const [off, setOff] = useState<Set<string>>(new Set());
+  // 업종 비교(CompareHost)는 처음에 모두 체크 해제 — 보고 싶은 것만 골라 켠다(사용자 2026-11-10 "기본은 모두 체크 해제"). 검색으로 더한 종목은 켜진 채로
+  const [off, setOff] = useState<Set<string>>(() => new Set(startUnchecked ? seed.map(x => x.ticker) : []));
   const offRef = useRef(off); offRef.current = off;   // 차트 안 값 상자(한 번 만든 함수)가 지금 체크 상태를 읽게
+  // 흐리게 판정 — 체크 푼 종목은 늘 흐림. 마우스를 올리면 그 종목은 굵게, 체크한 종목은 그대로 둔다
+  //   (사용자 2026-11-10 "hover 시에 체크된 건 그대로"). 전부 체크 상태면 예전처럼 올린 것만 남기고 흐림
+  const isDim = (t: string) => t === hot ? false : off.size ? off.has(t) : hot != null;
   const toggleOff = (t: string) => setOff(o => { const n = new Set(o); if (n.has(t)) n.delete(t); else n.add(t); return n; });
   const seriesRef = useRef(new Map<string, ISeriesApi<SeriesType>>());
 
@@ -577,7 +582,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
   useEffect(() => {
     for (const [t, ser] of seriesRef.current) {
       const c = colorOf(t);
-      const dim = hot != null ? t !== hot : off.has(t);
+      const dim = isDim(t);
       ser.applyOptions(t === hot ? { color: c, lineWidth: 3, lastValueVisible: true }
         : dim ? { color: hexA(c, 0.12), lineWidth: 1, lastValueVisible: false }
         : { color: c, lineWidth: off.size ? 2 : 1, lastValueVisible: true });
@@ -649,12 +654,13 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
         <div className="px-4 py-2 border-b flex items-center gap-2 flex-wrap">
           {stocks.map(s => (
             <span key={s.ticker} onMouseEnter={() => setHot(s.ticker)} onMouseLeave={() => setHot(null)}
-                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-[12px] font-bold text-white transition-opacity ${(hot ? hot !== s.ticker : off.has(s.ticker)) ? "opacity-35" : ""}`}
+                  onClick={() => toggleOff(s.ticker)}   /* 칩 어디를 눌러도 체크 켜기/끄기(사용자 2026-11-10) */
+                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-[12px] font-bold text-white transition-opacity cursor-pointer select-none ${isDim(s.ticker) ? "opacity-35" : ""}`}
                   style={{ background: colorOf(s.ticker) }}>
-              <input type="checkbox" checked={!off.has(s.ticker)} onChange={() => toggleOff(s.ticker)}
-                     title="체크하면 또렷하게, 풀면 흐리게" className="w-3.5 h-3.5 accent-white cursor-pointer" />
+              <input type="checkbox" checked={!off.has(s.ticker)} readOnly tabIndex={-1}
+                     title="체크하면 또렷하게, 풀면 흐리게" className="w-3.5 h-3.5 accent-white pointer-events-none" />
               {s.name}   {/* 종목코드는 뺐다(사용자 2026-11-10 "종목명만") */}
-              <button type="button" onClick={() => removeItem(s.ticker)} title="이 종목 빼기"
+              <button type="button" onClick={e => { e.stopPropagation(); removeItem(s.ticker); }} title="이 종목 빼기"
                       className="ml-0.5 opacity-70 hover:opacity-100 leading-none">✕</button>
             </span>
           ))}
@@ -710,7 +716,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
           {stocks.map(s => {
             const f = built.get(s.ticker)?.final ?? null;
             return (
-              <span key={s.ticker} className={`inline-flex items-center gap-1.5 cursor-pointer ${(hot ? hot !== s.ticker : off.has(s.ticker)) ? "opacity-35" : ""}`}
+              <span key={s.ticker} className={`inline-flex items-center gap-1.5 cursor-pointer ${isDim(s.ticker) ? "opacity-35" : ""}`}
                     onClick={() => toggleOff(s.ticker)}
                     onMouseEnter={() => setHot(s.ticker)} onMouseLeave={() => setHot(null)}>
                 <span className="w-3 h-3 rounded-sm inline-block" style={{ background: colorOf(s.ticker) }} />

@@ -12,5 +12,5 @@ export function CompareHost() {
   }, []);
   if (!req) return null;
   // key = 열 때마다 새로(seed 반영)
-  return <EtfCompareChartDialog key={req.n} isOpen onClose={() => setReq(null)} seed={req.items} title={req.title} initialMode="day" />;
+  return <EtfCompareChartDialog key={req.n} isOpen onClose={() => setReq(null)} seed={req.items} title={req.title} initialMode="day" startUnchecked={req.items.length > 1} />;
 }
