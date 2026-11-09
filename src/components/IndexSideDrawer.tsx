@@ -19,7 +19,9 @@ export function IndexSideDrawer() {
     const night = buildDashboardPage("night").filter(s => s.id !== "kr" && DRAWER_SECTION_IDS.has(s.id));
     const macro = night.find(s => s.id === "macro");
     // 주간 시장(한국) + 미국 지수 = 한 묶음 '지수'(줄은 둘 그대로)(사용자 2026-11-09 "두 개 합쳐서 지수")
-    const merged = kr && macro ? [{ ...kr, label: "📈 지수", rows: [...kr.rows, ...macro.rows] }] : [kr, macro].filter((x): x is NonNullable<typeof x> => !!x);
+    //   미국 지수 줄 끝 빈 두 칸 = 대만 가권·홍콩 항셍(중국 빅테크)(사용자 2026-11-09 "두 자리 남는데 중국과 대만 가능?") — 서랍에만
+    const asia = ["^TWII", "^HSI"];
+    const merged = kr && macro ? [{ ...kr, label: "📈 지수", rows: [...kr.rows, ...macro.rows.map((r, i) => (i === macro.rows.length - 1 ? [...r, ...asia] : r))] }] : [kr, macro].filter((x): x is NonNullable<typeof x> => !!x);
     return [...merged, ...night.filter(s => s.id !== "macro")];
   }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps — 열 때마다(주간·야간 선물이 시간 따라 바뀐다)
   // 단축키 — ` (숫자 1 왼쪽, 한글 자판에서도 같은 키) 로 열고 닫기(사용자 2026-11-09 "단축키 넣고 싶은데"). 글 쓰는 칸에선 안 먹게

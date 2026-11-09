@@ -4471,7 +4471,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         // 마지막 두 날만 — 24시간 거래(환율 등)는 2d 범위가 날짜 경계로는 사흘에 걸쳐(10/19 밤·10/20·10/21),
         //   셋째 날 점이 '오늘' 칸 앞쪽으로 되돌아가 긴 직선이 그어졌다(2026-10-22 USD/KRW 실측).
         {
-          const off0 = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : isFutLike(x.symbol) ? 2 : -4;
+          const off0 = /^\^(K[SQ]|N225|HSI|TWII)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : isFutLike(x.symbol) ? 2 : -4;
           const o0 = (t: number) => (off0 === -4 ? tzOffSec("America/New_York", t) : isFutLike(x.symbol ?? "") ? futSessOff(x.symbol ?? "", t) : off0 * 3600);   // 미국·선물은 그날 실제 시차(서머타임)
           const dk = (t: number) => Math.floor((t + o0(t)) / 86400);
           // 선물·환율 — 금요일 마감 봉(17:00 ET 정각)이 날짜 경계(UTC+2 자정)를 넘어 **토요일 봉 1개**로 떨어져, 월요일엔 그 1개가
@@ -4528,7 +4528,7 @@ export async function fetchYahooSparkDay(symbols: string[]): Promise<Map<string,
         //   몇 분짜리 칸만 남아 그래프가 비었다(사용자 2026-11-02)
         //   환율(=X)도 — 외환은 뉴욕 일 17:00 개장 ~ 금 17:00, 하루 경계 17:00(서머타임 끝난 지금 UTC+2 자정과 같다). 월요일 아침 달러환율·엔화 그래프가 비었다
         const futLike = /=F$/.test(x.symbol) || x.symbol === "DX-Y.NYB" || /=X$/.test(x.symbol);
-        const off = /^\^(K[SQ]|N225|HSI)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : futLike ? 2 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
+        const off = /^\^(K[SQ]|N225|HSI|TWII)|\.(K[SQ]|SS|T|HK)$/.test(x.symbol) ? 9 : futLike ? 2 : -4;   // 아시아 장(한국·일본·홍콩·상해)은 한국 날짜로
         const offS = (t: number) => (off === -4 ? tzOffSec("America/New_York", t) : futLike ? futSessOff(x.symbol ?? "", t) : off * 3600);   // 미국·선물은 그날 실제 시차(EDT/EST)
         const etDay = (t: number) => new Date((t + offS(t)) * 1000).toISOString().slice(0, 10);
         let bi = times.findIndex((t, i) => i > 0 && etDay(t) !== etDay(times[i - 1]));
