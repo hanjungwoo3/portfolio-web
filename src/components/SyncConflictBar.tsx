@@ -34,6 +34,7 @@ export function SyncConflictBar({ onChanged }: { onChanged: () => void }) {
                     rounded-xl border border-amber-300 bg-amber-50 shadow-lg px-3 py-2.5">
       <div className="text-xs font-bold text-amber-900 mb-0.5">⚠️ 이 기기와 Drive 가 모두 바뀌었습니다</div>
       {/* 무엇이 바뀌었나 — 아무것도 안 했는데 뜨면 여기 적힌 게 저절로 바뀐 값이다(사용자 2026-11-07) */}
+      {!getConflictInfo() && <div className="text-[10.5px] text-amber-900 mb-1.5">무엇이 바뀌었는지 이 창에선 확인하지 못했습니다 — 앱·브라우저를 새로고침해 최신 버전이면 다음부터 바뀐 내용이 여기 나옵니다.</div>}
       {(() => { const ci = getConflictInfo(); return ci && (
         <div className="text-[10.5px] text-amber-900 leading-snug mb-1.5 space-y-0.5 max-h-28 overflow-auto">
           <div><b>이 기기:</b> {ci.local.length ? ci.local.join(" · ") : "바뀐 내용 없음"}</div>

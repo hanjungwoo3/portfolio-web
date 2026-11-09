@@ -425,6 +425,9 @@ export async function reconcileOnEnable(): Promise<"pushed" | "insync" | "confli
     setLastSynced(remote.modifiedTime, h);
     return "insync";
   }
+  // 켤 때도 무엇이 다른지 보여 준다 — 기준 지문이 없으니 이 기기 ↔ Drive 직접 비교(사용자 2026-11-09 내용 없는 충돌 배너)
+  lastConflictInfo = { local: describeNormDiff(normalize(remote.data), h), remote: null };
+  try { localStorage.setItem("gdrive_last_conflict", JSON.stringify({ at: new Date().toISOString(), ...lastConflictInfo })); } catch { /* noop */ }
   emitConflict();
   return "conflict";
 }
