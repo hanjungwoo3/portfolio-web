@@ -22,6 +22,18 @@ export function IndexSideDrawer() {
     const merged = kr && macro ? [{ ...kr, label: "📈 지수", rows: [...kr.rows, ...macro.rows] }] : [kr, macro].filter((x): x is NonNullable<typeof x> => !!x);
     return [...merged, ...night.filter(s => s.id !== "macro")];
   }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps — 열 때마다(주간·야간 선물이 시간 따라 바뀐다)
+  // 단축키 — ` (숫자 1 왼쪽, 한글 자판에서도 같은 키) 로 열고 닫기(사용자 2026-11-09 "단축키 넣고 싶은데"). 글 쓰는 칸에선 안 먹게
+  useEffect(() => {
+    const k = (e: KeyboardEvent) => {
+      if (e.code !== "Backquote" || e.ctrlKey || e.metaKey || e.altKey) return;
+      const t = e.target as HTMLElement | null;
+      if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
+      e.preventDefault();
+      setOpen(o => { if (o) { close(); return o; } return true; });
+    };
+    window.addEventListener("keydown", k);
+    return () => window.removeEventListener("keydown", k);
+  });
   useEffect(() => {   // 지수 탭 안내 줄 '지금 열기'
     const h = () => setOpen(true);
     window.addEventListener("open-index-drawer", h);
@@ -38,7 +50,7 @@ export function IndexSideDrawer() {
     <>
       <button type="button" onClick={() => setOpen(true)}
               className={`fixed right-0 top-[150px] z-[70] rounded-l-lg border border-r-0 border-indigo-300 bg-indigo-50 text-indigo-700 shadow px-1 py-2 text-[11px] font-bold [writing-mode:vertical-rl] hover:bg-indigo-100 ${open ? "hidden" : ""}`}
-              title="지수·환율·금리·선물·원자재 카드 (Esc 로 닫기)">📈 지수</button>
+              title="지수·환율·금리·선물·원자재 카드 — 단축키 ` (숫자 1 왼쪽) 로 열고 닫기">📈 지수<span className="mt-1 px-0.5 rounded border border-indigo-300 bg-white text-[9px] font-mono [writing-mode:horizontal-tb]">`</span></button>
       {open && (
         <>
           <div className={`fixed inset-0 z-[70] bg-black/20 transition-opacity duration-200 ${closing ? "opacity-0" : "opacity-100"}`} onClick={close} />
@@ -47,7 +59,7 @@ export function IndexSideDrawer() {
                  className={`fixed top-0 right-0 bottom-0 z-[71] w-[min(1480px,calc(100vw-40px))] bg-gray-50 pg-bg border-l border-gray-300 shadow-2xl overflow-y-auto ${closing ? "animate-[slideOut_.18s_ease-in_forwards]" : "animate-[slideIn_.18s_ease-out]"}`}>
             <div className="sticky top-0 z-40 bg-white/95 border-b border-gray-200 px-3 py-2 flex items-center gap-2">
               <b className="text-gray-800">📈 지수</b>
-              <span className="text-[11px] text-gray-400">지수 탭 카드 그대로 — 빈 곳·바깥·Esc 로 닫기, 지금 보던 탭은 그대로</span>
+              <span className="text-[11px] text-gray-400">지수 탭 카드 그대로 — 단축키 <kbd className="px-1 rounded border border-gray-300 bg-gray-50 font-mono">`</kbd> 로 열고 닫기 · 빈 곳·바깥·Esc 로도 닫힘</span>
               <button onClick={close} className="ml-auto px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-600 hover:bg-gray-100 text-[12px]" title="닫기 (Esc)">✕ 닫기</button>
             </div>
             <div className="p-2">
