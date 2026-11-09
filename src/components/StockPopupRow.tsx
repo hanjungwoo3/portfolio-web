@@ -380,7 +380,7 @@ export function FeedBox({ code, name, kind, className = "" }: { code: string; na
             return (
               <a key={x.id} href={x.url} target="_blank" rel="noopener noreferrer"
                  className="flex gap-2 py-1 border-b border-gray-100 hover:bg-gray-50 text-[12px]">
-                <span className="w-[68px] shrink-0 text-[11px] text-gray-400 tabular-nums">{when(x.t)}</span>
+                {/* 시간 칸을 따로 두지 않는다 — 칸이 좁아 제목이 잘렸다. 뉴스는 신문사 뒤, 공시는 제목 뒤에 작게(사용자 2026-11-09) */}
                 <span className={`shrink-0 px-1 rounded text-[10px] font-bold leading-[18px] ${x.kind === "disc" ? "bg-amber-100 text-amber-800" : "bg-gray-100 text-gray-600"}`}>
                   {x.kind === "disc" ? "공시" : "뉴스"}
                 </span>
@@ -388,8 +388,9 @@ export function FeedBox({ code, name, kind, className = "" }: { code: string; na
                   <span className={`leading-snug line-clamp-2 ${isNew ? "font-bold text-gray-900" : "text-gray-800"}`}>
                     {isNew && <span className="mr-1 px-1 rounded bg-rose-500 text-white text-[9px] align-middle">NEW</span>}
                     {x.title}
+                    {x.kind === "disc" && <span className="ml-1 text-[10px] font-normal text-gray-400 tabular-nums whitespace-nowrap">{when(x.t)}</span>}
                   </span>
-                  {x.kind === "news" && <span className="text-[10.5px] text-gray-400">{x.sub}</span>}
+                  {x.kind === "news" && <span className="block text-[10.5px] text-gray-400">{x.sub}<span className="ml-1.5 tabular-nums">{when(x.t)}</span></span>}
                 </span>
                 {x.kind === "disc" && (
                   <button type="button" title="이 공시를 구글 AI 로 요약"
