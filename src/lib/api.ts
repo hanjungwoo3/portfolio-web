@@ -6217,6 +6217,26 @@ export async function fetchTossMinuteToday(code: string): Promise<{ t: string; c
   return out.sort((a, b) => a.t.localeCompare(b.t));
 }
 
+/** 최근 며칠 1분봉(국내, 토스) — 백테스트용. 450개씩 pages 번 이어 받아 날짜별로 묶는다(오래된 날 → 최근 날, 각 날은 시각순) */
+export async function fetchTossMinuteDays(code: string, pages = 4): Promise<{ date: string; bars: { t: string; close: number; vol: number }[] }[]> {
+  const by = new Map<string, { t: string; close: number; vol: number }[]>();
+  let from: string | undefined;
+  for (let p = 0; p < pages; p++) {
+    const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/c-chart/kr-s/A${code}/min:1?count=450${from ? `&from=${encodeURIComponent(from)}` : ""}`);
+    if (!r.ok) break;
+    const res = ((await r.json()) as { result?: { candles?: { dt?: string; close?: number; volume?: number }[]; nextDateTime?: string } }).result;
+    const cs = res?.candles ?? [];
+    for (const c of cs) {
+      if (!c.dt || !(c.close! > 0)) continue;
+      const d = c.dt.slice(0, 10);
+      (by.get(d) ?? by.set(d, []).get(d)!).push({ t: c.dt.slice(11, 16), close: c.close!, vol: c.volume ?? 0 });
+    }
+    if (!cs.length || !res?.nextDateTime) break;
+    from = res.nextDateTime;
+  }
+  return [...by].sort((a, b) => a[0].localeCompare(b[0])).map(([date, bars]) => ({ date, bars: bars.sort((x, y) => x.t.localeCompare(y.t)) }));
+}
+
 export async function fetchTossTicks(code: string, count = 300): Promise<TossTick[]> {
   const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-prices/A${code}/ticks?count=${Math.min(300, count)}`);
   if (!r.ok) throw new Error(`체결 조회 실패 (HTTP ${r.status})`);

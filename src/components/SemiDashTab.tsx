@@ -13,6 +13,8 @@ import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { fetchKisCredit } from "../lib/kisCredit";
+import { signalsAt, SIGNAL_LABEL, type Bar } from "../lib/scalpSignals";
+import { BacktestBox } from "./BacktestBox";
 import { copyNodeImage } from "../lib/copyImage";
 import { openGoogleAi, aiNowStamp } from "../lib/googleAi";
 import { isKisLinkOn } from "../lib/broker";
@@ -278,6 +280,19 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       if (p1 < p0 && n5 > 0) sig.push({ code: s.code, t: `${s.name} 가격↓ 인데 체결은 매수 우위 (엇갈림)`, c: "text-amber-600", d: "내리는데 사는 체결이 더 많다 — 저가 매수가 받치는 중일 수 있다." });
     }
   });
+  // 단타 보조 신호(lib/scalpSignals — 백테스트와 같은 규칙) — 최근 3분 안에 켜진 것만(사용자 2026-11-09)
+  stocks.forEach((s, i) => {
+    const bars: Bar[] = ticks[i].minutes.map(m => ({ t: m.t, close: m.close, vol: m.vol ?? (m.buyVol + m.sellVol), ...(m.est ? {} : { buy: m.buyVol, sell: m.sellVol }) }));
+    const seen = new Set<string>();
+    for (let k = bars.length - 1; k >= Math.max(0, bars.length - 3); k--) {
+      for (const h of signalsAt(bars, k)) {
+        if (seen.has(h.kind)) continue;
+        seen.add(h.kind);
+        sig.push({ code: s.code, t: `⚡ ${s.name} ${h.text} (${bars[k].t})`, c: h.dir === "up" ? "text-rose-600" : "text-blue-600",
+          d: `${SIGNAL_LABEL[h.kind]} — ${h.detail}. 단타 보조 신호(주문 아님) — 종목정보 '백테스트'에서 이 규칙의 지난 성적을 볼 수 있다.` });
+      }
+    }
+  });
   if (popup) sig.push(...liveSig);
   if (k5 != null && kfToday) sig.push({ t: `코스피 외국인 5분간 ${eok(k5)}억 (누적 ${eok(kLast!.foreigners)}억)`, c: up(k5),
     d: Math.sign(k5) === Math.sign(kLast!.foreigners) || k5 === 0
@@ -455,6 +470,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           {/* 공시 — 이 줄 맨 오른쪽(사용자 요청 2026-10-23: 호가 · 거래원 · 프로그램 · 공시 4칸) */}
           <FeedBox code={s0.code} name={s0.name} kind="disc" />
         </div>
+        {/* 단타 보조 신호 백테스트 — 최근 며칠 1분봉으로 규칙별 성적(사용자 2026-11-09) */}
+        <BacktestBox code={s0.code} name={s0.name} />
         {/* 뉴스 · 토스 · 네이버 3등분(공시는 위 거래원 아래로) */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 auto-rows-[400px] shrink-0">
           <FeedBox code={s0.code} name={s0.name} kind="news" />
