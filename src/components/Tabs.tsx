@@ -109,7 +109,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                  items={groupTabs.map(t => ({
                    key: t.key, active: t.key === activeKey,
                    label: <>{t.icon ? <span className="inline-flex align-middle">{t.icon}</span> : <span>{t.emoji ?? fallbackEmoji}</span>}
-                            <span>{t.label}</span>
+                            {/* 목록 안에선 묶음 이름 겹침을 뺀다 — 제목이 이미 '지수'라 "지수(업종)" → "업종"(사용자 2026-11-09) */}
+                            <span>{t.label.startsWith(`${menuTitle}(`) && t.label.endsWith(")") ? t.label.slice(menuTitle.length + 1, -1) : t.label}</span>
                             {t.count > 0 && <span className="text-xs text-gray-400">{t.count}</span>}</>,
                  }))}
                  onPick={onChange} />
