@@ -11,6 +11,7 @@ import {
   ColorType,
   LineSeries,
   BaselineSeries,
+  AreaSeries,
   LineStyle,
   type IChartApi,
   type ISeriesApi,
@@ -194,6 +195,23 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
     })),
   });
   const stamp = qs.map(q => q.dataUpdatedAt).join(",");
+  // 배경 지수 — 코스피·코스닥을 골라 같은 기준(시작=0%)으로 뒤에 회색 면으로 깐다(사용자 2026-11-10 "코스피, 코스닥 그래프를 배경으로 선택해서")
+  const [bgIdx, setBgIdx] = useState<string[]>([]);
+  const bgQs = useQueries({
+    queries: bgIdx.map(sym => ({
+      queryKey: ["cmp", mode, range, sym],
+      queryFn: () => (mode === "min" ? fetchMin(sym, range) : fetchDaily(sym, range)),
+      staleTime: mode === "min" ? 5 * 60_000 : 30 * 60_000,
+      enabled: isOpen,
+    })),
+  });
+  const bgStamp = bgQs.map(q => q.dataUpdatedAt).join(",");
+  const bgBuilt = useMemo(() => bgIdx.map((sym, i) => {
+    const data = bgQs[i]?.data;
+    return { sym, b: mode === "month" ? buildMonthly((data as PricePoint[]) ?? []) : mode === "week" ? buildWeekly((data as PricePoint[]) ?? [])
+      : mode === "day" ? buildDaily((data as PricePoint[]) ?? []) : buildMin((data as IntradayBar[]) ?? []) };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }), [bgIdx, mode, bgStamp]);
   const loading = qs.some(q => q.isLoading);
 
   // ticker → 정규화 시리즈
@@ -248,6 +266,18 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
 
     const seriesList: { ticker: string }[] = [];
     let zeroAnchor: ISeriesApi<SeriesType> | null = null;
+    // 배경 지수 먼저(뒤에 깔리게)
+    for (const { sym, b } of bgBuilt) {
+      if (b.data.length < 2) continue;
+      const kq = sym === "^KQ11";
+      const bg = chart.addSeries(AreaSeries, {
+        lineColor: kq ? "rgba(13,148,136,0.55)" : "rgba(71,85,105,0.55)", lineWidth: 1,
+        topColor: kq ? "rgba(13,148,136,0.14)" : "rgba(71,85,105,0.14)", bottomColor: "rgba(0,0,0,0)",
+        priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false,
+        title: kq ? "코스닥" : "코스피",
+      });
+      bg.setData(b.data);
+    }
     for (const s of visible) {
       const b = built.get(s.ticker)!;
       const ser = chart.addSeries(LineSeries, {
@@ -533,7 +563,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
       chart.remove();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isOpen, built, mode, stocks]);
+  }, [isOpen, built, mode, stocks, bgBuilt]);
 
   useEffect(() => {
     for (const [t, ser] of seriesRef.current) {
@@ -579,6 +609,19 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
 
         {/* 기간 선택 — 현재 봉 모드에서 고를 수 있는 기간 칩 */}
         <div className="px-4 py-1.5 border-b bg-white flex items-center justify-end gap-1.5 flex-wrap text-[11px]">
+          <span className="mr-auto inline-flex items-center gap-1">
+            <span className="text-gray-400 font-medium">배경</span>
+            {([["^KS11", "코스피"], ["^KQ11", "코스닥"]] as const).map(([sym, label]) => {
+              const on = bgIdx.includes(sym);
+              return (
+                <button key={sym} onClick={() => setBgIdx(xs => (on ? xs.filter(x => x !== sym) : [...xs, sym]))}
+                        title={`${label} 지수를 같은 기준(시작=0%)으로 뒤에 깔기`}
+                        className={`px-2 py-0.5 rounded border transition font-semibold ${on ? (sym === "^KQ11" ? "bg-teal-600 text-white border-teal-600" : "bg-slate-600 text-white border-slate-600") : "bg-white text-gray-600 border-gray-300 hover:bg-gray-100"}`}>
+                  {on ? "✓ " : ""}{label}
+                </button>
+              );
+            })}
+          </span>
           <span className="text-gray-400 font-medium mr-0.5">기간</span>
           {PERIODS[mode].map(p => (
             <button key={p.range} onClick={() => setRange(p.range)}
