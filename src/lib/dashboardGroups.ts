@@ -647,7 +647,7 @@ export type DashboardPage = "day" | "night" | "sobu";
 export const DASHBOARD_PAGES: { key: DashboardPage; emoji: string; tab: string; hint: string }[] = [
   { key: "day",   emoji: "🇰🇷", tab: "지수(한국/주간)", hint: "한국장 · 섹터 대장주 + 미국 지수선물" },
   { key: "night", emoji: "🇺🇸", tab: "지수(미국/야간)", hint: "미국장 · AI 하드/소프트 · 빅테크·방어 + 한국 야간선물" },
-  { key: "sobu",  emoji: "🏭", tab: "지수(업종)", hint: "한눈에(간밤 미국 ➜ 오늘 한국 순환매·반도체 지수·ETF TOP·한미 섹터) + 업종별 단계 — 소부장·2차전지·조선·방산·원전·바이오·로봇·금융·화장품" },
+  { key: "sobu",  emoji: "🏭", tab: "지수(업종별)", hint: "한눈에(간밤 미국 ➜ 오늘 한국 순환매·반도체 지수·ETF TOP·한미 섹터) + 업종별 단계 — 소부장·2차전지·조선·방산·원전·바이오·로봇·금융·화장품" },
 ];
 
 // 페이지별 구성 — **그 시간에 필요한 걸 다**. 중복 허용(한 페이지만 봐도 되게).

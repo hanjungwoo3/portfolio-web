@@ -94,6 +94,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
         </button>
       );
     }
+    // "지수(업종별)" → "업종별" — 묶음 이름(지수)이 이미 메뉴 제목이라 겹친다(사용자 2026-11-09)
+    const shortLabel = (l: string) => (l.startsWith(`${menuTitle}(`) && l.endsWith(")") ? l.slice(menuTitle.length + 1, -1) : l);
     const activeOne = groupTabs.find(t => t.key === activeKey);
     const current = activeOne ? activeKey : groupTabs[0].key;
     const curTab = groupTabs.find(t => t.key === current);
@@ -104,13 +106,13 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
                    {curTab?.icon
                      ? <span className="inline-flex align-middle">{curTab.icon}</span>
                      : <span className="text-sm">{curTab?.emoji ?? fallbackEmoji}</span>}
-                   <span>{curTab?.label}</span>
+                   <span>{curTab ? shortLabel(curTab.label) : ""}</span>   {/* 탭 이름도 묶음 이름 겹침 없이(사용자 2026-11-09 "선택된 탭 이름도") */}
                  </>}
                  items={groupTabs.map(t => ({
                    key: t.key, active: t.key === activeKey,
                    label: <>{t.icon ? <span className="inline-flex align-middle">{t.icon}</span> : <span>{t.emoji ?? fallbackEmoji}</span>}
                             {/* 목록 안에선 묶음 이름 겹침을 뺀다 — 제목이 이미 '지수'라 "지수(업종)" → "업종"(사용자 2026-11-09) */}
-                            <span>{t.label.startsWith(`${menuTitle}(`) && t.label.endsWith(")") ? t.label.slice(menuTitle.length + 1, -1) : t.label}</span>
+                            <span>{shortLabel(t.label)}</span>
                             {t.count > 0 && <span className="text-xs text-gray-400">{t.count}</span>}</>,
                  }))}
                  onPick={onChange} />
