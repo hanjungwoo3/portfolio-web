@@ -13,7 +13,7 @@ import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { fetchKisCredit } from "../lib/kisCredit";
-import { signalsAt, SIGNAL_LABEL, type Bar } from "../lib/scalpSignals";
+import { signalsAt, SIGNAL_PLAIN, type Bar, type SignalKind } from "../lib/scalpSignals";
 import { BacktestBox } from "./BacktestBox";
 import { copyNodeImage } from "../lib/copyImage";
 import { openGoogleAi, aiNowStamp } from "../lib/googleAi";
@@ -289,7 +289,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         if (seen.has(h.kind)) continue;
         seen.add(h.kind);
         sig.push({ code: s.code, t: `⚡ ${s.name} ${h.text} (${bars[k].t})`, c: h.dir === "up" ? "text-rose-600" : "text-blue-600",
-          d: `${SIGNAL_LABEL[h.kind]} — ${h.detail}. 단타 보조 신호(주문 아님) — 종목정보 '백테스트'에서 이 규칙의 지난 성적을 볼 수 있다.` });
+          d: `${h.detail}. ${SIGNAL_PLAIN[h.kind]} 참고용이에요 — 이 신호가 예전에 얼마나 맞았는지는 종목정보 '단타 신호 성적' 칸에서 볼 수 있어요.` });
       }
     }
   });
@@ -467,14 +467,19 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           <OrderBookBox code={s0.code} />
           <BrokerBox code={s0.code} />
           <ProgramInvestorBox code={s0.code} price={qq?.price} />
-          {/* 공시 — 이 줄 맨 오른쪽(사용자 요청 2026-10-23: 호가 · 거래원 · 프로그램 · 공시 4칸) */}
-          <FeedBox code={s0.code} name={s0.name} kind="disc" />
+          {/* 단타 신호 성적 — 공시 자리(사용자 2026-11-09 "백테스트를 공시 자리에") */}
+          <BacktestBox code={s0.code} name={s0.name} live={(() => {
+            // 지금 뜬 ⚡ 신호(종목 신호와 같은 것) — 성적 칸 맨 위에 같이(사용자 2026-11-09 "이 정보도 백테스트 쪽에")
+            const bars: Bar[] = ticks[0].minutes.map(m => ({ t: m.t, close: m.close, vol: m.vol ?? (m.buyVol + m.sellVol), ...(m.est ? {} : { buy: m.buyVol, sell: m.sellVol }) }));
+            const out: { kind: SignalKind; text: string; detail: string; t: string; dir: "up" | "down" }[] = [];
+            for (let k = bars.length - 1; k >= Math.max(0, bars.length - 10); k--) for (const h of signalsAt(bars, k)) if (!out.some(o => o.kind === h.kind)) out.push({ kind: h.kind, text: h.text, detail: h.detail, t: bars[k].t, dir: h.dir });
+            return out;
+          })()} />
         </div>
-        {/* 단타 보조 신호 백테스트 — 최근 며칠 1분봉으로 규칙별 성적(사용자 2026-11-09) */}
-        <BacktestBox code={s0.code} name={s0.name} />
-        {/* 뉴스 · 토스 · 네이버 3등분(공시는 위 거래원 아래로) */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 auto-rows-[400px] shrink-0">
+        {/* 뉴스 · 공시 · 토스 · 네이버(공시는 뉴스 오른쪽, 사용자 2026-11-09) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[400px] shrink-0">
           <FeedBox code={s0.code} name={s0.name} kind="news" />
+          <FeedBox code={s0.code} name={s0.name} kind="disc" />
           <CommunityPane code={s0.code} kind="toss" />
           <CommunityPane code={s0.code} kind="naver" />
         </div>

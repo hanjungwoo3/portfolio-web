@@ -7,11 +7,18 @@ export interface Bar { t: string; close: number; vol: number; buy?: number; sell
 export type SignalKind = "volSpike" | "breakout" | "breakdown" | "strengthSurge";
 export interface ScalpHit { kind: SignalKind; i: number; dir: "up" | "down"; text: string; detail: string }
 
+// 이름·풀이는 초보도 알아듣게(사용자 2026-11-09 "말이 너무 어려운데", "말로 풀어서")
 export const SIGNAL_LABEL: Record<SignalKind, string> = {
-  volSpike: "거래량 급증 + 양봉",
-  breakout: "30분 고점 돌파(거래량 동반)",
-  breakdown: "30분 저점 이탈(거래량 동반)",
-  strengthSurge: "체결강도 급등(1분 매수 쏠림)",
+  volSpike: "갑자기 많이 사고팔며 오름",
+  breakout: "30분 중 가장 비싼 값을 뚫음",
+  breakdown: "30분 중 가장 싼 값 밑으로 떨어짐",
+  strengthSurge: "사려는 사람이 갑자기 몰림",
+};
+export const SIGNAL_PLAIN: Record<SignalKind, string> = {
+  volSpike: "1분 동안 거래가 평소(직전 20분)보다 3배 넘게 터지면서 값이 올랐을 때. 큰돈이 들어오기 시작했다는 뜻일 수 있어요.",
+  breakout: "지난 30분 동안 가장 높았던 값보다 더 오르고, 거래도 평소의 2배 넘게 붙었을 때. 위로 더 갈 힘이 생겼다고 보는 신호예요.",
+  breakdown: "지난 30분 동안 가장 낮았던 값보다 더 떨어지고, 거래도 평소의 2배 넘게 붙었을 때. 아래로 더 밀릴 수 있다는 경고예요.",
+  strengthSurge: "조용하던 종목에 1분 동안 '지금 가격에 바로 사겠다'는 주문이 파는 주문보다 2.5배 넘게 몰렸을 때. 누군가 급하게 사고 있다는 뜻이에요.",
 };
 /** 백테스트 가능한 규칙(가격·거래량만) */
 export const BACKTEST_KINDS: SignalKind[] = ["volSpike", "breakout", "breakdown"];
@@ -26,13 +33,13 @@ export function signalsAt(bars: Bar[], i: number): ScalpHit[] {
   const v20 = avg(bars.slice(i - 20, i).map(x => x.vol));
   const volX = v20 > 0 ? b.vol / v20 : 0;
   // ① 거래량 급증 + 양봉 — 직전 20분 평균의 3배↑, 가격이 앞 분보다 올랐다
-  if (volX >= 3 && b.close > p.close) out.push({ kind: "volSpike", i, dir: "up", text: `거래량 ${volX.toFixed(1)}배 + 상승`, detail: `${b.t} 1분 거래량이 직전 20분 평균의 ${volX.toFixed(1)}배, 가격 ${p.close.toLocaleString()}→${b.close.toLocaleString()}` });
+  if (volX >= 3 && b.close > p.close) out.push({ kind: "volSpike", i, dir: "up", text: `거래 ${volX.toFixed(1)}배 터지며 오름`, detail: `${b.t} 1분 동안 거래가 평소의 ${volX.toFixed(1)}배, 값은 ${p.close.toLocaleString()}원 → ${b.close.toLocaleString()}원` });
   // ②③ 30분 고점 돌파·저점 이탈 — 거래량 2배↑ 동반
   if (i >= 30 && volX >= 2) {
     const prev = bars.slice(i - 30, i).map(x => x.close);
     const hi = Math.max(...prev), lo = Math.min(...prev);
-    if (b.close > hi) out.push({ kind: "breakout", i, dir: "up", text: `30분 고점 ${hi.toLocaleString()} 돌파`, detail: `${b.t} 직전 30분 최고 ${hi.toLocaleString()} 위로, 거래량 ${volX.toFixed(1)}배` });
-    if (b.close < lo) out.push({ kind: "breakdown", i, dir: "down", text: `30분 저점 ${lo.toLocaleString()} 이탈`, detail: `${b.t} 직전 30분 최저 ${lo.toLocaleString()} 아래로, 거래량 ${volX.toFixed(1)}배` });
+    if (b.close > hi) out.push({ kind: "breakout", i, dir: "up", text: `30분 최고가 ${hi.toLocaleString()}원 뚫음`, detail: `${b.t} 지난 30분 최고가 ${hi.toLocaleString()}원보다 올라감(거래 평소의 ${volX.toFixed(1)}배)` });
+    if (b.close < lo) out.push({ kind: "breakdown", i, dir: "down", text: `30분 최저가 ${lo.toLocaleString()}원 깨짐`, detail: `${b.t} 지난 30분 최저가 ${lo.toLocaleString()}원보다 떨어짐(거래 평소의 ${volX.toFixed(1)}배)` });
   }
   // ④ 체결강도 급등 — 1분 체결강도 250↑ 이고 직전 5분 체결강도 120 미만(갑자기 사는 쪽이 몰림). 매수·매도 체결이 있을 때만(실시간)
   if (b.buy != null && b.sell != null && b.sell > 0) {
@@ -40,7 +47,7 @@ export function signalsAt(bars: Bar[], i: number): ScalpHit[] {
     const w = bars.slice(i - 5, i);
     const bb = w.reduce((a, x) => a + (x.buy ?? 0), 0), ss = w.reduce((a, x) => a + (x.sell ?? 0), 0);
     const s5 = ss > 0 ? (bb / ss) * 100 : null;
-    if (s1 >= 250 && s5 != null && s5 < 120 && b.vol >= v20) out.push({ kind: "strengthSurge", i, dir: "up", text: `체결강도 ${Math.round(s1)} 급등`, detail: `${b.t} 1분 체결강도 ${Math.round(s1)}(직전 5분 ${Math.round(s5)}) — 갑자기 시장가 매수가 몰렸다` });
+    if (s1 >= 250 && s5 != null && s5 < 120 && b.vol >= v20) out.push({ kind: "strengthSurge", i, dir: "up", text: `사자 주문이 팔자의 ${(s1 / 100).toFixed(1)}배 몰림`, detail: `${b.t} 1분 동안 바로 사는 주문이 바로 파는 주문의 ${(s1 / 100).toFixed(1)}배(직전 5분은 ${(s5 / 100).toFixed(1)}배)` });
   }
   return out;
 }
