@@ -1,3 +1,4 @@
+// 폭 = 1480px(작은 화면은 왼쪽 40px 만 남김) — 1240 은 카드가 작고, 화면 전체는 큰 모니터에서 너무 컸다(사용자 2026-11-09 "원래 크기로", "지금은 너무 큰데")
 // 지수 서랍 — 어느 탭에서든 오른쪽 가장자리 '📈 지수' 손잡이를 누르면 미끄러져 나오는 판
 //   (사용자 2026-11-09 "지수 상단을 다른 탭들에서 side 에 숨겨 놓고 슬라이드로", "레이어 팝업도 괜찮고", "어디서든 탭을 두고",
 //    "지금 있는 카드를 그대로", "글자는 눈에 안 들어온다").
@@ -39,7 +40,7 @@ export function IndexSideDrawer() {
           <div className={`fixed inset-0 z-[70] bg-black/20 transition-opacity duration-200 ${closing ? "opacity-0" : "opacity-100"}`} onClick={close} />
           {/* 판 안 빈 곳(카드·버튼·링크가 아닌 곳)을 눌러도 닫힌다(사용자 2026-11-09 "열린 창의 빈 공간 클릭하면 닫히게") */}
           <aside onClick={e => { if (!(e.target as Element | null)?.closest?.(".pg-card, a, button, input, select, label, [data-sobu-peek], [data-disc-popup]")) close(); }}
-                 className={`fixed top-0 right-0 bottom-0 z-[71] w-[min(1240px,96vw)] bg-gray-50 pg-bg border-l border-gray-300 shadow-2xl overflow-y-auto ${closing ? "animate-[slideOut_.18s_ease-in_forwards]" : "animate-[slideIn_.18s_ease-out]"}`}>
+                 className={`fixed top-0 right-0 bottom-0 z-[71] w-[min(1480px,calc(100vw-40px))] bg-gray-50 pg-bg border-l border-gray-300 shadow-2xl overflow-y-auto ${closing ? "animate-[slideOut_.18s_ease-in_forwards]" : "animate-[slideIn_.18s_ease-out]"}`}>
             <div className="sticky top-0 z-40 bg-white/95 border-b border-gray-200 px-3 py-2 flex items-center gap-2">
               <b className="text-gray-800">📈 지수</b>
               <span className="text-[11px] text-gray-400">지수 탭 카드 그대로 — 빈 곳·바깥·Esc 로 닫기, 지금 보던 탭은 그대로</span>
