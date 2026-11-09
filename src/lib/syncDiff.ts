@@ -50,3 +50,20 @@ export function describeNormDiff(base: string | null | undefined, next: string |
   }
   return out.length > limit ? [...out.slice(0, limit), `… 외 ${out.length - limit}건`] : out;
 }
+
+/** 사람이 고치는 부분만 남긴 지문 — 증권사 연동 그룹(settings.linkedGroups 의 그룹)의 보유·거래·예수금을 뺀다.
+ *  연동 값은 앱이 5분마다 증권사에서 받아 덮어쓰는 값이라, 양쪽이 같은 연동 변경을 들고 있어도 '둘 다 바뀜' 충돌이 났다
+ *  (사용자 2026-11-09 충돌 화면 — 이 기기·Drive 모두 '보유 추가 토스 SK하이닉스 수량 591→595' 같은 연동 줄뿐). */
+export function userPartOf(norm: string | null | undefined): string | null {
+  const a = parse(norm);
+  if (!a) return null;
+  const linked = new Set(Object.keys((a.settings?.linkedGroups as Record<string, unknown> | null | undefined) ?? {}));
+  const isLinked = (acc?: string) => !!acc && linked.has(acc);
+  const deposits = Object.fromEntries(Object.entries(a.settings?.deposits ?? {}).filter(([g]) => !linked.has(g)));
+  return JSON.stringify({
+    holdings: (a.holdings ?? []).filter(h => !isLinked(h.account) && !h.source),
+    memos: a.memos ?? [],
+    trades: (a.trades ?? []).filter(t => !isLinked((t as { account?: string }).account)),
+    settings: { ...(a.settings ?? {}), deposits },
+  });
+}

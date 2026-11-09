@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { describeNormDiff } from "../syncDiff";
+import { describeNormDiff, userPartOf } from "../syncDiff";
 
 const base = JSON.stringify({ holdings: [{ ticker: "005930", name: "삼성전자", shares: 10, avg_price: 50000, buy_date: "", market: "", account: "토스", source: "toss" }], memos: [], trades: [{ id: "t1", ticker: "005930", account: "토스", type: "buy", date: "2026-11-01", qty: 10, amount: 500000, fee: 0 }], settings: { deposits: { 토스: 1000 }, independentGroups: false } });
 
@@ -16,4 +16,17 @@ describe("describeNormDiff", () => {
     expect(d).toContain("거래 추가 1건");
   });
   it("깨진 입력은 빈 목록", () => expect(describeNormDiff("x", base)).toEqual([]));
+});
+
+describe("userPartOf", () => {
+  it("연동 그룹 보유·예수금 변경은 무시", () => {
+    const b = JSON.parse(base); b.settings.linkedGroups = { 토스: { broker: "toss", accountSeq: "1" } };
+    const n = JSON.parse(JSON.stringify(b)); n.holdings[0].shares = 11; n.settings.deposits.토스 = 5;
+    expect(userPartOf(JSON.stringify(n))).toBe(userPartOf(JSON.stringify(b)));
+  });
+  it("손으로 넣은 그룹 변경은 잡는다", () => {
+    const b = JSON.parse(base); b.holdings[0].source = ""; b.holdings[0].account = "내그룹";
+    const n = JSON.parse(JSON.stringify(b)); n.holdings[0].shares = 11;
+    expect(userPartOf(JSON.stringify(n))).not.toBe(userPartOf(JSON.stringify(b)));
+  });
 });

@@ -117,7 +117,7 @@ export function clearPendingSyncAction(): void {
 
 // 내용 정규화 — exported_at 같은 noise 제외, 정렬로 결정적 직렬화
 // 주의: 새 동기화 필드 추가 시 반드시 여기에 포함시켜야 함 (안 그러면 변경이 silent skip 됨)
-import { describeNormDiff } from "./syncDiff";
+import { describeNormDiff, userPartOf } from "./syncDiff";
 export function normalize(p: ExportPayload): string {
   const holdings = [...(p.holdings ?? [])]
     .map(s => ({
@@ -341,6 +341,14 @@ export async function autoPush(): Promise<"pushed" | "none" | "conflict" | "skip
   if (meta && (!lastTs || meta.modifiedTime > lastTs)) {
     let rn: string | null = null;
     try { const r = await downloadFile<ExportPayload>(); rn = r ? normalize(r.data) : null; } catch { /* 이유만 못 보여 준다 */ }
+    const base = getLastSyncedHash();
+    // Drive 쪽 변경이 증권사 연동 값뿐이면 이 기기 것을 올린다(연동 값은 이 기기도 곧 다시 받는다). 이 기기 변경이 연동뿐이면 Drive 것을 받는다
+    if (base != null && rn != null && userPartOf(rn) === userPartOf(base)) {
+      const ts = await guardedUpload(local); setLastSynced(ts, h); return "pushed";
+    }
+    if (base != null && rn != null && userPartOf(h) === userPartOf(base)) {
+      await downloadFromDrive(); window.dispatchEvent(new CustomEvent(SYNC_PULLED_EVENT)); return "none";
+    }
     setConflictInfo(h, rn);
     emitConflict();                                      // Drive 도 앞섰다 — 내가 올리면 저쪽이 사라진다
     return "conflict";
@@ -369,6 +377,12 @@ export async function autoPull(): Promise<"applied" | "none" | "conflict" | "ski
     return "none";
   }
   const lastHash = getLastSyncedHash();
+  // 이 기기의 변경이 증권사 연동 값뿐이면(사람이 고친 게 없으면) 충돌로 묻지 않고 Drive 것을 받는다 — 연동 값은 앱이 다시 받아 쓴다
+  if (lastHash != null && localNorm !== lastHash && userPartOf(localNorm) === userPartOf(lastHash)) {
+    await downloadFromDrive();
+    window.dispatchEvent(new CustomEvent(SYNC_PULLED_EVENT));
+    return "applied";
+  }
   if (lastHash == null || localNorm !== lastHash) {
     setConflictInfo(localNorm, remoteNorm);
     emitConflict();                                      // 양쪽 다 바뀜 — 손대지 않는다
