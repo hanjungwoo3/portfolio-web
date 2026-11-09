@@ -26,7 +26,7 @@ import { useChartRange, pickCardChart, historyRange } from "../lib/chartRange";
 import { ChartRangeToggle, AvgMarketToggle } from "./ChartRangeToggle";
 import { AftPill } from "./SectorTabBar";
 import { usRegExtOf, rotRowAvg } from "../lib/avgMarket";
-import { buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage, type DashboardSection } from "../lib/dashboardGroups";
+import { DRAWER_SECTION_IDS, buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage, type DashboardSection } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
 import { requestTab, isTabVisible } from "../lib/tabNav";
 import { GroupNavBar } from "./GroupNavBar";
@@ -171,7 +171,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const rotAvg = (section: DashboardSection, gi: number) => rotRowAvg(section, gi, pctOfSym, regExtOf);
   // 지수 대시보드 그룹 — 데스크톱·모바일 공용 정의(lib/dashboardGroups).
   //   주간·야간·반도체 중 어느 페이지인지는 메뉴 탭이 정한다(page).
-  const PAGE_SECTIONS = sectionsOverride ?? buildDashboardPage(page);
+  // 지수(한국/주간)·(미국/야간)은 서랍으로 옮긴 위쪽 묶음(한국·미국 지수·환율·금리·선물·원자재)을 뺀다(사용자 2026-11-09)
+  const movedToDrawer = !sectionsOverride && (page === "day" || page === "night");
+  const PAGE_SECTIONS = sectionsOverride ?? buildDashboardPage(page).filter(s => !movedToDrawer || !DRAWER_SECTION_IDS.has(s.id));
   // 지수(업종) — 업종 블록 중 하나만(페이지 안 탭, 사용자 2026-11-03)
   const SECTOR_TABS = page === "sobu" ? sectorTabsOf(PAGE_SECTIONS) : [];
   const [sectorTab, setSectorTab] = useSectorTab(SECTOR_TABS);
@@ -763,6 +765,12 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       <div className={`space-y-4 ${page === "sobu" ? "lg:flex-1 lg:min-w-0" : ""}`}>
         {/* 동시호가 예상 순위 — 앱+한국투자, 동시호가 동안만(사용자 2026-11-02) */}
         {!sectionsOverride && <KisExpRankBox />}
+        {movedToDrawer && (
+          <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-[12.5px] text-indigo-900 flex items-center gap-2">
+            <span>📈 한국·미국 지수, 환율·금리·투심, 선물, 원자재는 화면 오른쪽 가장자리의 <b>「📈 지수」</b> 버튼을 누르면 어느 탭에서든 열어 볼 수 있습니다.</span>
+            <button onClick={() => window.dispatchEvent(new Event("open-index-drawer"))} className="ml-auto shrink-0 px-2 py-0.5 rounded border border-indigo-300 bg-white text-indigo-700 font-bold hover:bg-indigo-100">지금 열기</button>
+          </div>
+        )}
         {T0_SECTIONS.map((section) => page === "sobu" && section.id === "rotflow" ? (
           // 한눈에 — AI 순환매 카드 줄 대신 업종 요약판(사용자 2026-11-07 "한눈에는 요약만, 카드는 섹터별로")
           <div key="sector-summary" id="usidx-sector-summary" style={{ scrollMarginTop: idxScrollMargin }}
