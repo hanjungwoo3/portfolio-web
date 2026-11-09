@@ -168,6 +168,9 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
   });
   const addItem = (r: StockRef) => { setItems(xs => (xs.some(x => x.ticker === r.ticker) ? xs : [...xs, { ticker: r.ticker, name: r.name }])); setQ(""); setDq(""); };
   const removeItem = (t: string) => setItems(xs => xs.filter(x => x.ticker !== t));
+  // 칩·범례에 마우스를 올리면 그 종목 선만 진하게, 나머지는 흐리게(사용자 2026-11-10)
+  const [hot, setHot] = useState<string | null>(null);
+  const seriesRef = useRef(new Map<string, ISeriesApi<SeriesType>>());
 
   const stocks = items;
   const colorMap = useMemo(() => {
@@ -256,6 +259,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
         crosshairMarkerRadius: 3,
       });
       ser.setData(b.data);
+      seriesRef.current.set(s.ticker, ser);
       seriesList.push({ ticker: s.ticker });
       if (!zeroAnchor) zeroAnchor = ser;
     }
@@ -521,6 +525,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
     window.addEventListener("resize", rafDraw);
 
     return () => {
+      seriesRef.current.clear();
       clearTimeout(t1);
       try { chart.unsubscribeCrosshairMove(onMove); } catch { /* noop */ }
       try { ts.unsubscribeVisibleLogicalRangeChange(drawBg); } catch { /* noop */ }
@@ -530,6 +535,13 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, built, mode, stocks]);
 
+  useEffect(() => {
+    for (const [t, ser] of seriesRef.current) {
+      const c = colorOf(t);
+      ser.applyOptions(hot == null ? { color: c, lineWidth: 1 }
+        : t === hot ? { color: c, lineWidth: 3 } : { color: hexA(c, 0.15), lineWidth: 1 });
+    }
+  });   // 매 그리기마다 — 차트를 새로 만든 뒤에도 강조가 이어지게
   if (!isOpen) return null;
 
   return createPortal(
@@ -582,8 +594,8 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
         {/* 종목 줄 — 비교 대상(색칩) */}
         <div className="px-4 py-2 border-b flex items-center gap-2 flex-wrap">
           {stocks.map(s => (
-            <span key={s.ticker}
-                  className="inline-flex items-center gap-1.5 px-2 py-1 rounded text-[12px] font-bold text-white"
+            <span key={s.ticker} onMouseEnter={() => setHot(s.ticker)} onMouseLeave={() => setHot(null)}
+                  className={`inline-flex items-center gap-1.5 px-2 py-1 rounded text-[12px] font-bold text-white transition-opacity ${hot && hot !== s.ticker ? "opacity-40" : ""}`}
                   style={{ background: colorOf(s.ticker) }}>
               {s.name} <span className="opacity-80 font-normal">{s.ticker}</span>
               <button type="button" onClick={() => removeItem(s.ticker)} title="이 종목 빼기"
@@ -636,7 +648,8 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
           {stocks.map(s => {
             const f = built.get(s.ticker)?.final ?? null;
             return (
-              <span key={s.ticker} className="inline-flex items-center gap-1.5">
+              <span key={s.ticker} className={`inline-flex items-center gap-1.5 cursor-default ${hot && hot !== s.ticker ? "opacity-40" : ""}`}
+                    onMouseEnter={() => setHot(s.ticker)} onMouseLeave={() => setHot(null)}>
                 <span className="w-3 h-3 rounded-sm inline-block" style={{ background: colorOf(s.ticker) }} />
                 <span className="font-semibold text-gray-700">{s.name}</span>
                 {f != null && (
