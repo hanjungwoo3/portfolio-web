@@ -82,25 +82,30 @@ export function computeHot(all: Snap[], meta: Map<string, Meta>, windowMin = 5):
   return { rows: rows.filter(r => r.times >= 1.5).slice(0, 40), windowMin: Math.round(mins), snapCount: all.length, quiet: moved < 5, at: now };
 }
 
-/** 웹 = 서버 수집본 먼저, 앱(또는 서버본 실패) = 직접 찍기 */
+/** 서버 기록을 먼저 깔고(웹·앱 모두 — 열자마자 보이게), 앱은 그 위에 직접 찍은 최신 스냅샷을 얹는다.
+ *  (사용자 2026-11-09 "서버에서 모으면 그냥 나와야 하지 않아?" — 앱이 서버본을 건너뛰고 처음부터 쌓고 있었다)
+ *  웹은 서버본만(못 받았거나 6분 넘게 묵었을 때만 직접). */
 export async function fetchHotNow(windowMin = 5): Promise<HotResult> {
-  if (preferServer()) {
-    const d = await fetchLive<{ fetchedAt: number; snaps: Snap[]; meta: ServerMeta }>("hot-now");
-    if (d?.snaps?.length) {
-      const meta = new Map<string, Meta>(Object.entries(d.meta ?? {}).map(([c, [name, market, pct, up]]) => [c, { name, market, pct, upper: !!up }]));
-      return { ...computeHot(d.snaps, meta, windowMin), server: true };
-    }
-  }
+  const d = await fetchLive<{ fetchedAt: number; snaps: Snap[]; meta: ServerMeta }>("hot-now");
+  const srvSnaps = d?.snaps ?? [];
+  const meta = new Map<string, Meta>(Object.entries(d?.meta ?? {}).map(([c, [name, market, pct, up]]) => [c, { name, market, pct, upper: !!up }]));
+  const srvFresh = !!d && Date.now() - d.fetchedAt < 6 * 60_000;
+  if (srvSnaps.length && preferServer() && srvFresh) return { ...computeHot(srvSnaps, meta, windowMin), server: true };
+
   const lists = await Promise.allSettled([list("priceTop", "KOSPI"), list("priceTop", "KOSDAQ"), list("up", "KOSPI"), list("up", "KOSDAQ")]);
-  const meta = new Map<string, Meta>();
   const m: Snap["m"] = {};
   for (const l of lists) if (l.status === "fulfilled") for (const x of l.value) {
     m[x.code] = [x.price, x.value];
-    meta.set(x.code, { name: x.name, market: x.market, pct: x.pct, upper: x.upper });
+    meta.set(x.code, { name: x.name, market: x.market, pct: x.pct, upper: x.upper });   // 직접 받은 게 더 최신
   }
-  if (!Object.keys(m).length) throw new Error("순위를 못 받았어요");
+  if (!Object.keys(m).length) {
+    if (srvSnaps.length) return { ...computeHot(srvSnaps, meta, windowMin), server: true };
+    throw new Error("순위를 못 받았어요");
+  }
   const now = Date.now();
   snaps = [...snaps.filter(s => now - s.at < KEEP_MS), { at: now, m }];
   save();
-  return { ...computeHot(snaps, meta, windowMin), server: false };
+  // 서버 기록 + 내 기록을 시각순으로 합친다(같은 순위 원본이라 섞어도 같은 값)
+  const merged = [...srvSnaps.filter(s => now - s.at < KEEP_MS), ...snaps].sort((a, b) => a.at - b.at);
+  return { ...computeHot(merged, meta, windowMin), server: srvSnaps.length > 0 };
 }
