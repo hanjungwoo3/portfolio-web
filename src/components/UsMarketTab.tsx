@@ -767,8 +767,11 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
         {!sectionsOverride && <KisExpRankBox />}
         {movedToDrawer && (
           <div className="rounded-lg border border-indigo-200 bg-indigo-50/70 px-3 py-2 text-[12.5px] text-indigo-900 flex items-center gap-2">
-            <span>📈 한국·미국 지수, 환율·금리·투심, 선물, 원자재는 화면 오른쪽 가장자리의 <b>「📈 지수」</b> 버튼을 누르면 어느 탭에서든 열어 볼 수 있습니다.</span>
-            <button onClick={() => window.dispatchEvent(new Event("open-index-drawer"))} className="ml-auto shrink-0 px-2 py-0.5 rounded border border-indigo-300 bg-white text-indigo-700 font-bold hover:bg-indigo-100">지금 열기</button>
+            {/* '「📈 지수」' 글자를 누르면 바로 열린다(따로 '지금 열기' 단추 없이, 사용자 2026-11-09) */}
+            <span>📈 한국·미국 지수, 환율·금리·투심, 선물, 원자재는 화면 오른쪽 가장자리의{" "}
+              <button onClick={() => window.dispatchEvent(new Event("open-index-drawer"))} title="지금 열기"
+                      className="font-bold text-indigo-700 underline decoration-dotted underline-offset-2 hover:text-indigo-900">「📈 지수」</button>
+              {" "}버튼을 누르면 어느 탭에서든 열어 볼 수 있습니다.</span>
           </div>
         )}
         {T0_SECTIONS.map((section) => page === "sobu" && section.id === "rotflow" ? (
