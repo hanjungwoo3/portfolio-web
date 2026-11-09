@@ -14,10 +14,14 @@ export function IndexSideDrawer() {
   const [closing, setClosing] = useState(false);
   // 닫을 때도 나올 때처럼 미끄러져 들어간다(사용자 2026-11-09) — 애니메이션이 끝난 뒤 내린다
   const close = () => { if (closing) return; setClosing(true); setTimeout(() => { setOpen(false); setClosing(false); }, 180); };
-  const sections = useMemo(() => [
-    ...buildDashboardPage("day").filter(s => s.id === "kr"),
-    ...buildDashboardPage("night").filter(s => s.id !== "kr" && DRAWER_SECTION_IDS.has(s.id)),
-  ], [open]);   // eslint-disable-line react-hooks/exhaustive-deps — 열 때마다(주간·야간 선물이 시간 따라 바뀐다)
+  const sections = useMemo(() => {
+    const kr = buildDashboardPage("day").find(s => s.id === "kr");
+    const night = buildDashboardPage("night").filter(s => s.id !== "kr" && DRAWER_SECTION_IDS.has(s.id));
+    const macro = night.find(s => s.id === "macro");
+    // 주간 시장(한국) + 미국 지수 = 한 묶음 '지수'(줄은 둘 그대로)(사용자 2026-11-09 "두 개 합쳐서 지수")
+    const merged = kr && macro ? [{ ...kr, label: "📈 지수", rows: [...kr.rows, ...macro.rows] }] : [kr, macro].filter((x): x is NonNullable<typeof x> => !!x);
+    return [...merged, ...night.filter(s => s.id !== "macro")];
+  }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps — 열 때마다(주간·야간 선물이 시간 따라 바뀐다)
   useEffect(() => {   // 지수 탭 안내 줄 '지금 열기'
     const h = () => setOpen(true);
     window.addEventListener("open-index-drawer", h);
