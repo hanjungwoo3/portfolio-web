@@ -9,6 +9,7 @@ import { exportAll, replaceAllHoldings, replaceAllPeaks, replaceAllMemos, replac
 import type { ExportPayload } from "./db";
 import { signIn, signOut, wasSignedIn, getAccessToken } from "./googleAuth";
 import { downloadFile, uploadFile, getFileMeta, deleteFile, listRevisions, downloadRevision } from "./googleDrive";
+import { isBrokerAvailable } from "./broker";
 
 type SyncMode = "on" | "off";
 const KEY_MODE = "gdrive_sync_mode";
@@ -225,6 +226,12 @@ export async function downloadFromDrive(): Promise<boolean> {
   const result = await downloadFile<ExportPayload>();
   if (!result) return false;
   const { data, modifiedTime } = result;
+  await applyPayload(data);
+  setLastSynced(modifiedTime, normalize(await exportAll()));
+  return true;
+}
+/** 받은 내용을 이 기기 DB 에 적용(최고가는 큰 쪽) — downloadFromDrive·연동 값 합치기가 같이 쓴다 */
+async function applyPayload(data: ExportPayload): Promise<void> {
   if (data.holdings) await replaceAllHoldings(data.holdings);
   if (data.peaks) {   // 최고가는 큰 쪽을 남긴다(지문 밖 — normalize 주석). 이전 버전 복구(restoreDriveBackup)는 통째로 되돌린다
     const mine = await loadPeaks();
@@ -237,11 +244,27 @@ export async function downloadFromDrive(): Promise<boolean> {
   // trades(거래기록) — 구버전 payload 에 없으면 빈 배열로 동기화
   await replaceAllTrades(data.trades ?? []);
   applyImportedSettings(data.settings);   // 독립 모드 등 동기화 대상 설정
-  // 지문은 **적용 뒤 DB 를 다시 읽어서** 만든다. 원격 payload 를 그대로 해싱하면
-  //   replaceAll* 가 손보는 필드(빈 문자열 정규화 등) 때문에 지문이 어긋나
-  //   바로 다음 검사에서 "로컬이 바뀌었다" 로 오인해 쓸데없이 되올린다.
-  setLastSynced(modifiedTime, normalize(await exportAll()));
-  return true;
+  // 지문은 **적용 뒤 DB 를 다시 읽어서** 만든다(호출한 쪽에서). 원격 payload 를 그대로 해싱하면
+  //   replaceAll* 가 손보는 필드(빈 문자열 정규화 등) 때문에 지문이 어긋난다.
+}
+
+// ─── 증권사 연동 값 합치기 ─────────────────────────────────────
+//   연동 그룹(보유·거래·예수금)은 증권사에서 받아 오는 값이라 '사람이 고친 것'과 충돌하지 않는다(사용자 2026-11-09 "증권사 연결로 바뀐 건 무조건 받아야").
+//   증권사를 직접 부르는 기기(앱 + 키) = 연동 값의 원본 → 이 기기 것. 그 밖(브라우저·폰) = Drive 것을 무조건 받는다. 나머지는 이 기기 것.
+function brokerSource(): boolean { try { return isBrokerAvailable(); } catch { return false; } }
+function mergeBroker(local: ExportPayload, remote: ExportPayload, useRemoteBroker: boolean): ExportPayload {
+  const src = useRemoteBroker ? remote : local, other = useRemoteBroker ? local : remote;
+  const linked = new Set(Object.keys({ ...(local.settings?.linkedGroups ?? {}), ...(remote.settings?.linkedGroups ?? {}) }));
+  const isL = (acc?: string) => !!acc && linked.has(acc);
+  const deposits = { ...Object.fromEntries(Object.entries(other.settings?.deposits ?? {}).filter(([g]) => !linked.has(g))),
+                     ...Object.fromEntries(Object.entries(src.settings?.deposits ?? {}).filter(([g]) => linked.has(g))) };
+  const base = local;   // 사람이 고친 부분은 늘 이 기기 것
+  return {
+    ...base,
+    holdings: [...(base.holdings ?? []).filter(h => !isL(h.account)), ...(src.holdings ?? []).filter(h => isL(h.account))],
+    trades: [...(base.trades ?? []).filter(t => !isL(t.account)), ...(src.trades ?? []).filter(t => isL(t.account))],
+    settings: { ...(base.settings ?? {}), deposits },
+  };
 }
 
 // ─── 충돌 감지 — 편집 시작 전 호출 ──────────────────────────
@@ -344,7 +367,16 @@ export async function autoPush(): Promise<"pushed" | "none" | "conflict" | "skip
     const base = getLastSyncedHash();
     // Drive 쪽 변경이 증권사 연동 값뿐이면 이 기기 것을 올린다(연동 값은 이 기기도 곧 다시 받는다). 이 기기 변경이 연동뿐이면 Drive 것을 받는다
     if (base != null && rn != null && userPartOf(rn) === userPartOf(base)) {
-      const ts = await guardedUpload(local); setLastSynced(ts, h); return "pushed";
+      // Drive 쪽 변경이 연동 값뿐 — 증권사 원본 기기면 이 기기 연동 값, 아니면 Drive 연동 값을 받아 사람이 고친 것과 합쳐 올린다
+      const r = await downloadFile<ExportPayload>();
+      if (r) {
+        const merged = mergeBroker(local, r.data, !brokerSource());
+        await applyPayload(merged);
+        const now = await exportAll();
+        const ts = await guardedUpload(now); setLastSynced(ts, normalize(now));
+        window.dispatchEvent(new CustomEvent(SYNC_PULLED_EVENT));
+        return "pushed";
+      }
     }
     if (base != null && rn != null && userPartOf(h) === userPartOf(base)) {
       await downloadFromDrive(); window.dispatchEvent(new CustomEvent(SYNC_PULLED_EVENT)); return "none";
@@ -380,6 +412,15 @@ export async function autoPull(): Promise<"applied" | "none" | "conflict" | "ski
   // 이 기기의 변경이 증권사 연동 값뿐이면(사람이 고친 게 없으면) 충돌로 묻지 않고 Drive 것을 받는다 — 연동 값은 앱이 다시 받아 쓴다
   if (lastHash != null && localNorm !== lastHash && userPartOf(localNorm) === userPartOf(lastHash)) {
     await downloadFromDrive();
+    window.dispatchEvent(new CustomEvent(SYNC_PULLED_EVENT));
+    return "applied";
+  }
+  // Drive 쪽 변경이 연동 값뿐이고 이 기기는 사람이 고친 게 있으면 — 합친다(연동 = Drive 것, 나머지 = 이 기기 것)
+  if (lastHash != null && localNorm !== lastHash && userPartOf(remoteNorm) === userPartOf(lastHash)) {
+    const merged = mergeBroker(await exportAll(), remote.data, !brokerSource());
+    await applyPayload(merged);
+    const ts = await guardedUpload(await exportAll());
+    setLastSynced(ts, normalize(await exportAll()));
     window.dispatchEvent(new CustomEvent(SYNC_PULLED_EVENT));
     return "applied";
   }
