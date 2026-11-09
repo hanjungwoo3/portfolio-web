@@ -4,8 +4,12 @@
 //   데이터 = 네이버 실시간 순위(m.stock /api/stocks/{priceTop|up}/{KOSPI|KOSDAQ}, pageSize≤100, 실측 토스 체결가와 같은 값).
 //     트레이딩뷰 scanner 는 KRX 가 20분 지연(update_mode=delayed_streaming_1200)이라 '지금'에 못 쓴다.
 //   순위는 누적값만 준다 → 1분마다 찍어 두고(스냅샷) 최근 5분 차이로 '지금' 몰린 돈을 계산한다.
-//   스냅샷은 모듈 변수 + sessionStorage(새로고침해도 이어짐). 열어 둔 동안만 쌓인다.
+//   웹 = 서버 수집본(크롤러 live.js 가 2분마다 찍어 live/hot-now.json 에 최근 14분 스냅샷) — 열자마자 보인다
+//        (사용자 2026-11-09 "열어 두고 하지 말고 서버에서 수집하면?").
+//   앱(직결) = 직접 1분마다 찍는다(모듈 변수 + sessionStorage). 서버본을 못 받으면 웹도 직접으로.
+//   몇 배 몰렸나 계산(computeHot)은 여기 한 벌 — 서버는 스냅샷만 담는다.
 import { fetchProxied } from "./api";
+import { fetchLive, preferServer } from "./liveServer";
 
 export interface HotRow {
   code: string; name: string; market: "코스피" | "코스닥";
@@ -16,8 +20,9 @@ export interface HotRow {
   times: number;                       // 평소(오늘 1분 평균) 대비 몇 배
   upper: boolean;                      // 상한가
 }
-interface Snap { at: number; m: Record<string, [number, number]> }   // code → [값, 누적 거래대금(원)]
+export interface Snap { at: number; m: Record<string, [number, number]> }   // code → [값, 누적 거래대금(원)]
 type Meta = { name: string; market: "코스피" | "코스닥"; pct: number; upper: boolean };
+type ServerMeta = Record<string, [string, "코스피" | "코스닥", number, number]>;   // code → [이름, 시장, 등락률, 상한가 1/0]
 
 const KEY = "hotNow:snaps:v1";
 const KEEP_MS = 40 * 60_000;
@@ -47,31 +52,22 @@ function minutesOpen(now: number) {
   return Math.max(30, Math.min(m, 12 * 60));
 }
 
-export interface HotResult { rows: HotRow[]; windowMin: number; snapCount: number; quiet: boolean; at: number }
+export interface HotResult { rows: HotRow[]; windowMin: number; snapCount: number; quiet: boolean; at: number; server: boolean }
 
-/** 1분마다 부른다 — 순위 4개 받아 스냅샷을 쌓고, 최근 5분(모자라면 있는 만큼) 차이로 줄 세운다 */
-export async function fetchHotNow(windowMin = 5): Promise<HotResult> {
-  const lists = await Promise.allSettled([list("priceTop", "KOSPI"), list("priceTop", "KOSDAQ"), list("up", "KOSPI"), list("up", "KOSDAQ")]);
-  const meta = new Map<string, Meta>();
-  const m: Snap["m"] = {};
-  for (const l of lists) if (l.status === "fulfilled") for (const x of l.value) {
-    m[x.code] = [x.price, x.value];
-    meta.set(x.code, { name: x.name, market: x.market, pct: x.pct, upper: x.upper });
-  }
-  if (!Object.keys(m).length) throw new Error("순위를 못 받았어요");
-  const now = Date.now();
-  snaps = [...snaps.filter(s => now - s.at < KEEP_MS), { at: now, m }];
-  save();
-  // 기준 스냅샷 = windowMin 분 전에 가장 가까운 것(없으면 가장 오래된 것, 최소 50초 전)
+/** 스냅샷들 → 최근 windowMin 분(가장 가까운 스냅샷) 동안 평소보다 몇 배 몰렸나. 마지막 스냅샷이 '지금' */
+export function computeHot(all: Snap[], meta: Map<string, Meta>, windowMin = 5): Omit<HotResult, "server"> {
+  const cur = all[all.length - 1];
+  if (!cur) return { rows: [], windowMin: 0, snapCount: 0, quiet: false, at: Date.now() };
+  const now = cur.at;
   const target = now - windowMin * 60_000;
-  const older = snaps.filter(s => now - s.at >= 50_000);
+  const older = all.filter(s => now - s.at >= 50_000);
   const base = older.length ? older.reduce((a, b) => (Math.abs(b.at - target) < Math.abs(a.at - target) ? b : a)) : null;
-  if (!base) return { rows: [], windowMin: 0, snapCount: snaps.length, quiet: false, at: now };
+  if (!base) return { rows: [], windowMin: 0, snapCount: all.length, quiet: false, at: now };
   const mins = (now - base.at) / 60_000;
   const open = minutesOpen(now);
   const rows: HotRow[] = [];
   let moved = 0;
-  for (const [code, [price, value]] of Object.entries(m)) {
+  for (const [code, [price, value]] of Object.entries(cur.m)) {
     const b = base.m[code], mt = meta.get(code);
     if (!b || !mt) continue;
     const rv = value - b[1];
@@ -83,5 +79,28 @@ export async function fetchHotNow(windowMin = 5): Promise<HotResult> {
       recentPct: b[0] > 0 ? (price / b[0] - 1) * 100 : 0, times, upper: mt.upper });
   }
   rows.sort((a, b) => b.times - a.times);
-  return { rows: rows.filter(r => r.times >= 1.5).slice(0, 40), windowMin: Math.round(mins), snapCount: snaps.length, quiet: moved < 5, at: now };
+  return { rows: rows.filter(r => r.times >= 1.5).slice(0, 40), windowMin: Math.round(mins), snapCount: all.length, quiet: moved < 5, at: now };
+}
+
+/** 웹 = 서버 수집본 먼저, 앱(또는 서버본 실패) = 직접 찍기 */
+export async function fetchHotNow(windowMin = 5): Promise<HotResult> {
+  if (preferServer()) {
+    const d = await fetchLive<{ fetchedAt: number; snaps: Snap[]; meta: ServerMeta }>("hot-now");
+    if (d?.snaps?.length) {
+      const meta = new Map<string, Meta>(Object.entries(d.meta ?? {}).map(([c, [name, market, pct, up]]) => [c, { name, market, pct, upper: !!up }]));
+      return { ...computeHot(d.snaps, meta, windowMin), server: true };
+    }
+  }
+  const lists = await Promise.allSettled([list("priceTop", "KOSPI"), list("priceTop", "KOSDAQ"), list("up", "KOSPI"), list("up", "KOSDAQ")]);
+  const meta = new Map<string, Meta>();
+  const m: Snap["m"] = {};
+  for (const l of lists) if (l.status === "fulfilled") for (const x of l.value) {
+    m[x.code] = [x.price, x.value];
+    meta.set(x.code, { name: x.name, market: x.market, pct: x.pct, upper: x.upper });
+  }
+  if (!Object.keys(m).length) throw new Error("순위를 못 받았어요");
+  const now = Date.now();
+  snaps = [...snaps.filter(s => now - s.at < KEEP_MS), { at: now, m }];
+  save();
+  return { ...computeHot(snaps, meta, windowMin), server: false };
 }
