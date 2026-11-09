@@ -373,13 +373,13 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
       const rows = seriesList
         .map(({ ticker }) => ({ ticker, v: built.get(ticker)?.map.get(key), color: colorOf(ticker), name: nameByTicker[ticker] ?? ticker }))
         .filter((r): r is { ticker: string; v: number; color: string; name: string } => typeof r.v === "number")
-        .filter(r => !offRef.current.size || !offRef.current.has(r.ticker))   // 체크 푼 종목은 값 상자에서도 뺀다
         .sort((a, b) => b.v - a.v);
       if (rows.length === 0) { tip.style.display = "none"; return; }
       let html = `<div style="color:#9ca3af;font-size:10px;margin-bottom:3px">${fmtTime(key)}</div>`;
       rows.forEach((r, i) => {
         const pc = r.v >= 0 ? "#e11d48" : "#2563eb";
         html += `<div style="display:flex;align-items:center;gap:5px;line-height:1.7;`
+          // 값 상자는 체크와 상관없이 전 종목을 똑같이(사용자 2026-11-10 "레이어는 선택 상관없이 다 보이게")
           + `background:${r.color};border-radius:4px;padding:1px 5px;margin-bottom:2px">`
           + `<span style="color:rgba(255,255,255,0.8);width:13px;text-align:right;flex:none;font-weight:700">${i + 1}</span>`
           + `<span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#fff;font-weight:600;text-shadow:0 1px 1px rgba(0,0,0,0.3)">${r.name}</span>`
