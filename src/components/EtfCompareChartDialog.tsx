@@ -68,7 +68,7 @@ const PERIODS: Record<Mode, { range: string; label: string }[]> = {
   week:  [{ range: "1y", label: "1년" }, { range: "2y", label: "2년" }, { range: "5y", label: "5년" }],
   month: [{ range: "2y", label: "2년" }, { range: "5y", label: "5년" }, { range: "10y", label: "10년" }, { range: "max", label: "전체" }],
 };
-const DEFAULT_RANGE: Record<Mode, string> = { min: "5d", day: "6mo", week: "2y", month: "10y" };
+const DEFAULT_RANGE: Record<Mode, string> = { min: "5d", day: "3mo", week: "2y", month: "10y" };   // 일봉 기본 3개월(사용자 2026-11-10)
 
 interface Built {
   data: { time: Time; value: number }[];
@@ -203,7 +203,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
   });
   const stamp = qs.map(q => q.dataUpdatedAt).join(",");
   // 배경 지수 — 코스피·코스닥을 골라 같은 기준(시작=0%)으로 뒤에 회색 면으로 깐다(사용자 2026-11-10 "코스피, 코스닥 그래프를 배경으로 선택해서")
-  const [bgIdx, setBgIdx] = useState<string[]>([]);
+  const [bgIdx, setBgIdx] = useState<string[]>(["^KS11"]);   // 코스피 배경 기본(사용자 2026-11-10)
   const bgQs = useQueries({
     queries: bgIdx.map(sym => ({
       queryKey: ["cmp", mode, range, sym],
@@ -279,7 +279,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
       const kq = sym === "^KQ11";
       const bg = chart.addSeries(AreaSeries, {
         // 채운 면을 진하게(사용자 2026-11-10 "배경이 채워진 걸로, 잘 안 보여")
-        lineColor: kq ? "rgba(13,148,136,0.8)" : "rgba(71,85,105,0.8)", lineWidth: 2,
+        lineColor: "rgba(0,0,0,0)", lineWidth: 1,   // 선은 빼고 면만(사용자 2026-11-10 "선은 빼고 배경만")
         topColor: kq ? "rgba(13,148,136,0.38)" : "rgba(71,85,105,0.38)", bottomColor: kq ? "rgba(13,148,136,0.12)" : "rgba(71,85,105,0.12)",
         priceLineVisible: false, lastValueVisible: true, crosshairMarkerVisible: false,
         title: kq ? "코스닥" : "코스피",
@@ -602,7 +602,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
             {([["min", "분봉"], ["day", "일봉"], ["week", "주봉"], ["month", "월봉"]] as const).map(([m, label]) => (
               <button key={m} onClick={() => pickMode(m)}
                       title={m === "min" ? "최근 5거래일 1분봉 — 요일·시간대 패턴"
-                             : m === "day" ? "6개월 일봉 — 단·중기 추세"
+                             : m === "day" ? "3개월 일봉 — 단·중기 추세"
                              : m === "week" ? "2년 주봉 — 중기 추세"
                              : "10년 월봉 — 장기 추세"}
                       className={`px-2.5 py-0.5 rounded text-[11px] font-bold border transition
