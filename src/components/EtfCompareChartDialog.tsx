@@ -595,13 +595,13 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
       const c = colorOf(t);
       const dim = isDim(t);
       ser.applyOptions(t === hot ? { color: c, lineWidth: 3, lastValueVisible: true }
-        : dim ? { color: hexA(c, 0.12), lineWidth: 1, lastValueVisible: false }
+        : dim ? { color: hexA(c, 0.3), lineWidth: 1, lastValueVisible: false }   // 흐린 선 조금 진하게(사용자 2026-11-10 "너무 안 보여")
         : { color: c, lineWidth: off.size ? 2 : 1, lastValueVisible: true });
       // 0% 아래 구간은 같은 색을 더 옅게(사용자 2026-11-10 "0% 위와 아래를 다르게, 0% 이하를 더 흐리게") — 점마다 색. 상태가 바뀔 때만 다시 넣는다
       const sig = `${dim ? 1 : 0}${t === hot ? 1 : 0}${c}|${built.get(t)?.data.length ?? 0}`;
       if (sigRef.current.get(t) === sig) continue;
       sigRef.current.set(t, sig);
-      const [up, dn] = t === hot ? [1, 0.5] : dim ? [0.12, 0.06] : [1, 0.38];
+      const [up, dn] = t === hot ? [1, 0.5] : dim ? [0.3, 0.16] : [1, 0.4];
       ser.setData((built.get(t)?.data ?? []).map(p => ({ ...p, color: hexA(c, p.value >= 0 ? up : dn) })));
     }
   });   // 매 그리기마다 — 차트를 새로 만든 뒤에도 강조가 이어지게
