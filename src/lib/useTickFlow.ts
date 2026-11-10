@@ -9,12 +9,12 @@ import { useEffect, useState } from "react";
 import { fetchTossTicks, fetchTossMinuteToday } from "./api";
 import { kisWsLive, subscribeKisTicks } from "./kisWs";
 import { tickBox, ingestTicks, onBox, BIG_STEPS, type MinuteFlow, type BigTrade } from "./tickStore";
-import { backfillTickMinutes } from "./kisTickBackfill";
+import { backfillTickMinutes, backfillPct } from "./kisTickBackfill";
 
 // 통(1분 매수·매도 누적)은 lib/tickStore — 앱이면 창을 닫아도 대표 종목을 계속 받고(배경 수집), 빈 분은 한투로 거슬러 채운다(사용자 2026-11-10)
 export type { MinuteFlow, BigTrade } from "./tickStore";
 export { BIG_STEPS } from "./tickStore";
-export interface TickFlow { minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; error?: string; backfilling?: boolean }
+export interface TickFlow { minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; error?: string; backfilling?: boolean; syncPct?: number | null }
 
 const POLL_MS = 5_000;
 const BIG_MIN = BIG_STEPS[BIG_STEPS.length - 1];
@@ -73,7 +73,7 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
   const merged = new Map(s.minutes);
   const lastReal = s.last?.slice(0, 5);
   for (const [t, m] of fill) if (!merged.has(t) && (!lastReal || t < lastReal)) merged.set(t, m);
-  return { minutes: [...merged.values()].sort((a, b) => a.t.localeCompare(b.t)), big: s.big, gaps: s.gaps, since: s.since, last: s.last, error, backfilling };
+  return { minutes: [...merged.values()].sort((a, b) => a.t.localeCompare(b.t)), big: s.big, gaps: s.gaps, since: s.since, last: s.last, error, backfilling, syncPct: backfillPct(code) };
 }
 
 /** 최근 n분의 체결강도(매수 체결량 ÷ 매도 체결량 × 100) */

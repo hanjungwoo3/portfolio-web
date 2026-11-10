@@ -32,6 +32,13 @@ const minus1s = (hm: string) => {   // "10:16" → "101559" (그 분 직전 = �
 const nextMin = (hm: string) => { const [h, m] = hm.split(":").map(Number); const t = h * 60 + m + 1; return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`; };
 
 const running = new Set<string>();
+// 진행률 — 화면에 'sync 44%' (사용자 2026-11-10 "이전 data 를 sync 하는 중에 % 표시")
+const progress = new Map<string, { done: number; total: number }>();
+/** 채우는 중이면 0~100, 아니면 null */
+export function backfillPct(code: string): number | null {
+  const p = progress.get(code);
+  return p && p.total > 0 ? Math.min(99, Math.floor((p.done / p.total) * 100)) : null;
+}
 /** wanted = 매수·매도를 모르는 분들(1분봉에만 있는 분). 최근 분부터 거꾸로, 붙어 있는 구간마다 경계 하나씩 불러 채운다 */
 export async function backfillTickMinutes(code: string, wanted: string[], maxCalls = 240): Promise<number> {
   if (!isKisLinkOn() || running.has(code) || !wanted.length) return 0;
@@ -48,8 +55,14 @@ export async function backfillTickMinutes(code: string, wanted: string[], maxCal
       cache.set(hm, v);
       return v;
     };
+    const total = Math.min(todo.length, maxCalls);
+    progress.set(code, { done: 0, total });
+    notifyBox(code);
+    let done = 0;
     for (const t of todo) {
       if (calls >= maxCalls) break;
+      progress.set(code, { done: done++, total });
+      if (done % 3 === 0) notifyBox(code);   // 막대가 채워지는 대로 % 도
       if (s.minutes.has(t)) continue;
       const a = await at(t), b = await at(nextMin(t));
       if (!a || !b) continue;
@@ -62,6 +75,8 @@ export async function backfillTickMinutes(code: string, wanted: string[], maxCal
     }
   } finally {
     running.delete(code);
+    progress.delete(code);
+    notifyBox(code);
     if (filled) { saveBox(code); notifyBox(code); }
   }
   return filled;

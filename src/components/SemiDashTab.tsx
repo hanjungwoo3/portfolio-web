@@ -794,9 +794,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
         {onTitle
           ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
           : <span className="font-bold text-gray-800">{name} 실시간 체결</span>}
-        <span className="text-[11px] text-gray-400">{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.backfilling ? " · 빈 분 한투로 채우는 중…" : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
+        <span className="text-[11px] text-gray-400">{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
         {vis != null && <button onClick={() => { stick.current = true; setVis(null); }} title="켠 뒤 전부를 한 화면으로 되돌리기" className="text-[10.5px] text-gray-500 border border-gray-300 rounded px-1 hover:bg-gray-50">{vis}분 보기 · 전체로</button>}
-        <KisWsBadge />
+        <KisWsBadge sync={flow.syncPct} />
       </div>
       <div className="flex gap-3 tabular-nums my-1">
         <Stat label="체결강도 1분" v={st1} />
@@ -1380,12 +1380,12 @@ function ValueupStrip({ code }: { code: string }) {
 }
 
 // 체결 출처 표시 — 한국투자 웹소켓이 살아 있으면 "한투 실시간", 실패면 사유(토스 5초가 이어받는다). 앱+한투 연동일 때만(사용자 2026-11-02)
-function KisWsBadge() {
+function KisWsBadge({ sync }: { sync?: number | null }) {
   const [, setT] = useState(0);
   useEffect(() => { if (!kisWsAvailable()) return; const id = setInterval(() => setT(t => t + 1), 2_000); return () => clearInterval(id); }, []);
   if (!kisWsAvailable()) return null;
   const st = kisWsStatus();
-  if (kisWsLive()) return <span className="ml-auto text-[10px] px-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-300" title="한국투자 웹소켓 — 체결이 나는 즉시(1초마다 화면 반영)">● 한투 실시간</span>;
+  if (kisWsLive()) return <span className="ml-auto text-[10px] px-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-300" title="한국투자 웹소켓 — 체결이 나는 즉시(1초마다 화면 반영)">● 한투 실시간{sync != null && <b className="ml-1 text-indigo-700" title="창을 열기 전·닫았던 동안의 매수·매도를 한투에서 거슬러 채우는 중 — 막대가 채워지는 대로 나타납니다">sync {sync}%…</b>}</span>;
   if (st.startsWith("error")) return <span className="ml-auto text-[10px] text-amber-700 truncate max-w-[50%]" title={st}>한투 실시간 실패 — 토스 5초로 · {st.slice(7)}</span>;
-  return <span className="ml-auto text-[10px] text-gray-400">한투 연결 중…</span>;
+  return <span className="ml-auto text-[10px] text-gray-400">한투 연결 중…{sync != null && <b className="ml-1 text-indigo-700">sync {sync}%…</b>}</span>;
 }
