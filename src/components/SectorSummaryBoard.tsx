@@ -13,6 +13,8 @@ import { avgOfSyms, rotRowAvg, isOverseasTicker, useAvgMarket, usSessionLabel, t
 type RegExt = (s: string) => { reg: number; aft: number; ses?: Ses } | null;
 const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-600");
 // 이름 색 = 지금 상승률(국내/해외 단추 기준) — 3% 넘으면 진하게(사용자 2026-11-10 "현재 상승률에 맞춰서 색깔")
+// 이름 뒤 배경 — 모두 같은 폭, 색 = 지금 상승률(사용자 2026-11-10 "동일한 사이즈로 배경을 넣어 볼까")
+const nameBg = (v: number | null | undefined) => v == null ? "bg-gray-100" : v >= 3 ? "bg-rose-100" : v > 0 ? "bg-rose-50" : v <= -3 ? "bg-blue-100" : v < 0 ? "bg-blue-50" : "bg-gray-100";
 const nameTone = (v: number | null | undefined) => v == null ? "text-gray-700" : v >= 3 ? "text-rose-700" : v > 0 ? "text-rose-500" : v <= -3 ? "text-blue-700" : v < 0 ? "text-blue-500" : "text-gray-700";
 const fmt = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 
@@ -70,7 +72,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
               {/* 머리 — 업종 이름 + 해외 | 국내 두 칸(이름은 여기 한 번만). 줄마다 칸 이름 아래 왼쪽 해외 · 오른쪽 국내
                   (사용자 2026-11-10 "기판 / 해외 국내", "줄마다 해외 국내 넣지 말고 카드 상단에 하나씩만") */}
               <div className="px-2.5 pt-1.5 pb-1.5 bg-gray-50 border-b border-gray-200">
-                <button onClick={() => onOpen(s.id)} className={`block mx-auto font-bold text-[15px] ${nameTone((mkt === "US" ? ov : kr)?.avg)} hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-center`} title={`${s.short} 탭으로 — 종목 카드 보기`}>
+                <button onClick={() => onOpen(s.id)} className={`block mx-auto w-[11em] max-w-full rounded-md py-0.5 ${nameBg((mkt === "US" ? ov : kr)?.avg)} font-bold text-[15px] ${nameTone((mkt === "US" ? ov : kr)?.avg)} hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-center`} title={`${s.short} 탭으로 — 종목 카드 보기`}>
                   {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
                 </button>
                 <div className="grid grid-cols-2 gap-x-2">
@@ -91,7 +93,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
                   <div key={b.lb} className="py-1">
                     {/* 칸 이름을 누르면 그 칸 종목만 타일로(사용자 2026-11-10) */}
                     <button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => ({ sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) })) })}
-                            className={`block mx-auto max-w-full text-[12.5px] font-bold ${nameTone((mkt === "US" ? b.ov : b.kr)?.avg)} truncate hover:text-indigo-700 hover:underline text-center`}   /* 가운데(사용자 2026-11-10) */
+                            className={`block mx-auto w-[9em] max-w-full rounded py-px ${nameBg((mkt === "US" ? b.ov : b.kr)?.avg)} text-[12.5px] font-bold ${nameTone((mkt === "US" ? b.ov : b.kr)?.avg)} truncate hover:text-indigo-700 hover:underline text-center`}   /* 가운데(사용자 2026-11-10) */
                             title={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기`; })()}>{b.lb}</button>
                     <div className="grid grid-cols-2 gap-x-2">
                       {([[b.ov, ov, "US"], [b.kr, kr, "KR"]] as const).map(([v, all, m], j) => (
