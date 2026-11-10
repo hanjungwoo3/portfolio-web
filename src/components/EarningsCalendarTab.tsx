@@ -50,10 +50,13 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
     return m;
   }, [items]);
   const mine = useMemo(() => new Set(watch), [watch]);
+  // 지수·업종 카드에 올린 미국 종목도 시총과 상관없이 받는다 — 서버 수집은 시총 400억$ 이상만이라 코어위브(270억$) 같은 종목이 빠졌다
+  //   (사용자 2026-11-10 "코어위브 새벽에 실적 있을 건데"). ★(내 종목) 표시는 관심종목만
+  const scanList = useMemo(() => [...new Set([...watch, ...US_PAIRS.map(p => p.symbol).filter(s => /^[A-Z]{1,5}$/.test(s))])].sort(), [watch]);
 
   const q = useQuery({
-    queryKey: ["earnings-calendar", monday, watch.join(",")],
-    queryFn: () => fetchEarningsCalendar(monday, end, names, watch),
+    queryKey: ["earnings-calendar", monday, scanList.join(",")],
+    queryFn: () => fetchEarningsCalendar(monday, end, names, scanList),
     staleTime: 6 * 3600_000, gcTime: 6 * 3600_000, refetchOnWindowFocus: false, retry: 2,
   });
 
@@ -121,7 +124,7 @@ export function EarningsCalendarTab({ items, onOpenValuation }: {
         </button>
         <span className="text-[11px] text-gray-500">
           {q.isLoading ? "불러오는 중…" : q.isError ? "불러오기 실패 — 잠시 뒤 다시" : `${q.data?.length ?? 0}건`}
-          {" · 한국 시간 · 미국 시총 400억달러↑ · 한국 시총 3조↑ · 내 관심종목"}
+          {" · 한국 시간 · 미국 시총 400억달러↑ · 한국 시총 3조↑ · 내 관심종목 · 지수·업종 카드 종목"}
         </span>
       </div>
 
