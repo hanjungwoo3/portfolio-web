@@ -82,7 +82,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
                   </button>
                   {/* 상승·하락 종목 수 — 왼쪽 탭과 같은 기준(국내/해외 단추)(사용자 2026-11-07 "아래에 넣어도") */}
                   {(() => { const v = mkt === "US" ? ov : kr; return v && (
-                    <div className="text-[11px] tabular-nums whitespace-nowrap"><span className="text-rose-600">상승 {v.up}</span><span className="text-gray-400"> · </span><span className="text-blue-600">하락 {v.n - v.up}</span></div>
+                    <UpDnBar up={v.up} dn={v.n - v.up} w="w-16" />
                   ); })()}
                 </div>
                 {/* 정렬 기준(국내/해외 단추) 숫자만 크게(사용자 2026-11-07) */}
@@ -98,7 +98,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
                       <span className="block text-[12.5px] font-bold text-gray-600 truncate" title={b.lb}>{b.lb}</span>
                       {/* 칸도 상승·하락 수(국내/해외 단추 기준, 사용자 2026-11-07 "여기도") */}
                       {(() => { const v = mkt === "US" ? b.ov : b.kr; return v && (
-                        <span className="block text-[10.5px] tabular-nums whitespace-nowrap"><span className="text-rose-600">상승 {v.up}</span><span className="text-gray-400"> · </span><span className="text-blue-600">하락 {v.n - v.up}</span></span>
+                        <UpDnBar up={v.up} dn={v.n - v.up} w="w-12" small />
                       ); })()}
                     </span>
                     <Pair ov={b.ov} kr={b.kr} strong={mkt} />
@@ -113,5 +113,20 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
         해외 = 해외 대장주 평균(미국·일본) · 국내 = 국내 종목 평균 · 업종 이름을 누르면 그 탭(카드) · 카드 순서 = {mkt === "US" ? "해외" : "국내"} 평균 큰 순(왼쪽 국내/해외 단추)
       </div>
     </div>
+  );
+}
+
+// 상승·하락 종목 수 막대 — 지수 카드 위 시장 폭 막대와 같은 꼴(▲N ━━ ▼M, 사용자 2026-11-10 "여기 상승/하락도 막대 그래프로")
+function UpDnBar({ up, dn, w, small = false }: { up: number; dn: number; w: string; small?: boolean }) {
+  const tot = Math.max(1, up + dn);
+  return (
+    <span className={`flex items-center gap-1 tabular-nums font-bold whitespace-nowrap ${small ? "text-[10.5px]" : "text-[11px]"}`} title={`상승 ${up} · 하락(보합 포함) ${dn}`}>
+      <span className="text-rose-600">▲{up}</span>
+      <span className={`inline-flex ${w} h-1.5 rounded-full overflow-hidden bg-gray-200`}>
+        <span className="bg-rose-500" style={{ width: `${(up / tot) * 100}%` }} />
+        <span className="bg-blue-500" style={{ width: `${(dn / tot) * 100}%` }} />
+      </span>
+      <span className="text-blue-600">▼{dn}</span>
+    </span>
   );
 }
