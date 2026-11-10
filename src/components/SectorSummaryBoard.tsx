@@ -26,7 +26,7 @@ function Val({ label, v, strong, big, dim }: { label: string; v: RowAvg | null; 
           title={v ? `${label} — 정규장 ${fmt(v.avg)}${v.aft != null ? ` · ${v.ses ?? "장외"} ${fmt(v.aft)}(정규장 종가 대비)` : ""} · ▲${v.up}·▼${v.n - v.up}` : undefined}>
       {!v ? <span className="text-gray-300 text-[12px]">—</span> : (
         <>
-          <b className={`${tone(v.avg)} ${big ? "text-[19px] leading-[22px]" : strong ? "text-[13px]" : "text-[12.5px]"}`}>{fmt(v.avg)}</b>
+          <b className={`${tone(v.avg)} ${big ? "text-[19px] leading-[22px]" : strong ? "text-[15px] leading-[19px]" : "text-[12.5px]"}`}>   {/* 고른 쪽 줄 숫자 크게(사용자 2026-11-10) */}{fmt(v.avg)}</b>
           {v.aft != null && (
             <span className={`text-[10px] font-bold text-white px-1 rounded leading-[14px] ${v.aft > 0 ? "bg-rose-600/60" : v.aft < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`}>
               {v.aft > 0 ? "+" : v.aft < 0 ? "−" : ""}{Math.abs(v.aft).toFixed(2)}%
@@ -92,13 +92,13 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
                 {boxes.map(b => (
                   <div key={b.lb} className="py-1">
                     {/* 칸 이름을 누르면 그 칸 종목만 타일로(사용자 2026-11-10) */}
-                    <button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => ({ sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) })) })}
+                    <button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => { const e = regExtOf(x); return { sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x), reg: e?.reg ?? null, aft: e && Math.abs(e.aft) >= 0.005 ? e.aft : null, ses: e?.ses }; }) })}
                             className={`block mx-auto w-[9em] max-w-full rounded py-px ${nameBg((mkt === "US" ? b.ov : b.kr)?.avg)} text-[12.5px] font-bold ${nameTone((mkt === "US" ? b.ov : b.kr)?.avg)} truncate hover:text-indigo-700 hover:underline text-center`}   /* 가운데(사용자 2026-11-10) */
                             title={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기`; })()}>{b.lb}</button>
                     <div className="grid grid-cols-2 gap-x-2">
                       {([[b.ov, ov, "US"], [b.kr, kr, "KR"]] as const).map(([v, all, m], j) => (
                         <div key={j} className={`min-w-0 flex items-center justify-between gap-1 ${m === "US" ? "pr-2 border-r border-gray-300 bg-violet-50/50 -my-0.5 py-0.5 pl-1 rounded-l" : ""} ${mkt !== m ? "opacity-45" : ""}`}>
-                          {v && v.n > 0 ? <UpDnBar up={v.up} dn={v.n - v.up} small scale={all && all.n > 0 ? v.n / all.n : 1} max={60} /> : <span className="text-[10px] text-gray-300">—</span>}
+                          {v && v.n > 0 ? <UpDnBar up={v.up} dn={v.n - v.up} small={mkt !== m} scale={all && all.n > 0 ? v.n / all.n : 1} max={60} /> : <span className="text-[10px] text-gray-300">—</span>}
                           <Val label={m === "US" ? "해외" : "국내"} v={v} strong={mkt === m} />
                         </div>
                       ))}
@@ -122,7 +122,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
 function UpDnBar({ up, dn, scale, small = false, max = 80 }: { up: number; dn: number; scale: number; small?: boolean; max?: number }) {
   const tot = Math.max(1, up + dn);
   return (
-    <span className={`flex items-center gap-1 tabular-nums font-bold whitespace-nowrap ${small ? "text-[10.5px]" : "text-[11px]"}`} title={`상승 ${up} · 하락(보합 포함) ${dn}`}>
+    <span className={`flex items-center gap-1 tabular-nums font-bold whitespace-nowrap ${small ? "text-[10.5px]" : "text-[12.5px]"}`} title={`상승 ${up} · 하락(보합 포함) ${dn}`}>
       {/* 0 은 안 쓴다, ▼ 는 막대 바로 뒤에(사용자 2026-11-10) */}
       {/* ▲ 칸 폭 고정 — 한 자리·두 자리 숫자여도 막대 시작이 같은 줄에(사용자 2026-11-10 "두 자리 숫자 때문에 줄이 안 맞아") */}
       <span className="inline-block w-[2.2em] text-rose-600">{up > 0 ? `▲${up}` : ""}</span>

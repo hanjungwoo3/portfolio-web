@@ -27,7 +27,10 @@ function TilePopup({ req, onClose }: { req: TilePopupReq; onClose: () => void })
     const k = krCode(i.sym), u = usSym(i.sym), code = k ?? u ?? i.sym;
     const p = k ? krBy.get(k) : u ? usBy.get(u) : undefined;
     const tv = tvQ.data?.get(code);
-    return { code, name: i.name, kr: !!k, lead: !k, pct: p ? (dayChangePct(p) ?? i.pct ?? null) : (i.pct ?? null), price: p?.price ?? null, cap: tv ? (tv.marketCap || tv.aum) : undefined, logoid: tv?.logoid };
+    // 정규장·장외를 업종 표가 넘겨줬으면 그것(카드 배지와 같은 꼴), 아니면 지금 시세
+    const hasReg = i.reg != null;
+    return { code, name: i.name, kr: !!k, lead: !k, ext: hasReg ? (i.aft ?? null) : null, extLabel: i.ses,
+             pct: hasReg ? i.reg! : p ? (dayChangePct(p) ?? i.pct ?? null) : (i.pct ?? null), price: p?.price ?? null, cap: tv ? (tv.marketCap || tv.aum) : undefined, logoid: tv?.logoid };
   });
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/40 sm:p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>

@@ -14,6 +14,8 @@ export interface Tile {
   cap?: number;                // 시총(국내 원 · 해외 달러)
   logoid?: string;             // TradingView 로고
   dim?: boolean;               // 흐림(장 안 열림·체결 멈춤)
+  ext?: number | null;         // 정규장 뒤(프리·애프터·NXT) 정규장 종가 대비 % — 있으면 등락률 아래 꼬리표
+  extLabel?: string;           // 그 구간 이름(애프터·프리·데이…)
   lead?: boolean;              // 해외 대장주 — 따로 묶고 보라 테두리(업종 카드와 같은 표시, 사용자 2026-11-10 "해외는 별도로, 테두리")
 }
 
@@ -80,6 +82,13 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
             {pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}
           </span>
         </div>
+        {t.ext != null && (
+          <div className="flex justify-end -mt-0.5" title={`${t.extLabel ?? "장외"} ${t.ext > 0 ? "+" : ""}${t.ext.toFixed(2)}% — 정규장 종가 대비`}>
+            <span className={`text-[10px] font-bold text-white px-1 rounded leading-[14px] ${t.ext > 0 ? "bg-rose-600/60" : t.ext < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`}>
+              {t.extLabel ? `${t.extLabel} ` : ""}{t.ext > 0 ? "+" : t.ext < 0 ? "−" : ""}{Math.abs(t.ext).toFixed(2)}%
+            </span>
+          </div>
+        )}
         <div className="flex items-baseline justify-between text-[10.5px] text-gray-500 tabular-nums">
           <span>{t.price == null || !(t.price > 0) ? "" : t.kr ? t.price.toLocaleString() : `$${t.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</span>
           <span>{capText(t.cap, t.kr)}</span>
