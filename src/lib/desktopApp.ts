@@ -24,3 +24,11 @@ export async function checkDesktopUpdate(): Promise<DesktopUpdate | null> {
 export function installDesktopUpdate(): Promise<void> {
   return invoke<void>("app_update_install");
 }
+
+// 지금 깔린 데스크톱 앱 버전 — 헤더·설정에 표시(사용자 2026-11-10 "현재 앱이 몇인지 어디 나와? — 표시하자"). 한 번만 묻는다
+let verPromise: Promise<DesktopUpdate | null> | null = null;
+export function desktopAppInfo(): Promise<DesktopUpdate | null> {
+  if (!isDesktopApp()) return Promise.resolve(null);
+  verPromise ??= checkDesktopUpdate();
+  return verPromise;
+}

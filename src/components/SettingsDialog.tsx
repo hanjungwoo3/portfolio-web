@@ -1,4 +1,5 @@
 import { DriveRestorePanel } from "./DriveRestorePanel";
+import { DesktopVersionBadge } from "./DesktopVersionBadge";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
 import { BrokerLinkSection } from "./BrokerLinkSection";
 import { KisLinkSection } from "./KisLinkSection";
@@ -756,7 +757,7 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
               {/* 데스크톱 앱 — 확장도 프록시도 없이(앱이 직접 받는다). 파일은 고정 릴리스 'apps'(이름 고정) */}
               {!isDesktopApp() && (
                 <div className="mt-1 pt-1 border-t border-emerald-200">
-                  <b>🖥️ 데스크톱 앱</b> — 확장 설치 없이 앱이 시세를 직접 받습니다.&nbsp;
+                  <b>🖥️ 데스크톱 앱</b> <DesktopVersionBadge /> — 확장 설치 없이 앱이 시세를 직접 받습니다.&nbsp;
                   <a href={`${APPS_RELEASE}/portfolio-mac.zip`} className="text-blue-600 underline">맥</a>{" · "}
                   <a href={`${APPS_RELEASE}/portfolio-setup.exe`} className="text-blue-600 underline">윈도우 설치판</a>{" · "}
                   <a href={`${APPS_RELEASE}/portfolio.exe`} className="text-blue-600 underline">윈도우 실행형</a>

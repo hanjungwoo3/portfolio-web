@@ -24,6 +24,7 @@ import { SeohakPage } from "./components/SeohakBox";
 import { HotNowTab } from "./components/HotNowTab";
 import { CompareHost } from "./components/CompareHost";
 import { TilePopupHost } from "./components/TilePopup";
+import { DesktopVersionBadge } from "./components/DesktopVersionBadge";
 import { startBackgroundTicks } from "./lib/tickStore";
 import { AccumTab } from "./components/AccumTab";
 import { defaultDashboardPage, INDEX_GROUP_KEYS, indexPageOf } from "./lib/dashboardGroups";
@@ -844,6 +845,7 @@ function Dashboard() {
           <ProxyStatusBadge baseRefreshMs={BASE_REFRESH_MS}
                             usePersonalProxy={usePersonalProxy}
                             onOpenSettings={() => setSettingsOpen(true)} />
+          <DesktopVersionBadge />
           <PreviewSwitch />   {/* 🧪 미리보기 — 배포 전 수정이 올라가 있을 때만(사용자 2026-11-04) */}
           <div className="flex items-center gap-3 ml-auto">
             <button
