@@ -72,9 +72,12 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
               {/* 머리 — 업종 이름 + 해외 | 국내 두 칸(이름은 여기 한 번만). 줄마다 칸 이름 아래 왼쪽 해외 · 오른쪽 국내
                   (사용자 2026-11-10 "기판 / 해외 국내", "줄마다 해외 국내 넣지 말고 카드 상단에 하나씩만") */}
               <div className="px-2.5 pt-1.5 pb-1.5 bg-gray-50 border-b border-gray-200">
-                <button onClick={() => onOpen(s.id)} className={`block mx-auto w-[11em] max-w-full rounded-md py-0.5 ${nameBg((mkt === "US" ? ov : kr)?.avg)} font-bold text-[15px] ${nameTone((mkt === "US" ? ov : kr)?.avg)} hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-center`} title={`${s.short} 탭으로 — 종목 카드 보기`}>
+                {/* 제목 자리 — 고른 쪽(해외면 왼쪽 반, 국내면 오른쪽 반) 가운데(사용자 2026-11-10) */}
+                <div className="grid grid-cols-2 gap-x-2"><div className={mkt === "US" ? "col-start-1" : "col-start-2"}>
+                <button onClick={() => onOpen(s.id)} className={`block mx-auto w-full max-w-full rounded-md py-0.5 ${nameBg((mkt === "US" ? ov : kr)?.avg)} font-bold text-[15px] ${nameTone((mkt === "US" ? ov : kr)?.avg)} hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-center`} title={`${s.short} 탭으로 — 종목 카드 보기`}>
                   {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
                 </button>
+                </div></div>
                 <div className="grid grid-cols-2 gap-x-2">
                   {([["해외", ov, "US"], ["국내", kr, "KR"]] as const).map(([lb, all, m]) => (
                     <div key={lb} className={`min-w-0 ${m === "US" ? "pr-2 border-r border-gray-300" : ""} ${mkt !== m ? "opacity-45" : ""}`}>   {/* 왼쪽·오른쪽 구분선(사용자 2026-11-10) */}
@@ -92,9 +95,11 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
                 {boxes.map(b => (
                   <div key={b.lb} className="py-1">
                     {/* 칸 이름을 누르면 그 칸 종목만 타일로(사용자 2026-11-10) */}
+<div className="grid grid-cols-2 gap-x-2"><div className={mkt === "US" ? "col-start-1" : "col-start-2"}>
                     <button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => { const e = regExtOf(x); return { sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x), reg: e?.reg ?? null, aft: e && Math.abs(e.aft) >= 0.005 ? e.aft : null, ses: e?.ses }; }) })}
-                            className={`block mx-auto w-[9em] max-w-full rounded py-px ${nameBg((mkt === "US" ? b.ov : b.kr)?.avg)} text-[12.5px] font-bold ${nameTone((mkt === "US" ? b.ov : b.kr)?.avg)} truncate hover:text-indigo-700 hover:underline text-center`}   /* 가운데(사용자 2026-11-10) */
+                            className={`block mx-auto w-full max-w-full rounded py-px ${nameBg((mkt === "US" ? b.ov : b.kr)?.avg)} text-[12.5px] font-bold ${nameTone((mkt === "US" ? b.ov : b.kr)?.avg)} truncate hover:text-indigo-700 hover:underline text-center`}   /* 가운데(사용자 2026-11-10) */
                             title={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기`; })()}>{b.lb}</button>
+                    </div></div>
                     <div className="grid grid-cols-2 gap-x-2">
                       {([[b.ov, ov, "US"], [b.kr, kr, "KR"]] as const).map(([v, all, m], j) => (
                         <div key={j} className={`min-w-0 flex items-center justify-between gap-1 ${m === "US" ? "pr-2 border-r border-gray-300 bg-violet-50/50 -my-0.5 py-0.5 pl-1 rounded-l" : ""} ${mkt !== m ? "opacity-45" : ""}`}>
