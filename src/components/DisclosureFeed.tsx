@@ -29,7 +29,8 @@ function byStock(rows: Row[]): { key: string; code?: string; name: string; group
   return [...m.values()];
 }
 
-export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[]; onSelectGroup?: (g: string) => void }) {
+// onSelectGroup — 그룹 단추를 뺀 뒤로 안 쓴다(부르는 쪽 호환으로 남김, 사용자 2026-11-10)
+export function DisclosureFeed({ items }: { items: ConsensusItem[]; onSelectGroup?: (g: string) => void }) {
   const today = kstToday();
   const [day, setDay] = useState(today);   // 기본 = 오늘(사용자 요청 2026-10-28)
   const isToday = day === today;
@@ -159,17 +160,7 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
                                    t={{ code: st.code, name: st.name, kr: true, pct: px?.pct ?? null, price: px?.price ?? null, cap: t ? (t.marketCap || t.aum) : undefined, logoid: t?.logoid }} />; })()
                 : <div className="w-[132px] sm:w-[176px] shrink-0 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-[13px] font-bold text-gray-700 truncate">{st.name}</div>}
               <div className="min-w-0 flex-1">
-                <div className="flex items-baseline gap-1 min-w-0 mb-0.5">
-                  <span className="text-[10px] text-gray-400 shrink-0">{st.rows.length}건</span>
-                  {st.groups.length > 0 && onSelectGroup && (
-                    <div className="ml-auto flex gap-0.5 min-w-0 overflow-hidden">
-                      {st.groups.slice(0, 3).map(g => (
-                        <button key={g} type="button" onClick={() => onSelectGroup(g)}
-                                className="shrink-0 px-1 rounded bg-gray-100 text-gray-500 hover:bg-gray-200 text-[9.5px]">{g}</button>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                {/* 'N건' 줄·그룹 단추는 뺐다 — 위 한 칸이 비어 보였다(사용자 2026-11-10 "그룹 표시 없어도 돼") */}
                 {st.rows.map(r => {
                   const isNew = isNewRow(r);
                   return (
