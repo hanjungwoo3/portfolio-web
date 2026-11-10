@@ -82,7 +82,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
                   </button>
                   {/* 상승·하락 종목 수 — 왼쪽 탭과 같은 기준(국내/해외 단추)(사용자 2026-11-07 "아래에 넣어도") */}
                   {(() => { const v = mkt === "US" ? ov : kr; return v && (
-                    <UpDnBar up={v.up} dn={v.n - v.up} w="w-16" />
+                    <UpDnBar up={v.up} dn={v.n - v.up} scale={1} />
                   ); })()}
                 </div>
                 {/* 정렬 기준(국내/해외 단추) 숫자만 크게(사용자 2026-11-07) */}
@@ -98,7 +98,8 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
                       <span className="block text-[12.5px] font-bold text-gray-600 truncate" title={b.lb}>{b.lb}</span>
                       {/* 칸도 상승·하락 수(국내/해외 단추 기준, 사용자 2026-11-07 "여기도") */}
                       {(() => { const v = mkt === "US" ? b.ov : b.kr; return v && (
-                        <UpDnBar up={v.up} dn={v.n - v.up} w="w-12" small />
+                        <UpDnBar up={v.up} dn={v.n - v.up} small
+                                 scale={(() => { const all = mkt === "US" ? ov : kr; return all && all.n > 0 ? v.n / all.n : 1; })()} />
                       ); })()}
                     </span>
                     <Pair ov={b.ov} kr={b.kr} strong={mkt} />
@@ -117,14 +118,17 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
 }
 
 // 상승·하락 종목 수 막대 — 지수 카드 위 시장 폭 막대와 같은 꼴(▲N ━━ ▼M, 사용자 2026-11-10 "여기 상승/하락도 막대 그래프로")
-function UpDnBar({ up, dn, w, small = false }: { up: number; dn: number; w: string; small?: boolean }) {
+//   길이 = 업종 전체를 100% 로 놓고 그 안 종목 수 비율(사용자 2026-11-10 "소부장 78 이 100% 크기") — 제목·칸 줄 최대 길이 같게
+function UpDnBar({ up, dn, scale, small = false }: { up: number; dn: number; scale: number; small?: boolean }) {
   const tot = Math.max(1, up + dn);
   return (
     <span className={`flex items-center gap-1 tabular-nums font-bold whitespace-nowrap ${small ? "text-[10.5px]" : "text-[11px]"}`} title={`상승 ${up} · 하락(보합 포함) ${dn}`}>
       <span className="text-rose-600">▲{up}</span>
-      <span className={`inline-flex ${w} h-1.5 rounded-full overflow-hidden bg-gray-200`}>
-        <span className="bg-rose-500" style={{ width: `${(up / tot) * 100}%` }} />
-        <span className="bg-blue-500" style={{ width: `${(dn / tot) * 100}%` }} />
+      <span className="inline-flex w-20 h-1.5">
+        <span className="inline-flex h-full rounded-full overflow-hidden bg-gray-200" style={{ width: `${Math.max(6, Math.min(1, scale) * 100)}%` }}>
+          <span className="bg-rose-500" style={{ width: `${(up / tot) * 100}%` }} />
+          <span className="bg-blue-500" style={{ width: `${(dn / tot) * 100}%` }} />
+        </span>
       </span>
       <span className="text-blue-600">▼{dn}</span>
     </span>
