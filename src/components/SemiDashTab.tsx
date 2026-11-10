@@ -210,7 +210,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   const openIndex = weekday && mm >= 9 * 60 && mm < 15 * 60 + 30;         // 코스피·코스닥·V-KOSPI — 정규장
   // 수급 칸(현물·선물) — 15:30 에 같이 흐림(사용자 요청 2026-10-22). 현물 수급은 NXT 프리장(08:00~) 결과를 보여 주므로 08:00 부터.
   //   선물 정규장은 15:45 까지지만 칸은 현물과 맞춰 15:30 에 흐린다(사용자 결정)
-  const openFlow = weekday && mm >= 8 * 60 && mm < 15 * 60 + 30;
+  //   → 장 마감 뒤에도 흐리지 않는다(사용자 2026-11-10 "현물/선물 부분은 흐림 처리 안 되게") — 오늘 자료가 아닐 때(주말·휴장)만 흐림
   const openFut = weekday && mm >= 8 * 60 + 45 && mm < 15 * 60 + 45;      // 주간 선물 08:45~15:45
   const openNight = night && (mm >= 18 * 60 ? weekday : (wd >= 2 && wd <= 6));   // 야간 — 월~금 저녁에 열려 다음 날 새벽까지
   const nightQs = useQueries({
@@ -537,10 +537,10 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1.1fr] gap-1.5 lg:auto-rows-[minmax(400px,auto)] shrink-0">   {/* 최소 400 — 투자자를 많이 켜면 막대 줄만큼 늘어난다(고정 400 이면 아래 줄 위로 넘쳤다, 사용자 지적) */}
         {/* 코스피·코스닥 현물을 나란히(전환 버튼 없이 바로 — 사용자 요청) */}
-        <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!(kfToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgBase={q("^KS11")?.prevClose} />
-        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!(ffToday && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines}
+        <FlowBox title="현물 · 코스피" note="1분" axis={flowAxis} flow={kf} unit="억" preFlow={kospiNxt} dim={!kfToday} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} bgBase={q("^KS11")?.prevClose} />
+        <FlowBox title="선물 · 코스피200" axis={flowAxis} note="20분 지연(코스닥150 선물 수급은 소스 없음)" flow={ff} unit="계약" dim={!ffToday} hoverM={flowHover} onHover={setFlowHover} lines={flowLines}
                  bg={futToday} bgBase={fut ? fut.price - fut.chg : undefined} endHM="15:45" />
-        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={!(kqFlow?.date === todayIso && openFlow)} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgBase={q("^KQ11")?.prevClose} />
+        <FlowBox title="현물 · 코스닥" note="1분" axis={flowAxis} flow={kqFlow} unit="억" preFlow={kosdaqNxt} dim={kqFlow?.date !== todayIso} hoverM={flowHover} onHover={setFlowHover} lines={flowLines} bg={kqToday?.points.map(p => ({ t: p.t, v: p.c }))} bgBase={q("^KQ11")?.prevClose} />
         {/* 옵션·종목 수급은 한 칸에 세로로 — 남는 폭을 수급 그래프 세 칸에(사용자 요청 2026-10-23) */}
         <div className="grid grid-rows-[auto_1fr] gap-1.5 min-h-0">   {/* 위 = 옵션, 아래 = 시장 공통 신호(사용자 2026-11-04) */}
         {/* 종목 수급 표는 뺐다(사용자 2026-11-04 "삭제") */}
