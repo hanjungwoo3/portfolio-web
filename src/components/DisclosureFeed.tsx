@@ -4,9 +4,9 @@
 //   회사명 → 종목코드는 크롤러의 KIND 상장사 표(없으면 보유 종목 이름으로 맞춤). 검색·그룹·종류·'중요만'(lib/disclosureFilter).
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchTossPrices } from "../lib/api";
+import { fetchTossPrices, fetchHeatmapForTickers } from "../lib/api";
 import { fetchDartDayPreferServer, fetchDartCounts, fetchDartBody, loadListedCorps, normCorp, type DartRow } from "../lib/dartDisclosures";
-import { QuoteCard } from "./QuoteCard";
+import { TileCard } from "./HeatTiles";
 import { classifyDisclosure, DISC_CATS, DISC_CAT_TONE, DEFAULT_DISC_CATS, loadDiscCats, saveDiscCats, type DiscCat } from "../lib/disclosureFilter";
 import { openGoogleAiLater, discAiQuery } from "../lib/googleAi";
 import type { ConsensusItem } from "./ConsensusTab";
@@ -83,6 +83,8 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
     queryKey: ["disc-feed-px", shownCodes.join(",")], queryFn: () => fetchTossPrices(shownCodes),
     enabled: shownCodes.length > 0, refetchInterval: 30_000, staleTime: 15_000,
   });
+  // 타일의 로고·시총 — 히트맵과 같은 조회(TradingView 1콜)
+  const { data: tv } = useQuery({ queryKey: ["holdings-heat-tv", shownCodes.join(",")], queryFn: () => fetchHeatmapForTickers(shownCodes), enabled: shownCodes.length > 0, staleTime: 5 * 60_000, retry: 1 });
   const pxOf = (code?: string) => {
     const t = code ? pxList?.find(p => p.ticker === code) : undefined;
     return t && t.prevClose > 0 ? { price: t.price, pct: ((t.price - t.prevClose) / t.prevClose) * 100 } : undefined;
@@ -151,7 +153,10 @@ export function DisclosureFeed({ items, onSelectGroup }: { items: ConsensusItem[
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-2 items-start">
           {stocks.map(st => (
             <div key={st.key} className="pg-card rounded-lg border border-gray-200 bg-white p-1.5 flex gap-2">
-              {st.code ? <QuoteCard code={st.code} name={st.name} px={pxOf(st.code)} />
+              {/* 왼쪽 = 타일 한 장(히트맵 타일과 같은 모양, 사용자 2026-11-10 "여기도 종목 카드 말고 타일로") */}
+              {st.code ? (() => { const px = pxOf(st.code); const t = tv?.get(st.code);
+                  return <TileCard className="w-[132px] sm:w-[160px] shrink-0 self-start"
+                                   t={{ code: st.code, name: st.name, kr: true, pct: px?.pct ?? null, price: px?.price ?? null, cap: t ? (t.marketCap || t.aum) : undefined, logoid: t?.logoid }} />; })()
                 : <div className="w-[132px] sm:w-[176px] shrink-0 rounded-lg border border-gray-200 bg-gray-50 px-2 py-1 text-[13px] font-bold text-gray-700 truncate">{st.name}</div>}
               <div className="min-w-0 flex-1">
                 <div className="flex items-baseline gap-1 min-w-0 mb-0.5">

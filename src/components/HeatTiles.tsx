@@ -68,34 +68,8 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
     );
   };
   const open = onOpen ?? ((t: Tile) => (t.kr ? openStockInfo(t.code, t.name) : openTossStock(t.code)));
-  const tile = (t: Tile) => {
-    const pct = t.pct;
-    const bg = pct == null ? "bg-gray-50 border-gray-200" : pct >= 3 ? "bg-rose-100 border-rose-300" : pct > 0 ? "bg-rose-50 border-rose-200" : pct <= -3 ? "bg-blue-100 border-blue-300" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
-    return (
-      <button key={t.code} type="button" title={`${t.name}${pct != null ? ` ${pct > 0 ? "+" : ""}${pct.toFixed(2)}%` : ""} · 누르면 ${t.kr ? "종목정보" : "토스"}`}
-              onClick={() => open(t)}
-              className={`pg-card text-left rounded-md border px-1.5 py-1 hover:brightness-95 ${bg} ${t.lead ? "ring-2 ring-violet-400 ring-inset" : ""} ${t.dim ? "opacity-50" : ""}`}>
-        <div className="flex items-center gap-1 min-w-0">
-          {t.logoid && <img src={heatmapLogoUrl(t.logoid)} alt="" loading="lazy" className="w-4 h-4 rounded-full bg-white object-contain shrink-0" />}
-          <b className="truncate text-[12px] text-gray-900">{t.name}</b>
-          <span className={`ml-auto shrink-0 text-[12px] font-bold tabular-nums ${pct == null ? "text-gray-300" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-500"}`}>
-            {pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}
-          </span>
-        </div>
-        {t.ext != null && (
-          <div className="flex justify-end -mt-0.5" title={`${t.extLabel ?? "장외"} ${t.ext > 0 ? "+" : ""}${t.ext.toFixed(2)}% — 정규장 종가 대비`}>
-            <span className={`text-[10px] font-bold text-white px-1 rounded leading-[14px] ${t.ext > 0 ? "bg-rose-600/60" : t.ext < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`}>
-              {t.extLabel ? `${t.extLabel} ` : ""}{t.ext > 0 ? "+" : t.ext < 0 ? "−" : ""}{Math.abs(t.ext).toFixed(2)}%
-            </span>
-          </div>
-        )}
-        <div className="flex items-baseline justify-between text-[10.5px] text-gray-500 tabular-nums">
-          <span>{t.price == null || !(t.price > 0) ? "" : t.kr ? t.price.toLocaleString() : `$${t.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</span>
-          <span>{capText(t.cap, t.kr)}</span>
-        </div>
-      </button>
-    );
-  };
+  const tile = (t: Tile) => <TileCard key={t.code} t={t} onOpen={open} />;
+
   return (
     <div>
       {(!hasLead || !outer) && (
@@ -122,3 +96,35 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
     </div>
   );
 }
+
+/** 타일 한 장 — 판(HeatTiles) 밖에서도 같은 모양으로(최신공시 왼쪽 등, 사용자 2026-11-10 "여기도 종목 카드 말고 타일로") */
+export function TileCard({ t, onOpen, className = "" }: { t: Tile; onOpen?: (t: Tile) => void; className?: string }) {
+  const open = onOpen ?? ((x: Tile) => (x.kr ? openStockInfo(x.code, x.name) : openTossStock(x.code)));
+
+    const pct = t.pct;
+    const bg = pct == null ? "bg-gray-50 border-gray-200" : pct >= 3 ? "bg-rose-100 border-rose-300" : pct > 0 ? "bg-rose-50 border-rose-200" : pct <= -3 ? "bg-blue-100 border-blue-300" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
+    return (
+      <button type="button" title={`${t.name}${pct != null ? ` ${pct > 0 ? "+" : ""}${pct.toFixed(2)}%` : ""} · 누르면 ${t.kr ? "종목정보" : "토스"}`}
+              onClick={() => open(t)}
+              className={`${className} pg-card text-left rounded-md border px-1.5 py-1 hover:brightness-95 ${bg} ${t.lead ? "ring-2 ring-violet-400 ring-inset" : ""} ${t.dim ? "opacity-50" : ""}`}>
+        <div className="flex items-center gap-1 min-w-0">
+          {t.logoid && <img src={heatmapLogoUrl(t.logoid)} alt="" loading="lazy" className="w-4 h-4 rounded-full bg-white object-contain shrink-0" />}
+          <b className="truncate text-[12px] text-gray-900">{t.name}</b>
+          <span className={`ml-auto shrink-0 text-[12px] font-bold tabular-nums ${pct == null ? "text-gray-300" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-500"}`}>
+            {pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}
+          </span>
+        </div>
+        {t.ext != null && (
+          <div className="flex justify-end -mt-0.5" title={`${t.extLabel ?? "장외"} ${t.ext > 0 ? "+" : ""}${t.ext.toFixed(2)}% — 정규장 종가 대비`}>
+            <span className={`text-[10px] font-bold text-white px-1 rounded leading-[14px] ${t.ext > 0 ? "bg-rose-600/60" : t.ext < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`}>
+              {t.extLabel ? `${t.extLabel} ` : ""}{t.ext > 0 ? "+" : t.ext < 0 ? "−" : ""}{Math.abs(t.ext).toFixed(2)}%
+            </span>
+          </div>
+        )}
+        <div className="flex items-baseline justify-between text-[10.5px] text-gray-500 tabular-nums">
+          <span>{t.price == null || !(t.price > 0) ? "" : t.kr ? t.price.toLocaleString() : `$${t.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</span>
+          <span>{capText(t.cap, t.kr)}</span>
+        </div>
+      </button>
+    );
+  }
