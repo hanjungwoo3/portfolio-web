@@ -21,6 +21,9 @@ const TR_ID_PAPER: &str = "H0STCNT0";
 // 호가 — 키가 'Q'+종목코드면 실시간 호가(실전 H0UNASP0 통합 · 모의 H0STASP0)(사용자 2026-11-09 "호가도 소켓으로")
 const ASP_REAL: &str = "H0UNASP0";
 const ASP_PAPER: &str = "H0STASP0";
+// 거래원(회원사) — 키가 'M'+종목코드면 실시간 회원사(실전 H0UNMBC0 통합 · 모의 H0STMBC0)(사용자 2026-11-10 "거래원 정보도 한투 api — 바로 2번")
+const MBC_REAL: &str = "H0UNMBC0";
+const MBC_PAPER: &str = "H0STMBC0";
 const MAX_CODES: usize = 20;
 const MAX_BUF: usize = 5000;
 const IDLE: Duration = Duration::from_secs(30);
@@ -46,8 +49,11 @@ pub struct WsPoll {
 fn sub_msg(key: &str, code: &str, on: bool, paper: bool) -> String {
     serde_json::json!({
         "header": { "approval_key": key, "custtype": "P", "tr_type": if on { "1" } else { "2" }, "content-type": "utf-8" },
-        "body": { "input": { "tr_id": match (code.starts_with('Q'), paper) { (true, true) => ASP_PAPER, (true, false) => ASP_REAL, (false, true) => TR_ID_PAPER, (false, false) => TR_ID_REAL },
-                             "tr_key": code.trim_start_matches('Q') } }
+        "body": { "input": { "tr_id": match (code.chars().next(), paper) {
+                                 (Some('Q'), true) => ASP_PAPER, (Some('Q'), false) => ASP_REAL,
+                                 (Some('M'), true) => MBC_PAPER, (Some('M'), false) => MBC_REAL,
+                                 (_, true) => TR_ID_PAPER, (_, false) => TR_ID_REAL },
+                             "tr_key": code.trim_start_matches(['Q', 'M']) } }
     }).to_string()
 }
 
@@ -59,7 +65,7 @@ pub async fn kis_ws_poll(
     codes: Vec<String>,
 ) -> Result<WsPoll, String> {
     let codes: HashSet<String> = codes.into_iter()
-        .filter(|c| { let k = c.strip_prefix('Q').unwrap_or(c); k.len() == 6 && k.chars().all(|ch| ch.is_ascii_alphanumeric()) })
+        .filter(|c| { let k = c.strip_prefix('Q').or_else(|| c.strip_prefix('M')).unwrap_or(c); k.len() == 6 && k.chars().all(|ch| ch.is_ascii_alphanumeric()) })
         .take(MAX_CODES).collect();
     let start = {
         let mut s = ws.inner.lock().map_err(|_| "lock")?;

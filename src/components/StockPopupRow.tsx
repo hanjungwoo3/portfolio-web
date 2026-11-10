@@ -2,6 +2,7 @@
 //   호가 / 거래원(증권사·외국계) / 프로그램+투자자 오늘·5일 / 새 소식(뉴스+공시) / 토스·네이버 커뮤니티
 //   + useStockLiveSignals: 위 칸들의 숫자로 '지금 신호' 줄을 만든다(쿼리키가 같아 추가 호출 없음).
 //   팝업이 열려 있을 때만 받는다(= 이 칸들이 마운트된 동안). 호가 3초 · 거래원·프로그램 30초 · 뉴스·공시 1분.
+import { memberFlow, onMemberFlow, watchMembers, memberFlowAvailable } from "../lib/memberFlow";
 import { fetchKisInvestorEstimate, kisFutAvailable } from "../lib/kisFutures";
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
@@ -234,6 +235,7 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
           </div>
           <div className="flex justify-between text-gray-600"><span>매수 <b className="text-rose-700">{eokWon(br.foreign.bidVal)}</b></span><span>매도 <b className="text-blue-700">{eokWon(br.foreign.askVal)}</b></span></div>
         </div>
+        <MemberTicks code={code} />
         <div className="pt-1 text-[10.5px] text-gray-400 leading-snug">창구 = 주문을 낸 증권사. 외국계 창구가 곧 외국인은 아니지만, 장 마감 뒤 나오는 외국인 순매수를 장중에 가장 빨리 짐작하는 수치.</div>
       </>)}
     </div>
@@ -413,6 +415,51 @@ export function CommunityPane({ code, kind }: { code: string; kind: "toss" | "na
   return (
     <div className="pg-card rounded-lg min-h-0 min-w-0 [&>div]:h-full">
       {kind === "toss" ? <TossPane ticker={code} refreshTs={refreshTs} /> : <NaverPane ticker={code} refreshTs={refreshTs} />}
+    </div>
+  );
+}
+
+// ── 거래원 순간 매매(한투 실시간 거래원, 앱 + 한국투자만) — HTS [0127] 거래원 순간거래량처럼 "몇 시, 어느 창구가 몇 주"(사용자 2026-11-10)
+function MemberTicks({ code }: { code: string }) {
+  const [, setV] = useState(0);
+  const [onlyForeign, setOnlyForeign] = useState(true);
+  useEffect(() => {
+    if (!memberFlowAvailable()) return;
+    const off = onMemberFlow(code, () => setV(v => v + 1));
+    const unsub = watchMembers(code);
+    return () => { off(); unsub(); };
+  }, [code]);
+  if (!memberFlowAvailable()) return null;
+  const mf = memberFlow(code);
+  const rows = mf.ticks.filter(t => !onlyForeign || t.foreign).slice(0, 60);
+  return (
+    <div className="mt-2 rounded border border-indigo-200 bg-indigo-50/40 px-2 py-1.5 text-[11px]">
+      <div className="flex items-center gap-2">
+        <b className="text-indigo-800">⚡ 순간 매매</b>
+        <span className="text-[10px] text-gray-400">한투 실시간 · 상위 5 창구 누적의 변화</span>
+        <label className="ml-auto inline-flex items-center gap-1 text-[10.5px] text-gray-600 cursor-pointer select-none">
+          <input type="checkbox" checked={onlyForeign} onChange={e => setOnlyForeign(e.target.checked)} />🌐 외국계만
+        </label>
+      </div>
+      {mf.glob && (
+        <div className="text-[10.5px] text-gray-600 tabular-nums">외국계 누적 매수 {mf.glob.buy.toLocaleString()}주 · 매도 {mf.glob.sell.toLocaleString()}주 · 순 <b className={up(mf.glob.net)}>{mf.glob.net > 0 ? "+" : ""}{mf.glob.net.toLocaleString()}주</b></div>
+      )}
+      {!rows.length ? <div className="text-gray-400 py-1">아직 없어요 — 창구 상위 5의 수량이 바뀌면 여기 쌓입니다</div> : (
+        <div className="max-h-48 overflow-y-auto mt-0.5">
+          <table className="w-full tabular-nums">
+            <tbody>
+              {rows.map((t, i) => (
+                <tr key={i} className="border-b border-indigo-100/70 last:border-0">
+                  <td className="py-0.5 text-gray-500 w-[4.6em]">{t.t}</td>
+                  <td className="truncate max-w-[7em]">{t.name}{t.foreign && <span className="ml-0.5 text-[10px]">🌐</span>}</td>
+                  <td className={`text-right font-bold ${t.side === "BUY" ? "text-rose-600" : "text-blue-600"}`}>{t.side === "BUY" ? "매수" : "매도"} {t.qty.toLocaleString()}</td>
+                  <td className="text-right text-gray-500 pl-1">{t.cum.toLocaleString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

@@ -5,6 +5,7 @@
 //   오늘치는 localStorage 에 저장(날짜 바뀌면 버림). 중복은 누적 거래량(cum)으로 출처별로 거른다.
 import type { TossTick } from "./api";
 import { kisWsAvailable, subscribeKisTicks } from "./kisWs";
+import { watchMembers } from "./memberFlow";
 
 export interface MinuteFlow {
   t: string;          // "HH:MM"
@@ -100,7 +101,10 @@ export function startBackgroundTicks() {
   if (bgTimer) return;
   const tryStart = () => {
     if (bgUnsubs || !kisWsAvailable()) return;   // 연동이 나중에 켜질 수도 있다 — 1분마다 다시 본다
-    bgUnsubs = BG_TICK_CODES.map(c => subscribeKisTicks(c, ts => ingestTicks(c, ts, "kis")));
+    bgUnsubs = [
+      ...BG_TICK_CODES.map(c => subscribeKisTicks(c, ts => ingestTicks(c, ts, "kis"))),
+      ...BG_TICK_CODES.map(c => watchMembers(c)),   // 거래원 순간 매매도 배경에서(사용자 2026-11-10)
+    ];
   };
   tryStart();
   bgTimer = setInterval(() => { if (bgUnsubs && !kisWsAvailable()) { bgUnsubs.forEach(f => f()); bgUnsubs = null; } tryStart(); }, 60_000);

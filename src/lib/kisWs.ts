@@ -51,7 +51,7 @@ export function parseKisTicks(raw: string): { code: string; tick: TossTick }[] {
 async function poll() {
   const inv = invoke();
   if (!inv) return;
-  const codes = [...subs.keys(), ...[...qsubs.keys()].map(c => `Q${c}`)];
+  const codes = [...subs.keys(), ...[...qsubs.keys()].map(c => `Q${c}`), ...[...msubs.keys()].map(c => `M${c}`)];
   try {
     const r = await inv("kis_ws_poll", { codes }) as { status: string; data: string[] };
     status = (r.status || "") as KisWsStatus;
@@ -65,6 +65,8 @@ async function poll() {
     const lastQ = new Map<string, KisQuote>();
     for (const raw of r.data) for (const q of parseKisQuotes(raw)) lastQ.set(q.code, q);
     for (const [c, q] of lastQ) qsubs.get(c)?.forEach(cb => cb(q));
+    // 거래원 — 들어온 순서대로 전부(창구별 누적의 차이로 순간 매매를 잡는다)
+    for (const raw of r.data) for (const m of parseKisMembers(raw)) msubs.get(m.code)?.forEach(cb => cb(m));
   } catch (e) {
     const m = String((e as Error)?.message ?? e);
     // 웹소켓이 없는 옛 앱(0.1.10 이하) — 명령이 없다고 나온다
@@ -73,7 +75,7 @@ async function poll() {
 }
 
 function ensureTimer() { if (!timer) { timer = setInterval(() => { void poll(); }, 1_000); void poll(); } }
-function stopIfIdle() { if (!subs.size && !qsubs.size && timer) { clearInterval(timer); timer = null; status = ""; void invoke()?.("kis_ws_poll", { codes: [] }).catch(() => {}); } }
+function stopIfIdle() { if (!subs.size && !qsubs.size && !msubs.size && timer) { clearInterval(timer); timer = null; status = ""; void invoke()?.("kis_ws_poll", { codes: [] }).catch(() => {}); } }
 
 /** 종목 체결 구독 — 돌려준 함수로 해제. 앱·한국투자 연동이 아니면 아무것도 안 한다 */
 export function subscribeKisTicks(code: string, cb: Cb): () => void {
@@ -115,4 +117,35 @@ export function subscribeKisQuotes(code: string, cb: QCb): () => void {
   set.add(cb);
   ensureTimer();
   return () => { set.delete(cb); if (!set.size) qsubs.delete(code); stopIfIdle(); };
+}
+
+// ─── 실시간 거래원(회원사) H0UNMBC0 통합 · H0STMBC0 KRX — 앱 0.1.16+. 키 'M'+코드(사용자 2026-11-10 "거래원 정보도 한투 api — 바로 2번") ───
+//   필드(공식 예제 examples_llm/domestic_stock/member_total, 78개): 0 코드 · 1~5 매도 창구명 · 6~10 매수 창구명 · 11~15 매도 누적수량 · 16~20 매수 누적수량
+//   · 21~25 매도 외국계(Y/N) · 26~30 매수 외국계 · … · 61 외국계 매도 합계 · 62 외국계 매수 합계 · 65 외국계 순매수. 시각 필드는 없다(받은 때로 찍는다)
+export interface KisMemberSide { name: string; qty: number; foreign: boolean }
+export interface KisMembers { code: string; sell: KisMemberSide[]; buy: KisMemberSide[]; globSell: number; globBuy: number; globNet: number }
+type MCb = (m: KisMembers) => void;
+const msubs = new Map<string, Set<MCb>>();
+export function parseKisMembers(raw: string): KisMembers[] {
+  const p = raw.split("|");
+  if (p.length < 4 || (p[1] !== "H0UNMBC0" && p[1] !== "H0STMBC0" && p[1] !== "H0NXMBC0")) return [];
+  const f = p[3].split("^"), n = Number(p[2]) || 1;
+  const step = f.length % n === 0 ? f.length / n : 78;
+  const out: KisMembers[] = [];
+  for (let i = 0; i + 65 < f.length; i += step) {
+    const g = (k: number) => Number(String(f[i + k] ?? "").replace(/,/g, "")) || 0;
+    const side = (nameAt: number, qtyAt: number, ynAt: number) => Array.from({ length: 5 }, (_, k) => ({
+      name: (f[i + nameAt + k] ?? "").trim(), qty: g(qtyAt + k), foreign: (f[i + ynAt + k] ?? "") === "Y",
+    })).filter(x => x.name);
+    out.push({ code: f[i], sell: side(1, 11, 21), buy: side(6, 16, 26), globSell: g(61), globBuy: g(62), globNet: g(65) });
+  }
+  return out;
+}
+/** 실시간 거래원 구독 — 앱 + 한국투자일 때만. 해제 함수 반환 */
+export function subscribeKisMembers(code: string, cb: MCb): () => void {
+  if (!kisWsAvailable() || !/^[\dA-Za-z]{6}$/.test(code)) return () => {};
+  const set = msubs.get(code) ?? msubs.set(code, new Set()).get(code)!;
+  set.add(cb);
+  ensureTimer();
+  return () => { set.delete(cb); if (!set.size) msubs.delete(code); stopIfIdle(); };
 }
