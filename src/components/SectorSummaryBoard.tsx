@@ -14,7 +14,8 @@ type RegExt = (s: string) => { reg: number; aft: number; ses?: Ses } | null;
 const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-600");
 // 이름 색 = 지금 상승률(국내/해외 단추 기준) — 3% 넘으면 진하게(사용자 2026-11-10 "현재 상승률에 맞춰서 색깔")
 // 이름 뒤 배경 — 모두 같은 폭, 색 = 지금 상승률(사용자 2026-11-10 "동일한 사이즈로 배경을 넣어 볼까")
-const nameBg = (v: number | null | undefined) => v == null ? "bg-gray-100" : v >= 3 ? "bg-rose-100" : v > 0 ? "bg-rose-50" : v <= -3 ? "bg-blue-100" : v < 0 ? "bg-blue-50" : "bg-gray-100";
+//   배경은 연한 회색 하나(사용자 2026-11-10 "배경은 연한 회색으로") — 상승률은 글자 색으로만
+const nameBg = (_v: number | null | undefined) => "bg-gray-100";
 const nameTone = (v: number | null | undefined) => v == null ? "text-gray-700" : v >= 3 ? "text-rose-700" : v > 0 ? "text-rose-500" : v <= -3 ? "text-blue-700" : v < 0 ? "text-blue-500" : "text-gray-700";
 const fmt = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 
