@@ -98,7 +98,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
                     <span className="min-w-0">
                       {/* 칸 이름을 누르면 그 칸 종목만 타일로(사용자 2026-11-10 "기판을 클릭하면 관련 종목만 히트맵의 타일 보기로") */}
                       <button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => ({ sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) })) })}
-                              className="block text-[12.5px] font-bold text-gray-600 truncate hover:text-indigo-700 hover:underline text-left" title={`${b.lb} 종목 ${b.syms.length}개를 타일로 보기`}>{b.lb}</button>
+                              className="block text-[12.5px] font-bold text-gray-600 truncate hover:text-indigo-700 hover:underline text-left" title={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기 — 막대는 위 [국내/해외] 단추 기준`; })()}>{b.lb}</button>
                       {/* 칸도 상승·하락 수(국내/해외 단추 기준, 사용자 2026-11-07 "여기도") */}
                       {(() => { const v = mkt === "US" ? b.ov : b.kr; return v && (
                         <UpDnBar up={v.up} dn={v.n - v.up} small
