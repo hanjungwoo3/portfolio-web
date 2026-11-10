@@ -69,7 +69,7 @@ const PERIODS: Record<Mode, { range: string; label: string }[]> = {
   week:  [{ range: "1y", label: "1년" }, { range: "2y", label: "2년" }, { range: "5y", label: "5년" }],
   month: [{ range: "2y", label: "2년" }, { range: "5y", label: "5년" }, { range: "10y", label: "10년" }, { range: "max", label: "전체" }],
 };
-const DEFAULT_RANGE: Record<Mode, string> = { min: "5d", day: "3mo", week: "2y", month: "10y" };   // 일봉 기본 3개월(사용자 2026-11-10)
+const DEFAULT_RANGE: Record<Mode, string> = { min: "5d", day: "1mo", week: "2y", month: "10y" };   // 일봉 기본 1개월(사용자 2026-11-10)
 
 interface Built {
   data: { time: Time; value: number }[];
@@ -632,7 +632,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
             {([["min", "분봉"], ["day", "일봉"], ["week", "주봉"], ["month", "월봉"]] as const).map(([m, label]) => (
               <button key={m} onClick={() => pickMode(m)}
                       title={m === "min" ? "최근 5거래일 1분봉 — 요일·시간대 패턴"
-                             : m === "day" ? "3개월 일봉 — 단·중기 추세"
+                             : m === "day" ? "1개월 일봉 — 단기 추세"
                              : m === "week" ? "2년 주봉 — 중기 추세"
                              : "10년 월봉 — 장기 추세"}
                       className={`px-2.5 py-0.5 rounded text-[11px] font-bold border transition
