@@ -5,6 +5,7 @@
 //        국내  국내 x      국내 y
 //   값 = 평균 등락(장 밖이면 정규장 % + 프리·애프터·데이 꼬리표) · ▲▼. 업종 이름 = 그 탭(카드 보기)으로.
 //   줄 순서 = 지금 고른 국내/해외 평균 큰 순. PC·모바일이 같이 쓴다(compact = 모바일 — 칸이 줄 바꿈).
+import { openTilePopup } from "../lib/tilePopupNav";
 import type { DashboardSection } from "../lib/dashboardGroups";
 import { isMarketOpen } from "../lib/format";
 import { avgOfSyms, rotRowAvg, isOverseasTicker, useAvgMarket, usSessionLabel, type RowAvg, type Ses } from "../lib/avgMarket";
@@ -41,7 +42,7 @@ function Pair({ ov, kr, strong }: { ov: RowAvg | null; kr: RowAvg | null; strong
   );
 }
 
-export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact }: {
+export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact, nameOf }: {
   sections: DashboardSection[];                 // 업종 탭(한눈에 제외)
   pctOf: (s: string) => number | null;
   regExtOf: RegExt;
@@ -57,7 +58,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
       s,
       ov: avgOfSyms(all.filter(isOverseasTicker), pctOf, regExtOf),
       kr: avgOfSyms(all.filter(x => /\.(KS|KQ)$/.test(x)), pctOf, regExtOf),
-      boxes: (s.rowLabels ?? []).map((lb, i) => ({ lb, ...rotRowAvg(s, i, pctOf, regExtOf) })),
+      boxes: (s.rowLabels ?? []).map((lb, i) => ({ lb, syms: s.rows[i] ?? [], ...rotRowAvg(s, i, pctOf, regExtOf) })),
     };
   }).sort((a, b) => {
     const k = (r: typeof a) => (mkt === "US" ? r.ov?.avg : r.kr?.avg) ?? -Infinity;
@@ -95,7 +96,9 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact 
                 {boxes.map(b => (
                   <div key={b.lb} className={`${G} py-1`}>
                     <span className="min-w-0">
-                      <span className="block text-[12.5px] font-bold text-gray-600 truncate" title={b.lb}>{b.lb}</span>
+                      {/* 칸 이름을 누르면 그 칸 종목만 타일로(사용자 2026-11-10 "기판을 클릭하면 관련 종목만 히트맵의 타일 보기로") */}
+                      <button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => ({ sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) })) })}
+                              className="block text-[12.5px] font-bold text-gray-600 truncate hover:text-indigo-700 hover:underline text-left" title={`${b.lb} 종목 ${b.syms.length}개를 타일로 보기`}>{b.lb}</button>
                       {/* 칸도 상승·하락 수(국내/해외 단추 기준, 사용자 2026-11-07 "여기도") */}
                       {(() => { const v = mkt === "US" ? b.ov : b.kr; return v && (
                         <UpDnBar up={v.up} dn={v.n - v.up} small

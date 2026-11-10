@@ -2,8 +2,10 @@
 // 카드 본체는 SimplePriceCard 가 그린다 — 섹터(업종·테마) 팝업과 같은 컴포넌트다.
 // 두 곳이 각자 그리면 같은 숫자가 다르게 보이기 시작한다.
 import type { Stock, Price } from "../types";
-import { SimplePriceCard } from "./SimplePriceCard";
-import { marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, isKrHoldingClosed, tradeSecOf, isEtfOrEtnByName } from "../lib/format";
+import { marketOfSymbol, isUsExtendedTradingOpen, isQuoteStale, isKrHoldingClosed, tradeSecOf, isEtfOrEtnByName, dayChangePct } from "../lib/format";
+import { useQuery } from "@tanstack/react-query";
+import { fetchHeatmapForTickers } from "../lib/api";
+import { HeatTiles } from "./HeatTiles";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useEscClose } from "../lib/useEscClose";
 import { useState } from "react";
@@ -33,11 +35,19 @@ interface Props {
 }
 
 export function SimpleViewModal({
-  isOpen, onClose, title, stocks, priceMap, chartMap, targetMap, onOpenValuation, krRegMap,
+  isOpen, onClose, title, stocks, priceMap, onOpenValuation, krRegMap,
 }: Props) {
   useEscClose(isOpen, onClose);
-  // 열 때는 늘 히트맵부터(사용자 결정 2026-10-13) — 카드는 전환 버튼으로. 그래서 보기는 기억하지 않는다.
-  const [view, setView] = useState<"card" | "heat">("heat");
+  // 열 때는 늘 타일부터(사용자 2026-11-10 "그룹의 히트맵도 타일 보기를 기본으로", "카드 빼고 타일 넣고") — 히트맵은 전환 버튼으로
+  const [view, setView] = useState<"tile" | "heat">("tile");
+  // 타일의 로고·시총 — 히트맵(HoldingsHeatmap)과 같은 조회·같은 캐시 키
+  const tickers = [...new Set(stocks.map(s => s.ticker))];
+  const tvQ = useQuery({
+    queryKey: ["holdings-heat-tv", tickers.join(",")],
+    queryFn: () => fetchHeatmapForTickers(tickers),
+    enabled: isOpen && tickers.length > 0,
+    staleTime: 5 * 60_000, refetchOnWindowFocus: false, retry: 1,
+  });
   const [sizeBy, setSizeBy] = useState<HeatSizeBy>(() => load(SIZE_KEY, HEAT_SIZE_OPTS.map(o => o.key), "value"));
   const [colorBy, setColorBy] = useState<HeatColorBy>(() => load(COLOR_KEY, HEAT_COLOR_OPTS.map(o => o.key), "d1"));
   const [groupBy, setGroupBy] = useState<HeatGroupBy>(() => load(GROUP_KEY, HEAT_GROUP_OPTS.map(o => o.key), "none"));
@@ -56,8 +66,8 @@ export function SimpleViewModal({
           <h2 className="text-lg font-bold">🗺️ 히트맵{title ? ` (${title})` : ""}</h2>
           <span className="ml-3 text-xs text-gray-500">{stocks.length}종목</span>
           <span className="ml-3 inline-flex rounded border border-gray-300 overflow-hidden text-[12px] font-bold">
+            <button onClick={() => setView("tile")} className={seg(view === "tile")}>타일</button>
             <button onClick={() => setView("heat")} className={seg(view === "heat")}>히트맵</button>
-            <button onClick={() => setView("card")} className={seg(view === "card")}>카드</button>
           </span>
           {view === "heat" && (
             <span className="ml-3 inline-flex items-center gap-1.5 text-[12px] text-gray-600">
@@ -99,40 +109,21 @@ export function SimpleViewModal({
             <HoldingsHeatmap stocks={stocks} priceMap={priceMap} krRegMap={krRegMap} sizeBy={sizeBy} colorBy={colorBy} groupBy={groupBy} sign={sign} hideFaint={hideFaint}
                              onOpen={onOpenValuation ? (t => { if (/^[\dA-Za-z]{6}$/.test(t)) onOpenValuation(t); }) : undefined} />
           ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-x-2 gap-y-3.5 items-stretch">
-            {stocks.map(stock => {
-              const p = priceMap.get(stock.ticker);
-              if (!p) {
-                return (
-                  <div key={`${stock.ticker}_${stock.account || ""}`}
-                       className="border border-gray-200 rounded-md bg-gray-50/60 px-2 py-2">
-                    <div className="text-sm font-bold text-gray-900 truncate">{stock.name}</div>
-                    <div className="text-gray-400 text-sm">—</div>
-                  </div>
-                );
-              }
-              // 흐림 — 기본 카드와 같은 판정(마감이면 흐리게). 설정으로 끌 수 있다.
-              const reg = krRegMap?.get(stock.ticker);
-              const sleeping = marketOfSymbol(stock.ticker) === "US"
-                ? (!isUsExtendedTradingOpen() || isQuoteStale(p.freshTime))
-                : isKrHoldingClosed(reg?.tradingEnd, reg?.nextTradingStart, p.singlePrice, tradeSecOf(p.trade_dt),
-                                    isEtfOrEtnByName(stock.name));
-              return (
-                <SimplePriceCard key={`${stock.ticker}_${stock.account || ""}`}
-                                 dimmed={sleeping && getDimSleepingEnabled()}
-                                 ticker={stock.ticker} name={stock.name}
-                                 price={p.price} base={p.prevClose || p.base || p.price}
-                                 high={p.high} low={p.low}
-                                 target={targetMap?.get(stock.ticker)}
-                                 chart={chartMap.get(stock.ticker) ?? []}
-                                 actions={onOpenValuation && /^[\dA-Za-z]{6}$/.test(stock.ticker)
-                                   ? <button onClick={() => onOpenValuation(stock.ticker)}
-                                             title={`${stock.name} 기업가치 보기`}
-                                             className="text-[11px] leading-none opacity-70 hover:opacity-100">📊</button>
-                                   : null} />
-              );
-            })}
-          </div>
+            <HeatTiles cols="grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5"
+                       onOpen={onOpenValuation ? (t => { if (t.kr) onOpenValuation(t.code); }) : undefined}
+                       tiles={tickers.map(tk => {
+                         const st = stocks.find(x => x.ticker === tk)!;
+                         const p = priceMap.get(tk);
+                         const tv = tvQ.data?.get(tk);
+                         const kr = /^[\dA-Za-z]{6}$/.test(tk) && /\d/.test(tk);
+                         // 흐림 — 기본 카드와 같은 판정(마감이면 흐리게). 설정으로 끌 수 있다.
+                         const reg = krRegMap?.get(tk);
+                         const sleeping = !p ? true : marketOfSymbol(tk) === "US"
+                           ? (!isUsExtendedTradingOpen() || isQuoteStale(p.freshTime))
+                           : isKrHoldingClosed(reg?.tradingEnd, reg?.nextTradingStart, p.singlePrice, tradeSecOf(p.trade_dt), isEtfOrEtnByName(st.name));
+                         return { code: tk, name: st.name, pct: p ? (dayChangePct(p) ?? null) : null, price: p?.price ?? null, kr,
+                                  cap: tv ? (tv.marketCap || tv.aum) : undefined, logoid: tv?.logoid, dim: sleeping && getDimSleepingEnabled() };
+                       })} />
           )}
         </div>
       </div>
