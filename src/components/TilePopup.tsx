@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTossPrices, fetchTossUsPricesBySymbol, fetchHeatmapForTickers } from "../lib/api";
 import { dayChangePct } from "../lib/format";
 import { useEscClose } from "../lib/useEscClose";
-import { HeatTiles } from "./HeatTiles";
+import { HeatTiles, TileSortToggle, type TileSort } from "./HeatTiles";
 import { OPEN_TILE_POPUP, type TilePopupReq } from "../lib/tilePopupNav";
 
 
@@ -15,6 +15,7 @@ const usSym = (sym: string) => (/^[A-Z][A-Z.]{0,6}$/.test(sym) ? sym : null);
 
 function TilePopup({ req, onClose }: { req: TilePopupReq; onClose: () => void }) {
   useEscClose(true, onClose);
+  const [sort, setSort] = useState<TileSort>("cap");
   const kr = req.items.map(i => krCode(i.sym)).filter((x): x is string => !!x);
   const us = req.items.map(i => usSym(i.sym)).filter((x): x is string => !!x);
   const krQ = useQuery({ queryKey: ["tile-pop-kr", kr.join(",")], queryFn: () => fetchTossPrices(kr), enabled: kr.length > 0, staleTime: 20_000, refetchInterval: 60_000 });
@@ -34,10 +35,11 @@ function TilePopup({ req, onClose }: { req: TilePopupReq; onClose: () => void })
         <header className="px-4 py-2.5 border-b bg-gray-50 flex items-center gap-2">
           <b className="text-[15px] text-gray-800">🧩 {req.title}</b>
           <span className="text-xs text-gray-500">{req.items.length}종목 · 타일</span>
-          <button onClick={onClose} className="ml-auto text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
+          <span className="ml-auto"><TileSortToggle sort={sort} onSort={setSort} /></span>
+          <button onClick={onClose} className="ml-2 text-gray-400 hover:text-gray-600 text-xl leading-none">✕</button>
         </header>
         <div className="p-3 overflow-y-auto">
-          <HeatTiles tiles={tiles} cols="grid-cols-2 sm:grid-cols-3 md:grid-cols-4" />
+          <HeatTiles tiles={tiles} sort={sort} cols="grid-cols-2 sm:grid-cols-3 md:grid-cols-4" />
         </div>
       </div>
     </div>
