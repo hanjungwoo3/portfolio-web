@@ -25,8 +25,11 @@ export interface TickBox {
   lastKis: number; lastKisTime: string; kisLastAt: number;   // 한투 웹소켓 기준
   minutes: Map<string, MinuteFlow>;
   big: BigTrade[]; gaps: number; since?: string; last?: string;
+  // 한투 거슬러 채우기 기록 — 오늘 이미 물어본 분 경계(누적 매수·매도·값, 응답이 비었으면 null)와 호출 수. 같은 걸 두 번 안 부른다(사용자 2026-11-10 "매번 다시 가져오는 건 낭비")
+  cums: Record<string, [number, number, number] | null>;
+  kisCalls: number;
 }
-type Saved = { date: string; lastCum: number; minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string };
+type Saved = { date: string; lastCum: number; minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; cums?: TickBox["cums"]; kisCalls?: number };
 
 export const kstDate = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 const storeKey = (code: string) => `semi_tickflow_${code}`;
@@ -39,8 +42,8 @@ export function tickBox(code: string): TickBox {
   let sv: Saved | null = null;
   try { const v = JSON.parse(localStorage.getItem(storeKey(code)) ?? "null") as Saved | null; sv = v && v.date === kstDate() ? v : null; } catch { /* 없음 */ }
   b = sv
-    ? { lastCum: sv.lastCum, lastKis: 0, lastKisTime: "", kisLastAt: 0, minutes: new Map(sv.minutes.map(m => [m.t, m])), big: sv.big, gaps: sv.gaps, since: sv.since, last: sv.last }
-    : { lastCum: 0, lastKis: 0, lastKisTime: "", kisLastAt: 0, minutes: new Map(), big: [], gaps: 0 };
+    ? { lastCum: sv.lastCum, lastKis: 0, lastKisTime: "", kisLastAt: 0, minutes: new Map(sv.minutes.map(m => [m.t, m])), big: sv.big, gaps: sv.gaps, since: sv.since, last: sv.last, cums: sv.cums ?? {}, kisCalls: sv.kisCalls ?? 0 }
+    : { lastCum: 0, lastKis: 0, lastKisTime: "", kisLastAt: 0, minutes: new Map(), big: [], gaps: 0, cums: {}, kisCalls: 0 };
   (b as TickBox & { _date?: string })._date = kstDate();
   boxes.set(code, b);
   return b;
@@ -52,7 +55,7 @@ export function saveBox(code: string) {
   saveTimer[code] = setTimeout(() => {
     const s = tickBox(code);
     try {
-      const sv: Saved = { date: kstDate(), lastCum: s.lastCum, minutes: [...s.minutes.values()], big: s.big, gaps: s.gaps, since: s.since, last: s.last };
+      const sv: Saved = { date: kstDate(), lastCum: s.lastCum, minutes: [...s.minutes.values()], big: s.big, gaps: s.gaps, since: s.since, last: s.last, cums: s.cums, kisCalls: s.kisCalls };
       localStorage.setItem(storeKey(code), JSON.stringify(sv));
     } catch { /* 저장 실패 — 화면은 그대로 */ }
   }, 1_000);

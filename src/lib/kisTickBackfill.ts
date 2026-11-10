@@ -40,27 +40,32 @@ export function backfillPct(code: string): number | null {
   return p && p.total > 0 ? Math.min(99, Math.floor((p.done / p.total) * 100)) : null;
 }
 /** wanted = 매수·매도를 모르는 분들(1분봉에만 있는 분). 최근 분부터 거꾸로, 붙어 있는 구간마다 경계 하나씩 불러 채운다 */
+const DAY_CAP = 600;   // 종목당 하루 한투 호출 상한(정규장 390분 + NXT 여유)
 export async function backfillTickMinutes(code: string, wanted: string[], maxCalls = 240): Promise<number> {
   if (!isKisLinkOn() || running.has(code) || !wanted.length) return 0;
   running.add(code);
   let calls = 0, filled = 0;
   try {
     const s = tickBox(code);
-    const todo = [...new Set(wanted)].filter(t => !s.minutes.has(t)).sort().reverse();   // 최근 → 과거
-    const cache = new Map<string, { buy: number; sell: number; price: number } | null>();
-    const at = async (hm: string) => {   // hm 분이 시작하기 직전 누적
-      if (cache.has(hm)) return cache.get(hm)!;
-      calls++;
-      const v = await cumAt(code, minus1s(hm)).catch(() => null);
-      cache.set(hm, v);
-      return v;
+    // 이미 물어본 분(두 경계를 다 아는 분)은 결과가 비었어도 오늘은 다시 안 묻는다
+    const known = (t: string) => t in s.cums && nextMin(t) in s.cums;
+    const todo = [...new Set(wanted)].filter(t => !s.minutes.has(t) && !known(t)).sort().reverse();   // 최근 → 과거
+    const at = async (hm: string) => {   // hm 분이 시작하기 직전 누적 — 오늘치 저장(s.cums)에서 먼저
+      if (hm in s.cums) { const c = s.cums[hm]; return c ? { buy: c[0], sell: c[1], price: c[2] } : null; }
+      if (s.kisCalls >= DAY_CAP) return undefined;
+      calls++; s.kisCalls++;
+      try {
+        const v = await cumAt(code, minus1s(hm));
+        s.cums[hm] = v ? [v.buy, v.sell, v.price] : null;   // 응답이 비었으면 null 로 기억(다시 안 묻는다)
+        return v;
+      } catch { return undefined; }   // 통신 실패는 기억하지 않는다(다음에 다시)
     };
     const total = Math.min(todo.length, maxCalls);
     progress.set(code, { done: 0, total });
     notifyBox(code);
     let done = 0;
     for (const t of todo) {
-      if (calls >= maxCalls) break;
+      if (calls >= maxCalls || s.kisCalls >= DAY_CAP) break;
       progress.set(code, { done: done++, total });
       if (done % 3 === 0) notifyBox(code);   // 막대가 채워지는 대로 % 도
       if (s.minutes.has(t)) continue;
@@ -77,7 +82,8 @@ export async function backfillTickMinutes(code: string, wanted: string[], maxCal
     running.delete(code);
     progress.delete(code);
     notifyBox(code);
-    if (filled) { saveBox(code); notifyBox(code); }
+    if (calls) saveBox(code);   // 경계 기록도 저장(채운 게 없어도)
+    if (filled) notifyBox(code);
   }
   return filled;
 }

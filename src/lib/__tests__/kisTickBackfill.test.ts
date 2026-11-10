@@ -5,9 +5,11 @@ const AT: Record<string, { acml_vol: string; tday_rltv: string; stck_prpr: strin
   "101459": { acml_vol: "5412079", tday_rltv: "75.24", stck_prpr: "197000" },
   "101559": { acml_vol: "5443278", tday_rltv: "75.60", stck_prpr: "197100" },
 };
+let calls = 0;
 vi.mock("../broker", () => ({
   isKisLinkOn: () => true,
   kisGet: async (_p: string, _t: string, params: Record<string, string>) => {
+    calls++;
     const r = AT[params.FID_INPUT_HOUR_1];
     return { body: { rt_cd: "0", output2: r ? [r] : [] }, trCont: "" };
   },
@@ -26,8 +28,13 @@ describe("한투 누적 체결강도로 빈 분 채우기", () => {
     expect(m.buyVol).toBeGreaterThan(m.sellVol);            // 체결강도가 올랐다 = 사는 쪽이 많았다
     expect(m.close).toBe(197100);
   });
-  it("값이 없는 분은 건너뛴다", async () => {
+  it("값이 없는 분은 건너뛰고, 한 번 물어본 분은 다시 안 부른다", async () => {
     const { backfillTickMinutes } = await import("../kisTickBackfill");
+    calls = 0;
     expect(await backfillTickMinutes("000660", ["09:30"])).toBe(0);
+    const first = calls;
+    expect(first).toBe(2);   // 09:30 앞뒤 경계 두 번
+    expect(await backfillTickMinutes("000660", ["09:30"])).toBe(0);
+    expect(calls).toBe(first);   // 두 번째는 0콜
   });
 });
