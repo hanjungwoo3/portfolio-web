@@ -77,6 +77,12 @@ interface Built {
   final: number | null;
 }
 const EMPTY: Built = { data: [], map: new Map(), final: null };
+// 누적(첫날=0%) → 봉마다 직전 봉 대비 등락률(사용자 2026-11-10 "누적으로 할지 매일 매일 상승률로 할지 옵션")
+function toPerBar(b: Built): Built {
+  if (b.data.length < 2) return b;
+  const data = b.data.map((p, i) => ({ time: p.time, value: i === 0 ? 0 : ((1 + p.value / 100) / (1 + b.data[i - 1].value / 100) - 1) * 100 }));
+  return { data, map: new Map(data.map(x => [String(x.time), x.value])), final: data[data.length - 1].value };
+}
 
 // 주봉: 일봉을 7일 버킷으로 묶어 각 주 마지막 종가 → 시작주=0% 정규화
 function buildWeekly(hist: PricePoint[]): Built {
@@ -208,6 +214,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
     })),
   });
   const stamp = qs.map(q => q.dataUpdatedAt).join(",");
+  const [perBar, setPerBar] = useState(false);   // false = 누적(첫날 대비) · true = 매일(전날 대비)
   // 배경 지수 — 코스피·코스닥을 골라 같은 기준(시작=0%)으로 뒤에 회색 면으로 깐다(사용자 2026-11-10 "코스피, 코스닥 그래프를 배경으로 선택해서")
   const [bgIdx, setBgIdx] = useState<string[]>(["^KS11"]);   // 코스피 배경 기본(사용자 2026-11-10)
   const bgQs = useQueries({
@@ -221,14 +228,15 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
   const bgStamp = bgQs.map(q => q.dataUpdatedAt).join(",");
   const bgBuilt = useMemo(() => bgIdx.map((sym, i) => {
     const data = bgQs[i]?.data;
-    return { sym, b: mode === "month" ? buildMonthly((data as PricePoint[]) ?? []) : mode === "week" ? buildWeekly((data as PricePoint[]) ?? [])
-      : mode === "day" ? buildDaily((data as PricePoint[]) ?? []) : buildMin((data as IntradayBar[]) ?? []) };
+    const b = mode === "month" ? buildMonthly((data as PricePoint[]) ?? []) : mode === "week" ? buildWeekly((data as PricePoint[]) ?? [])
+      : mode === "day" ? buildDaily((data as PricePoint[]) ?? []) : buildMin((data as IntradayBar[]) ?? []);
+    return { sym, b: perBar ? toPerBar(b) : b };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }), [bgIdx, mode, bgStamp]);
+  }), [bgIdx, mode, bgStamp, perBar]);
   const loading = qs.some(q => q.isLoading);
 
   // ticker → 정규화 시리즈
-  const built = useMemo(() => {
+  const builtCum = useMemo(() => {
     const m = new Map<string, Built>();
     stocks.forEach((s, i) => {
       const data = qs[i]?.data;
@@ -241,6 +249,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
     return m;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [stocks, mode, stamp]);
+  const built = useMemo(() => (perBar ? new Map([...builtCum].map(([t, b]) => [t, toPerBar(b)])) : builtCum), [builtCum, perBar]);
 
   // 차트 그리기
   useEffect(() => {
@@ -608,7 +617,15 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
         {/* 헤더 */}
         <header className="px-4 py-2 border-b bg-gray-50 flex items-center gap-2 flex-wrap">
           <span className="text-base font-bold">📊 {title ?? "ETF 등락률 비교"}</span>
-          <span className="text-[11px] text-gray-500">시작점=0% 정규화</span>
+          {/* 누적 | 매일 */}
+          <span className="inline-flex rounded border border-gray-300 overflow-hidden text-[11px] font-bold">
+            {([[false, "누적"], [true, mode === "week" ? "매주" : mode === "month" ? "매월" : mode === "min" ? "매분" : "매일"]] as const).map(([v, label]) => (
+              <button key={label} onClick={() => setPerBar(v)}
+                      title={v ? "봉마다 직전 봉 대비 등락률(그날 하루 몇 % 움직였나)" : "첫날을 0% 로 놓고 그날부터 지금까지 누적 등락률"}
+                      className={`px-2 py-0.5 ${perBar === v ? "bg-gray-800 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>{label}</button>
+            ))}
+          </span>
+          <span className="text-[11px] text-gray-500">{perBar ? "전날(직전 봉) 대비 %" : "첫날 대비 누적 %"}</span>
 
           {/* 분봉 / 주봉 토글 */}
           <span className="ml-auto inline-flex items-center gap-0.5">
@@ -750,7 +767,8 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
           )}
           <span className="ml-auto text-gray-400">
             {(PERIODS[mode].find(p => p.range === range)?.label ?? "")}{" "}
-            {mode === "min" ? "1분봉 · KST · 요일·시간대 패턴 · 첫 봉 대비 %"
+            {perBar ? (mode === "min" ? "1분봉 · 직전 분 대비 %" : mode === "day" ? "일봉 · 전날 대비 %" : mode === "week" ? "주봉 · 전주 대비 %" : "월봉 · 전달 대비 %")
+             : mode === "min" ? "1분봉 · KST · 요일·시간대 패턴 · 첫 봉 대비 %"
              : mode === "day" ? "일봉 · 첫 거래일 대비 %"
              : mode === "week" ? "주봉 · 시작주 대비 %"
              : "월봉 · 시작월 대비 %"}
