@@ -26,7 +26,7 @@ export function AvgMarketToggle({ className = "" }: { className?: string }) {
   return (
     <span className={`inline-flex rounded border border-gray-300 overflow-hidden align-middle font-bold text-[11px] ${className}`}
           title="왼쪽 업종 탭 평균을 국내 종목으로 낼지 해외 대장주(미국·일본)로 낼지 — 기본은 시간 자동(평일 08:00~20:00 국내, 그 밖·주말 해외)">
-      {(["KR", "US"] as const).map(v => (
+      {(["US", "KR"] as const).map(v => (   // 해외 | 국내 순(표의 왼쪽 해외·오른쪽 국내와 맞춤, 사용자 2026-11-10)
         <button key={v} onClick={() => setAvgMarket(v)}
                 className={`px-1.5 py-0 whitespace-nowrap ${m === v ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}>
           {v === "KR" ? "국내" : "해외"}
