@@ -127,8 +127,8 @@ function UpDnBar({ up, dn, scale, small = false }: { up: number; dn: number; sca
       {/* ▲ 칸 폭 고정 — 한 자리·두 자리 숫자여도 막대 시작이 같은 줄에(사용자 2026-11-10 "두 자리 숫자 때문에 줄이 안 맞아") */}
       <span className="inline-block w-[2.4em] text-rose-600">{up > 0 ? `▲${up}` : ""}</span>
       <span className="inline-flex h-1.5 rounded-full overflow-hidden bg-gray-200" style={{ width: `${Math.max(5, Math.round(Math.min(1, scale) * 80))}px` }}>
-        <span className="bg-rose-500" style={{ width: `${(up / tot) * 100}%` }} />
-        <span className="bg-blue-500" style={{ width: `${(dn / tot) * 100}%` }} />
+        <span className="bg-rose-300" style={{ width: `${(up / tot) * 100}%` }} />   {/* 연하게(사용자 2026-11-10) */}
+        <span className="bg-blue-300" style={{ width: `${(dn / tot) * 100}%` }} />
       </span>
       {dn > 0 && <span className="text-blue-600">▼{dn}</span>}
     </span>
