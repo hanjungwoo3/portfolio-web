@@ -123,14 +123,14 @@ function UpDnBar({ up, dn, scale, small = false }: { up: number; dn: number; sca
   const tot = Math.max(1, up + dn);
   return (
     <span className={`flex items-center gap-1 tabular-nums font-bold whitespace-nowrap ${small ? "text-[10.5px]" : "text-[11px]"}`} title={`상승 ${up} · 하락(보합 포함) ${dn}`}>
-      <span className="text-rose-600">▲{up}</span>
-      <span className="inline-flex w-20 h-1.5">
-        <span className="inline-flex h-full rounded-full overflow-hidden bg-gray-200" style={{ width: `${Math.max(6, Math.min(1, scale) * 100)}%` }}>
-          <span className="bg-rose-500" style={{ width: `${(up / tot) * 100}%` }} />
-          <span className="bg-blue-500" style={{ width: `${(dn / tot) * 100}%` }} />
-        </span>
+      {/* 0 은 안 쓴다, ▼ 는 막대 바로 뒤에(사용자 2026-11-10) */}
+      {/* ▲ 칸 폭 고정 — 한 자리·두 자리 숫자여도 막대 시작이 같은 줄에(사용자 2026-11-10 "두 자리 숫자 때문에 줄이 안 맞아") */}
+      <span className="inline-block w-[2.4em] text-rose-600">{up > 0 ? `▲${up}` : ""}</span>
+      <span className="inline-flex h-1.5 rounded-full overflow-hidden bg-gray-200" style={{ width: `${Math.max(5, Math.round(Math.min(1, scale) * 80))}px` }}>
+        <span className="bg-rose-500" style={{ width: `${(up / tot) * 100}%` }} />
+        <span className="bg-blue-500" style={{ width: `${(dn / tot) * 100}%` }} />
       </span>
-      <span className="text-blue-600">▼{dn}</span>
+      {dn > 0 && <span className="text-blue-600">▼{dn}</span>}
     </span>
   );
 }
