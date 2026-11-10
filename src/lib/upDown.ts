@@ -18,7 +18,7 @@ export async function fetchUpDown(): Promise<UpDownResult> {
     const r = await fetchProxied(`https://m.stock.naver.com/api/index/${mkt}/integration`);
     if (!r.ok) return undefined;
     const u = ((await r.json()) as { upDownStockInfo?: Record<string, unknown> }).upDownStockInfo;
-    return u ? toUD([u.upperCount, u.riseCount, u.steadyCount, u.fallCount, u.lowerCount].map(x => Number(x) || 0)) : undefined;
+    return u ? toUD([u.upperCount, u.riseCount, u.steadyCount, u.fallCount, u.lowerCount].map(x => Number(String(x ?? "").replace(/,/g, "")) || 0)) : undefined;   // "1,376" 쉼표
   };
   const [kospi, kosdaq] = await Promise.all([one("KOSPI"), one("KOSDAQ")]);
   if (!kospi && !kosdaq) throw new Error("오른·내린 종목 수를 못 받았어요");

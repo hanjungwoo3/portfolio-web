@@ -264,7 +264,12 @@ export function IntradayInvestorChart({
       let v: number | null = null;   // 그 시각 이하 마지막 지수 값(지수가 5분봉이어도)
       for (const p of indexSeries) { if ((p.t as number) <= t) v = p.value; else break; }
       if (v == null) return;
-      idxHover = idxApi.createPriceLine({ price: v, color: "#64748b", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, axisLabelColor: "#475569", axisLabelTextColor: "#ffffff", title: "" });
+      // 값 옆에 전일 종가 대비 % 도(사용자 2026-11-10 "5223 이 몇 % 인지, 상승률도 그래프에서")
+      const base0 = indexBaseline ?? indexSeries[0]?.value;
+      const pct = base0 && base0 > 0 ? (v / base0 - 1) * 100 : null;
+      const tone = pct == null ? "#475569" : pct > 0 ? "#dc2626" : pct < 0 ? "#2563eb" : "#475569";
+      idxHover = idxApi.createPriceLine({ price: v, color: "#64748b", lineWidth: 1, lineStyle: LineStyle.Dashed, axisLabelVisible: true, axisLabelColor: tone, axisLabelTextColor: "#ffffff",
+        title: pct == null ? "" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%` });
     };
     const hide = () => { if (tooltipRef.current) tooltipRef.current.style.display = "none"; setHoverT(null); setIdxHover(null); };
     setIdxHover(null);   // 처음엔 현재 지수
