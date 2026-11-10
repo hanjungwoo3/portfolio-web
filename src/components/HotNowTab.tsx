@@ -1,9 +1,11 @@
 // 🔔 지금 시끄러운 종목 — 최근 5분 사이 평소보다 돈이 확 몰린 종목(lib/hotNow). PC·모바일 같은 화면
 import { useMemo } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchHotNow, type HotRow } from "../lib/hotNow";
 import { openTickPopup } from "../lib/tickPopup";
-import { fetchTossPrices } from "../lib/api";
+import { fetchTossPrices, fetchKrPriceHistory } from "../lib/api";
+import { useChartRange, historyRange } from "../lib/chartRange";
+import { ChartRangeToggle } from "./ChartRangeToggle";
 import type { Price } from "../types";
 import { fmtServerStamp } from "../lib/liveServer";
 import { StockCard } from "./EtfCompositionDialog";
@@ -32,15 +34,28 @@ export function HotNowTab({ compact = false }: { compact?: boolean }) {
     refetchInterval: 60_000,
   });
   const priceMap = useMemo(() => new Map((priceList ?? []).map(p => [p.ticker, p])), [priceList]);
+  // 카드 배경 차트 — 24시간 | 3개월 | 1년(앱 전체 설정, 사용자 2026-11-10 "여긴 그래프 기간 변경이 없어"). 24시간은 카드가 스스로 그린다
+  const chartRange = useChartRange();
+  const hist = historyRange(chartRange);
+  const histQs = useQueries({
+    queries: codes.map(code => ({
+      queryKey: ["price-history", code, hist],
+      queryFn: () => fetchKrPriceHistory(code, hist),
+      enabled: chartRange !== "day",
+      staleTime: 60 * 60_000,
+    })),
+  });
+  const chartOf = (code: string) => { const i = codes.indexOf(code); return (histQs[i]?.data ?? []).map(p => p.close); };
   return (
-    <div className={compact ? "space-y-2" : "max-w-[1100px] mx-auto p-3 space-y-3"}>
+    <div className={compact ? "space-y-2" : "max-w-[1680px] mx-auto p-3 space-y-3"}>
       <div className="pg-card rounded-lg border border-gray-200 bg-white p-3">
         <div className="flex items-baseline gap-2 flex-wrap">
           <b className="text-gray-800 text-[15px]">🔔 지금 시끄러운 종목</b>
           <span className="text-[12px] text-gray-500">
             최근 {d?.windowMin || 5}분 동안 <b>평소보다 돈이 확 몰린</b> 종목 · {d?.server ? "2분" : "1분"}마다 새로
           </span>
-          {d && <span className="ml-auto text-[11px] text-gray-400">{d.server ? "서버 수집 " : ""}{fmtServerStamp(d.at)} 기준</span>}
+          <span className="ml-auto"><ChartRangeToggle /></span>
+          {d && <span className="text-[11px] text-gray-400">{d.server ? "서버 수집 " : ""}{fmtServerStamp(d.at)} 기준</span>}
         </div>
         <div className="mt-1.5 text-[11.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 leading-relaxed">
           ⚠️ <b>사라는 신호가 아니에요.</b> 우리가 실제로 재 보니 이렇게 갑자기 몰린 종목을 따라 사면, 수수료·세금까지 치면 평균적으로 조금씩 손해였어요.
@@ -64,8 +79,8 @@ export function HotNowTab({ compact = false }: { compact?: boolean }) {
         ) : (
           <div className="pg-card rounded-lg border border-gray-200 bg-white overflow-hidden">
             {d.windowMin < 4 && <div className="px-3 py-1 text-[11px] text-gray-500 bg-gray-50 border-b border-gray-100">아직 {d.windowMin}분 기록으로 계산했어요 — 5분쯤 지나면 더 정확해져요.</div>}
-            <div className={compact ? "" : "grid lg:grid-cols-2"}>
-            {d.rows.map((r, i) => <Row key={r.code} r={r} i={i} win={d.windowMin} compact={compact} price={priceMap.get(r.code)} />)}
+            <div className={compact ? "" : "grid lg:grid-cols-2 min-[1400px]:grid-cols-3"   /* 넓은 화면은 한 줄에 셋(사용자 2026-11-10) */}>
+            {d.rows.map((r, i) => <Row key={r.code} r={r} i={i} win={d.windowMin} compact={compact} price={priceMap.get(r.code)} chart={chartRange === "day" ? [] : chartOf(r.code)} />)}
             </div>
           </div>
         )}
@@ -73,10 +88,10 @@ export function HotNowTab({ compact = false }: { compact?: boolean }) {
   );
 }
 
-function Row({ r, i, win, compact, price }: { r: HotRow; i: number; win: number; compact: boolean; price?: Price }) {
+function Row({ r, i, win, compact, price, chart }: { r: HotRow; i: number; win: number; compact: boolean; price?: Price; chart: number[] }) {
   const hot = r.times >= 5 ? "bg-rose-500 text-white" : r.times >= 3 ? "bg-orange-400 text-white" : "bg-amber-100 text-amber-800";
   return (
-    <div className={`flex ${compact ? "flex-col" : "items-center"} gap-2 px-3 py-2 border-b border-gray-100 ${compact ? "" : "lg:odd:border-r"}`}>
+    <div className={`flex ${compact ? "flex-col" : "items-center"} gap-2 px-3 py-2 border-b border-gray-100 ${compact ? "" : "lg:max-[1399px]:odd:border-r min-[1400px]:[&:not(:nth-child(3n))]:border-r"}`}>
       {/* 왼쪽 = 왜 시끄러운가(몇 배·최근 거래대금·그 사이 변화·오늘 거래대금). 누르면 종목정보 */}
       <button type="button" onClick={() => openTickPopup(r.code, r.name)}
               className="min-w-0 flex-1 text-left flex items-center gap-2 rounded hover:bg-gray-50 p-1"
@@ -97,7 +112,7 @@ function Row({ r, i, win, compact, price }: { r: HotRow; i: number; win: number;
       </button>
       {/* 오른쪽 = 다른 화면과 같은 종목카드 */}
       <div className={compact ? "w-full" : "w-[230px] shrink-0"}>
-        <StockCard i={i} item={{ stockCode: r.code, name: r.name, ratio: 0 }} hideRatio price={price} boxMinH="min-h-[72px]" />
+        <StockCard i={i} item={{ stockCode: r.code, name: r.name, ratio: 0 }} hideRatio price={price} chart={chart} boxMinH="min-h-[72px]" />
       </div>
     </div>
   );
