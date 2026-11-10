@@ -33,15 +33,6 @@ function Val({ label, v, strong, big, dim }: { label: string; v: RowAvg | null; 
     </span>
   );
 }
-/** 해외 · 국내 — 부모 격자의 두 칸에 하나씩(세로줄 맞춤, 사용자 2026-11-07 "세로 줄 맞추자") */
-function Pair({ ov, kr, strong }: { ov: RowAvg | null; kr: RowAvg | null; strong?: "US" | "KR" }) {
-  return (
-    <>
-      <Val label="해외" v={ov} strong={strong === "US"} dim={strong === "KR"} /><Val label="국내" v={kr} strong={strong === "KR"} dim={strong === "US"} />
-    </>
-  );
-}
-
 export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact, nameOf }: {
   sections: DashboardSection[];                 // 업종 탭(한눈에 제외)
   pctOf: (s: string) => number | null;
@@ -66,7 +57,6 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
   });
   // 업종마다 카드 하나(사용자 2026-11-07 "업종별로 레이어를 분리") — 맨 위 업종 이름·해외·국내(크게), 아래 칸마다 한 줄씩.
   //   카드 안은 [이름 | 해외 | 국내] 고정 격자라 칸 줄끼리 세로줄이 맞는다. 카드 순서 = 고른 국내/해외 평균 큰 순.
-  const G = "grid grid-cols-[minmax(0,1fr)_4.2rem_4.2rem] items-start gap-x-1.5";
   return (
     <div className="space-y-1.5">
       <div className="px-1 text-[10.5px] text-gray-400">숫자 = 정규장 평균 · 아래 꼬리표 = 그 뒤({isMarketOpen("US_INDEX") ? "미국은 지금 정규장 중" : `미국 지금 '${usSessionLabel()}'`} · 국내 NXT 애프터) 정규장 종가 대비 — 장중이면 꼬리표 없음 </div>
@@ -75,33 +65,41 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
           const emoji = s.label.split(" ")[0];
           return (
             <div key={s.id} className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-              {/* 머리 — 업종 이름·해외·국내 크게 */}
-              <div className={`${G} px-2.5 py-1.5 bg-gray-50 border-b border-gray-200`}>
-                <div className="min-w-0">
-                  <button onClick={() => onOpen(s.id)} className="block font-bold text-[15px] text-gray-900 hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-left" title={`${s.short} 탭으로 — 종목 카드 보기`}>
-                    {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
-                  </button>
-                  {/* 상승·하락 종목 수 — 왼쪽 탭과 같은 기준(국내/해외 단추)(사용자 2026-11-07 "아래에 넣어도") */}
-                  {/* 해외·국내 둘 다(사용자 2026-11-10 "해외 국내가 둘 다 표시되어야") */}
-                  <BothBars ov={ov} kr={kr} ovAll={ov} krAll={kr} />
-                </div>
-                {/* 정렬 기준(국내/해외 단추) 숫자만 크게(사용자 2026-11-07) */}
-                <Val label="해외" v={ov} big={mkt === "US"} strong dim={mkt === "KR"} /><Val label="국내" v={kr} big={mkt === "KR"} strong dim={mkt === "US"} />   {/* 고르지 않은 쪽은 흐리게(사용자 2026-11-07) */}
+              {/* 머리 — 업종 이름. 몸통은 상자 둘로 — 왼쪽 해외 · 오른쪽 국내(사용자 2026-11-10 "카드를 2개로 분리, 왼쪽에 해외 레이어") */}
+              <div className="px-2.5 pt-1.5 pb-1">
+                <button onClick={() => onOpen(s.id)} className="block font-bold text-[15px] text-gray-900 hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-left" title={`${s.short} 탭으로 — 종목 카드 보기`}>
+                  {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
+                </button>
               </div>
-              {/* 열 이름 */}
-              <div className={`${G} px-2.5 pt-1 text-[10px] text-gray-400`}><span /><span className="text-right">해외</span><span className="text-right">국내</span></div>
-              {/* 칸 줄 */}
-              <div className="px-2.5 pb-1.5 divide-y divide-gray-100">
-                {boxes.map(b => (
-                  <div key={b.lb} className={`${G} py-1`}>
-                    <span className="min-w-0">
-                      {/* 칸 이름을 누르면 그 칸 종목만 타일로(사용자 2026-11-10 "기판을 클릭하면 관련 종목만 히트맵의 타일 보기로") */}
-                      <button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => ({ sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) })) })}
-                              className="block text-[12.5px] font-bold text-gray-600 truncate hover:text-indigo-700 hover:underline text-left" title={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기 — 막대는 위 [국내/해외] 단추 기준`; })()}>{b.lb}</button>
-                      {/* 칸도 상승·하락 수(국내/해외 단추 기준, 사용자 2026-11-07 "여기도") */}
-                      <BothBars ov={b.ov} kr={b.kr} ovAll={ov} krAll={kr} small />
-                    </span>
-                    <Pair ov={b.ov} kr={b.kr} strong={mkt} />
+              <div className="px-2 pb-2 grid grid-cols-2 gap-1.5">
+                {([["해외", ov, "US"], ["국내", kr, "KR"]] as const).map(([lb, all, m]) => (
+                  <div key={lb} className={`min-w-0 rounded-md border ${lb === "해외" ? "border-violet-200 bg-violet-50/40" : "border-gray-200 bg-gray-50/60"} ${mkt !== m ? "opacity-50" : ""}`}   /* 고르지 않은 쪽(국내/해외 단추)은 상자째 흐리게(사용자 2026-11-10 "흐림을 카드 자체에") */>
+                    {/* 상자 머리 — 해외/국내 평균 크게 + 막대 */}
+                    <div className="px-1.5 py-1 border-b border-gray-200/70">
+                      <div className="flex items-baseline justify-between gap-1">
+                        <span className={`text-[11px] font-bold ${lb === "해외" ? "text-violet-700" : "text-gray-600"}`}>{lb}</span>
+                        <Val label={lb} v={all} big={mkt === m} strong />
+                      </div>
+                      {all && all.n > 0 && <UpDnBar up={all.up} dn={all.n - all.up} scale={1} max={60} />}
+                    </div>
+                    {/* 칸 줄 */}
+                    <div className="px-1.5 divide-y divide-gray-100">
+                      {boxes.map(b => {
+                        const v = lb === "해외" ? b.ov : b.kr;
+                        return (
+                          <div key={b.lb} className="py-0.5">
+                            <div className="flex items-start justify-between gap-1">
+                              {/* 칸 이름을 누르면 그 칸 종목만 타일로(사용자 2026-11-10) */}
+                              <button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => ({ sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) })) })}
+                                      className="min-w-0 text-[12px] font-bold text-gray-600 truncate hover:text-indigo-700 hover:underline text-left"
+                                      title={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기`; })()}>{b.lb}</button>
+                              <Val label={lb} v={v} strong={mkt === m} />
+                            </div>
+                            {v && v.n > 0 ? <UpDnBar up={v.up} dn={v.n - v.up} small scale={all && all.n > 0 ? v.n / all.n : 1} max={60} /> : <span className="text-[10px] text-gray-300">—</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -118,14 +116,14 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
 
 // 상승·하락 종목 수 막대 — 지수 카드 위 시장 폭 막대와 같은 꼴(▲N ━━ ▼M, 사용자 2026-11-10 "여기 상승/하락도 막대 그래프로")
 //   길이 = 업종 전체를 100% 로 놓고 그 안 종목 수 비율(사용자 2026-11-10 "소부장 78 이 100% 크기") — 제목·칸 줄 최대 길이 같게
-function UpDnBar({ up, dn, scale, small = false }: { up: number; dn: number; scale: number; small?: boolean }) {
+function UpDnBar({ up, dn, scale, small = false, max = 80 }: { up: number; dn: number; scale: number; small?: boolean; max?: number }) {
   const tot = Math.max(1, up + dn);
   return (
     <span className={`flex items-center gap-1 tabular-nums font-bold whitespace-nowrap ${small ? "text-[10.5px]" : "text-[11px]"}`} title={`상승 ${up} · 하락(보합 포함) ${dn}`}>
       {/* 0 은 안 쓴다, ▼ 는 막대 바로 뒤에(사용자 2026-11-10) */}
       {/* ▲ 칸 폭 고정 — 한 자리·두 자리 숫자여도 막대 시작이 같은 줄에(사용자 2026-11-10 "두 자리 숫자 때문에 줄이 안 맞아") */}
-      <span className="inline-block w-[2.4em] text-rose-600">{up > 0 ? `▲${up}` : ""}</span>
-      <span className="inline-flex h-1.5 rounded-full overflow-hidden bg-gray-200" style={{ width: `${Math.max(5, Math.round(Math.min(1, scale) * 80))}px` }}>
+      <span className="inline-block w-[2.2em] text-rose-600">{up > 0 ? `▲${up}` : ""}</span>
+      <span className="inline-flex h-1.5 rounded-full overflow-hidden bg-gray-200" style={{ width: `${Math.max(5, Math.round(Math.min(1, scale) * max))}px` }}>
         <span className="bg-rose-300" style={{ width: `${(up / tot) * 100}%` }} />   {/* 연하게(사용자 2026-11-10) */}
         <span className="bg-blue-300" style={{ width: `${(dn / tot) * 100}%` }} />
       </span>
@@ -134,13 +132,3 @@ function UpDnBar({ up, dn, scale, small = false }: { up: number; dn: number; sca
   );
 }
 
-/** 해외 · 국내 막대 두 줄 — 길이 기준은 각 업종의 해외 전체 · 국내 전체(그 업종 = 100%) */
-function BothBars({ ov, kr, ovAll, krAll, small = false }: { ov: RowAvg | null; kr: RowAvg | null; ovAll: RowAvg | null; krAll: RowAvg | null; small?: boolean }) {
-  const line = (lb: string, v: RowAvg | null, all: RowAvg | null) => v && v.n > 0 && (
-    <span className="flex items-center gap-1">
-      <span className="w-[2.1em] shrink-0 text-[9.5px] font-normal text-gray-400">{lb}</span>
-      <UpDnBar up={v.up} dn={v.n - v.up} small={small} scale={all && all.n > 0 ? v.n / all.n : 1} />
-    </span>
-  );
-  return <span className="block">{line("해외", ov, ovAll)}{line("국내", kr, krAll)}</span>;
-}
