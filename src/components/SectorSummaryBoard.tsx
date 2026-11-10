@@ -65,40 +65,39 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
           const emoji = s.label.split(" ")[0];
           return (
             <div key={s.id} className="rounded-lg border border-gray-200 bg-white shadow-sm overflow-hidden">
-              {/* 머리 — 업종 이름. 몸통은 상자 둘로 — 왼쪽 해외 · 오른쪽 국내(사용자 2026-11-10 "카드를 2개로 분리, 왼쪽에 해외 레이어") */}
-              <div className="px-2.5 pt-1.5 pb-1">
+              {/* 머리 — 업종 이름 + 해외 | 국내 두 칸(이름은 여기 한 번만). 줄마다 칸 이름 아래 왼쪽 해외 · 오른쪽 국내
+                  (사용자 2026-11-10 "기판 / 해외 국내", "줄마다 해외 국내 넣지 말고 카드 상단에 하나씩만") */}
+              <div className="px-2.5 pt-1.5 pb-1.5 bg-gray-50 border-b border-gray-200">
                 <button onClick={() => onOpen(s.id)} className="block font-bold text-[15px] text-gray-900 hover:text-indigo-700 hover:underline whitespace-nowrap truncate text-left" title={`${s.short} 탭으로 — 종목 카드 보기`}>
                   {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
                 </button>
-              </div>
-              <div className="px-2 pb-2 grid grid-cols-2 gap-1.5">
-                {([["해외", ov, "US"], ["국내", kr, "KR"]] as const).map(([lb, all, m]) => (
-                  <div key={lb} className={`min-w-0 rounded-md border ${lb === "해외" ? "border-violet-200 bg-violet-50/40" : "border-gray-200 bg-gray-50/60"} ${mkt !== m ? "opacity-50" : ""}`}   /* 고르지 않은 쪽(국내/해외 단추)은 상자째 흐리게(사용자 2026-11-10 "흐림을 카드 자체에") */>
-                    {/* 상자 머리 — 해외/국내 평균 크게 + 막대 */}
-                    <div className="px-1.5 py-1 border-b border-gray-200/70">
+                <div className="grid grid-cols-2 gap-x-2">
+                  {([["해외", ov, "US"], ["국내", kr, "KR"]] as const).map(([lb, all, m]) => (
+                    <div key={lb} className={`min-w-0 ${m === "US" ? "pr-2 border-r border-gray-300" : ""} ${mkt !== m ? "opacity-45" : ""}`}>   {/* 왼쪽·오른쪽 구분선(사용자 2026-11-10) */}
                       <div className="flex items-baseline justify-between gap-1">
                         <span className={`text-[11px] font-bold ${lb === "해외" ? "text-violet-700" : "text-gray-600"}`}>{lb}</span>
                         <Val label={lb} v={all} big={mkt === m} strong />
                       </div>
                       {all && all.n > 0 && <UpDnBar up={all.up} dn={all.n - all.up} scale={1} max={60} />}
                     </div>
-                    {/* 칸 줄 */}
-                    <div className="px-1.5 divide-y divide-gray-100">
-                      {boxes.map(b => {
-                        const v = lb === "해외" ? b.ov : b.kr;
-                        return (
-                          <div key={b.lb} className="py-0.5">
-                            <div className="flex items-start justify-between gap-1">
-                              {/* 칸 이름을 누르면 그 칸 종목만 타일로(사용자 2026-11-10) */}
-                              <button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => ({ sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) })) })}
-                                      className="min-w-0 text-[12px] font-bold text-gray-600 truncate hover:text-indigo-700 hover:underline text-left"
-                                      title={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기`; })()}>{b.lb}</button>
-                              <Val label={lb} v={v} strong={mkt === m} />
-                            </div>
-                            {v && v.n > 0 ? <UpDnBar up={v.up} dn={v.n - v.up} small scale={all && all.n > 0 ? v.n / all.n : 1} max={60} /> : <span className="text-[10px] text-gray-300">—</span>}
-                          </div>
-                        );
-                      })}
+                  ))}
+                </div>
+              </div>
+              {/* 칸 줄 */}
+              <div className="px-2.5 pb-1.5 divide-y divide-gray-100">
+                {boxes.map(b => (
+                  <div key={b.lb} className="py-1">
+                    {/* 칸 이름을 누르면 그 칸 종목만 타일로(사용자 2026-11-10) */}
+                    <button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => ({ sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) })) })}
+                            className="block text-[12.5px] font-bold text-gray-700 truncate hover:text-indigo-700 hover:underline text-left"
+                            title={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기`; })()}>{b.lb}</button>
+                    <div className="grid grid-cols-2 gap-x-2">
+                      {([[b.ov, ov, "US"], [b.kr, kr, "KR"]] as const).map(([v, all, m], j) => (
+                        <div key={j} className={`min-w-0 flex items-center justify-between gap-1 ${m === "US" ? "pr-2 border-r border-gray-300 bg-violet-50/50 -my-0.5 py-0.5 pl-1 rounded-l" : ""} ${mkt !== m ? "opacity-45" : ""}`}>
+                          {v && v.n > 0 ? <UpDnBar up={v.up} dn={v.n - v.up} small scale={all && all.n > 0 ? v.n / all.n : 1} max={60} /> : <span className="text-[10px] text-gray-300">—</span>}
+                          <Val label={m === "US" ? "해외" : "국내"} v={v} strong={mkt === m} />
+                        </div>
+                      ))}
                     </div>
                   </div>
                 ))}
