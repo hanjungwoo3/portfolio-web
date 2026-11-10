@@ -190,7 +190,6 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
   const isDim = (t: string) => t === hot ? false : off.size ? off.has(t) : hot != null;
   const toggleOff = (t: string) => setOff(o => { const n = new Set(o); if (n.has(t)) n.delete(t); else n.add(t); return n; });
   const seriesRef = useRef(new Map<string, ISeriesApi<SeriesType>>());
-  const sigRef = useRef(new Map<string, string>());   // 선 색 상태(새 차트면 비운다)
 
   const stocks = items;
   const colorMap = useMemo(() => {
@@ -580,7 +579,6 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
 
     return () => {
       seriesRef.current.clear();
-      sigRef.current.clear();
       clearTimeout(t1);
       try { chart.unsubscribeCrosshairMove(onMove); } catch { /* noop */ }
       try { ts.unsubscribeVisibleLogicalRangeChange(drawBg); } catch { /* noop */ }
@@ -597,12 +595,7 @@ export function EtfCompareChartDialog({ isOpen, onClose, seed, title, initialMod
       ser.applyOptions(t === hot ? { color: c, lineWidth: 3, lastValueVisible: true }
         : dim ? { color: hexA(c, 0.3), lineWidth: 1, lastValueVisible: false }   // 흐린 선 조금 진하게(사용자 2026-11-10 "너무 안 보여")
         : { color: c, lineWidth: off.size ? 2 : 1, lastValueVisible: true });
-      // 0% 아래 구간은 같은 색을 더 옅게(사용자 2026-11-10 "0% 위와 아래를 다르게, 0% 이하를 더 흐리게") — 점마다 색. 상태가 바뀔 때만 다시 넣는다
-      const sig = `${dim ? 1 : 0}${t === hot ? 1 : 0}${c}|${built.get(t)?.data.length ?? 0}`;
-      if (sigRef.current.get(t) === sig) continue;
-      sigRef.current.set(t, sig);
-      const [up, dn] = t === hot ? [1, 0.5] : dim ? [0.3, 0.16] : [1, 0.4];
-      ser.setData((built.get(t)?.data ?? []).map(p => ({ ...p, color: hexA(c, p.value >= 0 ? up : dn) })));
+      // (0% 아래를 옅게 칠하던 것은 뺐다 — 사용자 2026-11-10 "0% 이하 색 변화 기능 없애자")
     }
   });   // 매 그리기마다 — 차트를 새로 만든 뒤에도 강조가 이어지게
   if (!isOpen) return null;
