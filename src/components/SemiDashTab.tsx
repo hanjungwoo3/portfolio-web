@@ -794,7 +794,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
         {onTitle
           ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
           : <span className="font-bold text-gray-800">{name} 실시간 체결</span>}
-        <span className="text-[11px] text-gray-400">{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
+        <span className="text-[11px] text-gray-400">{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.backfilling ? " · 빈 분 한투로 채우는 중…" : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
         {vis != null && <button onClick={() => { stick.current = true; setVis(null); }} title="켠 뒤 전부를 한 화면으로 되돌리기" className="text-[10.5px] text-gray-500 border border-gray-300 rounded px-1 hover:bg-gray-50">{vis}분 보기 · 전체로</button>}
         <KisWsBadge />
       </div>
