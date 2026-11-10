@@ -82,9 +82,8 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
                     {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
                   </button>
                   {/* 상승·하락 종목 수 — 왼쪽 탭과 같은 기준(국내/해외 단추)(사용자 2026-11-07 "아래에 넣어도") */}
-                  {(() => { const v = mkt === "US" ? ov : kr; return v && (
-                    <UpDnBar up={v.up} dn={v.n - v.up} scale={1} />
-                  ); })()}
+                  {/* 해외·국내 둘 다(사용자 2026-11-10 "해외 국내가 둘 다 표시되어야") */}
+                  <BothBars ov={ov} kr={kr} ovAll={ov} krAll={kr} />
                 </div>
                 {/* 정렬 기준(국내/해외 단추) 숫자만 크게(사용자 2026-11-07) */}
                 <Val label="해외" v={ov} big={mkt === "US"} strong dim={mkt === "KR"} /><Val label="국내" v={kr} big={mkt === "KR"} strong dim={mkt === "US"} />   {/* 고르지 않은 쪽은 흐리게(사용자 2026-11-07) */}
@@ -100,10 +99,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
                       <button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => ({ sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) })) })}
                               className="block text-[12.5px] font-bold text-gray-600 truncate hover:text-indigo-700 hover:underline text-left" title={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기 — 막대는 위 [국내/해외] 단추 기준`; })()}>{b.lb}</button>
                       {/* 칸도 상승·하락 수(국내/해외 단추 기준, 사용자 2026-11-07 "여기도") */}
-                      {(() => { const v = mkt === "US" ? b.ov : b.kr; return v && (
-                        <UpDnBar up={v.up} dn={v.n - v.up} small
-                                 scale={(() => { const all = mkt === "US" ? ov : kr; return all && all.n > 0 ? v.n / all.n : 1; })()} />
-                      ); })()}
+                      <BothBars ov={b.ov} kr={b.kr} ovAll={ov} krAll={kr} small />
                     </span>
                     <Pair ov={b.ov} kr={b.kr} strong={mkt} />
                   </div>
@@ -136,4 +132,15 @@ function UpDnBar({ up, dn, scale, small = false }: { up: number; dn: number; sca
       {dn > 0 && <span className="text-blue-600">▼{dn}</span>}
     </span>
   );
+}
+
+/** 해외 · 국내 막대 두 줄 — 길이 기준은 각 업종의 해외 전체 · 국내 전체(그 업종 = 100%) */
+function BothBars({ ov, kr, ovAll, krAll, small = false }: { ov: RowAvg | null; kr: RowAvg | null; ovAll: RowAvg | null; krAll: RowAvg | null; small?: boolean }) {
+  const line = (lb: string, v: RowAvg | null, all: RowAvg | null) => v && v.n > 0 && (
+    <span className="flex items-center gap-1">
+      <span className="w-[2.1em] shrink-0 text-[9.5px] font-normal text-gray-400">{lb}</span>
+      <UpDnBar up={v.up} dn={v.n - v.up} small={small} scale={all && all.n > 0 ? v.n / all.n : 1} />
+    </span>
+  );
+  return <span className="block">{line("해외", ov, ovAll)}{line("국내", kr, krAll)}</span>;
 }

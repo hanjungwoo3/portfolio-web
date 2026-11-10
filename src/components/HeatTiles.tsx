@@ -14,6 +14,7 @@ export interface Tile {
   cap?: number;                // 시총(국내 원 · 해외 달러)
   logoid?: string;             // TradingView 로고
   dim?: boolean;               // 흐림(장 안 열림·체결 멈춤)
+  lead?: boolean;              // 해외 대장주 — 따로 묶고 보라 테두리(업종 카드와 같은 표시, 사용자 2026-11-10 "해외는 별도로, 테두리")
 }
 
 const capText = (v: number | undefined, kr: boolean) => !v ? "" : kr
@@ -31,6 +32,27 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
   const up = tiles.filter(t => (t.pct ?? 0) > 0).length, dn = tiles.filter(t => (t.pct ?? 0) < 0).length, fl = tiles.length - up - dn;
   const tot = Math.max(1, tiles.length);
   const open = onOpen ?? ((t: Tile) => (t.kr ? openStockInfo(t.code, t.name) : openTossStock(t.code)));
+  const tile = (t: Tile) => {
+    const pct = t.pct;
+    const bg = pct == null ? "bg-gray-50 border-gray-200" : pct >= 3 ? "bg-rose-100 border-rose-300" : pct > 0 ? "bg-rose-50 border-rose-200" : pct <= -3 ? "bg-blue-100 border-blue-300" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
+    return (
+      <button key={t.code} type="button" title={`${t.name}${pct != null ? ` ${pct > 0 ? "+" : ""}${pct.toFixed(2)}%` : ""} · 누르면 ${t.kr ? "종목정보" : "토스"}`}
+              onClick={() => open(t)}
+              className={`pg-card text-left rounded-md border px-1.5 py-1 hover:brightness-95 ${bg} ${t.lead ? "ring-2 ring-violet-400 ring-inset" : ""} ${t.dim ? "opacity-50" : ""}`}>
+        <div className="flex items-center gap-1 min-w-0">
+          {t.logoid && <img src={heatmapLogoUrl(t.logoid)} alt="" loading="lazy" className="w-4 h-4 rounded-full bg-white object-contain shrink-0" />}
+          <b className="truncate text-[12px] text-gray-900">{t.name}</b>
+          <span className={`ml-auto shrink-0 text-[12px] font-bold tabular-nums ${pct == null ? "text-gray-300" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-500"}`}>
+            {pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}
+          </span>
+        </div>
+        <div className="flex items-baseline justify-between text-[10.5px] text-gray-500 tabular-nums">
+          <span>{t.price == null || !(t.price > 0) ? "" : t.kr ? t.price.toLocaleString() : `$${t.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</span>
+          <span>{capText(t.cap, t.kr)}</span>
+        </div>
+      </button>
+    );
+  };
   return (
     <div>
       <div className="flex items-center gap-2 mb-1.5 text-[12px] font-bold tabular-nums">
@@ -47,29 +69,21 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
           ))}
         </span>
       </div>
-      <div className={`grid ${cols} gap-1.5`}>
-        {sorted.slice(0, limit ?? sorted.length).map(t => {
-          const pct = t.pct;
-          const bg = pct == null ? "bg-gray-50 border-gray-200" : pct >= 3 ? "bg-rose-100 border-rose-300" : pct > 0 ? "bg-rose-50 border-rose-200" : pct <= -3 ? "bg-blue-100 border-blue-300" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
-          return (
-            <button key={t.code} type="button" title={`${t.name}${pct != null ? ` ${pct > 0 ? "+" : ""}${pct.toFixed(2)}%` : ""} · 누르면 ${t.kr ? "종목정보" : "토스"}`}
-                    onClick={() => open(t)}
-                    className={`pg-card text-left rounded-md border px-1.5 py-1 hover:brightness-95 ${bg} ${t.dim ? "opacity-50" : ""}`}>
-              <div className="flex items-center gap-1 min-w-0">
-                {t.logoid && <img src={heatmapLogoUrl(t.logoid)} alt="" loading="lazy" className="w-4 h-4 rounded-full bg-white object-contain shrink-0" />}
-                <b className="truncate text-[12px] text-gray-900">{t.name}</b>
-                <span className={`ml-auto shrink-0 text-[12px] font-bold tabular-nums ${pct == null ? "text-gray-300" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-500"}`}>
-                  {pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}
-                </span>
-              </div>
-              <div className="flex items-baseline justify-between text-[10.5px] text-gray-500 tabular-nums">
-                <span>{t.price == null || !(t.price > 0) ? "" : t.kr ? t.price.toLocaleString() : `$${t.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</span>
-                <span>{capText(t.cap, t.kr)}</span>
-              </div>
-            </button>
-          );
-        })}
-      </div>
+      {(() => {
+        const leads = sorted.filter(t => t.lead), rest = sorted.filter(t => !t.lead);
+        const grid = (ts: Tile[]) => (
+          <div className={`grid ${cols} gap-1.5`}>
+            {ts.slice(0, limit ?? ts.length).map(tile)}
+          </div>
+        );
+        if (!leads.length) return grid(rest);
+        return (<>
+          <div className="text-[11px] font-bold text-violet-700 mb-1">해외 {leads.length}</div>
+          {grid(leads)}
+          {rest.length > 0 && <div className="text-[11px] font-bold text-gray-600 mt-2.5 mb-1">국내 {rest.length}</div>}
+          {rest.length > 0 && grid(rest)}
+        </>);
+      })()}
     </div>
   );
 }
