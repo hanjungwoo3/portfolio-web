@@ -213,8 +213,15 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
   return (
     <div className={`${BOX} ${className}`}>
       <div className="flex items-baseline gap-2">
-        <span className="font-bold text-gray-800">거래원</span>
-        <span className="text-[11px] text-gray-400">증권사 창구별 오늘 매도·매수 상위 5 · 30초마다{br?.updatedAt ? ` · ${br.updatedAt.slice(11, 16)}` : ""}</span>
+        <span className="font-bold text-gray-800" title="증권사 창구별 오늘 매도·매수 상위 5 · 30초마다">거래원</span>
+        {/* 설명 글 대신 외국계 합계 한 줄(사용자 2026-11-11 "여기를 좀 줄이자") */}
+        {br && (
+          <span className="text-[11.5px] tabular-nums whitespace-nowrap" title={`외국계 창구 매수 ${eokWon(br.foreign.bidVal)} · 매도 ${eokWon(br.foreign.askVal)}`}>
+            🌐 외국계 <b className={up(fnet)}>{fnet > 0 ? "+" : fnet < 0 ? "−" : ""}{eokWon(Math.abs(fnet))}</b>
+            <span className="text-gray-500">(<span className="text-rose-600">{eokWon(br.foreign.bidVal)}</span>−<span className="text-blue-600">{eokWon(br.foreign.askVal)}</span>)</span>
+          </span>
+        )}
+        <span className="ml-auto text-[10.5px] text-gray-400">{br?.updatedAt ? br.updatedAt.slice(11, 16) : ""}</span>
       </div>
       {/* 칸 높이가 정해져 있다 — 넘치는 내용(순간 매매 등)은 칸 안에서 스크롤(사용자 2026-11-11 "화면이 깨져") */}
       <div className="flex-1 min-h-0 overflow-y-auto">
@@ -228,14 +235,6 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
             <div className="text-[10.5px] text-rose-700 font-bold px-1">매수 상위</div>
             {br.rows.map((r, i) => <div key={"b" + i}>{side(r.bid, "bid")}</div>)}
           </div>
-        </div>
-        {/* 외국계 합계 — 장중 외국인 매매의 가장 빠른 어림 */}
-        <div className="mt-2 rounded border border-gray-200 bg-gray-50 px-2 py-1.5 text-[11.5px] tabular-nums">
-          <div className="flex items-baseline justify-between">
-            <span className="font-bold text-gray-800">🌐 외국계 창구 합계</span>
-            <b className={up(fnet)}>{fnet >= 0 ? "순매수" : "순매도"} {eokWon(Math.abs(fnet))}</b>
-          </div>
-          <div className="flex justify-between text-gray-600"><span>매수 <b className="text-rose-700">{eokWon(br.foreign.bidVal)}</b></span><span>매도 <b className="text-blue-700">{eokWon(br.foreign.askVal)}</b></span></div>
         </div>
         <MemberTicks code={code} />
         <div className="pt-1 text-[10.5px] text-gray-400 leading-snug">창구 = 주문을 낸 증권사. 외국계 창구가 곧 외국인은 아니지만, 장 마감 뒤 나오는 외국인 순매수를 장중에 가장 빨리 짐작하는 수치.</div>
