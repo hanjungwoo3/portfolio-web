@@ -70,7 +70,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
                   const allTot = mkt === "US" ? nOv : nKr;
                   return (
                     <SimpleRow key={b.lb}
-                               onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => { const e = regExtOf(x); return { sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x), reg: e?.reg ?? null, aft: e && Math.abs(e.aft) >= 0.005 ? e.aft : null, ses: e?.ses }; }) })}
+                               onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => { const e = regExtOf(x); return { sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x), reg: e?.reg ?? null, aft: e && Math.abs(e.aft) >= 0.005 ? e.aft : null, ses: e?.ses, dim: pctOf(x) == null && !e }; }) })}
                                hint={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기`; })()}
                                name={<span className="text-[12.5px] font-medium">{b.lb}</span>}
                                main={main} other={mkt === "US" ? b.kr : b.ov} otherLb={mkt === "US" ? "국내" : "해외"}
@@ -92,11 +92,12 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
 
 /** 한 줄 — 이름 · 고른 쪽 평균(크게) · 장외 꼬리표 · (다른 쪽 평균, 작게) + 바로 아래 얇은 상승·하락 선(길이 = 업종 전체 대비 종목 수) */
 function SimpleRow({ name, main, other, otherLb, scale, total, big, onClick, hint }: { name: React.ReactNode; main: RowAvg | null; other: RowAvg | null; otherLb: string; scale: number; total: number; big?: boolean; onClick?: () => void; hint?: string }) {
-  const up = main?.up ?? 0, dn = main ? main.n - main.up : 0, dim = Math.max(0, total - (main?.n ?? 0));
+  // 회색 = 흐린 종목 + 값이 그대로(0%)인 종목(사용자 2026-11-12 "가격 변동이 없는 건 회색으로 통합")
+  const up = main?.up ?? 0, dn = main?.dn ?? 0, dim = Math.max(0, total - up - dn);
   const tot = Math.max(1, up + dn + dim);
   // 네 칸(이름 · 증감률 · (해외/국내) · 상승·하락 선)을 부모 격자에 그대로 — 줄 전체를 누른다(사용자 2026-11-11 "클릭을 줄 전체에")
   const cell = `py-0.5 ${onClick ? "cursor-pointer" : ""}`;
-  const title = `${hint ? hint + " — " : ""}상승 ${up} · 하락(보합 포함) ${dn}${dim ? ` · 흐림(장 안 열림·체결 없음) ${dim}` : ""}`;
+  const title = `${hint ? hint + " — " : ""}상승 ${up} · 하락 ${dn}${dim ? ` · 회색(보합·장 안 열림·체결 없음) ${dim}` : ""}`;
   return (
     <div role="button" tabIndex={0} onClick={onClick} onKeyDown={e => { if (e.key === "Enter") onClick?.(); }} title={title}
          className="contents [&:hover>*]:bg-indigo-50/60">

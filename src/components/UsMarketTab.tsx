@@ -890,7 +890,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                       <span className="text-gray-500 font-normal">{lb}</span>
                       <b className={v.avg > 0 ? "text-rose-600" : v.avg < 0 ? "text-blue-600" : "text-gray-600"}>{v.avg > 0 ? "+" : ""}{v.avg.toFixed(2)}%</b>
                       {v.aft != null && <AftPill v={v.aft} />}
-                      <span className="text-[10px] text-gray-500 font-normal">▲{v.up}·▼{v.n - v.up}</span>
+                      <span className="text-[10px] text-gray-500 font-normal">▲{v.up}·▼{v.dn}</span>
                     </span>
                   );
                   if (!ov && !kr) return null;

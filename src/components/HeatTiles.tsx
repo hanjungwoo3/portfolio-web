@@ -50,7 +50,9 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
   // 오른·내린 종목 수 막대 — 해외 대장주가 섞이면 해외·국내 따로(사용자 2026-11-10 "상승 하락도 해외 국내 따로")
   //   길이 = 많은 쪽 종목 수를 100% 로(해외 1 · 국내 15 면 해외 막대는 1/15)(사용자 2026-11-10)
   const bar = (ts: Tile[], label?: string, tone = "text-gray-600", scale = 1) => {
-    const up = ts.filter(t => (t.pct ?? 0) > 0).length, dn = ts.filter(t => (t.pct ?? 0) < 0).length, fl = ts.length - up - dn, tot = Math.max(1, ts.length);
+    // 흐린 종목은 회색으로만 센다 — 업종 표 막대와 같은 기준(사용자 2026-11-12 "색이 안 맞는데")
+    const live = ts.filter(t => !t.dim);
+    const up = live.filter(t => (t.pct ?? 0) > 0).length, dn = live.filter(t => (t.pct ?? 0) < 0).length, fl = ts.length - up - dn, tot = Math.max(1, ts.length);
     return (
       <div className="flex items-center gap-2 text-[12px] font-bold tabular-nums">
         {/* 이름·▲ 칸 폭 고정 — 해외·국내 막대 시작점을 맞춘다(사용자 2026-11-10) */}

@@ -29,7 +29,8 @@ function TilePopup({ req, onClose }: { req: TilePopupReq; onClose: () => void })
     const tv = tvQ.data?.get(code);
     // 정규장·장외를 업종 표가 넘겨줬으면 그것(카드 배지와 같은 꼴), 아니면 지금 시세
     const hasReg = i.reg != null;
-    return { code, name: i.name, kr: !!k, lead: !k, ext: hasReg ? (i.aft ?? null) : null, extLabel: i.ses,
+    // dim = 업종 표와 같은 흐림 판정(막대 회색)
+    return { code, name: i.name, kr: !!k, lead: !k, dim: !!i.dim, ext: hasReg ? (i.aft ?? null) : null, extLabel: i.ses,
              pct: hasReg ? i.reg! : p ? (dayChangePct(p) ?? i.pct ?? null) : (i.pct ?? null), price: p?.price ?? null, cap: tv ? (tv.marketCap || tv.aum) : undefined, logoid: tv?.logoid };
   });
   return (

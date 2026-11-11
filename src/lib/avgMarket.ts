@@ -58,13 +58,13 @@ export function usRegExtOf(sym: string, q?: { price: number; postPrice?: number 
 
 // 순환매(한눈에) 줄 요약 — 해외(미국 대장주)·국내(한국 종목, 참고 ETF 제외) 평균. PC·모바일 한 벌(사용자 2026-11-07 "한눈에 1·2번")
 //   pctOf = 카드 본문 %, regExtOf = 정규장 등락 + 그 뒤(애프터·프리) — 있으면 평균은 정규장, 꼬리표는 그 뒤
-export type RowAvg = { avg: number; aft: number | null; up: number; n: number; ses: Ses | null };
+export type RowAvg = { avg: number; aft: number | null; up: number; dn: number; n: number; ses: Ses | null };   // dn = 내린 종목(보합은 up·dn 어느 쪽도 아니다)
 export function avgOfSyms(syms: string[], pctOf: (s: string) => number | null, regExtOf: (s: string) => { reg: number; aft: number; ses?: Ses } | null): RowAvg | null {
   const v = syms.map(x => { const e = regExtOf(x); return { p: e?.reg ?? pctOf(x), a: e?.aft ?? null, ses: e?.ses ?? null }; }).filter(x => x.p != null && Number.isFinite(x.p));
   if (!v.length) return null;
   // 정확히 0 = 그 뒤 체결이 없어 정규장 종가를 그대로 쓴 것(값 없음) — 평균에서 빼고 꼬리표도 안 단다(사용자 2026-11-07 "해외 상황인데 0.00%?")
   const as = v.flatMap(x => x.a != null && Number.isFinite(x.a) && Math.abs(x.a) >= 0.005 ? [x.a] : []);
-  return { avg: v.reduce((t, x) => t + x.p!, 0) / v.length, aft: as.length ? as.reduce((t, x) => t + x, 0) / as.length : null, up: v.filter(x => x.p! > 0).length, n: v.length,
+  return { avg: v.reduce((t, x) => t + x.p!, 0) / v.length, aft: as.length ? as.reduce((t, x) => t + x, 0) / as.length : null, up: v.filter(x => x.p! > 0).length, dn: v.filter(x => x.p! < 0).length, n: v.length,
     ses: v.find(x => x.ses)?.ses ?? null };
 }
 export function rotRowAvg(section: DashboardSection, ri: number, pctOf: (s: string) => number | null, regExtOf: (s: string) => { reg: number; aft: number; ses?: Ses } | null): { ov: RowAvg | null; kr: RowAvg | null } {
