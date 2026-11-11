@@ -159,7 +159,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
     const r = isKrAfterWindow() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
     return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100, ses: "애프터" as const } : usRegExtOf(sym, q);
   };
-  const pctOfSym = (sym: string) => displayPctOf(sym, usMap.get(sym));
+  // 국내 종목이 흐리면(프리장에 아직 체결 없음·장 마감) 평균에서 뺀다 — 마감 뒤엔 regExtOf 의 정규장 등락이 대신 들어간다
+  //   (사용자 2026-11-11 "프리장에 오픈 안 된 것도 포함해서 국내 % 가 나와")
+  const pctOfSym = (sym: string) => (/\.(KS|KQ)$/.test(sym) && dimOf(sym) ? null : displayPctOf(sym, usMap.get(sym)));
   // 업종 칸(SobuGrid) 시세 — 업종 탭과 한눈에 요약판이 같이 쓴다. 국내는 15:30 뒤 정규장 종가 책갈피(야후 확인분), 미국 대장주는 장 밖이면 최근 정규장
   const sobuQuote = (sym: string) => {
     const q = usMap.get(sym); if (!q) return undefined;

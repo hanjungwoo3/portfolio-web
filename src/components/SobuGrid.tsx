@@ -184,7 +184,9 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
         const ovEx = ovQ.flatMap(q => q?.reg && q.reg.price > 0 && q.price > 0 ? [(q.price / q.reg.price - 1) * 100] : []).filter(v => Math.abs(v) >= 0.005);   // 0 = 값 없음
         const ovAft = ovEx.length ? ovEx.reduce((a, v) => a + v, 0) / ovEx.length : null;
         const live = b.kr.filter(s => !dimOf?.(s));
-        const ps = (live.length ? live : b.kr).map(s => quote(s)?.pct).filter((v): v is number => v != null && Number.isFinite(v));
+        // 흐린 종목(장 안 열림·체결 멈춤)은 통계에서 뺀다 — 다 흐리면 지금 % 대신 정규장 등락률로만(아래 rps), 그것도 없으면 '—'
+        //   (사용자 2026-11-10 "흐린 것도 포함해서 % 통계 내는 것 같아" — 자정 넘어 애프터 값이 섞여 삼성전자 −1.01% 가 평균에 들어갔다)
+        const ps = live.map(s => quote(s)?.pct).filter((v): v is number => v != null && Number.isFinite(v));
         const avg = ps.length ? ps.reduce((a, v) => a + v, 0) / ps.length : null;
         const up = ps.filter(v => v > 0).length;
         // 정규장 마감 뒤(NXT 애프터) 평균 — 정규장 종가 대비 지금 값(카드 오른쪽 위 빨강·파랑 꼬리표의 평균, 사용자 2026-11-05)
@@ -192,9 +194,10 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
         const aft = as.length ? as.reduce((a, v) => a + v, 0) / as.length : null;
         // 마감 뒤엔 평균을 정규장 등락률로(애프터는 옆 꼬리표) — "정규장%(애프터%)"(사용자 2026-11-05)
         const rps = b.kr.map(s => quote(s)?.reg?.pct).filter((v): v is number => v != null && Number.isFinite(v));
-        const avgShown = aft != null && rps.length ? rps.reduce((a, v) => a + v, 0) / rps.length : avg;
-        const upShown = aft != null && rps.length ? rps.filter(v => v > 0).length : up;
-        const nShown = aft != null && rps.length ? rps.length : ps.length;
+        const useReg = (aft != null || !live.length) && rps.length > 0;   // 마감 뒤 또는 다 흐리면 정규장 등락률
+        const avgShown = useReg ? rps.reduce((a, v) => a + v, 0) / rps.length : avg;
+        const upShown = useReg ? rps.filter(v => v > 0).length : up;
+        const nShown = useReg ? rps.length : ps.length;
         // 칸 수급 — 국내 종목 외국인·기관(금융투자 제외) 누적 순매수 합(억원). 크롤러 기준일(전 거래일)까지
         const fsum = (w: "5" | "20", k: "fo" | "in") => b.kr.reduce((a, s) => a + (flowBy.get(s.slice(0, 6))?.w[w]?.[k] ?? 0), 0);
         const hasFlow = b.kr.some(s => flowBy.has(s.slice(0, 6)));
