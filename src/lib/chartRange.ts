@@ -3,7 +3,7 @@
 //   24시간 시계열이 없는 카드(국고채, 토스 코드 모르는 종목 등)는 3개월로 그린다.
 import { useSyncExternalStore } from "react";
 
-// "all" = 3개월(옛 이름 그대로 — 저장값 호환), "week" = 7일(사용자 2026-11-12 "1년 빼고 7일 추가" — 옛 '1년' 저장값은 3개월로)
+// "all" = 3개월(옛 이름 그대로 — 저장값 호환), "week" = 1개월(사용자 2026-11-12 "1년 빼고 7일" → "7일 말고 1개월" — 키 이름은 week 그대로, 옛 '1년' 저장값은 3개월로)
 export type ChartRange = "all" | "week" | "day";
 const KEY = "dashboard_chart_range";
 const EVENT = "chart-range-change";
@@ -31,11 +31,11 @@ export function useChartRange(): ChartRange {
 
 /** 일봉 기간 — 3개월이면 "3mo", 1년이면 "1y"(24시간이어도 폴백용 일봉은 3개월) */
 export function historyRange(_range: ChartRange): "3mo" | "1y" {
-  return "3mo";   // 7일도 3개월 일봉을 받아 뒤 7개만(trimByRange) — 같은 캐시를 쓴다
+  return "3mo";   // 1개월도 3개월 일봉을 받아 뒤 21개(약 한 달 거래일)만(trimByRange) — 같은 캐시를 쓴다
 }
-/** 7일이면 일봉 뒤 7개(거래일 7일)만 */
+/** 1개월이면 일봉 뒤 21개(약 한 달 거래일)만 */
 export function trimByRange<T>(arr: T[], range: ChartRange): T[] {
-  return range === "week" ? arr.slice(-7) : arr;
+  return range === "week" ? arr.slice(-21) : arr;
 }
 
 /** 고른 기간의 배경 차트 — 24시간이면 당일 시계열, 없으면 3개월로 폴백. */

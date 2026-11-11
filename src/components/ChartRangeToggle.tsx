@@ -13,7 +13,7 @@ export function ChartRangeToggle({ small = false, className = "" }: { small?: bo
         <button key={v} onClick={() => setChartRange(v)}
                 className={`${small ? "px-1 whitespace-nowrap" : "px-1.5"} py-0
                             ${range === v ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}>
-          {v === "all" ? "3개월" : v === "week" ? "7일" : "24시간"}
+          {v === "all" ? "3개월" : v === "week" ? "1개월" : "24시간"}
         </button>
       ))}
     </span>
