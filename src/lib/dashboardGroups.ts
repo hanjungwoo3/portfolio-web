@@ -627,6 +627,20 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     {
+      // 데이터센터 — 짓고(전력기기) 식히고(냉각) 돌리고(서버·클라우드) 전기 대는(전원) 쪽(사용자 2026-11-11 "업종별에 데이터센터 넣을 거 없어?")
+      //   원전·친환경·2차전지 탭과 겹치는 종목도 있다(다른 탭이라 둔다). 국내 냉각 대장주가 적어 LG전자(칠러)·케이엔솔
+      id: "dcflow", short: "데이터센터", etfs: ["487240.KS", "0142D0.KS", "487230.KS"], label: "🏢 데이터센터 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = GE버노바·이튼·콴타(전력기기)·버티브·트레인·존슨컨트롤즈(냉각)·에퀴닉스·디지털리얼티·코어위브·델·슈퍼마이크로(서버·클라우드)·블룸에너지·컨스텔레이션(전원), 간밤.",
+      lead: 1, leadByRow: [3, 3, 5, 2],
+      rowLabels: ["전력기기", "냉각·공조", "서버·클라우드", "전원"],
+      rows: [
+        ["GEV", "ETN", "PWR", "267260.KS", "298040.KS", "010120.KS", "103590.KS", "062040.KS", "033100.KS"],
+        ["VRT", "TT", "JCI", "066570.KS", "053080.KS"],
+        ["EQIX", "DLR", "CRWV", "DELL", "SMCI", "018260.KS", "064400.KS", "030200.KS", "017670.KS", "032640.KS"],
+        ["BE", "CEG", "336260.KS", "475150.KS"],
+      ],
+    },
+    {
       // 친환경 — 태양광·풍력·수소(사용자 2026-11-05 "친환경, 태양광 등도 추가")
       id: "greenflow", short: "친환경", etfs: ["385510.KS", "404120.KS", "377990.KS"], label: "🌱 친환경 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 퍼스트솔라(태양광)·GE버노바(풍력)·블룸에너지(연료전지), 간밤.",
@@ -670,7 +684,7 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 소부장 — 단계별 한 블록만(사용자 2026-11-02, 주간 시장 줄은 뺐다 "빼도 될 거 같아")
   // 지수(업종) — 업종마다 한 블록, 페이지 안 탭으로 하나씩(사용자 2026-11-03 "소부장·ESS 를 내부 탭으로")
   //   + 옛 지수(순환매) 페이지를 '한눈에' 탭으로 합쳤다(사용자 2026-11-03 "순환매와 업종이 비슷" → 1안) — 아래 SECTOR_OVERVIEW_IDS
-  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "semiflow", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "greenflow", "opticflow", "bioflow", "robotflow", "finflow", "beautyflow"],
+  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "semiflow", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "greenflow", "opticflow", "dcflow", "bioflow", "robotflow", "finflow", "beautyflow"],
   // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
   //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)

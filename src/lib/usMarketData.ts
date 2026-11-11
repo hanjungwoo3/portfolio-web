@@ -752,6 +752,16 @@ export const US_PAIRS: Pair[] = [
   { symbol: "453650.KS", name: "KODEX 미국S&P500금융", desc: "미국 금융 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "474800.KS", name: "KIWOOM 미국원유에너지기업", desc: "미국 석유 기업 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "VRT", name: "버티브", desc: "데이터센터 전력·냉각", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "TT", name: "트레인", desc: "Trane — 데이터센터 냉각·공조(칠러)", tier: "T0", sector: "dashboard", direction: "direct" },   // 데이터센터 탭(2026-11-11)
+  { symbol: "JCI", name: "존슨컨트롤즈", desc: "Johnson Controls — 건물·데이터센터 냉각", tier: "T0", sector: "dashboard", direction: "direct" },   // 데이터센터 탭(2026-11-11)
+  { symbol: "SMCI", name: "슈퍼마이크로", desc: "Super Micro — AI 서버·랙", tier: "T0", sector: "dashboard", direction: "direct" },   // 데이터센터 탭(2026-11-11)
+  { symbol: "033100.KS", name: "제룡전기", desc: "변압기", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 데이터센터 탭(2026-11-11)
+  { symbol: "066570.KS", name: "LG전자", desc: "칠러·HVAC — 데이터센터 냉각", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 데이터센터 탭(2026-11-11)
+  { symbol: "053080.KS", name: "케이엔솔", desc: "데이터센터·클린룸 냉각", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 데이터센터 탭(2026-11-11)
+  { symbol: "064400.KS", name: "LG씨엔에스", desc: "클라우드·데이터센터 운영", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 데이터센터 탭(2026-11-11)
+  { symbol: "030200.KS", name: "KT", desc: "데이터센터(KT클라우드)·통신", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 데이터센터 탭(2026-11-11)
+  { symbol: "017670.KS", name: "SK텔레콤", desc: "AI 데이터센터·통신", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 데이터센터 탭(2026-11-11)
+  { symbol: "032640.KS", name: "LG유플러스", desc: "데이터센터(IDC)·통신", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },   // 데이터센터 탭(2026-11-11)
   { symbol: "ETN", name: "이튼", desc: "전력 관리·배전", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "CEG", name: "컨스텔레이션", desc: "원전 발전사 — AI 전력 계약", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "ANET", name: "아리스타", desc: "데이터센터 네트워크 스위치", tier: "T0", sector: "dashboard", direction: "direct" },
