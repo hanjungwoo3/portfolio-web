@@ -53,7 +53,8 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
                 {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
               </button>
               {/* 카드 전체가 한 격자 — 이름 칸은 가장 긴 이름에 맞춰 늘고(안 잘린다), 증감률·(해외)·선이 줄마다 세로로 맞는다(사용자 2026-11-11) */}
-              <div className="grid grid-cols-[auto_auto_auto_minmax(3.5rem,1fr)] gap-x-1.5 items-center">
+              {/*   칸 폭은 모든 카드가 같게 고정 — 카드끼리도 세로줄이 맞는다(사용자 2026-11-11 "전체적으로 정렬을 고정하자") */}
+              <div className="grid grid-cols-[7.6em_4.9em_6.2em_minmax(3.5rem,1fr)] gap-x-1.5 items-center text-[12.5px]">
               <SimpleRow onClick={() => onOpen(s.id)} hint={`${s.short} 탭으로 — 종목 카드 보기`}
                          name={<span className="text-[11px] font-bold text-gray-500">{mkt === "US" ? "해외" : "국내"}</span>}
                          main={mkt === "US" ? ov : kr} other={mkt === "US" ? kr : ov} otherLb={mkt === "US" ? "국내" : "해외"} scale={1} big />
@@ -92,10 +93,10 @@ function SimpleRow({ name, main, other, otherLb, scale, big, onClick, hint }: { 
   return (
     <div role="button" tabIndex={0} onClick={onClick} onKeyDown={e => { if (e.key === "Enter") onClick?.(); }} title={title}
          className="contents [&:hover>*]:bg-indigo-50/60">
-      <span className={`${cell} whitespace-nowrap rounded-l pl-1 ${main ? tone(main.avg) : "text-gray-700"}`}>{name}</span>
+      <span className={`${cell} min-w-0 truncate rounded-l pl-1 ${main ? tone(main.avg) : "text-gray-700"}`}>{name}</span>
       <span className={`${cell} text-right leading-tight`}>
         {main ? <b className={`tabular-nums ${tone(main.avg)} ${big ? "text-[14px]" : "text-[13px]"}`}>{fmt(main.avg)}</b> : <span className="text-gray-300 text-[12px]">—</span>}
-        {main?.aft != null && <span className={`block ml-auto w-fit text-[9px] font-bold text-white px-1 rounded leading-[12px] ${main.aft > 0 ? "bg-rose-600/60" : main.aft < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`} title={`${main.ses ?? "장외"} — 정규장 종가 대비`}>{main.ses ?? ""} {main.aft > 0 ? "+" : main.aft < 0 ? "−" : ""}{Math.abs(main.aft).toFixed(2)}%</span>}
+        {main?.aft != null && <span className={`block ml-auto w-fit text-[9px] font-bold px-1 rounded leading-[12px] ${main.aft > 0 ? "bg-rose-100 text-rose-700" : main.aft < 0 ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}   /* 연한 바탕·진한 글자(사용자 2026-11-11) */ title={`${main.ses ?? "장외"} — 정규장 종가 대비`}>{main.ses && <span className="mr-0.5 text-[8px] font-normal opacity-60">{main.ses}</span>}{main.aft > 0 ? "+" : main.aft < 0 ? "−" : ""}{Math.abs(main.aft).toFixed(2)}%</span>}
       </span>
       <span className={`${cell} text-[9.5px] text-gray-400 tabular-nums whitespace-nowrap`}>{other ? <>({otherLb} <span className={tone(other.avg)}>{fmt(other.avg)}</span>)</> : ""}</span>
       <span className={`${cell} rounded-r pr-1 min-w-0`}>
