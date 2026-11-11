@@ -216,6 +216,8 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
         <span className="font-bold text-gray-800">거래원</span>
         <span className="text-[11px] text-gray-400">증권사 창구별 오늘 매도·매수 상위 5 · 30초마다{br?.updatedAt ? ` · ${br.updatedAt.slice(11, 16)}` : ""}</span>
       </div>
+      {/* 칸 높이가 정해져 있다 — 넘치는 내용(순간 매매 등)은 칸 안에서 스크롤(사용자 2026-11-11 "화면이 깨져") */}
+      <div className="flex-1 min-h-0 overflow-y-auto">
       {!br ? <div className="text-gray-400 text-[12px] mt-2">{error ? `⚠️ ${(error as Error).message}` : "불러오는 중…"}</div> : (<>
         <div className="grid grid-cols-2 gap-2 mt-1">
           <div>
@@ -238,6 +240,7 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
         <MemberTicks code={code} />
         <div className="pt-1 text-[10.5px] text-gray-400 leading-snug">창구 = 주문을 낸 증권사. 외국계 창구가 곧 외국인은 아니지만, 장 마감 뒤 나오는 외국인 순매수를 장중에 가장 빨리 짐작하는 수치.</div>
       </>)}
+      </div>
     </div>
   );
 }
@@ -445,7 +448,7 @@ function MemberTicks({ code }: { code: string }) {
         <div className="text-[10.5px] text-gray-600 tabular-nums">외국계 누적 매수 {mf.glob.buy.toLocaleString()}주 · 매도 {mf.glob.sell.toLocaleString()}주 · 순 <b className={up(mf.glob.net)}>{mf.glob.net > 0 ? "+" : ""}{mf.glob.net.toLocaleString()}주</b></div>
       )}
       {!rows.length ? <div className="text-gray-400 py-1">아직 없어요 — 창구 상위 5의 수량이 바뀌면 여기 쌓입니다</div> : (
-        <div className="max-h-48 overflow-y-auto mt-0.5">
+        <div className="max-h-40 overflow-y-auto mt-0.5">
           <table className="w-full tabular-nums">
             <tbody>
               {rows.map((t, i) => (
