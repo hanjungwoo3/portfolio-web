@@ -2,6 +2,7 @@
 //   호가 / 거래원(증권사·외국계) / 프로그램+투자자 오늘·5일 / 새 소식(뉴스+공시) / 토스·네이버 커뮤니티
 //   + useStockLiveSignals: 위 칸들의 숫자로 '지금 신호' 줄을 만든다(쿼리키가 같아 추가 호출 없음).
 //   팝업이 열려 있을 때만 받는다(= 이 칸들이 마운트된 동안). 호가 3초 · 거래원·프로그램 30초 · 뉴스·공시 1분.
+import { fmtEok } from "../lib/eokFmt";
 import { memberFlow, onMemberFlow, watchMembers, memberFlowAvailable } from "../lib/memberFlow";
 import { fetchKisInvestorEstimate, kisFutAvailable } from "../lib/kisFutures";
 import { useQuery } from "@tanstack/react-query";
@@ -268,7 +269,8 @@ export function ProgramInvestorBox({ code, price }: { code: string; price?: numb
   ];
   const sum = (n: number, f: (r: Investor) => number) => hist.slice(0, n).reduce((a, r) => a + won(r, f(r)), 0);
   const psum = (n: number) => prog.slice(0, n).reduce((a, r) => a + r.net, 0) * (price ?? 0) / 1e8;
-  const fmt = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v)).toLocaleString()}`;
+  const qty = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(Math.round(v)).toLocaleString()}`;   // 주 수량(단위는 뒤에 '주')
+  const fmt = (v: number) => fmtEok(v);   // 단위 붙여 "+80억", 1만억↑ "−1조4501억"(사용자 2026-11-11)
   const cell = (v: number) => <td className={`text-right ${up(v)}`}>{fmt(v)}</td>;
   const today = hist[0];
   const kisOn = kisFutAvailable();   // 한국투자 연동(앱) — 장중 추정 줄
@@ -276,7 +278,7 @@ export function ProgramInvestorBox({ code, price }: { code: string; price?: numb
     <div className={BOX}>
       <div className="flex items-baseline gap-2">
         <span className="font-bold text-gray-800">프로그램 · 투자자</span>
-        <span className="text-[11px] text-gray-400">억원 · 오늘은 잠정치(장중 개인 0) · 프로그램은 주 × 현재가</span>
+        <span className="text-[11px] text-gray-400">오늘은 잠정치(장중 개인 0) · 프로그램은 주 × 현재가</span>
       </div>
       <table className="w-full tabular-nums text-[11.5px] mt-1">
         <thead><tr className="text-gray-500 text-[10.5px] border-b">
@@ -298,7 +300,7 @@ export function ProgramInvestorBox({ code, price }: { code: string; price?: numb
       {kisOn && <KisEstimateRows code={code} price={price} />}
       {prog.length > 0 && (
         <div className="text-[10.5px] text-gray-500 mt-1">
-          프로그램 오늘 — 비차익 <b className={up(prog[0].nonArbNet)}>{fmt(prog[0].nonArbNet)}주</b> · 차익 <b className={up(prog[0].arbNet)}>{fmt(prog[0].arbNet)}주</b>
+          프로그램 오늘 — 비차익 <b className={up(prog[0].nonArbNet)}>{qty(prog[0].nonArbNet)}주</b> · 차익 <b className={up(prog[0].arbNet)}>{qty(prog[0].arbNet)}주</b>
           <span className="text-gray-400"> (20일 칸은 최근 {Math.min(10, prog.length)}일)</span>
         </div>
       )}

@@ -5,6 +5,7 @@
 //     · 코스피 투자자(네이버) 1분 / 선물 투자자(네이버) **20분 지연** / 선물 시세·옵션(한경) 실시간
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
+import { fmtEok } from "../lib/eokFmt";
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { ForeignFuturesPanel } from "./ForeignFuturesPanel";
 import { loadProgTape, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/futuresTape";
@@ -1397,12 +1398,8 @@ const INV_ROWS: [string, keyof Investor][] = [["외국인", "외국인"], ["기�
 function InvTable({ inv, price }: { inv: Investor; price?: number }) {
   const px = price ?? inv.종가 ?? 0;
   const eok = (q: number) => (q * px) / 1e8;
-  // 금액 — 1만억 넘으면 '1조4501억'(사용자 2026-11-11), 아래는 '80억'·'4.5억'
-  const f = (v: number) => {
-    const a = Math.abs(v), sg = v > 0 ? "+" : v < 0 ? "−" : "";
-    if (a >= 1e4) { const jo = Math.floor(a / 1e4), r = Math.round(a - jo * 1e4); return `${sg}${jo}조${r ? `${r}억` : ""}`; }
-    return `${sg}${a >= 10 ? Math.round(a).toLocaleString() : a.toFixed(1)}억`;
-  };
+  const f = (v: number) => fmtEok(v);   // lib/eokFmt 한 벌
+
   const est = !inv.개인있음;
   const indiv = est ? -(inv.외국인 + inv.기관) : inv.개인;
   const hi = new Set(["외국인", "기관", "연기금", "개인"]);
