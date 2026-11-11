@@ -545,7 +545,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {/* 옵션·종목 수급은 한 칸에 세로로 — 남는 폭을 수급 그래프 세 칸에(사용자 요청 2026-10-23) */}
         <div className="grid grid-rows-[auto_1fr] gap-1.5 min-h-0">   {/* 위 = 옵션, 아래 = 시장 공통 신호(사용자 2026-11-04) */}
         {/* 종목 수급 표는 뺐다(사용자 2026-11-04 "삭제") */}
-        <OptionBox opt={opt} vk={vk} dim={!openFut} />
+        <OptionBox opt={opt} vk={vk} dim={!weekday} />   {/* 장 마감 뒤에도 흐리지 않는다 — 주말만(사용자 2026-11-11 "여기도 흐림 안 되게") */}
         {sigBox("시장 신호", sig.filter(n => !n.code), "아직 없음 — 코스피 외국인·선물·옵션 신호가 여기에", false, "max-h-[300px]",
           mktSummary && (
             <div className="mb-1.5 px-2 py-1.5 rounded bg-gray-50 border border-gray-200 text-[12.5px] leading-snug" title="아래 신호들을 숫자 규칙으로 묶은 것(AI 아님) — 하락·상승 쪽 신호 수로 결론">
