@@ -120,7 +120,7 @@ function SimpleRow({ name, main, other, otherLb, scale, total, big, onClick, hin
           <span className="flex min-w-0 tabular-nums font-bold leading-[11px]" style={{ width: `${Math.max(6, Math.min(1, scale) * 100)}%` }}>
             {([[up, "bg-rose-300", "text-rose-500"], [dn, "bg-blue-300", "text-blue-500"], [dim, "bg-gray-300", "text-gray-400"]] as const).map(([v, bg, tx], i) => v > 0 && (
               <span key={i} className="flex flex-col min-w-[1.3em] pr-px" style={{ width: `${(v / tot) * 100}%` }}>   {/* 작은 조각도 숫자가 겹치지 않게 최소 폭 */}
-                <span className={`text-[9.5px] ${tx} whitespace-nowrap`}>{v}</span>
+                <span className={`text-[9.5px] ${tx} whitespace-nowrap text-center`}>{v}</span>   {/* 숫자는 조각 가운데(사용자 2026-11-12) */}
                 <span className={`${big ? "h-[4px]" : "h-[3px]"} ${bg} ${i === 0 ? "rounded-l-full" : ""} ${(i === 2 || (i === 1 && !dim) || (i === 0 && !dn && !dim)) ? "rounded-r-full" : ""}`} />
               </span>
             ))}
