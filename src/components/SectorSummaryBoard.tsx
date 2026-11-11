@@ -46,17 +46,26 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
           const emoji = s.label.split(" ")[0];
           return (
             // 거래원 칸처럼 단순하게 — 줄마다 "이름 +11.33% (해외 +8.10%)" + 아래 얇은 상승·하락 선(사용자 2026-11-11 "업종 카드 구성이 너무 산만해")
-            <div key={s.id} className="rounded-lg border border-gray-200 bg-white shadow-sm px-2.5 py-1.5">
-              <SimpleRow name={<button onClick={() => onOpen(s.id)} className="font-bold text-[14px] hover:text-indigo-700 hover:underline whitespace-nowrap truncate" title={`${s.short} 탭으로 — 종목 카드 보기`}>{emoji} {s.short}</button>}
+            <div key={s.id} className="relative mt-3 rounded-lg border border-gray-200 bg-white shadow-sm px-2.5 pt-3 pb-1.5">
+              {/* 업종 이름 = 카드 위 테두리에 걸친 책갈피(사용자 2026-11-11 "종목명을 한 줄 위로", "책갈피로") */}
+              <button type="button" onClick={() => onOpen(s.id)} title={`${s.short} 탭으로 — 종목 카드 보기`}
+                      className={`absolute -top-3 left-2 max-w-[80%] px-1.5 rounded-md border border-gray-300 bg-white shadow-sm font-bold text-[13px] leading-[22px] whitespace-nowrap truncate hover:text-indigo-700 hover:underline text-left ${(mkt === "US" ? ov : kr) ? tone((mkt === "US" ? ov : kr)!.avg) : "text-gray-800"}`}>
+                {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
+              </button>
+              {/* 카드 전체가 한 격자 — 이름 칸은 가장 긴 이름에 맞춰 늘고(안 잘린다), 증감률·(해외)·선이 줄마다 세로로 맞는다(사용자 2026-11-11) */}
+              <div className="grid grid-cols-[auto_auto_auto_minmax(3.5rem,1fr)] gap-x-1.5 items-center">
+              <SimpleRow onClick={() => onOpen(s.id)} hint={`${s.short} 탭으로 — 종목 카드 보기`}
+                         name={<span className="text-[11px] font-bold text-gray-500">{mkt === "US" ? "해외" : "국내"}</span>}
                          main={mkt === "US" ? ov : kr} other={mkt === "US" ? kr : ov} otherLb={mkt === "US" ? "국내" : "해외"} scale={1} big />
-              <div className="mt-1 pt-0.5 border-t border-gray-100">
-                {boxes.map(b => {
+              <div className="col-span-4 my-0.5 border-t border-gray-100" />
+                {/* 칸 줄은 증감률 큰 순(고른 쪽 기준, 값 없으면 뒤로)(사용자 2026-11-11 "증감순으로 소팅") */}
+                {[...boxes].sort((x, y) => ((mkt === "US" ? y.ov : y.kr)?.avg ?? -Infinity) - ((mkt === "US" ? x.ov : x.kr)?.avg ?? -Infinity)).map(b => {
                   const main = mkt === "US" ? b.ov : b.kr, all = mkt === "US" ? ov : kr;
                   return (
                     <SimpleRow key={b.lb}
-                               name={<button type="button" onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => { const e = regExtOf(x); return { sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x), reg: e?.reg ?? null, aft: e && Math.abs(e.aft) >= 0.005 ? e.aft : null, ses: e?.ses }; }) })}
-                                             className="text-[12.5px] font-medium truncate hover:text-indigo-700 hover:underline text-left"
-                                             title={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기`; })()}>{b.lb}</button>}
+                               onClick={() => openTilePopup({ title: `${s.short} · ${b.lb}`, items: b.syms.map(x => { const e = regExtOf(x); return { sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x), reg: e?.reg ?? null, aft: e && Math.abs(e.aft) >= 0.005 ? e.aft : null, ses: e?.ses }; }) })}
+                               hint={(() => { const k = b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length; return `${b.lb} 종목 ${b.syms.length}개(국내 ${k} · 해외 ${b.syms.length - k})를 타일로 보기`; })()}
+                               name={<span className="text-[12.5px] font-medium">{b.lb}</span>}
                                main={main} other={mkt === "US" ? b.kr : b.ov} otherLb={mkt === "US" ? "국내" : "해외"}
                                scale={main && all && all.n > 0 ? main.n / all.n : 1} />
                   );
@@ -75,27 +84,32 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
 
 
 /** 한 줄 — 이름 · 고른 쪽 평균(크게) · 장외 꼬리표 · (다른 쪽 평균, 작게) + 바로 아래 얇은 상승·하락 선(길이 = 업종 전체 대비 종목 수) */
-function SimpleRow({ name, main, other, otherLb, scale, big }: { name: React.ReactNode; main: RowAvg | null; other: RowAvg | null; otherLb: string; scale: number; big?: boolean }) {
+function SimpleRow({ name, main, other, otherLb, scale, big, onClick, hint }: { name: React.ReactNode; main: RowAvg | null; other: RowAvg | null; otherLb: string; scale: number; big?: boolean; onClick?: () => void; hint?: string }) {
   const tot = main ? Math.max(1, main.n) : 1;
+  // 네 칸(이름 · 증감률 · (해외/국내) · 상승·하락 선)을 부모 격자에 그대로 — 줄 전체를 누른다(사용자 2026-11-11 "클릭을 줄 전체에")
+  const cell = `py-0.5 ${onClick ? "cursor-pointer" : ""}`;
+  const title = `${hint ? hint + " — " : ""}${main ? `상승 ${main.up} · 하락(보합 포함) ${main.n - main.up}` : ""}`;
   return (
-    // 왼쪽 반 = 글자, 오른쪽 30% = 상승·하락 선(양쪽에 작은 숫자)(사용자 2026-11-11 "바를 오른쪽에", "30%로 — 글자 잘린다", "40%", 결국 "30%로")
-    <div className="py-0.5 min-w-0 grid grid-cols-[7fr_3fr] gap-2 items-center" title={main ? `상승 ${main.up} · 하락(보합 포함) ${main.n - main.up}` : undefined}>
-      <div className="flex items-baseline gap-1.5 min-w-0 leading-tight">
-        <span className={`min-w-0 truncate ${main ? tone(main.avg) : "text-gray-700"}`}>{name}</span>
-        {main ? <b className={`shrink-0 tabular-nums ${tone(main.avg)} ${big ? "text-[15px]" : "text-[13px]"}`}>{fmt(main.avg)}</b> : <span className="text-gray-300 text-[12px]">—</span>}
-        {main?.aft != null && <span className={`shrink-0 text-[9.5px] font-bold text-white px-1 rounded leading-[13px] ${main.aft > 0 ? "bg-rose-600/60" : main.aft < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`} title={`${main.ses ?? "장외"} — 정규장 종가 대비`}>{main.ses ?? ""} {main.aft > 0 ? "+" : main.aft < 0 ? "−" : ""}{Math.abs(main.aft).toFixed(2)}%</span>}
-        {other && <span className="shrink-0 text-[10px] text-gray-400 tabular-nums">({otherLb} <span className={tone(other.avg)}>{fmt(other.avg)}</span>)</span>}
-      </div>
-      {main && main.n > 0 ? (
-        <span className="flex items-center gap-1 text-[10px] tabular-nums font-bold min-w-0">
-          <span className="w-[1.6em] shrink-0 text-right text-rose-500">{main.up || ""}</span>
-          <span className={`flex ${big ? "h-[5px]" : "h-[4px]"} rounded-full overflow-hidden bg-gray-100 shrink-0`} style={{ width: `calc((100% - 3.6em) * ${Math.max(0.04, Math.min(1, scale))})` }}>
-            <span className="bg-rose-300" style={{ width: `${(main.up / tot) * 100}%` }} />
-            <span className="bg-blue-300" style={{ width: `${((main.n - main.up) / tot) * 100}%` }} />
+    <div role="button" tabIndex={0} onClick={onClick} onKeyDown={e => { if (e.key === "Enter") onClick?.(); }} title={title}
+         className="contents [&:hover>*]:bg-indigo-50/60">
+      <span className={`${cell} whitespace-nowrap rounded-l pl-1 ${main ? tone(main.avg) : "text-gray-700"}`}>{name}</span>
+      <span className={`${cell} text-right leading-tight`}>
+        {main ? <b className={`tabular-nums ${tone(main.avg)} ${big ? "text-[14px]" : "text-[13px]"}`}>{fmt(main.avg)}</b> : <span className="text-gray-300 text-[12px]">—</span>}
+        {main?.aft != null && <span className={`block ml-auto w-fit text-[9px] font-bold text-white px-1 rounded leading-[12px] ${main.aft > 0 ? "bg-rose-600/60" : main.aft < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`} title={`${main.ses ?? "장외"} — 정규장 종가 대비`}>{main.ses ?? ""} {main.aft > 0 ? "+" : main.aft < 0 ? "−" : ""}{Math.abs(main.aft).toFixed(2)}%</span>}
+      </span>
+      <span className={`${cell} text-[9.5px] text-gray-400 tabular-nums whitespace-nowrap`}>{other ? <>({otherLb} <span className={tone(other.avg)}>{fmt(other.avg)}</span>)</> : ""}</span>
+      <span className={`${cell} rounded-r pr-1 min-w-0`}>
+        {main && main.n > 0 ? (
+          <span className="flex items-center gap-1 text-[10px] tabular-nums font-bold min-w-0">
+            <span className="w-[1.6em] shrink-0 text-right text-rose-500">{main.up || ""}</span>
+            <span className={`flex ${big ? "h-[9px]" : "h-[7px]"} rounded-full overflow-hidden bg-gray-100 shrink-0`} style={{ width: `calc((100% - 3.6em) * ${Math.max(0.04, Math.min(1, scale))})` }}>
+              <span className="bg-rose-300" style={{ width: `${(main.up / tot) * 100}%` }} />
+              <span className="bg-blue-300" style={{ width: `${((main.n - main.up) / tot) * 100}%` }} />
+            </span>
+            {main.n - main.up > 0 && <span className="shrink-0 text-blue-500">{main.n - main.up}</span>}
           </span>
-          {main.n - main.up > 0 && <span className="shrink-0 text-blue-500">{main.n - main.up}</span>}
-        </span>
-      ) : <span />}
+        ) : null}
+      </span>
     </div>
   );
 }
