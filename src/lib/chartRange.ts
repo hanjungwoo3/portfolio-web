@@ -3,14 +3,23 @@
 //   24시간 시계열이 없는 카드(국고채, 토스 코드 모르는 종목 등)는 3개월로 그린다.
 import { useSyncExternalStore } from "react";
 
-// "all" = 3개월(옛 이름 그대로 — 저장값 호환), "week" = 1개월(사용자 2026-11-12 "1년 빼고 7일" → "7일 말고 1개월" — 키 이름은 week 그대로, 옛 '1년' 저장값은 3개월로)
-export type ChartRange = "all" | "week" | "day";
+// 기간 — 5년·1년·6개월·3개월·1개월·24시간(사용자 2026-11-12 "select box 로 5년 1년 6개월 3개월 1개월 24시간").
+//   저장값 호환: "all" = 3개월, "week" = 1개월(옛 이름 그대로), 옛 "year" = 1년
+export type ChartRange = "5y" | "1y" | "6mo" | "all" | "week" | "day";
+export const CHART_RANGES: { v: ChartRange; label: string }[] = [
+  { v: "5y", label: "5년" }, { v: "1y", label: "1년" }, { v: "6mo", label: "6개월" },
+  { v: "all", label: "3개월" }, { v: "week", label: "1개월" }, { v: "day", label: "24시간" },
+];
 const KEY = "dashboard_chart_range";
 const EVENT = "chart-range-change";
 
-// 기본 = 24시간(사용자 결정 2026-10-22). 직접 3개월을 고른 적이 있으면("all" 저장) 그 선택을 따른다.
+// 기본 = 24시간(사용자 결정 2026-10-22). 직접 고른 적이 있으면 그 선택을 따른다.
 function read(): ChartRange {
-  try { const v = localStorage.getItem(KEY); return v === "all" || v === "week" ? v : v === "year" ? "all" : "day"; } catch { return "day"; }
+  try {
+    const v = localStorage.getItem(KEY);
+    if (v === "year") return "1y";
+    return CHART_RANGES.some(r => r.v === v) ? (v as ChartRange) : "day";
+  } catch { return "day"; }
 }
 let current: ChartRange = read();
 
@@ -29,14 +38,23 @@ export function useChartRange(): ChartRange {
   return useSyncExternalStore(subscribe, () => current);
 }
 
-/** 일봉 기간 — 3개월이면 "3mo", 1년이면 "1y"(24시간이어도 폴백용 일봉은 3개월) */
-export function historyRange(_range: ChartRange): "3mo" | "1y" {
-  return "3mo";   // 1개월도 3개월 일봉을 받아 뒤 21개(약 한 달 거래일)만(trimByRange) — 같은 캐시를 쓴다
+export type HistRange = "3mo" | "6mo" | "1y" | "5y";
+/** 받을 일봉 기간 — 1개월·24시간(폴백)은 3개월을 받아 쓴다(같은 캐시) */
+export function historyRange(range: ChartRange): HistRange {
+  return range === "5y" ? "5y" : range === "1y" ? "1y" : range === "6mo" ? "6mo" : "3mo";
 }
-/** 1개월이면 일봉 뒤 21개(약 한 달 거래일)만 */
+/** 받은 일봉 → 그릴 점. 1개월이면 뒤 21개, 5년이면 260점쯤으로 솎는다(점이 1,200개면 선이 뭉개지고 무겁다) */
 export function trimByRange<T>(arr: T[], range: ChartRange): T[] {
-  return range === "week" ? arr.slice(-21) : arr;
+  if (range === "week") return arr.slice(-21);
+  if (range === "5y" && arr.length > 300) {
+    const k = Math.ceil(arr.length / 260), out: T[] = [];
+    for (let i = arr.length - 1; i >= 0; i -= k) out.unshift(arr[i]);   // 마지막(오늘)은 꼭 넣는다
+    return out;
+  }
+  return arr;
 }
+/** 기간별 일봉 개수(직접 자르는 출처용) */
+export const HIST_BARS: Record<HistRange, number> = { "3mo": 63, "6mo": 126, "1y": 252, "5y": 1260 };
 
 /** 고른 기간의 배경 차트 — 24시간이면 당일 시계열, 없으면 3개월로 폴백. */
 export function pickCardChart(range: ChartRange, full: number[], day: number[] | undefined): number[] {

@@ -1,22 +1,17 @@
 // 카드 배경 차트 기간 토글 [3개월|24시간] — 앱 전체 설정(lib/chartRange). 어디 달아도 같은 값을 바꾼다.
-import { setChartRange, useChartRange } from "../lib/chartRange";
+import { setChartRange, useChartRange, CHART_RANGES, type ChartRange } from "../lib/chartRange";
 
 import { useAvgMarket, setAvgMarket } from "../lib/avgMarket";
 
 export function ChartRangeToggle({ small = false, className = "" }: { small?: boolean; className?: string }) {
   const range = useChartRange();
+  // 선택 상자 하나로(사용자 2026-11-12 "select box 로 5년 1년 6개월 3개월 1개월 24시간")
   return (
-    <span className={`inline-flex rounded border border-gray-300 overflow-hidden align-middle font-bold
-                      ${small ? "text-[11px]" : "text-[11px]"} ${className}`}
-          title="카드 배경 차트 기간 (전체 설정)">
-      {(["all", "week", "day"] as const).map(v => (
-        <button key={v} onClick={() => setChartRange(v)}
-                className={`${small ? "px-1 whitespace-nowrap" : "px-1.5"} py-0
-                            ${range === v ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}>
-          {v === "all" ? "3개월" : v === "week" ? "1개월" : "24시간"}
-        </button>
-      ))}
-    </span>
+    <select value={range} onChange={e => setChartRange(e.target.value as ChartRange)}
+            title="카드 배경 차트 기간 (전체 설정) — 5년은 점을 솎아 그린다"
+            className={`align-middle rounded border border-indigo-300 bg-white text-indigo-700 font-bold ${small ? "text-[11px] px-0.5 py-0" : "text-[11px] px-1 py-0.5"} ${className}`}>
+      {CHART_RANGES.map(r => <option key={r.v} value={r.v}>{r.label}</option>)}
+    </select>
   );
 }
 

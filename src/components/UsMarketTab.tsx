@@ -222,7 +222,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const tossStockChartQs = useQueries({
     queries: TOSS_CHART_SYMBOLS.map(sym => ({
       queryKey: ["toss-us-candles", sym, chartHist],
-      queryFn: () => fetchTossUsStockCandles(sym, chartHist === "1y" ? 252 : 120),
+      queryFn: () => fetchTossUsStockCandles(sym, ({ "3mo": 120, "6mo": 130, "1y": 252, "5y": 450 } as const)[chartHist]),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -240,7 +240,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const krBondQs = useQueries({
     queries: krBondSyms.map(sym => ({
       queryKey: ["kr-bond-series", sym, chartHist],
-      queryFn: () => fetchKrBondYieldSeries(KR_BOND_CODE[sym], chartHist === "1y" ? 252 : 60),
+      queryFn: () => fetchKrBondYieldSeries(KR_BOND_CODE[sym], ({ "3mo": 60, "6mo": 126, "1y": 252, "5y": 450 } as const)[chartHist]),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),

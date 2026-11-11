@@ -4031,20 +4031,22 @@ async function fetchCnbcBars(symbol: string, timeRange = "1M", cnbcOverride?: st
 //   받는 함수도 하나여야 캐시가 어긋나지 않는다(예전엔 PC 는 CNBC 지수를 CNBC 로, 모바일은 같은 키를
 //   야후로 채워 먼저 부른 쪽이 이겼다).
 //   한국 6자리(.KS)는 토스 일봉 — 야후는 코스닥이 .KQ 라 '240810.KS' 로는 빈 차트가 온다.
-export async function fetchDashboardChart(sym: string, range: "3mo" | "1y" = "3mo"): Promise<number[]> {
+export async function fetchDashboardChart(sym: string, range: "3mo" | "6mo" | "1y" | "5y" = "3mo"): Promise<number[]> {
   const r = await fetchDashboardChartRaw(sym, range);
   // 빈 결과는 던진다 — 캐시(staleTime 1시간)에 '빈 차트'가 굳지 않고 바로 다시 받게(빈 캐시 금지).
   //   APK 에서 리튬·니켈 시세는 고쳐진 뒤 살아났는데 배경 그래프는 빈 값이 1시간 남아 안 나왔다(2026-10-22).
   if (!r.length) throw new Error(`빈 차트: ${sym}`);
   return r;
 }
-async function fetchDashboardChartRaw(sym: string, range: "3mo" | "1y" = "3mo"): Promise<number[]> {
+async function fetchDashboardChartRaw(sym: string, range: "3mo" | "6mo" | "1y" | "5y" = "3mo"): Promise<number[]> {
   const kr = /^([\dA-Za-z]{6})\.KS$/.exec(sym);
-  const n = range === "1y" ? 252 : 63;   // 거래일 수 — 일봉을 직접 자르는 출처(CNBC·CNN·머니랜드)용
+  const n = range === "5y" ? 1260 : range === "1y" ? 252 : range === "6mo" ? 126 : 63;   // 거래일 수 — 일봉을 직접 자르는 출처(CNBC·CNN·머니랜드)용
   if (kr) return (await fetchKrPriceHistory(kr[1], range)).map(p => p.close);
-  if (isCnbcIndex(sym)) return (await fetchCnbcChart(sym, 252)).slice(-n);
+  // CNBC 는 '1M' 이 약 1년 일봉, 5년은 '5Y'(주봉 약 10년 → 뒤 260주)(2026-11-12 실측)
+  if (isCnbcIndex(sym)) return range === "5y" ? (await fetchCnbcBars(sym, "5Y")).map(b => cnbcNum(b.close)).filter((v): v is number => v !== null).slice(-260)
+    : (await fetchCnbcChart(sym, 252)).slice(-n);
   // 미국 2년물 — 야후에 일봉이 없어 토스 당일 10분봉(몇 개)이 3개월 칸에 그려져 이상했다(사용자 2026-11-02). CNBC 일봉 3개월로
-  if (sym === "^US2Y") return (await fetchCnbcBars(sym, "1M", "US2Y")).map(b => cnbcNum(b.close)).filter((v): v is number => v !== null && v > 0).slice(-n);
+  if (sym === "^US2Y") return (await fetchCnbcBars(sym, range === "5y" ? "5Y" : "1M", "US2Y")).map(b => cnbcNum(b.close)).filter((v): v is number => v !== null && v > 0).slice(range === "5y" ? -260 : -n);
   if (sym === CNN_FG_SYMBOL) return (await fetchCnnFgChart(252)).slice(-n);
   if (sym === HY_SPREAD_SYMBOL) return ((await loadHySpread()) ?? []).map(p => p[1]).slice(-n);
   if (isSinaMetal(sym)) return fetchSinaMetalChart(sym);

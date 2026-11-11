@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchHlXyzPerps, fetchHlPerpCandles, fetchHlPerpSession, fetchHlPerpTwoDay } from "../lib/api";
-import { useChartRange, trimByRange } from "../lib/chartRange";
+import { useChartRange, trimByRange, historyRange } from "../lib/chartRange";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { Sparkline } from "./Sparkline";
 import { TickArrow } from "./TickArrow";
@@ -51,7 +51,7 @@ export function HlPerpCard({ coin, name }: Props) {
   });
   const { data: spark } = useQuery({
     queryKey: ["hl-perp-daily", coin, range],   // 3개월 | 1년 일봉(상장이 짧으면 있는 만큼) — 하루 몇 번이면 충분
-    queryFn: () => fetchHlPerpCandles(`xyz:${coin}`, 92),
+    queryFn: () => fetchHlPerpCandles(`xyz:${coin}`, ({ "3mo": 92, "6mo": 183, "1y": 366, "5y": 1830 } as const)[historyRange(range)]),
     enabled: !day, refetchInterval: !day ? 30 * 60_000 : false,
     staleTime: 10 * 60_000,
   });

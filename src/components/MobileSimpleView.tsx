@@ -1141,7 +1141,7 @@ export function MobileSimpleView() {
   const tossStockChartQs = useQueries({
     queries: TOSS_CHART_SYMBOLS.map(sym => ({
       queryKey: ["toss-us-candles", sym, historyRange(chartRange)],
-      queryFn: () => fetchTossUsStockCandles(sym, historyRange(chartRange) === "1y" ? 252 : 120),
+      queryFn: () => fetchTossUsStockCandles(sym, ({ "3mo": 120, "6mo": 130, "1y": 252, "5y": 450 } as const)[historyRange(chartRange)]),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
@@ -1158,7 +1158,7 @@ export function MobileSimpleView() {
   const krBondQs = useQueries({
     queries: krBondSyms.map(sym => ({
       queryKey: ["kr-bond-series", sym, historyRange(chartRange)],
-      queryFn: () => fetchKrBondYieldSeries(KR_BOND_CODE[sym], historyRange(chartRange) === "1y" ? 252 : 60),
+      queryFn: () => fetchKrBondYieldSeries(KR_BOND_CODE[sym], ({ "3mo": 60, "6mo": 126, "1y": 252, "5y": 450 } as const)[historyRange(chartRange)]),
       staleTime: 60 * 60 * 1000,
       refetchOnWindowFocus: false,
     })),
