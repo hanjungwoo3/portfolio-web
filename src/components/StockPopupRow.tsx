@@ -173,26 +173,15 @@ export function BrokerBox({ code, className = "" }: { code: string; className?: 
       // 글자 줄 아래에 막대 줄을 따로(사용자 2026-10-27 "그래프를 글자아래에 별도로")
       <div className="px-1 pt-0.5 pb-1 text-[11.5px]"
            title={both ? `${b.name} — 매수 ${eokWon(bid)} · 매도 ${eokWon(ask)} · 순${net >= 0 ? "매수" : "매도"} ${eokWon(Math.abs(net))}` : undefined}>
-        <div className="flex items-center justify-between gap-1 leading-tight">
-          {/* 양쪽에 다 든 증권사 — 이름 옆에 순매매, 금액은 막대 위 제 조각 자리(사용자 2026-10-29 "삼성증권(−4,449억), 그래프 위에 각 금액") */}
-          {/* 순매수(+)면 이름·괄호 모두 빨강, 순매도(−)면 파랑(사용자 2026-10-29) */}
-          <span className={`truncate font-medium ${net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-800"}`}>{b.name}{b.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}
-            {/* 한쪽에만 든 증권사도 같은 모양(사용자 2026-10-29) — 상대편을 몰라 순매매 = 제 금액(매수 +·매도 −) */}
-            {/* 괄호(순매매)는 강조하지 않는다 — 강조는 막대 위 제 칸 금액(사용자 2026-10-29) */}
-            <span className={`ml-1 text-[10.5px] font-normal tabular-nums ${net > 0 ? "text-rose-600" : net < 0 ? "text-blue-600" : "text-gray-500"}`}>({net > 0 ? "+" : net < 0 ? "−" : ""}{eokWon(Math.abs(net))})</span></span>
+        {/* 한 줄 — 이름 + 금액(양쪽에 든 창구는 순매매(매수−매도))(사용자 2026-11-11 "한국증권 −697억 / JP모간 −129억(216억−345억), 그래프만 숫자 없이 작게") */}
+        <div className="flex items-baseline gap-1 leading-tight min-w-0">
+          <span className={`truncate font-medium ${(both ? net : k === "ask" ? -1 : 1) > 0 ? "text-rose-600" : "text-blue-600"}`}>{b.name}{b.foreign && <span className="ml-0.5 text-[10px]" title="외국계">🌐</span>}</span>
+          <b className={`shrink-0 tabular-nums ${(both ? net : k === "ask" ? -1 : 1) > 0 ? "text-rose-700" : "text-blue-700"}`}>
+            {both ? `${net > 0 ? "+" : net < 0 ? "−" : ""}${eokWon(Math.abs(net))}` : k === "ask" ? `−${eokWon(ask)}` : `+${eokWon(bid)}`}
+          </b>
+          {both && <span className="shrink-0 text-[10px] text-gray-500 tabular-nums">(<span className="text-rose-600">{eokWon(bid)}</span>−<span className="text-blue-600">{eokWon(ask)}</span>)</span>}
         </div>
-        {(() => {
-          // 막대 위 금액 — 앞 조각(제 칸 금액, 제 색)은 왼쪽 끝, 뒤 조각(반대편, 회색)은 막대 오른쪽 끝
-          const firstTxt = k === "ask" ? `−${eokWon(ask)}` : `+${eokWon(bid)}`;
-          const secondTxt = k === "ask" ? `+${eokWon(bid)}` : `−${eokWon(ask)}`;
-          return (
-            <div className="relative h-[14px] text-[10.5px] leading-[14px] tabular-nums">
-              <span className={`absolute left-0 font-bold text-[11.5px] ${k === "ask" ? "text-blue-700" : "text-rose-700"}`}>{firstTxt}</span>
-              {both && <span className="absolute text-gray-400" style={{ right: `calc(100% - ${w(bid + ask)})` }}>{secondTxt}</span>}
-            </div>
-          );
-        })()}
-        <div className="relative h-[10px] mt-0.5">
+        <div className="relative h-[3px] mt-px">   {/* 얇은 선으로 바로 아래(사용자 2026-11-11) */}
           {both ? (<>
             {(() => {
               // 반대편 몫은 회색 — 막대·숫자 모두(사용자 2026-10-29 "매도는 빨간색 바와 숫자를 회색으로", "매수는 반대")
