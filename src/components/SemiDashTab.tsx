@@ -5,6 +5,7 @@
 //     · 코스피 투자자(네이버) 1분 / 선물 투자자(네이버) **20분 지연** / 선물 시세·옵션(한경) 실시간
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
+import { usRegExtOf } from "../lib/avgMarket";
 import { fmtEok } from "../lib/eokFmt";
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { ForeignFuturesPanel } from "./ForeignFuturesPanel";
@@ -497,7 +498,11 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           ...PERPS.map(([c, n]) => ({ k: c, name: n, pct: (perps?.get(c) as HlPerp | undefined)?.changePct })),
         ]} />
         <ChipBox title="메모리 현물" items={MEM_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.pct }))} />
-        <ChipBox title="미국 반도체 (간밤)" items={US_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.regularPct ?? x.pct }))} />
+        {/* 장 밖이면 애프터·프리 %(정규장 종가 대비)를 크게, 정규장은 ( ) 안에(사용자 2026-11-12 "여기 애프터도 넣자, 정규장을 () 안에") */}
+        <ChipBox title="미국 반도체 (간밤)" items={US_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => {
+          const e = usRegExtOf(x.symbol, x);
+          return e && Math.abs(e.aft) >= 0.005 ? { k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: e.aft, reg: e.reg } : { k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.regularPct ?? x.pct };
+        })} />
       </div>
       {/* ① 시세 */}
       <div className="grid grid-cols-2 lg:grid-cols-9 gap-1.5 auto-rows-[118px] shrink-0">
@@ -1358,13 +1363,15 @@ function OptionBox({ opt, vk, dim: dimIn }: { opt?: Awaited<ReturnType<typeof fe
   );
 }
 
-function ChipBox({ title, items }: { title: string; items: { k: string; name: string; pct?: number }[] }) {
+function ChipBox({ title, items }: { title: string; items: { k: string; name: string; pct?: number; reg?: number }[] }) {
   return (
     <div className="pg-card rounded-lg border border-gray-200 bg-white px-2 py-1 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
       <span className="font-bold text-gray-800">{title}</span>
       {items.map(x => (
         <span key={x.k} className="tabular-nums whitespace-nowrap">
-          <span className="text-gray-600">{x.name}</span> <b className={x.pct == null ? "text-gray-300" : up(x.pct)}>{x.pct == null ? "-" : `${sgn(x.pct)}%`}</b>
+          {/* 이름 색 = 지금 값(사용자 2026-11-12 "종목명은 현재가 기준 색상으로") */}
+          <span className={x.pct == null ? "text-gray-600" : up(x.pct)}>{x.name}</span> <b className={x.pct == null ? "text-gray-300" : up(x.pct)}>{x.pct == null ? "-" : `${sgn(x.pct)}%`}</b>
+          {x.reg != null && <span className="ml-0.5 text-[10.5px] text-gray-400" title="정규장 등락(전일 종가 대비)">(<span className={up(x.reg)}>{sgn(x.reg)}%</span>)</span>}
         </span>
       ))}
     </div>

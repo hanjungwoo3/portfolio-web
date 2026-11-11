@@ -4,7 +4,7 @@ import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchHotNow, type HotRow } from "../lib/hotNow";
 import { openTickPopup } from "../lib/tickPopup";
 import { fetchTossPrices, fetchKrPriceHistory } from "../lib/api";
-import { useChartRange, historyRange } from "../lib/chartRange";
+import { useChartRange, historyRange, trimByRange } from "../lib/chartRange";
 import { ChartRangeToggle } from "./ChartRangeToggle";
 import type { Price } from "../types";
 import { fmtServerStamp } from "../lib/liveServer";
@@ -80,7 +80,7 @@ export function HotNowTab({ compact = false }: { compact?: boolean }) {
           <div className="pg-card rounded-lg border border-gray-200 bg-white overflow-hidden">
             {d.windowMin < 4 && <div className="px-3 py-1 text-[11px] text-gray-500 bg-gray-50 border-b border-gray-100">아직 {d.windowMin}분 기록으로 계산했어요 — 5분쯤 지나면 더 정확해져요.</div>}
             <div className={compact ? "" : "grid lg:grid-cols-2 min-[1400px]:grid-cols-3"   /* 넓은 화면은 한 줄에 셋(사용자 2026-11-10) */}>
-            {d.rows.map((r, i) => <Row key={r.code} r={r} i={i} win={d.windowMin} compact={compact} price={priceMap.get(r.code)} chart={chartRange === "day" ? [] : chartOf(r.code)} />)}
+            {d.rows.map((r, i) => <Row key={r.code} r={r} i={i} win={d.windowMin} compact={compact} price={priceMap.get(r.code)} chart={chartRange === "day" ? [] : trimByRange(chartOf(r.code), chartRange)} />)}
             </div>
           </div>
         )}

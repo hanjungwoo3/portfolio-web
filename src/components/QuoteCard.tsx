@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { DiscTags } from "./DiscTags";
 import { fetchKrPriceHistory, fetchYahooPriceHistory, fetchTossIntraday } from "../lib/api";
 import { openTossStock, openExternal, worldQuoteUrl } from "../lib/toss";
-import { useChartRange, historyRange } from "../lib/chartRange";
+import { useChartRange, historyRange, trimByRange } from "../lib/chartRange";
 import { openStockInfo } from "../lib/tickPopup";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { KrDaySparkline } from "./KrDaySparkline";
@@ -44,7 +44,7 @@ export function QuoteCard({ code, name, sub, px, dim, badge, reg, className = "w
   const isJp = /\.T$/.test(code);
   const open = () => isJp ? openExternal(worldQuoteUrl(code)) : isUs ? openTossStock(code) : openStockInfo(code, name);
   const fmtPx = (v: number) => isJp ? `¥${Math.round(v).toLocaleString()}` : isUs ? `$${v.toFixed(2)}` : Math.round(v).toLocaleString();
-  const closes = (hist.data ?? []).map(p => p.close);
+  const closes = trimByRange((hist.data ?? []).map(p => p.close), range);
   const pct = px?.pct;
   const tone = pct == null ? "bg-gray-50 border-gray-200" : pct > 0 ? "bg-rose-50 border-rose-200" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
   const col = pct == null ? "text-gray-700" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchHlXyzPerps, fetchHlPerpCandles, fetchHlPerpSession, fetchHlPerpTwoDay } from "../lib/api";
-import { useChartRange } from "../lib/chartRange";
+import { useChartRange, trimByRange } from "../lib/chartRange";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { Sparkline } from "./Sparkline";
 import { TickArrow } from "./TickArrow";
@@ -51,7 +51,7 @@ export function HlPerpCard({ coin, name }: Props) {
   });
   const { data: spark } = useQuery({
     queryKey: ["hl-perp-daily", coin, range],   // 3개월 | 1년 일봉(상장이 짧으면 있는 만큼) — 하루 몇 번이면 충분
-    queryFn: () => fetchHlPerpCandles(`xyz:${coin}`, range === "year" ? 366 : 92),
+    queryFn: () => fetchHlPerpCandles(`xyz:${coin}`, 92),
     enabled: !day, refetchInterval: !day ? 30 * 60_000 : false,
     staleTime: 10 * 60_000,
   });
@@ -83,7 +83,7 @@ export function HlPerpCard({ coin, name }: Props) {
           <Sparkline data={two48.closes} xs={two48.xs} baseline={p?.prevDay ?? two48.base} prevBaseline={two48.prevBase} breakIndex={two48.breakIdx} markXs={two48.markXs}
                      width={400} height={80} className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />
         ) : spark && spark.length > 1 && (
-          <Sparkline data={spark} width={400} height={80}
+          <Sparkline data={trimByRange(spark, range)} width={400} height={80}
                      className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />
         )}
         <div className="relative z-10 flex items-baseline gap-1.5">

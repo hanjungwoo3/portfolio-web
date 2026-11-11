@@ -9,11 +9,11 @@ export function ChartRangeToggle({ small = false, className = "" }: { small?: bo
     <span className={`inline-flex rounded border border-gray-300 overflow-hidden align-middle font-bold
                       ${small ? "text-[11px]" : "text-[11px]"} ${className}`}
           title="카드 배경 차트 기간 (전체 설정)">
-      {(["all", "year", "day"] as const).map(v => (
+      {(["all", "week", "day"] as const).map(v => (
         <button key={v} onClick={() => setChartRange(v)}
                 className={`${small ? "px-1 whitespace-nowrap" : "px-1.5"} py-0
                             ${range === v ? "bg-indigo-600 text-white" : "bg-white text-gray-500 hover:bg-gray-100"}`}>
-          {v === "all" ? "3개월" : v === "year" ? "1년" : "24시간"}
+          {v === "all" ? "3개월" : v === "week" ? "7일" : "24시간"}
         </button>
       ))}
     </span>

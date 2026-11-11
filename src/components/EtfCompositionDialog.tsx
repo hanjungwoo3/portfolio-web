@@ -3,7 +3,7 @@ import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, fetchYahooPriceHistory, fetchTossIntraday, fetchEtfKeyIndicator, fetchWarning, type KrRegularPrice } from "../lib/api";
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
-import { useChartRange } from "../lib/chartRange";
+import { useChartRange, trimByRange } from "../lib/chartRange";
 import { KrDaySparkline } from "./KrDaySparkline";
 import { Tooltip } from "./Tooltip";
 import { formatSigned, signColor, isEtfByName, etfActiveType, dayChangePct, dayChangeDiff, isKrHoldingClosed, tradeSecOf } from "../lib/format";
@@ -782,10 +782,11 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
   });
   // 일본 종목은 코드가 없어 isForeignCode 가 false 다 → 부모 chart 는 늘 비어 있다.
   //   usChart(부모가 시세와 함께 받아 둔 일봉)를 먼저 본다.
-  const chartData = usChart?.length ? usChart
-    : isForeignCode ? (usHist ?? []).map(p => p.close) : chart;
+  const chartRangeNow = useChartRange();
+  const chartData = trimByRange(usChart?.length ? usChart
+    : isForeignCode ? (usHist ?? []).map(p => p.close) : chart, chartRangeNow);   // 7일이면 뒤 7개(사용자 2026-11-12)
   // 24시간 설정이면 다른 카드와 같은 24시간 그래프(사용자 2026-11-02) — 한국 = 토스 5분봉(KrDaySparkline), 미국 = 토스 5분봉(지수 탭과 같은 캐시)
-  const dayMode = useChartRange() === "day";
+  const dayMode = chartRangeNow === "day";
   const { data: usDay } = useQuery({
     queryKey: ["toss-us-day", fSymbol],
     queryFn: () => fetchTossIntraday(fSymbol!),
