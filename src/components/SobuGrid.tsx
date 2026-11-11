@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 import { useRecentDisc } from "../lib/recentDisclosures";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { US_PAIRS } from "../lib/usMarketData";
-import { fetchDartBody, parseContract, type DartRow } from "../lib/dartDisclosures";
+import { fetchDartBody, parseContract } from "../lib/dartDisclosures";
 import { DISC_CAT_TONE } from "../lib/disclosureFilter";
 import { openStockInfo } from "../lib/tickPopup";
 import { fetchNaverNews } from "../lib/api";
@@ -69,14 +69,11 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
   })();
   const flows = useQuery({ queryKey: ["investor-flows"], queryFn: loadInvestorFlows, staleTime: 3 * 3600_000, retry: 1 });
   const flowBy = new Map<string, FlowStock>((flows.data?.stocks ?? []).map(x => [x.code, x]));
-  const lastContract = new Map<string, DartRow>();
-  for (const r of contractRows) if (r.code && !lastContract.has(r.code)) lastContract.set(r.code, r);
   const md = (d: string) => `${+d.slice(5, 7)}/${+d.slice(8, 10)}`;
   const card = (sym: string, lead: boolean) => {
     const kr = /\.KS$/.test(sym);
     const code = kr ? sym.slice(0, 6) : sym;
     const q = quote(sym);
-    const ct = kr ? lastContract.get(code) : undefined;
     // 카드 왼쪽 아래 — 공시(5거래일)·뉴스(최근 2일) 개수(사용자 2026-11-02). 없으면 안 붙인다
     const since = new Date(Date.now() + 9 * 3600_000 - 2 * 86400_000).toISOString().replace(/\D/g, "").slice(0, 12);
     const nN = kr ? news.filter(n => n.code === code && n.dt >= since).length : 0;
@@ -104,12 +101,7 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
             뉴스 {nN}
           </button>
         )}
-        {ct && (
-          <button onClick={() => openExternal(ct.url)} title={`${ct.date} ${ct.time} ${ct.title}${info.get(ct.rcpNo)?.amountEok ? ` — ${Math.round(info.get(ct.rcpNo)!.amountEok!).toLocaleString()}억` : ""} — 눌러서 DART 원문`}
-                  className={`absolute -top-1.5 ${renderCard ? "left-1 z-30" : "right-1 z-10"} px-1 rounded border border-violet-300 bg-violet-50 text-violet-700 text-[9px] font-bold leading-tight hover:bg-violet-100`}>   {/* 지수 카드는 오른쪽 위에 정규장 종가 책갈피가 있어 왼쪽으로 */}
-            📑수주 {md(ct.date)}
-          </button>
-        )}
+        {/* '📑수주 날짜' 꼬리표는 뺐다 — 카드 위 가격 책갈피를 가렸고, 카드 아래 '계약' 공시 꼬리표와 같은 내용(사용자 2026-11-11 "화면 가리는데") */}
       </div>
     );
   };
