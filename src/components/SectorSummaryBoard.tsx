@@ -78,19 +78,24 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
 function SimpleRow({ name, main, other, otherLb, scale, big }: { name: React.ReactNode; main: RowAvg | null; other: RowAvg | null; otherLb: string; scale: number; big?: boolean }) {
   const tot = main ? Math.max(1, main.n) : 1;
   return (
-    <div className="py-0.5 min-w-0" title={main ? `상승 ${main.up} · 하락(보합 포함) ${main.n - main.up}` : undefined}>
+    // 왼쪽 반 = 글자, 오른쪽 30% = 상승·하락 선(양쪽에 작은 숫자)(사용자 2026-11-11 "바를 오른쪽에", "30%로 — 글자 잘린다", "40%", 결국 "30%로")
+    <div className="py-0.5 min-w-0 grid grid-cols-[7fr_3fr] gap-2 items-center" title={main ? `상승 ${main.up} · 하락(보합 포함) ${main.n - main.up}` : undefined}>
       <div className="flex items-baseline gap-1.5 min-w-0 leading-tight">
-        <span className={`min-w-0 truncate ${main ? tone(main.avg) : "text-gray-700"}`}>{name}</span>   {/* 이름도 오르면 빨강·내리면 파랑(거래원 칸과 같은 꼴) */}
+        <span className={`min-w-0 truncate ${main ? tone(main.avg) : "text-gray-700"}`}>{name}</span>
         {main ? <b className={`shrink-0 tabular-nums ${tone(main.avg)} ${big ? "text-[15px]" : "text-[13px]"}`}>{fmt(main.avg)}</b> : <span className="text-gray-300 text-[12px]">—</span>}
         {main?.aft != null && <span className={`shrink-0 text-[9.5px] font-bold text-white px-1 rounded leading-[13px] ${main.aft > 0 ? "bg-rose-600/60" : main.aft < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`} title={`${main.ses ?? "장외"} — 정규장 종가 대비`}>{main.ses ?? ""} {main.aft > 0 ? "+" : main.aft < 0 ? "−" : ""}{Math.abs(main.aft).toFixed(2)}%</span>}
         {other && <span className="shrink-0 text-[10px] text-gray-400 tabular-nums">({otherLb} <span className={tone(other.avg)}>{fmt(other.avg)}</span>)</span>}
       </div>
-      {main && main.n > 0 && (
-        <span className="mt-px flex h-[3px] rounded-full overflow-hidden bg-gray-100" style={{ width: `${Math.max(4, Math.min(1, scale) * 100)}%` }}>
-          <span className="bg-rose-300" style={{ width: `${(main.up / tot) * 100}%` }} />
-          <span className="bg-blue-300" style={{ width: `${((main.n - main.up) / tot) * 100}%` }} />
+      {main && main.n > 0 ? (
+        <span className="flex items-center gap-1 text-[10px] tabular-nums font-bold min-w-0">
+          <span className="w-[1.6em] shrink-0 text-right text-rose-500">{main.up || ""}</span>
+          <span className={`flex ${big ? "h-[5px]" : "h-[4px]"} rounded-full overflow-hidden bg-gray-100 shrink-0`} style={{ width: `calc((100% - 3.6em) * ${Math.max(0.04, Math.min(1, scale))})` }}>
+            <span className="bg-rose-300" style={{ width: `${(main.up / tot) * 100}%` }} />
+            <span className="bg-blue-300" style={{ width: `${((main.n - main.up) / tot) * 100}%` }} />
+          </span>
+          {main.n - main.up > 0 && <span className="shrink-0 text-blue-500">{main.n - main.up}</span>}
         </span>
-      )}
+      ) : <span />}
     </div>
   );
 }
