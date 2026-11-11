@@ -1406,12 +1406,16 @@ function InvTable({ inv, price }: { inv: Investor; price?: number }) {
     return (
       <div key={lb} className={`flex justify-between gap-1 px-1 rounded ${hi.has(lb) ? (v > 0 ? "bg-rose-50" : v < 0 ? "bg-blue-50" : "") : ""}`}>
         <span className={hi.has(lb) ? "font-bold text-gray-700" : "text-gray-500"}>{lb}{note}</span>
-        <b className={v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-400"}>{q ? f(v) : "0"}</b>
+        {/* 주 · 억원 둘 다(사용자 2026-11-11 "금액이랑 둘 다") */}
+        <span className="text-right">
+          <b className={v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-400"}>{q ? f(v) : "0"}</b>
+          {q !== 0 && <span className="block text-[9.5px] leading-[11px] text-gray-400">{q > 0 ? "+" : "−"}{Math.abs(Math.round(q)).toLocaleString()}주</span>}
+        </span>
       </div>
     );
   };
   return (
-    <div className="w-[118px] shrink-0 text-[10.5px] tabular-nums leading-[16px]"
+    <div className="w-[128px] shrink-0 text-[10.5px] tabular-nums leading-[15px]"
          title={`토스(KRX 잠정치)${inv.갱신 ? ` ${inv.갱신.slice(11, 16)} 갱신` : ""} — 억원 = 주 × 지금 가격. 개인은 장 마감 뒤에 나와 그 전엔 −(외국인+기관) 추정`}>
       <div className="text-gray-500 mb-0.5">수급{inv.갱신 ? ` ${inv.갱신.slice(11, 16)}` : ""}</div>
       {inv.외국인비율 > 0 && <div className="flex justify-between px-1 text-gray-500"><span>외국인보유</span><span className="text-gray-700">{inv.외국인비율.toFixed(2)}%</span></div>}
