@@ -1397,7 +1397,12 @@ const INV_ROWS: [string, keyof Investor][] = [["외국인", "외국인"], ["기�
 function InvTable({ inv, price }: { inv: Investor; price?: number }) {
   const px = price ?? inv.종가 ?? 0;
   const eok = (q: number) => (q * px) / 1e8;
-  const f = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v) >= 100 ? Math.round(Math.abs(v)).toLocaleString() : Math.abs(v).toFixed(Math.abs(v) >= 10 ? 0 : 1)}억`;
+  // 금액 — 1만억 넘으면 '1조4501억'(사용자 2026-11-11), 아래는 '80억'·'4.5억'
+  const f = (v: number) => {
+    const a = Math.abs(v), sg = v > 0 ? "+" : v < 0 ? "−" : "";
+    if (a >= 1e4) { const jo = Math.floor(a / 1e4), r = Math.round(a - jo * 1e4); return `${sg}${jo}조${r ? `${r}억` : ""}`; }
+    return `${sg}${a >= 10 ? Math.round(a).toLocaleString() : a.toFixed(1)}억`;
+  };
   const est = !inv.개인있음;
   const indiv = est ? -(inv.외국인 + inv.기관) : inv.개인;
   const hi = new Set(["외국인", "기관", "연기금", "개인"]);
