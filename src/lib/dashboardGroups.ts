@@ -626,6 +626,55 @@ function sectionMap(): Record<string, DashboardSection> {
         ["ARM", "AVGO", "MRVL", "CDNS", "SNPS", "490470.KS", "399720.KS", "200710.KS", "445090.KS", "045970.KS", "117670.KS", "094360.KS", "394280.KS"],   // ARM·브로드컴·마벨(맞춤 칩 ASIC)·케이던스(설계 도구) ➜ 세미파이브·가온칩스·에이디테크·에이직랜드·코아시아·알파칩스·칩스앤미디어·오픈엣지
       ],
     },
+    // ── 한국/주간 화면에만 있던 분류를 업종 탭으로(사용자 2026-11-12 "업종별에 한국/주간에 있는 구분들 추가") — 국내 종목은 한국/주간 줄 그대로
+    {
+      id: "autoflow", short: "자동차", etfs: ["091180.KS"], label: "🚗 자동차 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 테슬라·GM·도요타(완성차), 간밤(도요타는 미국 ADR).",
+      lead: 1, leadByRow: [3, 0],
+      rowLabels: ["완성차", "부품"],
+      rows: [
+        ["TSLA", "GM", "TM", "005380.KS", "000270.KS"],
+        ["012330.KS", "307950.KS", "204320.KS", "018880.KS", "011210.KS"],
+      ],
+    },
+    {
+      id: "buildflow", short: "건설", etfs: ["117700.KS"], label: "🏗️ 건설 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 캐터필러(중장비)·벌컨머티리얼즈(골재·자재), 간밤.",
+      lead: 1, leadByRow: [2],
+      rowLabels: ["건설·자재"],
+      rows: [["CAT", "VMC", "000720.KS", "047040.KS", "028050.KS", "006360.KS", "375500.KS", "294870.KS"]],
+    },
+    {
+      id: "matflow", short: "철강·화학", etfs: ["117680.KS", "117460.KS"], label: "🧪 철강·화학 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 뉴코어·프리포트맥모란(철강·구리)·다우·엑손모빌·셰브론(화학·정유), 간밤.",
+      lead: 1, leadByRow: [2, 3],
+      rowLabels: ["철강·소재", "화학·정유"],
+      rows: [
+        ["NUE", "FCX", "005490.KS", "010130.KS", "004020.KS", "103140.KS", "001430.KS", "000670.KS", "460860.KS"],
+        ["DOW", "XOM", "CVX", "096770.KS", "010950.KS", "051910.KS", "011790.KS", "011780.KS", "011170.KS", "298020.KS"],
+      ],
+    },
+    {
+      id: "consflow", short: "소비·유통", etfs: ["266410.KS"], label: "🛒 소비·유통 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = P&G·코카콜라(필수소비재)·월마트·코스트코(유통), 간밤.",
+      lead: 1, leadByRow: [2, 2],
+      rowLabels: ["필수소비재", "백화점·유통"],
+      rows: [
+        ["PG", "KO", "003230.KS", "033780.KS", "271560.KS", "004370.KS", "097950.KS", "005180.KS", "007310.KS"],
+        ["WMT", "COST", "004170.KS", "139480.KS", "008770.KS", "069960.KS", "023530.KS", "282330.KS", "007070.KS"],
+      ],
+    },
+    {
+      id: "contentflow", short: "콘텐츠", etfs: ["157490.KS", "300950.KS", "266360.KS"], label: "🎮 콘텐츠·인터넷 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 구글·메타(인터넷)·로블록스·EA(게임)·넷플릭스·디즈니·스포티파이(엔터), 간밤.",
+      lead: 1, leadByRow: [2, 2, 3],
+      rowLabels: ["인터넷·SW", "게임", "엔터"],
+      rows: [
+        ["GOOGL", "META", "035420.KS", "035720.KS", "018260.KS", "022100.KS", "377300.KS", "030520.KS"],
+        ["RBLX", "EA", "259960.KS", "036570.KS", "263750.KS", "251270.KS", "112040.KS", "293490.KS", "462870.KS"],
+        ["NFLX", "DIS", "SPOT", "352820.KS", "035900.KS", "041510.KS", "122870.KS", "035760.KS", "376300.KS", "253450.KS"],
+      ],
+    },
     {
       // 데이터센터 — 짓고(전력기기) 식히고(냉각) 돌리고(서버·클라우드) 전기 대는(전원) 쪽(사용자 2026-11-11 "업종별에 데이터센터 넣을 거 없어?")
       //   원전·친환경·2차전지 탭과 겹치는 종목도 있다(다른 탭이라 둔다). 국내 냉각 대장주가 적어 LG전자(칠러)·케이엔솔
@@ -684,7 +733,7 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 소부장 — 단계별 한 블록만(사용자 2026-11-02, 주간 시장 줄은 뺐다 "빼도 될 거 같아")
   // 지수(업종) — 업종마다 한 블록, 페이지 안 탭으로 하나씩(사용자 2026-11-03 "소부장·ESS 를 내부 탭으로")
   //   + 옛 지수(순환매) 페이지를 '한눈에' 탭으로 합쳤다(사용자 2026-11-03 "순환매와 업종이 비슷" → 1안) — 아래 SECTOR_OVERVIEW_IDS
-  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "semiflow", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "greenflow", "opticflow", "dcflow", "bioflow", "robotflow", "finflow", "beautyflow"],
+  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "semiflow", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "greenflow", "opticflow", "dcflow", "autoflow", "buildflow", "matflow", "consflow", "contentflow", "bioflow", "robotflow", "finflow", "beautyflow"],
   // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
   //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)

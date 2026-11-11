@@ -752,6 +752,19 @@ export const US_PAIRS: Pair[] = [
   { symbol: "453650.KS", name: "KODEX 미국S&P500금융", desc: "미국 금융 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "474800.KS", name: "KIWOOM 미국원유에너지기업", desc: "미국 석유 기업 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "VRT", name: "버티브", desc: "데이터센터 전력·냉각", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "GM", name: "GM", desc: "제너럴모터스 — 미국 완성차", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "TM", name: "도요타", desc: "Toyota ADR — 일본 완성차", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "CAT", name: "캐터필러", desc: "Caterpillar — 중장비·건설기계", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "VMC", name: "벌컨머티리얼즈", desc: "Vulcan Materials — 골재·건설자재", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "NUE", name: "뉴코어", desc: "Nucor — 미국 철강", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "FCX", name: "프리포트맥모란", desc: "Freeport-McMoRan — 구리·금", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "DOW", name: "다우", desc: "Dow — 화학", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "WMT", name: "월마트", desc: "Walmart — 유통", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "COST", name: "코스트코", desc: "Costco — 창고형 유통", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "RBLX", name: "로블록스", desc: "Roblox — 게임 플랫폼", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "EA", name: "일렉트로닉아츠", desc: "Electronic Arts — 게임", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "DIS", name: "디즈니", desc: "Disney — 미디어·콘텐츠", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "SPOT", name: "스포티파이", desc: "Spotify — 음악 스트리밍", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
   { symbol: "TT", name: "트레인", desc: "Trane — 데이터센터 냉각·공조(칠러)", tier: "T0", sector: "dashboard", direction: "direct" },   // 데이터센터 탭(2026-11-11)
   { symbol: "JCI", name: "존슨컨트롤즈", desc: "Johnson Controls — 건물·데이터센터 냉각", tier: "T0", sector: "dashboard", direction: "direct" },   // 데이터센터 탭(2026-11-11)
   { symbol: "SMCI", name: "슈퍼마이크로", desc: "Super Micro — AI 서버·랙", tier: "T0", sector: "dashboard", direction: "direct" },   // 데이터센터 탭(2026-11-11)
