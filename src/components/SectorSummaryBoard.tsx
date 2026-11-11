@@ -12,6 +12,8 @@ import { avgOfSyms, rotRowAvg, isOverseasTicker, useAvgMarket, usSessionLabel, t
 
 type RegExt = (s: string) => { reg: number; aft: number; ses?: Ses } | null;
 const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-600");
+/** 지금 크게 보이는 값 — 장 밖이면 그 구간 %, 아니면 정규장 %(정렬 기준도 이것) */
+const shown = (v: RowAvg | null | undefined) => (v ? (v.aft ?? v.avg) : -Infinity);
 const fmt = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 
 export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact, nameOf }: {
@@ -33,7 +35,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
       boxes: (s.rowLabels ?? []).map((lb, i) => ({ lb, syms: s.rows[i] ?? [], ...rotRowAvg(s, i, pctOf, regExtOf) })),
     };
   }).sort((a, b) => {
-    const k = (r: typeof a) => (mkt === "US" ? r.ov?.avg : r.kr?.avg) ?? -Infinity;
+    const k = (r: typeof a) => shown(mkt === "US" ? r.ov : r.kr);   // 카드 순서도 지금 크게 보이는 값
     return k(b) - k(a);
   });
   // 업종마다 카드 하나(사용자 2026-11-07 "업종별로 레이어를 분리") — 맨 위 업종 이름·해외·국내(크게), 아래 칸마다 한 줄씩.
@@ -49,7 +51,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
             <div key={s.id} className="relative mt-3 rounded-lg border border-gray-200 bg-white shadow-sm px-2.5 pt-3 pb-1.5">
               {/* 업종 이름 = 카드 위 테두리에 걸친 책갈피(사용자 2026-11-11 "종목명을 한 줄 위로", "책갈피로") */}
               <button type="button" onClick={() => onOpen(s.id)} title={`${s.short} 탭으로 — 종목 카드 보기`}
-                      className={`absolute -top-3 left-2 max-w-[80%] px-1.5 rounded-md border border-gray-300 bg-white shadow-sm font-bold text-[13px] leading-[22px] whitespace-nowrap truncate hover:text-indigo-700 hover:underline text-left ${(mkt === "US" ? ov : kr) ? tone((mkt === "US" ? ov : kr)!.avg) : "text-gray-800"}`}>
+                      className={`absolute -top-3 left-2 max-w-[80%] px-1.5 rounded-md border border-gray-300 bg-white shadow-sm font-bold text-[13px] leading-[22px] whitespace-nowrap truncate hover:text-indigo-700 hover:underline text-left ${(mkt === "US" ? ov : kr) ? tone((mkt === "US" ? ov : kr)!.aft ?? (mkt === "US" ? ov : kr)!.avg) : "text-gray-800"}`}>
                 {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
               </button>
               {/* 카드 전체가 한 격자 — 이름 칸은 가장 긴 이름에 맞춰 늘고(안 잘린다), 증감률·(해외)·선이 줄마다 세로로 맞는다(사용자 2026-11-11) */}
@@ -60,7 +62,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
                          main={mkt === "US" ? ov : kr} other={mkt === "US" ? kr : ov} otherLb={mkt === "US" ? "국내" : "해외"} scale={1} big />
               <div className="col-span-4 my-0.5 border-t border-gray-100" />
                 {/* 칸 줄은 증감률 큰 순(고른 쪽 기준, 값 없으면 뒤로)(사용자 2026-11-11 "증감순으로 소팅") */}
-                {[...boxes].sort((x, y) => ((mkt === "US" ? y.ov : y.kr)?.avg ?? -Infinity) - ((mkt === "US" ? x.ov : x.kr)?.avg ?? -Infinity)).map(b => {
+                {[...boxes].sort((x, y) => shown(mkt === "US" ? y.ov : y.kr) - shown(mkt === "US" ? x.ov : x.kr)).map(b => {
                   const main = mkt === "US" ? b.ov : b.kr, all = mkt === "US" ? ov : kr;
                   return (
                     <SimpleRow key={b.lb}
@@ -93,10 +95,18 @@ function SimpleRow({ name, main, other, otherLb, scale, big, onClick, hint }: { 
   return (
     <div role="button" tabIndex={0} onClick={onClick} onKeyDown={e => { if (e.key === "Enter") onClick?.(); }} title={title}
          className="contents [&:hover>*]:bg-indigo-50/60">
-      <span className={`${cell} min-w-0 truncate rounded-l pl-1 ${main ? tone(main.avg) : "text-gray-700"}`}>{name}</span>
+      <span className={`${cell} min-w-0 truncate rounded-l pl-1 ${main ? tone(main.aft ?? main.avg) : "text-gray-700"}`}>{name}</span>
+      {/* 정규장 중 = 정규장 % 크게. 장 밖(프리·애프터·데이) = 위에 정규장 % 작게, 아래에 그 구간 %(정규장 종가 대비) 크게
+          (사용자 2026-11-11 "정규장 시간엔 정규장이 메인, 프리장엔 전날 정규장 위 작게·프리장 아래 메인, 애프터엔 오늘 정규장 위 작게·애프터 아래 메인") */}
       <span className={`${cell} text-right leading-tight`}>
-        {main ? <b className={`tabular-nums ${tone(main.avg)} ${big ? "text-[14px]" : "text-[13px]"}`}>{fmt(main.avg)}</b> : <span className="text-gray-300 text-[12px]">—</span>}
-        {main?.aft != null && <span className={`block ml-auto w-fit text-[9px] font-bold px-1 rounded leading-[12px] ${main.aft > 0 ? "bg-rose-100 text-rose-700" : main.aft < 0 ? "bg-blue-100 text-blue-700" : "bg-gray-100 text-gray-600"}`}   /* 연한 바탕·진한 글자(사용자 2026-11-11) */ title={`${main.ses ?? "장외"} — 정규장 종가 대비`}>{main.ses && <span className="mr-0.5 text-[8px] font-normal opacity-60">{main.ses}</span>}{main.aft > 0 ? "+" : main.aft < 0 ? "−" : ""}{Math.abs(main.aft).toFixed(2)}%</span>}
+        {!main ? <span className="text-gray-300 text-[12px]">—</span>
+          : main.aft == null ? <b className={`tabular-nums ${tone(main.avg)} ${big ? "text-[14px]" : "text-[13px]"}`}>{fmt(main.avg)}</b>
+          : (<>
+              <span className={`block text-[9.5px] tabular-nums ${tone(main.avg)} opacity-70`} title="정규장 등락(전일 종가 대비)">정규 {fmt(main.avg)}</span>
+              <b className={`block tabular-nums ${tone(main.aft)} ${big ? "text-[14px]" : "text-[13px]"}`} title={`${main.ses ?? "장외"} — 정규장 종가 대비 지금`}>
+{fmt(main.aft)}   {/* 구간 이름(데이 등)은 안 쓴다 — 마우스를 올리면(title)(사용자 2026-11-11) */}
+              </b>
+            </>)}
       </span>
       <span className={`${cell} text-[9.5px] text-gray-400 tabular-nums whitespace-nowrap`}>{other ? <>({otherLb} <span className={tone(other.avg)}>{fmt(other.avg)}</span>)</> : ""}</span>
       <span className={`${cell} rounded-r pr-1 min-w-0`}>
