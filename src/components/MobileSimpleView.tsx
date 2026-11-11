@@ -503,13 +503,12 @@ export function MobileSimpleView() {
     if (vis.usMarket) {
       // 지수 — 한국·미국·순환매 세 탭('지수' 드롭다운). 라벨은 PC 와 같은 한 벌(DASHBOARD_PAGES).
       const keyOf: Record<DashboardPage, string> = { day: KR_KEY, night: IDX_NIGHT_KEY, sobu: IDX_SOBU_KEY };
-      // PC 와 같은 순서 — 업종별 · 반도체 수급 · 서학개미 · 한국/주간 · 미국/야간(사용자 2026-11-09)
+      // PC 와 같은 순서 — 한국/주간 · 미국/야간 · 업종별 · …(사용자 2026-11-12)
       const pg = (k: DashboardPage) => DASHBOARD_PAGES.find(p => p.key === k)!;
-      tabs.push({ key: keyOf.sobu, label: `${pg("sobu").emoji}${pg("sobu").tab}`, count: 0 });
+      for (const k of ["day", "night", "sobu"] as const) tabs.push({ key: keyOf[k], label: `${pg(k).emoji}${pg(k).tab}`, count: 0 });
       tabs.push({ key: HOT_KEY, label: "🔔지수(지금 시끄러운 종목)", count: 0 });
       tabs.push({ key: SEMI_DASH_KEY, label: "💾지수(반도체 수급)", count: 0 });
       tabs.push({ key: SEOHAK_KEY, label: "🐜지수(서학개미)", count: 0 });
-      for (const k of ["day", "night"] as const) tabs.push({ key: keyOf[k], label: `${pg(k).emoji}${pg(k).tab}`, count: 0 });
     }
     // 눌림목 — 시스템 묶음 첫 자리(섹터 위, PC buildTabs 와 같은 순서).
     // 투자도구 묶음 맨 위 = 최신공시, 두 번째 = 실적 일정(PC buildTabs 와 같은 순서, 사용자 요청 2026-10-29)

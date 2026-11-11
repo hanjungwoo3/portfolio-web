@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import type { Stock } from "../types";
 import { normalizeAccount } from "../lib/account";
 import { getIndependentGroupsMode } from "../lib/groupMode";
-import { DASHBOARD_PAGES, INDEX_GROUP_KEYS, type DashboardPage } from "../lib/dashboardGroups";
+import { DASHBOARD_PAGES, INDEX_GROUP_KEYS, defaultDashboardPage, type DashboardPage } from "../lib/dashboardGroups";
 import type { TabVisibility } from "../lib/tabVisibility";
 import type { GroupFolder } from "../lib/groupFolders";
 import { BROKER_FOLDER, isLinkedGroup } from "../lib/linkedGroups";
@@ -218,8 +218,8 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
       {/* 지수 — 별도 탭 */}
       {/* 지수 — 주간·야간·반도체 드롭다운(투자도구·내자산과 같은 모양) */}
       {/* 지수 탭을 누르면 시간에 맞는 페이지로 — 한국 07~20시(NXT 애프터까지)는 주간, 그 외는 야간 */}
-      {/* 지수 탭을 누르면 업종별로(사용자 2026-11-09 "클릭 시 업종별로") — 한국·미국 지수는 오른쪽 📈 서랍으로 옮겨 갔다 */}
-      {renderGroupDropdown(indexTabs, "📈", "시장", INDEX_SOBU_TAB_KEY)}   {/* 목록 제목 '시장'(사용자 2026-11-09) — '지수'는 오른쪽 📈 서랍 이름으로만 */}
+      {/* 시장 탭을 누르면 시간대에 맞는 쪽 — 한국장(07~20시)이면 한국/주간, 끝나면 미국/야간(사용자 2026-11-12 "예전처럼, 한국장 끝나면 미국장, 미국장 끝나면 한국장") */}
+      {renderGroupDropdown(indexTabs, "📈", "시장", defaultDashboardPage() === "day" ? US_MARKET_TAB_KEY : INDEX_NIGHT_TAB_KEY)}   {/* 목록 제목 '시장'(사용자 2026-11-09) — '지수'는 오른쪽 📈 서랍 이름으로만 */}
       {/* 🏦 증권사연결 폴더 — 지수 바로 오른쪽 고정 */}
       {brokerFolder && renderFolder(brokerFolder)}
       {tabs.map(t => {
@@ -385,13 +385,12 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
   // 지수 — 한국·미국·순환매 세 탭(메뉴의 '📈 지수' 드롭다운). 라벨은 lib 한 벌(DASHBOARD_PAGES).
   if (showUs) {
     const keyOf: Record<DashboardPage, string> = { day: US_MARKET_TAB_KEY, night: INDEX_NIGHT_TAB_KEY, sobu: INDEX_SOBU_TAB_KEY };
-    // 순서 — 업종별 · 반도체 수급 · 서학개미 · 한국/주간 · 미국/야간(사용자 2026-11-09 "업종별을 맨 위로, 한국과 미국을 맨 아래로")
+    // 순서 — 한국/주간 · 미국/야간 · 업종별 · 지금 시끄러운 · 반도체 수급 · 서학개미(사용자 2026-11-12 "한국/주간, 미국/야간, 업종별 순서로")
     const pg = (k: DashboardPage) => DASHBOARD_PAGES.find(p => p.key === k)!;
-    tabs.push({ key: keyOf.sobu, label: pg("sobu").tab, emoji: pg("sobu").emoji, count: 0 });
+    for (const k of ["day", "night", "sobu"] as const) tabs.push({ key: keyOf[k], label: pg(k).tab, emoji: pg(k).emoji, count: 0 });
     tabs.push({ key: HOT_TAB_KEY, label: "지수(지금 시끄러운 종목)", emoji: "🔔", count: 0 });
     tabs.push({ key: SEMI_DASH_TAB_KEY, label: "지수(반도체 수급)", emoji: "💾", count: 0 });
     tabs.push({ key: SEOHAK_TAB_KEY, label: "지수(서학개미)", emoji: "🐜", count: 0 });
-    for (const k of ["day", "night"] as const) tabs.push({ key: keyOf[k], label: pg(k).tab, emoji: pg(k).emoji, count: 0 });   // 한국 개인의 미국 주식(2026-11-03)   // 지수 묶음 끝 — UsMarketTab 페이지가 아니라 별도 화면
   }
   // 투자도구 묶음 맨 위 = 최신공시, 두 번째 = 실적 일정(사용자 요청 2026-10-29 "공시를 맨위에, 그다음 실적을 두번째로")
   if (visibility?.disclosures ?? true) {
