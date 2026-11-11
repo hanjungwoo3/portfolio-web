@@ -1051,6 +1051,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
           </div>
           )}
         </div>
+        {inv && <InvTable inv={inv} price={price} />}
         <div className="w-[118px] shrink-0 overflow-hidden text-[11px] tabular-nums">
           <div className="text-gray-500 mb-0.5">큰 체결 ({wonStep(bigThr)}↑)</div>
           {flow.big.filter(b => b.amt >= bigThr).slice(0, 12).map((b, i) => (
@@ -1388,4 +1389,34 @@ function KisWsBadge({ sync }: { sync?: number | null }) {
   if (kisWsLive()) return <span className="ml-auto text-[10px] px-1 rounded bg-emerald-50 text-emerald-700 border border-emerald-300" title="한국투자 웹소켓 — 체결이 나는 즉시(1초마다 화면 반영)">● 한투 실시간{sync != null && <b className="ml-1 text-indigo-700" title="창을 열기 전·닫았던 동안의 매수·매도를 한투에서 거슬러 채우는 중 — 막대가 채워지는 대로 나타납니다">sync {sync}%…</b>}</span>;
   if (st.startsWith("error")) return <span className="ml-auto text-[10px] text-amber-700 truncate max-w-[50%]" title={st}>한투 실시간 실패 — 토스 5초로 · {st.slice(7)}</span>;
   return <span className="ml-auto text-[10px] text-gray-400">한투 연결 중…{sync != null && <b className="ml-1 text-indigo-700">sync {sync}%…</b>}</span>;
+}
+
+// 투자자별 수급 표 — 종목 카드의 투자자 칸과 같은 항목(외국인보유·개인·외국인·기관·연기금…)을 억원으로, 그래프 오른쪽에(사용자 2026-11-11 "그래프에 현재 수급 정보도 표로")
+//   토스 오늘 잠정치(수량) × 지금 가격. 개인은 장 마감 전엔 −(외국인+기관) 추정
+const INV_ROWS: [string, keyof Investor][] = [["외국인", "외국인"], ["기관", "기관"], ["연기금", "연기금"], ["금융투자", "금융투자"], ["투신", "투신"], ["사모", "사모"], ["보험", "보험"], ["은행", "은행"], ["기타금융", "기타금융"], ["기타법인", "기타법인"]];
+function InvTable({ inv, price }: { inv: Investor; price?: number }) {
+  const px = price ?? inv.종가 ?? 0;
+  const eok = (q: number) => (q * px) / 1e8;
+  const f = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : ""}${Math.abs(v) >= 100 ? Math.round(Math.abs(v)).toLocaleString() : Math.abs(v).toFixed(Math.abs(v) >= 10 ? 0 : 1)}억`;
+  const est = !inv.개인있음;
+  const indiv = est ? -(inv.외국인 + inv.기관) : inv.개인;
+  const hi = new Set(["외국인", "기관", "연기금", "개인"]);
+  const row = (lb: string, q: number, note?: string) => {
+    const v = eok(q);
+    return (
+      <div key={lb} className={`flex justify-between gap-1 px-1 rounded ${hi.has(lb) ? (v > 0 ? "bg-rose-50" : v < 0 ? "bg-blue-50" : "") : ""}`}>
+        <span className={hi.has(lb) ? "font-bold text-gray-700" : "text-gray-500"}>{lb}{note}</span>
+        <b className={v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-400"}>{q ? f(v) : "0"}</b>
+      </div>
+    );
+  };
+  return (
+    <div className="w-[118px] shrink-0 text-[10.5px] tabular-nums leading-[16px]"
+         title={`토스(KRX 잠정치)${inv.갱신 ? ` ${inv.갱신.slice(11, 16)} 갱신` : ""} — 억원 = 주 × 지금 가격. 개인은 장 마감 뒤에 나와 그 전엔 −(외국인+기관) 추정`}>
+      <div className="text-gray-500 mb-0.5">수급{inv.갱신 ? ` ${inv.갱신.slice(11, 16)}` : ""}</div>
+      {inv.외국인비율 > 0 && <div className="flex justify-between px-1 text-gray-500"><span>외국인보유</span><span className="text-gray-700">{inv.외국인비율.toFixed(2)}%</span></div>}
+      {row("개인", indiv, est ? "(추정)" : "")}
+      {INV_ROWS.map(([lb, k]) => row(lb, Number(inv[k]) || 0))}
+    </div>
+  );
 }
