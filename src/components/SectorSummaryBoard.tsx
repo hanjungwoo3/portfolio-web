@@ -51,17 +51,13 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
           const emoji = s.label.split(" ")[0];
           return (
             // 거래원 칸처럼 단순하게 — 줄마다 "이름 +11.33% (해외 +8.10%)" + 아래 얇은 상승·하락 선(사용자 2026-11-11 "업종 카드 구성이 너무 산만해")
-            <div key={s.id} className="relative mt-3 rounded-lg border border-gray-200 bg-white shadow-sm px-2.5 pt-3 pb-1.5">
-              {/* 업종 이름 = 카드 위 테두리에 걸친 책갈피(사용자 2026-11-11 "종목명을 한 줄 위로", "책갈피로") */}
-              <button type="button" onClick={() => onOpen(s.id)} title={`${s.short} 탭으로 — 종목 카드 보기`}
-                      className={`absolute -top-3 left-2 max-w-[80%] px-1.5 rounded-md border border-gray-300 bg-white shadow-sm font-bold text-[13px] leading-[22px] whitespace-nowrap truncate hover:text-indigo-700 hover:underline text-left ${(mkt === "US" ? ov : kr) ? tone((mkt === "US" ? ov : kr)!.aft ?? (mkt === "US" ? ov : kr)!.avg) : "text-gray-800"}`}>
-                {emoji} {s.short} <span className="text-[10px] font-normal text-indigo-400">→</span>
-              </button>
+            <div key={s.id} className="relative rounded-lg border border-gray-200 bg-white shadow-sm px-2.5 pt-1.5 pb-1.5">
+              {/* 업종 이름 = 첫 줄(업종 평균) 이름 칸 — 비어 있던 자리(사용자 2026-11-12 "바이오를 아래로 내려도 될 거 같은데 비어 있어서"). 예전엔 위 테두리 책갈피 */}
               {/* 카드 전체가 한 격자 — 이름 칸은 가장 긴 이름에 맞춰 늘고(안 잘린다), 증감률·(해외)·선이 줄마다 세로로 맞는다(사용자 2026-11-11) */}
               {/*   칸 폭은 모든 카드가 같게 고정 — 카드끼리도 세로줄이 맞는다(사용자 2026-11-11 "전체적으로 정렬을 고정하자") */}
               <div className="grid grid-cols-[7.6em_4.9em_6.2em_minmax(3.5rem,1fr)] gap-x-1.5 items-center text-[12.5px]">
               <SimpleRow onClick={() => onOpen(s.id)} hint={`${s.short} 탭으로 — 종목 카드 보기`}
-                         name={<span />}   /* '국내/해외' 글자는 뺐다 — 위 단추가 알려 준다(사용자 2026-11-12) */
+                         name={<span className="font-bold text-[13px]">{emoji} {s.short}</span>}   /* '국내/해외' 글자는 뺐다 — 위 단추가 알려 준다(사용자 2026-11-12) */
                          main={mkt === "US" ? ov : kr} other={mkt === "US" ? kr : ov} otherLb={mkt === "US" ? "국내" : "해외"} scale={1} total={mkt === "US" ? nOv : nKr} big />
               <div className="col-span-4 my-0.5 border-t border-gray-100" />
                 {/* 칸 줄은 증감률 큰 순(고른 쪽 기준, 값 없으면 뒤로)(사용자 2026-11-11 "증감순으로 소팅") */}
