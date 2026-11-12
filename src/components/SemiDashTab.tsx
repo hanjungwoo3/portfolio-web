@@ -43,8 +43,8 @@ const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name
 const ETFS = [{ code: "069500", name: "KODEX 200" }, { code: "229200", name: "KODEX 코스닥150" }] as const;
 const SPARK = ["^KS11", "^KQ11", "KRW=X"];   // 야후 spark 1콜(어제+오늘 5분봉) — 환율은 종목정보 팝업 위 줄
 const FLOW_MS = 60_000;
-const US_ROW = ["MU", "NVDA", "SKHY", "SNDK", "AMD", "DRAM"];
-const MEM_ROW = ["DRAMIDX=ML", "DDR5=ML", "DDR4=ML", "NAND=ML"];
+const US_ROW = ["MU", "NVDA", "SKHY", "SNDK", "AMD"];
+const MEM_ROW = ["DRAMIDX=ML", "DDR5=ML", "DDR4=ML", "NAND=ML", "DRAM"];   // DRAM ETF 는 메모리 현물 줄로(사용자 2026-11-12) — 장 밖이면 애프터 %(정규)
 const PERPS = [["SKHY", "하이닉스"], ["SMSN", "삼성"], ["MU", "마이크론"], ["NVDA", "엔비디아"], ["TSM", "TSMC"], ["KR200", "코스피200"]] as const;
 
 const upColor = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500");
@@ -497,7 +497,10 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           ...(["SOX=F", "NQ=F"].map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.symbol === "SOX=F" ? "SOX선물" : "나스닥선물", pct: x.pct }))),
           ...PERPS.map(([c, n]) => ({ k: c, name: n, pct: (perps?.get(c) as HlPerp | undefined)?.changePct })),
         ]} />
-        <ChipBox title="메모리 현물" items={MEM_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.pct }))} />
+        <ChipBox title="메모리 현물" items={MEM_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => {
+          const e = usRegExtOf(x.symbol, x);   // DRAM ETF(미국 상장)만 해당 — 현물 가격은 null
+          return e && Math.abs(e.aft) >= 0.005 ? { k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: e.aft, reg: e.reg } : { k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.symbol === "DRAM" ? (x.regularPct ?? x.pct) : x.pct };
+        })} />
         {/* 장 밖이면 애프터·프리 %(정규장 종가 대비)를 크게, 정규장은 ( ) 안에(사용자 2026-11-12 "여기 애프터도 넣자, 정규장을 () 안에") */}
         <ChipBox title="미국 반도체 (간밤)" items={US_ROW.map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => {
           const e = usRegExtOf(x.symbol, x);
