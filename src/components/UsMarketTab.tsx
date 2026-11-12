@@ -161,7 +161,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
     // 흐린 종목 — 장 마감 뒤면 정규장 등락은 그대로 세고(이미 끝난 값), 그 뒤(애프터·프리) 움직임만 뺀다.
     //   장중 흐림(아직 체결 없음)은 정규장 값이 없어 여기서도 빠진다(사용자 2026-11-12 "% 는 흐리지 않은 것만" → "정규장 끝나서 국내 값이 안 나와")
     if (dimOf(sym)) {
-      if (e) return { ...e, aft: 0 };
+      // 장 마감 뒤엔 시간만으로 흐려진다(NXT 로 거래 중이어도) — 애프터 움직임(정규장 종가 대비)은 그대로 둔다.
+      //   aft 를 0 으로 지웠더니 국내 애프터 구분이 통째로 사라졌다(사용자 2026-11-12 "종목 카드에는 있는데?"). 움직임이 없으면 0 이라 어차피 평균에서 빠진다
+      if (e) return e;
       // 정규장 종가 확인(야후)이 아직 없으면 카드 % 그대로(마감 뒤엔 어제 대비 = 정규장 등락에 가깝다)
       if (isKrAfterWindow() && /\.(KS|KQ)$/.test(sym)) { const p = displayPctOf(sym, q); return p != null ? { reg: p, aft: 0 } : null; }
       return null;

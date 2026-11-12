@@ -70,11 +70,12 @@ async function getYahooCrumb() {
 //   실리지 않아 확장 사용자 종목이 안 나왔다(사용자 제보 2026-10-23). 확장 시작마다 아무 값 하나를 만들어 직접 싣는다.
 const TOSS_BROWSER_ID = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 // 2026-10-29 18:00 경부터 `deviceId=WTS-<32자>` 쿠키도 같이 있어야 200(둘 중 하나만이면 400, 실측) — 값은 아무거나
+// 2026-11-12 저녁부터 `BTK=<아무 값>` 쿠키도 있어야 200(없으면 400 invalid-client-state, 실측 — 값은 검사하지 않는다)
 const TOSS_DEVICE_ID = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 const HEADER_GROUPS = [
   {
     domains: ["wts-info-api.tossinvest.com", "wts-cert-api.tossinvest.com", "tossinvest.com"],
-    headers: { Origin: "https://tossinvest.com", Referer: "https://tossinvest.com/", Cookie: `_browserId=${TOSS_BROWSER_ID}; deviceId=WTS-${TOSS_DEVICE_ID}` },
+    headers: { Origin: "https://tossinvest.com", Referer: "https://tossinvest.com/", Cookie: `_browserId=${TOSS_BROWSER_ID}; deviceId=WTS-${TOSS_DEVICE_ID}; BTK=${TOSS_BROWSER_ID}` },
   },
   {
     domains: ["finance.naver.com", "m.stock.naver.com", "stock.naver.com",

@@ -20,6 +20,7 @@ import http from "node:http";
 //   토스 웹이 브라우저마다 심는 식별자 — 인스턴스마다 하나 만들어 붙인다(모두가 같은 값을 쓰면 한 ID 로 몰린다).
 const TOSS_BROWSER_ID = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 // 2026-10-29 18:00 경부터 `deviceId=WTS-<32자>` 쿠키도 같이 있어야 200(둘 중 하나만이면 400, 실측) — 값은 아무거나
+// 2026-11-12 저녁부터 `BTK=<아무 값>` 쿠키도 있어야 200(없으면 400 invalid-client-state, 실측 — 값은 검사하지 않는다)
 const TOSS_DEVICE_ID = Array.from({ length: 32 }, () => Math.floor(Math.random() * 16).toString(16)).join("");
 
 // 워커와 동일한 화이트리스트 — 여기 없는 호스트는 403.
@@ -144,7 +145,7 @@ function upstreamHeaders(t) {
   if (t.hostname.includes("toss")) {
     h["Origin"] = "https://tossinvest.com";
     h["Referer"] = "https://tossinvest.com/";
-    h["Cookie"] = `_browserId=${TOSS_BROWSER_ID}; deviceId=WTS-${TOSS_DEVICE_ID}`;   // 없으면 400(2026-10-22~)
+    h["Cookie"] = `_browserId=${TOSS_BROWSER_ID}; deviceId=WTS-${TOSS_DEVICE_ID}; BTK=${TOSS_BROWSER_ID}`;   // 없으면 400(2026-10-22~)
   } else if (t.hostname.includes("yahoo")) {
     h["Origin"] = "https://finance.yahoo.com";
     h["Referer"] = "https://finance.yahoo.com/";
