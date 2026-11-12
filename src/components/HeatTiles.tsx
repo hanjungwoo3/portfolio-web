@@ -42,7 +42,7 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
   onOpen?: (t: Tile) => void;  // 기본 = 국내 종목정보 · 해외 토스
   sort?: TileSort;             // 바깥(팝업 머리)에서 정렬 단추를 들 때 — 주면 안쪽 단추를 숨긴다(사용자 2026-11-10 "시총순 등락순은 위로")
 }) {
-  const [sortIn, setSort] = useState<TileSort>("cap");
+  const [sortIn, setSort] = useState<TileSort>("pct")   // 등락순 기본(사용자 2026-11-12);
   const outer = props_sort !== undefined;
   const sort = props_sort ?? sortIn;
   const sorted = useMemo(() => [...tiles].sort((a, b) => sort === "cap" ? (b.cap ?? 0) - (a.cap ?? 0) : (b.pct ?? -1e9) - (a.pct ?? -1e9)), [tiles, sort]);

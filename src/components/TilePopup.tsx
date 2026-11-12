@@ -15,7 +15,7 @@ const usSym = (sym: string) => (/^[A-Z][A-Z.]{0,6}$/.test(sym) ? sym : null);
 
 function TilePopup({ req, onClose }: { req: TilePopupReq; onClose: () => void }) {
   useEscClose(true, onClose);
-  const [sort, setSort] = useState<TileSort>("cap");
+  const [sort, setSort] = useState<TileSort>("pct")   // 등락순 기본(사용자 2026-11-12);
   const kr = req.items.map(i => krCode(i.sym)).filter((x): x is string => !!x);
   const us = req.items.map(i => usSym(i.sym)).filter((x): x is string => !!x);
   const krQ = useQuery({ queryKey: ["tile-pop-kr", kr.join(",")], queryFn: () => fetchTossPrices(kr), enabled: kr.length > 0, staleTime: 20_000, refetchInterval: 60_000 });
