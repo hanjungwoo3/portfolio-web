@@ -16,7 +16,7 @@ const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" :
 const shown = (v: RowAvg | null | undefined) => (v ? (v.aft ?? v.avg) : -Infinity);
 const fmt = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 
-export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact, nameOf }: {
+export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact, nameOf, toggle }: {
   sections: DashboardSection[];                 // 업종 탭(한눈에 제외)
   pctOf: (s: string) => number | null;
   regExtOf: RegExt;
@@ -24,6 +24,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
   onOpen: (sectionId: string) => void;
   renderDetail?: unknown;                        // (예전 칸 제목 펼치기 — 지금은 표가 대신)
   compact?: boolean;
+  toggle?: React.ReactNode;   // 해외/국내 단추 — 제목 아래·첫 카드 위(사용자 2026-11-12, PC)
 }) {
   const mkt = useAvgMarket();
   const rows = sections.map(s => {
@@ -44,7 +45,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
   //   카드 안은 [이름 | 해외 | 국내] 고정 격자라 칸 줄끼리 세로줄이 맞는다. 카드 순서 = 고른 국내/해외 평균 큰 순.
   return (
     <div className="space-y-1.5">
-      <div className="px-1 text-[10.5px] text-gray-400">숫자 = 정규장 평균 · 아래 꼬리표 = 그 뒤({isMarketOpen("US_INDEX") ? "미국은 지금 정규장 중" : `미국 지금 '${usSessionLabel()}'`} · 국내 NXT 애프터) 정규장 종가 대비 — 장중이면 꼬리표 없음 </div>
+      <div className="px-1 text-[10.5px] text-gray-400 flex items-center gap-2 flex-wrap">{toggle}<span>숫자 = 정규장 평균 · 아래 꼬리표 = 그 뒤({isMarketOpen("US_INDEX") ? "미국은 지금 정규장 중" : `미국 지금 '${usSessionLabel()}'`} · 국내 NXT 애프터) 정규장 종가 대비 — 장중이면 꼬리표 없음</span></div>
       <div className={`grid gap-2 ${compact ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"}`}>
         {rows.map(({ s, ov, kr, boxes, nKr, nOv }) => {
           const emoji = s.label.split(" ")[0];
@@ -60,7 +61,7 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
               {/*   칸 폭은 모든 카드가 같게 고정 — 카드끼리도 세로줄이 맞는다(사용자 2026-11-11 "전체적으로 정렬을 고정하자") */}
               <div className="grid grid-cols-[7.6em_4.9em_6.2em_minmax(3.5rem,1fr)] gap-x-1.5 items-center text-[12.5px]">
               <SimpleRow onClick={() => onOpen(s.id)} hint={`${s.short} 탭으로 — 종목 카드 보기`}
-                         name={<span className="text-[11px] font-bold text-gray-500">{mkt === "US" ? "해외" : "국내"}</span>}
+                         name={<span />}   /* '국내/해외' 글자는 뺐다 — 위 단추가 알려 준다(사용자 2026-11-12) */
                          main={mkt === "US" ? ov : kr} other={mkt === "US" ? kr : ov} otherLb={mkt === "US" ? "국내" : "해외"} scale={1} total={mkt === "US" ? nOv : nKr} big />
               <div className="col-span-4 my-0.5 border-t border-gray-100" />
                 {/* 칸 줄은 증감률 큰 순(고른 쪽 기준, 값 없으면 뒤로)(사용자 2026-11-11 "증감순으로 소팅") */}

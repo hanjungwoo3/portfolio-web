@@ -1094,10 +1094,18 @@ export function MobileSimpleView() {
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
   // 종목 하나의 정규장 등락 + 그 뒤(애프터·프리) — PC(UsMarketTab regExtOf)와 같은 규칙
   const regExtOfM = (sym: string): { reg: number; aft: number; ses?: "프리" | "애프터" | "데이" } | null => {
-    if (dimOf(sym)) return null;   // % 는 흐리지 않은 종목만(사용자 2026-11-12) — 흐린 건 막대의 회색으로만
     const q = usMap.get(sym);
     const r = isKrAfterWindow() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
-    return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100, ses: "애프터" as const } : usRegExtOf(sym, q);
+    const e = q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100, ses: "애프터" as const } : usRegExtOf(sym, q);
+    // 흐린 종목 — 장 마감 뒤면 정규장 등락은 그대로 세고(이미 끝난 값), 그 뒤(애프터·프리) 움직임만 뺀다.
+    //   장중 흐림(아직 체결 없음)은 정규장 값이 없어 여기서도 빠진다(사용자 2026-11-12 "% 는 흐리지 않은 것만" → "정규장 끝나서 국내 값이 안 나와")
+    if (dimOf(sym)) {
+      if (e) return { ...e, aft: 0 };
+      // 정규장 종가 확인(야후)이 아직 없으면 카드 % 그대로(마감 뒤엔 어제 대비 = 정규장 등락에 가깝다)
+      if (isKrAfterWindow() && /\.(KS|KQ)$/.test(sym)) { const p = displayPctOf(sym, q); return p != null ? { reg: p, aft: 0 } : null; }
+      return null;
+    }
+    return e;
   };
   const pctOfM = (sym: string) => (dimOf(sym) ? null : displayPctOf(sym, usMap.get(sym)));   // 흐린 국내 종목은 평균에서 뺀다(PC 와 같음)
   // 업종 칸(SobuGrid) 시세 — 업종 탭과 한눈에 요약판이 같이 쓴다. 국내는 15:30 뒤 정규장 종가 책갈피(야후 확인분), 미국 대장주는 장 밖이면 최근 정규장

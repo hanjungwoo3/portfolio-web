@@ -155,10 +155,18 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const tier0 = US_PAIRS.filter(p => p.tier === "T0");
   // 종목 하나의 '정규장 등락 + 그 뒤(애프터·프리) 움직임' — 국내는 15:30 뒤 정규장 종가 책갈피, 미국은 장 밖이면 최근 정규장 종가 기준
   const regExtOf = (sym: string): { reg: number; aft: number; ses?: "프리" | "애프터" | "데이" } | null => {
-    if (dimOf(sym)) return null;   // % 는 흐리지 않은 종목만(사용자 2026-11-12) — 흐린 건 막대의 회색으로만
     const q = usMap.get(sym);
     const r = isKrAfterWindow() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
-    return q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100, ses: "애프터" as const } : usRegExtOf(sym, q);
+    const e = q && r?.fromYahoo && r.regularPrice > 0 ? { reg: r.regularPct, aft: (q.price / r.regularPrice - 1) * 100, ses: "애프터" as const } : usRegExtOf(sym, q);
+    // 흐린 종목 — 장 마감 뒤면 정규장 등락은 그대로 세고(이미 끝난 값), 그 뒤(애프터·프리) 움직임만 뺀다.
+    //   장중 흐림(아직 체결 없음)은 정규장 값이 없어 여기서도 빠진다(사용자 2026-11-12 "% 는 흐리지 않은 것만" → "정규장 끝나서 국내 값이 안 나와")
+    if (dimOf(sym)) {
+      if (e) return { ...e, aft: 0 };
+      // 정규장 종가 확인(야후)이 아직 없으면 카드 % 그대로(마감 뒤엔 어제 대비 = 정규장 등락에 가깝다)
+      if (isKrAfterWindow() && /\.(KS|KQ)$/.test(sym)) { const p = displayPctOf(sym, q); return p != null ? { reg: p, aft: 0 } : null; }
+      return null;
+    }
+    return e;
   };
   // 국내 종목이 흐리면(프리장에 아직 체결 없음·장 마감) 평균에서 뺀다 — 마감 뒤엔 regExtOf 의 정규장 등락이 대신 들어간다
   //   (사용자 2026-11-11 "프리장에 오픈 안 된 것도 포함해서 국내 % 가 나와")
@@ -762,7 +770,6 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       {page === "sobu" && (
         <aside className="hidden lg:flex lg:flex-col lg:gap-2 sticky shrink-0 w-[116px]" style={{ top: navStickyTop + 8 }}>   {/* 위 빈 줄 없이 — 차트 기간 단추도 왼쪽 줄 맨 위(사용자 2026-11-03) */}
           <ChartRangeToggle small />
-          <AvgMarketToggle className="self-start" />
           <SectorTabBar vertical sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab}
                         avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, regExtOf)} />
         </aside>
@@ -784,7 +791,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
           <div key="sector-summary" id="usidx-sector-summary" style={{ scrollMarginTop: idxScrollMargin }}
                className="relative rounded-xl border border-gray-300 bg-white pg-box p-2.5 pt-4 mt-1.5">
             <span className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700 whitespace-nowrap">📋 업종 한눈에 — 해외 ➜ 국내</span>
-            <SectorSummaryBoard sections={SECTOR_TABS.filter(x => x.id !== "overview")} pctOf={pctOfSym} regExtOf={regExtOf}
+            <SectorSummaryBoard toggle={<AvgMarketToggle />} sections={SECTOR_TABS.filter(x => x.id !== "overview")} pctOf={pctOfSym} regExtOf={regExtOf}
                                 nameOf={sym => tier0.find(x => x.symbol === sym)?.name ?? sym} onOpen={id => { setSectorTab(id); window.scrollTo({ top: 0 }); }}  renderDetail={(sec: DashboardSection) => <SobuGrid headersOnly rows={sec.rows} labels={sec.rowLabels ?? []} leadByRow={sec.leadByRow ?? []} quote={sobuQuote} dimOf={dimOf} />} />
           </div>
         ) : (
