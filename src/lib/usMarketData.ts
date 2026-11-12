@@ -752,6 +752,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "453650.KS", name: "KODEX 미국S&P500금융", desc: "미국 금융 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "474800.KS", name: "KIWOOM 미국원유에너지기업", desc: "미국 석유 기업 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "VRT", name: "버티브", desc: "데이터센터 전력·냉각", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "IREN", name: "아이렌", desc: "IREN — 비트코인 채굴 → AI GPU 클라우드·데이터센터", tier: "T0", sector: "dashboard", direction: "direct" },   // 데이터센터 탭(2026-11-12)
   { symbol: "GM", name: "GM", desc: "제너럴모터스 — 미국 완성차", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
   { symbol: "TM", name: "도요타", desc: "Toyota ADR — 일본 완성차", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
   { symbol: "CAT", name: "캐터필러", desc: "Caterpillar — 중장비·건설기계", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)

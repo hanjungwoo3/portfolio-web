@@ -4,7 +4,7 @@ import { createPortal } from "react-dom";
 import type { Stock } from "../types";
 import { normalizeAccount } from "../lib/account";
 import { getIndependentGroupsMode } from "../lib/groupMode";
-import { DASHBOARD_PAGES, INDEX_GROUP_KEYS, defaultDashboardPage, type DashboardPage } from "../lib/dashboardGroups";
+import { DASHBOARD_PAGES, INDEX_GROUP_KEYS, type DashboardPage } from "../lib/dashboardGroups";
 import type { TabVisibility } from "../lib/tabVisibility";
 import type { GroupFolder } from "../lib/groupFolders";
 import { BROKER_FOLDER, isLinkedGroup } from "../lib/linkedGroups";
@@ -219,7 +219,7 @@ export function Tabs({ tabs, activeKey, onChange, onRename, onDelete, folders, l
       {/* 지수 — 주간·야간·반도체 드롭다운(투자도구·내자산과 같은 모양) */}
       {/* 지수 탭을 누르면 시간에 맞는 페이지로 — 한국 07~20시(NXT 애프터까지)는 주간, 그 외는 야간 */}
       {/* 시장 탭을 누르면 시간대에 맞는 쪽 — 한국장(07~20시)이면 한국/주간, 끝나면 미국/야간(사용자 2026-11-12 "예전처럼, 한국장 끝나면 미국장, 미국장 끝나면 한국장") */}
-      {renderGroupDropdown(indexTabs, "📈", "시장", defaultDashboardPage() === "day" ? US_MARKET_TAB_KEY : INDEX_NIGHT_TAB_KEY)}   {/* 목록 제목 '시장'(사용자 2026-11-09) — '지수'는 오른쪽 📈 서랍 이름으로만 */}
+      {renderGroupDropdown(indexTabs, "📈", "시장", INDEX_SOBU_TAB_KEY)}   {/* 목록 제목 '시장'(사용자 2026-11-09) — '지수'는 오른쪽 📈 서랍 이름으로만 */}
       {/* 🏦 증권사연결 폴더 — 지수 바로 오른쪽 고정 */}
       {brokerFolder && renderFolder(brokerFolder)}
       {tabs.map(t => {
@@ -387,7 +387,8 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
     const keyOf: Record<DashboardPage, string> = { day: US_MARKET_TAB_KEY, night: INDEX_NIGHT_TAB_KEY, sobu: INDEX_SOBU_TAB_KEY };
     // 순서 — 한국/주간 · 미국/야간 · 업종별 · 지금 시끄러운 · 반도체 수급 · 서학개미(사용자 2026-11-12 "한국/주간, 미국/야간, 업종별 순서로")
     const pg = (k: DashboardPage) => DASHBOARD_PAGES.find(p => p.key === k)!;
-    for (const k of ["day", "night", "sobu"] as const) tabs.push({ key: keyOf[k], label: pg(k).tab, emoji: pg(k).emoji, count: 0 });
+    // 한국/주간·미국/야간은 뺐다 — 업종 줄은 업종별로, 지수·환율·선물은 오른쪽 📈 서랍으로(사용자 2026-11-12 "업종별에 없는 걸 다 추가하면 미국/한국 빼도")
+    for (const k of ["sobu"] as const) tabs.push({ key: keyOf[k], label: pg(k).tab, emoji: pg(k).emoji, count: 0 });
     tabs.push({ key: HOT_TAB_KEY, label: "지수(지금 시끄러운 종목)", emoji: "🔔", count: 0 });
     tabs.push({ key: SEMI_DASH_TAB_KEY, label: "지수(반도체 수급)", emoji: "💾", count: 0 });
     tabs.push({ key: SEOHAK_TAB_KEY, label: "지수(서학개미)", emoji: "🐜", count: 0 });

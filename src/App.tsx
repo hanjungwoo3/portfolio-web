@@ -12,7 +12,7 @@ import { getIndependentGroupsMode } from "./lib/groupMode";
 import { StockCard } from "./components/StockCard";
 import { MemoDialog } from "./components/MemoDialog";
 import { useIncrementalRender } from "./lib/useIncrementalRender";
-import { Tabs, buildTabs, filterByTab, realHoldingOf, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, SEMI_DASH_TAB_KEY, SEOHAK_TAB_KEY, HOT_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, DISCLOSURE_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, VALUEUP_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
+import { Tabs, buildTabs, filterByTab, realHoldingOf, SYSTEM_TAB_KEYS, MY_GROUP_KEYS, MARKET_MONEY_TAB_KEY, US_MARKET_TAB_KEY, INDEX_NIGHT_TAB_KEY, SEMI_CHECK_TAB_KEY, INDEX_SOBU_TAB_KEY, SEMI_DASH_TAB_KEY, SEOHAK_TAB_KEY, HOT_TAB_KEY, SECTOR_RANK_TAB_KEY, MY_STOCKS_TAB_KEY, MY_TRADES_TAB_KEY, MY_TRADES_TOSS_TAB_KEY, CONSENSUS_TAB_KEY, DISCLOSURE_TAB_KEY, ETF_REVERSE_TAB_KEY, ETF_RANKING_TAB_KEY, ETF_COMPARE_TAB_KEY, HEATMAP_TAB_KEY, SCREENER_TAB_KEY, CLOSE_BET_TAB_KEY, VALUEUP_TAB_KEY, ACCUM_TAB_KEY, VALUATION_TAB_KEY, EARNINGS_TAB_KEY, ASSET_TREND_TAB_KEY } from "./components/Tabs";
 import { DisclosureFeed } from "./components/DisclosureFeed";
 import { MyTradesTab } from "./components/MyTradesTab";
 import { EtfReverseTab } from "./components/EtfReverseTab";
@@ -27,7 +27,7 @@ import { TilePopupHost } from "./components/TilePopup";
 import { DesktopVersionBadge } from "./components/DesktopVersionBadge";
 import { startBackgroundTicks } from "./lib/tickStore";
 import { AccumTab } from "./components/AccumTab";
-import { defaultDashboardPage, INDEX_GROUP_KEYS, indexPageOf } from "./lib/dashboardGroups";
+import { INDEX_GROUP_KEYS, indexPageOf } from "./lib/dashboardGroups";
 import { EtfCompareTab } from "./components/EtfCompareTab";
 import { HeatmapTab } from "./components/HeatmapTab";
 import { FindBar } from "./components/FindBar";
@@ -135,8 +135,9 @@ function Dashboard() {
   // 기본 페이지 = 지수 — 시간으로 주간/야간(한국 07~18시 = 주간)
   // 새로고침해도 보던 탭 그대로(사용자 2026-11-05) — sessionStorage 라 창을 새로 열면 다시 시간 기준 기본값
   const [activeTab, setActiveTab] = useState<string>(() => {
-    try { const v = sessionStorage.getItem("pc_active_tab"); if (v) return v; } catch { /* 없음 */ }
-    return defaultDashboardPage() === "night" ? INDEX_NIGHT_TAB_KEY : US_MARKET_TAB_KEY;
+    // 한국/주간·미국/야간 탭은 없앴다(2026-11-12) — 저장돼 있으면 업종별로
+    try { const v = sessionStorage.getItem("pc_active_tab"); if (v && v !== US_MARKET_TAB_KEY && v !== INDEX_NIGHT_TAB_KEY) return v; } catch { /* 없음 */ }
+    return INDEX_SOBU_TAB_KEY;
   });
   useEffect(() => { try { sessionStorage.setItem("pc_active_tab", activeTab); } catch { /* noop */ } }, [activeTab]);
   const [settingsOpen, setSettingsOpen] = useState(false);

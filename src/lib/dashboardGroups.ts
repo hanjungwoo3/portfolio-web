@@ -516,7 +516,7 @@ function sectionMap(): Record<string, DashboardSection> {
       leadByRow: [3, 1, 2, 0],
       rowLabels: ["셀·ESS", "양극재", "소재", "장비·부품"],
       rows: [
-        ["TSLA", "FLNC", "EOSE", "373220.KS", "006400.KS", "096770.KS", "178320.KS", "416180.KS", "107640.KS", "082920.KS", "010120.KS"],                 // 테슬라·플루언스 ➜ LG엔솔·삼성SDI·SK이노·서진시스템·신성에스티·한중엔시에스
+        ["TSLA", "FLNC", "EOSE", "373220.KS", "006400.KS", "096770.KS", "178320.KS", "416180.KS", "107640.KS", "082920.KS", "010120.KS", "119850.KS", "417200.KS"],   // + 지엔씨에너지(데이터센터 비상발전)·LS머트리얼즈(울트라커패시터) — 한국/주간에서 옮겨 옴(2026-11-12)                 // 테슬라·플루언스 ➜ LG엔솔·삼성SDI·SK이노·서진시스템·신성에스티·한중엔시에스
         ["ALB", "247540.KS", "086520.KS", "003670.KS", "066970.KS", "051910.KS", "005070.KS", "450080.KS", "005490.KS", "005420.KS", "365340.KS", "101360.KS"],              // 앨버말 ➜ 에코프로비엠·에코프로·포스코퓨처엠·엘앤에프·LG화학·코스모신소재·에코프로머티
         ["SQM", "LIT", "361610.KS", "336370.KS", "020150.KS", "348370.KS", "278280.KS", "078600.KS", "393890.KS", "006110.KS", "011790.KS", "093370.KS", "025900.KS", "121600.KS", "457190.KS", "008730.KS"],   // SQM·LIT ➜ SKIET·솔루스·롯데에너지머티·엔켐·천보·대주전자재료·더블유씨피·삼아알미늄
         ["137400.KS", "299030.KS", "222080.KS", "259630.KS", "217820.KS", "091580.KS", "243840.KS", "372170.KS", "302430.KS", "290670.KS", "014820.KS", "002710.KS", "262260.KS"],                      // 피엔티·하나기술·SFA넥셀·엠플러스·원익피앤이·상신이디피·신흥에스이씨
@@ -535,7 +535,7 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     {
-      id: "defflow", etfs: ["449450.KS", "0080G0.KS", "463250.KS", "490480.KS"], short: "방산", label: "🛡 방산 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "defflow", etfs: ["449450.KS", "0080G0.KS", "463250.KS", "490480.KS", "494840.KS"], short: "방산", label: "🛡 방산 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 미국 방산 대장(록히드마틴·RTX·노스롭, 간밤).",
       lead: 1, leadByRow: [3, 2, 0],
       rowLabels: ["체계(완성품)", "전자·항공", "탄약·부품"],
@@ -568,23 +568,23 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     {
-      id: "bioflow", short: "바이오", etfs: ["244580.KS", "143860.KS", "364970.KS", "0168K0.KS"], label: "💊 바이오 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "bioflow", short: "바이오", etfs: ["244580.KS", "143860.KS", "364970.KS", "0168K0.KS", "453640.KS"], label: "💊 바이오 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 글로벌 제약 대장(일라이릴리·노보노디스크, 간밤).",
       lead: 1, leadByRow: [2, 1, 1],
       rowLabels: ["대형·CDMO", "신약·기술수출", "미용·의료기기"],
       rows: [
         ["LLY", "NVO", "207940.KS", "068270.KS", "000100.KS", "128940.KS", "326030.KS", "302440.KS", "237690.KS", "006280.KS", "069620.KS", "185750.KS", "008930.KS", "053030.KS"],
         ["ABBV", "196170.KS", "141080.KS", "298380.KS", "028300.KS", "950160.KS", "087010.KS", "310210.KS", "000250.KS", "347850.KS", "039200.KS", "226950.KS", "475830.KS"],
-        ["JNJ", "214450.KS", "214150.KS", "145020.KS", "145720.KS", "086900.KS", "328130.KS", "043150.KS", "041830.KS", "099190.KS"],
+        ["JNJ", "214450.KS", "214150.KS", "145020.KS", "145720.KS", "086900.KS", "328130.KS", "043150.KS", "041830.KS", "099190.KS", "336570.KS", "216080.KS", "200670.KS", "099430.KS"],   // + 원텍·제테마·휴메딕스·바이오플러스(2026-11-12)
       ],
     },
     {
-      id: "finflow", short: "금융", etfs: ["091170.KS", "091220.KS", "102970.KS", "140700.KS"], label: "🏦 금융 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "finflow", short: "금융", etfs: ["091170.KS", "091220.KS", "102970.KS", "140700.KS", "453650.KS"], label: "🏦 금융 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 미국 금융 대장(JP모건·골드만삭스, 간밤). 저PBR·고배당 꼬리표와 함께 보면 좋습니다.",
-      lead: 1, leadByRow: [2, 1, 0],
+      lead: 1, leadByRow: [3, 1, 0],
       rowLabels: ["은행·지주", "증권", "보험"],
       rows: [
-        ["JPM", "BAC", "105560.KS", "055550.KS", "086790.KS", "316140.KS", "024110.KS", "138040.KS", "323410.KS", "138930.KS", "175330.KS", "139130.KS"],
+        ["JPM", "BAC", "V", "105560.KS", "055550.KS", "086790.KS", "316140.KS", "024110.KS", "138040.KS", "323410.KS", "138930.KS", "175330.KS", "139130.KS"],
         ["GS", "006800.KS", "071050.KS", "039490.KS", "005940.KS", "016360.KS", "003540.KS", "001720.KS", "030610.KS", "001500.KS", "003530.KS", "003470.KS"],
         ["032830.KS", "000810.KS", "005830.KS", "088350.KS", "001450.KS", "003690.KS", "000370.KS", "085620.KS", "000540.KS"],
       ],
@@ -645,13 +645,13 @@ function sectionMap(): Record<string, DashboardSection> {
       rows: [["CAT", "VMC", "000720.KS", "047040.KS", "028050.KS", "006360.KS", "375500.KS", "294870.KS"]],
     },
     {
-      id: "matflow", short: "철강·화학", etfs: ["117680.KS", "117460.KS"], label: "🧪 철강·화학 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "matflow", short: "철강·화학", etfs: ["117680.KS", "117460.KS", "474800.KS"], label: "🧪 철강·화학 — 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 뉴코어·프리포트맥모란(철강·구리)·다우·엑손모빌·셰브론(화학·정유), 간밤.",
-      lead: 1, leadByRow: [2, 3],
+      lead: 1, leadByRow: [2, 4],
       rowLabels: ["철강·소재", "화학·정유"],
       rows: [
         ["NUE", "FCX", "005490.KS", "010130.KS", "004020.KS", "103140.KS", "001430.KS", "000670.KS", "460860.KS"],
-        ["DOW", "XOM", "CVX", "096770.KS", "010950.KS", "051910.KS", "011790.KS", "011780.KS", "011170.KS", "298020.KS"],
+        ["DOW", "XOM", "CVX", "COP", "096770.KS", "010950.KS", "051910.KS", "011790.KS", "011780.KS", "011170.KS", "298020.KS"],
       ],
     },
     {
@@ -675,17 +675,41 @@ function sectionMap(): Record<string, DashboardSection> {
         ["NFLX", "DIS", "SPOT", "352820.KS", "035900.KS", "041510.KS", "122870.KS", "035760.KS", "376300.KS", "253450.KS"],
       ],
     },
+    // ── 미국/야간에만 있던 미국 고유 묶음(사용자 2026-11-12 "업종별에 없는 걸 다 추가하면 미국/한국 빼도") — 미국 종목뿐이라 '해외' 기준에서 읽는다
+    {
+      id: "usswflow", short: "AI 소프트웨어", etfs: ["481180.KS", "418670.KS", "371450.KS"], label: "💻 AI 소프트웨어 — 미국", render: "sobuGrid",
+      note: "미국 종목뿐 — 왼쪽 위 '해외'로 보세요. ETF = 국내 상장 미국 ETF(하루 시차).",
+      lead: 1, leadByRow: [4, 5, 4],
+      rowLabels: ["AI소프트웨어", "사이버보안", "클라우드"],
+      rows: [["PLTR", "ORCL", "NOW", "CRM"], ["CRWD", "PANW", "ZS", "FTNT", "NET"], ["SNOW", "DDOG", "MDB", "SHOP"]],
+    },
+    {
+      id: "ustechflow", short: "빅테크·미래", etfs: ["381170.KS", "0183J0.KS", "0023A0.KS", "418660.KS"], label: "🤖 빅테크·미래기술 — 미국", render: "sobuGrid",
+      note: "미국 종목뿐 — 왼쪽 위 '해외'로 보세요.",
+      // 로봇·수술 줄(인튜이티브·테라다인·심보틱)은 로봇 탭과 같아 뺐다, QS(전고체 배터리)는 우주가 아니라 뺐다(2026-11-12 전체 점검)
+      lead: 1, leadByRow: [7, 4, 3, 2],
+      rowLabels: ["빅테크", "우주", "양자", "레버리지"],
+      rows: [["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NFLX"], ["RKLB", "ASTS", "LUNR", "SPCX"], ["IONQ", "RGTI", "QBTS"], ["TQQQ", "SOXL"]],
+    },
+    {
+      // 방어 = 배당·채권만 — 헬스케어·금융·에너지·방산은 각 업종 탭(바이오·금융·철강·화학·방산)으로 옮겼다(사용자 2026-11-12 "방어/경기 분리", "금융이 별도로 있는데")
+      id: "usdefflow", short: "배당·채권", etfs: ["458730.KS", "476760.KS"], label: "💵 배당·채권 — 미국", render: "sobuGrid",
+      note: "미국 종목뿐 — 왼쪽 위 '해외'로 보세요. 시장이 흔들릴 때 돈이 피하는 곳.",
+      lead: 1, leadByRow: [4, 1],
+      rowLabels: ["배당·방어", "채권"],
+      rows: [["PEP", "VZ", "SCHD", "JEPQ"], ["TLT"]],   // P&G·코카콜라는 소비·유통 탭에(2026-11-12 전체 점검)
+    },
     {
       // 데이터센터 — 짓고(전력기기) 식히고(냉각) 돌리고(서버·클라우드) 전기 대는(전원) 쪽(사용자 2026-11-11 "업종별에 데이터센터 넣을 거 없어?")
       //   원전·친환경·2차전지 탭과 겹치는 종목도 있다(다른 탭이라 둔다). 국내 냉각 대장주가 적어 LG전자(칠러)·케이엔솔
       id: "dcflow", short: "데이터센터", etfs: ["487240.KS", "0142D0.KS", "487230.KS"], label: "🏢 데이터센터 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = GE버노바·이튼·콴타(전력기기)·버티브·트레인·존슨컨트롤즈(냉각)·에퀴닉스·디지털리얼티·코어위브·델·슈퍼마이크로(서버·클라우드)·블룸에너지·컨스텔레이션(전원), 간밤.",
-      lead: 1, leadByRow: [3, 3, 5, 2],
+      lead: 1, leadByRow: [3, 3, 7, 2],
       rowLabels: ["전력기기", "냉각·공조", "서버·클라우드", "전원"],
       rows: [
         ["GEV", "ETN", "PWR", "267260.KS", "298040.KS", "010120.KS", "103590.KS", "062040.KS", "033100.KS"],
         ["VRT", "TT", "JCI", "066570.KS", "053080.KS"],
-        ["EQIX", "DLR", "CRWV", "DELL", "SMCI", "018260.KS", "064400.KS", "030200.KS", "017670.KS", "032640.KS"],
+        ["EQIX", "DLR", "CRWV", "NBIS", "IREN", "DELL", "SMCI", "018260.KS", "064400.KS", "030200.KS", "017670.KS", "032640.KS"],   // + 네비우스·아이렌(AI GPU 클라우드, 사용자 2026-11-12)
         ["BE", "CEG", "336260.KS", "475150.KS"],
       ],
     },
@@ -733,7 +757,7 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 소부장 — 단계별 한 블록만(사용자 2026-11-02, 주간 시장 줄은 뺐다 "빼도 될 거 같아")
   // 지수(업종) — 업종마다 한 블록, 페이지 안 탭으로 하나씩(사용자 2026-11-03 "소부장·ESS 를 내부 탭으로")
   //   + 옛 지수(순환매) 페이지를 '한눈에' 탭으로 합쳤다(사용자 2026-11-03 "순환매와 업종이 비슷" → 1안) — 아래 SECTOR_OVERVIEW_IDS
-  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "semiflow", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "greenflow", "opticflow", "dcflow", "autoflow", "buildflow", "matflow", "consflow", "contentflow", "bioflow", "robotflow", "finflow", "beautyflow"],
+  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "semiflow", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "greenflow", "opticflow", "dcflow", "autoflow", "buildflow", "matflow", "consflow", "contentflow", "usswflow", "ustechflow", "usdefflow", "bioflow", "robotflow", "finflow", "beautyflow"],
   // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
   //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)
@@ -791,4 +815,15 @@ export function dashboardGroupNav(sections: DashboardSection[]): DashboardNavIte
     emoji: s.label.split(" ")[0],   // "🌞 주간 시장" → "🌞"
     short: s.short,
   }));
+}
+
+/** 지수 묶음 — 한국 지수 + 미국 지수(한 묶음 '지수') · 환율·금리·투심 · 선물 · 현물. PC 오른쪽 📈 서랍과 모바일 '📈 지수' 탭이 같이 쓴다
+ *  (사용자 2026-11-12 "한국/미국 빼고, 모바일은 지수가 거기 나오면"). 선물은 시간대에 맞는 쪽(주간/야간) */
+export function buildIndexSections(): DashboardSection[] {
+  const kr = buildDashboardPage("day").find(s => s.id === "kr");
+  const night = buildDashboardPage("night").filter(s => s.id !== "kr" && DRAWER_SECTION_IDS.has(s.id));
+  const macro = night.find(s => s.id === "macro");
+  const merged = kr && macro ? [{ ...kr, label: "📈 지수", rows: [...kr.rows, ...macro.rows.map((r, i) => (i === macro.rows.length - 1 ? [...r, "^TWII", "^HSI"] : r))] }]
+    : [kr, macro].filter((x): x is DashboardSection => !!x);
+  return [...merged, ...night.filter(s => s.id !== "macro")];
 }

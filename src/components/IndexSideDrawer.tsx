@@ -5,7 +5,7 @@
 //   내용 = 지수 탭 카드 그대로(UsMarketTab sectionsOverride) — 주간 시장(한국 지수) · 미국 지수 · 환율·금리·투심 · 선물 · 현물.
 //   열 때만 그린다(닫으면 내려서 호출이 없다). Esc·바깥 누르기로 닫는다.
 import { useEffect, useMemo, useState } from "react";
-import { buildDashboardPage, DRAWER_SECTION_IDS } from "../lib/dashboardGroups";
+import { buildIndexSections } from "../lib/dashboardGroups";
 import { UsMarketTab } from "./UsMarketTab";
 
 
@@ -14,16 +14,7 @@ export function IndexSideDrawer() {
   const [closing, setClosing] = useState(false);
   // 닫을 때도 나올 때처럼 미끄러져 들어간다(사용자 2026-11-09) — 애니메이션이 끝난 뒤 내린다
   const close = () => { if (closing) return; setClosing(true); setTimeout(() => { setOpen(false); setClosing(false); }, 180); };
-  const sections = useMemo(() => {
-    const kr = buildDashboardPage("day").find(s => s.id === "kr");
-    const night = buildDashboardPage("night").filter(s => s.id !== "kr" && DRAWER_SECTION_IDS.has(s.id));
-    const macro = night.find(s => s.id === "macro");
-    // 주간 시장(한국) + 미국 지수 = 한 묶음 '지수'(줄은 둘 그대로)(사용자 2026-11-09 "두 개 합쳐서 지수")
-    //   미국 지수 줄 끝 빈 두 칸 = 대만 가권·홍콩 항셍(중국 빅테크)(사용자 2026-11-09 "두 자리 남는데 중국과 대만 가능?") — 서랍에만
-    const asia = ["^TWII", "^HSI"];
-    const merged = kr && macro ? [{ ...kr, label: "📈 지수", rows: [...kr.rows, ...macro.rows.map((r, i) => (i === macro.rows.length - 1 ? [...r, ...asia] : r))] }] : [kr, macro].filter((x): x is NonNullable<typeof x> => !!x);
-    return [...merged, ...night.filter(s => s.id !== "macro")];
-  }, [open]);   // eslint-disable-line react-hooks/exhaustive-deps — 열 때마다(주간·야간 선물이 시간 따라 바뀐다)
+  const sections = useMemo(() => buildIndexSections(), [open]);   // eslint-disable-line react-hooks/exhaustive-deps — 열 때마다(주간·야간 선물이 시간 따라 바뀐다)   // eslint-disable-line react-hooks/exhaustive-deps — 열 때마다(주간·야간 선물이 시간 따라 바뀐다)
   // 단축키 — ` (숫자 1 왼쪽, 한글 자판에서도 같은 키) 로 열고 닫기(사용자 2026-11-09 "단축키 넣고 싶은데"). 글 쓰는 칸에선 안 먹게
   useEffect(() => {
     const k = (e: KeyboardEvent) => {

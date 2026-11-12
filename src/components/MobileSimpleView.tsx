@@ -55,7 +55,7 @@ import { usRegExtOf, rotRowAvg, rotRowOrder } from "../lib/avgMarket";
 import { AftPill } from "./SectorTabBar";
 import { SectorSummaryBoard } from "./SectorSummaryBoard";
 import { useIntradayCharts } from "../lib/useIntradayCharts";
-import { buildDashboardPage, defaultDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage, type DashboardSection } from "../lib/dashboardGroups";
+import { buildDashboardPage, buildIndexSections, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, DASHBOARD_PAGES, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage, type DashboardSection } from "../lib/dashboardGroups";
 import { GroupNavBar, type GroupNavItem } from "./GroupNavBar";
 import { StockMarketTab } from "./StockMarketTab";
 import { useExtensionProxyReady, compareVersion } from "../lib/extensionProxy";
@@ -362,13 +362,13 @@ export function MobileSimpleView() {
   // 구글 로그인/충돌 체크는 설정 다이얼로그 열 때만 수행 (아래 settings useEffect 내부).
   // 검색/편집/메모 등 일반 이동에선 Drive API 호출 안 함.
   const [activeTab, setActiveTab] = useState<string>(() => {
-    const byTime = defaultDashboardPage() === "night" ? IDX_NIGHT_KEY : KR_KEY;   // 처음이면 시간으로
+    const byTime = KR_KEY;   // 처음이면 '📈 지수'(한국/주간·미국/야간을 하나로, 2026-11-12)
     if (typeof localStorage === "undefined") return byTime;
     const saved = localStorage.getItem(TAB_KEY);
     // 옛 '지수(반도체)' 는 야간에(2026-10-07), '지수(대장주)' 는 주간에(2026-10-08) 합쳤다 — 저장돼 있으면 합친 쪽으로
     if (saved === IDX_BATT_KEY) return IDX_SOBU_KEY;    // 옛 지수(2차전지·ESS) → 지수(업종) 안 탭(2026-11-03)
     if (saved === IDX_SEMI_KEY || saved === IDX_ROT_KEY) return IDX_SOBU_KEY;   // 옛 반도체·순환매 → 지수(업종) 한눈에(2026-11-03)
-    if (saved === IDX_US_KEY) return IDX_NIGHT_KEY;     // 옛 미국순환 → 지수(미국)
+    if (saved === IDX_US_KEY || saved === IDX_NIGHT_KEY) return KR_KEY;     // 옛 미국순환·미국/야간 → 📈 지수(2026-11-12)
     if (saved === IDX_LEADERS_KEY) return KR_KEY;
     return saved ?? byTime;
   });
@@ -505,7 +505,9 @@ export function MobileSimpleView() {
       const keyOf: Record<DashboardPage, string> = { day: KR_KEY, night: IDX_NIGHT_KEY, sobu: IDX_SOBU_KEY };
       // PC 와 같은 순서 — 한국/주간 · 미국/야간 · 업종별 · …(사용자 2026-11-12)
       const pg = (k: DashboardPage) => DASHBOARD_PAGES.find(p => p.key === k)!;
-      for (const k of ["day", "night", "sobu"] as const) tabs.push({ key: keyOf[k], label: `${pg(k).emoji}${pg(k).tab}`, count: 0 });
+      // 한국/주간·미국/야간 대신 '📈 지수' 하나(PC 서랍과 같은 묶음 — 지수·환율·금리·선물·현물), 그다음 업종별(사용자 2026-11-12)
+      tabs.push({ key: keyOf.day, label: "📈지수", count: 0 });
+      tabs.push({ key: keyOf.sobu, label: `${pg("sobu").emoji}${pg("sobu").tab}`, count: 0 });
       tabs.push({ key: HOT_KEY, label: "🔔지수(지금 시끄러운 종목)", count: 0 });
       tabs.push({ key: SEMI_DASH_KEY, label: "💾지수(반도체 수급)", count: 0 });
       tabs.push({ key: SEOHAK_KEY, label: "🐜지수(서학개미)", count: 0 });
@@ -1126,7 +1128,7 @@ export function MobileSimpleView() {
     if (!onIndexTab) return [] as string[];
     const known = new Set(tier0.map(p => p.symbol));
     const set = new Set<string>();
-    for (const sec of buildDashboardPage(indexPageOfM(activeTab))) {
+    for (const sec of (activeTab === KR_KEY ? buildIndexSections() : buildDashboardPage(indexPageOfM(activeTab)))) {
       if (sec.render) continue;
       for (const sym of sec.rows.flat()) {
         if (!known.has(sym)) continue;
@@ -2332,7 +2334,7 @@ export function MobileSimpleView() {
         // 지수 — PC(UsMarketTab)와 동일한 공용 그룹 정의를 그룹 헤더 + 2열 카드로 렌더 (단일 통합 뷰)
         //   한·미 섹터 판도 그대로 넣는다 — TicsSectorBoard 는 lg 미만에서 좌우 2판이
         //   **위아래 1판씩으로 알아서 접힌다**(grid-cols-1 lg:grid-cols-2). 폭 걱정은 없다.
-        const pageSecs = buildDashboardPage(indexPageOfM(activeTab));
+        const pageSecs = activeTab === KR_KEY ? buildIndexSections() : buildDashboardPage(indexPageOfM(activeTab));   // '📈 지수' = PC 서랍과 같은 묶음
         const isSectorPage = indexPageOfM(activeTab) === "sobu";
         const sections = isSectorPage ? sectionsForTab(pageSecs, sectorTabM) : pageSecs;
         const idxStickyTop = (headerCollapsed ? 0 : 44) + navH;   // 헤더(44) + 메인 탭바 아래
