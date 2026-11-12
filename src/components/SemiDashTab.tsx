@@ -955,7 +955,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                     화살표는 점에 정확히, 글자는 화면 끝에서 안 잘리게(왼쪽 끝이면 오른쪽으로, 끝 쪽이면 왼쪽으로) */}
                 {hi > lo && [{ i: hiI, v: hi, up: true }, { i: loI, v: lo, up: false }].map(({ i, v, up: isHi }) => {
                   const xp = (xOf(i) / W) * 100, y = yp(v);
-                  const tx = xp < 12 / sc ? "-6px" : i >= prices.length - 8 ? "calc(-100% + 6px)" : "-50%";
+                  // 왼쪽 끝 쪽이면 점에서 오른쪽으로, 오른쪽 끝 쪽이면 왼쪽으로 — 화면 밖으로 잘리지 않게(사용자 2026-11-12 "최고가가 왼쪽에 잘려").
+                  //   예전엔 12%/배율 안쪽만 봐서, 그래프가 넓어지면(배율↑) 왼쪽 끝 글자가 잘렸다
+                  const tx = xp < 25 ? "-6px" : (xp > 75 || i >= prices.length - 8) ? "calc(-100% + 6px)" : "-50%";
                   const col = isHi ? "text-rose-600" : "text-blue-600";
                   return (
                     <span key={isHi ? "hi" : "lo"}>
@@ -965,7 +967,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                   );
                 })}
                 {/* '현재가' 이름표 — 체결(주황)·프로그램(보라)과 같은 꼴, 바탕은 가격선 색(사용자 2026-11-05 "현재가, 체결, 프로그램") */}
-                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-slate-100 text-slate-700 border border-slate-300 px-1 py-px rounded-sm whitespace-nowrap tabular-nums" style={{ left: `${lx}%`, top: `${endTop.price ?? 50}%`, transform: "translate(6px, -50%)" }}>현재가<span className={`ml-1 px-0.5 rounded-[2px] bg-white ${base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : "text-slate-800"}`}>{last.toLocaleString()}원{pc(last) && ` (${pc(last).trim()})`}</span>
+                <span className="absolute pointer-events-none text-[10.5px] font-bold bg-slate-100 text-slate-700 border border-slate-300 px-1 py-px rounded-sm whitespace-nowrap tabular-nums" style={{ left: `${lx}%`, top: `${endTop.price ?? 50}%`, transform: "translate(6px, -50%)" }}>현재가<span className={`ml-1 px-0.5 rounded-[2px] bg-white ${base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : "text-slate-800"}`}>{last.toLocaleString()}원</span>
+                  {/* % 는 한 줄 아래 — 이름표 폭을 줄인다(사용자 2026-11-12) */}
+                  {pc(last) && <span className={`block text-right text-[10px] ${base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : "text-slate-700"}`}>{pc(last).trim()}</span>}
                 </span>
               </>);
             })()}
