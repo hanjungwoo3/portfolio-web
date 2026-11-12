@@ -753,6 +753,47 @@ export const US_PAIRS: Pair[] = [
   { symbol: "474800.KS", name: "KIWOOM 미국원유에너지기업", desc: "미국 석유 기업 — 국내 상장", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "VRT", name: "버티브", desc: "데이터센터 전력·냉각", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "IREN", name: "아이렌", desc: "IREN — 비트코인 채굴 → AI GPU 클라우드·데이터센터", tier: "T0", sector: "dashboard", direction: "direct" },   // 데이터센터 탭(2026-11-12)
+  { symbol: "CB", name: "처브", desc: "Chubb — 세계 최대 손해보험", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭 교차 보강(2026-11-12)
+  { symbol: "PGR", name: "프로그레시브", desc: "Progressive — 미국 자동차보험 1위권", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭 교차 보강(2026-11-12)
+  { symbol: "MET", name: "메트라이프", desc: "MetLife — 미국 생명보험", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭 교차 보강(2026-11-12)
+  { symbol: "APTV", name: "앱티브", desc: "Aptiv — 자동차 전장·배선 부품", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭 교차 보강(2026-11-12)
+  { symbol: "BWA", name: "보그워너", desc: "BorgWarner — 구동계·전기차 부품", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭 교차 보강(2026-11-12)
+  { symbol: "OLN", name: "올린", desc: "Olin — 윈체스터 탄약·화학", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭 교차 보강(2026-11-12)
+  { symbol: "ULTA", name: "얼타뷰티", desc: "Ulta Beauty — 미국 화장품 유통 1위", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭 교차 보강(2026-11-12)
+  { symbol: "053800.KS", name: "안랩", desc: "보안 소프트웨어(V3)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "263860.KS", name: "지니언스", desc: "네트워크 접근제어(NAC)·EDR", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "150900.KS", name: "파수", desc: "문서보안·AI 데이터 보안", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "136540.KS", name: "윈스테크넷", desc: "침입방지(IPS)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "042510.KS", name: "라온시큐어", desc: "인증·모바일 보안", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "067920.KS", name: "이글루코퍼레이션", desc: "보안관제(SIEM)·AI 보안", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "203650.KS", name: "드림시큐리티", desc: "인증·암호(양자내성암호)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "047560.KS", name: "이스트소프트", desc: "AI 휴먼·알약", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "304100.KS", name: "솔트룩스", desc: "AI·검색(생성형 AI)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "402030.KS", name: "코난테크놀로지", desc: "AI 검색·LLM", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "108860.KS", name: "셀바스AI", desc: "음성인식 AI", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "377480.KS", name: "마음AI", desc: "대화형·온디바이스 AI", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "041020.KS", name: "폴라리스오피스", desc: "오피스 SW·AI", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "093320.KS", name: "케이아이엔엑스", desc: "인터넷 연동(IX)·클라우드", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "079940.KS", name: "가비아", desc: "도메인·클라우드 호스팅", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "181710.KS", name: "NHN", desc: "NHN클라우드·게임", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "211270.KS", name: "AP위성", desc: "위성통신 단말·위성 본체", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "189300.KS", name: "인텔리안테크", desc: "위성통신 안테나(저궤도)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "451760.KS", name: "컨텍", desc: "위성 지상국 서비스", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "474170.KS", name: "루미르", desc: "초소형 SAR 위성", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "356680.KS", name: "엑스게이트", desc: "양자암호 VPN", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "115500.KS", name: "케이씨에스", desc: "양자암호 통신 장비", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "0105D0.KS", name: "SOL 한국AI소프트웨어", desc: "국내 AI 소프트웨어 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "0207G0.KS", name: "SOL 우주항공밸류체인", desc: "국내 우주항공 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "466930.KS", name: "SOL 자동차TOP3플러스", desc: "현대차·기아·현대모비스 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "464600.KS", name: "SOL 자동차소부장Fn", desc: "자동차 부품 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "139220.KS", name: "TIGER 200 건설", desc: "코스피200 건설 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "139240.KS", name: "TIGER 200 철강소재", desc: "코스피200 철강·소재 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "227560.KS", name: "TIGER 200 생활소비재", desc: "필수소비재 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "266390.KS", name: "KODEX 경기소비재", desc: "경기소비재 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "365000.KS", name: "TIGER 인터넷TOP10", desc: "네이버·카카오 등 인터넷 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "228810.KS", name: "TIGER 미디어컨텐츠", desc: "미디어·엔터 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "0222F0.KS", name: "마이티 AI데이터센터밸류체인", desc: "데이터센터 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "441540.KS", name: "HANARO Fn조선해운", desc: "조선·해운 ETF", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "GM", name: "GM", desc: "제너럴모터스 — 미국 완성차", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
   { symbol: "TM", name: "도요타", desc: "Toyota ADR — 일본 완성차", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
   { symbol: "CAT", name: "캐터필러", desc: "Caterpillar — 중장비·건설기계", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)

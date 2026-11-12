@@ -524,7 +524,7 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     // ── 지수(업종) 탭의 나머지 업종 — 소부장·2차전지와 같은 4칸(사용자 2026-11-03 "조선/방산/원전·화장품도"). 해외 대장주 ➜ 국내
     {
-      id: "shipflow", etfs: ["466920.KS", "494670.KS", "0115D0.KS", "0141S0.KS"], short: "조선", label: "🚢 조선 — 단계별 ➜ 국내", render: "sobuGrid",
+      id: "shipflow", etfs: ["466920.KS", "494670.KS", "0115D0.KS", "0141S0.KS", "441540.KS"], short: "조선", label: "🚢 조선 — 단계별 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 미국 해군 조선(헌팅턴잉걸스, 간밤). 칸 제목 옆 = 국내 종목 평균 등락률(흐린 종목 제외).",
       lead: 1, leadByRow: [1, 0, 0],
       rowLabels: ["조선사", "엔진·기자재", "보냉·배관"],
@@ -536,13 +536,13 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     {
       id: "defflow", etfs: ["449450.KS", "0080G0.KS", "463250.KS", "490480.KS", "494840.KS"], short: "방산", label: "🛡 방산 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
-      note: "테두리 카드 = 미국 방산 대장(록히드마틴·RTX·노스롭, 간밤).",
-      lead: 1, leadByRow: [3, 2, 0],
+      note: "테두리 카드 = 미국 방산 대장(록히드마틴·RTX·노스롭·올린(탄약), 간밤).",
+      lead: 1, leadByRow: [3, 2, 1],
       rowLabels: ["체계(완성품)", "전자·항공", "탄약·부품"],
       rows: [
         ["LMT", "RTX", "GD", "012450.KS", "079550.KS", "064350.KS", "047810.KS", "011210.KS", "064960.KS"],
         ["NOC", "LHX", "272210.KS", "214430.KS", "005870.KS", "065450.KS", "099320.KS", "274090.KS", "361390.KS", "448710.KS"],
-        ["103140.KS", "010820.KS", "013810.KS", "003570.KS", "484870.KS", "484590.KS"],
+        ["OLN", "103140.KS", "010820.KS", "013810.KS", "003570.KS", "484870.KS", "484590.KS"],
       ],
     },
     {
@@ -558,13 +558,13 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     {
       id: "beautyflow", etfs: ["228790.KS", "479850.KS", "0008T0.KS"], short: "화장품", label: "💄 화장품 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
-      note: "테두리 카드 = 해외 화장품(e.l.f.·에스티로더 간밤, 시세이도 장중).",
-      lead: 1, leadByRow: [3, 0, 0],
+      note: "테두리 카드 = 해외 화장품(e.l.f.·에스티로더·얼타뷰티(유통) 간밤, 시세이도 장중).",
+      lead: 1, leadByRow: [3, 0, 1],
       rowLabels: ["브랜드", "ODM(제조)", "유통·용기"],
       rows: [
         ["ELF", "EL", "4911.T", "090430.KS", "051900.KS", "278470.KS", "483650.KS", "018290.KS", "237880.KS", "214420.KS", "002790.KS", "018250.KS", "439090.KS", "114840.KS", "092730.KS", "123690.KS"],
         ["192820.KS", "161890.KS", "241710.KS", "352480.KS", "950140.KS", "024720.KS", "044820.KS"],
-        ["257720.KS", "251970.KS"],
+        ["ULTA", "257720.KS", "251970.KS"],
       ],
     },
     {
@@ -580,17 +580,17 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     {
       id: "finflow", short: "금융", etfs: ["091170.KS", "091220.KS", "102970.KS", "140700.KS", "453650.KS"], label: "🏦 금융 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
-      note: "테두리 카드 = 미국 금융 대장(JP모건·골드만삭스, 간밤). 저PBR·고배당 꼬리표와 함께 보면 좋습니다.",
-      lead: 1, leadByRow: [3, 1, 0],
+      note: "테두리 카드 = 미국 금융 대장(JP모건·골드만삭스·처브·프로그레시브·메트라이프, 간밤). 저PBR·고배당 꼬리표와 함께 보면 좋습니다.",
+      lead: 1, leadByRow: [3, 1, 3],
       rowLabels: ["은행·지주", "증권", "보험"],
       rows: [
         ["JPM", "BAC", "V", "105560.KS", "055550.KS", "086790.KS", "316140.KS", "024110.KS", "138040.KS", "323410.KS", "138930.KS", "175330.KS", "139130.KS"],
         ["GS", "006800.KS", "071050.KS", "039490.KS", "005940.KS", "016360.KS", "003540.KS", "001720.KS", "030610.KS", "001500.KS", "003530.KS", "003470.KS"],
-        ["032830.KS", "000810.KS", "005830.KS", "088350.KS", "001450.KS", "003690.KS", "000370.KS", "085620.KS", "000540.KS"],
+        ["CB", "PGR", "MET", "032830.KS", "000810.KS", "005830.KS", "088350.KS", "001450.KS", "003690.KS", "000370.KS", "085620.KS", "000540.KS"],
       ],
     },
     {
-      id: "robotflow", short: "로봇", etfs: ["445290.KS", "0148J0.KS", "0177X0.KS"], label: "🤖 로봇 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "robotflow", short: "로봇", etfs: ["445290.KS", "0148J0.KS", "0177X0.KS", "0038A0.KS"], label: "🤖 로봇 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 테슬라(옵티머스, 간밤)·인튜이티브서지컬(간밤)·화낙·야스카와(일본 장중).",
       lead: 1, leadByRow: [2, 3, 1],
       rowLabels: ["완성 로봇", "부품·구동기", "자동화·서비스"],
@@ -628,24 +628,24 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     // ── 한국/주간 화면에만 있던 분류를 업종 탭으로(사용자 2026-11-12 "업종별에 한국/주간에 있는 구분들 추가") — 국내 종목은 한국/주간 줄 그대로
     {
-      id: "autoflow", short: "자동차", etfs: ["091180.KS"], label: "🚗 자동차 — 해외 대장주 ➜ 국내", render: "sobuGrid",
-      note: "테두리 카드 = 테슬라·GM·도요타(완성차), 간밤(도요타는 미국 ADR).",
-      lead: 1, leadByRow: [3, 0],
+      id: "autoflow", short: "자동차", etfs: ["091180.KS", "466930.KS", "464600.KS"], label: "🚗 자동차 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 테슬라·GM·도요타(완성차)·앱티브·보그워너(부품), 간밤(도요타는 미국 ADR).",
+      lead: 1, leadByRow: [3, 2],
       rowLabels: ["완성차", "부품"],
       rows: [
         ["TSLA", "GM", "TM", "005380.KS", "000270.KS"],
-        ["012330.KS", "307950.KS", "204320.KS", "018880.KS", "011210.KS"],
+        ["APTV", "BWA", "012330.KS", "307950.KS", "204320.KS", "018880.KS", "011210.KS"],
       ],
     },
     {
-      id: "buildflow", short: "건설", etfs: ["117700.KS"], label: "🏗️ 건설 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "buildflow", short: "건설", etfs: ["117700.KS", "139220.KS"], label: "🏗️ 건설 — 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 캐터필러(중장비)·벌컨머티리얼즈(골재·자재), 간밤.",
       lead: 1, leadByRow: [2],
       rowLabels: ["건설·자재"],
       rows: [["CAT", "VMC", "000720.KS", "047040.KS", "028050.KS", "006360.KS", "375500.KS", "294870.KS"]],
     },
     {
-      id: "matflow", short: "철강·화학", etfs: ["117680.KS", "117460.KS", "474800.KS"], label: "🧪 철강·화학 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "matflow", short: "철강·화학", etfs: ["117680.KS", "117460.KS", "139240.KS", "474800.KS"], label: "🧪 철강·화학 — 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 뉴코어·프리포트맥모란(철강·구리)·다우·엑손모빌·셰브론(화학·정유), 간밤.",
       lead: 1, leadByRow: [2, 4],
       rowLabels: ["철강·소재", "화학·정유"],
@@ -655,7 +655,7 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     {
-      id: "consflow", short: "소비·유통", etfs: ["266410.KS"], label: "🛒 소비·유통 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "consflow", short: "소비·유통", etfs: ["266410.KS", "227560.KS", "266390.KS"], label: "🛒 소비·유통 — 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = P&G·코카콜라(필수소비재)·월마트·코스트코(유통), 간밤.",
       lead: 1, leadByRow: [2, 2],
       rowLabels: ["필수소비재", "백화점·유통"],
@@ -665,7 +665,7 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     {
-      id: "contentflow", short: "콘텐츠", etfs: ["157490.KS", "300950.KS", "266360.KS"], label: "🎮 콘텐츠·인터넷 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "contentflow", short: "콘텐츠", etfs: ["365000.KS", "300950.KS", "266360.KS", "228810.KS"], label: "🎮 콘텐츠·인터넷 — 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 구글·메타(인터넷)·로블록스·EA(게임)·넷플릭스·디즈니·스포티파이(엔터), 간밤.",
       lead: 1, leadByRow: [2, 2, 3],
       rowLabels: ["인터넷·SW", "게임", "엔터"],
@@ -677,19 +677,29 @@ function sectionMap(): Record<string, DashboardSection> {
     },
     // ── 미국/야간에만 있던 미국 고유 묶음(사용자 2026-11-12 "업종별에 없는 걸 다 추가하면 미국/한국 빼도") — 미국 종목뿐이라 '해외' 기준에서 읽는다
     {
-      id: "usswflow", short: "AI 소프트웨어", etfs: ["481180.KS", "418670.KS", "371450.KS"], label: "💻 AI 소프트웨어 — 미국", render: "sobuGrid",
-      note: "미국 종목뿐 — 왼쪽 위 '해외'로 보세요. ETF = 국내 상장 미국 ETF(하루 시차).",
+      id: "usswflow", short: "AI 소프트웨어", etfs: ["481180.KS", "418670.KS", "371450.KS", "0105D0.KS", "157490.KS"], label: "💻 AI 소프트웨어 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 미국 소프트웨어 대장(팔란티어·크라우드스트라이크·스노우플레이크 등, 간밤). ETF 앞 셋 = 국내 상장 미국 ETF(하루 시차).",
+      // 국내 보안·AI·클라우드 종목 추가(사용자 2026-11-12 "보안에 안랩처럼 한국 종목 없어 ?")
       lead: 1, leadByRow: [4, 5, 4],
       rowLabels: ["AI소프트웨어", "사이버보안", "클라우드"],
-      rows: [["PLTR", "ORCL", "NOW", "CRM"], ["CRWD", "PANW", "ZS", "FTNT", "NET"], ["SNOW", "DDOG", "MDB", "SHOP"]],
+      rows: [
+        ["PLTR", "ORCL", "NOW", "CRM", "047560.KS", "304100.KS", "402030.KS", "108860.KS", "377480.KS", "030520.KS", "041020.KS"],   // 이스트소프트·솔트룩스·코난테크놀로지·셀바스AI·마음AI·한컴·폴라리스오피스
+        ["CRWD", "PANW", "ZS", "FTNT", "NET", "053800.KS", "263860.KS", "150900.KS", "136540.KS", "042510.KS", "067920.KS", "203650.KS"],   // 안랩·지니언스·파수·윈스테크넷·라온시큐어·이글루·드림시큐리티
+        ["SNOW", "DDOG", "MDB", "SHOP", "093320.KS", "079940.KS", "181710.KS"],   // 케이아이엔엑스·가비아·NHN
+      ],
     },
     {
-      id: "ustechflow", short: "빅테크·미래", etfs: ["381170.KS", "0183J0.KS", "0023A0.KS", "418660.KS"], label: "🤖 빅테크·미래기술 — 미국", render: "sobuGrid",
-      note: "미국 종목뿐 — 왼쪽 위 '해외'로 보세요.",
+      id: "ustechflow", short: "빅테크·미래", etfs: ["381170.KS", "0183J0.KS", "0023A0.KS", "418660.KS", "0207G0.KS"], label: "🤖 빅테크·미래기술 — 해외 대장주 ➜ 국내", render: "sobuGrid",
+      note: "테두리 카드 = 미국 빅테크·우주·양자(간밤). 빅테크·레버리지는 미국 종목뿐, 우주·양자는 국내 관련주를 붙였다.",
       // 로봇·수술 줄(인튜이티브·테라다인·심보틱)은 로봇 탭과 같아 뺐다, QS(전고체 배터리)는 우주가 아니라 뺐다(2026-11-12 전체 점검)
       lead: 1, leadByRow: [7, 4, 3, 2],
       rowLabels: ["빅테크", "우주", "양자", "레버리지"],
-      rows: [["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NFLX"], ["RKLB", "ASTS", "LUNR", "SPCX"], ["IONQ", "RGTI", "QBTS"], ["TQQQ", "SOXL"]],
+      rows: [
+        ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "TSLA", "NFLX"],
+        ["RKLB", "ASTS", "LUNR", "SPCX", "211270.KS", "189300.KS", "451760.KS", "474170.KS", "099320.KS"],   // AP위성·인텔리안테크·컨텍·루미르·쎄트렉아이(2026-11-12)
+        ["IONQ", "RGTI", "QBTS", "356680.KS", "115500.KS", "046970.KS"],   // 엑스게이트·케이씨에스(양자암호)·우리로(단일광자)
+        ["TQQQ", "SOXL"],
+      ],
     },
     {
       // 방어 = 배당·채권만 — 헬스케어·금융·에너지·방산은 각 업종 탭(바이오·금융·철강·화학·방산)으로 옮겼다(사용자 2026-11-12 "방어/경기 분리", "금융이 별도로 있는데")
@@ -702,7 +712,7 @@ function sectionMap(): Record<string, DashboardSection> {
     {
       // 데이터센터 — 짓고(전력기기) 식히고(냉각) 돌리고(서버·클라우드) 전기 대는(전원) 쪽(사용자 2026-11-11 "업종별에 데이터센터 넣을 거 없어?")
       //   원전·친환경·2차전지 탭과 겹치는 종목도 있다(다른 탭이라 둔다). 국내 냉각 대장주가 적어 LG전자(칠러)·케이엔솔
-      id: "dcflow", short: "데이터센터", etfs: ["487240.KS", "0142D0.KS", "487230.KS"], label: "🏢 데이터센터 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
+      id: "dcflow", short: "데이터센터", etfs: ["487240.KS", "0142D0.KS", "487230.KS", "0222F0.KS"], label: "🏢 데이터센터 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = GE버노바·이튼·콴타(전력기기)·버티브·트레인·존슨컨트롤즈(냉각)·에퀴닉스·디지털리얼티·코어위브·델·슈퍼마이크로(서버·클라우드)·블룸에너지·컨스텔레이션(전원), 간밤.",
       lead: 1, leadByRow: [3, 3, 7, 2],
       rowLabels: ["전력기기", "냉각·공조", "서버·클라우드", "전원"],
