@@ -759,7 +759,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
         ? <div className="lg:hidden sticky z-30 bg-gray-50 pg-bg py-1.5" style={{ top: navStickyTop }}>
             {/* 좁은 화면은 가로 탭, 넓은 화면(lg)은 아래 왼쪽 세로 탭(사용자 2026-11-03 "탭을 왼쪽에") — 여기엔 차트 기간만 */}
             <div className="lg:hidden">
-              <SectorTabBar sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab} trailing={<span className="inline-flex gap-1"><ChartRangeToggle /><AvgMarketToggle /></span>}
+              <SectorTabBar sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab} trailing={<span className="inline-flex gap-1"><AvgMarketToggle /><ChartRangeToggle /></span>}
                             avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, regExtOf)} />
             </div>
           </div>
@@ -792,7 +792,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
           <div key="sector-summary" id="usidx-sector-summary" style={{ scrollMarginTop: idxScrollMargin }}
                className="relative rounded-xl border border-gray-300 bg-white pg-box p-2.5 pt-4 mt-1.5">
             <span className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700 whitespace-nowrap">📋 업종 한눈에 — 해외 ➜ 국내</span>
-            <SectorSummaryBoard toggle={<span className="inline-flex gap-1"><ChartRangeToggle small /><AvgMarketToggle /></span>} sections={SECTOR_TABS.filter(x => x.id !== "overview")} pctOf={pctOfSym} regExtOf={regExtOf}
+            <SectorSummaryBoard toggle={<span className="inline-flex gap-1"><AvgMarketToggle /><ChartRangeToggle small /></span>} sections={SECTOR_TABS.filter(x => x.id !== "overview")} pctOf={pctOfSym} regExtOf={regExtOf}
                                 nameOf={sym => tier0.find(x => x.symbol === sym)?.name ?? sym} onOpen={id => { setSectorTab(id); window.scrollTo({ top: 0 }); }}  renderDetail={(sec: DashboardSection) => <SobuGrid headersOnly rows={sec.rows} labels={sec.rowLabels ?? []} leadByRow={sec.leadByRow ?? []} quote={sobuQuote} dimOf={dimOf} />} />
           </div>
         ) : (
@@ -829,7 +829,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 {/* 업종 탭 안에서도 그래프 기간·해외/국내 단추를 설명 줄 앞에(사용자 2026-11-12 "로봇 안으로 들어가도 국내/해외 옮겨야지, 24시간 박스도 옆으로") */}
                 {(section.note || (page === "sobu" && section.render === "sobuGrid")) && (
                   <div className="text-[11px] text-gray-500 leading-snug flex items-center gap-2 flex-wrap">
-                    {page === "sobu" && section.render === "sobuGrid" && <span className="hidden lg:inline-flex gap-1 shrink-0"><ChartRangeToggle small /><AvgMarketToggle /></span>}
+                    {page === "sobu" && section.render === "sobuGrid" && <span className="hidden lg:inline-flex gap-1 shrink-0"><AvgMarketToggle /><ChartRangeToggle small /></span>}
                     {section.note && <span>{section.note}</span>}
                   </div>
                 )}
