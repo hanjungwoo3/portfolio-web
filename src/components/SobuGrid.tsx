@@ -4,7 +4,7 @@
 //   + 카드 왼쪽 아래 공시·뉴스 개수 — 누르면 떠 있는 창(칸 아래 목록은 뺐다, 사용자 2026-11-02). 공시 = 최근 5거래일 DART(최신공시와 같은 서버 파일) · 칸별 외국인·기관(금융투자 제외) 5·20일 순매수
 //     (크롤러 investor-flows.json — 수급 매집 탭과 같은 파일, 추가 호출 0). 사용자 2026-11-02 "1, 2번 진행".
 import { openCompare, compareTicker } from "../lib/compareNav";
-import { AftPill } from "./SectorTabBar";
+import { RegAftValue } from "./SectorTabBar";
 import { isOverseasTicker } from "../lib/avgMarket";
 import { useEffect, useRef, useState } from "react";
 import { useRecentDisc } from "../lib/recentDisclosures";
@@ -205,18 +205,18 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
               <div className="flex flex-col gap-0.5 min-w-0">
                 {avgShown != null && (
                   <div className="flex items-baseline gap-2 whitespace-nowrap">
-                    <span className={`text-sm font-bold tabular-nums ${avgShown > 0 ? "text-rose-600" : avgShown < 0 ? "text-blue-600" : "text-gray-600"}`}
+                    <span className="text-sm font-bold"
                           title={live.length && live.length < b.kr.length ? `국내 종목 평균 등락률(동일가중) — 흐린 ${b.kr.length - live.length}종목 제외` : "국내 종목 평균 등락률(동일가중)"}>
-                      국내 {avgShown > 0 ? "+" : ""}{avgShown.toFixed(2)}%{aft != null && <AftPill v={aft} n={as.length} />}
+                      <RegAftValue prefix="국내" avg={avgShown} aft={aft} n={as.length} />
                     </span>
                     {nShown > 0 && <span className="text-[11px] text-gray-500">▲{upShown} · ▼{nShown - upShown}</span>}
                   </div>
                 )}
                 {ovAvg != null && (
                   <div className="flex items-baseline gap-2 whitespace-nowrap">
-                    <span className={`text-sm font-bold tabular-nums ${ovAvg > 0 ? "text-rose-600" : ovAvg < 0 ? "text-blue-600" : "text-gray-600"}`}
+                    <span className="text-sm font-bold"
                           title={`해외 대장주(테두리 카드, 미국은 장 밖이면 정규장 등락 + 꼬리표 = 프리·애프터, 일본은 지금 장중) ${ovPs.length}종목 평균`}>
-                      해외 {ovAvg > 0 ? "+" : ""}{ovAvg.toFixed(2)}%{ovAft != null && <AftPill v={ovAft} n={ovEx.length} />}
+                      <RegAftValue prefix="해외" avg={ovAvg} aft={ovAft} n={ovEx.length} />
                     </span>
                     {ovPs.length > 0 && <span className="text-[11px] text-gray-500">▲{ovPs.filter(v => v > 0).length} · ▼{ovPs.filter(v => v < 0).length}</span>}
                   </div>

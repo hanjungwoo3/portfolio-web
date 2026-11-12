@@ -62,6 +62,22 @@ export function AftPill({ v, n, label }: { v: number; n?: number; label?: string
   );
 }
 
+/** 정규장 평균 + 장외 평균 — 업종 한눈에·타일과 같은 꼴(사용자 2026-11-12 "여기도 통일하자"):
+ *  장외 값이 없으면 정규 % 하나, 있으면 '정규 x%' 작게 + 장외 % 크게(구간 이름은 마우스를 올리면).
+ *  stacked = 위아래 두 줄(세로 탭), 아니면 한 줄(칸 머리). */
+export function RegAftValue({ avg, aft, n, stacked, prefix, className = "" }: { avg: number; aft?: number | null; n?: number; stacked?: boolean; prefix?: string; className?: string }) {
+  const tone = (v: number) => v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500";
+  const f = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
+  if (aft == null) return <span className={`tabular-nums ${tone(avg)} ${className}`}>{prefix ? `${prefix} ` : ""}{f(avg)}</span>;
+  const reg = <span className={`text-[9.5px] font-normal opacity-70 ${tone(avg)} ${stacked ? "block" : "mr-1"}`} title="정규장 평균(전일 종가 대비)">정규 {f(avg)}</span>;
+  return (
+    <span className={`tabular-nums ${stacked ? "inline-flex flex-col items-center leading-tight" : ""} ${className}`}>
+      {stacked ? reg : <>{prefix && <span className={tone(aft)}>{prefix} </span>}{reg}</>}
+      <span className={tone(aft)} title={`정규장 마감 뒤(프리·애프터) 평균 — 정규장 종가 대비 지금${n ? `, ${n}종목` : ""}`}>{stacked && prefix ? `${prefix} ` : ""}{f(aft)}</span>
+    </span>
+  );
+}
+
 export function SectorTabBar({ sections, active, onChange, trailing, compact, avgOf, vertical }: {
   sections: DashboardSection[]; active: string; onChange: (id: string) => void; trailing?: React.ReactNode; compact?: boolean;
   avgOf?: (s: DashboardSection) => SectorStat | null;
@@ -72,25 +88,32 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
     <div className={vertical ? "flex flex-col gap-1" : `flex items-center gap-1 overflow-x-auto ${compact ? "pb-0.5" : ""}`}>
       {/* 업종 탭은 평균 등락률 높은 순(사용자 2026-11-03) — '한눈에' 는 맨 앞 고정, 값 없는 탭은 뒤로 */}
       {(() => {
-        const st = new Map(sections.map(x => [x.id, avgOf?.(x)?.avg ?? null]));
+        const st = new Map(sections.map(x => { const v = avgOf?.(x); return [x.id, v ? (v.aft ?? v.avg) : null]; }));   // 크게 보이는 값(장외 있으면 장외) 순
         return [...sections].sort((a, b) => (a.id === OVERVIEW ? -1 : b.id === OVERVIEW ? 1 : (st.get(b.id) ?? -Infinity) - (st.get(a.id) ?? -Infinity)));
       })().map(s => {
         const on = s.id === active;
         const emoji = s.label.split(" ")[0];
         const st = avgOf?.(s);
         const avg = st?.avg ?? null;
-        const tone = avg == null ? "" : avg > 0 ? "text-rose-600" : avg < 0 ? "text-blue-600" : "text-gray-500";
         return (
           <button key={s.id} onClick={() => onChange(s.id)} title="국내 종목 평균 등락률·오른/내린 종목 수(흐린 종목 제외)"
                   className={`shrink-0 inline-flex flex-col ${vertical ? "items-center text-center w-full px-1.5 py-1" : "items-center"} leading-tight rounded-xl border ${vertical ? "text-[13px]" : compact ? "px-2 py-0.5 text-[12px]" : "px-3 py-1 text-sm"} font-bold transition
                               ${on ? "bg-indigo-50 text-indigo-900 border-indigo-600 ring-2 ring-indigo-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>
             <span className="inline-flex items-center gap-1"><span>{emoji}</span>{s.short}</span>
-            {avg != null && <span className={`tabular-nums whitespace-nowrap ${vertical ? "text-[12px]" : compact ? "text-[10px]" : "text-[11px]"} ${tone}`}>{avg > 0 ? "+" : ""}{avg.toFixed(2)}%{st?.aft != null && <AftPill v={st.aft} n={st.aftN} />}</span>}
-            {st && <span className={`tabular-nums font-normal whitespace-nowrap ${vertical ? "text-[11px]" : compact ? "text-[9.5px]" : "text-[10px]"} text-gray-500`}>
-              {vertical   /* 세로 탭은 폭이 넉넉해 글자로(사용자 2026-11-03 "상승·하락 글자도") */
-                ? <><span className="text-rose-600">상승 {st.up}</span> · <span className="text-blue-600">하락 {st.down}</span></>
-                : <><span className="text-rose-600">▲{st.up}</span> <span className="text-blue-600">▼{st.down}</span></>}
-            </span>}
+            {/* 세로 탭 = 왼쪽 등락률 · 오른쪽 상승/하락 두 줄(사용자 2026-11-12 "상승 하락을 오른쪽으로 나누면") */}
+            {vertical ? (st || avg != null) && (
+              <span className="flex items-center justify-center gap-2 w-full">
+                {avg != null && <RegAftValue avg={avg} aft={st?.aft} n={st?.aftN} stacked className="whitespace-nowrap text-[12px]" />}
+                {st && <span className="flex flex-col items-start tabular-nums font-normal whitespace-nowrap text-[10.5px] leading-tight">
+                  <span className="text-rose-600">상승 {st.up}</span><span className="text-blue-600">하락 {st.down}</span>
+                </span>}
+              </span>
+            ) : (<>
+              {avg != null && <RegAftValue avg={avg} aft={st?.aft} n={st?.aftN} stacked className={`whitespace-nowrap ${compact ? "text-[10px]" : "text-[11px]"}`} />}
+              {st && <span className={`tabular-nums font-normal whitespace-nowrap ${compact ? "text-[9.5px]" : "text-[10px]"} text-gray-500`}>
+                <span className="text-rose-600">▲{st.up}</span> <span className="text-blue-600">▼{st.down}</span>
+              </span>}
+            </>)}
           </button>
         );
       })}
