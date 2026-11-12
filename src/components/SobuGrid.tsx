@@ -235,7 +235,8 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
               </div>
             )}
             {!headersOnly && <div className={`grid grid-cols-2 ${renderCard ? "gap-x-2 gap-y-4 pt-1.5 xl:[grid-template-columns:repeat(var(--cols),var(--cw))]" : "gap-1.5"}`} style={renderCard ? ({ "--cols": cols[bi] } as import("react").CSSProperties) : undefined}>   {/* 지수 카드는 아래 책갈피가 걸쳐 줄 간격을 지수 탭과 같게 */}
-              {b.lead.map(s => card(s, true))}
+              {/* 해외 대장주도 등락률 높은 순(흐린 것은 뒤로) — 고정이라 순서가 뒤죽박죽이었다(사용자 2026-11-12 "정렬 ?") */}
+              {[...b.lead].sort((x, y) => (Number(!!dimOf?.(x)) - Number(!!dimOf?.(y))) || (quote(y)?.pct ?? -Infinity) - (quote(x)?.pct ?? -Infinity)).map(s => card(s, true))}
               {/* 국내 종목은 오늘 등락률 높은 순(사용자 2026-11-02) — 값 없는 종목은 뒤로. 해외 대장주는 앞에 고정 */}
               {/* 흐린 종목(장 안 열림·체결 없음)은 아래로(사용자 2026-11-03), 그 안에서 등락률 순 */}
               {[...b.kr].sort((x, y) => ((hotOf?.(y) ?? 0) - (hotOf?.(x) ?? 0)) || (Number(!!dimOf?.(x)) - Number(!!dimOf?.(y))) || (quote(y)?.pct ?? -Infinity) - (quote(x)?.pct ?? -Infinity)).map(s => card(s, false))}   {/* 거래대금 급증 종목은 맨 앞(사용자 2026-11-03) */}
