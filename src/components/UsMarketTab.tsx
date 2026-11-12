@@ -769,7 +769,6 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       <div className={page === "sobu" ? "lg:flex lg:items-start lg:gap-2" : ""}>
       {page === "sobu" && (
         <aside className="hidden lg:flex lg:flex-col lg:gap-2 sticky shrink-0 w-[116px]" style={{ top: navStickyTop + 8 }}>   {/* 위 빈 줄 없이 — 차트 기간 단추도 왼쪽 줄 맨 위(사용자 2026-11-03) */}
-          <ChartRangeToggle small />
           <SectorTabBar vertical sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab}
                         avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, regExtOf)} />
         </aside>
@@ -791,7 +790,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
           <div key="sector-summary" id="usidx-sector-summary" style={{ scrollMarginTop: idxScrollMargin }}
                className="relative rounded-xl border border-gray-300 bg-white pg-box p-2.5 pt-4 mt-1.5">
             <span className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700 whitespace-nowrap">📋 업종 한눈에 — 해외 ➜ 국내</span>
-            <SectorSummaryBoard toggle={<AvgMarketToggle />} sections={SECTOR_TABS.filter(x => x.id !== "overview")} pctOf={pctOfSym} regExtOf={regExtOf}
+            <SectorSummaryBoard toggle={<span className="inline-flex gap-1"><ChartRangeToggle small /><AvgMarketToggle /></span>} sections={SECTOR_TABS.filter(x => x.id !== "overview")} pctOf={pctOfSym} regExtOf={regExtOf}
                                 nameOf={sym => tier0.find(x => x.symbol === sym)?.name ?? sym} onOpen={id => { setSectorTab(id); window.scrollTo({ top: 0 }); }}  renderDetail={(sec: DashboardSection) => <SobuGrid headersOnly rows={sec.rows} labels={sec.rowLabels ?? []} leadByRow={sec.leadByRow ?? []} quote={sobuQuote} dimOf={dimOf} />} />
           </div>
         ) : (
@@ -825,7 +824,13 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             {section.render === "etfTop" && (
                   <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
                 )}
-                {section.note && <div className="text-[11px] text-gray-500 leading-snug">{section.note}</div>}
+                {/* 업종 탭 안에서도 그래프 기간·해외/국내 단추를 설명 줄 앞에(사용자 2026-11-12 "로봇 안으로 들어가도 국내/해외 옮겨야지, 24시간 박스도 옆으로") */}
+                {(section.note || (page === "sobu" && section.render === "sobuGrid")) && (
+                  <div className="text-[11px] text-gray-500 leading-snug flex items-center gap-2 flex-wrap">
+                    {page === "sobu" && section.render === "sobuGrid" && <span className="hidden lg:inline-flex gap-1 shrink-0"><ChartRangeToggle small /><AvgMarketToggle /></span>}
+                    {section.note && <span>{section.note}</span>}
+                  </div>
+                )}
                 {section.id === "krfx" && <RealRateNote usMap={usMap} />}
                 {section.id === "kr" && <BreadthNote usMap={usMap} />}
                 {section.id === "macro" && <UsBreadthNote usMap={usMap} />}
