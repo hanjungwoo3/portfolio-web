@@ -24,6 +24,8 @@ const capText = (v: number | undefined, kr: boolean) => !v ? "" : kr
   : (v >= 1e12 ? `$${(v / 1e12).toFixed(1)}T` : `$${Math.round(v / 1e9)}B`);
 
 export type TileSort = "cap" | "pct";
+/** 크게 보이는 값 — 장외(프리·애프터) 값이 있으면 그것(업종 한눈에 줄과 같은 규칙) */
+const shownPct = (t: Tile) => t.ext ?? t.pct;
 /** 시총순 | 등락순 단추 — HeatTiles 안쪽 또는 팝업 머리에서 같은 모양으로 */
 export function TileSortToggle({ sort, onSort }: { sort: TileSort; onSort: (s: TileSort) => void }) {
   return (
@@ -45,7 +47,7 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
   const [sortIn, setSort] = useState<TileSort>("pct")   // 등락순 기본(사용자 2026-11-12);
   const outer = props_sort !== undefined;
   const sort = props_sort ?? sortIn;
-  const sorted = useMemo(() => [...tiles].sort((a, b) => sort === "cap" ? (b.cap ?? 0) - (a.cap ?? 0) : (b.pct ?? -1e9) - (a.pct ?? -1e9)), [tiles, sort]);
+  const sorted = useMemo(() => [...tiles].sort((a, b) => sort === "cap" ? (b.cap ?? 0) - (a.cap ?? 0) : (shownPct(b) ?? -1e9) - (shownPct(a) ?? -1e9)), [tiles, sort]);
   const hasLead = tiles.some(t => t.lead);
   // 오른·내린 종목 수 막대 — 해외 대장주가 섞이면 해외·국내 따로(사용자 2026-11-10 "상승 하락도 해외 국내 따로")
   //   길이 = 많은 쪽 종목 수를 100% 로(해외 1 · 국내 15 면 해외 막대는 1/15)(사용자 2026-11-10)
@@ -103,26 +105,25 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
 export function TileCard({ t, onOpen, className = "" }: { t: Tile; onOpen?: (t: Tile) => void; className?: string }) {
   const open = onOpen ?? ((x: Tile) => (x.kr ? openStockInfo(x.code, x.name) : openTossStock(x.code)));
 
-    const pct = t.pct;
+    // 장외(프리·애프터·NXT)면 업종 한눈에처럼 — 위에 '정규 x%' 작게, 아래 그 구간 % 크게(사용자 2026-11-12 "정규장에 배경을… 이렇게 하던지")
+    const pct = shownPct(t), reg = t.ext != null ? t.pct : null;
+    const tone = (v: number | null) => v == null ? "text-gray-300" : v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500";
+    const f = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
     const bg = pct == null ? "bg-gray-50 border-gray-200" : pct >= 3 ? "bg-rose-100 border-rose-300" : pct > 0 ? "bg-rose-50 border-rose-200" : pct <= -3 ? "bg-blue-100 border-blue-300" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
     return (
-      <button type="button" title={`${t.name}${pct != null ? ` ${pct > 0 ? "+" : ""}${pct.toFixed(2)}%` : ""} · 누르면 ${t.kr ? "종목정보" : "토스"}`}
+      <button type="button" title={`${t.name}${reg != null ? ` 정규 ${f(reg)} · ${t.extLabel ?? "장외"} ${f(t.ext!)}(정규장 종가 대비)` : pct != null ? ` ${f(pct)}` : ""} · 누르면 ${t.kr ? "종목정보" : "토스"}`}
               onClick={() => open(t)}
               className={`${className} pg-card text-left rounded-md border px-1.5 py-1 hover:brightness-95 ${bg} ${t.lead ? "ring-2 ring-violet-400 ring-inset" : ""} ${t.dim ? "opacity-50" : ""}`}>
         <div className="flex items-center gap-1 min-w-0">
           {t.logoid && <img src={heatmapLogoUrl(t.logoid)} alt="" loading="lazy" className="w-4 h-4 rounded-full bg-white object-contain shrink-0" />}
           <b className="truncate text-[12px] text-gray-900">{t.name}</b>
-          <span className={`ml-auto shrink-0 text-[12px] font-bold tabular-nums ${pct == null ? "text-gray-300" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-500"}`}>
-            {pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}
+          <span className="ml-auto shrink-0 text-right leading-tight tabular-nums">
+            {reg != null && <span className={`block text-[9.5px] opacity-70 ${tone(reg)}`}>정규 {f(reg)}</span>}
+            <span className="block text-[12px] font-bold">
+              <span className={tone(pct)}>{pct == null ? "—" : f(pct)}</span>
+            </span>
           </span>
         </div>
-        {t.ext != null && (
-          <div className="flex justify-end -mt-0.5" title={`${t.extLabel ?? "장외"} ${t.ext > 0 ? "+" : ""}${t.ext.toFixed(2)}% — 정규장 종가 대비`}>
-            <span className={`text-[10px] font-bold text-white px-1 rounded leading-[14px] ${t.ext > 0 ? "bg-rose-600/60" : t.ext < 0 ? "bg-blue-600/60" : "bg-gray-400/60"}`}>
-              {t.extLabel ? `${t.extLabel} ` : ""}{t.ext > 0 ? "+" : t.ext < 0 ? "−" : ""}{Math.abs(t.ext).toFixed(2)}%
-            </span>
-          </div>
-        )}
         <div className="flex items-baseline justify-between text-[10.5px] text-gray-500 tabular-nums">
           <span>{t.price == null || !(t.price > 0) ? "" : t.kr ? t.price.toLocaleString() : `$${t.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</span>
           <span>{capText(t.cap, t.kr)}</span>
