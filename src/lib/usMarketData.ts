@@ -776,6 +776,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "093320.KS", name: "케이아이엔엑스", desc: "인터넷 연동(IX)·클라우드", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "079940.KS", name: "가비아", desc: "도메인·클라우드 호스팅", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "181710.KS", name: "NHN", desc: "NHN클라우드·게임", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
+  { symbol: "042000.KS", name: "카페24", desc: "쇼핑몰 구축 플랫폼·호스팅", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "211270.KS", name: "AP위성", desc: "위성통신 단말·위성 본체", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "189300.KS", name: "인텔리안테크", desc: "위성통신 안테나(저궤도)", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
   { symbol: "451760.KS", name: "컨텍", desc: "위성 지상국 서비스", tier: "T0", sector: "dashboard", direction: "direct", krStock: true },
