@@ -515,7 +515,9 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               // 야후로 확인된 값만 — 확인 못 했으면(야후 실패) 토스 meta 는 NXT 현재가라 정규장 종가로 보여주면 안 된다
               const krRegHere = p.krStock ? idxKrReg?.get(p.symbol.slice(0, 6)) : undefined;
               const krAfterTag = !!krRegHere?.fromYahoo && isKrAfterRegularClose();
-              const showCloseTag = (sleeping || usOffRegular || krAfterTag) && effPrice != null && p.symbol !== "CNNFG" && p.symbol !== "HYSPREAD";   // 하이일드는 일별 지표라 마감 책갈피 없음
+              // 한국 지수·ETF 는 장 마감 뒤 거래가 없어(NXT 없음) 마감 책갈피 = 아래 큰 숫자와 같은 값 — 빼서 오른·내린 수 자리를 비운다(사용자 2026-11-13 "정규장 마치고 위에 가려진 값이 필요해?")
+              const krNoAfter = marketOfSymbol(p.symbol) === "KR" && (p.symbol.startsWith("^") || p.symbol === "VKOSPI" || (/^[\dA-Za-z]{6}\.KS$/.test(p.symbol) && !p.krStock));
+              const showCloseTag = (sleeping || usOffRegular || krAfterTag) && !krNoAfter && effPrice != null && p.symbol !== "CNNFG" && p.symbol !== "HYSPREAD";   // 하이일드는 일별 지표라 마감 책갈피 없음
               const krRegOk = krRegHere?.fromYahoo ? krRegHere : undefined;
               const closeVal = krRegOk?.regularPrice ?? q?.regularPrice ?? effPrice;
               const regPct = krRegOk?.regularPct ?? q?.regularPct ?? (usOffBase ? null : pct);   // 미국 장 밖이면 pct 는 정규장 종가 대비라 정규장 등락이 아니다 — 모르면 비운다
