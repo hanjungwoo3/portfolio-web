@@ -896,6 +896,8 @@ function Dashboard() {
             </button>
             <NightToggle className="px-2 py-1.5 text-sm" />
             <DimToggle className="px-2 py-1.5 text-sm" />
+            {/* 그래프 기간 — 화면마다 따로 있던 단추를 헤더 오른쪽 끝 하나로(사용자 2026-11-13 "프로그램 맨 위쪽으로") */}
+            <span className="inline-flex items-center gap-1 text-xs text-gray-500">그래프 <ChartRangeToggle /></span>
           </div>
         </div>
       </header>
@@ -1109,9 +1111,6 @@ function Dashboard() {
                                  bg-white text-gray-600 border-gray-300 hover:bg-gray-50">
                 {codesCopied ? "✓ 복사됨" : "📋 코드 복사"}
               </button>
-              <span className="inline-flex items-center gap-1 text-xs text-gray-500">
-                그래프 <ChartRangeToggle />
-              </span>
               <SortSelector sortKey={sortKey} sortDir={sortDir}
                             onChangeKey={sortHandlers.onChangeKey}
                             onToggleDir={sortHandlers.onToggleDir} />

@@ -54,7 +54,7 @@ export function HotNowTab({ compact = false }: { compact?: boolean }) {
           <span className="text-[12px] text-gray-500">
             최근 {d?.windowMin || 5}분 동안 <b>평소보다 돈이 확 몰린</b> 종목 · {d?.server ? "2분" : "1분"}마다 새로
           </span>
-          <span className="ml-auto"><ChartRangeToggle /></span>
+          {compact && <span className="ml-auto"><ChartRangeToggle /></span>}   {/* PC 는 헤더 오른쪽 끝(사용자 2026-11-13) */}
           {d && <span className="text-[11px] text-gray-400">{d.server ? "서버 수집 " : ""}{fmtServerStamp(d.at)} 기준</span>}
         </div>
         <div className="mt-1.5 text-[11.5px] text-amber-800 bg-amber-50 border border-amber-200 rounded px-2 py-1 leading-relaxed">
