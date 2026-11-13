@@ -25,9 +25,10 @@ import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchUpDown, type UpDown } from "../lib/upDown";
 import { basisHint } from "../lib/basisHint";
+import { useChartRange, historyRange, trimByRange } from "../lib/chartRange";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchInvestorHistory,
-  fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
+  fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps, fetchKrPriceHistory,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
   fetchHeatmapPreferServer,
 } from "../lib/api";
@@ -106,6 +107,25 @@ function ShotAiButton({ target, prompt }: { target: React.RefObject<HTMLDivEleme
 export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { code: string; name: string }[]; popup?: boolean } = {}) {
   const yahooSymbols = allYahooSymbols();
   const REFRESH_MS = useAdaptiveRefreshMs(5_000);
+  // 그래프 기간(헤더) — 24시간이 아니면 카드 배경을 일봉으로(사용자 2026-11-13 "여긴 그래프 시간 변경 안 먹혀")
+  //   종목·ETF = 일봉(fetchKrPriceHistory, 지금 시끄러운 종목과 같은 캐시) · 지수 = 야후 일봉(업종 카드와 같은 캐시)
+  //   선물은 일봉 출처가 없어 ETF 일봉으로 대신 — 코스피200 선물 = KODEX 200, 코스닥150 선물 = KODEX 코스닥150
+  const chartRange = useChartRange();
+  const hist = historyRange(chartRange);
+  const histOn = chartRange !== "day";
+  const histCodes = [...new Set([...stocks.map(x => x.code), ...ETFS.map(e => e.code)])];
+  const histKrQs = useQueries({ queries: histCodes.map(code => ({
+    queryKey: ["price-history", code, hist], queryFn: () => fetchKrPriceHistory(code, hist), enabled: histOn, staleTime: 60 * 60_000, retry: 1,
+  })) });
+  const histIdxSyms = ["^KS11", "^KQ11"] as const;
+  const histIdxQs = useQueries({ queries: histIdxSyms.map(sym => ({
+    queryKey: ["yahoo-chart", sym, hist], queryFn: () => fetchDashboardChart(sym, hist), enabled: histOn, staleTime: 60 * 60_000, retry: 1,
+  })) });
+  const histLine = (data: number[] | undefined) => histOn && data && data.length > 1
+    ? <Sparkline data={trimByRange(data, chartRange)} width={300} height={70} className="w-full h-full" strokeWidth={1.2} baseline={trimByRange(data, chartRange)[0]} />
+    : null;
+  const histKr = (code: string) => histLine(histKrQs[histCodes.indexOf(code)]?.data?.map(p => p.close));
+  const histIdx = (sym: typeof histIdxSyms[number]) => histLine(histIdxQs[histIdxSyms.indexOf(sym)]?.data);
   const shotRef = useRef<HTMLDivElement>(null);   // 📷 AI — 수급·옵션·신호·외국인 선물을 한 그림으로
   const { data: quotes } = useQuery({
     queryKey: ["yahoo-batch", yahooSymbols.length],   // 지수 탭과 같은 키 — 캐시 공유
@@ -132,7 +152,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   });
   // V-KOSPI 일봉 — CNBC 는 분봉이 없다(1D·5D 빈 응답, 2026-10-21 실측). 지수 탭과 같은 쿼리키(캐시 공유)
   const { data: vkChart } = useQuery({
-    queryKey: ["yahoo-chart", "VKOSPI", "3mo"], queryFn: () => fetchDashboardChart("VKOSPI"),
+    queryKey: ["yahoo-chart", "VKOSPI", hist], queryFn: () => fetchDashboardChart("VKOSPI", hist),   // 그래프 기간을 따른다(24시간이면 3개월 — 분봉이 없다)
     staleTime: 60 * 60 * 1000, refetchOnWindowFocus: false,
   });
   const ks200 = fut?.price ?? 0;
@@ -392,7 +412,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     const e = ETFS[i], qq = eq(e.code);
     // ETF 는 NXT(넥스트레이드)에 없다 — 정규장(15:30) 마감에 지수 카드와 같이 흐리게(사용자 지적 2026-10-23)
     return <Card title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openIndex} breadth={heatBreadth(i)}
-                 chart={<KrDaySparkline code={e.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
+                 chart={histKr(e.code) ?? <KrDaySparkline code={e.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
   };
   // 코스피 3장(지수·KODEX 200·코스피200 선물) / 코스닥 3장(지수·코스닥150·코스닥150 선물)을 배경 판 하나로 묶는다(사용자 2026-11-13 "하나로 묶어서 레이어 배경")
   //   판 = 부모 격자 3칸(PC) · 모바일은 한 줄 통째. 야간엔 선물 자리에 야간선물.
@@ -401,15 +421,15 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       const sym = (["^KS200N", "^KQ150N"] as const)[i], d = nightQs[i]?.data;
       return <Card key={sym} title={`${i ? "코스닥150" : "코스피200"} 야간선물`} price={d?.index.price} pct={d?.index.pct} dim={!openNight}
                    sub={`주간 종가 ${i ? (futQ ? fmtP(futQ.price) : "-") : (fut ? fmtP(fut.price) : "-")} · 18:00~05:00`}
-                   chart={d && d.closes.length > 1 && <Sparkline data={d.closes} width={300} height={70} className="w-full h-full" strokeWidth={1.2} baseline={d.index.prevClose} />} />;
+                   chart={(i ? histKr(ETFS[1].code) : histKr(ETFS[0].code)) ?? (d && d.closes.length > 1 && <Sparkline data={d.closes} width={300} height={70} className="w-full h-full" strokeWidth={1.2} baseline={d.index.prevClose} />)} />;
     }
     return i === 0
       ? <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct} dim={!openFut}
               sub={fut ? `미결제 ${fut.oi.toLocaleString()}(${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)}` : "한경 실시간"} subHint={fut ? basisHint(fut.basis) : undefined}
-              chart={futMin && futMin.closes.length > 1 && <FutSpark s={futMin} live={fut?.price} />} />
+              chart={histKr(ETFS[0].code) ?? (futMin && futMin.closes.length > 1 && <FutSpark s={futMin} live={fut?.price} />)} />
       : <Card title={`코스닥150 선물${futQ?.month ? ` ${futQ.month}` : ""}`} price={futQ?.price} pct={futQ?.pct} dim={!openFut}
               sub={futQ ? `미결제 ${futQ.oi.toLocaleString()}(${eok(futQ.oiChg)})` : "한경 실시간"}
-              chart={futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />} />;
+              chart={histKr(ETFS[1].code) ?? (futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />)} />;
   };
   const mktGroup = (tone: string, children: React.ReactNode) => (
     <div className={`col-span-full lg:col-span-3 grid grid-cols-3 gap-1 p-1 rounded-xl border ${tone}`}>{children}</div>
@@ -417,20 +437,20 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   const marketCards = (<>
         {mktGroup("bg-indigo-50 border-indigo-200", <>
           <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kospi, "코스피 전체")}
-                chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />} />
+                chart={histIdx("^KS11") ?? (spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />)} />
           {etfCard(0)}
           {futCard(0)}
         </>)}
         {/* 코스닥 — 기준선은 카드 전일 종가(야후 ^KQ11 previousClose 가 그저께 값일 때가 있다) */}
         {mktGroup("bg-emerald-50 border-emerald-200", <>
           <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kosdaq, "코스닥 전체")}
-                chart={spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />} />
+                chart={histIdx("^KQ11") ?? (spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />)} />
           {etfCard(1)}
           {futCard(1)}
         </>)}
         <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} dim={!openIndex}
               sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
-              chart={vkChart && vkChart.length > 1 && <Sparkline data={vkChart} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
+              chart={vkChart && vkChart.length > 1 && <Sparkline data={trimByRange(vkChart, chartRange)} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
                                                                color={vk && vk.pct > 0 ? "#dc2626" : "#2563eb"} />} />
   </>);
 
@@ -477,7 +497,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {/* 선물 칸 — 주식선물이 걸린 종목(201개)이고 앱에서 한국투자 연동이 켜졌을 때만, 종목 카드 바로 옆(사용자 2026-11-02) */}
         <div className={`grid grid-cols-3 gap-1.5 auto-rows-[118px] shrink-0 ${futOn ? "lg:grid-cols-[1.4fr_repeat(8,minmax(0,1fr))]" : "lg:grid-cols-[1.4fr_repeat(7,minmax(0,1fr))]"}`}>
           <Card title={s0.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
-                chart={<KrDaySparkline code={s0.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />
+                chart={histKr(s0.code) ?? <KrDaySparkline code={s0.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />
           {futOn && <StockFutCard code={s0.code} spot={qq?.price} dim={!openStock} />}
           {marketCards}
         </div>
@@ -534,7 +554,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {stocks.map(s => {
           const qq = sq(s.code);
           return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
-                       chart={<KrDaySparkline code={s.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
+                       chart={histKr(s.code) ?? <KrDaySparkline code={s.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
         })}
         {marketCards}
         {/* 필라델피아 반도체(지수) 카드는 뺐다 — 한국 장중엔 간밤 미국 종가라 안 움직인다(사용자 요청). SOX 선물은 아래 해외 선물 줄 */}
