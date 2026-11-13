@@ -1128,7 +1128,7 @@ export function MobileSimpleView() {
     if (!onIndexTab) return [] as string[];
     const known = new Set(tier0.map(p => p.symbol));
     const set = new Set<string>();
-    for (const sec of (activeTab === KR_KEY ? buildIndexSections() : buildDashboardPage(indexPageOfM(activeTab)))) {
+    for (const sec of (activeTab === KR_KEY ? buildIndexSections(true) : buildDashboardPage(indexPageOfM(activeTab)))) {
       if (sec.render) continue;
       for (const sym of sec.rows.flat()) {
         if (!known.has(sym)) continue;
@@ -2334,7 +2334,7 @@ export function MobileSimpleView() {
         // 지수 — PC(UsMarketTab)와 동일한 공용 그룹 정의를 그룹 헤더 + 2열 카드로 렌더 (단일 통합 뷰)
         //   한·미 섹터 판도 그대로 넣는다 — TicsSectorBoard 는 lg 미만에서 좌우 2판이
         //   **위아래 1판씩으로 알아서 접힌다**(grid-cols-1 lg:grid-cols-2). 폭 걱정은 없다.
-        const pageSecs = activeTab === KR_KEY ? buildIndexSections() : buildDashboardPage(indexPageOfM(activeTab));   // '📈 지수' = PC 서랍과 같은 묶음
+        const pageSecs = activeTab === KR_KEY ? buildIndexSections(true) : buildDashboardPage(indexPageOfM(activeTab));   // '📈 지수' = PC 서랍과 같은 묶음
         const isSectorPage = indexPageOfM(activeTab) === "sobu";
         const sections = isSectorPage ? sectionsForTab(pageSecs, sectorTabM) : pageSecs;
         const idxStickyTop = (headerCollapsed ? 0 : 44) + navH;   // 헤더(44) + 메인 탭바 아래

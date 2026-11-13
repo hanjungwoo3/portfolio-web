@@ -830,11 +830,14 @@ export function dashboardGroupNav(sections: DashboardSection[]): DashboardNavIte
 
 /** 지수 묶음 — 한국 지수 + 미국 지수(한 묶음 '지수') · 환율·금리·투심 · 선물 · 현물. PC 오른쪽 📈 서랍과 모바일 '📈 지수' 탭이 같이 쓴다
  *  (사용자 2026-11-12 "한국/미국 빼고, 모바일은 지수가 거기 나오면"). 선물은 시간대에 맞는 쪽(주간/야간) */
-export function buildIndexSections(): DashboardSection[] {
+// asiaWithKr = 대만·홍콩을 닛케이·상해 바로 아래(모바일 두 칸, 사용자 2026-11-13) / 아니면 미국 지수 줄 끝(PC·앱 서랍은 필라델피아 옆이라야 한 줄이 맞는다)
+export function buildIndexSections(asiaWithKr = false): DashboardSection[] {
   const kr = buildDashboardPage("day").find(s => s.id === "kr");
   const night = buildDashboardPage("night").filter(s => s.id !== "kr" && DRAWER_SECTION_IDS.has(s.id));
   const macro = night.find(s => s.id === "macro");
-  const merged = kr && macro ? [{ ...kr, label: "📈 지수", rows: [...kr.rows.map((r, i) => (i === kr.rows.length - 1 ? [...r, "^TWII", "^HSI"] : r)), ...macro.rows] }]   // 대만·홍콩은 닛케이·상해 바로 아래(아시아끼리, 사용자 2026-11-13)
+  const merged = kr && macro ? [{ ...kr, label: "📈 지수", rows: asiaWithKr
+      ? [...kr.rows.map((r, i) => (i === kr.rows.length - 1 ? [...r, "^TWII", "^HSI"] : r)), ...macro.rows]
+      : [...kr.rows, ...macro.rows.map((r, i) => (i === macro.rows.length - 1 ? [...r, "^TWII", "^HSI"] : r))] }]   // 대만·홍콩은 닛케이·상해 바로 아래(아시아끼리, 사용자 2026-11-13)
     : [kr, macro].filter((x): x is DashboardSection => !!x);
   return [...merged, ...night.filter(s => s.id !== "macro")];
 }
