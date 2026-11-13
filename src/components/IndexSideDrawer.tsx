@@ -42,14 +42,15 @@ export function IndexSideDrawer() {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)}
-              className={`fixed right-0 top-[150px] z-[70] rounded-l-lg border border-r-0 border-indigo-300 bg-indigo-50 text-indigo-700 shadow px-1 py-2 text-[11px] font-bold [writing-mode:vertical-rl] hover:bg-indigo-100 ${open ? "hidden" : ""}`}
+              className={`fixed right-0 top-[150px] z-50 rounded-l-lg border border-r-0 border-indigo-300 bg-indigo-50 text-indigo-700 shadow px-1 py-2 text-[11px] font-bold [writing-mode:vertical-rl] hover:bg-indigo-100 ${open ? "hidden" : ""}`}
               title="지수·환율·금리·선물·원자재 카드 — 단축키 ` (숫자 1 왼쪽) 로 열고 닫기">📈 지수<span className="mt-1 px-0.5 rounded border border-indigo-300 bg-white text-[9px] font-mono [writing-mode:horizontal-tb]">`</span></button>
       {open && (
         <>
-          <div className={`fixed inset-0 z-[70] bg-black/20 transition-opacity duration-200 ${closing ? "opacity-0" : "opacity-100"}`} onClick={close} />
+          {/* z-50 = 헤더와 같은 층, 그 뒤 DOM 이라 헤더는 덮고 — App 에서 더 뒤에 그려지는 종목정보·히트맵 창(z-50)은 서랍 위로 뜬다(사용자 2026-11-13 "버튼을 누르면 뒤에 뜨는데") */}
+          <div className={`fixed inset-0 z-50 bg-black/20 transition-opacity duration-200 ${closing ? "opacity-0" : "opacity-100"}`} onClick={close} />
           {/* 판 안 빈 곳(카드·버튼·링크가 아닌 곳)을 눌러도 닫힌다(사용자 2026-11-09 "열린 창의 빈 공간 클릭하면 닫히게") */}
           <aside onClick={e => { if (!(e.target as Element | null)?.closest?.(".pg-card, a, button, input, select, label, [data-sobu-peek], [data-disc-popup]")) close(); }}
-                 className={`fixed top-0 right-0 bottom-0 z-[71] w-[min(1480px,calc(100vw-40px))] bg-gray-50 pg-bg border-l border-gray-300 shadow-2xl overflow-y-auto ${closing ? "animate-[slideOut_.18s_ease-in_forwards]" : "animate-[slideIn_.18s_ease-out]"}`}>
+                 className={`fixed top-0 right-0 bottom-0 z-50 w-[min(1480px,calc(100vw-40px))] bg-gray-50 pg-bg border-l border-gray-300 shadow-2xl overflow-y-auto ${closing ? "animate-[slideOut_.18s_ease-in_forwards]" : "animate-[slideIn_.18s_ease-out]"}`}>
             <div className="sticky top-0 z-40 bg-white/95 border-b border-gray-200 px-3 py-2 flex items-center gap-2">
               <b className="text-gray-800">📈 지수</b>
               <span className="text-[11px] text-gray-400">지수 탭 카드 그대로 — 단축키 <kbd className="px-1 rounded border border-gray-300 bg-gray-50 font-mono">`</kbd> 로 열고 닫기 · 빈 곳·바깥·Esc 로도 닫힘</span>
