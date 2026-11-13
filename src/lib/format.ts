@@ -143,19 +143,27 @@ export function isUsRateSymbol(symbol: string): boolean {
 }
 
 // 특정 IANA timezone 의 현재 시각 (Intl 사용 — DST 자동 처리)
+// ⚠️ 성능 — 화면 한 번 그릴 때 카드마다 흐림·장 구간을 묻느라 수천 번 불린다. toLocaleString(옵션) 은 부를 때마다
+//   Intl.DateTimeFormat 을 새로 만들어 매우 비싸다(실측: 업종 탭 전환 1~1.6초 중 대부분, 2026-11-13 "너무 무거워 졌어").
+//   → 시간대별 포매터를 한 번만 만들고, 결과는 같은 초 안에서 재사용한다(분 단위 판정이라 1초 캐시로 충분).
+const TZ_FMT = new Map<string, Intl.DateTimeFormat>();
+const TZ_NOW = new Map<string, { sec: number; v: { hour: number; minute: number; weekday: number } }>();
+const DAY_MAP: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 function nowInTz(tz: string): { hour: number; minute: number; weekday: number } {
-  const now = new Date();
-  const dayName = now.toLocaleString("en-US", { timeZone: tz, weekday: "short" });
-  const timeStr = now.toLocaleString("en-US", {
-    timeZone: tz, hour: "2-digit", minute: "2-digit", hour12: false,
-  });
-  // "24:30" 형식 가능 (en-US의 자정 처리 변동) — 0~23 으로 정규화
-  const [hRaw, m] = timeStr.split(":").map(Number);
-  const hour = hRaw === 24 ? 0 : hRaw;
-  const dayMap: Record<string, number> = {
-    Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6,
-  };
-  return { hour, minute: m, weekday: dayMap[dayName] ?? 0 };
+  const sec = Math.floor(Date.now() / 1000);
+  const hit = TZ_NOW.get(tz);
+  if (hit && hit.sec === sec) return hit.v;
+  let f = TZ_FMT.get(tz);
+  if (!f) { f = new Intl.DateTimeFormat("en-US", { timeZone: tz, weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }); TZ_FMT.set(tz, f); }
+  let hour = 0, minute = 0, weekday = 0;
+  for (const p of f.formatToParts(new Date(sec * 1000))) {
+    if (p.type === "hour") hour = Number(p.value) % 24;   // "24" 자정 표기 → 0
+    else if (p.type === "minute") minute = Number(p.value);
+    else if (p.type === "weekday") weekday = DAY_MAP[p.value] ?? 0;
+  }
+  const v = { hour, minute, weekday };
+  TZ_NOW.set(tz, { sec, v });
+  return v;
 }
 
 // NYSE/NASDAQ 정규장 휴장일 (ET 날짜, YYYY-MM-DD). 조기폐장(반일)은 제외 — 정규시간만 단축.
@@ -171,10 +179,20 @@ const US_MARKET_HOLIDAYS = new Set<string>([
   "2027-06-18", "2027-07-05", "2027-09-06", "2027-11-25", "2027-12-24",
 ]);
 // 특정 timezone 의 현재 날짜 "YYYY-MM-DD" (en-CA = ISO 형식)
+const DATE_FMT = new Map<string, Intl.DateTimeFormat>();   // 포매터는 한 번만(nowInTz 와 같은 이유)
+function dateFmt(tz: string): Intl.DateTimeFormat {
+  let f = DATE_FMT.get(tz);
+  if (!f) { f = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }); DATE_FMT.set(tz, f); }
+  return f;
+}
+const DATE_NOW = new Map<string, { sec: number; v: string }>();
 function dateStrInTz(tz: string): string {
-  return new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(new Date());
+  const sec = Math.floor(Date.now() / 1000);
+  const hit = DATE_NOW.get(tz);
+  if (hit && hit.sec === sec) return hit.v;
+  const v = dateFmt(tz).format(new Date(sec * 1000));
+  DATE_NOW.set(tz, { sec, v });
+  return v;
 }
 
 // 시장 정규장 시간 여부 — 흐림(dim) 판정용. 정규장 지나면 흐림(시간외 현재가는 그대로 표시).
@@ -342,13 +360,12 @@ export function krFuturesDesc(): string {
 }
 
 // ISO 시각 → KST "HH:MM" (24시간). 잘못된 값이면 "".
+const KST_HHMM_FMT = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false });
 export function fmtKstHHMM(iso?: string): string {
   if (!iso) return "";
   const ms = Date.parse(iso);
   if (!Number.isFinite(ms)) return "";
-  return new Intl.DateTimeFormat("en-GB", {
-    timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit", hour12: false,
-  }).format(new Date(ms));
+  return KST_HHMM_FMT.format(new Date(ms));
 }
 
 // 유닉스 초(unix sec) → "3일 3시간전 갱신" 상대시간 — 잠자는 지수 카드 마지막 거래 표시용
@@ -465,9 +482,7 @@ export function krCloseImminentMin(
   const t = nowInTz("Asia/Seoul");
   if (t.weekday === 0 || t.weekday === 6) return null;
   // tradingEnd 의 KST 날짜가 오늘이어야 — 휴장일/미거래 종목 제외
-  const endDate = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Seoul", year: "numeric", month: "2-digit", day: "2-digit",
-  }).format(new Date(endMs));
+  const endDate = dateFmt("Asia/Seoul").format(new Date(endMs));
   if (endDate !== dateStrInTz("Asia/Seoul")) return null;
   const closeMin = noAfterHours ? 16 * 60 : 20 * 60;   // krFinalCloseHHMM 과 같은 규칙
   const remain = closeMin - (t.hour * 60 + t.minute);

@@ -88,11 +88,13 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
   vertical?: boolean;   // PC 왼쪽 세로 탭
 }) {
   useAvgMarket();   // 한국/미국 전환에 다시 그리기(평균은 avgOf → sectorAvg 가 avgMarketNow 로 읽는다)
+  // 탭마다 평균은 한 번만 — 정렬과 그리기에서 두 번 계산하던 것(무거움 실측, 2026-11-13)
+  const stats = new Map(sections.map(x => [x.id, avgOf?.(x) ?? null]));
   return (
     <div className={vertical ? "flex flex-col gap-1" : `flex items-center gap-1 overflow-x-auto ${compact ? "pb-0.5" : ""}`}>
       {/* 업종 탭은 평균 등락률 높은 순(사용자 2026-11-03) — '한눈에' 는 맨 앞 고정, 값 없는 탭은 뒤로 */}
       {(() => {
-        const st = new Map(sections.map(x => { const v = avgOf?.(x); return [x.id, v ? (v.aft ?? v.avg) : null]; }));   // 크게 보이는 값(장외 있으면 장외) 순
+        const st = new Map(sections.map(x => { const v = stats.get(x.id); return [x.id, v ? (v.aft ?? v.avg) : null]; }));   // 크게 보이는 값(장외 있으면 장외) 순
         type Item = { kind: "sec"; s: DashboardSection; v: number | null } | { kind: "ext"; e: TabExtra; v: number | null };
         const items: Item[] = [...sections.map(s => ({ kind: "sec" as const, s, v: st.get(s.id) ?? null })), ...extras.map(e => ({ kind: "ext" as const, e, v: e.pct }))];
         // 기준선(extras)은 맨 위 고정 — 정렬에 안 섞는다(사용자 2026-11-13 "sort 는 그대로 두고"). 그다음 한눈에, 나머지는 값 순
@@ -115,7 +117,7 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
       })() : (() => { const s = it.s;
         const on = s.id === active;
         const emoji = s.label.split(" ")[0];
-        const st = avgOf?.(s);
+        const st = stats.get(s.id);
         const avg = st?.avg ?? null;
         return (
           <button key={s.id} onClick={() => onChange(s.id)} title="국내 종목 평균 등락률·오른/내린 종목 수(흐린 종목 제외)"
