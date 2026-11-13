@@ -393,28 +393,40 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return <Card title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openIndex} breadth={heatBreadth(i)}
                  chart={<KrDaySparkline code={e.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
   };
-  const marketCards = (<>
-        <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kospi, "코스피 전체")}
-              chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />} />
-        {etfCard(0)}
-        {/* 코스닥 — 사용자 요청(2026-10-21). 기준선은 카드 전일 종가(야후 ^KQ11 previousClose 가 그저께 값일 때가 있다) */}
-        <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kosdaq, "코스닥 전체")}
-              chart={spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />} />
-        {etfCard(1)}
-        {/* 야간(18:00~05:00)엔 야간선물(야선) — 사용자 요청. 주간 선물 카드와 자리를 바꾼다 */}
-        {night ? (["^KS200N", "^KQ150N"] as const).map((sym, i) => {
-          const d = nightQs[i]?.data;
-          return <Card key={sym} title={`${i ? "코스닥150" : "코스피200"} 야간선물`} price={d?.index.price} pct={d?.index.pct} dim={!openNight}
-                       sub={`주간 종가 ${i ? (futQ ? fmtP(futQ.price) : "-") : (fut ? fmtP(fut.price) : "-")} · 18:00~05:00`}
-                       chart={d && d.closes.length > 1 && <Sparkline data={d.closes} width={300} height={70} className="w-full h-full" strokeWidth={1.2} baseline={d.index.prevClose} />} />;
-        }) : <>
-        <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct} dim={!openFut}
+  // 코스피 3장(지수·KODEX 200·코스피200 선물) / 코스닥 3장(지수·코스닥150·코스닥150 선물)을 배경 판 하나로 묶는다(사용자 2026-11-13 "하나로 묶어서 레이어 배경")
+  //   판 = 부모 격자 3칸(PC) · 모바일은 한 줄 통째. 야간엔 선물 자리에 야간선물.
+  const futCard = (i: 0 | 1) => {
+    if (night) {
+      const sym = (["^KS200N", "^KQ150N"] as const)[i], d = nightQs[i]?.data;
+      return <Card key={sym} title={`${i ? "코스닥150" : "코스피200"} 야간선물`} price={d?.index.price} pct={d?.index.pct} dim={!openNight}
+                   sub={`주간 종가 ${i ? (futQ ? fmtP(futQ.price) : "-") : (fut ? fmtP(fut.price) : "-")} · 18:00~05:00`}
+                   chart={d && d.closes.length > 1 && <Sparkline data={d.closes} width={300} height={70} className="w-full h-full" strokeWidth={1.2} baseline={d.index.prevClose} />} />;
+    }
+    return i === 0
+      ? <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct} dim={!openFut}
               sub={fut ? `미결제 ${fut.oi.toLocaleString()}(${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)}` : "한경 실시간"}
               chart={futMin && futMin.closes.length > 1 && <FutSpark s={futMin} live={fut?.price} />} />
-        <Card title={`코스닥150 선물${futQ?.month ? ` ${futQ.month}` : ""}`} price={futQ?.price} pct={futQ?.pct} dim={!openFut}
+      : <Card title={`코스닥150 선물${futQ?.month ? ` ${futQ.month}` : ""}`} price={futQ?.price} pct={futQ?.pct} dim={!openFut}
               sub={futQ ? `미결제 ${futQ.oi.toLocaleString()}(${eok(futQ.oiChg)})` : "한경 실시간"}
-              chart={futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />} />
-        </>}
+              chart={futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />} />;
+  };
+  const mktGroup = (tone: string, children: React.ReactNode) => (
+    <div className={`col-span-full lg:col-span-3 grid grid-cols-3 gap-1 p-1 rounded-xl border ${tone}`}>{children}</div>
+  );
+  const marketCards = (<>
+        {mktGroup("bg-indigo-50 border-indigo-200", <>
+          <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kospi, "코스피 전체")}
+                chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />} />
+          {etfCard(0)}
+          {futCard(0)}
+        </>)}
+        {/* 코스닥 — 기준선은 카드 전일 종가(야후 ^KQ11 previousClose 가 그저께 값일 때가 있다) */}
+        {mktGroup("bg-emerald-50 border-emerald-200", <>
+          <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kosdaq, "코스닥 전체")}
+                chart={spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />} />
+          {etfCard(1)}
+          {futCard(1)}
+        </>)}
         <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} dim={!openIndex}
               sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
               chart={vkChart && vkChart.length > 1 && <Sparkline data={vkChart} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
@@ -620,7 +632,7 @@ function StockFutCard({ code, spot, dim }: { code: string; spot?: number; dim?: 
 
 function Card({ title, price, pct, sub, chart, unit, dim: dimIn, breadth }: {
   title: string; price?: number; pct?: number; sub?: string; chart?: React.ReactNode; unit?: string;
-  breadth?: { up: number; down: number; hint: string };   // 그래프 안 왼쪽 아래 — 오른·내린 종목 수(사용자 2026-11-13 "그래프 안에 상승/하락 갯수")
+  breadth?: { up: number; down: number; hint: string };   // 카드 오른쪽 위 — 오른·내린 종목 수(사용자 2026-11-13 "그래프 안에 상승/하락 갯수")
   dim?: boolean;   // 거래 시간이 아니면 흐리게(지수 탭 카드와 같은 '쉬는 중' 표시, 사용자 요청)
 }) {
   const dim = dimIn && getDimSleepingEnabled();   // 설정 "장 마감 시 종목 흐리게" 를 따른다(사용자 지적 2026-10-23)
@@ -628,13 +640,16 @@ function Card({ title, price, pct, sub, chart, unit, dim: dimIn, breadth }: {
     <div className={`pg-card relative rounded-lg border border-gray-200 overflow-hidden ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
          title={dim ? "지금은 거래 시간이 아닙니다" : undefined}>
       <div className="absolute inset-x-0 bottom-0 top-[40%] pointer-events-none">{chart}</div>
-      {breadth && breadth.up + breadth.down > 0 && (
-        <div className="absolute left-1 bottom-1 z-10 px-1 rounded bg-white/85 text-[10.5px] font-bold tabular-nums leading-[15px]" title={breadth.hint}>
-          <span className="text-rose-600">▲{breadth.up}</span> <span className="text-blue-600">▼{breadth.down}</span>
-        </div>
-      )}
       <div className="relative px-2 pt-1.5">
-        <div className="font-bold text-gray-800 truncate">{dim && <span className="mr-1 text-[11px] font-normal text-gray-400">zZ</span>}{title}</div>
+        {/* 제목 + 오른쪽 위 오른·내린 수 — 한 줄 안에서 나눠 가진다(겹쳐 가리지 않게, 사용자 2026-11-13 "가려져서") */}
+        <div className="flex items-center gap-1 min-w-0">
+          <div className={`font-bold text-gray-800 truncate min-w-0 ${title.length > 10 ? "text-[10.5px] tracking-tighter leading-6" : ""}`}>{dim && <span className="mr-1 text-[11px] font-normal text-gray-400">zZ</span>}{title}</div>
+          {breadth && breadth.up + breadth.down > 0 && (
+            <span className="ml-auto shrink-0 text-[10px] font-bold tabular-nums whitespace-nowrap" title={breadth.hint}>
+              <span className="text-rose-600">▲{breadth.up}</span> <span className="text-blue-600">▼{breadth.down}</span>
+            </span>
+          )}
+        </div>
         <div className="flex items-baseline gap-1.5">
           {/* % 가 주인공(사용자 요청) — 크게, 가격은 옆에 작게 */}
           <span className={`text-[22px] leading-tight font-extrabold tabular-nums ${up(pct ?? 0)}`}>{pct != null ? `${sgn(pct)}%` : "-"}</span>
