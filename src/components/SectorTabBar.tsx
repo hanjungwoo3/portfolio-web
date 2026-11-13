@@ -79,7 +79,7 @@ export function RegAftValue({ avg, aft, n, stacked, prefix, className = "" }: { 
 }
 
 /** 업종 탭 사이에 같은 꼴로 끼는 기준선(KODEX 200·코스닥150 등) — 같은 꼴·상승/하락 수, 맨 위 고정(사용자 2026-11-13) */
-export interface TabExtra { id: string; label: string; pct: number | null; up: number; down: number; onClick: () => void; hint?: string }
+export interface TabExtra { id: string; label: string; pct: number | null; aft?: number | null; up: number; down: number; onClick: () => void; hint?: string }   // aft = 장 밖 움직임(있으면 정규 작게·이것 크게)
 
 export function SectorTabBar({ sections, active, onChange, trailing, compact, avgOf, vertical, extras = [] }: {
   extras?: TabExtra[];
@@ -110,8 +110,8 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
                   className={`shrink-0 inline-flex flex-col items-center leading-tight rounded-xl border border-dashed border-gray-400 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold ${vertical ? "text-center w-full px-1.5 py-1 text-[13px]" : compact ? "px-2 py-0.5 text-[12px]" : "px-3 py-1 text-sm"}`}>
             <span>📊 {e.label}</span>
             {vertical
-              ? <span className="flex items-center justify-center gap-2 w-full">{e.pct != null && <RegAftValue avg={e.pct} className="whitespace-nowrap text-[12px]" />}{e.up + e.down > 0 && updown}</span>
-              : <>{e.pct != null && <RegAftValue avg={e.pct} className={`whitespace-nowrap ${compact ? "text-[10px]" : "text-[11px]"}`} />}{e.up + e.down > 0 && updown}</>}
+              ? <span className="flex items-center justify-center gap-2 w-full">{e.pct != null && <RegAftValue avg={e.pct} aft={e.aft} stacked className="whitespace-nowrap text-[12px]" />}{e.up + e.down > 0 && updown}</span>
+              : <>{e.pct != null && <RegAftValue avg={e.pct} aft={e.aft} stacked className={`whitespace-nowrap ${compact ? "text-[10px]" : "text-[11px]"}`} />}{e.up + e.down > 0 && updown}</>}
           </button>
         );
       })() : (() => { const s = it.s;

@@ -26,7 +26,7 @@ import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/pr
 import { useChartRange, pickCardChart, historyRange } from "../lib/chartRange";
 import { ChartRangeToggle, AvgMarketToggle } from "./ChartRangeToggle";
 import { AftPill } from "./SectorTabBar";
-import { usRegExtOf, rotRowAvg } from "../lib/avgMarket";
+import { usRegExtOf, rotRowAvg, useAvgMarket } from "../lib/avgMarket";
 import { DRAWER_SECTION_IDS, buildDashboardPage, dashboardGroupNav, dashboardTagTone, dashboardRowLabelTone, dashboardTagCard, leadRowOf, isLastLead, rowLead, sortedRows, loadLeaderSort, saveLeaderSort, type LeaderSort, type DashboardPage, type DashboardSection } from "../lib/dashboardGroups";
 import { RotationTab } from "./RotationTab";
 import { requestTab, isTabVisible } from "../lib/tabNav";
@@ -187,7 +187,21 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
     const it = i >= 0 ? heatQs[i].data?.items ?? [] : [];
     return it.length ? { up: it.filter(x => x.changePct > 0).length, down: it.filter(x => x.changePct < 0).length } : undefined;
   };
-  const idxExtras: TabExtra[] = (["069500.KS", "229200.KS"] as const).map((sym, i) => {
+  // 해외 기준이면 S&P 500(SPY)·나스닥100(QQQ) — 국내 KODEX 200·코스닥150 자리(사용자 2026-11-14 "해외일 때는 s&p500 과 나스닥100")
+  //   등락은 업종 칸과 같은 규칙(장 밖이면 정규장 % 작게 + 프리·애프터 크게), 오른·내린 수는 구성종목(히트맵 판)
+  const avgMkt = useAvgMarket();
+  const usHeatQs = useQueries({ queries: (["us_sp500", "us_ndx"] as const).map(src => ({
+    queryKey: ["side-heat", src], queryFn: () => fetchHeatmapPreferServer(src, src === "us_sp500" ? 510 : 400), enabled: page === "sobu" && avgMkt === "US", staleTime: 60_000, refetchInterval: 120_000, retry: 1,
+  })) });
+  const idxExtras: TabExtra[] = avgMkt === "US"
+    ? ([["SPY", "S&P 500", "us_sp500"], ["QQQ", "나스닥100", "us_ndx"]] as const).map(([sym, label, src], i) => {
+        const it = usHeatQs[i].data?.items ?? [];
+        const q = usMap.get(sym), ux = usRegExtOf(sym, q);
+        return { id: sym, label, pct: ux ? ux.reg : q ? (displayPctOf(sym, q) ?? q.pct) : null, aft: ux && Math.abs(ux.aft) >= 0.005 ? ux.aft : null,
+                 up: it.filter(x => x.changePct > 0).length, down: it.filter(x => x.changePct < 0).length,
+                 onClick: () => requestHeatmap(src), hint: `${label}(${sym}) 구성종목 상승·하락 수 — 누르면 히트맵` };
+      })
+    : (["069500.KS", "229200.KS"] as const).map((sym, i) => {
     const it = heatQs[i].data?.items ?? [];
     return { id: sym, label: sym === "069500.KS" ? "KODEX 200" : "코스닥150", pct: usMap.get(sym) ? (displayPctOf(sym, usMap.get(sym)) ?? usMap.get(sym)!.pct) : null,
              up: it.filter(x => x.changePct > 0).length, down: it.filter(x => x.changePct < 0).length,
