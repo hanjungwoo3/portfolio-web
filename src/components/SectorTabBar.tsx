@@ -78,7 +78,11 @@ export function RegAftValue({ avg, aft, n, stacked, prefix, className = "" }: { 
   );
 }
 
-export function SectorTabBar({ sections, active, onChange, trailing, compact, avgOf, vertical }: {
+/** 업종 탭 사이에 같은 꼴로 끼는 기준선(KODEX 200·코스닥150 등) — 같은 꼴·상승/하락 수, 맨 위 고정(사용자 2026-11-13) */
+export interface TabExtra { id: string; label: string; pct: number | null; up: number; down: number; onClick: () => void; hint?: string }
+
+export function SectorTabBar({ sections, active, onChange, trailing, compact, avgOf, vertical, extras = [] }: {
+  extras?: TabExtra[];
   sections: DashboardSection[]; active: string; onChange: (id: string) => void; trailing?: React.ReactNode; compact?: boolean;
   avgOf?: (s: DashboardSection) => SectorStat | null;
   vertical?: boolean;   // PC 왼쪽 세로 탭
@@ -89,8 +93,26 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
       {/* 업종 탭은 평균 등락률 높은 순(사용자 2026-11-03) — '한눈에' 는 맨 앞 고정, 값 없는 탭은 뒤로 */}
       {(() => {
         const st = new Map(sections.map(x => { const v = avgOf?.(x); return [x.id, v ? (v.aft ?? v.avg) : null]; }));   // 크게 보이는 값(장외 있으면 장외) 순
-        return [...sections].sort((a, b) => (a.id === OVERVIEW ? -1 : b.id === OVERVIEW ? 1 : (st.get(b.id) ?? -Infinity) - (st.get(a.id) ?? -Infinity)));
-      })().map(s => {
+        type Item = { kind: "sec"; s: DashboardSection; v: number | null } | { kind: "ext"; e: TabExtra; v: number | null };
+        const items: Item[] = [...sections.map(s => ({ kind: "sec" as const, s, v: st.get(s.id) ?? null })), ...extras.map(e => ({ kind: "ext" as const, e, v: e.pct }))];
+        // 기준선(extras)은 맨 위 고정 — 정렬에 안 섞는다(사용자 2026-11-13 "sort 는 그대로 두고"). 그다음 한눈에, 나머지는 값 순
+        const rank = (i: Item) => i.kind === "ext" ? 0 : i.s.id === OVERVIEW ? 1 : 2;
+        return items.sort((a, b) => rank(a) - rank(b) || (rank(a) < 2 ? 0 : (b.v ?? -Infinity) - (a.v ?? -Infinity)));
+      })().map(it => it.kind === "ext" ? (() => {
+        const e = it.e;
+        const updown = vertical
+          ? <span className="flex flex-col items-start tabular-nums font-normal whitespace-nowrap text-[10.5px] leading-tight"><span className="text-rose-600">상승 {e.up}</span><span className="text-blue-600">하락 {e.down}</span></span>
+          : <span className={`tabular-nums font-normal whitespace-nowrap ${compact ? "text-[9.5px]" : "text-[10px]"}`}><span className="text-rose-600">▲{e.up}</span> <span className="text-blue-600">▼{e.down}</span></span>;
+        return (
+          <button key={e.id} onClick={e.onClick} title={e.hint}
+                  className={`shrink-0 inline-flex flex-col items-center leading-tight rounded-xl border border-dashed border-gray-400 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold ${vertical ? "text-center w-full px-1.5 py-1 text-[13px]" : compact ? "px-2 py-0.5 text-[12px]" : "px-3 py-1 text-sm"}`}>
+            <span>📊 {e.label}</span>
+            {vertical
+              ? <span className="flex items-center justify-center gap-2 w-full">{e.pct != null && <RegAftValue avg={e.pct} className="whitespace-nowrap text-[12px]" />}{e.up + e.down > 0 && updown}</span>
+              : <>{e.pct != null && <RegAftValue avg={e.pct} className={`whitespace-nowrap ${compact ? "text-[10px]" : "text-[11px]"}`} />}{e.up + e.down > 0 && updown}</>}
+          </button>
+        );
+      })() : (() => { const s = it.s;
         const on = s.id === active;
         const emoji = s.label.split(" ")[0];
         const st = avgOf?.(s);
@@ -116,7 +138,7 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
             </>)}
           </button>
         );
-      })}
+      })())}
       {trailing && <span className="ml-2 shrink-0">{trailing}</span>}
     </div>
   );

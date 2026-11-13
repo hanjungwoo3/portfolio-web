@@ -1,6 +1,6 @@
 import { useEffect, useState, useMemo } from "react";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
-import { SectorTabBar, sectorAvg, sectionsForTab, sectorTabsOf, useSectorTab } from "./SectorTabBar";
+import { SectorTabBar, type TabExtra, sectorAvg, sectionsForTab, sectorTabsOf, useSectorTab } from "./SectorTabBar";
 import { SectorSummaryBoard } from "./SectorSummaryBoard";
 import { useRecentDisc } from "../lib/recentDisclosures";
 import { DiscTags } from "./DiscTags";
@@ -18,7 +18,7 @@ import { useQueries, useQuery } from "@tanstack/react-query";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { dashboardCardDim } from "../lib/dashboardCardDim";
 import { IndexWarnTag } from "./IndexWarnTag";
-import { fetchYahooBatch, fetchKrFuturesMinute, fetchKrFuturesNightSession, fetchKrRegularPrices, daySparkPlan, fetchYahooSparkDay, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries, fetchTossIntraday, fetchSinaMetalDay, SINA_DAY_SYMBOLS, fetchCnbcDay, CNBC_DAY_SYMBOLS, fetchKrIndexDay, KR_INDEX_DAY_SYMBOLS, type DaySpark } from "../lib/api";
+import { fetchYahooBatch, fetchKrFuturesMinute, fetchKrFuturesNightSession, fetchKrRegularPrices, daySparkPlan, fetchYahooSparkDay, fetchDashboardChart, fetchYasunNightFutures, fetchTossUsStockCandles, fetchKrBondYieldSeries, fetchTossIntraday, fetchSinaMetalDay, SINA_DAY_SYMBOLS, fetchCnbcDay, CNBC_DAY_SYMBOLS, fetchKrIndexDay, KR_INDEX_DAY_SYMBOLS, fetchHeatmapPreferServer, type DaySpark } from "../lib/api";
 import type { UsIndex, MarketIndexKey } from "../lib/api";
 import { isSymbolSleeping, isMarketOpen, marketOfSymbol, isUsExtendedTradingOpen, krFuturesName, krFuturesDesc, isKrNightSession, isKrHoldingClosed, isUsRateSymbol, displayPctOf, isKrAfterRegularClose, isKrAfterWindow, nowKstDateStr } from "../lib/format";
 import { getDimSleepingEnabled, checkPersonalProxyYasunSupport } from "../lib/proxyConfig";
@@ -174,6 +174,16 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   //   (사용자 2026-11-11 "프리장에 오픈 안 된 것도 포함해서 국내 % 가 나와")
   const pctOfSym = (sym: string) => (dimOf(sym) ? null : displayPctOf(sym, usMap.get(sym)));   // 해외도 흐리면 뺀다(사용자 2026-11-12 "% 는 흐리지 않은 것만")
   // 업종 칸(SobuGrid) 시세 — 업종 탭과 한눈에 요약판이 같이 쓴다. 국내는 15:30 뒤 정규장 종가 책갈피(야후 확인분), 미국 대장주는 장 밖이면 최근 정규장
+  // 업종 탭 맨 위 기준선 — KODEX 200·코스닥150 등락률 + 구성종목 상승/하락 수(히트맵 판, 사용자 2026-11-13). 업종 화면에서만 받는다
+  const heatQs = useQueries({ queries: (["kospi200", "kosdaq150"] as const).map(src => ({
+    queryKey: ["side-heat", src], queryFn: () => fetchHeatmapPreferServer(src, 300), enabled: page === "sobu", staleTime: 60_000, refetchInterval: 120_000, retry: 1,
+  })) });
+  const idxExtras: TabExtra[] = (["069500.KS", "229200.KS"] as const).map((sym, i) => {
+    const it = heatQs[i].data?.items ?? [];
+    return { id: sym, label: sym === "069500.KS" ? "KODEX 200" : "코스닥150", pct: usMap.get(sym) ? (displayPctOf(sym, usMap.get(sym)) ?? usMap.get(sym)!.pct) : null,
+             up: it.filter(x => x.changePct > 0).length, down: it.filter(x => x.changePct < 0).length,
+             onClick: () => requestHeatmap(CARD_HEATMAP_LINK[sym]), hint: `${sym === "069500.KS" ? "KOSPI 200" : "KOSDAQ 150"} 구성종목 상승·하락 수 — 누르면 히트맵` };
+  });
   const sobuQuote = (sym: string) => {
     const q = usMap.get(sym); if (!q) return undefined;
     const r = isKrAfterWindow() && tier0.find(x => x.symbol === sym)?.krStock ? idxKrReg?.get(sym.slice(0, 6)) : undefined;
@@ -771,7 +781,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
       <div className={page === "sobu" ? "lg:flex lg:items-start lg:gap-2" : ""}>
       {page === "sobu" && (
         <aside className="hidden lg:flex lg:flex-col lg:gap-2 sticky shrink-0 w-[116px]" style={{ top: navStickyTop + 8 }}>   {/* 위 빈 줄 없이 — 차트 기간 단추도 왼쪽 줄 맨 위(사용자 2026-11-03) */}
-          <SectorTabBar vertical sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab}
+          <SectorTabBar vertical sections={SECTOR_TABS} active={sectorTab} onChange={setSectorTab} extras={idxExtras}
                         avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, regExtOf)} />
         </aside>
       )}
