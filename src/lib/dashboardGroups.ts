@@ -133,7 +133,8 @@ function sectionMap(): Record<string, DashboardSection> {
       //   닛케이는 일본 반도체 묶음에도 그대로 있다.
       // 항셍은 뺐다 — 1년 일별 코스피 상관 0.30(닛케이 0.78·상해 0.55). 그 자리에 KODEX 200동일가중(삼성·하이닉스도 0.5%씩 —
       //   '반도체 두 종목 뺀 나머지 시장', 사용자 2026-11-02)
-      rows: [["^KS11", "^KQ11", "069500.KS", "252650.KS", "229200.KS", "VKOSPI", "^N225", "000001.SS"]],
+      // 순서 = 코스피·코스닥 / KODEX 200·코스닥150 / 동일가중·V-KOSPI — 모바일 두 칸에서 코스피 줄·코스닥 줄이 위아래로 맞게(사용자 2026-11-13)
+      rows: [["^KS11", "^KQ11", "069500.KS", "229200.KS", "252650.KS", "VKOSPI", "^N225", "000001.SS"]],
       wide: true,   // 8장 — 75%·6칸이면 항셍·상해가 다음 줄로 떨어진다
     },
     {
@@ -833,7 +834,7 @@ export function buildIndexSections(): DashboardSection[] {
   const kr = buildDashboardPage("day").find(s => s.id === "kr");
   const night = buildDashboardPage("night").filter(s => s.id !== "kr" && DRAWER_SECTION_IDS.has(s.id));
   const macro = night.find(s => s.id === "macro");
-  const merged = kr && macro ? [{ ...kr, label: "📈 지수", rows: [...kr.rows, ...macro.rows.map((r, i) => (i === macro.rows.length - 1 ? [...r, "^TWII", "^HSI"] : r))] }]
+  const merged = kr && macro ? [{ ...kr, label: "📈 지수", rows: [...kr.rows.map((r, i) => (i === kr.rows.length - 1 ? [...r, "^TWII", "^HSI"] : r)), ...macro.rows] }]   // 대만·홍콩은 닛케이·상해 바로 아래(아시아끼리, 사용자 2026-11-13)
     : [kr, macro].filter((x): x is DashboardSection => !!x);
   return [...merged, ...night.filter(s => s.id !== "macro")];
 }
