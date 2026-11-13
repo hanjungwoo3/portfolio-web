@@ -432,7 +432,14 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
               chart={histKr(ETFS[1].code) ?? (futQMin && futQMin.closes.length > 1 && <FutSpark s={futQMin} live={futQ?.price} />)} />;
   };
   const mktGroup = (tone: string, children: React.ReactNode) => (
-    <div className={`col-span-full lg:col-span-3 grid grid-cols-3 gap-1 p-1 rounded-xl border ${tone}`}>{children}</div>
+    // 모바일 = 판 둘을 좌우로, 판 안은 세로 3장(코스피·KODEX 200·코스피200 선물 | 코스닥·코스닥150·코스닥150 선물)(사용자 2026-11-13 "왼쪽에 코스피·kodex200·코스피200 선물 세로로")
+    <div className={`row-span-3 lg:row-span-1 lg:col-span-3 grid grid-rows-3 lg:grid-rows-1 lg:grid-cols-3 gap-1 p-1 rounded-xl border ${tone}`}>{children}</div>
+  );
+  const vkCard = (
+        <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} dim={!openIndex}
+              sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
+              chart={vkChart && vkChart.length > 1 && <Sparkline data={trimByRange(vkChart, chartRange)} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
+                                                               color={vk && vk.pct > 0 ? "#dc2626" : "#2563eb"} />} />
   );
   const marketCards = (<>
         {mktGroup("bg-indigo-50 border-indigo-200", <>
@@ -448,10 +455,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           {etfCard(1)}
           {futCard(1)}
         </>)}
-        <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} dim={!openIndex}
-              sub={vk ? `${vk.price >= 30 ? "공포" : vk.price >= 20 ? "경계" : "안정"} · 20↑ 경계 30↑ 공포 · 그래프 일봉` : undefined}
-              chart={vkChart && vkChart.length > 1 && <Sparkline data={trimByRange(vkChart, chartRange)} width={300} height={70} className="w-full h-full" strokeWidth={1.2}
-                                                               color={vk && vk.pct > 0 ? "#dc2626" : "#2563eb"} />} />
+        <div className="hidden lg:contents">{vkCard}</div>   {/* V-KOSPI 는 PC 만(사용자 2026-11-13 "모바일에서는 v-kospi 삭제") */}
   </>);
 
   // 지금 신호 칸 — 팝업은 한 칸에 전부, 반도체 탭은 종목별 칸(그 종목 체결 아래)과 시장 공통(옵션 칸 아래)으로 나눈다(사용자 2026-11-04)
@@ -850,8 +854,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
   const st1 = strength(ms, 1), st5 = strength(ms, 5), stAll = strength(ms);
   const bigThr = bigThreshold(flow.big);
   return (
-    <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0">
-      <div className="flex items-baseline gap-2">
+    // min-w-0·overflow-hidden — 긴 숫자 줄이 칸을 화면보다 넓게 밀어 그래프가 잘렸다(모바일, 사용자 2026-11-13 "그래프 가로 길이도 화면에 맞춰")
+    <div className="pg-card rounded-lg border border-gray-200 bg-white p-2 flex flex-col min-h-0 min-w-0 overflow-hidden">
+      <div className="flex flex-wrap items-baseline gap-x-2">
         {onTitle
           ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
           : <span className="font-bold text-gray-800">{name} 실시간 체결</span>}
@@ -859,7 +864,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
         {vis != null && <button onClick={() => { stick.current = true; setVis(null); }} title="켠 뒤 전부를 한 화면으로 되돌리기" className="text-[10.5px] text-gray-500 border border-gray-300 rounded px-1 hover:bg-gray-50">{vis}분 보기 · 전체로</button>}
         <KisWsBadge sync={flow.syncPct} />
       </div>
-      <div className="flex gap-3 tabular-nums my-1">
+      <div className="flex flex-wrap gap-x-3 tabular-nums my-1">
         <Stat label="체결강도 1분" v={st1} />
         <Stat label="5분" v={st5} />
         <Stat label="켠 뒤 전체" v={stAll} />
@@ -870,7 +875,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
       </div>
       {/* 오늘 하루 전체 — 토스 체결강도(장 시작부터 누적)로 역산. 켜기 전 구간까지 포함된 유일한 값 */}
       {day && (
-        <div className="flex gap-3 tabular-nums -mt-0.5 mb-1 text-[11.5px]">
+        <div className="flex flex-wrap gap-x-3 tabular-nums -mt-0.5 mb-1 text-[11.5px]">
           <span className="text-gray-500">오늘 전체 체결강도 <b className={day.strength >= 100 ? "text-rose-600" : "text-blue-600"}>{day.strength.toFixed(0)}</b></span>
           <span className="text-gray-500">오늘 전체 <b className={up(day.netAmt)}>{netWord(day.netAmt)}</b> <span className="text-[10px] text-gray-400">(체결강도·거래대금 {Math.round(day.value / 1e8).toLocaleString()}억 역산)</span></span>
         </div>
@@ -1116,8 +1121,9 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
           </div>
           )}
         </div>
-        {inv && <InvTable inv={inv} price={price} />}
-        <div className="w-[118px] shrink-0 overflow-hidden text-[11px] tabular-nums">
+        {/* 오른쪽 수급 표·큰 체결은 모바일에서 뺀다 — 그래프가 가로로 눌렸다(사용자 2026-11-13 "모바일은 오른쪽 테이블 부분 삭제") */}
+        {inv && <div className="hidden sm:contents"><InvTable inv={inv} price={price} /></div>}
+        <div className="hidden sm:block w-[118px] shrink-0 overflow-hidden text-[11px] tabular-nums">
           <div className="text-gray-500 mb-0.5">큰 체결 ({wonStep(bigThr)}↑)</div>
           {flow.big.filter(b => b.amt >= bigThr).slice(0, 12).map((b, i) => (
             <div key={i} className={`flex justify-between ${b.side === "BUY" ? "text-rose-600" : "text-blue-600"}`}>

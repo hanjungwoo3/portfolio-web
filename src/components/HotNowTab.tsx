@@ -91,27 +91,28 @@ export function HotNowTab({ compact = false }: { compact?: boolean }) {
 function Row({ r, i, win, compact, price, chart }: { r: HotRow; i: number; win: number; compact: boolean; price?: Price; chart: number[] }) {
   const hot = r.times >= 5 ? "bg-rose-500 text-white" : r.times >= 3 ? "bg-orange-400 text-white" : "bg-amber-100 text-amber-800";
   return (
-    <div className={`flex ${compact ? "flex-col" : "items-center"} gap-2 px-3 py-2 border-b border-gray-100 ${compact ? "" : "lg:max-[1399px]:odd:border-r min-[1400px]:[&:not(:nth-child(3n))]:border-r"}`}>
+    <div className={`flex items-center ${compact ? "flex-row-reverse gap-1.5 px-2 py-1.5" : "gap-2 px-3 py-2"} border-b border-gray-100 ${compact ? "" : "lg:max-[1399px]:odd:border-r min-[1400px]:[&:not(:nth-child(3n))]:border-r"}`}>
       {/* 왼쪽 = 왜 시끄러운가(몇 배·최근 거래대금·그 사이 변화·오늘 거래대금). 누르면 종목정보 */}
       <button type="button" onClick={() => openTickPopup(r.code, r.name)}
               className="min-w-0 flex-1 text-left flex items-center gap-2 rounded hover:bg-gray-50 p-1"
               title={`${r.name} — 최근 ${win}분 거래대금 ${eok(r.recentValue)}원 (오늘 1분 평균의 ${r.times.toFixed(1)}배), 그동안 값 ${sign(r.recentPct)}. 누르면 종목정보`}>
-        <span className="w-5 shrink-0 text-[11px] text-gray-400 tabular-nums text-right">{i + 1}</span>
-        <span className={`shrink-0 w-[64px] text-center rounded px-1 py-0.5 text-[12px] font-bold tabular-nums ${hot}`}>{r.times.toFixed(1)}배</span>
+        {!compact && <span className="w-5 shrink-0 text-[11px] text-gray-400 tabular-nums text-right">{i + 1}</span>}
+        {!compact && <span className={`shrink-0 w-[64px] text-center rounded px-1 py-0.5 text-[12px] font-bold tabular-nums ${hot}`}>{r.times.toFixed(1)}배</span>}
         <span className="min-w-0 flex-1">
           <span className="flex items-baseline gap-1.5 min-w-0">
-            <b className="truncate text-gray-900 text-[14px]">{r.name}</b>
-            <span className="shrink-0 text-[10px] text-gray-400">{r.market}</span>
+            {compact && <span className={`shrink-0 rounded px-1 text-[11px] font-bold tabular-nums ${hot}`}>{r.times.toFixed(1)}배</span>}   {/* 모바일은 배수를 이름 앞에 — 폭 아끼기 */}
+            <b className={`truncate text-gray-900 ${compact ? "text-[13px]" : "text-[14px]"}`}>{r.name}</b>
+            {!compact && <span className="shrink-0 text-[10px] text-gray-400">{r.market}</span>}
             {r.upper && <span className="shrink-0 px-1 rounded bg-rose-600 text-white text-[10px] font-bold">상한가</span>}
           </span>
-          <span className="block text-[11.5px] text-gray-500">
+          <span className={`block ${compact ? "text-[10.5px] leading-tight" : "text-[11.5px]"} text-gray-500`}>
             {win}분 동안 <b className="text-gray-700">{eok(r.recentValue)}원</b> 거래 · 그 사이 <b className={tone(r.recentPct)}>{sign(r.recentPct)}</b>
           </span>
           <span className="block text-[11px] text-gray-400">오늘 거래 {eok(r.value)}원</span>
         </span>
       </button>
       {/* 오른쪽 = 다른 화면과 같은 종목카드 */}
-      <div className={compact ? "w-full" : "w-[230px] shrink-0"}>
+      <div className={compact ? "w-[46%] shrink-0" : "w-[230px] shrink-0"}>
         <StockCard i={i} item={{ stockCode: r.code, name: r.name, ratio: 0 }} hideRatio price={price} chart={chart} boxMinH="min-h-[72px]" />
       </div>
     </div>
