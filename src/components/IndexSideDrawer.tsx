@@ -4,6 +4,7 @@
 //    "지금 있는 카드를 그대로", "글자는 눈에 안 들어온다").
 //   내용 = 지수 탭 카드 그대로(UsMarketTab sectionsOverride) — 주간 시장(한국 지수) · 미국 지수 · 환율·금리·투심 · 선물 · 현물.
 //   열 때만 그린다(닫으면 내려서 호출이 없다). Esc·바깥 누르기로 닫는다.
+import { useEscClose } from "../lib/useEscClose";
 import { useEffect, useMemo, useState } from "react";
 import { buildIndexSections } from "../lib/dashboardGroups";
 import { UsMarketTab } from "./UsMarketTab";
@@ -32,12 +33,8 @@ export function IndexSideDrawer() {
     window.addEventListener("open-index-drawer", h);
     return () => window.removeEventListener("open-index-drawer", h);
   }, []);
-  useEffect(() => {
-    if (!open) return;
-    const k = (e: KeyboardEvent) => { if (e.key === "Escape") close(); };
-    window.addEventListener("keydown", k);
-    return () => window.removeEventListener("keydown", k);
-  }, [open]);
+  // Esc = 맨 위 창만 닫는다(모달 스택 공용 훅) — 서랍 위 종목정보에서 Esc 한 번에 둘 다 닫혔다(사용자 2026-11-13)
+  useEscClose(open, close);
 
   return (
     <>

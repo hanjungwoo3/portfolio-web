@@ -4,6 +4,7 @@
 import { useEffect, useState } from "react";
 import { X } from "lucide-react";
 import { GOTO_HEATMAP_EVENT } from "../lib/heatmapNav";
+import { useEscClose } from "../lib/useEscClose";
 import { HeatmapTab } from "./HeatmapTab";
 
 export function HeatmapPopupHost() {
@@ -13,12 +14,7 @@ export function HeatmapPopupHost() {
     window.addEventListener(GOTO_HEATMAP_EVENT, h);
     return () => window.removeEventListener(GOTO_HEATMAP_EVENT, h);
   }, []);
-  useEffect(() => {
-    if (!n) return;
-    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setN(0); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [n]);
+  useEscClose(n > 0, () => setN(0));   // 맨 위 창만(지수 서랍 위에 떴을 때 둘 다 닫히지 않게, 2026-11-13)
   if (!n) return null;
   return (
     <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center" onClick={() => setN(0)}>
