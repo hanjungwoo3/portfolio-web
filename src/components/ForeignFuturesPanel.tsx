@@ -112,9 +112,9 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price, kospi, kospiBa
     return readFutures({
       cum: last?.v ?? 0, ext: ext ? { v: ext.v, t: ext.t } : null, recov, d15,
       oi: lo && base && lo !== base ? { doi: lo.oi - base.oi, dp: lo.p - base.p, min: hm2m(lo.t) - hm2m(base.t) } : null,
-      spot: spot ?? null,
+      spot: spot ?? null, basis: fut?.basis ?? null,
     });
-  }, [last, oi, ext, recov, d15, spot]);
+  }, [last, oi, ext, recov, d15, spot, fut?.basis]);
   const RT: Record<string, string> = { up: "text-rose-600", down: "text-blue-600", flat: "text-gray-600", warn: "text-amber-700" };
 
   // 한 패널·한 그래프(사용자 2026-11-04 "외국인 선물 그래프까지 포함해 패널 전체를 하나로") —
@@ -238,7 +238,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price, kospi, kospiBa
               <div className={`font-bold text-[12.5px] ${RT[read.head.tone]}`}>{read.head.text}</div>
               <div className="mt-1.5 space-y-1">
                 {read.lines.map(l => (
-                  <div key={l.label}><b className="text-gray-700">{l.label}:</b> <span className={RT[l.tone]}>{l.text}</span></div>
+                  <div key={l.label} title={l.label === "베이시스" ? basisHint(fut?.basis) : undefined}><b className="text-gray-700">{l.label}:</b> <span className={RT[l.tone]}>{l.text}</span></div>
                 ))}
               </div>
               <div className="mt-auto pt-1 text-[10px] text-gray-400">숫자를 규칙으로 읽은 지금 상태 · 예측 아님</div>

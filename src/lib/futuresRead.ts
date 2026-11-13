@@ -13,6 +13,7 @@ export interface FuturesReadInput {
   d15?: number | null;                 // 최근 15분 변화(억원)
   oi?: { doi: number; dp: number; min: number } | null;   // 최근 미결제 변화(계약)·선물가 변화·잰 분
   spot?: number | null;                // 현물(코스피) 외국인 누적(억원)
+  basis?: number | null;               // 베이시스(선물 − 코스피200 현물, 포인트)
 }
 
 const NEAR = 100;   // 15분에 100억 미만이면 '큰 움직임 없음'
@@ -65,6 +66,17 @@ export function readFutures(x: FuturesReadInput): FuturesRead {
     lines.push(same
       ? { label: "현물", text: `코스피 현물도 ${eok(x.spot)}로 같은 방향입니다. 선물·현물 ${x.cum > 0 ? "동반 매수" : "동반 매도"}라 신호가 강합니다.`, tone: x.cum > 0 ? "up" : "down" }
       : { label: "현물", text: `코스피 현물은 ${eok(x.spot)}로 반대입니다. 선물만 ${x.cum > 0 ? "사고" : "팔고"} 있어 헤지(위험 상쇄)일 수 있습니다.`, tone: "warn" });
+  }
+  // ⑤ 베이시스 — 선물이 현물보다 싼가 비싼가(사용자 2026-11-13 "여기 베이시스도 넣자")
+  if (x.basis != null && Number.isFinite(x.basis)) {
+    const b = x.basis, v = `${b > 0 ? "+" : ""}${b.toFixed(2)}`;
+    lines.push(b < -0.5
+      ? { label: "베이시스", text: `${v} — 선물이 현물보다 싸 선물 쪽 매도 우위입니다. 더 깊어지면 차익거래가 현물을 팔아 지수를 누를 수 있습니다.`, tone: "down" }
+      : b < 0
+      ? { label: "베이시스", text: `${v} — 선물이 현물보다 조금 쌉니다(살짝 비관). 큰 압력은 아닙니다.`, tone: "flat" }
+      : b > 1.5
+      ? { label: "베이시스", text: `${v} — 선물이 현물보다 꽤 비쌉니다(선물 쪽 매수 우위). 차익거래가 현물을 사 지수를 받칠 수 있습니다.`, tone: "up" }
+      : { label: "베이시스", text: `${v} — 선물이 현물보다 조금 비싼 정상 상태입니다.`, tone: "flat" });
   }
   // 결론 — 지금(최근 15분) 방향을 먼저, 미결제 성격을 붙인다
   let head: FuturesRead["head"];
