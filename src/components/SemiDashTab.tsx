@@ -23,10 +23,12 @@ import { isKisLinkOn } from "../lib/broker";
 import type { Investor } from "../types";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
+import { fetchUpDown, type UpDown } from "../lib/upDown";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchInvestorHistory,
   fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
+  fetchHeatmapPreferServer,
 } from "../lib/api";
 import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
 import { allYahooSymbols } from "../lib/usMarketData";
@@ -378,18 +380,25 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
 
   // 시장 카드(코스피·코스닥·선물(야간엔 야간선물)·V-KOSPI) — 반도체 탭 첫 줄과 종목정보 팝업이 같이 쓴다
   // 시장 대표 ETF 카드 — 팝업엔 넣지 않는다. 순서: 코스피 · 코스피200(KODEX 200) · 코스닥 · 코스닥150(사용자 요청 2026-10-23)
+  // 오른·내린 종목 수 — 코스피·코스닥 = 시장 전체(네이버, 서버 2분), KODEX 200·코스닥150 = 구성종목(히트맵 판, 업종 탭과 같은 캐시)
+  const udQ = useQuery({ queryKey: ["updown"], queryFn: fetchUpDown, refetchInterval: 120_000, staleTime: 60_000, retry: 1 });
+  const heatQs = useQueries({ queries: (["kospi200", "kosdaq150"] as const).map(src => ({
+    queryKey: ["side-heat", src], queryFn: () => fetchHeatmapPreferServer(src, 300), staleTime: 60_000, refetchInterval: 120_000, retry: 1,
+  })) });
+  const udOf = (u?: UpDown, lb = "") => u ? { up: u.rise, down: u.fall, hint: `${lb} 오른 ${u.rise} · 보합 ${u.flat} · 내린 ${u.fall}(상·하한 포함)` } : undefined;
+  const heatBreadth = (i: 0 | 1) => { const it = heatQs[i].data?.items ?? []; return it.length ? { up: it.filter(x => x.changePct > 0).length, down: it.filter(x => x.changePct < 0).length, hint: `${i ? "코스닥150" : "코스피200"} 구성종목 오른·내린 수` } : undefined; };
   const etfCard = (i: 0 | 1) => {
     const e = ETFS[i], qq = eq(e.code);
     // ETF 는 NXT(넥스트레이드)에 없다 — 정규장(15:30) 마감에 지수 카드와 같이 흐리게(사용자 지적 2026-10-23)
-    return <Card title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openIndex}
+    return <Card title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openIndex} breadth={heatBreadth(i)}
                  chart={<KrDaySparkline code={e.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
   };
   const marketCards = (<>
-        <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct} dim={!openIndex}
+        <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kospi, "코스피 전체")}
               chart={spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />} />
         {etfCard(0)}
         {/* 코스닥 — 사용자 요청(2026-10-21). 기준선은 카드 전일 종가(야후 ^KQ11 previousClose 가 그저께 값일 때가 있다) */}
-        <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct} dim={!openIndex}
+        <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kosdaq, "코스닥 전체")}
               chart={spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />} />
         {etfCard(1)}
         {/* 야간(18:00~05:00)엔 야간선물(야선) — 사용자 요청. 주간 선물 카드와 자리를 바꾼다 */}
@@ -609,8 +618,9 @@ function StockFutCard({ code, spot, dim }: { code: string; spot?: number; dim?: 
                                                             width={300} height={70} className="w-full h-full" strokeWidth={1.2} />} />;
 }
 
-function Card({ title, price, pct, sub, chart, unit, dim: dimIn }: {
+function Card({ title, price, pct, sub, chart, unit, dim: dimIn, breadth }: {
   title: string; price?: number; pct?: number; sub?: string; chart?: React.ReactNode; unit?: string;
+  breadth?: { up: number; down: number; hint: string };   // 그래프 안 왼쪽 아래 — 오른·내린 종목 수(사용자 2026-11-13 "그래프 안에 상승/하락 갯수")
   dim?: boolean;   // 거래 시간이 아니면 흐리게(지수 탭 카드와 같은 '쉬는 중' 표시, 사용자 요청)
 }) {
   const dim = dimIn && getDimSleepingEnabled();   // 설정 "장 마감 시 종목 흐리게" 를 따른다(사용자 지적 2026-10-23)
@@ -618,6 +628,11 @@ function Card({ title, price, pct, sub, chart, unit, dim: dimIn }: {
     <div className={`pg-card relative rounded-lg border border-gray-200 overflow-hidden ${dim ? "bg-gray-50 opacity-60 grayscale-[60%]" : "bg-white"}`}
          title={dim ? "지금은 거래 시간이 아닙니다" : undefined}>
       <div className="absolute inset-x-0 bottom-0 top-[40%] pointer-events-none">{chart}</div>
+      {breadth && breadth.up + breadth.down > 0 && (
+        <div className="absolute left-1 bottom-1 z-10 px-1 rounded bg-white/85 text-[10.5px] font-bold tabular-nums leading-[15px]" title={breadth.hint}>
+          <span className="text-rose-600">▲{breadth.up}</span> <span className="text-blue-600">▼{breadth.down}</span>
+        </div>
+      )}
       <div className="relative px-2 pt-1.5">
         <div className="font-bold text-gray-800 truncate">{dim && <span className="mr-1 text-[11px] font-normal text-gray-400">zZ</span>}{title}</div>
         <div className="flex items-baseline gap-1.5">
