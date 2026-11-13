@@ -24,6 +24,7 @@ import type { Investor } from "../types";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchUpDown, type UpDown } from "../lib/upDown";
+import { basisHint } from "../lib/basisHint";
 import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchInvestorHistory,
   fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps,
@@ -404,7 +405,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     }
     return i === 0
       ? <Card title={`코스피200 선물${fut?.month ? ` ${fut.month}` : ""}`} price={fut?.price} pct={fut?.pct} dim={!openFut}
-              sub={fut ? `미결제 ${fut.oi.toLocaleString()}(${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)}` : "한경 실시간"}
+              sub={fut ? `미결제 ${fut.oi.toLocaleString()}(${eok(fut.oiChg)}) · 베이시스 ${fut.basis.toFixed(2)}` : "한경 실시간"} subHint={fut ? basisHint(fut.basis) : undefined}
               chart={futMin && futMin.closes.length > 1 && <FutSpark s={futMin} live={fut?.price} />} />
       : <Card title={`코스닥150 선물${futQ?.month ? ` ${futQ.month}` : ""}`} price={futQ?.price} pct={futQ?.pct} dim={!openFut}
               sub={futQ ? `미결제 ${futQ.oi.toLocaleString()}(${eok(futQ.oiChg)})` : "한경 실시간"}
@@ -630,8 +631,9 @@ function StockFutCard({ code, spot, dim }: { code: string; spot?: number; dim?: 
                                                             width={300} height={70} className="w-full h-full" strokeWidth={1.2} />} />;
 }
 
-function Card({ title, price, pct, sub, chart, unit, dim: dimIn, breadth }: {
+function Card({ title, price, pct, sub, subHint, chart, unit, dim: dimIn, breadth }: {
   title: string; price?: number; pct?: number; sub?: string; chart?: React.ReactNode; unit?: string;
+  subHint?: string;   // 아래 작은 줄 툴팁(베이시스 설명 등)
   breadth?: { up: number; down: number; hint: string };   // 카드 오른쪽 위 — 오른·내린 종목 수(사용자 2026-11-13 "그래프 안에 상승/하락 갯수")
   dim?: boolean;   // 거래 시간이 아니면 흐리게(지수 탭 카드와 같은 '쉬는 중' 표시, 사용자 요청)
 }) {
@@ -655,7 +657,7 @@ function Card({ title, price, pct, sub, chart, unit, dim: dimIn, breadth }: {
           <span className={`text-[22px] leading-tight font-extrabold tabular-nums ${up(pct ?? 0)}`}>{pct != null ? `${sgn(pct)}%` : "-"}</span>
           <span className={`text-[12px] font-semibold tabular-nums ${up(pct ?? 0)}`}>{price != null ? fmtP(price) : "-"}{unit && price != null ? <span className="text-[10px]">{unit}</span> : null}</span>
         </div>
-        {sub && <div className="text-[10.5px] text-gray-500 tabular-nums leading-tight">{sub}</div>}
+        {sub && <div className={`text-[10.5px] text-gray-500 tabular-nums leading-tight ${subHint ? "cursor-help pointer-events-auto" : ""}`} title={subHint}>{sub}</div>}
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { IntradayFlow, KrFuturesLive } from "../lib/api";
 import { TAPE_EVENT, loadFrgnTape, loadOiTape } from "../lib/futuresTape";
 import { readFutures } from "../lib/futuresRead";
+import { basisHint } from "../lib/basisHint";
 
 const MULT = 250_000;   // 코스피200 선물 1포인트 = 25만 원
 const hm2m = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
@@ -222,7 +223,7 @@ export function ForeignFuturesPanel({ flow, fut, spotFlow, price, kospi, kospiBa
               <span><b className="text-violet-700">—</b> 미결제(남은 계약 총수, 축 따로 · 괄호 = 어제 마감 대비)</span><span><b className="text-gray-400">—</b> 선물가(축 따로)</span>
               <span className="text-gray-400">15분 막대:</span>
               {Object.values(BAR).map(b => <span key={b.l}><span className="inline-block w-2 h-2 rounded-sm mr-0.5 align-middle" style={{ background: b.c }} />{b.l}</span>)}
-              {fut?.basis != null && <span className="ml-auto">베이시스 <b>{fut.basis.toFixed(2)}</b></span>}
+              {fut?.basis != null && <span className="ml-auto cursor-help underline decoration-dotted decoration-gray-300" title={basisHint(fut.basis)}>베이시스 <b>{fut.basis.toFixed(2)}</b></span>}
             </div>
           </div>
           {/* 읽기 — 결론 먼저, 근거 한 줄씩(사용자 2026-11-04 "이 그래프 분석을 오른쪽에") */}
