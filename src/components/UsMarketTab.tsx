@@ -15,6 +15,7 @@ import { SeohakTag } from "./SeohakBox";
 import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery } from "@tanstack/react-query";
+import { fetchUpDown } from "../lib/upDown";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { dashboardCardDim } from "../lib/dashboardCardDim";
 import { IndexWarnTag } from "./IndexWarnTag";
@@ -176,8 +177,16 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   // 업종 칸(SobuGrid) 시세 — 업종 탭과 한눈에 요약판이 같이 쓴다. 국내는 15:30 뒤 정규장 종가 책갈피(야후 확인분), 미국 대장주는 장 밖이면 최근 정규장
   // 업종 탭 맨 위 기준선 — KODEX 200·코스닥150 등락률 + 구성종목 상승/하락 수(히트맵 판, 사용자 2026-11-13). 업종 화면에서만 받는다
   const heatQs = useQueries({ queries: (["kospi200", "kosdaq150"] as const).map(src => ({
-    queryKey: ["side-heat", src], queryFn: () => fetchHeatmapPreferServer(src, 300), enabled: page === "sobu", staleTime: 60_000, refetchInterval: 120_000, retry: 1,
+    queryKey: ["side-heat", src], queryFn: () => fetchHeatmapPreferServer(src, 300), enabled: page === "sobu" || !!sectionsOverride, staleTime: 60_000, refetchInterval: 120_000, retry: 1,
   })) });
+  // 지수 서랍 카드의 오른·내린 수 — 코스피·코스닥 = 시장 전체(네이버), KODEX 200·코스닥150 = 구성종목(위 히트맵 판)(사용자 2026-11-13)
+  const udQ = useQuery({ queryKey: ["updown"], queryFn: fetchUpDown, refetchInterval: 120_000, staleTime: 60_000, retry: 1, enabled: !!sectionsOverride });
+  const breadthOf = (sym: string): { up: number; down: number } | undefined => {
+    if (sym === "^KS11" || sym === "^KQ11") { const u = sym === "^KS11" ? udQ.data?.kospi : udQ.data?.kosdaq; return u ? { up: u.rise, down: u.fall } : undefined; }
+    const i = sym === "069500.KS" ? 0 : sym === "229200.KS" ? 1 : -1;
+    const it = i >= 0 ? heatQs[i].data?.items ?? [] : [];
+    return it.length ? { up: it.filter(x => x.changePct > 0).length, down: it.filter(x => x.changePct < 0).length } : undefined;
+  };
   const idxExtras: TabExtra[] = (["069500.KS", "229200.KS"] as const).map((sym, i) => {
     const it = heatQs[i].data?.items ?? [];
     return { id: sym, label: sym === "069500.KS" ? "KODEX 200" : "코스닥150", pct: usMap.get(sym) ? (displayPctOf(sym, usMap.get(sym)) ?? usMap.get(sym)!.pct) : null,
@@ -644,15 +653,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                         <span className="shrink-0 w-4 h-4 inline-flex items-center justify-center rounded-full border border-gray-300 bg-white text-[10px] font-bold text-gray-500 cursor-help leading-none">?</span>
                       </HoverTip>
                     )}
-                    {/* 매매동향 모달 버튼 — KOSPI/KOSDAQ 만 */}
-                    {hasFlow && indexKey && (
-                      <button onClick={() => setMarketFlowFor(indexKey)}
-                              title={`${p.name} 투자자별 매매동향`}
-                              className="ml-1 px-1 py-0.5 rounded text-[10px] text-gray-500
-                                         bg-white/60 hover:bg-white border border-gray-200">
-                        📊
-                      </button>
-                    )}
+                    {/* 매매동향 📊 버튼은 오른쪽 아래 책갈피 줄로 내렸다(사용자 2026-11-13 "종목명 옆 버튼도 아래로") */}
                     {/* 히트맵 버튼은 카드 오른쪽 아래 책갈피로 내렸다(아래 참조) —
                         이름 줄에 있으면 ml-auto 로 밀려 긴 종목명을 잘라먹었다. */}
                   </div>
@@ -711,7 +712,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     // 밸류업 꼬리표(저PBR·고배당·밸류업★)는 아래 줄 맨 앞(사용자 2026-11-02 "아래로 내리자")
                     const vu = isKrStock ? tagsFor(valueupFile, krCode) : undefined;
                     const hasDisc = isKrStock && !!discMap.get(krCode)?.length;   // 공시 종류 꼬리표(사용자 2026-11-03)
-                    if (!tag && !CARD_HEATMAP_LINK[p.symbol] && !isKrStock && !isUsStock && !vu && !hasDisc && !indicatorHelp(p.symbol)) return null;   // 지표 카드(VIX·MOVE 등)는 AI 버튼 줄이 있어야 한다
+                    if (!tag && !CARD_HEATMAP_LINK[p.symbol] && !(hasFlow && indexKey) && !isKrStock && !isUsStock && !vu && !hasDisc && !indicatorHelp(p.symbol)) return null;   // 지표 카드(VIX·MOVE 등)는 AI 버튼 줄이 있어야 한다
                     return (
                       <div data-no-peek className="absolute -bottom-1 right-1 z-20 flex items-center gap-0.5">
                         {/* 거래대금 급증(한국투자 1분 레이더, 사용자 2026-11-03) — 맨 앞에 */}
@@ -723,6 +724,13 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                         {vu && <ValueupTags code={krCode} flat />}
                         {isUsStock && <SeohakTag symbol={p.symbol} flat />}
                         {tag && <span className={`${pill} border ${dashboardTagTone(tag)}`}>{tag}</span>}
+                        {/* 매매동향 — KOSPI/KOSDAQ 만 */}
+                        {hasFlow && indexKey && (
+                          <button onClick={() => setMarketFlowFor(indexKey)} title={`${p.name} 투자자별 매매동향`}
+                                  className={`${pill} text-gray-600 bg-white border border-gray-300 hover:bg-gray-50`}>
+                            📊 매매동향
+                          </button>
+                        )}
                         {CARD_HEATMAP_LINK[p.symbol] && (
                           <button onClick={() => requestHeatmap(CARD_HEATMAP_LINK[p.symbol], { sizeMode: "volume" })}
                                   title={`${p.name} 구성종목 히트맵(거래량) 보기`}
@@ -844,7 +852,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   </div>
                 )}
                 {section.id === "krfx" && <RealRateNote usMap={usMap} />}
-                {section.id === "kr" && <BreadthNote usMap={usMap} />}
+                {section.id === "kr" && <BreadthNote usMap={usMap} noBars={!!sectionsOverride} />}
                 {section.id === "macro" && <UsBreadthNote usMap={usMap} />}
                 {section.render === "rotation" && (
               <RotationTab embedded extrasOnly onOpenValuation={(t, n) => onOpenValuation?.(t, n ?? "")} />
@@ -927,6 +935,31 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 })()}
               {(() => {
                 const cards = group.map(symbol => renderIdxCard(section, symbol));
+                // 지수 서랍 첫 줄 — 코스피 묶음(코스피·KODEX 200·동일가중)·코스닥 묶음(코스닥·코스닥150)을 배경 판으로, 카드마다 오른·내린 수(사용자 2026-11-13)
+                if (sectionsOverride && section.id === "kr" && group.includes("^KS11")) {
+                  const KSG = ["^KS11", "069500.KS", "252650.KS"], KQG = ["^KQ11", "229200.KS"];
+                  const one = (sym: string) => {
+                    const b = breadthOf(sym);
+                    return (
+                      <div key={sym} className="relative min-w-0">
+                        {renderIdxCard(section, sym)}
+                        {b && b.up + b.down > 0 && (
+                          <span className="absolute right-1.5 -top-2 z-20 px-1 rounded border border-gray-200 bg-white text-[10.5px] font-bold tabular-nums leading-[15px] pointer-events-none">   {/* 위 테두리에 걸쳐 — 이름을 안 가린다 */}
+                            <span className="text-rose-600">▲{b.up}</span> <span className="text-blue-600">▼{b.down}</span>
+                          </span>
+                        )}
+                      </div>
+                    );
+                  };
+                  const rest = group.filter(x => !KSG.includes(x) && !KQG.includes(x));
+                  return (
+                    <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-y-4 gap-x-2">
+                      <div className="col-span-full lg:col-span-3 grid grid-cols-3 gap-x-2 gap-y-4 p-1.5 pt-3 rounded-xl border bg-indigo-50 border-indigo-200">{KSG.filter(x => group.includes(x)).map(one)}</div>
+                      <div className="col-span-full lg:col-span-2 grid grid-cols-2 gap-x-2 gap-y-4 p-1.5 pt-3 rounded-xl border bg-emerald-50 border-emerald-200">{KQG.filter(x => group.includes(x)).map(one)}</div>
+                      {rest.map(sym => renderIdxCard(section, sym))}
+                    </div>
+                  );
+                }
                 if (!section.extras) return (
                   <div style={section.pairRows ? { gridTemplateColumns: `repeat(${group.length}, minmax(0, 1fr))` } : undefined}
                        className={`grid grid-cols-3 sm:grid-cols-4 gap-y-4 gap-x-2 ${section.pairRows ? "" : section.wide || group.includes("CNNFG") || group.includes("HYSPREAD") ? "lg:grid-cols-8" : `lg:max-w-[75%] ${section.lead ? "lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.75rem_repeat(4,minmax(0,1fr))]" : "lg:grid-cols-6"}`}`}>

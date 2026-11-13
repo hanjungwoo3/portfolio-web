@@ -32,7 +32,7 @@ function UpDownBar({ label, u, small }: { label: string; u: UpDown; small: boole
   );
 }
 
-export function BreadthNote({ usMap, small = false }: { usMap: Map<string, UsIndex>; small?: boolean }) {
+export function BreadthNote({ usMap, small = false, noBars = false }: { usMap: Map<string, UsIndex>; small?: boolean; noBars?: boolean }) {   // noBars = 오른·내린 막대 빼기(카드마다 숫자가 있는 PC 지수 서랍, 사용자 2026-11-13)
   const ud = useQuery({ queryKey: ["updown"], queryFn: fetchUpDown, refetchInterval: 120_000, staleTime: 60_000, retry: 1 }).data;
   const p = (sym: string) => displayPctOf(sym, usMap.get(sym));
   // 아시아 비교는 **오늘 열린 장만** — 일본 휴장(11/3 문화의 날)·상해 개장 전(10:30 KST 전)엔 어제 값이라 비교하면 틀린다
@@ -42,8 +42,8 @@ export function BreadthNote({ usMap, small = false }: { usMap: Map<string, UsInd
   const v = usMap.get("VKOSPI");
   const chip = (t: { text: string; tone: BreadthTone }) => <span className={`inline-block font-bold px-1.5 rounded border ${TONE[t.tone]}`}>{t.text}</span>;
   const rows: React.ReactNode[] = [];
-  if (ud?.kospi) rows.push(<UpDownBar key="udk" label="코스피" u={ud.kospi} small={small} />);
-  if (ud?.kosdaq) rows.push(<UpDownBar key="udq" label="코스닥" u={ud.kosdaq} small={small} />);
+  if (!noBars && ud?.kospi) rows.push(<UpDownBar key="udk" label="코스피" u={ud.kospi} small={small} />);
+  if (!noBars && ud?.kosdaq) rows.push(<UpDownBar key="udq" label="코스닥" u={ud.kosdaq} small={small} />);
   if (k != null && ew != null) rows.push(
     <span key="b" title="KODEX 200 = 큰 회사일수록 비중이 큰 지수(삼성전자·SK하이닉스가 절반 가까이). 200동일가중 = 200종목을 같은 비중으로. 둘의 차이가 0.5%p 이상이면 몇몇 대형주 쏠림으로 봅니다.">
       {chip(readBreadth(k, ew))}   {/* 숫자는 카드에 있다 — 해석만(사용자 2026-11-03 "그냥 요약으로") */}
