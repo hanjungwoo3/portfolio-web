@@ -197,6 +197,7 @@ interface Row extends ValuationRow {
   sub?: string; subRank?: number;
   spark?: number | null;          // 정렬값 = 6개월 수익률
   sparkData?: number[];
+  sparkAll?: Partial<Record<Exclude<ChartRange, "day">, number[]>>;   // 기간별 그래프 — 한 줄에 다(사용자 2026-11-15)
   price?: number;
   chg?: number | null;
   ret_1m?: number | null; ret_3m?: number | null; ret_1y?: number | null;
@@ -337,7 +338,12 @@ function priceStats(day: PricePoint[] | undefined, month: PricePoint[] | undefin
       const src = range === "5y" && long && long.length > closes.length ? long.map(c => c.close).filter(v => v > 0) : closes;
       const k = Math.min(n, src.length);
       const data = trimByRange(src.slice(-k), range === "day" ? "week" : range);
-      return { sparkData: data, spark: src.length > 1 ? (last / src[src.length - k] - 1) * 100 : null };
+      const all: Partial<Record<Exclude<ChartRange, "day">, number[]>> = {};
+      for (const rg of ["week", "all", "6mo", "1y", "5y"] as const) {
+        const s2 = rg === "5y" && long && long.length > closes.length ? long.map(c => c.close).filter(v => v > 0) : closes;
+        if (rg !== "5y" || s2 !== closes) all[rg] = trimByRange(s2.slice(-Math.min(SPARK_BARS[rg], s2.length)), rg);
+      }
+      return { sparkData: data, sparkAll: all, spark: src.length > 1 ? (last / src[src.length - k] - 1) * 100 : null };
     })(),
     ret_1m: back(21), ret_3m: back(63), ret_1y: back(250),
     from_52h: (last / hi - 1) * 100,
@@ -440,7 +446,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   const longQs = useQueries({
     queries: tickers.map(t => ({
       queryKey: ["price-history", t, "5y"], queryFn: () => fetchKrPriceHistory(t, "5y"),
-      enabled: chartRange === "5y", staleTime: 60 * 60 * 1000, refetchOnWindowFocus: false, retry: 1,
+      enabled: true, staleTime: 60 * 60 * 1000, refetchOnWindowFocus: false, retry: 1,
     })),
   });
   const dayCandleQs = useQueries({
@@ -674,7 +680,9 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                                   text-[12px] ${col.key === "name" ? "text-left sticky left-0 bg-gray-50 z-30" : "text-right"} ${hiCol(col.key, sortKey)}
                                   ${active ? "text-blue-700 font-bold" : "text-gray-600 hover:text-gray-900"}`}>
                     {/* 열 제목은 전부 두 줄 — 윗줄 이름, 아랫줄 (단위) + 정렬 화살표. 폭을 아끼고 줄 높이를 맞춘다. */}
-                    <span className="block">{col.key === "spark" ? `${CHART_RANGES.find(x => x.v === chartRange)?.label ?? ""} 추세` : col.label}</span>
+                    {col.key === "spark"
+                      ? <span className="flex gap-1 justify-start">{CHART_RANGES.slice().reverse().map(({ v, label }) => <span key={v} className={`w-[64px] text-center ${v === chartRange ? "text-indigo-700 font-bold" : ""}`}>{label}</span>)}</span>   /* 칸 아래 그래프와 같은 폭으로 기간 이름 */
+                      : <span className="block">{col.label}</span>}
                     <span className="block text-[10px] text-gray-400">
                       {col.flow ? `${flowDays}일` : col.unit ? `(${col.unit})` : "\u00a0"}
                       {active && <span className="ml-0.5 text-blue-700">{asc ? "▲" : "▼"}</span>}
@@ -731,11 +739,16 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                   if (col.key === "spark") {
                     return (
                       <td key={col.key} className="px-1 py-0.5">
-                        {chartRange === "day"
-                          ? <div className="relative w-[100px] h-[26px]"><KrDaySparkline code={r.ticker} fallback={r.sparkData ?? []} width={100} height={26} className="w-full h-full" /></div>   /* 안쪽이 absolute 라 크기 있는 틀이 필요 */
-                          : r.sparkData && r.sparkData.length > 1
-                          ? <Sparkline data={r.sparkData} width={100} height={26} strokeWidth={1.3} />
-                          : <span className="text-gray-300">{r.trendLoading ? "…" : "—"}</span>}
+                        {/* 기간별 그래프를 한 줄에 다 — 24시간·1개월·3개월·6개월·1년·5년(사용자 2026-11-15 "그래프를 한 줄에 각각 다"). 고른 기간은 테두리 */}
+                        <div className="flex items-center gap-1">
+                          {CHART_RANGES.slice().reverse().map(({ v, label }) => {
+                            const on = v === chartRange;
+                            const box = `relative w-[64px] h-[24px] rounded-sm ${on ? "ring-1 ring-indigo-400 bg-indigo-50/40" : ""}`;
+                            if (v === "day") return <div key={v} className={box} title={`${label} — 당일 분봉`}><KrDaySparkline code={r.ticker} fallback={r.sparkAll?.week ?? []} width={64} height={24} className="w-full h-full" /></div>;
+                            const d = r.sparkAll?.[v];
+                            return <div key={v} className={box} title={label}>{d && d.length > 1 ? <Sparkline data={d} width={64} height={24} strokeWidth={1.2} className="w-full h-full" /> : <span className="text-gray-300 text-[10px]">{r.trendLoading ? "…" : "—"}</span>}</div>;
+                          })}
+                        </div>
                       </td>
                     );
                   }
