@@ -197,7 +197,8 @@ interface Row extends ValuationRow {
   sub?: string; subRank?: number;
   spark?: number | null;          // 정렬값 = 6개월 수익률
   sparkData?: number[];
-  sparkAll?: Partial<Record<Exclude<ChartRange, "day">, number[]>>;   // 기간별 그래프 — 한 줄에 다(사용자 2026-11-15)
+  sparkAll?: Partial<Record<Exclude<ChartRange, "day">, number[]>>;
+  sparkRet?: Partial<Record<Exclude<ChartRange, "day">, number | null>>;   // 기간별 수익률 — 그래프마다 정렬(사용자 2026-11-15)   // 기간별 그래프 — 한 줄에 다(사용자 2026-11-15)
   price?: number;
   chg?: number | null;
   ret_1m?: number | null; ret_3m?: number | null; ret_1y?: number | null;
@@ -339,11 +340,18 @@ function priceStats(day: PricePoint[] | undefined, month: PricePoint[] | undefin
       const k = Math.min(n, src.length);
       const data = trimByRange(src.slice(-k), range === "day" ? "week" : range);
       const all: Partial<Record<Exclude<ChartRange, "day">, number[]>> = {};
+      const ret: Partial<Record<Exclude<ChartRange, "day">, number | null>> = {};
       for (const rg of ["week", "all", "6mo", "1y", "5y"] as const) {
         const s2 = rg === "5y" && long && long.length > closes.length ? long.map(c => c.close).filter(v => v > 0) : closes;
-        if (rg !== "5y" || s2 !== closes) all[rg] = trimByRange(s2.slice(-Math.min(SPARK_BARS[rg], s2.length)), rg);
+        if (rg !== "5y" || s2 !== closes) {
+          const kk = Math.min(SPARK_BARS[rg], s2.length);
+          all[rg] = trimByRange(s2.slice(-kk), rg);
+          // 수익률 기준일은 표의 1개월·3개월·1년 칸(back(n) = n 거래일 전 종가)과 같게 — 정렬 순서가 칸 숫자와 맞도록
+          const nb = Math.min(SPARK_BARS[rg], s2.length - 1);
+          ret[rg] = nb > 0 ? (last / s2[s2.length - 1 - nb] - 1) * 100 : null;
+        }
       }
-      return { sparkData: data, sparkAll: all, spark: src.length > 1 ? (last / src[src.length - k] - 1) * 100 : null };
+      return { sparkData: data, sparkAll: all, sparkRet: ret, spark: src.length > 1 ? (last / src[src.length - k] - 1) * 100 : null };
     })(),
     ret_1m: back(21), ret_3m: back(63), ret_1y: back(250),
     from_52h: (last / hi - 1) * 100,
@@ -401,6 +409,8 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
     [items],
   );
   const [sortKey, setSortKey] = useState<ColKey>("market_cap");
+  // 추세 칸 정렬 기간 — 그래프 위 기간 이름을 눌러 고른다(24시간 = 오늘 등락)
+  const [sparkSort, setSparkSort] = useState<ChartRange | null>(null);
   const [asc, setAsc] = useState(false);
   const flowDays: FlowDays = 20;
   const burstLevel: BurstLevel = loadBurstLevel();
@@ -575,7 +585,8 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
     if (sortKey === "name") {
       return asc ? a.label.localeCompare(b.label, "ko") : b.label.localeCompare(a.label, "ko");
     }
-    const av = numOf(a, sortKey), bv = numOf(b, sortKey);
+    const sv = (r: Row) => !sparkSort ? numOf(r, sortKey) : sparkSort === "day" ? (r.chg ?? null) : (r.sparkRet?.[sparkSort] ?? null);
+    const av = sortKey === "spark" ? sv(a) : numOf(a, sortKey), bv = sortKey === "spark" ? sv(b) : numOf(b, sortKey);
     if (av == null && bv == null) return a.label.localeCompare(b.label, "ko");
     if (av == null) return 1;    // 값 없는 종목은 항상 아래로
     if (bv == null) return -1;
@@ -583,6 +594,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   });
 
   const clickCol = (key: ColKey) => {
+    if (key === "spark" && sparkSort === null) setSparkSort(chartRange);   // 제목 줄 빈 곳을 누르면 헤더에서 고른 기간
     if (key === sortKey) { setAsc(a => !a); return; }
     setSortKey(key);
     setAsc(key === "name");   // 이름은 가나다순, 숫자는 큰 값부터
@@ -681,11 +693,21 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                                   ${active ? "text-blue-700 font-bold" : "text-gray-600 hover:text-gray-900"}`}>
                     {/* 열 제목은 전부 두 줄 — 윗줄 이름, 아랫줄 (단위) + 정렬 화살표. 폭을 아끼고 줄 높이를 맞춘다. */}
                     {col.key === "spark"
-                      ? <span className="flex gap-1 justify-start">{CHART_RANGES.slice().reverse().map(({ v, label }) => <span key={v} className={`w-[64px] text-center ${v === chartRange ? "text-indigo-700 font-bold" : ""}`}>{label}</span>)}</span>   /* 칸 아래 그래프와 같은 폭으로 기간 이름 */
+                      ? <span className="flex gap-1 justify-start">{CHART_RANGES.slice().reverse().map(({ v, label }) => {
+                          // 기간 이름을 누르면 그 기간 수익률로 정렬(24시간 = 오늘 등락)(사용자 2026-11-15 "정렬을 각각 그래프로")
+                          const on = sortKey === "spark" && (sparkSort ?? chartRange) === v;
+                          return (
+                            <button key={v} type="button" title={`${label} ${v === "day" ? "(오늘 등락)" : "수익률"}로 정렬 — 다시 누르면 반대로`}
+                                    onClick={ev => { ev.stopPropagation(); if (on) setAsc(x => !x); else { setSortKey("spark"); setSparkSort(v); setAsc(false); } }}
+                                    className={`w-[64px] text-center rounded hover:bg-indigo-50 ${on ? "text-blue-700 font-bold" : v === chartRange ? "text-indigo-600" : ""}`}>
+                              {label}{on && <span className="ml-0.5">{asc ? "▲" : "▼"}</span>}
+                            </button>
+                          );
+                        })}</span>   /* 칸 아래 그래프와 같은 폭으로 기간 이름 */
                       : <span className="block">{col.label}</span>}
                     <span className="block text-[10px] text-gray-400">
                       {col.flow ? `${flowDays}일` : col.unit ? `(${col.unit})` : "\u00a0"}
-                      {active && <span className="ml-0.5 text-blue-700">{asc ? "▲" : "▼"}</span>}
+                      {active && col.key !== "spark" && <span className="ml-0.5 text-blue-700">{asc ? "▲" : "▼"}</span>}
                     </span>
                   </th>
                 );
