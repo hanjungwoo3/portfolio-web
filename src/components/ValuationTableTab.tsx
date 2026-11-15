@@ -10,6 +10,8 @@ import { sectorPresets } from "../lib/sectorPresets";
 import { computeFlowProfile } from "../lib/flowProfile";
 import { detectBreakout, BREAKOUT_BASE, BREAKOUT_RECENT, BREAKOUT_MAX_WIDTH, BREAKOUT_VOL_X, type Breakout } from "../lib/breakout";
 import { Sparkline } from "./Sparkline";
+import { KrDaySparkline } from "./KrDaySparkline";
+import { useChartRange, trimByRange, CHART_RANGES, type ChartRange } from "../lib/chartRange";
 import {
   computeValueBurst, dateToNum, toEok, burstThresholdWon,
   loadBurstLevel, BURST_BARS,
@@ -86,7 +88,7 @@ const COLS: Col[] = [
   { key: "market",           label: "시장",         hint: "코스피(유가증권시장) / 코스닥. 정렬하면 코스피 먼저." },
   { key: "sub",              label: "분류",         hint: "섹터 안 세부 분류(반도체: 메모리·기판·파운드리·팹리스 / 반도체 소부장: 장비·부품·소재·후공정 서비스)." },
   // ── 얼마나 올랐나 · 지금 어디쯤인가 (토스 일봉 450·월봉 300, 현재가는 토스 실시간)
-  { key: "spark",     label: "추세(6개월)", hint: "최근 약 120거래일 종가 추이. 정렬은 6개월 수익률 기준." },
+  { key: "spark",     label: "추세", hint: "헤더 그래프 기간(24시간·1개월·3개월…)의 주가 흐름. 정렬은 그 기간 수익률(24시간이면 1개월)." },
   { key: "price",     label: "현재가",   unit: "원", hint: "토스 현재가(시간외 포함)." },
   { key: "chg",       label: "오늘",     unit: "%", digits: 2, pct: true, hint: "직전 거래일 종가 대비." },
   { key: "ret_1m",    label: "1개월",    unit: "%", digits: 1, pct: true, hint: "약 21거래일 전 종가 대비." },
@@ -146,7 +148,7 @@ const SIMPLE: { key: ColKey; label?: string; hint?: string; unit?: string }[] = 
   { key: "name" },
   { key: "market" },
   { key: "sub" },
-  { key: "spark",            label: "6개월 추세", hint: "최근 6개월 주가 흐름. 정렬은 6개월 수익률." },
+  { key: "spark",            label: "추세", hint: "헤더 그래프 기간(24시간·1개월·3개월…)의 주가 흐름. 정렬은 그 기간 수익률(24시간이면 1개월)." },
   { key: "price" },
   { key: "chg",              label: "오늘", hint: "어제 종가보다 오늘 몇 % 올랐나(내렸나)." },
   { key: "ret_1m",           label: "1개월", hint: "한 달 전보다 몇 % 올랐나." },
@@ -317,7 +319,9 @@ function burstTooltip(r: Row): string | undefined {
 }
 
 // 캔들에서 '얼마나 올랐나 · 어디쯤인가' — 현재가는 실시간(없으면 마지막 종가).
-function priceStats(day: PricePoint[] | undefined, month: PricePoint[] | undefined, now?: number) {
+// 추세 칸 봉 수 — 헤더 '그래프' 기간을 따른다(사용자 2026-11-15 "6개월 추세가 아니라 위에 선택에 따라"). 5년은 토스 450봉(약 21개월)이 모자라 야후 일봉을 따로 받는다
+const SPARK_BARS: Record<Exclude<ChartRange, "day">, number> = { week: 21, all: 63, "6mo": 120, "1y": 250, "5y": 1260 };
+function priceStats(day: PricePoint[] | undefined, month: PricePoint[] | undefined, now?: number, range: ChartRange = "6mo", long?: PricePoint[]) {
   const closes = (day ?? []).map(c => c.close).filter(v => v > 0);
   const last = now && now > 0 ? now : closes[closes.length - 1];
   if (!last || closes.length < 2) return {};
@@ -327,8 +331,14 @@ function priceStats(day: PricePoint[] | undefined, month: PricePoint[] | undefin
   const lo = Math.min(last, ...yr.map(c => c.low ?? c.close).filter(v => v > 0));
   const ath = Math.max(hi, ...(month ?? []).map(c => c.high ?? c.close));
   return {
-    sparkData: closes.slice(-120),
-    spark: back(Math.min(119, closes.length - 1)),
+    ...(() => {
+      // 24시간 = 칸은 당일 분봉(KrDaySparkline), 정렬값은 오늘 등락 대신 1개월로 둔다(분봉 수익률은 표에 없다)
+      const n = range === "day" ? 21 : SPARK_BARS[range];
+      const src = range === "5y" && long && long.length > closes.length ? long.map(c => c.close).filter(v => v > 0) : closes;
+      const k = Math.min(n, src.length);
+      const data = trimByRange(src.slice(-k), range === "day" ? "week" : range);
+      return { sparkData: data, spark: src.length > 1 ? (last / src[src.length - k] - 1) * 100 : null };
+    })(),
     ret_1m: back(21), ret_3m: back(63), ret_1y: back(250),
     from_52h: (last / hi - 1) * 100,
     pos_52: hi > lo ? ((last - lo) / (hi - lo)) * 100 : null,
@@ -425,6 +435,14 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
   // 이평 배열용 캔들 — 위 3mo(약 62봉)로는 MA120 이 안 나오고, 그 쿼리키는 대시보드
   //   sparkline 과 공유라 기간을 늘릴 수 없다. 토스 c-chart 로 따로 받는다(종목당 2콜).
   //   일봉 450 = 약 21개월 → MA120 이 330봉 넘게 채워진다.
+  // 5년 추세 — 토스 일봉 450 으로 모자라 야후 5년 일봉(지금 시끄러운 종목·반도체 수급과 같은 캐시), 5년을 고를 때만
+  const chartRange = useChartRange();
+  const longQs = useQueries({
+    queries: tickers.map(t => ({
+      queryKey: ["price-history", t, "5y"], queryFn: () => fetchKrPriceHistory(t, "5y"),
+      enabled: chartRange === "5y", staleTime: 60 * 60 * 1000, refetchOnWindowFocus: false, retry: 1,
+    })),
+  });
   const dayCandleQs = useQueries({
     queries: tickers.map(t => ({
       queryKey: ["toss-candles", t, "day"],
@@ -494,7 +512,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
     const frgAvg = avgOf("외국인"), insAvg = avgOf("기관"), penAvg = avgOf("연기금");
     return {
       ...(d ?? { ticker: t }),
-      ...priceStats(dayCandleQs[i]?.data, monthCandleQs[i]?.data, lp?.price),
+      ...priceStats(dayCandleQs[i]?.data, monthCandleQs[i]?.data, lp?.price, chartRange, longQs[i]?.data),
       ...estimateStats(ex?.est),
       price: now,
       sub: preset.subs?.[t], subRank: preset.subs?.[t] ? preset.subOrder?.indexOf(preset.subs[t]) : undefined,
@@ -656,7 +674,7 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                                   text-[12px] ${col.key === "name" ? "text-left sticky left-0 bg-gray-50 z-30" : "text-right"} ${hiCol(col.key, sortKey)}
                                   ${active ? "text-blue-700 font-bold" : "text-gray-600 hover:text-gray-900"}`}>
                     {/* 열 제목은 전부 두 줄 — 윗줄 이름, 아랫줄 (단위) + 정렬 화살표. 폭을 아끼고 줄 높이를 맞춘다. */}
-                    <span className="block">{col.label}</span>
+                    <span className="block">{col.key === "spark" ? `${CHART_RANGES.find(x => x.v === chartRange)?.label ?? ""} 추세` : col.label}</span>
                     <span className="block text-[10px] text-gray-400">
                       {col.flow ? `${flowDays}일` : col.unit ? `(${col.unit})` : "\u00a0"}
                       {active && <span className="ml-0.5 text-blue-700">{asc ? "▲" : "▼"}</span>}
@@ -713,7 +731,9 @@ export function ValuationTableTab({ onOpenValuation }: ValuationTableTabProps) {
                   if (col.key === "spark") {
                     return (
                       <td key={col.key} className="px-1 py-0.5">
-                        {r.sparkData && r.sparkData.length > 1
+                        {chartRange === "day"
+                          ? <div className="relative w-[100px] h-[26px]"><KrDaySparkline code={r.ticker} fallback={r.sparkData ?? []} width={100} height={26} className="w-full h-full" /></div>   /* 안쪽이 absolute 라 크기 있는 틀이 필요 */
+                          : r.sparkData && r.sparkData.length > 1
                           ? <Sparkline data={r.sparkData} width={100} height={26} strokeWidth={1.3} />
                           : <span className="text-gray-300">{r.trendLoading ? "…" : "—"}</span>}
                       </td>
