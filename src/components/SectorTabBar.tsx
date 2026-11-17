@@ -65,13 +65,13 @@ export function AftPill({ v, n, label }: { v: number; n?: number; label?: string
 /** 정규장 평균 + 장외 평균 — 업종 한눈에·타일과 같은 꼴(사용자 2026-11-12 "여기도 통일하자"):
  *  장외 값이 없으면 정규 % 하나, 있으면 '정규 x%' 작게 + 장외 % 크게(구간 이름은 마우스를 올리면).
  *  stacked = 위아래 두 줄(세로 탭), 아니면 한 줄(칸 머리). */
-export function RegAftValue({ avg, aft, n, stacked, prefix, className = "" }: { avg: number; aft?: number | null; n?: number; stacked?: boolean; prefix?: string; className?: string }) {
+export function RegAftValue({ avg, aft, n, stacked, prefix, className = "", alignEnd }: { avg: number; aft?: number | null; n?: number; stacked?: boolean; prefix?: string; className?: string; alignEnd?: boolean }) {   // alignEnd = 쌓을 때 오른쪽 맞춤(칸 머리)
   const tone = (v: number) => v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500";
   const f = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
   if (aft == null) return <span className={`tabular-nums ${tone(avg)} ${className}`}>{prefix ? `${prefix} ` : ""}{f(avg)}</span>;
   const reg = <span className={`text-[9.5px] font-normal opacity-70 ${tone(avg)} ${stacked ? "block" : "mr-1"}`} title="정규장 평균(전일 종가 대비)">정규 {f(avg)}</span>;
   return (
-    <span className={`tabular-nums ${stacked ? "inline-flex flex-col items-center leading-tight" : ""} ${className}`}>
+    <span className={`tabular-nums ${stacked ? `inline-flex flex-col ${alignEnd ? "items-end" : "items-center"} leading-tight` : ""} ${className}`}>
       {stacked ? reg : <>{prefix && <span className={tone(aft)}>{prefix} </span>}{reg}</>}
       <span className={tone(aft)} title={`정규장 마감 뒤(프리·애프터) 평균 — 정규장 종가 대비 지금${n ? `, ${n}종목` : ""}`}>{stacked && prefix ? `${prefix} ` : ""}{f(aft)}</span>
     </span>

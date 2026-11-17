@@ -195,35 +195,40 @@ export function SobuGrid({ rows, labels, leadByRow, quote, dimOf, etfs, renderCa
         const hasFlow = b.kr.some(s => flowBy.has(s.slice(0, 6)));
         return (
           <div key={b.label} className={`rounded-lg border border-gray-200 bg-gray-50/50 pg-row p-2 ${renderCard ? "xl:shrink-0 min-w-0" : ""}`}>
-            <div className="flex items-baseline gap-2 mb-1.5">
-              <span className="font-bold text-gray-800 shrink-0">{b.label}</span>
-              {/* 이 칸 종목들 등락률을 한 그래프로(사용자 2026-11-10 "소부장의 기판에 있는 종목들 일괄 비교") */}
-              <button type="button" title={`${b.label} 종목들의 등락률을 한 그래프로 비교 — 일봉·주봉·월봉, 검색으로 더 추가`}
-                      onClick={() => openCompare(`${b.label} 등락률 비교`, [...b.lead, ...b.kr].map(s => ({ ticker: compareTicker(s), name: NAME.get(s) ?? s })))}
-                      className="shrink-0 self-center px-1.5 py-0 rounded border border-indigo-200 bg-indigo-50 text-indigo-700 text-[11px] font-bold hover:bg-indigo-100">📈 비교</button>
+            <div className="flex items-center gap-2 mb-1.5">
+              {/* 칸 이름 + 그 아래 📈 비교(사용자 2026-11-17 "비교 버튼을 종목명 아래로") */}
+              <div className="shrink-0 flex flex-col items-start gap-0.5">
+                <span className="font-bold text-gray-800">{b.label}</span>
+                {/* 이 칸 종목들 등락률을 한 그래프로(사용자 2026-11-10 "소부장의 기판에 있는 종목들 일괄 비교") */}
+                <button type="button" title={`${b.label} 종목들의 등락률을 한 그래프로 비교 — 일봉·주봉·월봉, 검색으로 더 추가`}
+                        onClick={() => openCompare(`${b.label} 등락률 비교`, [...b.lead, ...b.kr].map(s => ({ ticker: compareTicker(s), name: NAME.get(s) ?? s })))}
+                        className="px-1.5 py-0 rounded border border-indigo-200 bg-indigo-50 text-indigo-700 text-[11px] font-bold hover:bg-indigo-100">📈 비교</button>
+              </div>
               {/* 국내 · 해외 두 줄, 같은 위치에 같은 꼴(사용자 2026-11-05 "해외 한 줄 내려 국내와 동일한 위치로") */}
               <div className="flex flex-col gap-0.5 min-w-0">
                 {avgShown != null && (
-                  <div className="flex items-baseline gap-2 whitespace-nowrap">
-                    <span className="text-sm font-bold"
+                  <div className="flex items-end gap-2 whitespace-nowrap">   {/* 정규 % 는 현재 % 위에 작게(사용자 2026-11-17) */}
+                    <span className="text-sm font-bold inline-flex items-end gap-1"
                           title={live.length && live.length < b.kr.length ? `국내 종목 평균 등락률(동일가중) — 흐린 ${b.kr.length - live.length}종목 제외` : "국내 종목 평균 등락률(동일가중)"}>
-                      <RegAftValue prefix="국내" avg={avgShown} aft={aft} n={as.length} />
+                      <span className={(aft ?? avgShown) > 0 ? "text-rose-600" : (aft ?? avgShown) < 0 ? "text-blue-600" : "text-gray-600"}>국내</span>
+                      <RegAftValue avg={avgShown} aft={aft} n={as.length} stacked alignEnd />
                     </span>
                     {nShown > 0 && <span className="text-[11px] text-gray-500">▲{upShown} · ▼{nShown - upShown}</span>}
                   </div>
                 )}
                 {ovAvg != null && (
-                  <div className="flex items-baseline gap-2 whitespace-nowrap">
-                    <span className="text-sm font-bold"
+                  <div className="flex items-end gap-2 whitespace-nowrap">
+                    <span className="text-sm font-bold inline-flex items-end gap-1"
                           title={`해외 대장주(테두리 카드, 미국은 장 밖이면 정규장 등락 + 꼬리표 = 프리·애프터, 일본은 지금 장중) ${ovPs.length}종목 평균`}>
-                      <RegAftValue prefix="해외" avg={ovAvg} aft={ovAft} n={ovEx.length} />
+                      <span className={(ovAft ?? ovAvg) > 0 ? "text-rose-600" : (ovAft ?? ovAvg) < 0 ? "text-blue-600" : "text-gray-600"}>해외</span>
+                      <RegAftValue avg={ovAvg} aft={ovAft} n={ovEx.length} stacked alignEnd />
                     </span>
                     {ovPs.length > 0 && <span className="text-[11px] text-gray-500">▲{ovPs.filter(v => v > 0).length} · ▼{ovPs.filter(v => v < 0).length}</span>}
                   </div>
                 )}
               </div>
             </div>
-            {hasFlow && !headersOnly && (   /* 한눈에(제목만)에선 수급 줄 뺌(사용자 2026-11-07 "여긴 제외") */
+            {false && hasFlow && !headersOnly && (   /* 5일·20일 수급 줄은 뺐다(사용자 2026-11-17 "아래 5일 20일 삭제") — 되살리려면 false 만 지운다 */
               <div className="flex flex-col text-[11px] tabular-nums leading-4 -mt-1 mb-1.5"   /* 5일·20일 늘 두 줄 — 숫자 길이에 따라 칸마다 줄 수가 달라 높이가 어긋났다(사용자 2026-11-02) */
                    title={`국내 종목 누적 순매수 합 — 기관은 금융투자 제외(ETF·차익거래가 섞여 방향이 흐려진다). ${flows.data?.meta.asOf ?? ""} 기준`}>
                 {(["5", "20"] as const).map(w => (
