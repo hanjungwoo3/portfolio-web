@@ -87,23 +87,28 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
   avgOf?: (s: DashboardSection) => SectorStat | null;
   vertical?: boolean;   // PC 왼쪽 세로 탭
 }) {
-  useAvgMarket();   // 한국/미국 전환에 다시 그리기(평균은 avgOf → sectorAvg 가 avgMarketNow 로 읽는다)
+  const avgMkt = useAvgMarket();   // 한국/미국 전환에 다시 그리기(평균은 avgOf → sectorAvg 가 avgMarketNow 로 읽는다)
   // 가로 탭 줄 — 고른 탭이 화면 밖(값 순 정렬이라 뒤로 밀림)이면 보이게 가운데로 민다(사용자 2026-11-18 "현재 섹터가 화면에서 안 보여")
   const barRef = useRef<HTMLDivElement>(null);
+  // 페이지가 열릴 때·고른 탭이 바뀔 때만 고른 탭을 따라간다(시세가 늦게 들어와 순서가 바뀌어도) — 손으로 만지면(터치·휠·끌기)
+  //   그 뒤로는 안 따라간다. 계속 따라가면 다른 탭을 보려고 밀 때마다 고른 탭으로 끌려왔다(사용자 2026-11-19)
+  const follow = useRef<{ id: string; on: boolean }>({ id: "", on: false });
+  // 해외/국내를 바꿔도 순서가 통째로 바뀌니 다시 따라간다(사용자 2026-11-19 "해외/국내일 때는 가야지")
+  if (follow.current.id !== `${active}|${avgMkt}`) follow.current = { id: `${active}|${avgMkt}`, on: true };
   useEffect(() => {
-    if (vertical) return;
+    if (vertical || !follow.current.on) return;
     const bar = barRef.current, el = bar?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(active)}"]`);
     if (!bar || !el) return;
-    // 이미 다 보이면 두고(직접 밀어 보는 중일 수 있다), 가려졌을 때만 민다
-    if (el.offsetLeft >= bar.scrollLeft && el.offsetLeft + el.offsetWidth <= bar.scrollLeft + bar.clientWidth) return;
+    if (el.offsetLeft >= bar.scrollLeft && el.offsetLeft + el.offsetWidth <= bar.scrollLeft + bar.clientWidth) return;   // 이미 보이면 그대로
     const left = el.offsetLeft - (bar.clientWidth - el.offsetWidth) / 2;   // 줄이 relative 라 offsetLeft 는 줄 기준
     bar.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
-  });   // 매 그리기 뒤 — 시세가 들어와 순서가 바뀌어 고른 탭이 밀려나도 다시 보이게
+  });
+  const stopFollow = () => { follow.current.on = false; };
   // 탭마다 평균은 한 번만 — 정렬과 그리기에서 두 번 계산하던 것(무거움 실측, 2026-11-13)
   const stats = new Map(sections.map(x => [x.id, avgOf?.(x) ?? null]));
   const order = new Map<string, number>();
   return (
-    <div ref={barRef} className={vertical ? "flex flex-col gap-1" : `relative flex items-center gap-1 overflow-x-auto ${compact ? "pb-0.5" : ""}`}>
+    <div ref={barRef} onTouchStart={stopFollow} onWheel={stopFollow} onPointerDown={stopFollow} className={vertical ? "flex flex-col gap-1" : `relative flex items-center gap-1 overflow-x-auto ${compact ? "pb-0.5" : ""}`}>
       {/* 업종 탭은 평균 등락률 높은 순(사용자 2026-11-03) — '한눈에' 는 맨 앞 고정, 값 없는 탭은 뒤로 */}
       {(() => {
         order.clear();
