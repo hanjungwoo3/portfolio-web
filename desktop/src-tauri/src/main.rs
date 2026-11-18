@@ -19,6 +19,8 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 // 창 ✕ 동작 — false = 바로 종료(기본, 0.1.12~), true = 숨기고 트레이(맥 메뉴 막대·윈도우 알림 영역)에 남기(설정, 사용자 2026-11-18)
 //   웹 설정이 켤 때마다·바꿀 때 set_close_to_tray 로 알려 준다. 트레이 아이콘은 켰을 때만 만든다(끄면 지운다)
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(false);
+// 전체 화면에서 ✕ 로 트레이에 숨겼나 — 다시 열 때 전체 화면으로 되돌린다(사용자 2026-11-18 "트레이에서 실행하는데 전체 화면이 안 돼")
+static WAS_FULLSCREEN: AtomicBool = AtomicBool::new(false);
 const TRAY_ID: &str = "main-tray";
 
 // 끄기 전에 창 크기·위치를 저장 — exit(0) 이 바로 끝내 플러그인의 닫기 저장을 못 탈 수 있다
@@ -33,6 +35,9 @@ fn show_main(app: &tauri::AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
+        if WAS_FULLSCREEN.swap(false, Ordering::SeqCst) {
+            let _ = w.set_fullscreen(true);
+        }
     }
 }
 
@@ -476,7 +481,19 @@ fn main() {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = e {
                     if CLOSE_TO_TRAY.load(Ordering::SeqCst) {
                         api.prevent_close();
-                        let _ = w2.hide();
+                        // 맥 전체 화면 창을 그대로 숨기면 빈 전체 화면 공간이 남고, 다시 보일 때 전체 화면이 풀린다 —
+                        //   먼저 전체 화면을 끄고(애니메이션이 끝난 뒤) 숨긴다. 다시 열 때 show_main 이 전체 화면으로 되돌린다
+                        if w2.is_fullscreen().unwrap_or(false) {
+                            WAS_FULLSCREEN.store(true, Ordering::SeqCst);
+                            let _ = w2.set_fullscreen(false);
+                            let w3 = w2.clone();
+                            std::thread::spawn(move || {
+                                std::thread::sleep(Duration::from_millis(900));
+                                let _ = w3.hide();
+                            });
+                        } else {
+                            let _ = w2.hide();
+                        }
                     } else {
                         save_win(w2.app_handle());
                         w2.app_handle().exit(0);
