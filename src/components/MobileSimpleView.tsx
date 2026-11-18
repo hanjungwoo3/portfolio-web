@@ -2344,8 +2344,12 @@ export function MobileSimpleView() {
         return (
           <div className="px-3 py-2 space-y-3">
             {isSectorPage
-              ? <SectorTabBar sections={sectorTabsOf(pageSecs)} active={sectorTabM} onChange={setSectorTabM} compact trailing={<AvgMarketToggle />}
-                            avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, regExtOfM)} />
+              ? <div className="space-y-1">
+                  {/* 해외/국내 단추는 탭 줄 위 한 줄 — 탭 줄 끝에 붙어 너무 오른쪽이라 안 보였다(사용자 2026-11-18) */}
+                  <div className="flex items-center gap-1.5 text-[11px] text-gray-500"><AvgMarketToggle /><span>기준으로 평균·정렬</span></div>
+                  <SectorTabBar sections={sectorTabsOf(pageSecs)} active={sectorTabM} onChange={setSectorTabM} compact
+                                avgOf={s => sectorAvg(s, sym => displayPctOf(sym, usMap.get(sym)), dimOf, regExtOfM)} />
+                </div>
               : <GroupNavBar items={dashboardGroupNav(sections)} idPrefix="midx-" compact floating
                              stickyTop={idxStickyTop} scrollMarginTop={idxScrollMargin} />}
             <KisExpRankBox compact />
