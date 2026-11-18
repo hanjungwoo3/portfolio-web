@@ -21,6 +21,10 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(false);
 // 전체 화면에서 ✕ 로 트레이에 숨겼나 — 다시 열 때 전체 화면으로 되돌린다(사용자 2026-11-18 "트레이에서 실행하는데 전체 화면이 안 돼")
 static WAS_FULLSCREEN: AtomicBool = AtomicBool::new(false);
+// 최대화(제목 막대 더블클릭)였나 — 숨겼다 보이면 맥이 최대화를 풀어 기본 크기로 돌아온다(실측 2026-11-19) → 다시 최대화
+static WAS_MAXIMIZED: AtomicBool = AtomicBool::new(false);
+// 숨기기 직전 크기·위치 — 다시 보일 때 그대로 되돌린다(창 크기 기억 플러그인 저장값이 옛 크기라 1873→1674 로 줄었다, 실측 2026-11-19)
+static LAST_GEOM: std::sync::Mutex<Option<(tauri::PhysicalSize<u32>, tauri::PhysicalPosition<i32>)>> = std::sync::Mutex::new(None);
 const TRAY_ID: &str = "main-tray";
 
 // 끄기 전에 창 크기·위치를 저장 — exit(0) 이 바로 끝내 플러그인의 닫기 저장을 못 탈 수 있다
@@ -35,7 +39,18 @@ fn show_main(app: &tauri::AppHandle) {
         let _ = w.unminimize();
         let _ = w.show();
         let _ = w.set_focus();
-        if WAS_FULLSCREEN.swap(false, Ordering::SeqCst) {
+        let was = WAS_FULLSCREEN.swap(false, Ordering::SeqCst);
+        let geom = LAST_GEOM.lock().ok().and_then(|mut g| g.take());
+        if let Some((sz, pos)) = geom {
+            if !WAS_MAXIMIZED.load(Ordering::SeqCst) {
+                let _ = w.set_size(sz);
+                let _ = w.set_position(pos);
+            }
+        }
+        if WAS_MAXIMIZED.swap(false, Ordering::SeqCst) {
+            let _ = w.maximize();
+        }
+        if was {
             let _ = w.set_fullscreen(true);
         }
     }
@@ -481,6 +496,12 @@ fn main() {
                 if let tauri::WindowEvent::CloseRequested { api, .. } = e {
                     if CLOSE_TO_TRAY.load(Ordering::SeqCst) {
                         api.prevent_close();
+                        WAS_MAXIMIZED.store(w2.is_maximized().unwrap_or(false), Ordering::SeqCst);
+                        if let (Ok(sz), Ok(pos)) = (w2.inner_size(), w2.outer_position()) {
+                            if let Ok(mut g) = LAST_GEOM.lock() { *g = Some((sz, pos)); }
+                        }
+                        // 숨기기 전에 지금 크기·위치를 저장 — 창 크기 기억 플러그인이 다시 보일 때 옛 저장값(켤 때 크기)으로 되돌렸다(실측 1871→1674)
+                        save_win(w2.app_handle());
                         // 맥 전체 화면 창을 그대로 숨기면 빈 전체 화면 공간이 남고, 다시 보일 때 전체 화면이 풀린다 —
                         //   먼저 전체 화면을 끄고(애니메이션이 끝난 뒤) 숨긴다. 다시 열 때 show_main 이 전체 화면으로 되돌린다
                         if w2.is_fullscreen().unwrap_or(false) {
