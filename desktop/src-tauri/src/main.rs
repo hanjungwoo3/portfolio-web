@@ -21,6 +21,12 @@ use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
 static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(false);
 const TRAY_ID: &str = "main-tray";
 
+// 끄기 전에 창 크기·위치를 저장 — exit(0) 이 바로 끝내 플러그인의 닫기 저장을 못 탈 수 있다
+fn save_win(app: &tauri::AppHandle) {
+    use tauri_plugin_window_state::{AppHandleExt, StateFlags};
+    let _ = app.save_window_state(StateFlags::all());
+}
+
 // 본 창 보이기 — 숨김·최소화에서 꺼내 앞으로
 fn show_main(app: &tauri::AppHandle) {
     if let Some(w) = app.get_webview_window("main") {
@@ -51,7 +57,7 @@ fn set_close_to_tray(app: tauri::AppHandle, on: bool) -> Result<(), String> {
         .show_menu_on_left_click(false)
         .on_menu_event(|app, e| match e.id.as_ref() {
             "open" => show_main(app),
-            "quit" => app.exit(0),
+            "quit" => { save_win(app); app.exit(0) }
             _ => {}
         })
         .on_tray_icon_event(|tray, e| {
@@ -448,6 +454,8 @@ fn main() {
 
     tauri::Builder::default()
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // 창 크기·위치 기억 — 다시 켤 때 지난번 크기로(사용자 2026-11-18 "이전 창 크기 기억 못할까?"). 본 창만(보기 창은 매번 새로)
+        .plugin(tauri_plugin_window_state::Builder::new().with_denylist(&["viewer"]).build())
         .manage(client)
         .manage(broker::BrokerState::default())   // 증권사 연결 — 토큰 캐시·한도
         .manage(kis_ws::KisWsState::default())     // 한국투자 실시간 체결 웹소켓
@@ -470,6 +478,7 @@ fn main() {
                         api.prevent_close();
                         let _ = w2.hide();
                     } else {
+                        save_win(w2.app_handle());
                         w2.app_handle().exit(0);
                     }
                 }

@@ -17,6 +17,7 @@ sha2 = "0.10"
 rand = "0.8"
 serde_json = "1"
 tauri-plugin-updater = "2"
+tauri-plugin-window-state = "2"   # 창 크기·위치 기억(사용자 2026-11-18)
 # 증권사 키 저장 — 맥 키체인 / 윈도우 자격 증명 관리자(src/broker.rs)
 keyring = { version = "3", features = ["apple-native", "windows-native"] }
 tokio = { version = "1", features = ["time", "net", "macros", "sync"] }
