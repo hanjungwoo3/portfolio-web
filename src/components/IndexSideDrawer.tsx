@@ -40,7 +40,7 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
   if (!pins.length) return null;
   return (
     // 많이 고르면 화면 아래로 넘친다 — 남은 높이만큼만, 넘치면 안에서 스크롤 · 7개 넘으면 값 줄을 빼 한 장을 줄인다(사용자 2026-11-19 "화면 넘어가면?")
-    <div className="fixed right-0 top-[205px] z-40 flex flex-col gap-1 w-[92px] max-h-[calc(100vh-215px)] overflow-y-auto [scrollbar-width:thin]">
+    <div className="fixed right-0 top-[205px] z-40 flex flex-col gap-1 w-[112px] max-h-[calc(100vh-215px)] overflow-y-auto [scrollbar-width:thin]">
       {/* 등락률 높은 순(값 없는 것은 뒤로)(사용자 2026-11-19 "등락율 sort") */}
       {pins.map(sym => { const d = q.data?.get(sym); return { sym, d, pct: d ? displayPctOf(sym, d) ?? d.pct : null }; })
         .sort((a, b) => (b.pct ?? -Infinity) - (a.pct ?? -Infinity))
@@ -50,7 +50,11 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
           <button key={sym} type="button" onClick={onOpen} style={{ flexShrink: 0 }} title={`${NAME.get(sym) ?? sym} — 누르면 지수 창`}
                   className={`rounded-l-lg border-2 border-r-0 ${isFut(sym) ? "border-amber-400 bg-amber-50/95" : "border-gray-300 bg-white/95"} shadow px-1.5 py-1 text-left leading-tight hover:bg-indigo-50`}>
             <span className="block truncate text-[11px] font-bold text-gray-700">{NAME.get(sym) ?? sym}</span>
-            <span className={`block text-[12px] font-bold tabular-nums ${tone}`}>{pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
+            <span className={`flex items-baseline justify-between gap-1 text-[12px] font-bold tabular-nums ${tone}`}>
+              <span>{pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
+              {pins.length > 7 && d && d.price > 0 && <span className="text-[9.5px] font-normal text-gray-400 truncate">{d.price < 100 ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()}</span>}
+            </span>
+            {/* 값은 늘 — 많이 고르면(7개 초과) 줄을 아끼려 이름 줄 오른쪽에 붙이고, 적으면 따로 한 줄(사용자 2026-11-19 "수치는 안 나와?") */}
             {pins.length <= 7 && d && d.price > 0 && <span className="block text-[10px] text-gray-400 tabular-nums">{d.price < 100 ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()}</span>}
             {(() => { const u = sym === "^KS11" ? ud?.kospi : sym === "^KQ11" ? ud?.kosdaq : undefined; return u ? <span className="block text-[10px] font-bold tabular-nums"><span className="text-rose-600">▲{u.rise}</span> <span className="text-blue-600">▼{u.fall}</span></span> : null; })()}
           </button>
