@@ -5,6 +5,7 @@ import App from './App.tsx'
 import { isDirectApp } from './lib/nativeProxy'
 import { applyNightBg } from './lib/nightBg'
 import { installInAppBrowser } from './lib/inAppBrowser'
+import { applyCloseToTray } from './lib/desktopClose'
 import { pruneMarketCache } from './lib/marketCache'
 import { installSystemBars } from './lib/systemBars'
 import { startFuturesTape } from './lib/futuresTape'
@@ -19,6 +20,7 @@ import { startAndroidBack } from './lib/androidBack'
 applyNightBg()
 // 안드로이드 앱 — 바깥 링크는 앱 안 브라우저로(웹·데스크톱은 아무것도 안 함)
 installInAppBrowser()
+applyCloseToTray()   // 데스크톱 앱 창 ✕ = 종료 | 트레이(설정)
 // 안드로이드 앱 — 위아래 시스템 막대(전체 화면·야간 스타일)
 installSystemBars()
 // 기기 시세 캐시 — 이틀 넘은 줄 정리(어차피 다시 받는다)

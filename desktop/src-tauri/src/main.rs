@@ -11,7 +11,60 @@
 use base64::{engine::general_purpose::STANDARD, Engine};
 use std::collections::HashMap;
 use std::time::Duration;
+use std::sync::atomic::{AtomicBool, Ordering};
+use tauri::menu::{Menu, MenuItem, PredefinedMenuItem};
+use tauri::tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent};
 use tauri::{Manager, WebviewUrl, WebviewWindowBuilder};
+
+// 창 ✕ 동작 — false = 바로 종료(기본, 0.1.12~), true = 숨기고 트레이(맥 메뉴 막대·윈도우 알림 영역)에 남기(설정, 사용자 2026-11-18)
+//   웹 설정이 켤 때마다·바꿀 때 set_close_to_tray 로 알려 준다. 트레이 아이콘은 켰을 때만 만든다(끄면 지운다)
+static CLOSE_TO_TRAY: AtomicBool = AtomicBool::new(false);
+const TRAY_ID: &str = "main-tray";
+
+// 본 창 보이기 — 숨김·최소화에서 꺼내 앞으로
+fn show_main(app: &tauri::AppHandle) {
+    if let Some(w) = app.get_webview_window("main") {
+        let _ = w.unminimize();
+        let _ = w.show();
+        let _ = w.set_focus();
+    }
+}
+
+#[tauri::command]
+fn set_close_to_tray(app: tauri::AppHandle, on: bool) -> Result<(), String> {
+    CLOSE_TO_TRAY.store(on, Ordering::SeqCst);
+    if !on {
+        let _ = app.remove_tray_by_id(TRAY_ID);
+        return Ok(());
+    }
+    if app.tray_by_id(TRAY_ID).is_some() {
+        return Ok(());
+    }
+    // 아이콘 왼쪽 클릭 = 창 열기, 오른쪽 클릭 = 열기·종료(예전 0.1.11 까지의 트레이와 같은 모양)
+    let open_i = MenuItem::with_id(&app, "open", "포트폴리오 열기", true, None::<&str>).map_err(|e| e.to_string())?;
+    let quit_i = MenuItem::with_id(&app, "quit", "종료", true, None::<&str>).map_err(|e| e.to_string())?;
+    let sep = PredefinedMenuItem::separator(&app).map_err(|e| e.to_string())?;
+    let menu = Menu::with_items(&app, &[&open_i, &sep, &quit_i]).map_err(|e| e.to_string())?;
+    let mut tray = TrayIconBuilder::with_id(TRAY_ID)
+        .tooltip("포트폴리오")
+        .menu(&menu)
+        .show_menu_on_left_click(false)
+        .on_menu_event(|app, e| match e.id.as_ref() {
+            "open" => show_main(app),
+            "quit" => app.exit(0),
+            _ => {}
+        })
+        .on_tray_icon_event(|tray, e| {
+            if let TrayIconEvent::Click { button: MouseButton::Left, button_state: MouseButtonState::Up, .. } = e {
+                show_main(tray.app_handle());
+            }
+        });
+    if let Some(icon) = app.default_window_icon() {
+        tray = tray.icon(icon.clone());
+    }
+    tray.build(&app).map_err(|e| e.to_string())?;
+    Ok(())
+}
 
 mod broker;
 mod kis_ws;
@@ -398,7 +451,7 @@ fn main() {
         .manage(client)
         .manage(broker::BrokerState::default())   // 증권사 연결 — 토큰 캐시·한도
         .manage(kis_ws::KisWsState::default())     // 한국투자 실시간 체결 웹소켓
-        .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, close_viewer, broker::broker_status, broker::broker_set, broker::broker_clear, broker::broker_fetch, kis_ws::kis_ws_poll, google_login, google_refresh, app_update_check, app_update_install, app_dialog, copy_image])
+        .invoke_handler(tauri::generate_handler![native_fetch, open_external, open_viewer, close_viewer, broker::broker_status, broker::broker_set, broker::broker_clear, broker::broker_fetch, kis_ws::kis_ws_poll, google_login, google_refresh, app_update_check, app_update_install, app_dialog, copy_image, set_close_to_tray])
         .setup(move |app| {
             let win = WebviewWindowBuilder::new(app, "main", WebviewUrl::External(url.parse()?))
                 .title("포트폴리오")
@@ -410,14 +463,27 @@ fn main() {
             // 창 ✕ = 완전히 종료(맥·윈도우, 사용자 2026-11-05 "트레이 보내지 말고 종료") — 예전엔 트레이·메뉴 막대로 숨어
             //   프로세스가 남았고, 새 버전으로 바꿀 때 작업관리자로 죽여야 했다(제보). 보기 창이 열려 있어도 같이 끈다
             let w2 = win.clone();
+            //   설정 '트레이에 남기기'면 창만 숨긴다(앱·트레이 아이콘은 남는다)
             win.on_window_event(move |e| {
-                if let tauri::WindowEvent::CloseRequested { .. } = e {
-                    w2.app_handle().exit(0);
+                if let tauri::WindowEvent::CloseRequested { api, .. } = e {
+                    if CLOSE_TO_TRAY.load(Ordering::SeqCst) {
+                        api.prevent_close();
+                        let _ = w2.hide();
+                    } else {
+                        w2.app_handle().exit(0);
+                    }
                 }
             });
             Ok(())
         })
         .build(tauri::generate_context!())
         .expect("앱 실행 실패")
-        .run(|_app, _event| {});
+        .run(|app, event| {
+            // 맥 — 창을 숨긴 뒤 Dock 아이콘을 누르면 다시 보이게
+            #[cfg(target_os = "macos")]
+            if let tauri::RunEvent::Reopen { .. } = event {
+                show_main(app);
+            }
+            let _ = (app, event);
+        });
 }

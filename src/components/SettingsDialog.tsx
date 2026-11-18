@@ -1,3 +1,4 @@
+import { getCloseToTray, setCloseToTray } from "../lib/desktopClose";
 import { DriveRestorePanel } from "./DriveRestorePanel";
 import { DesktopVersionBadge } from "./DesktopVersionBadge";
 import { ProxyFallbackNote, ProxyDownNote } from "./ProxyListNotes";
@@ -754,6 +755,8 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
                      className="text-blue-600 underline">↓ 내려받기</a>
                 </div>
               )}
+              {/* 데스크톱 앱 창 ✕ 동작 — 바로 종료 | 트레이에 남기기(사용자 2026-11-18) */}
+              {isDesktopApp() && <CloseToTrayOption />}
               {/* 데스크톱 앱 — 확장도 프록시도 없이(앱이 직접 받는다). 파일은 고정 릴리스 'apps'(이름 고정) */}
               {!isDesktopApp() && (
                 <div className="mt-1 pt-1 border-t border-emerald-200">
@@ -1073,6 +1076,26 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
           }}
           onClose={() => setConflicts(null)} />
       )}
+    </div>
+  );
+}
+
+// 창 ✕ 를 누르면 — 바로 종료(기본) | 트레이(맥 메뉴 막대·윈도우 알림 영역)에 남기기. 이 기기에만 저장
+function CloseToTrayOption() {
+  const [on, setOn] = useState(getCloseToTray);
+  const [old, setOld] = useState(false);   // 앱이 이 설정을 모르는 옛 버전(0.1.16 이하)
+  const pick = async (v: boolean) => { setOn(v); setOld(!(await setCloseToTray(v))); };
+  return (
+    <div className="mt-1 pt-1 border-t border-emerald-200">
+      <b>🖥️ 창 ✕ 를 누르면</b>{" "}
+      <span className="inline-flex rounded border border-gray-300 overflow-hidden align-middle">
+        {([[false, "바로 종료"], [true, "트레이에 남기기"]] as const).map(([v, l]) => (
+          <button key={l} type="button" onClick={() => void pick(v)}
+                  className={`px-2 py-0.5 text-[11px] font-bold ${on === v ? "bg-gray-800 text-white" : "bg-white text-gray-600 hover:bg-gray-100"}`}>{l}</button>
+        ))}
+      </span>
+      <span className="opacity-70"> {on ? "— 창만 숨고 맥 메뉴 막대·윈도우 알림 영역 아이콘으로 남습니다(아이콘 메뉴 '종료'로 끄기)" : "— 앱이 완전히 꺼집니다"}</span>
+      {old && <div className="text-amber-700">⚠️ 이 앱 버전은 아직 이 설정을 모릅니다 — 앱을 업데이트하면 적용됩니다.</div>}
     </div>
   );
 }

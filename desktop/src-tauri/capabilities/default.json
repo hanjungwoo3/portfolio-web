@@ -22,6 +22,7 @@
     "allow-app-update-install",
     "allow-app-dialog",
     "allow-copy-image",
+    "allow-set-close-to-tray",
     "allow-broker-status",
     "allow-broker-set",
     "allow-broker-clear",
