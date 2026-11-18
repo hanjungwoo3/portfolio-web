@@ -41,8 +41,10 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
   return (
     // 많이 고르면 화면 아래로 넘친다 — 남은 높이만큼만, 넘치면 안에서 스크롤 · 7개 넘으면 값 줄을 빼 한 장을 줄인다(사용자 2026-11-19 "화면 넘어가면?")
     <div className="fixed right-0 top-[205px] z-40 flex flex-col gap-1 w-[92px] max-h-[calc(100vh-215px)] overflow-y-auto [scrollbar-width:thin]">
-      {pins.map(sym => {
-        const d = q.data?.get(sym), pct = d ? displayPctOf(sym, d) ?? d.pct : null;
+      {/* 등락률 높은 순(값 없는 것은 뒤로)(사용자 2026-11-19 "등락율 sort") */}
+      {pins.map(sym => { const d = q.data?.get(sym); return { sym, d, pct: d ? displayPctOf(sym, d) ?? d.pct : null }; })
+        .sort((a, b) => (b.pct ?? -Infinity) - (a.pct ?? -Infinity))
+        .map(({ sym, d, pct }) => {
         const tone = pct == null ? "text-gray-400" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
         return (
           <button key={sym} type="button" onClick={onOpen} style={{ flexShrink: 0 }} title={`${NAME.get(sym) ?? sym} — 누르면 지수 창`}
