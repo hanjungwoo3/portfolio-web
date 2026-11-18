@@ -94,21 +94,28 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
     if (vertical) return;
     const bar = barRef.current, el = bar?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(active)}"]`);
     if (!bar || !el) return;
+    // 이미 다 보이면 두고(직접 밀어 보는 중일 수 있다), 가려졌을 때만 민다
+    if (el.offsetLeft >= bar.scrollLeft && el.offsetLeft + el.offsetWidth <= bar.scrollLeft + bar.clientWidth) return;
     const left = el.offsetLeft - (bar.clientWidth - el.offsetWidth) / 2;   // 줄이 relative 라 offsetLeft 는 줄 기준
     bar.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
-  }, [active, vertical]);
+  });   // 매 그리기 뒤 — 시세가 들어와 순서가 바뀌어 고른 탭이 밀려나도 다시 보이게
   // 탭마다 평균은 한 번만 — 정렬과 그리기에서 두 번 계산하던 것(무거움 실측, 2026-11-13)
   const stats = new Map(sections.map(x => [x.id, avgOf?.(x) ?? null]));
+  const order = new Map<string, number>();
   return (
     <div ref={barRef} className={vertical ? "flex flex-col gap-1" : `relative flex items-center gap-1 overflow-x-auto ${compact ? "pb-0.5" : ""}`}>
       {/* 업종 탭은 평균 등락률 높은 순(사용자 2026-11-03) — '한눈에' 는 맨 앞 고정, 값 없는 탭은 뒤로 */}
       {(() => {
+        order.clear();
         const st = new Map(sections.map(x => { const v = stats.get(x.id); return [x.id, v ? (v.aft ?? v.avg) : null]; }));   // 크게 보이는 값(장외 있으면 장외) 순
         type Item = { kind: "sec"; s: DashboardSection; v: number | null } | { kind: "ext"; e: TabExtra; v: number | null };
         const items: Item[] = [...sections.map(s => ({ kind: "sec" as const, s, v: st.get(s.id) ?? null })), ...extras.map(e => ({ kind: "ext" as const, e, v: e.pct }))];
         // 기준선(extras)은 맨 위 고정 — 정렬에 안 섞는다(사용자 2026-11-13 "sort 는 그대로 두고"). 그다음 한눈에, 나머지는 값 순
         const rank = (i: Item) => i.kind === "ext" ? 0 : i.s.id === OVERVIEW ? 1 : 2;
-        return items.sort((a, b) => rank(a) - rank(b) || (rank(a) < 2 ? 0 : (b.v ?? -Infinity) - (a.v ?? -Infinity)));
+        const out = items.sort((a, b) => rank(a) - rank(b) || (rank(a) < 2 ? 0 : (b.v ?? -Infinity) - (a.v ?? -Infinity)));
+        // 순위 번호 — 업종 탭만(기준선·한눈에 제외) 지금 정렬 순서대로 1, 2, 3…(사용자 2026-11-18 "순서를 모르겠는데 1.반도체 처럼")
+        let k = 0; for (const it of out) if (rank(it) === 2 && it.kind === "sec") order.set(it.s.id, ++k);
+        return out;
       })().map(it => it.kind === "ext" ? (() => {
         const e = it.e;
         const updown = vertical
@@ -132,7 +139,7 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
           <button key={s.id} data-tab-id={s.id} onClick={() => onChange(s.id)} title="국내 종목 평균 등락률·오른/내린 종목 수(흐린 종목 제외)"
                   className={`shrink-0 inline-flex flex-col ${vertical ? "items-center text-center w-full px-1.5 py-1" : "items-center"} leading-tight rounded-xl border ${vertical ? "text-[13px]" : compact ? "px-2 py-0.5 text-[12px]" : "px-3 py-1 text-sm"} font-bold transition
                               ${on ? "bg-indigo-50 text-indigo-900 border-indigo-600 ring-2 ring-indigo-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>
-            <span className="inline-flex items-center gap-1"><span>{emoji}</span>{s.short}</span>
+            <span className="inline-flex items-center gap-1">{order.has(s.id) && <span className="text-[10px] font-normal text-gray-400 tabular-nums">{order.get(s.id)}.</span>}<span>{emoji}</span>{s.short}</span>
             {/* 세로 탭 = 왼쪽 등락률 · 오른쪽 상승/하락 두 줄(사용자 2026-11-12 "상승 하락을 오른쪽으로 나누면") */}
             {vertical ? (st || avg != null) && (
               <span className="flex items-center justify-center gap-2 w-full">
