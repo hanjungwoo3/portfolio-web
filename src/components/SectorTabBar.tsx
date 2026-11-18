@@ -1,6 +1,6 @@
 // 지수(업종) 페이지 안 탭 — 소부장·2차전지·조선·방산·원전·화장품 중 하나만 보여 준다(사용자 2026-11-03 "내부 탭으로").
 //   PC·모바일이 같이 쓴다. 고른 탭은 이 기기에 기억(localStorage).
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { SECTOR_OVERVIEW_IDS, type DashboardSection } from "../lib/dashboardGroups";
 import { avgMarketNow, isOverseasTicker, useAvgMarket } from "../lib/avgMarket";
 
@@ -88,10 +88,19 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
   vertical?: boolean;   // PC 왼쪽 세로 탭
 }) {
   useAvgMarket();   // 한국/미국 전환에 다시 그리기(평균은 avgOf → sectorAvg 가 avgMarketNow 로 읽는다)
+  // 가로 탭 줄 — 고른 탭이 화면 밖(값 순 정렬이라 뒤로 밀림)이면 보이게 가운데로 민다(사용자 2026-11-18 "현재 섹터가 화면에서 안 보여")
+  const barRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (vertical) return;
+    const bar = barRef.current, el = bar?.querySelector<HTMLElement>(`[data-tab-id="${CSS.escape(active)}"]`);
+    if (!bar || !el) return;
+    const left = el.offsetLeft - (bar.clientWidth - el.offsetWidth) / 2;   // 줄이 relative 라 offsetLeft 는 줄 기준
+    bar.scrollTo({ left: Math.max(0, left), behavior: "smooth" });
+  }, [active, vertical]);
   // 탭마다 평균은 한 번만 — 정렬과 그리기에서 두 번 계산하던 것(무거움 실측, 2026-11-13)
   const stats = new Map(sections.map(x => [x.id, avgOf?.(x) ?? null]));
   return (
-    <div className={vertical ? "flex flex-col gap-1" : `flex items-center gap-1 overflow-x-auto ${compact ? "pb-0.5" : ""}`}>
+    <div ref={barRef} className={vertical ? "flex flex-col gap-1" : `relative flex items-center gap-1 overflow-x-auto ${compact ? "pb-0.5" : ""}`}>
       {/* 업종 탭은 평균 등락률 높은 순(사용자 2026-11-03) — '한눈에' 는 맨 앞 고정, 값 없는 탭은 뒤로 */}
       {(() => {
         const st = new Map(sections.map(x => { const v = stats.get(x.id); return [x.id, v ? (v.aft ?? v.avg) : null]; }));   // 크게 보이는 값(장외 있으면 장외) 순
@@ -120,7 +129,7 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
         const st = stats.get(s.id);
         const avg = st?.avg ?? null;
         return (
-          <button key={s.id} onClick={() => onChange(s.id)} title="국내 종목 평균 등락률·오른/내린 종목 수(흐린 종목 제외)"
+          <button key={s.id} data-tab-id={s.id} onClick={() => onChange(s.id)} title="국내 종목 평균 등락률·오른/내린 종목 수(흐린 종목 제외)"
                   className={`shrink-0 inline-flex flex-col ${vertical ? "items-center text-center w-full px-1.5 py-1" : "items-center"} leading-tight rounded-xl border ${vertical ? "text-[13px]" : compact ? "px-2 py-0.5 text-[12px]" : "px-3 py-1 text-sm"} font-bold transition
                               ${on ? "bg-indigo-50 text-indigo-900 border-indigo-600 ring-2 ring-indigo-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>
             <span className="inline-flex items-center gap-1"><span>{emoji}</span>{s.short}</span>
