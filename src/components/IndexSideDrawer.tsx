@@ -8,6 +8,43 @@ import { useEscClose } from "../lib/useEscClose";
 import { useEffect, useMemo, useState } from "react";
 import { buildIndexSections } from "../lib/dashboardGroups";
 import { UsMarketTab } from "./UsMarketTab";
+import { useQuery } from "@tanstack/react-query";
+import { fetchYahooBatch } from "../lib/api";
+import { US_PAIRS } from "../lib/usMarketData";
+import { displayPctOf } from "../lib/format";
+import { useDrawerPins } from "../lib/drawerPins";
+import { fetchUpDown } from "../lib/upDown";
+
+// 닫혀 있을 때 손잡이 아래 작은 카드 — 이름 · 등락률 · 값(사용자 2026-11-19 "지수 창이 닫혀 있을 때 일부를 이 형태로")
+const NAME = new Map(US_PAIRS.map(p => [p.symbol, p.name]));
+function PinnedMini({ onOpen }: { onOpen: () => void }) {
+  const pins = useDrawerPins();
+  const q = useQuery({
+    queryKey: ["drawer-pins", pins.join(",")],
+    queryFn: () => fetchYahooBatch(pins.map(symbol => ({ symbol, name: NAME.get(symbol) ?? symbol }))),
+    enabled: pins.length > 0, refetchInterval: 30_000, staleTime: 15_000,
+  });
+  // 코스피·코스닥은 오른·내린 종목 수도(업종 탭 왼쪽 칸과 같은 꼴)
+  const ud = useQuery({ queryKey: ["updown"], queryFn: fetchUpDown, enabled: pins.includes("^KS11") || pins.includes("^KQ11"), refetchInterval: 120_000, staleTime: 60_000, retry: 1 }).data;
+  if (!pins.length) return null;
+  return (
+    <div className="fixed right-0 top-[205px] z-40 flex flex-col gap-1 w-[92px]">
+      {pins.map(sym => {
+        const d = q.data?.get(sym), pct = d ? displayPctOf(sym, d) ?? d.pct : null;
+        const tone = pct == null ? "text-gray-400" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
+        return (
+          <button key={sym} type="button" onClick={onOpen} title={`${NAME.get(sym) ?? sym} — 누르면 지수 창`}
+                  className="rounded-l-lg border border-r-0 border-gray-300 bg-white/95 shadow px-1.5 py-1 text-left leading-tight hover:bg-indigo-50">
+            <span className="block truncate text-[11px] font-bold text-gray-700">{NAME.get(sym) ?? sym}</span>
+            <span className={`block text-[12px] font-bold tabular-nums ${tone}`}>{pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
+            {d && d.price > 0 && <span className="block text-[10px] text-gray-400 tabular-nums">{d.price < 100 ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()}</span>}
+            {(() => { const u = sym === "^KS11" ? ud?.kospi : sym === "^KQ11" ? ud?.kosdaq : undefined; return u ? <span className="block text-[10px] font-bold tabular-nums"><span className="text-rose-600">▲{u.rise}</span> <span className="text-blue-600">▼{u.fall}</span></span> : null; })()}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 
 export function IndexSideDrawer() {
@@ -41,6 +78,7 @@ export function IndexSideDrawer() {
       <button type="button" onClick={() => setOpen(true)}
               className={`fixed right-0 top-[150px] z-50 rounded-l-lg border border-r-0 border-indigo-300 bg-indigo-50 text-indigo-700 shadow px-1 py-2 text-[11px] font-bold [writing-mode:vertical-rl] hover:bg-indigo-100 ${open ? "hidden" : ""}`}
               title="지수·환율·금리·선물·원자재 카드 — 단축키 ` (숫자 1 왼쪽) 로 열고 닫기">📈 지수<span className="mt-1 px-0.5 rounded border border-indigo-300 bg-white text-[9px] font-mono [writing-mode:horizontal-tb]">`</span></button>
+      {!open && <PinnedMini onOpen={() => setOpen(true)} />}
       {open && (
         <>
           {/* z-50 = 헤더와 같은 층, 그 뒤 DOM 이라 헤더는 덮고 — App 에서 더 뒤에 그려지는 종목정보·히트맵 창(z-50)은 서랍 위로 뜬다(사용자 2026-11-13 "버튼을 누르면 뒤에 뜨는데") */}

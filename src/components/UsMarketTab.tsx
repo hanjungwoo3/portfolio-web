@@ -16,6 +16,7 @@ import { tagsFor, useValueupFile } from "../lib/valueupTags";
 import { openStockInfo, canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchUpDown } from "../lib/upDown";
+import { useDrawerPins, toggleDrawerPin } from "../lib/drawerPins";
 import { useMarketAlerts } from "../lib/marketAlerts";
 import { dashboardCardDim } from "../lib/dashboardCardDim";
 import { IndexWarnTag } from "./IndexWarnTag";
@@ -190,6 +191,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   // 해외 기준이면 S&P 500(SPY)·나스닥100(QQQ) — 국내 KODEX 200·코스닥150 자리(사용자 2026-11-14 "해외일 때는 s&p500 과 나스닥100")
   //   등락은 업종 칸과 같은 규칙(장 밖이면 정규장 % 작게 + 프리·애프터 크게), 오른·내린 수는 구성종목(히트맵 판)
   const avgMkt = useAvgMarket();
+  const drawerPins = useDrawerPins();   // 지수 서랍 📌(닫혀 있을 때 오른쪽에 보일 값)
   const usHeatQs = useQueries({ queries: (["us_sp500", "us_ndx"] as const).map(src => ({
     queryKey: ["side-heat", src], queryFn: () => fetchHeatmapPreferServer(src, src === "us_sp500" ? 510 : 400), enabled: page === "sobu" && avgMkt === "US", staleTime: 60_000, refetchInterval: 120_000, retry: 1,
   })) });
@@ -713,6 +715,14 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   </div>
                   {/* lead — 첫 카드(간밤 미국 대장주)가 '원인'. 카드 사이 틈 가운데에 큰 ➜ (원 없이). 틈은 다른 그룹과 같게 둬 카드 크기를 맞춘다.
                       강조는 테두리가 아니라 **카드 배경색**(그 줄 단계 색) — 오르내림은 글자·차트 색이 알려 준다. */}
+                  {/* 지수 서랍 — 📌 로 고르면 서랍이 닫혀 있을 때 오른쪽 손잡이 아래에 작게(사용자 2026-11-19) */}
+                  {sectionsOverride && (
+                    <button type="button" data-no-peek onClick={e => { e.stopPropagation(); toggleDrawerPin(p.symbol); }}
+                            title={drawerPins.includes(p.symbol) ? "닫혀 있을 때 보이기 — 끄기" : "서랍이 닫혀 있을 때 오른쪽에 이 값 보이기"}
+                            className={`absolute -bottom-1 left-1 z-20 px-1 rounded border text-[9px] leading-tight font-bold ${drawerPins.includes(p.symbol) ? "border-indigo-400 bg-indigo-600 text-white" : "border-gray-300 bg-white text-gray-400 hover:text-indigo-600"}`}>
+                      📌{drawerPins.includes(p.symbol) ? " 고정" : ""}
+                    </button>
+                  )}
                   {isLastLead(section, p.symbol) && (
                     <div className="absolute top-1/2 left-full ml-1 lg:ml-[22px] -translate-x-1/2 -translate-y-1/2 z-30
                                     text-4xl font-black text-gray-400 opacity-20 leading-none pointer-events-none">➜</div>
