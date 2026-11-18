@@ -9,19 +9,30 @@ import { useEffect, useMemo, useState } from "react";
 import { buildIndexSections } from "../lib/dashboardGroups";
 import { UsMarketTab } from "./UsMarketTab";
 import { useQuery } from "@tanstack/react-query";
-import { fetchYahooBatch } from "../lib/api";
+import { fetchYahooBatch, fetchYasunNightFutures } from "../lib/api";
 import { US_PAIRS } from "../lib/usMarketData";
 import { displayPctOf } from "../lib/format";
 import { useDrawerPins } from "../lib/drawerPins";
 import { fetchUpDown } from "../lib/upDown";
 
 // 닫혀 있을 때 손잡이 아래 작은 카드 — 이름 · 등락률 · 값(사용자 2026-11-19 "지수 창이 닫혀 있을 때 일부를 이 형태로")
-const NAME = new Map(US_PAIRS.map(p => [p.symbol, p.name]));
+const NAME = new Map<string, string>(US_PAIRS.map(p => [p.symbol, p.name]));
+// 선물(야간선물·지수 선물·원자재 선물·무기한)은 테두리 색을 달리(사용자 2026-11-19 "선물은 테두리 색을 다르게")
+const isFut = (s: string) => /=F$/.test(s) || /^\^K[SQ]\d+N$/.test(s) || /-PERP$/.test(s);
 function PinnedMini({ onOpen }: { onOpen: () => void }) {
   const pins = useDrawerPins();
+  // 야간선물(^KS200N·^KQ150N)은 야후에 없는 가상 심볼 — yasun.gg 로 따로(지수 창과 같은 경로, 사용자 2026-11-19 "야간 선물 안 나오네")
   const q = useQuery({
     queryKey: ["drawer-pins", pins.join(",")],
-    queryFn: () => fetchYahooBatch(pins.map(symbol => ({ symbol, name: NAME.get(symbol) ?? symbol }))),
+    queryFn: async () => {
+      const night: string[] = pins.filter(s => s === "^KS200N" || s === "^KQ150N");
+      const [m, ...ns] = await Promise.all([
+        fetchYahooBatch(pins.filter(s => !night.includes(s)).map(symbol => ({ symbol, name: NAME.get(symbol) ?? symbol }))),
+        ...night.map(s => fetchYasunNightFutures(s).catch(() => null)),
+      ]);
+      night.forEach((s, i) => { const d = ns[i]; if (d) m.set(s, d.index); });
+      return m;
+    },
     enabled: pins.length > 0, refetchInterval: 30_000, staleTime: 15_000,
   });
   // 코스피·코스닥은 오른·내린 종목 수도(업종 탭 왼쪽 칸과 같은 꼴)
@@ -34,7 +45,7 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
         const tone = pct == null ? "text-gray-400" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
         return (
           <button key={sym} type="button" onClick={onOpen} title={`${NAME.get(sym) ?? sym} — 누르면 지수 창`}
-                  className="rounded-l-lg border border-r-0 border-gray-300 bg-white/95 shadow px-1.5 py-1 text-left leading-tight hover:bg-indigo-50">
+                  className={`rounded-l-lg border-2 border-r-0 ${isFut(sym) ? "border-amber-400 bg-amber-50/95" : "border-gray-300 bg-white/95"} shadow px-1.5 py-1 text-left leading-tight hover:bg-indigo-50`}>
             <span className="block truncate text-[11px] font-bold text-gray-700">{NAME.get(sym) ?? sym}</span>
             <span className={`block text-[12px] font-bold tabular-nums ${tone}`}>{pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
             {d && d.price > 0 && <span className="block text-[10px] text-gray-400 tabular-nums">{d.price < 100 ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()}</span>}
