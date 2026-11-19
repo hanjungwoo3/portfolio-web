@@ -185,6 +185,11 @@ export async function fetchProxied(
     } catch { /* 확장 실패 → 아래 프록시로 폴백 */ }
   }
 
+  // ★ 프록시(클라우드)로 갈 때 토스 wts-info-api → wts-cert-api — 같은 API·같은 응답인데 cert 쪽은 클라우드 IP 를 막지 않는다
+  //   (실측 2026-11-19: Cloudflare 워커로 info 는 400, cert 는 stock-prices·c-chart·stock-infos 모두 200).
+  //   웹(확장·앱 없음)에서 내 종목 시세가 안 나오던 원인(사용자 문의). 앱·확장(집 IP 직결)은 위에서 이미 끝나 원래 주소 그대로.
+  if (/^https:\/\/wts-info-api\.tossinvest\.com\//.test(targetUrl)) targetUrl = targetUrl.replace("://wts-info-api.", "://wts-cert-api.");
+
   const plan = proxyPlanFor(targetUrl);
   // 건강(=down 아님) 우선, down은 후순위. 그 안에서는 랜덤 (부하 분산)
   const rank = (list: string[]) => [
