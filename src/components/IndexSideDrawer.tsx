@@ -37,7 +37,7 @@ function KrScheduleTag() {
   const odd = s.regStart !== 9 * 60 || s.regEnd !== 15 * 60 + 30;
   return (
     <div title={`오늘 국내 장 시간(토스) — 장전 ${s.openStart != null ? hm(s.openStart) : "?"}~ · 정규장 ${hm(s.regStart)}~${hm(s.regEnd)} · 시간외 ~${hm(s.closingEnd)} · 애프터 ~${hm(s.afterEnd)}${s.holiday ? " · 휴장일" : ""}`}
-         className={`fixed right-0 top-[92px] z-40 w-[112px] rounded-l-md border border-r-0 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right whitespace-nowrap ${odd || s.holiday ? "border-amber-400 bg-amber-50 text-amber-800" : "border-gray-200 bg-white/90 text-gray-500"}`}>
+         className={`fixed right-0 top-[92px] z-40 w-[112px] rounded-l-md border border-r-0 border-gray-200 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right whitespace-nowrap ${odd || s.holiday ? "text-amber-700" : "text-gray-500"}`}>   {/* 얇은 회색 테두리만, 바탕 없음(사용자 2026-11-19), 바뀐 날은 주황 글씨 */}
       {/* 토스 시간표 그대로 세 줄 — 장전(동시호가)·정규·애프터. NXT 프리마켓은 토스가 시간을 주지 않아 적지 않는다(사용자 2026-11-19) */}
       {s.holiday ? <b>국내 휴장</b> : <>
         {/* 지금 구간 줄에 배경색(사용자 2026-11-19 "현재 시간에 배경색") */}
