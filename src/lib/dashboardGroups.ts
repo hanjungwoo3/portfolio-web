@@ -34,6 +34,8 @@ export interface DashboardSection {
   rowLabels?: string[];
   // 블록 맨 위 설명 한 줄 — 이 블록을 어떻게 읽는지.
   note?: string;
+  // 설명 줄 앞 바깥 링크(거래소 공지 원문 등) — PC·모바일 같은 자리(사용자 2026-11-20 "링크도 상단에")
+  extLinks?: { label: string; url: string; krxSeq?: string }[];   // krxSeq = KRX 공지 번호 → 공지 팝업
   // 카드 대신 다른 블록으로 그리는 섹션. "sectorFlow" 면 ETF 랭킹의 '섹터별 흐름' 을 넣는다.
   //   랭킹 스냅샷이 없으면(캐시 없음·조회 실패) rows 의 고정 카드로 폴백한다.
   render?: "sectorFlow" | "etfTop" | "rotation" | "sobuGrid";
@@ -562,6 +564,10 @@ function sectionMap(): Record<string, DashboardSection> {
       //   칸이 4개까지라 KRX 300(편입 28·편출 29)은 뺐다. 파두(440110)는 심사 결과 미편입. 다음 정기변경(6월) 때 이 블록·usMarketData 묶음을 갈아 끼운다
       id: "krxreb", short: "KRX(26.12월)", etfs: ["069500.KS", "229200.KS"], label: "📋 KRX 정기변경 — 2026-12-11 적용 편입·편출", render: "sobuGrid",
       note: "거래소 공지(2026-11-18) 첨부 목록. 12월 11일(금) 장 마감 뒤 반영 — 지수 추종 자금이 편입 종목은 사고 편출 종목은 판다.",
+      extLinks: [
+        { label: "📄 KOSPI 200·KOSDAQ 150·KRX 300 정기변경 공지", krxSeq: "1124", url: "https://data.krx.co.kr/contents/MDC/COMS/board/MDCCOMS010_S2.cmd?boardId=MDCINFO005&cmBbsId=MKD01040000&bbsSeq=1124" },
+        { label: "📄 KRX TMI 정기변경 공지", krxSeq: "1125", url: "https://data.krx.co.kr/contents/MDC/COMS/board/MDCCOMS010_S2.cmd?boardId=MDCINFO005&cmBbsId=MKD01040000&bbsSeq=1125" },
+      ],
       lead: 0, leadByRow: [0, 0, 0, 0],
       rowLabels: ["KOSPI200 추가", "KOSPI200 삭제", "KOSDAQ150 추가", "KOSDAQ150 삭제"],
       rows: [

@@ -124,6 +124,22 @@ export function KrxNoticeCard() {
 }
 
 // 공지 본문 팝업 — 크롤러가 받아 둔 본문이라 추가 조회가 없다.
+// 다른 화면에서 공지 하나를 같은 팝업으로 — KRX 정기변경 탭 위 링크(사용자 2026-11-20 "팝업레이어로").
+//   목록은 이 카드와 같은 캐시(loadNotices). 공지를 못 찾으면(받기 실패) KRX 원문을 새 창으로.
+export function KrxNoticeButton({ seq, label, url, className }: { seq: string; label: string; url: string; className?: string }) {
+  const [opened, setOpened] = useState<KrxNotice | null>(null);
+  const open = async () => {
+    const n = await loadNotices().then(list => list.find(x => x.seq === seq)).catch(() => undefined);
+    if (n) setOpened(n); else window.open(url, "_blank", "noopener,noreferrer");
+  };
+  return (
+    <>
+      <button type="button" onClick={open} className={className}>{label}</button>
+      {opened && <NoticeDialog notice={opened} onClose={() => setOpened(null)} />}
+    </>
+  );
+}
+
 function NoticeDialog({ notice, onClose }: { notice: KrxNotice; onClose: () => void }) {
   // 배경 클릭 판정 — 본문에서 드래그하다 배경에서 손을 떼도 닫히면 안 된다(앱의 다른 모달과 동일).
   const downOnBackdropRef = useRef(false);

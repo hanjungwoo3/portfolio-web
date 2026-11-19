@@ -36,6 +36,7 @@ import { US_PAIRS, allYahooSymbols, DAY_SPARK_SYMBOLS } from "../lib/usMarketDat
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
 import { reportRefresh } from "../lib/lastRefresh";
 import { handleTossLinkClick, TOSS_SYMBOL_URL, worldQuoteUrl } from "../lib/toss";
+import { ExtLinks } from "./ExtLinks";
 import { Sparkline } from "./Sparkline";
 import { KrDaySparkline } from "./KrDaySparkline";
 import { MarketFlowModal } from "./MarketFlowModal";
@@ -908,6 +909,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   <div className="text-[11px] text-gray-500 leading-snug flex items-center gap-2 flex-wrap">
                     {page === "sobu" && section.render === "sobuGrid" && <span className="hidden lg:inline-flex gap-1 shrink-0"><AvgMarketToggle /></span>}
                     {section.note && <span>{section.note}</span>}
+                    <ExtLinks links={section.extLinks} />
                   </div>
                 )}
                 {section.id === "krfx" && <RealRateNote usMap={usMap} />}

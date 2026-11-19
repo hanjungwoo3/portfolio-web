@@ -103,6 +103,7 @@ import {
 } from "../lib/db";
 import { detectPortfolioJson } from "../lib/portfolioImport";
 import { handleTossLinkClick, TOSS_SYMBOL_URL, worldQuoteUrl } from "../lib/toss";
+import { ExtLinks } from "./ExtLinks";
 import { MobileStockCard } from "./MobileStockCard";
 import { MemoDialog } from "./MemoDialog";
 import { TotalRow } from "./TotalRow";
@@ -2398,7 +2399,7 @@ export function MobileSimpleView() {
                 {section.render === "etfTop" && (
                   <EtfTopCards onOpenEtf={(code, name) => setEtfDialog({ ticker: code, name })} />
                 )}
-                {section.note && <div className="text-[10px] text-gray-500 leading-snug">{section.note}</div>}
+                {(section.note || section.extLinks) && <div className="text-[10px] text-gray-500 leading-snug flex flex-wrap items-center gap-x-2 gap-y-1">{section.note && <span>{section.note}</span>}<ExtLinks links={section.extLinks} /></div>}
                 {section.id === "krfx" && <RealRateNote usMap={usMap} small />}
                 {section.id === "kr" && <BreadthNote usMap={usMap} small />}
                 {section.id === "macro" && <UsBreadthNote usMap={usMap} small />}
