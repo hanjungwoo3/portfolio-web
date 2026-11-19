@@ -1,7 +1,7 @@
 // 국내 장 시간표 받기 — 토스 trading-info 의 오늘 schedule(장 열림·정규장·시간외·애프터) + 휴장일.
 //   수능·연초 개장일처럼 시간이 바뀌는 날을 따라가려고(사용자 2026-11-19). 받은 값은 format.ts 의 setKrSchedule 로.
 //   오늘 날짜로 localStorage 에도 둔다 — 새로 열자마자(받기 전에도) 맞는 시간을 쓰게. 30분마다 다시.
-//   못 받으면(웹 공용 서버는 토스가 막혀 있다) 평소 시간 그대로.
+//   못 받으면 평소 시간 그대로.
 import { fetchProxied } from "./api";
 import { setKrSchedule, nowKstDateStr, type KrSchedule } from "./format";
 
@@ -10,7 +10,9 @@ const toMin = (hm?: string) => { const m = /^(\d{1,2}):(\d{2})$/.exec(hm ?? "");
 
 async function load(): Promise<void> {
   try {
-    const r = await fetchProxied("https://wts-info-api.tossinvest.com/api/v1/dashboard/wts/overview/trading-info");
+    // wts-cert-api 로 — 같은 응답인데 클라우드 프록시도 통과한다(wts-info-api 는 Cloudflare 에서 400, 실측 2026-11-19).
+    //   그래서 확장·앱 없는 웹에서도 시간표가 들어온다(사용자 2026-11-19 "웹에서도 되게 하자")
+    const r = await fetchProxied("https://wts-cert-api.tossinvest.com/api/v1/dashboard/wts/overview/trading-info");
     if (!r.ok) return;
     const j = await r.json() as { result?: { data?: Array<{ key?: string; isHoliday?: boolean; schedule?: { name?: string; startTime?: string; endTime?: string }[] }> } };
     const kr = j.result?.data?.find(d => d.key === "kr");
