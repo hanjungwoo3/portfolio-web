@@ -800,17 +800,21 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   };
 
   if (cardsColumn) return (
-    <div className="pg-cardscol flex flex-col gap-3">   {/* 글자 한 단계씩 작게 — index.css .pg-cardscol(사용자 2026-11-19) */}
+    <div className="pg-cardscol flex flex-col gap-2.5">   {/* 글자 한 단계씩 작게 — index.css .pg-cardscol(사용자 2026-11-19) */}
       {T0_SECTIONS.map(sec => {
         const syms = sec.rows.flat().filter(sym => !dimOf(sym));
         if (!syms.length) return null;
         return (
-          <div key={sec.id} title={sec.label} className="flex flex-col gap-4 pt-2 shrink-0">   {/* 묶음 판 없이 — 묶음 사이는 간격만(사용자 2026-11-19 "블럭 레이어도 없애자") */}
+          <div key={sec.id} title={sec.label} className="flex flex-col gap-1 shrink-0">   {/* 묶음 판 없이 — 묶음 사이는 간격만(사용자 2026-11-19 "블럭 레이어도 없애자") */}
             {syms.map(sym => {
               const b = breadthOf(sym);
               return (
                 <div key={sym} className="relative min-w-0">
                   {renderIdxCard(sec, sym)}
+                  {/* 카드 전체를 덮는 단추 — 누르면 지수 창(카드 안 링크·단추 대신, 사용자 2026-11-19 "클릭하면 지수창으로") */}
+                  <button type="button" aria-label="지수 창 열기" title="지수 창 열기 (`)"
+                          onClick={() => window.dispatchEvent(new Event("open-index-drawer"))}
+                          className="absolute inset-0 z-40 rounded-lg hover:ring-2 hover:ring-indigo-300" />
                   {b && b.up + b.down > 0 && (
                     <span className="absolute right-1.5 -top-2 z-20 px-1 rounded border border-gray-200 bg-white text-[10.5px] font-bold tabular-nums leading-[15px] pointer-events-none">
                       <span className="text-rose-600">▲{b.up}</span> <span className="text-blue-600">▼{b.down}</span>

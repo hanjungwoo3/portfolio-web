@@ -58,7 +58,7 @@ function KrScheduleTag({ onHide }: { onHide: () => void }) {
     </div>
   );
   return (
-    <div className="w-[156px] flex flex-col items-end shrink-0">
+    <div className="w-[136px] flex flex-col items-end shrink-0">
       {/* 국장/미장 책갈피 탭 — 고른 쪽만(사용자 2026-11-19 "국장/미장 탭으로, 책갈피 탭"), 고른 것 기억 */}
       <div className="flex gap-0.5 pr-1">{tab("now", "현재")}{tab("kr", "국장")}{us && tab("us", "미장")}
         {/* 닫기 — 작은 화면에서 본문을 가린다(사용자 2026-11-19). 시간표·고정 카드를 접고 '📈 지수' 손잡이만 남긴다 */}
@@ -109,7 +109,7 @@ function PinnedMini() {
   }, [pins]);
   if (!pins.length) return null;
   return (
-    <div className="w-[156px] min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:thin] pr-0">
+    <div className="w-[136px] min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:thin] pr-0">
       <UsMarketTab sectionsOverride={sections} page="night" cardsColumn />
     </div>
   );

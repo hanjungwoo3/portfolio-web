@@ -114,7 +114,7 @@ html.night-bg .fixed.inset-0 > div:has(.pg-bg) { background-color: #2b2f35 !impo
 html.night-bg .pg-bg :is(rect[fill="#f8fafc"], rect[fill="#f9fafb"], rect[fill="#ffffff"], rect[fill="white"]) { fill: #a9aeb5; }
 
 /* 오른쪽 고정 카드(지수 카드 그대로를 세로 한 줄로) — 글자 한 단계씩 작게(사용자 2026-11-19 "폰트도 1단계씩 줄여") */
-.pg-cardscol .text-xl { font-size: 1.125rem !important; line-height: 1.5rem !important; }
+.pg-cardscol .text-xl { font-size: 0.9375rem !important; line-height: 1.25rem !important; }
 .pg-cardscol .text-lg { font-size: 1rem !important; line-height: 1.375rem !important; }
 .pg-cardscol .text-base { font-size: 0.875rem !important; line-height: 1.25rem !important; }
 .pg-cardscol .text-sm { font-size: 0.75rem !important; line-height: 1rem !important; }
@@ -122,4 +122,7 @@ html.night-bg .pg-bg :is(rect[fill="#f8fafc"], rect[fill="#f9fafb"], rect[fill="
 .pg-cardscol .text-\[11px\] { font-size: 10px !important; }
 .pg-cardscol .text-\[10px\] { font-size: 9px !important; }
 .pg-cardscol .text-\[10\.5px\] { font-size: 9.5px !important; }
+/* 책갈피(마감가·ETF 꼬리표)·아래 단추 줄·이름 옆 꼬리표(위험·?) 모두 숨김(사용자 2026-11-19 "버튼과 책갈피 다 지우고") */
+.pg-cardscol .pg-card > .absolute { display: none !important; }
+.pg-cardscol .pg-card .relative.z-10.flex.items-baseline > :not(:first-child) { display: none !important; }
 
