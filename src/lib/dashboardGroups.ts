@@ -558,6 +558,20 @@ function sectionMap(): Record<string, DashboardSection> {
       ],
     },
     {
+      // KRX 지수 정기변경(2026-12-11 적용) — 거래소 공지 첨부 엑셀의 편입·편출 목록(사용자 2026-11-20 "업종별에 KRX(26.12월)로, KOSPI200 추가/삭제처럼").
+      //   칸이 4개까지라 KRX 300(편입 28·편출 29)은 뺐다. 파두(440110)는 심사 결과 미편입. 다음 정기변경(6월) 때 이 블록·usMarketData 묶음을 갈아 끼운다
+      id: "krxreb", short: "KRX(26.12월)", etfs: ["069500.KS", "229200.KS"], label: "📋 KRX 정기변경 — 2026-12-11 적용 편입·편출", render: "sobuGrid",
+      note: "거래소 공지(2026-11-18) 첨부 목록. 12월 11일(금) 장 마감 뒤 반영 — 지수 추종 자금이 편입 종목은 사고 편출 종목은 판다.",
+      lead: 0, leadByRow: [0, 0, 0, 0],
+      rowLabels: ["KOSPI200 추가", "KOSPI200 삭제", "KOSDAQ150 추가", "KOSDAQ150 삭제"],
+      rows: [
+        ["000500.KS", "001740.KS", "002960.KS", "004800.KS", "005440.KS", "006110.KS", "031210.KS", "103590.KS", "178920.KS", "336260.KS", "353200.KS"],
+        ["000670.KS", "001680.KS", "002030.KS", "005420.KS", "006650.KS", "008730.KS", "009240.KS", "0220W0.KS", "069260.KS", "071320.KS", "361610.KS", "456040.KS"],
+        ["102710.KS", "010170.KS", "347700.KS", "031330.KS", "083450.KS", "252990.KS", "388210.KS", "356860.KS", "027360.KS", "127120.KS", "458870.KS", "491000.KS", "476830.KS", "086450.KS", "115180.KS", "397030.KS"],
+        ["025900.KS", "056080.KS", "348370.KS", "214430.KS", "399720.KS", "253590.KS", "272290.KS", "348210.KS", "042000.KS", "030520.KS", "025320.KS", "352480.KS", "358570.KS", "082270.KS", "060280.KS", "194480.KS"],
+      ],
+    },
+    {
       id: "beautyflow", etfs: ["228790.KS", "479850.KS", "0008T0.KS"], short: "화장품", label: "💄 화장품 — 단계별 해외 대장주 ➜ 국내", render: "sobuGrid",
       note: "테두리 카드 = 해외 대장주(미국은 간밤, 일본은 지금 장중).",
       lead: 1, leadByRow: [3, 0, 1],
@@ -768,7 +782,7 @@ export const PAGE_IDS: Record<DashboardPage, string[]> = {
   // 소부장 — 단계별 한 블록만(사용자 2026-11-02, 주간 시장 줄은 뺐다 "빼도 될 거 같아")
   // 지수(업종) — 업종마다 한 블록, 페이지 안 탭으로 하나씩(사용자 2026-11-03 "소부장·ESS 를 내부 탭으로")
   //   + 옛 지수(순환매) 페이지를 '한눈에' 탭으로 합쳤다(사용자 2026-11-03 "순환매와 업종이 비슷" → 1안) — 아래 SECTOR_OVERVIEW_IDS
-  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "semiflow", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "greenflow", "opticflow", "dcflow", "autoflow", "buildflow", "matflow", "consflow", "contentflow", "usswflow", "ustechflow", "usdefflow", "bioflow", "robotflow", "finflow", "beautyflow"],
+  sobu:  ["semi", "jpsemi", "rotflow", "etftop", "sector", "semiflow", "sobuflow", "battflow", "shipflow", "defflow", "nucflow", "greenflow", "opticflow", "dcflow", "autoflow", "buildflow", "matflow", "consflow", "contentflow", "usswflow", "ustechflow", "usdefflow", "bioflow", "robotflow", "finflow", "beautyflow", "krxreb"],
   // 옛 '지수(미국순환)' 를 합쳤다(2026-10-12) — 국내 상장 미국 ETF ➜ 미국 종목 4묶음. AI 하드 vs 소프트 요약 블록은 뺐다(줄이 같은 걸 보여 준다).
   //   옛 '미국 빅테크'·'미국 대표 ETF' 블록은 빼고 그 종목을 이 줄들에 녹였다.
   // (아래 넷은 옛 반도체 페이지 메모 — 이제 야간의 반도체 묶음에 해당)
