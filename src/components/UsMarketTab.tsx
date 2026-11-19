@@ -877,7 +877,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                style={{ scrollMarginTop: idxScrollMargin }}
                className={`relative space-y-2 rounded-xl border border-gray-300 bg-white ${section.render === "rotation" ? "" : section.render ? "pg-box pg-render" : "pg-box"} p-2.5 pt-4 mt-1.5`}>
             {/* 섹터명 책갈피 — 카드 상단에 겹치게 */}
-            <span hidden={section.render === "sobuGrid"} className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
+            <span hidden={section.render === "sobuGrid" && page === "sobu"} className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50
                              text-sm font-bold text-gray-700 whitespace-nowrap">
               {section.label}
               {section.link && isTabVisible(section.link.vis) && (
