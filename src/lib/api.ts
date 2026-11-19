@@ -3196,6 +3196,24 @@ export async function fetchYasunNightFutures(virtualSymbol: string): Promise<Yas
         kisNote = kisIdxFutNote[kk] ?? "";
         if (k && k.price > 0) { price = k.price; pct = k.pct; diff = k.price - k.base; fromKis = true; }
       } catch { /* yasun 값 */ }
+    } else {
+      // 야간 — 한투 값을 yasun 야간 값과 견줘 쓴다. 0.3% 안으로 붙어 있고, 주간 마감가(= yasun 기준가)에 멈춰 있지 않을 때만
+      //   (주간 마감가가 오면 지금 움직이는 야간 시세를 멈춘 값으로 덮게 된다). 판정은 카드 작은 글씨로(사용자 2026-11-19 시험)
+      try {
+        const { fetchKisIndexFutNight } = await import("./kisFutures");
+        const r = await fetchKisIndexFutNight(virtualSymbol === "^KS200N" ? "k200" : "kq150");
+        if (r) {
+          const near = r.price > 0 && Math.abs(r.price / price - 1) <= 0.003;
+          const stuck = r.price > 0 && Math.abs(r.price - base) < 1e-9 && Math.abs(price - base) > 1e-9;
+          if (near && !stuck) {
+            pct = base > 0 ? (r.price / base - 1) * 100 : pct; price = r.price; diff = price - base; fromKis = true;
+          } else {
+            kisNote = r.price > 0
+              ? `한투 야간(${r.div}) ${r.price} — ${stuck ? "주간 마감가라 안 씀" : `yasun ${price.toFixed(2)} 와 달라 안 씀`}`
+              : `한투 야간 없음: ${r.tried.join(" / ")}`;
+          }
+        }
+      } catch { /* yasun 값 */ }
     }
     return {
       index: {

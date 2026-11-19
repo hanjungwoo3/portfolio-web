@@ -235,3 +235,20 @@ export async function fetchKisIndexFutQuote(kind: "k200" | "kq150"): Promise<Kis
   return null;
 }
 
+// ─── 야간(18:00~05:00) 지수선물 — 한투 시장 코드가 공식 예제에 없다. 후보(CM·F)로 물어 값만 돌려준다.
+//   ⚠️ 야간 체결가인지 '주간 마감가'인지는 여기서 모른다 — 부르는 쪽(api)이 yasun 야간 값과 견줘 쓸지 정한다(사용자 2026-11-19 "진행해")
+export async function fetchKisIndexFutNight(kind: "k200" | "kq150"): Promise<{ price: number; div: string; tried: string[] } | null> {
+  if (!isKisLinkOn()) return null;
+  const code = indexFutFrontCode(kind), tried: string[] = [];
+  for (const div of ["CM", "F"]) {
+    try {
+      const { body } = await kisGet<{ rt_cd?: string; output1?: Record<string, string> }>(
+        "/uapi/domestic-futureoption/v1/quotations/inquire-price", "FHMIF10000000", { FID_COND_MRKT_DIV_CODE: div, FID_INPUT_ISCD: code });
+      const price = num((body.output1 ?? {}).futs_prpr);
+      if (price > 0) return { price, div, tried };
+      tried.push(`${div} 값 없음`);
+    } catch (e) { tried.push(`${div} ${e instanceof Error ? e.message.replace(/^한국투자: /, "").slice(0, 40) : "실패"}`); }
+  }
+  return { price: 0, div: "", tried };
+}
+
