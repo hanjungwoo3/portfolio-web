@@ -178,3 +178,17 @@ export function useAdaptiveRefreshMs(baseMs: number): number {
   }, [baseMs, extReady]);
   return ms;
 }
+
+// ─── 옛 개인 워커 — 토스가 요구하는 쿠키(BTK, 2026-11-12~)를 안 넣어 invalid-client-state 400 을 받는 워커.
+//   시세는 공용으로 넘어가 받지만, 사용자에게 '다시 배포하세요'를 띄운다(사용자 2026-11-19 "프록시 고치라고 떠야")
+const outdated = new Set<string>();
+const outdatedLs = new Set<() => void>();
+export function markProxyOutdated(url: string): void {
+  if (outdated.has(url)) return;
+  outdated.add(url);
+  outdatedLs.forEach(f => f());
+}
+export function getOutdatedProxies(): string[] { return [...outdated]; }
+export function isProxyOutdated(url: string): boolean { return outdated.has(url); }
+export function subscribeOutdated(f: () => void): () => void { outdatedLs.add(f); return () => { outdatedLs.delete(f); }; }
+

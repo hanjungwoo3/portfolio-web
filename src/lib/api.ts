@@ -3,6 +3,7 @@ import { fetchLive, preferServer } from "./liveServer";
 import {
   reportProxySuccess, reportProxyFailure, isProxyDown,
   noteHostFailure, noteHostSuccess, isHostBlocked,
+  markProxyOutdated, isProxyOutdated,
 } from "./proxyStatus";
 import {
   getEnabledPersonalProxies, isLocalProxyUrl, isExtensionProxyUrl, isNativeProxyUrl, isSyntheticProxyUrl,
@@ -227,6 +228,8 @@ export async function fetchProxied(
     for (const base of order) {
       const provider = proxyProvider(base);
       if (hardFailed && triedProviders.has(provider)) continue;   // 같은 egress → 결과 동일, 건너뜀
+      // 토스 쿠키가 없는 옛 개인 워커로 확인된 곳은 토스 요청에서 건너뛴다(매번 400 한 번 맞고 넘어가지 않게)
+      if (/tossinvest\.com$/.test(targetHost) && isProxyOutdated(base)) continue;
       triedProviders.add(provider);
       try {
         // 응답이 안 오는 요청이 슬롯을 붙잡고 큐 전체를 막지 않게 타임아웃 (호출측 signal 우선)
@@ -243,6 +246,16 @@ export async function fetchProxied(
         // 403 = 그 **워커**가 호스트를 허용 목록에 안 가졌다(옛 개인 워커 등) — 토스 쪽 거절이 아니라 워커 설정이라
         //   같은 공급자(Cloudflare)의 다른 워커(공용)는 통과할 수 있다. 공급자 단위로 막지 말고 다음 프록시로(사용자 2026-11-19)
         if (resp.status === 403) { triedProviders.delete(provider); continue; }
+        // 토스 400 invalid-client-state = 그 워커가 토스 필수 쿠키(BTK 등)를 안 넣는 **옛 버전** — 워커 문제라 다른 워커(공용)는 된다.
+        //   공급자 단위로 막지 말고 넘어가고, 개인 워커면 '다시 배포' 안내를 띄운다(실측 2026-11-19 hanjungwoo-07a 워커)
+        if (resp.status === 400 && /tossinvest\.com$/.test(targetHost)) {
+          const body = await resp.clone().text().catch(() => "");
+          if (body.includes("invalid-client-state")) {
+            if (!PUBLIC_PROXY_URLS.includes(base)) markProxyOutdated(base);
+            triedProviders.delete(provider);
+            continue;
+          }
+        }
         if (!isProxyRetryable(resp.status)) {
           // 이 공급자로는 이 호스트가 안 된다고 기억 — 다음부터 뒤로 미룬다(자가 복구됨).
           noteHostFailure(targetHost, provider);
