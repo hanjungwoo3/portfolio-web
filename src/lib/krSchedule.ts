@@ -16,7 +16,7 @@ async function load(): Promise<void> {
     const kr = j.result?.data?.find(d => d.key === "kr");
     if (!kr) return;
     const seg = (n: string) => kr.schedule?.find(x => (x.name ?? "").replace(/\s/g, "") === n);
-    const reg = seg("정규장"), closing = seg("시간외거래"), after = seg("애프터마켓");
+    const reg = seg("정규장"), closing = seg("시간외거래"), after = seg("애프터마켓"), open0 = seg("장열림");
     const regStart = toMin(reg?.startTime), regEnd = toMin(reg?.endTime);
     if (regStart == null || regEnd == null || regEnd <= regStart) {
       if (kr.isHoliday) { const s: KrSchedule = { regStart: 540, regEnd: 930, closingEnd: 960, afterEnd: 1200, holiday: true, date: nowKstDateStr() }; setKrSchedule(s); save(s); }
@@ -28,6 +28,8 @@ async function load(): Promise<void> {
       afterEnd: toMin(after?.endTime) ?? 20 * 60,
       holiday: kr.isHoliday === true,
       date: nowKstDateStr(),
+      openStart: toMin(open0?.startTime) ?? undefined,
+      afterStart: toMin(after?.startTime) ?? undefined,
     };
     setKrSchedule(s);
     save(s);

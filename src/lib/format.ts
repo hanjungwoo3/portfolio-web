@@ -205,8 +205,8 @@ function dateStrInTz(tz: string): string {
 // ─── 국내 장 시간표(분, KST) — 토스 trading-info 가 그날 시간을 준다(수능·연초 개장일엔 1시간 늦게 등)
 //   (사용자 2026-11-19 "수능이라 국장 오픈 시간이 바뀐 거 같은데" → "API 시간표로 바꾸자"). lib/krSchedule 가 받아 넣는다.
 //   받기 전·실패하면 평소 시간. 장 열림·NXT 프리는 정규장 시작이 밀린 만큼 같이 민다(토스가 프리 시간을 따로 주지 않는다).
-export interface KrSchedule { regStart: number; regEnd: number; closingEnd: number; afterEnd: number; holiday: boolean; date: string }
-const KR_NORMAL: Omit<KrSchedule, "date"> = { regStart: 9 * 60, regEnd: 15 * 60 + 30, closingEnd: 16 * 60, afterEnd: 20 * 60, holiday: false };
+export interface KrSchedule { regStart: number; regEnd: number; closingEnd: number; afterEnd: number; holiday: boolean; date: string; openStart?: number; afterStart?: number }   // openStart = 장 열림(동시호가) 시작, afterStart = 애프터 시작
+const KR_NORMAL: Omit<KrSchedule, "date"> = { regStart: 9 * 60, regEnd: 15 * 60 + 30, closingEnd: 16 * 60, afterEnd: 20 * 60, holiday: false, openStart: 8 * 60 + 30, afterStart: 16 * 60 };
 let krSched: KrSchedule | null = null;
 /** 오늘(KST) 시간표 — 다른 날 것이면 평소 시간 */
 export function krSchedule(): Omit<KrSchedule, "date"> {

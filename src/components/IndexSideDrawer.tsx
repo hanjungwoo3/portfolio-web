@@ -26,11 +26,20 @@ function KrScheduleTag() {
   if (!krScheduleLoaded()) return null;
   const s = krSchedule();
   const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+  const k = new Date(Date.now() + 9 * 3600_000), now = k.getUTCHours() * 60 + k.getUTCMinutes(), wk = k.getUTCDay() >= 1 && k.getUTCDay() <= 5;
+  const cur = (a: number, b: number) => (wk && a <= now && now < b ? "bg-indigo-600 text-white font-bold" : "");
   const odd = s.regStart !== 9 * 60 || s.regEnd !== 15 * 60 + 30;
   return (
-    <div title={`오늘 국내 장 시간(토스) — 정규장 ${hm(s.regStart)}~${hm(s.regEnd)} · 시간외 ~${hm(s.closingEnd)} · 애프터 ~${hm(s.afterEnd)}${s.holiday ? " · 휴장일" : ""}`}
-         className={`fixed right-0 top-[96px] z-40 w-[92px] rounded-l-md border border-r-0 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right ${odd || s.holiday ? "border-amber-400 bg-amber-50 text-amber-800" : "border-gray-200 bg-white/90 text-gray-500"}`}>
-      {s.holiday ? <b>국내 휴장</b> : <><div>정규 <b>{hm(s.regStart)}~{hm(s.regEnd)}</b></div><div>애프터 ~{hm(s.afterEnd)}</div></>}
+    <div title={`오늘 국내 장 시간(토스) — 장전 ${s.openStart != null ? hm(s.openStart) : "?"}~ · 정규장 ${hm(s.regStart)}~${hm(s.regEnd)} · 시간외 ~${hm(s.closingEnd)} · 애프터 ~${hm(s.afterEnd)}${s.holiday ? " · 휴장일" : ""}`}
+         className={`fixed right-0 top-[92px] z-40 w-[112px] rounded-l-md border border-r-0 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right whitespace-nowrap ${odd || s.holiday ? "border-amber-400 bg-amber-50 text-amber-800" : "border-gray-200 bg-white/90 text-gray-500"}`}>
+      {/* 토스 시간표 그대로 세 줄 — 장전(동시호가)·정규·애프터. NXT 프리마켓은 토스가 시간을 주지 않아 적지 않는다(사용자 2026-11-19) */}
+      {s.holiday ? <b>국내 휴장</b> : <>
+        {/* 지금 구간 줄에 배경색(사용자 2026-11-19 "현재 시간에 배경색") */}
+        {s.openStart != null && <div className={`px-0.5 rounded ${cur(s.openStart, s.regStart)}`}>장전 {hm(s.openStart)}~{hm(s.regStart)}</div>}
+        <div className={`px-0.5 rounded ${cur(s.regStart, s.regEnd)}`}>정규 <b>{hm(s.regStart)}~{hm(s.regEnd)}</b></div>
+        {s.closingEnd > s.regEnd && <div className={`px-0.5 rounded ${cur(s.regEnd, s.afterStart ?? s.closingEnd)}`}>시간외 {hm(s.regEnd)}~{hm(s.afterStart ?? s.closingEnd)}</div>}
+        <div className={`px-0.5 rounded ${cur(s.afterStart ?? s.closingEnd, s.afterEnd)}`}>애프터 {hm(s.afterStart ?? s.closingEnd)}~{hm(s.afterEnd)}</div>
+      </>}
     </div>
   );
 }
