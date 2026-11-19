@@ -20,7 +20,7 @@ import { krSchedule, krScheduleLoaded, krFuturesName } from "../lib/format";
 import { usSchedule } from "../lib/krSchedule";
 
 // 손잡이 위 빈자리 — 오늘 국내 장 시간표(토스 trading-info, 수능 등 바뀐 날은 주황)(사용자 2026-11-19 "거기 작은 글씨로 시간표")
-function KrScheduleTag() {
+function KrScheduleTag({ onHide }: { onHide: () => void }) {
   const [, tick] = useState(0);
   // 국장/미장 고른 것 기억(사용자 2026-11-19 "선택한 거 유지되게")
   type Tab = "now" | "kr" | "us";
@@ -67,7 +67,11 @@ function KrScheduleTag() {
   return (
     <div className="fixed right-0 top-[80px] z-40 w-[112px] flex flex-col items-end">
       {/* 국장/미장 책갈피 탭 — 고른 쪽만(사용자 2026-11-19 "국장/미장 탭으로, 책갈피 탭"), 고른 것 기억 */}
-      <div className="flex gap-0.5 pr-1">{tab("now", "현재")}{tab("kr", "국장")}{us && tab("us", "미장")}</div>
+      <div className="flex gap-0.5 pr-1">{tab("now", "현재")}{tab("kr", "국장")}{us && tab("us", "미장")}
+        {/* 닫기 — 작은 화면에서 본문을 가린다(사용자 2026-11-19). 시간표·고정 카드를 접고 '📈 지수' 손잡이만 남긴다 */}
+        <button type="button" onClick={onHide} title="시간표·고정 카드 접기(손잡이 위 ◂ 로 다시 펼침)"
+                className="px-1 rounded-t border border-b-0 bg-gray-100 border-gray-200 text-[9.5px] leading-[14px] font-bold text-gray-400 hover:text-rose-600">✕</button>
+      </div>
       <div title={showUs ? "오늘 미국 장 시간(토스, 한국 시각)" : `오늘 국내 장 시간(토스) — 장전 ${s.openStart != null ? hm(s.openStart) : "?"}~ · 정규장 ${hm(s.regStart)}~${hm(s.regEnd)} · 시간외 ~${hm(s.closingEnd)} · 애프터 ~${hm(s.afterEnd)}${s.holiday ? " · 휴장일" : ""}`}
            className={`w-full rounded-l-md border border-r-0 border-gray-300 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right whitespace-nowrap text-gray-500`}>   {/* 얇은 테두리, 바탕 없음 · 국내가 바뀐 날은 주황 글씨 */}
         {view === "now"
@@ -172,7 +176,10 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
 export function IndexSideDrawer() {
   const [open, setOpen] = useState(false);
   // 고정 카드가 하나라도 있으면 '📈 지수' 손잡이는 숨긴다 — 카드를 누르면 열리고, 단축키 ` 도 그대로(사용자 2026-11-19)
-  const hasPins = useDrawerPins().length > 0;
+  // 접기 — 시간표·고정 카드를 숨기고 손잡이만(기기에 기억)
+  const [folded, setFolded] = useState(() => { try { return localStorage.getItem("index_side_folded") === "1"; } catch { return false; } });
+  const fold = (v: boolean) => { setFolded(v); try { localStorage.setItem("index_side_folded", v ? "1" : "0"); } catch { /* 이번만 */ } };
+  const hasPins = useDrawerPins().length > 0 && !folded;
   const [closing, setClosing] = useState(false);
   // 닫을 때도 나올 때처럼 미끄러져 들어간다(사용자 2026-11-09) — 애니메이션이 끝난 뒤 내린다
   const close = () => { if (closing) return; setClosing(true); setTimeout(() => { setOpen(false); setClosing(false); }, 180); };
@@ -202,8 +209,12 @@ export function IndexSideDrawer() {
       <button type="button" onClick={() => setOpen(true)}
               className={`fixed right-0 top-[150px] z-50 rounded-l-lg border border-r-0 border-indigo-300 bg-indigo-50 text-indigo-700 shadow px-1 py-2 text-[11px] font-bold [writing-mode:vertical-rl] hover:bg-indigo-100 ${open || hasPins ? "hidden" : ""}`}
               title="지수·환율·금리·선물·원자재 카드 — 단축키 ` (숫자 1 왼쪽) 로 열고 닫기">📈 지수<span className="mt-1 px-0.5 rounded border border-indigo-300 bg-white text-[9px] font-mono [writing-mode:horizontal-tb]">`</span></button>
-      {!open && <KrScheduleTag />}
-      {!open && <PinnedMini onOpen={() => setOpen(true)} />}
+      {!open && !folded && <KrScheduleTag onHide={() => fold(true)} />}
+      {!open && !folded && <PinnedMini onOpen={() => setOpen(true)} />}
+      {!open && folded && (
+        <button type="button" onClick={() => fold(false)} title="시간표·고정 카드 펼치기"
+                className="fixed right-0 top-[122px] z-50 rounded-l-md border border-r-0 border-gray-300 bg-white px-1 text-[11px] font-bold text-gray-500 hover:text-indigo-600 shadow">◂</button>
+      )}
       {open && (
         <>
           {/* z-50 = 헤더와 같은 층, 그 뒤 DOM 이라 헤더는 덮고 — App 에서 더 뒤에 그려지는 종목정보·히트맵 창(z-50)은 서랍 위로 뜬다(사용자 2026-11-13 "버튼을 누르면 뒤에 뜨는데") */}
