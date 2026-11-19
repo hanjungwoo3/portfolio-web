@@ -3204,7 +3204,9 @@ export async function fetchYasunNightFutures(virtualSymbol: string): Promise<Yas
         const r = await fetchKisIndexFutNight(virtualSymbol === "^KS200N" ? "k200" : "kq150");
         if (r) {
           const near = r.price > 0 && Math.abs(r.price / price - 1) <= 0.003;
-          const stuck = r.price > 0 && Math.abs(r.price - base) < 1e-9 && Math.abs(price - base) > 1e-9;
+          // 주간 마감가(= yasun 기준가)와 같으면 야간 체결이 아니다 — yasun 도 아직 야간 체결이 없어 같은 값일 때 통과해
+          //   등락률 0% 로 덮던 것(실측 2026-11-19 18:11, 796.00). 같으면 무조건 안 쓴다
+          const stuck = r.price > 0 && Math.abs(r.price - base) < 1e-6;
           if (near && !stuck) {
             pct = base > 0 ? (r.price / base - 1) * 100 : pct; price = r.price; diff = price - base; fromKis = true;
           } else {
