@@ -33,6 +33,9 @@ export interface TickBox {
 type Saved = { date: string; lastCum: number; minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; cums?: TickBox["cums"]; kisCalls?: number };
 
 export const kstDate = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+// 지금(KST) + 1분 "HH:MM:SS" — 이보다 늦은 체결 시각은 오늘 것일 수 없다(어제 저녁 체결)
+const kstNowPlus1 = () => new Date(Date.now() + 9 * 3600_000 + 60_000).toISOString().slice(11, 19);
+const emptyBox = (): TickBox => ({ lastCum: 0, lastKis: 0, lastKisTime: "", kisLastAt: 0, minutes: new Map(), big: [], gaps: 0, cums: {}, kisCalls: 0 });
 const storeKey = (code: string) => `semi_tickflow_${code}`;
 const boxes = new Map<string, TickBox>();
 const listeners = new Map<string, Set<() => void>>();
@@ -41,7 +44,7 @@ export function tickBox(code: string): TickBox {
   let b = boxes.get(code);
   if (b && b === boxes.get(code) && (b as TickBox & { _date?: string })._date === kstDate()) return b;
   let sv: Saved | null = null;
-  try { const v = JSON.parse(localStorage.getItem(storeKey(code)) ?? "null") as Saved | null; sv = v && v.date === kstDate() ? v : null; } catch { /* 없음 */ }
+  try { const v = JSON.parse(localStorage.getItem(storeKey(code)) ?? "null") as Saved | null; sv = v && v.date === kstDate() && !(v.last && v.last > kstNowPlus1()) ? v : null; } catch { /* 없음 */ }   // 지금보다 늦은 체결이 든 저장본 = 어제 것이 섞였다 → 버림
   b = sv
     ? { lastCum: sv.lastCum, lastKis: 0, lastKisTime: "", kisLastAt: 0, minutes: new Map(sv.minutes.map(m => [m.t, m])), big: sv.big, gaps: sv.gaps, since: sv.since, last: sv.last, cums: sv.cums ?? {}, kisCalls: sv.kisCalls ?? 0 }
     : { lastCum: 0, lastKis: 0, lastKisTime: "", kisLastAt: 0, minutes: new Map(), big: [], gaps: 0, cums: {}, kisCalls: 0 };
@@ -69,7 +72,14 @@ export function onBox(code: string, f: () => void): () => void {
 
 /** 체결 넣기 — 출처별 누적 거래량으로 중복을 거른다(같은 체결이 화면·배경 두 구독으로 와도 한 번만) */
 export function ingestTicks(code: string, ts: TossTick[], src: "toss" | "kis") {
-  const s = tickBox(code);
+  // 장이 열리기 전엔 토스가 **어제 저녁(NXT 애프터) 체결**을 돌려준다 — 오늘 것으로 받으면 그 누적 거래량(큼) 때문에
+  //   오늘 체결(누적이 작다)을 전부 중복으로 버렸다(실측 2026-11-19 수능 10시 개장: 그래프가 19:59 에 멈춤). 지금보다 늦은 시각은 버린다
+  const cut = kstNowPlus1();
+  ts = ts.filter(t => !t.time || t.time <= cut);
+  if (!ts.length) return;
+  let s = tickBox(code);
+  // 이미 어제 체결이 섞여 저장됐으면(이 고침 전에 받은 것) 오늘 상자를 새로
+  if (s.last && s.last > cut) { const nb = emptyBox(); (nb as TickBox & { _date?: string })._date = kstDate(); boxes.set(code, nb); s = nb; }
   const last = src === "kis" ? s.lastKis : s.lastCum;
   const fresh = ts.filter(t => t.cum > last).sort((a, b) => a.cum - b.cum);
   if (!fresh.length) return;
