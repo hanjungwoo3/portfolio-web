@@ -42,7 +42,6 @@ function KrScheduleTag() {
   const us = usSchedule();
   const dow = k.getUTCDay(), usWk = !(dow === 0 || (dow === 6 && now >= 10 * 60) || (dow === 1 && now < 10 * 60));
   const usCur = (a: number, b: number) => (usWk && (a <= b ? a <= now && now < b : now >= a || now < b) ? "bg-indigo-100 text-indigo-800 font-bold" : "");
-  const odd = s.regStart !== 9 * 60 || s.regEnd !== 15 * 60 + 30;
   const view: Tab = mkt === "us" && !us ? "kr" : mkt;
   const showUs = view === "us";
   const tab = (v: Tab, l: string) => (
@@ -70,7 +69,7 @@ function KrScheduleTag() {
       {/* 국장/미장 책갈피 탭 — 고른 쪽만(사용자 2026-11-19 "국장/미장 탭으로, 책갈피 탭"), 고른 것 기억 */}
       <div className="flex gap-0.5 pr-1">{tab("now", "현재")}{tab("kr", "국장")}{us && tab("us", "미장")}</div>
       <div title={showUs ? "오늘 미국 장 시간(토스, 한국 시각)" : `오늘 국내 장 시간(토스) — 장전 ${s.openStart != null ? hm(s.openStart) : "?"}~ · 정규장 ${hm(s.regStart)}~${hm(s.regEnd)} · 시간외 ~${hm(s.closingEnd)} · 애프터 ~${hm(s.afterEnd)}${s.holiday ? " · 휴장일" : ""}`}
-           className={`w-full rounded-l-md border border-r-0 border-gray-300 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right whitespace-nowrap ${!showUs && (odd || s.holiday) ? "text-amber-700" : "text-gray-500"}`}>   {/* 얇은 테두리, 바탕 없음 · 국내가 바뀐 날은 주황 글씨 */}
+           className={`w-full rounded-l-md border border-r-0 border-gray-300 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right whitespace-nowrap text-gray-500`}>   {/* 얇은 테두리, 바탕 없음 · 국내가 바뀐 날은 주황 글씨 */}
         {view === "now"
           ? <>{nowRow("국장", krNow, s.holiday ? "휴장" : "닫힘")}{us && nowRow("미장", usNow ? [usNow.name, usNow.start, usNow.end] : null, us.holiday ? "휴장" : usWk ? "닫힘" : "주말")}</>
           : showUs
