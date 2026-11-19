@@ -208,8 +208,11 @@ function idxFutCodes(kind: "k200" | "kq150"): [string, string][] {
   return [["F", front], ["F", old]];
 }
 const IDX_FUT_KEY = "kis_idx_fut_fmt2";
+// 마지막 시도 결과 — 카드 작은 글씨에 '한투 안 됨 이유'를 띄워 앱에서 바로 확인(사용자 2026-11-19 "yasun.gg 로 나오는데")
+export const kisIdxFutNote: Record<string, string> = {};
 export async function fetchKisIndexFutQuote(kind: "k200" | "kq150"): Promise<KisFutQuote | null> {
-  if (!isKisLinkOn()) return null;
+  if (!isKisLinkOn()) { kisIdxFutNote[kind] = "한투 미연결"; return null; }
+  const errs: string[] = [];
   const cands = idxFutCodes(kind);
   let saved = -1;
   try { saved = Number(localStorage.getItem(IDX_FUT_KEY) ?? "-1"); } catch { /* noop */ }
@@ -221,12 +224,14 @@ export async function fetchKisIndexFutQuote(kind: "k200" | "kq150"): Promise<Kis
         "/uapi/domestic-futureoption/v1/quotations/inquire-price", "FHMIF10000000", { FID_COND_MRKT_DIV_CODE: div, FID_INPUT_ISCD: code });
       const o = body.output1 ?? {};
       const price = num(o.futs_prpr), pct = num(o.futs_prdy_ctrt);
-      if (!(price > 0)) continue;
+      if (!(price > 0)) { errs.push(`${code} 값 없음`); continue; }
       try { localStorage.setItem(IDX_FUT_KEY, String(i)); } catch { /* noop */ }
+      kisIdxFutNote[kind] = "";
       const base = num(o.futs_prdy_clpr) > 0 ? num(o.futs_prdy_clpr) : (Number.isFinite(pct) ? price / (1 + pct / 100) : price);
       return { code, price, pct: Number.isFinite(pct) ? pct : (price / base - 1) * 100, base };
-    } catch { /* 다음 후보 */ }
+    } catch (e) { errs.push(`${code} ${e instanceof Error ? e.message.replace(/^한국투자: /, "").slice(0, 60) : "실패"}`); }
   }
+  kisIdxFutNote[kind] = `한투 실패: ${errs.join(" / ")}`;
   return null;
 }
 
