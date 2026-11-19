@@ -2,7 +2,7 @@ import { APK_DOWNLOAD_URL as APK_URL } from "../lib/appRelease";
 import { useEffect, useRef, useState } from "react";
 import { detectPlatform, APPS_DL, PRIVACY_URL, type Platform } from "../lib/platform";
 import {
-  getPersonalProxyUrl, getEnabledPersonalProxies, isSyntheticProxyUrl, hasDirectTransport,
+  getPersonalProxyUrl, hasDirectTransport,
 } from "../lib/proxyConfig";
 
 // 권장 순서: 확장(PC) → 앱(안드로이드) → 개인 프록시(그 외).
@@ -132,18 +132,6 @@ function snooze(key: string): void {
   try { localStorage.setItem(key, String(Date.now())); } catch { /* 무시 */ }
 }
 
-// 켜 둔 전용 프록시에 Cloudflare 가 하나라도 있는가.
-//   토스 wts-info-api 가 Cloudflare egress 를 거부하므로(실측) 그 워커는 종목 시세를 못 받는다.
-//   ★ '전부 Cloudflare' 로 좁히면 CF + 죽은 다른 공급자를 함께 켜 둔 사람을 놓친다. 그 사람도
-//     결국 공용에 얹혀 가므로 똑같이 알려야 한다. 켜져 있으면 매 요청마다 헛호출도 한 번 더 난다.
-function hasCloudflareProxy(): boolean {
-  return getEnabledPersonalProxies()
-    .filter(u => !isSyntheticProxyUrl(u))
-    .some(u => {
-      try { return new URL(u).hostname.endsWith("workers.dev"); } catch { return false; }
-    });
-}
-
 // 1초 지연 후 등장 — 즉시 띄우면 부담.
 export function OnboardingDialog({ onOpenSettings, onDone }: Props) {
   const [mode, setMode] = useState<Mode | null>(null);
@@ -156,7 +144,8 @@ export function OnboardingDialog({ onOpenSettings, onDone }: Props) {
       // postMessage 핸드셰이크라 마운트 시점엔 아직 없을 수 있다. 먼저 보면
       // 확장 사용자에게 "프록시를 배포하세요" 팝업이 뜬다.
       if (hasDirectTransport()) { onDone?.(); return; }   // 확장·앱 사용자는 아무것도 안 띄움
-      if (hasCloudflareProxy()) { setMode("cf-only"); return; }   // 유예 없음 — 고칠 때까지 뜬다
+      // Cloudflare 경고(cf-only)는 껐다 — 앱이 토스 시세를 wts-cert-api 로 받아 CF 워커로도 된다(2026-11-19).
+      //   옛 워커(쿠키 없음)는 헤더의 '내 프록시 업데이트 필요'가 따로 알린다(사용자 "내 전용 프록시인데 팝업이 계속 떠")
       if (getPersonalProxyUrl()) { onDone?.(); return; }  // 다른 전용 프록시가 있으면 정상
       if (!isSnoozed(SNOOZE_KEY)) setMode("no-proxy"); else onDone?.();
     }, 1000);
@@ -164,7 +153,7 @@ export function OnboardingDialog({ onOpenSettings, onDone }: Props) {
   }, []);
   // 헤더 '[앱 받기 안내]' 등에서 언제든 다시 연다(유예 무시)
   useEffect(() => {
-    const open = () => setMode(hasCloudflareProxy() ? "cf-only" : "no-proxy");
+    const open = () => setMode("no-proxy");
     window.addEventListener(OPEN_EVENT, open);
     return () => window.removeEventListener(OPEN_EVENT, open);
   }, []);
