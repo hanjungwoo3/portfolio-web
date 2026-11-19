@@ -21,13 +21,19 @@ import { krSchedule, krScheduleLoaded } from "../lib/format";
 // 손잡이 위 빈자리 — 오늘 국내 장 시간표(토스 trading-info, 수능 등 바뀐 날은 주황)(사용자 2026-11-19 "거기 작은 글씨로 시간표")
 function KrScheduleTag() {
   const [, tick] = useState(0);
-  useEffect(() => { const t = setInterval(() => tick(x => x + 1), 60_000); return () => clearInterval(t); }, []);   // 시간표가 늦게 들어와도 1분 안에
+  useEffect(() => {
+    // 1분마다(지금 구간 칸 옮기기) + 시간표가 들어오는 즉시(처음 열 때는 받기 전이라 비어 있었다 — 사용자 2026-11-19 "안 나오는데?")
+    const f = () => tick(x => x + 1);
+    const t = setInterval(f, 60_000);
+    window.addEventListener("kr-schedule", f);
+    return () => { clearInterval(t); window.removeEventListener("kr-schedule", f); };
+  }, []);
   // 못 받았으면(웹 공용 서버는 토스가 막혀 있다) 평소 시간을 사실처럼 보이지 않게 띄우지 않는다
   if (!krScheduleLoaded()) return null;
   const s = krSchedule();
   const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
   const k = new Date(Date.now() + 9 * 3600_000), now = k.getUTCHours() * 60 + k.getUTCMinutes(), wk = k.getUTCDay() >= 1 && k.getUTCDay() <= 5;
-  const cur = (a: number, b: number) => (wk && a <= now && now < b ? "bg-indigo-600 text-white font-bold" : "");
+  const cur = (a: number, b: number) => (wk && a <= now && now < b ? "bg-indigo-100 text-indigo-800 font-bold" : "");
   const odd = s.regStart !== 9 * 60 || s.regEnd !== 15 * 60 + 30;
   return (
     <div title={`오늘 국내 장 시간(토스) — 장전 ${s.openStart != null ? hm(s.openStart) : "?"}~ · 정규장 ${hm(s.regStart)}~${hm(s.regEnd)} · 시간외 ~${hm(s.closingEnd)} · 애프터 ~${hm(s.afterEnd)}${s.holiday ? " · 휴장일" : ""}`}

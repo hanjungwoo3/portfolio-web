@@ -212,7 +212,10 @@ let krSched: KrSchedule | null = null;
 export function krSchedule(): Omit<KrSchedule, "date"> {
   return krSched && krSched.date === nowKstDateStr() ? krSched : KR_NORMAL;
 }
-export function setKrSchedule(s: KrSchedule | null): void { krSched = s; }
+export function setKrSchedule(s: KrSchedule | null): void {
+  krSched = s;
+  try { window.dispatchEvent(new Event("kr-schedule")); } catch { /* 창 없음(테스트) */ }   // 시간표 표시가 바로 다시 그리게
+}
 /** 오늘 시간표를 토스에서 받았나(못 받았으면 평소 시간으로 추정 중) */
 export function krScheduleLoaded(): boolean { return !!krSched && krSched.date === nowKstDateStr(); }
 /** 정규장 시작이 평소보다 몇 분 밀렸나(프리·장 열림을 같이 민다) */
