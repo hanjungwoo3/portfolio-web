@@ -657,8 +657,8 @@ function HoverMenu({ title, on, trigger, items, onPick, onTriggerClick }: {
       </button>
       {pos && createPortal(
         <div onMouseEnter={cancelClose} onMouseLeave={closeSoon}
-             className="fixed z-[1000] min-w-[10rem] rounded-lg border border-gray-200 bg-white shadow-lg py-1"
-             style={{ left: pos.left, top: pos.top }}>
+             className="fixed z-[1000] min-w-[10rem] rounded-lg border border-gray-200 bg-white shadow-lg py-1 overflow-y-auto overscroll-contain"
+             style={{ left: pos.left, top: pos.top, maxHeight: `calc(100vh - ${Math.round(pos.top) + 12}px)` }}>   {/* 화면 아래로 넘치면 안에서 스크롤(사용자 2026-11-20 "화면 밖으로 내려가면 선택을 못 해") */}
           <div className="px-3 pt-1 pb-1 text-[11px] font-bold text-gray-400">{title}</div>
           {items.map(it => (
             <button key={it.key}

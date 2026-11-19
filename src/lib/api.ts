@@ -2085,6 +2085,21 @@ export interface KrFuturesOpenInterest {
   price: number | null;   // 같은 날 선물 종가(장중엔 현재가)
   chg: number | null;     // 같은 날 선물 가격 전일 대비(pt) — 미결제 증감과 짝지어 해석(같은 행이라 날짜가 어긋나지 않는다)
 }
+// 코스피200 선물 근월물 일별 — 종가·미결제·외국인/기관/개인 순매수(계약)(다음 금융, 시황 분석 '하방 압력 계기판' 용, 2026-11-20)
+export interface KrFuturesDay { date: string; price: number; oi: number; foreign: number; institution: number; individual: number }
+export async function fetchKrFuturesDays(n = 60): Promise<KrFuturesDay[]> {
+  const mr = await fetchProxied("https://finance.daum.net/api/futures/masters");
+  if (!mr.ok) throw new Error(`daum masters ${mr.status}`);
+  const near = ((await mr.json()) as { data?: Array<{ symbolCode?: string }> }).data?.[0]?.symbolCode;
+  if (!near) throw new Error("daum masters empty");
+  const dr = await fetchProxied(`https://finance.daum.net/api/future/${near}/days?page=1&perPage=${n}`);
+  if (!dr.ok) throw new Error(`daum days ${dr.status}`);
+  const rows = ((await dr.json()) as { data?: Array<{ date?: string; tradePrice?: number; unsettledVolume?: number; foreignSettlement?: number; institutionSettlement?: number; privateSettlement?: number }> }).data ?? [];
+  return rows.filter(r => r.date && (r.unsettledVolume ?? 0) > 0).map(r => ({
+    date: String(r.date).slice(0, 10), price: r.tradePrice ?? 0, oi: r.unsettledVolume ?? 0,
+    foreign: r.foreignSettlement ?? 0, institution: r.institutionSettlement ?? 0, individual: r.privateSettlement ?? 0,
+  })).reverse();   // 오래된 날 → 최근
+}
 export async function fetchKrFuturesOpenInterest(): Promise<KrFuturesOpenInterest | null> {
   try {
     const mr = await fetchProxied("https://finance.daum.net/api/futures/masters");
