@@ -94,6 +94,20 @@ const NAME0 = new Map<string, string>(US_PAIRS.map(p => [p.symbol, p.name]));
 const NAME = { get: (s: string) => (s === "^KS200N" || s === "^KQ150N" ? krFuturesName(s) : NAME0.get(s)) };
 const PAIR = new Map(US_PAIRS.map(p => [p.symbol as string, p]));
 // 선물(야간선물·지수 선물·원자재 선물·무기한)은 테두리 색을 달리(사용자 2026-11-19 "선물은 테두리 색을 다르게")
+// 묶음 = 지수 창 블록(지수·환율·금리·투심·선물·현물) — 심볼이 어느 블록에 있나(서랍 구성 그대로)
+const BLOCKS: [string, string[]][] = [["지수", ["kr", "macro"]], ["환율·금리", ["krfx"]], ["선물", ["krnight", "dayfut"]], ["현물", ["spot"]]];
+let blockMap: Map<string, string> | null = null;
+const orderMap = new Map<string, number>();   // 지수 창 카드 순서(사용자 2026-11-19 "sort 도 지수탭 순서대로")
+function blockOf(sym: string): string | undefined {
+  if (!blockMap) {
+    blockMap = new Map();
+    for (const sec of buildIndexSections()) {
+      const b = BLOCKS.find(([, ids]) => ids.includes(sec.id))?.[0];
+      if (b) for (const r of sec.rows) for (const x of r) { if (!blockMap.has(x)) blockMap.set(x, b); if (!orderMap.has(x)) orderMap.set(x, orderMap.size); }
+    }
+  }
+  return blockMap.get(sym);
+}
 const isFut = (s: string) => /=F$/.test(s) || /^\^K[SQ]\d+N$/.test(s) || /-PERP$/.test(s);
 function PinnedMini({ onOpen }: { onOpen: () => void }) {
   const pins = useDrawerPins();
@@ -116,12 +130,21 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
   if (!pins.length) return null;
   return (
     // 많이 고르면 화면 아래로 넘친다 — 남은 높이만큼만, 넘치면 안에서 스크롤 · 7개 넘으면 값 줄을 빼 한 장을 줄인다(사용자 2026-11-19 "화면 넘어가면?")
-    <div className="fixed right-0 top-[150px] z-40 flex flex-col gap-1 w-[112px] max-h-[calc(100vh-215px)] overflow-y-auto [scrollbar-width:thin]">
+    <div className="fixed right-0 top-[150px] z-40 flex flex-col gap-1 w-[112px] max-h-[calc(100vh-158px)] overflow-y-auto [scrollbar-width:thin]">
       {/* 등락률 높은 순(값 없는 것은 뒤로)(사용자 2026-11-19 "등락율 sort") */}
       {/* 흐림 = 지수 창 카드와 같은 판정(장 닫힘·체결 멈춤), 흐린 카드는 뒤로(사용자 2026-11-19 "흐림 처리도") */}
-      {pins.map(sym => { const d = q.data?.get(sym); return { sym, d, pct: d ? displayPctOf(sym, d) ?? d.pct : null, dim: dashboardCardDim(PAIR.get(sym) ?? { symbol: sym }, d, getDimSleepingEnabled()) }; })
-        .sort((a, b) => Number(a.dim) - Number(b.dim) || (b.pct ?? -Infinity) - (a.pct ?? -Infinity))
-        .map(({ sym, d, pct, dim }) => {
+      {/* 지수 창 블록대로 묶는다 — 지수·환율·선물·현물(사용자 2026-11-19 "지수탭 블럭대로 나누자"), 묶음 안에서 흐린 것 뒤·등락률 순 */}
+      {(() => {
+        const rows = pins.map(sym => { const d = q.data?.get(sym); return { sym, d, pct: d ? displayPctOf(sym, d) ?? d.pct : null, dim: dashboardCardDim(PAIR.get(sym) ?? { symbol: sym }, d, getDimSleepingEnabled()) }; })
+          .sort((a, b) => { blockOf(a.sym); return (orderMap.get(a.sym) ?? 999) - (orderMap.get(b.sym) ?? 999); });
+        return BLOCKS.map(([lb, ids]) => {
+          const inB = rows.filter(r => (blockOf(r.sym) ?? "지수") === lb);
+          if (!inB.length) return null;
+          void ids;
+          // 묶음 = 글자 없이 회색 판 하나(사용자 2026-11-19 "글자는 빼고 블럭으로")
+          return (
+            <div key={lb} title={lb} className="flex flex-col gap-1 shrink-0 rounded-l-xl bg-gray-200/80 py-1 pl-1">
+              {inB.map(({ sym, d, pct, dim }) => {
         const tone = pct == null ? "text-gray-400" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
         return (
           <button key={sym} type="button" onClick={onOpen} style={{ flexShrink: 0 }} title={`${NAME.get(sym) ?? sym} — 누르면 지수 창`}
@@ -136,7 +159,11 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
             {(() => { const u = sym === "^KS11" ? ud?.kospi : sym === "^KQ11" ? ud?.kosdaq : undefined; return u ? <span className="block text-[10px] font-bold tabular-nums"><span className="text-rose-600">▲{u.rise}</span> <span className="text-blue-600">▼{u.fall}</span></span> : null; })()}
           </button>
         );
-      })}
+              })}
+            </div>
+          );
+        });
+      })()}
     </div>
   );
 }
