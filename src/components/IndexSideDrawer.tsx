@@ -16,6 +16,24 @@ import { useDrawerPins } from "../lib/drawerPins";
 import { fetchUpDown } from "../lib/upDown";
 import { dashboardCardDim } from "../lib/dashboardCardDim";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
+import { krSchedule, krScheduleLoaded } from "../lib/format";
+
+// 손잡이 위 빈자리 — 오늘 국내 장 시간표(토스 trading-info, 수능 등 바뀐 날은 주황)(사용자 2026-11-19 "거기 작은 글씨로 시간표")
+function KrScheduleTag() {
+  const [, tick] = useState(0);
+  useEffect(() => { const t = setInterval(() => tick(x => x + 1), 60_000); return () => clearInterval(t); }, []);   // 시간표가 늦게 들어와도 1분 안에
+  // 못 받았으면(웹 공용 서버는 토스가 막혀 있다) 평소 시간을 사실처럼 보이지 않게 띄우지 않는다
+  if (!krScheduleLoaded()) return null;
+  const s = krSchedule();
+  const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+  const odd = s.regStart !== 9 * 60 || s.regEnd !== 15 * 60 + 30;
+  return (
+    <div title={`오늘 국내 장 시간(토스) — 정규장 ${hm(s.regStart)}~${hm(s.regEnd)} · 시간외 ~${hm(s.closingEnd)} · 애프터 ~${hm(s.afterEnd)}${s.holiday ? " · 휴장일" : ""}`}
+         className={`fixed right-0 top-[96px] z-40 w-[92px] rounded-l-md border border-r-0 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right ${odd || s.holiday ? "border-amber-400 bg-amber-50 text-amber-800" : "border-gray-200 bg-white/90 text-gray-500"}`}>
+      {s.holiday ? <b>국내 휴장</b> : <><div>정규 <b>{hm(s.regStart)}~{hm(s.regEnd)}</b></div><div>애프터 ~{hm(s.afterEnd)}</div></>}
+    </div>
+  );
+}
 
 // 닫혀 있을 때 손잡이 아래 작은 카드 — 이름 · 등락률 · 값(사용자 2026-11-19 "지수 창이 닫혀 있을 때 일부를 이 형태로")
 const NAME = new Map<string, string>(US_PAIRS.map(p => [p.symbol, p.name]));
@@ -100,6 +118,7 @@ export function IndexSideDrawer() {
       <button type="button" onClick={() => setOpen(true)}
               className={`fixed right-0 top-[150px] z-50 rounded-l-lg border border-r-0 border-indigo-300 bg-indigo-50 text-indigo-700 shadow px-1 py-2 text-[11px] font-bold [writing-mode:vertical-rl] hover:bg-indigo-100 ${open ? "hidden" : ""}`}
               title="지수·환율·금리·선물·원자재 카드 — 단축키 ` (숫자 1 왼쪽) 로 열고 닫기">📈 지수<span className="mt-1 px-0.5 rounded border border-indigo-300 bg-white text-[9px] font-mono [writing-mode:horizontal-tb]">`</span></button>
+      {!open && <KrScheduleTag />}
       {!open && <PinnedMini onOpen={() => setOpen(true)} />}
       {open && (
         <>

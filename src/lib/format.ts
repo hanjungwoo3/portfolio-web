@@ -213,6 +213,8 @@ export function krSchedule(): Omit<KrSchedule, "date"> {
   return krSched && krSched.date === nowKstDateStr() ? krSched : KR_NORMAL;
 }
 export function setKrSchedule(s: KrSchedule | null): void { krSched = s; }
+/** 오늘 시간표를 토스에서 받았나(못 받았으면 평소 시간으로 추정 중) */
+export function krScheduleLoaded(): boolean { return !!krSched && krSched.date === nowKstDateStr(); }
 /** 정규장 시작이 평소보다 몇 분 밀렸나(프리·장 열림을 같이 민다) */
 const krShift = () => krSchedule().regStart - KR_NORMAL.regStart;
 export const krRegStart = () => krSchedule().regStart;
