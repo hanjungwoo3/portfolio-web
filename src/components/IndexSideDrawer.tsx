@@ -8,8 +8,10 @@ import { useEscClose } from "../lib/useEscClose";
 import { useEffect, useMemo, useState } from "react";
 import { buildIndexSections } from "../lib/dashboardGroups";
 import { UsMarketTab } from "./UsMarketTab";
-import { useQuery } from "@tanstack/react-query";
-import { fetchYahooBatch, fetchYasunNightFutures } from "../lib/api";
+import { useQuery, useQueries } from "@tanstack/react-query";
+import { fetchYahooBatch, fetchYasunNightFutures, fetchYahooSparkDay, fetchDashboardChart } from "../lib/api";
+import { useChartRange, historyRange, trimByRange } from "../lib/chartRange";
+import { Sparkline } from "./Sparkline";
 import { US_PAIRS } from "../lib/usMarketData";
 import { displayPctOf } from "../lib/format";
 import { useDrawerPins } from "../lib/drawerPins";
@@ -93,6 +95,7 @@ function KrScheduleTag({ onHide }: { onHide: () => void }) {
 }
 
 // 닫혀 있을 때 손잡이 아래 작은 카드 — 이름 · 등락률 · 값(사용자 2026-11-19 "지수 창이 닫혀 있을 때 일부를 이 형태로")
+const nightCloses = new Map<string, number[]>();   // 한국 선물 yasun 캔들(배경 그래프)
 const NAME0 = new Map<string, string>(US_PAIRS.map(p => [p.symbol, p.name]));
 // 코스피200·코스닥150 선물은 시간 따라 주간/야간 — 값도 그 세션 것이 온다(yasun main/night), 이름만 맞춘다(사용자 2026-11-19 "낮에는 주간선물로 바뀌는 거 아냐?")
 const NAME = { get: (s: string) => (s === "^KS200N" || s === "^KQ150N" ? krFuturesName(s) : NAME0.get(s)) };
@@ -115,6 +118,19 @@ function blockOf(sym: string): string | undefined {
 const isFut = (s: string) => /=F$/.test(s) || /^\^K[SQ]\d+N$/.test(s) || /-PERP$/.test(s);
 function PinnedMini({ onOpen }: { onOpen: () => void }) {
   const pins = useDrawerPins();
+  const chartRange = useChartRange(), hist = historyRange(chartRange);
+  // 배경 그래프 — 지수 카드와 같은 당일 그래프(야후 spark), 한국 선물은 yasun 캔들(사용자 2026-11-19 "차트는?")
+  const sparkQ = useQuery({
+    queryKey: ["drawer-pins-spark", pins.join(",")],
+    queryFn: () => fetchYahooSparkDay(pins.filter(s => s !== "^KS200N" && s !== "^KQ150N")),
+    enabled: pins.length > 0 && chartRange === "day", refetchInterval: 5 * 60_000, staleTime: 2 * 60_000, retry: 1,
+  });
+  // 헤더 그래프 기간(1개월·3개월…)이면 일봉 — 지수 카드와 같은 캐시. 한국 선물은 일봉이 없어 KODEX 200·코스닥150 일봉으로 대신
+  const histSym = (s: string) => (s === "^KS200N" ? "069500.KS" : s === "^KQ150N" ? "229200.KS" : s);
+  const histQs = useQueries({ queries: pins.map(sym => ({
+    queryKey: ["yahoo-chart", histSym(sym), hist], queryFn: () => fetchDashboardChart(histSym(sym), hist),
+    enabled: chartRange !== "day", staleTime: 60 * 60_000, retry: 1,
+  })) });
   // 야간선물(^KS200N·^KQ150N)은 야후에 없는 가상 심볼 — yasun.gg 로 따로(지수 창과 같은 경로, 사용자 2026-11-19 "야간 선물 안 나오네")
   const q = useQuery({
     queryKey: ["drawer-pins", pins.join(",")],
@@ -124,7 +140,7 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
         fetchYahooBatch(pins.filter(s => !night.includes(s)).map(symbol => ({ symbol, name: NAME.get(symbol) ?? symbol }))),
         ...night.map(s => fetchYasunNightFutures(s).catch(() => null)),
       ]);
-      night.forEach((s, i) => { const d = ns[i]; if (d) m.set(s, d.index); });
+      night.forEach((s, i) => { const d = ns[i]; if (d) { m.set(s, d.index); nightCloses.set(s, d.closes); } });
       return m;
     },
     enabled: pins.length > 0, refetchInterval: 30_000, staleTime: 15_000,
@@ -152,7 +168,14 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
         const tone = pct == null ? "text-gray-400" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
         return (
           <button key={sym} type="button" onClick={onOpen} style={{ flexShrink: 0 }} title={`${NAME.get(sym) ?? sym} — 누르면 지수 창`}
-                  className={`pg-card rounded-l-lg border-2 border-r-0 ${isFut(sym) ? "border-amber-400" : "border-gray-300"} ${dim ? "bg-gray-100 [&>*]:opacity-45 [&>*]:grayscale-[60%]" : isFut(sym) ? "bg-amber-50" : "bg-white"} shadow px-1.5 py-1 text-left leading-tight hover:bg-indigo-50`}>   {/* 흐려도 바탕은 불투명 — 뒤 표 글자가 비쳤다 */}
+                  className={`pg-card rounded-l-lg border-2 border-r-0 ${isFut(sym) ? "border-amber-400" : "border-gray-300"} ${dim ? "bg-gray-100 [&>*]:opacity-45 [&>*]:grayscale-[60%]" : isFut(sym) ? "bg-amber-50" : "bg-white"} shadow px-1.5 py-1 text-left leading-tight hover:bg-indigo-50 relative overflow-hidden [&>*:not(:first-child)]:relative`}>
+            {(() => {
+              if (chartRange !== "day") {   // 기간 그래프(일봉)
+                const h = histQs[pins.indexOf(sym)]?.data, data = h ? trimByRange(h, chartRange) : null;
+                return data && data.length > 1 ? <span className="absolute inset-0 opacity-35 pointer-events-none"><Sparkline data={data} width={112} height={48} className="w-full h-full" strokeWidth={1} /></span> : null;
+              }
+              const sp = sparkQ.data?.get(sym); const data = sp?.closes ?? nightCloses.get(sym); return data && data.length > 1
+              ? <span className="absolute inset-0 opacity-35 pointer-events-none"><Sparkline data={data} xs={sp?.xs} baseline={sp?.prevClose ?? d?.prevClose} width={112} height={48} className="w-full h-full" strokeWidth={1} /></span> : null; })()}   {/* 흐려도 바탕은 불투명 — 뒤 표 글자가 비쳤다 */}
             <span className="flex items-baseline gap-1 text-[11px] font-bold text-gray-700"><span className="truncate">{NAME.get(sym) ?? sym}</span></span>
             <span className={`flex items-baseline justify-between gap-1 text-[12px] font-bold tabular-nums ${tone}`}>
               <span>{pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
