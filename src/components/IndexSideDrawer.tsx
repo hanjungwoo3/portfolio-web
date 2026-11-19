@@ -17,10 +17,14 @@ import { fetchUpDown } from "../lib/upDown";
 import { dashboardCardDim } from "../lib/dashboardCardDim";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
 import { krSchedule, krScheduleLoaded } from "../lib/format";
+import { usSchedule } from "../lib/krSchedule";
 
 // 손잡이 위 빈자리 — 오늘 국내 장 시간표(토스 trading-info, 수능 등 바뀐 날은 주황)(사용자 2026-11-19 "거기 작은 글씨로 시간표")
 function KrScheduleTag() {
   const [, tick] = useState(0);
+  // 국장/미장 고른 것 기억(사용자 2026-11-19 "선택한 거 유지되게")
+  const [mkt, setMkt] = useState<"kr" | "us">(() => { try { return localStorage.getItem("schedule_tab") === "us" ? "us" : "kr"; } catch { return "kr"; } });
+  const pickMkt = (v: "kr" | "us") => { setMkt(v); try { localStorage.setItem("schedule_tab", v); } catch { /* 이번만 */ } };
   useEffect(() => {
     // 1분마다(지금 구간 칸 옮기기) + 시간표가 들어오는 즉시(처음 열 때는 받기 전이라 비어 있었다 — 사용자 2026-11-19 "안 나오는데?")
     const f = () => tick(x => x + 1);
@@ -34,18 +38,33 @@ function KrScheduleTag() {
   const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
   const k = new Date(Date.now() + 9 * 3600_000), now = k.getUTCHours() * 60 + k.getUTCMinutes(), wk = k.getUTCDay() >= 1 && k.getUTCDay() <= 5;
   const cur = (a: number, b: number) => (wk && a <= now && now < b ? "bg-indigo-100 text-indigo-800 font-bold" : "");
+  const us = usSchedule();
+  const dow = k.getUTCDay(), usWk = !(dow === 0 || (dow === 6 && now >= 10 * 60) || (dow === 1 && now < 10 * 60));
+  const usCur = (a: number, b: number) => (usWk && (a <= b ? a <= now && now < b : now >= a || now < b) ? "bg-indigo-100 text-indigo-800 font-bold" : "");
   const odd = s.regStart !== 9 * 60 || s.regEnd !== 15 * 60 + 30;
+  const showUs = mkt === "us" && !!us;
+  const tab = (v: "kr" | "us", l: string) => (
+    <button type="button" onClick={() => pickMkt(v)}
+            className={`px-1.5 rounded-t border border-b-0 text-[9.5px] leading-[14px] font-bold ${(v === "us" ? showUs : !showUs) ? "bg-white border-gray-300 text-gray-800" : "bg-gray-100 border-gray-200 text-gray-400 hover:text-gray-600"}`}>{l}</button>
+  );
   return (
-    <div title={`오늘 국내 장 시간(토스) — 장전 ${s.openStart != null ? hm(s.openStart) : "?"}~ · 정규장 ${hm(s.regStart)}~${hm(s.regEnd)} · 시간외 ~${hm(s.closingEnd)} · 애프터 ~${hm(s.afterEnd)}${s.holiday ? " · 휴장일" : ""}`}
-         className={`fixed right-0 top-[92px] z-40 w-[112px] rounded-l-md border border-r-0 border-gray-200 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right whitespace-nowrap ${odd || s.holiday ? "text-amber-700" : "text-gray-500"}`}>   {/* 얇은 회색 테두리만, 바탕 없음(사용자 2026-11-19), 바뀐 날은 주황 글씨 */}
-      {/* 토스 시간표 그대로 세 줄 — 장전(동시호가)·정규·애프터. NXT 프리마켓은 토스가 시간을 주지 않아 적지 않는다(사용자 2026-11-19) */}
-      {s.holiday ? <b>국내 휴장</b> : <>
-        {/* 지금 구간 줄에 배경색(사용자 2026-11-19 "현재 시간에 배경색") */}
-        {s.openStart != null && <div className={`px-0.5 rounded ${cur(s.openStart, s.regStart)}`}>장전 {hm(s.openStart)}~{hm(s.regStart)}</div>}
-        <div className={`px-0.5 rounded ${cur(s.regStart, s.regEnd)}`}>정규 <b>{hm(s.regStart)}~{hm(s.regEnd)}</b></div>
-        {s.closingEnd > s.regEnd && <div className={`px-0.5 rounded ${cur(s.regEnd, s.afterStart ?? s.closingEnd)}`}>시간외 {hm(s.regEnd)}~{hm(s.afterStart ?? s.closingEnd)}</div>}
-        <div className={`px-0.5 rounded ${cur(s.afterStart ?? s.closingEnd, s.afterEnd)}`}>애프터 {hm(s.afterStart ?? s.closingEnd)}~{hm(s.afterEnd)}</div>
-      </>}
+    <div className="fixed right-0 top-[80px] z-40 w-[112px] flex flex-col items-end">
+      {/* 국장/미장 책갈피 탭 — 고른 쪽만(사용자 2026-11-19 "국장/미장 탭으로, 책갈피 탭"), 고른 것 기억 */}
+      {us && <div className="flex gap-0.5 pr-1">{tab("kr", "국장")}{tab("us", "미장")}</div>}
+      <div title={showUs ? "오늘 미국 장 시간(토스, 한국 시각)" : `오늘 국내 장 시간(토스) — 장전 ${s.openStart != null ? hm(s.openStart) : "?"}~ · 정규장 ${hm(s.regStart)}~${hm(s.regEnd)} · 시간외 ~${hm(s.closingEnd)} · 애프터 ~${hm(s.afterEnd)}${s.holiday ? " · 휴장일" : ""}`}
+           className={`w-full rounded-l-md border border-r-0 border-gray-300 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right whitespace-nowrap ${!showUs && (odd || s.holiday) ? "text-amber-700" : "text-gray-500"}`}>   {/* 얇은 테두리, 바탕 없음 · 국내가 바뀐 날은 주황 글씨 */}
+        {showUs
+          ? (us!.holiday ? <b>미국 휴장</b> : us!.segs.map(g => (
+              // 자정을 넘는 구간(정규 23:30~06:00 등)도 칠한다 · 주말(토 10:00~월 10:00)은 칠하지 않음
+              <div key={g.name} className={`px-0.5 rounded ${usCur(g.start, g.end)}`}>{g.name} {hm(g.start)}~{hm(g.end)}</div>)))
+          : s.holiday ? <b>국내 휴장</b> : <>
+            {/* 토스 시간표 그대로 — 장전(동시호가)·정규·시간외·애프터, 지금 구간은 배경색. NXT 프리마켓은 토스가 시간을 주지 않아 적지 않는다 */}
+            {s.openStart != null && <div className={`px-0.5 rounded ${cur(s.openStart, s.regStart)}`}>장전 {hm(s.openStart)}~{hm(s.regStart)}</div>}
+            <div className={`px-0.5 rounded ${cur(s.regStart, s.regEnd)}`}>정규 <b>{hm(s.regStart)}~{hm(s.regEnd)}</b></div>
+            {s.closingEnd > s.regEnd && <div className={`px-0.5 rounded ${cur(s.regEnd, s.afterStart ?? s.closingEnd)}`}>시간외 {hm(s.regEnd)}~{hm(s.afterStart ?? s.closingEnd)}</div>}
+            <div className={`px-0.5 rounded ${cur(s.afterStart ?? s.closingEnd, s.afterEnd)}`}>애프터 {hm(s.afterStart ?? s.closingEnd)}~{hm(s.afterEnd)}</div>
+          </>}
+      </div>
     </div>
   );
 }

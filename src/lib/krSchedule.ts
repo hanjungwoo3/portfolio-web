@@ -6,6 +6,13 @@ import { fetchProxied } from "./api";
 import { setKrSchedule, nowKstDateStr, type KrSchedule } from "./format";
 
 const KEY = "kr_schedule_v1";
+const US_KEY = "us_schedule_v1";
+
+// 미국장 시간표(한국 시각) — 데이·프리·정규·애프터, 서머타임에 따라 토스가 시간을 바꿔 준다(사용자 2026-11-19 "미국장도 가능할까?")
+export interface UsSeg { name: string; start: number; end: number }
+export interface UsSchedule { segs: UsSeg[]; holiday: boolean; date: string }
+let usSched: UsSchedule | null = null;
+export function usSchedule(): UsSchedule | null { return usSched && usSched.date === nowKstDateStr() ? usSched : null; }
 const toMin = (hm?: string) => { const m = /^(\d{1,2}):(\d{2})$/.exec(hm ?? ""); return m ? +m[1] * 60 + +m[2] : null; };
 
 async function load(): Promise<void> {
@@ -15,6 +22,15 @@ async function load(): Promise<void> {
     const r = await fetchProxied("https://wts-cert-api.tossinvest.com/api/v1/dashboard/wts/overview/trading-info");
     if (!r.ok) return;
     const j = await r.json() as { result?: { data?: Array<{ key?: string; isHoliday?: boolean; schedule?: { name?: string; startTime?: string; endTime?: string }[] }> } };
+    const us = j.result?.data?.find(d => d.key === "us");
+    if (us?.schedule?.length) {
+      const segs = us.schedule.flatMap(x => { const a = toMin(x.startTime), b = toMin(x.endTime); return a != null && b != null && x.name ? [{ name: x.name.replace(/마켓$/, ""), start: a, end: b }] : []; });
+      if (segs.length) {
+        usSched = { segs, holiday: us.isHoliday === true, date: nowKstDateStr() };
+        try { localStorage.setItem(US_KEY, JSON.stringify(usSched)); } catch { /* 이번만 */ }
+        try { window.dispatchEvent(new Event("kr-schedule")); } catch { /* 없음 */ }
+      }
+    }
     const kr = j.result?.data?.find(d => d.key === "kr");
     if (!kr) return;
     const seg = (n: string) => kr.schedule?.find(x => (x.name ?? "").replace(/\s/g, "") === n);
@@ -41,6 +57,7 @@ function save(s: KrSchedule) { try { localStorage.setItem(KEY, JSON.stringify(s)
 
 export function startKrSchedule(): void {
   try { const c = JSON.parse(localStorage.getItem(KEY) ?? "null") as KrSchedule | null; if (c && c.date === nowKstDateStr()) setKrSchedule(c); } catch { /* 없음 */ }
+  try { const u = JSON.parse(localStorage.getItem(US_KEY) ?? "null") as UsSchedule | null; if (u && u.date === nowKstDateStr()) usSched = u; } catch { /* 없음 */ }
   void load();
   setInterval(() => void load(), 30 * 60_000);
 }
