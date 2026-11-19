@@ -93,9 +93,10 @@ function proxyPlanFor(targetUrl: string): { primary: string[]; fallback: string[
     // 전용 프록시가 없거나(공개만 사용) Yahoo 라 전부 걸러진 경우 → 공개가 주력
     return { primary: publicPool.length > 0 ? publicPool : PUBLIC_PROXY_URLS, fallback: [] };
   }
-  const providers = new Set(personal.map(proxyProvider));
-  if (providers.size > 1) return { primary: personal, fallback: [] };
-  return { primary: personal, fallback: publicPool.filter(u => !providers.has(proxyProvider(u))) };
+  // 개인 프록시가 실패하면 공용으로 — 같은 공급자(Cloudflare)라도. 예전엔 같은 공급자면 어차피 막힌다고 보고 뺐는데,
+  //   토스를 wts-cert-api 로 돌린 뒤엔 CF 공용도 통과하고, 개인 워커가 옛 버전이라 그 호스트를 허용 목록에 안 가졌으면(403)
+  //   갈 곳이 없어 내 종목이 안 떴다(사용자 2026-11-19 "확장 안 쓰는 웹은 안 나오는데")
+  return { primary: personal, fallback: publicPool.filter(u => !personal.includes(u)) };
 }
 
 // 실측으로 "그 공급자로는 절대 안 되는" (호스트, 공급자) 조합.
@@ -239,6 +240,9 @@ export async function fetchProxied(
         lastErr = new Error(`HTTP ${resp.status} from ${base}`);
         // 토스 점검(490)은 앱 차원의 확정 신호 — 다른 프록시로 물어봐야 답이 같다.
         if (resp.status === 490) return resp;
+        // 403 = 그 **워커**가 호스트를 허용 목록에 안 가졌다(옛 개인 워커 등) — 토스 쪽 거절이 아니라 워커 설정이라
+        //   같은 공급자(Cloudflare)의 다른 워커(공용)는 통과할 수 있다. 공급자 단위로 막지 말고 다음 프록시로(사용자 2026-11-19)
+        if (resp.status === 403) { triedProviders.delete(provider); continue; }
         if (!isProxyRetryable(resp.status)) {
           // 이 공급자로는 이 호스트가 안 된다고 기억 — 다음부터 뒤로 미룬다(자가 복구됨).
           noteHostFailure(targetHost, provider);
