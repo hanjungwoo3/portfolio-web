@@ -1,6 +1,8 @@
 // 종가배팅 — 오늘 종가 근처에 사서 다음 날 시가에 판다. 조건·성적은 lib/closeBet.ts (백테스트로 고른 셋).
 //   화면 순서: 오늘 시장 상태(요일·나스닥 선물·마감 시각) → 조건별 후보 → 백테스트 표 → 주의.
 
+import { krRegEnd, krAfterEnd } from "../lib/format";
+const hmOf = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchYahooBatch } from "../lib/api";
@@ -83,10 +85,10 @@ export function CloseBetTab({ onOpenValuation }: Props) {
         {/* 오늘 시장 상태 */}
         <div className="flex flex-wrap gap-1.5 pt-0.5 text-[11px]">
           <span className="px-2 py-0.5 rounded-full border border-gray-300 bg-gray-50 text-gray-700">
-            ETF 마감 15:30 · <b>{left(15 * 60 + 30)}</b>
+            ETF 마감 {hmOf(krRegEnd())} · <b>{left(krRegEnd())}</b>
           </span>
           <span className="px-2 py-0.5 rounded-full border border-gray-300 bg-gray-50 text-gray-700">
-            종목 마감 20:00(NXT) · <b>{left(20 * 60)}</b>
+            종목 마감 {hmOf(krAfterEnd())}(NXT) · <b>{left(krAfterEnd())}</b>
           </span>
           {nq != null && (
             <span className={`px-2 py-0.5 rounded-full border ${nq >= 0.5 ? "border-rose-300 bg-rose-50 text-rose-700"

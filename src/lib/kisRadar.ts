@@ -5,6 +5,7 @@
 //   장 구간(프리 08:00~08:50 · 정규 09:00~15:30 · 애프터 15:30~20:00)마다 거래 속도가 크게 달라 **같은 구간 안 평균**과 비교한다
 //   (오늘 전체 평균과 비교하면 9시 정규장이 열리는 순간 모든 종목이 급증으로 뜬다).
 //   스냅숏은 메모리에만(창을 닫으면 처음부터) — 5분 창이 차기 전엔 신호를 내지 않는다.
+import { krRegStart, krRegEnd, krAfterEnd } from "./format";
 import { useSyncExternalStore } from "react";
 import { kisGet, isKisLinkOn } from "./broker";
 import { US_PAIRS } from "./usMarketData";
@@ -36,9 +37,10 @@ export type Sess = "pre" | "reg" | "after";
 export function sessionOf(t: number): Sess | null {
   const k = new Date(t + 9 * 3600_000), d = k.getUTCDay(), m = k.getUTCHours() * 60 + k.getUTCMinutes();
   if (d === 0 || d === 6) return null;
-  if (m >= 8 * 60 && m < 8 * 60 + 50) return "pre";
-  if (m >= 9 * 60 && m < 15 * 60 + 30) return "reg";
-  if (m >= 15 * 60 + 30 && m < 20 * 60) return "after";
+  const sh = krRegStart() - 9 * 60;   // 수능 등 늦춰진 날 — 프리도 같이 민다(토스 시간표)
+  if (m >= 8 * 60 + sh && m < 8 * 60 + 50 + sh) return "pre";
+  if (m >= krRegStart() && m < krRegEnd()) return "reg";
+  if (m >= krRegEnd() && m < krAfterEnd()) return "after";
   return null;
 }
 

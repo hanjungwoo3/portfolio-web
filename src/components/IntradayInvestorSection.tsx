@@ -6,6 +6,7 @@
 //   (api.ts fetchKrIntradayInvestorFlow 주석) 날짜를 옮기면 배경 지수만 바뀌고 수급은 오늘 것이
 //   그 날짜인 척 그려졌다. 과거는 [일별] 로 본다.
 
+import { krRegStart } from "../lib/format";
 import { useState, useMemo, useCallback, lazy, Suspense, type ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchKrIntradayInvestorFlow, fetchKrDailyInvestorFlow, fetchYahooIntraday, fetchTossIndexIntraday, fetchDaumIndexToday, fetchYahooPriceHistory, fetchKrFuturesDaily, fetchKrFuturesMinute, fetchKrFuturesOpenInterest, fetchLeverageDailyFlow, fetchKrPriceHistory, LEVERAGE_BASKETS } from "../lib/api";
@@ -27,7 +28,7 @@ import { LongTermInvestorChart } from "./LongTermInvestorChart";
 function isKrPreMarket(): boolean {
   const k = new Date(Date.now() + 9 * 3600_000);
   const day = k.getUTCDay(), hhmm = k.getUTCHours() * 60 + k.getUTCMinutes();
-  return day >= 1 && day <= 5 && hhmm >= 8 * 60 && hhmm < 9 * 60 + 2;
+  return day >= 1 && day <= 5 && hhmm >= krRegStart() - 60 && hhmm < krRegStart() + 2;   // 정규장 1시간 전부터(토스 시간표)
 }
 
 const IntradayInvestorChart = lazy(() => import("./IntradayInvestorChart"));

@@ -202,6 +202,27 @@ function dateStrInTz(tz: string): string {
 // - US_INDEX(지수 ^SOX/^GSPC 등): 09:30-16:00 ET 정규장만 — 프리마켓엔 지수 갱신 안 됨
 // - JP: 08:30-15:30 JST
 // - OTHER: 항상 열림 (환율/선물/암호화폐 등 24h — 흐림 없음)
+// ─── 국내 장 시간표(분, KST) — 토스 trading-info 가 그날 시간을 준다(수능·연초 개장일엔 1시간 늦게 등)
+//   (사용자 2026-11-19 "수능이라 국장 오픈 시간이 바뀐 거 같은데" → "API 시간표로 바꾸자"). lib/krSchedule 가 받아 넣는다.
+//   받기 전·실패하면 평소 시간. 장 열림·NXT 프리는 정규장 시작이 밀린 만큼 같이 민다(토스가 프리 시간을 따로 주지 않는다).
+export interface KrSchedule { regStart: number; regEnd: number; closingEnd: number; afterEnd: number; holiday: boolean; date: string }
+const KR_NORMAL: Omit<KrSchedule, "date"> = { regStart: 9 * 60, regEnd: 15 * 60 + 30, closingEnd: 16 * 60, afterEnd: 20 * 60, holiday: false };
+let krSched: KrSchedule | null = null;
+/** 오늘(KST) 시간표 — 다른 날 것이면 평소 시간 */
+export function krSchedule(): Omit<KrSchedule, "date"> {
+  return krSched && krSched.date === nowKstDateStr() ? krSched : KR_NORMAL;
+}
+export function setKrSchedule(s: KrSchedule | null): void { krSched = s; }
+/** 정규장 시작이 평소보다 몇 분 밀렸나(프리·장 열림을 같이 민다) */
+const krShift = () => krSchedule().regStart - KR_NORMAL.regStart;
+export const krRegStart = () => krSchedule().regStart;
+export const krRegEnd = () => krSchedule().regEnd;
+export const krClosingEnd = () => krSchedule().closingEnd;   // 시간외(종가) 끝 = ETF·ETN 최종 마감
+export const krAfterEnd = () => krSchedule().afterEnd;
+const krPreStart = () => 8 * 60 + krShift();                // NXT 프리마켓 시작(평소 08:00)
+const krPreEnd = () => 8 * 60 + 50 + krShift();             // 평소 08:50
+const krIsHoliday = () => krSchedule().holiday;
+
 export function isMarketOpen(market: Market): boolean {
   const TZ_MAP: Record<Market, string | null> = {
     KR: "Asia/Seoul", KR_NIGHT: "Asia/Seoul", US: "America/New_York",
@@ -218,7 +239,7 @@ export function isMarketOpen(market: Market): boolean {
   // 한국 선물 — 주간(월~금 09:00~15:45) + 야간(월~금 18:00~24:00) + 다음날 새벽(화~토 00:00~05:00).
   //   일요일·월 새벽은 휴장. 토 05:00 이후~일요일 전체 흐림. 주간/야간 모두 거래중이면 흐림 제외.
   if (market === "KR_NIGHT") {
-    const daySession   = t.weekday >= 1 && t.weekday <= 5 && hhmm >= 9 * 60 && hhmm < 15 * 60 + 45;  // 월~금 09:00~15:45
+    const daySession   = t.weekday >= 1 && t.weekday <= 5 && !krIsHoliday() && hhmm >= krRegStart() && hhmm < krRegEnd() + 15;  // 월~금 09:00~15:45(시간표 따라 밀림)
     const nightStart   = t.weekday >= 1 && t.weekday <= 5 && hhmm >= 18 * 60;   // 월~금 18:00+
     const earlyMorning = t.weekday >= 2 && t.weekday <= 6 && hhmm < 5 * 60;      // 화~토 00:00~04:59
     return daySession || nightStart || earlyMorning;
@@ -227,7 +248,7 @@ export function isMarketOpen(market: Market): boolean {
   switch (market) {
     // 정규장 기준 — 정규시간 지나면 흐림(현재가는 시간외도 그대로 표시).
     // 선물·환율·암호화폐(OTHER)는 24h 라 흐림 없음(default true).
-    case "KR":      return 9*60       <= hhmm && hhmm < 15*60 + 30;
+    case "KR":      return !krIsHoliday() && krRegStart() <= hhmm && hhmm < krRegEnd();   // 토스 시간표(수능 등 늦춰진 날)
     // 개별 종목(MU/NVDA 등) — 프리마켓(04:00)~정규장 마감(16:00). 프리마켓은 실시간 거래 → 흐림 제외.
     case "US":      return 4*60       <= hhmm && hhmm < 16*60;
     // 지수(^SOX/^GSPC 등) — 프리마켓엔 갱신 안 됨 → 정규장(09:30-16:00)만 live.
@@ -396,21 +417,21 @@ export function krCloseTimeLabel(tradingEnd?: string): string {
 //   ⚠️ 08:00~09:00 NXT 프리장엔 meta close 가 프리장 가격으로 바뀐다 — 그 시간은 여기서 제외된다.
 export function isKrAfterRegularClose(): boolean {
   const t = nowInTz("Asia/Seoul");
-  return t.weekday >= 1 && t.weekday <= 5 && t.hour * 60 + t.minute >= 15 * 60 + 30;
+  return t.weekday >= 1 && t.weekday <= 5 && t.hour * 60 + t.minute >= krRegEnd();
 }
 /** 국내 '정규장 뒤' 구간을 다음 장 전까지 늘린 것 — 평일 15:30~ · 다음 평일 08:00(NXT 프리) 전 · 주말 내내.
  *  업종 평균의 애프터 꼬리표용(사용자 2026-11-07 "프리/애프터는 안 나오는데" — 자정·주말이면 금요일 애프터가 사라졌다). 휴장일은 따지지 않는다 */
 export function isKrAfterWindow(): boolean {
   const t = nowInTz("Asia/Seoul"), m = t.hour * 60 + t.minute;
   if (t.weekday === 0 || t.weekday === 6) return true;
-  return m >= 15 * 60 + 30 || m < 8 * 60;
+  return krIsHoliday() || m >= krRegEnd() || m < krPreStart();
 }
 
 // 단일가 세션 종류 — 09:00 이전이면 프리장(장전 동시호가/단일가),
 // 그 외(주로 15:30~18:00) 시간외 단일가. 카드 라벨 분기용.
 export function krSinglePriceSession(): "PRE" | "POST" {
   const t = nowInTz("Asia/Seoul");
-  return t.hour * 60 + t.minute < 9 * 60 ? "PRE" : "POST";
+  return t.hour * 60 + t.minute < krRegStart() ? "PRE" : "POST";
 }
 
 // 보유 종목 흐림(마감) 판정 — 토스 tradingEnd/단일가 신호 기반 (10분 체결 휴리스틱 불필요).
@@ -466,7 +487,8 @@ export function isKrHoldingClosed(
 //   같은 시각 KODEX 200 만 15:59:57 에 멈춰 있었다 → 갈림길은 거래소가 아니라 ETF·ETN 여부다.
 //   (18:00 은 KRX 시간외 단일가 종료 시각이라 이제 국내 스케줄 어디에도 없다)
 export function krFinalCloseHHMM(noAfterHours?: boolean): string {
-  return noAfterHours ? "16:00" : "20:00";
+  const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  return hm(noAfterHours ? krClosingEnd() : krAfterEnd());   // 토스 시간표(평소 16:00 / 20:00)
 }
 
 // 최종 매매 마감까지 남은 분(KST). withinMin 이내일 때만 숫자, 아니면 null → "임박" 강조용.
@@ -484,7 +506,7 @@ export function krCloseImminentMin(
   // tradingEnd 의 KST 날짜가 오늘이어야 — 휴장일/미거래 종목 제외
   const endDate = dateFmt("Asia/Seoul").format(new Date(endMs));
   if (endDate !== dateStrInTz("Asia/Seoul")) return null;
-  const closeMin = noAfterHours ? 16 * 60 : 20 * 60;   // krFinalCloseHHMM 과 같은 규칙
+  const closeMin = noAfterHours ? krClosingEnd() : krAfterEnd();   // krFinalCloseHHMM 과 같은 규칙(토스 시간표)
   const remain = closeMin - (t.hour * 60 + t.minute);
   if (remain <= 0 || remain > withinMin) return null;
   return remain;
@@ -497,7 +519,7 @@ export function isKrPreOpen(): boolean {
   const t = nowInTz("Asia/Seoul");
   if (t.weekday === 0 || t.weekday === 6) return false;
   const m = t.hour * 60 + t.minute;
-  return 8 * 60 <= m && m < 9 * 60;
+  return krPreStart() <= m && m < krRegStart();
 }
 
 // 한국 장 세션 phase — 데스크톱 v1/v2 kr_session_phase 동일
@@ -517,16 +539,17 @@ export function isKrAfterHoursWindow(): boolean {
   const t = nowInTz("Asia/Seoul");
   if (t.weekday === 0 || t.weekday === 6) return false;
   const m = t.hour * 60 + t.minute;
-  return 15 * 60 + 30 <= m && m < 20 * 60;
+  return !krIsHoliday() && krRegEnd() <= m && m < krAfterEnd();
 }
 
 export function krSessionPhase(): KrPhase {
   const t = nowInTz("Asia/Seoul");
   if (t.weekday === 0 || t.weekday === 6) return "CLOSED";
   const m = t.hour * 60 + t.minute;
-  if (9 * 60 <= m && m < 15 * 60 + 30) return "REGULAR";
-  if ((8 * 60 <= m && m < 8 * 60 + 50)
-      || (15 * 60 + 30 <= m && m < 20 * 60)) return "EXTENDED";
+  if (krIsHoliday()) return "CLOSED";   // 평일 휴장일(토스 isHoliday)
+  if (krRegStart() <= m && m < krRegEnd()) return "REGULAR";
+  if ((krPreStart() <= m && m < krPreEnd())
+      || (krRegEnd() <= m && m < krAfterEnd())) return "EXTENDED";
   return "CLOSED";
 }
 

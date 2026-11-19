@@ -6,6 +6,7 @@
 //       사이드카(프로그램 주문만 5분 정지): 코스피200 선물 ±5% / 코스닥150 선물 ±6%(+지수 ±3%), 1분 지속, 하루 한 번, 14:50 뒤엔 없음
 //       서킷브레이커(모든 매매 20분 정지): 지수 −8% / −15% / −20%(1분 지속, 단계마다 하루 한 번)
 //   30초마다(평일 09:00~15:30). KIND 는 숫자가 기준을 넘었을 때와 처음 켤 때만 묻는다. ✕ 로 닫으면 그 경고는 오늘 다시 안 띄운다.
+import { krRegStart, krRegEnd } from "../lib/format";
 import { useEffect, useState } from "react";
 import { fetchKrFuturesLive, fetchProxied } from "../lib/api";
 import { isDirectApp, fetchViaNative } from "../lib/nativeProxy";
@@ -116,7 +117,7 @@ export function MarketHaltBanner() {
     let offs: HaltNotice[] = [], kindAt = 0;
     const tick = async () => {
       const k = kstNow(), d = k.getUTCDay(), m = k.getUTCHours() * 60 + k.getUTCMinutes();
-      if (d === 0 || d === 6 || m < 9 * 60 || m > 15 * 60 + 30) { setAlerts([]); return; }
+      if (d === 0 || d === 6 || m < krRegStart() || m > krRegEnd()) { setAlerts([]); return; }   // 정규장만(토스 시간표)
       const [k2, kq, idx] = await Promise.all([fetchKrFuturesLive("kospi200").catch(() => null), fetchKrFuturesLive("kosdaq150").catch(() => null), indexPct()]);
       // KIND — 처음 한 번, 그 뒤엔 숫자가 기준선 근처(사이드카 −4%·서킷 −7%)일 때만 1분마다
       const near = Math.abs(k2?.pct ?? 0) >= 4 || Math.abs(kq?.pct ?? 0) >= 5 || (idx.KOSPI ?? 0) <= -7 || (idx.KOSDAQ ?? 0) <= -7;

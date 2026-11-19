@@ -2,6 +2,7 @@
 //   FHPST01820000 /uapi/domestic-stock/v1/ranking/exp-trans-updown (공식 예제 examples_llm/domestic_stock/exp_trans_updown).
 //   장 시작 전(08:30~09:00) = FID_MKOP_CLS_CODE 0, 장 마감 전(15:20~15:30) = 1. 정렬 0 상승률 / 3 하락률.
 //   응답 필드 이름은 예제 COLUMN_MAPPING — stck_prpr 가 동시호가 중엔 예상 체결가, antc_tr_pbmn 이 예상 거래대금(원).
+import { krRegStart, krRegEnd } from "./format";
 import { kisGet, isKisLinkOn } from "./broker";
 
 export interface ExpRankRow { code: string; name: string; price: number; pct: number; diff: number; vol: number; amt: number }
@@ -13,8 +14,9 @@ export function expPhaseNow(now = new Date()): ExpPhase | null {
   const dow = k.getUTCDay();
   if (dow === 0 || dow === 6) return null;
   const m = k.getUTCHours() * 60 + k.getUTCMinutes();
-  if (m >= 8 * 60 + 25 && m < 9 * 60 + 3) return "open";
-  if (m >= 15 * 60 + 15 && m < 15 * 60 + 33) return "close";
+  // 동시호가 = 정규장 시작 35분 전~3분 뒤 · 끝 15분 전~3분 뒤(토스 시간표 — 수능 등 늦춰진 날 같이 민다)
+  if (m >= krRegStart() - 35 && m < krRegStart() + 3) return "open";
+  if (m >= krRegEnd() - 15 && m < krRegEnd() + 3) return "close";
   return null;
 }
 export function expRankAvailable(): boolean { return isKisLinkOn(); }

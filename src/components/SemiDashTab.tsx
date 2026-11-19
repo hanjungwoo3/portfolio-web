@@ -5,6 +5,7 @@
 //     · 코스피 투자자(네이버) 1분 / 선물 투자자(네이버) **20분 지연** / 선물 시세·옵션(한경) 실시간
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
+import { krRegStart, krRegEnd } from "../lib/format";
 import { usRegExtOf } from "../lib/avgMarket";
 import { fmtEok } from "../lib/eokFmt";
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
@@ -232,7 +233,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   const mm = kstNow.getUTCHours() * 60 + kstNow.getUTCMinutes(), wd = kstNow.getUTCDay();
   const weekday = wd >= 1 && wd <= 5;
   const openStock = weekday && mm >= 8 * 60 && mm < 20 * 60;              // 삼성·하이닉스 — NXT 08:00~20:00
-  const openIndex = weekday && mm >= 9 * 60 && mm < 15 * 60 + 30;         // 코스피·코스닥·V-KOSPI — 정규장
+  const openIndex = weekday && mm >= krRegStart() && mm < krRegEnd();     // 코스피·코스닥·V-KOSPI — 정규장(토스 시간표, 수능 등 늦춰진 날)
   // 수급 칸(현물·선물) — 15:30 에 같이 흐림(사용자 요청 2026-10-22). 현물 수급은 NXT 프리장(08:00~) 결과를 보여 주므로 08:00 부터.
   //   선물 정규장은 15:45 까지지만 칸은 현물과 맞춰 15:30 에 흐린다(사용자 결정)
   //   → 장 마감 뒤에도 흐리지 않는다(사용자 2026-11-10 "현물/선물 부분은 흐림 처리 안 되게") — 오늘 자료가 아닐 때(주말·휴장)만 흐림

@@ -2,6 +2,7 @@
 // 각 날을 그날 시초가(첫 봉) 대비 %로 정규화 → 가격 레벨 차이 제거, 순수 하루 모양만 비교.
 // 평균선 = 시각 버킷별 평균 → "전형적인 하루 패턴".
 
+import { krRegStart, krRegEnd } from "./format";
 import type { IntradayBar } from "./api";
 
 // 시장별 정규장 시간 (KST 분 단위, 자정 0시 기준).
@@ -10,7 +11,8 @@ export interface SessionConfig {
   openMin: number;   // 장 시작 (분)
   closeMin: number;  // 장 마감 (분)
 }
-export const KR_SESSION: SessionConfig = { openMin: 9 * 60, closeMin: 15 * 60 + 30 };
+// 토스 시간표를 따른다(수능 등 늦춰진 날) — 읽을 때마다 오늘 값
+export const KR_SESSION: SessionConfig = { get openMin() { return krRegStart(); }, get closeMin() { return krRegEnd(); } };
 
 export interface OverlayDay {
   date: string;                       // YYYY-MM-DD (KST)
