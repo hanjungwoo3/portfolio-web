@@ -16,7 +16,7 @@ import { useDrawerPins } from "../lib/drawerPins";
 import { fetchUpDown } from "../lib/upDown";
 import { dashboardCardDim } from "../lib/dashboardCardDim";
 import { getDimSleepingEnabled } from "../lib/proxyConfig";
-import { krSchedule, krScheduleLoaded } from "../lib/format";
+import { krSchedule, krScheduleLoaded, krFuturesName } from "../lib/format";
 import { usSchedule } from "../lib/krSchedule";
 
 // 손잡이 위 빈자리 — 오늘 국내 장 시간표(토스 trading-info, 수능 등 바뀐 날은 주황)(사용자 2026-11-19 "거기 작은 글씨로 시간표")
@@ -89,7 +89,9 @@ function KrScheduleTag() {
 }
 
 // 닫혀 있을 때 손잡이 아래 작은 카드 — 이름 · 등락률 · 값(사용자 2026-11-19 "지수 창이 닫혀 있을 때 일부를 이 형태로")
-const NAME = new Map<string, string>(US_PAIRS.map(p => [p.symbol, p.name]));
+const NAME0 = new Map<string, string>(US_PAIRS.map(p => [p.symbol, p.name]));
+// 코스피200·코스닥150 선물은 시간 따라 주간/야간 — 값도 그 세션 것이 온다(yasun main/night), 이름만 맞춘다(사용자 2026-11-19 "낮에는 주간선물로 바뀌는 거 아냐?")
+const NAME = { get: (s: string) => (s === "^KS200N" || s === "^KQ150N" ? krFuturesName(s) : NAME0.get(s)) };
 const PAIR = new Map(US_PAIRS.map(p => [p.symbol as string, p]));
 // 선물(야간선물·지수 선물·원자재 선물·무기한)은 테두리 색을 달리(사용자 2026-11-19 "선물은 테두리 색을 다르게")
 const isFut = (s: string) => /=F$/.test(s) || /^\^K[SQ]\d+N$/.test(s) || /-PERP$/.test(s);
@@ -114,7 +116,7 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
   if (!pins.length) return null;
   return (
     // 많이 고르면 화면 아래로 넘친다 — 남은 높이만큼만, 넘치면 안에서 스크롤 · 7개 넘으면 값 줄을 빼 한 장을 줄인다(사용자 2026-11-19 "화면 넘어가면?")
-    <div className="fixed right-0 top-[205px] z-40 flex flex-col gap-1 w-[112px] max-h-[calc(100vh-215px)] overflow-y-auto [scrollbar-width:thin]">
+    <div className="fixed right-0 top-[150px] z-40 flex flex-col gap-1 w-[112px] max-h-[calc(100vh-215px)] overflow-y-auto [scrollbar-width:thin]">
       {/* 등락률 높은 순(값 없는 것은 뒤로)(사용자 2026-11-19 "등락율 sort") */}
       {/* 흐림 = 지수 창 카드와 같은 판정(장 닫힘·체결 멈춤), 흐린 카드는 뒤로(사용자 2026-11-19 "흐림 처리도") */}
       {pins.map(sym => { const d = q.data?.get(sym); return { sym, d, pct: d ? displayPctOf(sym, d) ?? d.pct : null, dim: dashboardCardDim(PAIR.get(sym) ?? { symbol: sym }, d, getDimSleepingEnabled()) }; })
@@ -142,6 +144,8 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
 
 export function IndexSideDrawer() {
   const [open, setOpen] = useState(false);
+  // 고정 카드가 하나라도 있으면 '📈 지수' 손잡이는 숨긴다 — 카드를 누르면 열리고, 단축키 ` 도 그대로(사용자 2026-11-19)
+  const hasPins = useDrawerPins().length > 0;
   const [closing, setClosing] = useState(false);
   // 닫을 때도 나올 때처럼 미끄러져 들어간다(사용자 2026-11-09) — 애니메이션이 끝난 뒤 내린다
   const close = () => { if (closing) return; setClosing(true); setTimeout(() => { setOpen(false); setClosing(false); }, 180); };
@@ -169,7 +173,7 @@ export function IndexSideDrawer() {
   return (
     <>
       <button type="button" onClick={() => setOpen(true)}
-              className={`fixed right-0 top-[150px] z-50 rounded-l-lg border border-r-0 border-indigo-300 bg-indigo-50 text-indigo-700 shadow px-1 py-2 text-[11px] font-bold [writing-mode:vertical-rl] hover:bg-indigo-100 ${open ? "hidden" : ""}`}
+              className={`fixed right-0 top-[150px] z-50 rounded-l-lg border border-r-0 border-indigo-300 bg-indigo-50 text-indigo-700 shadow px-1 py-2 text-[11px] font-bold [writing-mode:vertical-rl] hover:bg-indigo-100 ${open || hasPins ? "hidden" : ""}`}
               title="지수·환율·금리·선물·원자재 카드 — 단축키 ` (숫자 1 왼쪽) 로 열고 닫기">📈 지수<span className="mt-1 px-0.5 rounded border border-indigo-300 bg-white text-[9px] font-mono [writing-mode:horizontal-tb]">`</span></button>
       {!open && <KrScheduleTag />}
       {!open && <PinnedMini onOpen={() => setOpen(true)} />}
