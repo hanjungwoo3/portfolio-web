@@ -153,7 +153,7 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
         return (
           <button key={sym} type="button" onClick={onOpen} style={{ flexShrink: 0 }} title={`${NAME.get(sym) ?? sym} — 누르면 지수 창`}
                   className={`pg-card rounded-l-lg border-2 border-r-0 ${isFut(sym) ? "border-amber-400" : "border-gray-300"} ${dim ? "bg-gray-100 [&>*]:opacity-45 [&>*]:grayscale-[60%]" : isFut(sym) ? "bg-amber-50" : "bg-white"} shadow px-1.5 py-1 text-left leading-tight hover:bg-indigo-50`}>   {/* 흐려도 바탕은 불투명 — 뒤 표 글자가 비쳤다 */}
-            <span className="flex items-baseline gap-1 text-[11px] font-bold text-gray-700"><span className="truncate">{NAME.get(sym) ?? sym}</span>{d?.src === "kis" && <span className="shrink-0 text-[8.5px] font-normal text-indigo-500" title="값 출처: 한국투자">한투</span>}</span>
+            <span className="flex items-baseline gap-1 text-[11px] font-bold text-gray-700"><span className="truncate">{NAME.get(sym) ?? sym}</span></span>
             <span className={`flex items-baseline justify-between gap-1 text-[12px] font-bold tabular-nums ${tone}`}>
               <span>{pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
               {pins.length > 7 && d && d.price > 0 && <span className="text-[9.5px] font-normal text-gray-400 truncate">{d.price < 100 ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()}</span>}

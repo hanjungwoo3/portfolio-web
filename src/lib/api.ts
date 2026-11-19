@@ -3070,8 +3070,6 @@ export async function fetchDisclosureBody(ticker: string, disclosureId: number):
 
 // Yahoo Finance — 지수/심볼 가격 + 등락률
 export interface UsIndex {
-  src?: "kis";             // 값 출처가 한국투자(한국 지수선물 주간) — 카드에 작게 표시
-  srcNote?: string;        // 한투를 못 쓴 이유(카드 작은 글씨)
   symbol: string;
   name: string;
   price: number;
@@ -3185,41 +3183,8 @@ export async function fetchYasunNightFutures(virtualSymbol: string): Promise<Yas
     const lastTime = last ? last.time : Math.floor(Date.now() / 1000);
     // 실제 거래중이면 REGULAR(흐림 제외), 개장 대기·마감 구간이면 CLOSED(흐림 + '마감' 책갈피).
     const trading = isKrFuturesTradingNow();
-    // 주간엔 앱+한투 연결이면 한투 지수선물 현재가로 값을 바꾼다(그래프는 yasun 캔들 그대로)(사용자 2026-11-19 "한투에서")
-    //   야간은 yasun 그대로 — 한투 야간 지수선물 경로는 확인하지 않았다. 실패·미연결이면 yasun 값
-    let fromKis = false, kisNote = "";
-    if (!night) {
-      try {
-        const { fetchKisIndexFutQuote, kisIdxFutNote } = await import("./kisFutures");
-        const kk = virtualSymbol === "^KS200N" ? "k200" : "kq150";
-        const k = await fetchKisIndexFutQuote(kk);
-        kisNote = kisIdxFutNote[kk] ?? "";
-        if (k && k.price > 0) { price = k.price; pct = k.pct; diff = k.price - k.base; fromKis = true; }
-      } catch { /* yasun 값 */ }
-    } else {
-      // 야간 — 한투 값을 yasun 야간 값과 견줘 쓴다. 0.3% 안으로 붙어 있고, 주간 마감가(= yasun 기준가)에 멈춰 있지 않을 때만
-      //   (주간 마감가가 오면 지금 움직이는 야간 시세를 멈춘 값으로 덮게 된다). 판정은 카드 작은 글씨로(사용자 2026-11-19 시험)
-      try {
-        const { fetchKisIndexFutNight } = await import("./kisFutures");
-        const r = await fetchKisIndexFutNight(virtualSymbol === "^KS200N" ? "k200" : "kq150");
-        if (r) {
-          const near = r.price > 0 && Math.abs(r.price / price - 1) <= 0.003;
-          // 주간 마감가(= yasun 기준가)와 같으면 야간 체결이 아니다 — yasun 도 아직 야간 체결이 없어 같은 값일 때 통과해
-          //   등락률 0% 로 덮던 것(실측 2026-11-19 18:11, 796.00). 같으면 무조건 안 쓴다
-          const stuck = r.price > 0 && Math.abs(r.price - base) < 1e-6;
-          if (near && !stuck) {
-            pct = base > 0 ? (r.price / base - 1) * 100 : pct; price = r.price; diff = price - base; fromKis = true;
-          } else {
-            kisNote = r.price > 0
-              ? `한투 야간(${r.div}) ${r.price} — ${stuck ? "주간 마감가라 안 씀" : `yasun ${price.toFixed(2)} 와 달라 안 씀`}`
-              : `한투 야간 없음: ${r.tried.join(" / ")}`;
-          }
-        }
-      } catch { /* yasun 값 */ }
-    }
     return {
       index: {
-        ...(fromKis ? { src: "kis" as const } : kisNote ? { srcNote: kisNote } : {}),
         symbol: virtualSymbol,
         name: krFuturesName(virtualSymbol),
         price,

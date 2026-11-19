@@ -411,7 +411,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               if (!rawP) return null;
               // 한국 선물(^KS200N/^KQ150N)은 현재 KST 세션에 따라 주간/야간선물로 표시명 변경
               const p = marketOfSymbol(rawP.symbol) === "KR_NIGHT"
-                ? { ...rawP, name: krFuturesName(rawP.symbol), desc: usMap?.get(rawP.symbol)?.src === "kis" ? krFuturesDesc().replace("yasun.gg", "한투") : `${krFuturesDesc()}${usMap?.get(rawP.symbol)?.srcNote ? ` · ${usMap?.get(rawP.symbol)?.srcNote}` : ""}` }   // 한투를 못 쓴 이유도 작게   // 값 출처 작게(사용자 2026-11-19)
+                ? { ...rawP, name: krFuturesName(rawP.symbol), desc: krFuturesDesc() }   // 값 출처 작게(사용자 2026-11-19)
                 : rawP;
               const q = usMap?.get(p.symbol);
               // 한국 종목·ETF(.KS) — **보유 종목 카드와 같은 규칙**(isKrHoldingClosed): 프리(08:00~)·애프터(~20:00)에
