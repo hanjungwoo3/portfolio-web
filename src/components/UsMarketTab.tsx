@@ -801,7 +801,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   };
 
   if (cardsColumn) return (
-    <div className="pg-cardscol flex flex-col gap-2.5">   {/* 글자 한 단계씩 작게 — index.css .pg-cardscol(사용자 2026-11-19) */}
+    <div className="pg-cardscol flex flex-col gap-2.5 pt-2">   {/* 맨 위 카드의 ▲▼ 책갈피(-top-2)가 스크롤 상자에 잘려 시간표 밑에 가렸다(사용자 2026-11-20 "위에 가려진다") */}   {/* 글자 한 단계씩 작게 — index.css .pg-cardscol(사용자 2026-11-19) */}
       {T0_SECTIONS.map(sec => {
         const syms = sec.rows.flat().filter(sym => !dimOf(sym));
         if (!syms.length) return null;
@@ -810,7 +810,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
             {syms.map(sym => {
               const b = breadthOf(sym);
               return (
-                <div key={sym} className="relative min-w-0">
+                <div key={sym} className={`relative min-w-0 ${b && b.up + b.down > 0 ? "mt-1.5 first:mt-0" : ""}`}>   {/* ▲▼ 책갈피가 위 카드에 겹치지 않게 */}
                   {renderIdxCard(sec, sym)}
                   {/* 카드 전체를 덮는 단추 — 누르면 지수 창(카드 안 링크·단추 대신, 사용자 2026-11-19 "클릭하면 지수창으로") */}
                   <button type="button" aria-label="지수 창 열기" title="지수 창 열기 (`)"
