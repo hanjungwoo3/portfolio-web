@@ -22,6 +22,7 @@ export interface Pair {
 //   api.ts 의 TOSS_US_STOCK_CODE 다 — 새 미국 종목은 거기에 넣어야 한다(SCHD 흐림 사고 참고).
 // Yahoo 심볼 → 토스 미국 종목 코드 매핑 (24시간 가격용)
 export const TOSS_US_CODE: Record<string, string> = {
+  "ANT":  "NAS2611011001",   // 앤트로픽 (2026-11 나스닥 상장, 토스 검색 실측)
   "MU":   "US19890516001",
   "NVDA": "US19990122001",
   "AMAT": "US19721012001",
@@ -183,6 +184,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "WDC", name: "웨스턴디지털", desc: "Western Digital — HDD(샌디스크 분사 후). SK하이닉스 다음 날 상관 3위권", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "0224D0.KS", name: "KIWOOM 미국CPU반도체TOP4+", desc: "미국 CPU 4종 — 국내 상장, 하루 시차로 간밤 미국을 따라간다", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "419650.KS", name: "PLUS 글로벌수소&차세대연료전지", desc: "글로벌 수소·연료전지 — 국내 상장, 거래 적음", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "ANT", name: "앤트로픽", desc: "Anthropic — AI 모델 Claude(2026-11 나스닥 상장)", tier: "T0", sector: "dashboard", direction: "direct" },   // AI 소프트웨어 탭(사용자 2026-11-19)
   { symbol: "PLTR", name: "팔란티어", desc: "Palantir — AI 데이터 분석·정부/기업 소프트웨어", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "NFLX", name: "넷플릭스", desc: "Netflix — 스트리밍·광고", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "CRWV", name: "코어위브", desc: "CoreWeave — GPU 임대 AI 클라우드(네오클라우드)", tier: "T0", sector: "dashboard", direction: "direct" },

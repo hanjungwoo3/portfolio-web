@@ -85,6 +85,7 @@ export const TOSS_SYMBOL_URL: Record<string, string> = {
   "NVDA": "https://www.tossinvest.com/stocks/US19990122001",
   "SNDK": "https://www.tossinvest.com/stocks/NAS0250224006",   // 샌디스크 (2025 상장 → NAS 프리픽스)
   "SKHY": "https://www.tossinvest.com/stocks/NAS2607010002",   // SK하이닉스 ADR (2026 상장, WI→정규 SKHY)
+  "ANT":  "https://www.tossinvest.com/stocks/NAS2611011001",   // 앤트로픽 (2026-11 나스닥 상장)
   "AMAT": "https://www.tossinvest.com/stocks/US19721012001",
   "LRCX": "https://www.tossinvest.com/stocks/US19840504001",
   "ASML": "https://www.tossinvest.com/stocks/US19950315001",
