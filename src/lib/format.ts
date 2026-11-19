@@ -382,7 +382,9 @@ export function krFuturesName(symbol: string): string {
 }
 // KR 선물 카드 부제 — 현재 세션 거래시간 안내
 export function krFuturesDesc(): string {
-  return isKrNightSession() ? "yasun.gg · 18:00~05:00 KST" : "yasun.gg · 09:00~15:45 KST";
+  // 주간 시간은 토스 시간표를 따른다(수능 날 10:00~16:45 등) — 선물은 현물 정규장보다 15분 늦게 끝난다
+  const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+  return isKrNightSession() ? "yasun.gg · 18:00~05:00 KST" : `yasun.gg · ${hm(krRegStart())}~${hm(krRegEnd() + 15)} KST`;
 }
 
 // ISO 시각 → KST "HH:MM" (24시간). 잘못된 값이면 "".
