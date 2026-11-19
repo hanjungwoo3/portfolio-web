@@ -636,10 +636,12 @@ function HoverMenu({ title, on, trigger, items, onPick, onTriggerClick }: {
     if (r) setPos({ left: r.left, top: r.bottom });
   };
   // 탭 → 메뉴로 마우스를 옮기는 사이 틈에서 닫히지 않게 조금 늦게 닫는다
+  const menuRef = useRef<HTMLDivElement>(null);
   const closeSoon = () => { cancelClose(); closeTimer.current = window.setTimeout(() => setPos(null), 150); };
   useEffect(() => {
     if (!pos) return;
-    const close = () => setPos(null);
+    // 메뉴 **안**에서 스크롤할 때는 닫지 않는다 — 긴 목록을 스크롤하는 순간 사라졌다(사용자 2026-11-20)
+    const close = (e?: Event) => { if (e?.type === "scroll" && e.target instanceof Node && menuRef.current?.contains(e.target)) return; setPos(null); };
     window.addEventListener("scroll", close, true);
     window.addEventListener("resize", close);
     return () => { window.removeEventListener("scroll", close, true); window.removeEventListener("resize", close); };
@@ -656,10 +658,13 @@ function HoverMenu({ title, on, trigger, items, onPick, onTriggerClick }: {
         <span className={`text-[10px] ${on ? "text-blue-400" : "text-gray-400"}`}>▾</span>
       </button>
       {pos && createPortal(
-        <div onMouseEnter={cancelClose} onMouseLeave={closeSoon}
+        <div ref={el => { menuRef.current = el; if (el) { const r = el.getBoundingClientRect(); if (r.right > window.innerWidth - 8) el.style.left = `${Math.max(8, window.innerWidth - 8 - r.width)}px`; } }}   /* 여러 열이라 오른쪽으로 넘치면 왼쪽으로 당김 */
+             onMouseEnter={cancelClose} onMouseLeave={closeSoon}
              className="fixed z-[1000] min-w-[10rem] rounded-lg border border-gray-200 bg-white shadow-lg py-1 overflow-y-auto overscroll-contain"
              style={{ left: pos.left, top: pos.top, maxHeight: `calc(100vh - ${Math.round(pos.top) + 12}px)` }}>   {/* 화면 아래로 넘치면 안에서 스크롤(사용자 2026-11-20 "화면 밖으로 내려가면 선택을 못 해") */}
           <div className="px-3 pt-1 pb-1 text-[11px] font-bold text-gray-400">{title}</div>
+          {/* 많으면 여러 줄(열)로 — 12개마다 한 열, 화면 아래로 길게 내려가지 않게(사용자 2026-11-20 "레이어로, 여러 줄로") */}
+          <div className="grid grid-flow-col gap-x-1" style={{ gridTemplateRows: `repeat(${Math.min(items.length, Math.max(12, Math.ceil(items.length / 4)))}, auto)` }}>
           {items.map(it => (
             <button key={it.key}
                     onClick={() => { onPick(it.key); setPos(null); }}
@@ -668,6 +673,7 @@ function HoverMenu({ title, on, trigger, items, onPick, onTriggerClick }: {
               {it.label}
             </button>
           ))}
+          </div>
         </div>,
         document.body,
       )}
