@@ -48,7 +48,7 @@ const STOCKS = [{ code: "005930", name: "삼성전자" }, { code: "000660", name
 const ETFS = [{ code: "069500", name: "KODEX 200" }, { code: "229200", name: "KODEX 코스닥150" }] as const;
 const SPARK = ["^KS11", "^KQ11", "KRW=X"];   // 야후 spark 1콜(어제+오늘 5분봉) — 환율은 종목정보 팝업 위 줄
 const FLOW_MS = 60_000;
-const US_ROW = ["MU", "NVDA", "SKHY", "SNDK", "AMD"];
+const US_ROW = ["MU", "NVDA", "SKHY", "SNDK", "AMD", "ANT"];   // + 앤트로픽(AI 모델 — HBM·GPU 수요 쪽 신호, 사용자 2026-11-19)
 const MEM_ROW = ["DRAMIDX=ML", "DDR5=ML", "DDR4=ML", "NAND=ML", "DRAM"];   // DRAM ETF 는 메모리 현물 줄로(사용자 2026-11-12) — 장 밖이면 애프터 %(정규)
 const PERPS = [["SKHY", "하이닉스"], ["SMSN", "삼성"], ["MU", "마이크론"], ["NVDA", "엔비디아"], ["TSM", "TSMC"], ["KR200", "코스피200"]] as const;
 
