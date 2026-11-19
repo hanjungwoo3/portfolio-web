@@ -81,10 +81,10 @@ export function ProxyStatusBadge({ baseRefreshMs, usePersonalProxy, compact }: P
     <span className="flex items-center gap-2 shrink-0 flex-wrap">
       {/* 내 전용 프록시가 옛 버전 — 토스가 11/12 부터 요구하는 쿠키를 안 넣어 거절된다. 시세는 공용으로 받는 중(사용자 2026-11-19) */}
       {outdated.length > 0 && (
-        <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/DEPLOY-USER.md" target="_blank" rel="noreferrer"
+        <a href="https://github.com/hanjungwoo3/portfolio-web/blob/main/workers/proxy/UPDATE-USER.md" target="_blank" rel="noreferrer"
            title={`토스가 2026-11-12 부터 새 쿠키를 요구해, 예전에 만든 프록시로는 토스 시세가 거절됩니다(지금은 공용 서버로 대신 받는 중).\n최신 코드로 다시 배포해 주세요: ${outdated.join(", ")}`}
            className="text-[11px] font-bold text-amber-700 bg-amber-50 border border-amber-300 rounded px-1.5 hover:bg-amber-100">
-          ⚠️ 내 프록시 업데이트 필요 — 다시 배포
+          ⚠️ 내 프록시 업데이트 필요 — 2분 가이드
         </a>
       )}
       {statusMsg && (

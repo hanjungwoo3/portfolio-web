@@ -1,22 +1,12 @@
 # 내 전용 Cloudflare Worker 배포 가이드
 
-> ## ⚠️ 지금은 Cloudflare 를 권하지 않습니다
+> ## ℹ️ 이미 만든 Worker 가 있다면 → [업데이트 가이드(2분)](UPDATE-USER.md)
 >
-> **2026-09-09 실측** — 토스의 `wts-info-api.tossinvest.com` 이 Cloudflare Workers 에서
-> 나가는 요청을 `400`(빈 본문)으로 거부합니다. 공개 워커와 개인 워커(다른 계정)가 함께
-> 막혔고, 같은 워커로 `wts-cert-api` 는 `200` 이라 **그 호스트 한정**입니다.
+> 토스가 2026-11-12 부터 새 쿠키를 요구해, 그 전에 만든 Worker 는 최신 코드로 바꿔야 합니다.
 >
-> `wts-info-api` 는 종목 시세·캔들·ETF 구성·검색을 담당합니다. 즉 이 상태에서 Cloudflare
-> 워커를 배포하면 **그 부분은 공용 서버가 대신 받아주게 됩니다** — 화면은 정상으로 보여도
-> 전용 서버를 둔 의미가 없고, 공용이 막히면 함께 멈춥니다.
->
-> 대신 권하는 순서:
->
-> 1. **PC 크롬·엣지** → [크롬 확장](../../extension/README.md) — 설치만 하면 끝, 프록시 불필요
-> 2. **안드로이드** → [앱(APK)](https://hanjungwoo3.github.io/portfolio-web/app/portfolio-app.apk) — 앱이 직접 받아옴
-> 3. **그 외(아이폰 등)** → [Deno Deploy](../deno-proxy/README.md) — 브라우저만으로 1~2분, 같은 시각 `200` 확인됨
->
-> 토스의 정책이 바뀌면 Cloudflare 도 다시 쓸 수 있습니다. 이 문서는 그때를 위해 남겨 둡니다.
+> (2026-11-19) 예전엔 토스 `wts-info-api` 가 Cloudflare 를 막아 이 방법을 권하지 않았지만, 지금 앱은
+> 같은 시세를 `wts-cert-api` 로 받아 **Cloudflare 워커로도 토스 시세가 됩니다.**
+> 그래도 PC 크롬·엣지는 [크롬 확장](../../extension/README.md), 휴대폰은 앱이 더 간단합니다.
 
 
 공개 4-way 프록시 (Cloudflare/Vercel/Deno/Render) 대신 본인 전용 worker를 사용하면:
@@ -259,6 +249,8 @@ Cloudflare 에디터로 돌아와서:
 → 공개 4-way로 자동 복귀 (10초 폴링).
 
 ### Q5. Worker 코드 업데이트 (이 가이드의 코드가 변경됐을 때)
+
+→ 따로 정리한 **[업데이트 가이드](UPDATE-USER.md)** 를 보세요(2분).
 
 1. Cloudflare 대시보드 → Workers & Pages → 본인 worker 클릭 → **Edit code**
 2. 3.2~3.4 단계 반복 (raw URL에서 새 코드 복사 → 붙여넣기 → Deploy)
