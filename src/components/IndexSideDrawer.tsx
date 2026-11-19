@@ -61,14 +61,14 @@ function KrScheduleTag({ onHide }: { onHide: () => void }) {
   const krNow = wk ? krSegs.find(([, a, b]) => a <= now && now < b) : undefined;
   const usNow = us && !us.holiday && usWk ? us.segs.find(g => (g.start <= g.end ? g.start <= now && now < g.end : now >= g.start || now < g.end)) : undefined;
   const nowRow = (lb: string, seg?: [string, number, number] | null, closed = "닫힘") => (
-    // 두 줄 — 위 '국장', 아래 지금 구간(사용자 2026-11-19 "현재는 한 줄 내려쓰기")
-    <div className="text-right">   {/* 오른쪽 정렬(사용자 2026-11-19) */}
-      <span className="block text-left text-[8.5px] leading-[11px] text-gray-400">{lb}</span>   {/* 이름표는 연하고 작게(사용자 2026-11-19) */}
-      {seg ? <span className="block px-0.5 text-indigo-700 font-bold">{seg[0]}: {hm(seg[1])}~{hm(seg[2])}</span> : <span className="block px-0.5 text-gray-400">{closed}</span>}
+    // 한 줄씩 — 왼쪽 '국장', 오른쪽 지금 구간(사용자 2026-11-19 "국장 닫힘 / 미장 프리: 처럼 2줄로")
+    <div className="flex items-baseline justify-between gap-1">
+      <span className="shrink-0 text-[9px] text-gray-400">{lb}</span>
+      {seg ? <span className="px-0.5 text-indigo-700 font-bold">{seg[0]}: {hm(seg[1])}~{hm(seg[2])}</span> : <span className="px-0.5 text-gray-400">{closed}</span>}
     </div>
   );
   return (
-    <div className="fixed right-0 top-[80px] z-40 w-[112px] flex flex-col items-end">
+    <div className="w-[140px] flex flex-col items-end shrink-0">
       {/* 국장/미장 책갈피 탭 — 고른 쪽만(사용자 2026-11-19 "국장/미장 탭으로, 책갈피 탭"), 고른 것 기억 */}
       <div className="flex gap-0.5 pr-1">{tab("now", "현재")}{tab("kr", "국장")}{us && tab("us", "미장")}
         {/* 닫기 — 작은 화면에서 본문을 가린다(사용자 2026-11-19). 시간표·고정 카드를 접고 '📈 지수' 손잡이만 남긴다 */}
@@ -169,7 +169,7 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
   if (!pins.length) return null;
   return (
     // 많이 고르면 화면 아래로 넘친다 — 남은 높이만큼만, 넘치면 안에서 스크롤 · 7개 넘으면 값 줄을 빼 한 장을 줄인다(사용자 2026-11-19 "화면 넘어가면?")
-    <div className="fixed right-0 top-[150px] z-40 flex flex-col gap-1 w-[112px] max-h-[calc(100vh-158px)] overflow-y-auto [scrollbar-width:thin]">
+    <div className="flex flex-col gap-1 w-[140px] min-h-0 overflow-y-auto [scrollbar-width:thin]">
       {/* 등락률 높은 순(값 없는 것은 뒤로)(사용자 2026-11-19 "등락율 sort") */}
       {/* 흐림 = 지수 창 카드와 같은 판정(장 닫힘·체결 멈춤), 흐린 카드는 뒤로(사용자 2026-11-19 "흐림 처리도") */}
       {/* 지수 창 블록대로 묶는다 — 지수·환율·선물·현물(사용자 2026-11-19 "지수탭 블럭대로 나누자"), 묶음 안에서 흐린 것 뒤·등락률 순 */}
@@ -191,18 +191,18 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
             {(() => {
               if (chartRange !== "day") {   // 기간 그래프(일봉)
                 const h = histQs[pins.indexOf(sym)]?.data, data = h ? trimByRange(h, chartRange) : null;
-                return data && data.length > 1 ? <span className="absolute inset-0 opacity-35 pointer-events-none"><Sparkline data={data} width={112} height={48} className="w-full h-full" strokeWidth={1} /></span> : null;
+                return data && data.length > 1 ? <span className="absolute inset-0 opacity-35 pointer-events-none"><Sparkline data={data} width={140} height={50} className="w-full h-full" strokeWidth={1} /></span> : null;
               }
               const sp = daySparkOf(sym); return sp && sp.closes.length > 1
-              ? <span className="absolute inset-0 opacity-35 pointer-events-none"><Sparkline data={sp.closes} xs={sp.xs} baseline={sp.prevClose ?? d?.prevClose} prevBaseline={sp.prevBase} markIndex={sp.openIdx} closeIndex={sp.closeIdx} extraMarks={[sp.prevOpenIdx, sp.prevCloseIdx]} markXs={sp.markXs} breakIndex={sp.breakIdx} width={112} height={48} className="w-full h-full" strokeWidth={1} /></span> : null; })()}   {/* 흐려도 바탕은 불투명 — 뒤 표 글자가 비쳤다 */}
+              ? <span className="absolute inset-0 opacity-35 pointer-events-none"><Sparkline data={sp.closes} xs={sp.xs} baseline={sp.prevClose ?? d?.prevClose} prevBaseline={sp.prevBase} markIndex={sp.openIdx} closeIndex={sp.closeIdx} extraMarks={[sp.prevOpenIdx, sp.prevCloseIdx]} markXs={sp.markXs} breakIndex={sp.breakIdx} width={140} height={50} className="w-full h-full" strokeWidth={1} /></span> : null; })()}   {/* 흐려도 바탕은 불투명 — 뒤 표 글자가 비쳤다 */}
             <span className="flex items-baseline gap-1 text-[11px] font-bold text-gray-700"><span className="truncate">{NAME.get(sym) ?? sym}</span></span>
             <span className={`flex items-baseline justify-between gap-1 text-[12px] font-bold tabular-nums ${tone}`}>
               <span>{pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
-              {pins.length > 7 && d && d.price > 0 && <span className="text-[9.5px] font-normal text-gray-400 truncate">{d.price < 100 ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()}</span>}
+              {d && d.price > 0 && <span className="text-[10px] font-normal text-gray-400 truncate">{d.price < 100 ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()}</span>}
             </span>
             {/* 값은 늘 — 많이 고르면(7개 초과) 줄을 아끼려 이름 줄 오른쪽에 붙이고, 적으면 따로 한 줄(사용자 2026-11-19 "수치는 안 나와?") */}
-            {pins.length <= 7 && d && d.price > 0 && <span className="block text-[10px] text-gray-400 tabular-nums">{d.price < 100 ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()}</span>}
-            {(() => { const u = sym === "^KS11" ? ud?.kospi : sym === "^KQ11" ? ud?.kosdaq : undefined; return u ? <span className="block text-[10px] font-bold tabular-nums"><span className="text-rose-600">▲{u.rise}</span> <span className="text-blue-600">▼{u.fall}</span></span> : null; })()}
+            {/* 3번째 줄 — 모든 카드 같은 높이(사용자 2026-11-19 "코스피·코스닥처럼 3줄로"): 코스피·코스닥은 오른·내린 수, 나머지는 빈 줄 */}
+            {(() => { const u = sym === "^KS11" ? ud?.kospi : sym === "^KQ11" ? ud?.kosdaq : undefined; return <span className="block h-[14px] text-[10px] font-bold tabular-nums leading-[14px]">{u ? <><span className="text-rose-600">▲{u.rise}</span> <span className="text-blue-600">▼{u.fall}</span></> : null}</span>; })()}
           </button>
         );
               })}
@@ -251,8 +251,13 @@ export function IndexSideDrawer() {
       <button type="button" onClick={() => setOpen(true)}
               className={`fixed right-0 top-[150px] z-50 rounded-l-lg border border-r-0 border-indigo-300 bg-indigo-50 text-indigo-700 shadow px-1 py-2 text-[11px] font-bold [writing-mode:vertical-rl] hover:bg-indigo-100 ${open || hasPins ? "hidden" : ""}`}
               title="지수·환율·금리·선물·원자재 카드 — 단축키 ` (숫자 1 왼쪽) 로 열고 닫기">📈 지수<span className="mt-1 px-0.5 rounded border border-indigo-300 bg-white text-[9px] font-mono [writing-mode:horizontal-tb]">`</span></button>
-      {!open && !folded && <KrScheduleTag onHide={() => fold(true)} />}
-      {!open && !folded && <PinnedMini onOpen={() => setOpen(true)} />}
+      {/* 시간표 + 고정 카드 = 한 세로 줄 — 시간표 줄 수가 바뀌어도 사이가 안 뜬다(사용자 2026-11-19 "공간 남기지 말고") */}
+      {!open && !folded && (
+        <div className="fixed right-0 top-[80px] bottom-2 z-40 flex flex-col items-end gap-1 pointer-events-none [&>*]:pointer-events-auto">
+          <KrScheduleTag onHide={() => fold(true)} />
+          <PinnedMini onOpen={() => setOpen(true)} />
+        </div>
+      )}
       {!open && folded && (
         <button type="button" onClick={() => fold(false)} title="시간표·고정 카드 펼치기"
                 className="fixed right-0 top-[122px] z-50 rounded-l-md border border-r-0 border-gray-300 bg-white px-1 text-[11px] font-bold text-gray-500 hover:text-indigo-600 shadow">◂</button>
