@@ -9,7 +9,8 @@ import { useEffect, useMemo, useState } from "react";
 import { buildIndexSections } from "../lib/dashboardGroups";
 import { UsMarketTab } from "./UsMarketTab";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { fetchYahooBatch, fetchYasunNightFutures, fetchYahooSparkDay, fetchDashboardChart } from "../lib/api";
+import { fetchYahooBatch, fetchYasunNightFutures, fetchYahooSparkDay, fetchDashboardChart, fetchKrFuturesMinute, fetchKrFuturesNightSession, fetchKrIndexDay, KR_INDEX_DAY_SYMBOLS, type DaySpark } from "../lib/api";
+import { isKrNightSession } from "../lib/format";
 import { useChartRange, historyRange, trimByRange } from "../lib/chartRange";
 import { Sparkline } from "./Sparkline";
 import { US_PAIRS } from "../lib/usMarketData";
@@ -125,6 +126,24 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
     queryFn: () => fetchYahooSparkDay(pins.filter(s => s !== "^KS200N" && s !== "^KQ150N")),
     enabled: pins.length > 0 && chartRange === "day", refetchInterval: 5 * 60_000, staleTime: 2 * 60_000, retry: 1,
   });
+  // 24시간 = 지수 창 카드와 **같은 이틀치(어제 세션 + 오늘 세션)** — 같은 쿼리키라 캐시를 같이 쓴다(사용자 2026-11-19 "24시간은 기본이 48시간인데?")
+  //   한국 선물 = 한경 1분봉(낮)·주간+야간 세션(밤), 코스피·코스닥 = 토스 5분봉, 그 밖 = 야후 spark
+  const dayOn = chartRange === "day", krNight = isKrNightSession();
+  const krFutQs = useQueries({ queries: (["kospi200", "kosdaq150"] as const).map((k, i) => ({
+    queryKey: krNight ? ["kr-fut-night-sess", k] : ["hk-futures-min", k], queryFn: () => krNight ? fetchKrFuturesNightSession(k) : fetchKrFuturesMinute(k),
+    enabled: dayOn && pins.includes(i ? "^KQ150N" : "^KS200N"), refetchInterval: 60_000, staleTime: 30_000, refetchOnWindowFocus: false,
+  })) });
+  const krIdxSyms = pins.filter(s => KR_INDEX_DAY_SYMBOLS.includes(s));
+  const krIdxQs = useQueries({ queries: krIdxSyms.map(sym => ({
+    queryKey: ["extra-day", sym], queryFn: () => fetchKrIndexDay(sym), enabled: dayOn, refetchInterval: 60_000, staleTime: 30_000, refetchOnWindowFocus: false,
+  })) });
+  const daySparkOf = (sym: string): DaySpark | undefined => {
+    const conv = (d: { closes: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; breakIdx?: number; prevBase?: number; markXs?: DaySpark["markXs"]; rolling?: boolean } | null | undefined) =>
+      d && d.closes.length > 1 ? { closes: d.closes, xs: d.xs, prevClose: d.base, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, breakIdx: d.breakIdx, prevBase: d.prevBase, markXs: d.markXs, rolling: d.rolling } : undefined;
+    if (sym === "^KS200N" || sym === "^KQ150N") return conv(krFutQs[sym === "^KS200N" ? 0 : 1]?.data) ?? (nightCloses.get(sym) ? { closes: nightCloses.get(sym)! } : undefined);
+    if (krIdxSyms.includes(sym)) return conv(krIdxQs[krIdxSyms.indexOf(sym)]?.data) ?? sparkQ.data?.get(sym);
+    return sparkQ.data?.get(sym);
+  };
   // 헤더 그래프 기간(1개월·3개월…)이면 일봉 — 지수 카드와 같은 캐시. 한국 선물은 일봉이 없어 KODEX 200·코스닥150 일봉으로 대신
   const histSym = (s: string) => (s === "^KS200N" ? "069500.KS" : s === "^KQ150N" ? "229200.KS" : s);
   const histQs = useQueries({ queries: pins.map(sym => ({
@@ -174,8 +193,8 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
                 const h = histQs[pins.indexOf(sym)]?.data, data = h ? trimByRange(h, chartRange) : null;
                 return data && data.length > 1 ? <span className="absolute inset-0 opacity-35 pointer-events-none"><Sparkline data={data} width={112} height={48} className="w-full h-full" strokeWidth={1} /></span> : null;
               }
-              const sp = sparkQ.data?.get(sym); const data = sp?.closes ?? nightCloses.get(sym); return data && data.length > 1
-              ? <span className="absolute inset-0 opacity-35 pointer-events-none"><Sparkline data={data} xs={sp?.xs} baseline={sp?.prevClose ?? d?.prevClose} width={112} height={48} className="w-full h-full" strokeWidth={1} /></span> : null; })()}   {/* 흐려도 바탕은 불투명 — 뒤 표 글자가 비쳤다 */}
+              const sp = daySparkOf(sym); return sp && sp.closes.length > 1
+              ? <span className="absolute inset-0 opacity-35 pointer-events-none"><Sparkline data={sp.closes} xs={sp.xs} baseline={sp.prevClose ?? d?.prevClose} prevBaseline={sp.prevBase} markIndex={sp.openIdx} closeIndex={sp.closeIdx} extraMarks={[sp.prevOpenIdx, sp.prevCloseIdx]} markXs={sp.markXs} breakIndex={sp.breakIdx} width={112} height={48} className="w-full h-full" strokeWidth={1} /></span> : null; })()}   {/* 흐려도 바탕은 불투명 — 뒤 표 글자가 비쳤다 */}
             <span className="flex items-baseline gap-1 text-[11px] font-bold text-gray-700"><span className="truncate">{NAME.get(sym) ?? sym}</span></span>
             <span className={`flex items-baseline justify-between gap-1 text-[12px] font-bold tabular-nums ${tone}`}>
               <span>{pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>

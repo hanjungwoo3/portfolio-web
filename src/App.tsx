@@ -833,7 +833,7 @@ function Dashboard() {
       )}
       {!headerCollapsed && (
       <header ref={headerRef} className="pg-menu bg-white border-b border-gray-200 sticky top-0 z-50">   {/* 카드 책갈피(z-30)보다 위 */}
-        <div className="max-w-[1600px] mx-auto flex items-center gap-3 px-6 py-3">
+        <div className="max-w-[1600px] mr-auto flex items-center gap-3 px-6 py-3">
           <button onClick={toggleHeader} title="헤더 접기 (포트폴리오~설정 숨김)"
                   className="shrink-0 p-1 rounded text-gray-500
                              hover:text-gray-800 hover:bg-gray-100 transition">
@@ -938,7 +938,7 @@ function Dashboard() {
         );
         return <>{btn(prev, "left")}{btn(next, "right")}</>;
       })()}
-      <main className="max-w-[1600px] mx-auto p-3">
+      <main className="max-w-[1600px] mr-auto p-3">   {/* 왼쪽에 붙임 — 넓은 화면에서 왼쪽이 비고 오른쪽 고정 카드와 겹쳤다(사용자 2026-11-19) */}
         <div ref={tabsStickyRef}
              style={{ top: headerCollapsed ? 0 : headerH }}
              className="pg-menu sticky z-40 bg-white/95 backdrop-blur -mx-3 px-3 pt-1 mb-3 [&>nav]:!mb-0">
