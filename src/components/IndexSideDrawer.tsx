@@ -61,7 +61,7 @@ function KrScheduleTag() {
   const nowRow = (lb: string, seg?: [string, number, number] | null, closed = "닫힘") => (
     // 두 줄 — 위 '국장', 아래 지금 구간(사용자 2026-11-19 "현재는 한 줄 내려쓰기")
     <div className="text-left">
-      <b className="block text-gray-700">{lb}</b>
+      <span className="block text-[8.5px] leading-[11px] text-gray-400">{lb}</span>   {/* 이름표는 연하고 작게(사용자 2026-11-19) */}
       {seg ? <span className="block ml-1.5 px-0.5 text-indigo-700 font-bold">{seg[0]}: {hm(seg[1])}~{hm(seg[2])}</span> : <span className="block ml-1.5 text-gray-400">{closed}</span>}
     </div>
   );
