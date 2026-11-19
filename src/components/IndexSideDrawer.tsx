@@ -36,7 +36,7 @@ function KrScheduleTag({ onHide }: { onHide: () => void }) {
   // 못 받았으면(웹 공용 서버는 토스가 막혀 있다) 평소 시간을 사실처럼 보이지 않게 띄우지 않는다
   if (!krScheduleLoaded()) return null;
   const s = krSchedule();
-  const hm = (m: number) => `${Math.floor(m / 60)}:${String(m % 60).padStart(2, "0")}`;
+  const hm = (m: number) => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;   // 09:00 처럼 두 자리(사용자 2026-11-19)
   const k = new Date(Date.now() + 9 * 3600_000), now = k.getUTCHours() * 60 + k.getUTCMinutes(), wk = k.getUTCDay() >= 1 && k.getUTCDay() <= 5;
   const cur = (a: number, b: number) => (wk && a <= now && now < b ? "bg-indigo-100 text-indigo-800 font-bold" : "");
   const us = usSchedule();
@@ -59,9 +59,9 @@ function KrScheduleTag({ onHide }: { onHide: () => void }) {
   const usNow = us && !us.holiday && usWk ? us.segs.find(g => (g.start <= g.end ? g.start <= now && now < g.end : now >= g.start || now < g.end)) : undefined;
   const nowRow = (lb: string, seg?: [string, number, number] | null, closed = "닫힘") => (
     // 두 줄 — 위 '국장', 아래 지금 구간(사용자 2026-11-19 "현재는 한 줄 내려쓰기")
-    <div className="text-left">
-      <span className="block text-[8.5px] leading-[11px] text-gray-400">{lb}</span>   {/* 이름표는 연하고 작게(사용자 2026-11-19) */}
-      {seg ? <span className="block ml-1.5 px-0.5 text-indigo-700 font-bold">{seg[0]}: {hm(seg[1])}~{hm(seg[2])}</span> : <span className="block ml-1.5 text-gray-400">{closed}</span>}
+    <div className="text-right">   {/* 오른쪽 정렬(사용자 2026-11-19) */}
+      <span className="block text-left text-[8.5px] leading-[11px] text-gray-400">{lb}</span>   {/* 이름표는 연하고 작게(사용자 2026-11-19) */}
+      {seg ? <span className="block px-0.5 text-indigo-700 font-bold">{seg[0]}: {hm(seg[1])}~{hm(seg[2])}</span> : <span className="block px-0.5 text-gray-400">{closed}</span>}
     </div>
   );
   return (
@@ -73,7 +73,7 @@ function KrScheduleTag({ onHide }: { onHide: () => void }) {
                 className="px-1 rounded-t border border-b-0 bg-gray-100 border-gray-200 text-[9.5px] leading-[14px] font-bold text-gray-400 hover:text-rose-600">✕</button>
       </div>
       <div title={showUs ? "오늘 미국 장 시간(토스, 한국 시각)" : `오늘 국내 장 시간(토스) — 장전 ${s.openStart != null ? hm(s.openStart) : "?"}~ · 정규장 ${hm(s.regStart)}~${hm(s.regEnd)} · 시간외 ~${hm(s.closingEnd)} · 애프터 ~${hm(s.afterEnd)}${s.holiday ? " · 휴장일" : ""}`}
-           className={`w-full rounded-l-md border border-r-0 border-gray-300 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right whitespace-nowrap text-gray-500`}>   {/* 얇은 테두리, 바탕 없음 · 국내가 바뀐 날은 주황 글씨 */}
+           className={`pg-sched w-full rounded-l-md border border-r-0 border-gray-300 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right whitespace-nowrap text-gray-500`}>   {/* 얇은 테두리, 바탕 없음 · 국내가 바뀐 날은 주황 글씨 */}
         {view === "now"
           ? <>{nowRow("국장", krNow, s.holiday ? "휴장" : "닫힘")}{us && nowRow("미장", usNow ? [usNow.name, usNow.start, usNow.end] : null, us.holiday ? "휴장" : usWk ? "닫힘" : "주말")}</>
           : showUs
@@ -83,7 +83,7 @@ function KrScheduleTag({ onHide }: { onHide: () => void }) {
           : s.holiday ? <b>국내 휴장</b> : <>
             {/* 토스 시간표 그대로 — 장전(동시호가)·정규·시간외·애프터, 지금 구간은 배경색. NXT 프리마켓은 토스가 시간을 주지 않아 적지 않는다 */}
             {s.openStart != null && <div className={`px-0.5 rounded ${cur(s.openStart, s.regStart)}`}>장전 {hm(s.openStart)}~{hm(s.regStart)}</div>}
-            <div className={`px-0.5 rounded ${cur(s.regStart, s.regEnd)}`}>정규 <b>{hm(s.regStart)}~{hm(s.regEnd)}</b></div>
+            <div className={`px-0.5 rounded ${cur(s.regStart, s.regEnd)}`}>정규 {hm(s.regStart)}~{hm(s.regEnd)}</div>
             {s.closingEnd > s.regEnd && <div className={`px-0.5 rounded ${cur(s.regEnd, s.afterStart ?? s.closingEnd)}`}>시간외 {hm(s.regEnd)}~{hm(s.afterStart ?? s.closingEnd)}</div>}
             <div className={`px-0.5 rounded ${cur(s.afterStart ?? s.closingEnd, s.afterEnd)}`}>애프터 {hm(s.afterStart ?? s.closingEnd)}~{hm(s.afterEnd)}</div>
           </>}
@@ -147,12 +147,12 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
           void ids;
           // 묶음 = 글자 없이 회색 판 하나(사용자 2026-11-19 "글자는 빼고 블럭으로")
           return (
-            <div key={lb} title={lb} className="flex flex-col gap-1 shrink-0 rounded-l-xl bg-gray-200/80 py-1 pl-1">
+            <div key={lb} title={lb} className="flex flex-col gap-1 shrink-0 rounded-l-xl bg-gray-200/80 py-1 pl-1 pg-mktgroup">
               {inB.map(({ sym, d, pct, dim }) => {
         const tone = pct == null ? "text-gray-400" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
         return (
           <button key={sym} type="button" onClick={onOpen} style={{ flexShrink: 0 }} title={`${NAME.get(sym) ?? sym} — 누르면 지수 창`}
-                  className={`rounded-l-lg border-2 border-r-0 ${isFut(sym) ? "border-amber-400" : "border-gray-300"} ${dim ? "bg-gray-100 [&>*]:opacity-45 [&>*]:grayscale-[60%]" : isFut(sym) ? "bg-amber-50" : "bg-white"} shadow px-1.5 py-1 text-left leading-tight hover:bg-indigo-50`}>   {/* 흐려도 바탕은 불투명 — 뒤 표 글자가 비쳤다 */}
+                  className={`pg-card rounded-l-lg border-2 border-r-0 ${isFut(sym) ? "border-amber-400" : "border-gray-300"} ${dim ? "bg-gray-100 [&>*]:opacity-45 [&>*]:grayscale-[60%]" : isFut(sym) ? "bg-amber-50" : "bg-white"} shadow px-1.5 py-1 text-left leading-tight hover:bg-indigo-50`}>   {/* 흐려도 바탕은 불투명 — 뒤 표 글자가 비쳤다 */}
             <span className="flex items-baseline gap-1 text-[11px] font-bold text-gray-700"><span className="truncate">{NAME.get(sym) ?? sym}</span>{d?.src === "kis" && <span className="shrink-0 text-[8.5px] font-normal text-indigo-500" title="값 출처: 한국투자">한투</span>}</span>
             <span className={`flex items-baseline justify-between gap-1 text-[12px] font-bold tabular-nums ${tone}`}>
               <span>{pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>

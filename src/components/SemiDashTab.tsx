@@ -434,7 +434,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   };
   const mktGroup = (tone: string, children: React.ReactNode) => (
     // 모바일 = 판 둘을 좌우로, 판 안은 세로 3장(코스피·KODEX 200·코스피200 선물 | 코스닥·코스닥150·코스닥150 선물)(사용자 2026-11-13 "왼쪽에 코스피·kodex200·코스피200 선물 세로로")
-    <div className={`row-span-3 lg:row-span-1 lg:col-span-3 grid grid-rows-3 lg:grid-rows-1 lg:grid-cols-3 gap-1 p-1 rounded-xl border ${tone}`}>{children}</div>
+    <div className={`row-span-3 lg:row-span-1 lg:col-span-3 grid grid-rows-3 lg:grid-rows-1 lg:grid-cols-3 gap-1 p-1 rounded-xl border pg-mktgroup ${tone}`}>{children}</div>
   );
   const vkCard = (
         <Card title="V-KOSPI" price={vk?.price} pct={vk?.pct} dim={!openIndex}

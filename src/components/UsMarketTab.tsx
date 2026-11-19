@@ -980,8 +980,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   const rest = group.filter(x => !KSG.includes(x) && !KQG.includes(x));
                   return (
                     <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-8 gap-y-4 gap-x-2">
-                      <div className="col-span-full lg:col-span-3 grid grid-cols-3 gap-x-2 gap-y-4 p-1.5 pt-3 rounded-xl border bg-indigo-50 border-indigo-200">{KSG.filter(x => group.includes(x)).map(one)}</div>
-                      <div className="col-span-full lg:col-span-2 grid grid-cols-2 gap-x-2 gap-y-4 p-1.5 pt-3 rounded-xl border bg-emerald-50 border-emerald-200">{KQG.filter(x => group.includes(x)).map(one)}</div>
+                      <div className="col-span-full lg:col-span-3 grid grid-cols-3 gap-x-2 gap-y-4 p-1.5 pt-3 rounded-xl border bg-indigo-50 border-indigo-200 pg-mktgroup">{KSG.filter(x => group.includes(x)).map(one)}</div>
+                      <div className="col-span-full lg:col-span-2 grid grid-cols-2 gap-x-2 gap-y-4 p-1.5 pt-3 rounded-xl border bg-emerald-50 border-emerald-200 pg-mktgroup">{KQG.filter(x => group.includes(x)).map(one)}</div>
                       {rest.map(sym => renderIdxCard(section, sym))}
                     </div>
                   );
