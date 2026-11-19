@@ -3,7 +3,7 @@
 import { openExternal } from "../lib/toss";
 import { KrxNoticeButton } from "./KrxNoticeCard";
 
-const CLS = "inline-flex items-center rounded border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[11.5px] font-bold text-indigo-700 hover:bg-indigo-100";
+const CLS = "inline-flex items-center rounded border border-gray-300 bg-white px-1.5 py-0.5 text-[11px] text-gray-600 hover:bg-gray-50 hover:text-gray-800";   // 튀지 않게(사용자 2026-11-20)
 
 export function ExtLinks({ links }: { links?: { label: string; url: string; krxSeq?: string }[] }) {
   if (!links?.length) return null;
