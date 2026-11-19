@@ -3166,6 +3166,15 @@ export async function fetchYasunNightFutures(virtualSymbol: string): Promise<Yas
     const lastTime = last ? last.time : Math.floor(Date.now() / 1000);
     // 실제 거래중이면 REGULAR(흐림 제외), 개장 대기·마감 구간이면 CLOSED(흐림 + '마감' 책갈피).
     const trading = isKrFuturesTradingNow();
+    // 주간엔 앱+한투 연결이면 한투 지수선물 현재가로 값을 바꾼다(그래프는 yasun 캔들 그대로)(사용자 2026-11-19 "한투에서")
+    //   야간은 yasun 그대로 — 한투 야간 지수선물 경로는 확인하지 않았다. 실패·미연결이면 yasun 값
+    if (!night) {
+      try {
+        const { fetchKisIndexFutQuote } = await import("./kisFutures");
+        const k = await fetchKisIndexFutQuote(virtualSymbol === "^KS200N" ? "k200" : "kq150");
+        if (k && k.price > 0) { price = k.price; pct = k.pct; diff = k.price - k.base; }
+      } catch { /* yasun 값 */ }
+    }
     return {
       index: {
         symbol: virtualSymbol,

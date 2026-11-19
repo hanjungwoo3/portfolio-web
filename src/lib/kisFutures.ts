@@ -189,3 +189,38 @@ export async function fetchKisK200FutInvestor(): Promise<KisFutInvestor | null> 
   }
   return null;
 }
+
+// ─── 지수선물(코스피200·코스닥150) 근월물 현재가 — 한국투자(앱+한투 연결일 때만)(사용자 2026-11-19 "코스닥·코스피 선물은 한투에서")
+//   ⚠️ 지수선물 코드가 공식 예제에 없다 — 주식선물과 같은 새 단축코드 꼴(A + 기초 2자리 + 연도 끝자리 + 월)을 먼저,
+//   옛 꼴(101 + 연도 글자 + 월 + 000)을 다음으로 물어 값이 오는 쪽을 기억한다(선물 외국인 수급과 같은 방식). 기초 01 = 코스피200, 06 = 코스닥150(추정).
+const IDX_FUT_KEY = "kis_idx_fut_fmt";
+const OLD_YEAR = "ABCDEFGHJKLMNPQRSTVWXYZ";   // 옛 KRX 연도 글자(I·O·U 빼고) — 2006=A … 2026=X(추정)
+function idxFutCodes(kind: "k200" | "kq150"): [string, string][] {
+  const front = frontMonthCode(kind === "k200" ? "01" : "06");          // A0166 꼴 → A01612
+  const y = Number("20" + new Date(Date.now() + 9 * 3600_000).toISOString().slice(2, 4)), mm = Number(front.slice(-2));
+  const yy = front.slice(-3, -2) === String(y % 10) ? y : y + 1;
+  const old = `${kind === "k200" ? "101" : "106"}${OLD_YEAR[(yy - 2006) % OLD_YEAR.length]}${mm < 10 ? mm : "ABC"[mm - 10]}000`;
+  return [["F", front], ["F", old], ["JF", front]];
+}
+export async function fetchKisIndexFutQuote(kind: "k200" | "kq150"): Promise<KisFutQuote | null> {
+  if (!isKisLinkOn()) return null;
+  const cands = idxFutCodes(kind);
+  let saved = -1;
+  try { saved = Number(localStorage.getItem(IDX_FUT_KEY) ?? "-1"); } catch { /* noop */ }
+  const order = saved >= 0 && saved < cands.length ? [saved, ...cands.map((_, i) => i).filter(i => i !== saved)] : cands.map((_, i) => i);
+  for (const i of order) {
+    const [div, code] = cands[i];
+    try {
+      const { body } = await kisGet<{ rt_cd?: string; output1?: Record<string, string> }>(
+        "/uapi/domestic-futureoption/v1/quotations/inquire-price", "FHMIF10000000", { FID_COND_MRKT_DIV_CODE: div, FID_INPUT_ISCD: code });
+      const o = body.output1 ?? {};
+      const price = num(o.futs_prpr), pct = num(o.futs_prdy_ctrt);
+      if (!(price > 0)) continue;
+      try { localStorage.setItem(IDX_FUT_KEY, String(i)); } catch { /* noop */ }
+      const base = num(o.futs_prdy_clpr) > 0 ? num(o.futs_prdy_clpr) : (Number.isFinite(pct) ? price / (1 + pct / 100) : price);
+      return { code, price, pct: Number.isFinite(pct) ? pct : (price / base - 1) * 100, base };
+    } catch { /* 다음 후보 */ }
+  }
+  return null;
+}
+
