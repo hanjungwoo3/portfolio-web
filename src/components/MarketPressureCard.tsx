@@ -41,14 +41,17 @@ export function MarketPressureCard() {
 
   return (
     <div className="relative rounded-xl border border-gray-300 bg-white pg-box p-3 pt-4 mt-1.5">
-      <span className="pg-title absolute -top-3 left-3 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700">🔎 시황 분석 — 지수를 누르는 힘이 약해지고 있나?</span>
+      {/* 제목 책갈피 옆에 결론(사용자 2026-11-20 "시황분석 - 옆에 이걸 넣자") */}
+      <span className="pg-title absolute -top-3 left-3 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700">
+        🔎 시황 분석 —
+        <span className={`inline-flex items-center gap-1.5 rounded border px-1.5 text-[12.5px] ${TONE[v.tone].cls}`}>
+          <span className={`w-2 h-2 rounded-full ${TONE[v.tone].dot}`} />{v.text}
+          {loading > 0 && <span className="text-[11px] font-normal text-gray-400">(받는 중 {loading})</span>}
+        </span>
+      </span>
       {/* 초보용 한 줄 설명(사용자 2026-11-20 "주식 초보들이 이해할 수 있게") */}
       <div className="mb-1.5 text-[12px] text-gray-600 leading-snug">
         지수가 떨어질 때는 외국인 매도·공매도·하락 베팅 같은 <b>'누르는 힘'</b>이 함께 커집니다. 아래 6가지 중 <b className="text-rose-600">완화</b>(누르는 힘이 약해짐)가 많아지면 바닥을 다지고 반등할 여지가 커진다고 봅니다. 칸마다 <span className="text-indigo-600">이게 뭔가요?</span>를 누르면 쉬운 설명이 나옵니다.
-      </div>
-      <div className={`inline-flex items-center gap-2 rounded-md border px-2 py-1 text-[13px] font-bold ${TONE[v.tone].cls}`}>
-        <span className={`w-2 h-2 rounded-full ${TONE[v.tone].dot}`} />{v.text}
-        {loading > 0 && <span className="text-[11px] font-normal text-gray-400">(받는 중 {loading})</span>}
       </div>
       <div className="mt-2 grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {gauges.map(g => (

@@ -539,7 +539,9 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
 
   return (
     <div className="flex flex-col gap-1.5 p-2 lg:min-h-[calc(100vh-150px)] text-[12px] bg-gray-50 pg-bg">
-      {/* 해외 선물·메모리 현물·미국 반도체 — 맨 위(사용자 2026-11-04) */}
+      {/* 🔎 시황 분석 — 맨 위(사용자 2026-11-20). 대차·공매도가 삼성·하이닉스 기준이라 반도체 수급에. 종목정보 팝업엔 안 넣음 */}
+      {!popup && <MarketPressureCard />}
+      {/* 해외 선물·메모리 현물·미국 반도체 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 shrink-0">
         <ChipBox title="해외 선물 (24h)" items={[
           ...(["SOX=F", "NQ=F"].map(s => q(s)).filter((x): x is UsIndex => !!x).map(x => ({ k: x.symbol, name: x.symbol === "SOX=F" ? "SOX선물" : "나스닥선물", pct: x.pct }))),
@@ -555,8 +557,6 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           return e && Math.abs(e.aft) >= 0.005 ? { k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: e.aft, reg: e.reg } : { k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.regularPct ?? x.pct };
         })} />
       </div>
-      {/* 🔎 시황 분석 — 해외 선물·메모리·미국 반도체 줄 바로 아래(사용자 2026-11-20 "해외선물(24h) 아래로"). 대차·공매도가 삼성·하이닉스 기준이라 반도체 수급에. 종목정보 팝업엔 안 넣음 */}
-      {!popup && <MarketPressureCard />}
       {/* ① 시세 */}
       <div className="grid grid-cols-2 lg:grid-cols-9 gap-1.5 auto-rows-[118px] shrink-0">
         {stocks.map(s => {
