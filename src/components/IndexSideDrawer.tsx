@@ -177,7 +177,8 @@ function PinnedMini({ onOpen }: { onOpen: () => void }) {
         const rows = pins.map(sym => { const d = q.data?.get(sym); return { sym, d, pct: d ? displayPctOf(sym, d) ?? d.pct : null, dim: dashboardCardDim(PAIR.get(sym) ?? { symbol: sym }, d, getDimSleepingEnabled()) }; })
           .sort((a, b) => { blockOf(a.sym); return (orderMap.get(a.sym) ?? 999) - (orderMap.get(b.sym) ?? 999); });
         return BLOCKS.map(([lb, ids]) => {
-          const inB = rows.filter(r => (blockOf(r.sym) ?? "지수") === lb);
+          // 흐린 카드(장 닫힘·체결 멈춤)는 숨긴다 — 지금 움직이는 것만(사용자 2026-11-19). 지수 창에선 그대로 보인다
+          const inB = rows.filter(r => !r.dim && (blockOf(r.sym) ?? "지수") === lb);
           if (!inB.length) return null;
           void ids;
           // 묶음 = 글자 없이 회색 판 하나(사용자 2026-11-19 "글자는 빼고 블럭으로")
