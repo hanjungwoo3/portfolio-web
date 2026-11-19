@@ -699,6 +699,59 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
           </>)}
 
           {/* 전용 프록시 URL */}
+          {/* 폴링 주기·호출 수는 프록시·앱 탭으로(사용자 2026-11-19 "값은 프록시/앱 쪽으로") — 빠른 주기가 프록시·확장·앱에 달려 있다 */}
+          {tab === "proxy" && (
+          <div className="border border-gray-200 rounded p-2.5 bg-blue-50/30 space-y-1">
+            {/* 폴링 주기 — 공개는 5분·수동만. 그보다 빠른 건 전용 전송(확장·앱·개인 워커)일 때만.
+                확장·앱은 브라우저/폰이 직접 요청하므로 워커 호출 한도가 아예 없다. */}
+            {/* 폭이 좁으면 버튼이 눌려 글자가 세로로 쪼개졌다("수\n동", "5\n초") →
+                버튼은 줄바꿈 금지·축소 금지로 두고, 대신 줄 자체가 넘어가게 한다. */}
+            <div className="flex items-center gap-1 mt-1 flex-wrap">
+              <span className={`shrink-0 text-[11px] ${fastPollAllowed ? "text-gray-700" : "text-gray-400"}`}>
+                폴링 주기:
+              </span>
+              {POLL_OPTIONS.map(ms => {
+                const active = pollMs === ms;
+                // 수동(0)·공개 허용 주기(30초 이상=30/60초)는 프록시 무관 선택 가능.
+                // 더 빠른 5/10초는 전용 프록시 또는 확장일 때만.
+                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : fastPollAllowed;
+                return (
+                  <button key={ms}
+                          onClick={() => handlePollChange(ms)}
+                          disabled={!enabled}
+                          className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-[11px] rounded border transition
+                                      ${active
+                                        ? "bg-blue-600 text-white border-blue-700 font-bold"
+                                        : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}
+                                      ${!enabled ? "opacity-40 cursor-not-allowed" : ""}`}>
+                    {pollLabel(ms)}
+                  </button>
+                );
+              })}
+              {!fastPollAllowed && (
+                // 긴 안내문은 버튼을 밀어내지 않도록 제 줄을 차지한다
+                <span className="basis-full text-[10px] text-gray-400 leading-snug">
+                  공개는 5분 고정 — 무료 워커 한도 보호. 더 빠르게는 확장·앱·개인 프록시.
+                </span>
+              )}
+            </div>
+
+            {/* 이 브라우저 호출량 — 일자별 카운터 (cache 히트 제외, 실제 네트워크 호출만) */}
+            <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-600">
+              <span className="text-gray-500">이 브라우저 호출</span>
+              <span className="tabular-nums">
+                오늘 <b className="text-gray-800">{getTodayProxyCalls().toLocaleString()}</b>회
+              </span>
+              <span className="tabular-nums">
+                최근 7일 <b className="text-gray-800">{getRecentProxyCalls(7).toLocaleString()}</b>회
+              </span>
+              <span className="text-[10px] text-gray-400">
+                {extReady ? "(대부분 확장이 처리 — 프록시는 Yahoo 등만)"
+                  : hasEnabledProxy ? "(전용 프록시 호출수)" : "(공개 프록시 합계)"}
+              </span>
+            </div>
+
+          </div>)}
           {tab === "proxy" && (
           <div className="border border-gray-200 rounded p-2.5 bg-blue-50/30 space-y-1">
             <div className="text-xs font-bold text-gray-700">
@@ -880,55 +933,6 @@ export function SettingsDialog({ isOpen, onClose, onChanged, groups = [] }: Prop
 
           {tab === "general" && (
           <div className="border border-gray-200 rounded p-2.5 bg-blue-50/30 space-y-1">
-            {/* 폴링 주기 — 공개는 5분·수동만. 그보다 빠른 건 전용 전송(확장·앱·개인 워커)일 때만.
-                확장·앱은 브라우저/폰이 직접 요청하므로 워커 호출 한도가 아예 없다. */}
-            {/* 폭이 좁으면 버튼이 눌려 글자가 세로로 쪼개졌다("수\n동", "5\n초") →
-                버튼은 줄바꿈 금지·축소 금지로 두고, 대신 줄 자체가 넘어가게 한다. */}
-            <div className="flex items-center gap-1 mt-1 flex-wrap">
-              <span className={`shrink-0 text-[11px] ${fastPollAllowed ? "text-gray-700" : "text-gray-400"}`}>
-                폴링 주기:
-              </span>
-              {POLL_OPTIONS.map(ms => {
-                const active = pollMs === ms;
-                // 수동(0)·공개 허용 주기(30초 이상=30/60초)는 프록시 무관 선택 가능.
-                // 더 빠른 5/10초는 전용 프록시 또는 확장일 때만.
-                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : fastPollAllowed;
-                return (
-                  <button key={ms}
-                          onClick={() => handlePollChange(ms)}
-                          disabled={!enabled}
-                          className={`shrink-0 whitespace-nowrap px-2 py-0.5 text-[11px] rounded border transition
-                                      ${active
-                                        ? "bg-blue-600 text-white border-blue-700 font-bold"
-                                        : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}
-                                      ${!enabled ? "opacity-40 cursor-not-allowed" : ""}`}>
-                    {pollLabel(ms)}
-                  </button>
-                );
-              })}
-              {!fastPollAllowed && (
-                // 긴 안내문은 버튼을 밀어내지 않도록 제 줄을 차지한다
-                <span className="basis-full text-[10px] text-gray-400 leading-snug">
-                  공개는 5분 고정 — 무료 워커 한도 보호. 더 빠르게는 확장·앱·개인 프록시.
-                </span>
-              )}
-            </div>
-
-            {/* 이 브라우저 호출량 — 일자별 카운터 (cache 히트 제외, 실제 네트워크 호출만) */}
-            <div className="flex items-center gap-3 mt-1 text-[11px] text-gray-600">
-              <span className="text-gray-500">이 브라우저 호출</span>
-              <span className="tabular-nums">
-                오늘 <b className="text-gray-800">{getTodayProxyCalls().toLocaleString()}</b>회
-              </span>
-              <span className="tabular-nums">
-                최근 7일 <b className="text-gray-800">{getRecentProxyCalls(7).toLocaleString()}</b>회
-              </span>
-              <span className="text-[10px] text-gray-400">
-                {extReady ? "(대부분 확장이 처리 — 프록시는 Yahoo 등만)"
-                  : hasEnabledProxy ? "(전용 프록시 호출수)" : "(공개 프록시 합계)"}
-              </span>
-            </div>
-
             {/* 장 마감 종목 흐리게 표시 */}
             <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
               <input type="checkbox" defaultChecked={getDimSleepingEnabled()}

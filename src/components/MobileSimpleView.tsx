@@ -3122,6 +3122,50 @@ function SettingsModal({
           </>)}
 
           {/* 1) 전용 프록시 — 여러 개 가능 */}
+          {/* 폴링 주기·호출 수는 프록시·앱 탭으로(PC 와 같게, 사용자 2026-11-19) */}
+          {settingsTab === "proxy" && (
+          <div className="border border-gray-200 rounded p-3 bg-blue-50/30 space-y-1">
+            {/* 폴링 주기 — 공개는 5분·수동만. 그보다 빠른 건 전용 전송일 때만 enabled */}
+            <div className="flex items-center gap-1 mt-2 flex-wrap">
+              <span className={`text-[11px] ${fastPollAllowed ? "text-gray-700" : "text-gray-400"}`}>
+                폴링 주기:
+              </span>
+              {POLL_OPTIONS.map(ms => {
+                const active = pollMs === ms;
+                // 수동(0)·공개 허용 주기(30초 이상=30/60초)는 프록시 무관 선택 가능.
+                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : fastPollAllowed;
+                return (
+                  <button key={ms}
+                          onClick={() => handlePollChange(ms)}
+                          disabled={!enabled}
+                          className={`px-2 py-0.5 text-[11px] rounded border transition
+                                      ${active
+                                        ? "bg-blue-600 text-white border-blue-700 font-bold"
+                                        : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}
+                                      ${!enabled ? "opacity-40 cursor-not-allowed" : ""}`}>
+                    {pollLabel(ms)}
+                  </button>
+                );
+              })}
+              {!fastPollAllowed && (
+                <span className="text-[10px] text-gray-400 w-full mt-0.5">
+                  (공개는 5분 고정 — 무료 워커 한도 보호. 더 빠르게는 확장·앱·개인 프록시)
+                </span>
+              )}
+            </div>
+
+            {/* 이 브라우저 호출량 — 일자별 (cache 히트 제외) */}
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-gray-600">
+              <span className="text-gray-500">이 브라우저 호출</span>
+              <span className="tabular-nums">
+                오늘 <b className="text-gray-800">{getTodayProxyCalls().toLocaleString()}</b>회
+              </span>
+              <span className="tabular-nums">
+                최근 7일 <b className="text-gray-800">{getRecentProxyCalls(7).toLocaleString()}</b>회
+              </span>
+            </div>
+
+          </div>)}
           {settingsTab === "proxy" && (
           <div className="border border-gray-200 rounded p-3 bg-blue-50/30 space-y-1">
             <label className="text-xs font-bold text-gray-700 block">
@@ -3208,46 +3252,6 @@ function SettingsModal({
 
           {settingsTab === "general" && (
           <div className="border border-gray-200 rounded p-3 bg-blue-50/30 space-y-1">
-            {/* 폴링 주기 — 공개는 5분·수동만. 그보다 빠른 건 전용 전송일 때만 enabled */}
-            <div className="flex items-center gap-1 mt-2 flex-wrap">
-              <span className={`text-[11px] ${fastPollAllowed ? "text-gray-700" : "text-gray-400"}`}>
-                폴링 주기:
-              </span>
-              {POLL_OPTIONS.map(ms => {
-                const active = pollMs === ms;
-                // 수동(0)·공개 허용 주기(30초 이상=30/60초)는 프록시 무관 선택 가능.
-                const enabled = ms === 0 || ms >= PUBLIC_MIN_POLL_MS ? true : fastPollAllowed;
-                return (
-                  <button key={ms}
-                          onClick={() => handlePollChange(ms)}
-                          disabled={!enabled}
-                          className={`px-2 py-0.5 text-[11px] rounded border transition
-                                      ${active
-                                        ? "bg-blue-600 text-white border-blue-700 font-bold"
-                                        : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}
-                                      ${!enabled ? "opacity-40 cursor-not-allowed" : ""}`}>
-                    {pollLabel(ms)}
-                  </button>
-                );
-              })}
-              {!fastPollAllowed && (
-                <span className="text-[10px] text-gray-400 w-full mt-0.5">
-                  (공개는 5분 고정 — 무료 워커 한도 보호. 더 빠르게는 확장·앱·개인 프록시)
-                </span>
-              )}
-            </div>
-
-            {/* 이 브라우저 호출량 — 일자별 (cache 히트 제외) */}
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-[11px] text-gray-600">
-              <span className="text-gray-500">이 브라우저 호출</span>
-              <span className="tabular-nums">
-                오늘 <b className="text-gray-800">{getTodayProxyCalls().toLocaleString()}</b>회
-              </span>
-              <span className="tabular-nums">
-                최근 7일 <b className="text-gray-800">{getRecentProxyCalls(7).toLocaleString()}</b>회
-              </span>
-            </div>
-
             {/* 장 마감 종목 흐리게 표시 */}
             <label className="flex items-start gap-2 mt-2 cursor-pointer select-none">
               <input type="checkbox" defaultChecked={getDimSleepingEnabled()}
