@@ -10,6 +10,7 @@ import { usRegExtOf } from "../lib/avgMarket";
 import { fmtEok } from "../lib/eokFmt";
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { ForeignFuturesPanel } from "./ForeignFuturesPanel";
+import { MarketPressureCard } from "./MarketPressureCard";
 import { loadProgTape, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/futuresTape";
 import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
@@ -554,6 +555,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           return e && Math.abs(e.aft) >= 0.005 ? { k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: e.aft, reg: e.reg } : { k: x.symbol, name: x.name.replace(/\(.*\)/, ""), pct: x.regularPct ?? x.pct };
         })} />
       </div>
+      {/* 🔎 시황 분석 — 해외 선물·메모리·미국 반도체 줄 바로 아래(사용자 2026-11-20 "해외선물(24h) 아래로"). 대차·공매도가 삼성·하이닉스 기준이라 반도체 수급에. 종목정보 팝업엔 안 넣음 */}
+      {!popup && <MarketPressureCard />}
       {/* ① 시세 */}
       <div className="grid grid-cols-2 lg:grid-cols-9 gap-1.5 auto-rows-[118px] shrink-0">
         {stocks.map(s => {

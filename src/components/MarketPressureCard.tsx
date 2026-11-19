@@ -50,7 +50,7 @@ export function MarketPressureCard() {
         <span className={`w-2 h-2 rounded-full ${TONE[v.tone].dot}`} />{v.text}
         {loading > 0 && <span className="text-[11px] font-normal text-gray-400">(받는 중 {loading})</span>}
       </div>
-      <div className="mt-2 grid gap-2 grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-2 grid gap-2 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         {gauges.map(g => (
           <div key={g.key} className="relative overflow-hidden rounded-lg border border-gray-200 bg-white p-2 min-h-[78px]">
             {g.series && g.series.length > 1 && (

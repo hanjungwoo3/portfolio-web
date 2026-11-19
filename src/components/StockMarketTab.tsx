@@ -4,7 +4,6 @@ import { MarketTurnoverCard } from "./MarketTurnoverCard";
 import { IntradayInvestorSection } from "./IntradayInvestorSection";
 import { NewsFeed } from "./NewsFeed";
 import { InvestorFlowTab } from "./InvestorFlowTab";
-import { MarketPressureCard } from "./MarketPressureCard";
 
 // 증시 탭 — KRX 지수 공지 + 거래대금(코스피·코스닥) + 증시 자금동향(예탁금/신용/펀드)
 //   + 시간별 투자자 순매수 + 증시 뉴스.
@@ -15,8 +14,6 @@ export function StockMarketTab({ onOpenValuation }: {
 } = {}) {
   return (
     <div className="space-y-3">
-      {/* 🔎 시황 분석 — 하방 압력 계기판(사용자 2026-11-20) */}
-      <MarketPressureCard />
       {/* 거래대금(2) : 지수 공지(1). 거래대금은 차트 두 개라 넓어야 읽히고,
           공지는 제목 목록이라 폭이 덜 필요하다.
           기본 stretch 라 두 카드의 높이가 맞춰진다 — 공지 쪽은 목록을 늘려 채운다. */}
