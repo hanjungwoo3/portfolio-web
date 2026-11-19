@@ -41,7 +41,11 @@ export function MarketPressureCard() {
 
   return (
     <div className="relative rounded-xl border border-gray-300 bg-white pg-box p-3 pt-4 mt-1.5">
-      <span className="pg-title absolute -top-3 left-3 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700">🔎 시황 분석 — 하방 압력 계기판</span>
+      <span className="pg-title absolute -top-3 left-3 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700">🔎 시황 분석 — 지수를 누르는 힘이 약해지고 있나?</span>
+      {/* 초보용 한 줄 설명(사용자 2026-11-20 "주식 초보들이 이해할 수 있게") */}
+      <div className="mb-1.5 text-[12px] text-gray-600 leading-snug">
+        지수가 떨어질 때는 외국인 매도·공매도·하락 베팅 같은 <b>'누르는 힘'</b>이 함께 커집니다. 아래 6가지 중 <b className="text-rose-600">완화</b>(누르는 힘이 약해짐)가 많아지면 바닥을 다지고 반등할 여지가 커진다고 봅니다. 칸마다 <span className="text-indigo-600">이게 뭔가요?</span>를 누르면 쉬운 설명이 나옵니다.
+      </div>
       <div className={`inline-flex items-center gap-2 rounded-md border px-2 py-1 text-[13px] font-bold ${TONE[v.tone].cls}`}>
         <span className={`w-2 h-2 rounded-full ${TONE[v.tone].dot}`} />{v.text}
         {loading > 0 && <span className="text-[11px] font-normal text-gray-400">(받는 중 {loading})</span>}
@@ -59,12 +63,13 @@ export function MarketPressureCard() {
               <span className={`ml-auto shrink-0 rounded border px-1 text-[10.5px] font-bold ${TONE[g.tone].cls}`}>{TONE[g.tone].label}</span>
             </div>
             <div className="relative text-[15px] font-bold tabular-nums text-gray-900">{g.value}</div>
-            <div className="relative text-[11px] text-gray-600 leading-snug">{g.text}</div>
+            <div className="relative text-[11.5px] text-gray-700 leading-snug">{g.text}</div>
+            {g.help && <details className="relative mt-0.5 text-[10.5px] text-gray-500"><summary className="cursor-pointer select-none text-indigo-600">이게 뭔가요?</summary><div className="leading-snug mt-0.5">{g.help}</div></details>}
           </div>
         ))}
       </div>
       <div className="mt-2 text-[10.5px] text-gray-400 leading-snug">
-        완화 = 하방 포지션이 줄어드는 신호(외국인 선물 숏커버·현물 매도 둔화·대차잔고 감소·공매도 비중 하락·풋 정리·변동성 하락). 예측이 아니라 지금 상태입니다.
+        <b className="text-rose-600">완화</b> = 누르는 힘이 약해짐 · <b className="text-blue-600">하방 강화</b> = 누르는 힘이 세짐 · 그대로 = 뚜렷한 변화 없음. 미래를 맞히는 게 아니라 <b>지금 상태</b>를 보여 줍니다.
         출처: 다음(선물 일별·미결제), 토스(외국인 현물·대차·공매도), 한경(옵션, 오늘), CNBC(V-KOSPI). 대차·공매도는 시총 1·2위 두 종목 기준.
       </div>
     </div>
