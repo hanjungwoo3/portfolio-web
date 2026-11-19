@@ -833,7 +833,10 @@ export function dashboardGroupNav(sections: DashboardSection[]): DashboardNavIte
 // asiaWithKr = 대만·홍콩을 닛케이·상해 바로 아래(모바일 두 칸, 사용자 2026-11-13) / 아니면 미국 지수 줄 끝(PC·앱 서랍은 필라델피아 옆이라야 한 줄이 맞는다)
 export function buildIndexSections(asiaWithKr = false): DashboardSection[] {
   const kr = buildDashboardPage("day").find(s => s.id === "kr");
-  const night = buildDashboardPage("night").filter(s => s.id !== "kr" && DRAWER_SECTION_IDS.has(s.id));
+  // 서랍은 한국 선물을 늘 둔다 — 낮엔 같은 카드가 주간선물(이름·값 모두 그 세션), 밤엔 야간선물(사용자 2026-11-19 "지수 탭에도 주간선물로").
+  //   예전엔 야간 페이지 규칙을 따라 낮에 한국 선물이 통째로 빠졌다
+  const night = buildDashboardPage("night", true).filter(s => s.id !== "kr" && DRAWER_SECTION_IDS.has(s.id))
+    .map(s => (s.id === "krnight" ? { ...s, label: "⏳ 선물 (미국 지수 · 한국)" } : s));
   const macro = night.find(s => s.id === "macro");
   const merged = kr && macro ? [{ ...kr, label: "📈 지수", rows: asiaWithKr
       ? [...kr.rows.map((r, i) => (i === kr.rows.length - 1 ? [...r, "^TWII", "^HSI"] : r)), ...macro.rows]
