@@ -23,8 +23,9 @@ import { usSchedule } from "../lib/krSchedule";
 function KrScheduleTag() {
   const [, tick] = useState(0);
   // 국장/미장 고른 것 기억(사용자 2026-11-19 "선택한 거 유지되게")
-  const [mkt, setMkt] = useState<"kr" | "us">(() => { try { return localStorage.getItem("schedule_tab") === "us" ? "us" : "kr"; } catch { return "kr"; } });
-  const pickMkt = (v: "kr" | "us") => { setMkt(v); try { localStorage.setItem("schedule_tab", v); } catch { /* 이번만 */ } };
+  type Tab = "now" | "kr" | "us";
+  const [mkt, setMkt] = useState<Tab>(() => { try { const v = localStorage.getItem("schedule_tab"); return v === "us" || v === "kr" ? v : "now"; } catch { return "now"; } });
+  const pickMkt = (v: Tab) => { setMkt(v); try { localStorage.setItem("schedule_tab", v); } catch { /* 이번만 */ } };
   useEffect(() => {
     // 1분마다(지금 구간 칸 옮기기) + 시간표가 들어오는 즉시(처음 열 때는 받기 전이라 비어 있었다 — 사용자 2026-11-19 "안 나오는데?")
     const f = () => tick(x => x + 1);
@@ -42,18 +43,37 @@ function KrScheduleTag() {
   const dow = k.getUTCDay(), usWk = !(dow === 0 || (dow === 6 && now >= 10 * 60) || (dow === 1 && now < 10 * 60));
   const usCur = (a: number, b: number) => (usWk && (a <= b ? a <= now && now < b : now >= a || now < b) ? "bg-indigo-100 text-indigo-800 font-bold" : "");
   const odd = s.regStart !== 9 * 60 || s.regEnd !== 15 * 60 + 30;
-  const showUs = mkt === "us" && !!us;
-  const tab = (v: "kr" | "us", l: string) => (
+  const view: Tab = mkt === "us" && !us ? "kr" : mkt;
+  const showUs = view === "us";
+  const tab = (v: Tab, l: string) => (
     <button type="button" onClick={() => pickMkt(v)}
-            className={`px-1.5 rounded-t border border-b-0 text-[9.5px] leading-[14px] font-bold ${(v === "us" ? showUs : !showUs) ? "bg-white border-gray-300 text-gray-800" : "bg-gray-100 border-gray-200 text-gray-400 hover:text-gray-600"}`}>{l}</button>
+            className={`px-1 rounded-t border border-b-0 text-[9.5px] leading-[14px] font-bold ${view === v ? "bg-white border-gray-300 text-gray-800" : "bg-gray-100 border-gray-200 text-gray-400 hover:text-gray-600"}`}>{l}</button>
+  );
+  // '현재' 탭 — 국장·미장 각각 지금 구간 한 줄씩(사용자 2026-11-19 "현재 국장(장전)·미장(애프터) 시간을 보여주고, 국장/미장은 별도로")
+  const krSegs: [string, number, number][] = s.holiday ? [] : [
+    ...(s.openStart != null ? [["장전", s.openStart, s.regStart] as [string, number, number]] : []),
+    ["정규", s.regStart, s.regEnd],
+    ...(s.closingEnd > s.regEnd ? [["시간외", s.regEnd, s.afterStart ?? s.closingEnd] as [string, number, number]] : []),
+    ["애프터", s.afterStart ?? s.closingEnd, s.afterEnd],
+  ];
+  const krNow = wk ? krSegs.find(([, a, b]) => a <= now && now < b) : undefined;
+  const usNow = us && !us.holiday && usWk ? us.segs.find(g => (g.start <= g.end ? g.start <= now && now < g.end : now >= g.start || now < g.end)) : undefined;
+  const nowRow = (lb: string, seg?: [string, number, number] | null, closed = "닫힘") => (
+    // 두 줄 — 위 '국장', 아래 지금 구간(사용자 2026-11-19 "현재는 한 줄 내려쓰기")
+    <div className="text-left">
+      <b className="block text-gray-700">{lb}</b>
+      {seg ? <span className="block ml-1.5 px-0.5 text-indigo-700 font-bold">{seg[0]}: {hm(seg[1])}~{hm(seg[2])}</span> : <span className="block ml-1.5 text-gray-400">{closed}</span>}
+    </div>
   );
   return (
     <div className="fixed right-0 top-[80px] z-40 w-[112px] flex flex-col items-end">
       {/* 국장/미장 책갈피 탭 — 고른 쪽만(사용자 2026-11-19 "국장/미장 탭으로, 책갈피 탭"), 고른 것 기억 */}
-      {us && <div className="flex gap-0.5 pr-1">{tab("kr", "국장")}{tab("us", "미장")}</div>}
+      <div className="flex gap-0.5 pr-1">{tab("now", "현재")}{tab("kr", "국장")}{us && tab("us", "미장")}</div>
       <div title={showUs ? "오늘 미국 장 시간(토스, 한국 시각)" : `오늘 국내 장 시간(토스) — 장전 ${s.openStart != null ? hm(s.openStart) : "?"}~ · 정규장 ${hm(s.regStart)}~${hm(s.regEnd)} · 시간외 ~${hm(s.closingEnd)} · 애프터 ~${hm(s.afterEnd)}${s.holiday ? " · 휴장일" : ""}`}
            className={`w-full rounded-l-md border border-r-0 border-gray-300 px-1 py-0.5 text-[9.5px] leading-tight tabular-nums text-right whitespace-nowrap ${!showUs && (odd || s.holiday) ? "text-amber-700" : "text-gray-500"}`}>   {/* 얇은 테두리, 바탕 없음 · 국내가 바뀐 날은 주황 글씨 */}
-        {showUs
+        {view === "now"
+          ? <>{nowRow("국장", krNow, s.holiday ? "휴장" : "닫힘")}{us && nowRow("미장", usNow ? [usNow.name, usNow.start, usNow.end] : null, us.holiday ? "휴장" : usWk ? "닫힘" : "주말")}</>
+          : showUs
           ? (us!.holiday ? <b>미국 휴장</b> : us!.segs.map(g => (
               // 자정을 넘는 구간(정규 23:30~06:00 등)도 칠한다 · 주말(토 10:00~월 10:00)은 칠하지 않음
               <div key={g.name} className={`px-0.5 rounded ${usCur(g.start, g.end)}`}>{g.name} {hm(g.start)}~{hm(g.end)}</div>)))
