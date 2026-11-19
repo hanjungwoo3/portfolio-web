@@ -112,3 +112,14 @@ html.night-bg .fixed.inset-0 > div:not(:has(.pg-bg)) :is(.pg-card, .pg-soft) { f
 html.night-bg .fixed.inset-0 > div:has(.pg-bg) { background-color: #2b2f35 !important; }
 /* SVG 안의 연한 면(실적 추이 '추정' 구간 등 fill 속성) — 클래스가 아니라 위 규칙이 안 닿는다 */
 html.night-bg .pg-bg :is(rect[fill="#f8fafc"], rect[fill="#f9fafb"], rect[fill="#ffffff"], rect[fill="white"]) { fill: #a9aeb5; }
+
+/* 오른쪽 고정 카드(지수 카드 그대로를 세로 한 줄로) — 글자 한 단계씩 작게(사용자 2026-11-19 "폰트도 1단계씩 줄여") */
+.pg-cardscol .text-xl { font-size: 1.125rem !important; line-height: 1.5rem !important; }
+.pg-cardscol .text-lg { font-size: 1rem !important; line-height: 1.375rem !important; }
+.pg-cardscol .text-base { font-size: 0.875rem !important; line-height: 1.25rem !important; }
+.pg-cardscol .text-sm { font-size: 0.75rem !important; line-height: 1rem !important; }
+.pg-cardscol .text-xs { font-size: 0.6875rem !important; line-height: 0.9375rem !important; }
+.pg-cardscol .text-\[11px\] { font-size: 10px !important; }
+.pg-cardscol .text-\[10px\] { font-size: 9px !important; }
+.pg-cardscol .text-\[10\.5px\] { font-size: 9.5px !important; }
+

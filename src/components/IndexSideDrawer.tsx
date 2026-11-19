@@ -6,20 +6,10 @@
 //   열 때만 그린다(닫으면 내려서 호출이 없다). Esc·바깥 누르기로 닫는다.
 import { useEscClose } from "../lib/useEscClose";
 import { useEffect, useMemo, useState } from "react";
-import { buildIndexSections } from "../lib/dashboardGroups";
+import { buildIndexSections, type DashboardSection } from "../lib/dashboardGroups";
 import { UsMarketTab } from "./UsMarketTab";
-import { useQuery, useQueries } from "@tanstack/react-query";
-import { fetchYahooBatch, fetchYasunNightFutures, fetchYahooSparkDay, fetchDashboardChart, fetchKrFuturesMinute, fetchKrFuturesNightSession, fetchKrIndexDay, KR_INDEX_DAY_SYMBOLS, type DaySpark } from "../lib/api";
-import { isKrNightSession } from "../lib/format";
-import { useChartRange, historyRange, trimByRange } from "../lib/chartRange";
-import { Sparkline } from "./Sparkline";
-import { US_PAIRS } from "../lib/usMarketData";
-import { displayPctOf } from "../lib/format";
 import { useDrawerPins } from "../lib/drawerPins";
-import { fetchUpDown } from "../lib/upDown";
-import { dashboardCardDim } from "../lib/dashboardCardDim";
-import { getDimSleepingEnabled } from "../lib/proxyConfig";
-import { krSchedule, krScheduleLoaded, krFuturesName } from "../lib/format";
+import { krSchedule, krScheduleLoaded } from "../lib/format";
 import { usSchedule } from "../lib/krSchedule";
 
 // 손잡이 위 빈자리 — 오늘 국내 장 시간표(토스 trading-info, 수능 등 바뀐 날은 주황)(사용자 2026-11-19 "거기 작은 글씨로 시간표")
@@ -68,7 +58,7 @@ function KrScheduleTag({ onHide }: { onHide: () => void }) {
     </div>
   );
   return (
-    <div className="w-[140px] flex flex-col items-end shrink-0">
+    <div className="w-[156px] flex flex-col items-end shrink-0">
       {/* 국장/미장 책갈피 탭 — 고른 쪽만(사용자 2026-11-19 "국장/미장 탭으로, 책갈피 탭"), 고른 것 기억 */}
       <div className="flex gap-0.5 pr-1">{tab("now", "현재")}{tab("kr", "국장")}{us && tab("us", "미장")}
         {/* 닫기 — 작은 화면에서 본문을 가린다(사용자 2026-11-19). 시간표·고정 카드를 접고 '📈 지수' 손잡이만 남긴다 */}
@@ -95,13 +85,7 @@ function KrScheduleTag({ onHide }: { onHide: () => void }) {
   );
 }
 
-// 닫혀 있을 때 손잡이 아래 작은 카드 — 이름 · 등락률 · 값(사용자 2026-11-19 "지수 창이 닫혀 있을 때 일부를 이 형태로")
-const nightCloses = new Map<string, number[]>();   // 한국 선물 yasun 캔들(배경 그래프)
-const NAME0 = new Map<string, string>(US_PAIRS.map(p => [p.symbol, p.name]));
-// 코스피200·코스닥150 선물은 시간 따라 주간/야간 — 값도 그 세션 것이 온다(yasun main/night), 이름만 맞춘다(사용자 2026-11-19 "낮에는 주간선물로 바뀌는 거 아냐?")
-const NAME = { get: (s: string) => (s === "^KS200N" || s === "^KQ150N" ? krFuturesName(s) : NAME0.get(s)) };
-const PAIR = new Map(US_PAIRS.map(p => [p.symbol as string, p]));
-// 선물(야간선물·지수 선물·원자재 선물·무기한)은 테두리 색을 달리(사용자 2026-11-19 "선물은 테두리 색을 다르게")
+// 오른쪽 고정 카드 — 지수 창 카드 그대로(아래 PinnedMini)
 // 묶음 = 지수 창 블록(지수·환율·금리·투심·선물·현물) — 심볼이 어느 블록에 있나(서랍 구성 그대로)
 const BLOCKS: [string, string[]][] = [["지수", ["kr", "macro"]], ["환율·금리", ["krfx"]], ["선물", ["krnight", "dayfut"]], ["현물", ["spot"]]];
 let blockMap: Map<string, string> | null = null;
@@ -116,105 +100,20 @@ function blockOf(sym: string): string | undefined {
   }
   return blockMap.get(sym);
 }
-const isFut = (s: string) => /=F$/.test(s) || /^\^K[SQ]\d+N$/.test(s) || /-PERP$/.test(s);
-function PinnedMini({ onOpen }: { onOpen: () => void }) {
+function PinnedMini() {
   const pins = useDrawerPins();
-  const chartRange = useChartRange(), hist = historyRange(chartRange);
-  // 배경 그래프 — 지수 카드와 같은 당일 그래프(야후 spark), 한국 선물은 yasun 캔들(사용자 2026-11-19 "차트는?")
-  const sparkQ = useQuery({
-    queryKey: ["drawer-pins-spark", pins.join(",")],
-    queryFn: () => fetchYahooSparkDay(pins.filter(s => s !== "^KS200N" && s !== "^KQ150N")),
-    enabled: pins.length > 0 && chartRange === "day", refetchInterval: 5 * 60_000, staleTime: 2 * 60_000, retry: 1,
-  });
-  // 24시간 = 지수 창 카드와 **같은 이틀치(어제 세션 + 오늘 세션)** — 같은 쿼리키라 캐시를 같이 쓴다(사용자 2026-11-19 "24시간은 기본이 48시간인데?")
-  //   한국 선물 = 한경 1분봉(낮)·주간+야간 세션(밤), 코스피·코스닥 = 토스 5분봉, 그 밖 = 야후 spark
-  const dayOn = chartRange === "day", krNight = isKrNightSession();
-  const krFutQs = useQueries({ queries: (["kospi200", "kosdaq150"] as const).map((k, i) => ({
-    queryKey: krNight ? ["kr-fut-night-sess", k] : ["hk-futures-min", k], queryFn: () => krNight ? fetchKrFuturesNightSession(k) : fetchKrFuturesMinute(k),
-    enabled: dayOn && pins.includes(i ? "^KQ150N" : "^KS200N"), refetchInterval: 60_000, staleTime: 30_000, refetchOnWindowFocus: false,
-  })) });
-  const krIdxSyms = pins.filter(s => KR_INDEX_DAY_SYMBOLS.includes(s));
-  const krIdxQs = useQueries({ queries: krIdxSyms.map(sym => ({
-    queryKey: ["extra-day", sym], queryFn: () => fetchKrIndexDay(sym), enabled: dayOn, refetchInterval: 60_000, staleTime: 30_000, refetchOnWindowFocus: false,
-  })) });
-  const daySparkOf = (sym: string): DaySpark | undefined => {
-    const conv = (d: { closes: number[]; xs?: number[]; base?: number; openIdx?: number; closeIdx?: number; prevOpenIdx?: number; prevCloseIdx?: number; breakIdx?: number; prevBase?: number; markXs?: DaySpark["markXs"]; rolling?: boolean } | null | undefined) =>
-      d && d.closes.length > 1 ? { closes: d.closes, xs: d.xs, prevClose: d.base, openIdx: d.openIdx, closeIdx: d.closeIdx, prevOpenIdx: d.prevOpenIdx, prevCloseIdx: d.prevCloseIdx, breakIdx: d.breakIdx, prevBase: d.prevBase, markXs: d.markXs, rolling: d.rolling } : undefined;
-    if (sym === "^KS200N" || sym === "^KQ150N") return conv(krFutQs[sym === "^KS200N" ? 0 : 1]?.data) ?? (nightCloses.get(sym) ? { closes: nightCloses.get(sym)! } : undefined);
-    if (krIdxSyms.includes(sym)) return conv(krIdxQs[krIdxSyms.indexOf(sym)]?.data) ?? sparkQ.data?.get(sym);
-    return sparkQ.data?.get(sym);
-  };
-  // 헤더 그래프 기간(1개월·3개월…)이면 일봉 — 지수 카드와 같은 캐시. 한국 선물은 일봉이 없어 KODEX 200·코스닥150 일봉으로 대신
-  const histSym = (s: string) => (s === "^KS200N" ? "069500.KS" : s === "^KQ150N" ? "229200.KS" : s);
-  const histQs = useQueries({ queries: pins.map(sym => ({
-    queryKey: ["yahoo-chart", histSym(sym), hist], queryFn: () => fetchDashboardChart(histSym(sym), hist),
-    enabled: chartRange !== "day", staleTime: 60 * 60_000, retry: 1,
-  })) });
-  // 야간선물(^KS200N·^KQ150N)은 야후에 없는 가상 심볼 — yasun.gg 로 따로(지수 창과 같은 경로, 사용자 2026-11-19 "야간 선물 안 나오네")
-  const q = useQuery({
-    queryKey: ["drawer-pins", pins.join(",")],
-    queryFn: async () => {
-      const night: string[] = pins.filter(s => s === "^KS200N" || s === "^KQ150N");
-      const [m, ...ns] = await Promise.all([
-        fetchYahooBatch(pins.filter(s => !night.includes(s)).map(symbol => ({ symbol, name: NAME.get(symbol) ?? symbol }))),
-        ...night.map(s => fetchYasunNightFutures(s).catch(() => null)),
-      ]);
-      night.forEach((s, i) => { const d = ns[i]; if (d) { m.set(s, d.index); nightCloses.set(s, d.closes); } });
-      return m;
-    },
-    enabled: pins.length > 0, refetchInterval: 30_000, staleTime: 15_000,
-  });
-  // 코스피·코스닥은 오른·내린 종목 수도(업종 탭 왼쪽 칸과 같은 꼴)
-  const ud = useQuery({ queryKey: ["updown"], queryFn: fetchUpDown, enabled: pins.includes("^KS11") || pins.includes("^KQ11"), refetchInterval: 120_000, staleTime: 60_000, retry: 1 }).data;
+  // 블록대로 묶은 섹션(지수 창 순서) — 지수 창 카드 그대로 그린다(UsMarketTab cardsColumn)
+  const sections = useMemo<DashboardSection[]>(() => {
+    const ordered = [...pins].sort((a, b) => { blockOf(a); return (orderMap.get(a) ?? 999) - (orderMap.get(b) ?? 999); });
+    return BLOCKS.flatMap(([lb]) => { const syms = ordered.filter(x => (blockOf(x) ?? "지수") === lb); return syms.length ? [{ id: `pin-${lb}`, label: lb, rows: [syms] } as DashboardSection] : []; });
+  }, [pins]);
   if (!pins.length) return null;
   return (
-    // 많이 고르면 화면 아래로 넘친다 — 남은 높이만큼만, 넘치면 안에서 스크롤 · 7개 넘으면 값 줄을 빼 한 장을 줄인다(사용자 2026-11-19 "화면 넘어가면?")
-    <div className="flex flex-col gap-1 w-[140px] min-h-0 overflow-y-auto [scrollbar-width:thin]">
-      {/* 등락률 높은 순(값 없는 것은 뒤로)(사용자 2026-11-19 "등락율 sort") */}
-      {/* 흐림 = 지수 창 카드와 같은 판정(장 닫힘·체결 멈춤), 흐린 카드는 뒤로(사용자 2026-11-19 "흐림 처리도") */}
-      {/* 지수 창 블록대로 묶는다 — 지수·환율·선물·현물(사용자 2026-11-19 "지수탭 블럭대로 나누자"), 묶음 안에서 흐린 것 뒤·등락률 순 */}
-      {(() => {
-        const rows = pins.map(sym => { const d = q.data?.get(sym); return { sym, d, pct: d ? displayPctOf(sym, d) ?? d.pct : null, dim: dashboardCardDim(PAIR.get(sym) ?? { symbol: sym }, d, getDimSleepingEnabled()) }; })
-          .sort((a, b) => { blockOf(a.sym); return (orderMap.get(a.sym) ?? 999) - (orderMap.get(b.sym) ?? 999); });
-        return BLOCKS.map(([lb, ids]) => {
-          // 흐린 카드(장 닫힘·체결 멈춤)는 숨긴다 — 지금 움직이는 것만(사용자 2026-11-19). 지수 창에선 그대로 보인다
-          const inB = rows.filter(r => !r.dim && (blockOf(r.sym) ?? "지수") === lb);
-          if (!inB.length) return null;
-          void ids;
-          // 묶음 = 글자 없이 회색 판 하나(사용자 2026-11-19 "글자는 빼고 블럭으로")
-          return (
-            <div key={lb} title={lb} className="flex flex-col gap-1 shrink-0 rounded-l-xl bg-gray-200/80 py-1 pl-1 pg-mktgroup">
-              {inB.map(({ sym, d, pct, dim }) => {
-        const tone = pct == null ? "text-gray-400" : pct > 0 ? "text-rose-600" : pct < 0 ? "text-blue-600" : "text-gray-600";
-        return (
-          <button key={sym} type="button" onClick={onOpen} style={{ flexShrink: 0 }} title={`${NAME.get(sym) ?? sym} — 누르면 지수 창`}
-                  className={`pg-card rounded-l-lg border-2 border-r-0 ${isFut(sym) ? "border-amber-400" : "border-gray-300"} ${dim ? "bg-gray-100 [&>*]:opacity-45 [&>*]:grayscale-[60%]" : isFut(sym) ? "bg-amber-50" : "bg-white"} shadow px-1.5 py-1 text-left leading-tight hover:bg-indigo-50 relative overflow-hidden [&>*:not(:first-child)]:relative`}>
-            {(() => {
-              if (chartRange !== "day") {   // 기간 그래프(일봉)
-                const h = histQs[pins.indexOf(sym)]?.data, data = h ? trimByRange(h, chartRange) : null;
-                return data && data.length > 1 ? <span className="absolute inset-0 opacity-35 pointer-events-none"><Sparkline data={data} width={140} height={50} className="w-full h-full" strokeWidth={1} /></span> : null;
-              }
-              const sp = daySparkOf(sym); return sp && sp.closes.length > 1
-              ? <span className="absolute inset-0 opacity-35 pointer-events-none"><Sparkline data={sp.closes} xs={sp.xs} baseline={sp.prevClose ?? d?.prevClose} prevBaseline={sp.prevBase} markIndex={sp.openIdx} closeIndex={sp.closeIdx} extraMarks={[sp.prevOpenIdx, sp.prevCloseIdx]} markXs={sp.markXs} breakIndex={sp.breakIdx} width={140} height={50} className="w-full h-full" strokeWidth={1} /></span> : null; })()}   {/* 흐려도 바탕은 불투명 — 뒤 표 글자가 비쳤다 */}
-            <span className="flex items-baseline gap-1 text-[11px] font-bold text-gray-700"><span className="truncate">{NAME.get(sym) ?? sym}</span></span>
-            <span className={`flex items-baseline justify-between gap-1 text-[12px] font-bold tabular-nums ${tone}`}>
-              <span>{pct == null ? "—" : `${pct > 0 ? "+" : ""}${pct.toFixed(2)}%`}</span>
-              {d && d.price > 0 && <span className="text-[10px] font-normal text-gray-400 truncate">{d.price < 100 ? d.price.toFixed(2) : Math.round(d.price).toLocaleString()}</span>}
-            </span>
-            {/* 값은 늘 — 많이 고르면(7개 초과) 줄을 아끼려 이름 줄 오른쪽에 붙이고, 적으면 따로 한 줄(사용자 2026-11-19 "수치는 안 나와?") */}
-            {/* 3번째 줄 — 모든 카드 같은 높이(사용자 2026-11-19 "코스피·코스닥처럼 3줄로"): 코스피·코스닥은 오른·내린 수, 나머지는 빈 줄 */}
-            {(() => { const u = sym === "^KS11" ? ud?.kospi : sym === "^KQ11" ? ud?.kosdaq : undefined; return <span className="block h-[14px] text-[10px] font-bold tabular-nums leading-[14px]">{u ? <><span className="text-rose-600">▲{u.rise}</span> <span className="text-blue-600">▼{u.fall}</span></> : null}</span>; })()}
-          </button>
-        );
-              })}
-            </div>
-          );
-        });
-      })()}
+    <div className="w-[156px] min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:thin] pr-0">
+      <UsMarketTab sectionsOverride={sections} page="night" cardsColumn />
     </div>
   );
 }
-
 
 export function IndexSideDrawer() {
   const [open, setOpen] = useState(false);
@@ -256,7 +155,7 @@ export function IndexSideDrawer() {
       {!open && !folded && (
         <div className="fixed right-0 top-[80px] bottom-2 z-40 flex flex-col items-end gap-1 pointer-events-none [&>*]:pointer-events-auto">
           <KrScheduleTag onHide={() => fold(true)} />
-          <PinnedMini onOpen={() => setOpen(true)} />
+          <PinnedMini />
         </div>
       )}
       {!open && folded && (

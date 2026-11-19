@@ -105,9 +105,11 @@ interface UsMarketTabProps {
   navStickyTop?: number;
   // 지수 서랍(IndexSideDrawer) — 이 묶음들만 그대로 카드로(색인바·동시호가 칸 없이)(사용자 2026-11-09 "지금 있는 카드를 그대로")
   sectionsOverride?: DashboardSection[];
+  // 지수 서랍이 닫혀 있을 때 오른쪽 고정 카드 — 지수 창 카드 **그대로**를 세로 한 줄로, 흐린 카드는 빼고(사용자 2026-11-19 "크기와 내용 모두")
+  cardsColumn?: boolean;
 }
 
-export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0, page = "day", sectionsOverride }: UsMarketTabProps = {}) {
+export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0, page = "day", sectionsOverride, cardsColumn }: UsMarketTabProps = {}) {
   const yahooSymbols = allYahooSymbols();
   const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
 
@@ -675,9 +677,10 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                     {/* 히트맵 버튼은 카드 오른쪽 아래 책갈피로 내렸다(아래 참조) —
                         이름 줄에 있으면 ml-auto 로 밀려 긴 종목명을 잘라먹었다. */}
                   </div>
-                  <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>
+                  {/* 오른쪽 고정 카드(cardsColumn)는 설명 줄을 빼 세로를 줄인다(사용자 2026-11-19 "중간 글자 사이 공백은 필요 없어") */}
+                  {!cardsColumn && <div className={`relative z-10 text-[11px] text-gray-500 truncate ${dimCls}`}>
                     {p.desc}
-                  </div>
+                  </div>}
                   {(p.symbol === "^KS200N" || p.symbol === "^KQ150N")
                     && effPrice == null && yasunOutdated ? (
                     /* 개인 워커 구버전 — yasun.gg(야선) 화이트리스트 누락 */
@@ -716,7 +719,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                   {/* lead — 첫 카드(간밤 미국 대장주)가 '원인'. 카드 사이 틈 가운데에 큰 ➜ (원 없이). 틈은 다른 그룹과 같게 둬 카드 크기를 맞춘다.
                       강조는 테두리가 아니라 **카드 배경색**(그 줄 단계 색) — 오르내림은 글자·차트 색이 알려 준다. */}
                   {/* 지수 서랍 — 📌 로 고르면 서랍이 닫혀 있을 때 오른쪽 손잡이 아래에 작게(사용자 2026-11-19) */}
-                  {sectionsOverride && (
+                  {sectionsOverride && !cardsColumn && (   /* 오른쪽 고정 카드엔 📌 단추 없음(사용자 2026-11-19) */
                     <button type="button" data-no-peek onClick={e => { e.stopPropagation(); toggleDrawerPin(p.symbol); }}
                             title={drawerPins.includes(p.symbol) ? "닫혀 있을 때 보이기 — 끄기" : "서랍이 닫혀 있을 때 오른쪽에 이 값 보이기"}
                             className={`absolute -bottom-1 left-1 z-20 px-1 rounded border text-[9px] leading-tight font-bold ${drawerPins.includes(p.symbol) ? "border-indigo-400 bg-indigo-600 text-white" : "border-gray-300 bg-white text-gray-400 hover:text-indigo-600"}`}>
@@ -795,6 +798,32 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                 </div>
               );
   };
+
+  if (cardsColumn) return (
+    <div className="pg-cardscol flex flex-col gap-3">   {/* 글자 한 단계씩 작게 — index.css .pg-cardscol(사용자 2026-11-19) */}
+      {T0_SECTIONS.map(sec => {
+        const syms = sec.rows.flat().filter(sym => !dimOf(sym));
+        if (!syms.length) return null;
+        return (
+          <div key={sec.id} title={sec.label} className="flex flex-col gap-4 pt-2 shrink-0">   {/* 묶음 판 없이 — 묶음 사이는 간격만(사용자 2026-11-19 "블럭 레이어도 없애자") */}
+            {syms.map(sym => {
+              const b = breadthOf(sym);
+              return (
+                <div key={sym} className="relative min-w-0">
+                  {renderIdxCard(sec, sym)}
+                  {b && b.up + b.down > 0 && (
+                    <span className="absolute right-1.5 -top-2 z-20 px-1 rounded border border-gray-200 bg-white text-[10.5px] font-bold tabular-nums leading-[15px] pointer-events-none">
+                      <span className="text-rose-600">▲{b.up}</span> <span className="text-blue-600">▼{b.down}</span>
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        );
+      })}
+    </div>
+  );
 
   return (
     <div className="space-y-3">
