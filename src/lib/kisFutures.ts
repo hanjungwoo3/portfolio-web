@@ -191,17 +191,23 @@ export async function fetchKisK200FutInvestor(): Promise<KisFutInvestor | null> 
 }
 
 // ─── 지수선물(코스피200·코스닥150) 근월물 현재가 — 한국투자(앱+한투 연결일 때만)(사용자 2026-11-19 "코스닥·코스피 선물은 한투에서")
-//   ⚠️ 지수선물 코드가 공식 예제에 없다 — 주식선물과 같은 새 단축코드 꼴(A + 기초 2자리 + 연도 끝자리 + 월)을 먼저,
-//   옛 꼴(101 + 연도 글자 + 월 + 000)을 다음으로 물어 값이 오는 쪽을 기억한다(선물 외국인 수급과 같은 방식). 기초 01 = 코스피200, 06 = 코스닥150(추정).
-const IDX_FUT_KEY = "kis_idx_fut_fmt";
-const OLD_YEAR = "ABCDEFGHJKLMNPQRSTVWXYZ";   // 옛 KRX 연도 글자(I·O·U 빼고) — 2006=A … 2026=X(추정)
-function idxFutCodes(kind: "k200" | "kq150"): [string, string][] {
-  const front = frontMonthCode(kind === "k200" ? "01" : "06");          // A0166 꼴 → A01612
-  const y = Number("20" + new Date(Date.now() + 9 * 3600_000).toISOString().slice(2, 4)), mm = Number(front.slice(-2));
-  const yy = front.slice(-3, -2) === String(y % 10) ? y : y + 1;
-  const old = `${kind === "k200" ? "101" : "106"}${OLD_YEAR[(yy - 2006) % OLD_YEAR.length]}${mm < 10 ? mm : "ABC"[mm - 10]}000`;
-  return [["F", front], ["F", old], ["JF", front]];
+//   코드 = 한투 종목마스터 fo_idx_code_mts.mst 실측(2026-11-19): 코스피200 A01612(2026-12)·A01703 … / 코스닥150 A06612·A06703 …
+//   = "A" + 기초(01 코스피200 · 06 코스닥150) + 연도 끝자리 + 월. **분기물(3·6·9·12월)만** 있다 — 근월물 = 만기(둘째 목요일)가 안 지난 가장 가까운 분기월.
+//   시장 분류 F(지수선물). 값이 안 오면 옛 단축코드 꼴(101/106 + 연도 글자 + 월 + 000)을 한 번 더 묻는다.
+export function indexFutFrontCode(kind: "k200" | "kq150", todayKst = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10)): string {
+  let y = Number(todayKst.slice(0, 4)), m = Number(todayKst.slice(5, 7));
+  m = Math.ceil(m / 3) * 3;                                              // 이번 분기월
+  if (`${y}-${String(m).padStart(2, "0")}` === todayKst.slice(0, 7) && todayKst > secondThursday(y, m)) { m += 3; }
+  if (m > 12) { m -= 12; y += 1; }
+  return `A${kind === "k200" ? "01" : "06"}${y % 10}${String(m).padStart(2, "0")}`;
 }
+const OLD_YEAR = "ABCDEFGHJKLMNPQRSTVWXYZ";   // 옛 KRX 연도 글자(I·O·U 빼고) — 폴백용(추정)
+function idxFutCodes(kind: "k200" | "kq150"): [string, string][] {
+  const front = indexFutFrontCode(kind), yy = 2020 + Number(front.slice(3, 4)), mm = Number(front.slice(4));
+  const old = `${kind === "k200" ? "101" : "106"}${OLD_YEAR[(yy - 2006) % OLD_YEAR.length]}${mm < 10 ? mm : "ABC"[mm - 10]}000`;
+  return [["F", front], ["F", old]];
+}
+const IDX_FUT_KEY = "kis_idx_fut_fmt2";
 export async function fetchKisIndexFutQuote(kind: "k200" | "kq150"): Promise<KisFutQuote | null> {
   if (!isKisLinkOn()) return null;
   const cands = idxFutCodes(kind);
