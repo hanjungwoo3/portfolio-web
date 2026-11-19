@@ -91,14 +91,14 @@ export const US_PAIRS: Pair[] = [
   { symbol: "^RUA",     name: "러셀3000",    desc: "Russell 3000 — 미국 시총 ~98% 커버(대형+중소형 전체)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^NYA",     name: "NYSE종합",    desc: "NYSE Composite — NYSE 상장 전체 종목 시가총액 가중", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^IXIC",    name: "나스닥",      desc: "미국 기술주 전체", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "NQ=F",     name: "나스닥 선물",  desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "NQ=F",     name: "나스닥(선물)",  desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^GSPC",    name: "S&P 500",     desc: "미국 대형주 — 글로벌 리스크 온/오프", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "RSP",      name: "S&P 500 동일가중", desc: "RSP — 500종목 같은 비중. S&P 보다 약하면 빅테크만 오르는 장(시장 폭 좁음)", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "ES=F",     name: "S&P 500 선물", desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "ES=F",     name: "S&P 500(선물)", desc: "미장 외 흐름 — 다음 한국장 영향 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^DJI",     name: "다우존스",     desc: "다우 30 산업평균 — 미국 대형 우량주", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "RTY=F",    name: "러셀2000 선물", desc: "E-mini Russell 2000 선물 — 미국 소형주 야간 흐름 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "RTY=F",    name: "러셀2000(선물)", desc: "E-mini Russell 2000 선물 — 미국 소형주 야간 흐름 (24h)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "^SOX",     name: "필라델피아반도체", desc: "미국 반도체 30개사 평균 지수", tier: "T0", sector: "dashboard", direction: "direct" },
-  { symbol: "SOX=F",    name: "필라델피아반도체 선물", desc: "야간 24시간 거래 — 다음 정규장 가격 미리 가늠", tier: "T0", sector: "dashboard", direction: "direct" },
+  { symbol: "SOX=F",    name: "필라델피아반도체(선물)", desc: "야간 24시간 거래 — 다음 정규장 가격 미리 가늠", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "MU",       name: "마이크론",     desc: "Micron — 미국 메모리 반도체 (삼성·하이닉스 직접 경쟁사·메모리 사이클 가늠자)", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "NVDA",     name: "엔비디아",     desc: "Nvidia — AI 수요 대표주. MU 와 동행이면 메모리 사이클 동조화 신호", tier: "T0", sector: "dashboard", direction: "direct" },
   { symbol: "SNDK",     name: "샌디스크",     desc: "SanDisk — NAND 플래시/SSD (WD 에서 분사, 2025 상장). 삼성·하이닉스 NAND 메모리 가늠자", tier: "T0", sector: "dashboard", direction: "direct" },
@@ -895,7 +895,7 @@ export function allYahooSymbols(): { symbol: string; name: string }[] {
     if (YASUN_VIRTUAL.has(p.symbol)) continue;   // yasun 별도 fetch
     result.push({ symbol: p.symbol, name: p.name });
     if (p.future) {
-      result.push({ symbol: p.future, name: `${p.name} 선물` });
+      result.push({ symbol: p.future, name: `${p.name}(선물)` });
     }
   }
   return result;

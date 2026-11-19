@@ -378,7 +378,7 @@ export function isKrFuturesTradingNow(): boolean {
 // KR 선물 가상심볼(^KS200N/^KQ150N) → 현재 세션 반영 표시명 (주간/야간선물)
 export function krFuturesName(symbol: string): string {
   const base = symbol === "^KS200N" ? "코스피200" : symbol === "^KQ150N" ? "코스닥150" : symbol;
-  return `${base} 선물`;   // 주간/야간은 빼고 그냥 '선물'(사용자 2026-11-19) — 어느 세션인지는 부제(krFuturesDesc)의 거래시간이 말해 준다
+  return `${base}(선물)`;   // 주간/야간은 빼고 '이름(선물)' 꼴(사용자 2026-11-19 "선물들 (선물)로") — 어느 세션인지는 부제(krFuturesDesc)의 거래시간이 말해 준다
 }
 // KR 선물 카드 부제 — 현재 세션 거래시간 안내
 export function krFuturesDesc(): string {
