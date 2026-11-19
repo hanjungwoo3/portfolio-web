@@ -569,7 +569,7 @@ function sectionMap(): Record<string, DashboardSection> {
         { label: "📄 KRX TMI 정기변경 공지", krxSeq: "1125", url: "https://data.krx.co.kr/contents/MDC/COMS/board/MDCCOMS010_S2.cmd?boardId=MDCINFO005&cmBbsId=MKD01040000&bbsSeq=1125" },
       ],
       lead: 0, leadByRow: [0, 0, 0, 0],
-      rowLabels: ["KOSPI200 추가", "KOSPI200 삭제", "KOSDAQ150 추가", "KOSDAQ150 삭제"],
+      rowLabels: ["KOSPI200 편입", "KOSPI200 편출", "KOSDAQ150 편입", "KOSDAQ150 편출"],
       rows: [
         ["000500.KS", "001740.KS", "002960.KS", "004800.KS", "005440.KS", "006110.KS", "031210.KS", "103590.KS", "178920.KS", "336260.KS", "353200.KS"],
         ["000670.KS", "001680.KS", "002030.KS", "005420.KS", "006650.KS", "008730.KS", "009240.KS", "0220W0.KS", "069260.KS", "071320.KS", "361610.KS", "456040.KS"],
