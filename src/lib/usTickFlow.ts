@@ -24,7 +24,7 @@ export interface UsTickFlow { kisDay?: UsKisDay; minutes: UsMinute[]; big: UsBig
 
 const POLL_MS = 5_000;
 const FILL_MIN = 120;   // 켜기 전 1분봉으로 채우는 길이(분)
-export const US_BIG_MIN = 1e8;   // 1억원 이상 = 큰 체결
+export const US_BIG_MIN = 1e7;   // 1천만원 이상을 모아 두고, 보여 줄 기준은 종목마다 자동(국내 bigThreshold — 1억·5천만·3천만·1천만, 사용자 2026-11-21 "하이닉스 ADR은 1억이 너무 큰 거 아냐?")
 
 /** 지금 미국 동부(뉴욕) 날짜·분, KST 와의 차이(분) — 서머타임은 Intl 이 알아서 */
 export function etNow(at = Date.now()): { date: string; min: number; kstDiff: number } {
@@ -88,7 +88,7 @@ export function ingestUsTicks(code: string, ts: TossUsTick[]) {
     mm.close = t.price;
     if (amt >= US_BIG_MIN) b.big.unshift({ time: t.et, side: t.side, amt, price: t.price, volume: t.volume });
   }
-  b.big = b.big.slice(0, 200);
+  b.big = b.big.slice(0, 400);
   const last = fresh[fresh.length - 1];
   b.lastCum = last.cum; b.since ??= fresh[0].et; b.last = last.et;
   b.price = last.price; b.priceKrw = last.priceKrw; if (last.base) b.base = last.base;

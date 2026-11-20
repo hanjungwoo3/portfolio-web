@@ -4,7 +4,8 @@
 //   체결: 토스 ticks 5초(화면을 켠 동안만 쌓인다, lib/usTickFlow) · 공매도: 크롤러 us-short-volume.json(매일 06:00 KST) · 서학개미: seohak.json
 import { useQuery } from "@tanstack/react-query";
 import { fetchTossUsMinuteToday } from "../lib/api";
-import { useUsTickFlow, etToKst, etNow, US_BIG_MIN, US_SEMI_STOCKS, type UsTickFlow } from "../lib/usTickFlow";
+import { useUsTickFlow, etToKst, etNow, US_SEMI_STOCKS, type UsTickFlow } from "../lib/usTickFlow";
+import { bigThreshold, wonStep } from "../lib/useTickFlow";
 import { useSeohak } from "../lib/seohak";
 import { openExternal } from "../lib/toss";
 
@@ -71,7 +72,8 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, 
   const bv = ms.reduce((a, m) => a + m.buyVol, 0), sv = ms.reduce((a, m) => a + m.sellVol, 0);
   const last5 = ms.filter(m => !m.est).slice(-5), b5 = last5.reduce((a, m) => a + m.buyVol, 0), s5 = last5.reduce((a, m) => a + m.sellVol, 0);
   const pct = flow.price && flow.base ? (flow.price / flow.base - 1) * 100 : undefined;
-  const bigs = flow.big.filter(b => b.amt >= US_BIG_MIN).slice(0, 30);
+  const bigMin = bigThreshold(flow.big);   // 그 이상이 5건 넘게 쌓이는 가장 높은 단계(국내와 같은 규칙)
+  const bigs = flow.big.filter(b => b.amt >= bigMin).slice(0, 30);
   return (
     <div className="relative rounded-xl border border-gray-300 bg-white pg-box p-3 pt-4 mt-1.5">
       <span className="pg-title absolute -top-3 left-3 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700">
@@ -106,7 +108,7 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, 
           </div>
         </div>
         <div className="mt-1.5 sm:mt-2 sm:w-[168px] sm:shrink-0">
-          <div className="text-[11px] font-bold text-gray-600">큰 체결(1억원 이상)</div>
+          <div className="text-[11px] font-bold text-gray-600">큰 체결({wonStep(bigMin)}원 이상)</div>
           {bigs.length ? (
             <div className="mt-0.5 sm:max-h-[230px] sm:overflow-y-auto overscroll-contain [scrollbar-width:thin] text-[11px] tabular-nums grid grid-cols-2 sm:grid-cols-1 gap-x-3">
               {bigs.map((b, i) => (
