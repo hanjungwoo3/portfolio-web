@@ -108,9 +108,11 @@ interface UsMarketTabProps {
   sectionsOverride?: DashboardSection[];
   // 지수 서랍이 닫혀 있을 때 오른쪽 고정 카드 — 지수 창 카드 **그대로**를 세로 한 줄로, 흐린 카드는 빼고(사용자 2026-11-19 "크기와 내용 모두")
   cardsColumn?: boolean;
+  // 오른쪽 고정 카드에서 실제로 보이는(흐리지 않은) 카드 수 — 0 이면 서랍 손잡이를 다시 띄운다(사용자 2026-11-21 "토요일 다 흐림인 경우")
+  onVisibleCount?: (n: number) => void;
 }
 
-export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0, page = "day", sectionsOverride, cardsColumn }: UsMarketTabProps = {}) {
+export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0, page = "day", sectionsOverride, cardsColumn, onVisibleCount }: UsMarketTabProps = {}) {
   const yahooSymbols = allYahooSymbols();
   const REFRESH_MS = useAdaptiveRefreshMs(BASE_REFRESH_MS);
 
@@ -800,6 +802,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
               );
   };
 
+  const visCount = cardsColumn ? T0_SECTIONS.reduce((a, sec) => a + sec.rows.flat().filter(sym => !dimOf(sym)).length, 0) : -1;
+  useEffect(() => { if (visCount >= 0) onVisibleCount?.(visCount); }, [visCount, onVisibleCount]);
   if (cardsColumn) return (
     <div className="pg-cardscol flex flex-col gap-2.5 pt-2">   {/* 맨 위 카드의 ▲▼ 책갈피(-top-2)가 스크롤 상자에 잘려 시간표 밑에 가렸다(사용자 2026-11-20 "위에 가려진다") */}   {/* 글자 한 단계씩 작게 — index.css .pg-cardscol(사용자 2026-11-19) */}
       {T0_SECTIONS.map(sec => {

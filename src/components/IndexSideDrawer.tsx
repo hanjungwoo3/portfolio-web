@@ -100,7 +100,7 @@ function blockOf(sym: string): string | undefined {
   }
   return blockMap.get(sym);
 }
-function PinnedMini() {
+function PinnedMini({ onVisibleCount }: { onVisibleCount?: (n: number) => void }) {
   const pins = useDrawerPins();
   // 블록대로 묶은 섹션(지수 창 순서) — 지수 창 카드 그대로 그린다(UsMarketTab cardsColumn)
   const sections = useMemo<DashboardSection[]>(() => {
@@ -110,7 +110,7 @@ function PinnedMini() {
   if (!pins.length) return null;
   return (
     <div className="w-[136px] min-h-0 overflow-y-auto overflow-x-hidden [scrollbar-width:thin] pr-0">
-      <UsMarketTab sectionsOverride={sections} page="night" cardsColumn />
+      <UsMarketTab sectionsOverride={sections} page="night" cardsColumn onVisibleCount={onVisibleCount} />
     </div>
   );
 }
@@ -121,7 +121,9 @@ export function IndexSideDrawer() {
   // 접기 — 시간표·고정 카드를 숨기고 손잡이만(기기에 기억)
   const [folded, setFolded] = useState(() => { try { return localStorage.getItem("index_side_folded") === "1"; } catch { return false; } });
   const fold = (v: boolean) => { setFolded(v); try { localStorage.setItem("index_side_folded", v ? "1" : "0"); } catch { /* 이번만 */ } };
-  const hasPins = useDrawerPins().length > 0 && !folded;
+  // 고정 카드가 다 흐림(주말·휴장)이면 보이는 카드가 0 — 그땐 손잡이를 다시 띄운다(사용자 2026-11-21 "토요일 다 흐림인 경우 📈 지수 나오도록")
+  const [pinVis, setPinVis] = useState<number | null>(null);
+  const hasPins = useDrawerPins().length > 0 && !folded && pinVis !== 0;
   const [closing, setClosing] = useState(false);
   // 닫을 때도 나올 때처럼 미끄러져 들어간다(사용자 2026-11-09) — 애니메이션이 끝난 뒤 내린다
   const close = () => { if (closing) return; setClosing(true); setTimeout(() => { setOpen(false); setClosing(false); }, 180); };
@@ -155,7 +157,7 @@ export function IndexSideDrawer() {
       {!open && !folded && (
         <div className="fixed right-0 top-[80px] bottom-2 z-40 flex flex-col items-end gap-1 pointer-events-none [&>*]:pointer-events-auto">
           <KrScheduleTag onHide={() => fold(true)} />
-          <PinnedMini />
+          <PinnedMini onVisibleCount={setPinVis} />
         </div>
       )}
       {!open && folded && (
