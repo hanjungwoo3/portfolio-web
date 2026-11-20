@@ -227,8 +227,13 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
     }
   }
   const lx = (t: number) => (x(t) / W) * 100, ly = (y: number) => (y / H) * 100;
-  const pc = (p: number) => (base && base > 0 ? ` ${p >= base ? "+" : ""}${((p / base - 1) * 100).toFixed(2)}%` : "");
-  const hi = Math.max(...prices), lo = Math.min(...prices), hiP = P[prices.indexOf(hi)], loP = P[prices.indexOf(lo)], lastP = P[P.length - 1];
+  // % = 그 시점이 속한 날의 전일 종가 대비(색칠 기준과 같게) — 글자색도 부호대로(사용자 2026-11-21 "최고가 -2.55 인데 빨간색?")
+  const pc = (p: number, b = base) => (b && b > 0 ? ` ${p >= b ? "+" : ""}${((p / b - 1) * 100).toFixed(2)}%` : "");
+  const pcTone = (p: number, b = base) => (b && b > 0 ? (p > b ? "text-rose-600" : p < b ? "text-blue-600" : "text-gray-600") : "text-gray-600");
+  // 최고·최저 = 전일 종가 이후(오늘 구간, 지금 기준가가 같은 봉들)만(사용자 2026-11-21 "최고를 전일 종가 이후로")
+  const todayP = pGroups.length ? pGroups[pGroups.length - 1].pts : P;
+  const tPr = todayP.map(p => p.close);
+  const hi = Math.max(...tPr), lo = Math.min(...tPr), hiP = todayP[tPr.indexOf(hi)], loP = todayP[tPr.indexOf(lo)], lastP = P[P.length - 1];
   const cLast = cums[cums.length - 1] ?? 0;
   let yPrice = ly(py(lastP.close)), yCum = cums.length ? ly(cy(cLast)) : -99;
   if (Math.abs(yPrice - yCum) < 11) { if (yPrice <= yCum) { yPrice -= 6; yCum += 6; } else { yPrice += 6; yCum -= 6; } }
@@ -282,11 +287,11 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
       {hi > lo && [{ p: hiP, up: true }, { p: loP, up: false }].map(({ p, up }) => {
         const xp = lx(p.t), y = ly(py(p.close));
         const tx = xp < 25 ? "-6px" : xp > 70 ? "calc(-100% + 6px)" : "-50%";
-        const col = up ? "text-rose-600" : "text-blue-600";
+        const col = pcTone(p.close, p.base ?? base);
         return (
           <span key={up ? "hi" : "lo"}>
             <span className={`absolute pointer-events-none text-[8px] leading-none ${col}`} style={{ left: `${xp}%`, top: `${y}%`, transform: up ? "translate(-50%, -115%)" : "translate(-50%, 15%)" }}>{up ? "▼" : "▲"}</span>
-            <span className={`${lab} ${col}`} style={{ left: `${xp}%`, top: `${y}%`, transform: `translate(${tx}, ${up ? "calc(-100% - 9px)" : "9px"})` }}>{up ? "최고" : "최저"} ${p.close.toFixed(2)}{pc(p.close)}</span>
+            <span className={`${lab} ${col}`} style={{ left: `${xp}%`, top: `${y}%`, transform: `translate(${tx}, ${up ? "calc(-100% - 9px)" : "9px"})` }}>{up ? "최고" : "최저"} ${p.close.toFixed(2)}{pc(p.close, p.base ?? base)}</span>
           </span>
         );
       })}
