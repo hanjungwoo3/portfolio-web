@@ -37,7 +37,7 @@ export function UsSemiDashTab() {
   const short = useQuery({ queryKey: ["us-short-volume"], queryFn: loadShort, staleTime: 3 * 3600_000, retry: 1 });
   const seohak = useSeohak();
   // 배경 나스닥 — 나스닥100(QQQ) 1분봉, 국내 탭의 배경 코스피처럼(사용자 2026-11-21 "배경에 나스닥 그래프"). 1분마다, 최근 3시간
-  //   + 24시간(사용자 2026-11-21 48시간 → "24시간으로 줄이자") — 종목·QQQ 5분봉, 5분마다
+  //   + 12시간(사용자 2026-11-21 48 → 24 → "12시간으로 줄이자") — 종목·QQQ 5분봉(HRS), 5분마다
   const ndx = useQuery({ queryKey: ["us-semi-qqq-5m48"], queryFn: () => fetchTossUs5mHours("US19990310001", HRS), refetchInterval: 5 * 60_000, staleTime: 2 * 60_000, retry: 1 });
   const px48 = useQueries({ queries: STOCKS.map(s => ({ queryKey: ["us-semi-5m48", s.toss], queryFn: () => fetchTossUs5mHours(s.toss, HRS), refetchInterval: 5 * 60_000, staleTime: 2 * 60_000, retry: 1 })) });
   const kd = etNow().kstDiff;
@@ -51,7 +51,7 @@ export function UsSemiDashTab() {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-gray-600">
         <span className="inline-flex items-center gap-1"><i className="inline-block w-2 h-2.5 bg-rose-300/60" /><i className="inline-block w-2 h-2.5 bg-blue-300/60" />가격(그날 전일 종가 위 빨강·아래 파랑)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-amber-500" />체결 누적(매수−매도, 자기 눈금)</span>
-        <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />매수(위)·매도(아래) 연하게 + 차이만 진하게(10분, 제곱근 눈금)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />매수(위)·매도(아래) 연하게 + 차이만 진하게(5분, 제곱근 눈금)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-violet-400" />배경 나스닥100(QQQ, 자기 눈금)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-slate-400/50" />거래량(5분, 맨 아래)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-400" />장 구간 세로선(프리·정규 시작·끝·애프터 끝)</span>
@@ -122,7 +122,7 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg, price4
           <FlowChart ms={ms} etDate={flow.etDate} kd={kd} price={price48} bg={bg} base={flow.base} />
           <div className="mt-0.5 text-[10.5px] text-gray-400">
             {flow.error ? <span className="text-rose-500">체결 받기 실패 — {flow.error}</span>
-              : flow.since ? <><span className="text-gray-500">가격·나스닥 = 5분봉 24시간 · </span>{ms.some(m => m.kis) && <span className="text-emerald-600">한투로 정확히 나눈 분 {ms.filter(m => m.kis).length}개 · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
+              : flow.since ? <><span className="text-gray-500">가격·나스닥 = 5분봉 12시간 · </span>{ms.some(m => m.kis) && <span className="text-emerald-600">한투로 정확히 나눈 분 {ms.filter(m => m.kis).length}개 · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
               : "체결을 기다리는 중 — 장이 쉬는 시간엔 쌓이지 않습니다"}
           </div>
         </div>
@@ -159,7 +159,7 @@ function Stat({ label, v, hint }: { label: string; v: React.ReactNode; hint: str
 // 48시간 그래프(사용자 2026-11-21 "그래프를 48시간으로 고정") — 가로축 = 지금부터 48시간 전까지(실제 시각).
 //   가격·배경 나스닥 = 토스 5분봉 48시간 · 매수·매도 막대·체결 누적 = 이 기기가 쌓은 오늘 체결(15분씩 묶어 막대) · 세로선 = 날마다 장 구간(ET 04:00·09:30·16:00·20:00)
 //   글자(현재가·최고·최저·체결 누적)는 국내 반도체 수급과 같은 꼴 — svg 가 가로로 늘어나므로 HTML 로 얹는다
-const HRS = 24, BIN = 10 * 60_000;   // 48 → 24시간(사용자 2026-11-21 "24시간으로 줄이자"), 막대 10분 묶음
+const HRS = 12, BIN = 5 * 60_000;   // 48 → 24 → 12시간(사용자 2026-11-21 "12시간으로 줄이자"), 막대 5분 묶음
 /** ET 날짜 + "HH:MM" → 시각(ms). kstDiff = KST − ET(분) */
 const etEpoch = (date: string, t: string, kstDiff: number) =>
   Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10), +t.slice(0, 2), +t.slice(3, 5)) - (540 - kstDiff) * 60_000;
