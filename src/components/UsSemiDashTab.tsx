@@ -7,6 +7,7 @@ import { fetchTossUsMinuteToday } from "../lib/api";
 import { useUsTickFlow, etToKst, etNow, US_BIG_MIN, US_SEMI_STOCKS, type UsTickFlow } from "../lib/usTickFlow";
 import { useSeohak } from "../lib/seohak";
 import { openExternal } from "../lib/toss";
+import { KisUsProbe } from "./KisUsProbe";
 
 const STOCKS = US_SEMI_STOCKS;   // 목록은 lib/usTickFlow 한 벌(배경 수집과 같이)
 
@@ -42,6 +43,7 @@ export function UsSemiDashTab() {
         미국은 외국인·기관·개인 수급을 공개하지 않습니다. 대신 <b>체결이 매수 쪽(빨강)으로 많이 붙나 매도 쪽(파랑)으로 붙나</b>,
         <b> 공매도로 보고된 거래 비중</b>, <b>한국 개인(서학개미) 보유</b>를 봅니다. 정규장은 한국 시각 {etToKst("09:30", kd)}~{etToKst("16:00", kd)}.
       </div>
+      <KisUsProbe />   {/* 🧪 앱+한투만 — 확인 끝나면 뺀다 */}
       <div className="grid gap-3 lg:grid-cols-2">
         {STOCKS.map((s, i) => (
           <StockPanel key={s.ticker} s={s} flow={flows[i]} kd={kd}
