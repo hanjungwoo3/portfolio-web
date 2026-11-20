@@ -6291,19 +6291,19 @@ export interface TossUsTick extends TossTick { priceKrw: number; base?: number; 
 //   ⚠️ 미국 종목은 count 100 이 상한(200 부터 HTTP 400, 실측 2026-11-21) — 엔비디아처럼 체결이 많으면 5초 사이 100건을 넘어 일부만 받는다(표본)
 // 미국 종목 오늘(ET 날짜) 1분봉 — 화면을 켜기 전 구간의 가격·거래량(매수·매도 구분은 없다). t = ET "HH:MM", amt = 원화 거래대금(토스 환율)
 //   반도체 수급(미국) 탭이 체결이 없는 분을 회색 막대로 채운다(사용자 2026-11-21 "켜기 전의 거래기록은 없어?"). 한 페이지 400봉, 프리~애프터 960분이라 최대 3페이지
-export async function fetchTossUsMinuteToday(tossCode: string, etDate: string): Promise<{ t: string; close: number; volume: number; amt: number }[]> {
-  const out: { t: string; close: number; volume: number; amt: number }[] = [];
+export async function fetchTossUsMinuteToday(tossCode: string, etDate: string, count = 400): Promise<{ t: string; close: number; volume: number; amt: number; base?: number }[]> {
+  const out: { t: string; close: number; volume: number; amt: number; base?: number }[] = [];
   let from: string | undefined;
-  for (let page = 0; page < 3; page++) {
-    const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/c-chart/us-s/${tossCode}/min:1?count=400${from ? `&from=${encodeURIComponent(from)}` : ""}`);
+  for (let page = 0; page < (count > 400 ? 3 : 1); page++) {
+    const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/c-chart/us-s/${tossCode}/min:1?count=${Math.min(400, count)}${from ? `&from=${encodeURIComponent(from)}` : ""}`);
     if (!r.ok) break;
-    const res = ((await r.json()) as { result?: { candles?: { dt?: string; close?: number; volume?: number }[]; nextDateTime?: string; exchangeRate?: number } }).result;
+    const res = ((await r.json()) as { result?: { candles?: { dt?: string; close?: number; volume?: number; base?: number }[]; nextDateTime?: string; exchangeRate?: number } }).result;
     const fx = res?.exchangeRate ?? 0;
     let older = false;
     for (const c of res?.candles ?? []) {
       if (!c.dt || !(c.close! > 0)) continue;
       if (c.dt.slice(0, 10) !== etDate) { older = true; continue; }   // dt 는 ET(-05:00/-04:00) 시각 그대로
-      out.push({ t: c.dt.slice(11, 16), close: c.close!, volume: c.volume ?? 0, amt: (c.close! * (c.volume ?? 0)) * fx });
+      out.push({ t: c.dt.slice(11, 16), close: c.close!, volume: c.volume ?? 0, amt: (c.close! * (c.volume ?? 0)) * fx, base: c.base });
     }
     if (older || !res?.nextDateTime) break;
     from = res.nextDateTime;

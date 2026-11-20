@@ -10,6 +10,7 @@ export interface UsBig { time: string; side: "BUY" | "SELL"; amt: number; price:
 export interface UsTickFlow { minutes: UsMinute[]; big: UsBig[]; gaps: number; since?: string; last?: string; base?: number; price?: number; priceKrw?: number; error?: string; etDate: string }
 
 const POLL_MS = 5_000;
+const FILL_MIN = 120;   // 켜기 전 1분봉으로 채우는 길이(분)
 export const US_BIG_MIN = 1e8;   // 1억원 이상 = 큰 체결
 
 /** 지금 미국 동부(뉴욕) 날짜·분, KST 와의 차이(분) — 서머타임은 Intl 이 알아서 */
@@ -99,13 +100,14 @@ export function useUsTickFlow(tossCode: string, enabled = true): UsTickFlow {
     const id = setInterval(tick, POLL_MS);
     return () => { alive = false; clearInterval(id); };
   }, [tossCode, enabled]);
-  // 켜기 전·꺼져 있던 분은 1분봉(가격·거래량)으로 — 5분마다(사용자 2026-11-21 "켜기 전의 거래기록은 없어?")
+  // 켜기 전·꺼져 있던 분은 1분봉(가격·거래량)으로 — 5분마다, **최근 2시간만**(사용자 2026-11-21 "켜기 전의 거래기록은 없어?" → "2시간 정도만")
   const [fill, setFill] = useState<Map<string, UsMinute>>(new Map());
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
-    const load = () => fetchTossUsMinuteToday(tossCode, etNow().date).then(cs => {
-      if (alive) setFill(new Map(cs.map(c => [c.t, { t: c.t, buyVol: 0, sellVol: 0, buyAmt: 0, sellAmt: 0, close: c.close, est: true, amt: c.amt }])));
+    const load = () => fetchTossUsMinuteToday(tossCode, etNow().date, FILL_MIN + 10).then(cs => {
+      const now = etNow().min, from = hm(Math.max(0, now - FILL_MIN));
+      if (alive) setFill(new Map(cs.filter(c => c.t >= from).map(c => [c.t, { t: c.t, buyVol: 0, sellVol: 0, buyAmt: 0, sellAmt: 0, close: c.close, est: true, amt: c.amt }])));
     }).catch(() => { /* 없으면 빈칸 */ });
     void load();
     const id = setInterval(load, 5 * 60_000);
