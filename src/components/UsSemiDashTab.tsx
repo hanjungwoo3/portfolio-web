@@ -52,9 +52,9 @@ export function UsSemiDashTab() {
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-slate-600" />가격</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-amber-500" />체결 누적(매수−매도, 자기 눈금)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />1분 순매수·순매도(진함) — 연한 막대 = 매수(위)·매도(아래) 각각</span>
-        <span className="inline-flex items-center gap-1"><i className="inline-block w-2 h-2.5 bg-rose-300/50" /><i className="inline-block w-2 h-2.5 bg-blue-300/50" />배경 나스닥100(QQQ, 자기 눈금 — 어제 종가 위 빨강·아래 파랑)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-2 h-2.5 bg-rose-300/50" /><i className="inline-block w-2 h-2.5 bg-blue-300/50" />배경 나스닥100(QQQ, 자기 눈금 — 그날의 전일 종가 위 빨강·아래 파랑)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-400" />장 구간 세로선(프리·정규 시작·끝·애프터 끝)</span>
-        <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-gray-400" />QQQ 어제 종가(가로선)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-gray-400" />QQQ 전일 종가(날마다 가로선)</span>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         {STOCKS.map((s, i) => (
@@ -202,8 +202,15 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
   const cy = (c: number) => top + 6 + (1 - (c - cLo) / cR) * (H - top - 30);
   // 배경 나스닥100(QQQ) — 자기 눈금, 가로 점선 = 가장 최근 봉의 기준(어제 종가)
   const B = inR(bg ?? []);
-  const bBase = [...B].reverse().find(p => p.base)?.base;
-  const bVals = [...B.map(p => p.close), ...(bBase ? [bBase] : [])];
+  const bBase = [...B].reverse().find(p => p.base)?.base;   // 가장 최근 날 기준(왼쪽 아래 등락률)
+  // 날마다 자기 기준가(그 전 정규장 종가)로 — 어제 구간은 그제 종가 기준(사용자 2026-11-21 "어제는 그제의 종가로"). 봉의 base 가 바뀌는 곳에서 나눈다
+  const bGroups: { base: number; from: number; to: number; pts: typeof B }[] = [];
+  for (const p of B) {
+    const g = bGroups[bGroups.length - 1];
+    if (p.base && (!g || g.base !== p.base)) bGroups.push({ base: p.base, from: p.t, to: p.t, pts: [p] });
+    else if (g) { g.to = p.t; g.pts.push(p); }
+  }
+  const bVals = [...B.map(p => p.close), ...bGroups.map(g => g.base)];
   const bMin = Math.min(...bVals), bMax = Math.max(...bVals), br = bMax - bMin || 1;
   const by = (c: number) => top + (1 - (c - bMin) / br) * (H - top - 16);
   const bLast = B[B.length - 1], bPct = bLast && bBase ? (bLast.close / bBase - 1) * 100 : undefined;
@@ -230,26 +237,27 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
     <div className="relative mt-1">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[190px]" preserveAspectRatio="none">
         {B.length > 1 && <>
-          {/* 어제 종가 위 = 빨강, 아래 = 파랑(일반 지수 카드처럼, 사용자 2026-11-21) — 면은 어제 종가 선까지, 위·아래를 잘라 두 번 칠한다 */}
-          {bBase && <defs>
-            <clipPath id={`${uid}-up`}><rect x={0} y={0} width={W} height={by(bBase)} /></clipPath>
-            <clipPath id={`${uid}-dn`}><rect x={0} y={by(bBase)} width={W} height={H - by(bBase)} /></clipPath>
-          </defs>}
-          {segs(B, i => by(B[i].close)).map((pp, i) => {
-            const xs = pp.split(" "), x0 = xs[0].split(",")[0], x1 = xs[xs.length - 1].split(",")[0];
-            if (!bBase) return <g key={i}>
-              <polygon fill="#a78bfa" opacity={0.12} points={`${x0},${H - 16} ${pp} ${x1},${H - 16}`} />
-              <polyline fill="none" stroke="#a78bfa" strokeWidth={1} opacity={0.6} points={pp} />
+          {/* 그날 기준가 위 = 빨강, 아래 = 파랑(일반 지수 카드처럼, 사용자 2026-11-21) — 날(기준가)마다 그 구간만 잘라 두 번 칠한다, 가로 점선도 그 구간에만 */}
+          {bGroups.length ? bGroups.map((g, gi) => {
+            const gx0 = x(g.from) - (gi ? 0 : 2), gx1 = gi < bGroups.length - 1 ? x(bGroups[gi + 1].from) : W - PR, yb = by(g.base);
+            return <g key={gi}>
+              <defs>
+                <clipPath id={`${uid}-u${gi}`}><rect x={gx0} y={0} width={Math.max(0, gx1 - gx0)} height={yb} /></clipPath>
+                <clipPath id={`${uid}-d${gi}`}><rect x={gx0} y={yb} width={Math.max(0, gx1 - gx0)} height={H - yb} /></clipPath>
+              </defs>
+              {segs(g.pts, i => by(g.pts[i].close)).map((pp, si) => {
+                const xs = pp.split(" "), x0 = xs[0].split(",")[0], x1 = xs[xs.length - 1].split(",")[0];
+                const area = `${pp} ${x1},${yb} ${x0},${yb}`;
+                return <g key={si}>
+                  <polygon clipPath={`url(#${uid}-u${gi})`} fill="#f43f5e" opacity={0.13} points={area} />
+                  <polygon clipPath={`url(#${uid}-d${gi})`} fill="#3b82f6" opacity={0.13} points={area} />
+                  <polyline clipPath={`url(#${uid}-u${gi})`} fill="none" stroke="#f43f5e" strokeWidth={1} opacity={0.5} points={pp} />
+                  <polyline clipPath={`url(#${uid}-d${gi})`} fill="none" stroke="#3b82f6" strokeWidth={1} opacity={0.5} points={pp} />
+                </g>;
+              })}
+              <line x1={gx0} x2={gx1} y1={yb} y2={yb} stroke="#9ca3af" strokeDasharray="4 3" strokeWidth={0.9} opacity={0.8} />
             </g>;
-            const area = `${pp} ${x1},${by(bBase)} ${x0},${by(bBase)}`;
-            return <g key={i}>
-              <polygon clipPath={`url(#${uid}-up)`} fill="#f43f5e" opacity={0.13} points={area} />
-              <polygon clipPath={`url(#${uid}-dn)`} fill="#3b82f6" opacity={0.13} points={area} />
-              <polyline clipPath={`url(#${uid}-up)`} fill="none" stroke="#f43f5e" strokeWidth={1} opacity={0.5} points={pp} />
-              <polyline clipPath={`url(#${uid}-dn)`} fill="none" stroke="#3b82f6" strokeWidth={1} opacity={0.5} points={pp} />
-            </g>;
-          })}
-          {bBase && <line x1={0} x2={W - PR} y1={by(bBase)} y2={by(bBase)} stroke="#9ca3af" strokeDasharray="4 3" strokeWidth={0.9} opacity={0.8} />}
+          }) : segs(B, i => by(B[i].close)).map((pp, i) => <polyline key={i} fill="none" stroke="#a78bfa" strokeWidth={1} opacity={0.6} points={pp} />)}
         </>}
         <line x1={0} x2={W - PR} y1={mid} y2={mid} stroke="#d1d5db" strokeWidth={0.6} />
         {marks.map(m => <line key={m.at} x1={x(m.at)} x2={x(m.at)} y1={0} y2={H - 14} stroke="#818cf8" strokeDasharray="3 3" strokeWidth={0.9} opacity={m.label ? 0.8 : 0.45} />)}
@@ -265,7 +273,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
         {segs(P, i => py(P[i].close)).map((pp, i) => <polyline key={i} fill="none" stroke="#475569" strokeWidth={1.3} points={pp} />)}
         {cums.some(c => c !== 0) && <polyline fill="none" stroke="#f59e0b" strokeWidth={1.6} points={real.map((m, i) => `${x(m.at)},${cy(cums[i])}`).join(" ")} />}
       </svg>
-      {bBase && B.length > 1 && <span className="absolute text-[9px] text-gray-500 pointer-events-none" style={{ left: 4, top: `${ly(by(bBase))}%`, transform: "translateY(-110%)" }}>QQQ 어제 종가</span>}
+      {bGroups.filter((g, gi) => (gi < bGroups.length - 1 ? lx(bGroups[gi + 1].from) : 85) - lx(g.from) > 12).map((g, gi) => <span key={gi} className="absolute text-[9px] text-gray-500 pointer-events-none whitespace-nowrap" style={{ left: `${Math.max(0.5, lx(g.from))}%`, top: `${ly(by(g.base))}%`, transform: "translateY(-110%)" }}>QQQ 전일 종가</span>)}
       {B.length > 1 && <span className="absolute left-1.5 bottom-3.5 text-[10px] text-gray-500 pointer-events-none">배경 나스닥100(QQQ){bPct != null ? <b className={bPct >= 0 ? "text-rose-600" : "text-blue-600"}> {bPct >= 0 ? "+" : ""}{bPct.toFixed(2)}%</b> : ""}</span>}
       {marks.filter(m => m.label).map(m => <span key={m.at} className="absolute bottom-0 text-[9px] text-indigo-500 pointer-events-none" style={{ left: `${lx(m.at)}%`, transform: "translateX(-50%)" }}>{m.label}</span>)}
       <span className="absolute left-1 bottom-0 text-[9.5px] text-gray-400 pointer-events-none">{kstLabel(T0, true)}</span>
