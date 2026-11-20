@@ -50,7 +50,8 @@ export function UsSemiDashTab() {
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-amber-500" />체결 누적(매수−매도, 자기 눈금)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />1분 순매수·순매도(진함) — 연한 막대 = 매수(위)·매도(아래) 각각</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-2.5 bg-violet-300/50 border-t border-violet-400" />배경 나스닥100(QQQ, 자기 눈금)</span>
-        <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-300" />정규장 시작·끝</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-400" />장 구간 세로선(프리·정규 시작·끝·애프터 끝)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-violet-500" />QQQ 어제 종가(가로선)</span>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         {STOCKS.map((s, i) => (
@@ -176,11 +177,14 @@ function FlowChart({ ms: msAll, kd, bg, base }: { ms: { t: string; buyAmt: numbe
   const cy = (c: number) => top + 6 + (1 - (c - cLo) / cR) * (H - top - 30);
   // 배경 나스닥100(QQQ) — 같은 시간 범위만, 자기 높낮이로(옅은 보라 면), 끝에 등락률
   const bgIn = (bg ?? []).filter(p => toM(p.t) >= m0 && toM(p.t) <= m1);
-  const bMin = Math.min(...bgIn.map(p => p.close)), bMax = Math.max(...bgIn.map(p => p.close)), br = bMax - bMin || 1;
+  // 가로선 = QQQ 전일 종가(일반 지수 카드처럼 기준선, 사용자 2026-11-21) — 범위 안에 들도록 눈금에 넣는다
+  const bBase = bgIn.find(p => p.base)?.base;
+  const bMin = Math.min(...bgIn.map(p => p.close), ...(bBase ? [bBase] : [])), bMax = Math.max(...bgIn.map(p => p.close), ...(bBase ? [bBase] : [])), br = bMax - bMin || 1;
   const by = (c: number) => top + (1 - (c - bMin) / br) * (H - top - 16);
   const bLast = bgIn[bgIn.length - 1], bPct = bLast?.base ? (bLast.close / bLast.base - 1) * 100 : undefined;
   // 정규장 시작·끝 세로선(ET 09:30·16:00)
-  const marks = [["09:30", "정규 시작"], ["16:00", "정규 끝"]].filter(([t]) => toM(t) > m0 && toM(t) < m1);
+  // 세로선 = 장 구간 경계(일반 지수 카드처럼, 사용자 2026-11-21) — 프리 시작·정규 시작·정규 끝·애프터 끝(ET)
+  const marks = [["04:00", "프리"], ["09:30", "정규 시작"], ["16:00", "정규 끝"], ["20:00", "애프터 끝"]].filter(([t]) => toM(t) > m0 && toM(t) < m1);
   // 글자 자리(%) — 가로는 viewBox 대비, 세로는 높이 대비
   const lx = (t: string) => (x(t) / W) * 100, ly = (y: number) => (y / H) * 100;
   const pc = (p: number) => (base && base > 0 ? ` ${p >= base ? "+" : ""}${((p / base - 1) * 100).toFixed(2)}%` : "");
@@ -197,9 +201,10 @@ function FlowChart({ ms: msAll, kd, bg, base }: { ms: { t: string; buyAmt: numbe
         {bgIn.length > 1 && <>
           <polygon fill="#a78bfa" opacity={0.12} points={`${x(bgIn[0].t)},${H - 16} ${bgIn.map(p => `${x(p.t)},${by(p.close)}`).join(" ")} ${x(bgIn[bgIn.length - 1].t)},${H - 16}`} />
           <polyline fill="none" stroke="#a78bfa" strokeWidth={1} opacity={0.6} points={bgIn.map(p => `${x(p.t)},${by(p.close)}`).join(" ")} />
+          {bBase && <line x1={0} x2={W - PR} y1={by(bBase)} y2={by(bBase)} stroke="#8b5cf6" strokeDasharray="4 3" strokeWidth={0.9} opacity={0.7} />}
         </>}
         <line x1={0} x2={W - PR} y1={mid} y2={mid} stroke="#d1d5db" strokeWidth={0.6} />
-        {marks.map(([t]) => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H - 14} stroke="#a5b4fc" strokeDasharray="3 3" strokeWidth={0.8} />)}
+        {marks.map(([t]) => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H - 14} stroke="#818cf8" strokeDasharray="3 3" strokeWidth={0.9} opacity={0.8} />)}
         {ms.map(m => (
           // 매수(위)·매도(아래)는 연하게, 둘의 차이(순매수 빨강 위 / 순매도 파랑 아래)만 진하게 — 국내 1분 띠와 같은 꼴(사용자 2026-11-21 "하나만 진하게")
           m.est ? null : <g key={m.t}>
@@ -213,6 +218,7 @@ function FlowChart({ ms: msAll, kd, bg, base }: { ms: { t: string; buyAmt: numbe
         <polyline fill="none" stroke="#475569" strokeWidth={1.3} points={ms.map(m => `${x(m.t)},${py(m.close)}`).join(" ")} />
         {cums.some(c => c !== 0) && <polyline fill="none" stroke="#f59e0b" strokeWidth={1.6} points={ms.flatMap((m, i) => (m.est ? [] : [`${x(m.t)},${cy(cums[i])}`])).join(" ")} />}
       </svg>
+      {bBase && bgIn.length > 1 && <span className="absolute text-[9px] text-violet-500/90 pointer-events-none" style={{ left: 4, top: `${(by(bBase) / H) * 100}%`, transform: "translateY(-110%)" }}>QQQ 어제 종가</span>}
       {/* 배경 나스닥 이름·등락 */}
       {bgIn.length > 1 && <span className="absolute left-1.5 bottom-3.5 text-[10px] text-violet-600/90 pointer-events-none">배경 나스닥100(QQQ){bPct != null ? ` ${bPct >= 0 ? "+" : ""}${bPct.toFixed(2)}%` : ""}</span>}
       {/* 정규장 세로선 이름 · 아래 시각 */}
