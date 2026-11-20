@@ -23,6 +23,7 @@ export interface UsKisDay { vpow: number; tvol: number; buy: number; sell: numbe
 export interface UsTickFlow { kisDay?: UsKisDay; minutes: UsMinute[]; big: UsBig[]; gaps: number; since?: string; last?: string; base?: number; price?: number; priceKrw?: number; error?: string; etDate: string }
 
 const POLL_MS = 5_000;
+const FILL_ON = false;
 const FILL_MIN = 120;   // 켜기 전 1분봉으로 채우는 길이(분)
 export const US_BIG_MIN = 1e7;   // 1천만원 이상을 모아 두고, 보여 줄 기준은 종목마다 자동(국내 bigThreshold — 1억·5천만·3천만·1천만, 사용자 2026-11-21 "하이닉스 ADR은 1억이 너무 큰 거 아냐?")
 
@@ -200,7 +201,7 @@ export function useUsTickFlow(tossCode: string, enabled = true): UsTickFlow {
   // 켜기 전·꺼져 있던 분은 1분봉(가격·거래량)으로 — 5분마다, **최근 2시간만**(사용자 2026-11-21 "켜기 전의 거래기록은 없어?" → "2시간 정도만")
   const [fill, setFill] = useState<Map<string, UsMinute>>(new Map());
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !FILL_ON) return;   // 48시간 그래프는 5분봉으로 가격을 그려 이제 안 받는다(사용자 2026-11-21) — 호출 절약
     let alive = true;
     const load = () => fetchTossUsMinuteToday(tossCode, etNow().date, FILL_MIN + 10).then(cs => {
       const now = etNow().min, from = hm(Math.max(0, now - FILL_MIN));

@@ -2,8 +2,8 @@
 //   국내 반도체 수급 탭과 달리 미국은 외국인·기관·개인 수급을 공개하지 않는다 — 그래서 '누가'가 아니라 '어떻게 체결되나'(매수·매도 체결)와
 //   공매도 거래 비중(FINRA, 하루 늦게)·한국 개인 보유(세이브로)를 본다.
 //   체결: 토스 ticks 5초(화면을 켠 동안만 쌓인다, lib/usTickFlow) · 공매도: 크롤러 us-short-volume.json(매일 06:00 KST) · 서학개미: seohak.json
-import { useQuery } from "@tanstack/react-query";
-import { fetchTossUsMinuteToday } from "../lib/api";
+import { useQuery, useQueries } from "@tanstack/react-query";
+import { fetchTossUs5mHours } from "../lib/api";
 import { useUsTickFlow, etToKst, etNow, US_SEMI_STOCKS, type UsTickFlow } from "../lib/usTickFlow";
 import { bigThreshold, wonStep } from "../lib/useTickFlow";
 import { useSeohak } from "../lib/seohak";
@@ -36,7 +36,9 @@ export function UsSemiDashTab() {
   const short = useQuery({ queryKey: ["us-short-volume"], queryFn: loadShort, staleTime: 3 * 3600_000, retry: 1 });
   const seohak = useSeohak();
   // 배경 나스닥 — 나스닥100(QQQ) 1분봉, 국내 탭의 배경 코스피처럼(사용자 2026-11-21 "배경에 나스닥 그래프"). 1분마다, 최근 3시간
-  const ndx = useQuery({ queryKey: ["us-semi-qqq-1m"], queryFn: () => fetchTossUsMinuteToday("US19990310001", etNow().date, 180), refetchInterval: 60_000, staleTime: 30_000, retry: 1 });
+  //   + 48시간(사용자 2026-11-21 "그래프를 48시간으로 고정") — 종목·QQQ 5분봉 48시간, 5분마다
+  const ndx = useQuery({ queryKey: ["us-semi-qqq-5m48"], queryFn: () => fetchTossUs5mHours("US19990310001", 48), refetchInterval: 5 * 60_000, staleTime: 2 * 60_000, retry: 1 });
+  const px48 = useQueries({ queries: STOCKS.map(s => ({ queryKey: ["us-semi-5m48", s.toss], queryFn: () => fetchTossUs5mHours(s.toss, 48), refetchInterval: 5 * 60_000, staleTime: 2 * 60_000, retry: 1 })) });
   const kd = etNow().kstDiff;
   return (
     <div className="space-y-1.5 p-1">
@@ -57,7 +59,7 @@ export function UsSemiDashTab() {
         {STOCKS.map((s, i) => (
           <StockPanel key={s.ticker} s={s} flow={flows[i]} kd={kd}
                       shortDays={short.data?.days.flatMap(d => d.rows[s.ticker] ? [{ date: d.date, sv: d.rows[s.ticker][0], tv: d.rows[s.ticker][1] }] : [])}
-                      bg={ndx.data}
+                      bg={ndx.data} price48={px48[i]?.data}
                       hold={seohak?.hold.find(h => h.t === s.ticker)} holdDate={seohak?.meta.holdDate}
                       dayNet={seohak?.day.net.find(h => h.t === s.ticker)?.net ?? seohak?.day.sell.find(h => h.t === s.ticker)?.net} />
         ))}
@@ -70,8 +72,8 @@ export function UsSemiDashTab() {
   );
 }
 
-function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg }: {
-  s: (typeof STOCKS)[number]; flow: UsTickFlow; kd: number; bg?: { t: string; close: number; base?: number }[];
+function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg, price48 }: {
+  s: (typeof STOCKS)[number]; flow: UsTickFlow; kd: number; bg?: { t: number; close: number; base?: number }[]; price48?: { t: number; close: number }[];
   shortDays?: { date: string; sv: number; tv: number }[];
   hold?: { amt: number; rank: number; prevRank?: number; prevAmt?: number }; holdDate?: string;
   dayNet?: number;
@@ -115,10 +117,10 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg }: {
       {/* 그래프 왼쪽 · 큰 체결 오른쪽(국내 반도체 수급처럼, 사용자 2026-11-21) — 좁은 화면은 아래로 */}
       <div className="sm:flex sm:items-start sm:gap-2">
         <div className="sm:flex-1 sm:min-w-0">
-          <FlowChart ms={ms} kd={kd} bg={bg} base={flow.base} />
+          <FlowChart ms={ms} etDate={flow.etDate} kd={kd} price={price48} bg={bg} base={flow.base} />
           <div className="mt-0.5 text-[10.5px] text-gray-400">
             {flow.error ? <span className="text-rose-500">체결 받기 실패 — {flow.error}</span>
-              : flow.since ? <>{ms.some(m => m.est) && <span className="text-gray-500">켜기 전은 가격 선만(1분봉) · </span>}{ms.some(m => m.kis) && <span className="text-emerald-600">한투로 정확히 나눈 분 {ms.filter(m => m.kis).length}개 · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
+              : flow.since ? <><span className="text-gray-500">가격·나스닥 = 5분봉 48시간 · </span>{ms.some(m => m.kis) && <span className="text-emerald-600">한투로 정확히 나눈 분 {ms.filter(m => m.kis).length}개 · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
               : "체결을 기다리는 중 — 장이 쉬는 시간엔 쌓이지 않습니다"}
           </div>
         </div>
@@ -152,101 +154,130 @@ function Stat({ label, v, hint }: { label: string; v: React.ReactNode; hint: str
   );
 }
 
-// 1분 막대(위 빨강 = 매수 체결 금액, 아래 파랑 = 매도) + 가격 선(회색) + 누적 순매수 선(주황) + 배경 나스닥100(보라)
-// est(1분봉으로 채운 분) = 가격 선만 — 막대는 안 그린다(회색 막대는 뺐다, 사용자 2026-11-21 "회색은 지우자"), 누적 순매수에도 안 넣는다
-// 글자(현재가·최고·최저·체결 누적)는 국내 반도체 수급과 같은 꼴 — svg 가 가로로 늘어나므로 HTML 로 얹는다(사용자 2026-11-21 "국내와 동일하게")
-function FlowChart({ ms: msAll, kd, bg, base }: { ms: { t: string; buyAmt: number; sellAmt: number; close: number; est?: boolean; amt?: number }[]; kd: number; bg?: { t: string; close: number; base?: number }[]; base?: number }) {
-  const W = 600, H = 190, mid = 116, top = 8, PR = 92;   // 4종목이 한 화면에(사용자 2026-11-21) — 230 → 190   // PR = 오른쪽 끝 글자 자리(px, viewBox 기준)
-  // 최근 3시간만 — 아침에 보면 밤 0시 기록과 새벽 1분봉 사이가 대각선 한 줄로 이어졌다(사용자 2026-11-21 화면)
-  const msCut = (() => { const l = msAll[msAll.length - 1]; if (!l) return ""; const m = Number(l.t.slice(0, 2)) * 60 + Number(l.t.slice(3, 5)) - 180; return m <= 0 ? "" : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; })();
-  const ms = msAll.filter(m => m.t >= msCut);
-  if (ms.length < 1) return <div className="mt-1 h-[190px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400">체결이 쌓이면 그래프가 그려집니다</div>;
-  const toM = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
-  const m0 = toM(ms[0].t), m1 = Math.max(toM(ms[ms.length - 1].t), m0 + 30);
-  const x = (t: string) => ((toM(t) - m0) / (m1 - m0)) * (W - PR - 8) + 4;
-  const bw = Math.max(1, (W - PR - 8) / (m1 - m0 + 1) - 0.6);
-  const maxAmt = Math.max(1, ...ms.map(m => Math.max(m.buyAmt, m.sellAmt)));
-  const barH = (v: number, room: number) => (v / maxAmt) * room;
-  const prices = ms.map(m => m.close);
+// 48시간 그래프(사용자 2026-11-21 "그래프를 48시간으로 고정") — 가로축 = 지금부터 48시간 전까지(실제 시각).
+//   가격·배경 나스닥 = 토스 5분봉 48시간 · 매수·매도 막대·체결 누적 = 이 기기가 쌓은 오늘 체결(15분씩 묶어 막대) · 세로선 = 날마다 장 구간(ET 04:00·09:30·16:00·20:00)
+//   글자(현재가·최고·최저·체결 누적)는 국내 반도체 수급과 같은 꼴 — svg 가 가로로 늘어나므로 HTML 로 얹는다
+const HRS = 48, BIN = 15 * 60_000;
+/** ET 날짜 + "HH:MM" → 시각(ms). kstDiff = KST − ET(분) */
+const etEpoch = (date: string, t: string, kstDiff: number) =>
+  Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10), +t.slice(0, 2), +t.slice(3, 5)) - (540 - kstDiff) * 60_000;
+const kstLabel = (ms: number, withDay = false) => { const d = new Date(ms + 9 * 3600_000); const hm = d.toISOString().slice(11, 16); return withDay ? `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${hm}` : hm; };
+
+function FlowChart({ ms, etDate, kd, price, bg, base }: {
+  ms: { t: string; buyAmt: number; sellAmt: number; close: number; est?: boolean }[]; etDate: string; kd: number;
+  price?: { t: number; close: number }[]; bg?: { t: number; close: number; base?: number }[]; base?: number;
+}) {
+  const W = 600, H = 190, mid = 116, top = 8, PR = 92;   // PR = 오른쪽 끝 글자 자리(viewBox px)
+  const real = ms.filter(m => !m.est).map(m => ({ ...m, at: etEpoch(etDate, m.t, kd) }));
+  // 가격 = 5분봉 + 끝에 지금 체결가(5분봉은 진행 중인 봉이 늦다)
+  const pts = [...(price ?? [])];
+  const lastReal = real[real.length - 1];
+  if (lastReal && (!pts.length || lastReal.at > pts[pts.length - 1].t)) pts.push({ t: lastReal.at, close: lastReal.close });
+  if (pts.length < 2) return <div className="mt-1 h-[190px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400">가격을 받는 중…</div>;
+  const T1 = Math.max(Date.now(), pts[pts.length - 1].t), T0 = T1 - HRS * 3600_000;
+  const x = (t: number) => ((t - T0) / (T1 - T0)) * (W - PR - 8) + 4;
+  const inR = <T extends { t: number }>(a: T[]) => a.filter(p => p.t >= T0);
+  const P = inR(pts);
+  const prices = P.map(p => p.close);
   const pMin = Math.min(...prices), pMax = Math.max(...prices), pr = pMax - pMin || 1;
   const py = (p: number) => top + 10 + (1 - (p - pMin) / pr) * (mid - top - 24);
-  let cum = 0; const cums = ms.map(m => (cum += m.buyAmt - m.sellAmt));
-  // 누적 선은 자기 범위를 그래프 높이 전체에 — 0 을 가운데에 두면 한쪽으로 쏠린 날 아래로 빠져나갔다(사용자 2026-11-21 화면)
-  const realC = cums.filter((_, i) => !ms[i].est);   // 켜기 전(1분봉) 분은 누적이 0 그대로라 범위·선에서 뺀다
-  const cLo = Math.min(0, ...realC), cHi = Math.max(0, ...realC), cR = cHi - cLo || 1;
+  // 선은 40분 넘게 빈 곳(주말·쉬는 시간)에서 끊는다
+  const segs = (a: { t: number }[], yf: (i: number) => number) => {
+    const out: string[] = []; let cur: string[] = [];
+    a.forEach((p, i) => { if (i && p.t - a[i - 1].t > 40 * 60_000) { if (cur.length > 1) out.push(cur.join(" ")); cur = []; } cur.push(`${x(p.t)},${yf(i)}`); });
+    if (cur.length > 1) out.push(cur.join(" "));
+    return out;
+  };
+  // 막대 — 15분씩 묶음
+  const bins = new Map<number, { buy: number; sell: number }>();
+  for (const m of real) { const k = Math.floor(m.at / BIN) * BIN; const b = bins.get(k) ?? { buy: 0, sell: 0 }; b.buy += m.buyAmt; b.sell += m.sellAmt; bins.set(k, b); }
+  const bw = Math.max(1.2, (BIN / (T1 - T0)) * (W - PR - 8) - 0.5);
+  const maxAmt = Math.max(1, ...[...bins.values()].map(b => Math.max(b.buy, b.sell)));
+  const barH = (v: number, room: number) => (v / maxAmt) * room;
+  // 체결 누적(주황) — 기록이 있는 분만
+  let cum = 0; const cums = real.map(m => (cum += m.buyAmt - m.sellAmt));
+  const cLo = Math.min(0, ...cums), cHi = Math.max(0, ...cums), cR = cHi - cLo || 1;
   const cy = (c: number) => top + 6 + (1 - (c - cLo) / cR) * (H - top - 30);
-  // 배경 나스닥100(QQQ) — 같은 시간 범위만, 자기 높낮이로(옅은 보라 면), 끝에 등락률
-  const bgIn = (bg ?? []).filter(p => toM(p.t) >= m0 && toM(p.t) <= m1);
-  // 가로선 = QQQ 전일 종가(일반 지수 카드처럼 기준선, 사용자 2026-11-21) — 범위 안에 들도록 눈금에 넣는다
-  const bBase = bgIn.find(p => p.base)?.base;
-  const bMin = Math.min(...bgIn.map(p => p.close), ...(bBase ? [bBase] : [])), bMax = Math.max(...bgIn.map(p => p.close), ...(bBase ? [bBase] : [])), br = bMax - bMin || 1;
+  // 배경 나스닥100(QQQ) — 자기 눈금, 가로 점선 = 가장 최근 봉의 기준(어제 종가)
+  const B = inR(bg ?? []);
+  const bBase = [...B].reverse().find(p => p.base)?.base;
+  const bVals = [...B.map(p => p.close), ...(bBase ? [bBase] : [])];
+  const bMin = Math.min(...bVals), bMax = Math.max(...bVals), br = bMax - bMin || 1;
   const by = (c: number) => top + (1 - (c - bMin) / br) * (H - top - 16);
-  const bLast = bgIn[bgIn.length - 1], bPct = bLast?.base ? (bLast.close / bLast.base - 1) * 100 : undefined;
-  // 정규장 시작·끝 세로선(ET 09:30·16:00)
-  // 세로선 = 장 구간 경계(일반 지수 카드처럼, 사용자 2026-11-21) — 프리 시작·정규 시작·정규 끝·애프터 끝(ET)
-  const marks = [["04:00", "프리"], ["09:30", "정규 시작"], ["16:00", "정규 끝"], ["20:00", "애프터 끝"]].filter(([t]) => toM(t) > m0 && toM(t) < m1);
-  // 글자 자리(%) — 가로는 viewBox 대비, 세로는 높이 대비
-  const lx = (t: string) => (x(t) / W) * 100, ly = (y: number) => (y / H) * 100;
+  const bLast = B[B.length - 1], bPct = bLast && bBase ? (bLast.close / bBase - 1) * 100 : undefined;
+  // 세로선 — 범위 안 날짜마다 ET 프리 시작·정규 시작·정규 끝·애프터 끝
+  const marks: { at: number; label: string }[] = [];
+  for (let d = -3; d <= 1; d++) {
+    const ds = new Date(Date.parse(`${etDate}T12:00:00Z`) + d * 86400_000).toISOString().slice(0, 10);
+    const wd = new Date(`${ds}T12:00:00Z`).getUTCDay();
+    if (wd === 0 || wd === 6) continue;
+    for (const [t, l] of [["04:00", ""], ["09:30", "정규"], ["16:00", "마감"], ["20:00", ""]] as const) {
+      const at = etEpoch(ds, t, kd);
+      if (at > T0 && at < T1) marks.push({ at, label: l });
+    }
+  }
+  const lx = (t: number) => (x(t) / W) * 100, ly = (y: number) => (y / H) * 100;
   const pc = (p: number) => (base && base > 0 ? ` ${p >= base ? "+" : ""}${((p / base - 1) * 100).toFixed(2)}%` : "");
-  const hi = pMax, lo = pMin, hiI = prices.indexOf(hi), loI = prices.indexOf(lo), last = prices[prices.length - 1];
-  const lastT = ms[ms.length - 1].t, cLast = cums[cums.length - 1];
-  // 현재가·체결 이름표가 붙으면 벌린다
-  let yPrice = ly(py(last)), yCum = ly(cy(cLast));
+  const hi = pMax, lo = pMin, hiP = P[prices.indexOf(hi)], loP = P[prices.indexOf(lo)], lastP = P[P.length - 1];
+  const cLast = cums[cums.length - 1] ?? 0;
+  let yPrice = ly(py(lastP.close)), yCum = cums.length ? ly(cy(cLast)) : -99;
   if (Math.abs(yPrice - yCum) < 11) { if (yPrice <= yCum) { yPrice -= 6; yCum += 6; } else { yPrice += 6; yCum -= 6; } }
   yPrice = Math.max(5, Math.min(92, yPrice)); yCum = Math.max(5, Math.min(92, yCum));
   const lab = "absolute pointer-events-none text-[10px] tabular-nums px-0.5 rounded bg-white/80 whitespace-nowrap";
   return (
     <div className="relative mt-1">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[190px]" preserveAspectRatio="none">
-        {bgIn.length > 1 && <>
-          <polygon fill="#a78bfa" opacity={0.12} points={`${x(bgIn[0].t)},${H - 16} ${bgIn.map(p => `${x(p.t)},${by(p.close)}`).join(" ")} ${x(bgIn[bgIn.length - 1].t)},${H - 16}`} />
-          <polyline fill="none" stroke="#a78bfa" strokeWidth={1} opacity={0.6} points={bgIn.map(p => `${x(p.t)},${by(p.close)}`).join(" ")} />
+        {B.length > 1 && <>
+          {segs(B, i => by(B[i].close)).map((pp, i) => {
+            const xs = pp.split(" "), x0 = xs[0].split(",")[0], x1 = xs[xs.length - 1].split(",")[0];
+            return <g key={i}>
+              <polygon fill="#a78bfa" opacity={0.12} points={`${x0},${H - 16} ${pp} ${x1},${H - 16}`} />
+              <polyline fill="none" stroke="#a78bfa" strokeWidth={1} opacity={0.6} points={pp} />
+            </g>;
+          })}
           {bBase && <line x1={0} x2={W - PR} y1={by(bBase)} y2={by(bBase)} stroke="#8b5cf6" strokeDasharray="4 3" strokeWidth={0.9} opacity={0.7} />}
         </>}
         <line x1={0} x2={W - PR} y1={mid} y2={mid} stroke="#d1d5db" strokeWidth={0.6} />
-        {marks.map(([t]) => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H - 14} stroke="#818cf8" strokeDasharray="3 3" strokeWidth={0.9} opacity={0.8} />)}
-        {ms.map(m => (
-          // 매수(위)·매도(아래)는 연하게, 둘의 차이(순매수 빨강 위 / 순매도 파랑 아래)만 진하게 — 국내 1분 띠와 같은 꼴(사용자 2026-11-21 "하나만 진하게")
-          m.est ? null : <g key={m.t}>
-            <rect x={x(m.t) - bw / 2} y={mid - barH(m.buyAmt, mid - top)} width={bw} height={barH(m.buyAmt, mid - top)} fill="#f43f5e" opacity={0.16} />
-            <rect x={x(m.t) - bw / 2} y={mid} width={bw} height={barH(m.sellAmt, H - mid - 16)} fill="#3b82f6" opacity={0.16} />
-            {m.buyAmt >= m.sellAmt
-              ? <rect x={x(m.t) - bw / 2} y={mid - barH(m.buyAmt - m.sellAmt, mid - top)} width={bw} height={barH(m.buyAmt - m.sellAmt, mid - top)} fill="#e11d48" opacity={0.85} />
-              : <rect x={x(m.t) - bw / 2} y={mid} width={bw} height={barH(m.sellAmt - m.buyAmt, H - mid - 16)} fill="#2563eb" opacity={0.85} />}
-          </g>
-        ))}
-        <polyline fill="none" stroke="#475569" strokeWidth={1.3} points={ms.map(m => `${x(m.t)},${py(m.close)}`).join(" ")} />
-        {cums.some(c => c !== 0) && <polyline fill="none" stroke="#f59e0b" strokeWidth={1.6} points={ms.flatMap((m, i) => (m.est ? [] : [`${x(m.t)},${cy(cums[i])}`])).join(" ")} />}
+        {marks.map(m => <line key={m.at} x1={x(m.at)} x2={x(m.at)} y1={0} y2={H - 14} stroke="#818cf8" strokeDasharray="3 3" strokeWidth={0.9} opacity={m.label ? 0.8 : 0.45} />)}
+        {/* 매수(위)·매도(아래)는 연하게, 둘의 차이(순매수 빨강 위 / 순매도 파랑 아래)만 진하게 — 국내 1분 띠와 같은 꼴 */}
+        {[...bins.entries()].map(([k, b]) => { const cx = x(k + BIN / 2); return (
+          <g key={k}>
+            <rect x={cx - bw / 2} y={mid - barH(b.buy, mid - top)} width={bw} height={barH(b.buy, mid - top)} fill="#f43f5e" opacity={0.16} />
+            <rect x={cx - bw / 2} y={mid} width={bw} height={barH(b.sell, H - mid - 16)} fill="#3b82f6" opacity={0.16} />
+            {b.buy >= b.sell
+              ? <rect x={cx - bw / 2} y={mid - barH(b.buy - b.sell, mid - top)} width={bw} height={barH(b.buy - b.sell, mid - top)} fill="#e11d48" opacity={0.85} />
+              : <rect x={cx - bw / 2} y={mid} width={bw} height={barH(b.sell - b.buy, H - mid - 16)} fill="#2563eb" opacity={0.85} />}
+          </g>); })}
+        {segs(P, i => py(P[i].close)).map((pp, i) => <polyline key={i} fill="none" stroke="#475569" strokeWidth={1.3} points={pp} />)}
+        {cums.some(c => c !== 0) && <polyline fill="none" stroke="#f59e0b" strokeWidth={1.6} points={real.map((m, i) => `${x(m.at)},${cy(cums[i])}`).join(" ")} />}
       </svg>
-      {bBase && bgIn.length > 1 && <span className="absolute text-[9px] text-violet-500/90 pointer-events-none" style={{ left: 4, top: `${(by(bBase) / H) * 100}%`, transform: "translateY(-110%)" }}>QQQ 어제 종가</span>}
-      {/* 배경 나스닥 이름·등락 */}
-      {bgIn.length > 1 && <span className="absolute left-1.5 bottom-3.5 text-[10px] text-violet-600/90 pointer-events-none">배경 나스닥100(QQQ){bPct != null ? ` ${bPct >= 0 ? "+" : ""}${bPct.toFixed(2)}%` : ""}</span>}
-      {/* 정규장 세로선 이름 · 아래 시각 */}
-      {marks.map(([t, l]) => <span key={t} className="absolute bottom-0 text-[9.5px] text-indigo-500 pointer-events-none" style={{ left: `${lx(t)}%`, transform: "translateX(3px)" }}>{l}</span>)}
-      <span className="absolute left-1 bottom-0 text-[9.5px] text-gray-400 pointer-events-none">{etToKst(ms[0].t, kd)}</span>
-      <span className="absolute bottom-0 text-[9.5px] text-gray-400 pointer-events-none" style={{ left: `${lx(lastT)}%`, transform: "translateX(-100%)" }}>{etToKst(lastT, kd)}</span>
+      {bBase && B.length > 1 && <span className="absolute text-[9px] text-violet-500/90 pointer-events-none" style={{ left: 4, top: `${ly(by(bBase))}%`, transform: "translateY(-110%)" }}>QQQ 어제 종가</span>}
+      {B.length > 1 && <span className="absolute left-1.5 bottom-3.5 text-[10px] text-violet-600/90 pointer-events-none">배경 나스닥100(QQQ){bPct != null ? ` ${bPct >= 0 ? "+" : ""}${bPct.toFixed(2)}%` : ""}</span>}
+      {marks.filter(m => m.label).map(m => <span key={m.at} className="absolute bottom-0 text-[9px] text-indigo-500 pointer-events-none" style={{ left: `${lx(m.at)}%`, transform: "translateX(-50%)" }}>{m.label}</span>)}
+      <span className="absolute left-1 bottom-0 text-[9.5px] text-gray-400 pointer-events-none">{kstLabel(T0, true)}</span>
+      <span className="absolute bottom-0 text-[9.5px] text-gray-400 pointer-events-none" style={{ left: `${lx(T1)}%`, transform: "translateX(-100%)" }}>{kstLabel(T1)}</span>
       {/* 최고·최저 — 고: 점 위 ▼ 위에 글자, 저: 점 아래 ▲ 아래 글자(국내와 같은 꼴) */}
-      {hi > lo && [{ i: hiI, v: hi, up: true }, { i: loI, v: lo, up: false }].map(({ i, v, up }) => {
-        const xp = lx(ms[i].t), y = ly(py(v));
+      {hi > lo && [{ p: hiP, up: true }, { p: loP, up: false }].map(({ p, up }) => {
+        const xp = lx(p.t), y = ly(py(p.close));
         const tx = xp < 25 ? "-6px" : xp > 70 ? "calc(-100% + 6px)" : "-50%";
         const col = up ? "text-rose-600" : "text-blue-600";
         return (
           <span key={up ? "hi" : "lo"}>
             <span className={`absolute pointer-events-none text-[8px] leading-none ${col}`} style={{ left: `${xp}%`, top: `${y}%`, transform: up ? "translate(-50%, -115%)" : "translate(-50%, 15%)" }}>{up ? "▼" : "▲"}</span>
-            <span className={`${lab} ${col}`} style={{ left: `${xp}%`, top: `${y}%`, transform: `translate(${tx}, ${up ? "calc(-100% - 9px)" : "9px"})` }}>{up ? "최고" : "최저"} ${v.toFixed(2)}{pc(v)}</span>
+            <span className={`${lab} ${col}`} style={{ left: `${xp}%`, top: `${y}%`, transform: `translate(${tx}, ${up ? "calc(-100% - 9px)" : "9px"})` }}>{up ? "최고" : "최저"} ${p.close.toFixed(2)}{pc(p.close)}</span>
           </span>
         );
       })}
-      {/* 현재가 이름표(선 끝) — 바탕은 가격선 색 */}
+      {/* 현재가 이름표(선 끝) */}
       <span className="absolute pointer-events-none text-[10.5px] font-bold bg-slate-100 text-slate-700 border border-slate-300 px-1 py-px rounded-sm whitespace-nowrap tabular-nums"
-            style={{ left: `${lx(lastT)}%`, top: `${yPrice}%`, transform: "translate(6px, -50%)" }}>
-        현재가 ${last.toFixed(2)}
-        {pc(last) && <span className={`block text-right text-[10px] ${base && last > base ? "text-rose-600" : base && last < base ? "text-blue-600" : ""}`}>{pc(last).trim()}</span>}
+            style={{ left: `${lx(lastP.t)}%`, top: `${yPrice}%`, transform: "translate(6px, -50%)" }}>
+        현재가 ${lastP.close.toFixed(2)}
+        {pc(lastP.close) && <span className={`block text-right text-[10px] ${base && lastP.close > base ? "text-rose-600" : base && lastP.close < base ? "text-blue-600" : ""}`}>{pc(lastP.close).trim()}</span>}
       </span>
       {/* 체결 누적(주황) 이름표 */}
       {cums.some(c => c !== 0) && (
         <span className="absolute pointer-events-none text-[10.5px] font-bold bg-orange-100 text-orange-700 border border-orange-300 px-1 py-px rounded-sm whitespace-nowrap tabular-nums"
-              style={{ left: `${lx(lastT)}%`, top: `${yCum}%`, transform: "translate(6px, -50%)" }}>체결 <span className={cLast > 0 ? "text-rose-600" : cLast < 0 ? "text-blue-600" : ""}>{won(cLast, true)}</span></span>
+              style={{ left: `${lx(lastP.t)}%`, top: `${yCum}%`, transform: "translate(6px, -50%)" }}>체결 <span className={cLast > 0 ? "text-rose-600" : cLast < 0 ? "text-blue-600" : ""}>{won(cLast, true)}</span></span>
       )}
     </div>
   );
