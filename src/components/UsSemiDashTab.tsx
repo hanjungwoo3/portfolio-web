@@ -102,6 +102,14 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, 
       <div className="sm:flex sm:items-start sm:gap-2">
         <div className="sm:flex-1 sm:min-w-0">
           <FlowChart ms={ms} kd={kd} bg={bg} base={flow.base} />
+          {/* 범례(사용자 2026-11-21 "그래프 각 선이 뭔지 설명이 없어?") */}
+          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-gray-600">
+            <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-slate-600" />가격</span>
+            <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-amber-500" />체결 누적(매수−매도, 자기 눈금)</span>
+            <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />1분 순매수·순매도(진함) — 연한 막대 = 매수(위)·매도(아래) 각각</span>
+            <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-2.5 bg-violet-300/50 border-t border-violet-400" />배경 나스닥100(QQQ, 자기 눈금)</span>
+            <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-300" />정규장 시작·끝</span>
+          </div>
           <div className="mt-0.5 text-[10.5px] text-gray-400">
             {flow.error ? <span className="text-rose-500">체결 받기 실패 — {flow.error}</span>
               : flow.since ? <>{ms.some(m => m.est) && <span className="text-gray-500">켜기 전은 가격 선만(1분봉) · </span>}{ms.some(m => m.kis) && <span className="text-emerald-600">한투로 정확히 나눈 분 {ms.filter(m => m.kis).length}개 · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
@@ -161,8 +169,10 @@ function FlowChart({ ms, kd, bg, base }: { ms: { t: string; buyAmt: number; sell
   const pMin = Math.min(...prices), pMax = Math.max(...prices), pr = pMax - pMin || 1;
   const py = (p: number) => top + 10 + (1 - (p - pMin) / pr) * (mid - top - 24);
   let cum = 0; const cums = ms.map(m => (cum += m.buyAmt - m.sellAmt));
-  const cMax = Math.max(1, ...cums.map(Math.abs));
-  const cy = (c: number) => mid - (c / cMax) * (mid - top - 4) * 0.9;
+  // 누적 선은 자기 범위를 그래프 높이 전체에 — 0 을 가운데에 두면 한쪽으로 쏠린 날 아래로 빠져나갔다(사용자 2026-11-21 화면)
+  const realC = cums.filter((_, i) => !ms[i].est);   // 켜기 전(1분봉) 분은 누적이 0 그대로라 범위·선에서 뺀다
+  const cLo = Math.min(0, ...realC), cHi = Math.max(0, ...realC), cR = cHi - cLo || 1;
+  const cy = (c: number) => top + 6 + (1 - (c - cLo) / cR) * (H - top - 30);
   // 배경 나스닥100(QQQ) — 같은 시간 범위만, 자기 높낮이로(옅은 보라 면), 끝에 등락률
   const bgIn = (bg ?? []).filter(p => toM(p.t) >= m0 && toM(p.t) <= m1);
   const bMin = Math.min(...bgIn.map(p => p.close)), bMax = Math.max(...bgIn.map(p => p.close)), br = bMax - bMin || 1;
@@ -200,7 +210,7 @@ function FlowChart({ ms, kd, bg, base }: { ms: { t: string; buyAmt: number; sell
           </g>
         ))}
         <polyline fill="none" stroke="#475569" strokeWidth={1.3} points={ms.map(m => `${x(m.t)},${py(m.close)}`).join(" ")} />
-        {cums.some(c => c !== 0) && <polyline fill="none" stroke="#f59e0b" strokeWidth={1.6} points={ms.map((m, i) => `${x(m.t)},${cy(cums[i])}`).join(" ")} />}
+        {cums.some(c => c !== 0) && <polyline fill="none" stroke="#f59e0b" strokeWidth={1.6} points={ms.flatMap((m, i) => (m.est ? [] : [`${x(m.t)},${cy(cums[i])}`])).join(" ")} />}
       </svg>
       {/* 배경 나스닥 이름·등락 */}
       {bgIn.length > 1 && <span className="absolute left-1.5 bottom-3.5 text-[10px] text-violet-600/90 pointer-events-none">배경 나스닥100(QQQ){bPct != null ? ` ${bPct >= 0 ? "+" : ""}${bPct.toFixed(2)}%` : ""}</span>}
