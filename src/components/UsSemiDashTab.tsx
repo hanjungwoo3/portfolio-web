@@ -2,6 +2,7 @@
 //   국내 반도체 수급 탭과 달리 미국은 외국인·기관·개인 수급을 공개하지 않는다 — 그래서 '누가'가 아니라 '어떻게 체결되나'(매수·매도 체결)와
 //   공매도 거래 비중(FINRA, 하루 늦게)·한국 개인 보유(세이브로)를 본다.
 //   체결: 토스 ticks 5초(화면을 켠 동안만 쌓인다, lib/usTickFlow) · 공매도: 크롤러 us-short-volume.json(매일 06:00 KST) · 서학개미: seohak.json
+import { useId } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchTossUs5mHours } from "../lib/api";
 import { useUsTickFlow, etToKst, etNow, US_SEMI_STOCKS, type UsTickFlow } from "../lib/usTickFlow";
@@ -51,9 +52,9 @@ export function UsSemiDashTab() {
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-slate-600" />가격</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-amber-500" />체결 누적(매수−매도, 자기 눈금)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />1분 순매수·순매도(진함) — 연한 막대 = 매수(위)·매도(아래) 각각</span>
-        <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-2.5 bg-violet-300/50 border-t border-violet-400" />배경 나스닥100(QQQ, 자기 눈금)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-2 h-2.5 bg-rose-300/50" /><i className="inline-block w-2 h-2.5 bg-blue-300/50" />배경 나스닥100(QQQ, 자기 눈금 — 어제 종가 위 빨강·아래 파랑)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-400" />장 구간 세로선(프리·정규 시작·끝·애프터 끝)</span>
-        <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-violet-500" />QQQ 어제 종가(가로선)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-gray-400" />QQQ 어제 종가(가로선)</span>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         {STOCKS.map((s, i) => (
@@ -168,6 +169,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
   price?: { t: number; close: number }[]; bg?: { t: number; close: number; base?: number }[]; base?: number;
 }) {
   const W = 600, H = 190, mid = 116, top = 8, PR = 92;   // PR = 오른쪽 끝 글자 자리(viewBox px)
+  const uid = useId().replace(/:/g, "");   // clipPath id — 칸이 넷이라 겹치지 않게
   const real = ms.filter(m => !m.est).map(m => ({ ...m, at: etEpoch(etDate, m.t, kd) }));
   // 가격 = 5분봉 + 끝에 지금 체결가(5분봉은 진행 중인 봉이 늦다)
   const pts = [...(price ?? [])];
@@ -228,14 +230,26 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
     <div className="relative mt-1">
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[190px]" preserveAspectRatio="none">
         {B.length > 1 && <>
+          {/* 어제 종가 위 = 빨강, 아래 = 파랑(일반 지수 카드처럼, 사용자 2026-11-21) — 면은 어제 종가 선까지, 위·아래를 잘라 두 번 칠한다 */}
+          {bBase && <defs>
+            <clipPath id={`${uid}-up`}><rect x={0} y={0} width={W} height={by(bBase)} /></clipPath>
+            <clipPath id={`${uid}-dn`}><rect x={0} y={by(bBase)} width={W} height={H - by(bBase)} /></clipPath>
+          </defs>}
           {segs(B, i => by(B[i].close)).map((pp, i) => {
             const xs = pp.split(" "), x0 = xs[0].split(",")[0], x1 = xs[xs.length - 1].split(",")[0];
-            return <g key={i}>
+            if (!bBase) return <g key={i}>
               <polygon fill="#a78bfa" opacity={0.12} points={`${x0},${H - 16} ${pp} ${x1},${H - 16}`} />
               <polyline fill="none" stroke="#a78bfa" strokeWidth={1} opacity={0.6} points={pp} />
             </g>;
+            const area = `${pp} ${x1},${by(bBase)} ${x0},${by(bBase)}`;
+            return <g key={i}>
+              <polygon clipPath={`url(#${uid}-up)`} fill="#f43f5e" opacity={0.13} points={area} />
+              <polygon clipPath={`url(#${uid}-dn)`} fill="#3b82f6" opacity={0.13} points={area} />
+              <polyline clipPath={`url(#${uid}-up)`} fill="none" stroke="#f43f5e" strokeWidth={1} opacity={0.5} points={pp} />
+              <polyline clipPath={`url(#${uid}-dn)`} fill="none" stroke="#3b82f6" strokeWidth={1} opacity={0.5} points={pp} />
+            </g>;
           })}
-          {bBase && <line x1={0} x2={W - PR} y1={by(bBase)} y2={by(bBase)} stroke="#8b5cf6" strokeDasharray="4 3" strokeWidth={0.9} opacity={0.7} />}
+          {bBase && <line x1={0} x2={W - PR} y1={by(bBase)} y2={by(bBase)} stroke="#9ca3af" strokeDasharray="4 3" strokeWidth={0.9} opacity={0.8} />}
         </>}
         <line x1={0} x2={W - PR} y1={mid} y2={mid} stroke="#d1d5db" strokeWidth={0.6} />
         {marks.map(m => <line key={m.at} x1={x(m.at)} x2={x(m.at)} y1={0} y2={H - 14} stroke="#818cf8" strokeDasharray="3 3" strokeWidth={0.9} opacity={m.label ? 0.8 : 0.45} />)}
@@ -251,8 +265,8 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
         {segs(P, i => py(P[i].close)).map((pp, i) => <polyline key={i} fill="none" stroke="#475569" strokeWidth={1.3} points={pp} />)}
         {cums.some(c => c !== 0) && <polyline fill="none" stroke="#f59e0b" strokeWidth={1.6} points={real.map((m, i) => `${x(m.at)},${cy(cums[i])}`).join(" ")} />}
       </svg>
-      {bBase && B.length > 1 && <span className="absolute text-[9px] text-violet-500/90 pointer-events-none" style={{ left: 4, top: `${ly(by(bBase))}%`, transform: "translateY(-110%)" }}>QQQ 어제 종가</span>}
-      {B.length > 1 && <span className="absolute left-1.5 bottom-3.5 text-[10px] text-violet-600/90 pointer-events-none">배경 나스닥100(QQQ){bPct != null ? ` ${bPct >= 0 ? "+" : ""}${bPct.toFixed(2)}%` : ""}</span>}
+      {bBase && B.length > 1 && <span className="absolute text-[9px] text-gray-500 pointer-events-none" style={{ left: 4, top: `${ly(by(bBase))}%`, transform: "translateY(-110%)" }}>QQQ 어제 종가</span>}
+      {B.length > 1 && <span className="absolute left-1.5 bottom-3.5 text-[10px] text-gray-500 pointer-events-none">배경 나스닥100(QQQ){bPct != null ? <b className={bPct >= 0 ? "text-rose-600" : "text-blue-600"}> {bPct >= 0 ? "+" : ""}{bPct.toFixed(2)}%</b> : ""}</span>}
       {marks.filter(m => m.label).map(m => <span key={m.at} className="absolute bottom-0 text-[9px] text-indigo-500 pointer-events-none" style={{ left: `${lx(m.at)}%`, transform: "translateX(-50%)" }}>{m.label}</span>)}
       <span className="absolute left-1 bottom-0 text-[9.5px] text-gray-400 pointer-events-none">{kstLabel(T0, true)}</span>
       <span className="absolute bottom-0 text-[9.5px] text-gray-400 pointer-events-none" style={{ left: `${lx(T1)}%`, transform: "translateX(-100%)" }}>{kstLabel(T1)}</span>
