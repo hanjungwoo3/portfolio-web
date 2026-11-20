@@ -32,8 +32,9 @@ import {
   fetchYahooBatch, fetchYahooSparkDay, fetchKrIntradayInvestorFlow, fetchInvestorHistory,
   fetchKrFuturesLive, fetchKrFuturesMinute, fetchTossPrices, fetchYasunNightFutures, fetchDaumIndexToday, fetchDashboardChart, fetchTossDayStrength, fetchKospi200OptionSummary, fetchHlXyzPerps, fetchKrPriceHistory,
   type UsIndex, type IntradayFlow, type HlPerp, type DayStrength, type DaySeries,
-  fetchHeatmapPreferServer,
+  fetchHeatmapPreferServer, fetchKrShortSelling,
 } from "../lib/api";
+import { ShortRatioBox } from "./ShortRatioBox";
 import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
 import { allYahooSymbols } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
@@ -181,6 +182,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     })),
   });
   // 훅 개수는 고정(2) — 한 종목이면 두 번째는 꺼 둔다
+  // 일별 공매도 거래 비중(토스, 최근 3개월) — 반도체 수급(미국)과 같은 칸(사용자 2026-11-21 "삼전·닉스도 공매도 거래 비중"). 하루 한 번 바뀐다
+  const shortQs = useQueries({ queries: stocks.map(s => ({ queryKey: ["semi-short", s.code], queryFn: () => fetchKrShortSelling(s.code, 3), staleTime: 3 * 3600_000, retry: 1 })) });
   const ticks = [useTickFlow(stocks[0].code), useTickFlow(stocks[1]?.code ?? stocks[0].code, !!stocks[1])].slice(0, stocks.length);
   // 종목 시세 — 야후 배치에 없는 종목(팝업으로 연 아무 종목)은 토스 현재가로
   const { data: tossPx } = useQuery({
@@ -576,6 +579,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
               <TickPanel code={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} link={tickLink} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
             </div>
             {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "max-h-[150px]")}   {/* 내용만큼 — 신호가 한두 줄이면 빈 칸이 컸다(사용자 2026-11-04) */}
+            <ShortRatioBox title={`${s.name} 공매도 거래 비중`} days={shortQs[i]?.data?.map(d => ({ date: d.date, ratio: d.ratio }))} band={1}
+                           help={<>그날 거래량 중 '빌려서 판 것(공매도)'의 비중입니다(토스·거래소 집계, 장 마감 뒤 반영). 국내는 평소 몇 % 수준이라 <b>평소(20일 평균)보다 1%p 넘게 높아졌는지</b>를 봅니다. 높아지면 하락에 거는 매도가 늘었다는 뜻이고, 공매도 '잔고'(대차)는 아닙니다.</>} />
           </div>
         ))}
       </div>

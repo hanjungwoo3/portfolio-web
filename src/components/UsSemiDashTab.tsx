@@ -8,6 +8,7 @@ import { useUsTickFlow, etToKst, etNow, US_SEMI_STOCKS, type UsTickFlow } from "
 import { bigThreshold, wonStep } from "../lib/useTickFlow";
 import { useSeohak } from "../lib/seohak";
 import { openExternal } from "../lib/toss";
+import { ShortRatioBox } from "./ShortRatioBox";
 
 const STOCKS = US_SEMI_STOCKS;   // 목록은 lib/usTickFlow 한 벌(배경 수집과 같이)
 
@@ -122,7 +123,8 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, 
           ) : <div className="text-[10.5px] text-gray-400">아직 없음</div>}
         </div>
       </div>
-      <ShortBox days={shortDays} />
+      <ShortRatioBox days={shortDays?.map(d => ({ date: d.date, ratio: (d.sv / d.tv) * 100 }))} band={5}
+                     help={<>그날 체결된 주식 중 '빌려서 판 것(공매도)'으로 보고된 거래량의 비중입니다(FINRA). 시장조성 물량이 섞여 평소에도 30~50%라 값 자체보다 <b>평소(20일 평균)보다 높아졌는지</b>를 봅니다. 높아지면 하락에 거는 매도가 늘었다는 뜻이고, 공매도 '잔고'는 아닙니다. 하루 늦게 반영됩니다.</>} />
       <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50/50 px-2 py-1.5 text-[11.5px] text-gray-700 leading-snug">
         <b>🐜 서학개미</b>{" "}
         {hold ? <>보관 {hold.rank}위 · ${(hold.amt / 1e9).toFixed(2)}B
@@ -188,16 +190,20 @@ function FlowChart({ ms, kd, bg, base }: { ms: { t: string; buyAmt: number; sell
         <line x1={0} x2={W - PR} y1={mid} y2={mid} stroke="#d1d5db" strokeWidth={0.6} />
         {marks.map(([t]) => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H - 14} stroke="#a5b4fc" strokeDasharray="3 3" strokeWidth={0.8} />)}
         {ms.map(m => (
+          // 매수(위)·매도(아래)는 연하게, 둘의 차이(순매수 빨강 위 / 순매도 파랑 아래)만 진하게 — 국내 1분 띠와 같은 꼴(사용자 2026-11-21 "하나만 진하게")
           m.est ? null : <g key={m.t}>
-            <rect x={x(m.t) - bw / 2} y={mid - barH(m.buyAmt, mid - top)} width={bw} height={barH(m.buyAmt, mid - top)} fill="#f43f5e" opacity={0.55} />
-            <rect x={x(m.t) - bw / 2} y={mid} width={bw} height={barH(m.sellAmt, H - mid - 16)} fill="#3b82f6" opacity={0.55} />
+            <rect x={x(m.t) - bw / 2} y={mid - barH(m.buyAmt, mid - top)} width={bw} height={barH(m.buyAmt, mid - top)} fill="#f43f5e" opacity={0.16} />
+            <rect x={x(m.t) - bw / 2} y={mid} width={bw} height={barH(m.sellAmt, H - mid - 16)} fill="#3b82f6" opacity={0.16} />
+            {m.buyAmt >= m.sellAmt
+              ? <rect x={x(m.t) - bw / 2} y={mid - barH(m.buyAmt - m.sellAmt, mid - top)} width={bw} height={barH(m.buyAmt - m.sellAmt, mid - top)} fill="#e11d48" opacity={0.85} />
+              : <rect x={x(m.t) - bw / 2} y={mid} width={bw} height={barH(m.sellAmt - m.buyAmt, H - mid - 16)} fill="#2563eb" opacity={0.85} />}
           </g>
         ))}
         <polyline fill="none" stroke="#475569" strokeWidth={1.3} points={ms.map(m => `${x(m.t)},${py(m.close)}`).join(" ")} />
         {cums.some(c => c !== 0) && <polyline fill="none" stroke="#f59e0b" strokeWidth={1.6} points={ms.map((m, i) => `${x(m.t)},${cy(cums[i])}`).join(" ")} />}
       </svg>
       {/* 배경 나스닥 이름·등락 */}
-      {bgIn.length > 1 && <span className="absolute left-1.5 top-0.5 text-[10px] text-violet-600/90 pointer-events-none">배경 나스닥100(QQQ){bPct != null ? ` ${bPct >= 0 ? "+" : ""}${bPct.toFixed(2)}%` : ""}</span>}
+      {bgIn.length > 1 && <span className="absolute left-1.5 bottom-3.5 text-[10px] text-violet-600/90 pointer-events-none">배경 나스닥100(QQQ){bPct != null ? ` ${bPct >= 0 ? "+" : ""}${bPct.toFixed(2)}%` : ""}</span>}
       {/* 정규장 세로선 이름 · 아래 시각 */}
       {marks.map(([t, l]) => <span key={t} className="absolute bottom-0 text-[9.5px] text-indigo-500 pointer-events-none" style={{ left: `${lx(t)}%`, transform: "translateX(3px)" }}>{l}</span>)}
       <span className="absolute left-1 bottom-0 text-[9.5px] text-gray-400 pointer-events-none">{etToKst(ms[0].t, kd)}</span>
@@ -225,39 +231,6 @@ function FlowChart({ ms, kd, bg, base }: { ms: { t: string; buyAmt: number; sell
         <span className="absolute pointer-events-none text-[10.5px] font-bold bg-orange-100 text-orange-700 border border-orange-300 px-1 py-px rounded-sm whitespace-nowrap tabular-nums"
               style={{ left: `${lx(lastT)}%`, top: `${yCum}%`, transform: "translate(6px, -50%)" }}>체결 <span className={cLast > 0 ? "text-rose-600" : cLast < 0 ? "text-blue-600" : ""}>{won(cLast, true)}</span></span>
       )}
-    </div>
-  );
-}
-
-// 일별 공매도 거래 비중 — 막대(최근 60영업일) + 최근 값 vs 20일 평균
-function ShortBox({ days }: { days?: { date: string; sv: number; tv: number }[] }) {
-  if (!days?.length) return null;
-  const ds = days.slice(-60), r = ds.map(d => (d.sv / d.tv) * 100);
-  const last = r[r.length - 1], avg20 = r.slice(-21, -1).reduce((a, v) => a + v, 0) / Math.max(1, r.slice(-21, -1).length);
-  const few = r.length < 6;   // 막 상장(앤트로픽 등) — 평균이 없어 판정하지 않는다
-  const diff = few ? 0 : last - avg20;
-  const lo = Math.min(...r) - 2, hi = Math.max(...r) + 2, W = 300, H = 40;
-  const verdict = few ? "" : diff >= 5 ? "평소보다 공매도 비중이 높음" : diff <= -5 ? "평소보다 공매도 비중이 낮음" : "평소 수준";
-  return (
-    <div className="mt-2 rounded-lg border border-gray-200 px-2 py-1.5">
-      <div className="flex items-baseline gap-1.5 text-[11.5px]">
-        <b className="text-gray-700">공매도 거래 비중</b>
-        <b className="tabular-nums">{last.toFixed(1)}%</b>
-        <span className="text-gray-500 tabular-nums">{few ? `(자료 ${r.length}일 — 평균 비교는 쌓인 뒤)` : `(20일 평균 ${avg20.toFixed(1)}%)`}</span>
-        <span className={`ml-auto font-bold ${diff >= 5 ? "text-blue-600" : diff <= -5 ? "text-rose-600" : "text-gray-500"}`}>{verdict}</span>
-      </div>
-      <svg viewBox={`0 0 ${W} ${H}`} className="mt-1 w-full h-[40px]" preserveAspectRatio="none">
-        {r.map((v, i) => {
-          const h = ((v - lo) / (hi - lo)) * H;
-          return <rect key={i} x={(i / r.length) * W} y={H - h} width={W / r.length - 0.8} height={h} fill={i === r.length - 1 ? "#6366f1" : "#c7d2fe"} />;
-        })}
-        <line x1={0} x2={W} y1={H - ((avg20 - lo) / (hi - lo)) * H} y2={H - ((avg20 - lo) / (hi - lo)) * H} stroke="#f59e0b" strokeDasharray="3 2" strokeWidth={1} />
-      </svg>
-      <details className="text-[10.5px] text-gray-500">
-        <summary className="cursor-pointer select-none text-indigo-600">이게 뭔가요? ({ds[ds.length - 1].date} 기준)</summary>
-        <div className="leading-snug mt-0.5">그날 체결된 주식 중 '빌려서 판 것(공매도)'으로 보고된 거래량의 비중입니다(FINRA). 시장조성 물량이 섞여 평소에도 30~50%라
-          값 자체보다 <b>평소(20일 평균)보다 높아졌는지</b>를 봅니다. 높아지면 하락에 거는 매도가 늘었다는 뜻이고, 공매도 '잔고'는 아닙니다. 하루 늦게 반영됩니다.</div>
-      </details>
     </div>
   );
 }
