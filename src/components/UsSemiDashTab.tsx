@@ -1,4 +1,4 @@
-// 💾 반도체 수급(미국) — 마이크론·엔비디아·TSMC·브로드컴 실시간 체결 흐름 + 일별 공매도 비중 + 서학개미 보유(사용자 2026-11-21 "반도체수급(미국) 이렇게 별도로").
+// 💾 반도체 수급(미국) — 마이크론·엔비디아·TSMC·앤트로픽 실시간 체결 흐름 + 일별 공매도 비중 + 서학개미 보유(사용자 2026-11-21 "반도체수급(미국) 이렇게 별도로").
 //   국내 반도체 수급 탭과 달리 미국은 외국인·기관·개인 수급을 공개하지 않는다 — 그래서 '누가'가 아니라 '어떻게 체결되나'(매수·매도 체결)와
 //   공매도 거래 비중(FINRA, 하루 늦게)·한국 개인 보유(세이브로)를 본다.
 //   체결: 토스 ticks 5초(화면을 켠 동안만 쌓인다, lib/usTickFlow) · 공매도: 크롤러 us-short-volume.json(매일 06:00 KST) · 서학개미: seohak.json
@@ -11,9 +11,9 @@ import { openExternal } from "../lib/toss";
 const STOCKS = [
   { ticker: "MU", toss: "US19890516001", name: "마이크론", desc: "메모리(D램·HBM·낸드) — 삼성전자·SK하이닉스와 같은 업종" },
   { ticker: "NVDA", toss: "US19990122001", name: "엔비디아", desc: "AI 칩 1위 — HBM 최대 구매자" },
-  // + 파운드리·맞춤 AI 칩(사용자 2026-11-21 "2개 더 추가해서 4개로")
+  // + 파운드리·앤트로픽(사용자 2026-11-21 "2개 더 추가해서 4개로" → "브로드컴 대신 앤트로픽")
   { ticker: "TSM", toss: "US19971008002", name: "TSMC", desc: "파운드리 1위 — 엔비디아 칩·HBM 패키징(CoWoS)" },
-  { ticker: "AVGO", toss: "US20090806002", name: "브로드컴", desc: "맞춤 AI 칩(ASIC)·네트워크" },
+  { ticker: "ANT", toss: "NAS2611011001", name: "앤트로픽", desc: "AI 모델(Claude) — 반도체 수요 쪽, 2026-11 상장" },
 ] as const;
 
 const URL_SHORT = "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/main/data/us-short-volume.json";
