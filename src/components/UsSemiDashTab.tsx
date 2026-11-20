@@ -39,10 +39,18 @@ export function UsSemiDashTab() {
   const ndx = useQuery({ queryKey: ["us-semi-qqq-1m"], queryFn: () => fetchTossUsMinuteToday("US19990310001", etNow().date, 180), refetchInterval: 60_000, staleTime: 30_000, retry: 1 });
   const kd = etNow().kstDiff;
   return (
-    <div className="space-y-3 p-1">
-      <div className="text-[12px] text-gray-600 leading-snug">
+    <div className="space-y-1.5 p-1">
+      <div className="text-[11.5px] text-gray-600 leading-snug">
         미국은 외국인·기관·개인 수급을 공개하지 않습니다. 대신 <b>체결이 매수 쪽(빨강)으로 많이 붙나 매도 쪽(파랑)으로 붙나</b>,
         <b> 공매도로 보고된 거래 비중</b>, <b>한국 개인(서학개미) 보유</b>를 봅니다. 정규장은 한국 시각 {etToKst("09:30", kd)}~{etToKst("16:00", kd)}.
+      </div>
+      {/* 범례 — 칸마다 있던 것을 맨 위 한 번만(사용자 2026-11-21 "공간을 정리하자 4개 종목을 한번에")(사용자 2026-11-21 "그래프 각 선이 뭔지 설명이 없어?") */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-gray-600">
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-slate-600" />가격</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-amber-500" />체결 누적(매수−매도, 자기 눈금)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />1분 순매수·순매도(진함) — 연한 막대 = 매수(위)·매도(아래) 각각</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-2.5 bg-violet-300/50 border-t border-violet-400" />배경 나스닥100(QQQ, 자기 눈금)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-300" />정규장 시작·끝</span>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         {STOCKS.map((s, i) => (
@@ -50,7 +58,7 @@ export function UsSemiDashTab() {
                       shortDays={short.data?.days.flatMap(d => d.rows[s.ticker] ? [{ date: d.date, sv: d.rows[s.ticker][0], tv: d.rows[s.ticker][1] }] : [])}
                       bg={ndx.data}
                       hold={seohak?.hold.find(h => h.t === s.ticker)} holdDate={seohak?.meta.holdDate}
-                      dayNet={seohak?.day.net.find(h => h.t === s.ticker)?.net ?? seohak?.day.sell.find(h => h.t === s.ticker)?.net} setlDate={seohak?.meta.setlDate} />
+                      dayNet={seohak?.day.net.find(h => h.t === s.ticker)?.net ?? seohak?.day.sell.find(h => h.t === s.ticker)?.net} />
         ))}
       </div>
       <div className="text-[10.5px] text-gray-400 leading-snug">
@@ -61,11 +69,11 @@ export function UsSemiDashTab() {
   );
 }
 
-function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, bg }: {
+function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg }: {
   s: (typeof STOCKS)[number]; flow: UsTickFlow; kd: number; bg?: { t: string; close: number; base?: number }[];
   shortDays?: { date: string; sv: number; tv: number }[];
   hold?: { amt: number; rank: number; prevRank?: number; prevAmt?: number }; holdDate?: string;
-  dayNet?: number; setlDate?: string;
+  dayNet?: number;
 }) {
   const ms = flow.minutes;
   const kd2 = flow.kisDay;
@@ -79,6 +87,11 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, 
     <div className="relative rounded-xl border border-gray-300 bg-white pg-box p-3 pt-4 mt-1.5">
       <span className="pg-title absolute -top-3 left-3 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700">
         <button type="button" className="hover:underline" onClick={() => openExternal(`https://www.tossinvest.com/stocks/${s.toss}`)}>{s.name} <span className="text-gray-400 font-normal">{s.ticker}</span></button>
+        {/* 서학개미 — 종목명 옆 한 줄(사용자 2026-11-21 "이건 종목명 옆으로") */}
+        <span className="ml-2 text-[10.5px] font-normal text-gray-600" title={`예탁결제원 세이브로 — 보관 ${holdDate ?? ""} 기준, 하루 순매수는 직전 결제일`}>
+          🐜 {hold ? <>보관 {hold.rank}위 ${(hold.amt / 1e9).toFixed(2)}B{hold.prevAmt ? <span className={tone(hold.amt - hold.prevAmt)}>({hold.amt >= hold.prevAmt ? "+" : "−"}${(Math.abs(hold.amt - hold.prevAmt) / 1e6).toFixed(0)}M)</span> : null}</> : <span className="text-gray-400">보관 50위 밖</span>}
+          {dayNet != null && <> · 하루 <span className={tone(dayNet)}>{dayNet >= 0 ? "+" : "−"}${(Math.abs(dayNet) / 1e6).toFixed(1)}M</span></>}
+        </span>
       </span>
       <div className="flex items-baseline gap-2 flex-wrap">
         {flow.price != null && <b className="text-lg tabular-nums">${flow.price.toFixed(2)}</b>}
@@ -102,24 +115,16 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, 
       <div className="sm:flex sm:items-start sm:gap-2">
         <div className="sm:flex-1 sm:min-w-0">
           <FlowChart ms={ms} kd={kd} bg={bg} base={flow.base} />
-          {/* 범례(사용자 2026-11-21 "그래프 각 선이 뭔지 설명이 없어?") */}
-          <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-gray-600">
-            <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-slate-600" />가격</span>
-            <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-amber-500" />체결 누적(매수−매도, 자기 눈금)</span>
-            <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />1분 순매수·순매도(진함) — 연한 막대 = 매수(위)·매도(아래) 각각</span>
-            <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-2.5 bg-violet-300/50 border-t border-violet-400" />배경 나스닥100(QQQ, 자기 눈금)</span>
-            <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-300" />정규장 시작·끝</span>
-          </div>
           <div className="mt-0.5 text-[10.5px] text-gray-400">
             {flow.error ? <span className="text-rose-500">체결 받기 실패 — {flow.error}</span>
               : flow.since ? <>{ms.some(m => m.est) && <span className="text-gray-500">켜기 전은 가격 선만(1분봉) · </span>}{ms.some(m => m.kis) && <span className="text-emerald-600">한투로 정확히 나눈 분 {ms.filter(m => m.kis).length}개 · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
               : "체결을 기다리는 중 — 장이 쉬는 시간엔 쌓이지 않습니다"}
           </div>
         </div>
-        <div className="mt-1.5 sm:mt-2 sm:w-[168px] sm:shrink-0">
+        <div className="mt-1.5 sm:mt-1 sm:w-[180px] sm:shrink-0">
           <div className="text-[11px] font-bold text-gray-600">큰 체결({wonStep(bigMin)}원 이상)</div>
           {bigs.length ? (
-            <div className="mt-0.5 sm:max-h-[230px] sm:overflow-y-auto overscroll-contain [scrollbar-width:thin] text-[11px] tabular-nums grid grid-cols-2 sm:grid-cols-1 gap-x-3">
+            <div className="mt-0.5 sm:max-h-[96px] sm:overflow-y-auto overscroll-contain [scrollbar-width:thin] text-[11px] tabular-nums grid grid-cols-2 sm:grid-cols-1 gap-x-3">
               {bigs.map((b, i) => (
                 <div key={i} className="flex gap-1.5 whitespace-nowrap">
                   <span className="text-gray-400">{etToKst(b.time.slice(0, 5), kd)}{b.time.slice(5)}</span>
@@ -129,16 +134,9 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, 
               ))}
             </div>
           ) : <div className="text-[10.5px] text-gray-400">아직 없음</div>}
+          <ShortRatioBox compact days={shortDays?.map(d => ({ date: d.date, ratio: (d.sv / d.tv) * 100 }))} band={5}
+                         help={<>그날 체결된 주식 중 '빌려서 판 것(공매도)'으로 보고된 거래량의 비중입니다(FINRA). 시장조성 물량이 섞여 평소에도 30~50%라 값 자체보다 <b>평소(20일 평균)보다 높아졌는지</b>를 봅니다. 높아지면 하락에 거는 매도가 늘었다는 뜻이고, 공매도 '잔고'는 아닙니다. 하루 늦게 반영됩니다.</>} />
         </div>
-      </div>
-      <ShortRatioBox days={shortDays?.map(d => ({ date: d.date, ratio: (d.sv / d.tv) * 100 }))} band={5}
-                     help={<>그날 체결된 주식 중 '빌려서 판 것(공매도)'으로 보고된 거래량의 비중입니다(FINRA). 시장조성 물량이 섞여 평소에도 30~50%라 값 자체보다 <b>평소(20일 평균)보다 높아졌는지</b>를 봅니다. 높아지면 하락에 거는 매도가 늘었다는 뜻이고, 공매도 '잔고'는 아닙니다. 하루 늦게 반영됩니다.</>} />
-      <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50/50 px-2 py-1.5 text-[11.5px] text-gray-700 leading-snug">
-        <b>🐜 서학개미</b>{" "}
-        {hold ? <>보관 {hold.rank}위 · ${(hold.amt / 1e9).toFixed(2)}B
-          {hold.prevAmt ? <span className={tone(hold.amt - hold.prevAmt)}> ({hold.amt >= hold.prevAmt ? "+" : "−"}${(Math.abs(hold.amt - hold.prevAmt) / 1e6).toFixed(0)}M)</span> : null}
-          <span className="text-gray-400"> · {holdDate} 기준</span></> : <span className="text-gray-400">보관 상위 50 밖</span>}
-        {dayNet != null && <> · 하루 순매수 <span className={tone(dayNet)}>{dayNet >= 0 ? "+" : "−"}${(Math.abs(dayNet) / 1e6).toFixed(1)}M</span><span className="text-gray-400"> ({setlDate} 결제)</span></>}
       </div>
     </div>
   );
@@ -156,9 +154,12 @@ function Stat({ label, v, hint }: { label: string; v: React.ReactNode; hint: str
 // 1분 막대(위 빨강 = 매수 체결 금액, 아래 파랑 = 매도) + 가격 선(회색) + 누적 순매수 선(주황) + 배경 나스닥100(보라)
 // est(1분봉으로 채운 분) = 가격 선만 — 막대는 안 그린다(회색 막대는 뺐다, 사용자 2026-11-21 "회색은 지우자"), 누적 순매수에도 안 넣는다
 // 글자(현재가·최고·최저·체결 누적)는 국내 반도체 수급과 같은 꼴 — svg 가 가로로 늘어나므로 HTML 로 얹는다(사용자 2026-11-21 "국내와 동일하게")
-function FlowChart({ ms, kd, bg, base }: { ms: { t: string; buyAmt: number; sellAmt: number; close: number; est?: boolean; amt?: number }[]; kd: number; bg?: { t: string; close: number; base?: number }[]; base?: number }) {
-  const W = 600, H = 230, mid = 140, top = 8, PR = 92;   // PR = 오른쪽 끝 글자 자리(px, viewBox 기준)
-  if (ms.length < 1) return <div className="mt-2 h-[230px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400">체결이 쌓이면 그래프가 그려집니다</div>;
+function FlowChart({ ms: msAll, kd, bg, base }: { ms: { t: string; buyAmt: number; sellAmt: number; close: number; est?: boolean; amt?: number }[]; kd: number; bg?: { t: string; close: number; base?: number }[]; base?: number }) {
+  const W = 600, H = 190, mid = 116, top = 8, PR = 92;   // 4종목이 한 화면에(사용자 2026-11-21) — 230 → 190   // PR = 오른쪽 끝 글자 자리(px, viewBox 기준)
+  // 최근 3시간만 — 아침에 보면 밤 0시 기록과 새벽 1분봉 사이가 대각선 한 줄로 이어졌다(사용자 2026-11-21 화면)
+  const msCut = (() => { const l = msAll[msAll.length - 1]; if (!l) return ""; const m = Number(l.t.slice(0, 2)) * 60 + Number(l.t.slice(3, 5)) - 180; return m <= 0 ? "" : `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`; })();
+  const ms = msAll.filter(m => m.t >= msCut);
+  if (ms.length < 1) return <div className="mt-1 h-[190px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400">체결이 쌓이면 그래프가 그려집니다</div>;
   const toM = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   const m0 = toM(ms[0].t), m1 = Math.max(toM(ms[ms.length - 1].t), m0 + 30);
   const x = (t: string) => ((toM(t) - m0) / (m1 - m0)) * (W - PR - 8) + 4;
@@ -191,8 +192,8 @@ function FlowChart({ ms, kd, bg, base }: { ms: { t: string; buyAmt: number; sell
   yPrice = Math.max(5, Math.min(92, yPrice)); yCum = Math.max(5, Math.min(92, yCum));
   const lab = "absolute pointer-events-none text-[10px] tabular-nums px-0.5 rounded bg-white/80 whitespace-nowrap";
   return (
-    <div className="relative mt-2">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[230px]" preserveAspectRatio="none">
+    <div className="relative mt-1">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[190px]" preserveAspectRatio="none">
         {bgIn.length > 1 && <>
           <polygon fill="#a78bfa" opacity={0.12} points={`${x(bgIn[0].t)},${H - 16} ${bgIn.map(p => `${x(p.t)},${by(p.close)}`).join(" ")} ${x(bgIn[bgIn.length - 1].t)},${H - 16}`} />
           <polyline fill="none" stroke="#a78bfa" strokeWidth={1} opacity={0.6} points={bgIn.map(p => `${x(p.t)},${by(p.close)}`).join(" ")} />
