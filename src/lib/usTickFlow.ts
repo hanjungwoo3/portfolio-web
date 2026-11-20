@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { fetchTossUsTicks, fetchTossUsMinuteToday, type TossUsTick } from "./api";
 import { isDirectApp } from "./nativeProxy";
+import { kisGet, isKisLinkOn } from "./broker";
 
 // 반도체 수급(미국) 칸 종목 — 화면과 배경 수집이 같은 목록을 쓴다(lib 한 벌)
 export const US_SEMI_STOCKS = [
@@ -15,9 +16,11 @@ export const US_SEMI_STOCKS = [
   { ticker: "ANT", toss: "NAS2611011001", name: "앤트로픽", desc: "AI 모델(Claude) — 반도체 수요 쪽, 2026-11 상장" },
 ] as const;
 
-export interface UsMinute { t: string; buyVol: number; sellVol: number; buyAmt: number; sellAmt: number; close: number; est?: boolean; amt?: number }   // t = ET "HH:MM", 금액 = 원 · est = 1분봉으로 채운 분(매수·매도 모름, amt = 거래대금)
+export interface UsMinute { t: string; buyVol: number; sellVol: number; buyAmt: number; sellAmt: number; close: number; est?: boolean; amt?: number; kis?: boolean }   // kis = 한투 누적으로 정확히 나눈 분   // t = ET "HH:MM", 금액 = 원 · est = 1분봉으로 채운 분(매수·매도 모름, amt = 거래대금)
 export interface UsBig { time: string; side: "BUY" | "SELL"; amt: number; price: number; volume: number }   // time = ET "HH:MM:SS"
-export interface UsTickFlow { minutes: UsMinute[]; big: UsBig[]; gaps: number; since?: string; last?: string; base?: number; price?: number; priceKrw?: number; error?: string; etDate: string }
+// kisDay = 한투 당일 누적(장 시작부터, 앱+한투만) — vpow = 당일 체결강도, buy·sell = 주
+export interface UsKisDay { vpow: number; tvol: number; buy: number; sell: number; at: string }
+export interface UsTickFlow { kisDay?: UsKisDay; minutes: UsMinute[]; big: UsBig[]; gaps: number; since?: string; last?: string; base?: number; price?: number; priceKrw?: number; error?: string; etDate: string }
 
 const POLL_MS = 5_000;
 const FILL_MIN = 120;   // 켜기 전 1분봉으로 채우는 길이(분)
@@ -38,7 +41,7 @@ export function etToKst(t: string, kstDiff = etNow().kstDiff): string {
   return hm((m + kstDiff) % 1440);
 }
 
-interface Box { at?: number; lastCum: number; minutes: Map<string, UsMinute>; big: UsBig[]; gaps: number; since?: string; last?: string; base?: number; price?: number; priceKrw?: number; date: string }
+interface Box { kisSnaps?: Record<string, [number, number, number]>; kisDay?: UsKisDay; at?: number; lastCum: number; minutes: Map<string, UsMinute>; big: UsBig[]; gaps: number; since?: string; last?: string; base?: number; price?: number; priceKrw?: number; date: string }
 type Saved = Omit<Box, "minutes"> & { minutes: UsMinute[] };
 const boxes = new Map<string, Box>();
 const listeners = new Map<string, Set<() => void>>();
@@ -110,6 +113,61 @@ export function startUsBackgroundTicks() {
   };
   void poll();
   bgTimer = setInterval(poll, POLL_MS);
+  startKisSampler();
+}
+
+// ─── 한투 1분 기록 — 앱 + 한국투자 연동이면 4종목의 누적 거래량(tvol)·당일 체결강도(vpow)를 매분 한 번(사용자 2026-11-21 "진행하자").
+//   한투 해외 체결추이(HHDFS76200300)는 최근 100건만 주고 거슬러 못 간다(실측) — 대신 행마다 붙는 tvol·vpow 를 분마다 찍어 두면
+//   두 시점의 차이 = 그 1분의 매수·매도(국내 거슬러 채우기와 같은 식: 매수 누적 = tvol × r ÷ (100 + r)). 토스 100건 표본과 달리 빠짐이 없다.
+//   4종목 × 1분 1콜. 매분 3초에(앞 분이 막 끝난 뒤)
+const EXCD: Record<string, string> = { MU: "NAS", NVDA: "NAS", SKHY: "NAS", ANT: "NAS" };
+type KisCcnl = { khms?: string; last?: string; tvol?: string; vpow?: string };
+async function kisSnap(ticker: string): Promise<{ khms: string; price: number; tvol: number; vpow: number } | null> {
+  const { body } = await kisGet<{ rt_cd?: string; output2?: KisCcnl[] }>("/uapi/overseas-price/v1/quotations/inquire-ccnl", "HHDFS76200300",
+    { EXCD: EXCD[ticker] ?? "NAS", AUTH: "", KEYB: "", TDAY: "1", SYMB: ticker });
+  const r = body.output2?.[0];
+  const tvol = Number(r?.tvol), vpow = Number(r?.vpow), price = Number(r?.last);
+  return r?.khms && tvol > 0 && vpow > 0 ? { khms: r.khms, price, tvol, vpow } : null;
+}
+let kisTimer: ReturnType<typeof setTimeout> | null = null;
+function startKisSampler() {
+  if (kisTimer) return;
+  const run = async () => {
+    const n = etNow(), wd = new Date(`${n.date}T12:00:00Z`).getUTCDay();
+    if (isKisLinkOn() && !(wd === 0 || wd === 6 || n.min < 4 * 60 || n.min >= 20 * 60)) {
+      for (const s of US_SEMI_STOCKS) {
+        try {
+          const v = await kisSnap(s.ticker);
+          if (!v) continue;
+          const b = box(s.toss);
+          const k = Number(v.khms.slice(0, 2)) * 60 + Number(v.khms.slice(2, 4));
+          const key = hm((k - n.kstDiff + 1440) % 1440);   // 마지막 체결의 ET 분 = 그 분까지의 누적
+          const buy = (v.tvol * v.vpow) / (100 + v.vpow);
+          (b.kisSnaps ??= {})[key] = [buy, v.tvol - buy, v.price];
+          b.kisDay = { vpow: v.vpow, tvol: v.tvol, buy, sell: v.tvol - buy, at: key };
+          save(s.toss, b); notify(s.toss);
+        } catch { /* 다음 분 */ }
+      }
+    }
+    kisTimer = setTimeout(run, 60_000 - (Date.now() % 60_000) + 3_000);
+  };
+  kisTimer = setTimeout(run, 60_000 - (Date.now() % 60_000) + 3_000);
+}
+
+/** 한투 1분 기록 → 분별 매수·매도(바로 앞 분 기록이 있는 분만). 금액 = 수량 × 그 분 값 × 환율(토스 원화/달러) */
+function kisMinutes(b: Box): Map<string, UsMinute> {
+  const out = new Map<string, UsMinute>();
+  const sn = b.kisSnaps ?? {};
+  const keys = Object.keys(sn).sort();
+  const fx = b.price && b.priceKrw ? b.priceKrw / b.price : 0;
+  const toM = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  for (let i = 1; i < keys.length; i++) {
+    const a = sn[keys[i - 1]], c = sn[keys[i]];
+    if (toM(keys[i]) - toM(keys[i - 1]) !== 1) continue;   // 사이에 빠진 분이 있으면 어느 분 것인지 몰라 건너뛴다
+    const bv = Math.max(0, c[0] - a[0]), sv = Math.max(0, c[1] - a[1]);
+    out.set(keys[i], { t: keys[i], buyVol: bv, sellVol: sv, buyAmt: bv * c[2] * fx, sellAmt: sv * c[2] * fx, close: c[2], kis: true });
+  }
+  return out;
 }
 
 export function useUsTickFlow(tossCode: string, enabled = true): UsTickFlow {
@@ -155,7 +213,8 @@ export function useUsTickFlow(tossCode: string, enabled = true): UsTickFlow {
   const b = box(tossCode);
   // 실시간이 있는 분은 실시간, 없는 분만 1분봉. 마지막 실시간 분 뒤의 1분봉은 버린다(진행 중인 분을 덮지 않게)
   const merged = new Map(b.minutes);
+  for (const [t, m] of kisMinutes(b)) merged.set(t, { ...m, close: merged.get(t)?.close ?? m.close });   // 한투로 정확히 나눈 분이 있으면 그걸로(토스 표본 대신)
   const lastReal = b.last?.slice(0, 5);
   for (const [t, m] of fill) if (!merged.has(t) && (!lastReal || t < lastReal)) merged.set(t, m);
-  return { minutes: [...merged.values()].sort((x, y) => x.t.localeCompare(y.t)), big: b.big, gaps: b.gaps, since: b.since, last: b.last, base: b.base, price: b.price, priceKrw: b.priceKrw, error, etDate: b.date };
+  return { kisDay: b.kisDay, minutes: [...merged.values()].sort((x, y) => x.t.localeCompare(y.t)), big: b.big, gaps: b.gaps, since: b.since, last: b.last, base: b.base, price: b.price, priceKrw: b.priceKrw, error, etDate: b.date };
 }

@@ -66,6 +66,7 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, 
   dayNet?: number; setlDate?: string;
 }) {
   const ms = flow.minutes;
+  const kd2 = flow.kisDay;
   const buy = ms.reduce((a, m) => a + m.buyAmt, 0), sell = ms.reduce((a, m) => a + m.sellAmt, 0);
   const bv = ms.reduce((a, m) => a + m.buyVol, 0), sv = ms.reduce((a, m) => a + m.sellVol, 0);
   const last5 = ms.filter(m => !m.est).slice(-5), b5 = last5.reduce((a, m) => a + m.buyVol, 0), s5 = last5.reduce((a, m) => a + m.sellVol, 0);
@@ -84,8 +85,14 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, 
       </div>
       {/* 오늘 체결 요약 */}
       <div className="mt-1 flex flex-wrap items-baseline gap-x-4 gap-y-0.5">   {/* 한 줄로(사용자 2026-11-21) */}
+        {kd2 ? <>
+          {/* 한투 당일 누적(앱+한투) — 장 시작부터 전체, 켜기 전 시간도 포함(사용자 2026-11-21) */}
+          <Stat label="순매수 체결(오늘 전체)" v={<span className={tone(kd2.buy - kd2.sell)}>{won((kd2.buy - kd2.sell) * (flow.priceKrw ?? 0), true)}</span>} hint="한국투자 당일 누적 — 매수 체결량 − 매도 체결량을 지금 값으로 환산(장 시작부터)" />
+          <Stat label="체결강도(오늘 전체)" v={<span className={tone(kd2.vpow - 100)}>{kd2.vpow.toFixed(1)}%</span>} hint="한국투자 당일 체결강도(매수 ÷ 매도 × 100, 장 시작부터) — 100 위면 사는 쪽이 더 적극적" />
+        </> : <>
         <Stat label="순매수 체결" v={<span className={tone(buy - sell)}>{won(buy - sell, true)}</span>} hint="매수 쪽 체결 금액 − 매도 쪽 체결 금액(이 화면이 켜진 동안)" />
         <Stat label="체결강도(오늘)" v={sv ? <span className={tone(bv - sv)}>{Math.round((bv / sv) * 100)}%</span> : "—"} hint="매수 체결량 ÷ 매도 체결량 × 100 — 100 위면 사는 쪽이 더 적극적" />
+        </>}
         <Stat label="최근 5분" v={s5 ? <span className={tone(b5 - s5)}>{Math.round((b5 / s5) * 100)}%</span> : "—"} hint="최근 5분 체결강도" />
       </div>
       {/* 그래프 왼쪽 · 큰 체결 오른쪽(국내 반도체 수급처럼, 사용자 2026-11-21) — 좁은 화면은 아래로 */}
@@ -94,7 +101,7 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, 
           <FlowChart ms={ms} kd={kd} bg={bg} base={flow.base} />
           <div className="mt-0.5 text-[10.5px] text-gray-400">
             {flow.error ? <span className="text-rose-500">체결 받기 실패 — {flow.error}</span>
-              : flow.since ? <>{ms.some(m => m.est) && <span className="text-gray-500">켜기 전은 가격 선만(1분봉) · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
+              : flow.since ? <>{ms.some(m => m.est) && <span className="text-gray-500">켜기 전은 가격 선만(1분봉) · </span>}{ms.some(m => m.kis) && <span className="text-emerald-600">한투로 정확히 나눈 분 {ms.filter(m => m.kis).length}개 · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
               : "체결을 기다리는 중 — 장이 쉬는 시간엔 쌓이지 않습니다"}
           </div>
         </div>
