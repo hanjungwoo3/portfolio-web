@@ -393,7 +393,7 @@ export function buildTabs(holdings: Stock[], visibility?: TabVisibility, tradeCo
     // 한국/주간·미국/야간은 뺐다 — 업종 줄은 업종별로, 지수·환율·선물은 오른쪽 📈 서랍으로(사용자 2026-11-12 "업종별에 없는 걸 다 추가하면 미국/한국 빼도")
     for (const k of ["sobu", "krx"] as const) tabs.push({ key: keyOf[k], label: pg(k).tab, emoji: pg(k).emoji, count: 0 });
     tabs.push({ key: HOT_TAB_KEY, label: "지수(지금 시끄러운 종목)", emoji: "🔔", count: 0 });
-    tabs.push({ key: SEMI_DASH_TAB_KEY, label: "지수(반도체 수급)", emoji: "💾", count: 0 });
+    tabs.push({ key: SEMI_DASH_TAB_KEY, label: "지수(반도체 수급(국내))", emoji: "💾", count: 0 });
     tabs.push({ key: US_SEMI_DASH_TAB_KEY, label: "지수(반도체 수급(미국))", emoji: "🇺🇸", count: 0 });
     tabs.push({ key: SEOHAK_TAB_KEY, label: "지수(서학개미)", emoji: "🐜", count: 0 });
   }

@@ -512,7 +512,7 @@ export function MobileSimpleView() {
       tabs.push({ key: keyOf.sobu, label: `${pg("sobu").emoji}${pg("sobu").tab}`, count: 0 });
       tabs.push({ key: keyOf.krx, label: `${pg("krx").emoji}${pg("krx").tab}`, count: 0 });
       tabs.push({ key: HOT_KEY, label: "🔔지수(지금 시끄러운 종목)", count: 0 });
-      tabs.push({ key: SEMI_DASH_KEY, label: "💾지수(반도체 수급)", count: 0 });
+      tabs.push({ key: SEMI_DASH_KEY, label: "💾지수(반도체 수급(국내))", count: 0 });
       tabs.push({ key: US_SEMI_DASH_KEY, label: "🇺🇸지수(반도체 수급(미국))", count: 0 });
       tabs.push({ key: SEOHAK_KEY, label: "🐜지수(서학개미)", count: 0 });
     }
