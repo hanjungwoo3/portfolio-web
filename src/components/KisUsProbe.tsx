@@ -4,14 +4,18 @@
 import { useState } from "react";
 import { kisGet, isKisLinkOn } from "../lib/broker";
 
-const TESTS: { name: string; path: string; tr: string; params: Record<string, string> }[] = [
-  { name: "체결추이(inquire-ccnl)", path: "/uapi/overseas-price/v1/quotations/inquire-ccnl", tr: "HHDFS76200300",
-    params: { EXCD: "NAS", AUTH: "", KEYB: "", TDAY: "1", SYMB: "MU" } },
-  { name: "분봉(inquire-time-itemchartprice)", path: "/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice", tr: "HHDFS76950200",
-    params: { AUTH: "", EXCD: "NAS", SYMB: "MU", NMIN: "1", PINC: "1", NEXT: "", NREC: "5", FILL: "", KEYB: "" } },
-  { name: "현재가상세(price-detail)", path: "/uapi/overseas-price/v1/quotations/price-detail", tr: "HHDFS76200200",
-    params: { AUTH: "", EXCD: "NAS", SYMB: "MU" } },
-];
+
+type Ccnl = { khms?: string; vpow?: string; tvol?: string; evol?: string; last?: string };
+// 2차 시험(사용자 2026-11-21 1차 결과: 체결추이에 vpow·tvol 이 온다) — ① KEYB 로 시각을 건너뛸 수 있나 ② 다음 쪽(tr_cont N) ③ vpow 소수점
+async function ccnl(keyb: string, trCont = "") {
+  const r = await kisGet<{ rt_cd?: string; output1?: Record<string, string>; output2?: Ccnl[] }>("/uapi/overseas-price/v1/quotations/inquire-ccnl", "HHDFS76200300",
+    { EXCD: "NAS", AUTH: "", KEYB: keyb, TDAY: "1", SYMB: "MU" }, trCont);
+  const rows = r.body.output2 ?? [];
+  const f = rows[0], l = rows[rows.length - 1];
+  const vp = [...new Set(rows.map(x => x.vpow))].slice(0, 8).join(" / ");
+  return { line: `${rows.length}줄 · 처음 ${f?.khms} tvol ${f?.tvol} vpow ${f?.vpow} → 끝 ${l?.khms} tvol ${l?.tvol} vpow ${l?.vpow} · trCont(응답) "${r.trCont}" · output1 ${JSON.stringify(r.body.output1)}\n      vpow 값들: ${vp}`, last: l?.khms ?? "", trCont: r.trCont };
+}
+const kstMinus = (min: number) => { const d = new Date(Date.now() + 9 * 3600_000 - min * 60_000); return d.toISOString().slice(11, 19).replace(/:/g, ""); };
 
 export function KisUsProbe() {
   const [out, setOut] = useState<string>("");
@@ -20,30 +24,24 @@ export function KisUsProbe() {
   const run = async () => {
     setBusy(true);
     const lines: string[] = [];
-    for (const t of TESTS) {
-      try {
-        const { body } = await kisGet<Record<string, unknown> & { rt_cd?: string }>(t.path, t.tr, t.params);
-        lines.push(`■ ${t.name} — OK`);
-        for (const [k, v] of Object.entries(body)) {
-          if (Array.isArray(v)) {
-            lines.push(`  ${k}[] ${v.length}줄 · 필드: ${Object.keys(v[0] ?? {}).join(", ")}`);
-            v.slice(0, 3).forEach(r => lines.push(`    ${JSON.stringify(r)}`));
-          } else if (v && typeof v === "object") {
-            lines.push(`  ${k}: ${JSON.stringify(v)}`);
-          } else lines.push(`  ${k}: ${String(v)}`);
-        }
-      } catch (e) {
-        lines.push(`■ ${t.name} — 실패: ${(e as Error).message}`);
-      }
+    const step = async (label: string, f: () => Promise<{ line: string }>) => {
+      try { lines.push(`■ ${label}\n   ${(await f()).line}`); } catch (e) { lines.push(`■ ${label} — 실패: ${(e as Error).message}`); }
       setOut(lines.join("\n"));
-    }
+    };
+    let first: Awaited<ReturnType<typeof ccnl>> | null = null;
+    await step("① 기본(KEYB 비움)", async () => (first = await ccnl("")));
+    await step("② 다음 쪽(KEYB=①의 마지막 시각, tr_cont N)", () => ccnl(first?.last ?? "", "N"));
+    await step("③ 다음 쪽(KEYB=①의 마지막 시각, tr_cont 없음)", () => ccnl(first?.last ?? ""));
+    await step(`④ 30분 전으로 건너뛰기(KEYB=${kstMinus(30)})`, () => ccnl(kstMinus(30)));
+    await step(`⑤ 30분 전 + tr_cont N`, () => ccnl(kstMinus(30), "N"));
+    await step(`⑥ 2시간 전으로 건너뛰기(KEYB=${kstMinus(120)})`, () => ccnl(kstMinus(120), "N"));
     setBusy(false);
   };
   return (
     <div className="rounded-lg border border-amber-300 bg-amber-50 px-2 py-1.5 text-[11.5px]">
       <div className="flex items-center gap-2">
-        <b className="text-amber-800">🧪 한투 해외 체결 시험(MU)</b>
-        <span className="text-amber-700">매수·매도 구분이 오는지 확인용 — 조회만</span>
+        <b className="text-amber-800">🧪 한투 해외 체결 시험 2차(MU)</b>
+        <span className="text-amber-700">시각 건너뛰기·다음 쪽·체결강도 소수점 확인 — 조회만(6번 호출)</span>
         <button type="button" disabled={busy} onClick={run} className="ml-auto px-2 py-0.5 rounded border border-amber-400 bg-white font-bold text-amber-800 hover:bg-amber-100 disabled:opacity-50">{busy ? "조회 중…" : "시험하기"}</button>
         {out && <button type="button" onClick={() => void navigator.clipboard.writeText(out)} className="px-2 py-0.5 rounded border border-gray-300 bg-white text-gray-700 hover:bg-gray-100">결과 복사</button>}
       </div>
