@@ -6285,6 +6285,18 @@ export async function fetchTossTicks(code: string, count = 300): Promise<TossTic
     ? [{ time: t.time, price: t.price, volume: t.volume, side: t.tradeType, cum: t.cumulativeVolume ?? 0 }] : []);
 }
 
+// 미국 종목 체결(토스) — 국내 fetchTossTicks 와 같은 주소에 토스 미국 코드(US…/NAS…) 그대로. 시각은 한국 시각, 가격은 달러 + 원화(priceKrw).
+//   반도체 수급(미국) 탭(사용자 2026-11-21). base = 직전 정규장 종가(달러) — 등락률 기준
+export interface TossUsTick extends TossTick { priceKrw: number; base?: number; baseKrw?: number }
+//   ⚠️ 미국 종목은 count 100 이 상한(200 부터 HTTP 400, 실측 2026-11-21) — 엔비디아처럼 체결이 많으면 5초 사이 100건을 넘어 일부만 받는다(표본)
+export async function fetchTossUsTicks(tossCode: string, count = 100): Promise<TossUsTick[]> {
+  const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-prices/${tossCode}/ticks?count=${Math.min(100, count)}`);
+  if (!r.ok) throw new Error(`체결 조회 실패 (HTTP ${r.status})`);
+  const j = await r.json() as { result?: { time?: string; price?: number; priceKrw?: number; base?: number; baseKrw?: number; volume?: number; tradeType?: string; cumulativeVolume?: number }[] };
+  return (j.result ?? []).flatMap(t => t.time && t.price && t.volume && (t.tradeType === "BUY" || t.tradeType === "SELL")
+    ? [{ time: t.time, price: t.price, priceKrw: t.priceKrw ?? 0, base: t.base, baseKrw: t.baseKrw, volume: t.volume, side: t.tradeType, cum: t.cumulativeVolume ?? 0 }] : []);
+}
+
 // ─── 코스피200 선물·옵션 실시간 (한국경제 markets.hankyung.com) ─────────────
 //   네이버 선물 수급은 20분 늦지만 한경 시세는 실시간이다(실측 11:23 요청 → 11:23:12 체결).
 //   인증 헤더(사이트 공개 키)는 프록시가 붙인다 — 프론트엔드 번들의 값을 그대로(사이트가 바꾸면 401).
