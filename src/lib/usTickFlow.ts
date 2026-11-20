@@ -4,6 +4,16 @@
 //   금액은 원화(토스 priceKrw × 수량) — 국내 탭과 같은 억 단위로 읽게. 과거 체결 API 가 없어 화면이 꺼져 있던 동안은 빈칸.
 import { useEffect, useState } from "react";
 import { fetchTossUsTicks, fetchTossUsMinuteToday, type TossUsTick } from "./api";
+import { isDirectApp } from "./nativeProxy";
+
+// 반도체 수급(미국) 칸 종목 — 화면과 배경 수집이 같은 목록을 쓴다(lib 한 벌)
+export const US_SEMI_STOCKS = [
+  { ticker: "MU", toss: "US19890516001", name: "마이크론", desc: "메모리(D램·HBM·낸드) — 삼성전자·SK하이닉스와 같은 업종" },
+  { ticker: "NVDA", toss: "US19990122001", name: "엔비디아", desc: "AI 칩 1위 — HBM 최대 구매자" },
+  // + 하이닉스 ADR·앤트로픽(사용자 2026-11-21 "2개 더 추가해서 4개로" → "브로드컴 대신 앤트로픽", "TSMC 대신 하이닉스 ADR")
+  { ticker: "SKHY", toss: "NAS2607010002", name: "SK하이닉스 ADR", desc: "나스닥 상장 하이닉스 — 간밤 하이닉스 값" },
+  { ticker: "ANT", toss: "NAS2611011001", name: "앤트로픽", desc: "AI 모델(Claude) — 반도체 수요 쪽, 2026-11 상장" },
+] as const;
 
 export interface UsMinute { t: string; buyVol: number; sellVol: number; buyAmt: number; sellAmt: number; close: number; est?: boolean; amt?: number }   // t = ET "HH:MM", 금액 = 원 · est = 1분봉으로 채운 분(매수·매도 모름, amt = 거래대금)
 export interface UsBig { time: string; side: "BUY" | "SELL"; amt: number; price: number; volume: number }   // time = ET "HH:MM:SS"
@@ -28,9 +38,11 @@ export function etToKst(t: string, kstDiff = etNow().kstDiff): string {
   return hm((m + kstDiff) % 1440);
 }
 
-interface Box { lastCum: number; minutes: Map<string, UsMinute>; big: UsBig[]; gaps: number; since?: string; last?: string; base?: number; price?: number; priceKrw?: number; date: string }
+interface Box { at?: number; lastCum: number; minutes: Map<string, UsMinute>; big: UsBig[]; gaps: number; since?: string; last?: string; base?: number; price?: number; priceKrw?: number; date: string }
 type Saved = Omit<Box, "minutes"> & { minutes: UsMinute[] };
 const boxes = new Map<string, Box>();
+const listeners = new Map<string, Set<() => void>>();
+const notify = (code: string) => listeners.get(code)?.forEach(f => f());
 const key = (code: string) => `us_tickflow_${code}`;
 
 function box(code: string): Box {
@@ -77,17 +89,44 @@ export function ingestUsTicks(code: string, ts: TossUsTick[]) {
   const last = fresh[fresh.length - 1];
   b.lastCum = last.cum; b.since ??= fresh[0].et; b.last = last.et;
   b.price = last.price; b.priceKrw = last.priceKrw; if (last.base) b.base = last.base;
+  b.at = Date.now();
   save(code, b);
+  notify(code);
+}
+
+// ─── 배경 수집 — 앱이면 화면을 안 열어도 미국 장 시간엔 계속 받아 둔다(국내 삼성전자·하이닉스처럼, 사용자 2026-11-21 "미리 받아두는 건?") ───
+//   앱은 직접 요청이라 공용 프록시 부담이 없다. 웹은 그대로(화면을 켠 동안만) — 4종목 × 5초를 늘 부르면 공용 프록시가 버티지 못한다.
+//   미국 평일 ET 04:00~20:00(프리~애프터)만. 토스 데이마켓(밤)은 거래가 얇아 뺐다
+let bgTimer: ReturnType<typeof setInterval> | null = null;
+export function usBgRunning(): boolean { return bgTimer != null; }
+export function startUsBackgroundTicks() {
+  if (bgTimer || !isDirectApp()) return;
+  const poll = async () => {
+    const n = etNow(), wd = new Date(`${n.date}T12:00:00Z`).getUTCDay();
+    if (wd === 0 || wd === 6 || n.min < 4 * 60 || n.min >= 20 * 60) return;
+    for (const s of US_SEMI_STOCKS) {
+      try { ingestUsTicks(s.toss, await fetchTossUsTicks(s.toss)); } catch { /* 다음 차례 */ }
+    }
+  };
+  void poll();
+  bgTimer = setInterval(poll, POLL_MS);
 }
 
 export function useUsTickFlow(tossCode: string, enabled = true): UsTickFlow {
   const [, setVer] = useState(0);
   const [error, setError] = useState<string>();
+  useEffect(() => {   // 배경 수집이 넣으면 다시 그린다
+    const set = listeners.get(tossCode) ?? listeners.set(tossCode, new Set()).get(tossCode)!;
+    const f = () => setVer(v => v + 1);
+    set.add(f);
+    return () => { set.delete(f); };
+  }, [tossCode]);
   useEffect(() => {
     if (!enabled) return;
     let alive = true;
     const tick = async () => {
-      if (document.hidden) return;
+      // 앱 배경 수집이 미국 장 시간에 이미 받는 중이면 화면은 따로 안 부른다(같은 호출 두 번 방지)
+      if (document.hidden || (usBgRunning() && US_SEMI_STOCKS.some(s => s.toss === tossCode) && Date.now() - (box(tossCode).at ?? 0) < 15_000)) return;
       try {
         const ts = await fetchTossUsTicks(tossCode);
         if (!alive) return;

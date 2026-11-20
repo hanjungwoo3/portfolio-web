@@ -11,6 +11,7 @@ import { HotNowTab } from "./HotNowTab";
 import { CompareHost } from "./CompareHost";
 import { TilePopupHost } from "./TilePopup";
 import { startBackgroundTicks } from "../lib/tickStore";
+import { startUsBackgroundTicks } from "../lib/usTickFlow";
 import { useKisRadar, radarLabel } from "../lib/kisRadar";
 import { useKisVi, viLabel, viActive } from "../lib/kisVi";
 import { HoverTip } from "./HoverTip";
@@ -417,7 +418,7 @@ export function MobileSimpleView() {
     return () => window.removeEventListener(TRADES_CHANGED_EVENT, h);
   }, [queryClient]);
 
-  useEffect(() => { startBackgroundTicks(); }, []);   // 앱(한국투자)이면 대표 종목 체결 배경 수집(PC 와 같음)
+  useEffect(() => { startBackgroundTicks(); startUsBackgroundTicks(); }, []);   // 앱(한국투자)이면 대표 종목 체결 배경 수집(PC 와 같음)
 
   // 깊은 화면 → 기업가치 팝업 딥링크 (PC 와 같은 규칙).
   useEffect(() => {

@@ -26,6 +26,7 @@ import { CompareHost } from "./components/CompareHost";
 import { TilePopupHost } from "./components/TilePopup";
 import { DesktopVersionBadge } from "./components/DesktopVersionBadge";
 import { startBackgroundTicks } from "./lib/tickStore";
+import { startUsBackgroundTicks } from "./lib/usTickFlow";
 import { AccumTab } from "./components/AccumTab";
 import { INDEX_GROUP_KEYS, indexPageOf } from "./lib/dashboardGroups";
 import { EtfCompareTab } from "./components/EtfCompareTab";
@@ -330,7 +331,7 @@ function Dashboard() {
   }, []);
 
   // 앱(한국투자 연동)이면 창을 안 열어도 삼성전자·SK하이닉스 체결을 계속 받아 둔다(사용자 2026-11-10)
-  useEffect(() => { startBackgroundTicks(); }, []);
+  useEffect(() => { startBackgroundTicks(); startUsBackgroundTicks(); }, []);
 
   // 카드 → 임의 탭 딥링크 (예: 지수 탭의 ETF 등락 제목 → ETF랭킹 탭).
   useEffect(() => {

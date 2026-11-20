@@ -4,17 +4,11 @@
 //   체결: 토스 ticks 5초(화면을 켠 동안만 쌓인다, lib/usTickFlow) · 공매도: 크롤러 us-short-volume.json(매일 06:00 KST) · 서학개미: seohak.json
 import { useQuery } from "@tanstack/react-query";
 import { fetchTossUsMinuteToday } from "../lib/api";
-import { useUsTickFlow, etToKst, etNow, US_BIG_MIN, type UsTickFlow } from "../lib/usTickFlow";
+import { useUsTickFlow, etToKst, etNow, US_BIG_MIN, US_SEMI_STOCKS, type UsTickFlow } from "../lib/usTickFlow";
 import { useSeohak } from "../lib/seohak";
 import { openExternal } from "../lib/toss";
 
-const STOCKS = [
-  { ticker: "MU", toss: "US19890516001", name: "마이크론", desc: "메모리(D램·HBM·낸드) — 삼성전자·SK하이닉스와 같은 업종" },
-  { ticker: "NVDA", toss: "US19990122001", name: "엔비디아", desc: "AI 칩 1위 — HBM 최대 구매자" },
-  // + 하이닉스 ADR·앤트로픽(사용자 2026-11-21 "2개 더 추가해서 4개로" → "브로드컴 대신 앤트로픽", "TSMC 대신 하이닉스 ADR")
-  { ticker: "SKHY", toss: "NAS2607010002", name: "SK하이닉스 ADR", desc: "나스닥 상장 하이닉스 — 간밤 하이닉스 값" },
-  { ticker: "ANT", toss: "NAS2611011001", name: "앤트로픽", desc: "AI 모델(Claude) — 반도체 수요 쪽, 2026-11 상장" },
-] as const;
+const STOCKS = US_SEMI_STOCKS;   // 목록은 lib/usTickFlow 한 벌(배경 수집과 같이)
 
 const URL_SHORT = "https://raw.githubusercontent.com/hanjungwoo3/portfolio-etf-index/main/data/us-short-volume.json";
 interface ShortFile { meta: { builtAt: string }; days: { date: string; rows: Record<string, [number, number]> }[] }
@@ -100,7 +94,7 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate, 
           <FlowChart ms={ms} kd={kd} bg={bg} base={flow.base} />
           <div className="mt-0.5 text-[10.5px] text-gray-400">
             {flow.error ? <span className="text-rose-500">체결 받기 실패 — {flow.error}</span>
-              : flow.since ? <>{ms.some(m => m.est) && <span className="text-gray-500">회색 = 켜기 전(1분봉 거래대금, 매수·매도 모름) · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
+              : flow.since ? <>{ms.some(m => m.est) && <span className="text-gray-500">켜기 전은 가격 선만(1분봉) · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
               : "체결을 기다리는 중 — 장이 쉬는 시간엔 쌓이지 않습니다"}
           </div>
         </div>
@@ -141,7 +135,7 @@ function Stat({ label, v, hint }: { label: string; v: React.ReactNode; hint: str
 }
 
 // 1분 막대(위 빨강 = 매수 체결 금액, 아래 파랑 = 매도) + 가격 선(회색) + 누적 순매수 선(주황) + 배경 나스닥100(보라)
-// est(1분봉으로 채운 분) = 매수·매도를 몰라 회색 막대(거래대금 절반씩 위아래), 누적 순매수에는 넣지 않는다
+// est(1분봉으로 채운 분) = 가격 선만 — 막대는 안 그린다(회색 막대는 뺐다, 사용자 2026-11-21 "회색은 지우자"), 누적 순매수에도 안 넣는다
 // 글자(현재가·최고·최저·체결 누적)는 국내 반도체 수급과 같은 꼴 — svg 가 가로로 늘어나므로 HTML 로 얹는다(사용자 2026-11-21 "국내와 동일하게")
 function FlowChart({ ms, kd, bg, base }: { ms: { t: string; buyAmt: number; sellAmt: number; close: number; est?: boolean; amt?: number }[]; kd: number; bg?: { t: string; close: number; base?: number }[]; base?: number }) {
   const W = 600, H = 230, mid = 140, top = 8, PR = 92;   // PR = 오른쪽 끝 글자 자리(px, viewBox 기준)
@@ -150,7 +144,7 @@ function FlowChart({ ms, kd, bg, base }: { ms: { t: string; buyAmt: number; sell
   const m0 = toM(ms[0].t), m1 = Math.max(toM(ms[ms.length - 1].t), m0 + 30);
   const x = (t: string) => ((toM(t) - m0) / (m1 - m0)) * (W - PR - 8) + 4;
   const bw = Math.max(1, (W - PR - 8) / (m1 - m0 + 1) - 0.6);
-  const maxAmt = Math.max(1, ...ms.map(m => (m.est ? (m.amt ?? 0) / 2 : Math.max(m.buyAmt, m.sellAmt))));
+  const maxAmt = Math.max(1, ...ms.map(m => Math.max(m.buyAmt, m.sellAmt)));
   const barH = (v: number, room: number) => (v / maxAmt) * room;
   const prices = ms.map(m => m.close);
   const pMin = Math.min(...prices), pMax = Math.max(...prices), pr = pMax - pMin || 1;
@@ -185,9 +179,7 @@ function FlowChart({ ms, kd, bg, base }: { ms: { t: string; buyAmt: number; sell
         <line x1={0} x2={W - PR} y1={mid} y2={mid} stroke="#d1d5db" strokeWidth={0.6} />
         {marks.map(([t]) => <line key={t} x1={x(t)} x2={x(t)} y1={0} y2={H - 14} stroke="#a5b4fc" strokeDasharray="3 3" strokeWidth={0.8} />)}
         {ms.map(m => (
-          m.est ? <g key={m.t}>
-            <rect x={x(m.t) - bw / 2} y={mid - barH((m.amt ?? 0) / 2, mid - top)} width={bw} height={barH((m.amt ?? 0) / 2, mid - top) + barH((m.amt ?? 0) / 2, H - mid - 16)} fill="#9ca3af" opacity={0.35} />
-          </g> : <g key={m.t}>
+          m.est ? null : <g key={m.t}>
             <rect x={x(m.t) - bw / 2} y={mid - barH(m.buyAmt, mid - top)} width={bw} height={barH(m.buyAmt, mid - top)} fill="#f43f5e" opacity={0.55} />
             <rect x={x(m.t) - bw / 2} y={mid} width={bw} height={barH(m.sellAmt, H - mid - 16)} fill="#3b82f6" opacity={0.55} />
           </g>
