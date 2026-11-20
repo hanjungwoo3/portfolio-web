@@ -6313,20 +6313,20 @@ export async function fetchTossUsMinuteToday(tossCode: string, etDate: string, c
 
 // 미국 종목 최근 N시간 5분봉 — 반도체 수급(미국) 48시간 그래프(사용자 2026-11-21 "그래프를 48시간으로 고정"). t = 시각(ms), base = 그 봉의 기준(직전 정규장 종가)
 //   min:5 는 한 번에 400봉(약 33시간)이 상한(600 이면 0건, 실측) → nextDateTime 으로 이어 받는다
-export async function fetchTossUs5mHours(tossCode: string, hours = 48): Promise<{ t: number; close: number; base?: number }[]> {
+export async function fetchTossUs5mHours(tossCode: string, hours = 48): Promise<{ t: number; close: number; base?: number; volume?: number }[]> {
   const since = Date.now() - hours * 3600_000;
-  const out: { t: number; close: number; base?: number }[] = [];
+  const out: { t: number; close: number; base?: number; volume?: number }[] = [];
   let from: string | undefined;
   for (let page = 0; page < 4; page++) {
     const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/c-chart/us-s/${tossCode}/min:5?count=400${from ? `&from=${encodeURIComponent(from)}` : ""}`);
     if (!r.ok) break;
-    const res = ((await r.json()) as { result?: { candles?: { dt?: string; close?: number; base?: number }[]; nextDateTime?: string } }).result;
+    const res = ((await r.json()) as { result?: { candles?: { dt?: string; close?: number; base?: number; volume?: number }[]; nextDateTime?: string } }).result;
     let older = false;
     for (const c of res?.candles ?? []) {
       const t = c.dt ? Date.parse(c.dt) : NaN;
       if (!Number.isFinite(t) || !(c.close! > 0)) continue;
       if (t < since) { older = true; continue; }
-      out.push({ t, close: c.close!, base: c.base });
+      out.push({ t, close: c.close!, base: c.base, volume: c.volume });
     }
     if (older || !res?.nextDateTime) break;
     from = res.nextDateTime;

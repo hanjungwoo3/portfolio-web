@@ -53,6 +53,7 @@ export function UsSemiDashTab() {
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-amber-500" />체결 누적(매수−매도, 자기 눈금)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />1분 순매수·순매도(진함) — 연한 막대 = 매수(위)·매도(아래) 각각</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-violet-400" />배경 나스닥100(QQQ, 자기 눈금)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-slate-400/50" />거래량(5분, 맨 아래)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-400" />장 구간 세로선(프리·정규 시작·끝·애프터 끝)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-gray-400" />전일 종가(날마다 가로선)</span>
       </div>
@@ -74,7 +75,7 @@ export function UsSemiDashTab() {
 }
 
 function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg, price48 }: {
-  s: (typeof STOCKS)[number]; flow: UsTickFlow; kd: number; bg?: { t: number; close: number; base?: number }[]; price48?: { t: number; close: number; base?: number }[];
+  s: (typeof STOCKS)[number]; flow: UsTickFlow; kd: number; bg?: { t: number; close: number; base?: number }[]; price48?: { t: number; close: number; base?: number; volume?: number }[];
   shortDays?: { date: string; sv: number; tv: number }[];
   hold?: { amt: number; rank: number; prevRank?: number; prevAmt?: number }; holdDate?: string;
   dayNet?: number;
@@ -166,13 +167,13 @@ const kstLabel = (ms: number, withDay = false) => { const d = new Date(ms + 9 * 
 
 function FlowChart({ ms, etDate, kd, price, bg, base }: {
   ms: { t: string; buyAmt: number; sellAmt: number; close: number; est?: boolean }[]; etDate: string; kd: number;
-  price?: { t: number; close: number; base?: number }[]; bg?: { t: number; close: number; base?: number }[]; base?: number;
+  price?: { t: number; close: number; base?: number; volume?: number }[]; bg?: { t: number; close: number; base?: number }[]; base?: number;
 }) {
   const W = 600, H = 190, mid = 116, top = 8, PR = 92;   // PR = 오른쪽 끝 글자 자리(viewBox px)
   const uid = useId().replace(/:/g, "");   // clipPath id — 칸이 넷이라 겹치지 않게
   const real = ms.filter(m => !m.est).map(m => ({ ...m, at: etEpoch(etDate, m.t, kd) }));
   // 가격 = 5분봉 + 끝에 지금 체결가(5분봉은 진행 중인 봉이 늦다)
-  const pts: { t: number; close: number; base?: number }[] = [...(price ?? [])];
+  const pts: { t: number; close: number; base?: number; volume?: number }[] = [...(price ?? [])];
   const lastReal = real[real.length - 1];
   if (lastReal && (!pts.length || lastReal.at > pts[pts.length - 1].t)) pts.push({ t: lastReal.at, close: lastReal.close, base: pts[pts.length - 1]?.base ?? base });
   if (pts.length < 2) return <div className="mt-1 h-[190px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400">가격을 받는 중…</div>;
@@ -218,6 +219,9 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
   const bMin = Math.min(...bVals), bMax = Math.max(...bVals), br = bMax - bMin || 1;
   const by = (c: number) => top + (1 - (c - bMin) / br) * (H - top - 16);
   const bLast = B[B.length - 1], bPct = bLast && bBase ? (bLast.close / bBase - 1) * 100 : undefined;
+  // 거래량(5분봉) — 맨 아래 옅은 회색 띠, 24시간 전체(체결을 못 쌓은 시간도 보인다, 사용자 2026-11-21 "거래량도 아래에 넣을까?")
+  const VH = 26, vMax = Math.max(1, ...P.map(p => p.volume ?? 0));
+  const vw = Math.max(0.8, (5 * 60_000 / (T1 - T0)) * (W - PR - 8) - 0.2);
   // 세로선 — 범위 안 날짜마다 ET 프리 시작·정규 시작·정규 끝·애프터 끝
   const marks: { at: number; label: string }[] = [];
   for (let d = -3; d <= 1; d++) {
@@ -247,6 +251,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
       <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[190px]" preserveAspectRatio="none">
         {/* 배경 나스닥100(QQQ) — 선만(사용자 2026-11-21 "나스닥은 선으로만") */}
         {B.length > 1 && segs(B, i => by(B[i].close)).map((pp, i) => <polyline key={i} fill="none" stroke="#a78bfa" strokeWidth={1.1} opacity={0.75} points={pp} />)}
+        {P.map(p => p.volume ? <rect key={`v${p.t}`} x={x(p.t) - vw / 2} y={H - 14 - (p.volume / vMax) * VH} width={vw} height={(p.volume / vMax) * VH} fill="#94a3b8" opacity={0.35} /> : null)}
         <line x1={0} x2={W - PR} y1={mid} y2={mid} stroke="#d1d5db" strokeWidth={0.6} />
         {marks.map(m => <line key={m.at} x1={x(m.at)} x2={x(m.at)} y1={0} y2={H - 14} stroke="#818cf8" strokeDasharray="3 3" strokeWidth={0.9} opacity={m.label ? 0.8 : 0.45} />)}
         {/* 매수(위)·매도(아래)는 연하게, 둘의 차이(순매수 빨강 위 / 순매도 파랑 아래)만 진하게 — 국내 1분 띠와 같은 꼴 */}
