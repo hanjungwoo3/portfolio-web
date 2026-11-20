@@ -67,9 +67,9 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate }
   const ms = flow.minutes;
   const buy = ms.reduce((a, m) => a + m.buyAmt, 0), sell = ms.reduce((a, m) => a + m.sellAmt, 0);
   const bv = ms.reduce((a, m) => a + m.buyVol, 0), sv = ms.reduce((a, m) => a + m.sellVol, 0);
-  const last5 = ms.slice(-5), b5 = last5.reduce((a, m) => a + m.buyVol, 0), s5 = last5.reduce((a, m) => a + m.sellVol, 0);
+  const last5 = ms.filter(m => !m.est).slice(-5), b5 = last5.reduce((a, m) => a + m.buyVol, 0), s5 = last5.reduce((a, m) => a + m.sellVol, 0);
   const pct = flow.price && flow.base ? (flow.price / flow.base - 1) * 100 : undefined;
-  const bigs = flow.big.filter(b => b.amt >= US_BIG_MIN).slice(0, 8);
+  const bigs = flow.big.filter(b => b.amt >= US_BIG_MIN).slice(0, 30);
   return (
     <div className="relative rounded-xl border border-gray-300 bg-white pg-box p-3 pt-4 mt-1.5">
       <span className="pg-title absolute -top-3 left-3 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700">
@@ -87,26 +87,31 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, setlDate }
         <Stat label="체결강도(오늘)" v={sv ? <span className={tone(bv - sv)}>{Math.round((bv / sv) * 100)}%</span> : "—"} hint="매수 체결량 ÷ 매도 체결량 × 100 — 100 위면 사는 쪽이 더 적극적" />
         <Stat label="최근 5분" v={s5 ? <span className={tone(b5 - s5)}>{Math.round((b5 / s5) * 100)}%</span> : "—"} hint="최근 5분 체결강도" />
       </div>
-      <FlowChart ms={ms} kd={kd} />
-      <div className="mt-0.5 text-[10.5px] text-gray-400">
-        {flow.error ? <span className="text-rose-500">체결 받기 실패 — {flow.error}</span>
-          : flow.since ? <>한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
-          : "체결을 기다리는 중 — 장이 쉬는 시간엔 쌓이지 않습니다"}
-      </div>
-      {bigs.length > 0 && (
-        <div className="mt-1.5">
-          <div className="text-[11px] font-bold text-gray-600">큰 체결(1억원 이상)</div>
-          <div className="mt-0.5 grid grid-cols-2 gap-x-3 text-[11px] tabular-nums">
-            {bigs.map((b, i) => (
-              <div key={i} className="flex gap-1.5">
-                <span className="text-gray-400">{etToKst(b.time.slice(0, 5), kd)}{b.time.slice(5)}</span>
-                <span className={b.side === "BUY" ? "text-rose-600" : "text-blue-600"}>{b.side === "BUY" ? "매수" : "매도"} {won(b.amt)}</span>
-                <span className="text-gray-400">${b.price.toFixed(2)}</span>
-              </div>
-            ))}
+      {/* 그래프 왼쪽 · 큰 체결 오른쪽(국내 반도체 수급처럼, 사용자 2026-11-21) — 좁은 화면은 아래로 */}
+      <div className="sm:flex sm:items-start sm:gap-2">
+        <div className="sm:flex-1 sm:min-w-0">
+          <FlowChart ms={ms} kd={kd} />
+          <div className="mt-0.5 text-[10.5px] text-gray-400">
+            {flow.error ? <span className="text-rose-500">체결 받기 실패 — {flow.error}</span>
+              : flow.since ? <>{ms.some(m => m.est) && <span className="text-gray-500">회색 = 켜기 전(1분봉 거래대금, 매수·매도 모름) · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
+              : "체결을 기다리는 중 — 장이 쉬는 시간엔 쌓이지 않습니다"}
           </div>
         </div>
-      )}
+        <div className="mt-1.5 sm:mt-2 sm:w-[168px] sm:shrink-0">
+          <div className="text-[11px] font-bold text-gray-600">큰 체결(1억원 이상)</div>
+          {bigs.length ? (
+            <div className="mt-0.5 sm:max-h-[150px] sm:overflow-y-auto overscroll-contain [scrollbar-width:thin] text-[11px] tabular-nums grid grid-cols-2 sm:grid-cols-1 gap-x-3">
+              {bigs.map((b, i) => (
+                <div key={i} className="flex gap-1.5 whitespace-nowrap">
+                  <span className="text-gray-400">{etToKst(b.time.slice(0, 5), kd)}{b.time.slice(5)}</span>
+                  <span className={b.side === "BUY" ? "text-rose-600" : "text-blue-600"}>{b.side === "BUY" ? "매수" : "매도"} {won(b.amt)}</span>
+                  <span className="text-gray-400 sm:hidden">${b.price.toFixed(2)}</span>
+                </div>
+              ))}
+            </div>
+          ) : <div className="text-[10.5px] text-gray-400">아직 없음</div>}
+        </div>
+      </div>
       <ShortBox days={shortDays} />
       <div className="mt-2 rounded-lg border border-gray-200 bg-gray-50/50 px-2 py-1.5 text-[11.5px] text-gray-700 leading-snug">
         <b>🐜 서학개미</b>{" "}
@@ -129,14 +134,15 @@ function Stat({ label, v, hint }: { label: string; v: React.ReactNode; hint: str
 }
 
 // 1분 막대(위 빨강 = 매수 체결 금액, 아래 파랑 = 매도) + 가격 선(회색) + 누적 순매수 선(주황)
-function FlowChart({ ms, kd }: { ms: { t: string; buyAmt: number; sellAmt: number; close: number }[]; kd: number }) {
+// est(1분봉으로 채운 분) = 매수·매도를 몰라 회색 막대(거래대금 절반씩 위아래), 누적 순매수에는 넣지 않는다
+function FlowChart({ ms, kd }: { ms: { t: string; buyAmt: number; sellAmt: number; close: number; est?: boolean; amt?: number }[]; kd: number }) {
   const W = 600, H = 150, mid = 90, top = 8;
   if (ms.length < 1) return <div className="mt-2 h-[150px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400">체결이 쌓이면 그래프가 그려집니다</div>;
   const toM = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
   const m0 = toM(ms[0].t), m1 = Math.max(toM(ms[ms.length - 1].t), m0 + 30);
   const x = (t: string) => ((toM(t) - m0) / (m1 - m0)) * (W - 8) + 4;
   const bw = Math.max(1, (W - 8) / (m1 - m0 + 1) - 0.6);
-  const maxAmt = Math.max(1, ...ms.map(m => Math.max(m.buyAmt, m.sellAmt)));
+  const maxAmt = Math.max(1, ...ms.map(m => (m.est ? (m.amt ?? 0) / 2 : Math.max(m.buyAmt, m.sellAmt))));
   const barH = (v: number, room: number) => (v / maxAmt) * room;
   const pMin = Math.min(...ms.map(m => m.close)), pMax = Math.max(...ms.map(m => m.close)), pr = pMax - pMin || 1;
   const py = (p: number) => top + (1 - (p - pMin) / pr) * (mid - top - 4);
@@ -150,7 +156,9 @@ function FlowChart({ ms, kd }: { ms: { t: string; buyAmt: number; sellAmt: numbe
       <line x1={0} x2={W} y1={mid} y2={mid} stroke="#d1d5db" strokeWidth={0.6} />
       {marks.map(([t, l]) => <g key={t}><line x1={x(t)} x2={x(t)} y1={0} y2={H} stroke="#a5b4fc" strokeDasharray="3 3" strokeWidth={0.8} /><text x={x(t) + 2} y={H - 3} fontSize={9} fill="#6366f1">{l}</text></g>)}
       {ms.map(m => (
-        <g key={m.t}>
+        m.est ? <g key={m.t}>
+          <rect x={x(m.t) - bw / 2} y={mid - barH((m.amt ?? 0) / 2, mid - top)} width={bw} height={barH((m.amt ?? 0) / 2, mid - top) + barH((m.amt ?? 0) / 2, H - mid - 14)} fill="#9ca3af" opacity={0.35} />
+        </g> : <g key={m.t}>
           <rect x={x(m.t) - bw / 2} y={mid - barH(m.buyAmt, mid - top)} width={bw} height={barH(m.buyAmt, mid - top)} fill="#f43f5e" opacity={0.55} />
           <rect x={x(m.t) - bw / 2} y={mid} width={bw} height={barH(m.sellAmt, H - mid - 14)} fill="#3b82f6" opacity={0.55} />
         </g>

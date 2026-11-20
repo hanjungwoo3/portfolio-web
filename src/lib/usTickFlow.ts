@@ -3,9 +3,9 @@
 //   미국 장은 한국 자정을 넘기므로(정규장 23:30~06:00 KST) **미국 동부 시각(ET) 날짜·분**으로 쌓는다 — KST 로 쌓으면 자정에 버려지고 분 순서가 뒤집힌다.
 //   금액은 원화(토스 priceKrw × 수량) — 국내 탭과 같은 억 단위로 읽게. 과거 체결 API 가 없어 화면이 꺼져 있던 동안은 빈칸.
 import { useEffect, useState } from "react";
-import { fetchTossUsTicks, type TossUsTick } from "./api";
+import { fetchTossUsTicks, fetchTossUsMinuteToday, type TossUsTick } from "./api";
 
-export interface UsMinute { t: string; buyVol: number; sellVol: number; buyAmt: number; sellAmt: number; close: number }   // t = ET "HH:MM", 금액 = 원
+export interface UsMinute { t: string; buyVol: number; sellVol: number; buyAmt: number; sellAmt: number; close: number; est?: boolean; amt?: number }   // t = ET "HH:MM", 금액 = 원 · est = 1분봉으로 채운 분(매수·매도 모름, amt = 거래대금)
 export interface UsBig { time: string; side: "BUY" | "SELL"; amt: number; price: number; volume: number }   // time = ET "HH:MM:SS"
 export interface UsTickFlow { minutes: UsMinute[]; big: UsBig[]; gaps: number; since?: string; last?: string; base?: number; price?: number; priceKrw?: number; error?: string; etDate: string }
 
@@ -99,6 +99,22 @@ export function useUsTickFlow(tossCode: string, enabled = true): UsTickFlow {
     const id = setInterval(tick, POLL_MS);
     return () => { alive = false; clearInterval(id); };
   }, [tossCode, enabled]);
+  // 켜기 전·꺼져 있던 분은 1분봉(가격·거래량)으로 — 5분마다(사용자 2026-11-21 "켜기 전의 거래기록은 없어?")
+  const [fill, setFill] = useState<Map<string, UsMinute>>(new Map());
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const load = () => fetchTossUsMinuteToday(tossCode, etNow().date).then(cs => {
+      if (alive) setFill(new Map(cs.map(c => [c.t, { t: c.t, buyVol: 0, sellVol: 0, buyAmt: 0, sellAmt: 0, close: c.close, est: true, amt: c.amt }])));
+    }).catch(() => { /* 없으면 빈칸 */ });
+    void load();
+    const id = setInterval(load, 5 * 60_000);
+    return () => { alive = false; clearInterval(id); };
+  }, [tossCode, enabled]);
   const b = box(tossCode);
-  return { minutes: [...b.minutes.values()].sort((x, y) => x.t.localeCompare(y.t)), big: b.big, gaps: b.gaps, since: b.since, last: b.last, base: b.base, price: b.price, priceKrw: b.priceKrw, error, etDate: b.date };
+  // 실시간이 있는 분은 실시간, 없는 분만 1분봉. 마지막 실시간 분 뒤의 1분봉은 버린다(진행 중인 분을 덮지 않게)
+  const merged = new Map(b.minutes);
+  const lastReal = b.last?.slice(0, 5);
+  for (const [t, m] of fill) if (!merged.has(t) && (!lastReal || t < lastReal)) merged.set(t, m);
+  return { minutes: [...merged.values()].sort((x, y) => x.t.localeCompare(y.t)), big: b.big, gaps: b.gaps, since: b.since, last: b.last, base: b.base, price: b.price, priceKrw: b.priceKrw, error, etDate: b.date };
 }
