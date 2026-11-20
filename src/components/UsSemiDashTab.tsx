@@ -202,8 +202,11 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
   const bins = new Map<number, { buy: number; sell: number }>();
   for (const m of real) { const k = Math.floor(m.at / BIN) * BIN; const b = bins.get(k) ?? { buy: 0, sell: 0 }; b.buy += m.buyAmt; b.sell += m.sellAmt; bins.set(k, b); }
   const bw = Math.max(1.2, (BIN / (T1 - T0)) * (W - PR - 8) - 0.5);
-  const maxAmt = Math.max(1, ...[...bins.values()].map(b => Math.max(b.buy, b.sell)));
-  const barH = (v: number, room: number) => (v / maxAmt) * room;
+  // 막대 높이 기준 = 최근 3시간 중 가장 큰 막대 — 24시간 전체로 맞추면 정규장 막대에 눌려 애프터장(지금) 막대가 0 높이로 안 보였다
+  //   (사용자 2026-11-21 "지금 거래가 있는데 그래프가 갱신 안 되는 것 같은데?"). 그보다 큰 예전 막대는 칸 끝에서 자른다
+  const recent = [...bins.entries()].filter(([k]) => k >= T1 - 3 * 3600_000).map(([, b]) => Math.max(b.buy, b.sell));
+  const maxAmt = Math.max(1, ...(recent.length ? recent : [...bins.values()].map(b => Math.max(b.buy, b.sell))));
+  const barH = (v: number, room: number) => Math.min(1, v / maxAmt) * room;
   // 체결 누적(주황) — 기록이 있는 분만
   let cum = 0; const cums = real.map(m => (cum += m.buyAmt - m.sellAmt));
   const cLo = Math.min(0, ...cums), cHi = Math.max(0, ...cums), cR = cHi - cLo || 1;
