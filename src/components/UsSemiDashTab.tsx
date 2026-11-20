@@ -51,7 +51,7 @@ export function UsSemiDashTab() {
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-gray-600">
         <span className="inline-flex items-center gap-1"><i className="inline-block w-2 h-2.5 bg-rose-300/60" /><i className="inline-block w-2 h-2.5 bg-blue-300/60" />가격(그날 전일 종가 위 빨강·아래 파랑)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-amber-500" />체결 누적(매수−매도, 자기 눈금)</span>
-        <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />1분 순매수·순매도(진함) — 연한 막대 = 매수(위)·매도(아래) 각각</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />순매수(위)·순매도(아래) 막대(10분, 높이는 제곱근 눈금)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-violet-400" />배경 나스닥100(QQQ, 자기 눈금)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-slate-400/50" />거래량(5분, 맨 아래)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-400" />장 구간 세로선(프리·정규 시작·끝·애프터 끝)</span>
@@ -205,9 +205,9 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
   const bw = Math.max(1.2, (BIN / (T1 - T0)) * (W - PR - 8) - 0.5);
   // 막대 높이 기준 = 최근 3시간 중 가장 큰 막대 — 24시간 전체로 맞추면 정규장 막대에 눌려 애프터장(지금) 막대가 0 높이로 안 보였다
   //   (사용자 2026-11-21 "지금 거래가 있는데 그래프가 갱신 안 되는 것 같은데?"). 그보다 큰 예전 막대는 칸 끝에서 자른다
-  const recent = [...bins.entries()].filter(([k]) => k >= T1 - 3 * 3600_000).map(([, b]) => Math.max(b.buy, b.sell));
-  const maxAmt = Math.max(1, ...(recent.length ? recent : [...bins.values()].map(b => Math.max(b.buy, b.sell))));
-  const barH = (v: number, room: number) => Math.min(1, v / maxAmt) * room;
+  //   → 다시(사용자 2026-11-21 "상하 차이만 칠해야") — 순매수·순매도(차이)만, 높이는 제곱근 눈금(큰 막대가 넘치지 않고 작은 애프터장 막대도 보이게)
+  const maxAmt = Math.max(1, ...[...bins.values()].map(b => Math.abs(b.buy - b.sell)));
+  const barH = (v: number, room: number) => Math.sqrt(Math.min(1, v / maxAmt)) * room * 0.92;
   // 체결 누적(주황) — 기록이 있는 분만
   let cum = 0; const cums = real.map(m => (cum += m.buyAmt - m.sellAmt));
   const cLo = Math.min(0, ...cums), cHi = Math.max(0, ...cums), cR = cHi - cLo || 1;
@@ -254,11 +254,9 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
         {P.map(p => p.volume ? <rect key={`v${p.t}`} x={x(p.t) - vw / 2} y={H - 14 - (p.volume / vMax) * VH} width={vw} height={(p.volume / vMax) * VH} fill="#94a3b8" opacity={0.35} /> : null)}
         <line x1={0} x2={W - PR} y1={mid} y2={mid} stroke="#d1d5db" strokeWidth={0.6} />
         {marks.map(m => <line key={m.at} x1={x(m.at)} x2={x(m.at)} y1={0} y2={H - 14} stroke="#818cf8" strokeDasharray="3 3" strokeWidth={0.9} opacity={m.label ? 0.8 : 0.45} />)}
-        {/* 매수(위)·매도(아래)는 연하게, 둘의 차이(순매수 빨강 위 / 순매도 파랑 아래)만 진하게 — 국내 1분 띠와 같은 꼴 */}
+        {/* 순매수(빨강 위)·순매도(파랑 아래)만 — 매수·매도 각각의 연한 막대는 뺐다(사용자 2026-11-21) */}
         {[...bins.entries()].map(([k, b]) => { const cx = x(k + BIN / 2); return (
           <g key={k}>
-            <rect x={cx - bw / 2} y={mid - barH(b.buy, mid - top)} width={bw} height={barH(b.buy, mid - top)} fill="#f43f5e" opacity={0.16} />
-            <rect x={cx - bw / 2} y={mid} width={bw} height={barH(b.sell, H - mid - 16)} fill="#3b82f6" opacity={0.16} />
             {b.buy >= b.sell
               ? <rect x={cx - bw / 2} y={mid - barH(b.buy - b.sell, mid - top)} width={bw} height={barH(b.buy - b.sell, mid - top)} fill="#e11d48" opacity={0.85} />
               : <rect x={cx - bw / 2} y={mid} width={bw} height={barH(b.sell - b.buy, H - mid - 16)} fill="#2563eb" opacity={0.85} />}
