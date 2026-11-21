@@ -2,7 +2,7 @@
 //   국내 반도체 수급 탭과 달리 미국은 외국인·기관·개인 수급을 공개하지 않는다 — 그래서 '누가'가 아니라 '어떻게 체결되나'(매수·매도 체결)와
 //   공매도 거래 비중(FINRA, 하루 늦게)·한국 개인 보유(세이브로)를 본다.
 //   체결: 토스 ticks 5초(화면을 켠 동안만 쌓인다, lib/usTickFlow) · 공매도: 크롤러 us-short-volume.json(매일 06:00 KST) · 서학개미: seohak.json
-import { useId } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
 import { fetchTossUs5mHours } from "../lib/api";
 import { useUsTickFlow, etToKst, etNow, US_SEMI_STOCKS, type UsTickFlow } from "../lib/usTickFlow";
@@ -36,10 +36,32 @@ export function UsSemiDashTab() {
   const flows = [useUsTickFlow(STOCKS[0].toss), useUsTickFlow(STOCKS[1].toss), useUsTickFlow(STOCKS[2].toss), useUsTickFlow(STOCKS[3].toss)];   // 칸 수 고정(훅 순서)
   const short = useQuery({ queryKey: ["us-short-volume"], queryFn: loadShort, staleTime: 3 * 3600_000, retry: 1 });
   const seohak = useSeohak();
-  // 배경 나스닥 — 나스닥100(QQQ) 1분봉, 국내 탭의 배경 코스피처럼(사용자 2026-11-21 "배경에 나스닥 그래프"). 1분마다, 최근 3시간
-  //   + 12시간(사용자 2026-11-21 48 → 24 → "12시간으로 줄이자") — 종목·QQQ 5분봉(HRS), 5분마다
-  const ndx = useQuery({ queryKey: ["us-semi-qqq-5m48"], queryFn: () => fetchTossUs5mHours("US19990310001", HRS), refetchInterval: 5 * 60_000, staleTime: 2 * 60_000, retry: 1 });
-  const px48 = useQueries({ queries: STOCKS.map(s => ({ queryKey: ["us-semi-5m48", s.toss], queryFn: () => fetchTossUs5mHours(s.toss, HRS), refetchInterval: 5 * 60_000, staleTime: 2 * 60_000, retry: 1 })) });
+  // 배경 나스닥 — 나스닥100(QQQ), 국내 탭의 배경 코스피처럼(사용자 2026-11-21 "배경에 나스닥 그래프")
+  // 그래프 = 기본 최근 1시간, 휠로 확대·축소(15분~48시간), 끌기·가로 휠로 좌우 이동, 두 번 클릭 = 최근 1시간(사용자 2026-11-21 "1시간만 보여주고 확대/축소, 좌우 스크롤")
+  //   네 칸이 같이 움직인다. 자료 = 최근 ~6.6시간 1분봉(400봉) + 48시간 5분봉 — 1분봉이 있는 구간은 1분봉으로
+  const q1 = (code: string) => ({ queryKey: ["us-semi-1m", code], queryFn: () => fetchTossUs5mHours(code, 7, "min:1"), refetchInterval: 60_000, staleTime: 30_000, retry: 1 });
+  const q5 = (code: string) => ({ queryKey: ["us-semi-5m", code], queryFn: () => fetchTossUs5mHours(code, 48, "min:5"), refetchInterval: 300_000, staleTime: 120_000, retry: 1 });
+  const codes = [...STOCKS.map(s => s.toss), "US19990310001"];   // 마지막 = QQQ
+  const c1 = useQueries({ queries: codes.map(q1) }), c5 = useQueries({ queries: codes.map(q5) });
+  const series = codes.map((_, i) => {
+    const a1 = c1[i]?.data ?? [], a5 = c5[i]?.data ?? [];
+    const cut = a1[0]?.t ?? Infinity;
+    return [...a5.filter(p => p.t < cut), ...a1];
+  });
+  const [view, setView] = useState<{ span: number; end: number | null }>({ span: 3600_000, end: null });   // end null = 지금을 따라간다
+  const nowMs = Date.now();
+  const vT1 = view.end ?? nowMs, vT0 = vT1 - view.span;
+  const MIN_SPAN = 15 * 60_000, MAX_SPAN = 48 * 3600_000;
+  const fixEnd = (end: number, span: number) => (end >= nowMs - 30_000 ? null : Math.max(end, nowMs - MAX_SPAN + span));
+  const zoom = (f: number, frac: number) => setView(v => {
+    const t1 = v.end ?? Date.now(), t0 = t1 - v.span, at = t0 + frac * v.span;
+    const span = Math.min(MAX_SPAN, Math.max(MIN_SPAN, v.span * f));
+    const n0 = at - frac * span;
+    return { span, end: fixEnd(n0 + span, span) };
+  });
+  const pan = (dfrac: number) => setView(v => ({ span: v.span, end: fixEnd((v.end ?? Date.now()) + dfrac * v.span, v.span) }));
+  const resetView = () => setView({ span: 3600_000, end: null });
+  const spanLabel = view.span >= 3600_000 ? `${+(view.span / 3600_000).toFixed(1)}시간` : `${Math.round(view.span / 60_000)}분`;
   const kd = etNow().kstDiff;
   return (
     <div className="space-y-1.5 p-1">
@@ -47,13 +69,18 @@ export function UsSemiDashTab() {
         미국은 외국인·기관·개인 수급을 공개하지 않습니다. 대신 <b>체결이 매수 쪽(빨강)으로 많이 붙나 매도 쪽(파랑)으로 붙나</b>,
         <b> 공매도로 보고된 거래 비중</b>, <b>한국 개인(서학개미) 보유</b>를 봅니다. 정규장은 한국 시각 {etToKst("09:30", kd)}~{etToKst("16:00", kd)}.
       </div>
+      <div className="flex items-center gap-2 text-[11px] text-gray-500">
+        <b className="text-gray-700">그래프 {spanLabel}{view.end ? ` · ${kstLabel(vT1, true)}까지` : " · 지금까지"}</b>
+        <span>휠 = 확대·축소 · 끌기(또는 가로 휠) = 좌우 이동 · 두 번 클릭 = 최근 1시간</span>
+        {(view.end || view.span !== 3600_000) && <button type="button" onClick={resetView} className="px-1.5 py-0.5 rounded border border-gray-300 bg-white font-bold text-gray-600 hover:bg-gray-100">최근 1시간</button>}
+      </div>
       {/* 범례 — 칸마다 있던 것을 맨 위 한 번만(사용자 2026-11-21 "공간을 정리하자 4개 종목을 한번에")(사용자 2026-11-21 "그래프 각 선이 뭔지 설명이 없어?") */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-gray-600">
         <span className="inline-flex items-center gap-1"><i className="inline-block w-2 h-2.5 bg-rose-300/60" /><i className="inline-block w-2 h-2.5 bg-blue-300/60" />가격(그날 전일 종가 위 빨강·아래 파랑)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-amber-500" />체결 누적(매수−매도, 자기 눈금)</span>
-        <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />매수(위)·매도(아래) 연하게 + 차이만 진하게(5분, 제곱근 눈금)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />매수(위)·매도(아래) 연하게 + 차이만 진하게(제곱근 눈금)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-violet-400" />배경 나스닥100(QQQ, 자기 눈금)</span>
-        <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-slate-400/50" />거래량(5분, 맨 아래)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-slate-400/50" />거래량(맨 아래)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-400" />장 구간 세로선(프리·정규 시작·끝·애프터 끝)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-gray-400" />전일 종가(날마다 가로선)</span>
       </div>
@@ -61,7 +88,7 @@ export function UsSemiDashTab() {
         {STOCKS.map((s, i) => (
           <StockPanel key={s.ticker} s={s} flow={flows[i]} kd={kd}
                       shortDays={short.data?.days.flatMap(d => d.rows[s.ticker] ? [{ date: d.date, sv: d.rows[s.ticker][0], tv: d.rows[s.ticker][1] }] : [])}
-                      bg={ndx.data} price48={px48[i]?.data}
+                      bg={series[STOCKS.length]} price48={series[i]} t0={vT0} t1={vT1} onZoom={zoom} onPan={pan} onReset={resetView}
                       hold={seohak?.hold.find(h => h.t === s.ticker)} holdDate={seohak?.meta.holdDate}
                       dayNet={seohak?.day.net.find(h => h.t === s.ticker)?.net ?? seohak?.day.sell.find(h => h.t === s.ticker)?.net} />
         ))}
@@ -74,8 +101,8 @@ export function UsSemiDashTab() {
   );
 }
 
-function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg, price48 }: {
-  s: (typeof STOCKS)[number]; flow: UsTickFlow; kd: number; bg?: { t: number; close: number; base?: number }[]; price48?: { t: number; close: number; base?: number; volume?: number }[];
+function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg, price48, t0, t1, onZoom, onPan, onReset }: {
+  s: (typeof STOCKS)[number]; flow: UsTickFlow; kd: number; t0: number; t1: number; onZoom: (f: number, frac: number) => void; onPan: (d: number) => void; onReset: () => void; bg?: { t: number; close: number; base?: number }[]; price48?: { t: number; close: number; base?: number; volume?: number }[];
   shortDays?: { date: string; sv: number; tv: number }[];
   hold?: { amt: number; rank: number; prevRank?: number; prevAmt?: number }; holdDate?: string;
   dayNet?: number;
@@ -119,10 +146,10 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg, price4
       {/* 그래프 왼쪽 · 큰 체결 오른쪽(국내 반도체 수급처럼, 사용자 2026-11-21) — 좁은 화면은 아래로 */}
       <div className="sm:flex sm:items-start sm:gap-2">
         <div className="sm:flex-1 sm:min-w-0">
-          <FlowChart ms={ms} etDate={flow.etDate} kd={kd} price={price48} bg={bg} base={flow.base} />
+          <FlowChart ms={ms} etDate={flow.etDate} kd={kd} price={price48} bg={bg} base={flow.base} T0={t0} T1={t1} onZoom={onZoom} onPan={onPan} onReset={onReset} />
           <div className="mt-0.5 text-[10.5px] text-gray-400">
             {flow.error ? <span className="text-rose-500">체결 받기 실패 — {flow.error}</span>
-              : flow.since ? <><span className="text-gray-500">가격·나스닥 = 5분봉 12시간 · </span>{ms.some(m => m.kis) && <span className="text-emerald-600">한투로 정확히 나눈 분 {ms.filter(m => m.kis).length}개 · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
+              : flow.since ? <><span className="text-gray-500">가격·나스닥 = 토스 1분·5분봉 · </span>{ms.some(m => m.kis) && <span className="text-emerald-600">한투로 정확히 나눈 분 {ms.filter(m => m.kis).length}개 · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
               : "체결을 기다리는 중 — 장이 쉬는 시간엔 쌓이지 않습니다"}
           </div>
         </div>
@@ -159,28 +186,59 @@ function Stat({ label, v, hint }: { label: string; v: React.ReactNode; hint: str
 // 48시간 그래프(사용자 2026-11-21 "그래프를 48시간으로 고정") — 가로축 = 지금부터 48시간 전까지(실제 시각).
 //   가격·배경 나스닥 = 토스 5분봉 48시간 · 매수·매도 막대·체결 누적 = 이 기기가 쌓은 오늘 체결(15분씩 묶어 막대) · 세로선 = 날마다 장 구간(ET 04:00·09:30·16:00·20:00)
 //   글자(현재가·최고·최저·체결 누적)는 국내 반도체 수급과 같은 꼴 — svg 가 가로로 늘어나므로 HTML 로 얹는다
-const HRS = 12, BIN = 5 * 60_000;   // 48 → 24 → 12시간(사용자 2026-11-21 "12시간으로 줄이자"), 막대 5분 묶음
+// 막대 묶음 = 보이는 길이에 맞춰(2시간 이하 1분, 6시간 2분, 12시간 5분, 24시간 10분, 그 이상 15분)
+const binOf = (h: number) => (h <= 2 ? 1 : h <= 6 ? 2 : h <= 12 ? 5 : h <= 24 ? 10 : 15) * 60_000;
 /** ET 날짜 + "HH:MM" → 시각(ms). kstDiff = KST − ET(분) */
 const etEpoch = (date: string, t: string, kstDiff: number) =>
   Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10), +t.slice(0, 2), +t.slice(3, 5)) - (540 - kstDiff) * 60_000;
 const kstLabel = (ms: number, withDay = false) => { const d = new Date(ms + 9 * 3600_000); const hm = d.toISOString().slice(11, 16); return withDay ? `${d.getUTCMonth() + 1}/${d.getUTCDate()} ${hm}` : hm; };
 
-function FlowChart({ ms, etDate, kd, price, bg, base }: {
+function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onReset }: {
   ms: { t: string; buyAmt: number; sellAmt: number; close: number; est?: boolean }[]; etDate: string; kd: number;
   price?: { t: number; close: number; base?: number; volume?: number }[]; bg?: { t: number; close: number; base?: number }[]; base?: number;
+  T0: number; T1: number; onZoom: (f: number, frac: number) => void; onPan: (d: number) => void; onReset: () => void;
 }) {
-  const W = 600, H = 190, mid = 116, top = 8, PR = 92;   // PR = 오른쪽 끝 글자 자리(viewBox px)
+  const BIN = binOf((T1 - T0) / 3600_000);
+  // 휠 = 확대·축소(마우스 자리 기준), 가로 휠·shift+휠 = 좌우, 끌기 = 좌우 — React onWheel 은 passive 라 직접 등록(페이지 스크롤을 막아야)
+  const boxRef = useRef<HTMLDivElement>(null);
+  const zr = useRef({ onZoom, onPan }); zr.current = { onZoom, onPan };
+  useEffect(() => {
+    const el = boxRef.current; if (!el) return;
+    const on = (e: WheelEvent) => {
+      const r = el.getBoundingClientRect(); if (!r.width) return;
+      e.preventDefault();
+      const plotW = r.width * ((600 - 92 - 8) / 600);
+      if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) zr.current.onPan((e.deltaX || e.deltaY) / plotW);
+      else zr.current.onZoom(Math.exp(e.deltaY * 0.0008), Math.min(1, Math.max(0, (e.clientX - r.left - r.width * (4 / 600)) / plotW)));
+    };
+    el.addEventListener("wheel", on, { passive: false });
+    return () => el.removeEventListener("wheel", on);
+  });   // 매번 다시 단다 — 자료가 오기 전(빈 칸)과 뒤(그래프)의 상자가 다르다
+  const drag = useRef<number | null>(null);
+  const boxProps = {
+    ref: boxRef,
+    onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => { drag.current = e.clientX; (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId); },
+    onPointerMove: (e: React.PointerEvent<HTMLDivElement>) => {
+      if (drag.current == null) return;
+      const w = (e.currentTarget as HTMLDivElement).getBoundingClientRect().width * ((600 - 92 - 8) / 600);
+      const dx = e.clientX - drag.current; drag.current = e.clientX;
+      if (w) onPan(-dx / w);
+    },
+    onPointerUp: () => { drag.current = null; },
+    onDoubleClick: onReset,
+  };
+  const W = 600, H = 250, mid = 150, top = 8, PR = 92;   // 세로를 늘렸다(사용자 2026-11-21 "새로로 조금 더") 190 → 250   // PR = 오른쪽 끝 글자 자리(viewBox px)
   const uid = useId().replace(/:/g, "");   // clipPath id — 칸이 넷이라 겹치지 않게
   const real = ms.filter(m => !m.est).map(m => ({ ...m, at: etEpoch(etDate, m.t, kd) }));
   // 가격 = 5분봉 + 끝에 지금 체결가(5분봉은 진행 중인 봉이 늦다)
   const pts: { t: number; close: number; base?: number; volume?: number }[] = [...(price ?? [])];
   const lastReal = real[real.length - 1];
   if (lastReal && (!pts.length || lastReal.at > pts[pts.length - 1].t)) pts.push({ t: lastReal.at, close: lastReal.close, base: pts[pts.length - 1]?.base ?? base });
-  if (pts.length < 2) return <div className="mt-1 h-[190px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400">가격을 받는 중…</div>;
-  const T1 = Math.max(Date.now(), pts[pts.length - 1].t), T0 = T1 - HRS * 3600_000;
+  if (pts.length < 2) return <div {...boxProps} className="mt-1 h-[250px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400">가격을 받는 중…</div>;
   const x = (t: number) => ((t - T0) / (T1 - T0)) * (W - PR - 8) + 4;
-  const inR = <T extends { t: number }>(a: T[]) => a.filter(p => p.t >= T0);
+  const inR = <T extends { t: number }>(a: T[]) => a.filter(p => p.t >= T0 && p.t <= T1);
   const P = inR(pts);
+  if (P.length < 2) return <div {...boxProps} className="mt-1 h-[250px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400 cursor-grab select-none">이 구간엔 거래가 없습니다 — 끌어서 옮기거나 두 번 클릭(최근 1시간)</div>;
   const prices = P.map(p => p.close);
   // 종목 가격은 날마다 자기 기준가(그 전 정규장 종가) 위 빨강·아래 파랑(사용자 2026-11-21 "나스닥은 선으로만, 종목에 색상") — 봉의 base 가 바뀌는 곳에서 나눈다
   const pGroups: { base: number; from: number; pts: typeof P }[] = [];
@@ -189,7 +247,10 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
     if (p.base && (!g || g.base !== p.base)) pGroups.push({ base: p.base, from: p.t, pts: [p] });
     else if (g) g.pts.push(p);
   }
-  const pVals = [...prices, ...pGroups.map(g => g.base)];
+  // 기준가(전일 종가)는 가까울 때만 눈금에 넣는다 — 1시간처럼 좁게 보면 멀리 있는 전일 종가에 눌려 가격선이 납작해졌다(사용자 2026-11-21 확대 화면)
+  const rawR = (Math.max(...prices) - Math.min(...prices)) || Math.max(...prices) * 0.002;
+  const nearBase = (b: number) => b >= Math.min(...prices) - rawR * 1.5 && b <= Math.max(...prices) + rawR * 1.5;
+  const pVals = [...prices, ...pGroups.map(g => g.base).filter(nearBase)];
   const pMin = Math.min(...pVals), pMax = Math.max(...pVals), pr = pMax - pMin || 1;
   const py = (p: number) => top + 10 + (1 - (p - pMin) / pr) * (mid - top - 24);
   // 선은 40분 넘게 빈 곳(주말·쉬는 시간)에서 끊는다
@@ -201,17 +262,19 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
   };
   // 막대 — 15분씩 묶음
   const bins = new Map<number, { buy: number; sell: number }>();
-  for (const m of real) { const k = Math.floor(m.at / BIN) * BIN; const b = bins.get(k) ?? { buy: 0, sell: 0 }; b.buy += m.buyAmt; b.sell += m.sellAmt; bins.set(k, b); }
+  for (const m of real) { if (m.at < T0 - BIN || m.at > T1) continue; const k = Math.floor(m.at / BIN) * BIN; const b = bins.get(k) ?? { buy: 0, sell: 0 }; b.buy += m.buyAmt; b.sell += m.sellAmt; bins.set(k, b); }
   const bw = Math.max(1.2, (BIN / (T1 - T0)) * (W - PR - 8) - 0.5);
   // 막대 높이 기준 = 최근 3시간 중 가장 큰 막대 — 24시간 전체로 맞추면 정규장 막대에 눌려 애프터장(지금) 막대가 0 높이로 안 보였다
   //   (사용자 2026-11-21 "지금 거래가 있는데 그래프가 갱신 안 되는 것 같은데?"). 그보다 큰 예전 막대는 칸 끝에서 자른다
   //   → 다시(사용자 2026-11-21 "상하 차이만 칠해야") — 순매수·순매도(차이)만, 높이는 제곱근 눈금(큰 막대가 넘치지 않고 작은 애프터장 막대도 보이게)
   //   → 매수·매도 각각 연하게 + 차이만 덜 진하게, 위아래 폭은 가운데 띠만(사용자 2026-11-21 "상하 폭을 줄이고, 각각 흐린 그래프 위에 차이만")
   const maxAmt = Math.max(1, ...[...bins.values()].map(b => Math.max(b.buy, b.sell)));
-  const BAR_UP = 40, BAR_DN = 40;   // 가운데 선 위·아래 최대 높이(viewBox px) — 그래프 전체를 쓰지 않는다
+  const BAR_UP = 52, BAR_DN = 52;   // 가운데 선 위·아래 최대 높이(viewBox px) — 그래프 전체를 쓰지 않는다
   const barH = (v: number, room: number) => Math.sqrt(Math.min(1, Math.max(0, v) / maxAmt)) * room;
   // 체결 누적(주황) — 기록이 있는 분만
-  let cum = 0; const cums = real.map(m => (cum += m.buyAmt - m.sellAmt));
+  let cum = 0; const cumsAll = real.map(m => (cum += m.buyAmt - m.sellAmt));   // 누적은 하루 처음부터, 그리는 건 보이는 구간만
+  const vis = real.map((m, i) => ({ at: m.at, c: cumsAll[i] })).filter(p => p.at >= T0 && p.at <= T1);
+  const cums = vis.map(p => p.c);
   const cLo = Math.min(0, ...cums), cHi = Math.max(0, ...cums), cR = cHi - cLo || 1;
   const cy = (c: number) => top + 6 + (1 - (c - cLo) / cR) * (H - top - 30);
   // 배경 나스닥100(QQQ) — 자기 눈금, 가로 점선 = 가장 최근 봉의 기준(어제 종가)
@@ -223,7 +286,8 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
   const bLast = B[B.length - 1], bPct = bLast && bBase ? (bLast.close / bBase - 1) * 100 : undefined;
   // 거래량(5분봉) — 맨 아래 옅은 회색 띠, 24시간 전체(체결을 못 쌓은 시간도 보인다, 사용자 2026-11-21 "거래량도 아래에 넣을까?")
   const VH = 26, vMax = Math.max(1, ...P.map(p => p.volume ?? 0));
-  const vw = Math.max(0.8, (5 * 60_000 / (T1 - T0)) * (W - PR - 8) - 0.2);
+  const step = P.length > 1 ? Math.max(60_000, Math.min(...P.slice(1).map((p, i) => p.t - P[i].t))) : 5 * 60_000;   // 봉 간격(1분·5분)
+  const vw = Math.max(0.8, (step / (T1 - T0)) * (W - PR - 8) - 0.2);
   // 세로선 — 범위 안 날짜마다 ET 프리 시작·정규 시작·정규 끝·애프터 끝
   const marks: { at: number; label: string }[] = [];
   for (let d = -3; d <= 1; d++) {
@@ -249,8 +313,8 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
   yPrice = Math.max(5, Math.min(92, yPrice)); yCum = Math.max(5, Math.min(92, yCum));
   const lab = "absolute pointer-events-none text-[10px] tabular-nums px-0.5 rounded bg-white/80 whitespace-nowrap";
   return (
-    <div className="relative mt-1">
-      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[190px]" preserveAspectRatio="none">
+    <div {...boxProps} className="relative mt-1 cursor-grab active:cursor-grabbing select-none touch-pan-y">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-[250px]" preserveAspectRatio="none">
         {/* 배경 나스닥100(QQQ) — 선만(사용자 2026-11-21 "나스닥은 선으로만") */}
         {B.length > 1 && segs(B, i => by(B[i].close)).map((pp, i) => <polyline key={i} fill="none" stroke="#a78bfa" strokeWidth={1.1} opacity={0.75} points={pp} />)}
         {P.map(p => p.volume ? <rect key={`v${p.t}`} x={x(p.t) - vw / 2} y={H - 14 - (p.volume / vMax) * VH} width={vw} height={(p.volume / vMax) * VH} fill="#94a3b8" opacity={0.35} /> : null)}
@@ -267,7 +331,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
           </g>); })}
         {/* 종목 가격 — 그날 기준가 위 빨강·아래 파랑 면 + 선(일반 지수 카드처럼), 기준가 점선은 그날 구간에만 */}
         {pGroups.length ? pGroups.map((g, gi) => {
-          const gx0 = x(g.from) - (gi ? 0 : 2), gx1 = gi < pGroups.length - 1 ? x(pGroups[gi + 1].from) : W - PR, yb = py(g.base);
+          const gx0 = x(g.from) - (gi ? 0 : 2), gx1 = gi < pGroups.length - 1 ? x(pGroups[gi + 1].from) : W - PR, yb = Math.max(top, Math.min(mid + 30, py(g.base)));   // 화면 밖이면 끝에 붙인다(면은 그쪽 색으로 채워진다)
           return <g key={gi}>
             <defs>
               <clipPath id={`${uid}-u${gi}`}><rect x={gx0} y={0} width={Math.max(0, gx1 - gx0)} height={yb} /></clipPath>
@@ -283,12 +347,12 @@ function FlowChart({ ms, etDate, kd, price, bg, base }: {
                 <polyline clipPath={`url(#${uid}-d${gi})`} fill="none" stroke="#2563eb" strokeWidth={1.4} points={pp} />
               </g>;
             })}
-            <line x1={gx0} x2={gx1} y1={yb} y2={yb} stroke="#9ca3af" strokeDasharray="4 3" strokeWidth={0.9} />
+            {nearBase(g.base) && <line x1={gx0} x2={gx1} y1={yb} y2={yb} stroke="#9ca3af" strokeDasharray="4 3" strokeWidth={0.9} />}
           </g>;
         }) : segs(P, i => py(P[i].close)).map((pp, i) => <polyline key={i} fill="none" stroke="#475569" strokeWidth={1.3} points={pp} />)}
-        {cums.some(c => c !== 0) && <polyline fill="none" stroke="#f59e0b" strokeWidth={1.6} points={real.map((m, i) => `${x(m.at)},${cy(cums[i])}`).join(" ")} />}
+        {cums.some(c => c !== 0) && <polyline fill="none" stroke="#f59e0b" strokeWidth={1.6} points={vis.map(p => `${x(p.at)},${cy(p.c)}`).join(" ")} />}
       </svg>
-      {pGroups.filter((g, gi) => (gi < pGroups.length - 1 ? lx(pGroups[gi + 1].from) : 85) - lx(g.from) > 12).map((g, gi) => <span key={gi} className="absolute text-[9px] text-gray-500 pointer-events-none whitespace-nowrap" style={{ left: `${Math.max(0.5, lx(g.from))}%`, top: `${ly(py(g.base))}%`, transform: "translateY(-110%)" }}>전일 종가</span>)}
+      {pGroups.filter((g, gi) => nearBase(g.base) && (gi < pGroups.length - 1 ? lx(pGroups[gi + 1].from) : 85) - lx(g.from) > 12).map((g, gi) => <span key={gi} className="absolute text-[9px] text-gray-500 pointer-events-none whitespace-nowrap" style={{ left: `${Math.max(0.5, lx(g.from))}%`, top: `${ly(py(g.base))}%`, transform: "translateY(-110%)" }}>전일 종가</span>)}
       {B.length > 1 && <span className="absolute left-1.5 bottom-3.5 text-[10px] text-gray-500 pointer-events-none">배경 나스닥100(QQQ){bPct != null ? <b className={bPct >= 0 ? "text-rose-600" : "text-blue-600"}> {bPct >= 0 ? "+" : ""}{bPct.toFixed(2)}%</b> : ""}</span>}
       {marks.filter(m => m.label).map(m => <span key={m.at} className="absolute bottom-0 text-[9px] text-indigo-500 pointer-events-none" style={{ left: `${lx(m.at)}%`, transform: "translateX(-50%)" }}>{m.label}</span>)}
       <span className="absolute left-1 bottom-0 text-[9.5px] text-gray-400 pointer-events-none">{kstLabel(T0, true)}</span>
