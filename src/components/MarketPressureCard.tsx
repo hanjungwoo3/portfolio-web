@@ -8,7 +8,6 @@ import {
   fetchKrFuturesLive, fetchKospi200OptionSummary, fetchYahooBatch,
 } from "../lib/api";
 import { futuresGauge, spotGauge, lendingGauge, shortGauge, optionGauge, volGauge, verdict, type Gauge, type Tone } from "../lib/marketPressure";
-import { Sparkline } from "./Sparkline";
 import { useShortStats, fmtWon, fmtPct, type ShortStats } from "./ShortAnalysisCard";
 
 const BIG = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }];
@@ -84,7 +83,7 @@ export function MarketPressureCard() {
           return (
             <button key={k} type="button" onClick={() => setPick(on ? null : k)} title={`${r.text}${r.help ? `\n\n${r.help}` : ""}`}
                     className={`relative overflow-hidden text-left rounded-md border border-gray-200 border-l-4 ${bar} bg-white px-1.5 py-1 hover:bg-gray-50 ${on ? "ring-2 ring-indigo-300" : ""}`}>
-              {r.series && r.series.length > 1 && <div className="absolute inset-x-0 bottom-0 h-[45%] opacity-30 pointer-events-none"><Sparkline data={r.series} width={200} height={30} className="w-full h-full" strokeWidth={1} color={r.tag === "fuel" ? "#d97706" : undefined} /></div>}
+              {r.series && r.series.length > 1 && <div className="absolute inset-x-0 bottom-0 h-[70%] opacity-35 pointer-events-none"><MiniLine data={r.series} color={r.tag === "fuel" ? "#d97706" : r.tag === "better" ? "#e11d48" : r.tag === "worse" ? "#2563eb" : "#6b7280"} /></div>}
               <div className="relative text-[10.5px] text-gray-500 truncate">{r.title}</div>
               {/* 값과 방향을 한 줄로(사용자 2026-11-21 "3줄인데 2줄로") */}
               <div className="relative flex items-baseline gap-1.5 min-w-0">
@@ -140,6 +139,18 @@ export function MarketPressureCard() {
   );
 }
 
+/** 타일 배경 미니 그래프 — 선 + 가운데 평균 가로 점선(사용자 2026-11-21 "여기 중심 가로선 말한 건데") */
+function MiniLine({ data, color }: { data: number[]; color: string }) {
+  const W = 200, H = 40, lo = Math.min(...data), hi = Math.max(...data), r = hi - lo || 1;
+  const y = (v: number) => 3 + (1 - (v - lo) / r) * (H - 6);
+  const av = data.reduce((a, v) => a + v, 0) / data.length;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
+      <line x1={0} x2={W} y1={y(av)} y2={y(av)} stroke="#6b7280" strokeDasharray="4 3" strokeWidth={1} vectorEffect="non-scaling-stroke" />
+      <polyline fill="none" stroke={color} strokeWidth={1.3} vectorEffect="non-scaling-stroke" points={data.map((v, i) => `${(i / (data.length - 1)) * W},${y(v)}`).join(" ")} />
+    </svg>
+  );
+}
 /** 대차잔고 하루 증감 막대(최근 30일) — 잔고 자체는 큰 값이 조금씩 움직여 선으로도 차이가 안 보였다(사용자 2026-11-21 "바그래프가 더 잘 보일 것 같은데")
  *  주황 위 = 빌려 감(늘어남), 회색 아래 = 갚음(줄어듦). 높이는 30일 중 가장 큰 변화 기준 */
 //   → 신규(위)·상환(아래)은 연하게, 그 차이(+ 늘어남 주황 위 / − 줄어듦 회색 아래)만 진하게(사용자 2026-11-21 "상하를 투명하게 하고 +-로 차익만 진하게")
