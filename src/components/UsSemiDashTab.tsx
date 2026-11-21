@@ -53,11 +53,12 @@ export function UsSemiDashTab() {
   const lastT = Math.max(0, ...series.map(a => a[a.length - 1]?.t ?? 0));
   const closed = lastT > 0 && nowMs - lastT > 20 * 60_000;
   const kd0 = etNow().kstDiff;
-  const autoView = closed
-    ? { span: 7 * 3600_000, end: etEpoch(etNow(lastT).date, "16:15", kd0) as number | null }
-    : { span: 3600_000, end: null as number | null };
-  const autoLabel = closed ? `마지막 거래일 정규장(${kstLabel(autoView.end! - autoView.span, true)}~)` : "최근 1시간";
-  const [viewS, setView] = useState<{ span: number; end: number | null } | null>(null);   // null = 자동(장중 최근 1시간 / 장 마감 뒤 마지막 정규장), end null = 지금을 따라간다
+  // 기본 = 2시간(사용자 2026-11-21 "미국·국내 둘 다 기본 2시간") — 장 마감 뒤엔 마지막 봉까지의 2시간
+  const endOf = () => (closed ? lastT + 5 * 60_000 : null);
+  const autoView = { span: 2 * 3600_000, end: endOf() as number | null };
+  void kd0;
+  const autoLabel = closed ? `마지막 거래 2시간(${kstLabel(lastT, true)}까지)` : "최근 2시간";
+  const [viewS, setView] = useState<{ span: number; end: number | null } | null>(null);   // null = 자동(2시간 — 장중 지금까지 / 장 마감 뒤 마지막 봉까지), end null = 지금을 따라간다
   const view = viewS ?? autoView;
   const vT1 = view.end ?? nowMs, vT0 = vT1 - view.span;
   const MIN_SPAN = 15 * 60_000, MAX_SPAN = 48 * 3600_000;
@@ -82,8 +83,14 @@ export function UsSemiDashTab() {
       <div className="flex items-center gap-2 text-[11px] text-gray-500">
         <b className="text-gray-700">그래프 {viewS ? `${spanLabel}${view.end ? ` · ${kstLabel(vT1, true)}까지` : " · 지금까지"}` : autoLabel}</b>
         {closed && !viewS && <span className="text-amber-600">미국 장 마감 — 마지막 거래일을 보여 줍니다</span>}
-        <span>휠 = 확대·축소 · 끌기(또는 가로 휠) = 좌우 이동 · 두 번 클릭 = 처음 화면</span>
-        {viewS && <button type="button" onClick={resetView} className="px-1.5 py-0.5 rounded border border-gray-300 bg-white font-bold text-gray-600 hover:bg-gray-100">처음 화면({closed ? "마지막 정규장" : "최근 1시간"})</button>}
+        <span>휠·끌기 = 오른쪽 끝 고정 확대·축소(오른쪽으로 끌면 길게) · 가로 휠 = 좌우 이동 · 두 번 클릭 = 2시간</span>
+        {/* 기간 단추 — 2·12·24·48시간(사용자 2026-11-21), 장 마감 뒤엔 마지막 봉에서 거꾸로 */}
+        <span className="inline-flex gap-0.5">
+          {[2, 12, 24, 48].map(h => (
+            <button key={h} type="button" onClick={() => setView(h === 2 ? null : { span: h * 3600_000, end: endOf() })}
+                    className={`px-1.5 py-0.5 rounded border font-bold ${Math.abs(view.span - h * 3600_000) < 60_000 && (view.end ?? 0) === (endOf() ?? 0) ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-gray-300 text-gray-600 hover:bg-gray-100"}`}>{h}시간</button>
+          ))}
+        </span>
       </div>
       {/* 범례 — 칸마다 있던 것을 맨 위 한 번만(사용자 2026-11-21 "공간을 정리하자 4개 종목을 한번에")(사용자 2026-11-21 "그래프 각 선이 뭔지 설명이 없어?") */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-gray-600">
@@ -223,7 +230,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
       e.preventDefault();
       const plotW = r.width * ((600 - 92 - 8) / 600);
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) zr.current.onPan((e.deltaX || e.deltaY) / plotW);
-      else zr.current.onZoom(Math.exp(e.deltaY * 0.0008), Math.min(1, Math.max(0, (e.clientX - r.left - r.width * (4 / 600)) / plotW)));
+      else zr.current.onZoom(Math.exp(e.deltaY * 0.0008), 1);   // 오른쪽 끝(지금) 고정 확대·축소(사용자 2026-11-21 "오른쪽 끝이 고정되게")
     };
     el.addEventListener("wheel", on, { passive: false });
     return () => el.removeEventListener("wheel", on);
@@ -236,7 +243,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
       if (drag.current == null) return;
       const w = (e.currentTarget as HTMLDivElement).getBoundingClientRect().width * ((600 - 92 - 8) / 600);
       const dx = e.clientX - drag.current; drag.current = e.clientX;
-      if (w) onPan(-dx / w);
+      if (w) onZoom(Math.exp(dx / w), 1);   // 끌기 = 오른쪽 끝 고정, 오른쪽으로 끌면 더 길게(지난 쪽), 왼쪽이면 짧게(사용자 2026-11-21 "드래그할 때 오른쪽 끝 고정, 지금은 따라오는데")
     },
     onPointerUp: () => { drag.current = null; },
     onDoubleClick: onReset,
@@ -252,7 +259,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
   const x = (t: number) => ((t - T0) / (T1 - T0)) * (W - PR - 8) + 4;
   const inR = <T extends { t: number }>(a: T[]) => a.filter(p => p.t >= T0 && p.t <= T1);
   const P = inR(pts);
-  if (P.length < 2) return <div {...boxProps} className="mt-1 h-[250px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400 cursor-grab select-none">이 구간엔 거래가 없습니다 — 끌어서 옮기거나 두 번 클릭(처음 화면)</div>;
+  if (P.length < 2) return <div {...boxProps} className="mt-1 h-[250px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400 cursor-grab select-none">이 구간엔 거래가 없습니다 — 끌어서 옮기거나 두 번 클릭(2시간)</div>;
   const prices = P.map(p => p.close);
   // 종목 가격은 날마다 자기 기준가(그 전 정규장 종가) 위 빨강·아래 파랑(사용자 2026-11-21 "나스닥은 선으로만, 종목에 색상") — 봉의 base 가 바뀌는 곳에서 나눈다
   const pGroups: { base: number; from: number; pts: typeof P }[] = [];

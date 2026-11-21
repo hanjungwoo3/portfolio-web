@@ -205,7 +205,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return q(`${code}.KS`);
   };
   // 어제 종가 = 지금 가격 ÷ (1 + 등락률) — 실시간 체결 가격 글자 옆 % 용
-  const [tickVis, setTickVis] = useState<number | null>(null);   // 두 체결 칸 공통 확대 상태
+  const [tickVis, setTickVis] = useState<number | null>(120);   // 두 체결 칸 공통 확대 상태 — 기본 2시간(사용자 2026-11-21 "기본 2시간")
   const [tickHovT, setTickHovT] = useState<string | null>(null);   // 두 체결 칸 공통 마우스 분
   const tickLink = { vis: tickVis, setVis: setTickVis, hovT: tickHovT, setHovT: setTickHovT };
   // 종목 수급 오늘 잠정치(토스 — KRX 장중 잠정, 외국인·기관·연기금. 개인은 장 마감 뒤) — 실시간 체결 칸 한 줄(사용자 2026-11-04)
@@ -737,7 +737,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
   // 한 화면 분 수 — 기본 1시간, 마우스 휠로 확대(10분까지)·축소(켠 뒤 전부까지)(사용자 2026-11-04 "휠로 확대 축소")
   //   기본 = 켠 뒤 전부 한 화면(사용자 2026-11-04 "전체를 보여주는 걸 기본으로") — null 이면 전체
   //   두 종목 칸은 확대·축소와 좌우 위치가 같이 움직인다(사용자 2026-11-04 "두 개가 같이 연동") — 부모가 vis 를 쥐면 그걸 쓴다
-  const [visLocal, setVisLocal] = useState<number | null>(null);
+  const [visLocal, setVisLocal] = useState<number | null>(120);   // 기본 2시간(사용자 2026-11-21)
   const vis = link ? link.vis : visLocal;
   const setVis = link ? link.setVis : setVisLocal;
   const ALL = Math.max(10, ms.length);   // 전체 = 켠 뒤 분 수 그대로 폭을 채운다(처음엔 넓게, 쌓이면서 좁아짐 — 사용자 2026-11-05)
@@ -753,7 +753,12 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
   const setHovT = link ? link.setHovT : setHovLocal;
   const hovI = hovT ? ms.findIndex(m => m.t === hovT) : -1;
   const hov = hovI >= 0 ? { i: hovI } : null;   // 마우스로 끌기 시작점                           // 오른쪽 끝(지금)에 붙어 있나 — 사용자가 지난 쪽을 보는 중이면 새 분이 와도 안 끌고 간다
-  useEffect(() => { const el = scRef.current; if (el && stick.current) el.scrollLeft = el.scrollWidth; }, [ms.length]);
+  // 오른쪽 끝(지금)에 붙이기 — 기본이 2시간이 되면서(사용자 2026-11-21) 처음 그릴 때 왼쪽(아침)부터 보였다 → 그린 다음 프레임에 한 번 더
+  useEffect(() => {
+    const go = () => { const el = scRef.current; if (el && stick.current) el.scrollLeft = el.scrollWidth; };
+    go(); const id = requestAnimationFrame(go); const t = setTimeout(go, 300);
+    return () => { cancelAnimationFrame(id); clearTimeout(t); };
+  }, [ms.length, ms.length > 0]);
   // 휠 — 마우스 자리를 기준점으로 확대·축소(오른쪽 끝에 붙어 있었으면 계속 끝에). 가로 휠(트랙패드 좌우)은 그대로 스크롤.
   //   React onWheel 은 passive 라 페이지 스크롤을 못 막는다 → 직접 등록
   const zoomAt = useRef<{ fx: number; px: number } | null>(null);
@@ -868,7 +873,14 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
           ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
           : <span className="font-bold text-gray-800">{name} 실시간 체결</span>}
         <span className="text-[11px] text-gray-400">{flow.prevDay ? <b className="text-amber-600">{+flow.prevDay.slice(5, 7)}/{+flow.prevDay.slice(8, 10)} 기록 · 장 마감(1분봉만, 매수·매도 모름) </b> : null}{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : flow.prevDay ? "" : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
-        {vis != null && <button onClick={() => { stick.current = true; setVis(null); }} title="켠 뒤 전부를 한 화면으로 되돌리기" className="text-[10.5px] text-gray-500 border border-gray-300 rounded px-1 hover:bg-gray-50">{vis}분 보기 · 전체로</button>}
+        {/* 기간 단추 — 2·12·24·48시간(사용자 2026-11-21, 미국 탭과 같은 단추). 국내는 오늘(또는 마지막 거래일) 1분봉뿐이라 12시간 넘게는 있는 만큼 */}
+        <span className="inline-flex gap-0.5">
+          {[2, 12, 24, 48].map(h => (
+            <button key={h} type="button" onClick={() => { stick.current = true; setVis(h * 60); }}
+                    className={`text-[10.5px] rounded px-1 border font-bold ${vis === h * 60 ? "bg-indigo-600 border-indigo-600 text-white" : "border-gray-300 text-gray-500 hover:bg-gray-50"}`}>{h}시간</button>
+          ))}
+          {vis != null && ![120, 720, 1440, 2880].includes(vis) && <span className="text-[10.5px] text-gray-400 self-center">{vis}분</span>}
+        </span>
         <KisWsBadge sync={flow.syncPct} />
       </div>
       <div className="flex flex-wrap gap-x-3 tabular-nums my-1">
