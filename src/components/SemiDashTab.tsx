@@ -11,7 +11,7 @@ import { fmtEok } from "../lib/eokFmt";
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { ForeignFuturesPanel } from "./ForeignFuturesPanel";
 import { MarketPressureCard } from "./MarketPressureCard";
-import { loadProgTape, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/futuresTape";
+import { loadProgTape, loadProgTapePrev, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/futuresTape";
 import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
@@ -219,7 +219,8 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   // 프로그램 누적 기록(한투, lib/futuresTape — 삼성·하이닉스만) — 기록기가 1분마다 새로 쓰면 다시 읽는다
   const [progTick, setProgTick] = useState(0);
   useEffect(() => { const on = () => setProgTick(t => t + 1); window.addEventListener(TAPE_EVENT, on); return () => window.removeEventListener(TAPE_EVENT, on); }, []);
-  const progOf = (code: string) => { void progTick; return kisFutAvailable() && PROG_CODES.some(([c]) => c === code) ? loadProgTape(code) : undefined; };
+  // prevDay = 지난 거래일을 보여 주는 중이면 그날 쌓아 둔 프로그램 기록(사용자 2026-11-21)
+  const progOf = (code: string, prevDay?: string) => { void progTick; return kisFutAvailable() && PROG_CODES.some(([c]) => c === code) ? (prevDay ? loadProgTapePrev(code, prevDay) : loadProgTape(code)) : undefined; };
   const baseOf = (code: string) => { const x = sq(code); return x?.price && x.pct != null ? x.price / (1 + x.pct / 100) : undefined; };
   // 프리장(NXT 08:00~09:00) 결과 — 정규장이 열리면 현물 수급은 KRX 로 바뀌어 프리장이 안 보인다 → 따로 한 줄(사용자 요청)
   const [{ data: kospiNxt }, { data: kosdaqNxt }] = useQueries({
@@ -513,7 +514,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         <ValueupStrip code={s0.code} />
         {kisFutAvailable() && <KisViStrip code={s0.code} />}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[360px]">   {/* 체결 · 신호 반반(사용자 요청) */}
-          <TickPanel code={s0.code} name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} prog={progOf(s0.code)} inv={invOf(0)} price={sq(s0.code)?.price} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={ksToday?.base ?? q("^KS11")?.prevClose} />
+          <TickPanel code={s0.code} name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} prog={progOf(s0.code, ticks[0].prevDay)} inv={invOf(0)} price={sq(s0.code)?.price} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={ksToday?.base ?? q("^KS11")?.prevClose} />
           {signalBox}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[430px] shrink-0">
@@ -576,7 +577,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {stocks.map((s, i) => (
           <div key={s.code} className="flex flex-col gap-1.5 min-w-0">
             <div className="h-[440px] lg:h-[470px] grid min-h-0">   {/* + 아래 1분 띠 둘(체결·프로그램) */}
-              <TickPanel code={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} short={shortQs[i]?.data?.map(d => ({ date: d.date, ratio: d.ratio }))} link={tickLink} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={ksToday?.base ?? q("^KS11")?.prevClose} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
+              <TickPanel code={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code, ticks[i].prevDay)} inv={invOf(i)} price={sq(s.code)?.price} short={shortQs[i]?.data?.map(d => ({ date: d.date, ratio: d.ratio }))} link={tickLink} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={ksToday?.base ?? q("^KS11")?.prevClose} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
             </div>
             {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "max-h-[150px]")}   {/* 내용만큼 — 신호가 한두 줄이면 빈 칸이 컸다(사용자 2026-11-04) */}
           </div>
@@ -877,7 +878,7 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
         {onTitle
           ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
           : <span className="font-bold text-gray-800">{name} 실시간 체결</span>}
-        <span className="text-[11px] text-gray-400">{flow.prevDay ? <b className="text-amber-600">{+flow.prevDay.slice(5, 7)}/{+flow.prevDay.slice(8, 10)} 기록 · 장 마감(1분봉만, 매수·매도 모름) </b> : null}{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : flow.prevDay ? "" : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
+        <span className="text-[11px] text-gray-400">{flow.prevDay ? <b className="text-amber-600">{+flow.prevDay.slice(5, 7)}/{+flow.prevDay.slice(8, 10)} 기록 · 장 마감{flow.prevTicks ? "(그날 앱이 쌓은 체결 포함)" : "(1분봉만, 매수·매도 모름)"} </b> : null}{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : flow.prevDay ? "" : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
         {/* 기간 단추 — 2·12·24·48시간(사용자 2026-11-21, 미국 탭과 같은 단추). 국내는 오늘(또는 마지막 거래일) 1분봉뿐이라 12시간 넘게는 있는 만큼 */}
         <span className="inline-flex gap-0.5">
           {[2, 12, 24, 48].map(h => (

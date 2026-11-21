@@ -44,7 +44,12 @@ export function tickBox(code: string): TickBox {
   let b = boxes.get(code);
   if (b && b === boxes.get(code) && (b as TickBox & { _date?: string })._date === kstDate()) return b;
   let sv: Saved | null = null;
-  try { const v = JSON.parse(localStorage.getItem(storeKey(code)) ?? "null") as Saved | null; sv = v && v.date === kstDate() && !(v.last && v.last > kstNowPlus1()) ? v : null; } catch { /* 없음 */ }   // 지금보다 늦은 체결이 든 저장본 = 어제 것이 섞였다 → 버림
+  try {
+    const v = JSON.parse(localStorage.getItem(storeKey(code)) ?? "null") as Saved | null;
+    sv = v && v.date === kstDate() && !(v.last && v.last > kstNowPlus1()) ? v : null;
+    // 지난 날짜 기록은 '지난 거래일'로 옮겨 둔다 — 장 마감 뒤·주말 그래프에 그날 매수·매도·큰 체결을 그리려고(사용자 2026-11-21)
+    if (v && v.date < kstDate() && v.minutes?.length) localStorage.setItem(`${storeKey(code)}_prev`, JSON.stringify(v));
+  } catch { /* 없음 */ }   // 지금보다 늦은 체결이 든 저장본 = 어제 것이 섞였다 → 버림
   b = sv
     ? { lastCum: sv.lastCum, lastKis: 0, lastKisTime: "", kisLastAt: 0, minutes: new Map(sv.minutes.map(m => [m.t, m])), big: sv.big, gaps: sv.gaps, since: sv.since, last: sv.last, cums: sv.cums ?? {}, kisCalls: sv.kisCalls ?? 0 }
     : { lastCum: 0, lastKis: 0, lastKisTime: "", kisLastAt: 0, minutes: new Map(), big: [], gaps: 0, cums: {}, kisCalls: 0 };
@@ -54,6 +59,11 @@ export function tickBox(code: string): TickBox {
 }
 
 let saveTimer: Record<string, ReturnType<typeof setTimeout>> = {};
+/** 지난 거래일 체결 기록(그 날짜와 맞을 때만) — 1분 매수·매도와 큰 체결 */
+export function prevBox(code: string, date: string): { minutes: MinuteFlow[]; big: BigTrade[] } | null {
+  tickBox(code);   // 날짜가 바뀐 기록을 _prev 로 옮기게
+  try { const v = JSON.parse(localStorage.getItem(`${storeKey(code)}_prev`) ?? "null") as Saved | null; return v && v.date === date ? { minutes: v.minutes, big: v.big } : null; } catch { return null; }
+}
 export function saveBox(code: string) {
   clearTimeout(saveTimer[code]);
   saveTimer[code] = setTimeout(() => {

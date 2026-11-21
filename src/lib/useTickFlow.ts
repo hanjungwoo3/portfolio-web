@@ -8,14 +8,14 @@
 import { useEffect, useState } from "react";
 import { fetchTossTicks, fetchTossMinuteLatest } from "./api";
 import { kisWsLive, subscribeKisTicks } from "./kisWs";
-import { tickBox, ingestTicks, onBox, BIG_STEPS, type MinuteFlow, type BigTrade } from "./tickStore";
+import { tickBox, ingestTicks, onBox, prevBox, BIG_STEPS, type MinuteFlow, type BigTrade } from "./tickStore";
 import { backfillTickMinutes, backfillPct } from "./kisTickBackfill";
 
 // 통(1분 매수·매도 누적)은 lib/tickStore — 앱이면 창을 닫아도 대표 종목을 계속 받고(배경 수집), 빈 분은 한투로 거슬러 채운다(사용자 2026-11-10)
 export type { MinuteFlow, BigTrade } from "./tickStore";
 export { BIG_STEPS } from "./tickStore";
 // prevDay = 오늘 1분봉이 없어(주말·장 전) 마지막 거래일 1분봉을 보여 주는 중 — 그 날짜(YYYY-MM-DD)
-export interface TickFlow { prevDay?: string; prevBase?: number; minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; error?: string; backfilling?: boolean; syncPct?: number | null }
+export interface TickFlow { prevDay?: string; prevBase?: number; prevTicks?: boolean; minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; error?: string; backfilling?: boolean; syncPct?: number | null }
 
 const POLL_MS = 5_000;
 const BIG_MIN = BIG_STEPS[BIG_STEPS.length - 1];
@@ -79,10 +79,12 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
   }, [code, enabled]);
   const s = tickBox(code);
   // 실시간·거슬러 채운 분이 있으면 그것, 없는 분만 1분봉으로. 맨 마지막 실시간 분 뒤의 1분봉은 버린다(진행 중인 분을 덮지 않게)
-  const merged = new Map(s.minutes);
+  // 지난 거래일을 보여 주는 중이면 그날 앱이 쌓아 둔 매수·매도·큰 체결도(사용자 2026-11-21 "하루 저장하고 삭제해서?")
+  const pv = !s.minutes.size && prevDay ? prevBox(code, prevDay) : null;
+  const merged = new Map(pv ? pv.minutes.map(m => [m.t, m] as const) : s.minutes);
   const lastReal = s.last?.slice(0, 5);
-  for (const [t, m] of fill) if (!merged.has(t) && (!lastReal || t < lastReal)) merged.set(t, m);
-  return { prevDay: s.minutes.size ? undefined : prevDay, prevBase: s.minutes.size ? undefined : prevBase, minutes: [...merged.values()].sort((a, b) => a.t.localeCompare(b.t)), big: s.big, gaps: s.gaps, since: s.since, last: s.last, error, backfilling, syncPct: backfillPct(code) };
+  for (const [t, m] of fill) if (!merged.has(t) && (pv || !lastReal || t < lastReal)) merged.set(t, m);
+  return { prevTicks: !!pv?.minutes.length, prevDay: s.minutes.size ? undefined : prevDay, prevBase: s.minutes.size ? undefined : prevBase, minutes: [...merged.values()].sort((a, b) => a.t.localeCompare(b.t)), big: pv ? pv.big : s.big, gaps: s.gaps, since: s.since, last: s.last, error, backfilling, syncPct: backfillPct(code) };
 }
 
 /** 최근 n분의 체결강도(매수 체결량 ÷ 매도 체결량 × 100) */

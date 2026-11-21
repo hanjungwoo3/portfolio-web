@@ -11,7 +11,17 @@ const OI_KEY = "k200_oi_intraday", FR_KEY = "k200_frgn_kis";
 export const TAPE_EVENT = "k200-tape";
 const kstDate = () => new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
 function load<T>(key: string): T[] {
-  try { const v = JSON.parse(localStorage.getItem(key) ?? "null"); return v?.date === kstDate() ? v.pts : []; } catch { return []; }
+  try {
+    const v = JSON.parse(localStorage.getItem(key) ?? "null");
+    if (v?.date === kstDate()) return v.pts;
+    // 날짜가 지난 기록은 버리기 전에 '지난 거래일'로 옮겨 둔다 — 장 마감 뒤·주말 그래프에 그날 프로그램 선을 그리려고(사용자 2026-11-21 "하루 저장하고 삭제해서?")
+    if (v?.date && v.date < kstDate() && v.pts?.length) localStorage.setItem(`${key}_prev`, JSON.stringify(v));
+    return [];
+  } catch { return []; }
+}
+/** 지난 거래일 기록(그 날짜와 맞을 때만) */
+function loadPrev<T>(key: string, date: string): T[] {
+  try { load(key); const v = JSON.parse(localStorage.getItem(`${key}_prev`) ?? "null"); return v?.date === date ? v.pts : []; } catch { return []; }
 }
 function push<T extends { t: string }>(key: string, pt: T) {
   const pts = load<T>(key);
@@ -27,6 +37,7 @@ export interface ProgPt { t: string; v: number; b?: number; s?: number }   // v 
 export const PROG_CODES = [["005930", "삼성전자"], ["000660", "SK하이닉스"]] as const;
 const progKey = (code: string) => `prog_kis_${code}`;
 export const loadProgTape = (code: string) => load<ProgPt>(progKey(code));
+export const loadProgTapePrev = (code: string, date: string) => loadPrev<ProgPt>(progKey(code), date);
 interface ProgRow { bsop_hour?: string; whol_smtn_ntby_tr_pbmn?: string; whol_smtn_shnu_tr_pbmn?: string; whol_smtn_seln_tr_pbmn?: string }
 async function recordProgram(code: string): Promise<boolean> {
   const { body } = await kisGet<{ rt_cd?: string; output?: ProgRow[] }>(
