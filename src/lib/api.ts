@@ -1854,6 +1854,8 @@ export interface ShortSellingPoint {
   shortVolume: number;   // 공매도 수량 (주)
   ratio: number;         // 거래량 대비 공매도 비율 (%)
   amountRatio: number;   // 거래대금 대비 공매도 비율 (%)
+  volume?: number;       // 그날 전체 거래량(주) — 대차잔고 ÷ 평균 거래량(커버 일수)용
+  close?: number;        // 종가
 }
 
 // 시장 매매동향 (토스 index/net-buying API) — KOSPI/KOSDAQ 일별 투자자별 순매수
@@ -2237,6 +2239,7 @@ export async function fetchKrShortSelling(
           shortTradingVolume?: number;
           shortSellingRatio?: number;
           shortSellingTradingAmountRatio?: number;
+          volume?: number; close?: number;
         }>;
         pagingParam?: { key?: string | null };
       };
@@ -2254,6 +2257,7 @@ export async function fetchKrShortSelling(
         shortVolume: r.shortTradingVolume ?? 0,
         ratio: r.shortSellingRatio ?? 0,
         amountRatio: r.shortSellingTradingAmountRatio ?? 0,
+        volume: r.volume, close: r.close,
       });
     }
     if (stop) break;
