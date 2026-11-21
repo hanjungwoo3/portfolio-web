@@ -4,7 +4,7 @@
 import type { KrFuturesDay, LendingTradingPoint, MarketFlowPoint, ShortSellingPoint } from "./api";
 
 export type Tone = "worse" | "flat" | "better";   // 하방 강화 · 그대로 · 완화
-export interface Gauge { key: string; title: string; tone: Tone; value: string; text: string; help?: string; series?: number[] }   // help = 초보용 설명
+export interface Gauge { key: string; title: string; tone: Tone; value: string; text: string; help?: string; series?: number[]; rule?: string }   // rule = 판정 기준(사용자 2026-11-21 "그대로의 이유?")   // help = 초보용 설명
 
 const eok = (won: number) => `${won > 0 ? "+" : won < 0 ? "−" : ""}${Math.abs(Math.round(won / 1e8)).toLocaleString()}억`;
 const sum = (a: number[]) => a.reduce((t, v) => t + v, 0);
@@ -25,6 +25,7 @@ export function futuresGauge(days: KrFuturesDay[]): Gauge | null {
     : kind === "신규 매도" && net5 < 0 ? "worse" : kind === "숏커버(판 걸 되삼)" && net5 > 0 ? "better" : "flat";
   return {
     key: "fut", title: "외국인 선물(코스피200)", tone, series,
+    rule: "5일 순매수 −3,000계약 이하(숏커버가 아닐 때)·신규 매도면 하방 강화 · +3,000계약 이상(신규 매도가 아닐 때)·숏커버면 완화 · 그 사이는 그대로",
     value: `5일 ${net5 > 0 ? "+" : ""}${net5.toLocaleString()}계약`,
     text: `최근 5일 외국인이 선물을 ${Math.abs(net5).toLocaleString()}계약 ${net5 >= 0 ? "샀습니다" : "팔았습니다"}. 시장 전체로는 ${kind === "신규 매도" ? "주가가 빠지는 동안 새로 '하락에 거는' 계약이 늘었습니다" : kind === "숏커버(판 걸 되삼)" ? "'하락에 걸었던' 계약을 되사서 정리하고 있습니다(오를 힘)" : kind === "신규 매수" ? "'상승에 거는' 계약이 새로 늘었습니다" : kind === "매수 정리" ? "'상승에 걸었던' 계약을 정리하고 있습니다" : "계약 수에 큰 변화가 없습니다"}.`,
     help: "선물 = 지수가 오를지 내릴지에 돈을 거는 계약. 외국인이 선물을 팔면 '더 내린다'에 거는 것이라 지수를 누르는 힘이 됩니다. 미결제약정(아직 정리 안 한 계약 수)이 늘면 새 베팅, 줄면 정리입니다.",
@@ -45,6 +46,7 @@ export function spotGauge(flow: MarketFlowPoint[]): Gauge | null {
   let cum = 0; const series = daily.map(v => (cum += v));
   return {
     key: "spot", title: "외국인 현물(코스피)", tone, series,
+    rule: "최근 순매수면 완화 · 순매도라도 가장 많이 판 날 대비 40% 이하로 줄었으면 완화, 70% 이상이면 하방 강화 · 그 사이는 그대로",
     value: `하루 ${eok(recent)}`,
     text: recent >= 0 ? `최근 5일 외국인이 코스피 주식을 하루 평균 ${eok(recent)}씩 샀습니다.`
       : `최근 5일 외국인이 하루 평균 ${eok(recent).replace("−", "")}씩 팔았습니다. 가장 많이 팔던 때(${worstEnd.slice(5)} 무렵 하루 ${eok(worst).replace("−", "")})의 ${Math.round(ratio * 100)}% 정도라 파는 힘이 ${ratio <= 0.4 ? "많이 약해졌습니다" : ratio >= 0.7 ? "여전히 셉니다" : "조금 약해졌습니다"}.`,
@@ -64,6 +66,7 @@ export function lendingGauge(byStock: { name: string; pts: LendingTradingPoint[]
   const tone: Tone = chg <= -5 ? "better" : chg >= 5 ? "worse" : "flat";
   return {
     key: "lend", title: `대차잔고(${ok.map(s => s.name).join("·")})`, tone, series,
+    rule: "두 종목 합친 대차잔고가 20거래일 전보다 5% 넘게 줄면 완화, 5% 넘게 늘면 하방 강화 · ±5% 안은 그대로(종목 하나만 크게 늘어도 합치면 묻힐 수 있다)",
     value: `20일 ${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%`,
     text: `빌려 간 주식이 ${(now / 1e12).toFixed(1)}조원어치로, 한 달(20거래일) 전보다 ${Math.abs(chg).toFixed(1)}% ${chg >= 0 ? "늘었습니다 — 공매도로 팔 준비를 하는 물량이 늘어난 것" : "줄었습니다 — 빌린 주식을 갚는 중이라 공매도 걱정이 줄어든 것"}입니다.`,
     help: "대차잔고 = 남에게 빌려 간 주식의 양. 공매도는 주식을 빌려서 먼저 팔고 나중에 싸게 사서 갚는 것이라, 빌린 주식이 많으면 '팔 준비 물량'이 많다는 뜻입니다.",
@@ -80,6 +83,7 @@ export function shortGauge(byStock: { name: string; pts: ShortSellingPoint[] }[]
   const tone: Tone = recent <= base * 0.8 ? "better" : recent >= base * 1.2 ? "worse" : "flat";
   return {
     key: "short", title: `공매도 비중(${ok.map(s => s.name).join("·")})`, tone, series,
+    rule: "최근 5일 평균 공매도 비중이 그 전 한 달보다 20% 넘게 낮으면 완화, 20% 넘게 높으면 하방 강화 · ±20% 안은 그대로",
     value: `${recent.toFixed(1)}%`,
     text: `최근 5일 거래 100원 중 ${recent.toFixed(1)}원이 공매도였습니다. 그 전 한 달(${base.toFixed(1)}원)보다 ${recent < base ? "줄어 하락에 거는 쪽이 덜 판다는 뜻" : "늘어 하락에 거는 쪽이 더 판다는 뜻"}입니다.`,
     help: "공매도 비중 = 하루 거래 중 '빌려서 판' 거래의 비율. 높을수록 주가 하락에 거는 사람이 많다는 뜻입니다.",
@@ -93,6 +97,7 @@ export function optionGauge(o: { callOi: number; putOi: number; callOiChg: numbe
   const tone: Tone = o.putOiChg < 0 && pcr < 1.2 ? "better" : o.putOiChg > 0 && pcr >= 1 ? "worse" : "flat";
   return {
     key: "opt", title: "옵션 풋/콜(코스피200, 오늘)", tone,
+    rule: "풋 미결제가 줄고 풋/콜 1.2 미만이면 완화 · 풋 미결제가 늘고 풋/콜 1 이상이면 하방 강화 · 나머지는 그대로",
     value: `풋/콜 ${pcr.toFixed(2)}`,
     text: `'하락 보험(풋)'이 '상승 베팅(콜)'의 ${pcr.toFixed(2)}배 걸려 있습니다(1보다 크면 하락 대비가 더 많음). 오늘 풋은 ${o.putOiChg >= 0 ? `${o.putOiChg.toLocaleString()}계약 늘어 하락 대비를 더 하는 중` : `${Math.abs(o.putOiChg).toLocaleString()}계약 줄어 하락 대비를 푸는 중`}입니다.`,
     help: "옵션 = 정해진 가격에 사거나 팔 권리. 풋은 '내리면 돈 버는' 보험, 콜은 '오르면 돈 버는' 베팅입니다. 풋이 줄면 사람들이 하락 걱정을 덜 한다는 뜻입니다.",
@@ -105,6 +110,7 @@ export function volGauge(vk: { price: number; pct: number } | null | undefined):
   const tone: Tone = vk.price >= 30 && vk.pct >= 0 ? "worse" : vk.pct <= -3 || vk.price < 20 ? "better" : "flat";
   return {
     key: "vol", title: "변동성(V-KOSPI)", tone,
+    rule: "30 이상이면서 오늘 오르면 하방 강화 · 오늘 3% 넘게 내리거나 20 미만이면 완화 · 나머지(30 이상이라도 안 오르면)는 그대로",
     value: `${vk.price.toFixed(2)}`,
     text: `${vk.price.toFixed(2)} — ${vk.price >= 30 ? "공포 구간(30 이상)" : vk.price >= 20 ? "경계 구간(20~30)" : "안정 구간(20 미만)"}입니다${vk.pct <= -3 ? ". 오늘 크게 내려 불안이 가라앉는 중" : vk.pct >= 3 ? ". 오늘 올라 불안이 커지는 중" : ""}.`,
     help: "V-KOSPI = 앞으로 코스피가 얼마나 크게 출렁일지 시장이 예상하는 값('공포 지수'). 높을수록 사람들이 불안해한다는 뜻입니다.",
