@@ -11,7 +11,6 @@ import { fmtEok } from "../lib/eokFmt";
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { ForeignFuturesPanel } from "./ForeignFuturesPanel";
 import { MarketPressureCard } from "./MarketPressureCard";
-import { ShortAnalysisCard } from "./ShortAnalysisCard";
 import { loadProgTape, loadProgTapePrev, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/futuresTape";
 import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
@@ -546,7 +545,6 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     <div className="flex flex-col gap-1.5 p-2 lg:min-h-[calc(100vh-150px)] text-[12px] bg-gray-50 pg-bg">
       {/* 🔎 시황 분석 — 맨 위(사용자 2026-11-20). 대차·공매도가 삼성·하이닉스 기준이라 반도체 수급에. 종목정보 팝업엔 안 넣음 */}
       {!popup && <MarketPressureCard />}
-      {!popup && <ShortAnalysisCard />}   {/* 🩳 공매도 분석 — 시황 분석 아래(사용자 2026-11-21) */}
       {/* 해외 선물·메모리 현물·미국 반도체 */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-1.5 shrink-0">
         <ChipBox title="해외 선물 (24h)" items={[
