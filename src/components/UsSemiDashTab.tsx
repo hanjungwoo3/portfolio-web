@@ -325,7 +325,8 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
   const pc = (p: number, b = base) => (b && b > 0 ? ` ${p >= b ? "+" : ""}${((p / b - 1) * 100).toFixed(2)}%` : "");
   const pcTone = (p: number, b = base) => (b && b > 0 ? (p > b ? "text-rose-600" : p < b ? "text-blue-600" : "text-gray-600") : "text-gray-600");
   // 최고·최저 = 전일 종가 이후(오늘 구간, 지금 기준가가 같은 봉들)만(사용자 2026-11-21 "최고를 전일 종가 이후로")
-  const todayP = pGroups.length ? pGroups[pGroups.length - 1].pts : P;
+  //   → 확대·이동이 생겨 '지금 화면에 보이는 구간'의 최고·최저로(사용자 2026-11-21 "최고가가 현재 그래프 상에서 최고가로") — % 는 그 점이 속한 날의 전일 종가 대비 그대로
+  const todayP = P;
   const tPr = todayP.map(p => p.close);
   const hi = Math.max(...tPr), lo = Math.min(...tPr), hiP = todayP[tPr.indexOf(hi)], loP = todayP[tPr.indexOf(lo)], lastP = P[P.length - 1];
   const cLast = cums[cums.length - 1] ?? 0;
