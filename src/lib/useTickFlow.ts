@@ -15,7 +15,7 @@ import { backfillTickMinutes, backfillPct } from "./kisTickBackfill";
 export type { MinuteFlow, BigTrade } from "./tickStore";
 export { BIG_STEPS } from "./tickStore";
 // prevDay = 오늘 1분봉이 없어(주말·장 전) 마지막 거래일 1분봉을 보여 주는 중 — 그 날짜(YYYY-MM-DD)
-export interface TickFlow { prevDay?: string; minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; error?: string; backfilling?: boolean; syncPct?: number | null }
+export interface TickFlow { prevDay?: string; prevBase?: number; minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; error?: string; backfilling?: boolean; syncPct?: number | null }
 
 const POLL_MS = 5_000;
 const BIG_MIN = BIG_STEPS[BIG_STEPS.length - 1];
@@ -35,13 +35,14 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
   //   앱(한국투자)이면 그 분들의 매수·매도를 한투로 거슬러 채운다(사용자 2026-11-10)
   const [fill, setFill] = useState<Map<string, MinuteFlow>>(new Map());
   const [prevDay, setPrevDay] = useState<string>();
+  const [prevBase, setPrevBase] = useState<number>();
   useEffect(() => {
     if (!enabled || !/^[\dA-Za-z]{6}$/.test(code)) return;
     let alive = true;
-    const load = () => fetchTossMinuteLatest(code).then(({ date, bars: cs }) => {
+    const load = () => fetchTossMinuteLatest(code).then(({ date, base: dBase, bars: cs }) => {
       if (!alive) return;
       const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-      setPrevDay(date && date !== today ? date : undefined);
+      setPrevDay(date && date !== today ? date : undefined); setPrevBase(dBase);
       if (date && date !== today) {   // 지난 거래일 — 1분봉만 보여 주고, 한투로 거슬러 채우지 않는다(오늘 체결이 아니다)
         setFill(new Map(cs.map(c => [c.t, { t: c.t, buyVol: 0, sellVol: 0, buyAmt: 0, sellAmt: 0, close: c.close, vol: c.volume, est: true }])));
         return;
@@ -81,7 +82,7 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
   const merged = new Map(s.minutes);
   const lastReal = s.last?.slice(0, 5);
   for (const [t, m] of fill) if (!merged.has(t) && (!lastReal || t < lastReal)) merged.set(t, m);
-  return { prevDay: s.minutes.size ? undefined : prevDay, minutes: [...merged.values()].sort((a, b) => a.t.localeCompare(b.t)), big: s.big, gaps: s.gaps, since: s.since, last: s.last, error, backfilling, syncPct: backfillPct(code) };
+  return { prevDay: s.minutes.size ? undefined : prevDay, prevBase: s.minutes.size ? undefined : prevBase, minutes: [...merged.values()].sort((a, b) => a.t.localeCompare(b.t)), big: s.big, gaps: s.gaps, since: s.since, last: s.last, error, backfilling, syncPct: backfillPct(code) };
 }
 
 /** 최근 n분의 체결강도(매수 체결량 ÷ 매도 체결량 × 100) */

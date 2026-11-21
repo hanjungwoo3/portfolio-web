@@ -6237,28 +6237,28 @@ export async function fetchTossBrokerRanking(code: string): Promise<BrokerRankin
 /** 오늘 1분봉(국내, 토스) — 실시간 체결을 켜기 전 구간을 가격·거래량으로 채운다(사용자 2026-11-09 "빈 값에서 시작해서").
  *  최신 → 과거 450개씩, 오늘 것만(08:00 NXT 프리부터 최대 2콜). 반환은 시각 오름차순 */
 // 오늘 1분봉이 하나도 없으면(주말·장 전) 마지막 거래일 1분봉 — 장 마감 뒤엔 바로 전 거래일 그래프(사용자 2026-11-21 "장마감 후에는 바로 전날 그래프, 국내도")
-export async function fetchTossMinuteLatest(code: string): Promise<{ date: string; bars: { t: string; close: number; volume: number }[] }> {
+export async function fetchTossMinuteLatest(code: string): Promise<{ date: string; base?: number; bars: { t: string; close: number; volume: number }[] }> {
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-  let date = "";
+  let date = "", base: number | undefined;
   const out: { t: string; close: number; volume: number }[] = [];
   let from: string | undefined;
   for (let page = 0; page < 2; page++) {
     const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/c-chart/kr-s/A${code}/min:1?count=450${from ? `&from=${encodeURIComponent(from)}` : ""}`);
     if (!r.ok) break;
-    const res = ((await r.json()) as { result?: { candles?: { dt?: string; close?: number; volume?: number }[]; nextDateTime?: string } }).result;
+    const res = ((await r.json()) as { result?: { candles?: { dt?: string; close?: number; volume?: number; base?: number }[]; nextDateTime?: string } }).result;
     const cs = res?.candles ?? [];
     let older = false;
     for (const c of cs) {
       if (!c.dt || !(c.close! > 0)) continue;
       const d = c.dt.slice(0, 10);
-      if (!date) date = d > today ? today : d;   // 최신→과거 — 첫 봉의 날짜가 마지막 거래일
+      if (!date) { date = d > today ? today : d; base = c.base; }   // 최신→과거 — 첫 봉의 날짜가 마지막 거래일, base = 그날의 전일 종가
       if (d !== date) { older = true; continue; }
       out.push({ t: c.dt.slice(11, 16), close: c.close!, volume: c.volume ?? 0 });
     }
     if (older || !cs.length || !res?.nextDateTime) break;
     from = res.nextDateTime;
   }
-  return { date, bars: out.sort((a, b) => a.t.localeCompare(b.t)) };
+  return { date, base, bars: out.sort((a, b) => a.t.localeCompare(b.t)) };
 }
 
 export async function fetchTossMinuteToday(code: string): Promise<{ t: string; close: number; volume: number }[]> {
@@ -6591,7 +6591,9 @@ export async function fetchDaumIndexToday(market: "KOSPI" | "KOSDAQ"): Promise<{
   if (!r.ok) return { points: [] };
   const j = await r.json() as { data?: { date?: string; tradePrice?: number; changePrice?: number }[] };
   const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
-  const rows = (j.data ?? []).filter(d => d.date?.startsWith(today) && (d.tradePrice ?? 0) > 0);
+  // 오늘 것이 없으면(주말·장 전) 마지막 거래일 — 반도체 수급 배경 코스피가 주말에 비었다(사용자 2026-11-21 "배경에 kospi 그래프도 없는데")
+  const day = (j.data ?? []).some(d => d.date?.startsWith(today)) ? today : (j.data?.[0]?.date ?? "").slice(0, 10);
+  const rows = (j.data ?? []).filter(d => d.date?.startsWith(day) && (d.tradePrice ?? 0) > 0);
   const top = rows[0];
   const base = top && top.changePrice != null ? top.tradePrice! - top.changePrice : undefined;
   return { points: rows.map(d => ({ t: d.date!.slice(11, 16), c: d.tradePrice! })).reverse(), base: base && base > 0 ? base : undefined };

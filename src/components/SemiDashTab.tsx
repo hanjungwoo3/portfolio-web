@@ -513,7 +513,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         <ValueupStrip code={s0.code} />
         {kisFutAvailable() && <KisViStrip code={s0.code} />}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-1.5 min-h-0 auto-rows-[360px]">   {/* 체결 · 신호 반반(사용자 요청) */}
-          <TickPanel code={s0.code} name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} prog={progOf(s0.code)} inv={invOf(0)} price={sq(s0.code)?.price} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} />
+          <TickPanel code={s0.code} name={s0.name} flow={ticks[0]} day={dayStr?.get(s0.code)} base={baseOf(s0.code)} prog={progOf(s0.code)} inv={invOf(0)} price={sq(s0.code)?.price} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={ksToday?.base ?? q("^KS11")?.prevClose} />
           {signalBox}
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[430px] shrink-0">
@@ -576,7 +576,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {stocks.map((s, i) => (
           <div key={s.code} className="flex flex-col gap-1.5 min-w-0">
             <div className="h-[440px] lg:h-[470px] grid min-h-0">   {/* + 아래 1분 띠 둘(체결·프로그램) */}
-              <TickPanel code={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} short={shortQs[i]?.data?.map(d => ({ date: d.date, ratio: d.ratio }))} link={tickLink} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
+              <TickPanel code={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} short={shortQs[i]?.data?.map(d => ({ date: d.date, ratio: d.ratio }))} link={tickLink} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={ksToday?.base ?? q("^KS11")?.prevClose} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
             </div>
             {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "max-h-[150px]")}   {/* 내용만큼 — 신호가 한두 줄이면 빈 칸이 컸다(사용자 2026-11-04) */}
           </div>
@@ -618,7 +618,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       </div>
 
       {/* 외국인 K200 선물 — 누적 순매수·정리율·15분 변화 + 시장 미결제약정(사용자 2026-11-03) */}
-      <ForeignFuturesPanel flow={ff} fut={fut} spotFlow={kf} price={futToday} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} />
+      <ForeignFuturesPanel flow={ff} fut={fut} spotFlow={kf} price={futToday} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={ksToday?.base ?? q("^KS11")?.prevClose} />
       </div>
 
     </div>
@@ -731,7 +731,9 @@ function CreditLine({ code }: { code: string }) {
   );
 }
 
-function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kospi, kospiBase, code, short }: { short?: { date: string; ratio: number }[]; code?: string; name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[]; inv?: Investor; price?: number; link?: TickLink; kospi?: { t: string; v: number }[]; kospiBase?: number }) {   // kospi = 배경 코스피 1분   // inv = 오늘 투자자 잠정치(토스)   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
+function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price, link, kospi, kospiBase, code, short }: { short?: { date: string; ratio: number }[]; code?: string; name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[]; inv?: Investor; price?: number; link?: TickLink; kospi?: { t: string; v: number }[]; kospiBase?: number }) {   // kospi = 배경 코스피 1분   // inv = 오늘 투자자 잠정치(토스)   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
+  // 지난 거래일을 보여 줄 땐(주말·장 전) 그날의 전일 종가가 기준(사용자 2026-11-21) — 아니면 어제 종가
+  const base = flow.prevDay && flow.prevBase ? flow.prevBase : baseProp;
   // 최근 1시간만 한 화면 폭에, 그 전은 왼쪽으로 스크롤(사용자 2026-11-04 "1시간으로, 지난 건 스크롤로") — 오늘 켠 뒤 전부 그린다
   const ms = flow.minutes;
   // 한 화면 분 수 — 기본 1시간, 마우스 휠로 확대(10분까지)·축소(켠 뒤 전부까지)(사용자 2026-11-04 "휠로 확대 축소")
@@ -754,8 +756,11 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
   const hovI = hovT ? ms.findIndex(m => m.t === hovT) : -1;
   const hov = hovI >= 0 ? { i: hovI } : null;   // 마우스로 끌기 시작점                           // 오른쪽 끝(지금)에 붙어 있나 — 사용자가 지난 쪽을 보는 중이면 새 분이 와도 안 끌고 간다
   // 오른쪽 끝(지금)에 붙이기 — 기본이 2시간이 되면서(사용자 2026-11-21) 처음 그릴 때 왼쪽(아침)부터 보였다 → 그린 다음 프레임에 한 번 더
+  // 지금 보이는 가로 범위(0~1) — 최고·최저를 화면 안에서 찾는다(사용자 2026-11-21 "최고가가 현재 그래프 상에서 최고가로", 국내도)
+  const [vr, setVr] = useState<[number, number]>([0, 1]);
+  const measureVr = () => { const el = scRef.current; if (el && el.scrollWidth) setVr([el.scrollLeft / el.scrollWidth, (el.scrollLeft + el.clientWidth) / el.scrollWidth]); };
   useEffect(() => {
-    const go = () => { const el = scRef.current; if (el && stick.current) el.scrollLeft = el.scrollWidth; };
+    const go = () => { const el = scRef.current; if (el && stick.current) el.scrollLeft = el.scrollWidth; measureVr(); };
     go(); const id = requestAnimationFrame(go); const t = setTimeout(go, 300);
     return () => { cancelAnimationFrame(id); clearTimeout(t); };
   }, [ms.length, ms.length > 0]);
@@ -931,6 +936,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                  onScroll={e => {
                    const el = e.currentTarget;
                    stick.current = el.scrollLeft + el.clientWidth >= el.scrollWidth - 8;
+                   measureVr();
                    // 남이 옮겨 준 스크롤이면 다시 알리지 않는다(되먹임 방지). 오른쪽 끝에서 몇 % 떨어졌나로 맞춘다 — 두 칸 길이가 조금 달라도 같은 시각대
                    if (syncing.current) { syncing.current = false; return; }
                    window.dispatchEvent(new CustomEvent(TICK_SCROLL, { detail: { from: name, gap: (el.scrollWidth - el.clientWidth - el.scrollLeft) / el.scrollWidth } }));
@@ -969,25 +975,33 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                 const vals = [...pts.map(p => p.v), ...(kospiBase && kospiBase > 0 ? [kospiBase] : [])];
                 const lo = Math.min(...vals), hi = Math.max(...vals), r = hi - lo || 1;
                 const ky = (v: number) => H * 0.08 + (1 - (v - lo) / r) * H * 0.84;
-                const baseY = ky(kospiBase && kospiBase > 0 ? kospiBase : pts[0].v);
                 const line = pts.map((p, k) => `${k ? "L" : "M"} ${xOf(p.i)} ${ky(p.v)}`).join(" ");
-                const band = `${line} L ${xOf(pts[pts.length - 1].i)} ${baseY} L ${xOf(pts[0].i)} ${baseY} Z`;
-                const cid = `tk-${name}`;
                 return (<>
-                  <defs>
-                    <clipPath id={`${cid}u`}><rect x={0} y={0} width={W} height={baseY} /></clipPath>
-                    <clipPath id={`${cid}d`}><rect x={0} y={baseY} width={W} height={Math.max(0, H - baseY)} /></clipPath>
-                  </defs>
-                  <path d={band} clipPath={`url(#${cid}u)`} fill="#fecdd3" fillOpacity={0.35} />
-                  <path d={band} clipPath={`url(#${cid}d)`} fill="#bfdbfe" fillOpacity={0.35} />
-                  {/* 테두리 선 — 현물 칸 배경과 같게(사용자 2026-11-05 "배경 그래프 아래처럼 라인도") */}
-                  <path d={line} clipPath={`url(#${cid}u)`} fill="none" stroke="#fb7185" strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
-                  <path d={line} clipPath={`url(#${cid}d)`} fill="none" stroke="#60a5fa" strokeOpacity={0.6} strokeWidth={1} vectorEffect="non-scaling-stroke" />
+                  {/* 배경 코스피는 선만(보라) — 색은 종목 가격에(미국 탭처럼, 사용자 2026-11-21 "국내는 kospi 로 배경색이 바뀌는데 미국처럼 종목으로") */}
+                  <path d={line} fill="none" stroke="#a78bfa" strokeOpacity={0.75} strokeWidth={1.1} vectorEffect="non-scaling-stroke" />
                 </>);
               })()}
               <line x1={0} x2={W} y1={mid} y2={mid} stroke="#cbd5e1" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
-              <path d={prices.map((p, i) => `${i ? "L" : "M"} ${xOf(i)} ${PAD + (1 - (p - pMin) / pR) * (H - PAD * 2)}`).join(" ")}
-                    fill="none" stroke="#334155" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
+              {/* 가격 — 전일 종가 위 빨강·아래 파랑(미국 탭·일반 카드처럼, 사용자 2026-11-21 "국내도 전날 종가 대비 그래프 색상") */}
+              {(() => {
+                const yP = (p: number) => PAD + (1 - (p - pMin) / pR) * (H - PAD * 2);
+                const line = prices.map((p, i) => `${i ? "L" : "M"} ${xOf(i)} ${yP(p)}`).join(" ");
+                if (!(base && base > 0)) return <path d={line} fill="none" stroke="#334155" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />;
+                const by = Math.max(0, Math.min(H, yP(base)));
+                const area = `${line} L ${xOf(prices.length - 1)} ${by} L ${xOf(0)} ${by} Z`;
+                const cid = `tp-${name}`;
+                return (<>
+                  <defs>
+                    <clipPath id={`${cid}u`}><rect x={0} y={0} width={W} height={by} /></clipPath>
+                    <clipPath id={`${cid}d`}><rect x={0} y={by} width={W} height={Math.max(0, H - by)} /></clipPath>
+                  </defs>
+                  <path d={area} clipPath={`url(#${cid}u)`} fill="#f43f5e" fillOpacity={0.12} />
+                  <path d={area} clipPath={`url(#${cid}d)`} fill="#3b82f6" fillOpacity={0.12} />
+                  <path d={line} clipPath={`url(#${cid}u)`} fill="none" stroke="#e11d48" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
+                  <path d={line} clipPath={`url(#${cid}d)`} fill="none" stroke="#2563eb" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
+                  {yP(base) >= 0 && yP(base) <= H && <line x1={0} x2={W} y1={by} y2={by} stroke="#9ca3af" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />}
+                </>);
+              })()}
               <path d={cum.map((c, i) => `${i ? "L" : "M"} ${xOf(i)} ${mid - (c / mxCum) * (mid - PAD)}`).join(" ")}
                     fill="none" stroke="#ea580c" strokeWidth={1.2} strokeDasharray="2 2" vectorEffect="non-scaling-stroke" />
               {progLine.some(v => v != null) && (
@@ -1021,8 +1035,11 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
             {/* 가격 글자(사용자 2026-11-04 "가격 그래프에 금액") — 최고·최저는 그 높이 왼쪽에, 지금 가격은 선 끝에. svg 가 늘어나므로 HTML 로 */}
             {prices.length > 1 && (() => {
               const yp = (p: number) => ((PAD + (1 - (p - pMin) / pR) * (H - PAD * 2)) / H) * 100;
-              const hi = Math.max(...prices), lo = Math.min(...prices), last = prices[prices.length - 1];
-              const hiI = prices.indexOf(hi), loI = prices.indexOf(lo);
+              // 화면에 보이는 분만(가로 범위 vr) — 없으면 전부
+              const visI = prices.map((_, i) => i).filter(i => { const f = xOf(i) / W; return f >= vr[0] + 0.004 && f <= vr[1] - 0.001; /* 가장자리 바로 밖 점이 뽑혀 글자가 화면 밖에 그려졌다 — 안쪽으로 */ });
+              const vi = visI.length ? visI : prices.map((_, i) => i);
+              const hiI = vi.reduce((a, i) => (prices[i] > prices[a] ? i : a), vi[0]), loI = vi.reduce((a, i) => (prices[i] < prices[a] ? i : a), vi[0]);
+              const hi = prices[hiI], lo = prices[loI], last = prices[prices.length - 1];
               const lab = "absolute pointer-events-none text-[10px] tabular-nums px-0.5 rounded bg-white/80 whitespace-nowrap";
               const lx = (xOf(prices.length - 1) / W) * 100;
               const pc = (p: number) => base && base > 0 ? ` ${p >= base ? "+" : ""}${((p / base - 1) * 100).toFixed(2)}%` : "";   // 어제 종가 대비(사용자 2026-11-04 "%등락율도 같이")
@@ -1034,7 +1051,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
                   // 왼쪽 끝 쪽이면 점에서 오른쪽으로, 오른쪽 끝 쪽이면 왼쪽으로 — 화면 밖으로 잘리지 않게(사용자 2026-11-12 "최고가가 왼쪽에 잘려").
                   //   예전엔 12%/배율 안쪽만 봐서, 그래프가 넓어지면(배율↑) 왼쪽 끝 글자가 잘렸다
                   const tx = xp < 25 ? "-6px" : (xp > 75 || i >= prices.length - 8) ? "calc(-100% + 6px)" : "-50%";
-                  const col = isHi ? "text-rose-600" : "text-blue-600";
+                  const col = base && base > 0 ? (v > base ? "text-rose-600" : v < base ? "text-blue-600" : "text-gray-600") : isHi ? "text-rose-600" : "text-blue-600";   // 색은 전일 종가 대비 부호대로(사용자 2026-11-21 "-인데 빨간색")
                   return (
                     <span key={isHi ? "hi" : "lo"}>
                       <span className={`absolute pointer-events-none text-[8px] leading-none ${col}`} style={{ left: `${xp}%`, top: `${y}%`, transform: isHi ? "translate(-50%, -115%)" : "translate(-50%, 15%)" }}>{isHi ? "▼" : "▲"}</span>
@@ -1156,8 +1173,8 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-0 text-[10.5px] text-gray-500 mt-0.5 [&>span]:whitespace-nowrap">
         <span><i className="inline-block w-2 h-2 bg-rose-500 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-500 mr-0.5" />아래 띠: 1분 매수(빨강 위)·매도(파랑 아래) — 큰 쪽만 진하게 · 거래량(평균 2배↑ 진하게) · 실시간 체결 전 구간은 1분봉(가격·거래량만)</span>
-        <span><i className="inline-block w-3 h-0.5 bg-slate-700 mr-0.5 align-middle" />가격</span>
-        {kospi && kospi.length > 1 && <span><i className="inline-block w-2 h-2 bg-rose-100 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-100 mr-0.5" />배경 코스피</span>}
+        <span><i className="inline-block w-2 h-2 bg-rose-200 mr-0.5" /><i className="inline-block w-2 h-2 bg-blue-200 mr-0.5" />가격(전일 종가 위 빨강·아래 파랑)</span>
+        {kospi && kospi.length > 1 && <span><i className="inline-block w-3 h-0.5 bg-violet-400 mr-0.5 align-middle" />배경 코스피(선)</span>}
         <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />체결(켠 뒤 누적, 축 따로)</span>
         {prog && prog.length > 0 && <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-violet-600" />프로그램 누적(축 따로, 한투)</span>}
       </div>
