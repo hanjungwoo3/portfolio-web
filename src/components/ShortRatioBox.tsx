@@ -12,12 +12,12 @@ export function ShortRatioBox({ days, band, help, title = "공매도 거래 비�
   const few = r.length < 6;
   const diff = few ? 0 : last - avg20;
   const lo = Math.max(0, Math.min(...r) - band * 0.4), hi = Math.max(...r) + band * 0.4, W = 300, H = compact ? 22 : 40;
-  const verdict = few ? "" : diff >= band ? "평소보다 공매도 비중이 높음" : diff <= -band ? "평소보다 공매도 비중이 낮음" : "평소 수준";
+  const verdict = few ? "" : diff >= band ? "평소보다 높음" : diff <= -band ? "평소보다 낮음" : "평소 수준";
   const yy = (v: number) => H - ((v - lo) / (hi - lo || 1)) * H;
   if (compact) return (
     <div className="mt-1.5 rounded-md border border-gray-200 bg-white px-1.5 py-1" title={`${ds[ds.length - 1].date} 기준`}>
       <div className="flex items-baseline gap-1 text-[10.5px] whitespace-nowrap">
-        <b className="text-gray-700">공매도</b><b className="tabular-nums">{last.toFixed(1)}%</b>
+        <b className="tabular-nums" title="공매도 거래 비중">{last.toFixed(1)}%</b>
         <span className="text-gray-500 tabular-nums truncate">{few ? `자료 ${r.length}일` : `평균 ${avg20.toFixed(1)}%`}</span>
       </div>
       {verdict && <div className={`text-[10px] font-bold ${diff >= band ? "text-blue-600" : diff <= -band ? "text-rose-600" : "text-gray-500"}`}>{verdict}</div>}

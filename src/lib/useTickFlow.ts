@@ -6,7 +6,7 @@
 //   중복 제거: 체결마다 붙는 누적 거래량(cum)이 단조 증가라 마지막 cum 보다 큰 것만 새 체결로 본다.
 //   두 번 받는 사이 300건을 넘게 체결되면 빈 구간이 생긴다 → gaps 로 세어 화면에 알린다.
 import { useEffect, useState } from "react";
-import { fetchTossTicks, fetchTossMinuteToday } from "./api";
+import { fetchTossTicks, fetchTossMinuteLatest } from "./api";
 import { kisWsLive, subscribeKisTicks } from "./kisWs";
 import { tickBox, ingestTicks, onBox, BIG_STEPS, type MinuteFlow, type BigTrade } from "./tickStore";
 import { backfillTickMinutes, backfillPct } from "./kisTickBackfill";
@@ -14,7 +14,8 @@ import { backfillTickMinutes, backfillPct } from "./kisTickBackfill";
 // 통(1분 매수·매도 누적)은 lib/tickStore — 앱이면 창을 닫아도 대표 종목을 계속 받고(배경 수집), 빈 분은 한투로 거슬러 채운다(사용자 2026-11-10)
 export type { MinuteFlow, BigTrade } from "./tickStore";
 export { BIG_STEPS } from "./tickStore";
-export interface TickFlow { minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; error?: string; backfilling?: boolean; syncPct?: number | null }
+// prevDay = 오늘 1분봉이 없어(주말·장 전) 마지막 거래일 1분봉을 보여 주는 중 — 그 날짜(YYYY-MM-DD)
+export interface TickFlow { prevDay?: string; minutes: MinuteFlow[]; big: BigTrade[]; gaps: number; since?: string; last?: string; error?: string; backfilling?: boolean; syncPct?: number | null }
 
 const POLL_MS = 5_000;
 const BIG_MIN = BIG_STEPS[BIG_STEPS.length - 1];
@@ -33,11 +34,18 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
   // 실시간 체결이 없는 분은 1분봉(가격·거래량)으로 — 켜기 전·창을 닫았던 구간이 빈칸으로 시작하지 않게(사용자 2026-11-09)
   //   앱(한국투자)이면 그 분들의 매수·매도를 한투로 거슬러 채운다(사용자 2026-11-10)
   const [fill, setFill] = useState<Map<string, MinuteFlow>>(new Map());
+  const [prevDay, setPrevDay] = useState<string>();
   useEffect(() => {
     if (!enabled || !/^[\dA-Za-z]{6}$/.test(code)) return;
     let alive = true;
-    const load = () => fetchTossMinuteToday(code).then(cs => {
+    const load = () => fetchTossMinuteLatest(code).then(({ date, bars: cs }) => {
       if (!alive) return;
+      const today = new Date(Date.now() + 9 * 3600_000).toISOString().slice(0, 10);
+      setPrevDay(date && date !== today ? date : undefined);
+      if (date && date !== today) {   // 지난 거래일 — 1분봉만 보여 주고, 한투로 거슬러 채우지 않는다(오늘 체결이 아니다)
+        setFill(new Map(cs.map(c => [c.t, { t: c.t, buyVol: 0, sellVol: 0, buyAmt: 0, sellAmt: 0, close: c.close, vol: c.volume, est: true }])));
+        return;
+      }
       setFill(new Map(cs.map(c => [c.t, { t: c.t, buyVol: 0, sellVol: 0, buyAmt: 0, sellAmt: 0, close: c.close, vol: c.volume, est: true }])));
       const box = tickBox(code), cur = nowHm();
       const wanted = cs.map(c => c.t).filter(t => t < cur && !box.minutes.has(t));   // 진행 중인 분은 빼고
@@ -73,7 +81,7 @@ export function useTickFlow(code: string, enabled = true): TickFlow {
   const merged = new Map(s.minutes);
   const lastReal = s.last?.slice(0, 5);
   for (const [t, m] of fill) if (!merged.has(t) && (!lastReal || t < lastReal)) merged.set(t, m);
-  return { minutes: [...merged.values()].sort((a, b) => a.t.localeCompare(b.t)), big: s.big, gaps: s.gaps, since: s.since, last: s.last, error, backfilling, syncPct: backfillPct(code) };
+  return { prevDay: s.minutes.size ? undefined : prevDay, minutes: [...merged.values()].sort((a, b) => a.t.localeCompare(b.t)), big: s.big, gaps: s.gaps, since: s.since, last: s.last, error, backfilling, syncPct: backfillPct(code) };
 }
 
 /** 최근 n분의 체결강도(매수 체결량 ÷ 매도 체결량 × 100) */

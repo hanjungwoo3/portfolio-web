@@ -576,11 +576,9 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {stocks.map((s, i) => (
           <div key={s.code} className="flex flex-col gap-1.5 min-w-0">
             <div className="h-[440px] lg:h-[470px] grid min-h-0">   {/* + 아래 1분 띠 둘(체결·프로그램) */}
-              <TickPanel code={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} link={tickLink} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
+              <TickPanel code={s.code} name={s.name} flow={ticks[i]} day={dayStr?.get(s.code)} base={baseOf(s.code)} prog={progOf(s.code)} inv={invOf(i)} price={sq(s.code)?.price} short={shortQs[i]?.data?.map(d => ({ date: d.date, ratio: d.ratio }))} link={tickLink} kospi={ksToday?.points.map(p => ({ t: p.t, v: p.c }))} kospiBase={q("^KS11")?.prevClose} onTitle={popup ? undefined : () => openStockInfo(s.code, s.name)} />
             </div>
             {sigBox(`${s.name} 신호`, sig.filter(n => n.code === s.code), "체결을 모으는 중… (1~2분)", false, "max-h-[150px]")}   {/* 내용만큼 — 신호가 한두 줄이면 빈 칸이 컸다(사용자 2026-11-04) */}
-            <ShortRatioBox title={`${s.name} 공매도 거래 비중`} days={shortQs[i]?.data?.map(d => ({ date: d.date, ratio: d.ratio }))} band={1}
-                           help={<>그날 거래량 중 '빌려서 판 것(공매도)'의 비중입니다(토스·거래소 집계, 장 마감 뒤 반영). 국내는 평소 몇 % 수준이라 <b>평소(20일 평균)보다 1%p 넘게 높아졌는지</b>를 봅니다. 높아지면 하락에 거는 매도가 늘었다는 뜻이고, 공매도 '잔고'(대차)는 아닙니다.</>} />
           </div>
         ))}
       </div>
@@ -733,7 +731,7 @@ function CreditLine({ code }: { code: string }) {
   );
 }
 
-function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kospi, kospiBase, code }: { code?: string; name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[]; inv?: Investor; price?: number; link?: TickLink; kospi?: { t: string; v: number }[]; kospiBase?: number }) {   // kospi = 배경 코스피 1분   // inv = 오늘 투자자 잠정치(토스)   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
+function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kospi, kospiBase, code, short }: { short?: { date: string; ratio: number }[]; code?: string; name: string; flow: TickFlow; day?: DayStrength; onTitle?: () => void; base?: number; prog?: ProgPt[]; inv?: Investor; price?: number; link?: TickLink; kospi?: { t: string; v: number }[]; kospiBase?: number }) {   // kospi = 배경 코스피 1분   // inv = 오늘 투자자 잠정치(토스)   // prog = 오늘 프로그램 누적(억원, 한투)   // base = 어제 종가(가격 글자 옆 등락률)
   // 최근 1시간만 한 화면 폭에, 그 전은 왼쪽으로 스크롤(사용자 2026-11-04 "1시간으로, 지난 건 스크롤로") — 오늘 켠 뒤 전부 그린다
   const ms = flow.minutes;
   // 한 화면 분 수 — 기본 1시간, 마우스 휠로 확대(10분까지)·축소(켠 뒤 전부까지)(사용자 2026-11-04 "휠로 확대 축소")
@@ -869,7 +867,7 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
         {onTitle
           ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
           : <span className="font-bold text-gray-800">{name} 실시간 체결</span>}
-        <span className="text-[11px] text-gray-400">{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
+        <span className="text-[11px] text-gray-400">{flow.prevDay ? <b className="text-amber-600">{+flow.prevDay.slice(5, 7)}/{+flow.prevDay.slice(8, 10)} 기록 · 장 마감(1분봉만, 매수·매도 모름) </b> : null}{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : flow.prevDay ? "" : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
         {vis != null && <button onClick={() => { stick.current = true; setVis(null); }} title="켠 뒤 전부를 한 화면으로 되돌리기" className="text-[10.5px] text-gray-500 border border-gray-300 rounded px-1 hover:bg-gray-50">{vis}분 보기 · 전체로</button>}
         <KisWsBadge sync={flow.syncPct} />
       </div>
@@ -1132,13 +1130,16 @@ function TickPanel({ name, flow, day, onTitle, base, prog, inv, price, link, kos
         </div>
         {/* 오른쪽 수급 표·큰 체결은 모바일에서 뺀다 — 그래프가 가로로 눌렸다(사용자 2026-11-13 "모바일은 오른쪽 테이블 부분 삭제") */}
         {inv && <div className="hidden sm:contents"><InvTable inv={inv} price={price} /></div>}
-        <div className="hidden sm:block w-[118px] shrink-0 overflow-hidden text-[11px] tabular-nums">
+        <div className="hidden sm:flex sm:flex-col w-[118px] shrink-0 overflow-hidden text-[11px] tabular-nums">
           <div className="text-gray-500 mb-0.5">큰 체결 ({wonStep(bigThr)}↑)</div>
-          {flow.big.filter(b => b.amt >= bigThr).slice(0, 12).map((b, i) => (
+          {flow.big.filter(b => b.amt >= bigThr).slice(0, 10).map((b, i) => (
             <div key={i} className={`flex justify-between ${b.side === "BUY" ? "text-rose-600" : "text-blue-600"}`}>
               <span>{b.time}</span><b>{b.side === "BUY" ? "+" : "-"}{b.amt >= 1e8 ? `${(b.amt / 1e8).toFixed(1)}억` : `${Math.round(b.amt / 1e6).toLocaleString()}백만`}</b>
             </div>
           ))}
+          {/* 공매도 거래 비중 — 큰 체결 아래 오른쪽(미국 탭처럼, 사용자 2026-11-21 "공매도 그래프 오른쪽 아래로") */}
+          <div className="mt-auto"><ShortRatioBox compact days={short} band={1}
+            help={<>그날 거래량 중 '빌려서 판 것(공매도)'의 비중입니다(토스·거래소 집계, 장 마감 뒤 반영). 국내는 평소 몇 % 수준이라 <b>평소(20일 평균)보다 1%p 넘게 높아졌는지</b>를 봅니다. 공매도 '잔고'(대차)는 아닙니다.</>} /></div>
         </div>
       </div>
       <div className="flex flex-wrap gap-x-3 gap-y-0 text-[10.5px] text-gray-500 mt-0.5 [&>span]:whitespace-nowrap">
