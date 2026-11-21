@@ -1,6 +1,7 @@
 // 🔎 시황 분석 — 하방 압력 계기판(사용자 2026-11-20 "증시 탭에 분석/시황으로"). 증시 탭 맨 위, PC·모바일 공용(StockMarketTab).
 //   외국인 선물·현물, 대차잔고, 공매도 비중, 옵션 풋/콜, V-KOSPI 를 지표마다 '하방 강화 / 그대로 / 완화' 로 — 판정 규칙은 lib/marketPressure.
 //   예측이 아니라 지금 상태. 일별 자료는 1시간, 옵션·변동성은 5분마다.
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchKrFuturesDays, fetchKrMarketFlow, fetchKrLendingTrading, fetchKrShortSelling,
@@ -8,7 +9,7 @@ import {
 } from "../lib/api";
 import { futuresGauge, spotGauge, lendingGauge, shortGauge, optionGauge, volGauge, verdict, type Gauge, type Tone } from "../lib/marketPressure";
 import { Sparkline } from "./Sparkline";
-import { useShortStats, ShortDetail, fmtWon, fmtPct, type ShortStats } from "./ShortAnalysisCard";
+import { useShortStats, fmtWon, fmtPct, type ShortStats } from "./ShortAnalysisCard";
 
 const BIG = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "SK하이닉스" }];
 const HOUR = 60 * 60_000;
@@ -40,75 +41,96 @@ export function MarketPressureCard() {
   const loading = [fut, spot, lend, short, opt, vk].filter(q => q.isLoading).length;
   const v = verdict(gauges);
   const sa = useShortStats();
+  const [pick, setPick] = useState<number | null>(null);   // 누른 타일 — 아래에 설명
   const ss = sa.stats.filter((x): x is ShortStats => !!x);
   const { head, sub, reasons, watch } = conclude(gauges, ss);
 
-  // 결론 → 근거 → 자세히(사용자 2026-11-21 "좀 더 쉽게 이해할 수 있는 구조, 결론을 먼저, 근거(이유)를, 시황분석과 엮어서")
+  // 한눈에(사용자 2026-11-21 "좀 더 한눈에 보는 방법, 자세히 보기까지 포함해서") —
+  //   ① 결론 한 줄 + 줄다리기 막대(하방 강화 · 그대로 · 완화 개수) ② 지표 타일 한 줄(눌러서 설명) ③ 종목별 공매도 두 줄 표
+  const cnt = { worse: reasons.filter(r => r.tag === "worse").length, flat: reasons.filter(r => r.tag === "flat").length, better: reasons.filter(r => r.tag === "better" || r.tag === "fuel").length };
+  const tot = Math.max(1, cnt.worse + cnt.flat + cnt.better);
   return (
     <div className="relative rounded-xl border border-gray-300 bg-white pg-box p-3 pt-4 mt-1.5">
       <span className="pg-title absolute -top-3 left-3 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700">
         🔎 시황 분석 <span className="text-[11px] font-normal text-gray-400">{loading > 0 || sa.loading ? "받는 중…" : sa.date ? `공매도·대차 ${+sa.date.slice(5, 7)}/${+sa.date.slice(8, 10)} 기준` : ""}</span>
       </span>
-      {/* ① 결론 — 맨 위 한 상자 */}
-      <div className={`rounded-lg border px-3 py-2 ${TONE[v.tone].cls}`}>
-        <div className="flex items-center gap-2 text-[15px] font-bold"><span className={`w-2.5 h-2.5 rounded-full shrink-0 ${TONE[v.tone].dot}`} />{head}</div>
-        {sub && <div className="mt-0.5 text-[12.5px] leading-snug">{sub}</div>}
-        {watch && <div className="mt-1 text-[12px] text-gray-700"><b>지켜볼 자리</b> · {watch}</div>}
-      </div>
-      {/* ② 근거 — 하나씩 카드(사용자 2026-11-21 "왜 그렇게 보나요 부분을 각각 카드로"), 방향 있는 것 먼저 */}
-      <div className="mt-2 text-[12px] font-bold text-gray-600">왜 그렇게 보나요?</div>
-      {/* 종류별로 묶음 — 완화(+반등 연료) · 하방 강화 · 그대로(사용자 2026-11-21 "종류별로 묶으면?") */}
-      <div className="mt-1 grid gap-2 grid-cols-1 lg:grid-cols-4">
-        {([
-          { key: "better", label: "완화", desc: "누르는 힘이 약해지는 근거", cls: "text-rose-700 border-rose-200 bg-rose-50/40", span: "", cols: "", items: reasons.filter(r => r.tag === "better" || r.tag === "fuel") },
-          { key: "worse", label: "하방 강화", desc: "누르는 힘이 세지는 근거", cls: "text-blue-700 border-blue-200 bg-blue-50/40", span: "", cols: "", items: reasons.filter(r => r.tag === "worse") },
-          { key: "flat", label: "그대로", desc: "뚜렷한 변화 없음", cls: "text-gray-600 border-gray-200 bg-gray-50/60", span: "lg:col-span-2", cols: "sm:grid-cols-2", items: reasons.filter(r => r.tag === "flat") },
-        ] as const).map(g => (
-          <div key={g.key} className={`rounded-lg border p-1.5 ${g.cls} ${g.span}`}>
-            <div className="px-0.5 pb-1 text-[12px] font-bold">{g.label} <span className="font-normal text-gray-500">{g.items.length}개 · {g.desc}</span></div>
-            {g.items.length ? (
-              <div className={`grid gap-1.5 grid-cols-1 ${g.cols}`}>
-                {g.items.map((r, k) => <ReasonCard key={k} r={r} />)}
-              </div>
-            ) : <div className="px-0.5 pb-1 text-[11.5px] text-gray-400">없음</div>}
-          </div>
-        ))}
-      </div>
-      {/* ③ 자세히 — 지표 6개 카드 + 종목별 공매도 숫자 */}
-      <details className="mt-2">
-        <summary className="cursor-pointer select-none text-[12px] font-bold text-indigo-600">자세히 보기 — 종목별 공매도·대차 숫자</summary>
-        <div className="mt-2 grid gap-2 lg:grid-cols-2">{sa.stats.map((x, i) => <ShortDetail key={i} s={x} />)}</div>
-        <div className="mt-1.5 text-[10.5px] text-gray-400 leading-snug">
-          공매도 평균가 = 그 기간 날마다의 공매도 평균가를 수량으로 가중 평균한 값(추정 원가). 대차잔고 = 빌려 간 주식(공매도 말고 차익거래·대여 물량도 섞임).
+      {/* ① 결론 + 줄다리기 */}
+      <div className="lg:flex lg:items-stretch lg:gap-3">
+        <div className={`flex-1 min-w-0 rounded-lg border px-3 py-1.5 ${TONE[v.tone].cls}`}>
+          <div className="flex items-center gap-2 text-[14.5px] font-bold"><span className={`w-2.5 h-2.5 rounded-full shrink-0 ${TONE[v.tone].dot}`} />{head}</div>
+          {sub && <div className="text-[12px] leading-snug">{sub}</div>}
+          {watch && <div className="text-[11.5px] text-gray-700"><b>지켜볼 자리</b> · {watch}</div>}
         </div>
-      </details>
-      <div className="mt-2 text-[10.5px] text-gray-400 leading-snug">
-        <b className="text-rose-600">완화</b> = 누르는 힘이 약해짐 · <b className="text-blue-600">하방 강화</b> = 누르는 힘이 세짐 · <b className="text-amber-700">반등 연료</b> = 오를 때 되사기로 오름폭을 키울 수 있는 물량.
-        미래를 맞히는 게 아니라 <b>지금 상태</b>입니다. 출처: 다음(선물), 토스(현물·대차·공매도), 한경(옵션), CNBC(V-KOSPI).
+        <div className="mt-1.5 lg:mt-0 lg:w-[300px] shrink-0 rounded-lg border border-gray-200 px-2 py-1.5 flex flex-col justify-center" title="근거 카드 개수 — 왼쪽 파랑이 길면 누르는 힘이 세고, 오른쪽 빨강이 길면 약해지는 중">
+          <div className="flex justify-between text-[11px] font-bold">
+            <span className="text-blue-700">하방 강화 {cnt.worse}</span><span className="text-gray-500">그대로 {cnt.flat}</span><span className="text-rose-700">완화 {cnt.better}</span>
+          </div>
+          <div className="mt-1 flex h-3 rounded overflow-hidden border border-gray-200">
+            <div className="bg-blue-500" style={{ width: `${(cnt.worse / tot) * 100}%` }} />
+            <div className="bg-gray-300" style={{ width: `${(cnt.flat / tot) * 100}%` }} />
+            <div className="bg-rose-500" style={{ width: `${(cnt.better / tot) * 100}%` }} />
+          </div>
+          <div className="mt-0.5 text-[10px] text-gray-400 text-center">완화 쪽(빨강)이 길어지면 바닥을 다지는 중</div>
+        </div>
+      </div>
+      {/* ② 지표 타일 한 줄 — 방향별로 왼쪽 띠 색, 누르면 아래에 설명 */}
+      <div className="mt-2 grid gap-1.5 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
+        {reasons.map((r, k) => {
+          const bar = r.tag === "fuel" ? "border-l-amber-500" : r.tag === "better" ? "border-l-rose-500" : r.tag === "worse" ? "border-l-blue-500" : "border-l-gray-300";
+          const on = pick === k;
+          return (
+            <button key={k} type="button" onClick={() => setPick(on ? null : k)} title={`${r.text}${r.help ? `\n\n${r.help}` : ""}`}
+                    className={`relative overflow-hidden text-left rounded-md border border-gray-200 border-l-4 ${bar} bg-white px-1.5 py-1 hover:bg-gray-50 ${on ? "ring-2 ring-indigo-300" : ""}`}>
+              {r.series && r.series.length > 1 && <div className="absolute inset-x-0 bottom-0 h-[45%] opacity-30 pointer-events-none"><Sparkline data={r.series} width={200} height={30} className="w-full h-full" strokeWidth={1} color={r.tag === "fuel" ? "#d97706" : undefined} /></div>}
+              <div className="relative text-[10.5px] text-gray-500 truncate">{r.title}</div>
+              <div className="relative text-[13px] font-bold tabular-nums text-gray-900 truncate">{r.value ?? "—"}</div>
+              <div className={`relative text-[10px] font-bold ${r.tag === "fuel" ? "text-amber-700" : r.tag === "better" ? "text-rose-600" : r.tag === "worse" ? "text-blue-600" : "text-gray-400"}`}>{r.tag === "fuel" ? "반등 연료" : TONE[r.tag].label}</div>
+            </button>
+          );
+        })}
+      </div>
+      {pick != null && reasons[pick] && (
+        <div className="mt-1.5 rounded-md border border-indigo-200 bg-indigo-50/50 px-2 py-1.5 text-[12px] leading-snug">
+          <b>{reasons[pick].title}</b> — {reasons[pick].text}
+          {reasons[pick].help && <div className="mt-0.5 text-[11px] text-gray-600">{reasons[pick].help}</div>}
+        </div>
+      )}
+      {/* ③ 종목별 공매도·대차 — 두 줄 표(예전 '자세히 보기') */}
+      <div className="mt-2 overflow-x-auto">
+        <table className="w-full text-[11.5px] tabular-nums">
+          <thead><tr className="text-[10.5px] text-gray-500 text-left">
+            <th className="font-normal py-0.5">종목</th><th className="font-normal">종가</th>
+            <th className="font-normal" title="최근 5·20거래일 공매도 평균가(수량 가중) — 공매도한 쪽 추정 원가">공매도 평균가 5일 · 20일</th>
+            <th className="font-normal" title="지금 값 기준 — 이익이면 급하게 되살 이유가 약하다">공매도 쪽 손익(20일)</th>
+            <th className="font-normal" title="최근 5일 공매도 평균가까지 주가가 몇 % 올라야 하나 — 여기서 되사기가 나올 수 있다">본전까지</th>
+            <th className="font-normal" title="빌려 간 주식 — 많이 쌓이면 오를 때 되사기 물량">대차잔고 20일</th>
+            <th className="font-normal w-[110px]">대차 100일</th>
+            <th className="font-normal" title="그날 거래량 중 공매도 비중 / 20일 평균">공매도 비중</th>
+          </tr></thead>
+          <tbody>
+            {sa.stats.map((x, i) => !x ? <tr key={i}><td colSpan={8} className="text-gray-400 py-1">받는 중…</td></tr> : (
+              <tr key={i} className="border-t border-gray-100">
+                <td className="py-1 font-bold text-gray-800 whitespace-nowrap">{x.name}</td>
+                <td className="whitespace-nowrap">{x.close ? fmtWon(x.close) : "—"}</td>
+                <td className="whitespace-nowrap">{x.a5 ? fmtWon(x.a5) : "—"} · {x.a20 ? fmtWon(x.a20) : "—"}</td>
+                <td className={`whitespace-nowrap font-bold ${x.pnl20 != null && x.pnl20 >= 0 ? "text-gray-600" : "text-rose-600"}`}>{x.pnl20 == null ? "—" : x.pnl20 >= 0 ? `이익 ${x.pnl20.toFixed(0)}%` : `손해 ${(-x.pnl20).toFixed(0)}%`}</td>
+                <td className="whitespace-nowrap font-bold text-rose-700">{x.toBE != null ? fmtPct(x.toBE) : "—"}</td>
+                <td className={`whitespace-nowrap font-bold ${(x.c20 ?? 0) >= 15 ? "text-amber-700" : "text-gray-600"}`}>{x.c20 != null ? fmtPct(x.c20) : "—"}{x.pos >= 0.95 ? " · 100일 최고" : ""}</td>
+                <td><Sparkline data={x.bal.slice(-100)} width={110} height={18} className="w-[110px] h-[18px]" strokeWidth={1} color="#d97706" /></td>
+                <td className={`whitespace-nowrap ${x.rNow >= x.r20 + 1 ? "text-blue-700 font-bold" : "text-gray-600"}`}>{x.rNow.toFixed(1)}% <span className="font-normal text-gray-400">/ {x.r20.toFixed(1)}%</span></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <div className="mt-1.5 text-[10.5px] text-gray-400 leading-snug">
+        타일 왼쪽 띠: <b className="text-rose-600">빨강 완화</b> · <b className="text-blue-600">파랑 하방 강화</b> · <b className="text-amber-700">주황 반등 연료</b>(오를 때 되사기로 오름폭을 키울 물량) · 회색 그대로. 타일을 누르면 설명. 미래를 맞히는 게 아니라 <b>지금 상태</b>입니다.
+        출처: 다음(선물), 토스(현물·대차·공매도, 일별 장 마감 뒤), 한경(옵션), CNBC(V-KOSPI).
       </div>
     </div>
   );
 }
 
-function ReasonCard({ r }: { r: Reason }) {
-  const chip = r.tag === "fuel" ? "text-amber-700 bg-amber-50 border-amber-200" : TONE[r.tag].cls;
-  return (
-    <div className="relative overflow-hidden rounded-lg border border-gray-200 bg-white p-2 min-h-[72px] text-left">
-      {r.series && r.series.length > 1 && (
-        <div className="absolute inset-x-0 bottom-0 h-[50%] opacity-35 pointer-events-none">
-          <Sparkline data={r.series} width={300} height={44} className="w-full h-full" strokeWidth={1.2} color={r.tag === "fuel" ? "#d97706" : undefined} />
-        </div>
-      )}
-      <div className="relative flex items-center gap-1.5">
-        <b className="text-[12.5px] text-gray-800 truncate">{r.title}</b>
-        {r.tag === "fuel" && <span className={`ml-auto shrink-0 rounded border px-1 text-[10.5px] font-bold ${chip}`}>반등 연료</span>}
-      </div>
-      {r.value && <div className="relative text-[15px] font-bold tabular-nums text-gray-900">{r.value}</div>}
-      <div className="relative text-[11.5px] text-gray-700 leading-snug">{r.text}</div>
-      {r.help && <details className="relative mt-0.5 text-[10.5px] text-gray-500"><summary className="cursor-pointer select-none text-indigo-600">이게 뭔가요?</summary><div className="leading-snug mt-0.5">{r.help}</div></details>}
-    </div>
-  );
-}
 type Reason = { tag: Tone | "fuel"; title: string; text: string; value?: string; series?: number[]; help?: string };
 /** 결론 한 줄 + 보조 한 줄 + 근거 목록 + 지켜볼 자리 — 숫자로 확인되는 것만 말한다 */
 function conclude(gs: Gauge[], ss: ShortStats[]): { head: string; sub: string; reasons: Reason[]; watch: string } {
