@@ -84,17 +84,25 @@ export function MarketPressureCard() {
           const bar = r.tag === "fuel" ? "border-l-amber-500" : r.tag === "better" ? "border-l-rose-500" : r.tag === "worse" ? "border-l-blue-500" : "border-l-gray-300";
           const on = pick === k;
           return (
-            <button key={k} type="button" onClick={() => setPick(on ? null : k)} title={`${r.tag === "flat" ? "중립 = 판정 기준선 안쪽이라 누르는 힘이 세졌다고도 약해졌다고도 말하기 어려움\n\n" : ""}${r.text}${r.rule ? `\n\n판정 기준: ${r.rule}` : ""}`}
-                    className={`relative overflow-hidden text-left rounded-md border border-gray-200 border-l-4 ${bar} bg-white px-1.5 py-1 hover:bg-gray-50 ${on ? "ring-2 ring-indigo-300" : ""}`}>
-              {r.series && r.series.length > 1 && <div className="absolute inset-x-0 bottom-0 h-[70%] opacity-35 pointer-events-none"><MiniLine data={r.series} ref0={r.ref} hiLast={r.hiLast} color={r.tag === "fuel" ? "#d97706" : r.tag === "better" ? "#e11d48" : r.tag === "worse" ? "#2563eb" : "#6b7280"} /></div>}
+            <button key={k} type="button" onClick={() => setPick(on ? null : k)}
+                    className={`relative text-left rounded-md border border-gray-200 border-l-4 ${bar} bg-white px-1.5 py-1 hover:bg-gray-50 ${on ? "ring-2 ring-indigo-300" : ""}`}>
+              {r.series && r.series.length > 1 && <div className="absolute inset-x-0 bottom-0 h-[70%] opacity-35 pointer-events-none overflow-hidden rounded-b-md"><MiniLine data={r.series} ref0={r.ref} hiLast={r.hiLast} color={r.tag === "fuel" ? "#d97706" : r.tag === "better" ? "#e11d48" : r.tag === "worse" ? "#2563eb" : "#6b7280"} /></div>}
               <div className="relative text-[10.5px] text-gray-500 truncate">{r.title}</div>
               {/* 값과 방향을 한 줄로(사용자 2026-11-21 "3줄인데 2줄로") */}
               <div className="relative flex items-baseline gap-1.5 min-w-0">
                 <span className="text-[13px] font-bold tabular-nums text-gray-900 truncate">{r.value ?? "—"}</span>
-                <span className={`ml-auto shrink-0 text-[10px] font-bold ${r.tag === "fuel" ? "text-amber-700" : r.tag === "better" ? "text-rose-600" : r.tag === "worse" ? "text-blue-600" : "text-gray-400"}`}>{r.tag === "fuel" ? "반등 연료" : TONE[r.tag].label}</span>
+                {/* 꼬리표에 마우스를 올리면 '왜' 레이어(타일 안 한 줄은 숨김 — 사용자 2026-11-21 "아래쪽은 숨기고 hover 시 레이어로") */}
+                <span className={`group/why relative ml-auto shrink-0 text-[10px] font-bold cursor-help underline decoration-dotted underline-offset-2 ${r.tag === "fuel" ? "text-amber-700" : r.tag === "better" ? "text-rose-600" : r.tag === "worse" ? "text-blue-600" : "text-gray-400"}`}>
+                  {r.tag === "fuel" ? "반등 연료" : TONE[r.tag].label}
+                  {(r.why || r.rule) && (
+                    <span className="hidden group-hover/why:block absolute right-0 top-full mt-1 z-40 w-[260px] rounded-md border border-gray-300 bg-white shadow-lg px-2 py-1.5 text-left text-[11.5px] font-normal text-gray-700 leading-snug no-underline">
+                      {r.tag === "flat" && <span className="block text-gray-500 mb-0.5">중립 = 기준선 안쪽이라 어느 쪽도 아님</span>}
+                      {r.why && <span className="block"><b>왜?</b> {r.why}</span>}
+                      {r.rule && <span className="block mt-0.5 text-[10.5px] text-indigo-700"><b>판정 기준</b> · {r.rule}</span>}
+                    </span>
+                  )}
+                </span>
               </div>
-              {/* 왜 이 판정인지 한 줄(실제 값) — 사용자 2026-11-21 "왜 그러냐고 이유를" */}
-              {r.why && <div className="relative text-[10.5px] text-gray-600 leading-tight line-clamp-2">{r.why}</div>}
             </button>
           );
         })}
