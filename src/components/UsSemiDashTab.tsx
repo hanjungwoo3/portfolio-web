@@ -48,19 +48,29 @@ export function UsSemiDashTab() {
     const cut = a1[0]?.t ?? Infinity;
     return [...a5.filter(p => p.t < cut), ...a1];
   });
-  const [view, setView] = useState<{ span: number; end: number | null }>({ span: 3600_000, end: null });   // end null = 지금을 따라간다
+  // 장 마감 뒤(최근 20분 동안 봉이 없음)엔 기본 화면 = 마지막 거래일 정규장(ET 09:15~16:15) — 빈 '최근 1시간' 대신(사용자 2026-11-21 "장마감 후에는 바로 전날 그래프")
   const nowMs = Date.now();
+  const lastT = Math.max(0, ...series.map(a => a[a.length - 1]?.t ?? 0));
+  const closed = lastT > 0 && nowMs - lastT > 20 * 60_000;
+  const kd0 = etNow().kstDiff;
+  const autoView = closed
+    ? { span: 7 * 3600_000, end: etEpoch(etNow(lastT).date, "16:15", kd0) as number | null }
+    : { span: 3600_000, end: null as number | null };
+  const autoLabel = closed ? `마지막 거래일 정규장(${kstLabel(autoView.end! - autoView.span, true)}~)` : "최근 1시간";
+  const [viewS, setView] = useState<{ span: number; end: number | null } | null>(null);   // null = 자동(장중 최근 1시간 / 장 마감 뒤 마지막 정규장), end null = 지금을 따라간다
+  const view = viewS ?? autoView;
   const vT1 = view.end ?? nowMs, vT0 = vT1 - view.span;
   const MIN_SPAN = 15 * 60_000, MAX_SPAN = 48 * 3600_000;
   const fixEnd = (end: number, span: number) => (end >= nowMs - 30_000 ? null : Math.max(end, nowMs - MAX_SPAN + span));
-  const zoom = (f: number, frac: number) => setView(v => {
+  const zoom = (f: number, frac: number) => setView(v0 => {
+    const v = v0 ?? autoView;
     const t1 = v.end ?? Date.now(), t0 = t1 - v.span, at = t0 + frac * v.span;
     const span = Math.min(MAX_SPAN, Math.max(MIN_SPAN, v.span * f));
     const n0 = at - frac * span;
     return { span, end: fixEnd(n0 + span, span) };
   });
-  const pan = (dfrac: number) => setView(v => ({ span: v.span, end: fixEnd((v.end ?? Date.now()) + dfrac * v.span, v.span) }));
-  const resetView = () => setView({ span: 3600_000, end: null });
+  const pan = (dfrac: number) => setView(v0 => { const v = v0 ?? autoView; return { span: v.span, end: fixEnd((v.end ?? Date.now()) + dfrac * v.span, v.span) }; });
+  const resetView = () => setView(null);
   const spanLabel = view.span >= 3600_000 ? `${+(view.span / 3600_000).toFixed(1)}시간` : `${Math.round(view.span / 60_000)}분`;
   const kd = etNow().kstDiff;
   return (
@@ -70,9 +80,10 @@ export function UsSemiDashTab() {
         <b> 공매도로 보고된 거래 비중</b>, <b>한국 개인(서학개미) 보유</b>를 봅니다. 정규장은 한국 시각 {etToKst("09:30", kd)}~{etToKst("16:00", kd)}.
       </div>
       <div className="flex items-center gap-2 text-[11px] text-gray-500">
-        <b className="text-gray-700">그래프 {spanLabel}{view.end ? ` · ${kstLabel(vT1, true)}까지` : " · 지금까지"}</b>
-        <span>휠 = 확대·축소 · 끌기(또는 가로 휠) = 좌우 이동 · 두 번 클릭 = 최근 1시간</span>
-        {(view.end || view.span !== 3600_000) && <button type="button" onClick={resetView} className="px-1.5 py-0.5 rounded border border-gray-300 bg-white font-bold text-gray-600 hover:bg-gray-100">최근 1시간</button>}
+        <b className="text-gray-700">그래프 {viewS ? `${spanLabel}${view.end ? ` · ${kstLabel(vT1, true)}까지` : " · 지금까지"}` : autoLabel}</b>
+        {closed && !viewS && <span className="text-amber-600">미국 장 마감 — 마지막 거래일을 보여 줍니다</span>}
+        <span>휠 = 확대·축소 · 끌기(또는 가로 휠) = 좌우 이동 · 두 번 클릭 = 처음 화면</span>
+        {viewS && <button type="button" onClick={resetView} className="px-1.5 py-0.5 rounded border border-gray-300 bg-white font-bold text-gray-600 hover:bg-gray-100">처음 화면({closed ? "마지막 정규장" : "최근 1시간"})</button>}
       </div>
       {/* 범례 — 칸마다 있던 것을 맨 위 한 번만(사용자 2026-11-21 "공간을 정리하자 4개 종목을 한번에")(사용자 2026-11-21 "그래프 각 선이 뭔지 설명이 없어?") */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-gray-600">
@@ -112,7 +123,10 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg, price4
   const buy = ms.reduce((a, m) => a + m.buyAmt, 0), sell = ms.reduce((a, m) => a + m.sellAmt, 0);
   const bv = ms.reduce((a, m) => a + m.buyVol, 0), sv = ms.reduce((a, m) => a + m.sellVol, 0);
   const last5 = ms.filter(m => !m.est).slice(-5), b5 = last5.reduce((a, m) => a + m.buyVol, 0), s5 = last5.reduce((a, m) => a + m.sellVol, 0);
-  const pct = flow.price && flow.base ? (flow.price / flow.base - 1) * 100 : undefined;
+  // 미국 자정이 지나면 오늘 체결 통이 비어 값이 없다 — 마지막 봉 값·기준으로(장 마감 뒤 화면, 사용자 2026-11-21)
+  const lastPx = price48?.[price48.length - 1];
+  const pxNow = flow.price ?? lastPx?.close, pxBase = flow.base ?? lastPx?.base;
+  const pct = pxNow && pxBase ? (pxNow / pxBase - 1) * 100 : undefined;
   const bigMin = bigThreshold(flow.big);   // 그 이상이 5건 넘게 쌓이는 가장 높은 단계(국내와 같은 규칙)
   const bigs = flow.big.filter(b => b.amt >= bigMin).slice(0, 30);
   return (
@@ -126,7 +140,7 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg, price4
         </span>
       </span>
       <div className="flex items-baseline gap-2 flex-wrap">
-        {flow.price != null && <b className="text-lg tabular-nums">${flow.price.toFixed(2)}</b>}
+        {pxNow != null && <b className="text-lg tabular-nums">${pxNow.toFixed(2)}</b>}
         {pct != null && <b className={`text-sm tabular-nums ${tone(pct)}`}>{pct >= 0 ? "+" : ""}{pct.toFixed(2)}%</b>}
         {flow.priceKrw ? <span className="text-[11px] text-gray-400 tabular-nums">{Math.round(flow.priceKrw).toLocaleString()}원</span> : null}
         <span className="ml-auto text-[11px] text-gray-500 truncate">{s.desc}</span>
@@ -146,7 +160,7 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg, price4
       {/* 그래프 왼쪽 · 큰 체결 오른쪽(국내 반도체 수급처럼, 사용자 2026-11-21) — 좁은 화면은 아래로 */}
       <div className="sm:flex sm:items-start sm:gap-2">
         <div className="sm:flex-1 sm:min-w-0">
-          <FlowChart ms={ms} etDate={flow.etDate} kd={kd} price={price48} bg={bg} base={flow.base} T0={t0} T1={t1} onZoom={onZoom} onPan={onPan} onReset={onReset} />
+          <FlowChart ms={ms} etDate={flow.etDate} kd={kd} price={price48} bg={bg} base={pxBase} T0={t0} T1={t1} onZoom={onZoom} onPan={onPan} onReset={onReset} />
           <div className="mt-0.5 text-[10.5px] text-gray-400">
             {flow.error ? <span className="text-rose-500">체결 받기 실패 — {flow.error}</span>
               : flow.since ? <><span className="text-gray-500">가격·나스닥 = 토스 1분·5분봉 · </span>{ms.some(m => m.kis) && <span className="text-emerald-600">한투로 정확히 나눈 분 {ms.filter(m => m.kis).length}개 · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
@@ -238,7 +252,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
   const x = (t: number) => ((t - T0) / (T1 - T0)) * (W - PR - 8) + 4;
   const inR = <T extends { t: number }>(a: T[]) => a.filter(p => p.t >= T0 && p.t <= T1);
   const P = inR(pts);
-  if (P.length < 2) return <div {...boxProps} className="mt-1 h-[250px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400 cursor-grab select-none">이 구간엔 거래가 없습니다 — 끌어서 옮기거나 두 번 클릭(최근 1시간)</div>;
+  if (P.length < 2) return <div {...boxProps} className="mt-1 h-[250px] rounded-md border border-dashed border-gray-200 flex items-center justify-center text-[11px] text-gray-400 cursor-grab select-none">이 구간엔 거래가 없습니다 — 끌어서 옮기거나 두 번 클릭(처음 화면)</div>;
   const prices = P.map(p => p.close);
   // 종목 가격은 날마다 자기 기준가(그 전 정규장 종가) 위 빨강·아래 파랑(사용자 2026-11-21 "나스닥은 선으로만, 종목에 색상") — 봉의 base 가 바뀌는 곳에서 나눈다
   const pGroups: { base: number; from: number; pts: typeof P }[] = [];
