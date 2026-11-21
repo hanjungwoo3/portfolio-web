@@ -56,13 +56,14 @@ export function MarketPressureCard() {
         🔎 시황 분석 <span className="text-[11px] font-normal text-gray-400">{loading > 0 || sa.loading ? "받는 중…" : sa.date ? `공매도·대차 ${+sa.date.slice(5, 7)}/${+sa.date.slice(8, 10)} 기준` : ""}</span>
       </span>
       {/* ① 결론 + 줄다리기 */}
-      <div className="lg:flex lg:items-stretch lg:gap-3">
+      {/* 위·아래 같은 칸 나눔(60:40) — 위 = 결론 | 줄다리기, 아래 = 종목 표 | 지표 타일(사용자 2026-11-21 "타일을 오른쪽으로, 줄다리기를 넓혀서 위아래 맞춰") */}
+      <div className="lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:items-stretch lg:gap-3">
         <div className={`flex-1 min-w-0 rounded-lg border px-3 py-1.5 ${TONE[v.tone].cls}`}>
           <div className="flex items-center gap-2 text-[14.5px] font-bold"><span className={`w-2.5 h-2.5 rounded-full shrink-0 ${TONE[v.tone].dot}`} />{head}</div>
           {sub && <div className="text-[12px] leading-snug">{sub}</div>}
           {watch && <div className="text-[11.5px] text-gray-700"><b>지켜볼 자리</b> · {watch}</div>}
         </div>
-        <div className="mt-1.5 lg:mt-0 lg:w-[300px] shrink-0 rounded-lg border border-gray-200 px-2 py-1.5 flex flex-col justify-center" title="근거 카드 개수 — 왼쪽 파랑이 길면 누르는 힘이 세고, 오른쪽 빨강이 길면 약해지는 중">
+        <div className="mt-1.5 lg:mt-0 rounded-lg border border-gray-200 px-2 py-1.5 flex flex-col justify-center" title="근거 카드 개수 — 왼쪽 파랑이 길면 누르는 힘이 세고, 오른쪽 빨강이 길면 약해지는 중">
           <div className="flex justify-between text-[11px] font-bold">
             <span className="text-blue-700">하방 강화 {cnt.worse}</span><span className="text-gray-500" title="판정 기준선 안쪽 — 누르는 힘이 세졌다고도 약해졌다고도 말하기 어려움">중립 {cnt.flat}</span><span className="text-rose-700">완화 {cnt.better}</span>
           </div>
@@ -76,8 +77,8 @@ export function MarketPressureCard() {
       </div>
       {/* ② 지표 타일 한 줄 — 방향별로 왼쪽 띠 색, 누르면 아래에 설명 */}
       {/* 넓은 화면: 왼쪽 지표 타일(3×3) · 오른쪽 종목 표(사용자 2026-11-21 50:50 → "40:60") */}
-      <div className="mt-2 lg:grid lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)] lg:gap-3 lg:items-start">   {/* 40:60(사용자 2026-11-21) */}
-      <div>
+      <div className="mt-2 lg:grid lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] lg:gap-3 lg:items-start">
+      <div className="lg:order-2">
       <div className="grid gap-1.5 grid-cols-2 sm:grid-cols-3">
         {reasons.map((r, k) => {
           const bar = r.tag === "fuel" ? "border-l-amber-500" : r.tag === "better" ? "border-l-rose-500" : r.tag === "worse" ? "border-l-blue-500" : "border-l-gray-300";
@@ -108,7 +109,7 @@ export function MarketPressureCard() {
       )}
       </div>
       {/* ③ 종목별 공매도·대차 — 두 줄 표(예전 '자세히 보기') */}
-      <div className="mt-2 lg:mt-0 overflow-x-auto">
+      <div className="mt-2 lg:mt-0 lg:order-1 overflow-x-auto">
         <table className="w-full text-[11.5px] tabular-nums">
           <thead><tr className="text-[10.5px] text-gray-500 text-left">
             <th className="font-normal py-0.5">종목</th><th className="font-normal">종가</th>
