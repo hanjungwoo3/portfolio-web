@@ -162,9 +162,6 @@ function DeltaBars({ newV, repV }: { newV: number[]; repV: number[] }) {
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-[200px] h-[60px]" preserveAspectRatio="none">
       <line x1={0} x2={W} y1={mid} y2={mid} stroke="#e5e7eb" strokeWidth={0.6} />
-      {/* 30일 평균 증감 — 점선(사용자 2026-11-21 "가로 평균선을 점선으로") */}
-      {(() => { const av = d.reduce((a, v) => a + v, 0) / Math.max(1, d.length); const y = av >= 0 ? mid - Math.sqrt(av / mx) * (mid - 1) : mid + Math.sqrt(-av / mx) * (mid - 1);
-        return <line x1={0} x2={W} y1={y} y2={y} stroke={av >= 0 ? "#b45309" : "#374151"} strokeDasharray="4 3" strokeWidth={1} />; })()}
       {d.map((v, i) => {
         const hh = (x: number) => Math.sqrt(Math.max(0, x) / mx) * (mid - 1);   // 제곱근 눈금 — 작은 날도 보이게
         const x0 = i * bw + 0.3, w = Math.max(0.6, bw - 0.6), h = hh(Math.abs(v));
