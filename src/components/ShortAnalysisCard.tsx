@@ -22,6 +22,7 @@ function avgShortPrice(rows: ShortSellingPoint[], n: number): number | undefined
 export interface ShortStats {
   name: string; close?: number; a5?: number; a20?: number; pnl5?: number; pnl20?: number; toBE?: number;
   // newV·repV = 날마다 신규 대차·상환(주)
+  closes: number[];   // 최근 종가(공매도 손익 타일 그래프)
   b0: number; bal: number[]; newV: number[]; repV: number[]; c5?: number; c20?: number; pos: number; coverDays?: number; rNow: number; r20: number;
 }
 /** 삼성전자·SK하이닉스 공매도·대차 숫자 — 시황 분석 카드가 결론·근거·자세히에 쓴다(사용자 2026-11-21 "시황분석과 엮어서, 결론 먼저") */
@@ -43,7 +44,7 @@ function calc(name: string, sh?: ShortSellingPoint[], ln?: LendingTradingPoint[]
   const r = sh.map(x => x.ratio), prev = r.slice(-21, -1);
   return {
     name, close, a5, a20, pnl5: pnl(a5), pnl20: pnl(a20), toBE: a5 && close ? (a5 / close - 1) * 100 : undefined,
-    b0, bal, newV: ln.map(x => x.newVolume), repV: ln.map(x => x.repayVolume), c5: chg(5), c20: chg(20), pos: hi100 > lo100 ? (b0 - lo100) / (hi100 - lo100) : 0.5,
+    closes: sh.slice(-30).map(x => x.close ?? 0).filter(v => v > 0), b0, bal, newV: ln.map(x => x.newVolume), repV: ln.map(x => x.repayVolume), c5: chg(5), c20: chg(20), pos: hi100 > lo100 ? (b0 - lo100) / (hi100 - lo100) : 0.5,
     coverDays: vols.length ? b0 / (vols.reduce((a, v) => a + v, 0) / vols.length) : undefined,
     rNow: r[r.length - 1], r20: prev.reduce((a, v) => a + v, 0) / Math.max(1, prev.length),
   };

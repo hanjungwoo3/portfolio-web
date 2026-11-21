@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchKrFuturesDays, fetchKrMarketFlow, fetchKrLendingTrading, fetchKrShortSelling,
-  fetchKrFuturesLive, fetchKospi200OptionSummary, fetchYahooBatch,
+  fetchKrFuturesLive, fetchKospi200OptionSummary, fetchYahooBatch, fetchDashboardChart,
 } from "../lib/api";
 import { futuresGauge, spotGauge, lendingGauge, shortGauge, optionGauge, volGauge, verdict, type Gauge, type Tone } from "../lib/marketPressure";
 import { useShortStats, fmtWon, fmtPct, type ShortStats } from "./ShortAnalysisCard";
@@ -14,7 +14,7 @@ const BIG = [{ code: "005930", name: "삼성전자" }, { code: "000660", name: "
 const HOUR = 60 * 60_000;
 const TONE: Record<Tone, { label: string; cls: string; dot: string }> = {
   worse:  { label: "하방 강화", cls: "text-blue-700 bg-blue-50 border-blue-200", dot: "bg-blue-500" },
-  flat:   { label: "그대로",   cls: "text-gray-600 bg-gray-50 border-gray-200", dot: "bg-gray-400" },
+  flat:   { label: "중립",   cls: "text-gray-600 bg-gray-50 border-gray-200", dot: "bg-gray-400" },
   better: { label: "완화",     cls: "text-rose-700 bg-rose-50 border-rose-200", dot: "bg-rose-500" },
 };
 
@@ -27,6 +27,8 @@ export function MarketPressureCard() {
     queryKey: ["mp-opt"], staleTime: 5 * 60_000, refetchInterval: 5 * 60_000, retry: 1,
     queryFn: async () => { const f = await fetchKrFuturesLive("kospi200"); return f ? fetchKospi200OptionSummary(f.price) : null; },
   });
+  // V-KOSPI 3개월(타일 그래프 — 사용자 2026-11-21 "변동성 그래프도 없는데")
+  const vkHist = useQuery({ queryKey: ["mp-vk-hist"], queryFn: () => fetchDashboardChart("VKOSPI", "3mo"), staleTime: HOUR, retry: 1 });
   const vk = useQuery({ queryKey: ["mp-vk"], queryFn: () => fetchYahooBatch([{ symbol: "VKOSPI", name: "V-KOSPI" }]), staleTime: 5 * 60_000, refetchInterval: 5 * 60_000, retry: 1 });
 
   const gauges = [
@@ -35,7 +37,7 @@ export function MarketPressureCard() {
     lend.data && lendingGauge(lend.data),
     short.data && shortGauge(short.data),
     optionGauge(opt.data),
-    volGauge(vk.data?.get("VKOSPI")),
+    volGauge(vk.data?.get("VKOSPI"), vkHist.data),
   ].filter((g): g is Gauge => !!g);
   const loading = [fut, spot, lend, short, opt, vk].filter(q => q.isLoading).length;
   const v = verdict(gauges);
@@ -62,7 +64,7 @@ export function MarketPressureCard() {
         </div>
         <div className="mt-1.5 lg:mt-0 lg:w-[300px] shrink-0 rounded-lg border border-gray-200 px-2 py-1.5 flex flex-col justify-center" title="근거 카드 개수 — 왼쪽 파랑이 길면 누르는 힘이 세고, 오른쪽 빨강이 길면 약해지는 중">
           <div className="flex justify-between text-[11px] font-bold">
-            <span className="text-blue-700">하방 강화 {cnt.worse}</span><span className="text-gray-500">그대로 {cnt.flat}</span><span className="text-rose-700">완화 {cnt.better}</span>
+            <span className="text-blue-700">하방 강화 {cnt.worse}</span><span className="text-gray-500" title="판정 기준선 안쪽 — 누르는 힘이 세졌다고도 약해졌다고도 말하기 어려움">중립 {cnt.flat}</span><span className="text-rose-700">완화 {cnt.better}</span>
           </div>
           <div className="mt-1 flex h-3 rounded overflow-hidden border border-gray-200">
             <div className="bg-blue-500" style={{ width: `${(cnt.worse / tot) * 100}%` }} />
@@ -81,15 +83,17 @@ export function MarketPressureCard() {
           const bar = r.tag === "fuel" ? "border-l-amber-500" : r.tag === "better" ? "border-l-rose-500" : r.tag === "worse" ? "border-l-blue-500" : "border-l-gray-300";
           const on = pick === k;
           return (
-            <button key={k} type="button" onClick={() => setPick(on ? null : k)} title={`${r.text}${r.help ? `\n\n${r.help}` : ""}`}
+            <button key={k} type="button" onClick={() => setPick(on ? null : k)} title={`${r.tag === "flat" ? "중립 = 판정 기준선 안쪽이라 누르는 힘이 세졌다고도 약해졌다고도 말하기 어려움\n\n" : ""}${r.text}${r.rule ? `\n\n판정 기준: ${r.rule}` : ""}`}
                     className={`relative overflow-hidden text-left rounded-md border border-gray-200 border-l-4 ${bar} bg-white px-1.5 py-1 hover:bg-gray-50 ${on ? "ring-2 ring-indigo-300" : ""}`}>
-              {r.series && r.series.length > 1 && <div className="absolute inset-x-0 bottom-0 h-[70%] opacity-35 pointer-events-none"><MiniLine data={r.series} color={r.tag === "fuel" ? "#d97706" : r.tag === "better" ? "#e11d48" : r.tag === "worse" ? "#2563eb" : "#6b7280"} /></div>}
+              {r.series && r.series.length > 1 && <div className="absolute inset-x-0 bottom-0 h-[70%] opacity-35 pointer-events-none"><MiniLine data={r.series} ref0={r.ref} hiLast={r.hiLast} color={r.tag === "fuel" ? "#d97706" : r.tag === "better" ? "#e11d48" : r.tag === "worse" ? "#2563eb" : "#6b7280"} /></div>}
               <div className="relative text-[10.5px] text-gray-500 truncate">{r.title}</div>
               {/* 값과 방향을 한 줄로(사용자 2026-11-21 "3줄인데 2줄로") */}
               <div className="relative flex items-baseline gap-1.5 min-w-0">
                 <span className="text-[13px] font-bold tabular-nums text-gray-900 truncate">{r.value ?? "—"}</span>
                 <span className={`ml-auto shrink-0 text-[10px] font-bold ${r.tag === "fuel" ? "text-amber-700" : r.tag === "better" ? "text-rose-600" : r.tag === "worse" ? "text-blue-600" : "text-gray-400"}`}>{r.tag === "fuel" ? "반등 연료" : TONE[r.tag].label}</span>
               </div>
+              {/* 왜 이 판정인지 한 줄(실제 값) — 사용자 2026-11-21 "왜 그러냐고 이유를" */}
+              {r.why && <div className="relative text-[10.5px] text-gray-600 leading-tight line-clamp-2">{r.why}</div>}
             </button>
           );
         })}
@@ -97,6 +101,7 @@ export function MarketPressureCard() {
       {pick != null && reasons[pick] && (
         <div className="mt-1.5 rounded-md border border-indigo-200 bg-indigo-50/50 px-2 py-1.5 text-[12px] leading-snug">
           <b>{reasons[pick].title}</b> — {reasons[pick].text}
+          {reasons[pick].why && <div className="mt-0.5 text-[11.5px]"><b>이 판정이 나온 이유</b> · {reasons[pick].why}</div>}
           {reasons[pick].rule && <div className="mt-0.5 text-[11px] text-indigo-700"><b>판정 기준</b> · {reasons[pick].rule}</div>}
           {reasons[pick].help && <div className="mt-0.5 text-[11px] text-gray-600">{reasons[pick].help}</div>}
         </div>
@@ -132,7 +137,7 @@ export function MarketPressureCard() {
       </div>
       </div>
       <div className="mt-1.5 text-[10.5px] text-gray-400 leading-snug">
-        타일 왼쪽 띠: <b className="text-rose-600">빨강 완화</b> · <b className="text-blue-600">파랑 하방 강화</b> · <b className="text-amber-700">주황 반등 연료</b>(오를 때 되사기로 오름폭을 키울 물량) · 회색 그대로. 타일을 누르면 설명. 미래를 맞히는 게 아니라 <b>지금 상태</b>입니다.
+        타일 왼쪽 띠: <b className="text-rose-600">빨강 완화</b> · <b className="text-blue-600">파랑 하방 강화</b> · <b className="text-amber-700">주황 반등 연료</b>(오를 때 되사기로 오름폭을 키울 물량) · 회색 <b>중립</b>(기준선 안쪽이라 어느 쪽도 아님) · 타일을 누르면 설명과 판정 기준. 미래를 맞히는 게 아니라 <b>지금 상태</b>입니다.
         출처: 다음(선물), 토스(현물·대차·공매도, 일별 장 마감 뒤), 한경(옵션), CNBC(V-KOSPI).
       </div>
     </div>
@@ -140,12 +145,16 @@ export function MarketPressureCard() {
 }
 
 /** 타일 배경 미니 그래프 — 선 + 가운데 평균 가로 점선(사용자 2026-11-21 "여기 중심 가로선 말한 건데") */
-function MiniLine({ data, color }: { data: number[]; color: string }) {
-  const W = 200, H = 40, lo = Math.min(...data), hi = Math.max(...data), r = hi - lo || 1;
+//   ref0 = 점선 자리(공매도 손익 = 20일 공매도 평균가), 없으면 평균. hiLast = 끝에서 N개를 판정 구간으로 옅게 칠한다(외국인 선물·공매도 비중 = 최근 5일)
+function MiniLine({ data, color, ref0, hiLast }: { data: number[]; color: string; ref0?: number; hiLast?: number }) {
+  const vals = ref0 != null ? [...data, ref0] : data;
+  const W = 200, H = 40, lo = Math.min(...vals), hi = Math.max(...vals), r = hi - lo || 1;
   const y = (v: number) => 3 + (1 - (v - lo) / r) * (H - 6);
-  const av = data.reduce((a, v) => a + v, 0) / data.length;
+  const av = ref0 ?? data.reduce((a, v) => a + v, 0) / data.length;
+  const xOf = (i: number) => (i / (data.length - 1)) * W;
   return (
     <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-full" preserveAspectRatio="none">
+      {hiLast && data.length > hiLast && <rect x={xOf(data.length - 1 - hiLast)} y={0} width={W - xOf(data.length - 1 - hiLast)} height={H} fill="#6366f1" opacity={0.12} />}
       <line x1={0} x2={W} y1={y(av)} y2={y(av)} stroke="#6b7280" strokeDasharray="4 3" strokeWidth={1} vectorEffect="non-scaling-stroke" />
       <polyline fill="none" stroke={color} strokeWidth={1.3} vectorEffect="non-scaling-stroke" points={data.map((v, i) => `${(i / (data.length - 1)) * W},${y(v)}`).join(" ")} />
     </svg>
@@ -174,7 +183,7 @@ function DeltaBars({ newV, repV }: { newV: number[]; repV: number[] }) {
     </svg>
   );
 }
-type Reason = { tag: Tone | "fuel"; title: string; text: string; value?: string; series?: number[]; help?: string; rule?: string };
+type Reason = { tag: Tone | "fuel"; title: string; text: string; value?: string; series?: number[]; help?: string; rule?: string; why?: string; ref?: number; hiLast?: number };   // ref = 점선 자리(없으면 평균), hiLast = 끝에서 N개를 판정 구간으로 칠함
 /** 결론 한 줄 + 보조 한 줄 + 근거 목록 + 지켜볼 자리 — 숫자로 확인되는 것만 말한다 */
 function conclude(gs: Gauge[], ss: ShortStats[]): { head: string; sub: string; reasons: Reason[]; watch: string } {
   const b = gs.filter(g => g.tone === "better").length, w = gs.filter(g => g.tone === "worse").length;
@@ -187,14 +196,15 @@ function conclude(gs: Gauge[], ss: ShortStats[]): { head: string; sub: string; r
   const subs: string[] = [];
   if (fuel.length) subs.push(`다만 ${fuel.map(s => s.name).join("·")}는 공매도용으로 빌려 간 주식이 크게 늘어(20일 ${fuel.map(s => fmtPct(s.c20!)).join("·")}), 반등이 시작되면 되사기로 오름폭이 커질 수 있습니다.`);
   if (allProfit) subs.push("공매도한 쪽은 아직 이익이라 급하게 되살 압박은 약합니다.");
-  const reasons: Reason[] = gs.map(g => ({ tag: g.tone, title: g.title, text: g.text, value: g.value, series: g.series, help: g.help, rule: g.rule }));
+  const reasons: Reason[] = gs.map(g => ({ tag: g.tone, title: g.title, text: g.text, value: g.value, series: g.series, help: g.help, rule: g.rule, why: g.why, hiLast: g.key === "fut" || g.key === "short" ? 5 : undefined }));
   for (const s of ss) {
     if ((s.c20 ?? 0) >= 15) reasons.push({ tag: "fuel", title: `${s.name} 대차잔고`, value: `20일 ${fmtPct(s.c20!)}`, series: s.bal.slice(-60), text: `빌려 간 주식이 크게 늘었다${s.pos >= 0.95 ? "(100일 중 최고)" : ""} — 오를 때 되사기 물량이 된다`,
-      rule: "그 종목 대차잔고가 20거래일 전보다 15% 넘게 늘면 '반등 연료'",
+      rule: "그 종목 대차잔고가 20거래일 전보다 15% 넘게 늘면 '반등 연료'", why: `빌린 주식 ${(s.b0 / 1e4).toFixed(0)}만 주 — 되사서 갚아야 할 물량`,
       help: "대차잔고는 공매도 등에 쓰려고 빌려 간 주식 수입니다. 빌린 주식은 결국 되사서 갚아야 해서, 많이 쌓인 상태에서 주가가 오르기 시작하면 되사기(숏커버링)가 몰려 오름폭이 커질 수 있습니다. 차익거래·대여 물량도 섞여 있습니다." });
-    if (s.pnl20 != null) reasons.push({ tag: s.pnl20 >= 5 ? "flat" : "better", title: `${s.name} 공매도 손익`, value: s.pnl20 >= 0 ? `이익 ${s.pnl20.toFixed(0)}%` : `손해 ${(-s.pnl20).toFixed(0)}%`,
+    if (s.pnl20 != null) reasons.push({ tag: s.pnl20 >= 5 ? "flat" : "better", title: `${s.name} 공매도 손익`, series: s.closes, ref: s.a20, value: s.pnl20 >= 0 ? `이익 ${s.pnl20.toFixed(0)}%` : `손해 ${(-s.pnl20).toFixed(0)}%`,
       text: s.pnl20 >= 0 ? `최근 20일 공매도 평균가 ${s.a20 ? fmtWon(s.a20) : ""} — ${s.pnl20 >= 5 ? "이익 중이라 급하게 되살 이유가 약하다" : "본전 근처"}` : `최근 20일 공매도 평균가 ${s.a20 ? fmtWon(s.a20) : ""} — 손해라 되사기 압박이 생기는 쪽`,
-      rule: "최근 20일 공매도 평균가 대비 지금 값 — 공매도 쪽이 5% 넘게 이익이면 그대로(급히 되살 이유 약함), 그보다 덜 이익이거나 손해면 완화(되사기 압박)",
+      why: s.pnl20 >= 5 ? `평균 ${s.a20 ? fmtWon(s.a20) : ""}에 팔아 지금 이익 — 급히 되살 이유 없음` : s.pnl20 >= 0 ? "본전 근처 — 더 오르면 되사기 압박" : "손해 중 — 되사기 압박",
+      rule: "최근 20일 공매도 평균가 대비 지금 값 — 공매도 쪽이 5% 넘게 이익이면 중립(급히 되살 이유 약함), 그보다 덜 이익이거나 손해면 완화(되사기 압박)",
       help: "최근 20거래일 동안 공매도한 가격의 평균(수량 가중)과 지금 값을 비교했습니다. 공매도는 비싸게 팔고 싸게 되사야 이익이라, 지금 값이 평균가보다 낮으면 공매도한 쪽이 이익입니다. 이익 중이면 급하게 되살 이유가 적고, 손해로 돌아서면 되사기(숏커버링) 압박이 커집니다." });
   }
   const ord = { fuel: 0, better: 1, worse: 2, flat: 3 } as const;   // 방향이 있는 근거를 위로, 그대로는 아래로

@@ -4,7 +4,7 @@
 import type { KrFuturesDay, LendingTradingPoint, MarketFlowPoint, ShortSellingPoint } from "./api";
 
 export type Tone = "worse" | "flat" | "better";   // 하방 강화 · 그대로 · 완화
-export interface Gauge { key: string; title: string; tone: Tone; value: string; text: string; help?: string; series?: number[]; rule?: string }   // rule = 판정 기준(사용자 2026-11-21 "그대로의 이유?")   // help = 초보용 설명
+export interface Gauge { key: string; title: string; tone: Tone; value: string; text: string; help?: string; series?: number[]; rule?: string; why?: string }   // why = 이 판정이 나온 이유 한 줄(실제 값으로, 사용자 2026-11-21 "그대로나 중립이나 왜 그러냐고")   // rule = 판정 기준(사용자 2026-11-21 "그대로의 이유?")   // help = 초보용 설명
 
 const eok = (won: number) => `${won > 0 ? "+" : won < 0 ? "−" : ""}${Math.abs(Math.round(won / 1e8)).toLocaleString()}억`;
 const sum = (a: number[]) => a.reduce((t, v) => t + v, 0);
@@ -16,7 +16,8 @@ export function futuresGauge(days: KrFuturesDay[]): Gauge | null {
   const last5 = days.slice(-5), prev = days[days.length - 6];
   const net5 = sum(last5.map(d => d.foreign));
   const doi = last5[last5.length - 1].oi - prev.oi, dp = last5[last5.length - 1].price - prev.price;
-  let cum = 0; const series = days.map(d => (cum += d.foreign));
+  // 그래프 = 최근 20일 누적(판정은 마지막 5일 — 카드에서 그 구간을 칠한다, 사용자 2026-11-21 "그래프는 위로 가는데 중립?")
+  let cum = 0; const series = days.slice(-20).map(d => (cum += d.foreign));
   // 미결제 + 가격으로 성격 — 미결제↑가격↓ = 신규 매도(하방 강화) · 미결제↓가격↑ = 숏커버(완화) · 미결제↓가격↓ = 산 것 정리
   const kind = Math.abs(doi) < 1000 ? "변화 적음" : doi > 0 ? (dp >= 0 ? "신규 매수" : "신규 매도") : (dp >= 0 ? "숏커버(판 걸 되삼)" : "매수 정리");
   // 순매수 방향과 미결제 성격이 엇갈리면 '그대로'(외국인은 사는데 시장 전체로는 신규 매도가 쌓일 수 있다)
@@ -25,6 +26,9 @@ export function futuresGauge(days: KrFuturesDay[]): Gauge | null {
     : kind === "신규 매도" && net5 < 0 ? "worse" : kind === "숏커버(판 걸 되삼)" && net5 > 0 ? "better" : "flat";
   return {
     key: "fut", title: "외국인 선물(코스피200)", tone, series,
+    why: tone === "worse" ? (kind === "신규 매도" ? "가격↓·미결제↑ — 새로 하락에 거는 계약이 늘었다" : `5일 ${net5.toLocaleString()}계약 순매도`)
+      : tone === "better" ? (kind === "숏커버(판 걸 되삼)" ? "가격↑·미결제↓ — 하락 베팅을 되사는 중" : `5일 +${net5.toLocaleString()}계약 순매수`)
+      : net5 >= 3000 ? `순매수(+${net5.toLocaleString()})지만 시장 전체는 ${kind} — 방향이 엇갈림` : net5 <= -3000 ? `순매도지만 시장 전체는 ${kind} — 엇갈림` : `5일 ${net5 > 0 ? "+" : ""}${net5.toLocaleString()}계약 — ±3,000 안쪽, 뚜렷한 쏠림 없음`,
     rule: "5일 순매수 −3,000계약 이하(숏커버가 아닐 때)·신규 매도면 하방 강화 · +3,000계약 이상(신규 매도가 아닐 때)·숏커버면 완화 · 그 사이는 그대로",
     value: `5일 ${net5 > 0 ? "+" : ""}${net5.toLocaleString()}계약`,
     text: `최근 5일 외국인이 선물을 ${Math.abs(net5).toLocaleString()}계약 ${net5 >= 0 ? "샀습니다" : "팔았습니다"}. 시장 전체로는 ${kind === "신규 매도" ? "주가가 빠지는 동안 새로 '하락에 거는' 계약이 늘었습니다" : kind === "숏커버(판 걸 되삼)" ? "'하락에 걸었던' 계약을 되사서 정리하고 있습니다(오를 힘)" : kind === "신규 매수" ? "'상승에 거는' 계약이 새로 늘었습니다" : kind === "매수 정리" ? "'상승에 걸었던' 계약을 정리하고 있습니다" : "계약 수에 큰 변화가 없습니다"}.`,
@@ -46,6 +50,7 @@ export function spotGauge(flow: MarketFlowPoint[]): Gauge | null {
   let cum = 0; const series = daily.map(v => (cum += v));
   return {
     key: "spot", title: "외국인 현물(코스피)", tone, series,
+    why: recent >= 0 ? "최근 5일 순매수로 돌아섰다" : `가장 많이 팔던 때의 ${Math.round(ratio * 100)}% — ${tone === "better" ? "파는 힘이 크게 줄었다" : tone === "worse" ? "그때만큼 계속 판다" : "줄긴 했지만 아직 절반쯤 판다(40~70%)"}`,
     rule: "최근 순매수면 완화 · 순매도라도 가장 많이 판 날 대비 40% 이하로 줄었으면 완화, 70% 이상이면 하방 강화 · 그 사이는 그대로",
     value: `하루 ${eok(recent)}`,
     text: recent >= 0 ? `최근 5일 외국인이 코스피 주식을 하루 평균 ${eok(recent)}씩 샀습니다.`
@@ -59,16 +64,20 @@ export function lendingGauge(byStock: { name: string; pts: LendingTradingPoint[]
   const ok = byStock.filter(s => s.pts.length >= 21);
   if (!ok.length) return null;
   // 날짜를 맞춰 금액 합(종목마다 날짜가 같다고 보고 뒤에서부터 맞춘다)
-  const n = Math.min(...ok.map(s => s.pts.length), 60);
-  const series = Array.from({ length: n }, (_, i) => sum(ok.map(s => { const p = [...s.pts].sort((a, b) => a.date.localeCompare(b.date)); return p[p.length - n + i].balanceAmount; })));
-  const now = series[n - 1], before = series[Math.max(0, n - 21)];
-  const chg = before > 0 ? (now / before - 1) * 100 : 0;
+  // 주식 수(balanceVolume)로 — 금액(원)으로 재면 주가가 빠질 때 빌린 주식이 늘어도 줄어 보였다(사용자 2026-11-21 "대차잔고는 아래로 가는데 중립?")
+  //   종목마다 20일 증감률을 내서 평균(값이 다른 두 종목의 주식 수를 그냥 더하지 않는다). 그래프 = 종목별 (잔고 ÷ 20일 전) 평균, 최근 20일
+  const n = Math.min(...ok.map(s => s.pts.length), 21);
+  const sorted = ok.map(s => [...s.pts].sort((a, b) => a.date.localeCompare(b.date)).slice(-n));
+  const series = Array.from({ length: n }, (_, i) => avg(sorted.map(p => (p[0].balanceVolume > 0 ? p[i].balanceVolume / p[0].balanceVolume : 1) * 100)));
+  const now = sum(sorted.map(p => p[n - 1].balanceAmount));
+  const chg = series[n - 1] - 100;
   const tone: Tone = chg <= -5 ? "better" : chg >= 5 ? "worse" : "flat";
   return {
     key: "lend", title: `대차잔고(${ok.map(s => s.name).join("·")})`, tone, series,
-    rule: "두 종목 합친 대차잔고가 20거래일 전보다 5% 넘게 줄면 완화, 5% 넘게 늘면 하방 강화 · ±5% 안은 그대로(종목 하나만 크게 늘어도 합치면 묻힐 수 있다)",
+    why: tone === "flat" ? `20일 ${chg >= 0 ? "+" : ""}${chg.toFixed(1)}% — ±5% 안쪽(두 종목 평균)` : tone === "worse" ? `20일 +${chg.toFixed(1)}% — 빌려 간 주식이 늘었다` : `20일 ${chg.toFixed(1)}% — 빌린 주식을 갚는 중`,
+    rule: "두 종목 대차잔고(주식 수)의 20거래일 증감률 평균이 −5% 아래면 완화, +5% 넘으면 하방 강화 · ±5% 안은 중립",
     value: `20일 ${chg >= 0 ? "+" : ""}${chg.toFixed(1)}%`,
-    text: `빌려 간 주식이 ${(now / 1e12).toFixed(1)}조원어치로, 한 달(20거래일) 전보다 ${Math.abs(chg).toFixed(1)}% ${chg >= 0 ? "늘었습니다 — 공매도로 팔 준비를 하는 물량이 늘어난 것" : "줄었습니다 — 빌린 주식을 갚는 중이라 공매도 걱정이 줄어든 것"}입니다.`,
+    text: `빌려 간 주식(${(now / 1e12).toFixed(1)}조원어치)이 주식 수로 한 달(20거래일) 전보다 평균 ${Math.abs(chg).toFixed(1)}% ${chg >= 0 ? "늘었습니다 — 공매도로 팔 준비를 하는 물량이 늘어난 것" : "줄었습니다 — 빌린 주식을 갚는 중이라 공매도 걱정이 줄어든 것"}입니다.`,
     help: "대차잔고 = 남에게 빌려 간 주식의 양. 공매도는 주식을 빌려서 먼저 팔고 나중에 싸게 사서 갚는 것이라, 빌린 주식이 많으면 '팔 준비 물량'이 많다는 뜻입니다.",
   };
 }
@@ -83,6 +92,7 @@ export function shortGauge(byStock: { name: string; pts: ShortSellingPoint[] }[]
   const tone: Tone = recent <= base * 0.8 ? "better" : recent >= base * 1.2 ? "worse" : "flat";
   return {
     key: "short", title: `공매도 비중(${ok.map(s => s.name).join("·")})`, tone, series,
+    why: `최근 5일 ${recent.toFixed(1)}% vs 그 전 한 달 ${base.toFixed(1)}% — ${tone === "flat" ? "±20% 안쪽, 비슷함" : tone === "worse" ? "공매도가 늘었다" : "공매도가 줄었다"}`,
     rule: "최근 5일 평균 공매도 비중이 그 전 한 달보다 20% 넘게 낮으면 완화, 20% 넘게 높으면 하방 강화 · ±20% 안은 그대로",
     value: `${recent.toFixed(1)}%`,
     text: `최근 5일 거래 100원 중 ${recent.toFixed(1)}원이 공매도였습니다. 그 전 한 달(${base.toFixed(1)}원)보다 ${recent < base ? "줄어 하락에 거는 쪽이 덜 판다는 뜻" : "늘어 하락에 거는 쪽이 더 판다는 뜻"}입니다.`,
@@ -97,6 +107,7 @@ export function optionGauge(o: { callOi: number; putOi: number; callOiChg: numbe
   const tone: Tone = o.putOiChg < 0 && pcr < 1.2 ? "better" : o.putOiChg > 0 && pcr >= 1 ? "worse" : "flat";
   return {
     key: "opt", title: "옵션 풋/콜(코스피200, 오늘)", tone,
+    why: `풋/콜 ${pcr.toFixed(2)} · 풋 미결제 ${o.putOiChg > 0 ? "+" : ""}${o.putOiChg.toLocaleString()} — ${tone === "worse" ? "하락 대비(풋)를 더 사는 중" : tone === "better" ? "하락 대비를 정리하는 중" : "방향이 엇갈림"}`,
     rule: "풋 미결제가 줄고 풋/콜 1.2 미만이면 완화 · 풋 미결제가 늘고 풋/콜 1 이상이면 하방 강화 · 나머지는 그대로",
     value: `풋/콜 ${pcr.toFixed(2)}`,
     text: `'하락 보험(풋)'이 '상승 베팅(콜)'의 ${pcr.toFixed(2)}배 걸려 있습니다(1보다 크면 하락 대비가 더 많음). 오늘 풋은 ${o.putOiChg >= 0 ? `${o.putOiChg.toLocaleString()}계약 늘어 하락 대비를 더 하는 중` : `${Math.abs(o.putOiChg).toLocaleString()}계약 줄어 하락 대비를 푸는 중`}입니다.`,
@@ -105,11 +116,13 @@ export function optionGauge(o: { callOi: number; putOi: number; callOiChg: numbe
 }
 
 /** ⑥ 변동성(V-KOSPI) — 20 경계·30 공포, 최근 방향 */
-export function volGauge(vk: { price: number; pct: number } | null | undefined): Gauge | null {
+export function volGauge(vk: { price: number; pct: number } | null | undefined, hist?: number[]): Gauge | null {
   if (!vk || !(vk.price > 0)) return null;
   const tone: Tone = vk.price >= 30 && vk.pct >= 0 ? "worse" : vk.pct <= -3 || vk.price < 20 ? "better" : "flat";
   return {
-    key: "vol", title: "변동성(V-KOSPI)", tone,
+    key: "vol", title: "변동성(V-KOSPI)", tone, series: hist && hist.length > 1 ? hist.slice(-60) : undefined,
+    why: tone === "worse" ? `${vk.price.toFixed(1)} — 공포 구간에서 더 오름` : tone === "better" ? (vk.price < 20 ? `${vk.price.toFixed(1)} — 차분한 구간` : `오늘 ${vk.pct.toFixed(1)}% — 공포가 빠르게 식는 중`)
+      : `${vk.price.toFixed(1)}(공포 구간)이지만 오늘 ${vk.pct.toFixed(1)}% — 더 오르진 않음`,
     rule: "30 이상이면서 오늘 오르면 하방 강화 · 오늘 3% 넘게 내리거나 20 미만이면 완화 · 나머지(30 이상이라도 안 오르면)는 그대로",
     value: `${vk.price.toFixed(2)}`,
     text: `${vk.price.toFixed(2)} — ${vk.price >= 30 ? "공포 구간(30 이상)" : vk.price >= 20 ? "경계 구간(20~30)" : "안정 구간(20 미만)"}입니다${vk.pct <= -3 ? ". 오늘 크게 내려 불안이 가라앉는 중" : vk.pct >= 3 ? ". 오늘 올라 불안이 커지는 중" : ""}.`,
