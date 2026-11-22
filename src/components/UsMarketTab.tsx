@@ -410,8 +410,22 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
   const renderIdxCard = (section: DashboardSection, symbol: string): React.ReactNode => {
               // 코리아 밸류업 — 네이버 KVALUE 전용 카드(Yahoo 미제공). 다른 지수 카드와 동일 크기 셀.
               if (symbol === "KVALUE") return <ValueupMiniCard key="KVALUE" />;
-              if (symbol === "SKHY-PERP") return <HlPerpCard key="SKHY-PERP" coin="SKHY" name="SK하이닉스 24h" />;
-              if (symbol === "SMSN-PERP") return <HlPerpCard key="SMSN-PERP" coin="SMSN" name="삼성전자 24h" />;
+              // 24시간 선물(하이퍼리퀴드) — 따로 그리는 카드라 📌 단추가 빠졌었다(사용자 2026-11-23 "고정핀이 없는 선물?")
+              if (symbol === "SKHY-PERP" || symbol === "SMSN-PERP") {
+                const card = symbol === "SKHY-PERP" ? <HlPerpCard coin="SKHY" name="SK하이닉스 24h" /> : <HlPerpCard coin="SMSN" name="삼성전자 24h" />;
+                if (!sectionsOverride || cardsColumn) return <div key={symbol} className="contents">{card}</div>;
+                const on = drawerPins.includes(symbol);
+                return (
+                  <div key={symbol} className="relative h-full">
+                    {card}
+                    <button type="button" data-no-peek onClick={e => { e.stopPropagation(); toggleDrawerPin(symbol); }}
+                            title={on ? "닫혀 있을 때 보이기 — 끄기" : "서랍이 닫혀 있을 때 오른쪽에 이 값 보이기"}
+                            className={`absolute -bottom-1 left-1 z-20 px-1 rounded border text-[9px] leading-tight font-bold ${on ? "border-indigo-400 bg-indigo-600 text-white" : "border-gray-300 bg-white text-gray-400 hover:text-indigo-600"}`}>
+                      📌{on ? " 고정" : ""}
+                    </button>
+                  </div>
+                );
+              }
               const rawP = tier0.find(x => x.symbol === symbol);
               if (!rawP) return null;
               // 한국 선물(^KS200N/^KQ150N)은 현재 KST 세션에 따라 주간/야간선물로 표시명 변경
