@@ -838,7 +838,10 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
   const prices = ms.map(m => m.close);
   // 가격 축은 최소 ±0.2% 폭 — 켠 직후 한 호가(0.1%)만 움직여도 위아래 끝까지 그어져 세로선처럼 보였다
   // 눈금에 전일 종가도 넣는다 — 크게 빠진 날 전일 종가가 화면 밖이라 가로선이 안 보였다(사용자 2026-11-23 "전일 종가 가로선이 안 보여")
-  const pv = base && base > 0 ? [...prices, base] : prices;
+  //   → 멀면 눈금에서 빼고(가격 움직임이 납작해졌다, 사용자 2026-11-23) 위·아래 끝에 '전일 종가 ↑' 로만 표시
+  const pRaw = (Math.max(...prices) - Math.min(...prices)) || Math.max(...prices) * 0.004;
+  const baseNear = !!(base && base > 0 && base >= Math.min(...prices) - pRaw * 1.5 && base <= Math.max(...prices) + pRaw * 1.5);
+  const pv = baseNear ? [...prices, base!] : prices;
   const pMid = (Math.min(...pv) + Math.max(...pv)) / 2;
   const pR = Math.max(Math.max(...pv) - Math.min(...pv), pMid * 0.004) * 1.45, pMin = pMid - pR / 2;
   // 오른쪽 여백 — 선 끝 글자(지금 가격·누적)가 선 **오른쪽**에 붙을 자리(사용자 2026-11-04 "금액이 선 오른쪽에, 오른쪽을 여유 있게")
@@ -1002,7 +1005,8 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
                   <path d={area} clipPath={`url(#${cid}d)`} fill="#3b82f6" fillOpacity={0.12} />
                   <path d={line} clipPath={`url(#${cid}u)`} fill="none" stroke="#e11d48" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
                   <path d={line} clipPath={`url(#${cid}d)`} fill="none" stroke="#2563eb" strokeWidth={1.6} vectorEffect="non-scaling-stroke" />
-                  {yP(base) >= 0 && yP(base) <= H && <line x1={0} x2={W} y1={by} y2={by} stroke="#9ca3af" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />}
+                  {/* 전일 종가 점선 — 화면 밖이면 그쪽 끝에 붙인다(글자는 아래 HTML) */}
+                  <line x1={0} x2={W} y1={Math.max(1, Math.min(H - 1, by))} y2={Math.max(1, Math.min(H - 1, by))} stroke="#9ca3af" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
                 </>);
               })()}
               <path d={cum.map((c, i) => `${i ? "L" : "M"} ${xOf(i)} ${mid - (c / mxCum) * (mid - PAD)}`).join(" ")}
@@ -1034,6 +1038,16 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
                 <span className="absolute pointer-events-none text-[10.5px] font-bold bg-violet-100 text-violet-700 border border-violet-300 px-1 py-px rounded-sm whitespace-nowrap tabular-nums"
                       style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(6px, -50%)" }}>프로그램<EndNum won={(prog?.[prog.length - 1]?.v ?? 0) * 1e8} /></span>
               </>);
+            })()}
+            {/* 전일 종가가 멀어 눈금 밖 — 위(또는 아래) 끝에 있다는 표시만(사용자 2026-11-23 "그냥 상단에 있다는 정도로") */}
+            {base && base > 0 && !baseNear && prices.length > 0 && (() => {
+              const up = base > Math.max(...prices), last = prices[prices.length - 1], gap = (base / last - 1) * 100;
+              return (
+                <span className="absolute pointer-events-none text-[10px] tabular-nums px-1 rounded bg-white/85 border border-gray-200 text-gray-600 whitespace-nowrap"
+                      style={{ left: `${(xOf(prices.length - 1) / W) * 100}%`, ...(up ? { top: 2 } : { bottom: 2 }), transform: "translateX(-100%)" }}>
+                  {up ? "▲" : "▼"} 전일 종가 {Math.round(base).toLocaleString()}원 ({gap >= 0 ? "+" : ""}{gap.toFixed(1)}% {up ? "위" : "아래"})
+                </span>
+              );
             })()}
             {/* 가격 글자(사용자 2026-11-04 "가격 그래프에 금액") — 최고·최저는 그 높이 왼쪽에, 지금 가격은 선 끝에. svg 가 늘어나므로 HTML 로 */}
             {prices.length > 1 && (() => {
