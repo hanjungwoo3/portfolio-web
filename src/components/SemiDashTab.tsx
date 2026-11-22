@@ -837,8 +837,10 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
   const mxProg = Math.max(1, ...progLine.map(v => Math.abs(v ?? 0)));
   const prices = ms.map(m => m.close);
   // 가격 축은 최소 ±0.2% 폭 — 켠 직후 한 호가(0.1%)만 움직여도 위아래 끝까지 그어져 세로선처럼 보였다
-  const pMid = (Math.min(...prices) + Math.max(...prices)) / 2;
-  const pR = Math.max(Math.max(...prices) - Math.min(...prices), pMid * 0.004) * 1.45, pMin = pMid - pR / 2;
+  // 눈금에 전일 종가도 넣는다 — 크게 빠진 날 전일 종가가 화면 밖이라 가로선이 안 보였다(사용자 2026-11-23 "전일 종가 가로선이 안 보여")
+  const pv = base && base > 0 ? [...prices, base] : prices;
+  const pMid = (Math.min(...pv) + Math.max(...pv)) / 2;
+  const pR = Math.max(Math.max(...pv) - Math.min(...pv), pMid * 0.004) * 1.45, pMin = pMid - pR / 2;
   // 오른쪽 여백 — 선 끝 글자(지금 가격·누적)가 선 **오른쪽**에 붙을 자리(사용자 2026-11-04 "금액이 선 오른쪽에, 오른쪽을 여유 있게")
   const RP = 150;   // 한 화면(600) 기준 25%
   const bw = (W - PAD - RP) / Math.max(VIS * sc, ms.length);
