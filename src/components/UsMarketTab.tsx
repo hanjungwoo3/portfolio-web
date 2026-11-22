@@ -649,7 +649,8 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
 
                   )}
                   <div className={`relative z-10 flex items-baseline gap-1.5 h-5 overflow-hidden ${dimCls}`}>
-                    {sleeping && !inSession && (
+                    {/* 오른쪽 고정 카드(cardsColumn)는 제목 줄 첫 칸만 남기는데 zZ 가 첫 칸이면 이름이 숨었다(사용자 2026-11-23 "맨 위에 뭐지?") — 거기선 zZ 안 붙임 */}
+                    {sleeping && !inSession && !cardsColumn && (
                       <span className="text-[11px] text-gray-400">zZ</span>
                     )}
                     {/* 종목명 자체가 외부 링크 (Toss/Yahoo) */}
