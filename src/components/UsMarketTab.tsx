@@ -889,7 +889,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
           <div key="sector-summary" id="usidx-sector-summary" style={{ scrollMarginTop: idxScrollMargin }}
                className="relative rounded-xl border border-gray-300 bg-white pg-box p-2.5 pt-4 mt-1.5">
             <span className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700 whitespace-nowrap">📋 업종 한눈에 — 해외 ➜ 국내</span>
-            <SectorSummaryBoard toggle={<AvgMarketToggle />} sections={SECTOR_TABS.filter(x => x.id !== "overview")} pctOf={pctOfSym} regExtOf={regExtOf}
+            <SectorSummaryBoard toggle={<AvgMarketToggle />} sections={SECTOR_TABS.filter(x => x.id !== "overview")} pctOf={pctOfSym} rawPctOf={sym => displayPctOf(sym, usMap.get(sym))} regExtOf={regExtOf}
                                 nameOf={sym => tier0.find(x => x.symbol === sym)?.name ?? sym} onOpen={id => { setSectorTab(id); window.scrollTo({ top: 0 }); }}  renderDetail={(sec: DashboardSection) => <SobuGrid headersOnly rows={sec.rows} labels={sec.rowLabels ?? []} leadByRow={sec.leadByRow ?? []} quote={sobuQuote} dimOf={dimOf} />} />
           </div>
         ) : (
