@@ -5,7 +5,7 @@
 //     · 코스피 투자자(네이버) 1분 / 선물 투자자(네이버) **20분 지연** / 선물 시세·옵션(한경) 실시간
 //   시세 카드는 지수 탭과 같은 쿼리키(yahoo-batch)라 캐시를 나눠 쓴다.
 //   신호 줄은 **숫자로 확인되는 사실만** — 매수·매도 추천 문장은 쓰지 않는다.
-import { krRegStart, krRegEnd } from "../lib/format";
+import { krRegStart, krRegEnd, krSchedule } from "../lib/format";
 import { usRegExtOf } from "../lib/avgMarket";
 import { fmtEok } from "../lib/eokFmt";
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
@@ -848,6 +848,16 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
   const RP = 150;   // 한 화면(600) 기준 25%
   const bw = (W - PAD - RP) / Math.max(VIS * sc, ms.length);
   const xOf = (i: number) => PAD + i * bw + bw / 2;
+  // 장 구간 세로선 — 토스 시간표(수능 등 밀린 날도): 장전 시작·정규 시작·정규 끝·애프터 끝. 그 시각 뒤 첫 분의 왼쪽 경계(사용자 2026-11-23 "장시작·종료 세로선이 안 보여")
+  const sched = krSchedule();
+  const toMin = (t: string) => Number(t.slice(0, 2)) * 60 + Number(t.slice(3, 5));
+  //   정규장 시작·끝 두 개만(사용자 2026-11-23 "세로는 정규장 시작/종료 2개만") — 장전(08:30 동시호가)은 NXT 프리(08:00)와 헷갈렸다
+  const sessMarks = ([[sched.regStart, "정규 시작"], [sched.regEnd, "정규 끝"]] as [number | undefined, string][])
+    .flatMap(([m, label]) => {
+      if (m == null) return [];
+      const i = ms.findIndex(x => toMin(x.t) >= m);
+      return i > 0 ? [{ x: xOf(i) - bw / 2, label, main: label.startsWith("정규") }] : [];
+    });
   // 선 끝 글자 셋(지금 가격·누적·프로그램) — 각자 선 높이를 따르되 겹치면 순서대로 쌓는다(사용자 2026-11-04 "안 겹치게 순서대로")
   // 그래프 칸 실제 높이(px) — 선 끝 글자 간격을 %가 아니라 글자 높이(px)로 잡으려고. 띠가 늘면 칸이 줄어 9%로는 겹쳤다(사용자 2026-11-05)
   const plotRef = useRef<HTMLDivElement>(null);
@@ -988,6 +998,7 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
                 </>);
               })()}
               <line x1={0} x2={W} y1={mid} y2={mid} stroke="#cbd5e1" strokeDasharray="4 3" vectorEffect="non-scaling-stroke" />
+              {sessMarks.map(m => <line key={m.label} x1={m.x} x2={m.x} y1={0} y2={H} stroke="#6366f1" strokeOpacity={m.main ? 0.75 : 0.4} strokeDasharray="3 3" strokeWidth={1} vectorEffect="non-scaling-stroke" />)}
               {/* 가격 — 전일 종가 위 빨강·아래 파랑(미국 탭·일반 카드처럼, 사용자 2026-11-21 "국내도 전날 종가 대비 그래프 색상") */}
               {(() => {
                 const yP = (p: number) => PAD + (1 - (p - pMin) / pR) * (H - PAD * 2);
@@ -1039,6 +1050,8 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
                       style={{ left: `${lx}%`, top: `${endTop.prog ?? ly}%`, transform: "translate(6px, -50%)" }}>프로그램<EndNum won={(prog?.[prog.length - 1]?.v ?? 0) * 1e8} /></span>
               </>);
             })()}
+            {/* 장 구간 세로선 이름 — 아래 끝 */}
+            {sessMarks.map(m => <span key={m.label} className={`absolute bottom-0 pointer-events-none text-[9.5px] whitespace-nowrap px-0.5 rounded bg-white/80 ${m.main ? "text-indigo-600 font-bold" : "text-indigo-400"}`} style={{ left: `${(m.x / W) * 100}%`, transform: "translateX(-50%)" }}>{m.label}</span>)}
             {/* 전일 종가가 멀어 눈금 밖 — 위(또는 아래) 끝에 있다는 표시만(사용자 2026-11-23 "그냥 상단에 있다는 정도로") */}
             {base && base > 0 && !baseNear && prices.length > 0 && (() => {
               const up = base > Math.max(...prices), last = prices[prices.length - 1], gap = (base / last - 1) * 100;

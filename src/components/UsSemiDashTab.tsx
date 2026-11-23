@@ -99,7 +99,7 @@ export function UsSemiDashTab() {
         <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-rose-600" /><i className="inline-block w-1.5 h-2.5 bg-blue-600" />매수(위)·매도(아래) 연하게 + 차이만 진하게(제곱근 눈금)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-4 h-[2px] bg-violet-400" />배경 나스닥100(QQQ, 자기 눈금)</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-1.5 h-2.5 bg-slate-400/50" />거래량(맨 아래)</span>
-        <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-400" />장 구간 세로선(프리·정규 시작·끝·애프터 끝)</span>
+        <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-indigo-400" />세로선 = 정규장 시작·끝</span>
         <span className="inline-flex items-center gap-1"><i className="inline-block w-3 border-t border-dashed border-gray-400" />전일 종가(날마다 가로선)</span>
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
@@ -315,7 +315,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
     const ds = new Date(Date.parse(`${etDate}T12:00:00Z`) + d * 86400_000).toISOString().slice(0, 10);
     const wd = new Date(`${ds}T12:00:00Z`).getUTCDay();
     if (wd === 0 || wd === 6) continue;
-    for (const [t, l] of [["04:00", ""], ["09:30", "정규"], ["16:00", "마감"], ["20:00", ""]] as const) {
+    for (const [t, l] of [["09:30", "정규 시작"], ["16:00", "정규 끝"]] as const) {   // 정규장 시작·끝 두 개만(사용자 2026-11-23)   // 이름 다 붙이고 진하게(사용자 2026-11-23 "세로선이 안 보여")
       const at = etEpoch(ds, t, kd);
       if (at > T0 && at < T1) marks.push({ at, label: l });
     }
@@ -341,7 +341,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
         {B.length > 1 && segs(B, i => by(B[i].close)).map((pp, i) => <polyline key={i} fill="none" stroke="#a78bfa" strokeWidth={1.1} opacity={0.75} points={pp} />)}
         {P.map(p => p.volume ? <rect key={`v${p.t}`} x={x(p.t) - vw / 2} y={H - 14 - (p.volume / vMax) * VH} width={vw} height={(p.volume / vMax) * VH} fill="#94a3b8" opacity={0.35} /> : null)}
         <line x1={0} x2={W - PR} y1={mid} y2={mid} stroke="#d1d5db" strokeWidth={0.6} />
-        {marks.map(m => <line key={m.at} x1={x(m.at)} x2={x(m.at)} y1={0} y2={H - 14} stroke="#818cf8" strokeDasharray="3 3" strokeWidth={0.9} opacity={m.label ? 0.8 : 0.45} />)}
+        {marks.map(m => <line key={m.at} x1={x(m.at)} x2={x(m.at)} y1={0} y2={H - 14} stroke="#6366f1" strokeDasharray="3 3" strokeWidth={1} opacity={m.label.startsWith("정규") ? 0.8 : 0.5} vectorEffect="non-scaling-stroke" />)}
         {/* 매수(위)·매도(아래) 각각 연하게 + 그 차이(순매수 빨강 위 / 순매도 파랑 아래)만 덜 진하게 — 가운데 띠 안에서만 */}
         {[...bins.entries()].map(([k, b]) => { const cx = x(k + BIN / 2); return (
           <g key={k}>
@@ -376,7 +376,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
       </svg>
       {pGroups.filter((g, gi) => nearBase(g.base) && (gi < pGroups.length - 1 ? lx(pGroups[gi + 1].from) : 85) - lx(g.from) > 12).map((g, gi) => <span key={gi} className="absolute text-[9px] text-gray-500 pointer-events-none whitespace-nowrap" style={{ left: `${Math.max(0.5, lx(g.from))}%`, top: `${ly(py(g.base))}%`, transform: "translateY(-110%)" }}>전일 종가</span>)}
       {B.length > 1 && <span className="absolute left-1.5 bottom-3.5 text-[10px] text-gray-500 pointer-events-none">배경 나스닥100(QQQ){bPct != null ? <b className={bPct >= 0 ? "text-rose-600" : "text-blue-600"}> {bPct >= 0 ? "+" : ""}{bPct.toFixed(2)}%</b> : ""}</span>}
-      {marks.filter(m => m.label).map(m => <span key={m.at} className="absolute bottom-0 text-[9px] text-indigo-500 pointer-events-none" style={{ left: `${lx(m.at)}%`, transform: "translateX(-50%)" }}>{m.label}</span>)}
+      {marks.map(m => <span key={m.at} className={`absolute bottom-0 text-[9.5px] whitespace-nowrap px-0.5 rounded bg-white/80 pointer-events-none ${m.label.startsWith("정규") ? "text-indigo-600 font-bold" : "text-indigo-400"}`} style={{ left: `${lx(m.at)}%`, transform: "translateX(-50%)" }}>{m.label}</span>)}
       <span className="absolute left-1 bottom-0 text-[9.5px] text-gray-400 pointer-events-none">{kstLabel(T0, true)}</span>
       <span className="absolute bottom-0 text-[9.5px] text-gray-400 pointer-events-none" style={{ left: `${lx(T1)}%`, transform: "translateX(-100%)" }}>{kstLabel(T1)}</span>
       {/* 최고·최저 — 고: 점 위 ▼ 위에 글자, 저: 점 아래 ▲ 아래 글자(국내와 같은 꼴) */}

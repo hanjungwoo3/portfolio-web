@@ -6344,7 +6344,8 @@ export async function fetchTossUsMinuteToday(tossCode: string, etDate: string, c
 //   min:5 는 한 번에 400봉(약 33시간)이 상한(600 이면 0건, 실측) → nextDateTime 으로 이어 받는다
 //   interval "min:1" 도 같은 꼴(400봉 ≈ 6.6시간) — 6시간 이하 기간은 1분봉으로(사용자 2026-11-21 기간 선택)
 export async function fetchTossUs5mHours(tossCode: string, hours = 48, interval: "min:1" | "min:5" = "min:5"): Promise<{ t: number; close: number; base?: number; volume?: number }[]> {
-  const since = Date.now() - hours * 3600_000;
+  // 기준 = 가장 최근 봉에서 N시간 전 — '지금'에서 재면 주말·휴장엔 지난 거래일이 잘렸다(사용자 2026-11-23 월요일 아침 그래프가 오른쪽 끝에만)
+  let since = -Infinity;
   const out: { t: number; close: number; base?: number; volume?: number }[] = [];
   let from: string | undefined;
   for (let page = 0; page < 4; page++) {
@@ -6355,6 +6356,7 @@ export async function fetchTossUs5mHours(tossCode: string, hours = 48, interval:
     for (const c of res?.candles ?? []) {
       const t = c.dt ? Date.parse(c.dt) : NaN;
       if (!Number.isFinite(t) || !(c.close! > 0)) continue;
+      if (since === -Infinity) since = t - hours * 3600_000;   // 첫 봉(최신)이 기준
       if (t < since) { older = true; continue; }
       out.push({ t, close: c.close!, base: c.base, volume: c.volume });
     }
