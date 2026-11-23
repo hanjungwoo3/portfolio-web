@@ -48,9 +48,18 @@ export function UsSemiDashTab() {
     const cut = a1[0]?.t ?? Infinity;
     return [...a5.filter(p => p.t < cut), ...a1];
   });
+  // 오늘 것만 — 토스 거래일(ET 20:00 데이마켓 시작 ~ 다음 날 20:00 애프터 끝) 한 판(사용자 2026-11-24 "미국도 국내처럼 오늘 것만")
+  const lastAll = Math.max(0, ...series.map(a => a[a.length - 1]?.t ?? 0));
+  const dayStart = (() => {
+    if (!lastAll) return 0;
+    const e = etNow(lastAll);   // 마지막 봉의 ET 날짜·분
+    const d = e.min >= 20 * 60 ? e.date : new Date(Date.parse(`${e.date}T12:00:00Z`) - 86400_000).toISOString().slice(0, 10);
+    return etEpoch(d, "20:00", e.kstDiff);
+  })();
+  const seriesToday = series.map(a => a.filter(p => p.t >= dayStart));
   // 장 마감 뒤(최근 20분 동안 봉이 없음)엔 기본 화면 = 마지막 거래일 정규장(ET 09:15~16:15) — 빈 '최근 1시간' 대신(사용자 2026-11-21 "장마감 후에는 바로 전날 그래프")
   const nowMs = Date.now();
-  const lastT = Math.max(0, ...series.map(a => a[a.length - 1]?.t ?? 0));
+  const lastT = lastAll;
   const closed = lastT > 0 && nowMs - lastT > 20 * 60_000;
   const kd0 = etNow().kstDiff;
   // 기본 = 2시간(사용자 2026-11-21 "미국·국내 둘 다 기본 2시간") — 장 마감 뒤엔 마지막 봉까지의 2시간
@@ -61,8 +70,9 @@ export function UsSemiDashTab() {
   const [viewS, setView] = useState<{ span: number; end: number | null } | null>(null);   // null = 자동(2시간 — 장중 지금까지 / 장 마감 뒤 마지막 봉까지), end null = 지금을 따라간다
   const view = viewS ?? autoView;
   const vT1 = view.end ?? nowMs, vT0 = vT1 - view.span;
-  const MIN_SPAN = 15 * 60_000, MAX_SPAN = 48 * 3600_000;
-  const fixEnd = (end: number, span: number) => (end >= nowMs - 30_000 ? null : Math.max(end, nowMs - MAX_SPAN + span));
+  const MIN_SPAN = 15 * 60_000, MAX_SPAN = 12 * 3600_000;   // 2·12시간(사용자 2026-11-24)
+  // 끝은 지금(따라가기)과 오늘 시작+길이 사이 — 어제로 못 넘어간다
+  const fixEnd = (end: number, span: number) => (end >= nowMs - 30_000 ? null : Math.max(end, (dayStart || nowMs - MAX_SPAN) + span));
   const zoom = (f: number, frac: number) => setView(v0 => {
     const v = v0 ?? autoView;
     const t1 = v.end ?? Date.now(), t0 = t1 - v.span, at = t0 + frac * v.span;
@@ -86,7 +96,7 @@ export function UsSemiDashTab() {
         <span>끌기 = 좌우 이동 · 휠·두 손가락 = 확대·축소 · 두 번 클릭 = 2시간</span>
         {/* 기간 단추 — 2·12·24·48시간(사용자 2026-11-21), 장 마감 뒤엔 마지막 봉에서 거꾸로 */}
         <span className="inline-flex gap-0.5">
-          {[2, 12, 24, 48].map(h => (
+          {[2, 12].map(h => (
             <button key={h} type="button" onClick={() => setView(h === 2 ? null : { span: h * 3600_000, end: endOf() })}
                     className={`px-1.5 py-0.5 rounded border font-bold ${Math.abs(view.span - h * 3600_000) < 60_000 && (view.end ?? 0) === (endOf() ?? 0) ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-gray-300 text-gray-600 hover:bg-gray-100"}`}>{h}시간</button>
           ))}
@@ -106,7 +116,7 @@ export function UsSemiDashTab() {
         {STOCKS.map((s, i) => (
           <StockPanel key={s.ticker} s={s} flow={flows[i]} kd={kd}
                       shortDays={short.data?.days.flatMap(d => d.rows[s.ticker] ? [{ date: d.date, sv: d.rows[s.ticker][0], tv: d.rows[s.ticker][1] }] : [])}
-                      bg={series[STOCKS.length]} price48={series[i]} t0={vT0} t1={vT1} onZoom={zoom} onPan={pan} onReset={resetView}
+                      bg={seriesToday[STOCKS.length]} price48={seriesToday[i]} t0={vT0} t1={vT1} onZoom={zoom} onPan={pan} onReset={resetView}
                       hold={seohak?.hold.find(h => h.t === s.ticker)} holdDate={seohak?.meta.holdDate}
                       dayNet={seohak?.day.net.find(h => h.t === s.ticker)?.net ?? seohak?.day.sell.find(h => h.t === s.ticker)?.net} />
         ))}

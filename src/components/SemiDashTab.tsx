@@ -897,7 +897,7 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
         <span className="text-[11px] text-gray-400">{flow.prevDay ? <b className="text-amber-600">{+flow.prevDay.slice(5, 7)}/{+flow.prevDay.slice(8, 10)} 기록 · 장 마감{flow.prevTicks ? "(그날 앱이 쌓은 체결 포함)" : "(1분봉만, 매수·매도 모름)"} </b> : null}{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : flow.prevDay ? "" : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
         {/* 기간 단추 — 2·12·24·48시간(사용자 2026-11-21, 미국 탭과 같은 단추). 국내는 오늘(또는 마지막 거래일) 1분봉뿐이라 12시간 넘게는 있는 만큼 */}
         <span className="inline-flex gap-0.5">
-          {[2, 12, 24, 48].map(h => (
+          {[2, 12].map(h => (   /* 2·12시간만 — 국내는 하루치뿐이라 24·48 은 의미 없다(사용자 2026-11-24) */
             <button key={h} type="button" onClick={() => { stick.current = true; setVis(h * 60); }}
                     className={`text-[10.5px] rounded px-1 border font-bold ${vis === h * 60 ? "bg-indigo-600 border-indigo-600 text-white" : "border-gray-300 text-gray-500 hover:bg-gray-50"}`}>{h}시간</button>
           ))}
