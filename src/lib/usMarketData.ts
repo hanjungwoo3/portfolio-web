@@ -807,7 +807,7 @@ export const US_PAIRS: Pair[] = [
   { symbol: "WMT", name: "월마트", desc: "Walmart — 유통", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
   { symbol: "COST", name: "코스트코", desc: "Costco — 창고형 유통", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
   { symbol: "RBLX", name: "로블록스", desc: "Roblox — 게임 플랫폼", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
-  { symbol: "EA", name: "일렉트로닉아츠", desc: "Electronic Arts — 게임", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
+  { symbol: "TTWO", name: "테이크투", desc: "Take-Two — GTA·2K 게임", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭 — EA 상장폐지(2026-08)로 바꿈(2026-11-23)
   { symbol: "DIS", name: "디즈니", desc: "Disney — 미디어·콘텐츠", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
   { symbol: "SPOT", name: "스포티파이", desc: "Spotify — 음악 스트리밍", tier: "T0", sector: "dashboard", direction: "direct" },   // 업종 탭(2026-11-12)
   { symbol: "TT", name: "트레인", desc: "Trane — 데이터센터 냉각·공조(칠러)", tier: "T0", sector: "dashboard", direction: "direct" },   // 데이터센터 탭(2026-11-11)
