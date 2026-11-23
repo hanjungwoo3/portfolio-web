@@ -83,7 +83,7 @@ export function UsSemiDashTab() {
       <div className="flex items-center gap-2 text-[11px] text-gray-500">
         <b className="text-gray-700">그래프 {viewS ? `${spanLabel}${view.end ? ` · ${kstLabel(vT1, true)}까지` : " · 지금까지"}` : autoLabel}</b>
         {closed && !viewS && <span className="text-amber-600">미국 장 마감 — 마지막 거래일을 보여 줍니다</span>}
-        <span>휠·끌기 = 오른쪽 끝 고정 확대·축소(오른쪽으로 끌면 길게) · 가로 휠 = 좌우 이동 · 두 번 클릭 = 2시간</span>
+        <span>끌기 = 좌우 이동 · 휠·두 손가락 = 확대·축소 · 두 번 클릭 = 2시간</span>
         {/* 기간 단추 — 2·12·24·48시간(사용자 2026-11-21), 장 마감 뒤엔 마지막 봉에서 거꾸로 */}
         <span className="inline-flex gap-0.5">
           {[2, 12, 24, 48].map(h => (
@@ -230,7 +230,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
       e.preventDefault();
       const plotW = r.width * ((600 - 92 - 8) / 600);
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) zr.current.onPan((e.deltaX || e.deltaY) / plotW);
-      else zr.current.onZoom(Math.exp(e.deltaY * 0.0008), 1);   // 오른쪽 끝(지금) 고정 확대·축소(사용자 2026-11-21 "오른쪽 끝이 고정되게")
+      else zr.current.onZoom(Math.exp(e.deltaY * 0.0008), Math.min(1, Math.max(0, (e.clientX - r.left - r.width * (4 / 600)) / plotW)));   // 마우스 자리 기준 확대·축소 — 국내처럼(사용자 2026-11-24 "미국도 국내처럼"). 끝에 붙어 있으면 계속 지금을 따라간다
     };
     el.addEventListener("wheel", on, { passive: false });
     return () => el.removeEventListener("wheel", on);
@@ -244,7 +244,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
       if (drag.current == null) return;
       const w = (e.currentTarget as HTMLDivElement).getBoundingClientRect().width * ((600 - 92 - 8) / 600);
       const dx = e.clientX - drag.current; drag.current = e.clientX;
-      if (w) onZoom(Math.exp(dx / w), 1);   // 끌기 = 오른쪽 끝 고정, 오른쪽으로 끌면 더 길게(지난 쪽), 왼쪽이면 짧게(사용자 2026-11-21 "드래그할 때 오른쪽 끝 고정, 지금은 따라오는데")
+      if (w) onPan(-dx / w);   // 끌기 = 좌우 이동 — 국내처럼(사용자 2026-11-24, 예전 2026-11-21 오른쪽 끝 고정 확대에서 바꿈)
     },
     onPointerUp: () => { drag.current = null; },
     onDoubleClick: onReset,
