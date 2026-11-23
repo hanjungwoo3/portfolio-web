@@ -28,10 +28,9 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
   toggle?: React.ReactNode;   // 해외/국내 단추 — 제목 아래·첫 카드 위(사용자 2026-11-12, PC)
 }) {
   const mkt = useAvgMarket();
-  // 카드 아래 칸 줄은 접어 두고 업종 줄만 — 카드마다 ▸ 로 펴고 접는다, 펼친 것은 기기에 기억(사용자 2026-11-23 "소부장만 남기고 아래는 접었다 폈다, 나머지도")
-  const [open, setOpenS] = useState<Set<string>>(() => { try { return new Set(JSON.parse(localStorage.getItem("sector_summary_open") ?? "[]") as string[]); } catch { return new Set(); } });
-  const setOpen = (n: Set<string>) => { setOpenS(n); try { localStorage.setItem("sector_summary_open", JSON.stringify([...n])); } catch { /* 이번만 */ } };
-  const toggleOne = (id: string) => { const n = new Set(open); if (n.has(id)) n.delete(id); else n.add(id); setOpen(n); };
+  // 단계 줄은 전부 같이 펴고 접는다 — 위 단추 하나, 기기에 기억(사용자 2026-11-23 "모든 폴더 같이 열리고 닫히게", "각각 열리는 건 삭제")
+  const [allOpen, setAllOpenS] = useState<boolean>(() => { try { return localStorage.getItem("sector_summary_all_open") === "1"; } catch { return false; } });
+  const setAllOpen = (v: boolean) => { setAllOpenS(v); try { localStorage.setItem("sector_summary_all_open", v ? "1" : "0"); } catch { /* 이번만 */ } };
   const rows = sections.map(s => {
     const all = s.rows.flat();
     return {
@@ -51,17 +50,15 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
   return (
     <div className="space-y-1.5">
       <div className="px-1 text-[10.5px] text-gray-400 flex items-center gap-2 flex-wrap">{toggle}
-        <button type="button" onClick={() => setOpen(open.size >= sections.length ? new Set() : new Set(sections.map(x => x.id)))}
-                className="px-1.5 py-0.5 rounded border border-gray-300 bg-white font-bold text-gray-600 hover:bg-gray-100">{open.size >= sections.length ? "▴ 모두 접기" : "▾ 모두 펼치기"}</button>
+        <button type="button" onClick={() => setAllOpen(!allOpen)}
+                className="px-1.5 py-0.5 rounded border border-gray-300 bg-white font-bold text-gray-600 hover:bg-gray-100">{allOpen ? "▴ 단계 접기" : "▾ 단계별 펼치기"}</button>
         <span>숫자 = 정규장 평균 · 아래 꼬리표 = 그 뒤({isMarketOpen("US_INDEX") ? "미국은 지금 정규장 중" : `미국 지금 '${usSessionLabel()}'`} · 국내 NXT 애프터) 정규장 종가 대비 — 장중이면 꼬리표 없음</span></div>
       <div className={`grid gap-2 ${compact ? "grid-cols-1" : "grid-cols-1 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4"}`}>
         {rows.map(({ s, ov, kr, boxes, nKr, nOv }) => {
           const emoji = s.label.split(" ")[0];
           return (
             // 거래원 칸처럼 단순하게 — 줄마다 "이름 +11.33% (해외 +8.10%)" + 아래 얇은 상승·하락 선(사용자 2026-11-11 "업종 카드 구성이 너무 산만해")
-            <div key={s.id} className="relative rounded-lg border border-gray-200 bg-white shadow-sm px-2.5 pt-1.5 pb-1.5 pr-6">
-              <button type="button" onClick={() => toggleOne(s.id)} title={open.has(s.id) ? "단계 줄 접기" : "단계 줄 펼치기"}
-                      className="absolute right-1 top-1.5 w-5 h-5 rounded text-[11px] text-gray-500 hover:bg-gray-100">{open.has(s.id) ? "▾" : "▸"}</button>
+            <div key={s.id} className="relative rounded-lg border border-gray-200 bg-white shadow-sm px-2.5 pt-1.5 pb-1.5">
               {/* 업종 이름 = 첫 줄(업종 평균) 이름 칸 — 비어 있던 자리(사용자 2026-11-12 "바이오를 아래로 내려도 될 거 같은데 비어 있어서"). 예전엔 위 테두리 책갈피 */}
               {/* 카드 전체가 한 격자 — 이름 칸은 가장 긴 이름에 맞춰 늘고(안 잘린다), 증감률·(해외)·선이 줄마다 세로로 맞는다(사용자 2026-11-11) */}
               {/*   칸 폭은 모든 카드가 같게 고정 — 카드끼리도 세로줄이 맞는다(사용자 2026-11-11 "전체적으로 정렬을 고정하자") */}
@@ -69,9 +66,9 @@ export function SectorSummaryBoard({ sections, pctOf, regExtOf, onOpen, compact,
               <SimpleRow onClick={() => onOpen(s.id)} hint={`${s.short} 탭으로 — 종목 카드 보기`}
                          name={<span className="font-bold text-[13px]">{emoji} {s.short}</span>}   /* '국내/해외' 글자는 뺐다 — 위 단추가 알려 준다(사용자 2026-11-12) */
                          main={mkt === "US" ? ov : kr} other={mkt === "US" ? kr : ov} otherLb={mkt === "US" ? "국내" : "해외"} scale={1} total={mkt === "US" ? nOv : nKr} big />
-              {open.has(s.id) && <div className="col-span-4 my-0.5 border-t border-gray-100" />}
+              {allOpen && <div className="col-span-4 my-0.5 border-t border-gray-100" />}
                 {/* 칸 줄은 증감률 큰 순(고른 쪽 기준, 값 없으면 뒤로)(사용자 2026-11-11 "증감순으로 소팅") */}
-                {open.has(s.id) && [...boxes].sort((x, y) => shown(mkt === "US" ? y.ov : y.kr) - shown(mkt === "US" ? x.ov : x.kr)).map(b => {
+                {allOpen && [...boxes].sort((x, y) => shown(mkt === "US" ? y.ov : y.kr) - shown(mkt === "US" ? x.ov : x.kr)).map(b => {
                   const main = mkt === "US" ? b.ov : b.kr;
                   const tot = mkt === "US" ? b.syms.filter(isOverseasTicker).length : b.syms.filter(x => /\.(KS|KQ)$/.test(x)).length;
                   const allTot = mkt === "US" ? nOv : nKr;
