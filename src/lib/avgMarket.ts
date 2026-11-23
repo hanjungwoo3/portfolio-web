@@ -63,8 +63,10 @@ export function avgOfSyms(syms: string[], pctOf: (s: string) => number | null, r
   const v = syms.map(x => { const e = regExtOf(x); return { p: e?.reg ?? pctOf(x), a: e?.aft ?? null, ses: e?.ses ?? null }; }).filter(x => x.p != null && Number.isFinite(x.p));
   if (!v.length) return null;
   // 정확히 0 = 그 뒤 체결이 없어 정규장 종가를 그대로 쓴 것(값 없음) — 평균에서 빼고 꼬리표도 안 단다(사용자 2026-11-07 "해외 상황인데 0.00%?")
+  // 종목마다 장 밖 움직임이 있으면 그것, 없으면(그 뒤 체결 없음) 정규장 등락으로 센다 — 팝업 타일 색과 같게(사용자 2026-11-23 "회색이 1개인데? 파랑이잖아")
+  const mvOf = (x: { p: number | null; a: number | null }) => (x.a != null && Number.isFinite(x.a) && Math.abs(x.a) >= 0.005 ? x.a : x.p!);
   const as = v.flatMap(x => x.a != null && Number.isFinite(x.a) && Math.abs(x.a) >= 0.005 ? [x.a] : []);
-  return { avg: v.reduce((t, x) => t + x.p!, 0) / v.length, aft: as.length ? as.reduce((t, x) => t + x, 0) / as.length : null, up: v.filter(x => (as.length ? (x.a ?? 0) : x.p!) > 0).length, dn: v.filter(x => (as.length ? (x.a ?? 0) : x.p!) < 0).length,   /* 장 밖(프리·애프터·데이)이면 그 구간 움직임으로 센다 — 큰 숫자와 같은 기준(사용자 2026-11-23 "파란색은 정규장 기준, 지금은 프리장 기준으로") */ n: v.length,
+  return { avg: v.reduce((t, x) => t + x.p!, 0) / v.length, aft: as.length ? as.reduce((t, x) => t + x, 0) / as.length : null, up: v.filter(x => mvOf(x) > 0).length, dn: v.filter(x => mvOf(x) < 0).length,   /* 장 밖(프리·애프터·데이)이면 그 구간 움직임으로 센다 — 큰 숫자와 같은 기준(사용자 2026-11-23 "파란색은 정규장 기준, 지금은 프리장 기준으로") */ n: v.length,
     ses: v.find(x => x.ses)?.ses ?? null };
 }
 export function rotRowAvg(section: DashboardSection, ri: number, pctOf: (s: string) => number | null, regExtOf: (s: string) => { reg: number; aft: number; ses?: Ses } | null): { ov: RowAvg | null; kr: RowAvg | null } {

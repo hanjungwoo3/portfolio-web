@@ -56,8 +56,7 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
     // 흐린 종목은 회색으로만 센다 — 업종 표 막대와 같은 기준(사용자 2026-11-12 "색이 안 맞는데")
     const live = ts.filter(t => !t.dim);
     // 장 밖(프리·애프터·데이) 움직임(ext)이 있으면 그것으로 센다 — 타일 큰 숫자와 같은 기준(사용자 2026-11-23 "다 정규장 기준 같은데")
-    const useExt = live.some(t => t.ext != null && Math.abs(t.ext) >= 0.005);
-    const mv = (t: (typeof live)[number]) => (useExt ? (t.ext ?? 0) : (t.pct ?? 0));
+    const mv = (t: (typeof live)[number]) => (t.ext != null && Math.abs(t.ext) >= 0.005 ? t.ext : (t.pct ?? 0));   // 장 밖 움직임 없으면 정규장 등락(타일 색과 같게)
     const up = live.filter(t => mv(t) > 0).length, dn = live.filter(t => mv(t) < 0).length, fl = ts.length - up - dn, tot = Math.max(1, ts.length);
     return (
       <div className="flex items-center gap-2 text-[12px] font-bold tabular-nums">
