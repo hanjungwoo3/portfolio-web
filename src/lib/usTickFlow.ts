@@ -100,14 +100,19 @@ export function ingestUsTicks(code: string, ts: TossUsTick[]) {
 
 // ─── 배경 수집 — 앱이면 화면을 안 열어도 미국 장 시간엔 계속 받아 둔다(국내 삼성전자·하이닉스처럼, 사용자 2026-11-21 "미리 받아두는 건?") ───
 //   앱은 직접 요청이라 공용 프록시 부담이 없다. 웹은 그대로(화면을 켠 동안만) — 4종목 × 5초를 늘 부르면 공용 프록시가 버티지 못한다.
-//   미국 평일 ET 04:00~20:00(프리~애프터)만. 토스 데이마켓(밤)은 거래가 얇아 뺐다
+//   미국 주말만 쉰다(데이마켓 포함, 사용자 2026-11-23). 한투 1분 기록은 그대로 ET 04:00~20:00(한투 해외 시세가 데이마켓을 주는지 미확인)
+/** 미국 주말 휴장(ET 금 20:00 ~ 일 20:00) — 그 밖엔 프리·정규·애프터·토스 데이마켓 중 하나 */
+function usWeekendClosed(wd: number, min: number): boolean {
+  return wd === 6 || (wd === 5 && min >= 20 * 60) || (wd === 0 && min < 20 * 60);
+}
 let bgTimer: ReturnType<typeof setInterval> | null = null;
 export function usBgRunning(): boolean { return bgTimer != null; }
 export function startUsBackgroundTicks() {
   if (bgTimer || !isDirectApp()) return;
   const poll = async () => {
     const n = etNow(), wd = new Date(`${n.date}T12:00:00Z`).getUTCDay();
-    if (wd === 0 || wd === 6 || n.min < 4 * 60 || n.min >= 20 * 60) return;
+    // 토스 데이마켓(ET 20:00~04:00, 한국 낮)까지 — 미국 주말(ET 금 20:00 ~ 일 20:00)만 쉰다(사용자 2026-11-23 "켜 있는 동안 4개 종목은 수집하지 않아?")
+    if (usWeekendClosed(wd, n.min)) return;
     for (const s of US_SEMI_STOCKS) {
       try { ingestUsTicks(s.toss, await fetchTossUsTicks(s.toss)); } catch { /* 다음 차례 */ }
     }
