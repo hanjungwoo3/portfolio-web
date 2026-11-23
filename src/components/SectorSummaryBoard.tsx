@@ -5,7 +5,7 @@
 //        국내  국내 x      국내 y
 //   값 = 평균 등락(장 밖이면 정규장 % + 프리·애프터·데이 꼬리표) · ▲▼. 업종 이름 = 그 탭(카드 보기)으로.
 //   줄 순서 = 지금 고른 국내/해외 평균 큰 순. PC·모바일이 같이 쓴다(compact = 모바일 — 칸이 줄 바꿈).
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { openTilePopup } from "../lib/tilePopupNav";
 import type { DashboardSection } from "../lib/dashboardGroups";
 import { isMarketOpen } from "../lib/format";
@@ -34,6 +34,7 @@ export function SectorSummaryBoard({ sections, pctOf, rawPctOf, priceOf, regExtO
   const mine = (syms: string[]) => syms.filter(x => (mkt === "US" ? isOverseasTicker(x) : /\.(KS|KQ)$/.test(x)));
   const tileItems = (syms: string[]) => mine(syms).map(x => { const e = regExtOf(x); return { sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) ?? rawPctOf?.(x) ?? null, reg: e?.reg ?? null, aft: e && Math.abs(e.aft) >= 0.005 ? e.aft : null, ses: e?.ses, dim: pctOf(x) == null && !e, price: priceOf?.(x) ?? null }; });
   const mLb = mkt === "US" ? "해외" : "국내";
+  const latest = useRef(tileItems); latest.current = tileItems;   // 팝업이 5초마다 부르는 최신 값(렌더마다 새 시세로 바뀐다)
   // 단계 줄은 전부 같이 펴고 접는다 — 위 단추 하나, 기기에 기억(사용자 2026-11-23 "모든 폴더 같이 열리고 닫히게", "각각 열리는 건 삭제")
   const [allOpen, setAllOpenS] = useState<boolean>(() => { try { return localStorage.getItem("sector_summary_all_open") === "1"; } catch { return false; } });
   const setAllOpen = (v: boolean) => { setAllOpenS(v); try { localStorage.setItem("sector_summary_all_open", v ? "1" : "0"); } catch { /* 이번만 */ } };
@@ -70,7 +71,7 @@ export function SectorSummaryBoard({ sections, pctOf, rawPctOf, priceOf, regExtO
               {/*   칸 폭은 모든 카드가 같게 고정 — 카드끼리도 세로줄이 맞는다(사용자 2026-11-11 "전체적으로 정렬을 고정하자") */}
               <div className="grid grid-cols-[7.6em_4.9em_6.2em_minmax(3.5rem,1fr)] gap-x-1.5 items-center text-[12.5px]">
               {/* 업종 줄 — 이름을 누르면 그 탭, 나머지(숫자·막대)를 누르면 업종 전체 종목 팝업(사용자 2026-11-23 "7/4 눌러도 후공정처럼 팝업") */}
-              <SimpleRow onClick={() => openTilePopup({ title: `${s.short} 전체 · ${mLb}`, items: tileItems([...new Set(boxes.flatMap(b => b.syms))]) })}
+              <SimpleRow onClick={() => { const syms = [...new Set(boxes.flatMap(b => b.syms))]; openTilePopup({ title: `${s.short} 전체 · ${mLb}`, items: tileItems(syms), refresh: () => latest.current(syms) }); }}
                          hint={`${s.short} ${mLb} 종목을 타일로 보기 — 이름을 누르면 ${s.short} 탭`}
                          name={<span role="link" onClick={e => { e.stopPropagation(); onOpen(s.id); }} className="font-bold text-[13px] hover:underline" title={`${s.short} 탭으로 — 종목 카드 보기`}>{emoji} {s.short}</span>}   /* '국내/해외' 글자는 뺐다 — 위 단추가 알려 준다(사용자 2026-11-12) */
                          main={mkt === "US" ? ov : kr} other={mkt === "US" ? kr : ov} otherLb={mkt === "US" ? "국내" : "해외"} scale={1} total={mkt === "US" ? nOv : nKr} big />
@@ -82,7 +83,7 @@ export function SectorSummaryBoard({ sections, pctOf, rawPctOf, priceOf, regExtO
                   const allTot = mkt === "US" ? nOv : nKr;
                   return (
                     <SimpleRow key={b.lb}
-                               onClick={() => openTilePopup({ title: `${s.short} · ${b.lb} · ${mLb}`, items: tileItems(b.syms) })}
+                               onClick={() => openTilePopup({ title: `${s.short} · ${b.lb} · ${mLb}`, items: tileItems(b.syms), refresh: () => latest.current(b.syms) })}
                                hint={`${b.lb} ${mLb} 종목 ${mine(b.syms).length}개를 타일로 보기`}
                                name={<span className="text-[12.5px] font-medium">{b.lb}</span>}
                                main={main} other={mkt === "US" ? b.kr : b.ov} otherLb={mkt === "US" ? "국내" : "해외"}

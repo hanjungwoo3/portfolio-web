@@ -13,8 +13,15 @@ import { OPEN_TILE_POPUP, type TilePopupReq } from "../lib/tilePopupNav";
 const krCode = (sym: string) => (/^[\dA-Za-z]{6}\.(KS|KQ)$/.test(sym) ? sym.slice(0, 6) : /^[\dA-Za-z]{6}$/.test(sym) && /\d/.test(sym) ? sym : null);
 const usSym = (sym: string) => (/^[A-Z][A-Z.]{0,6}$/.test(sym) ? sym : null);
 
-function TilePopup({ req, onClose }: { req: TilePopupReq; onClose: () => void }) {
+function TilePopup({ req: req0, onClose }: { req: TilePopupReq; onClose: () => void }) {
   useEscClose(true, onClose);
+  const [items, setItems] = useState(req0.items);
+  useEffect(() => {
+    if (!req0.refresh) return;
+    const id = setInterval(() => { try { setItems(req0.refresh!()); } catch { /* 그대로 */ } }, 5_000);
+    return () => clearInterval(id);
+  }, [req0]);
+  const req = { ...req0, items };
   const [sort, setSort] = useState<TileSort>("pct")   // 등락순 기본(사용자 2026-11-12);
   const kr = req.items.map(i => krCode(i.sym)).filter((x): x is string => !!x);
   const us = req.items.map(i => usSym(i.sym)).filter((x): x is string => !!x);
