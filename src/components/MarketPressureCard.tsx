@@ -5,7 +5,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchKrFuturesDays, fetchKrMarketFlow, fetchKrLendingTrading, fetchKrShortSelling,
-  fetchKrFuturesLive, fetchKospi200OptionSummary, fetchYahooBatch, fetchDashboardChart,
+  fetchKrFuturesLive, fetchKospi200OptionSummary, fetchYahooBatch, fetchDashboardChart, fetchTossPrices,
 } from "../lib/api";
 import { futuresGauge, spotGauge, lendingGauge, shortGauge, optionGauge, volGauge, verdict, type Gauge, type Tone } from "../lib/marketPressure";
 import { useShortStats, fmtWon, fmtPct, type ShortStats } from "./ShortAnalysisCard";
@@ -44,7 +44,10 @@ export function MarketPressureCard() {
   const sa = useShortStats();
   const [pick, setPick] = useState<number | null>(null);   // 누른 타일 — 아래에 설명
   const ss = sa.stats.filter((x): x is ShortStats => !!x);
-  const { head, sub, reasons, watch } = conclude(gauges, ss);
+  // 지금 값(1분마다) — 일별 자료는 어제 장 마감 기준이라 '지켜볼 자리'를 이미 넘었는지 모른다(사용자 2026-11-24 아침 +9% 갭인데 '여기까지 오르면')
+  const live = useQuery({ queryKey: ["mp-live-px"], queryFn: () => fetchTossPrices(BIG.map(b => b.code)), refetchInterval: 60_000, staleTime: 30_000, retry: 1 });
+  const liveOf = (name: string) => { const c = BIG.find(b => b.name === name)?.code; const p = live.data?.find(x => x.ticker === c); return p && p.price > 0 ? p.price : undefined; };
+  const { head, sub, reasons, watch } = conclude(gauges, ss, liveOf);
 
   // 한눈에(사용자 2026-11-21 "좀 더 한눈에 보는 방법, 자세히 보기까지 포함해서") —
   //   ① 결론 한 줄 + 줄다리기 막대(하방 강화 · 그대로 · 완화 개수) ② 지표 타일 한 줄(눌러서 설명) ③ 종목별 공매도 두 줄 표
@@ -61,6 +64,12 @@ export function MarketPressureCard() {
         <div className={`flex-1 min-w-0 rounded-lg border px-3 py-1.5 ${TONE[v.tone].cls}`}>
           <div className="flex items-center gap-2 text-[14.5px] font-bold"><span className={`w-2.5 h-2.5 rounded-full shrink-0 ${TONE[v.tone].dot}`} />{head}</div>
           {sub && <div className="text-[12px] leading-snug">{sub}</div>}
+          {/* 오늘 크게 움직였으면 — 위 판정은 어제까지 일별 자료(사용자 2026-11-24 아침 +9% 갭) */}
+          {(() => {
+            const mv = BIG.flatMap(b => { const p = live.data?.find(x => x.ticker === b.code); return p && p.price > 0 && p.prevClose > 0 ? [{ n: b.name, pct: (p.price / p.prevClose - 1) * 100 }] : []; });
+            const big = mv.filter(m => Math.abs(m.pct) >= 3);
+            return big.length ? <div className="text-[11.5px] text-amber-700">⚠️ 오늘 {big.map(m => `${m.n} ${fmtPct(m.pct)}`).join(" · ")} — 위 판정은 어제 장 마감까지의 일별 자료라 오늘 움직임은 아직 안 들어갔습니다(장 마감 뒤 갱신).</div> : null;
+          })()}
           {watch && <div className="text-[11.5px] text-gray-700"><b>지켜볼 자리</b> · {watch}</div>}
         </div>
         <div className="mt-1.5 lg:mt-0 rounded-lg border border-gray-200 px-2 py-1.5 flex flex-col justify-center" title="근거 카드 개수 — 왼쪽 파랑이 길면 누르는 힘이 세고, 오른쪽 빨강이 길면 약해지는 중">
@@ -120,7 +129,7 @@ export function MarketPressureCard() {
       <div className="mt-2 lg:mt-0 lg:order-1 overflow-x-auto">
         <table className="w-full text-[11.5px] tabular-nums">
           <thead><tr className="text-[10.5px] text-gray-500 text-left">
-            <th className="font-normal py-0.5">종목</th><th className="font-normal">종가</th>
+            <th className="font-normal py-0.5">종목</th><th className="font-normal" title="지금 값(장중) — 마우스를 올리면 어제 종가">지금</th>
             <th className="font-normal" title="최근 5·20거래일 공매도 평균가(수량 가중) — 공매도한 쪽 추정 원가">공매도 평균가 5일 · 20일</th>
             <th className="font-normal" title="지금 값 기준 — 이익이면 급하게 되살 이유가 약하다">공매도 쪽 손익(20일)</th>
             <th className="font-normal" title="최근 5일 공매도 평균가까지 주가가 몇 % 올라야 하나 — 여기서 되사기가 나올 수 있다">본전까지</th>
@@ -132,10 +141,17 @@ export function MarketPressureCard() {
             {sa.stats.map((x, i) => !x ? <tr key={i}><td colSpan={8} className="text-gray-400 py-1">받는 중…</td></tr> : (
               <tr key={i} className="border-t border-gray-100">
                 <td className="py-0.5 font-bold text-gray-800 whitespace-nowrap text-[12.5px]">{x.name}</td>
-                <td className="whitespace-nowrap">{x.close ? fmtWon(x.close) : "—"}</td>
+                {/* 지금 값(장중) 기준 — 일별 자료의 종가는 어제 것(사용자 2026-11-24) */}
+                {(() => { const now = liveOf(x.name) ?? x.close; return <td className="whitespace-nowrap" title={x.close ? `어제 종가 ${fmtWon(x.close)}` : undefined}>{now ? fmtWon(now) : "—"}</td>; })()}
                 <td className="whitespace-nowrap">{x.a5 ? fmtWon(x.a5) : "—"} · {x.a20 ? fmtWon(x.a20) : "—"}</td>
-                <td className={`whitespace-nowrap font-bold ${x.pnl20 != null && x.pnl20 >= 0 ? "text-gray-600" : "text-rose-600"}`}>{x.pnl20 == null ? "—" : x.pnl20 >= 0 ? `이익 ${x.pnl20.toFixed(0)}%` : `손해 ${(-x.pnl20).toFixed(0)}%`}</td>
-                <td className="whitespace-nowrap font-bold text-rose-700">{x.toBE != null ? fmtPct(x.toBE) : "—"}</td>
+                {(() => {
+                  const now = liveOf(x.name) ?? x.close;
+                  const p20 = x.a20 && now ? (1 - now / x.a20) * 100 : undefined, be = x.a5 && now ? (x.a5 / now - 1) * 100 : undefined;
+                  return (<>
+                    <td className={`whitespace-nowrap font-bold ${p20 != null && p20 >= 0 ? "text-gray-600" : "text-rose-600"}`}>{p20 == null ? "—" : p20 >= 0 ? `이익 ${p20.toFixed(0)}%` : `손해 ${(-p20).toFixed(0)}%`}</td>
+                    <td className="whitespace-nowrap font-bold text-rose-700">{be == null ? "—" : be <= 0 ? "넘음" : fmtPct(be)}</td>
+                  </>);
+                })()}
                 <td className={`whitespace-nowrap font-bold ${(x.c20 ?? 0) >= 15 ? "text-amber-700" : "text-gray-600"}`}>{x.c20 != null ? fmtPct(x.c20) : "—"}{x.pos >= 0.95 ? " · 100일 최고" : ""}</td>
                 <td><DeltaBars newV={x.newV} repV={x.repV} /></td>
                 <td className={`whitespace-nowrap ${x.rNow >= x.r20 + 1 ? "text-blue-700 font-bold" : "text-gray-600"}`}>{x.rNow.toFixed(1)}% <span className="font-normal text-gray-400">/ {x.r20.toFixed(1)}%</span></td>
@@ -194,7 +210,7 @@ function DeltaBars({ newV, repV }: { newV: number[]; repV: number[] }) {
 }
 type Reason = { tag: Tone | "fuel"; title: string; text: string; value?: string; series?: number[]; help?: string; rule?: string; why?: string; ref?: number; hiLast?: number };   // ref = 점선 자리(없으면 평균), hiLast = 끝에서 N개를 판정 구간으로 칠함
 /** 결론 한 줄 + 보조 한 줄 + 근거 목록 + 지켜볼 자리 — 숫자로 확인되는 것만 말한다 */
-function conclude(gs: Gauge[], ss: ShortStats[]): { head: string; sub: string; reasons: Reason[]; watch: string } {
+function conclude(gs: Gauge[], ss: ShortStats[], liveOf?: (name: string) => number | undefined): { head: string; sub: string; reasons: Reason[]; watch: string } {
   const b = gs.filter(g => g.tone === "better").length, w = gs.filter(g => g.tone === "worse").length;
   const head = !gs.length ? "자료를 받는 중입니다"
     : b >= w + 2 ? "지수를 누르는 힘이 약해지고 있습니다"
@@ -218,6 +234,12 @@ function conclude(gs: Gauge[], ss: ShortStats[]): { head: string; sub: string; r
   }
   const ord = { fuel: 0, better: 1, worse: 2, flat: 3 } as const;   // 방향이 있는 근거를 위로, 그대로는 아래로
   reasons.sort((x, y) => ord[x.tag] - ord[y.tag]);
-  const watch = ss.filter(s => s.toBE != null && s.toBE > 0 && s.toBE <= 10 && s.a5).map(s => `${s.name} ${fmtWon(s.a5!)}(${fmtPct(s.toBE!)})`).join(" · ");
-  return { head, sub: subs.join(" "), reasons, watch: watch ? `${watch} — 최근 5일 공매도 본전, 여기까지 오르면 되사기가 나올 수 있는 자리` : "" };
+  // 지켜볼 자리 — 지금 값으로 다시 잰다. 이미 넘었으면 '넘었다'(공매도분이 손해로 돌아 되사기가 나올 수 있는 구간)
+  const parts = ss.filter(s => s.a5 && s.close).flatMap(s => {
+    const now = liveOf?.(s.name) ?? s.close!;
+    const gap = (s.a5! / now - 1) * 100;
+    if (now >= s.a5!) return [`${s.name} 본전 ${fmtWon(s.a5!)} 이미 넘음(지금 ${fmtWon(now)}) — 최근 5일 공매도분이 손해로 돌아 되사기가 나올 수 있는 구간`];
+    return gap <= 10 ? [`${s.name} ${fmtWon(s.a5!)}(${fmtPct(gap)}) — 최근 5일 공매도 본전, 여기까지 오르면 되사기가 나올 수 있는 자리`] : [];
+  });
+  return { head, sub: subs.join(" "), reasons, watch: parts.join(" · ") };
 }
