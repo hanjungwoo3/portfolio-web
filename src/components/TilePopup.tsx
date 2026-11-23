@@ -31,7 +31,7 @@ function TilePopup({ req, onClose }: { req: TilePopupReq; onClose: () => void })
     const hasReg = i.reg != null;
     // dim = 업종 표와 같은 흐림 판정(막대 회색)
     return { code, name: i.name, kr: !!k, lead: !k, dim: !!i.dim, ext: hasReg ? (i.aft ?? null) : null, extLabel: i.ses,
-             pct: hasReg ? i.reg! : p ? (dayChangePct(p) ?? i.pct ?? null) : (i.pct ?? null), price: p?.price ?? null, cap: tv ? (tv.marketCap || tv.aum) : undefined, logoid: tv?.logoid };
+             pct: hasReg ? i.reg! : p ? (dayChangePct(p) ?? i.pct ?? null) : (i.pct ?? null), price: p?.price ?? i.price ?? null, yen: !p && /\.T$/.test(i.sym), cap: tv ? (tv.marketCap || tv.aum) : undefined, logoid: tv?.logoid };
   });
   return (
     <div className="fixed inset-0 z-[80] flex items-end sm:items-center justify-center bg-black/40 sm:p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>

@@ -17,10 +17,11 @@ const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" :
 const shown = (v: RowAvg | null | undefined) => (v ? (v.aft ?? v.avg) : -Infinity);
 const fmt = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
 
-export function SectorSummaryBoard({ sections, pctOf, rawPctOf, regExtOf, onOpen, compact, nameOf, toggle }: {
+export function SectorSummaryBoard({ sections, pctOf, rawPctOf, priceOf, regExtOf, onOpen, compact, nameOf, toggle }: {
   sections: DashboardSection[];                 // 업종 탭(한눈에 제외)
   pctOf: (s: string) => number | null;
-  rawPctOf?: (s: string) => number | null;   // 흐림(쉬는 중)이어도 마지막 등락 — 팝업 타일용(일본 종목이 빈칸이었다, 사용자 2026-11-23 "일본은?")
+  rawPctOf?: (s: string) => number | null;
+  priceOf?: (s: string) => number | null;   // 팝업 타일 가격(일본 종목 — 팝업이 따로 못 받는다)   // 흐림(쉬는 중)이어도 마지막 등락 — 팝업 타일용(일본 종목이 빈칸이었다, 사용자 2026-11-23 "일본은?")
   regExtOf: RegExt;
   nameOf?: (s: string) => string;
   onOpen: (sectionId: string) => void;
@@ -31,7 +32,7 @@ export function SectorSummaryBoard({ sections, pctOf, rawPctOf, regExtOf, onOpen
   const mkt = useAvgMarket();
   // 팝업은 고른 쪽(해외/국내) 종목만 — 막대 숫자와 같게(사용자 2026-11-23 "해외 국내 각각 자기 것만")
   const mine = (syms: string[]) => syms.filter(x => (mkt === "US" ? isOverseasTicker(x) : /\.(KS|KQ)$/.test(x)));
-  const tileItems = (syms: string[]) => mine(syms).map(x => { const e = regExtOf(x); return { sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) ?? rawPctOf?.(x) ?? null, reg: e?.reg ?? null, aft: e && Math.abs(e.aft) >= 0.005 ? e.aft : null, ses: e?.ses, dim: pctOf(x) == null && !e }; });
+  const tileItems = (syms: string[]) => mine(syms).map(x => { const e = regExtOf(x); return { sym: x, name: nameOf?.(x) ?? x, pct: pctOf(x) ?? rawPctOf?.(x) ?? null, reg: e?.reg ?? null, aft: e && Math.abs(e.aft) >= 0.005 ? e.aft : null, ses: e?.ses, dim: pctOf(x) == null && !e, price: priceOf?.(x) ?? null }; });
   const mLb = mkt === "US" ? "해외" : "국내";
   // 단계 줄은 전부 같이 펴고 접는다 — 위 단추 하나, 기기에 기억(사용자 2026-11-23 "모든 폴더 같이 열리고 닫히게", "각각 열리는 건 삭제")
   const [allOpen, setAllOpenS] = useState<boolean>(() => { try { return localStorage.getItem("sector_summary_all_open") === "1"; } catch { return false; } });

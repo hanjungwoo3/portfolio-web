@@ -10,6 +10,7 @@ export interface Tile {
   code: string; name: string;
   pct: number | null;          // 등락률(%) — 모르면 null
   price?: number | null;       // 현재가(국내 원·해외 달러)
+  yen?: boolean;               // 일본 종목 — 엔(¥)으로 표시
   kr: boolean;                 // 국내 종목인가(값·시총 단위, 누르면 종목정보)
   cap?: number;                // 시총(국내 원 · 해외 달러)
   logoid?: string;             // TradingView 로고
@@ -128,7 +129,7 @@ export function TileCard({ t, onOpen, className = "" }: { t: Tile; onOpen?: (t: 
           </span>
         </div>
         <div className="flex items-baseline justify-between text-[10.5px] text-gray-500 tabular-nums">
-          <span>{t.price == null || !(t.price > 0) ? "" : t.kr ? t.price.toLocaleString() : `$${t.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</span>
+          <span>{t.price == null || !(t.price > 0) ? "" : t.kr ? t.price.toLocaleString() : t.yen ? `¥${Math.round(t.price).toLocaleString()}` : `$${t.price.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}</span>
           <span>{capText(t.cap, t.kr)}</span>
         </div>
       </button>

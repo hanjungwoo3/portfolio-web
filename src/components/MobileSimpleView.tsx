@@ -2366,7 +2366,7 @@ export function MobileSimpleView() {
               if (isSectorPage && section.id === "rotflow") return (
                 <div key="sector-summary" className="relative rounded-xl border border-gray-300 bg-white pg-box p-2 pt-3.5 mt-1.5">
                   <span className="pg-title absolute -top-3 left-3 z-10 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-[13px] font-bold text-gray-700 whitespace-nowrap">📋 업종 한눈에 — 해외 ➜ 국내</span>
-                  <SectorSummaryBoard compact sections={sectorTabsOf(pageSecs).filter(x => x.id !== "overview")} pctOf={pctOfM} rawPctOf={sym => displayPctOf(sym, usMap.get(sym))} regExtOf={regExtOfM}
+                  <SectorSummaryBoard compact sections={sectorTabsOf(pageSecs).filter(x => x.id !== "overview")} pctOf={pctOfM} rawPctOf={sym => displayPctOf(sym, usMap.get(sym))} priceOf={sym => usMap.get(sym)?.price ?? null} regExtOf={regExtOfM}
                                       nameOf={sym => tier0.find(x => x.symbol === sym)?.name ?? sym} onOpen={id => { setSectorTabM(id); window.scrollTo({ top: 0 }); }}  renderDetail={(sec: DashboardSection) => <SobuGrid headersOnly rows={sec.rows} labels={sec.rowLabels ?? []} leadByRow={sec.leadByRow ?? []} quote={sobuQuote} dimOf={dimOf} />} />
                 </div>
               );
