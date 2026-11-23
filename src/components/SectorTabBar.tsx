@@ -34,7 +34,9 @@ export function sectorAvg(s: DashboardSection, pctOf: (sym: string) => number | 
     const ext = us.map(x => afterOf?.(x) ?? null);
     const up = us.map((x, i) => ext[i]?.reg ?? pctOf(x)).filter((v): v is number => v != null && Number.isFinite(v));
     const ea = ext.filter((v): v is { reg: number; aft: number } => !!v && Number.isFinite(v.aft) && Math.abs(v.aft) >= 0.005);   // 0 = 값 없음
-    return up.length ? { avg: up.reduce((a, v) => a + v, 0) / up.length, up: up.filter(v => v > 0).length, down: up.filter(v => v < 0).length,
+    // 장 밖 움직임(프리·애프터·데이)이 있으면 상승·하락 수도 그것으로(사용자 2026-11-23 "지금은 프리장 기준으로")
+    const cnt = ea.length ? ext.flatMap(v => (v && Number.isFinite(v.aft) ? [v.aft] : [])) : up;
+    return up.length ? { avg: up.reduce((a, v) => a + v, 0) / up.length, up: cnt.filter(v => v > 0).length, down: cnt.filter(v => v < 0).length,
       ...(ea.length ? { aft: ea.reduce((a, v) => a + v.aft, 0) / ea.length, aftN: ea.length } : {}) } : null;
   }
   const kr = s.rows.flat().filter(x => /\.KS$/.test(x));
@@ -46,7 +48,8 @@ export function sectorAvg(s: DashboardSection, pctOf: (sym: string) => number | 
   const ra = afterOf ? kr.map(afterOf).filter((v): v is { reg: number; aft: number } => !!v && Number.isFinite(v.reg) && Number.isFinite(v.aft)) : [];
   if (ra.length) {
     const rp = ra.map(v => v.reg);
-    return { avg: rp.reduce((a, v) => a + v, 0) / rp.length, up: rp.filter(v => v > 0).length, down: rp.filter(v => v < 0).length,
+    const hasAft = ra.some(v => Math.abs(v.aft) >= 0.005), cnt = hasAft ? ra.map(v => v.aft) : rp;   // 애프터 움직임이 있으면 그것으로 센다
+    return { avg: rp.reduce((a, v) => a + v, 0) / rp.length, up: cnt.filter(v => v > 0).length, down: cnt.filter(v => v < 0).length,
       ...(() => { const nz = ra.filter(v => Math.abs(v.aft) >= 0.005); return nz.length ? { aft: nz.reduce((a, v) => a + v.aft, 0) / nz.length, aftN: nz.length } : {}; })() };
   }
   return { avg: ps.reduce((a, v) => a + v, 0) / ps.length, up: ps.filter(v => v > 0).length, down: ps.filter(v => v < 0).length };
