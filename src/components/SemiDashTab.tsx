@@ -768,6 +768,7 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
   // 휠 — 마우스 자리를 기준점으로 확대·축소(오른쪽 끝에 붙어 있었으면 계속 끝에). 가로 휠(트랙패드 좌우)은 그대로 스크롤.
   //   React onWheel 은 passive 라 페이지 스크롤을 못 막는다 → 직접 등록
   const zoomAt = useRef<{ fx: number; px: number } | null>(null);
+  const pinch = useRef(0);   // 두 손가락 거리(모바일 확대·축소)
   const syncing = useRef(false);
   useEffect(() => {
     const on = (e: Event) => {
@@ -946,8 +947,20 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
       {code && <CreditLine code={code} />}
       <div className="flex-1 min-h-0 flex gap-2">
         <div className="flex-1 min-w-0">
-          {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div ref={scRef}
+          {ms.length < 1 ? <div className="h-full flex items-center justify-center text-gray-400">체결을 모으는 중…</div> : (<div ref={scRef} data-noswipe   /* 모바일: 그래프 위 손짓은 탭 넘기기 말고 그래프만(사용자 2026-11-24 "좌우로 스크롤하면 화면 이동") */
+                 onTouchStart={e => { if (e.touches.length === 2) pinch.current = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); }}
+                 onTouchMove={e => {
+                   // 두 손가락 = 확대·축소(사용자 2026-11-24 "모바일에서 확대/축소가 안 돼") — 보이는 분 수를 거리 비율로
+                   if (e.touches.length !== 2 || !pinch.current) return;
+                   const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+                   const f = pinch.current / d;
+                   if (Math.abs(f - 1) < 0.06) return;
+                   pinch.current = d;
+                   setVis(v => { const all = Math.max(10, msLen.current); const n = Math.max(10, Math.round((v ?? all) * f)); return n >= all ? null : n; });
+                 }}
+                 onTouchEnd={() => { pinch.current = 0; }}
                  // 스크롤바는 숨기고 마우스로 끌어서 옮긴다(사용자 2026-11-04 "스크롤바가 아니라 마우스로 클릭해서 이동") — 터치는 그냥 밀면 된다
+                 style={{ touchAction: "pan-x pan-y" }}   /* 두 손가락은 화면 확대 말고 그래프 확대 */
                  className={`w-full h-full overflow-x-auto overflow-y-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden select-none ${sc > 1 ? "cursor-grab active:cursor-grabbing" : ""}`}
                  onScroll={e => {
                    const el = e.currentTarget;

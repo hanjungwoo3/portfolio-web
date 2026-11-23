@@ -236,6 +236,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
     return () => el.removeEventListener("wheel", on);
   });   // 매번 다시 단다 — 자료가 오기 전(빈 칸)과 뒤(그래프)의 상자가 다르다
   const drag = useRef<number | null>(null);
+  const pinchD = useRef(0);   // 두 손가락 거리
   const boxProps = {
     ref: boxRef,
     onPointerDown: (e: React.PointerEvent<HTMLDivElement>) => { drag.current = e.clientX; (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId); },
@@ -247,6 +248,17 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
     },
     onPointerUp: () => { drag.current = null; },
     onDoubleClick: onReset,
+    "data-noswipe": true,   // 모바일: 그래프 위 손짓은 탭 넘기기 말고 그래프만(사용자 2026-11-24)
+    // 두 손가락 = 오른쪽 끝 고정 확대·축소(사용자 2026-11-24 "모바일에서 확대/축소가 안 돼")
+    onTouchStart: (e: React.TouchEvent<HTMLDivElement>) => { if (e.touches.length === 2) { pinchD.current = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY); drag.current = null; } },
+    onTouchMove: (e: React.TouchEvent<HTMLDivElement>) => {
+      if (e.touches.length !== 2 || !pinchD.current) return;
+      const d = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const f = pinchD.current / d;
+      if (Math.abs(f - 1) < 0.04) return;
+      pinchD.current = d; onZoom(f, 1);
+    },
+    onTouchEnd: () => { pinchD.current = 0; },
   };
   const W = 600, H = 250, mid = 150, top = 8, PR = 92;   // 세로를 늘렸다(사용자 2026-11-21 "새로로 조금 더") 190 → 250   // PR = 오른쪽 끝 글자 자리(viewBox px)
   const uid = useId().replace(/:/g, "");   // clipPath id — 칸이 넷이라 겹치지 않게
