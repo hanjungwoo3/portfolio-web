@@ -47,6 +47,9 @@ async function recordProgram(code: string): Promise<boolean> {
   //   응답 tr_cont F·M = 더 있음, D·E = 끝. 최대 30쪽(=약 15시간)
   const rows: ProgRow[] = [];
   let cont = "";
+  // 이미 저장된 마지막 분 — 그 분까지 이어 붙일 때까지 넘긴다(최신 쪽만 받고 멈춰 09:31~13:21 이 비었다, 사용자 2026-11-24)
+  const stored = load<ProgPt>(progKey(code)).map(p => p.t.replace(":", "")).sort();
+  const lastStored = stored[stored.length - 1];
   for (let page = 0; page < 30; page++) {
     const { body, trCont } = await kisGet<{ rt_cd?: string; output?: ProgRow[] }>(
       "/uapi/domestic-stock/v1/quotations/program-trade-by-stock", "FHPPG04650101", { FID_COND_MRKT_DIV_CODE: "UN", FID_INPUT_ISCD: code }, cont, { priority: true });   // UN = 통합(KRX+NXT) — 프리·애프터도(실측 2026-11-04 08:05 삼성 −137억)
@@ -55,8 +58,10 @@ async function recordProgram(code: string): Promise<boolean> {
     if (!got.length || !(trCont === "F" || trCont === "M")) break;
     // 이미 지금 시각 근처까지 왔으면 그만
     const kst = new Date(Date.now() + 9 * 3600_000), nowHm = `${String(kst.getUTCHours()).padStart(2, "0")}${String(kst.getUTCMinutes()).padStart(2, "0")}`;
-    const times = got.map(r => r.bsop_hour!.slice(0, 4)).sort();
-    if (times[times.length - 1] >= nowHm || times[0] >= nowHm) break;
+    const all = rows.map(r => r.bsop_hour!.slice(0, 4)).sort();
+    const reachedNow = all[all.length - 1] >= nowHm;
+    const reachedStored = !lastStored || all[0] <= lastStored;   // 받은 것 중 가장 이른 분이 저장된 마지막 분 이하 = 빈 곳 없이 이어짐
+    if (reachedNow && reachedStored) break;
     cont = "N";
   }
   (progStatus[code] ??= {}).pages = rows.length;

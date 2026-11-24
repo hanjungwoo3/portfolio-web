@@ -41,7 +41,7 @@ export function backfillPct(code: string): number | null {
 }
 /** wanted = 매수·매도를 모르는 분들(1분봉에만 있는 분). 최근 분부터 거꾸로, 붙어 있는 구간마다 경계 하나씩 불러 채운다 */
 const DAY_CAP = 600;   // 종목당 하루 한투 호출 상한(정규장 390분 + NXT 여유)
-export async function backfillTickMinutes(code: string, wanted: string[], maxCalls = 40): Promise<number> {   // 한 번에 40콜까지(예전 240 — 5분마다 몰아 불러 다른 한투 호출을 막았다, 2026-11-24)
+export async function backfillTickMinutes(code: string, wanted: string[], maxCalls = 240): Promise<number> {   // 40 으로 줄였더니 그리다 말았다 — 프로그램이 우선 줄로 앞서가니 다시 240(사용자 2026-11-24)
   if (!isKisLinkOn() || running.has(code) || !wanted.length) return 0;
   running.add(code);
   let calls = 0, filled = 0;
