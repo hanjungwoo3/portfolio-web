@@ -40,11 +40,25 @@ export const loadProgTape = (code: string) => load<ProgPt>(progKey(code));
 export const loadProgTapePrev = (code: string, date: string) => loadPrev<ProgPt>(progKey(code), date);
 interface ProgRow { bsop_hour?: string; whol_smtn_ntby_tr_pbmn?: string; whol_smtn_shnu_tr_pbmn?: string; whol_smtn_seln_tr_pbmn?: string }
 // 기록 상태 — 실패를 조용히 삼켜 09:31 에 멈춘 걸 아무도 몰랐다(사용자 2026-11-24 "프로그램 거래는 없어?"). 화면이 이유를 보여 준다
-export const progStatus: Record<string, { okAt?: number; lastT?: string; err?: string; errAt?: number; skip?: string }> = {};
+export const progStatus: Record<string, { okAt?: number; lastT?: string; err?: string; errAt?: number; skip?: string; pages?: number }> = {};
 async function recordProgram(code: string): Promise<boolean> {
-  const { body } = await kisGet<{ rt_cd?: string; output?: ProgRow[] }>(
-    "/uapi/domestic-stock/v1/quotations/program-trade-by-stock", "FHPPG04650101", { FID_COND_MRKT_DIV_CODE: "UN", FID_INPUT_ISCD: code });   // UN = 통합(KRX+NXT) — 프리·애프터도(실측 2026-11-04 08:05 삼성 −137억)
-  const rows = (body.output ?? []).filter(r => r.bsop_hour && r.whol_smtn_ntby_tr_pbmn != null);
+  // 한 번에 30건 — 앞(장 시작)부터 주는 듯해 그다음은 연속 조회(tr_cont N)로 넘긴다. 첫 쪽만 받아 09:31 에서 멈췄다(사용자 2026-11-24 화면: 09:02~09:31 = 딱 30분)
+  //   응답 tr_cont F·M = 더 있음, D·E = 끝. 최대 30쪽(=약 15시간)
+  const rows: ProgRow[] = [];
+  let cont = "";
+  for (let page = 0; page < 30; page++) {
+    const { body, trCont } = await kisGet<{ rt_cd?: string; output?: ProgRow[] }>(
+      "/uapi/domestic-stock/v1/quotations/program-trade-by-stock", "FHPPG04650101", { FID_COND_MRKT_DIV_CODE: "UN", FID_INPUT_ISCD: code }, cont);   // UN = 통합(KRX+NXT) — 프리·애프터도(실측 2026-11-04 08:05 삼성 −137억)
+    const got = (body.output ?? []).filter(r => r.bsop_hour && r.whol_smtn_ntby_tr_pbmn != null);
+    rows.push(...got);
+    if (!got.length || !(trCont === "F" || trCont === "M")) break;
+    // 이미 지금 시각 근처까지 왔으면 그만
+    const kst = new Date(Date.now() + 9 * 3600_000), nowHm = `${String(kst.getUTCHours()).padStart(2, "0")}${String(kst.getUTCMinutes()).padStart(2, "0")}`;
+    const times = got.map(r => r.bsop_hour!.slice(0, 4)).sort();
+    if (times[times.length - 1] >= nowHm || times[0] >= nowHm) break;
+    cont = "N";
+  }
+  (progStatus[code] ??= {}).pages = rows.length;
   if (!rows.length) { (progStatus[code] ??= {}).err = "응답 0건"; progStatus[code].errAt = Date.now(); return false; }
   // 시각 오름차순 → 분마다 마지막 값. 프리 08:00 ~ 애프터 20:00
   const byMin = new Map<string, ProgPt>();

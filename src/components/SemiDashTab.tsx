@@ -1220,9 +1220,11 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
         {code && (() => {
           const st = progStatus[code]; if (!st || flow.prevDay) return null;
           const kst = new Date(Date.now() + 9 * 3600_000), m = kst.getUTCHours() * 60 + kst.getUTCMinutes();
-          const stale = st.okAt ? Date.now() - st.okAt > 5 * 60_000 : true;
+          // 호출은 되는데 받은 마지막 시각이 지금보다 10분 넘게 뒤처져도 멈춤으로 본다(09:31 에 멈춰 있어도 경고가 안 떴다)
+          const lag = st.lastT ? m - (Number(st.lastT.slice(0, 2)) * 60 + Number(st.lastT.slice(3, 5))) : 0;
+          const stale = (st.okAt ? Date.now() - st.okAt > 5 * 60_000 : true) || lag > 10;
           if (!(m >= 8 * 60 && m <= 20 * 60) || (!stale && !st.err)) return null;
-          return <span className="text-amber-700" title={st.err ?? st.skip ?? ""}>⚠️ 프로그램 기록 {st.okAt ? `멈춤(마지막 ${new Date(st.okAt + 9 * 3600_000).toISOString().slice(11, 16)})` : "안 됨"}{st.err ? ` — ${st.err}` : st.skip ? ` — ${st.skip}` : ""}</span>;
+          return <span className="text-amber-700" title={st.err ?? st.skip ?? ""}>⚠️ 프로그램 기록 {st.okAt ? `멈춤(받은 마지막 ${st.lastT ?? new Date(st.okAt + 9 * 3600_000).toISOString().slice(11, 16)} · ${st.pages ?? 0}건)` : "안 됨"}{st.err ? ` — ${st.err}` : st.skip ? ` — ${st.skip}` : ""}</span>;
         })()}
       </div>
     </div>
