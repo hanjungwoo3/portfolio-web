@@ -72,7 +72,8 @@ export function UsSemiDashTab() {
   const [viewS, setView] = useState<{ span: number; end: number | null } | null>(null);   // null = 자동(2시간 — 장중 지금까지 / 장 마감 뒤 마지막 봉까지), end null = 지금을 따라간다
   const view = viewS ?? autoView;
   const vT1 = view.end ?? nowMs, vT0 = vT1 - view.span;
-  const MIN_SPAN = 15 * 60_000, MAX_SPAN = 12 * 3600_000;   // 2·12시간(사용자 2026-11-24)
+  // 최대 = 오늘 데이터 전체(최대 12시간) — 그보다 넓히면 왼쪽이 비고 그래프가 오른쪽으로 쪼그라들었다(사용자 2026-11-24 "국내는 안 줄어드는데 미국은 계속 줄어들어")
+  const MIN_SPAN = 15 * 60_000, MAX_SPAN = Math.min(12 * 3600_000, Math.max(30 * 60_000, dayStart ? autoEnd - dayStart : 12 * 3600_000));
   // 끝은 지금(따라가기)과 오늘 시작+길이 사이 — 어제로 못 넘어간다
   const fixEnd = (end: number, span: number) => (end >= nowMs - 30_000 ? null : Math.max(end, (dayStart || nowMs - MAX_SPAN) + span));
   const zoom = (f: number, frac: number) => setView(v0 => {
@@ -95,12 +96,12 @@ export function UsSemiDashTab() {
       <div className="flex items-center gap-2 text-[11px] text-gray-500">
         <b className="text-gray-700">그래프 {viewS ? `${spanLabel}${view.end ? ` · ${kstLabel(vT1, true)}까지` : " · 지금까지"}` : autoLabel}</b>
         {closed && !viewS && <span className="text-amber-600">미국 장 마감 — 마지막 거래일을 보여 줍니다</span>}
-        <span>끌기 = 좌우 이동 · 휠·두 손가락 = 확대·축소 · 두 번 클릭 = 오늘 한 화면</span>
+        <span>끌기 = 좌우 이동 · 휠·두 손가락 = 확대·축소(지금 기준) · 두 번 클릭 = 오늘 한 화면</span>
         {/* 기간 단추 — 2·12·24·48시간(사용자 2026-11-21), 장 마감 뒤엔 마지막 봉에서 거꾸로 */}
         <span className="inline-flex gap-0.5">
           {[2, 12].map(h => (
-            <button key={h} type="button" onClick={() => setView({ span: h * 3600_000, end: endOf() })}
-                    className={`px-1.5 py-0.5 rounded border font-bold ${Math.abs(view.span - h * 3600_000) < 60_000 && (view.end ?? 0) === (endOf() ?? 0) ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-gray-300 text-gray-600 hover:bg-gray-100"}`}>{h}시간</button>
+            <button key={h} type="button" /* 12시간 = 오늘 한 화면(처음 화면), 국내처럼 기본으로 눌림(사용자 2026-11-24) */ onClick={() => setView(h === 12 ? null : { span: Math.min(h * 3600_000, MAX_SPAN), end: endOf() })}
+                    className={`px-1.5 py-0.5 rounded border font-bold ${(h === 12 ? !viewS : !!viewS && Math.abs(view.span - h * 3600_000) < 60_000) ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-gray-300 text-gray-600 hover:bg-gray-100"}`}>{h}시간</button>
           ))}
         </span>
       </div>
@@ -242,7 +243,7 @@ function FlowChart({ ms, etDate, kd, price, bg, base, T0, T1, onZoom, onPan, onR
       e.preventDefault();
       const plotW = r.width * ((600 - 92 - 8) / 600);
       if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) zr.current.onPan((e.deltaX || e.deltaY) / plotW);
-      else zr.current.onZoom(Math.exp(e.deltaY * 0.0008), Math.min(1, Math.max(0, (e.clientX - r.left - r.width * (4 / 600)) / plotW)));   // 마우스 자리 기준 확대·축소 — 국내처럼(사용자 2026-11-24 "미국도 국내처럼"). 끝에 붙어 있으면 계속 지금을 따라간다
+      else zr.current.onZoom(Math.exp(e.deltaY * 0.0008), 1);   // 오른쪽 끝(지금 가격) 기준 확대·축소 — 국내와 같게(사용자 2026-11-24 "국내는 현재가격 기준, 국내 기준으로 다 맞추자")   // 마우스 자리 기준 확대·축소 — 국내처럼(사용자 2026-11-24 "미국도 국내처럼"). 끝에 붙어 있으면 계속 지금을 따라간다
     };
     el.addEventListener("wheel", on, { passive: false });
     return () => el.removeEventListener("wheel", on);
