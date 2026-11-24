@@ -1137,7 +1137,9 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
               const progDay = !hx && pl?.b != null && pl?.s != null;
               const tb = hx ? hx.b : progDay ? pl!.b! * 1e8 : st.rows.reduce((a, x) => a + (x?.b ?? 0), 0);
               const ts = hx ? hx.s : progDay ? pl!.s! * 1e8 : st.rows.reduce((a, x) => a + (x?.s ?? 0), 0);
-              const mx = Math.max(1, ...st.rows.map(x => (x ? Math.max(x.b, x.s) : 0)));
+              // 높이 기준 = 95번째로 큰 값(튀는 한 분이 나머지를 0 으로 누르지 않게 — 빈 구간을 한꺼번에 채운 분이 크게 튀었다, 사용자 2026-11-24 "그래프에 안 나오는데")
+              const vals = st.rows.flatMap(x => (x ? [Math.max(x.b, x.s)] : [])).filter(v => v > 0).sort((a, b) => a - b);
+              const mx = Math.max(1, vals.length ? vals[Math.min(vals.length - 1, Math.floor(vals.length * 0.95))] : 1);
               const SH = 46, SM = SH / 2;
               return (
                 <div key={st.k} className="relative shrink-0 border-t border-gray-100" style={{ height: SH + 6 }}>
@@ -1153,7 +1155,7 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
                     <line x1={0} x2={W} y1={SM} y2={SM} stroke="#e5e7eb" vectorEffect="non-scaling-stroke" />
                     {st.rows.map((x, i) => {
                       if (!x) return null;
-                      const hb = (x.b / mx) * (SM - 1), hs = (x.s / mx) * (SM - 1);
+                      const hb = Math.min(1, x.b / mx) * (SM - 1), hs = Math.min(1, x.s / mx) * (SM - 1);   // 기준보다 큰 분은 끝에서 자른다
                       return (
                         <g key={i}>
                           {/* 매수 = 빨강(위) · 매도 = 파랑(아래) 그대로 — 순은 머리 줄 숫자로(사용자 2026-11-05) */}
