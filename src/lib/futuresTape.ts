@@ -48,7 +48,7 @@ async function recordProgram(code: string): Promise<boolean> {
   let cont = "";
   for (let page = 0; page < 30; page++) {
     const { body, trCont } = await kisGet<{ rt_cd?: string; output?: ProgRow[] }>(
-      "/uapi/domestic-stock/v1/quotations/program-trade-by-stock", "FHPPG04650101", { FID_COND_MRKT_DIV_CODE: "UN", FID_INPUT_ISCD: code }, cont);   // UN = 통합(KRX+NXT) — 프리·애프터도(실측 2026-11-04 08:05 삼성 −137억)
+      "/uapi/domestic-stock/v1/quotations/program-trade-by-stock", "FHPPG04650101", { FID_COND_MRKT_DIV_CODE: "UN", FID_INPUT_ISCD: code }, cont, { priority: true });   // UN = 통합(KRX+NXT) — 프리·애프터도(실측 2026-11-04 08:05 삼성 −137억)
     const got = (body.output ?? []).filter(r => r.bsop_hour && r.whol_smtn_ntby_tr_pbmn != null);
     rows.push(...got);
     if (!got.length || !(trCont === "F" || trCont === "M")) break;

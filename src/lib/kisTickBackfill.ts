@@ -41,7 +41,7 @@ export function backfillPct(code: string): number | null {
 }
 /** wanted = 매수·매도를 모르는 분들(1분봉에만 있는 분). 최근 분부터 거꾸로, 붙어 있는 구간마다 경계 하나씩 불러 채운다 */
 const DAY_CAP = 600;   // 종목당 하루 한투 호출 상한(정규장 390분 + NXT 여유)
-export async function backfillTickMinutes(code: string, wanted: string[], maxCalls = 240): Promise<number> {
+export async function backfillTickMinutes(code: string, wanted: string[], maxCalls = 40): Promise<number> {   // 한 번에 40콜까지(예전 240 — 5분마다 몰아 불러 다른 한투 호출을 막았다, 2026-11-24)
   if (!isKisLinkOn() || running.has(code) || !wanted.length) return 0;
   running.add(code);
   let calls = 0, filled = 0;
@@ -60,14 +60,14 @@ export async function backfillTickMinutes(code: string, wanted: string[], maxCal
         return v;
       } catch { return undefined; }   // 통신 실패는 기억하지 않는다(다음에 다시)
     };
-    const total = Math.min(todo.length, maxCalls);
-    progress.set(code, { done: 0, total });
-    notifyBox(code);
+    // 진행률은 실제로 물어야 할 게 있을 때만 — 이미 아는 분만 훑을 때 'sync %' 가 떠 다시 받는 것처럼 보였다(사용자 2026-11-24)
+    const needsCall = todo.some(t => !(t in s.cums) || !(nextMin(t) in s.cums));
+    const total = needsCall ? Math.min(todo.length, maxCalls) : 0;
+    if (total) { progress.set(code, { done: 0, total }); notifyBox(code); }
     let done = 0;
     for (const t of todo) {
       if (calls >= maxCalls || s.kisCalls >= DAY_CAP) break;
-      progress.set(code, { done: done++, total });
-      if (done % 3 === 0) notifyBox(code);   // 막대가 채워지는 대로 % 도
+      if (total) { progress.set(code, { done: done++, total }); if (done % 3 === 0) notifyBox(code); }   // 막대가 채워지는 대로 % 도
       if (s.minutes.has(t)) continue;
       const a = await at(t), b = await at(nextMin(t));
       if (!a || !b) continue;

@@ -145,20 +145,28 @@ interface KisEnvelope { rt_cd?: string; msg_cd?: string; msg1?: string }
 //   앱 네이티브 간격(60ms)은 공식 한도(20/초) 기준이라 부족하다 → 웹에서 한 줄로 세워 최소 KIS_GAP 띄우고, EGW00201 이면 잠시 뒤 한 번 더.
 //   (레이더·VI·프로그램·선물 기록기가 같은 분에 겹쳐도 서로 막지 않게)
 const KIS_GAP = 350;
-let kisChain: Promise<unknown> = Promise.resolve();
-let kisLast = 0;
-function kisQueued<R>(f: () => Promise<R>): Promise<R> {
-  const run = kisChain.then(async () => {
-    const wait = kisLast + KIS_GAP - Date.now();
-    if (wait > 0) await new Promise(r => setTimeout(r, wait));
-    try { return await f(); } finally { kisLast = Date.now(); }
-  });
-  kisChain = run.catch(() => {});
-  return run;
+// 줄 = 우선(프로그램 기록 등 1분마다 꼭 받아야 하는 것) 먼저, 그다음 보통(거슬러 채우기 등 몰아서 많이 부르는 것)
+//   한 줄(FIFO)이었을 땐 거슬러 채우기 240콜이 앞을 막아 프로그램 기록이 밀렸다(사용자 2026-11-24 "체결값만 받는데?")
+let kisLast = 0, kisBusy = false;
+const kisWait: { f: () => Promise<unknown>; res: (v: unknown) => void; rej: (e: unknown) => void; hi: boolean }[] = [];
+async function kisPump() {
+  if (kisBusy) return;
+  kisBusy = true;
+  try {
+    while (kisWait.length) {
+      const i = kisWait.findIndex(x => x.hi), job = kisWait.splice(i >= 0 ? i : 0, 1)[0];
+      const wait = kisLast + KIS_GAP - Date.now();
+      if (wait > 0) await new Promise(r => setTimeout(r, wait));
+      try { job.res(await job.f()); } catch (e) { job.rej(e); } finally { kisLast = Date.now(); }
+    }
+  } finally { kisBusy = false; }
 }
-export async function kisGet<T extends KisEnvelope>(path: string, trIdReal: string, params: Record<string, string>, trCont = ""): Promise<{ body: T; trCont: string }> {
+function kisQueued<R>(f: () => Promise<R>, hi = false): Promise<R> {
+  return new Promise<R>((res, rej) => { kisWait.push({ f, res: res as (v: unknown) => void, rej, hi }); void kisPump(); });
+}
+export async function kisGet<T extends KisEnvelope>(path: string, trIdReal: string, params: Record<string, string>, trCont = "", opt: { priority?: boolean } = {}): Promise<{ body: T; trCont: string }> {
   const q = Object.entries(params).map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(v)}`).join("&");
-  const call = () => kisQueued(() => brokerRequest("kis", `${path}?${q}`, { trId: kisTrId(trIdReal), trCont }));
+  const call = () => kisQueued(() => brokerRequest("kis", `${path}?${q}`, { trId: kisTrId(trIdReal), trCont }), !!opt.priority);
   let r = await call();
   if (r.body.includes("EGW00201")) { await new Promise(res => setTimeout(res, 1200)); r = await call(); }   // 초당 한도 — 한 번만 다시
   const env = (r.json ?? {}) as KisEnvelope;
