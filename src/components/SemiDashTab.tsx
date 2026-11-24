@@ -596,8 +596,12 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
           <label key={x.key} className="inline-flex items-center gap-1 cursor-pointer select-none">
             <input type="checkbox" checked={flowKeys.includes(x.key)} onChange={() => toggleFlowKey(x.key)} className="w-3.5 h-3.5" style={{ accentColor: x.color }} />
             <span style={{ color: flowKeys.includes(x.key) ? x.color : "#9ca3af" }} className="font-medium">{x.label}</span>
+            {/* 마지막 금액 — 코스피 현물 누적 순매수(억, 사용자 2026-11-24 "수급 선택하는 부분에 금액을 넣자") */}
+            {(() => { const lp = kf?.points?.[kf.points.length - 1]; const v = lp ? (lp as unknown as Record<string, number>)[x.key] : undefined;
+              return v == null || !Number.isFinite(v) ? null : <span className={`tabular-nums font-bold text-[11px] ${v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-400"}`}>{v > 0 ? "+" : ""}{Math.round(v).toLocaleString()}억</span>; })()}
           </label>
         ))}
+        {kf?.points?.length ? <span className="text-[10.5px] text-gray-400">코스피 현물 누적 · {kf.points[kf.points.length - 1].time}</span> : null}
       </div>
       {/* ③ 현물·선물·옵션 수급 */}
       <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr_1.1fr] gap-1.5 lg:auto-rows-[minmax(400px,auto)] shrink-0">   {/* 최소 400 — 투자자를 많이 켜면 막대 줄만큼 늘어난다(고정 400 이면 아래 줄 위로 넘쳤다, 사용자 지적) */}
