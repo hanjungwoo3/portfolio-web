@@ -35,6 +35,7 @@ import {
   fetchHeatmapPreferServer, fetchKrShortSelling,
 } from "../lib/api";
 import { ShortRatioBox } from "./ShortRatioBox";
+import { openExternal } from "../lib/toss";
 import { INTRADAY_SERIES, type IntradayKey } from "../lib/intradayInvestor";
 import { allYahooSymbols } from "../lib/usMarketData";
 import { useAdaptiveRefreshMs } from "../lib/proxyStatus";
@@ -417,7 +418,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   const etfCard = (i: 0 | 1) => {
     const e = ETFS[i], qq = eq(e.code);
     // ETF 는 NXT(넥스트레이드)에 없다 — 정규장(15:30) 마감에 지수 카드와 같이 흐리게(사용자 지적 2026-10-23)
-    return <Card title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openIndex} breadth={heatBreadth(i)}
+    return <Card title={e.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openIndex} breadth={heatBreadth(i)} onTitle={() => openExternal(`https://www.tossinvest.com/stocks/A${e.code}`)}
                  chart={histKr(e.code) ?? <KrDaySparkline code={e.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
   };
   // 코스피 3장(지수·KODEX 200·코스피200 선물) / 코스닥 3장(지수·코스닥150·코스닥150 선물)을 배경 판 하나로 묶는다(사용자 2026-11-13 "하나로 묶어서 레이어 배경")
@@ -449,14 +450,14 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
   );
   const marketCards = (<>
         {mktGroup("bg-indigo-50 border-indigo-200", <>
-          <Card title="코스피" price={q("^KS11")?.price} pct={q("^KS11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kospi, "코스피 전체")}
+          <Card title="코스피" onTitle={() => openExternal("https://www.tossinvest.com/indices/KGG01P")} price={q("^KS11")?.price} pct={q("^KS11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kospi, "코스피 전체")}
                 chart={histIdx("^KS11") ?? (spark?.get("^KS11") && <SparkBg sp={spark.get("^KS11")!} base={q("^KS11")?.prevClose} />)} />
           {etfCard(0)}
           {futCard(0)}
         </>)}
         {/* 코스닥 — 기준선은 카드 전일 종가(야후 ^KQ11 previousClose 가 그저께 값일 때가 있다) */}
         {mktGroup("bg-emerald-50 border-emerald-200", <>
-          <Card title="코스닥" price={q("^KQ11")?.price} pct={q("^KQ11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kosdaq, "코스닥 전체")}
+          <Card title="코스닥" onTitle={() => openExternal("https://www.tossinvest.com/indices/QGG01P")} price={q("^KQ11")?.price} pct={q("^KQ11")?.pct} dim={!openIndex} breadth={udOf(udQ.data?.kosdaq, "코스닥 전체")}
                 chart={histIdx("^KQ11") ?? (spark?.get("^KQ11") && <SparkBg sp={spark.get("^KQ11")!} base={q("^KQ11")?.prevClose} />)} />
           {etfCard(1)}
           {futCard(1)}
@@ -506,7 +507,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
         {/* 원달러 환율 카드는 뺐다 — 선물 칸이 좁아 가격이 줄넘김(사용자 2026-11-02 "좁으면 원달러 환율 삭제") */}
         {/* 선물 칸 — 주식선물이 걸린 종목(201개)이고 앱에서 한국투자 연동이 켜졌을 때만, 종목 카드 바로 옆(사용자 2026-11-02) */}
         <div className={`grid grid-cols-3 gap-1.5 auto-rows-[118px] shrink-0 ${futOn ? "lg:grid-cols-[1.4fr_repeat(8,minmax(0,1fr))]" : "lg:grid-cols-[1.4fr_repeat(7,minmax(0,1fr))]"}`}>
-          <Card title={s0.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
+          <Card title={s0.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock} onTitle={() => openStockInfo(s0.code, s0.name)}
                 chart={histKr(s0.code) ?? <KrDaySparkline code={s0.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />
           {futOn && <StockFutCard code={s0.code} spot={qq?.price} dim={!openStock} />}
           {marketCards}
@@ -565,7 +566,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       <div className="grid grid-cols-2 lg:grid-cols-9 gap-1.5 auto-rows-[118px] shrink-0">
         {stocks.map(s => {
           const qq = sq(s.code);
-          return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock}
+          return <Card key={s.code} title={s.name} price={qq?.price} pct={qq?.pct} unit="원" dim={!openStock} onTitle={() => openStockInfo(s.code, s.name)}
                        chart={histKr(s.code) ?? <KrDaySparkline code={s.code} fallback={[]} live={qq?.price} width={300} height={70} className="w-full h-full" volume />} />;
         })}
         {marketCards}
@@ -663,7 +664,8 @@ function StockFutCard({ code, spot, dim }: { code: string; spot?: number; dim?: 
                                                             width={300} height={70} className="w-full h-full" strokeWidth={1.2} />} />;
 }
 
-function Card({ title, price, pct, sub, subHint, chart, unit, dim: dimIn, breadth }: {
+function Card({ title, price, pct, sub, subHint, chart, unit, dim: dimIn, breadth, onTitle }: {
+  onTitle?: () => void;   // 이름을 누르면(사용자 2026-11-24 "종목명 클릭되게") — 종목 = 종목정보 창, 지수·ETF·선물 = 토스 페이지
   title: string; price?: number; pct?: number; sub?: string; chart?: React.ReactNode; unit?: string;
   subHint?: string;   // 아래 작은 줄 툴팁(베이시스 설명 등)
   breadth?: { up: number; down: number; hint: string };   // 카드 오른쪽 위 — 오른·내린 종목 수(사용자 2026-11-13 "그래프 안에 상승/하락 갯수")
@@ -677,7 +679,7 @@ function Card({ title, price, pct, sub, subHint, chart, unit, dim: dimIn, breadt
       <div className="relative px-2 pt-1.5">
         {/* 제목 + 오른쪽 위 오른·내린 수 — 한 줄 안에서 나눠 가진다(겹쳐 가리지 않게, 사용자 2026-11-13 "가려져서") */}
         <div className="flex items-center gap-1 min-w-0">
-          <div className={`font-bold text-gray-800 truncate min-w-0 ${title.length > 10 ? "text-[10.5px] tracking-tighter leading-6" : ""}`}>{dim && <span className="mr-1 text-[11px] font-normal text-gray-400">zZ</span>}{title}</div>
+          <div className={`font-bold text-gray-800 truncate min-w-0 ${title.length > 10 ? "text-[10.5px] tracking-tighter leading-6" : ""}`}>{dim && <span className="mr-1 text-[11px] font-normal text-gray-400">zZ</span>}{onTitle ? <button type="button" onClick={onTitle} className="hover:text-blue-700 hover:underline">{title}</button> : title}</div>
           {breadth && breadth.up + breadth.down > 0 && (
             <span className="ml-auto shrink-0 text-[10px] font-bold tabular-nums whitespace-nowrap" title={breadth.hint}>
               <span className="text-rose-600">▲{breadth.up}</span> <span className="text-blue-600">▼{breadth.down}</span>
