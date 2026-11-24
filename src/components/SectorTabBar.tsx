@@ -129,7 +129,7 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
       })().map(it => it.kind === "ext" ? (() => {
         const e = it.e;
         const updown = vertical
-          ? <span className="flex flex-col items-start tabular-nums font-normal whitespace-nowrap text-[10.5px] leading-tight"><span className="text-rose-600">상승 {e.up}</span><span className="text-blue-600">하락 {e.down}</span></span>
+          ? <span className="flex flex-col items-start tabular-nums font-normal whitespace-nowrap text-[10.5px] leading-tight">{e.up > 0 && <span className="text-rose-600">상승 {e.up}</span>}{e.down > 0 && <span className="text-blue-600">하락 {e.down}</span>}</span>
           : <span className={`tabular-nums font-normal whitespace-nowrap ${compact ? "text-[9.5px]" : "text-[10px]"}`}><span className="text-rose-600">▲{e.up}</span> <span className="text-blue-600">▼{e.down}</span></span>;
         return (
           <button key={e.id} onClick={e.onClick} title={e.hint}
@@ -155,7 +155,7 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
               <span className="flex items-center justify-center gap-2 w-full">
                 {avg != null && <RegAftValue avg={avg} aft={st?.aft} n={st?.aftN} stacked className="whitespace-nowrap text-[12px]" />}
                 {st && <span className="flex flex-col items-start tabular-nums font-normal whitespace-nowrap text-[10.5px] leading-tight">
-                  <span className="text-rose-600">상승 {st.up}</span><span className="text-blue-600">하락 {st.down}</span>
+                  {st.up > 0 && <span className="text-rose-600">상승 {st.up}</span>}{st.down > 0 && <span className="text-blue-600">하락 {st.down}</span>}   {/* 0 은 뺀다(사용자 2026-11-25) */}
                 </span>}
               </span>
             ) : (<>
