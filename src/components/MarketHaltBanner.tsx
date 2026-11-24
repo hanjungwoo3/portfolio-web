@@ -139,7 +139,10 @@ export function MarketHaltBanner() {
         } catch { /* 알림 막힘 */ }
       }
       const now = Date.now();
-      for (const x of fresh) firstSeen.set(x.key, now);
+      // 공시 시각이 10분 넘게 지난 공식 경고는 처음 보는 것이어도 띄우지 않는다(이미 지난 일 — 사용자 2026-11-24 "계속 뜨고")
+      const kNow = kstNow(), mNow = kNow.getUTCHours() * 60 + kNow.getUTCMinutes();
+      const oldOfficial = (key: string) => { const m = /^kind-(\d{2}):?(\d{2})/.exec(key); return !!m && mNow - (Number(m[1]) * 60 + Number(m[2])) > 10; };
+      for (const x of fresh) if (!oldOfficial(x.key)) firstSeen.set(x.key, now);
       seen = new Set([...seen, ...a.map(x => x.key)]);
       saveShown(seen);
       // 보이는 것 = 이번에 새로 뜬 것 중 2분이 안 지난 것만(전에 본 것·오래된 것은 숨김)

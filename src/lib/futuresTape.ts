@@ -1,6 +1,7 @@
 // 코스피200 선물 장중 기록기 — 앱이 켜져 있는 동안(어느 탭이든) 1분마다 한 번(사용자 2026-11-03 "외국인 K200 선물 2단계").
 //   ① 시장 미결제약정·선물가(한경, 무료 — 웹·앱 모두)  ② 외국인 순매수 계약(한국투자, 앱+연동일 때만 — 지연 없음)
 //   둘 다 무료 출처에 장중 이력이 없어 직접 쌓는다. 날짜(KST)가 바뀌면 버린다. 주간 선물장 08:45~15:46 만.
+import { lsSet, lsLastFail } from "./lsGuard";
 import { fetchKrFuturesLive } from "./api";
 import { fetchKisK200FutInvestor, kisFutAvailable } from "./kisFutures";
 import { kisGet } from "./broker";
@@ -26,7 +27,7 @@ function loadPrev<T>(key: string, date: string): T[] {
 function push<T extends { t: string }>(key: string, pt: T) {
   const pts = load<T>(key);
   const next = pts.length && pts[pts.length - 1].t === pt.t ? [...pts.slice(0, -1), pt] : [...pts, pt];
-  try { localStorage.setItem(key, JSON.stringify({ date: kstDate(), pts: next })); } catch { /* 용량 — 이번만 */ }
+  lsSet(key, JSON.stringify({ date: kstDate(), pts: next }));
 }
 export const loadOiTape = () => load<OiPt>(OI_KEY);
 export const loadFrgnTape = () => load<FrgnPt>(FR_KEY);
@@ -71,7 +72,7 @@ async function recordProgram(code: string): Promise<boolean> {
   const have = new Map(load<ProgPt>(progKey(code)).map(p => [p.t, p]));
   for (const [t, p] of byMin) have.set(t, p);
   const pts = [...have].sort((a, b) => a[0].localeCompare(b[0])).map(([, p]) => p);
-  try { localStorage.setItem(progKey(code), JSON.stringify({ date: kstDate(), pts })); } catch { /* 용량 */ }
+  if (!lsSet(progKey(code), JSON.stringify({ date: kstDate(), pts }))) { const st = (progStatus[code] ??= {}); st.err = lsLastFail(); st.errAt = Date.now(); return false; }
   const st = (progStatus[code] ??= {}); st.okAt = Date.now(); st.lastT = [...byMin.keys()].sort().pop(); st.err = undefined; st.skip = undefined;
   return true;
 }

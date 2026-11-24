@@ -6,6 +6,7 @@
 import type { TossTick } from "./api";
 import { kisWsAvailable, subscribeKisTicks } from "./kisWs";
 import { watchMembers } from "./memberFlow";
+import { lsSet } from "./lsGuard";
 
 export interface MinuteFlow {
   t: string;          // "HH:MM"
@@ -70,7 +71,7 @@ export function saveBox(code: string) {
     const s = tickBox(code);
     try {
       const sv: Saved = { date: kstDate(), lastCum: s.lastCum, minutes: [...s.minutes.values()], big: s.big, gaps: s.gaps, since: s.since, last: s.last, cums: s.cums, kisCalls: s.kisCalls };
-      localStorage.setItem(storeKey(code), JSON.stringify(sv));
+      lsSet(storeKey(code), JSON.stringify(sv));   // 가득 차면 캐시를 비우고 다시(lsGuard)
     } catch { /* 저장 실패 — 화면은 그대로 */ }
   }, 1_000);
 }

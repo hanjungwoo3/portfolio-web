@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { fetchTossUsTicks, fetchTossUsMinuteToday, type TossUsTick } from "./api";
 import { isDirectApp } from "./nativeProxy";
+import { lsSet } from "./lsGuard";
 import { kisGet, isKisLinkOn } from "./broker";
 
 // 반도체 수급(미국) 칸 종목 — 화면과 배경 수집이 같은 목록을 쓴다(lib 한 벌)
@@ -62,7 +63,7 @@ function box(code: string): Box {
   return nb;
 }
 function save(code: string, b: Box) {
-  try { localStorage.setItem(key(code), JSON.stringify({ ...b, minutes: [...b.minutes.values()] } satisfies Saved)); } catch { /* 이번만 */ }
+  lsSet(key(code), JSON.stringify({ ...b, minutes: [...b.minutes.values()] } satisfies Saved));   // 가득 차면 캐시를 비우고 다시
 }
 
 /** 체결 넣기 — 한국 시각 체결을 ET 분으로. 지금(ET)보다 늦은 시각 = 어제 것(자정 너머)이라 버린다 */
