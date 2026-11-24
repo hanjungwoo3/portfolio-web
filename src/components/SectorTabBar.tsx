@@ -166,8 +166,7 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
             {/* 한 줄 = 이름(위) · 아래 %(왼쪽) + 상승·하락 막대(오른쪽)(사용자 2026-11-25 "% 오른쪽에" → "상승 하락을 오른쪽에") — 긴 이름이 잘려 이름은 위 줄 그대로 */}
             {vertical ? (
               <span className="flex flex-col w-full">
-                <span className="flex items-center justify-center gap-1 w-full">
-                  {order.has(s.id) && <span className="text-[10px] font-normal text-gray-400 tabular-nums">{order.get(s.id)}.</span>}
+                <span className="flex items-center justify-center gap-1 w-full">   {/* PC(세로)는 순위 번호 뺐다(사용자 2026-11-25) */}
                   <span className="truncate min-w-0">{s.short}</span>
                 </span>
                 <span className="flex items-end gap-1.5 w-full">
