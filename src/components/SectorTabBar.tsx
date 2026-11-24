@@ -150,7 +150,7 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
                   className={`shrink-0 inline-flex flex-col items-center leading-tight rounded-xl border border-dashed border-gray-400 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold ${vertical ? "text-center w-full px-1.5 py-1 text-[13px]" : compact ? "px-2 py-0.5 text-[12px]" : "px-3 py-1 text-sm"}`}>
             <span>{e.label}</span>   {/* 아이콘 뺐다(사용자 2026-11-25) */}
             {vertical
-              ? <span className="flex flex-col items-center w-full">{e.pct != null && <RegAftValue avg={e.pct} aft={e.aft} stacked className="whitespace-nowrap text-[12px]" />}{e.up + e.down > 0 && updown}</span>
+              ? <span className="flex items-end gap-1.5 w-full">{e.pct != null && <RegAftValue avg={e.pct} aft={e.aft} stacked className="whitespace-nowrap text-[12px]" />}{e.up + e.down > 0 && <span className="flex-1 min-w-0">{updown}</span>}</span>
               : <>{e.pct != null && <RegAftValue avg={e.pct} aft={e.aft} stacked className={`whitespace-nowrap ${compact ? "text-[10px]" : "text-[11px]"}`} />}{e.up + e.down > 0 && updown}</>}
           </button>
         );
@@ -162,15 +162,21 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
           <button key={s.id} data-tab-id={s.id} onClick={() => onChange(s.id)} title="국내 종목 평균 등락률·오른/내린 종목 수(흐린 종목 제외)"
                   className={`shrink-0 inline-flex flex-col ${vertical ? "items-center text-center w-full px-1.5 py-1" : "items-center"} leading-tight rounded-xl border ${vertical ? "text-[13px]" : compact ? "px-2 py-0.5 text-[12px]" : "px-3 py-1 text-sm"} font-bold transition
                               ${on ? "bg-indigo-50 text-indigo-900 border-indigo-600 ring-2 ring-indigo-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>
-            <span className="inline-flex items-center gap-1">{order.has(s.id) && <span className="text-[10px] font-normal text-gray-400 tabular-nums">{order.get(s.id)}.</span>}{s.short}</span>
-            {/* 세로 탭 = 왼쪽 등락률 · 오른쪽 상승/하락 두 줄(사용자 2026-11-12 "상승 하락을 오른쪽으로 나누면") */}
-            {/* 세로 탭 = 등락률 + 아래 얇은 상승·하락 막대(숫자는 막대 위) — 업종 카드와 같은 꼴(사용자 2026-11-25 "상승 하락을 이렇게 표시") */}
-            {vertical ? (st || avg != null) && (
-              <span className="flex flex-col items-center w-full">
-                {avg != null && <RegAftValue avg={avg} aft={st?.aft} n={st?.aftN} stacked className="whitespace-nowrap text-[12px]" />}
-                {st && st.up + st.down > 0 && <UpDownBar up={st.up} down={st.down} />}
+            {/* 세로 탭 = 이름 오른쪽에 % · 아래 얇은 상승·하락 막대(사용자 2026-11-25 "% 오른쪽에") */}
+            {/* 한 줄 = 이름(위) · 아래 %(왼쪽) + 상승·하락 막대(오른쪽)(사용자 2026-11-25 "% 오른쪽에" → "상승 하락을 오른쪽에") — 긴 이름이 잘려 이름은 위 줄 그대로 */}
+            {vertical ? (
+              <span className="flex flex-col w-full">
+                <span className="flex items-center justify-center gap-1 w-full">
+                  {order.has(s.id) && <span className="text-[10px] font-normal text-gray-400 tabular-nums">{order.get(s.id)}.</span>}
+                  <span className="truncate min-w-0">{s.short}</span>
+                </span>
+                <span className="flex items-end gap-1.5 w-full">
+                  {avg != null && <RegAftValue avg={avg} aft={st?.aft} n={st?.aftN} stacked className="whitespace-nowrap text-[12px]" />}
+                  {st && st.up + st.down > 0 && <span className="flex-1 min-w-0"><UpDownBar up={st.up} down={st.down} /></span>}
+                </span>
               </span>
             ) : (<>
+              <span className="inline-flex items-center gap-1">{order.has(s.id) && <span className="text-[10px] font-normal text-gray-400 tabular-nums">{order.get(s.id)}.</span>}{s.short}</span>
               {avg != null && <RegAftValue avg={avg} aft={st?.aft} n={st?.aftN} stacked className={`whitespace-nowrap ${compact ? "text-[10px]" : "text-[11px]"}`} />}
               {st && <span className={`tabular-nums font-normal whitespace-nowrap ${compact ? "text-[9.5px]" : "text-[10px]"} text-gray-500`}>
                 <span className="text-rose-600">▲{st.up}</span> <span className="text-blue-600">▼{st.down}</span>
