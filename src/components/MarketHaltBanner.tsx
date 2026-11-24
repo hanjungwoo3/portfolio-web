@@ -18,6 +18,10 @@ const DISMISS = "halt_alert_dismissed";
 function dismissed(): Set<string> {
   try { const v = JSON.parse(localStorage.getItem(DISMISS) ?? "null"); return new Set(v?.date === today() ? v.keys : []); } catch { return new Set(); }
 }
+// 한 번 띄운 경고는 오늘 다시 안 띄운다(새로고침해도) — 메모리로만 기억해 새로고침마다 다시 떴다(사용자 2026-11-24 "새로 고침할 때마다 계속 뜨는데")
+const SHOWN = "halt_alert_shown";
+function shownToday(): Set<string> { try { const v = JSON.parse(localStorage.getItem(SHOWN) ?? "null"); return new Set(v?.date === today() ? v.keys : []); } catch { return new Set(); } }
+function saveShown(s: Set<string>) { try { localStorage.setItem(SHOWN, JSON.stringify({ date: today(), keys: [...s] })); } catch { /* noop */ } }
 function saveDismissed(s: Set<string>) { try { localStorage.setItem(DISMISS, JSON.stringify({ date: today(), keys: [...s] })); } catch { /* noop */ } }
 
 async function indexPct(): Promise<Record<string, number>> {
@@ -113,7 +117,8 @@ export function MarketHaltBanner() {
   const [closed, setClosed] = useState<Set<string>>(dismissed);
   useEffect(() => {
     if (!isDirectApp()) return;   // 웹 브라우저는 공식 발동을 확인할 수 없어 띄우지 않는다
-    let seen = new Set<string>();
+    let seen = shownToday();   // 오늘 이미 띄운 것(새로고침 전 포함)
+    const firstSeen = new Map<string, number>();   // 이번에 처음 띄운 시각 — 2분 뒤 저절로 닫는다
     let offs: HaltNotice[] = [], kindAt = 0;
     const tick = async () => {
       const k = kstNow(), d = k.getUTCDay(), m = k.getUTCHours() * 60 + k.getUTCMinutes();
@@ -133,8 +138,12 @@ export function MarketHaltBanner() {
           if ("Notification" in window && Notification.permission === "granted") fresh.forEach(x => new Notification(`${x.official ? "🚨" : "ℹ️"} ${x.text}`, { body: x.detail }));
         } catch { /* 알림 막힘 */ }
       }
+      const now = Date.now();
+      for (const x of fresh) firstSeen.set(x.key, now);
       seen = new Set([...seen, ...a.map(x => x.key)]);
-      setAlerts(a);
+      saveShown(seen);
+      // 보이는 것 = 이번에 새로 뜬 것 중 2분이 안 지난 것만(전에 본 것·오래된 것은 숨김)
+      setAlerts(a.filter(x => firstSeen.has(x.key) && now - firstSeen.get(x.key)! < 2 * 60_000));
     };
     void tick();
     const id = setInterval(() => { void tick(); }, 30_000);
