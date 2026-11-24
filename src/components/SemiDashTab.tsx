@@ -206,7 +206,7 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
     return q(`${code}.KS`);
   };
   // 어제 종가 = 지금 가격 ÷ (1 + 등락률) — 실시간 체결 가격 글자 옆 % 용
-  const [tickVis, setTickVis] = useState<number | null>(120);   // 두 체결 칸 공통 확대 상태 — 기본 2시간(사용자 2026-11-21 "기본 2시간")
+  const [tickVis, setTickVis] = useState<number | null>(null);   // 두 체결 칸 공통 확대 상태 — 기본 = 하루 전체 한 화면(null)(사용자 2026-11-24 "기본 12시간, 항상 한 화면에 다 보이게")
   const [tickHovT, setTickHovT] = useState<string | null>(null);   // 두 체결 칸 공통 마우스 분
   const tickLink = { vis: tickVis, setVis: setTickVis, hovT: tickHovT, setHovT: setTickHovT };
   // 종목 수급 오늘 잠정치(토스 — KRX 장중 잠정, 외국인·기관·연기금. 개인은 장 마감 뒤) — 실시간 체결 칸 한 줄(사용자 2026-11-04)
@@ -742,7 +742,7 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
   // 한 화면 분 수 — 기본 1시간, 마우스 휠로 확대(10분까지)·축소(켠 뒤 전부까지)(사용자 2026-11-04 "휠로 확대 축소")
   //   기본 = 켠 뒤 전부 한 화면(사용자 2026-11-04 "전체를 보여주는 걸 기본으로") — null 이면 전체
   //   두 종목 칸은 확대·축소와 좌우 위치가 같이 움직인다(사용자 2026-11-04 "두 개가 같이 연동") — 부모가 vis 를 쥐면 그걸 쓴다
-  const [visLocal, setVisLocal] = useState<number | null>(120);   // 기본 2시간(사용자 2026-11-21)
+  const [visLocal, setVisLocal] = useState<number | null>(null);   // 기본 = 하루 전체 한 화면(사용자 2026-11-24)
   const vis = link ? link.vis : visLocal;
   const setVis = link ? link.setVis : setVisLocal;
   const ALL = Math.max(10, ms.length);   // 전체 = 켠 뒤 분 수 그대로 폭을 채운다(처음엔 넓게, 쌓이면서 좁아짐 — 사용자 2026-11-05)
@@ -900,10 +900,10 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
         {/* 기간 단추 — 2·12·24·48시간(사용자 2026-11-21, 미국 탭과 같은 단추). 국내는 오늘(또는 마지막 거래일) 1분봉뿐이라 12시간 넘게는 있는 만큼 */}
         <span className="inline-flex gap-0.5">
           {[2, 12].map(h => (   /* 2·12시간만 — 국내는 하루치뿐이라 24·48 은 의미 없다(사용자 2026-11-24) */
-            <button key={h} type="button" onClick={() => { stick.current = true; setVis(h * 60); }}
-                    className={`text-[10.5px] rounded px-1 border font-bold ${vis === h * 60 ? "bg-indigo-600 border-indigo-600 text-white" : "border-gray-300 text-gray-500 hover:bg-gray-50"}`}>{h}시간</button>
+            <button key={h} type="button" onClick={() => { stick.current = true; setVis(h === 12 ? null : h * 60); }}
+                    className={`text-[10.5px] rounded px-1 border font-bold ${(h === 12 ? vis == null : vis === h * 60) ? "bg-indigo-600 border-indigo-600 text-white" : "border-gray-300 text-gray-500 hover:bg-gray-50"}`}>{h}시간</button>
           ))}
-          {vis != null && ![120, 720, 1440, 2880].includes(vis) && <span className="text-[10.5px] text-gray-400 self-center">{vis}분</span>}
+          {vis != null && vis !== 120 && <span className="text-[10.5px] text-gray-400 self-center">{vis}분</span>}
         </span>
         <KisWsBadge sync={flow.syncPct} />
       </div>
