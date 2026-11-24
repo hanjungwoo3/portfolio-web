@@ -26,6 +26,20 @@ export function useSectorTab(sections: DashboardSection[]): [string, (id: string
 // 업종 평균 — 국내 종목(.KS) 등락률 단순 평균, 흐린 종목(장 안 열림)은 빼고(다 흐리면 전부). 탭 아래 작게(사용자 2026-11-03)
 //   aft = 정규장 마감 뒤(NXT 애프터) 등락률 평균 — 정규장 종가 대비 지금 값(사용자 2026-11-05 "정규장 이후 등락율 평균도"). 애프터 값 있는 종목만
 export interface SectorStat { avg: number; up: number; down: number; aft?: number; aftN?: number }
+/** 얇은 상승·하락 막대 + 조각 위 숫자(0 이면 그 조각 없음) — 업종 카드 막대와 같은 꼴 */
+function UpDownBar({ up, down }: { up: number; down: number }) {
+  const tot = Math.max(1, up + down);
+  return (
+    <span className="mt-0.5 flex w-full tabular-nums font-bold leading-[11px]">
+      {([[up, "bg-rose-300", "text-rose-500"], [down, "bg-blue-300", "text-blue-500"]] as const).map(([v, bg, tx], i) => v > 0 && (
+        <span key={i} className="flex flex-col min-w-[1.3em] px-px" style={{ width: `${(v / tot) * 100}%` }}>
+          <span className={`text-[9.5px] ${tx} text-center`}>{v}</span>
+          <span className={`h-[3px] ${bg} rounded-full`} />
+        </span>
+      ))}
+    </span>
+  );
+}
 export function sectorAvg(s: DashboardSection, pctOf: (sym: string) => number | null, dimOf?: (sym: string) => boolean, afterOf?: (sym: string) => { reg: number; aft: number } | null): SectorStat | null {
   // 미국 모드 — 칸의 미국 대장주로(간밤·지금 미국장), 애프터 꼬리표 없음(사용자 2026-11-05)
   if (avgMarketNow() === "US") {
@@ -129,34 +143,32 @@ export function SectorTabBar({ sections, active, onChange, trailing, compact, av
       })().map(it => it.kind === "ext" ? (() => {
         const e = it.e;
         const updown = vertical
-          ? <span className="flex flex-col items-start tabular-nums font-normal whitespace-nowrap text-[10.5px] leading-tight">{e.up > 0 && <span className="text-rose-600">상승 {e.up}</span>}{e.down > 0 && <span className="text-blue-600">하락 {e.down}</span>}</span>
+          ? <UpDownBar up={e.up} down={e.down} />
           : <span className={`tabular-nums font-normal whitespace-nowrap ${compact ? "text-[9.5px]" : "text-[10px]"}`}><span className="text-rose-600">▲{e.up}</span> <span className="text-blue-600">▼{e.down}</span></span>;
         return (
           <button key={e.id} onClick={e.onClick} title={e.hint}
                   className={`shrink-0 inline-flex flex-col items-center leading-tight rounded-xl border border-dashed border-gray-400 bg-gray-50 hover:bg-gray-100 text-gray-700 font-bold ${vertical ? "text-center w-full px-1.5 py-1 text-[13px]" : compact ? "px-2 py-0.5 text-[12px]" : "px-3 py-1 text-sm"}`}>
-            <span>📊 {e.label}</span>
+            <span>{e.label}</span>   {/* 아이콘 뺐다(사용자 2026-11-25) */}
             {vertical
-              ? <span className="flex items-center justify-center gap-2 w-full">{e.pct != null && <RegAftValue avg={e.pct} aft={e.aft} stacked className="whitespace-nowrap text-[12px]" />}{e.up + e.down > 0 && updown}</span>
+              ? <span className="flex flex-col items-center w-full">{e.pct != null && <RegAftValue avg={e.pct} aft={e.aft} stacked className="whitespace-nowrap text-[12px]" />}{e.up + e.down > 0 && updown}</span>
               : <>{e.pct != null && <RegAftValue avg={e.pct} aft={e.aft} stacked className={`whitespace-nowrap ${compact ? "text-[10px]" : "text-[11px]"}`} />}{e.up + e.down > 0 && updown}</>}
           </button>
         );
       })() : (() => { const s = it.s;
         const on = s.id === active;
-        const emoji = s.label.split(" ")[0];
         const st = stats.get(s.id);
         const avg = st?.avg ?? null;
         return (
           <button key={s.id} data-tab-id={s.id} onClick={() => onChange(s.id)} title="국내 종목 평균 등락률·오른/내린 종목 수(흐린 종목 제외)"
                   className={`shrink-0 inline-flex flex-col ${vertical ? "items-center text-center w-full px-1.5 py-1" : "items-center"} leading-tight rounded-xl border ${vertical ? "text-[13px]" : compact ? "px-2 py-0.5 text-[12px]" : "px-3 py-1 text-sm"} font-bold transition
                               ${on ? "bg-indigo-50 text-indigo-900 border-indigo-600 ring-2 ring-indigo-600" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>
-            <span className="inline-flex items-center gap-1">{order.has(s.id) && <span className="text-[10px] font-normal text-gray-400 tabular-nums">{order.get(s.id)}.</span>}<span>{emoji}</span>{s.short}</span>
+            <span className="inline-flex items-center gap-1">{order.has(s.id) && <span className="text-[10px] font-normal text-gray-400 tabular-nums">{order.get(s.id)}.</span>}{s.short}</span>
             {/* 세로 탭 = 왼쪽 등락률 · 오른쪽 상승/하락 두 줄(사용자 2026-11-12 "상승 하락을 오른쪽으로 나누면") */}
+            {/* 세로 탭 = 등락률 + 아래 얇은 상승·하락 막대(숫자는 막대 위) — 업종 카드와 같은 꼴(사용자 2026-11-25 "상승 하락을 이렇게 표시") */}
             {vertical ? (st || avg != null) && (
-              <span className="flex items-center justify-center gap-2 w-full">
+              <span className="flex flex-col items-center w-full">
                 {avg != null && <RegAftValue avg={avg} aft={st?.aft} n={st?.aftN} stacked className="whitespace-nowrap text-[12px]" />}
-                {st && <span className="flex flex-col items-start tabular-nums font-normal whitespace-nowrap text-[10.5px] leading-tight">
-                  {st.up > 0 && <span className="text-rose-600">상승 {st.up}</span>}{st.down > 0 && <span className="text-blue-600">하락 {st.down}</span>}   {/* 0 은 뺀다(사용자 2026-11-25) */}
-                </span>}
+                {st && st.up + st.down > 0 && <UpDownBar up={st.up} down={st.down} />}
               </span>
             ) : (<>
               {avg != null && <RegAftValue avg={avg} aft={st?.aft} n={st?.aftN} stacked className={`whitespace-nowrap ${compact ? "text-[10px]" : "text-[11px]"}`} />}
