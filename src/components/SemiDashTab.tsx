@@ -592,13 +592,14 @@ export function SemiDashTab({ stocks = STOCKS, popup }: { stocks?: readonly { co
       <div className="pg-card rounded-lg border border-gray-200 bg-white px-2 py-1 flex flex-wrap items-center gap-x-3 gap-y-0.5 shrink-0">
         <span className="font-bold text-gray-700">수급</span>
         <ShotAiButton target={shotRef} prompt={() => `${aiNowStamp()} 기준 한국 증시 수급 화면이다(첨부 그림 = 코스피·코스닥 현물, 코스피200 선물 투자자별 수급, 옵션, 외국인 선물 누적·미결제). 그림을 보고 ① 결론 한 줄 ② 외국인·기관·개인 흐름 ③ 선물·옵션이 말하는 방향 ④ 내일 볼 점을 짧게.${mktSummary ? ` 앱 요약: ${mktSummary.verdict} — ${mktSummary.text}` : ""}`} />
-        {INTRADAY_SERIES.map(x => (
+        {/* 금액순(큰 순매수 → 큰 순매도)(사용자 2026-11-24 "금액순으로 정렬") */}
+        {(() => { const lp = kf?.points?.[kf.points.length - 1] as unknown as Record<string, number> | undefined; return [...INTRADAY_SERIES].sort((a, b) => (lp?.[b.key] ?? -1e15) - (lp?.[a.key] ?? -1e15)); })().map(x => (
           <label key={x.key} className="inline-flex items-center gap-1 cursor-pointer select-none">
             <input type="checkbox" checked={flowKeys.includes(x.key)} onChange={() => toggleFlowKey(x.key)} className="w-3.5 h-3.5" style={{ accentColor: x.color }} />
             <span style={{ color: flowKeys.includes(x.key) ? x.color : "#9ca3af" }} className="font-medium">{x.label}</span>
             {/* 마지막 금액 — 코스피 현물 누적 순매수(억, 사용자 2026-11-24 "수급 선택하는 부분에 금액을 넣자") */}
             {(() => { const lp = kf?.points?.[kf.points.length - 1]; const v = lp ? (lp as unknown as Record<string, number>)[x.key] : undefined;
-              return v == null || !Number.isFinite(v) ? null : <span className={`tabular-nums font-bold text-[11px] ${v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-400"}`}>{v > 0 ? "+" : ""}{Math.round(v).toLocaleString()}억</span>; })()}
+              return v == null || !Number.isFinite(v) ? null : <span className={`tabular-nums font-bold text-[11px] ${v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-400"}`}>{eokJo(v)}</span>; })()}
           </label>
         ))}
         {kf?.points?.length ? <span className="text-[10.5px] text-gray-400">코스피 현물 누적 · {kf.points[kf.points.length - 1].time}</span> : null}
@@ -1236,6 +1237,13 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
       </div>
     </div>
   );
+}
+/** 억 단위 — 1만억 넘으면 조(−2조 486억)(사용자 2026-11-24 "20000억 → 2조") */
+function eokJo(v: number): string {
+  const sg = v > 0 ? "+" : v < 0 ? "−" : "", a = Math.round(Math.abs(v));
+  if (a < 10000) return `${sg}${a.toLocaleString()}억`;
+  const jo = Math.floor(a / 10000), r = a % 10000;
+  return `${sg}${jo}조${r ? ` ${r.toLocaleString()}억` : ""}`;
 }
 function Stat({ label, v }: { label: string; v?: number }) {
   return <span className="text-gray-500">{label} <b className={v == null ? "text-gray-300" : v >= 100 ? "text-rose-600" : "text-blue-600"}>{v == null ? "-" : v.toFixed(0)}</b></span>;
