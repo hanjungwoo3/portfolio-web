@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQuery, useQueries } from "@tanstack/react-query";
-import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, fetchYahooPriceHistory, fetchTossIntraday, fetchEtfKeyIndicator, fetchWarning, type KrRegularPrice } from "../lib/api";
+import { fetchEtfCompositions, fetchTossPrices, fetchKrPriceHistory, fetchKrRegularPrices, searchTossAutoComplete, fetchUsHoldingPrices, fetchTossCodeInfo, fetchYahooPriceHistory, fetchTossIntraday, fetchYahooSparkDay, fetchEtfKeyIndicator, fetchWarning, type KrRegularPrice } from "../lib/api";
 import { loadHoldings } from "../lib/db";
 import { Sparkline } from "./Sparkline";
 import { useChartRange, trimByRange } from "../lib/chartRange";
@@ -787,11 +787,19 @@ export function StockCard({ i, item, price: priceProp, chart = [], krReg, groups
     : isForeignCode ? (usHist ?? []).map(p => p.close) : chart, chartRangeNow);   // 7일이면 뒤 7개(사용자 2026-11-12)
   // 24시간 설정이면 다른 카드와 같은 24시간 그래프(사용자 2026-11-02) — 한국 = 토스 5분봉(KrDaySparkline), 미국 = 토스 5분봉(지수 탭과 같은 캐시)
   const dayMode = chartRangeNow === "day";
-  const { data: usDay } = useQuery({
+  const { data: usDayToss } = useQuery({
     queryKey: ["toss-us-day", fSymbol],
     queryFn: () => fetchTossIntraday(fSymbol!),
     enabled: dayMode && !!fSymbol, staleTime: 4 * 60_000, refetchInterval: 5 * 60_000, refetchOnWindowFocus: false, retry: 1,
   });
+  // 일본 등 미국 밖(4063.T) — 토스가 5분봉을 안 줘 늘 긴 그래프였다(사용자 2026-11-24 "24시간 그래프 적용 안 되는 종목") → 야후 당일 5분봉(지수 카드와 같은 함수)
+  const jpSym = !krCode && usSymbol && /\.[A-Z]+$/.test(usSymbol) ? usSymbol : null;
+  const { data: jpDay } = useQuery({
+    queryKey: ["yahoo-spark-day-one", jpSym],
+    queryFn: async () => { const d = (await fetchYahooSparkDay([jpSym!])).get(jpSym!); return d && d.closes.length > 1 ? { ...d, base: d.prevClose } : null; },
+    enabled: dayMode && !!jpSym, staleTime: 4 * 60_000, refetchInterval: 5 * 60_000, refetchOnWindowFocus: false, retry: 1,
+  });
+  const usDay = usDayToss ?? (jpDay ? { closes: jpDay.closes, xs: jpDay.xs, base: jpDay.base, prevBase: jpDay.prevBase, nextBase: jpDay.nextBase, breakIdx: jpDay.breakIdx, markXs: jpDay.markXs } : undefined);
   // 마감 책갈피에 붙일 **그 마감이 언제인지**. 이미 받아 둔 US 일봉의 마지막 봉 날짜를 쓴다.
   //   토스 usRegClose 는 "직전(또는 오늘) 정규장 종가" 이고, 야후 일봉의 마지막 봉이 정확히 그 세션이다.
   //   (오버나잇·프리마켓엔 오늘 봉이 아직 없어 직전 거래일이 마지막 봉 = 그 정규장)
