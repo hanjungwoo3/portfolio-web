@@ -39,11 +39,13 @@ const progKey = (code: string) => `prog_kis_${code}`;
 export const loadProgTape = (code: string) => load<ProgPt>(progKey(code));
 export const loadProgTapePrev = (code: string, date: string) => loadPrev<ProgPt>(progKey(code), date);
 interface ProgRow { bsop_hour?: string; whol_smtn_ntby_tr_pbmn?: string; whol_smtn_shnu_tr_pbmn?: string; whol_smtn_seln_tr_pbmn?: string }
+// 기록 상태 — 실패를 조용히 삼켜 09:31 에 멈춘 걸 아무도 몰랐다(사용자 2026-11-24 "프로그램 거래는 없어?"). 화면이 이유를 보여 준다
+export const progStatus: Record<string, { okAt?: number; lastT?: string; err?: string; errAt?: number; skip?: string }> = {};
 async function recordProgram(code: string): Promise<boolean> {
   const { body } = await kisGet<{ rt_cd?: string; output?: ProgRow[] }>(
     "/uapi/domestic-stock/v1/quotations/program-trade-by-stock", "FHPPG04650101", { FID_COND_MRKT_DIV_CODE: "UN", FID_INPUT_ISCD: code });   // UN = 통합(KRX+NXT) — 프리·애프터도(실측 2026-11-04 08:05 삼성 −137억)
   const rows = (body.output ?? []).filter(r => r.bsop_hour && r.whol_smtn_ntby_tr_pbmn != null);
-  if (!rows.length) return false;
+  if (!rows.length) { (progStatus[code] ??= {}).err = "응답 0건"; progStatus[code].errAt = Date.now(); return false; }
   // 시각 오름차순 → 분마다 마지막 값. 프리 08:00 ~ 애프터 20:00
   const byMin = new Map<string, ProgPt>();
   for (const r of [...rows].sort((a, b) => a.bsop_hour!.localeCompare(b.bsop_hour!))) {
@@ -56,6 +58,7 @@ async function recordProgram(code: string): Promise<boolean> {
   for (const [t, p] of byMin) have.set(t, p);
   const pts = [...have].sort((a, b) => a[0].localeCompare(b[0])).map(([, p]) => p);
   try { localStorage.setItem(progKey(code), JSON.stringify({ date: kstDate(), pts })); } catch { /* 용량 */ }
+  const st = (progStatus[code] ??= {}); st.okAt = Date.now(); st.lastT = [...byMin.keys()].sort().pop(); st.err = undefined; st.skip = undefined;
   return true;
 }
 
@@ -82,9 +85,9 @@ export function startFuturesTape(): void {
     }
     if (kisFutAvailable()) {   // 프로그램 매매 — 프리 08:00 ~ 애프터 20:00(통합)
       for (const [code] of PROG_CODES) {
-        try { if (await recordProgram(code)) changed = true; } catch { /* 다음 분에 */ }
+        try { if (await recordProgram(code)) changed = true; } catch (e) { const st = (progStatus[code] ??= {}); st.err = String((e as Error)?.message ?? e).slice(0, 120); st.errAt = Date.now(); changed = true; }
       }
-    }
+    } else for (const [code] of PROG_CODES) { (progStatus[code] ??= {}).skip = "한국투자 연동 꺼짐(앱+한투에서만 기록)"; }
     if (changed) window.dispatchEvent(new Event(TAPE_EVENT));
   };
   void tick();

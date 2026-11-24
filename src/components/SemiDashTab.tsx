@@ -11,7 +11,7 @@ import { fmtEok } from "../lib/eokFmt";
 import { fetchKisFutQuote, fetchKisFutDay, hasStockFutures, kisFutAvailable, fetchKisViToday, fetchKisKospi200Options, type KisOptionSummary } from "../lib/kisFutures";
 import { ForeignFuturesPanel } from "./ForeignFuturesPanel";
 import { MarketPressureCard } from "./MarketPressureCard";
-import { loadProgTape, loadProgTapePrev, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/futuresTape";
+import { loadProgTape, loadProgTapePrev, progStatus, PROG_CODES, TAPE_EVENT, type ProgPt } from "../lib/futuresTape";
 import { ValueupTags } from "./ValueupTags";
 import { kisWsAvailable, kisWsLive, kisWsStatus } from "../lib/kisWs";
 import { useValueupTags } from "../lib/valueupTags";
@@ -897,14 +897,8 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
           ? <button onClick={onTitle} title="크게 보기(팝업)" className="font-bold text-gray-800 hover:text-blue-700 hover:underline">{name} 실시간 체결 ⤢</button>
           : <span className="font-bold text-gray-800">{name} 실시간 체결</span>}
         <span className="text-[11px] text-gray-400">{flow.prevDay ? <b className="text-amber-600">{+flow.prevDay.slice(5, 7)}/{+flow.prevDay.slice(8, 10)} 기록 · 장 마감{flow.prevTicks ? "(그날 앱이 쌓은 체결 포함)" : "(1분봉만, 매수·매도 모름)"} </b> : null}{flow.since ? `${flow.since.slice(0, 5)}부터 · ${flow.last}` : flow.prevDay ? "" : "모으는 중…"}{flow.gaps ? ` · 빈 구간 ${flow.gaps}` : ""}{flow.error ? ` · ⚠️ ${flow.error}` : ""}</span>
-        {/* 기간 단추 — 2·12·24·48시간(사용자 2026-11-21, 미국 탭과 같은 단추). 국내는 오늘(또는 마지막 거래일) 1분봉뿐이라 12시간 넘게는 있는 만큼 */}
-        <span className="inline-flex gap-0.5">
-          {[2, 12].map(h => (   /* 2·12시간만 — 국내는 하루치뿐이라 24·48 은 의미 없다(사용자 2026-11-24) */
-            <button key={h} type="button" onClick={() => { stick.current = true; setVis(h === 12 ? null : h * 60); }}
-                    className={`text-[10.5px] rounded px-1 border font-bold ${(h === 12 ? vis == null : vis === h * 60) ? "bg-indigo-600 border-indigo-600 text-white" : "border-gray-300 text-gray-500 hover:bg-gray-50"}`}>{h}시간</button>
-          ))}
-          {vis != null && vis !== 120 && <span className="text-[10.5px] text-gray-400 self-center">{vis}분</span>}
-        </span>
+        {/* 기간 단추는 뺐다 — 휠·두 손가락으로 확대·축소, 두 번 클릭 = 하루 전체(사용자 2026-11-24 "버튼은 미국/국내 다 없애") */}
+        {vis != null && <button type="button" onClick={() => { stick.current = true; setVis(null); }} className="text-[10.5px] text-gray-500 border border-gray-300 rounded px-1 hover:bg-gray-50" title="하루 전체를 한 화면으로">{vis}분 보기 · 전체로</button>}
         <KisWsBadge sync={flow.syncPct} />
       </div>
       <div className="flex flex-wrap gap-x-3 tabular-nums my-1">
@@ -1222,6 +1216,14 @@ function TickPanel({ name, flow, day, onTitle, base: baseProp, prog, inv, price,
         {kospi && kospi.length > 1 && <span><i className="inline-block w-3 h-0.5 bg-violet-400 mr-0.5 align-middle" />배경 코스피(선)</span>}
         <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-orange-600" />체결(켠 뒤 누적, 축 따로)</span>
         {prog && prog.length > 0 && <span><i className="inline-block w-4 mr-0.5 align-middle border-t-2 border-dotted border-violet-600" />프로그램 누적(축 따로, 한투)</span>}
+        {/* 프로그램 기록 상태 — 멈추면 이유(사용자 2026-11-24 "프로그램 거래는 없어?" — 09:31 에 조용히 멈춰 있었다) */}
+        {code && (() => {
+          const st = progStatus[code]; if (!st || flow.prevDay) return null;
+          const kst = new Date(Date.now() + 9 * 3600_000), m = kst.getUTCHours() * 60 + kst.getUTCMinutes();
+          const stale = st.okAt ? Date.now() - st.okAt > 5 * 60_000 : true;
+          if (!(m >= 8 * 60 && m <= 20 * 60) || (!stale && !st.err)) return null;
+          return <span className="text-amber-700" title={st.err ?? st.skip ?? ""}>⚠️ 프로그램 기록 {st.okAt ? `멈춤(마지막 ${new Date(st.okAt + 9 * 3600_000).toISOString().slice(11, 16)})` : "안 됨"}{st.err ? ` — ${st.err}` : st.skip ? ` — ${st.skip}` : ""}</span>;
+        })()}
       </div>
     </div>
   );

@@ -98,12 +98,7 @@ export function UsSemiDashTab() {
         {closed && !viewS && <span className="text-amber-600">미국 장 마감 — 마지막 거래일을 보여 줍니다</span>}
         <span>끌기 = 좌우 이동 · 휠·두 손가락 = 확대·축소(지금 기준) · 두 번 클릭 = 오늘 한 화면</span>
         {/* 기간 단추 — 2·12·24·48시간(사용자 2026-11-21), 장 마감 뒤엔 마지막 봉에서 거꾸로 */}
-        <span className="inline-flex gap-0.5">
-          {[2, 12].map(h => (
-            <button key={h} type="button" /* 12시간 = 오늘 한 화면(처음 화면), 국내처럼 기본으로 눌림(사용자 2026-11-24) */ onClick={() => setView(h === 12 ? null : { span: Math.min(h * 3600_000, MAX_SPAN), end: endOf() })}
-                    className={`px-1.5 py-0.5 rounded border font-bold ${(h === 12 ? !viewS : !!viewS && Math.abs(view.span - h * 3600_000) < 60_000) ? "bg-indigo-600 border-indigo-600 text-white" : "bg-white border-gray-300 text-gray-600 hover:bg-gray-100"}`}>{h}시간</button>
-          ))}
-        </span>
+        {viewS && <button type="button" onClick={resetView} className="px-1.5 py-0.5 rounded border border-gray-300 bg-white font-bold text-gray-600 hover:bg-gray-100">오늘 한 화면으로</button>}   {/* 기간 단추는 뺐다(사용자 2026-11-24) */}
       </div>
       {/* 범례 — 칸마다 있던 것을 맨 위 한 번만(사용자 2026-11-21 "공간을 정리하자 4개 종목을 한번에")(사용자 2026-11-21 "그래프 각 선이 뭔지 설명이 없어?") */}
       <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10.5px] text-gray-600">
