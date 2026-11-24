@@ -29,7 +29,9 @@ export interface SectorStat { avg: number; up: number; down: number; aft?: numbe
 export function sectorAvg(s: DashboardSection, pctOf: (sym: string) => number | null, dimOf?: (sym: string) => boolean, afterOf?: (sym: string) => { reg: number; aft: number } | null): SectorStat | null {
   // 미국 모드 — 칸의 미국 대장주로(간밤·지금 미국장), 애프터 꼬리표 없음(사용자 2026-11-05)
   if (avgMarketNow() === "US") {
-    const us = s.rows.flat().filter(isOverseasTicker);
+    // 흐린(장 닫힌) 해외 종목은 뺀다 — 업종 한눈에 카드와 같은 기준. 일본 대장주(화낙·야스카와) 지난 등락이 섞여 로봇이 왼쪽에서만 1등이었다(사용자 2026-11-24 "left의 로봇은?")
+    //   단 장 밖 움직임(프리·애프터)이 있는 종목은 흐림이어도 넣는다(정규장 등락 + 꼬리표)
+    const us = s.rows.flat().filter(isOverseasTicker).filter(x => !dimOf?.(x) || !!afterOf?.(x));
     // 미국 장 밖이면 평균 = 정규장 등락, 꼬리표 = 프리·애프터(정규장 종가 대비) — 국내 "정규장%(애프터%)"와 같은 꼴
     const ext = us.map(x => afterOf?.(x) ?? null);
     const up = us.map((x, i) => ext[i]?.reg ?? pctOf(x)).filter((v): v is number => v != null && Number.isFinite(v));
