@@ -40,7 +40,7 @@ export function backfillPct(code: string): number | null {
   return p && p.total > 0 ? Math.min(99, Math.floor((p.done / p.total) * 100)) : null;
 }
 /** wanted = 매수·매도를 모르는 분들(1분봉에만 있는 분). 최근 분부터 거꾸로, 붙어 있는 구간마다 경계 하나씩 불러 채운다 */
-const DAY_CAP = 600;   // 종목당 하루 한투 호출 상한(정규장 390분 + NXT 여유)
+const DAY_CAP = 1000;   // 종목당 하루 한투 호출 상한 — 프리 08:00~애프터 20:00 = 720분이라 600 이면 오후에 막혀 매번 sync % 만 뜨고 안 채워졌다(사용자 2026-11-25)
 export async function backfillTickMinutes(code: string, wanted: string[], maxCalls = 240): Promise<number> {   // 40 으로 줄였더니 그리다 말았다 — 프로그램이 우선 줄로 앞서가니 다시 240(사용자 2026-11-24)
   if (!isKisLinkOn() || running.has(code) || !wanted.length) return 0;
   running.add(code);
@@ -56,12 +56,12 @@ export async function backfillTickMinutes(code: string, wanted: string[], maxCal
       calls++; s.kisCalls++;
       try {
         const v = await cumAt(code, minus1s(hm));
-        s.cums[hm] = v ? [v.buy, v.sell, v.price] : null;   // 응답이 비었으면 null 로 기억(다시 안 묻는다)
+        s.cums[hm] = v ? [Math.round(v.buy), Math.round(v.sell), v.price] : null;   // 정수로 — 저장 크기 줄이기(소수점 15자리가 붙어 컸다)   // 응답이 비었으면 null 로 기억(다시 안 묻는다)
         return v;
       } catch { return undefined; }   // 통신 실패는 기억하지 않는다(다음에 다시)
     };
     // 진행률은 실제로 물어야 할 게 있을 때만 — 이미 아는 분만 훑을 때 'sync %' 가 떠 다시 받는 것처럼 보였다(사용자 2026-11-24)
-    const needsCall = todo.some(t => !(t in s.cums) || !(nextMin(t) in s.cums));
+    const needsCall = s.kisCalls < DAY_CAP && todo.some(t => !(t in s.cums) || !(nextMin(t) in s.cums));   // 상한에 닿았으면 진행률도 안 띄운다
     const total = needsCall ? Math.min(todo.length, maxCalls) : 0;
     if (total) { progress.set(code, { done: 0, total }); notifyBox(code); }
     let done = 0;

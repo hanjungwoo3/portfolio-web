@@ -77,7 +77,7 @@ async function recordProgram(code: string): Promise<boolean> {
   const have = new Map(load<ProgPt>(progKey(code)).map(p => [p.t, p]));
   for (const [t, p] of byMin) have.set(t, p);
   const pts = [...have].sort((a, b) => a[0].localeCompare(b[0])).map(([, p]) => p);
-  if (!lsSet(progKey(code), JSON.stringify({ date: kstDate(), pts }))) { const st = (progStatus[code] ??= {}); st.err = lsLastFail(); st.errAt = Date.now(); return false; }
+  if (!lsSet(progKey(code), JSON.stringify({ date: kstDate(), pts }))) { const st = (progStatus[code] ??= {}); st.err = lsLastFail(progKey(code)); st.errAt = Date.now(); return false; }
   const st = (progStatus[code] ??= {}); st.okAt = Date.now(); st.lastT = [...byMin.keys()].sort().pop(); st.err = undefined; st.skip = undefined;
   return true;
 }

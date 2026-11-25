@@ -4,7 +4,8 @@
 
 /** 지워도 되는 것 — 서버에서 다시 받는 목록·캐시(내 종목·거래·설정·로그인·오늘 기록은 건드리지 않는다) */
 const DISPOSABLE = /(cache|_ts$|theme_|etf_|heat|krx_notices|tile|sector_rank|valuation|consensus|earnings|disclosure|news|warning|seohak|holdings_list|list_v|_prev$)/i;
-const KEEP = /^(semi_tickflow_|prog_kis_|us_tickflow_|k200_|portfolio_|gdrive|kis_|toss_|broker|halt_alert|index_drawer|schedule_tab|sector_summary|us_semi)/;
+// 지난 거래일 사본(_prev)은 지워도 된다 — 오늘 체결 저장이 우선(사용자 2026-11-25 "체결이 안 쌓여")
+const KEEP = /^(semi_tickflow_|prog_kis_|us_tickflow_|k200_|portfolio_|gdrive|kis_|toss_|broker|halt_alert|index_drawer|schedule_tab|sector_summary|us_semi)(?!.*_prev$)/;
 
 export function lsTop(n = 5): { key: string; kb: number }[] {
   const out: { key: string; kb: number }[] = [];
@@ -18,17 +19,18 @@ export function lsTop(n = 5): { key: string; kb: number }[] {
 }
 export function lsTotalKb(): number { return lsTop(10000).reduce((a, x) => a + x.kb, 0); }
 
-let lastFail: string | undefined;
-export const lsLastFail = () => lastFail;
+// 키마다 실패 기억 — 하나로 두니 작은 프로그램 기록이 성공하면 큰 체결 기록 실패가 지워져 경고가 안 떴다(사용자 2026-11-25)
+const fails = new Map<string, string>();
+export const lsLastFail = (key?: string) => (key ? fails.get(key) : [...fails.values()][0]);
 
 /** 저장 — 가득 차면 지워도 되는 큰 캐시부터 지우고 다시. 그래도 안 되면 false */
 export function lsSet(key: string, val: string): boolean {
-  try { localStorage.setItem(key, val); return true; } catch { /* 가득 */ }
+  try { localStorage.setItem(key, val); fails.delete(key); return true; } catch { /* 가득 */ }
   const victims = lsTop(10000).filter(x => x.key !== key && DISPOSABLE.test(x.key) && !KEEP.test(x.key));
   for (const v of victims) {
     try { localStorage.removeItem(v.key); } catch { /* */ }
-    try { localStorage.setItem(key, val); lastFail = undefined; return true; } catch { /* 아직 */ }
+    try { localStorage.setItem(key, val); fails.delete(key); return true; } catch { /* 아직 */ }
   }
-  lastFail = `저장 공간 가득(${lsTotalKb()}KB) — 큰 항목: ${lsTop(5).map(x => `${x.key} ${x.kb}KB`).join(", ")}`;
+  fails.set(key, `저장 공간 가득(${lsTotalKb()}KB) — 큰 항목: ${lsTop(5).map(x => `${x.key} ${x.kb}KB`).join(", ")}`);
   return false;
 }
