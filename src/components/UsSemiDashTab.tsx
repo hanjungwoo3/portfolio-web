@@ -78,7 +78,11 @@ export function UsSemiDashTab() {
   const autoEnd = endOf() ?? nowMs;
   const autoView = { span: Math.min(12 * 3600_000, Math.max(30 * 60_000, dayStart ? autoEnd - dayStart : 12 * 3600_000)), end: endOf() as number | null };
   void kd0;
-  const autoLabel = closed ? `오늘 거래 한 화면(${kstLabel(lastT, true)}까지)` : "오늘 거래 한 화면";
+  // 지난 거래일을 보여 주는 중이면 흐리게 + 날짜(사용자 2026-11-26 "오늘꺼가 아니면 흐리게? 그래프 날짜도")
+  const pastDay = dayStart > 0 && dayStart < dayStartOf(nowMs);
+  const dayDate = dayStart ? etNow(dayStart + 12 * 3600_000).date : "";   // 정규장 날짜(ET)
+  const dayName = dayDate ? `${+dayDate.slice(5, 7)}/${+dayDate.slice(8, 10)}(${"일월화수목금토"[new Date(`${dayDate}T12:00:00Z`).getUTCDay()]})` : "";
+  const autoLabel = pastDay ? `${dayName} 거래 한 화면(미국 날짜)` : closed ? `오늘 거래 한 화면(${kstLabel(lastT, true)}까지)` : "오늘 거래 한 화면";
   const [viewS, setView] = useState<{ span: number; end: number | null } | null>(null);   // null = 자동(2시간 — 장중 지금까지 / 장 마감 뒤 마지막 봉까지), end null = 지금을 따라간다
   const view = viewS ?? autoView;
   const vT1 = view.end ?? nowMs, vT0 = vT1 - view.span;
@@ -105,7 +109,8 @@ export function UsSemiDashTab() {
       </div>
       <div className="flex items-center gap-2 text-[11px] text-gray-500">
         <b className="text-gray-700">그래프 {viewS ? `${spanLabel}${view.end ? ` · ${kstLabel(vT1, true)}까지` : " · 지금까지"}` : autoLabel}</b>
-        {closed && !viewS && <span className="text-amber-600">미국 장 마감 — 마지막 거래일을 보여 줍니다</span>}
+        {pastDay ? <span className="text-amber-600">오늘 미국 거래 없음(휴장·주말) — 지난 거래일 {dayName} 그래프를 흐리게 보여 줍니다</span>
+          : closed && !viewS && <span className="text-amber-600">미국 장 마감 — 마지막 거래일을 보여 줍니다</span>}
         <span>끌기 = 좌우 이동 · 휠·두 손가락 = 확대·축소(지금 기준) · 두 번 클릭 = 오늘 한 화면</span>
         {/* 기간 단추 — 2·12·24·48시간(사용자 2026-11-21), 장 마감 뒤엔 마지막 봉에서 거꾸로 */}
         {viewS && <button type="button" onClick={resetView} className="px-1.5 py-0.5 rounded border border-gray-300 bg-white font-bold text-gray-600 hover:bg-gray-100">오늘 한 화면으로</button>}   {/* 기간 단추는 뺐다(사용자 2026-11-24) */}
@@ -124,7 +129,7 @@ export function UsSemiDashTab() {
         {STOCKS.map((s, i) => (
           <StockPanel key={s.ticker} s={s} flow={flows[i]} kd={kd}
                       shortDays={short.data?.days.flatMap(d => d.rows[s.ticker] ? [{ date: d.date, sv: d.rows[s.ticker][0], tv: d.rows[s.ticker][1] }] : [])}
-                      bg={seriesToday[STOCKS.length]} price48={seriesToday[i]} t0={vT0} t1={vT1} onZoom={zoom} onPan={pan} onReset={resetView}
+                      pastName={pastDay ? dayName : undefined} bg={seriesToday[STOCKS.length]} price48={seriesToday[i]} t0={vT0} t1={vT1} onZoom={zoom} onPan={pan} onReset={resetView}
                       hold={seohak?.hold.find(h => h.t === s.ticker)} holdDate={seohak?.meta.holdDate}
                       dayNet={seohak?.day.net.find(h => h.t === s.ticker)?.net ?? seohak?.day.sell.find(h => h.t === s.ticker)?.net} />
         ))}
@@ -137,8 +142,8 @@ export function UsSemiDashTab() {
   );
 }
 
-function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg, price48, t0, t1, onZoom, onPan, onReset }: {
-  s: (typeof STOCKS)[number]; flow: UsTickFlow; kd: number; t0: number; t1: number; onZoom: (f: number, frac: number) => void; onPan: (d: number) => void; onReset: () => void; bg?: { t: number; close: number; base?: number }[]; price48?: { t: number; close: number; base?: number; volume?: number }[];
+function StockPanel({ s, flow, kd, pastName, shortDays, hold, holdDate, dayNet, bg, price48, t0, t1, onZoom, onPan, onReset }: {
+  s: (typeof STOCKS)[number]; flow: UsTickFlow; kd: number; pastName?: string; t0: number; t1: number; onZoom: (f: number, frac: number) => void; onPan: (d: number) => void; onReset: () => void; bg?: { t: number; close: number; base?: number }[]; price48?: { t: number; close: number; base?: number; volume?: number }[];
   shortDays?: { date: string; sv: number; tv: number }[];
   hold?: { amt: number; rank: number; prevRank?: number; prevAmt?: number }; holdDate?: string;
   dayNet?: number;
@@ -185,7 +190,12 @@ function StockPanel({ s, flow, kd, shortDays, hold, holdDate, dayNet, bg, price4
       {/* 그래프 왼쪽 · 큰 체결 오른쪽(국내 반도체 수급처럼, 사용자 2026-11-21) — 좁은 화면은 아래로 */}
       <div className="sm:flex sm:items-start sm:gap-2">
         <div className="sm:flex-1 sm:min-w-0">
-          <FlowChart ms={ms} etDate={flow.etDate} kd={kd} price={price48} bg={bg} base={pxBase} T0={t0} T1={t1} onZoom={onZoom} onPan={onPan} onReset={onReset} />
+          <div className="relative">
+            <div className={pastName ? "opacity-45" : undefined}>
+              <FlowChart ms={ms} etDate={flow.etDate} kd={kd} price={price48} bg={bg} base={pxBase} T0={t0} T1={t1} onZoom={onZoom} onPan={onPan} onReset={onReset} />
+            </div>
+            {pastName && <span className="pointer-events-none absolute top-1 left-1/2 -translate-x-1/2 rounded bg-white/90 border border-gray-300 px-1.5 py-0.5 text-[11px] font-bold text-gray-600">{pastName} 거래(미국 날짜) — 오늘 아님</span>}
+          </div>
           <div className="mt-0.5 text-[10.5px] text-gray-400">
             {flow.error ? <span className="text-rose-500">체결 받기 실패 — {flow.error}</span>
               : flow.since ? <><span className="text-gray-500">가격·나스닥 = 토스 1분·5분봉 · </span>{ms.some(m => m.kis) && <span className="text-emerald-600">한투로 정확히 나눈 분 {ms.filter(m => m.kis).length}개 · </span>}체결은 한국 시각 {etToKst(flow.since.slice(0, 5), kd)}부터 쌓는 중 · 마지막 {etToKst(flow.last!.slice(0, 5), kd)}{flow.gaps ? ` · 빠진 구간 ${flow.gaps}번` : ""}</>
