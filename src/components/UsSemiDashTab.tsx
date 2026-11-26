@@ -50,11 +50,21 @@ export function UsSemiDashTab() {
   });
   // 오늘 것만 — 토스 거래일(ET 20:00 데이마켓 시작 ~ 다음 날 20:00 애프터 끝) 한 판(사용자 2026-11-24 "미국도 국내처럼 오늘 것만")
   const lastAll = Math.max(0, ...series.map(a => a[a.length - 1]?.t ?? 0));
-  const dayStart = (() => {
-    if (!lastAll) return 0;
-    const e = etNow(lastAll);   // 마지막 봉의 ET 날짜·분
+  const dayStartOf = (t: number) => {
+    const e = etNow(t);   // 그 봉의 ET 날짜·분
     const d = e.min >= 20 * 60 ? e.date : new Date(Date.parse(`${e.date}T12:00:00Z`) - 86400_000).toISOString().slice(0, 10);
     return etEpoch(d, "20:00", e.kstDiff);
+  };
+  const dayStart = (() => {
+    if (!lastAll) return 0;
+    let d0 = dayStartOf(lastAll);
+    // 새 거래일 봉이 몇 개뿐이면(휴장 전날 ET 20:00 경계에 걸린 한두 봉 — 추수감사절 2026-11-26 실제) 그 앞 거래일로(사용자 2026-11-26 "오늘 미국 휴장인데 어제 그래프 나와야")
+    const nNew = Math.max(0, ...series.map(a => a.filter(p => p.t >= d0).length));
+    if (nNew < 6 && Date.now() - lastAll > 20 * 60_000) {
+      const prevT = Math.max(0, ...series.map(a => a.filter(p => p.t < d0).pop()?.t ?? 0));
+      if (prevT) d0 = dayStartOf(prevT);
+    }
+    return d0;
   })();
   const seriesToday = series.map(a => a.filter(p => p.t >= dayStart));
   // 장 마감 뒤(최근 20분 동안 봉이 없음)엔 기본 화면 = 마지막 거래일 정규장(ET 09:15~16:15) — 빈 '최근 1시간' 대신(사용자 2026-11-21 "장마감 후에는 바로 전날 그래프")
