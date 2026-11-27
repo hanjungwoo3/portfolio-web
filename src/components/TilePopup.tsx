@@ -37,7 +37,7 @@ function TilePopup({ req: req0, onClose }: { req: TilePopupReq; onClose: () => v
     // 정규장·장외를 업종 표가 넘겨줬으면 그것(카드 배지와 같은 꼴), 아니면 지금 시세
     const hasReg = i.reg != null;
     // dim = 업종 표와 같은 흐림 판정(막대 회색)
-    return { code, name: i.name, kr: !!k, lead: !k, dim: !!i.dim, ext: hasReg ? (i.aft ?? null) : null, extLabel: i.ses,
+    return { code, name: i.name, kr: !!k, lead: !k, dim: !!i.dim, ext: hasReg ? (i.aft ?? 0) : null, extLabel: i.ses,   // 정규장 값은 있는데 장외 값이 없으면 = 장외에서 안 움직였다 → 0(타일에 '변동 없음', 사용자 2026-11-27)
              pct: hasReg ? i.reg! : p ? (dayChangePct(p) ?? i.pct ?? null) : (i.pct ?? null), price: p?.price ?? i.price ?? null, yen: !p && /\.T$/.test(i.sym), cap: tv ? (tv.marketCap || tv.aum) : undefined, logoid: tv?.logoid };
   });
   return (

@@ -26,7 +26,9 @@ const capText = (v: number | undefined, kr: boolean) => !v ? "" : kr
 
 export type TileSort = "cap" | "pct";
 /** 크게 보이는 값 — 장외(프리·애프터) 값이 있으면 그것(업종 한눈에 줄과 같은 규칙) */
-const shownPct = (t: Tile) => t.ext ?? t.pct;
+// ext 0 = 장외(애프터)에서 안 움직였다 → '정규' 뱃지 위 + 아래 '변동 없음'(사용자 2026-11-27 "정규가를 동일하게 뱃지로 올리고 애프터에 변동없음")
+const extOf = (t: Tile) => t.ext ?? null;
+const shownPct = (t: Tile) => extOf(t) ?? t.pct;
 /** 시총순 | 등락순 단추 — HeatTiles 안쪽 또는 팝업 머리에서 같은 모양으로 */
 export function TileSortToggle({ sort, onSort }: { sort: TileSort; onSort: (s: TileSort) => void }) {
   return (
@@ -109,12 +111,12 @@ export function TileCard({ t, onOpen, className = "" }: { t: Tile; onOpen?: (t: 
   const open = onOpen ?? ((x: Tile) => (x.kr ? openStockInfo(x.code, x.name) : openTossStock(x.code)));
 
     // 장외(프리·애프터·NXT)면 업종 한눈에처럼 — 위에 '정규 x%' 작게, 아래 그 구간 % 크게(사용자 2026-11-12 "정규장에 배경을… 이렇게 하던지")
-    const pct = shownPct(t), reg = t.ext != null ? t.pct : null;
+    const ext = extOf(t), pct = shownPct(t), reg = ext != null ? t.pct : null, flat = ext != null && Math.abs(ext) < 0.005;
     const tone = (v: number | null) => v == null ? "text-gray-300" : v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500";
     const f = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
     const bg = pct == null ? "bg-gray-50 border-gray-200" : pct >= 3 ? "bg-rose-100 border-rose-300" : pct > 0 ? "bg-rose-50 border-rose-200" : pct <= -3 ? "bg-blue-100 border-blue-300" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
     return (
-      <button type="button" title={`${t.name}${reg != null ? ` 정규 ${f(reg)} · ${t.extLabel ?? "장외"} ${f(t.ext!)}(정규장 종가 대비)` : pct != null ? ` ${f(pct)}` : ""} · 누르면 ${t.kr ? "종목정보" : "토스"}`}
+      <button type="button" title={`${t.name}${reg != null ? ` 정규 ${f(reg)} · ${t.extLabel ?? "애프터"} ${flat ? "변동 없음" : `${f(ext!)}(정규장 종가 대비)`}` : pct != null ? ` ${f(pct)}` : ""} · 누르면 ${t.kr ? "종목정보" : "토스"}`}
               onClick={() => open(t)}
               className={`${className} pg-card text-left rounded-md border px-1.5 py-1 hover:brightness-95 ${bg} ${t.lead ? "ring-2 ring-violet-400 ring-inset" : ""} ${t.dim ? "opacity-50" : ""}`}>
         <div className="flex items-center gap-1 min-w-0">
@@ -123,7 +125,7 @@ export function TileCard({ t, onOpen, className = "" }: { t: Tile; onOpen?: (t: 
           <span className="ml-auto shrink-0 text-right leading-tight tabular-nums">
             {reg != null && <span className={`block text-[9.5px] opacity-70 ${tone(reg)}`}>정규 {f(reg)}</span>}
             <span className="block text-[12px] font-bold">
-              <span className={tone(pct)}>{pct == null ? "—" : f(pct)}</span>
+              {flat ? <span className="text-[11px] text-gray-500">{t.extLabel ?? "애프터"} 변동 없음</span> : <span className={tone(pct)}>{pct == null ? "—" : f(pct)}</span>}
             </span>
           </span>
         </div>
