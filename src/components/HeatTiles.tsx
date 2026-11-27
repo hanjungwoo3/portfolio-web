@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { heatmapLogoUrl } from "../lib/api";
 import { openStockInfo } from "../lib/tickPopup";
 import { openTossStock } from "../lib/toss";
+import { canForeignInfo, openForeignStockInfo } from "../lib/foreignInfo";
 
 export interface Tile {
   code: string; name: string;
@@ -24,6 +25,8 @@ const capText = (v: number | undefined, kr: boolean) => !v ? "" : kr
   ? (v >= 1e12 ? `${(v / 1e12).toFixed(v >= 1e14 ? 0 : 1)}조` : `${Math.round(v / 1e8).toLocaleString()}억`)
   : (v >= 1e12 ? `$${(v / 1e12).toFixed(1)}T` : `$${Math.round(v / 1e9)}B`);
 
+/** 타일 누름 기본 — 국내 = 종목정보, 미국·일본 = 해외 종목정보 창(사용자 2026-11-27), 그 밖 = 토스·야후 */
+const openTileDefault = (t: Tile) => (t.kr ? openStockInfo(t.code, t.name) : canForeignInfo(t.code) ? openForeignStockInfo(t.code, t.name) : openTossStock(t.code));
 export type TileSort = "cap" | "pct";
 /** 크게 보이는 값 — 장외(프리·애프터) 값이 있으면 그것(업종 한눈에 줄과 같은 규칙) */
 // ext 0 = 장외(애프터)에서 안 움직였다 → '정규' 뱃지 위 + 아래 '변동 없음'(사용자 2026-11-27 "정규가를 동일하게 뱃지로 올리고 애프터에 변동없음")
@@ -76,7 +79,7 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
       </div>
     );
   };
-  const open = onOpen ?? ((t: Tile) => (t.kr ? openStockInfo(t.code, t.name) : openTossStock(t.code)));
+  const open = onOpen ?? openTileDefault;
   const tile = (t: Tile) => <TileCard key={t.code} t={t} onOpen={open} />;
 
   return (
@@ -108,7 +111,7 @@ export function HeatTiles({ tiles, limit, cols = "grid-cols-2 sm:grid-cols-4 lg:
 
 /** 타일 한 장 — 판(HeatTiles) 밖에서도 같은 모양으로(최신공시 왼쪽 등, 사용자 2026-11-10 "여기도 종목 카드 말고 타일로") */
 export function TileCard({ t, onOpen, className = "" }: { t: Tile; onOpen?: (t: Tile) => void; className?: string }) {
-  const open = onOpen ?? ((x: Tile) => (x.kr ? openStockInfo(x.code, x.name) : openTossStock(x.code)));
+  const open = onOpen ?? openTileDefault;
 
     // 장외(프리·애프터·NXT)면 업종 한눈에처럼 — 위에 '정규 x%' 작게, 아래 그 구간 % 크게(사용자 2026-11-12 "정규장에 배경을… 이렇게 하던지")
     const ext = extOf(t), pct = shownPct(t), reg = ext != null ? t.pct : null, flat = ext != null && Math.abs(ext) < 0.005;
@@ -116,7 +119,7 @@ export function TileCard({ t, onOpen, className = "" }: { t: Tile; onOpen?: (t: 
     const f = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
     const bg = pct == null ? "bg-gray-50 border-gray-200" : pct >= 3 ? "bg-rose-100 border-rose-300" : pct > 0 ? "bg-rose-50 border-rose-200" : pct <= -3 ? "bg-blue-100 border-blue-300" : pct < 0 ? "bg-blue-50 border-blue-200" : "bg-gray-50 border-gray-200";
     return (
-      <button type="button" title={`${t.name}${reg != null ? ` 정규 ${f(reg)} · ${t.extLabel ?? "애프터"} ${flat ? "변동 없음" : `${f(ext!)}(정규장 종가 대비)`}` : pct != null ? ` ${f(pct)}` : ""} · 누르면 ${t.kr ? "종목정보" : "토스"}`}
+      <button type="button" title={`${t.name}${reg != null ? ` 정규 ${f(reg)} · ${t.extLabel ?? "애프터"} ${flat ? "변동 없음" : `${f(ext!)}(정규장 종가 대비)`}` : pct != null ? ` ${f(pct)}` : ""} · 누르면 종목정보`}
               onClick={() => open(t)}
               className={`${className} pg-card text-left rounded-md border px-1.5 py-1 hover:brightness-95 ${bg} ${t.lead ? "ring-2 ring-violet-400 ring-inset" : ""} ${t.dim ? "opacity-50" : ""}`}>
         <div className="flex items-center gap-1 min-w-0">

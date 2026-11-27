@@ -21,6 +21,7 @@ import { takePendingHeatmap } from "../lib/heatmapNav";
 import { preferServer, fmtServerStamp, fetchLiveIndex } from "../lib/liveServer";
 import { openStockInfo } from "../lib/tickPopup";
 import { openTossStock } from "../lib/toss";
+import { canAnyStockInfo, openAnyStockInfo } from "../lib/foreignInfo";
 import { HeatTiles } from "./HeatTiles";
 
 const KR_SOURCES: HeatmapSource[] = ["kospi200", "kospi", "kosdaq150", "kosdaq", "kr_valueup", "all"];
@@ -568,7 +569,7 @@ export function HeatmapTab() {
             // 칸 누르면 한국 = 📊종목정보 창, 미국 = 토스 종목 페이지(종목정보 창엔 미국 자료가 없다, 없으면 야후)
             //   사용자 2026-10-30 "클릭도 안 되는데", "바로 연결 말고 종목정보창", "미장은 정보가 없으니 바로 연결"
             <div key={t.it.code}
-                 onClick={() => isKr ? openStockInfo(t.it.code, krName(t.it)) : openTossStock(t.it.code)}
+                 onClick={() => isKr ? openStockInfo(t.it.code, krName(t.it)) : canAnyStockInfo(t.it.code) ? openAnyStockInfo(t.it.code, t.it.name ?? t.it.code) : openTossStock(t.it.code)}
                  onMouseMove={e => setHover({ it: t.it, x: e.clientX, y: e.clientY })}
                  onMouseLeave={() => setHover(null)}
                  className="absolute flex flex-col items-center justify-center gap-0.5 overflow-hidden text-white cursor-pointer

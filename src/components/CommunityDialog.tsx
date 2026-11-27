@@ -100,7 +100,7 @@ export function TossPane({ ticker, refreshTs }: { ticker: string; refreshTs: num
     staleTime: 20 * 1000, refetchOnWindowFocus: false,
   });
   useRefetchOnGlobalPoll(refreshTs, refetch);
-  const tossUrl = `https://www.tossinvest.com/stocks/A${ticker}/community`;
+  const tossUrl = `https://www.tossinvest.com/stocks/${/^(US|NAS|NYS|AMX)/.test(ticker) ? ticker : `A${ticker}`}/community`;   // 미국 = 토스 코드 그대로
   return (
     <PaneShell title="🟦 토스 커뮤니티"
       right={
@@ -141,7 +141,7 @@ export function NaverPane({ ticker, refreshTs }: { ticker: string; refreshTs: nu
     staleTime: 20 * 1000, refetchOnWindowFocus: false,
   });
   useRefetchOnGlobalPoll(refreshTs, refetch);
-  const naverUrl = `https://finance.naver.com/item/board.naver?code=${ticker}`;
+  const naverUrl = /\.(O|N|A|K|T)$/.test(ticker) ? `https://stock.naver.com/worldstock/stock/${ticker}/discussion` : `https://finance.naver.com/item/board.naver?code=${ticker}`;   // 해외 = 로이터 코드
   return (
     <PaneShell title="🟩 네이버 종목토론실"
       right={

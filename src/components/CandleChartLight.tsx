@@ -67,6 +67,7 @@ interface Props {
   burstThreshold?: number;        // 거래대금(원) 기준 — 양봉 + 이 값 초과일의 거래량 막대를 강조
   ticker?: string;
   mode: "line" | "candle";
+  currency?: "KRW" | "USD" | "JPY";   // 해외 종목정보 창(사용자 2026-11-27) — 말풍선·축 단위. 기본 원
   maPeriods?: number[];   // 빈 배열이면 이평선 없음. 호출자가 useMemo 로 안정화할 것 (effect dep)
   showBB?: boolean;
   onReady?: (
@@ -117,7 +118,7 @@ function pickImportantKeyword(titles: string[]): string | null {
 
 export function CandleChartLight({
   prices, maPrices, investors, targetPrice, myAvgPrice, entryPrice, flowLines, dividends, splits, disclosures,
-  tradeMarkers, burstThreshold, ticker, mode,
+  tradeMarkers, burstThreshold, ticker, mode, currency = "KRW",
   maPeriods = EMPTY_PERIODS, showBB = false, onReady,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -205,7 +206,7 @@ export function CandleChartLight({
         wickDownColor: DN_COLOR,
         priceLineVisible: false,         // 자동 priceLine 숨김
         lastValueVisible: false,         // 자동 우측 라벨 숨김 — "현재가" priceLine 으로 대체
-        priceFormat: { type: "price", precision: 0, minMove: 1 },   // 원화 — 소수점 없이(3257727.00 이 축에 찍혔다)
+        priceFormat: currency === "USD" ? { type: "price", precision: 2, minMove: 0.01 } : { type: "price", precision: 0, minMove: 1 },   // 원화 — 소수점 없이(3257727.00 이 축에 찍혔다)
       });
       s.setData(candleData);
       priceSeries = s;
@@ -653,13 +654,14 @@ export function CandleChartLight({
       const isUp = p.open != null ? p.close >= p.open : true;
       const dirColor = isUp ? UP_COLOR : DN_COLOR;
 
+      const won = (v: number) => currency === "USD" ? `$${v.toLocaleString(undefined, { maximumFractionDigits: 2 })}` : currency === "JPY" ? `¥${Math.round(v).toLocaleString()}` : `${v.toLocaleString()}원`;
       // 종가대비 — 금액·% 동일 색 (양수 빨강 / 음수 파랑)
       const renderRow = (label: string, v: number, base: number) => {
         const d = ((v - base) / base) * 100;
         const sign = d >= 0 ? "+" : "";
         const c = d >= 0 ? UP_COLOR : DN_COLOR;
         return `<div><span class="text-gray-500">${label} </span>` +
-          `<span style="color:${c}">${v.toLocaleString()}원 (${sign}${d.toFixed(2)}%)</span></div>`;
+          `<span style="color:${c}">${won(v)} (${sign}${d.toFixed(2)}%)</span></div>`;
       };
 
       let content = `<div class="text-[10px] text-gray-400 mb-0.5">${String(time)}</div>`;
@@ -667,19 +669,19 @@ export function CandleChartLight({
         content += renderRow("시작", p.open, p.close);
         content += renderRow("고가", p.high, p.close);
         content += renderRow("저가", p.low, p.close);
-        content += `<div><span class="text-gray-500">종가 </span><span style="color:${dirColor}" class="font-bold">${p.close.toLocaleString()}원</span></div>`;
+        content += `<div><span class="text-gray-500">종가 </span><span style="color:${dirColor}" class="font-bold">${won(p.close)}</span></div>`;
       } else {
-        content += `<div><span class="text-gray-500">주가 </span><span style="color:${UP_COLOR}" class="font-bold">${p.close.toLocaleString()}원</span></div>`;
+        content += `<div><span class="text-gray-500">주가 </span><span style="color:${UP_COLOR}" class="font-bold">${won(p.close)}</span></div>`;
       }
       if (p.volume > 0) {
         content += `<div><span class="text-gray-500">거래량 </span><span style="color:${dirColor}">${fmtVol(p.volume)}</span></div>`;
-        content += `<div><span class="text-gray-500">거래대금 </span><span style="color:${dirColor}">${fmtAmount(p.close * p.volume)}</span></div>`;
+        content += `<div><span class="text-gray-500">거래대금 </span><span style="color:${dirColor}">${currency === "KRW" ? fmtAmount(p.close * p.volume) : won(p.close * p.volume)}</span></div>`;
       }
       for (const ma of maSeries) {
         const v = ma.byDate.get(String(time));
         if (v === undefined) continue;   // 워밍업 구간
         content += `<div><span class="text-gray-500">MA${ma.period} </span>` +
-          `<span style="color:${ma.color}">${Math.round(v).toLocaleString()}원</span></div>`;
+          `<span style="color:${ma.color}">${currency === "KRW" ? `${Math.round(v).toLocaleString()}원` : won(v)}</span></div>`;
       }
       // 이평 배열 — 이 봉에서 단기→장기가 계속 내림차순이면 정배열, 오름차순이면 역배열.
       //   봉마다 판정하므로 배열이 뒤집힌 시점을 hover 로 짚을 수 있다(헤더 배지는 현재 상태만).
@@ -761,7 +763,7 @@ export function CandleChartLight({
       catch { /* chart already removed */ }
       chart.remove();
     };
-  }, [prices, maPrices, investors, mode, maPeriods, showBB, targetPrice, myAvgPrice, entryPrice, flowLines, dividends, splits, disclosures, tradeMarkers, burstThreshold, ticker, onReady]);
+  }, [prices, maPrices, investors, mode, maPeriods, showBB, targetPrice, myAvgPrice, entryPrice, flowLines, dividends, splits, disclosures, tradeMarkers, burstThreshold, ticker, onReady, currency]);
 
   // 팝업 dismiss — 외부 클릭 / Esc
   useEffect(() => {

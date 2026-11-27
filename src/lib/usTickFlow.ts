@@ -63,6 +63,8 @@ function box(code: string): Box {
   return nb;
 }
 function save(code: string, b: Box) {
+  // 기기에 남기는 건 반도체 수급(미국) 네 종목만 — 해외 종목정보 창에서 아무 종목이나 열 때마다 키가 쌓이면 저장소가 찬다(2026-11-24 가득 참 사고)
+  if (!US_SEMI_STOCKS.some(s => s.toss === code)) return;
   lsSet(key(code), JSON.stringify({ ...b, minutes: [...b.minutes.values()] } satisfies Saved));   // 가득 차면 캐시를 비우고 다시
 }
 

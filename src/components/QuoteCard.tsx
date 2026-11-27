@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { DiscTags } from "./DiscTags";
 import { fetchKrPriceHistory, fetchYahooPriceHistory, fetchTossIntraday } from "../lib/api";
 import { openTossStock, openExternal, worldQuoteUrl } from "../lib/toss";
+import { canAnyStockInfo, openAnyStockInfo } from "../lib/foreignInfo";
 import { useChartRange, historyRange, trimByRange } from "../lib/chartRange";
 import { openStockInfo } from "../lib/tickPopup";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
@@ -42,7 +43,7 @@ export function QuoteCard({ code, name, sub, px, dim, badge, reg, className = "w
   });
   // 일본(.T) — 엔화로, 누르면 야후(토스엔 일본 종목이 없다). 지수(소부장) 칸의 이비덴·도쿄일렉트론 등(2026-11-02)
   const isJp = /\.T$/.test(code);
-  const open = () => isJp ? openExternal(worldQuoteUrl(code)) : isUs ? openTossStock(code) : openStockInfo(code, name);
+  const open = () => canAnyStockInfo(code) ? openAnyStockInfo(code, name) : isJp ? openExternal(worldQuoteUrl(code)) : isUs ? openTossStock(code) : openStockInfo(code, name);   // 미국·일본 = 해외 종목정보 창(사용자 2026-11-27)
   const fmtPx = (v: number) => isJp ? `¥${Math.round(v).toLocaleString()}` : isUs ? `$${v.toFixed(2)}` : Math.round(v).toLocaleString();
   const closes = trimByRange((hist.data ?? []).map(p => p.close), range);
   const pct = px?.pct;

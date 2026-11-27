@@ -10,6 +10,7 @@ import { bigThreshold, wonStep } from "../lib/useTickFlow";
 import { useSeohak } from "../lib/seohak";
 import { openExternal } from "../lib/toss";
 import { ShortRatioBox } from "./ShortRatioBox";
+import { openForeignStockInfo } from "../lib/foreignInfo";
 
 const STOCKS = US_SEMI_STOCKS;   // 목록은 lib/usTickFlow 한 벌(배경 수집과 같이)
 
@@ -32,16 +33,14 @@ function won(v: number, sign = false): string {
 }
 const tone = (v: number) => (v > 0 ? "text-rose-600" : v < 0 ? "text-blue-600" : "text-gray-500");
 
-export function UsSemiDashTab() {
-  const flows = [useUsTickFlow(STOCKS[0].toss), useUsTickFlow(STOCKS[1].toss), useUsTickFlow(STOCKS[2].toss), useUsTickFlow(STOCKS[3].toss)];   // 칸 수 고정(훅 순서)
-  const short = useQuery({ queryKey: ["us-short-volume"], queryFn: loadShort, staleTime: 3 * 3600_000, retry: 1 });
-  const seohak = useSeohak();
+/** 그래프 시간창·자료 — 반도체 수급(미국) 네 칸과 해외 종목정보 창(한 칸)이 같이 쓴다. series 마지막 = QQQ */
+export function useUsDayView(stockCodes: string[]) {
   // 배경 나스닥 — 나스닥100(QQQ), 국내 탭의 배경 코스피처럼(사용자 2026-11-21 "배경에 나스닥 그래프")
   // 그래프 = 기본 최근 1시간, 휠로 확대·축소(15분~48시간), 끌기·가로 휠로 좌우 이동, 두 번 클릭 = 최근 1시간(사용자 2026-11-21 "1시간만 보여주고 확대/축소, 좌우 스크롤")
   //   네 칸이 같이 움직인다. 자료 = 최근 ~6.6시간 1분봉(400봉) + 48시간 5분봉 — 1분봉이 있는 구간은 1분봉으로
   const q1 = (code: string) => ({ queryKey: ["us-semi-1m", code], queryFn: () => fetchTossUs5mHours(code, 7, "min:1"), refetchInterval: 60_000, staleTime: 30_000, retry: 1 });
   const q5 = (code: string) => ({ queryKey: ["us-semi-5m", code], queryFn: () => fetchTossUs5mHours(code, 48, "min:5"), refetchInterval: 300_000, staleTime: 120_000, retry: 1 });
-  const codes = [...STOCKS.map(s => s.toss), "US19990310001"];   // 마지막 = QQQ
+  const codes = [...stockCodes, "US19990310001"];   // 마지막 = QQQ
   const c1 = useQueries({ queries: codes.map(q1) }), c5 = useQueries({ queries: codes.map(q5) });
   const series = codes.map((_, i) => {
     const a1 = c1[i]?.data ?? [], a5 = c5[i]?.data ?? [];
@@ -100,6 +99,14 @@ export function UsSemiDashTab() {
   const pan = (dfrac: number) => setView(v0 => { const v = v0 ?? autoView; return { span: v.span, end: fixEnd((v.end ?? Date.now()) + dfrac * v.span, v.span) }; });
   const resetView = () => setView(null);
   const spanLabel = view.span >= 3600_000 ? `${+(view.span / 3600_000).toFixed(1)}시간` : `${Math.round(view.span / 60_000)}분`;
+  return { seriesToday, vT0, vT1, zoom, pan, resetView, pastDay, dayName, autoLabel, viewS, view, spanLabel, closed, nowMs };
+}
+
+export function UsSemiDashTab() {
+  const flows = [useUsTickFlow(STOCKS[0].toss), useUsTickFlow(STOCKS[1].toss), useUsTickFlow(STOCKS[2].toss), useUsTickFlow(STOCKS[3].toss)];   // 칸 수 고정(훅 순서)
+  const short = useQuery({ queryKey: ["us-short-volume"], queryFn: loadShort, staleTime: 3 * 3600_000, retry: 1 });
+  const seohak = useSeohak();
+  const { seriesToday, vT0, vT1, zoom, pan, resetView, pastDay, dayName, autoLabel, viewS, view, spanLabel, closed } = useUsDayView(STOCKS.map(s => s.toss));
   const kd = etNow().kstDiff;
   return (
     <div className="space-y-1.5 p-1">
@@ -142,8 +149,32 @@ export function UsSemiDashTab() {
   );
 }
 
-function StockPanel({ s, flow, kd, pastName, shortDays, hold, holdDate, dayNet, bg, price48, t0, t1, onZoom, onPan, onReset }: {
-  s: (typeof STOCKS)[number]; flow: UsTickFlow; kd: number; pastName?: string; t0: number; t1: number; onZoom: (f: number, frac: number) => void; onPan: (d: number) => void; onReset: () => void; bg?: { t: number; close: number; base?: number }[]; price48?: { t: number; close: number; base?: number; volume?: number }[];
+/** 종목 하나 — 해외 종목정보 창 ⚡실시간 자리(사용자 2026-11-27 "이 정보를 기반으로 미국 종목도 종목정보 창"). 반도체 수급(미국) 칸과 같은 그림 */
+export function UsStockLive({ ticker, toss, name, desc }: { ticker: string; toss: string; name: string; desc?: string }) {
+  const flow = useUsTickFlow(toss);
+  const short = useQuery({ queryKey: ["us-short-volume"], queryFn: loadShort, staleTime: 3 * 3600_000, retry: 1 });
+  const seohak = useSeohak();
+  const v = useUsDayView([toss]);
+  const kd = etNow().kstDiff;
+  return (
+    <div className="space-y-2.5">
+      <div className="flex flex-wrap items-center gap-2 text-[11px] text-gray-500">
+        <b className="text-gray-700">그래프 {v.viewS ? `${v.spanLabel}${v.view.end ? ` · ${kstLabel(v.vT1, true)}까지` : " · 지금까지"}` : v.autoLabel}</b>
+        {v.pastDay ? <span className="text-amber-600">오늘 미국 거래 없음 — 지난 거래일 {v.dayName}</span> : v.closed && !v.viewS && <span className="text-amber-600">미국 장 마감 — 마지막 거래일</span>}
+        <span>끌기 = 좌우 · 휠 = 확대·축소 · 두 번 클릭 = 오늘 한 화면</span>
+      </div>
+      <StockPanel s={{ ticker, toss, name, desc: desc ?? "" }} inInfo flow={flow} kd={kd}
+                  shortDays={short.data?.days.flatMap(d => d.rows[ticker] ? [{ date: d.date, sv: d.rows[ticker][0], tv: d.rows[ticker][1] }] : [])}
+                  pastName={v.pastDay ? v.dayName : undefined} bg={v.seriesToday[1]} price48={v.seriesToday[0]} t0={v.vT0} t1={v.vT1} onZoom={v.zoom} onPan={v.pan} onReset={v.resetView}
+                  hold={seohak?.hold.find(h => h.t === ticker)} holdDate={seohak?.meta.holdDate}
+                  dayNet={seohak?.day.net.find(h => h.t === ticker)?.net ?? seohak?.day.sell.find(h => h.t === ticker)?.net} />
+      <div className="text-[10.5px] text-gray-400">체결은 이 창을 켠 동안만 쌓입니다(반도체 수급(미국) 네 종목은 앱이 배경에서도 쌓음). 공매도 비중은 FINRA 자료에 있는 종목만.</div>
+    </div>
+  );
+}
+
+function StockPanel({ s, inInfo, flow, kd, pastName, shortDays, hold, holdDate, dayNet, bg, price48, t0, t1, onZoom, onPan, onReset }: {
+  s: { ticker: string; toss: string; name: string; desc: string }; inInfo?: boolean; flow: UsTickFlow; kd: number; pastName?: string; t0: number; t1: number; onZoom: (f: number, frac: number) => void; onPan: (d: number) => void; onReset: () => void; bg?: { t: number; close: number; base?: number }[]; price48?: { t: number; close: number; base?: number; volume?: number }[];
   shortDays?: { date: string; sv: number; tv: number }[];
   hold?: { amt: number; rank: number; prevRank?: number; prevAmt?: number }; holdDate?: string;
   dayNet?: number;
@@ -162,7 +193,7 @@ function StockPanel({ s, flow, kd, pastName, shortDays, hold, holdDate, dayNet, 
   return (
     <div className="relative rounded-xl border border-gray-300 bg-white pg-box p-3 pt-4 mt-1.5">
       <span className="pg-title absolute -top-3 left-3 px-2 py-0.5 rounded-md border border-gray-300 bg-gray-50 text-sm font-bold text-gray-700">
-        <button type="button" className="hover:underline" onClick={() => openExternal(`https://www.tossinvest.com/stocks/${s.toss}`)}>{s.name} <span className="text-gray-400 font-normal">{s.ticker}</span></button>
+        <button type="button" className="hover:underline" onClick={() => (inInfo ? openExternal(`https://www.tossinvest.com/stocks/${s.toss}`) : openForeignStockInfo(s.ticker, s.name, s.toss))} title={inInfo ? "토스에서 보기" : "종목정보(요약·실적·일봉)"}>{s.name} <span className="text-gray-400 font-normal">{s.ticker}</span></button>
         {/* 서학개미 — 종목명 옆 한 줄(사용자 2026-11-21 "이건 종목명 옆으로") */}
         <span className="ml-2 text-[10.5px] font-normal text-gray-600" title={`예탁결제원 세이브로 — 보관 ${holdDate ?? ""} 기준, 하루 순매수는 직전 결제일`}>
           🐜 {hold ? <>보관 {hold.rank}위 ${(hold.amt / 1e9).toFixed(2)}B{hold.prevAmt ? <span className={tone(hold.amt - hold.prevAmt)}>({hold.amt >= hold.prevAmt ? "+" : "−"}${(Math.abs(hold.amt - hold.prevAmt) / 1e6).toFixed(0)}M)</span> : null}</> : <span className="text-gray-400">보관 50위 밖</span>}

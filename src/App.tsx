@@ -24,6 +24,7 @@ import { SeohakPage } from "./components/SeohakBox";
 import { HotNowTab } from "./components/HotNowTab";
 import { CompareHost } from "./components/CompareHost";
 import { TilePopupHost } from "./components/TilePopup";
+import { ForeignStockInfoHost } from "./components/ForeignStockInfo";
 import { DesktopVersionBadge } from "./components/DesktopVersionBadge";
 import { startBackgroundTicks } from "./lib/tickStore";
 import { startUsBackgroundTicks } from "./lib/usTickFlow";
@@ -1406,6 +1407,7 @@ function Dashboard() {
 
       <CompareHost />
       <TilePopupHost />
+      <ForeignStockInfoHost />
       {valuationTicker && (() => {
         // 보유종목이면 평단/이름 사용, 비보유(예: ETF비교에서 연 ETF)면 전달받은 이름 폴백.
         const s = holdings.find(h => h.ticker === valuationTicker);

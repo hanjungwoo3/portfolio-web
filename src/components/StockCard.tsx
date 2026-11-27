@@ -13,7 +13,7 @@ import { useEtfCount } from "../lib/etfIndex";
 import { memoTagClass } from "../lib/memoColor";
 import { openTossStock, tossStockUrl } from "../lib/toss";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
-import { openStockInfo, canStockInfo } from "../lib/tickPopup";
+import { canAnyStockInfo, openAnyStockInfo } from "../lib/foreignInfo";
 import { Sparkline } from "./Sparkline";
 import { useChartRange, pickCardChart } from "../lib/chartRange";
 import { AuxIndicators } from "./AuxIndicators";
@@ -962,8 +962,8 @@ export function StockCard({
             );
           })()}
           {/* 📊 종목정보 — 실시간(체결·호가·거래원)·기업가치 탭 팝업. 국내 종목만(미국은 아래 🔍AI 만). 2026-10-23 ⚡체결+📊 통합 */}
-          {canStockInfo(stock.ticker) && (
-            <button onClick={() => openStockInfo(stock.ticker, stock.name)}
+          {canAnyStockInfo(stock.ticker) && (   /* 미국·일본도(사용자 2026-11-27) — 해외 종목정보 창 */
+            <button onClick={() => openAnyStockInfo(stock.ticker, stock.name)}
                     title="종목정보 — 실시간 체결·호가·거래원 / 기업가치 (팝업)"
                     className="inline-flex items-center px-1.5 py-0.5 rounded-t-md text-[10px] font-bold leading-none
                                border-t border-l border-r border-amber-300 text-amber-700 bg-amber-50 hover:bg-amber-100 transition">

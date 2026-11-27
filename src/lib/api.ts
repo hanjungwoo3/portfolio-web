@@ -1160,8 +1160,10 @@ interface TossCommentRaw {
 }
 // 종목 커뮤니티 댓글 최신순. RECENT 정렬. 익명 접근 가능. 티커=6자리 KR 코드.
 export async function fetchTossCommunity(ticker: string): Promise<TossCommunityComment[]> {
-  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
-  const isin = await resolveKrIsin(ticker);
+  // 미국 종목 = 토스 코드(US…·NAS…)가 곧 subjectId(ISIN 으론 0건, 2026-11-27 실측)
+  const foreign = /^(US|NAS|NYS|AMX)\w{6,}$/.test(ticker);
+  if (!foreign && !/^[\dA-Za-z]{6}$/.test(ticker)) return [];
+  const isin = foreign ? ticker : await resolveKrIsin(ticker);
   if (!isin) return [];
   const url = `https://wts-cert-api.tossinvest.com/api/v4/comments`
             + `?subjectType=STOCK&subjectId=${encodeURIComponent(isin)}&commentSortType=RECENT`;
@@ -1213,11 +1215,13 @@ interface NaverDiscussPostRaw {
   notRecommendCount?: number;
 }
 export async function fetchNaverBoard(ticker: string): Promise<NaverBoardPost[]> {
-  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return [];
+  // 해외 = 로이터 코드(NVDA.O·IBM.N·8035.T) + FOREIGN_STOCK(2026-11-27 실측, 다른 값은 400)
+  const foreign = /^[A-Z\d][A-Z\d.]*\.(O|N|A|K|T)$/.test(ticker);
+  if (!foreign && !/^[\dA-Za-z]{6}$/.test(ticker)) return [];
   try {
     const resp = await fetchProxied(
       "https://stock.naver.com/api/community/discussion/posts"
-      + `?itemCode=${ticker}&discussionType=DOMESTIC_STOCK`
+      + `?itemCode=${encodeURIComponent(ticker)}&discussionType=${foreign ? "FOREIGN_STOCK" : "DOMESTIC_STOCK"}`
       + "&isHolderOnly=false&excludesItemNews=false&isItemNewsOnly=false&pageSize=30");
     if (!resp.ok) return [];
     const d = await resp.json() as { posts?: NaverDiscussPostRaw[] };
@@ -1237,7 +1241,7 @@ export async function fetchNaverBoard(ticker: string): Promise<NaverBoardPost[]>
         up: p.recommendCount ?? 0,
         down: p.notRecommendCount ?? 0,
         // 글 하나로 — 목록으로 가던 것(사용자 지적 2026-10-23). id 없으면 목록
-        url: `https://stock.naver.com/domestic/stock/${ticker}/discussion${p.id ? `/${p.id}` : ""}`,
+        url: `https://stock.naver.com/${foreign ? "worldstock" : "domestic"}/stock/${ticker}/discussion${p.id ? `/${p.id}` : ""}`,
       });
     }
     return out;
@@ -1404,7 +1408,7 @@ export async function fetchTossCodeInfo(code: string): Promise<{ symbol: string;
 //   없으면 code-or-symbol 1콜씩 찾아 기억) → 시세 200종목/콜. 처음 한 번만 코드를 찾고 그다음부터는 시세만(500종목 ≈ 3콜).
 //   토스에 없는 티커는 이번 실행 동안 다시 찾지 않는다. 돌려주는 Price 는 ticker = 티커, base·prevClose = 직전 정규장 종가.
 const tossUsMiss = new Set<string>();
-async function resolveTossUsCode(symbol: string): Promise<string | null> {
+export async function resolveTossUsCode(symbol: string): Promise<string | null> {
   const known = getTossCode(symbol);
   if (known) return known;
   if (tossUsMiss.has(symbol)) return null;
@@ -2466,8 +2470,10 @@ const ESTIMATE_KEY: Record<EstimateMetric, { actual: string; est: string }> = {
 export async function fetchTossEstimate(
   ticker: string, metric: EstimateMetric,
 ): Promise<EstimateSeries | null> {
-  if (!/^[\dA-Za-z]{6}$/.test(ticker)) return null;
-  const target = `https://wts-info-api.tossinvest.com/api/v2/companies/A${ticker}/financial/estimate/${metric}`;
+  // 미국 종목(토스 코드 US…·NAS…)도 같은 주소 — 값은 원화 환산(…Krw)을 쓴다(그래프가 원 단위, 사용자 2026-11-27 "미국 종목도 종목정보 창")
+  const foreign = /^(US|NAS|NYS|AMX)\w{6,}$/.test(ticker);
+  if (!foreign && !/^[\dA-Za-z]{6}$/.test(ticker)) return null;
+  const target = `https://wts-info-api.tossinvest.com/api/v2/companies/${foreign ? ticker : `A${ticker}`}/financial/estimate/${metric}`;
   let resp: Response;
   try {
     resp = await fetchProxied(target, {
@@ -2486,7 +2492,8 @@ export async function fetchTossEstimate(
   };
   const r = data.result;
   if (!r || !Array.isArray(r.graphs)) return null;
-  const { actual, est } = ESTIMATE_KEY[metric];
+  const k0 = ESTIMATE_KEY[metric], sfx = foreign ? "Krw" : "";
+  const actual = k0.actual + sfx, est = k0.est + sfx;
   const points: EstimatePoint[] = r.graphs.map(g => ({
     period: String(g.period ?? ""),
     actual: typeof g[actual] === "number" ? (g[actual] as number) : null,

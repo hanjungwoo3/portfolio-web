@@ -10,6 +10,7 @@ import { SeohakPage, SeohakTag } from "./SeohakBox";
 import { HotNowTab } from "./HotNowTab";
 import { CompareHost } from "./CompareHost";
 import { TilePopupHost } from "./TilePopup";
+import { ForeignStockInfoHost } from "./ForeignStockInfo";
 import { startBackgroundTicks } from "../lib/tickStore";
 import { startUsBackgroundTicks } from "../lib/usTickFlow";
 import { useKisRadar, radarLabel } from "../lib/kisRadar";
@@ -2582,6 +2583,7 @@ export function MobileSimpleView() {
       <GuideTour mobile />
       <CompareHost />
       <TilePopupHost />
+      <ForeignStockInfoHost />
 
       {/* 기업가치 모달 — 📊 버튼으로 호출 */}
       {valuationTicker && (() => {
