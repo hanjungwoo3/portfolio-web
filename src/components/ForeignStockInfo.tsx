@@ -155,6 +155,53 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
     </div>
   ) : null;
 
+  const valB = <Block title="📊 가치평가" sub="주가가 비싼지 싼지 판단" loading={tvQ.isLoading || indQ.isLoading} rows={[
+                  { k: "시가총액", v: ov?.capUsd ? <>{big(ov.capUsd, "USD")}<span className="ml-1 text-[11px] font-normal text-gray-500">{big(ov.capKrw, "KRW")}</span></> : big(num(tv?.market_cap_basic), cur$) },
+                  { k: "기업가치(EV)", v: big(ov?.evUsd, "USD"), desc: "시가총액 + 순부채 — 회사를 통째로 살 때 드는 값" },
+                  { k: "PER", v: ind?.per ?? (num(tv?.price_earnings_ttm) != null ? `${num(tv?.price_earnings_ttm)!.toFixed(1)}배` : null), desc: "주가 ÷ 주당순이익 — 몇 년치 이익인가" },
+                  { k: "예상 PER", v: num(tv?.price_earnings_forward_fy) != null ? `${num(tv?.price_earnings_forward_fy)!.toFixed(1)}배` : null, desc: "올해 예상 이익 기준" },
+                  { k: "PBR", v: ind?.pbr ?? (num(tv?.price_book_fq) != null ? `${num(tv?.price_book_fq)!.toFixed(2)}배` : null), desc: "주가 ÷ 주당순자산" },
+                  { k: "PSR", v: ind?.psr ?? null, desc: "시가총액 ÷ 매출" },
+                  { k: "EPS", v: money(ind?.eps ?? num(tv?.earnings_per_share_diluted_ttm), cur$), desc: "주당순이익(최근 1년)" },
+                  { k: "BPS", v: money(ind?.bps, cur$), desc: "주당순자산" },
+                ]} />;
+  const profB = <Block title="💰 수익성" sub="회사가 얼마나 잘 버는지" loading={tvQ.isLoading} rows={[
+                  { k: "매출액(1년)", v: big(num(tv?.total_revenue_ttm), cur$) },
+                  { k: "매출총이익률", v: pctT(num(tv?.gross_margin_ttm), false) },
+                  { k: "영업이익률", v: pctT(num(tv?.operating_margin_ttm), false) },
+                  { k: "순이익률", v: pctT(num(tv?.net_margin_ttm), false) },
+                  { k: "ROE", v: ind?.roe ?? pctT(num(tv?.return_on_equity_fq), false), desc: "자기자본으로 1년에 얼마 버나" },
+                  { k: "잉여현금(1년)", v: big(num(tv?.free_cash_flow_ttm), cur$), desc: "영업으로 번 현금 − 설비투자" },
+                ]} />;
+  const retB = <Block title="🎁 주주환원" sub="주주에게 돌려주는 정도" rows={[
+                  { k: "배당수익률", v: ind?.divYield != null ? `${(ind.divYield * 100).toFixed(2)}%` : num(tv?.dividends_yield_current) != null ? `${num(tv?.dividends_yield_current)!.toFixed(2)}%` : null },
+                  { k: "연 배당금", v: money(ind?.divAnnual, cur$) },
+                  { k: "배당 주기", v: ind?.divFreq ? `${({ QUARTERLY: "분기", MONTHLY: "월", ANNUAL: "연", SEMI_ANNUAL: "반기" } as Record<string, string>)[ind.divFreq] ?? ind.divFreq}${ind.divMonths?.length ? ` (${ind.divMonths.join("·")}월)` : ""}` : null },
+                  { k: "최근 배당락", v: ind?.exDate ?? null },
+                ]} />;
+  const finB = <Block title="🏦 재무건전성" sub="빚이 너무 많지 않은지" rows={[
+                  { k: "부채비율", v: st?.debt != null ? `${st.debt.toFixed(1)}%` : null, desc: st?.median != null ? `업종 중간값 ${st.median.toFixed(1)}%` : undefined, cls: st?.position === "LOW" ? "text-rose-600" : st?.position === "HIGH" ? "text-blue-600" : undefined },
+                  { k: "유동비율", v: st?.current != null ? `${st.current.toFixed(0)}%` : null, desc: "1년 안에 갚을 빚 대비 현금화 자산 — 100% 위면 넉넉" },
+                  { k: "이자보상비율", v: st?.interest != null ? `${st.interest.toFixed(1)}배` : null },
+                  { k: "총부채", v: big(num(tv?.total_debt_fq), cur$) },
+                ]} />;
+  const statB = <Block title="📈 가격 통계" sub="최근 1년 가격 흐름" rows={[
+                  { k: "52주 최고", v: money(num(tv?.price_52_week_high), cur$), desc: px && num(tv?.price_52_week_high) ? `지금은 최고가의 ${Math.round((px / num(tv?.price_52_week_high)!) * 100)}%` : undefined },
+                  { k: "52주 최저", v: money(num(tv?.price_52_week_low), cur$) },
+                  { k: "1달 · 3달", v: num(tv?.["Perf.1M"]) != null ? <><span className={tone(num(tv?.["Perf.1M"]))}>{pctT(num(tv?.["Perf.1M"]))}</span> · <span className={tone(num(tv?.["Perf.3M"]))}>{pctT(num(tv?.["Perf.3M"]))}</span></> : null },
+                  { k: "올해 · 1년", v: num(tv?.["Perf.YTD"]) != null ? <><span className={tone(num(tv?.["Perf.YTD"]))}>{pctT(num(tv?.["Perf.YTD"]))}</span> · <span className={tone(num(tv?.["Perf.Y"]))}>{pctT(num(tv?.["Perf.Y"]))}</span></> : null },
+                  { k: "베타(1년)", v: num(tv?.beta_1_year)?.toFixed(2) ?? null, desc: "시장이 1% 움직일 때 이 종목이 움직이는 정도" },
+                  { k: "유통주식", v: pctT(num(tv?.float_shares_percent_current), false) },
+                ]} />;
+  const nxtB = <Block title="🗓️ 다음 실적" sub="발표 예정일(한국 날짜)" rows={[
+                  { k: "실적 발표", v: num(tv?.earnings_release_next_date) ? new Date(num(tv?.earnings_release_next_date)! * 1000 + 9 * 3600_000).toISOString().slice(0, 10) : null },
+                ]} />;
+  const tvconB = <Block title="🎯 컨센서스" sub="애널리스트 의견 · TradingView" loading={tvQ.isLoading} rows={[
+                    { k: "종합 의견", v: num(tv?.recommendation_mark) != null ? `${recText(num(tv?.recommendation_mark))} (${num(tv?.recommendation_mark)!.toFixed(2)})` : null, desc: "1 강력 매수 ~ 5 강력 매도" },
+                    { k: "목표가 평균", v: money(num(tv?.price_target_average), cur$), desc: px && num(tv?.price_target_average) ? `지금 대비 ${pctT((num(tv?.price_target_average)! / px - 1) * 100)}` : undefined },
+                    { k: "목표가 최고", v: money(num(tv?.price_target_high), cur$) },
+                    { k: "목표가 최저", v: money(num(tv?.price_target_low), cur$) },
+                  ]} />;
   const overviewBox = (ov || tv) ? (
               <section className={`p-3 bg-slate-50 border border-slate-200 rounded ${on ? "" : "mb-3"}`}>
                 <header className="flex items-baseline gap-2 mb-1.5">
@@ -208,13 +255,10 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
           {on && (
             <section data-sec="live" className="mb-6 space-y-4">
               {/* ⚡ 실시간 — 국내처럼 체결 + 새 소식 + 대화를 한자리에 */}
-              <div className="grid gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-stretch">   {/* 그래프 2 : 기업개요 1, 높이 맞춤(사용자 2026-11-28 "왼쪽 그래프를 좀더 줄이고 높이 맞춰야") */}
-                <div className="min-w-0"><UsStockLive ticker={sym} toss={toss} name={name} desc={ov?.industry} /></div>
-                {/* 기업개요 + 컨센서스 — 개요 아래 빈자리에(사용자 2026-11-28 "아래에 컨센서스 옮기자") */}
-                <div className="min-w-0 space-y-3 xl:mt-[30px]">
-                  {overviewBox}
-                  {conQ.data && <ConsensusBlock c={conQ.data} px={px} />}
-                </div>
+              <div className="grid gap-3 lg:grid-cols-2 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1fr)] items-start">   {/* 그래프 | 기업개요 | 컨센서스 한 줄(사용자 2026-11-28 "2개를 가로로, 차트 옆에 3개가 한줄로") */}
+                <div className="min-w-0 lg:col-span-2 xl:col-span-1"><UsStockLive ticker={sym} toss={toss} name={name} desc={ov?.industry} /></div>
+                <div className="min-w-0 xl:mt-[30px] space-y-3">{overviewBox}{nxtB}</div>   {/* 기업개요 아래 다음 실적 */}
+                <div className="min-w-0 xl:mt-[30px] space-y-3">{conQ.data ? <ConsensusBlock c={conQ.data} px={px} /> : tvconB}{retB}</div>   {/* 컨센서스 아래 주주환원 */}
               </div>
               {/* 뉴스 · 공시 · 토스 · 네이버 — 국내 실시간 칸과 같은 한 줄 4칸(사용자 2026-11-28 "국장은 4개가 한줄이야") */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[400px]">
@@ -245,65 +289,14 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
             {/* 🏢 기업개요 — 미국은 위 실시간 그래프 오른쪽으로 올렸다(사용자 2026-11-28 "그래프 오른쪽에 넣어도"), 일본은 여기 */}
             {!on && overviewBox}
             {/* 3 컬럼 — 국내 창과 같은 묶음(가치평가·수익성 | 주주환원·재무건전성·가격 통계 | 컨센서스) */}
-            {/* 한 줄 4칸(사용자 2026-11-28 "한줄에 4개씩 하면") — 가치평가 | 수익성·주주환원 | 재무건전성·가격 통계 | 컨센서스·다음 실적 */}
+            {/* 한 줄 4칸 — 미국은 주주환원·다음 실적·컨센서스가 위 실시간 줄로 올라가 가치평가 | 수익성 | 재무건전성 | 가격 통계 (사용자 2026-11-28) */}
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
-              <div className="space-y-3">
-                <Block title="📊 가치평가" sub="주가가 비싼지 싼지 판단" loading={tvQ.isLoading || indQ.isLoading} rows={[
-                  { k: "시가총액", v: ov?.capUsd ? <>{big(ov.capUsd, "USD")}<span className="ml-1 text-[11px] font-normal text-gray-500">{big(ov.capKrw, "KRW")}</span></> : big(num(tv?.market_cap_basic), cur$) },
-                  { k: "기업가치(EV)", v: big(ov?.evUsd, "USD"), desc: "시가총액 + 순부채 — 회사를 통째로 살 때 드는 값" },
-                  { k: "PER", v: ind?.per ?? (num(tv?.price_earnings_ttm) != null ? `${num(tv?.price_earnings_ttm)!.toFixed(1)}배` : null), desc: "주가 ÷ 주당순이익 — 몇 년치 이익인가" },
-                  { k: "예상 PER", v: num(tv?.price_earnings_forward_fy) != null ? `${num(tv?.price_earnings_forward_fy)!.toFixed(1)}배` : null, desc: "올해 예상 이익 기준" },
-                  { k: "PBR", v: ind?.pbr ?? (num(tv?.price_book_fq) != null ? `${num(tv?.price_book_fq)!.toFixed(2)}배` : null), desc: "주가 ÷ 주당순자산" },
-                  { k: "PSR", v: ind?.psr ?? null, desc: "시가총액 ÷ 매출" },
-                  { k: "EPS", v: money(ind?.eps ?? num(tv?.earnings_per_share_diluted_ttm), cur$), desc: "주당순이익(최근 1년)" },
-                  { k: "BPS", v: money(ind?.bps, cur$), desc: "주당순자산" },
-                ]} />
-              </div>
-              <div className="space-y-3">
-                <Block title="💰 수익성" sub="회사가 얼마나 잘 버는지" loading={tvQ.isLoading} rows={[
-                  { k: "매출액(1년)", v: big(num(tv?.total_revenue_ttm), cur$) },
-                  { k: "매출총이익률", v: pctT(num(tv?.gross_margin_ttm), false) },
-                  { k: "영업이익률", v: pctT(num(tv?.operating_margin_ttm), false) },
-                  { k: "순이익률", v: pctT(num(tv?.net_margin_ttm), false) },
-                  { k: "ROE", v: ind?.roe ?? pctT(num(tv?.return_on_equity_fq), false), desc: "자기자본으로 1년에 얼마 버나" },
-                  { k: "잉여현금(1년)", v: big(num(tv?.free_cash_flow_ttm), cur$), desc: "영업으로 번 현금 − 설비투자" },
-                ]} />
-                <Block title="🎁 주주환원" sub="주주에게 돌려주는 정도" rows={[
-                  { k: "배당수익률", v: ind?.divYield != null ? `${(ind.divYield * 100).toFixed(2)}%` : num(tv?.dividends_yield_current) != null ? `${num(tv?.dividends_yield_current)!.toFixed(2)}%` : null },
-                  { k: "연 배당금", v: money(ind?.divAnnual, cur$) },
-                  { k: "배당 주기", v: ind?.divFreq ? `${({ QUARTERLY: "분기", MONTHLY: "월", ANNUAL: "연", SEMI_ANNUAL: "반기" } as Record<string, string>)[ind.divFreq] ?? ind.divFreq}${ind.divMonths?.length ? ` (${ind.divMonths.join("·")}월)` : ""}` : null },
-                  { k: "최근 배당락", v: ind?.exDate ?? null },
-                ]} />
-              </div>
-              <div className="space-y-3">
-                <Block title="🏦 재무건전성" sub="빚이 너무 많지 않은지" rows={[
-                  { k: "부채비율", v: st?.debt != null ? `${st.debt.toFixed(1)}%` : null, desc: st?.median != null ? `업종 중간값 ${st.median.toFixed(1)}%` : undefined, cls: st?.position === "LOW" ? "text-rose-600" : st?.position === "HIGH" ? "text-blue-600" : undefined },
-                  { k: "유동비율", v: st?.current != null ? `${st.current.toFixed(0)}%` : null, desc: "1년 안에 갚을 빚 대비 현금화 자산 — 100% 위면 넉넉" },
-                  { k: "이자보상비율", v: st?.interest != null ? `${st.interest.toFixed(1)}배` : null },
-                  { k: "총부채", v: big(num(tv?.total_debt_fq), cur$) },
-                ]} />
-                <Block title="📈 가격 통계" sub="최근 1년 가격 흐름" rows={[
-                  { k: "52주 최고", v: money(num(tv?.price_52_week_high), cur$), desc: px && num(tv?.price_52_week_high) ? `지금은 최고가의 ${Math.round((px / num(tv?.price_52_week_high)!) * 100)}%` : undefined },
-                  { k: "52주 최저", v: money(num(tv?.price_52_week_low), cur$) },
-                  { k: "1달 · 3달", v: num(tv?.["Perf.1M"]) != null ? <><span className={tone(num(tv?.["Perf.1M"]))}>{pctT(num(tv?.["Perf.1M"]))}</span> · <span className={tone(num(tv?.["Perf.3M"]))}>{pctT(num(tv?.["Perf.3M"]))}</span></> : null },
-                  { k: "올해 · 1년", v: num(tv?.["Perf.YTD"]) != null ? <><span className={tone(num(tv?.["Perf.YTD"]))}>{pctT(num(tv?.["Perf.YTD"]))}</span> · <span className={tone(num(tv?.["Perf.Y"]))}>{pctT(num(tv?.["Perf.Y"]))}</span></> : null },
-                  { k: "베타(1년)", v: num(tv?.beta_1_year)?.toFixed(2) ?? null, desc: "시장이 1% 움직일 때 이 종목이 움직이는 정도" },
-                  { k: "유통주식", v: pctT(num(tv?.float_shares_percent_current), false) },
-                ]} />
-              </div>
-              <div className="space-y-3">
-                {conQ.data ? null : (
-                  <Block title="🎯 컨센서스" sub="애널리스트 의견 · TradingView" loading={tvQ.isLoading} rows={[
-                    { k: "종합 의견", v: num(tv?.recommendation_mark) != null ? `${recText(num(tv?.recommendation_mark))} (${num(tv?.recommendation_mark)!.toFixed(2)})` : null, desc: "1 강력 매수 ~ 5 강력 매도" },
-                    { k: "목표가 평균", v: money(num(tv?.price_target_average), cur$), desc: px && num(tv?.price_target_average) ? `지금 대비 ${pctT((num(tv?.price_target_average)! / px - 1) * 100)}` : undefined },
-                    { k: "목표가 최고", v: money(num(tv?.price_target_high), cur$) },
-                    { k: "목표가 최저", v: money(num(tv?.price_target_low), cur$) },
-                  ]} />
-                )}
-                <Block title="🗓️ 다음 실적" sub="발표 예정일(한국 날짜)" rows={[
-                  { k: "실적 발표", v: num(tv?.earnings_release_next_date) ? new Date(num(tv?.earnings_release_next_date)! * 1000 + 9 * 3600_000).toISOString().slice(0, 10) : null },
-                ]} />
-              </div>
+              {on ? <>{valB}{profB}{finB}{statB}</> : <>
+                <div className="space-y-3">{valB}</div>
+                <div className="space-y-3">{profB}{retB}</div>
+                <div className="space-y-3">{finB}{statB}</div>
+                <div className="space-y-3">{tvconB}{nxtB}</div>
+              </>}
             </div>
           </section>
 
