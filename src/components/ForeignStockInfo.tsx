@@ -156,7 +156,7 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
   ) : null;
 
   const overviewBox = (ov || tv) ? (
-              <section className={`p-3 bg-slate-50 border border-slate-200 rounded ${on ? "h-full xl:mt-[30px] xl:h-[calc(100%-30px-1.6rem)] overflow-y-auto" : "mb-3"}`}>
+              <section className={`p-3 bg-slate-50 border border-slate-200 rounded ${on ? "" : "mb-3"}`}>
                 <header className="flex items-baseline gap-2 mb-1.5">
                   <h3 className="text-sm font-bold text-gray-700">🏢 기업개요</h3>
                   <span className="text-[10px] text-gray-400">{ov ? (ov.source?.startsWith("출처") ? ov.source : `출처: ${ov.source ?? "토스"}`) : "출처: TradingView"}</span>
@@ -210,7 +210,11 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
               {/* ⚡ 실시간 — 국내처럼 체결 + 새 소식 + 대화를 한자리에 */}
               <div className="grid gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-stretch">   {/* 그래프 2 : 기업개요 1, 높이 맞춤(사용자 2026-11-28 "왼쪽 그래프를 좀더 줄이고 높이 맞춰야") */}
                 <div className="min-w-0"><UsStockLive ticker={sym} toss={toss} name={name} desc={ov?.industry} /></div>
-                {overviewBox}
+                {/* 기업개요 + 컨센서스 — 개요 아래 빈자리에(사용자 2026-11-28 "아래에 컨센서스 옮기자") */}
+                <div className="min-w-0 space-y-3 xl:mt-[30px]">
+                  {overviewBox}
+                  {conQ.data && <ConsensusBlock c={conQ.data} px={px} />}
+                </div>
               </div>
               {/* 뉴스 · 공시 · 토스 · 네이버 — 국내 실시간 칸과 같은 한 줄 4칸(사용자 2026-11-28 "국장은 4개가 한줄이야") */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[400px]">
@@ -241,7 +245,8 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
             {/* 🏢 기업개요 — 미국은 위 실시간 그래프 오른쪽으로 올렸다(사용자 2026-11-28 "그래프 오른쪽에 넣어도"), 일본은 여기 */}
             {!on && overviewBox}
             {/* 3 컬럼 — 국내 창과 같은 묶음(가치평가·수익성 | 주주환원·재무건전성·가격 통계 | 컨센서스) */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            {/* 한 줄 4칸(사용자 2026-11-28 "한줄에 4개씩 하면") — 가치평가 | 수익성·주주환원 | 재무건전성·가격 통계 | 컨센서스·다음 실적 */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-3 items-start">
               <div className="space-y-3">
                 <Block title="📊 가치평가" sub="주가가 비싼지 싼지 판단" loading={tvQ.isLoading || indQ.isLoading} rows={[
                   { k: "시가총액", v: ov?.capUsd ? <>{big(ov.capUsd, "USD")}<span className="ml-1 text-[11px] font-normal text-gray-500">{big(ov.capKrw, "KRW")}</span></> : big(num(tv?.market_cap_basic), cur$) },
@@ -253,6 +258,8 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
                   { k: "EPS", v: money(ind?.eps ?? num(tv?.earnings_per_share_diluted_ttm), cur$), desc: "주당순이익(최근 1년)" },
                   { k: "BPS", v: money(ind?.bps, cur$), desc: "주당순자산" },
                 ]} />
+              </div>
+              <div className="space-y-3">
                 <Block title="💰 수익성" sub="회사가 얼마나 잘 버는지" loading={tvQ.isLoading} rows={[
                   { k: "매출액(1년)", v: big(num(tv?.total_revenue_ttm), cur$) },
                   { k: "매출총이익률", v: pctT(num(tv?.gross_margin_ttm), false) },
@@ -261,14 +268,14 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
                   { k: "ROE", v: ind?.roe ?? pctT(num(tv?.return_on_equity_fq), false), desc: "자기자본으로 1년에 얼마 버나" },
                   { k: "잉여현금(1년)", v: big(num(tv?.free_cash_flow_ttm), cur$), desc: "영업으로 번 현금 − 설비투자" },
                 ]} />
-              </div>
-              <div className="space-y-3">
                 <Block title="🎁 주주환원" sub="주주에게 돌려주는 정도" rows={[
                   { k: "배당수익률", v: ind?.divYield != null ? `${(ind.divYield * 100).toFixed(2)}%` : num(tv?.dividends_yield_current) != null ? `${num(tv?.dividends_yield_current)!.toFixed(2)}%` : null },
                   { k: "연 배당금", v: money(ind?.divAnnual, cur$) },
                   { k: "배당 주기", v: ind?.divFreq ? `${({ QUARTERLY: "분기", MONTHLY: "월", ANNUAL: "연", SEMI_ANNUAL: "반기" } as Record<string, string>)[ind.divFreq] ?? ind.divFreq}${ind.divMonths?.length ? ` (${ind.divMonths.join("·")}월)` : ""}` : null },
                   { k: "최근 배당락", v: ind?.exDate ?? null },
                 ]} />
+              </div>
+              <div className="space-y-3">
                 <Block title="🏦 재무건전성" sub="빚이 너무 많지 않은지" rows={[
                   { k: "부채비율", v: st?.debt != null ? `${st.debt.toFixed(1)}%` : null, desc: st?.median != null ? `업종 중간값 ${st.median.toFixed(1)}%` : undefined, cls: st?.position === "LOW" ? "text-rose-600" : st?.position === "HIGH" ? "text-blue-600" : undefined },
                   { k: "유동비율", v: st?.current != null ? `${st.current.toFixed(0)}%` : null, desc: "1년 안에 갚을 빚 대비 현금화 자산 — 100% 위면 넉넉" },
@@ -285,7 +292,7 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
                 ]} />
               </div>
               <div className="space-y-3">
-                {conQ.data ? <ConsensusBlock c={conQ.data} px={px} /> : (
+                {conQ.data ? null : (
                   <Block title="🎯 컨센서스" sub="애널리스트 의견 · TradingView" loading={tvQ.isLoading} rows={[
                     { k: "종합 의견", v: num(tv?.recommendation_mark) != null ? `${recText(num(tv?.recommendation_mark))} (${num(tv?.recommendation_mark)!.toFixed(2)})` : null, desc: "1 강력 매수 ~ 5 강력 매도" },
                     { k: "목표가 평균", v: money(num(tv?.price_target_average), cur$), desc: px && num(tv?.price_target_average) ? `지금 대비 ${pctT((num(tv?.price_target_average)! / px - 1) * 100)}` : undefined },
