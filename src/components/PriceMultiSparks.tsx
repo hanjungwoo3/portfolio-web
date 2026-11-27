@@ -4,7 +4,7 @@
 
 import { lazy, Suspense } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
-import { fetchKrSparkSeries, fetchTossKrCandles, TOSS_CANDLE_MAX, type SparkPoint } from "../lib/api";
+import { fetchKrSparkSeries, fetchYahooSparkSeries, fetchTossKrCandles, TOSS_CANDLE_MAX, type SparkPoint } from "../lib/api";
 import { maColor } from "../lib/indicators";
 import {
   MA_TREND_PERIODS, computeMaTrend, maTrendTooltip, MA_TREND_LABEL, MA_TREND_CLASS,
@@ -90,11 +90,13 @@ interface Props {
 }
 
 export function PriceMultiSparks({ ticker }: Props) {
+  // 해외(미국 티커·일본 .T) = 야후 월봉·주봉(토스 주봉은 국내만) — 해외 종목정보 창(2026-11-28)
+  const foreign = !/^[\dA-Za-z]{6}$/.test(ticker) || !/\d/.test(ticker);
   const queries = useQueries({
     queries: FETCH_SPECS.map(spec => ({
       queryKey: ["spark-ohlc-c", ticker, spec.range, spec.interval],
-      queryFn: () => fetchKrSparkSeries(ticker, spec.range, spec.interval),
-      enabled: /^[\dA-Za-z]{6}$/.test(ticker),
+      queryFn: () => (foreign ? fetchYahooSparkSeries(ticker, spec.range, spec.interval) : fetchKrSparkSeries(ticker, spec.range, spec.interval)),
+      enabled: !!ticker,
       staleTime: 30 * 60_000,
     })),
   });
@@ -104,8 +106,8 @@ export function PriceMultiSparks({ ticker }: Props) {
   // 주봉 — 토스 c-chart. PricePoint(open/high/low 옵셔널) → SparkPoint 로 좁힌다.
   const { data: weekly, isLoading: weeklyLoading } = useQuery({
     queryKey: ["toss-candles", ticker, "week"],
-    queryFn: () => fetchTossKrCandles(ticker, "week", TOSS_CANDLE_MAX),
-    enabled: /^[\dA-Za-z]{6}$/.test(ticker),
+    queryFn: async () => (foreign ? await fetchYahooSparkSeries(ticker, "10y", "1wk") : await fetchTossKrCandles(ticker, "week", TOSS_CANDLE_MAX)),
+    enabled: !!ticker,
     staleTime: WEEK_STALE_MS,
     gcTime: WEEK_STALE_MS,
     refetchOnWindowFocus: false,

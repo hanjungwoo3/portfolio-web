@@ -81,7 +81,7 @@ export function QuoteCard({ code, name, sub, px, dim, badge, reg, className = "w
         : closes.length > 1 && <Sparkline data={closes} width={300} height={80}
                                           className="absolute inset-0 w-full h-full opacity-50 pointer-events-none" />}
       <div className="relative h-full flex flex-col px-2 py-1">
-        <button type="button" onClick={open} title={isJp ? "네이버 증권에서 보기" : isUs ? "토스에서 보기" : "종목정보"}
+        <button type="button" onClick={open} title="종목정보"
                 className={`text-left truncate font-bold text-[13px] ${col} hover:underline`}>{name}</button>
         {sub && <div className="truncate text-[10.5px] text-gray-500 -mt-0.5">{sub}</div>}
         <div className="mt-auto flex items-baseline justify-between gap-1 tabular-nums">
@@ -91,8 +91,8 @@ export function QuoteCard({ code, name, sub, px, dim, badge, reg, className = "w
         <div className="flex justify-end items-center gap-0.5 -mb-0.5">
           {/* 밸류업 꼬리표(저PBR·고배당·밸류업★) — 지수 탭 카드와 같은 아래 줄 맨 앞(사용자 2026-11-02 "여기도") */}
           {(badge || !isUs || seohak) && <span className="mr-auto flex gap-0.5 min-w-0 overflow-hidden">{badge}{!isUs && <DiscTags code={code} name={name} max={2} />}{!isUs && <ValueupTags code={code} flat />}{seohak && <SeohakTag symbol={code} flat />}</span>}
-          <button type="button" onClick={open} title={isJp ? "네이버 증권에서 보기" : isUs ? "토스에서 보기" : "종목정보 — 실시간 체결·호가·거래원 / 기업가치"}
-                  className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">{isJp ? "🔗" : isUs ? "🔗" : "📊"}</button>
+          <button type="button" onClick={open} title={isJp || isUs ? "종목정보 — 요약·컨센서스·실적·차트·뉴스·대화" : "종목정보 — 실시간 체결·호가·거래원 / 기업가치"}
+                  className="px-1 rounded border border-amber-300/70 bg-amber-50 text-amber-800 text-[9.5px] font-bold leading-[15px]">📊</button>
           <button type="button" title="구글 AI에 현재상태 분석 요청"
                   onClick={() => openGoogleAi(`${STOCK_ANALYSIS_PROMPT}\n\n[기준시각] ${aiNowStamp()}\n[분석 대상] ${name}(${code})${px ? `, 현재가 ${isUs ? `$${px.price.toFixed(2)}` : `${Math.round(px.price).toLocaleString()}원`} (${pct! >= 0 ? "+" : ""}${pct!.toFixed(2)}%)` : ""}`)}
                   className="px-1 rounded border border-blue-300/70 bg-blue-50 text-blue-700 text-[9.5px] font-bold leading-[15px]">AI</button>

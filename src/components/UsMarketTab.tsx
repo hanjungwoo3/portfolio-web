@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import { openForeignStockInfo } from "../lib/foreignInfo";
 import { openGoogleAi, STOCK_ANALYSIS_PROMPT, aiNowStamp } from "../lib/googleAi";
 import { SectorTabBar, type TabExtra, sectorAvg, sectionsForTab, sectorTabsOf, useSectorTab } from "./SectorTabBar";
 import { SectorSummaryBoard } from "./SectorSummaryBoard";
@@ -13,7 +14,7 @@ import { HoverTip } from "./HoverTip";
 import { indicatorHelp, indicatorNow, indicatorBand } from "../lib/indicatorHelp";
 import { SeohakTag } from "./SeohakBox";
 import { tagsFor, useValueupFile } from "../lib/valueupTags";
-import { openStockInfo, canTickPopup } from "../lib/tickPopup";
+import { canTickPopup } from "../lib/tickPopup";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { fetchUpDown } from "../lib/upDown";
 import { useDrawerPins, toggleDrawerPin } from "../lib/drawerPins";
@@ -77,6 +78,8 @@ function fmtPrice(symbol: string, price: number): string {
   return price.toFixed(2);
 }
 
+/** 종목명 → 해외 종목정보 창으로 열 종목인가 — 미국 상장 주식·ETF(지표·지수 제외) · 도쿄 상장 */
+const isForeignStockSym = (s: string) => (/^[A-Z][A-Z.]{0,5}$/.test(s) && marketOfSymbol(s) === "US" && s !== "CNNFG") || /^\d{4}[A-Z]?\.T$/.test(s);
 function quoteUrl(symbol: string): string {
   // 야간선물 — yasun.gg
   if (symbol === "^KS200N") return "https://yasun.gg/kospi200";
@@ -674,9 +677,11 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                          // 한국 종목·ETF — 종목명 = 앱 기업정보(기업가치) 팝업. 미국 등은 토스 페이지 그대로.
                          const krNameTk = krEtfTicker(p.symbol);
                          if (krNameTk) { e.preventDefault(); onOpenValuation?.(krNameTk, p.name); return; }
+                         // 미국·일본 종목도 종목명 = 해외 종목정보 창(사용자 2026-11-28 "국장은 종목명 눌러도 되는데 미장은 야후로 가 — 동일하게")
+                         if (isForeignStockSym(p.symbol)) { e.preventDefault(); openForeignStockInfo(p.symbol, p.name); return; }
                          handleTossLinkClick(e, quoteUrl(p.symbol));
                        }}
-                       title={krEtfTicker(p.symbol) ? `${p.name} 기업정보 보기` : `${p.name} 자세히 보기`}
+                       title={krEtfTicker(p.symbol) || isForeignStockSym(p.symbol) ? `${p.name} 종목정보` : `${p.name} 자세히 보기`}
                        className={`text-sm font-bold ${nameColor} hover:underline min-w-0 truncate`}>
                       {p.name}
                     </a>
@@ -785,13 +790,7 @@ export function UsMarketTab({ onRequestSearch, onOpenValuation, navStickyTop = 0
                             🗺️ 히트맵
                           </button>
                         )}
-                        {isKrStock && (
-                          <button onClick={() => openStockInfo(krCode, p.name)}
-                                  title="종목정보 — 실시간 체결·호가·거래원 / 기업가치 (팝업)"
-                                  className={`${pill} text-amber-700 bg-amber-50 border border-amber-300/70 hover:bg-amber-100`}>
-                            📊
-                          </button>
-                        )}
+                        {/* 📊 종목정보 단추는 뺐다 — 종목명을 누르면 연다(국내·해외 같게, 사용자 2026-11-28 "아래 버튼은 삭제하자 둘다") */}
                         {/* 지표 카드(EWY·VIX·MOVE·하이일드 등) AI — 지금 값이 무슨 뜻인지(사용자 2026-11-07) */}
                         {indicatorHelp(p.symbol) && !isKrStock && !isUsStock && (
                           <button onClick={() => openGoogleAi(`${aiNowStamp()} 기준. ${p.name}(${p.symbol}) 지금 ${effPrice != null ? fmtPrice(p.symbol, effPrice) : "?"}${mainPct != null ? ` (전일 대비 ${mainPct >= 0 ? "+" : ""}${mainPct.toFixed(2)}${p.symbol === "HYSPREAD" ? "%p" : "%"})` : ""}. ① 이 수준이 역사적으로 어느 구간인지(평온·경계·위기) ② 최근 며칠 흐름이 말하는 것 ③ 한국 증시(코스피·반도체)에 주는 의미를 각각 한 줄로.`)}

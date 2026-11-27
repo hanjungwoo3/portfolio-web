@@ -2177,6 +2177,10 @@ async function fetchSparkSeriesFor(
   }
   return out;
 }
+/** 해외(미국·일본) 년·월·주봉 — 야후 심볼 그대로(MU·8035.T). 해외 종목정보 창 기간별 추이(사용자 2026-11-28 "년봉 월봉 주봉도 없고") */
+export async function fetchYahooSparkSeries(symbol: string, range: string, interval: string): Promise<SparkPoint[]> {
+  return fetchSparkSeriesFor(symbol, range, interval);
+}
 export async function fetchKrSparkSeries(
   ticker: string, range: string, interval: string,
 ): Promise<SparkPoint[]> {

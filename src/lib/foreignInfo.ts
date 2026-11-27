@@ -61,7 +61,7 @@ export async function fetchTossSegments(code: string): Promise<{ items: Segment[
 
 // TradingView 지표 — 열 이름은 scanner 그대로
 const TV_COLS = [
-  "close", "currency", "description", "logoid", "sector", "industry", "number_of_employees",
+  "close", "change", "currency", "description", "logoid", "sector", "industry", "number_of_employees",
   "market_cap_basic", "price_earnings_ttm", "price_earnings_forward_fy", "price_book_fq", "earnings_per_share_diluted_ttm",
   "dividends_yield_current", "return_on_equity_fq", "gross_margin_ttm", "operating_margin_ttm", "net_margin_ttm",
   "total_revenue_ttm", "free_cash_flow_ttm", "total_debt_fq", "beta_1_year", "float_shares_percent_current",
@@ -135,4 +135,34 @@ export function naverWorldCode(sym: string, tvSym?: string): string | null {
   const ex = tvSym?.split(":")[0];
   const sfx = ex === "NASDAQ" ? "O" : ex === "NYSE" ? "N" : ex === "AMEX" ? "A" : null;
   return sfx ? `${sym}.${sfx}` : null;
+}
+
+// ── 토스 투자지표(가치평가·수익·배당) — 토스 종목 화면 '투자지표' 칸과 같은 값(2026-11-28 토스 화면 코드에서 찾음)
+export interface TossIndicators {
+  per?: string; pbr?: string; psr?: string;          // "9.1배" 처럼 글자로 온다
+  eps?: number; bps?: number; roe?: string; currency: string;
+  divYield?: number; divAnnual?: number; divFreq?: string; divMonths?: number[]; exDate?: string;
+}
+export async function fetchTossIndicators(code: string): Promise<TossIndicators | null> {
+  const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v1/stock-detail/ui/wts/${code}/investment-indicators`);
+  if (!r.ok) return null;
+  const j = await r.json() as { result?: { indicatorSections?: { sectionName?: string; data?: Record<string, unknown> }[] } };
+  const sec = (n: string) => j.result?.indicatorSections?.find(x => x.sectionName === n)?.data ?? {};
+  const v = sec("가치평가"), e = sec("수익"), d = sec("배당");
+  const str = (x: unknown) => (typeof x === "string" && x ? x : undefined), nm = (x: unknown) => (typeof x === "number" ? x : undefined);
+  return {
+    per: str(v.displayPer), pbr: str(v.displayPbr), psr: str(v.displayPsr),
+    eps: nm(e.eps), bps: nm(e.bps), roe: str(e.roe), currency: str(d.currency) ?? "USD",
+    divYield: nm(d.dividendYieldRatio), divAnnual: nm(d.annualCash), divFreq: str(d.dividendFrequency),
+    divMonths: Array.isArray(d.months) ? (d.months as number[]) : undefined, exDate: str(d.exDate),
+  };
+}
+// ── 토스 안정성 — 부채비율·유동비율·이자보상비율(%) + 업종 중간값
+export interface TossStability { debt?: number; current?: number; interest?: number; median?: number; position?: string }
+export async function fetchTossStability(code: string): Promise<TossStability | null> {
+  const r = await fetchProxied(`https://wts-info-api.tossinvest.com/api/v2/stock-infos/stability/${code}`, { method: "POST" });
+  if (!r.ok) return null;
+  const j = await r.json() as { result?: { liabilityRatio?: number | null; currentRatio?: number | null; interestCoverageRatio?: number | null; median?: number | null; position?: string } };
+  const x = j.result; if (!x) return null;
+  return { debt: x.liabilityRatio ?? undefined, current: x.currentRatio ?? undefined, interest: x.interestCoverageRatio ?? undefined, median: x.median ?? undefined, position: x.position };
 }
