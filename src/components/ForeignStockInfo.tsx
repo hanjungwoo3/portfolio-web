@@ -155,6 +155,34 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
     </div>
   ) : null;
 
+  const overviewBox = (ov || tv) ? (
+              <section className={`p-3 bg-slate-50 border border-slate-200 rounded ${on ? "h-full xl:mt-[30px] xl:h-[calc(100%-30px-1.6rem)] overflow-y-auto" : "mb-3"}`}>
+                <header className="flex items-baseline gap-2 mb-1.5">
+                  <h3 className="text-sm font-bold text-gray-700">🏢 기업개요</h3>
+                  <span className="text-[10px] text-gray-400">{ov ? (ov.source?.startsWith("출처") ? ov.source : `출처: ${ov.source ?? "토스"}`) : "출처: TradingView"}</span>
+                </header>
+                <ul className="space-y-1 text-[13px] text-gray-700 leading-relaxed">
+                  <li className="flex gap-1.5"><span className="text-slate-400 shrink-0">·</span><span>{ov?.englishName ?? String(tv?.description ?? "")}{ov?.industry ? ` — ${ov.industry}` : tv?.industry ? ` — ${String(tv.sector)} / ${String(tv.industry)}` : ""}</span></li>
+                  {(ov?.listDate || num(tv?.number_of_employees)) ? <li className="flex gap-1.5"><span className="text-slate-400 shrink-0">·</span><span>{ov?.listDate ? `상장 ${ov.listDate}` : ""}{ov?.listDate && num(tv?.number_of_employees) ? " · " : ""}{num(tv?.number_of_employees) ? `직원 ${num(tv?.number_of_employees)!.toLocaleString()}명` : ""}</span></li> : null}
+                  {ov?.tics.length ? <li className="flex gap-1.5 flex-wrap"><span className="text-slate-400 shrink-0">·</span>{ov.tics.map(t => <span key={t} className="px-1.5 py-0.5 rounded-full bg-white border border-slate-200 text-[11px] text-slate-600">{t}</span>)}</li> : null}
+                </ul>
+                {segQ.data?.items.some(x => x.ratio >= 0.05) ? (
+                  <div className="mt-2">
+                    <div className="text-[12px] font-bold text-gray-600 mb-1">사업부별 매출 비중 <span className="font-normal text-gray-400">({segQ.data.endDate} 회계연도)</span></div>
+                    <div className="space-y-0.5">
+                      {segQ.data.items.filter(x => x.ratio >= 0.05).map(x => (
+                        <div key={x.name} className="flex items-center gap-2 text-[11.5px]">
+                          <span className="w-[45%] sm:w-[200px] truncate text-gray-700" title={x.name}>{x.name}</span>
+                          <div className="flex-1 h-2 rounded bg-white overflow-hidden"><div className="h-full bg-indigo-300" style={{ width: `${Math.min(100, x.ratio)}%` }} /></div>
+                          <span className="w-12 text-right tabular-nums text-gray-600">{x.ratio.toFixed(1)}%</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </section>
+  ) : null;
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-0 sm:p-4" onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
       <div className="bg-white sm:rounded-lg shadow-xl w-full h-full sm:w-[98vw] sm:h-[96vh] flex flex-col overflow-hidden">
@@ -180,7 +208,10 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
           {on && (
             <section data-sec="live" className="mb-6 space-y-4">
               {/* ⚡ 실시간 — 국내처럼 체결 + 새 소식 + 대화를 한자리에 */}
-              <UsStockLive ticker={sym} toss={toss} name={name} desc={ov?.industry} />
+              <div className="grid gap-3 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] items-stretch">   {/* 그래프 2 : 기업개요 1, 높이 맞춤(사용자 2026-11-28 "왼쪽 그래프를 좀더 줄이고 높이 맞춰야") */}
+                <div className="min-w-0"><UsStockLive ticker={sym} toss={toss} name={name} desc={ov?.industry} /></div>
+                {overviewBox}
+              </div>
               {/* 뉴스 · 공시 · 토스 · 네이버 — 국내 실시간 칸과 같은 한 줄 4칸(사용자 2026-11-28 "국장은 4개가 한줄이야") */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-1.5 auto-rows-[400px]">
                 <FeedShell title="📰 뉴스" sub="토스 · 한국어 번역">
@@ -207,34 +238,8 @@ function ForeignStockInfo({ req, onClose }: { req: ForeignInfoReq; onClose: () =
 
           <section data-sec="summary" className="pt-1 mb-6">
             <h2 className="text-[13px] font-bold text-gray-500 mb-2 border-b pb-1">요약</h2>
-            {/* 🏢 기업개요 — 국내 창과 같은 자리 */}
-            {(ov || tv) && (
-              <section className="mb-3 p-3 bg-slate-50 border border-slate-200 rounded">
-                <header className="flex items-baseline gap-2 mb-1.5">
-                  <h3 className="text-sm font-bold text-gray-700">🏢 기업개요</h3>
-                  <span className="text-[10px] text-gray-400">{ov ? (ov.source?.startsWith("출처") ? ov.source : `출처: ${ov.source ?? "토스"}`) : "출처: TradingView"}</span>
-                </header>
-                <ul className="space-y-1 text-[13px] text-gray-700 leading-relaxed">
-                  <li className="flex gap-1.5"><span className="text-slate-400 shrink-0">·</span><span>{ov?.englishName ?? String(tv?.description ?? "")}{ov?.industry ? ` — ${ov.industry}` : tv?.industry ? ` — ${String(tv.sector)} / ${String(tv.industry)}` : ""}</span></li>
-                  {(ov?.listDate || num(tv?.number_of_employees)) ? <li className="flex gap-1.5"><span className="text-slate-400 shrink-0">·</span><span>{ov?.listDate ? `상장 ${ov.listDate}` : ""}{ov?.listDate && num(tv?.number_of_employees) ? " · " : ""}{num(tv?.number_of_employees) ? `직원 ${num(tv?.number_of_employees)!.toLocaleString()}명` : ""}</span></li> : null}
-                  {ov?.tics.length ? <li className="flex gap-1.5 flex-wrap"><span className="text-slate-400 shrink-0">·</span>{ov.tics.map(t => <span key={t} className="px-1.5 py-0.5 rounded-full bg-white border border-slate-200 text-[11px] text-slate-600">{t}</span>)}</li> : null}
-                </ul>
-                {segQ.data?.items.some(x => x.ratio >= 0.05) ? (
-                  <div className="mt-2">
-                    <div className="text-[12px] font-bold text-gray-600 mb-1">사업부별 매출 비중 <span className="font-normal text-gray-400">({segQ.data.endDate} 회계연도)</span></div>
-                    <div className="space-y-0.5">
-                      {segQ.data.items.filter(x => x.ratio >= 0.05).map(x => (
-                        <div key={x.name} className="flex items-center gap-2 text-[11.5px]">
-                          <span className="w-[45%] sm:w-[280px] truncate text-gray-700" title={x.name}>{x.name}</span>
-                          <div className="flex-1 h-2 rounded bg-white overflow-hidden"><div className="h-full bg-indigo-300" style={{ width: `${Math.min(100, x.ratio)}%` }} /></div>
-                          <span className="w-12 text-right tabular-nums text-gray-600">{x.ratio.toFixed(1)}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
-              </section>
-            )}
+            {/* 🏢 기업개요 — 미국은 위 실시간 그래프 오른쪽으로 올렸다(사용자 2026-11-28 "그래프 오른쪽에 넣어도"), 일본은 여기 */}
+            {!on && overviewBox}
             {/* 3 컬럼 — 국내 창과 같은 묶음(가치평가·수익성 | 주주환원·재무건전성·가격 통계 | 컨센서스) */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
               <div className="space-y-3">
